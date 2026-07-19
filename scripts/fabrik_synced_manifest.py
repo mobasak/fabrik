@@ -112,10 +112,6 @@ REFERENCE_DOCS = [
         "docs/reference/technology-stack-decision-guide.md",
     ),
     ("PORTS.md", "PORTS.md"),
-    (
-        "docs/reference/ai_agent_prompt_directives.md",
-        "docs/reference/ai_agent_prompt_directives.md",
-    ),
     ("docs/operations/fabrik-lifecycle.md", "docs/operations/fabrik-lifecycle.md"),
     # The /opt project catalog (what exists, so a project can wire to a sibling instead of
     # rebuilding). Renamed 2026-07-11 from BUSINESS_MODEL.md — that path is the per-project

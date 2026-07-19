@@ -45,13 +45,13 @@ Each transition invokes a specific module; each module only talks to one externa
 
 Pydantic models with `model_config = {"extra": "forbid"}`.
 
-Key classes: `Spec`, `Shape`, `Source`, `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig`, `Depends`, `Infrastructure`, `WordPressConfig`.
+Key classes: `Spec`, `Shape`, `Source`, `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `Depends`, `Infrastructure`, `WordPressConfig`, `DNSConfig`, `WatchdogConfig`, `CompanionService`.
 
 **The `Shape` model drives everything downstream.** Shape flags (`is_public`, `is_admin_dashboard`, `has_bearer_api`, `has_persistent_data`, `needs_database`, `has_search_feature`) decide which registrars run.
 
 ### 2. Template layer — `src/fabrik/template_renderer.py` + `templates/`
 
-Jinja2-rendered `compose.yaml` + `Dockerfile` + auxiliary files per template type. **12 deploy templates** (11 also exposed as `fabrik scaffold --type` options; `next-tailwind` is deploy-only): python-api, node-api, saas-skeleton, static-site, wordpress, docusaurus, file-api, file-worker, chrome-extension, desktop-app, mobile-app, next-tailwind.
+Jinja2-rendered `compose.yaml` + `Dockerfile` + auxiliary files per template type. **12 deploy templates**: chrome-extension, desktop-app, docusaurus, file-api, file-worker, mobile-app, modal, node-api, python-api, python-api-gpu, saas-skeleton, static-site. (`wordpress` is a recognised deploy/shape type with no template — it redirects to the legacy `/opt/wpf` deployer.)
 
 Each template has `defaults.yaml` declaring its default shape flags.
 
@@ -75,7 +75,7 @@ Each template has `defaults.yaml` declaring its default shape flags.
 | `coolify_alias.py` | Legacy — stable Docker network alias management |
 | `gpu_*.py`, `vultr_*.py`, `sysadmin_tokens.py`, `destroyer.py` | GPU rental, Vultr provisioning/drill, sysadmin token mgmt, registrar teardown |
 
-### 4. Drivers — `src/fabrik/drivers/` (22 modules)
+### 4. Drivers — `src/fabrik/drivers/` (27 modules, incl. the GPU/provisioning set: `modal_provider`, `runpod`, `vast_provider`, `vultr`, `watchdog`)
 
 Every external call goes through a driver. No ad-hoc HTTP or SSH allowed in CLI/orchestrator code.
 
@@ -91,9 +91,9 @@ Every external call goes through a driver. No ad-hoc HTTP or SSH allowed in CLI/
 
 See `docs/reference/drivers.md` for shape gates and usage.
 
-### 5. CLI — `src/fabrik/cli.py` (2048 lines)
+### 5. CLI — `src/fabrik/cli.py` (~3,900 lines)
 
-Click-based. 22 top-level commands. See `docs/reference/fabrik-cli-reference.md`.
+Click-based. ~30 top-level commands/groups. See `docs/reference/fabrik-cli-reference.md`.
 
 ### 6. Supporting modules
 
@@ -179,9 +179,9 @@ backup: {enabled: true, frequency: daily, retention: 30}
 
 ```text
 src/fabrik/
-├── cli.py                     # Click CLI — 22 commands (plan, apply, destroy, scaffold, verify, audit, etc.)
+├── cli.py                     # Click CLI — ~30 commands (plan, apply, destroy, scaffold, verify, audit, gpu, vultr, etc.)
 ├── main.py                    # Entry point (fabrik.cli:main)
-├── health_app.py              # FastAPI health endpoint (checks Coolify + DNS manager)
+├── health_app.py              # FastAPI health endpoint (legacy — still probes the retired Coolify path)
 ├── spec_loader.py             # Pydantic Spec + Shape models
 ├── spec_generator.py          # Spec emission from scaffold context
 ├── template_renderer.py       # Jinja2 compose/Dockerfile rendering + ComposeLinter hook
@@ -216,7 +216,7 @@ src/fabrik/
 │   ├── states.py              #   State enum + transition guard
 │   ├── coolify_alias.py       #   Stable Docker network alias management
 │   └── exceptions.py          #   Typed exceptions
-├── drivers/                   # 22+ modules — every external call goes through a driver
+├── drivers/                   # 27 modules — every external call goes through a driver (+ modal_provider/runpod/vast_provider/vultr/watchdog, not listed below)
 │   ├── coolify.py             #   CoolifyClient — API wrapper
 │   ├── postgres.py            #   CREATE DATABASE via SSH
 │   ├── redis.py               #   Cache index assignment via assignments.json
@@ -261,12 +261,12 @@ src/fabrik/
 | `.droid/docs_log/` + `docs_queue/` | Docs enforcer state (generated/pending) | Yes | No |
 | `.droid/dev_tracker.db` | SQLite — gate results, review costs, workflow events | Yes | No |
 | `.droid/kilo_usage.jsonl` | Token counts + cost per Kilo review invocation | Yes | No |
-| `.droid/kilo_model_sync.log` | Daily cron model availability sync (active) | Yes | No |
-| `.kilo/` | Kilo Code VSCode/Windsurf extension runtime — `@kilocode/plugin` + `node_modules` (58MB) + implementation plans in `plans/` | Yes | No (gitignored) |
+| `.droid/kilo_model_sync.log` | Daily cron model availability sync log (Kilo CLI retired — feeds the model catalog only) | Yes | No |
+| `.kilo/` | Legacy Kilo Code extension runtime (Kilo CLI retired; LLM access = Claude Code OAuth + OpenRouter) | Yes | No (gitignored) |
 | `.vscode/` | VS Code settings — disables `.env` loading in Python terminal (2 settings) | Yes | Yes |
-| `.windsurf/rules/` | 30 Cascade AI behavior rule packs (across core/, saas/, mobile-app/, chrome-ext/ subdirectories) — the convention enforcement rules referenced in CLAUDE.md | Yes | Yes |
-| `.windsurf/workflows/` | 11 Cascade workflow definitions (auto-review, bug-fix, deploy, kilo, new-feature, etc.) | Yes | Yes |
-| `.windsurf/hooks.json` | Post-write hooks — runs `validate_conventions` + `check_secrets` after every Cascade code write | Yes | Yes |
+| `.windsurf/rules/` | 55 AI behavior rule packs (ai/, chrome-ext/, core/, desktop-app/, mobile-app/, saas/) — the convention enforcement rules referenced in CLAUDE.md; glob-activated for any agent | Yes | Yes |
+| `.windsurf/workflows/` | 12 workflow definitions (auto-review, bug-fix, deploy, new-feature, etc.) | Yes | Yes |
+| `.windsurf/hooks.json` | Post-write hooks — runs `validate_conventions` + `check_secrets` after code writes | Yes | Yes |
 | `.mypy_cache/` | mypy type-check cache (142MB) — regenerated by Final Gate Phase 2 | No (cache) | No |
 | `.pytest_cache/` | pytest cache (188KB) | No (cache) | No |
 | `.ruff_cache/` | ruff linter cache (412KB) | No (cache) | No |
@@ -282,16 +282,16 @@ src/fabrik/
 | `configs/` | **Repo-local source of VPS monitoring configs.** Prometheus scrape config + 9 alert rules, Alertmanager routing, 5 Grafana dashboards + provisioning, Loki + Promtail configs, monitoring-compose.yaml, n8n workflows (backup notification, uptime alert). Bundled by `portability.py` in `fabrik export`. Deployed to `/opt/monitoring/configs/` on VPS | Active |
 | `data/` | `projects.yaml` (project registry) + `provision-jobs/` (SiteProvisioner saga state) | Active |
 | `docs/` | `DEPLOYMENT_ARCHITECTURE.md` (canonical deploy reference), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file + excel-file-generation.md, multilingual-plan.md), `traycer/` (workflow docs + agent test reports), `development/plans/` (archived + active plans), `guides/` (empty — scaffold creates for projects) | Active |
-| `scripts/` | `final_gate.py`, `enforcement/` (19 checks), `kilo_code_review.py`, `kilo_consult.py`, `kilo_model_sync.py`, `dev_tracker.py`, `docs_updater.py`, Traycer agent scripts, `kilo-benchmarks/` (model evaluation) | Active |
-| `specs/services/` | Per-app deployment specs (~52 YAML files, mix of real services + scaffold test specs) | Active |
+| `scripts/` | `final_gate.py`, `enforcement/` (48 checks), `dev_tracker.py`, `docs_updater.py`, Traycer agent scripts, `kilo-benchmarks/` (model-catalog pipeline; the `kilo_*` consult/review scripts are dormant — Kilo CLI retired) | Active |
+| `specs/services/` | Per-app deployment specs (~71 YAML files, mix of real services + scaffold test specs) | Active |
 | `specs/sites/` | WordPress site specs (ocoron.com) — consumed by wpf, not fabrik | Active (wpf) |
-| `templates/` | 12 deploy templates (11 scaffold-exposed + next-tailwind deploy-only). Each has `defaults.yaml` with default shape flags | Active |
+| `templates/` | 12 deploy templates (see § Template layer for the list; no wordpress/next-tailwind template). Each has `defaults.yaml` with default shape flags | Active |
 | `templates/i18n-kit/` | Multi-platform i18n template (20 files). Vanilla DOM loader, React/Next.js provider, Chrome/RN/Docusaurus adapters, 3-level Kilo validator with step_finish + _context.json, multilingual plan doc. Auto-provisioned by `_provision_i18n()` in scaffold.py for 6 GUI types | Active |
 | `examples/` | **Removed** (May 2026). Had one Traycer agent review example script — pattern already documented in `docs/traycer/` and the actual script at `scripts/traycer_agent_review.py` | Removed |
 | `scripts/sysadmin/` | VPS AI sysadmin (1136 lines, 7 files): `bot.py` (Telegram→Claude Opus, session management, action log, health endpoint), `proactive-check.sh` (15-min cron, 11 checks + cert expiry), `morning-report.sh` (daily briefing), `weekly-security.sh` (Monday patrol vs audit checklist), `weekly-maintenance.sh` (Sunday cleanup report), `monthly-backup-verify.sh` (backup audit), `system-prompt.txt` (232-line brain: APIs, playbooks, criticality tiers, communication protocol, shift notes). Systemd service on VPS. Cron: `/etc/cron.d/vps-sysadmin`. Reference: `docs/infrastructure/vps-ai-sysadmin.md` | Active (VPS) |
 | `scripts/audit/` | 7 VPS diagnostic scripts for systematic health audits: full-system, container-health, security, performance, observability, backup, hardening-verify. Run with sudo on VPS. Paired with `docs/infrastructure/audit-prompts/` (9 analysis checklists). Used by sysadmin bot and manual audits. | Active (VPS + WSL) |
-| `ops/` | VPS operational files — 3 systemd services deployed to VPS: `vps-sysadmin-bot.service` (Telegram AI sysadmin bot), `authelia-config-sync/` (watches `/opt/authelia/config/`, syncs to Docker volume + restarts Authelia on save — solves working-copy/volume drift), `coolify-alias-watcher/` (event-driven `docker events` listener that re-applies friendly DNS aliases dropped by Coolify on every redeploy — 4 aliases: meilisearch, gotenberg, browserless, glitchtip-web). All 3 active + enabled on VPS. | Active |
-| `tests/` | Orchestrator tests (144), driver tests (331), scaffold tests, enforcement tests | Active |
+| `ops/` | VPS operational files — 2 systemd units deployed to VPS: `vps-sysadmin-bot.service` (Telegram AI sysadmin bot) and `authelia-config-sync/` (watches `/opt/authelia/config/`, syncs to Docker volume + restarts Authelia on save — solves working-copy/volume drift). Both active + enabled. | Active |
+| `tests/` | Orchestrator tests (~411), driver tests (~315), scaffold tests, enforcement tests | Active |
 
 ### WordPress — extracted to /opt/wpf/
 
@@ -314,6 +314,14 @@ The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset 
 Full inventory in `docs/infrastructure/vps-complete-inventory.md` and `AGENTS.md`.
 
 ---
+
+## Fleet topology
+
+3 permanent hosts: **vps1** (LA, hub) + **vps2/vps3** (Coventry, spokes) on a WireGuard mesh
+`10.99.0.0/24` (UDP 51820). Shared infra (postgres-main, redis-main, glitchtip, authelia, loki,
+meilisearch) is **hub-only**; spokes reach it at `10.99.0.1:<port>`. Every spec declares
+`target_vps:` (default vps1); each host runs its own Traefik + `fabrik` Docker network. The
+security model below applies per-host.
 
 ## Security model (4-layer)
 

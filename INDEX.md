@@ -317,8 +317,6 @@ docs/
 │   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
 │   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
-│   ├── ai_agent_prompt_directives.html
-│   ├── ai_agent_prompt_directives.md # AI agent prompt directives
 │   ├── architecture.md             # System architecture overview
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── exampleconsultancysitemap.md
@@ -434,7 +432,6 @@ docs/
     ├── HEALTH_SUMMARY_WORKFLOW.md
     ├── KILO_AGENT_MANAGEMENT.md    # Kilo agent management
     ├── KILO_CLI_OUTPUT_WORKFLOW.md
-    ├── KILO_CONSULT_WORKFLOW.md
     ├── KILO_DISPATCH_WORKFLOW.md
     ├── KILO_REVIEW_WORKFLOW.md     # Kilo review workflow
     ├── SCAFFOLD_STRUCTURE.md

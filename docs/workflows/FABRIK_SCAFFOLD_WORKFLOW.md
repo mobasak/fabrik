@@ -958,7 +958,7 @@ services:
 
 ## Documentation Templates
 
-Available in `@/opt/fabrik/templates/scaffold/docs/` (14 files + a `workflows/` subdir, verified 2026-04-29):
+Available in `@/opt/fabrik/templates/scaffold/docs/`:
 
 | Template | Purpose |
 |----------|---------|
@@ -976,7 +976,6 @@ Available in `@/opt/fabrik/templates/scaffold/docs/` (14 files + a `workflows/` 
 | `STRATEGIC_BACKLOG_TEMPLATE.md` | Strategic backlog |
 | `DOCS_INDEX_TEMPLATE.md` | Documentation index |
 | `PROJECT_INDEX_TEMPLATE.md` | Project file index with auto-generated structure map |
-| `workflows/KILO_CONSULT_WORKFLOW.md` | Kilo consult workflow (only workflow currently shipped to projects) |
 
 ---
 

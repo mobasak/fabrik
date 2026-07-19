@@ -1,6 +1,6 @@
 # Convergence Prompts (direct-agent workflow)
 
-When you drive a coding agent **directly** (Claude Code, Windsurf Cascade, Kilo CLI)
+When you drive a coding agent **directly** (Claude Code)
 instead of planning through Traycer, paste the matching prompt below. Each forces the
 agent to **iterate to a fixed point** — not stop after one attempt — and emits the exact
 artifact its gate inspects, so the claim cannot outrun the proof.
@@ -14,8 +14,8 @@ artifact its gate inspects, so the claim cannot outrun the proof.
   there is nothing to lint or test yet.
 - **CODE REVIEW** — code now exists, so gate it: `final_gate.py` **tier 2** (`--json`) +
   **tier 3** (`--systemic --json`), both `"status":"success"`.
-- **DOCS** — `docs_updater.py --check` ("Documentation Drift") + `check_docs.py`
-  ("Documentation Completeness"), which live in `final_gate.py` **tier 3** (`--systemic`).
+- **DOCS** — `docs_updater.py --check` ("Documentation Drift"), which lives in
+  `final_gate.py` **tier 3** (`--systemic`).
 
 > **Gate tiers (for CODE/DOCS — they do NOT nest):**
 >
@@ -56,9 +56,9 @@ Then loop:
      deviation, or unhandled edge case.
   4. If step 3 found ANYTHING, fix it and GO BACK TO 1.
 Converged = a full pass that surfaces ZERO new gaps AND, with the plan staged,
-`python scripts/enforcement/check_convergence.py` passes (the plan carries its evidence).
-Do NOT run final_gate.py here — there is no code to gate yet. Only THEN set
-"**Status:** CONVERGED". Obey .windsurf/rules.
+`python scripts/final_gate.py --check` passes (it runs `check_convergence.py`, which
+requires the plan to carry its evidence; `--check` is read-only, safe pre-code). Only
+THEN set "**Status:** CONVERGED". Obey .windsurf/rules.
 ```
 
 ## CODE REVIEW CONVERGENCE

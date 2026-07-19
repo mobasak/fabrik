@@ -731,7 +731,6 @@ def generate_docs_structure_tree() -> str:
         "property-testing.md": "Property-based testing with Hypothesis",
         "verification-framework.md": "3-lane verification system",
         "health-monitoring.md": "Health monitoring patterns",
-        "ai_agent_prompt_directives.md": "AI agent prompt directives",
         "wordpress.md": "WordPress module overview",
         "deployment-workflow.md": "WordPress deployment workflow",
         "fabrik-cli-reference.md": "Fabrik CLI command reference",

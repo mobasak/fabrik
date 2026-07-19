@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference triage (first 5): archive the mis-catalogued directives doc; converge the keepers (2026-07-19)
+
+**Archived + de-synced:** `ai_agent_prompt_directives.md` — a WPF-era brand-identity prompt library
+(color-palette/typography JSON pipeline with zero repo footprint) that was fleet-synced to all
+projects and mis-catalogued as an agent-quality reference; removed from `fabrik_synced_manifest.py` +
+`docs_updater.py` + all citer rows (agents-fabrik, ettw-05 now points only at the canonical
+`MD/ai-prompt-templates.md`, SYNC_ENFORCEMENT, SCAFFOLD_STRUCTURE, INDEX incl. a phantom `.html`
+row). Also archived the retired-Kilo relic `docs/workflows/KILO_CONSULT_WORKFLOW.md` (+ its stale
+"shipped to projects" row in FABRIK_SCAFFOLD_WORKFLOW). **Converged in place:**
+`architecture.md` (VPS-sysadmin-synced) — 12 stale counts/inventories corrected against live probes
+(27 drivers, ~30 CLI commands/3855 lines, 55 rule packs, 48 enforcement checks, 71 specs, 2 ops
+units, tests 411/315, real 12-template list — no wordpress/next-tailwind, kilo dirs marked legacy,
+spec key-classes fixed) + a new § Fleet topology (the doc read single-host; DOCKER-USER
+80/443/6001/6002 verified live); `convergence-prompts.md` (fleet-synced) — Cascade/Kilo dropped,
+dead `check_docs.py` removed (also from CLAUDE.md:62), PLAN template aligned to CLAUDE.md
+(`final_gate.py --check` runs check_convergence). **Verified current, kept as-is:** `ai.md`
+(UsageTracker/CLI verified at path:line) and `chrome-ext-gui-research.md` (pinned versions match
+scaffold.py byte-for-byte). 3-pass loop (2 Opus + 2 Sonnet verifiers), final sweep clean.
+
 ### Changed — docs/workstation/wsl-shell-mcp-setup.md re-grounded to the live box (2026-07-19)
 
 The folder's one file (the operator's Claude Desktop wsl-shell MCP runbook — kept: sole record of

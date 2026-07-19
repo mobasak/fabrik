@@ -489,7 +489,6 @@ Our agents plan against these rules but do NOT inline them into tickets — the 
 | AI Prompt Templates | `docs/reference/MD/ai-prompt-templates.md` | Designing system prompts, skills, AGENTS.md, review templates |
 | RAG Chunking Rules | `.windsurf/rules/core/66-rag-chunking.md` | Planning search/RAG features — heading-based splitting, chunk envelopes |
 | Markdown AI Rules | `docs/reference/MD/markdown-cheatsheet.md` | AI-friendly markdown writing conventions |
-| AI Agent Directives | `docs/reference/ai_agent_prompt_directives.md` | Copy-paste phrases for steering agent quality |
 | GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
 | epic-to-ticket-workflow | `docs/orchestrator/epic-to-ticket-workflow/` (`-fabrik` files; `docs/traycer/` twins are ARCHIVED reference) | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |

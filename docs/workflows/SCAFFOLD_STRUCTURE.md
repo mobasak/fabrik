@@ -139,7 +139,6 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `FEATURES_TEMPLATE.md` | `docs/FEATURES.md` | Features overview |
 | `STRATEGIC_BACKLOG_TEMPLATE.md` | `docs/STRATEGIC_BACKLOG.md` | Strategic backlog for paused work |
 | `LESSONS_LEARNT_TEMPLATE.md` | `docs/lessons-learnt.md` | Lessons learned documentation |
-| `workflows/KILO_CONSULT_WORKFLOW.md` | `docs/workflows/kilo-consult-workflow.md` | Kilo consultation workflow reference |
 
 ### Inline Generated (No Templates)
 
