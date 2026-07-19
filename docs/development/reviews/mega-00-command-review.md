@@ -26,6 +26,8 @@ here FIRST, then implemented into the command file.** One row per input; status 
 
 | 15 | 2026-07-19 | Is `technology-stack-decision-guide.md` 100% aligned with `all-envs.env`? List all contradictions | **No — 8 hard contradictions** (Kilo/OpenAI/Anthropic-direct/Ollama LLM ladder; role_mapper selection; Supabase as DB option; Next.js for marketing sites vs Astro factory; Shopify e-commerce vs Vendure factory; managed-auth default vs Pattern A; "avoid self-host ML" vs python-api-gpu; "no Redis by default" vs 12F-VI mandate) + the guide knows ~8 of the registry's 91 providers + stale Next.js 14 pin. Catalog's own `kilo` row also still `active` | ⏳ operator call: rewrite guide + fix catalog kilo row |
 
+| 16 | 2026-07-19 | **Sequencing directive:** goal = orchestrator command files fully up to date; FIRST make all docs current and reflecting reality. Housekeeping so far: `docs/development/audits/` archived (one-shot plan-3 output, no regenerator); `plans/youtube/` removed + `backlog/` archived + 3 verified-complete plans archived; `docs/development/reviews/` triaged (07-04 review artifact archived; this ledger stays active) | Docs-first sweep in progress; each move gate-verified + pushed | ✅ `0f704d6b` · `300da38b` · this commit |
+
 ## Prior inputs that shaped both `00`s (context)
 
 - Decisions must never live only in chat → `00`s are chat-only; persistence lives in `01-decisions-lock`

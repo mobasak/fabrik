@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Archive the completed 2026-07-04 review artifact (2026-07-19)
+
+`docs/development/reviews/2026-07-04-plan-1-saas-fastapi-user-auth-flip-review.md` →
+`docs/archive/reviews/` — code-review evidence for a plan already in `plans/archived/`; nothing
+references it and `check_convergence.py` only scans changed files, so at-rest location is free.
+The active `mega-00-command-review.md` ledger stays (ongoing operator command review) and was
+brought current (row 16). No script or cron generates review files — `check_doc_sprawl.py` /
+`check_convergence.py` are validators of the path, not producers.
+
 ### Changed — Plans housekeeping: remove youtube pre-plan, archive backlog + 3 completed plans (2026-07-19)
 
 Removed `docs/development/plans/youtube/` (a 2026-05-17 pre-planning vision doc, superseded).
