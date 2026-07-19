@@ -1,0 +1,16 @@
+{
+  "plan": "docs/development/plans/2026-07-19-plan-1-coding-benchmark-livecodebench-direct.md",
+  "owned_paths": [
+    "scripts/kilo-benchmarks/microbench_coding_direct.py",
+    "scripts/kilo-benchmarks/build_task_baselines.py",
+    "scripts/kilo-benchmarks/rank_coding_subagents.py",
+    "scripts/kilo-benchmarks/tests/test_lcb_smoke.py",
+    "scripts/kilo-benchmarks/tests/test_microbench_coding_direct.py",
+    "scripts/kilo-benchmarks/tests/test_coding_baselines.py",
+    "scripts/kilo-benchmarks/.gitignore",
+    "docs/reference/kilo/CODING_SUBAGENT_SELECTION.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-19",
+  "status": "active"
+}

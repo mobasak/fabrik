@@ -173,3 +173,7 @@ external-services-dashboard.html
 # analytics store is backed up in backups/ and rebuilt by daily_refresh.sh.
 scripts/kilo-benchmarks/translation_bench/cache/
 scripts/kilo-benchmarks/models_browser.html
+# LiveCodeBench grading tool — vendored external (git-clone + sibling venv, grading-only deps),
+# never source (coding-benchmark plan 2026-07-19). Rebuilt by the Phase-A provisioning step.
+scripts/kilo-benchmarks/.lcb-venv/
+scripts/kilo-benchmarks/.lcb-src/

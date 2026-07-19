@@ -1,6 +1,6 @@
 # Coding-performance benchmark (LiveCodeBench, direct dispatch) — build + wire into coding-subagent selection
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Date: 2026-07-19
 Spec: docs/superpowers/specs/2026-07-19-coding-benchmark-livecodebench-direct-design.md (CONVERGED)
 Owner-agent: primary
@@ -96,7 +96,7 @@ benchmark schema → **not** a fabrik-lib candidate (spec:82). No new fabrik-lib
 
 ---
 
-## Phase A — Vendor + provision LiveCodeBench `lcb_runner` (the env-preflight that otherwise stalls execution)
+## Phase A — ✅ EXECUTED 2026-07-19 — Vendor + provision LiveCodeBench `lcb_runner` (the env-preflight that otherwise stalls execution)
 
 **Goal:** `lcb_runner`'s `custom_evaluator` is importable + runnable in an isolated sibling venv, proven by a
 probe — so no later phase discovers a missing toolchain at runtime.
@@ -145,7 +145,7 @@ whole point of doing this phase first.**
 
 ---
 
-## Phase B — `microbench_coding_direct.py`: corpus → direct generate → grade → `pass@1`
+## Phase B — ✅ EXECUTED 2026-07-19 — `microbench_coding_direct.py`: corpus → direct generate → grade → `pass@1`
 
 **Goal:** the benchmark CLI produces one `pass@1` per model over a fixed LiveCodeBench window via
 direct `ai-consult` dispatch with real billed cost, mockably testable at $0.
