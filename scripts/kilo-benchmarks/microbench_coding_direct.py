@@ -93,6 +93,9 @@ _LCB_TIMEOUT_S = 900  # GRADER subprocess wall-clock (a hung sandbox = wedged ru
 # legitimately take up to an hour, NOT a hang. A separate, generous cap (once cached, load is instant).
 _CORPUS_TIMEOUT_S = 3600
 _BALANCE_SAFETY_FRAC = 0.90  # never let a run's cost-cap exceed 90% of the live OpenRouter balance
+# F11 crash-safety: --all processes models in batches, persisting after EACH — so an interrupted run
+# loses at most one batch's spend (never the whole run), and a re-run RESUMES (skips already-measured).
+BATCH_SIZE = 8
 
 _TASK_SUFFIX = (
     "\n\nWrite a complete, correct Python 3 solution. Read from stdin and write to stdout unless a "
@@ -433,6 +436,27 @@ def _openrouter_balance() -> float | None:
         return None
 
 
+def _measured_models(window: str, db_path: Path = DB_PATH) -> set[str]:
+    """Models already measured for THIS window today (for --all RESUME — skip re-generating/paying)."""
+    import sqlite3
+
+    conn = sqlite3.connect(db_path)
+    try:
+        if not conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='model_coding_metrics'"
+        ).fetchone():
+            return set()
+        today = date.today().isoformat()
+        return {
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT model_id FROM model_coding_metrics WHERE window=? AND built_at=?",
+                (window, today),
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+
 def _resolve_models(explicit: list[str] | None, db_path: Path = DB_PATH) -> list[str]:
     """Default = the SAME models the review table measured (apples-to-apples, by construction)."""
     if explicit:
@@ -503,7 +527,8 @@ def main(argv: list[str] | None = None) -> int:
                         "throughput is concurrency-bound — the full 57×50 run is ~75min at 32, ~6h at 6. "
                         "I/O-bound, so raise it freely; lower only if you hit provider rate limits.")
     p.add_argument("--probe", action="store_true", help="1-2 problems x models -> real-token cost estimate, no persist")
-    p.add_argument("--all", action="store_true", help="run + persist metrics + task_baseline")
+    p.add_argument("--all", action="store_true", help="run + persist metrics + task_baseline (batched, resumable)")
+    p.add_argument("--fresh", action="store_true", help="with --all: re-measure even models already done today (default: resume/skip them)")
     p.add_argument("--report", action="store_true", help="print the latest stored table + exit")
     args = p.parse_args(argv)
 
@@ -540,25 +565,52 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("[coding-bench] ⚠️  could not read OpenRouter balance — proceeding on the cost-cap alone", file=sys.stderr)
 
-    gens = generate(models, corpus, cost_cap=eff_cap, max_tokens=args.max_tokens,
-                    max_concurrency=args.concurrency)
-    scores = grade(gens, corpus)
-
-    if args.probe:
-        total_cost = sum(s.cost_usd for s in scores.values())
-        per_model = total_cost / max(len(models), 1)
-        full = int(args.limit if args.limit > 0 else 50)
-        print(f"\n[probe] {len(corpus)} problems x {len(models)} models = ${total_cost:.4f} real billed")
-        print(f"[probe] est. full run ({full} problems): ~${per_model / max(len(corpus), 1) * full * len(models):.2f}")
+    if args.probe or not args.all:
+        # single small pass — probe (cost sizing) or a no-persist preview
+        gens = generate(models, corpus, cost_cap=eff_cap, max_tokens=args.max_tokens,
+                        max_concurrency=args.concurrency)
+        scores = grade(gens, corpus)
+        if args.probe:
+            total = sum(s.cost_usd for s in scores.values())
+            full = int(args.limit if args.limit > 0 else 50)
+            print(f"\n[probe] {len(corpus)} problems x {len(models)} models = ${total:.4f} real billed")
+            print(f"[probe] est. full run ({full} problems): ~${total / max(len(corpus), 1) * full:.2f} "
+                  "(⚠️ a 2-problem sample under-prices the real run ~3x)")
         report(scores)
         return 0
 
-    report(scores)
-    if args.all:
-        art = persist_metrics(scores, window)
-        n = persist_baseline(scores, window)
-        print(f"\n[coding-bench] persisted {n} measured priors -> model_task_baseline(code) + "
-              f"model_coding_metrics + {art.name}", file=sys.stderr)
+    # ── --all: BATCHED, RESUMABLE, incremental-persist run (F11 crash-safety) ──
+    # Persist after EACH batch, so an interruption loses at most one batch's spend; a re-run RESUMES
+    # (skips models already measured this window today). The cost-cap is the TOTAL across batches.
+    if not args.fresh:
+        done = _measured_models(window)
+        if done:
+            models = [m for m in models if m not in done]
+            print(f"[coding-bench] resume: {len(done)} models already measured this window today — "
+                  f"skipping; {len(models)} to go (--fresh to re-measure all)", file=sys.stderr)
+    all_scores: dict[str, CodingScore] = {}
+    spent = 0.0
+    for bi in range(0, len(models), BATCH_SIZE):
+        batch = models[bi:bi + BATCH_SIZE]
+        rem = round(eff_cap - spent, 2)
+        if rem < 0.05:
+            print(f"[coding-bench] cost-cap ${eff_cap:.2f} reached after {len(all_scores)} models — "
+                  "stopping (re-run to resume the rest)", file=sys.stderr)
+            break
+        gens = generate(batch, corpus, cost_cap=rem, max_tokens=args.max_tokens,
+                        max_concurrency=args.concurrency)
+        scores = grade(gens, corpus)
+        persist_metrics(scores, window)      # ← persist THIS batch immediately (crash-safe)
+        persist_baseline(scores, window)
+        spent += sum(s.cost_usd for s in scores.values())
+        all_scores.update(scores)
+        nm = sum(1 for s in scores.values() if s.is_measured)
+        print(f"[coding-bench] batch {bi // BATCH_SIZE + 1}: +{nm}/{len(batch)} measured & PERSISTED; "
+              f"spent ${spent:.2f}/${eff_cap:.2f}", file=sys.stderr)
+    report(all_scores)
+    tot = sum(1 for s in all_scores.values() if s.is_measured)
+    print(f"\n[coding-bench] persisted {tot} models -> model_coding_metrics + model_task_baseline(code); "
+          f"spent ${spent:.2f}", file=sys.stderr)
     return 0
 
 

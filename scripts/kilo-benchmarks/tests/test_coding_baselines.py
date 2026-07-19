@@ -75,6 +75,16 @@ def test_load_coding_metrics_latest_per_model_and_fail_soft(tmp_path):
     assert set(got) == {"m1", "m2"}
 
 
+def test_measured_models_drives_resume(tmp_path):
+    """F11 resume: a model persisted for a window today shows in _measured_models, so --all skips it;
+    a different window does not skip (window-scoped)."""
+    db = tmp_path / "k.db"
+    assert mcd._measured_models("release_v5", db_path=db) == set()  # nothing measured yet -> no skips
+    mcd.persist_metrics({"m1": _score("m1", 0.7)}, "release_v5", db_path=db)
+    assert mcd._measured_models("release_v5", db_path=db) == {"m1"}  # measured -> resume skips it
+    assert mcd._measured_models("release_v6", db_path=db) == set()  # different window -> re-measure
+
+
 def test_precedence_set_excludes_measured_from_scraped_build(tmp_path):
     """A model with a measured coding metric is dropped from the terminal-bench 'code' set, so
     persist (INSERT OR REPLACE) never clobbers its livecodebench: baseline."""
