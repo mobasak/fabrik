@@ -110,7 +110,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `mobile-app` → `.windsurf/rules/mobile-app/00-domain-mobile-app.md` (17 dimensions + attribution + the 3 forks)
   - `desktop-app` → `.windsurf/rules/desktop-app/00-domain-desktop-app.md` (vision intake + the standalone-vs-connected fork, which decides whether revenue can be gated at all; Epic 1)
   - `chrome-extension` → `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` (vision intake + the permission-ceiling fork; backend API is always Epic 1)
-  - `wordpress` → **out of scope for this workflow** — route to `/opt/wpf`. There is no pack and no module.
+  - `wordpress` → **RETIRED** (no new WP development; `/opt/wpf` legacy-deploy-only) — website needs route to `/opt/web-ecommerce-factory`. There is no pack and no module.
   - RAG / search in Technology Decisions → `.windsurf/rules/core/65-rag-search.md` § Epic Decomposition (⚠️ read its warning: **every RAG epic must carry its own `CREATE EXTENSION` + HNSW migration** — no registrar does it)
 
 ## ⚠️ Question bar — decide, don't drip
@@ -250,7 +250,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 | 3 | Persistence | `shape.needs_database` | `core/25-data-postgres.md` |
 | 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` (+ vendor the queue / pause-state primitives — resolve the current module from the fabrik-lib index) |
 | 5 | External integrations | Any upstream API use | `core/58-resilience.md` (+ vendor the circuit-breaker and upstream rate-limit/quota primitives — resolve the current modules from the fabrik-lib index) |
-| 6 | Self-healing | `shape.kind ∈ {service, worker}` (wordpress is out-of-scope for this workflow per `00-trigger-mega-epic-fabrik` Step N3j — `Kind.WORDPRESS` exists in `spec_loader.py` for the standalone `/opt/wpf` project, never reaches 02 here) | `core/self-healing.md` |
+| 6 | Self-healing | `shape.kind ∈ {service, worker}` (wordpress is RETIRED per `00-trigger-mega-epic-fabrik` § Shape model — `Kind.WORDPRESS` exists in `spec_loader.py` for the standalone `/opt/wpf` project, never reaches 02 here) | `core/self-healing.md` |
 | 7 | Watchdog wiring | `watchdog.enabled` — **ON by default, opt-OUT**; there is **no** `kind` test in the resolver (`infrastructure.py:314`) | `core/60-watchdog.md` |
 | 8 | Observability | Always | `core/55-observability.md` |
 | 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` (+ vendor the cost-ledger module — resolve from the fabrik-lib index) |
