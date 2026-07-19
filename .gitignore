@@ -165,3 +165,11 @@ scripts/kilo-benchmarks/cache/
 # exit so downstream sanitize/eval failures are $0-recoverable
 scripts/kilo-benchmarks/.microbench_cache/
 external-services-dashboard.html
+# Derived kilo artifacts — regenerated every daily_refresh run, read from disk (not git),
+# so tracking them only poisoned the tree (untracked 2026-07-19). translation_bench/cache
+# is the per-(model,sentence,lang) API-response cache (bake.py cache_save); models_browser.html
+# is the generated single-file viewer (source is models_browser_template.html). kilo_agents.db
+# is already covered by *.db above — force-tracked copy removed via git rm --cached; the 13MB
+# analytics store is backed up in backups/ and rebuilt by daily_refresh.sh.
+scripts/kilo-benchmarks/translation_bench/cache/
+scripts/kilo-benchmarks/models_browser.html
