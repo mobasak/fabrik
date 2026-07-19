@@ -96,7 +96,7 @@ Provision a GPU, optionally use it, **always destroy at exit**.
 | `--provider` | `auto` | `auto` (recommended), `runpod`, `modal`, or `vast`. **`auto` runs `selection_advice()` and picks per workload shape.** |
 | `--utilization` | `1.0` | (auto only) Fraction of `--max-lifetime` the GPU will be actively computing. 1.0 = training, 0.2 = bursty. |
 | `--needs-checkpointing` | off | (auto only) Workload writes checkpoints to B2/R2 — opts into Vast.ai spot (~50% cheaper). |
-| `--needs-serverless` | off | (auto only) Restrict to providers offering true serverless (RunPod, Modal). |
+| `--needs-serverless` | off | (auto only) Restrict to providers publishing a serverless tier — RunPod, Modal, and Vast all qualify (Phase 3.5), so this filter currently excludes no one. |
 | `--max-lifetime` | `1` (hours) | Reaper destroys past this |
 | `--max-cost` | `5.0` (USD) | Refused BEFORE provider create if estimate exceeds |
 | `--keep-warm-after-use` | off | Don't destroy after successful work_fn |
@@ -133,7 +133,7 @@ fabrik gpu rent pod-rtx-4090 --workload smoke --provider vast --max-cost 1
 - **utilization ≥ 0.5 + no checkpointing** → **RunPod**. Sustained workloads win on RunPod's hourly Secure pricing (e.g. H100 at $2.89/hr).
 - **utilization < 0.5** → **Modal**. Per-second billing dominates for bursty work — a 20%-util 4hr workload pays only the active 48 minutes (effective $3.16 for an H100 vs RunPod's $11.56 for the full 4 hours).
 - **--needs-checkpointing** + GPU available on Vast → **Vast.ai spot/interruptible**. ~50% cheaper, but preemptible — only safe if your workload writes checkpoints.
-- **--needs-serverless** → drops Vast from consideration (Phase 3).
+- **--needs-serverless** → keeps only providers publishing a serverless tier; all three now do (Vast serverless wired in Phase 3.5), so it no longer drops Vast.
 
 The CLI prints the chosen provider + rationale on every invocation:
 
@@ -202,8 +202,8 @@ Two guards fire BEFORE any provider call:
 2. **Daily envelope** (`MAX_DAILY_GPU_COST` env): refuses if
    `today's GPU spend + estimate > MAX_DAILY_GPU_COST`.
 
-When tripped, `GPUBudgetExceeded` is raised; no provider API call has
-been made.
+When tripped, `GPUBudgetExceededError` is raised (the CLI renders it as
+`✗ budget exceeded: <msg>`); no provider API call has been made.
 
 ---
 
@@ -282,18 +282,17 @@ the node-exporter textfile collector. Add panels in Grafana for:
 fabrik scaffold my-gpu-service --type python-api-gpu
 ```
 
-This creates a standard `python-api` project + adds:
+This creates a standard `python-api` project (identical spec shape — the Shape model has no `needs_gpu`/`gpu_kind` fields yet) + adds:
 
-- `shape.needs_gpu: true`, `shape.gpu_kind: pod-rtx-4090` in the spec
-- `app/gpu_handler.py` with `rent_for_workload(workload, work_fn)` helper
+- `src/<package>/gpu_handler.py` with the `rent_for_workload(workload, work_fn)` helper; its `DEFAULT_KIND = "pod-rtx-4090"` constant sets the GPU kind
 
-Edit `app/gpu_handler.py` to call your workload from a job handler.
+Edit `src/<package>/gpu_handler.py` to call your workload from a job handler.
 
 ---
 
 ## Troubleshooting
 
-### `GPUBudgetExceeded: estimated cost $X exceeds --max-cost $Y`
+### `✗ budget exceeded: estimated cost $X exceeds --max-cost $Y` (`GPUBudgetExceededError`)
 
 The per-call cap caught you. Either:
 
@@ -303,7 +302,7 @@ The per-call cap caught you. Either:
 - Use `--cloud COMMUNITY` for ~50% cheaper pods (shared kernel — see
   rule line 342)
 
-### `GPUBudgetExceeded: daily GPU spend $X + estimate $Y would exceed MAX_DAILY_GPU_COST=$Z`
+### `✗ budget exceeded: daily GPU spend $X + estimate $Y would exceed MAX_DAILY_GPU_COST=$Z` (`GPUBudgetExceededError`)
 
 Today's cumulative spend would breach the daily cap. Either:
 

@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs/operations full claim-by-claim verification (2026-07-19)
+
+Second, deeper pass over all 11 runbooks: 8 parallel verifiers extracted ~300 checkable claims and
+grounded each against code + live fleet; every surviving finding was independently re-proven before
+editing. Fixed (per doc): **deployment.md** — the postgres registrar DOES inject `DATABASE_URL` via
+`inject_env()` on first create (5 passages said the opposite; infrastructure.py:557-568), stale
+git/local service counts dropped; **fabrik-lifecycle.md** (fleet-synced) — git source IS
+compose-validated (post plan-1 D1 fix), `apply` resolution is `flag > spec > vps1` (no state tier —
+full 4-tier order exact only for `destroy`), `add_resource` carries `target_vps`;
+**disaster-recovery.md** — root-crontab rides in `postgres-dumps` not `opt-configs` (live Backrest
+config: opt-configs excludes `/opt/backups/**`), step_16 line ref, Path B stale "bucket empty" banner
+replaced, Path B volume loop trimmed to the 10 actually-backed-up volumes;
+**hub-restore-inventory.md** — same plan fix, step_04 scp (not on-target gh clone), end-state check 5
+is the local bot health endpoint, added the step_15b `fabrik-compose-boot` row;
+**spoke-restore-inventory.md** — rules.v4/v6 G5 caveat, step_11b B2-write loop-closure validation
+recorded, step_11c compose-boot added; **credential-recovery.md** — SIX files mirrored (not two; the
+four W11 spoke Backrest creds added), `.env.sysadmin` inotify rationale corrected, log examples
+refreshed; **n8n-webhooks.md** — Traefik reaches Apprise on internal port 8000 (no host port
+published); **gpu-rent.md** — `--needs-serverless` no longer drops Vast (Phase 3.5), scaffold emits
+`src/<package>/gpu_handler.py` with no shape.needs_gpu fields, `GPUBudgetExceededError` naming;
+**AI_MODELS_BROWSER_OPS.md** — alerting IS vendored, subscription-monitor vs null-stub vendor split,
+roundtrip restores via cp snapshot not git checkout; **wsl-environment.md** — bashrc line ref;
+**MCP_HTTP_TRANSPORT.md** — 8032 binds 0.0.0.0; **PORTS.md** — 8033 fabrik-mcp-http row added.
+Refuted by live probe (docs correct as written): n8n 302-vs-303 (GET→302, POST webhook→303), spoke
+host-state "13 explicit paths" (live plan has exactly 13), hub iptables rows (live files match
+byte-for-byte), pre-backup.sh:34-35 cite, `~100 B` .env.sysadmin (95 B live), Backrest "nightly
+02:00–03:30" (live cron schedules match).
+
 ### Fixed — docs/operations currency sweep + broken vps-docs auto-updater (2026-07-19)
 
 All 11 `docs/operations/` runbooks audited (hand-authored; no generator — the sprawl gate blocks new

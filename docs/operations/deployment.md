@@ -58,10 +58,10 @@ Every Fabrik spec declares a `source.type` that controls how code reaches the VP
 
 | Source type | How code gets to VPS | Spec example | Used by |
 |---|---|---|---|
-| **git** | `git clone` / `git pull` on VPS from GitHub | `source: { type: git, repository: "https://github.com/...", branch: main }` | 11 services (site-provisioner, youtube, fabrik-citation-verifier, fabrik-test-* series, etc.) |
+| **git** | `git clone` / `git pull` on VPS from GitHub | `source: { type: git, repository: "https://github.com/...", branch: main }` | Git-sourced apps (site-provisioner live; most `fabrik-test-*` scaffolds) |
 | **template** | Fabrik renders compose.yaml from `templates/<type>/*.j2`, SCPs to VPS | `source: { type: template }` | Scaffolded services (gate-*, test-*, guide-proj, etc.) |
 | **docker** | Deployer generates minimal compose.yaml from `source.image`, SCPs to VPS | `source: { type: docker, image: "nginx:latest", image_port: 80 }` | Single-image services (fabrik-smoke-test) |
-| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | 8 services (translator, job-agent, trading-core, seo, etc.) — image-broker was the 9th, retired 2026-06-02 |
+| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | Local-sourced services (translator, job-agent, trading-core, seo, etc.) |
 
 **Production services are git-sourced or local-sourced.** Template and docker source types are used for scaffolding and one-off deployments.
 
@@ -280,7 +280,7 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 
 | # | Registrar | Shape gate | What it does |
 |---|---|---|---|
-| 1 | **postgres** | `needs_database` | `CREATE DATABASE` + `CREATE USER` on postgres-main (does NOT inject `DATABASE_URL` — that comes from spec `env:` or `ctx.secrets`) |
+| 1 | **postgres** | `needs_database` | `CREATE DATABASE` + `CREATE USER` on postgres-main; injects `DATABASE_URL` via `inject_env()` using the CSPRNG password minted on first create (on redeploy the DB exists, no password is returned, and the prior `.env` value is preserved by the merge) |
 | 2 | **redis** | `needs_cache` | Allocates Redis DB index; injects `REDIS_URL` via `deployer.inject_env()` |
 | 3 | **gatus** | `is_public` + domain set | Adds HTTPS health endpoint as per-service YAML file in `/opt/monitoring/configs/gatus/apps/<name>.yaml`; restarts gatus |
 | 4 | **backrest** | `has_persistent_data` | Creates Restic backup plan for the service's volume |
@@ -290,7 +290,7 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 | 8 | **meilisearch** | `has_search_feature` | Creates search index with configured UID and searchable attributes |
 | 9 | **prometheus** | `exposes_metrics` + domain set | Adds scrape target for `/metrics` endpoint |
 
-**`inject_env()` flow** (used by redis + glitchtip registrars): reads existing `.env` on VPS, merges new vars, writes back via SCP, runs `docker compose up -d --wait` to restart with new env. This preserves all existing env vars — registrar injections never clobber each other.
+**`inject_env()` flow** (used by the postgres (`DATABASE_URL` + watchdog/subagent DSNs), redis (`REDIS_URL`), and glitchtip (`SENTRY_DSN`/`GLITCHTIP_DSN`) registrars): reads existing `.env` on VPS, merges new vars, writes back via SCP, runs `docker compose up -d --wait` to restart with new env. This preserves all existing env vars — registrar injections never clobber each other.
 
 **Override:** `infra: { <registrar>: false }` in spec disables a registrar. No `infra.foo: true` opt-in exists — shape flags control applicability.
 
@@ -345,11 +345,11 @@ Layer 2:          spec env: block from the YAML
 Layer 3 (highest): ctx.secrets (from SecretsManager — env vars, .env file, -s flags, generated)
 ```
 
-**Why read-merge matters:** After initial deploy, registrars inject vars like `SENTRY_DSN`, `GLITCHTIP_DSN`, `REDIS_URL` into the `.env` via `inject_env()`. A naive overwrite would lose these. The read-merge strategy reads the existing `.env` first, then layers spec env and secrets on top. (`DATABASE_URL` is NOT registrar-injected — it comes from the spec `env:` block or `ctx.secrets`.)
+**Why read-merge matters:** After initial deploy, registrars inject vars like `SENTRY_DSN`, `GLITCHTIP_DSN`, `REDIS_URL` into the `.env` via `inject_env()`. A naive overwrite would lose these. The read-merge strategy reads the existing `.env` first, then layers spec env and secrets on top. (`DATABASE_URL` is injected by the postgres registrar via `inject_env()` on first DB creation; the read-merge preserves it on later deploys.)
 
 **When .env is written:**
 - `fabrik apply` — always (new deploy: fresh; update: read-merge)
-- `inject_env()` — called by redis + glitchtip registrars post-deploy (read-merge)
+- `inject_env()` — called by the postgres, redis, and glitchtip registrars post-deploy (read-merge)
 - `fabrik redeploy` — **does NOT touch .env** (only pulls code and rebuilds)
 
 ---
@@ -411,7 +411,7 @@ Secrets never go in git. They live in `.env` files on the VPS (root-owned) or in
 | `SERVICE_INTERNAL_SECRET_KEY` (M2M auth) | `/opt/fabrik/.env` + every service's `/opt/<name>/.env` | Edit `/opt/fabrik/.env`, re-apply all specs |
 | `GLITCHTIP_DSN` | per-service `.env` (injected by glitchtip registrar) | Re-run `fabrik redeploy --refresh-infra --spec <spec>` |
 | `REDIS_URL` | per-service `.env` (injected by redis registrar) | Re-run `fabrik redeploy --refresh-infra --spec <spec>` |
-| `DATABASE_URL` | per-service `.env` (from spec `env:` block or `ctx.secrets`, NOT injected by postgres registrar) | Update spec `env:` block, re-apply |
+| `DATABASE_URL` | per-service `.env` (injected by the postgres registrar — generated role password on first create) | Re-run `fabrik apply` (re-injects), or `fabrik redeploy --refresh-infra --spec <spec>` |
 | Service-specific keys (API tokens, etc.) | per-service `.env` via spec `secrets:` block | Update `/opt/fabrik/.env` or env var, re-apply |
 
 **Password policy:** 32-char `[a-zA-Z0-9]` via `secrets.choice()` (CSPRNG).

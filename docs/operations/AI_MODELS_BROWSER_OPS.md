@@ -20,13 +20,10 @@ The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scr
 | anthropic | rendered | 4 (Claude Opus 4.8 / Sonnet 4.6 / Haiku 4.5 / Fable 5) | `docs.anthropic.com/en/docs/about-claude/pricing` |
 | openai | rendered | 6 (`whisper-large-v3`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`) | `platform.openai.com/docs/pricing` |
 
-**Vendors with parsers NOT shipped** (registry entries exist, `parser_module: null`):
+**Vendors without a dedicated per-row parser** (two groups — check `parser_module` in the registry):
 
-Most remaining vendors are NOT amenable to per-row scraping for one of these reasons:
-- **Subscription/credit billing only** (no per-call rates published): elevenlabs, heygen, pika, recraft, runway, suno, udio, llamaindex
-- **Pricing rendered via client-side JS calls** that browserless doesn't capture: mistral, stability, luma, kling, aws, azure, google-cloud
-- **Cloudflare-walled even with stealth**: deepl, coqui (HF)
-- **Image-gen with credit-only billing**: bfl, ideogram
+- **Subscription-monitor vendors** (`parser_module: direct_vendor_parsers.subscription_monitor` — page-hash change detection, no per-row rates): deepl, elevenlabs, heygen, llamaindex, suno, udio
+- **True null stubs** (`parser_module: null`, not scrapable): pika, recraft, runway, coqui (Cloudflare-walled), plus the JS-rendered cloud vendors (mistral, stability, luma, kling, aws, azure, google-cloud) and credit-only image-gen (bfl, ideogram)
 - **Vendor lists 1 row only**, low ROI: mistral (`mistral/ocr` only — rest via OR/Kilo); qwen (catalog via Alibaba portal)
 
 For these, prefer the quarterly-audit helper below over building a parser per vendor.
@@ -83,7 +80,7 @@ time bash /opt/fabrik/scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh
 # Expected: "TEST_PASS" in stdout, <15min real time (typically <1s)
 ```
 
-The script appends a temporary `roundtrip_test` entry to the registry, dry-runs the orchestrator against Anthropic's docs page (proves the fetch + parser invocation + audit MD generation chain), then restores the registry to its committed state via `git checkout`. No DB writes (apply mode is off). Use this BEFORE committing a new-vendor PR, and as the Phase 5 Gate 3 from the direct-vendor pricing plan.
+The script appends a temporary `roundtrip_test` entry to the registry, dry-runs the orchestrator against Anthropic's docs page (proves the fetch + parser invocation + audit MD generation chain), then restores the registry from a pre-test `cp` snapshot in an EXIT/INT/TERM trap (deliberately NOT `git checkout`, which would delete uncommitted operator edits). No DB writes (apply mode is off). Use this BEFORE committing a new-vendor PR, and as the Phase 5 Gate 3 from the direct-vendor pricing plan.
 
 ## Interpreting the audit output
 
@@ -108,6 +105,6 @@ When a vendor's pricing URL fails to load AND no alternative URL is yet known, t
 
 ## Phase 5 deferred deliverables (not yet shipped)
 
-- **Telegram channel routing** — the orchestrator's alerts currently fall back to stderr because `fabrik-lib/alerting` is not vendored into kilo-benchmarks yet. Phase 5 plan rev: vendor `fabrik-lib/alerting`, configure the `kilo-catalog` channel in vps1 alertmanager, smoke-test the round-trip.
+- **Telegram channel routing** — `fabrik-lib/alerting` IS vendored at `scripts/kilo-benchmarks/alerting/` (Telegram + Apprise delivery chain); delivery now depends only on env (`TELEGRAM_BOT_TOKEN` / `ALERT_VPS_HOST`). Remaining: configure the `kilo-catalog` channel in vps1 alertmanager, smoke-test the round-trip.
 - **Cron heartbeat** — alert if `fetch_direct_vendor_prices.py` is skipped 2 days in a row (Pushgateway entry).
 - **Phase 3 rendered/stealth parsers** — the orchestrator's `fetch_rendered` path is proven working against vps1 browserless (smoke-confirmed 2026-06-30 against ElevenLabs at 717KB). Writing parsers for the 13+ rendered/stealth vendors is bounded work that consolidates into a future focused session per vendor.

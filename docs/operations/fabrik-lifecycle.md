@@ -90,7 +90,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 1. Directory created on VPS: for template/docker source, `mkdir -p /opt/<name>/`. For git source, `git clone` creates the directory. For local source, directory must already exist at `source.path`.
 2. Files written to VPS: for template source, compose.yaml + .env (+ Dockerfile if rendered) via SCP. For docker source, a generated compose.yaml + .env via SCP. For git source, `git clone` pulls compose.yaml + Dockerfile from the repo, deployer only writes .env via SCP. For local source, compose.yaml already exists at `source.path`, deployer only writes .env
 3. For git source: `sudo docker compose build` (builds image from Dockerfile in repo), then `sudo docker compose up -d --wait`. For other sources: `sudo docker compose up -d --wait` directly (image already specified in compose.yaml or pre-built)
-4. Resource tracked: `ctx.add_resource("compose", name, name=name)` — enables rollback if later phases fail
+4. Resource tracked: `ctx.add_resource("compose", name, name=name, target_vps=<resolved host>)` — enables rollback **on the correct host** if later phases fail
 5. Infrastructure registrars run (create DB, Gatus endpoint, GlitchTip project, etc.)
 6. Health check verification
 7. If any phase fails → automatic rollback tears down everything created
@@ -258,7 +258,7 @@ Fabrik is a 3-host fleet (vps1 hub + vps2/vps3 spokes), so every lifecycle comma
   > vps1         (default if nothing else set)
 ```
 
-> **`redeploy <app>` has no spec argument**, so it skips the spec-field tier — its order is `CLI > state file > vps1`. The spec-field tier applies only to `apply` and `destroy`, which take a spec path.
+> **The full 4-tier order is exact only for `destroy`.** `redeploy <app>` has no spec argument, so it skips the spec-field tier — `CLI > state file > vps1`. `apply <spec>` never consults the state file — `CLI > spec field > vps1`. Only `destroy` reads all four tiers.
 
 - **Get it right on multi-host.** If a service lives on vps2 and a `redeploy` resolves to vps1, you act on the wrong box. The state file records where each service was last deployed, so re-runs target the same host without re-passing the flag.
 - **Spokes are full deploy targets.** `fabrik apply <spec> --target-vps vps2` deploys on vps2 (its own Traefik); the spec's `shape:` registrars still wire to the **shared vps1 data plane** — `postgres-main:5432` / `redis-main:6379` over the mesh, Gatus/Prometheus on vps1. `destroy --target-vps vps2` tears down on vps2.
@@ -278,7 +278,7 @@ Similar to Authelia — each `add_endpoint` / `remove_endpoint` restarts gatus. 
 
 ### Container name stability
 
-All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The `ComposeLinter` warns if `container_name` is missing; the deployer's `_validate_compose()` treats it as an error (blocks deployment) — but only for **template** and **docker** source types. Git and local sources manage their own compose files and skip `_validate_compose()`, so a missing `container_name` there is caught only by `ComposeLinter` (a warning), not blocked at deploy.
+All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The `ComposeLinter` warns if `container_name` is missing; the deployer's `_validate_compose()` treats it as an error (blocks deployment) for **template**, **docker**, and **git** source types — git-sourced compose is read back from the VPS after clone and validated before build/up. Only **local** sources skip `_validate_compose()`; there a missing `container_name` is caught only by `ComposeLinter` (a warning), not blocked at deploy.
 
 ### The `fabrik` network name
 

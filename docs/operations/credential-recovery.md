@@ -2,10 +2,12 @@
 
 **Created:** 2026-06-01 (W9 of fleet-hardening plan)
 **Last Updated:** 2026-06-16 (W2 confirmed done — B2 restic repo initialized; weekly self-test now logs `OK: N snapshots readable`)
-**Purpose:** Recover credentials after dev WSL loss, file corruption, or any other event that wipes the working copy. Two credential files are mirrored:
+**Purpose:** Recover credentials after dev WSL loss, file corruption, or any other event that wipes the working copy. Six credential files are mirrored:
 
 - `/opt/fabrik/.env` (~15 KB, dev-WSL canonical) — fleet credentials, encrypted-only-once master.
 - `vps1:/opt/fabrik/.env.sysadmin` (~100 B, vps1-only) — Telegram bot token + owner ID for the AI sysadmin. Added 2026-06-01 after a deep-review pass found the original W9 omitted it, leaving the sysadmin bot's recovery dependent on user memory + a fresh BotFather token reissue.
+- `vps2:/opt/backrest/.env` + `vps2:/opt/backrest/.restic-password` — spoke Backrest B2 creds + restic password (W11, 2026-06-01; Lesson 67 — without the password, vps2 backups are unreadable).
+- `vps3:/opt/backrest/.env` + `vps3:/opt/backrest/.restic-password` — same for vps3 (per-spoke, independent).
 
 **Companion to:** [`disaster-recovery.md`](disaster-recovery.md) — every DR path through that doc depends on `BACKREST_RESTIC_PASSWORD` being recoverable; this doc is how that works.
 
@@ -50,11 +52,11 @@ Three trigger paths for the **main `.env`**:
 2. **Daily cron** (`30 3 * * *`) — safety net for any edit that somehow slipped past inotify (e.g., WSL was down when the change happened, then came back up without restarting the watcher).
 3. **`@reboot` cron** (`sleep 60 && ...`) — catches up after WSL boots if env changed while WSL was down. The 60-second sleep lets network come up.
 
-**`.env.sysadmin` (vps1-only) is mirrored on the cron paths only** — no inotify since the file does not exist on dev WSL. Latency is therefore up to ~24 h (daily 03:30 + `@reboot`). Acceptable because the sysadmin token changes <once per year (BotFather token rotation). The pull uses `ssh -o BatchMode=yes -o ConnectTimeout=8 vps 'sudo cat /opt/fabrik/.env.sysadmin'`; failure (vps1 briefly unreachable, NOPASSWD revoked, etc.) logs a warning and the main mirror still proceeds — the sysadmin file is **soft-required**, not blocking.
+**`.env.sysadmin` is mirrored on the cron paths only** — the inotify watcher (`fabrik-dr-watcher.service`) watches only `/opt/fabrik/.env`; `.env.sysadmin` is SSH-pulled fresh from vps1 on each cron run (the local copy is not the source of truth). Latency is therefore up to ~24 h (daily 03:30 + `@reboot`). Acceptable because the sysadmin token changes <once per year (BotFather token rotation). The pull uses `ssh -o BatchMode=yes -o ConnectTimeout=8 vps 'sudo cat /opt/fabrik/.env.sysadmin'`; failure (vps1 briefly unreachable, NOPASSWD revoked, etc.) logs a warning and the main mirror still proceeds — the sysadmin file is **soft-required**, not blocking.
 
 Plus a weekly recovery self-test:
 
-- **`0 4 * * 0`** — `scripts/dr_env_recovery_test.sh` reads `/opt/fabrik-dr-store/env/latest`, extracts credentials, and confirms they can read the B2 restic repo by routing restic through `sudo docker exec backrest /bin/restic`. Logs to `/var/log/dr-env-recovery-test.log`. The B2 repo is now initialized (restic 0.18.1, snapshots present), so the script takes its healthy branch and logs `OK: N snapshots readable with recovered creds` (e.g. `2026-06-07 OK: 25 snapshots`, `2026-06-14 OK: 41 snapshots`). The `AWAITING-W2: …` branch remains in the script as an obsolete pre-init guard; it last fired on 2026-05-31 and no longer triggers.
+- **`0 4 * * 0`** — `scripts/dr_env_recovery_test.sh` reads `/opt/fabrik-dr-store/env/latest`, extracts credentials, and confirms they can read the B2 restic repo by routing restic through `sudo docker exec backrest /bin/restic`. Logs to `/var/log/dr-env-recovery-test.log`. The B2 repo is now initialized (restic 0.18.1, snapshots present), so the script takes its healthy branch and logs `OK: N snapshots readable with recovered creds` (recent runs: 71 → 107 → 142 snapshots; the log rotates, older entries drop off). The `AWAITING-W2: …` branch remains in the script as an obsolete pre-init guard and no longer triggers. A one-off `FAIL` (2026-06-21, ssh timeout) self-recovered on the next run.
 
 ## Security model
 

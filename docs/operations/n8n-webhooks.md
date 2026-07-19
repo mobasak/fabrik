@@ -21,7 +21,7 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 
 > **Port Mapping:** Apprise maps `8005:8000` (external:internal).
 > - **n8n → Apprise** (inside Docker): `http://apprise:8000/notify`
-> - **External access**: `https://notify.vps1.ocoron.com` (Traefik routes to 8005)
+> - **External access**: `https://notify.vps1.ocoron.com` (Traefik reaches Apprise over the `fabrik` Docker network on internal port 8000 — the deployed compose publishes no host port)
 >
 > See `specs/infrastructure/apprise.yaml` and `PORTS.md` for details.
 

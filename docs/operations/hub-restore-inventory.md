@@ -58,7 +58,7 @@ Verified live on vps1 (2026-06-01):
 | | `/etc/sysctl.d/99-openvpn.conf` | small | operator's personal VPN forwarding rules |
 | | `/etc/sysctl.conf` | small | base file (operator may have appended) |
 | **Cron** | `/etc/cron.d/vps-sysadmin` | 1008 B | sysadmin proactive checks |
-| | `/opt/backups/root-crontab.txt` | 74 B | dump of root's crontab (`30 1 * * * /opt/backups/pre-backup.sh`), written nightly by `pre-backup.sh` (lines 34-35) via `crontab -u root -l > …`. Rides in the `opt-configs` plan (NOT `/var/spool/...`); `bootstrap-hub.sh::step_16` re-installs it via `sudo crontab -u root /opt/backups/root-crontab.txt`. |
+| | `/opt/backups/root-crontab.txt` | 74 B | dump of root's crontab (`30 1 * * * /opt/backups/pre-backup.sh`), written nightly by `pre-backup.sh` (lines 34-35) via `crontab -u root -l > …`. Rides in the `postgres-dumps` plan — its source is `/opt/backups`, and `opt-configs` excludes `/opt/backups/**` (NOT `/var/spool/...`); `bootstrap-hub.sh::step_16` re-installs it via `sudo crontab -u root /opt/backups/root-crontab.txt`. |
 | **Custom binaries** | `/usr/local/bin/zellij` | 51 MB | operator's preferred terminal multiplexer; restoring avoids a separate install step |
 | **Logrotate** | `/etc/logrotate.d/vps-sysadmin-bot` | small | bot log rotation |
 | | `/etc/logrotate.d/vps-sysadmin-proactive` | small | proactive log rotation |
@@ -115,7 +115,7 @@ Goes in the existing `docker-volumes` Backrest plan (scope: `/var/lib/docker/vol
 
 ## E. Restored from W9 GitHub mirror (NOT restic)
 
-These two files are mirrored continuously to `mobasak/fabrik-dr-store` and recovered via `gh repo clone` first thing in the bootstrap. Avoids the chicken-and-egg of "restic needs `BACKREST_RESTIC_PASSWORD` from `.env` before it can pull `.env` from restic."
+These two files are mirrored continuously to `mobasak/fabrik-dr-store`; recovery is a dev-machine prerequisite (`gh repo clone mobasak/fabrik-dr-store`), then `bootstrap-hub.sh::step_04` scp's them onto the new VPS. Avoids the chicken-and-egg of "restic needs `BACKREST_RESTIC_PASSWORD` from `.env` before it can pull `.env` from restic."
 
 | Path | Source in DR store | Bytes |
 |---|---|---|
@@ -129,6 +129,7 @@ These two files are mirrored continuously to `mobasak/fabrik-dr-store` and recov
 | What | Why |
 |---|---|
 | Docker `fabrik` external network | one `docker network create fabrik` line, no state to preserve |
+| `fabrik-compose-boot.service` + `/usr/local/bin/fabrik-compose-boot.sh` | installed fresh from the repo by `step_15b` (reboot-race safety net — reconciles every `/opt/*/compose.yaml` on boot); never restored from restic |
 | Let's Encrypt certs (`/opt/traefik/acme.json`) | re-issued on first request; ~5 min if not in scope, but **acme.json IS captured in `opt-configs`** so this is a fallback |
 | Cron `@reboot` triggers | once cron file is in place, systemd cron re-fires them on boot |
 | Wireguard mesh peer handshakes | come up automatically once `wg-quick@wg0` starts with restored wg0.conf |
@@ -158,7 +159,7 @@ These two files are mirrored continuously to `mobasak/fabrik-dr-store` and recov
 2. `docker ps | wc -l` ≥ 29 (matches vps1 inventory)
 3. `curl -s https://status.vps1.ocoron.com` returns the Gatus dashboard
 4. `psql -h localhost -U postgres -c '\l'` lists `glitchtip`, `site_provisioner`
-5. Telegram bot replies to a probe message (`/status` or similar)
+5. Sysadmin bot answers its local health endpoint (`curl http://127.0.0.1:8017/health` → `{"status":"ok"}` — Telegram send is masked in drill mode)
 6. **Backrest can list ≥ 1 snapshot from the new hub** (`docker exec backrest /bin/restic snapshots | wc -l` ≥ 2 incl. header) — closes the W2 loop: backup chain still works POST-DR, so the next DR remains possible.
 7. Wall-clock from "fresh VPS" to here: target ≤ 90 min on a 100 Mbit link.
 

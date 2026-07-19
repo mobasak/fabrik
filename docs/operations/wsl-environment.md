@@ -70,7 +70,7 @@ Backup of pre-cleanup crontab: `~/.crontab.backup.20260630-105542Z`.
 
 ## Bashrc-sourced startup chain
 
-`~/.bashrc:213` sources `/opt/fabrik/scripts/wsl_startup_hook.sh` on every interactive shell open. The hook runs:
+`~/.bashrc:214` sources `/opt/fabrik/scripts/wsl_startup_hook.sh` on every interactive shell open. The hook runs:
 
 1. **Env watcher** (persistent process; not daily): starts `watch_env_changes.sh` if not already running. Monitors `/opt/*/.env` for changes and logs violations.
 2. **Daily pipeline** (lockfile-gated; once per UTC day):

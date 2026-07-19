@@ -41,7 +41,7 @@ Two services. `fabrik-mcp-http` `Requires=citation-verifier`, so they start/stop
 | `/opt/fabrik-citation-verifier/mcp_server/server.py` | Original stdio entrypoint (still works, kept as fallback) |
 | `/opt/fabrik-citation-verifier/mcp_server/server_http.py` | NEW. HTTP entrypoint. Imports `mcp` from `server.py`, calls `mcp.run(transport="streamable-http")` |
 | `/etc/systemd/system/fabrik-mcp-http.service` | NEW. systemd unit. Listens on `127.0.0.1:8033/mcp`, logs to `/var/log/fabrik/mcp-http.log` |
-| `/etc/systemd/system/citation-verifier.service` | UNCHANGED. Backend at `127.0.0.1:8032`. |
+| `/etc/systemd/system/citation-verifier.service` | UNCHANGED. Backend on port `8032` (binds `0.0.0.0`, reachable via `127.0.0.1`; only fabrik-mcp-http on 8033 is loopback-bound). |
 
 ## Claude Code config
 

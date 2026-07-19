@@ -122,6 +122,7 @@ If you encounter a port conflict:
 | 8029 | **youtube** | file-worker | /opt/youtube |
 | 8031 | **youtube** | file-worker | /opt/youtube |
 | 8032 | **fabrik-citation-verifier** | python-api | /opt/fabrik-citation-verifier |
+| 8033 | **fabrik-mcp-http** | systemd (loopback MCP HTTP transport for citation-verifier) | /opt/fabrik-citation-verifier |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18013 | **proxy** | python-api | /opt/proxy |

@@ -42,9 +42,9 @@ Verified against current Backrest state (31 containers; 4 active plans on the hu
 
 Four plans live on the hub repo `b2-vps1`, run nightly 02:00–03:30:
 
-- **`postgres-dumps`** — source: `/opt/backups/pg_dump_*.sql` (nightly pg_dump on the host).
+- **`postgres-dumps`** — source: `/opt/backups/` (nightly `pg_dump_*.sql` dumps on the host; also carries `/opt/backups/root-crontab.txt` — see Path D replay).
 - **`docker-volumes`** — source: the restore-critical named Docker volumes in `/var/lib/docker/volumes/`.
-- **`opt-configs`** — source: `/opt/<svc>/` directories (compose + env + bind-mount configs), `fabrik/.git` excluded. Also carries `/opt/backups/root-crontab.txt` (the dumped root crontab — see Path D replay).
+- **`opt-configs`** — source: `/opt/<svc>/` directories (compose + env + bind-mount configs); excludes `fabrik/.git` and `/opt/backups/**` (that dir rides in `postgres-dumps`).
 - **`host-state`** — source: host-level state (`/etc/wireguard`, `/etc/iptables`, `/etc/ufw`, systemd units, sudoers, sysctl, cron, SSH keys, `zellij`). ~25 KB.
 
 Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only (no Postgres/Docker-volume payload of their own to protect at hub scale).
@@ -140,7 +140,7 @@ Done. RTO ~60 min. RPO = the moment of the image (typically your most recent shu
 
 ## Path B — B2 cold restore onto a fresh VPS (~2–3 h)
 
-> **⚠️ NOT CURRENTLY AVAILABLE (2026-05-31):** Bucket `vps1-ocoron-backups` is empty. This path will become available again once backup plans are reconfigured and at least one successful run completes. The procedure below is retained for that future state.
+> **Superseded by Path D (`bootstrap-hub.sh`), which automates this whole procedure.** The 4 Backrest plans are live on B2 (nightly 02:00–03:30), so the data this path needs exists — keep it only as the manual fallback if the bootstrap script itself is unusable.
 
 **Use when:** vps1 is gone. You have a fresh GreenCloudVPS Ubuntu node (or any Ubuntu 24.04 host with internet + SSH).
 
@@ -261,10 +261,11 @@ SNAPSHOT_ID=$(restic snapshots --tag docker-volumes --json | python3 -c 'import 
 restic restore $SNAPSHOT_ID --target /var/restore
 
 # Recreate volumes + copy data in
+# Only the 10 volumes the docker-volumes plan actually backs up (prometheus/loki/
+# promtail-positions/ocoron-com_redis_data are excluded from backup — they regenerate)
 for vol in postgres-data redis_redis-data meilisearch-data n8n-data apprise-config \
-           monitoring_prometheus-data monitoring_grafana-data monitoring_loki-data \
-           monitoring_alertmanager-data monitoring_promtail-positions \
-           ocoron-com_wp_html ocoron-com_db_data ocoron-com_redis_data ocoron-com_backup_data; do
+           monitoring_grafana-data monitoring_alertmanager-data \
+           ocoron-com_wp_html ocoron-com_db_data ocoron-com_backup_data; do
   sudo docker volume create "$vol"
   sudo docker run --rm \
     -v "$vol":/dst \
@@ -407,7 +408,7 @@ These are real gaps in DR posture — not theater.
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
 - **LOW: DNS still on Cloudflare only.** If Cloudflare goes down, traffic can't move. Out of scope for this doc; covered in network-redundancy plans.
 - **NOT A REAL RISK: 3 world-readable `.env` files** on the host (browserless, gotenberg, meilisearch). Single-operator VPS, no other users. Cosmetic only. See W-Sec in the Platform-to-A+ plan; deprioritized after threat-model review.
-- **RESOLVED: root crontab is replayed post-DR.** The chain is live on the host: `/opt/backups/pre-backup.sh` (lines 34-35) runs `crontab -u root -l > /opt/backups/root-crontab.txt` every night before the Backrest run; that file rides in the `opt-configs` plan; and `bootstrap-hub.sh::step_16_install_root_crontab` (line 1402) replays it via `sudo crontab -u root /opt/backups/root-crontab.txt`. The live file exists (74 B: `30 1 * * * /opt/backups/pre-backup.sh`). Any cron job scheduled directly via `crontab -e` is now captured and restored. (A known-gaps entry was added in commit edf4b35 describing this as an open gap, but the dump line was already live on the host — the gap was never real.)
+- **RESOLVED: root crontab is replayed post-DR.** The chain is live on the host: `/opt/backups/pre-backup.sh` (lines 34-35) runs `crontab -u root -l > /opt/backups/root-crontab.txt` every night before the Backrest run; that file rides in the `postgres-dumps` plan (source `/opt/backups`; `opt-configs` excludes `/opt/backups/**`); and `bootstrap-hub.sh::step_16_install_root_crontab` (line 1429) replays it via `sudo crontab -u root /opt/backups/root-crontab.txt`. The live file exists (74 B: `30 1 * * * /opt/backups/pre-backup.sh`). Any cron job scheduled directly via `crontab -e` is now captured and restored. (A known-gaps entry was added in commit edf4b35 describing this as an open gap, but the dump line was already live on the host — the gap was never real.)
 
 ---
 
