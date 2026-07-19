@@ -172,7 +172,11 @@ def test_ai_vendor_access_modelscope_row_uses_canonical_db_providers():
     # row's provider column (2nd pipe-delimited field).
     ms_row_second_col = ms_row.split("|")[2]
     for canonical in ("baidu", "xiaomi", "tencent"):
-        assert f" {canonical}" in ms_row_second_col or f",{canonical}" in ms_row_second_col or ms_row_second_col.strip().startswith(canonical), (
+        assert (
+            f" {canonical}" in ms_row_second_col
+            or f",{canonical}" in ms_row_second_col
+            or ms_row_second_col.strip().startswith(canonical)
+        ), (
             f"ModelScope row's provider list missing canonical DB name {canonical!r}: {ms_row_second_col.strip()!r}"
         )
     # These wrong HF-style names must NOT appear (regression from Phase-E F1 fix).

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-17T00:09:01.985911",
-  "total_models": 691,
+  "timestamp": "2026-07-19T00:12:03.633999",
+  "total_models": 689,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -532,11 +532,6 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
-    "meta-llama/llama-3.2-11b-vision-instruct": {
-      "id": "meta-llama/llama-3.2-11b-vision-instruct",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "meta-llama/llama-3.2-1b-instruct": {
       "id": "meta-llama/llama-3.2-1b-instruct",
       "url": "https://openrouter.ai/api/v1",
@@ -789,11 +784,6 @@
     },
     "nousresearch/hermes-4-70b": {
       "id": "nousresearch/hermes-4-70b",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
-      "id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1569,6 +1559,11 @@
     },
     "thedrummer/unslopnemo-12b": {
       "id": "thedrummer/unslopnemo-12b",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "thinkingmachines/inkling": {
+      "id": "thinkingmachines/inkling",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },

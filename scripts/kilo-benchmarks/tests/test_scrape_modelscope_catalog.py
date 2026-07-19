@@ -321,8 +321,14 @@ def test_d8_dup_check_covers_all_candidates(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "scrape_modelscope_catalog.fetch_hf_metadata",
         lambda ms_id, **kw: HFMetadata(
-            context_window_k=128, has_reasoning=False, has_tools=False, has_vision=False,
-            is_gated=False, model_type=None, pipeline_tag=None, source_url="x",
+            context_window_k=128,
+            has_reasoning=False,
+            has_tools=False,
+            has_vision=False,
+            is_gated=False,
+            model_type=None,
+            pipeline_tag=None,
+            source_url="x",
         ),
     )
     r = ingest_new(["ZhipuAI/GLM-5.2"], con)
@@ -356,8 +362,13 @@ def test_d10_hf_unknown_context_writes_null(tmp_path, monkeypatch):
         "scrape_modelscope_catalog.fetch_hf_metadata",
         lambda ms_id, **kw: HFMetadata(
             context_window_k=None,  # /resolve/config.json missed
-            has_reasoning=False, has_tools=False, has_vision=False,
-            is_gated=False, model_type=None, pipeline_tag=None, source_url="x",
+            has_reasoning=False,
+            has_tools=False,
+            has_vision=False,
+            is_gated=False,
+            model_type=None,
+            pipeline_tag=None,
+            source_url="x",
         ),
     )
     r = ingest_new(["gated/model"], con)
@@ -377,7 +388,13 @@ def _insert_placeholder(con, api_id, agent_id):
         "(id, api_id, name, provider, status, via_modelscope, reachable_with_existing_keys, "
         "blocked, block_reason, has_reasoning, has_tools, has_vision) "
         "VALUES (?, ?, ?, ?, 'active', 1, 1, 1, ?, 0, 0, 0)",
-        (agent_id, api_id, name, provider, "needs_metadata_enrichment (MS-only, HF+MS scrape both failed)"),
+        (
+            agent_id,
+            api_id,
+            name,
+            provider,
+            "needs_metadata_enrichment (MS-only, HF+MS scrape both failed)",
+        ),
     )
     con.commit()
 
@@ -393,8 +410,13 @@ def test_retry1_hf_now_returns_data_promotes_row(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "scrape_modelscope_catalog.fetch_hf_metadata",
         lambda ms_id, **kw: HFMetadata(
-            context_window_k=32, has_reasoning=True, has_tools=False, has_vision=False,
-            is_gated=False, model_type="internlm3", pipeline_tag="text-generation",
+            context_window_k=32,
+            has_reasoning=True,
+            has_tools=False,
+            has_vision=False,
+            is_gated=False,
+            model_type="internlm3",
+            pipeline_tag="text-generation",
             source_url="x",
         ),
     )
@@ -436,7 +458,10 @@ def test_retry3_ms_scrape_only_promotes_with_partial_data(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "scrape_modelscope_catalog.fetch_ms_metadata",
         lambda ms_id, **kw: MSMetadata(
-            context_window_k=8, description="ok", is_gated=False, source_url="x",
+            context_window_k=8,
+            description="ok",
+            is_gated=False,
+            source_url="x",
         ),
     )
     r = retry_placeholders(con)
@@ -472,8 +497,14 @@ def test_retry5_only_touches_placeholder_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "scrape_modelscope_catalog.fetch_hf_metadata",
         lambda ms_id, **kw: HFMetadata(
-            context_window_k=32, has_reasoning=False, has_tools=False, has_vision=False,
-            is_gated=False, model_type="x", pipeline_tag="x", source_url="x",
+            context_window_k=32,
+            has_reasoning=False,
+            has_tools=False,
+            has_vision=False,
+            is_gated=False,
+            model_type="x",
+            pipeline_tag="x",
+            source_url="x",
         ),
     )
     r = retry_placeholders(con)

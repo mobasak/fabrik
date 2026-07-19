@@ -45,14 +45,34 @@ CREATE TABLE IF NOT EXISTS gpu_providers (
 # Watch-list LLM inference rows (agents table, reachable=0).
 _WATCHLIST_AGENTS = [
     # (id, provider, cheapest_gateway_price_usd_per_M_in, signup_trigger, notes)
-    ("together/llama-3.3-70b", "together", 0.88,
-     "signup for direct-vendor inference with better throughput", "watch-list"),
-    ("hyperbolic/llama-3.3-70b", "hyperbolic", 0.40,
-     "signup — beats OR by ~30% for Llama 3.3 70B", "watch-list"),
-    ("cerebras/llama-3.3-70b", "cerebras", 0.60,
-     "signup — cerebras LPU is fastest for Llama 3.3", "watch-list"),
-    ("novita/llama-3.3-70b", "novita", 0.40,
-     "signup — cheapest observed for Llama 3.3", "estimate — awaiting live probe"),
+    (
+        "together/llama-3.3-70b",
+        "together",
+        0.88,
+        "signup for direct-vendor inference with better throughput",
+        "watch-list",
+    ),
+    (
+        "hyperbolic/llama-3.3-70b",
+        "hyperbolic",
+        0.40,
+        "signup — beats OR by ~30% for Llama 3.3 70B",
+        "watch-list",
+    ),
+    (
+        "cerebras/llama-3.3-70b",
+        "cerebras",
+        0.60,
+        "signup — cerebras LPU is fastest for Llama 3.3",
+        "watch-list",
+    ),
+    (
+        "novita/llama-3.3-70b",
+        "novita",
+        0.40,
+        "signup — cheapest observed for Llama 3.3",
+        "estimate — awaiting live probe",
+    ),
 ]
 
 # GPU providers: reachable=1 {vast, runpod, modal} matches gpu-rent driver set.
@@ -64,12 +84,42 @@ _GPU_ROWS = [
     ("vast:h100-on-demand", "vast", "H100", "on-demand", 1.87, None, None, 1, None, "seed"),
     ("runpod:h100-community", "runpod", "H100", "community", 1.99, None, None, 1, None, "seed"),
     ("runpod:h100-secure", "runpod", "H100", "secure", 3.29, None, None, 1, None, "seed"),
-    ("modal:h100-serverless", "modal", "H100", "serverless",
-     3.95, 0.001097, 30.0, 1, None, "seed — modal charges per-second"),
-    ("hyperbolic:h100", "hyperbolic", "H100", "on-demand", 1.49, None, None, 0,
-     "signup — cheaper H100 than vast/runpod on-demand", "watch-list"),
-    ("novita:h100", "novita", "H100", "on-demand", 1.79, None, None, 0,
-     "signup — mid-market H100", "watch-list"),
+    (
+        "modal:h100-serverless",
+        "modal",
+        "H100",
+        "serverless",
+        3.95,
+        0.001097,
+        30.0,
+        1,
+        None,
+        "seed — modal charges per-second",
+    ),
+    (
+        "hyperbolic:h100",
+        "hyperbolic",
+        "H100",
+        "on-demand",
+        1.49,
+        None,
+        None,
+        0,
+        "signup — cheaper H100 than vast/runpod on-demand",
+        "watch-list",
+    ),
+    (
+        "novita:h100",
+        "novita",
+        "H100",
+        "on-demand",
+        1.79,
+        None,
+        None,
+        0,
+        "signup — mid-market H100",
+        "watch-list",
+    ),
 ]
 
 
@@ -101,7 +151,7 @@ def seed_watchlist_and_gpu(conn: sqlite3.Connection) -> tuple[int, int]:
         )
         a += 1
     g = 0
-    for (mid, provider, sku, tier, hr, sec, cs, reach, trigger, notes) in _GPU_ROWS:
+    for mid, provider, sku, tier, hr, sec, cs, reach, trigger, notes in _GPU_ROWS:
         conn.execute(
             "INSERT OR IGNORE INTO gpu_providers "
             "(id, provider, gpu_sku, tier, usd_per_hour, usd_per_second, "

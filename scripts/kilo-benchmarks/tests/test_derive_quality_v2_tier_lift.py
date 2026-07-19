@@ -26,7 +26,9 @@ from rank_coding_subagents import FAMILIES  # noqa: E402
 # clear (container restart, CI runner, fresh clone) would make D3 silently SKIP,
 # defeating the blast-radius guard. Committing under tests/fixtures/ keeps it
 # available on every run.
-FIXTURE_SNAPSHOT_PATH = pathlib.Path(__file__).resolve().parent / "fixtures" / "tier_snapshot_pre_phase_D.json"
+FIXTURE_SNAPSHOT_PATH = (
+    pathlib.Path(__file__).resolve().parent / "fixtures" / "tier_snapshot_pre_phase_D.json"
+)
 
 
 # ─── D1: humaneval_score >= 60 → Tier 3 ────────────────────────────────────────
@@ -92,9 +94,7 @@ def test_no_non_seed_tier_flips_after_ladder_edit() -> None:
         if m in post and pre[m]["tier"] != post[m]["tier"]
     ]
     non_seed_flips = [
-        f
-        for f in flips
-        if "bytedance-seed" not in f[0] and "bytedance/ui-tars" not in f[0]
+        f for f in flips if "bytedance-seed" not in f[0] and "bytedance/ui-tars" not in f[0]
     ]
 
     assert non_seed_flips == [], (

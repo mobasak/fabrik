@@ -10,11 +10,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from suggest_model import _rank_service_type  # noqa: E402
 from rank_coding_subagents import _atomic_write, _safe_md_id  # noqa: E402
+from suggest_model import _rank_service_type  # noqa: E402
 
 DB_PATH = Path(__file__).parent / "kilo_agents.db"
-OUT_PATH = Path(__file__).parent.parent.parent / "docs" / "reference" / "kilo" / "IMAGE_GEN_SELECTION.md"
+OUT_PATH = (
+    Path(__file__).parent.parent.parent / "docs" / "reference" / "kilo" / "IMAGE_GEN_SELECTION.md"
+)
 _BENCH_IMAGES = 100
 
 

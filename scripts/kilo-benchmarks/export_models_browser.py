@@ -163,9 +163,7 @@ def _fetch_gpu_providers(conn: sqlite3.Connection) -> list[dict]:
     """
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
-            "SELECT * FROM gpu_providers ORDER BY usd_per_hour ASC"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM gpu_providers ORDER BY usd_per_hour ASC").fetchall()
     except sqlite3.OperationalError:
         # gpu_providers table doesn't exist yet on a partially-migrated DB.
         return []
@@ -255,7 +253,7 @@ def _render_gpu_rows_html(gpu: list[dict]) -> str:
     documented limitation of the follow-up.
     """
     if not gpu:
-        return "<tr><td colspan=99 style=\"padding:16px;color:var(--muted)\">No gpu_providers rows in this DB. Run seed_watchlist_and_gpu.py to seed the initial set.</td></tr>"
+        return '<tr><td colspan=99 style="padding:16px;color:var(--muted)">No gpu_providers rows in this DB. Run seed_watchlist_and_gpu.py to seed the initial set.</td></tr>'
     lines: list[str] = []
     for r in gpu:
         reach = int(r.get("reachable_with_existing_keys") or 0)
@@ -273,10 +271,10 @@ def _render_gpu_rows_html(gpu: list[dict]) -> str:
             f"<td><b>{r.get('provider') or '—'}</b></td>"
             f"<td>{r.get('gpu_sku') or '—'}</td>"
             f"<td>{r.get('tier') or '—'}</td>"
-            f"<td style=\"text-align:right\">{price} /hr</td>"
+            f'<td style="text-align:right">{price} /hr</td>'
             f"<td>{cold}</td>"
             f"<td>{badge}</td>"
-            f"<td style=\"font-size:11px;color:var(--muted)\">{(r.get('signup_trigger') or '').replace('<', '&lt;')}</td>"
+            f'<td style="font-size:11px;color:var(--muted)">{(r.get("signup_trigger") or "").replace("<", "&lt;")}</td>'
             f"</tr>"
         )
     return "\n".join(lines)
@@ -287,14 +285,10 @@ def _render_candidates_rows_html(cands: list[dict]) -> str:
     LLM + GPU non-reachable rows — kind column distinguishes them.
     """
     if not cands:
-        return "<tr><td colspan=99 style=\"padding:16px;color:var(--muted)\">No candidate rows. Every accessible row already has reachable_with_existing_keys=1.</td></tr>"
+        return '<tr><td colspan=99 style="padding:16px;color:var(--muted)">No candidate rows. Every accessible row already has reachable_with_existing_keys=1.</td></tr>'
     lines: list[str] = []
     for r in cands:
-        price = (
-            f"${r['price']:.4f} {r['price_unit']}"
-            if r.get("price") is not None
-            else "—"
-        )
+        price = f"${r['price']:.4f} {r['price_unit']}" if r.get("price") is not None else "—"
         kind_pill = (
             '<span style="background:#334;color:#eee;padding:1px 6px;border-radius:8px;font-size:10px">LLM</span>'
             if r["kind"] == "llm"
@@ -307,8 +301,8 @@ def _render_candidates_rows_html(cands: list[dict]) -> str:
             f"<td><code>{r['id']}</code></td>"
             f"<td>{r.get('provider') or '—'}</td>"
             f"<td>{r.get('service_type') or '—'}</td>"
-            f"<td style=\"text-align:right\">{price}</td>"
-            f"<td style=\"font-size:11px;color:var(--muted)\">{sig}</td>"
+            f'<td style="text-align:right">{price}</td>'
+            f'<td style="font-size:11px;color:var(--muted)">{sig}</td>'
             f"</tr>"
         )
     return "\n".join(lines)
@@ -374,8 +368,7 @@ def render(db_path: Path = DB_PATH, output_path: Path = OUTPUT_PATH) -> Path:
     # Embed JSON inside a <script type="application/json" id="data">…</script> tag
     # so the page is fully offline.
     embedded = (
-        template
-        .replace("<!--DATA_PLACEHOLDER-->", json.dumps(payload, default=str))
+        template.replace("<!--DATA_PLACEHOLDER-->", json.dumps(payload, default=str))
         .replace("<!--GPU_ROWS_PLACEHOLDER-->", gpu_rows_html)
         .replace("<!--CANDIDATES_ROWS_PLACEHOLDER-->", cands_rows_html)
     )

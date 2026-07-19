@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-07-17 01:12:59 -->
+<!-- Last synced: 2026-07-19 02:09:10 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -96,6 +96,7 @@ If you encounter a port conflict:
 | 3004 | **tojlo-mail** | saas | /opt/tojlo-mail |
 | 3005 | **compliance-ops** | saas-skeleton | /opt/compliance-ops |
 | 3006 | **exam-coach** | saas-skeleton | /opt/exam-coach |
+| 3007 | **web-ecommerce-factory** | saas-skeleton | /opt/web-ecommerce-factory |
 | 8000 | **tryton-crm** | python-api | /opt/tryton-crm |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |

@@ -110,7 +110,9 @@
 - [scaffold](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [scripts/audit_authelia_gates.py](INDEX.md): Weekly drift audit for Authelia gating on admin dashboards.
 - [scripts/audit_infra_vs_docs.py](INDEX.md): Probe-vs-doc audit for the VPS fleet.
+- [scripts/classify_services.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/container_images.py](INDEX.md): Container Image Discovery Tool for Fabrik
+- [scripts/declare_subscription.py](INDEX.md): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](INDEX.md): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
 - [scripts/doc_reconcile.py](INDEX.md): AFTER-EDIT: none
 - [scripts/docs_updater.py](INDEX.md): Fabrik Documentation Updater
@@ -140,6 +142,7 @@
 - [scripts/enforcement/validate_conventions.py](INDEX.md): Fabrik Convention Validator - Orchestrates all convention checks.
 - [scripts/epic_order.py](INDEX.md): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](INDEX.md): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/gather_envs.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/generate_capability_index.py](INDEX.md): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/generate_kilo_agents.py](INDEX.md): Generate Kilo CLI Agent Scripts from kilo_agents.db
 - [scripts/health_check_autonomous.py](INDEX.md): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
@@ -160,6 +163,8 @@
 - [scripts/migrate_db_rename.py](INDEX.md): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](INDEX.md): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](INDEX.md): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
+- [scripts/refresh_service_inventory.py](INDEX.md): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
+- [scripts/review_rubric.py](INDEX.md): AFTER-EDIT: scripts/select_rules.py tests/test_review_rubric.py
 - [scripts/seed_real_ports.py](INDEX.md): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
 - [scripts/select_rules.py](INDEX.md): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
 - [scripts/snapshot_vps_state.py](INDEX.md): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
@@ -216,7 +221,7 @@
 - [mt-router](/opt/fabrik-lib/mt-router/README.md): mt-router — Context-First Translation Router
 - [oauth-login](/opt/fabrik-lib/oauth-login/README.md): oauth-login
 - [observability](/opt/fabrik-lib/observability/README.md): observability
-- [ocr](/opt/fabrik-lib/ocr/README.md): ocr — text + bbox from images, with translated-text re-render
+- [ocr](/opt/fabrik-lib/ocr/README.md): ocr — bad-scan-capable OCR: text + bbox from images, with translated-text re-render
 - [pause-state](/opt/fabrik-lib/pause-state/README.md): pause-state
 - [payments](/opt/fabrik-lib/payments/README.md): payments/
 - [pdf-extract](/opt/fabrik-lib/pdf-extract/README.md): pdf-extract — positional text extract + overlay re-render for PDFs
@@ -233,6 +238,7 @@
 - [storage](/opt/fabrik-lib/storage/README.md): fabrik-lib/storage — Unified File Storage
 - [subagents](/opt/fabrik-lib/subagents/README.md): subagents — vendorable parallel-subagent runtime (OpenRouter-direct)
 - [tenancy](/opt/fabrik-lib/tenancy/README.md): tenancy
+- [ui-verify](/opt/fabrik-lib/ui-verify/README.md): ui-verify
 - [watchdog](/opt/fabrik-lib/watchdog/README.md): watchdog — per-project AI self-heal sidecar (poll → diagnose → act → escalate)
 - [web-scrape](/opt/fabrik-lib/web-scrape/README.md): web-scrape — deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered
 - [web-tools](/opt/fabrik-lib/web-tools/README.md): web-tools
@@ -266,6 +272,7 @@
 - [ai/90-long-context.md](.windsurf/rules/ai/90-long-context.md): Long-Context AI (category 16) — process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G
 - [chrome-ext/00-domain-chrome-ext.md](.windsurf/rules/chrome-ext/00-domain-chrome-ext.md): Chrome-extension domain — PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platfo
 - [chrome-ext/70-chrome-ext.md](.windsurf/rules/chrome-ext/70-chrome-ext.md): Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
+- [chrome-ext/89-extension-launch-checklist.md](.windsurf/rules/chrome-ext/89-extension-launch-checklist.md): Chrome extension launch checklist — Web Store account, listing assets, privacy practices tab, review-trap avoidance, staged rollout, post-launch
 - [core/10-python.md](.windsurf/rules/core/10-python.md): Python/FastAPI patterns, typing, environment handling
 - [core/12-node.md](.windsurf/rules/core/12-node.md): Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
 - [core/15-api-contracts.md](.windsurf/rules/core/15-api-contracts.md): API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
