@@ -308,8 +308,13 @@ def grade(gens: dict[str, list[_Gen]], corpus: list[Problem]) -> dict[str, Codin
         infile = f.name
     with tempfile.NamedTemporaryFile("r", suffix=".json", delete=False) as f:
         outfile = f.name
+    # Scale the grader timeout to the workload: the full run grades 57×50 ≈ 2850 (model,problem) pairs,
+    # each up to codegen_metrics' 6s sandbox cap / 8 procs — 900s (the probe cap) would kill it mid-grade
+    # AFTER generation spent real money. Budget ~1.5s/pair over the base, capped at 1h.
+    n_pairs = sum(len(g) for g in gens.values()) or 1
+    grade_timeout = min(3600.0, max(_LCB_TIMEOUT_S, n_pairs * 1.5 + 300))
     try:
-        _run_lcb(_GRADE_SRC, [infile, outfile])
+        _run_lcb(_GRADE_SRC, [infile, outfile], timeout=grade_timeout)
         graded = json.loads(Path(outfile).read_text())
     finally:
         Path(infile).unlink(missing_ok=True)
