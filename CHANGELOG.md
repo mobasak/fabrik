@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/workstation/wsl-shell-mcp-setup.md re-grounded to the live box (2026-07-19)
+
+The folder's one file (the operator's Claude Desktop wsl-shell MCP runbook — kept: sole record of
+the Zod-schema patch + setup; server actively used, log entries through 2026-07-17; no generator or
+cron). § 4 launch script replaced with the live 2026-07-03 version (permissive security preset,
+computed top-level-dir ALLOWED_WORKDIRS with the `/`-footgun explanation, raised exec/memory limits,
+node-pty preflight; dead FOREGROUND_TIMEOUT/TIMEOUT/EXECUTION_MODE vars gone); NEW § Auto-heal
+documents `rebuild-mcp-node-pty` + the `99-rebuild-mcp-node-pty` apt Post-Invoke hook (node-pty ABI
+breaks on Node major upgrades); troubleshooting row + manifest rows added; status header re-verified.
+Confirming pass: doc↔box diff clean incl. the Windows-side Claude Desktop config (NO-OP).
+
 ### Fixed — site-provisioner contract converged; dead dns.vps1 host purged repo-wide (2026-07-19)
 
 `docs/reference/service-contracts/site-provisioner.md` (the folder's only file — needed: cited by
@@ -217,6 +228,7 @@ a `# promote-to-check_*` greppable-candidates byproduct (Tier-1 drain direction)
 `~/.claude/commands/fabrik-review.md` (backup taken), mega-`04`, ettw-`08`, ettw-`10` — each states the L1
 honesty bound (probabilistic, not a guarantee). Added to `fabrik_synced_manifest.py` CORE_SCRIPTS; fleet
 sync runs post-merge (FABRIK_ROOT-anchored source). TDD: 11 behavior tests green (`tests/test_review_rubric.py` + `_edges.py` — the edge file pool-authored via /fabrik-generate-tests, mutation-verified). Phase-boundary review round 1 hardened: frontmatter never mandate-scanned, wildcard-only glob = match-all (arming errs safe), `NEVER`/`Do not` mandates captured, L1 wording de-ambiguated in all 4 wired commands. Whole-plan cross-phase review then fixed 4 seams: the 6 dangling refs to the retired § Project Type → Default Packs table (→ select_rules.py, incl. checklist item 28), the stub's resolve-all over-claim (scoped honestly), the fleet-synced core's hub-only catalog pointer (scoped), and C4's category error — mega-04/ettw-08/10 review runtime products, so their ARM blocks drop `--workflow` (authoring-QA checklists inject only when the subject IS a command file).
+
 ### Fixed — /fabrik-review hardening of the review-eligibility gate + benchmark (2026-07-18)
 
 Adversarial review (2 finder passes + a confirming pass) of the review-benchmark/gate work fixed a

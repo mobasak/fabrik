@@ -1,6 +1,6 @@
 # Claude Desktop wsl-shell MCP — Complete Setup
 
-**Status:** ✅ Working (2026-05-08)
+**Status:** ✅ Working (re-verified against the live box 2026-07-19; launch script + auto-heal re-grounded 2026-07-03; Node v22)
 **Where it runs:** Local Windows workstation (not VPS)
 **Purpose:** Lets Claude Desktop execute shell commands inside WSL Ubuntu, which can then `ssh vps` for VPS operations
 
@@ -98,15 +98,41 @@ Re-run this script after any `npm install -g @mako10k/mcp-shell-server` (updates
 
 ### 4. Create the launch script
 
+The live script (every knob grounded against the installed `dist/` on 2026-07-03 — the old
+`MCP_SHELL_FOREGROUND_TIMEOUT` / `MCP_SHELL_TIMEOUT` / `MCP_SHELL_DEFAULT_EXECUTION_MODE` vars were
+dead, never read by this version, and are removed):
+
 ```bash
 cat > /home/ozgur/start-mcp-shell.sh << 'LAUNCH'
 #!/bin/bash
-export MCP_SHELL_ENHANCED_MODE=false
-export MCP_SHELL_ALLOWED_WORKDIRS="/home/ozgur,/opt,/tmp,/root,/data,/"
+# wsl-shell MCP server (@mako10k/mcp-shell-server) — FULL WSL access, no restriction.
+export MCP_SHELL_SECURITY_MODE=permissive          # least-restrictive preset: allow all commands
+export MCP_SHELL_ENHANCED_MODE=false               # no AI safety pre-check
+export MCP_SHELL_ELICITATION=false                 # no interactive confirmation prompts
+export MCP_SHELL_SKIP_SAFE_COMMANDS=true           # skip re-evaluating known-safe commands
+export MCP_SHELL_BASIC_SAFE_CLASSIFICATION=false   # disable the command-classification gate
+export MCP_SHELL_ENABLE_NETWORK=true               # allow network
+export MCP_SHELL_ENABLE_STREAMING=true             # full streaming output
+export MCP_SHELL_MAX_EXECUTION_TIME=2000000        # ~23 days (default 300s); safe under setTimeout overflow
+export MCP_SHELL_MAX_MEMORY_MB=131072              # 128 GB (default 1024)
 export MCP_SHELL_DEFAULT_WORKDIR=/home/ozgur
+# Full-tree workdir access. NB: ALLOWED_WORKDIRS="/" is a FOOTGUN — the matcher does
+# startsWith(dir + path.sep), so "/" becomes "//" and matches nothing under root. Instead
+# enumerate every real top-level dir at launch (covers all Linux dirs + /mnt/c Windows drives).
+export MCP_SHELL_ALLOWED_WORKDIRS="$(ls -d /*/ 2>/dev/null | sed 's#/$##' | paste -sd, -)"
 
 cd /home/ozgur
 mkdir -p /home/ozgur/logs
+
+# Preflight: the node-pty native addon must load under the current Node. A Node major
+# upgrade changes the ABI and breaks the compiled addon — the apt hook (§ Auto-heal below)
+# heals it proactively; if anything slips through, surface a clear error in Claude
+# Desktop's mcp-server-wsl-shell.log instead of a raw node-pty stack trace.
+_PTY=/usr/local/lib/node_modules/@mako10k/mcp-shell-server/node_modules/node-pty/build/Release/pty.node
+if ! /usr/bin/node -e "require('$_PTY')" >/dev/null 2>&1; then
+  echo "start-mcp-shell: node-pty native addon failed to load (likely a Node ABI change after an upgrade)." >&2
+  echo "start-mcp-shell: heal it with ->  sudo /usr/local/bin/rebuild-mcp-node-pty" >&2
+fi
 
 exec /usr/bin/node /usr/local/lib/node_modules/@mako10k/mcp-shell-server/dist/index.js
 LAUNCH
@@ -115,12 +141,14 @@ chmod +x /home/ozgur/start-mcp-shell.sh
 mkdir -p /home/ozgur/logs
 ```
 
-Why each env var:
+Key knobs:
 
 | Env var | Why |
 |---|---|
+| `MCP_SHELL_SECURITY_MODE=permissive` | Least-restrictive preset — single-operator workstation, full trust |
 | `MCP_SHELL_ENHANCED_MODE=false` | Disables features that need extra dependencies |
-| `MCP_SHELL_ALLOWED_WORKDIRS="..."` | Comma-separated allowlist. Without `/home/ozgur`, the server rejects calls with `Working directory not allowed` |
+| `MCP_SHELL_ALLOWED_WORKDIRS=$(ls -d /*/ …)` | Computed at launch: every real top-level dir. A literal `/` is a footgun — the matcher does `startsWith(dir + path.sep)`, so `/` becomes `//` and matches nothing |
+| `MCP_SHELL_MAX_EXECUTION_TIME` / `MAX_MEMORY_MB` | Raised from the tiny defaults (300 s / 1 GB) so long builds don't get killed |
 | `MCP_SHELL_DEFAULT_WORKDIR=/home/ozgur` | Where commands run when `working_directory` is unspecified |
 | `cd /home/ozgur` before exec | The server writes `./logs/mcp_server.log` relative to cwd. Without this `cd`, cwd is `/mnt/c/Users/user` (where wsl.exe was launched from on Windows) and that path isn't writable from WSL |
 
@@ -212,6 +240,22 @@ if (!$p.HasExited) { $p.Kill() }
 
 Expected: `Has 'error' field: False`, `Has 'working' in stdout: True`.
 
+## Auto-heal — node-pty ABI breakage on Node upgrades
+
+The server's `node-pty` native addon is compiled against one Node ABI. A Node **major** upgrade
+(apt) changes `NODE_MODULE_VERSION` / the libnode soname and the addon stops loading — the MCP
+server then dies at startup. Two-layer defense, installed 2026-07-03:
+
+1. **`/usr/local/bin/rebuild-mcp-node-pty`** — idempotent healer: probes whether `pty.node` loads
+   under the current Node; only when broken, runs `npm rebuild node-pty` inside the server dir
+   (log: `/tmp/mcp-node-pty-rebuild.log`). Safe to run anytime.
+2. **`/etc/apt/apt.conf.d/99-rebuild-mcp-node-pty`** — `DPkg::Post-Invoke` hook that runs the
+   healer after every apt operation, so a Node upgrade self-heals before Claude Desktop next
+   launches. The launch script's preflight (§4) is the last-resort layer: it prints the manual
+   command into Claude Desktop's log if the addon is still broken.
+
+Manual heal: `sudo /usr/local/bin/rebuild-mcp-node-pty`, then fully quit + relaunch Claude Desktop.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -224,6 +268,7 @@ Expected: `Has 'error' field: False`, `Has 'working' in stdout: True`.
 | Tool calls timeout but server appears running (`pgrep -f mcp-shell`) | Old server process from a prior session — pipes broken | Kill old process: `pkill -f mcp-shell-server`, restart Claude Desktop |
 | `require() of ES Module ... not supported` (in stderr) | Trying to wrap with CommonJS `require()` | Server is ESM-only — use direct `exec node` or dynamic `import()`, not `require()` |
 | Patch reverts after `npm update` | Patch file lives in node_modules which gets regenerated | Always re-run `/home/ozgur/patch-mcp-shell.sh` after any update |
+| Server dies at startup after a Node upgrade; stderr shows a node-pty load error | Node major upgrade changed the ABI — compiled `pty.node` no longer loads | `sudo /usr/local/bin/rebuild-mcp-node-pty`, restart Claude Desktop (see § Auto-heal) |
 
 ## What I Tried That Did NOT Work
 
@@ -248,6 +293,9 @@ The actual root cause was a Zod `refine()` validation, not protocol noise, not w
 | `/home/ozgur/patch-mcp-shell.sh` | Idempotent schema patch |
 | `/home/ozgur/logs/mcp_server.log` | Server's own log file |
 | `/usr/local/lib/node_modules/@mako10k/mcp-shell-server/dist/types/schemas.js` | Patched (line ~14) |
+| `/usr/local/bin/rebuild-mcp-node-pty` | Idempotent node-pty ABI healer (§ Auto-heal) |
+| `/etc/apt/apt.conf.d/99-rebuild-mcp-node-pty` | apt Post-Invoke hook — runs the healer after every apt operation |
+| `/tmp/mcp-node-pty-rebuild.log` | Healer's rebuild log |
 | `%APPDATA%\Claude\claude_desktop_config.json` | Claude Desktop MCP config |
 | `%APPDATA%\Claude\logs\mcp.log` | Claude Desktop's MCP communication log — invaluable for debugging |
 
