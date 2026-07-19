@@ -7,14 +7,14 @@ trigger: glob
 <!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
      GOAL: Electron 30+ desktop application patterns — process isolation, IPC validation, distribution, code signing, auto-update, local storage, OS integrations
      TRAYCER USAGE: Injects as Context File for desktop-app scaffold tickets. Composes with 12-node.md (main process is Node) + 20-typescript.md.
-     AGENT USAGE: Follow verbatim. Research basis: docs/reference/research-files/Electron Desktop App Best Practices.md (cited). -->
+     AGENT USAGE: Follow verbatim. Research basis: docs/reference/research/Electron Desktop App Best Practices.md (cited). -->
 
 # Electron Desktop App Rules (2026)
 
 **Activation:** Glob `**/electron/**`, `**/main/**`, `**/renderer/**`, `**/preload*`, `**/electron-builder*`, `**/forge.config*`, `main.{js,ts}`, `preload.{js,ts}`
 **Purpose:** Production patterns for Electron 30+ desktop applications, both standalone and as frontend to a Fabrik-deployed backend.
 **Scope:** `desktop-app` scaffold. Composes with `12-node.md` (main-process runtime), `20-typescript.md` (renderer TS), `35-security-auth.md` (OAuth/M2M tokens), `55-observability.md` (Sentry/GlitchTip in main + renderer), `ocoron-design-system.md`.
-**Research basis:** [`docs/reference/research-files/Electron Desktop App Best Practices.md`](../../../docs/reference/research-files/Electron%20Desktop%20App%20Best%20Practices.md)
+**Research basis:** [`docs/reference/research/Electron Desktop App Best Practices.md`](../../../docs/reference/research/Electron%20Desktop%20App%20Best%20Practices.md)
 
 ---
 

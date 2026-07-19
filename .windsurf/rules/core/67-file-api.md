@@ -7,14 +7,14 @@ trigger: glob
 <!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
      GOAL: File-handling patterns for the file-api scaffold + any service that uploads, stores, validates, or deletes user files
      TRAYCER USAGE: Injects as Context File for file-api scaffolds + any ticket touching uploads / storage / presigned URLs / KVKK erasure.
-     AGENT USAGE: Follow verbatim. Composes with 12-node.md (Node runtime). Research basis: docs/reference/research-files/Node API File Storage Rules.md (cited). -->
+     AGENT USAGE: Follow verbatim. Composes with 12-node.md (Node runtime). Research basis: docs/reference/research/Node API File Storage Rules.md (cited). -->
 
 # File API Rules (2026)
 
 **Activation:** Glob `**/file-api/**`, `**/uploads/**`, `**/storage/**`, `**/presigned/**`, `**/multipart/**`, `**/clamav/**`
 **Purpose:** Production patterns for services that upload, store, validate, dedupe, scan, or destroy user files on Fabrik's VPS fleet.
 **Scope:** `file-api` scaffold + any service handling binary uploads. Composes with `12-node.md` (Node runtime), `25-data-postgres.md` (metadata schema), `95-multi-tenant-saas.md` (tenant isolation), `app-audit-log.md` (KVKK audit).
-**Research basis:** [`docs/reference/research-files/Node API File Storage Rules.md`](../../../docs/reference/research-files/Node%20API%20File%20Storage%20Rules.md)
+**Research basis:** [`docs/reference/research/Node API File Storage Rules.md`](../../../docs/reference/research/Node%20API%20File%20Storage%20Rules.md)
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 activation: glob
 globs: ["**/3d/**", "**/3d-gen/**", "**/3d-generation/**", "**/mesh-gen/**", "**/text-to-3d/**", "**/asset-gen/**", "**/glb/**", "**/usdz/**"]
-description: 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory headless validation gate, re-roll caps, API-before-self-host discipline. NOT CAD. Backed by docs/reference/research-files/Zero-Edit 3D API Evaluation.md.
+description: 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory headless validation gate, re-roll caps, API-before-self-host discipline. NOT CAD. Backed by docs/reference/research/Zero-Edit 3D API Evaluation.md.
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents building automated 3D-asset-generation pipelines + Traycer (tech-plan)

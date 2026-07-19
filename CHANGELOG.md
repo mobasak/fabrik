@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Merge docs/reference/research-files into docs/reference/research (2026-07-19)
+
+All 12 research docs moved (`git mv`) into `docs/reference/research/`; the empty `research-files/`
+folder removed. Every live reference retargeted (rule packs core/12, core/67, desktop-app/72, ai/25 ·
+`agents-fabrik.md` research table · `INDEX.md` tree · `docs/FEATURES.md` ·
+`docs/infrastructure/vps-ai-sysadmin.md`); repo-wide sweep clean outside CHANGELOG history.
+
 ### Changed — docs/reference/MD triage: archive 2 orphans, converge the 2 keepers (2026-07-19)
 
 `prompt-repository-structure.md` + `rag-chunking-rules.md` → `docs/archive/` — zero live references

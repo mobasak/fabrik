@@ -7,13 +7,13 @@ trigger: glob
 <!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
      GOAL: Node.js 22 backend service patterns for Fabrik VPS deployment — framework, runtime, observability, lifecycle, security, supply chain
      TRAYCER USAGE: Injects as Context File for tickets on node-api / file-api scaffolds or any .js/.ts backend.
-     AGENT USAGE: Follow verbatim. Research basis: docs/reference/research-files/Node Backend Practices Research 2026.md (cited). -->
+     AGENT USAGE: Follow verbatim. Research basis: docs/reference/research/Node Backend Practices Research 2026.md (cited). -->
 
 # Node.js Backend Rules (2026)
 
 **Activation:** Glob `**/*.{js,mjs,cjs,ts}`, `**/package.json`, `**/package-lock.json`
 **Purpose:** Node 22+/24 LTS production backend services on Fabrik's shared VPS fleet — framework, runtime, lifecycle, observability, security, supply chain
-**Scope:** `node-api` + `file-api` scaffolds; any project that adopts Node. Research basis: [`docs/reference/research-files/Node Backend Practices Research 2026.md`](../../../docs/reference/research-files/Node%20Backend%20Practices%20Research%202026.md)
+**Scope:** `node-api` + `file-api` scaffolds; any project that adopts Node. Research basis: [`docs/reference/research/Node Backend Practices Research 2026.md`](../../../docs/reference/research/Node%20Backend%20Practices%20Research%202026.md)
 
 ---
 
