@@ -68,13 +68,13 @@ Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight
 - The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via Pydantic Settings. Never hardcode it.
 - Use HS256 unless third-party external services must verify tokens without the signing key (only then consider RS256).
 
-### Pattern B (Supabase-issued tokens)
+### Pattern B (Supabase-issued tokens) — legacy / migration-only
 
 - Supabase issues JWTs automatically on login. Token lifecycle is managed by Supabase — do not override.
 - Refresh is handled by the Supabase client SDK (`supabase-js`, `supabase-py`). Do not build custom refresh logic.
 - For server-side operations that need elevated privileges, use the Supabase `service_role` key (env var, never exposed to clients).
 
-### Supabase JWT Validation (Pattern B) — canonical
+### Supabase JWT Validation (Pattern B — legacy / migration-only) — canonical for that pattern
 
 - Confirm which signing algorithm the project uses BEFORE writing validation code. Supabase's default shifted from symmetric HS256 (legacy/older projects) to asymmetric ES256/RSA (new JWT signing keys). The two are NOT interchangeable.
 - **Preferred:** validate via the Supabase client's `getClaims()` (`supabase-py` / `supabase-js`). It verifies asymmetric tokens LOCALLY against the JWKS public keys and automatically falls back to server-side `getUser()` for legacy HS256 tokens or an unknown `kid`. One call handles both signing models — no branching.
@@ -118,7 +118,7 @@ session_store[process_id][user_id] =  # Local disk - VIOLATION
 | **Chrome Extension (MV3)** | `chrome.storage.session` | `chrome.storage.session` via `supabase-js` custom storage adapter |
 
 - **Pattern A:** The FastAPI `/auth/login/web` endpoint returns a `Set-Cookie` header with `httponly=True`, `secure=True`, `samesite="lax"`. Mobile/extension endpoints return the token in the JSON response body. **CSRF:** cookie auth requires explicit CSRF defense — use `SameSite=Strict` on state-changing endpoints, or a double-submit CSRF token. `SameSite=Lax` alone does not cover all CSRF vectors (e.g., top-level GET navigations with side effects).
-- **Pattern B:** The Supabase client SDK handles token storage. On mobile, wrap with `expo-secure-store` (never AsyncStorage or MMKV for tokens). See `80-mobile.md` § Backend Integration.
+- **Pattern B (legacy / migration-only):** The Supabase client SDK handles token storage. On mobile, wrap with `expo-secure-store` (never AsyncStorage or MMKV for tokens). See `80-mobile.md` § Backend Integration.
 - **Both patterns:** Never store JWTs in `localStorage` or `sessionStorage` on web. Never store JWTs in AsyncStorage or MMKV on mobile.
 - **Chrome Extension (MV3) specifics:** `chrome.storage.session` defaults to `TRUSTED_CONTEXTS`, so **content scripts cannot read the token** — keep it in the SW / extension-page context and have content scripts fetch it via SW-mediated messaging (`chrome.runtime.sendMessage`), not a direct read. For social login use `chrome.identity.launchWebAuthFlow` with **PKCE** (`code_verifier` via `crypto.subtle`, held in `storage.session`, redirect `https://<ext-id>.chromiumapp.org/`); the **backend** does the code-for-token exchange. **Never a heavy browser auth SDK** (Auth0-SPA-JS, `oidc-client-ts`) — they assume DOM/`localStorage`/iframes and break in the service worker. Pin a manifest `key` so the extension ID (and thus the `chrome-extension://<id>` CORS origin) is stable across machines. Full detail: `chrome-ext/70-chrome-ext.md`.
 

@@ -211,3 +211,159 @@ def test_cli_workflow_bogus_exits_nonzero(tmp_path):
     assert result.returncode != 0, (
         f"expected non-zero exit for bogus workflow; stdout: {result.stdout}"
     )
+
+
+def test_conditional_sections_excluded_from_mandates(tmp_path):
+    """A mandate under a heading marked legacy/migration-only/deprecated/retired is NOT
+    injected (F1: dual-pattern packs must not arm reviewers with retired rules), while the
+    unmarked default section's mandate IS."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "96-dual.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: dual pack\n---\n\n"
+        "# dual\n\n## Default way\n\n- New code MUST use the default path.\n\n"
+        "### Old way (legacy / migration-only)\n\n- Old code MUST use the retired path.\n\n"
+        "## Another core section\n\n- Everything MUST be logged.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "MUST use the default path" in out
+    assert "MUST be logged" in out  # skipping ENDS when a same-or-higher heading follows
+    assert "retired path" not in out  # the legacy section never arms a reviewer
+
+
+def test_letter_suffixed_checklist_items_injected(tmp_path):
+    """84a.-style sub-items are checklist items too (F2)."""
+    _mk_tree(tmp_path)
+    f = tmp_path / "docs" / "orchestrator" / "mega-epic-breakdown" / "EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md"
+    f.write_text("# Mega checklist\n\n84. Does it persist?\n84a. Does the mirror persist too?\n", encoding="utf-8")
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow="mega", root=tmp_path)
+    assert "84. Does it persist?" in out
+    assert "84a. Does the mirror persist too?" in out
+
+
+def test_nested_conditional_heading_does_not_end_outer_skip(tmp_path):
+    """A conditional section containing a NESTED conditional heading stays fully skipped —
+    the inner heading must not deepen the skip boundary (regression: outer-skip early exit)."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "95-nested.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: nested\n---\n\n"
+        "# nested\n\n# Legacy Features (legacy)\n\n## Old Subsystem\n\n- Old MUST stay.\n\n"
+        "### Deprecated API (deprecated)\n\n- Older MUST stay too.\n\n"
+        "## Still Inside Legacy\n\n- Inner MUST never leak.\n\n"
+        "# Core\n\n- Core MUST be emitted.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "Old MUST stay" not in out
+    assert "Older MUST stay too" not in out
+    assert "Inner MUST never leak" not in out  # the leak the fix prevents
+    assert "Core MUST be emitted" in out  # skip ends at the next top-level heading
+
+
+def test_non_legacy_heading_not_skipped(tmp_path):
+    """'Non-legacy' in a heading must NOT trigger the conditional skip (word-boundary +
+    lookbehind regression)."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "94-nonlegacy.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: nonlegacy\n---\n\n"
+        "# nonlegacy\n\n## Non-legacy Features\n\n- Core MUST be armed.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "Core MUST be armed" in out
+
+
+def test_fenced_code_never_parsed_as_headings_or_mandates(tmp_path):
+    """Fence interior is invisible: a `# MUST` code comment must not close a conditional skip
+    (leak), and a BANNED example line must not be injected as a mandate (noise)."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "93-fenced.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: fenced\n---\n\n"
+        "# fenced\n\n## Legacy example (legacy)\n\n```python\n# MUST never do this in new code\n"
+        "old_call()\n```\n\n- Legacy MUST hide.\n\n## Real\n\n"
+        "```python\nSECRET = \"x\"  # BANNED example\n```\n\n- Real MUST show.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "Legacy MUST hide" not in out  # the fence-comment no longer ends the skip
+    assert "Real MUST show" in out
+    assert "BANNED example" not in out  # code-sample lines are not mandates
+
+
+def test_tilde_fences_tracked_like_backticks(tmp_path):
+    """~~~ fences are fences too (CommonMark) — their interior never leaks or injects."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "92-tilde.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: tilde\n---\n\n"
+        "# tilde\n\n## Legacy example (legacy)\n\n~~~python\n# MUST never do this\nold()\n~~~\n\n"
+        "- Legacy MUST hide.\n\n## Real\n\n- Real MUST show.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "Legacy MUST hide" not in out
+    assert "Real MUST show" in out
+
+
+def test_unclosed_fence_surfaces_malformed_pack_warning(tmp_path):
+    """An unclosed fence must not SILENTLY starve the rubric — the anomaly is surfaced in
+    the rubric output itself so the armed reviewer sees the gap."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "91-unclosed.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: unclosed\n---\n\n"
+        "# unclosed\n\n```python\nstray()\n\n## Real\n\n- Real MUST show.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "MALFORMED PACK" in out  # loud, in-band
+    assert "Real MUST show" not in out  # (still swallowed — but no longer silently)
+
+
+def test_literal_other_delimiter_inside_fence_is_content(tmp_path):
+    """A literal ~~~ inside a ```-opened fence is example CONTENT — it must not close the
+    fence (delimiter-matched toggling), so the outer skip survives and later core mandates
+    emit with no false malformed-pack report."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "90-mixed.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: mixed\n---\n\n"
+        "# mixed\n\n## Legacy (legacy)\n\n```python\nold_call()\n~~~\n# MUST hide comment\n```\n\n"
+        "- Legacy MUST hide.\n\n## Real\n\n- Real MUST show.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "Legacy MUST hide" not in out  # skip survived the literal ~~~
+    assert "Real MUST show" in out  # core mandate not swallowed
+    assert "MALFORMED PACK" not in out  # fences ARE balanced — no false report
+
+
+def test_longer_fence_nests_literal_shorter_fence(tmp_path):
+    """A ````-opened block showing a literal ``` example (the standard CommonMark nesting
+    trick) must not close early, mis-swallow later core mandates, or false-report MALFORMED."""
+    _mk_tree(tmp_path)
+    p = tmp_path / ".windsurf" / "rules" / "core" / "89-quadfence.md"
+    p.write_text(
+        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: quad\n---\n\n"
+        "# quad\n\n## Legacy (legacy)\n\n````markdown\nExample of a fence:\n```\n"
+        "- SNEAKY MUST leak here?\n````\n\n- Legacy MUST hide.\n\n## Real\n\n- Real MUST show.\n",
+        encoding="utf-8",
+    )
+    rr = _load()
+    out = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "SNEAKY" not in out
+    assert "Legacy MUST hide" not in out
+    assert "Real MUST show" in out
+    assert "MALFORMED PACK" not in out

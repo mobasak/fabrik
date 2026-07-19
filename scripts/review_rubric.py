@@ -39,6 +39,10 @@ sys.path.insert(0, str(_SCRIPTS))
 
 import select_rules  # noqa: E402 - the shared frontmatter parser + glob tail-matching
 
+# ⚠️ LOCKSTEP CONTRACT: this file uses select_rules' PRIVATE symbols (_FM, _parse_frontmatter,
+# _tail_matches, _expand_braces). Both files are co-synced fleet-wide (fabrik_synced_manifest
+# CORE_SCRIPTS) — renaming those symbols breaks armed reviews in every project. Rename together.
+
 # The mandatory-core floor (spec L3) — always injected, regardless of glob match.
 FLOOR_PACKS = (
     "core/35-security-auth.md",
@@ -67,7 +71,7 @@ TWELVE_FACTOR = (
 _MANDATE = re.compile(
     r"MUST|⚠️|\bnever\b|\bNever\b|\bNEVER\b|\bDo not\b|\bdo NOT\b|BANNED|HARD STOP"
 )
-_CHECK_ITEM = re.compile(r"^\s*\d+\.\s+\S")
+_CHECK_ITEM = re.compile(r"^\s*\d+[a-z]?\.\s+\S")  # 84a.-style sub-items count too
 _GREPPABLE = re.compile(r"`[^`]+`")
 
 CHECKLISTS = {
@@ -80,13 +84,66 @@ CHECKLISTS = {
 }
 
 
+_CONDITIONAL_HEADING = re.compile(r"(?<!non-)\b(legacy|migration-only|deprecated|retired)\b", re.IGNORECASE)
+
+
 def _mandate_lines(body: str) -> list[str]:
-    """The pack's enforceable lines — what a finder hunts against (not the whole doc)."""
+    """The pack's enforceable lines — what a finder hunts against (not the whole doc).
+
+    Section-aware: content under a heading marked CONDITIONAL (`legacy` / `migration-only` /
+    `deprecated` / `retired`) is SKIPPED — a dual-pattern pack (e.g. 35-security-auth's Pattern B)
+    would otherwise inject retired mandates as always-on floor rules, producing confident false
+    positives against the DEFAULT path (the "gate that cries wolf" failure). Convention: packs
+    MUST mark conditional sections in the heading itself; unmarked content is treated as core.
+    """
     out = []
+    skipping = False
+    skip_level = 0
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
     for line in body.splitlines():
         s = line.strip()
-        if s and not s.startswith("#") and _MANDATE.search(s):
+        if not in_fence:
+            # fenced code blocks (backtick OR tilde — CommonMark allows both) are EXAMPLES,
+            # not prose: their `#` comments are not headings (they'd close a conditional skip
+            # early) and their MUST/BANNED lines are not mandates (live noise: the ❌-Banned
+            # code samples were being injected verbatim)
+            if s.startswith(("```", "~~~")):
+                in_fence = True
+                fence_char = s[0]
+                fence_len = len(s) - len(s.lstrip(fence_char))
+                continue
+        else:
+            # CommonMark closing rule: a run of the SAME char, at least as LONG as the opener
+            # — so a literal ``` inside a ````-opened block (the standard way to show fence
+            # syntax in an example) is content, and ~~~ inside a ```-fence is content too
+            run = len(s) - len(s.lstrip(fence_char))
+            if run >= fence_len:
+                in_fence = False
+            continue
+        if s.startswith("#"):
+            level = len(s) - len(s.lstrip("#"))
+            if skipping and level <= skip_level:
+                skipping = False
+            if _CONDITIONAL_HEADING.search(s) and not skipping:
+                # only the OUTERMOST conditional heading sets the skip boundary — a nested
+                # conditional heading must not deepen skip_level, or a later mid-level heading
+                # would end the outer skip early and leak its mandates
+                skipping = True
+                skip_level = level
+            continue
+        if skipping:
+            continue
+        if s and _MANDATE.search(s):
             out.append(s if s.startswith(("-", "*", "|")) else f"- {s}")
+    if in_fence:
+        # an unclosed fence would have silently swallowed every mandate after it — surface
+        # the anomaly IN the rubric so the armed reviewer sees the gap instead of nothing
+        out.append(
+            "- ⚠ MALFORMED PACK: an unclosed code fence truncated this pack's mandate scan — "
+            "read the pack directly; report the missing closing fence upstream"
+        )
     return out
 
 

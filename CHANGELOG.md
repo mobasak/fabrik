@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review_rubric extractor hardened: conditional sections, checklist sub-items, fence-aware scanning (2026-07-19)
+
+Peer read-only review (other AI) found 3 real issues in the shipped armed-review extractor; fixing them
+triggered a 7-round adversarial loop that hardened the whole scanner. **F1 (the big one):** `_mandate_lines`
+flattened dual-pattern packs — the mandatory-core floor was injecting `35-security-auth`'s RETIRED Pattern-B
+Supabase mandates (incl. "Do not build custom refresh logic") against the Pattern-A default — confident
+false positives on the highest-blast rule. Now section-aware: headings marked `legacy` / `migration-only` /
+`deprecated` / `retired` are skipped (outermost boundary wins; word-bounded regex with a `non-` lookbehind);
+the pack's two unmarked Pattern-B sub-headings got their missing markers and its inline Pattern-B bullet
+self-labels. **F2:** the checklist regex now accepts `84a.`-style sub-items (6 previously dropped from
+`--workflow mega`). **F3:** lockstep-contract comment on the private `select_rules` imports. **Fence-aware
+scanning** (found by the confirm rounds, one LIVE): fenced code blocks are invisible to both the heading
+parse and the mandate scan — the ❌-Banned code samples were being injected verbatim as floor "mandates";
+CommonMark-correct delimiter tracking (char + run-length: `~~~` inside a ```-fence is content, a ```` block
+nests a literal ```), and an unclosed fence surfaces a loud in-band `⚠ MALFORMED PACK` line instead of
+silently starving the rubric. 9 new regression tests (20 total green); live floor verified: 0 noise, 0
+contradictions, fail-closed invariant intact. Fleet-synced.
+
 ### Fixed — 18 rule-pack cross-refs retargeted from the AGENTS.md stub to the canonical agents doc (2026-07-19)
 
 The named follow-up from plan-2 Phase B: `AGENTS.md § Supabase` / `§ Fabrik Microservices` / `§ Local LLM
