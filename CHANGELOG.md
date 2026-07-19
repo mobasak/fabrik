@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs/reference triage (eighth 5): the 8-contradiction tech-stack guide reconciled; templates.md tables regenerated (2026-07-19)
+
+**The big one (fleet-synced):** `technology-stack-decision-guide.md`'s 8 hard contradictions vs the
+binding constraints — all fixed via an Opus-grounded surgical blueprint (11 edits, law cited per
+site): OpenRouter-only LLM gateway (Kilo ladder gone), pick_models/fanout selection (role_mapper
+gone), postgres-main Pattern A (Supabase → ADR exception), Astro-factory override for websites +
+Next.js 15/React 19 pins, Vendure + iyzico/Paddle/never-Stripe e-commerce override, self-host-auth
+override row added, rent-don't-own GPU (python-api-gpu/gpu_rent), shape-driven Redis; plus the
+owned-services catalog pointer (91 providers). `service_catalog.json` kilo row → retired (durable —
+classifier preserves statuses). Closes mega-00 ledger row 15. **templates.md:** both core tables were
+majority-wrong (7/9 shape rows had false flags; wordpress + next-tailwind rows described nonexistent
+templates) — regenerated from the real `templates/*/defaults.yaml`, python-api-gpu row added,
+chrome-ext/desktop/mobile deploy framing corrected, dead wordpress example removed,
+companion_services added to the Jinja table. **Archived:** `subagents-enhancement-proposal.md`
+(fulfilled — fanout live at agent.py:735). **Verified current:** `template_renderer.md` (exact API
+match) and `terminal-bench-runner.md` (every count byte-exact vs the downloaded TB2.1 corpus; one
+Related bullet added). 2-pass loop (Opus blueprint + 2 Sonnet → Sonnet confirm NO-OP).
+
 ### Changed — docs/reference triage (seventh 5): 3 archived, 1 to research/, stack.md status tables fixed (2026-07-19)
 
 **Archived:** `SaaS-GUI.md` (recommended patterns the binding saas/60 pack BANS — NextAuth/Clerk,

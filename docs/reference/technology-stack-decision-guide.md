@@ -15,11 +15,12 @@ The generic flowchart below recommends industry-standard defaults. For all `/opt
 | Category | Generic Guide Recommends | Fabrik Uses Instead | Why |
 |----------|--------------------------|---------------------|-----|
 | **Backend API** | TypeScript + Node.js | **Python + FastAPI + Uvicorn** | Best AI library access, owner's primary language, strong typing via Pydantic |
-| **Frontend** | TypeScript + Next.js + Node.js monorepo | **Next.js 14 + TypeScript + Tailwind** (frontend only, backend is separate Python) | Frontend matches, but backend is Python — not a JS monorepo |
+| **Frontend** | TypeScript + Next.js + Node.js monorepo | **Next.js 15 + React 19 + TypeScript + Tailwind** for `saas-skeleton` app UIs (frontend only, backend is separate Python). Marketing / blog / store sites are NOT Next.js — they go to `/opt/web-ecommerce-factory` (Astro static-first, per-site repo) | Frontend matches, but backend is Python — not a JS monorepo |
 | **CLI tooling** | Go (single binary) | **Python** (`src/fabrik/cli.py`) | Shares codebase with backend, direct access to Fabrik's Python modules |
-| **Background workers** | Node.js (web-adjacent) | **PostgreSQL jobs table + Python worker** | No Redis dependency by default; Redis only for high-throughput cases |
-| **Database** | (not specified) | **PostgreSQL 16** (VPS, VPS-managed) or Supabase (managed auth/realtime/pgvector) | Single shared PostgreSQL instance for all services |
-| **AI/LLM** | Python + managed APIs | **Kilo CLI free tiers → OpenAI/Anthropic APIs → Local Ollama** | Budget-first: free before paid, local before cloud |
+| **Background workers** | Node.js (web-adjacent) | **PostgreSQL jobs table + Python worker** | Default worker uses the PG jobs table; session/state/cache → `redis-main` whenever the spec's `shape.needs_cache` is true (12-Factor VI — the spec shape decides, not a blanket no) |
+| **Database** | (not specified) | **PostgreSQL 16** (`postgres-main`, shared, on the mesh) — auth / pgvector / storage all self-hosted (Pattern A: `fabrik-lib/fastapi-user-auth` + `pgvector` + `fabrik-lib/storage`); Supabase only as a deliberate ADR-recorded exception | Single shared PostgreSQL instance for all services |
+| **AI/LLM** | Python + direct vendor SDKs | **App inference → OpenRouter (the single app-LLM gateway); coding agents → Claude Code (Max OAuth) + the OpenRouter subagent pool; local Ollama = dev-box tooling only** | One gateway for app LLM calls — never a direct vendor SDK |
+| **End-user auth** | Managed (Clerk / Auth0 / NextAuth class) | **Self-host Pattern A — `fabrik-lib/fastapi-user-auth`** (app issues its own JWTs: Argon2, refresh-token rotation, `jti` denylist, tenant-isolation RLS) | No third-party auth dependency; managed auth only as an ADR-recorded exception |
 
 ### Fabrik Deployment Constraints (Not in Generic Guide)
 
@@ -49,6 +50,9 @@ These constraints are **mandatory** for all Fabrik projects. The generic flowcha
 | Apprise | Multi-channel notifications | `notify.vps1.ocoron.com` — use instead of direct API calls |
 | Browserless | Headless Chrome | `browser.vps1.ocoron.com` — use for scraping, screenshots |
 | n8n | Workflow automation | `auto.vps1.ocoron.com` — use for no-code integrations |
+
+
+> **Full owned-services registry (91 providers, secret-free):** `scripts/service_catalog.json` — the canonical list of every external provider Fabrik holds credentials/config for (ai-llm, ai-image, search, scrape, storage, payments, comms, …). This table shows only the highest-frequency infra; consult the catalog before assuming a capability isn't already provisioned.
 
 ---
 
@@ -89,6 +93,7 @@ What type of web product?
     ├─► Marketing site / Landing page / SEO content?
     │       │
     │       └─► ANSWER: TypeScript + Next.js + Tailwind CSS
+    │           • Fabrik override: marketing/blog/store → /opt/web-ecommerce-factory (Astro static-first); Next.js only for saas-skeleton app UIs
     │           • Escape hatch: Server/edge functions for custom logic
     │           • Add: Analytics, A/B testing, CMS, forms, consent banners
     │
@@ -107,6 +112,7 @@ What type of web product?
     │       │
     │       ├─► Fastest GTM / MVP?
     │       │       └─► ANSWER: Platform-based (Shopify, etc.)
+    │       │           • Fabrik override: e-commerce → Vendure (headless) via /opt/web-ecommerce-factory; billing = iyzico (TR) / Paddle (intl) / RevenueCat (mobile IAP). Not Shopify; Stripe is unavailable to the TR entity
     │       │
     │       └─► Custom / Full control?
     │               └─► ANSWER: TypeScript web + backend services
@@ -270,6 +276,7 @@ What type of AI/Data product?
     ├─► LLM app / AI-powered features?
     │       │
     │       ├─► Using managed APIs (OpenAI, Anthropic, etc.)?
+    │       │     • Fabrik: all app LLM calls route through OpenRouter (single gateway); no direct vendor SDK
     │       │       └─► ANSWER: Python (backend) + TypeScript UI
     │       │
     │       └─► Self-hosted models?
@@ -408,14 +415,14 @@ For your profile (AI-assisted coding, solo operator, API-first, automation focus
 | Backend API | TypeScript + Node.js | **Python + FastAPI + Uvicorn** | Owner's primary stack, best ML/AI ecosystem |
 | Mobile (both platforms) | React Native + TypeScript | React Native + TypeScript | ✅ Same — no override |
 | CLI Tool | Go | **Python** (`src/fabrik/cli.py`) | Shares modules with backend, no separate binary needed |
-| Background Workers | Node.js | **PostgreSQL jobs table + Python worker** | No Redis dependency by default |
-| AI Features | Python backend + TS frontend | **Kilo CLI free → OpenAI/Anthropic → Local Ollama** | Budget-first: free before paid |
+| Background Workers | Node.js | **PostgreSQL jobs table + Python worker** | PG jobs table by default; `redis-main` when `shape.needs_cache` (spec decides) |
+| AI Features | Python backend + TS frontend | **App inference via OpenRouter (only app-LLM gateway); agents = Claude Code OAuth + OpenRouter subagent pool; Ollama = dev-box only** | One gateway, no direct vendor SDKs |
 | Desktop App | Electron + TypeScript | Electron + TypeScript | ✅ Same — no override |
 
 **Avoid (team-scale only):**
 - Kubernetes / microservices architecture
 - Polyglot backend stacks
-- Self-hosted ML model serving (use managed APIs)
+- Owning GPU hardware for ML serving — instead RENT on demand: the `python-api-gpu` scaffold + `gpu_rent` provision a GPU only for the job (rent, don't own — see `.windsurf/rules/core/76-gpu-workers.md`)
 
 ---
 
@@ -439,8 +446,8 @@ The table below contains all original information without any summarization or s
 
 | Final product (deliverable) | Default stack (fastest reliable path) | Common alternatives (when default is not ideal) | Use this when you need… (requirements trigger) | If you have / prefer… (constraints & team reality) | "All-features" / escape hatch (how you avoid dead-ends) | Typical add-ons (almost always needed in real products) | Primary risks / failure modes | Mitigations / design patterns |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Website (marketing, landing, SEO, content)** | **TypeScript + Next.js (Node.js runtime) + Tailwind CSS** | Static site generators; CMS-driven sites; plain HTML/CSS for ultra-simple | SEO, fast iteration on pages, forms, analytics, fast deployment | You want one stack that also grows into SaaS later | Escape hatch is **server functions / edge functions** for custom logic; integrate 3rd-party services for everything else | Analytics, A/B testing, CMS, newsletter/email capture, form handling, consent banners, performance monitoring | SEO regressions, slow page load, fragile forms, CMS lock-in | Static generation where possible, performance budgets, form validation + retries, CMS abstraction layer |
-| **Web app / SaaS (full product UI + backend)** | **TypeScript + React/Next.js + Node.js API** (monorepo) | Go/Java backend; Python backend; separate frontend SPA + API | Auth, billing, dashboards, multi-tenant logic, CRUD + workflows | Agents can generate TS/React reliably; you want fastest product cycles | Escape hatch is **microservices** for hotspots and **managed services** for hard parts (payments, auth, storage, queues) | Auth provider, payments, database, background jobs, email/SMS, observability (logs/metrics/traces), feature flags | Tight coupling, schema drift, scaling bottlenecks, auth mistakes | Clear domain boundaries, API contracts, migrations, managed auth/billing, horizontal scaling |
+| **Website (marketing, landing, SEO, content)** | **TypeScript + Next.js + Tailwind CSS** _(Fabrik: Astro static-first via `/opt/web-ecommerce-factory`, not Next.js)_ | Static site generators; CMS-driven sites; plain HTML/CSS for ultra-simple | SEO, fast iteration on pages, forms, analytics, fast deployment | You want one stack that also grows into SaaS later | Escape hatch is **server functions / edge functions** for custom logic; integrate 3rd-party services for everything else | Analytics, A/B testing, CMS, newsletter/email capture, form handling, consent banners, performance monitoring | SEO regressions, slow page load, fragile forms, CMS lock-in | Static generation where possible, performance budgets, form validation + retries, CMS abstraction layer |
+| **Web app / SaaS (full product UI + backend)** | **TypeScript + React/Next.js + Node.js API** (monorepo) | Go/Java backend; Python backend; separate frontend SPA + API | Auth, billing, dashboards, multi-tenant logic, CRUD + workflows | Agents can generate TS/React reliably; you want fastest product cycles | Escape hatch is **microservices** for hotspots and **managed services** for hard parts (payments, auth, storage, queues) | Auth provider, payments, database, background jobs, email/SMS, observability (logs/metrics/traces), feature flags | Tight coupling, schema drift, scaling bottlenecks, auth mistakes | Clear domain boundaries, API contracts, migrations, managed auth/billing (Fabrik: self-host auth via `fabrik-lib/fastapi-user-auth`, Pattern A), horizontal scaling |
 | **Backend API only (no UI product)** | **TypeScript + Node.js** (REST/GraphQL) | Go; Java; Python; .NET | Public/internal API platform, integrations hub, partner endpoints | You want rapid iteration and broad library coverage | Escape hatch: move latency/CPU-critical endpoints to Go/Rust services; keep stable API contracts | OpenAPI/Swagger, auth (JWT/OAuth), rate limiting, request validation, API gateway, monitoring, audit logs | Breaking changes, abuse, poor observability | Strict versioning, OpenAPI-first, rate limiting, structured logging, contract tests |
 | **Public SDK / client libraries** | **TypeScript SDK** first (web + Node) | Python SDK; Java/Kotlin; Swift; C# | You want adoption by developers, easy integration, typed interface | Your users are web developers or you want fastest first SDK | Escape hatch: generate SDKs from OpenAPI; keep a single canonical spec | Versioning policy, docs site, code samples, CI publishing, backward compatibility tests | SDK drift from API, breaking changes | Code generation from spec, semantic versioning, CI release automation |
 | **Mobile app (iOS + Android)** | **React Native + TypeScript** | Flutter (Dart); native Swift + Kotlin | One codebase, fastest multi-platform delivery, frequent iterations | You don't code; agents build; you want the broadest talent/library pool | **Default to React Native + TypeScript for iOS+Android speed, and rely on native modules when you hit unsupported device APIs.** | Push notifications, deep links, crash reporting, analytics, OTA update strategy, offline sync, secure storage, app store release automation | Native feature gaps, performance issues, store rejections | Capability abstraction layer, native module templates, performance profiling, staged rollouts |
@@ -462,7 +469,7 @@ The table below contains all original information without any summarization or s
 | **Integration / iPaaS-like connector product** | **Node.js/TypeScript** (connectors) | Python connectors; Go for agents | Connect SaaS APIs, sync data, webhooks, ETL-ish flows | You want fast connector iteration | Escape hatch: connector sandboxing; split into per-connector workers | OAuth handling, token refresh, rate limiting, retries, mapping UI, audit trails | API changes, rate limits | Adapter pattern, retries, schema mapping |
 | **RPA / automation bots (UI automation, ERP, email workflows)** | **Python** (automation) + orchestration | Node.js automation; vendor RPA platforms | Automate repetitive business ops, scraping, UI clicking | You want "no human in loop" operations | Escape hatch: when UI breaks, switch to API integrations; build monitoring | Job scheduler, failure detection, screenshot logs, anti-breakage strategy | UI fragility | API-first fallback, monitoring, alerts |
 | **Payments / fintech front-end product** | **TypeScript + Web** + mobile RN shell | Native mobile for strict UX; Java/Go backend | KYC, payments, compliance-heavy flows | Enterprise/compliance constraints | Escape hatch: use regulated payment providers; keep compliance boundaries external | Audit logs, encryption, access controls, risk monitoring, incident response | Regulatory breaches | External providers, audit trails, segregation of duties |
-| **E-commerce product** | **TypeScript web** + backend services | Platform-based (Shopify etc.) | Catalog, checkout, inventory integrations | You want fastest GTM | Escape hatch: start on platform, migrate custom later | Payments, tax, shipping, CRM, analytics, anti-fraud | Platform limits | Modular integrations, data portability |
+| **E-commerce product** | **TypeScript web** + backend services | Platform-based (Shopify etc.) — _Fabrik: Vendure headless via `/opt/web-ecommerce-factory`; billing iyzico/Paddle/RevenueCat, never Stripe_ | Catalog, checkout, inventory integrations | You want fastest GTM | Escape hatch: start on platform, migrate custom later | Payments, tax, shipping, CRM, analytics, anti-fraud | Platform limits | Modular integrations, data portability |
 | **Game product (mobile/PC/console)** | **C# (Unity)** for speed | C++ (Unreal) for AAA/perf; native engines | 3D/2D games, physics, real-time rendering | You want fastest production tools | Escape hatch: native plugins for platform APIs; external backend services | Asset pipeline, build automation, telemetry, anti-cheat, matchmaking | Performance bottlenecks | Profiling, asset budgets, engine tooling |
 | **Wearables app (Apple Watch / Wear OS)** | **Swift (watchOS)** / **Kotlin (Wear OS)** | Companion-only minimal apps; RN with native components | Device sensors, glanceable UX | Platform constraints are strong | Escape hatch: push heavy logic to phone + backend | Background limitations handling, battery/performance tuning | Battery drain | Offload compute, background limits |
 | **TV apps (Apple TV / Android TV)** | **Swift/tvOS** / **Kotlin/Android TV** | Cross-platform only for limited UI | 10-foot UI, remote navigation, media | Media-first products | Escape hatch: shared backend + shared UI patterns; native where required | DRM, playback analytics, CDN integration | Input UX issues | Platform UI guidelines, testing |
@@ -506,10 +513,10 @@ Fabrik is a **deployment orchestration platform** with AI-powered agent manageme
 |-------|-----------|----------|
 | CLI & orchestrator | **Python** (Click CLI + FastAPI) | `src/fabrik/cli.py`, `src/fabrik/` |
 | Backend APIs | **Python + FastAPI + Uvicorn** | Per-project `src/main.py` |
-| Frontend (SaaS UIs) | **Next.js 14 + TypeScript + Tailwind** | Per-project `app/` |
+| Frontend (SaaS UIs) | **Next.js 15 + React 19 + TypeScript + Tailwind** | Per-project `app/` |
 | Infrastructure | **Docker Compose via `fabrik apply` (SSH + Docker Compose)** on x86_64 VPS | `compose.yaml` per project |
 | Database | **PostgreSQL 16** (shared) | VPS-managed `postgres-main` |
-| AI agent selection | **Kilo CLI** (model roster auto-updated daily) | `scripts/kilo-benchmarks/role_mapper.py` |
+| Subagent model selection | **`pick_models(task_type)` / `fanout` — flywheel-ranked OpenRouter pool**, recorded to the `subagent_runs` flywheel | `.windsurf/rules/core/62-using-subagents.md` § Dispatch policy · `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` |
 | Monitoring | **Grafana + Prometheus + Loki + Alertmanager + Gatus** (all active) | VPS services |
 
 This differs from the generic guide's recommendation of "TypeScript monorepo + Go CLI" because Fabrik's backend logic (scaffold, sync, audit, orchestration) is Python-native and shares modules with the CLI.
@@ -519,7 +526,7 @@ This differs from the generic guide's recommendation of "TypeScript monorepo + G
 ## Document Information
 
 - **Created**: January 2026
-- **Last updated**: 2026-06-16 (monitoring stack status corrected — Grafana/Prometheus/Loki are live, not "config ready")
+- **Last updated**: 2026-07-19 (Fabrik-overrides layer reconciled to the binding constraints: OpenRouter-only LLM gateway, pool model selection, Pattern-A auth, Astro factory for websites, Vendure + iyzico/Paddle for e-commerce, rent-don't-own GPU, shape-driven Redis; owned-services catalog pointer added)
 - **Purpose**: Technology stack decision reference for product development
 - **Format**: Decision flowchart + complete reference table
 - **Usage**: Navigate via flowchart for quick decisions, reference table for detailed analysis

@@ -749,9 +749,9 @@
   "kilo": {
     "category": "dev-tools",
     "cost": "paid",
-    "capability": "kilocode coding-agent gateway",
+    "capability": "kilocode coding-agent gateway (RETIRED 2026-07-19 — LLM access = Claude Code OAuth + OpenRouter)",
     "url": "https://kilocode.ai",
-    "status": "active",
+    "status": "retired",
     "match": [
       "KILO_API",
       "KILO_"

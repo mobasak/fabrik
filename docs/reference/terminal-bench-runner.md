@@ -142,5 +142,6 @@ daily leaderboard *scrape* (`scrape_benchmarks.py`) is unaffected and remains th
 
 - `scripts/kilo-benchmarks/microbench_terminal.py` — the runner.
 - `scripts/kilo-benchmarks/scrape_benchmarks.py` — scrapes the public tbench.ai leaderboard into `tbench_accuracy`.
+- `scripts/kilo-benchmarks/scrape_tbench_task_results.py` — the public per-task/per-category results matrix into `tbench_task_results`.
 - `scripts/kilo-benchmarks/compute_assignments.py` / `category_selector.py` / `llm_selector.py` — consume
   `tbench_accuracy`; their sorts place unbenched (NULL) models below real 0-scorers (plan-1 Phase C).

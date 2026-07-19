@@ -8,24 +8,23 @@ Source of truth for the Shape matrix: `src/fabrik/spec_loader.py::Shape`.
 
 ---
 
-## All 12 Deploy Templates (2026-04-22)
+## Deploy Templates (reconciled 2026-07-19 against `templates/*/defaults.yaml`)
 
-11 of these are also exposed via `fabrik scaffold --type <name>`. The 12th, `next-tailwind`, is **deploy-only** (used by specs that reference it directly; not creatable via `fabrik scaffold`).
+All rows are exposed via `fabrik scaffold --type <name>`. (`wordpress` is a recognised deploy/shape type with NO template — scaffolding redirects to the legacy `/opt/wpf` CLI. `next-tailwind` does not exist — planned-but-unimplemented, tracked as G10. `modal` in `templates/` is rendered by the GPU path, not by TemplateRenderer.)
 
-| Template | Stack | Port | Typical use | Default shape |
+| Template | Stack | Port | Typical use | Default shape (true flags) |
 |---|---|---|---|---|
-| `python-api` | Python 3.12 + FastAPI + Uvicorn | 8000 | REST APIs, microservices | service, public, DB, persistent |
-| `node-api` | Node.js 22 + Express/Fastify | 3000 | Node.js APIs | service, public, DB, persistent |
-| `saas-skeleton` | Next.js 14 + TypeScript + Tailwind + Shadcn | 3000 | Full SaaS apps & dashboards | service, public, admin-dashboard, DB |
-| `next-tailwind` | Next.js 14 + Tailwind (minimal) | 3000 | Marketing sites, small SSR apps | service, public |
+| `python-api` | Python 3.12 + FastAPI + Uvicorn | 8000 | REST APIs, microservices | service, public, metrics |
+| `python-api-gpu` | python-api + `gpu_handler.py` (on-demand GPU rent) | 8000 | GPU-burst APIs/workers | service, public, metrics |
+| `node-api` | Node.js 22 + Express/Fastify | 3000 | Node.js APIs | service, public, metrics |
+| `saas-skeleton` | Next.js 15 + React 19 + TypeScript + Tailwind | 3000 | Full SaaS apps & dashboards | service, public, bearer-api, DB, cache, persistent, metrics |
 | `static-site` | Static HTML/JS via nginx | 80 | Landing pages, doc sites | static, public |
-| `wordpress` | WordPress + WP-CLI | 80 | Content sites (plus `landing`/`saas`/`content` presets) | wordpress, public, DB, persistent |
 | `docusaurus` | Docusaurus 3 | 3000 | Documentation sites | static, public |
-| `file-api` | Python + FastAPI (file-ops microservice) | 8000 | File upload/transform services | service, internal, DB, persistent |
-| `file-worker` | Python background worker (variant of file-api) | — | Async file processing | worker, DB, persistent |
-| `chrome-extension` | MV3 build pipeline | — | Browser extensions (GitHub-releases deploy) | extension (no VPS deploy) |
-| `desktop-app` | Electron-style | — | Desktop apps (GitHub-releases deploy) | desktop (no VPS deploy) |
-| `mobile-app` | React Native / Expo | — | Mobile apps (EAS / app-store deploy) | mobile (no VPS deploy) |
+| `file-api` | Python + FastAPI (file-ops microservice) | 8000 | File upload/transform services | service, public, persistent |
+| `file-worker` | Python background worker (variant of file-api) | — | Async file processing | worker, persistent |
+| `chrome-extension` | MV3 (WXT + Preact) | — | Browser extensions; compose.yaml.j2 deploys a companion FastAPI backend via `fabrik apply` | service (all-false flags; backend deployable) |
+| `desktop-app` | Electron-style | — | Desktop apps; template carries a compose.yaml.j2 but the scaffolder does not emit a spec today | service (all-false flags) |
+| `mobile-app` | React Native / Expo | — | Mobile apps (EAS deploy); companion backend deployable | service (all-false flags) |
 
 **Note on shape:** these are the template defaults. Any scaffolded project can override its `shape:` block in the spec to turn registrars on or off.
 
@@ -53,19 +52,19 @@ Archived templates under `templates/.archive/` — **do not use**.
 
 Sourced from each `templates/<name>/defaults.yaml`:
 
-| Template | kind | is_public | is_admin_dashboard | has_bearer_api | has_persistent_data | needs_database | has_search_feature |
-|---|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| `python-api` | service | ✓ | — | — | ✓ | ✓ | — |
-| `node-api` | service | ✓ | — | — | ✓ | ✓ | — |
-| `saas-skeleton` | service | ✓ | ✓ | — | ✓ | ✓ | — |
-| `next-tailwind` | service | ✓ | — | — | — | — | — |
-| `static-site` | static | ✓ | — | — | — | — | — |
-| `wordpress` | wordpress | ✓ | — | — | ✓ | ✓ | — |
-| `docusaurus` | static | ✓ | — | — | — | — | — |
-| `file-api` | service | — | — | ✓ | ✓ | ✓ | — |
-| `file-worker` | worker | — | — | — | ✓ | ✓ | — |
-
-(Non-deploy templates — `chrome-extension`, `desktop-app`, `mobile-app` — omit deploy-side shape flags.)
+| Template | kind | is_public | is_admin_dashboard | has_bearer_api | has_persistent_data | needs_database | needs_cache | exposes_metrics | has_search_feature |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `python-api` | service | ✓ | — | — | — | — | — | ✓ | — |
+| `python-api-gpu` | service | ✓ | — | — | — | — | — | ✓ | — |
+| `node-api` | service | ✓ | — | — | — | — | — | ✓ | — |
+| `saas-skeleton` | service | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| `static-site` | static | ✓ | — | — | — | — | — | — | — |
+| `docusaurus` | static | ✓ | — | — | — | — | — | — | — |
+| `file-api` | service | ✓ | — | — | ✓ | — | — | — | — |
+| `file-worker` | worker | — | — | — | ✓ | — | — | — | — |
+| `chrome-extension` | service | — | — | — | — | — | — | — | — |
+| `desktop-app` | service | — | — | — | — | — | — | — | — |
+| `mobile-app` | service | — | — | — | — | — | — | — | — |
 
 See each template's `defaults.yaml` for the authoritative values — this table is a snapshot.
 
@@ -121,22 +120,6 @@ resources: {memory: 1G, cpu: '2'}
 health: {path: /api/health}
 ```
 
-### wordpress with content preset
-
-```yaml
-id: my-blog
-kind: service
-template: wordpress
-preset: content                  # templates/wordpress/presets/content.yaml
-domain: blog.example.com
-
-shape:
-  kind: wordpress
-  is_public: true
-  has_persistent_data: true
-  needs_database: true
-```
-
 ### scratch image (edge case — disable healthcheck)
 
 ```yaml
@@ -177,6 +160,7 @@ templates/my-template/
 | `volumes` | `list[Volume]` | Persistent volumes |
 | `depends` | `Depends` | postgres/redis dependencies |
 | `infrastructure` | `Infrastructure` | Database/storage/auth selectors |
+| `companion_services` | `list[CompanionService]` | Extra compose services declared in the spec (rendered into the same stack) |
 | `shape` | `Shape` | Shape flags (drives conditional emission) |
 
 ### Canonical compose snippet
