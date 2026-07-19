@@ -36,12 +36,24 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
+# Sibling grading-only venv. PROVISIONING (a rebuild must match): git-clone LiveCodeBench into
+# .lcb-src, then `pip install -e .lcb-src --no-deps` + `pip install numpy tqdm 'datasets<3.0'`.
+# ⚠️ datasets<3.0 is REQUIRED: LiveCodeBench's code_generation_lite is a script dataset loaded with
+# trust_remote_code=True, and datasets>=3.0 dropped BOTH — despite lcb's own pyproject pinning >=3.2.0.
 LCB_VENV_PY = SCRIPT_DIR / ".lcb-venv" / "bin" / "python"
 CACHE_DIR = SCRIPT_DIR / ".microbench_cache"
 
 # libs.subagents is vendored in fabrik; its _transport IS the ai-consult transport (real cost_usd,
 # body passthrough, max_cost_usd). Direct — no pool sandbox/owned_paths overhead for a batch bench.
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent))
+try:
+    from libs.subagents._dotenv import load_env
+
+    # A fresh cron/CLI env has no OPENROUTER_API_KEY — load it from .env so BOTH the transport AND
+    # the balance guard can authenticate (without it the guard goes blind → "proceeding on cap alone").
+    load_env(str(SCRIPT_DIR.parent.parent))
+except Exception:  # pragma: no cover - .env optional (key may already be exported)
+    pass
 try:
     from libs.subagents._transport import run as _or_run  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - only when the vendored pool is absent
