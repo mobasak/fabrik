@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — daily_refresh auto-commits its regenerated docs + snapshots the DB (2026-07-19)
+
+Stops the kilo pipeline from poisoning the working tree. `daily_refresh.sh` now (a) commits its
+own regenerated tracked outputs at the end of each run — `ai/` model-selection packs + the
+`docs/reference/kilo/*_SELECTION.md` docs + `capabilities.json`/`CAPABILITIES.md` — via
+explicit-path staging (never `git add -A`) + a guarded fast-forward push (never force; left local
+if origin diverged), so the tree no longer stays dirty for the next agent; and (b) takes a pre-run
+on-disk snapshot of the now-gitignored `kilo_agents.db` (rolling last-7 in `backups/`). Pairs with
+untracking the regenerated cache/db/browser artifacts (`8ecf36a1`).
+
 ### Fixed — review_rubric extractor hardened: conditional sections, checklist sub-items, fence-aware scanning (2026-07-19)
 
 Peer read-only review (other AI) found 3 real issues in the shipped armed-review extractor; fixing them
