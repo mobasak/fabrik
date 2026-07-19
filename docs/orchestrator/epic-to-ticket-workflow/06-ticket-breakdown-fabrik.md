@@ -117,20 +117,20 @@ If the outline `Touches` field names a PRIMARY PATH: inject "integration test at
 
 ### Step 8: Lessons Learnt
 
-If the outline flagged a `Lessons` trigger, add: "Watch for Lessons Learnt trigger: [condition]. If it fires, append to `docs/LESSONS_LEARNT.md` using the format below." Entry format: `# Lesson <N>: <title>` · **Date** · **Status** (Permanent Rule | Best Practice | One-time) · **TL;DR** · **1. Context** (Project/Module; **AI Agent Used:** the dispatched coder — a pool model like `minimax/minimax-m3` OR `claude -p opus/sonnet/haiku`) · **2. Problem** + Impact · **3. Root Cause** · **4. Solution** + Aha · **5. Rule Update** (target file + one-line rule) · **6. Triggered By**. `<N>` = highest existing `# Lesson <N>:` + 1.
+If the outline flagged a `Lessons` trigger, add: "Watch for Lessons Learnt trigger: [condition]. If it fires, append to `docs/LESSONS_LEARNT.md` using the format below." Entry format: `# Lesson <N>: <title>` · **Date** · **Status** (Permanent Rule | Best Practice | One-time) · **TL;DR** · **1. Context** (Project/Module; **AI Agent Used:** the dispatched coder — the pool model `pick_models` selected OR `claude -p opus/sonnet/haiku`) · **2. Problem** + Impact · **3. Root Cause** · **4. Solution** + Aha · **5. Rule Update** (target file + one-line rule) · **6. Triggered By**. `<N>` = highest existing `# Lesson <N>:` + 1.
 
 ### Step 9: Agent Selection — the fabrik coder-agent roster
 
 Fabrik dispatches each ticket to a coder agent from **two mechanisms** (NOT the retired Kilo/Windsurf/Claude-Code triad):
 
-- **The OpenRouter pool** via `pick_models("code", n)` `[canonical: libs/subagents/select.py — pick_models / _TABLE["code"]]` — the family-diverse coder roster under the **≤$1.5/Mtok** output cap, ranked best-first, that **records each run to the flywheel** (so `pick_models` learns which models code well). The roster is **LIVE** — do not hard-code it; it is whatever `pick_models("code")` returns today (the auto-tier members are the ≤$1.5 coder models — currently the `deepseek-v4-*`/`deepseek-v3.2`, `qwen3-coder-*`, `z-ai/glm-4.7-flash`, `minimax/minimax-m3` families). Pricier families (`z-ai/glm-5`, `moonshotai/kimi-k2.5`, `qwen/qwen3.7-max`, …) EXCEED the cap → they are the **On-request tier** (`allow_above_cap=True` + operator OK, never auto-selected). `(deeper, optional: scripts/kilo_all_models.json` for the full OpenRouter model data)`.
+- **The OpenRouter pool** via `pick_models("code", n)` `[canonical: libs/subagents/select.py — pick_models]` — the **flywheel-ranked** coder roster, best-first, **no default price cap** (removed 2026-07-19; `max_cost_per_mtok=` is an opt-in budget). The roster is **LIVE** — never hard-code or name models; it is whatever `pick_models("code")` returns today, ranked by real recorded runs in `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` (auto-read by the module). Every run records to the flywheel.
 - **Native Claude via `claude -p`** — `opus` / `sonnet` / `haiku` (any Claude model via `claude -p --model`) — for high-risk/authoritative tickets (auth, schema, migrations, concurrency, secrets) where an Opus-grade pass is warranted. ⚠️ The driver's *autonomous* producer defaults to **Opus 4.8** (Fable 5 opt-in, metered) `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`; an operator-directed dispatch may pick a cheaper Claude tier (`sonnet`/`haiku`) for a lower-risk ticket.
 
 Map the outline `Complexity` to a dispatch tier (the exact model is resolved by `pick_models` / the driver at dispatch, not named here):
 
 | Complexity | Dispatch tier |
 |---|---|
-| simple | cheapest pool coder model (`pick_models("code")` bottom of the ≤$1.5 range) — records the flywheel |
+| simple | cheapest pool coder model (`pick_models("code", prefer="value")`) — records the flywheel |
 | complex | a mid pool coder model OR `claude -p sonnet` |
 | critical | `claude -p opus` (auth / schema / migrations / concurrency / secrets — the authoritative pass) |
 
