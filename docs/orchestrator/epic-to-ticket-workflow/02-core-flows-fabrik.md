@@ -35,7 +35,7 @@ Alignment, not artifacts. Flows are discussed and agreed in conversation before 
 
 `00-trigger-fabrik` Step 6 already decided whether `core-flows` runs. Do not re-ask.
 
-- **Skipped for** `python-api` · `python-api-gpu` · `node-api` · `file-api` · `file-worker` · `wordpress` (→ `/opt/wpf`) · `docusaurus` `[canonical: 00-trigger-fabrik § Step 6 routing table]`. If the route skipped `core-flows` for this scaffold, this command should not have been triggered — say so and stop.
+- **Skipped for** `python-api` · `python-api-gpu` · `node-api` · `file-api` · `file-worker` · `wordpress` (→ `/opt/web-ecommerce-factory`) · `docusaurus` `[canonical: 00-trigger-fabrik § Step 6 routing table]`. If the route skipped `core-flows` for this scaffold, this command should not have been triggered — say so and stop.
 - **Path B (multi-epic):** if the epic ticket's scaffold is in the skip list, do not run — UNLESS the epic touches UI (user-facing flows), in which case it runs regardless of backend scaffold. Then:
   - Read `Universal categories` from the Decisions Lock Metadata. Scope Core Flows to journeys serving ONLY the categories this epic owns; a sibling epic's categories are `Out of Scope` here.
   - Read `Epic Flavor`. `Delta-feature` → full Step 4 + 4b + 5. `Retrofit` → scope-narrow to ONLY the surface the retrofit touches (`Retrofit: i18n` → locale-loading flows; `Retrofit: Resilience` → state-flag updates to existing flows, no new flows; `Retrofit: <UI area>` → that UI's flows). Skip Step 5 for code-only retrofits with no new UI. Retrofit target ≤100 lines (vs Delta's 200).

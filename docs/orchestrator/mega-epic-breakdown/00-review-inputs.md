@@ -20,6 +20,8 @@ here FIRST, then implemented into the command file.** One row per input; status 
 
 | 12 | 2026-07-19 | **⚠️ PROCESS RULE (binding on me): command files are canonical rules, NEVER changelogs.** No "RETIRED (date — reason)", "removed <date>", supersedes-notes, commit hashes, or delta-vs-old annotations in command files / rule packs. State only the current rule, present tense; when a rule changes, DELETE the old text. History lives in git, this ledger, and CHANGELOG — not in the commands | All change-annotations I had written stripped from mega 00/02/03/04, mega checklist, ettw 00/03/06, and the 62 pack; rule saved to durable memory | ✅ this commit |
 
+| 13 | 2026-07-19 | "Why is `/opt/wpf` still in my 00 file?" — `/opt/wpf` does not belong in the commands at all | Every `/opt/wpf` / `wpf` mention purged from BOTH chains (mega + ettw incl. route tables, skip lists, checklists); websites route to `/opt/web-ecommerce-factory`, stated present-tense | ✅ this commit |
+
 ## Prior inputs that shaped both `00`s (context)
 
 - Decisions must never live only in chat → `00`s are chat-only; persistence lives in `01-decisions-lock`

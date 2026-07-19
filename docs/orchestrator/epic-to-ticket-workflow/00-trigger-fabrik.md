@@ -51,7 +51,7 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Automation-first.** Prefer solutions that `fabrik apply` handles end-to-end. If it requires manual VPS steps, redesign until it doesn't.
 - **Self-healing.** Every service detects failures and recovers without human intervention. Health checks test real deps. Drift auto-alerts. Graceful degradation over crash-and-page.
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
-- **Versatility.** One workflow handles 11 fabrik-scaffolded types (`python-api` / `python-api-gpu` / `node-api` / `saas-skeleton` / `file-api` / `file-worker` / `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` / `desktop-app` `[canonical: mega/00 § Shape model]`; WordPress is out-of-scope here, routed to standalone `/opt/wpf` via `wpf new <name>` + `wpf wp apply`). The routing table adapts; the principles don't change.
+- **Versatility.** One workflow handles 11 fabrik-scaffolded types (`python-api` / `python-api-gpu` / `node-api` / `saas-skeleton` / `file-api` / `file-worker` / `static-site` / `docusaurus` / `chrome-extension` / `mobile-app` / `desktop-app` `[canonical: mega/00 § Shape model]`; WordPress is not built — websites → `/opt/web-ecommerce-factory`). The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
 - **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2 are all live self-hosted infra. NEVER build what's already deployed. Supabase is NOT a default — the org self-hosts every Supabase capability (auth → `fabrik-lib/fastapi-user-auth`, pgvector → `pgvector/pgvector:pg16` + `fabrik-lib/rag`, storage → `fabrik-lib/storage`/B2, realtime → `redis-main` pubsub); reach for Supabase only as a deliberate, ADR-recorded exception for a project already on it (`agents-fabrik.md § Supabase`). `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
 - **The owner's workflow:** Research externally → drop file in project → trigger our orchestrator → our orchestrator reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
@@ -121,7 +121,7 @@ Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Re
 
 **Platform-repo branch (special case):** If the workspace root has no `project.yaml` AND contains `apps/` + `infrastructure/` + `templates/`, this is the **Fabrik platform monorepo** itself. Pause and ask the user to scope the request.
 
-**UI design-system read (conditional, both modes):** If scaffold is a GUI type (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `docusaurus` — **not** `wordpress`, which this workflow routes to `/opt/wpf`), read `.windsurf/rules/core/ocoron-design-system.md` before generating any planning output. For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
+**UI design-system read (conditional, both modes):** If scaffold is a GUI type (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `docusaurus` — **not** `wordpress`, which this workflow routes to `/opt/web-ecommerce-factory`), read `.windsurf/rules/core/ocoron-design-system.md` before generating any planning output. For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
 
 ### **Step 2: Scaffold Detection**
 
@@ -236,7 +236,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 | `mobile-app` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `desktop-app` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `static-site` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
-| `wordpress` | Use `/opt/wpf/` factory (`wpf wp apply <domain>`) instead | not this workflow | — |
+| `wordpress` | Not built — websites (company/marketing, blog, store) → `/opt/web-ecommerce-factory` | not this workflow | — |
 | `docusaurus` | decisions-lock → decisions-review → ticket-outline → ticket-breakdown → deploy-plan → execute | core-flows, tech-plan | false |
 | Feature (existing) | Use `mega-epic-breakdown/00-trigger-mega-epic-fabrik` (declare EXISTING mode at Step 0) instead | not this workflow | — |
 

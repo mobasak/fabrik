@@ -47,7 +47,7 @@ Read in order:
 3. **Core Flows** (only if the route ran it) — Personas, Flow Index, `[PRIMARY PATH]` markers (feed the Step-7 Testability Gate).
 4. **Pre-research file** — re-read for grounding (do not re-discover).
 
-Missing required upstream → pause and ask. **Defensive case (no core-flows):** for `python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`/`docusaurus`, derive personas + primary paths from the Decisions Lock Success Criteria; do not request core-flows retroactively. (`wordpress` is not in this workflow — not scaffoldable `[canonical: scaffold.py:5566]`, routes to `/opt/wpf`.)
+Missing required upstream → pause and ask. **Defensive case (no core-flows):** for `python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`/`docusaurus`, derive personas + primary paths from the Decisions Lock Success Criteria; do not request core-flows retroactively. (`wordpress` is not in this workflow — not scaffoldable `[canonical: scaffold.py:5566]`, routes to `/opt/web-ecommerce-factory`.)
 
 ### Step 2: Pre-Design Reference Reads
 
