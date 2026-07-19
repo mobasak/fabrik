@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -42,6 +43,12 @@ DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 # trust_remote_code=True, and datasets>=3.0 dropped BOTH — despite lcb's own pyproject pinning >=3.2.0.
 LCB_VENV_PY = SCRIPT_DIR / ".lcb-venv" / "bin" / "python"
 CACHE_DIR = SCRIPT_DIR / ".microbench_cache"
+
+# The LiveCodeBench corpus is a ~2GB HF download. Default it to a PERSISTENT gitignored cache so it
+# downloads ONCE (reused by every run + the operator's real run), not re-fetched each session. The
+# .lcb-venv grader subprocess inherits this env. Override with HF_HOME to relocate.
+LCB_HF_CACHE = SCRIPT_DIR / ".lcb-hf-cache"
+os.environ.setdefault("HF_HOME", str(LCB_HF_CACHE))
 
 # libs.subagents is vendored in fabrik; its _transport IS the ai-consult transport (real cost_usd,
 # body passthrough, max_cost_usd). Direct — no pool sandbox/owned_paths overhead for a batch bench.
@@ -72,7 +79,10 @@ _PER_CALL_COST_CAP = 0.50  # hard per-CALL ceiling passed to the transport (one 
 # rates) so an unknown-cost call still counts toward the cap — over-counting stops the run early,
 # never drains the account silently.
 _FALLBACK_COST_PER_MTOK = 5.0
-_LCB_TIMEOUT_S = 900  # outer wall-clock on the .lcb-venv grader subprocess (a hung sandbox = wedged run)
+_LCB_TIMEOUT_S = 900  # GRADER subprocess wall-clock (a hung sandbox = wedged run) — hang protection
+# CORPUS-load subprocess: the FIRST run downloads a ~2GB HF dataset at rate-limited speeds — that can
+# legitimately take up to an hour, NOT a hang. A separate, generous cap (once cached, load is instant).
+_CORPUS_TIMEOUT_S = 3600
 _BALANCE_SAFETY_FRAC = 0.90  # never let a run's cost-cap exceed 90% of the live OpenRouter balance
 
 _TASK_SUFFIX = (
@@ -116,7 +126,7 @@ json.dump(out, open(sys.argv[2], "w"))
 '''
 
 
-def _run_lcb(src: str, args: list[str]) -> None:
+def _run_lcb(src: str, args: list[str], *, timeout: float = _LCB_TIMEOUT_S) -> None:
     """Execute a .lcb-venv-side helper. Raises RuntimeError with a clear message if the venv is absent."""
     if not LCB_VENV_PY.exists():
         raise RuntimeError(
@@ -129,7 +139,7 @@ def _run_lcb(src: str, args: list[str]) -> None:
     try:
         # timeout: a model's generated code can hang the sandbox past codegen_metrics' per-problem
         # cap (deadlocked child, un-reaped process); without this the whole run wedges indefinitely.
-        subprocess.run([str(LCB_VENV_PY), helper, *args], check=True, timeout=_LCB_TIMEOUT_S)
+        subprocess.run([str(LCB_VENV_PY), helper, *args], check=True, timeout=timeout)
     finally:
         Path(helper).unlink(missing_ok=True)
 
@@ -147,7 +157,7 @@ def load_corpus(release_version: str, limit: int | None) -> list[Problem]:
     with tempfile.NamedTemporaryFile("r", suffix=".json", delete=False) as f:
         out = f.name
     try:
-        _run_lcb(_CORPUS_SRC, [release_version, str(limit or 0), out])
+        _run_lcb(_CORPUS_SRC, [release_version, str(limit or 0), out], timeout=_CORPUS_TIMEOUT_S)
         rows = json.loads(Path(out).read_text())
     finally:
         Path(out).unlink(missing_ok=True)

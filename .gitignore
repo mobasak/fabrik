@@ -177,3 +177,4 @@ scripts/kilo-benchmarks/models_browser.html
 # never source (coding-benchmark plan 2026-07-19). Rebuilt by the Phase-A provisioning step.
 scripts/kilo-benchmarks/.lcb-venv/
 scripts/kilo-benchmarks/.lcb-src/
+scripts/kilo-benchmarks/.lcb-hf-cache/
