@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coding-performance benchmark (LiveCodeBench, direct dispatch) (2026-07-19)
+
+`scripts/kilo-benchmarks/microbench_coding_direct.py` — a contamination-free, uniform `pass@1` coding
+benchmark over one fixed LiveCodeBench window, apples-to-apples with the review table. Generation is
+DIRECT through the vendored ai-consult transport (`libs.subagents._transport.run`, real billed `cost_usd`);
+grading reuses LiveCodeBench's sandboxed test execution (`lcb_runner.evaluation.codegen_metrics`) via a
+sibling `.lcb-venv` installed **grading-only** (`--no-deps` + numpy/tqdm/datasets — **no torch/vllm**, since
+generation is via OpenRouter not local). pass@1 → grade (same 0-5 letter scale as review) →
+`model_coding_metrics` + `model_task_baseline(code)`, so `pick_models("code")` ranks on measured ability.
+`build_task_baselines.load_coding_metrics()` + a precedence guard keep the measured prior from being
+clobbered by the terminal-bench scraped baseline; `rank_coding_subagents` shows the measured coding grade
+(`†`) + a `pass@1` column. On-demand only (NOT in `daily_refresh.sh`); the real ~$12-18 57-model run is an
+operator action. 22 tests. Plan: `docs/development/plans/2026-07-19-plan-1-coding-benchmark-livecodebench-direct.md`.
+
 ### Changed — daily_refresh auto-commits its regenerated docs + snapshots the DB (2026-07-19)
 
 Stops the kilo pipeline from poisoning the working tree. `daily_refresh.sh` now (a) commits its

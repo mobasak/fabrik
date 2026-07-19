@@ -1,9 +1,32 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-19 (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-07-19 (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 99: vendor a heavy external eval tool GRADING-ONLY — its declared GPU deps are for generation you don't do
+
+**Context:** the coding benchmark vendors LiveCodeBench for its sandboxed test grading. `pip install -e .`
+declares `torch>=2.3.0 + vllm>=0.5.0.post1` — multi-GB, CUDA-only — which would have failed on the GPU-less
+WSL box (and bloated it with exactly the trash we'd just spent the session purging).
+
+**The catch:** those deps exist for LiveCodeBench's *generation* path (running models locally). We generate
+via OpenRouter, so we need only the *grading* path — `lcb_runner.evaluation.codegen_metrics` — which imports
+only numpy/tqdm. But its CLI wrapper `custom_evaluator.py` transitively imports `parser.py` → `import torch`,
+so shelling the documented CLI would still drag in the GPU stack.
+
+**The fix:** `pip install -e . --no-deps` (the package, none of its declared deps) + `pip install numpy tqdm
+datasets` (the actual grading subset), and **call `codegen_metrics` directly** instead of the CLI — bypassing
+the torch-importing wrapper entirely. 366 MB grading venv instead of multi-GB, torch/vllm-free, validated
+end-to-end (synthetic sample → correct=1.0 / wrong=0.0).
+
+**Rule:** when vendoring an external tool for ONE of its capabilities, install `--no-deps` + only that
+capability's real imports, and call the underlying **function**, not the CLI entry point — the entry point
+pulls in every sibling capability's heavy deps. Grep the actual import chain of the function you need before
+trusting the package's declared `dependencies`.
 
 ---
 

@@ -56,6 +56,23 @@ maximally-enforced, not a guarantee. Design: `docs/superpowers/specs/2026-07-18-
 
 ---
 
+## Coding microbench (direct) — contamination-free pass@1 via LiveCodeBench (2026-07-19)
+
+`scripts/kilo-benchmarks/microbench_coding_direct.py` grades the **same 57 models as the review table** on ONE
+fixed **LiveCodeBench** window (contamination-free by temporal filter — the fix for HumanEval+/MBPP+ saturation
++ contamination that the older `microbench_coding.py` inherits). Generation is **direct** through the vendored
+ai-consult transport (`libs.subagents._transport.run`, real billed `cost_usd` via `{"usage":{"include":true}}`);
+grading reuses LiveCodeBench's own sandboxed test execution (`lcb_runner.evaluation.codegen_metrics`) via a
+sibling `.lcb-venv` installed **grading-only** (`--no-deps` + numpy/tqdm/datasets — no torch/vllm, since we
+generate on OpenRouter, not locally). `pass@1 → grade` (same 0-5 letter scale as review) → `model_coding_metrics`
++ `model_task_baseline(code)` with a precedence guard, so **`pick_models("code")` ranks on measured ability**;
+`rank_coding_subagents` surfaces the measured coding grade (`†`) + a `pass@1` column. Errored/cap-stopped calls
+are `n_err` (never scored 0); `is_measured` gated at 3 graded. `--probe` sizes the real run first; `--cost-cap`
+is a running-total dispatch gate. On-demand only (NOT in `daily_refresh.sh`) — the real ~$12-18 57-model run is
+an operator action. Tests: `tests/test_lcb_smoke.py`, `test_microbench_coding_direct.py`, `test_coding_baselines.py`.
+
+---
+
 ## Fleet AI-sysadmin Claude quota-rotation (2026-07-08)
 
 The fleet AI-sysadmin (`vps-sysadmin-bot` + `aro-wake`) survives Claude subscription **usage/quota limits** by auto-rotating between the operator's Claude accounts instead of failing silently. `scripts/sysadmin/claude_rotate.py` wraps every `claude -p` call: when the output carries a usage-limit signal (weekly / session / Opus / N-hour / "out of extra usage"), it atomically swaps the active `~/.claude/.credentials.json` to another `manager-accounts/<org>/` snapshot and retries. **N accounts** are supported (currently mob@ / ob@; can@ pending snapshot capture) — a limited call walks through each *other* account at most once, bounded so it can never loop. A `401` (dead credentials) is deliberately **not** a rotate trigger — that's an alert, since rotation can't fix expired creds. Swaps are atomic (`os.replace`) under an `flock` so the bot, aro-wake, and a manual switch can't race the active file (the target is chosen *under* the lock), the credential bytes are written `O_EXCL|O_NOFOLLOW` at mode 0600 (no world-readable window, no symlink follow) with a full-write loop, and every filesystem step fails soft (a transient error skips the rotation, never crashes the bot). There's a single rolling backup to `.credentials.json.prev`; accounts are told apart by their non-secret `organizationUuid`, and no token bytes are ever logged, printed, or committed.

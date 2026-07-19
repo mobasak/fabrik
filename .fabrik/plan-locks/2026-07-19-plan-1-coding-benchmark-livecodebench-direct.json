@@ -12,5 +12,6 @@
   ],
   "branch": "master",
   "started_at": "2026-07-19",
-  "status": "active"
+  "status": "released",
+  "final_commit": "fe247f67"
 }

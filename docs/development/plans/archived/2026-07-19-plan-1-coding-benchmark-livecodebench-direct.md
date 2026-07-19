@@ -1,6 +1,6 @@
 # Coding-performance benchmark (LiveCodeBench, direct dispatch) — build + wire into coding-subagent selection
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-19
 Date: 2026-07-19
 Spec: docs/superpowers/specs/2026-07-19-coding-benchmark-livecodebench-direct-design.md (CONVERGED)
 Owner-agent: primary
