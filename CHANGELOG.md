@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference triage (fifth 5): all keepers; marketing draft → research/ (2026-07-19)
+
+`marketing-distribution-channels-draft.md` (zero refs, raw research data) → `docs/reference/research/`.
+**Converged in place:** `long-command-monitoring.md` (Cascade framing → Claude Code; `.windsurfrules`
+see-also → CLAUDE.md HARD STOPS; all 9 rund-family commands verified against source — note: `runk`
+still says v1.0.0 internally, sibling-script drift, non-blocking); `openrouter-api.md` (CLEAN pass —
+zero stale claims; every load-bearing claim matches the pool transport `_client.py` exactly + 3 live
+web spot-checks verbatim; one soften: deprecated `rate_limit` object); `modal-api.md` (kept — Lesson
+70 traces to it and §21 matches `modal_provider.py` line-for-line; fixed: `needs_serverless` "not
+wired yet" → `create_endpoint()` LIVE, stale not-implemented item rescoped, phantom "H300" GPU
+dropped); `mobile-responsive-testing-guide.md` (fleet-synced; 4 internal contradictions fixed: modal
+640px threshold flattened into the 768px column, 13px-vs-14px font floor split resolved per RWD7
+(body 14 / meta 13), 375-viewport height unified at 812, checklist wording aligned). 4-pass loop
+(Opus + 3 Sonnet → Sonnet confirm found 1 → sweep clean).
+
 ### Fixed — docs/reference triage (fourth 5): registrar-drift alert chain found broken; 2 archived (2026-07-19)
 
 **Operational find:** the hourly `audit_all_registrars.py` pushes drift metrics to a healthy

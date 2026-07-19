@@ -325,7 +325,7 @@ HTTP status == `error.code` when the request itself failed; if generation alread
 
 **`Retry-After`** header on 429/503 (seconds) — honored by the OpenAI/Anthropic/Vercel/OpenRouter SDKs; for raw fetch, sleep `Retry-After*1000` and retry.
 
-**Rate limits & credits** ([or-docs](https://openrouter.ai/docs/api/reference/limits)): account-level, **global** (extra keys don't raise it), differ per model. `:free` variants: **20 req/min**; daily cap 50/day (<10 credits ever) or 1000/day (≥10). Negative balance → 402 (incl. free). Check via `GET /api/v1/key` (`limit`, `limit_remaining`, `limit_reset`, `usage*`, `is_free_tier`; the `rate_limit` object is **deprecated, returns -1**). Paid models have **no OR-enforced hard limit** (only free-tier caps + Cloudflare DDoS). ⚠️ Per-request `x-ratelimit-*` headers are **not** documented on official pages (third-party claims unverified).
+**Rate limits & credits** ([or-docs](https://openrouter.ai/docs/api/reference/limits)): account-level, **global** (extra keys don't raise it), differ per model. `:free` variants: **20 req/min**; daily cap 50/day (<10 credits ever) or 1000/day (≥10). Negative balance → 402 (incl. free). Check via `GET /api/v1/key` (`limit`, `limit_remaining`, `limit_reset`, `usage*`, `is_free_tier`; the `rate_limit` object is **deprecated — ignore it**). Paid models have **no OR-enforced hard limit** (only free-tier caps + Cloudflare DDoS). ⚠️ Per-request `x-ratelimit-*` headers are **not** documented on official pages (third-party claims unverified).
 
 **Typed `error_type`** (in `error.metadata.error_type`, stable across streaming/non-streaming; raw upstream in `provider_code` for non-500s):
 

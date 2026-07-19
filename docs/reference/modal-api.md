@@ -289,7 +289,7 @@ vllm_image = (
 
 | `gpu=` string | Per-second | Per-hour | VRAM | Use case |
 |---|---|---|---|---|
-| `"B200"` | $0.001736 | $6.25 | 192 GB | Cutting-edge; auto-upgrades to H300 on `B200+` |
+| `"B200"` | $0.001736 | $6.25 | 192 GB | Cutting-edge (top tier) |
 | `"H200"` | $0.001261 | $4.54 | 141 GB | Big-context LLMs (200B params @ FP8) |
 | `"H100"` | $0.001097 | $3.95 | 80 GB | Workhorse for ≥13B LLMs |
 | `"H100!"` | $0.001097 | $3.95 | 80 GB | Same as H100 but **forbids** auto-upgrade to H200 |
@@ -917,13 +917,13 @@ The reference doc §3.5 had warned `with app.run():` was required; the pre-live 
 - High utilization (≥50%) → recommend **RunPod**.
 - Low utilization (<50%) + bursty → recommend **Modal** (per-second billing wins).
 - Checkpointing tolerant + spot-OK → recommend **Vast.ai**.
-- `needs_serverless=True` + Modal selected → routes to a deployed Modal App (Phase 3 work — not wired yet).
+- `needs_serverless=True` → eligibility pass-through (all three providers publish a serverless tier); Modal serverless endpoints are LIVE via `create_endpoint()` (`modal_provider.py:415-580`, template-driven).
 
 ### 21.3 What the operator does directly
 Modal works best when you `modal deploy` a real Python file. Use `fabrik gpu rent --provider modal` for **transient burst compute**; use `modal deploy` for **persistent infrastructure** (vLLM endpoint, scheduled cron, ETL job). Don't try to manage a deployed Modal App through `fabrik gpu` — they're different patterns.
 
-### 21.4 Phase 3 expansion (not yet implemented)
-- Real serverless endpoint creation via operator-supplied App file.
+### 21.4 Expansion (not yet implemented)
+- Endpoint creation from an **arbitrary operator-supplied App file** — today only the two registered templates (`echo-handler`, `vllm-openai`) are supported by `create_endpoint()`.
 - vLLM image baked into Fabrik (`fabrik-lib/modal-vllm/` reusable module).
 - Memory-snapshot enabled by default for cold-start.
 - `fabrik gpu rent --provider modal --deploy <script>` → `modal deploy` wrapper with reaper hooks.

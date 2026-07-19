@@ -47,7 +47,7 @@ Canonical rules from `ocoron-design-system.md` § Responsive Layout. Reproduced 
 | **Data tables** | Card list (one card per row) OR horizontal scroll with sticky first column | Horizontal scroll with sticky first column | Full table |
 | **Dashboard grid** | 1 column, stacked cards | 2 columns | 3-4 columns |
 | **Forms** | Single column, full width | Single column, max-width 560px centered | Two-column for grouped fields |
-| **Modal/dialog** | Full-screen sheet | Centered modal, max-width 480px | Centered modal, max-width 560px |
+| **Modal/dialog** | Full-screen sheet **below 640px** (RWD8); 640-767px = centered modal | Centered modal, max-width 480px | Centered modal, max-width 560px |
 | **Hero section** | Stack vertically, image below text | Stack vertically | Side-by-side |
 | **Top navigation** | Logo + hamburger | Logo + condensed nav | Logo + full nav + actions |
 | **Filter bars** | "Filters" button → sheet/drawer | Inline, stacked if needed | Inline horizontal |
@@ -233,7 +233,7 @@ Read each screenshot and check against this table:
 | **Horizontal overflow** | Content wider than viewport, horizontal scrollbar | `max-width: 100%` on the specific element, or `overflow-x: auto` on the container |
 | **Overlapping elements** | Elements on top of each other | `flex-direction: column` on the specific container (not globally on all `.flex`) |
 | **Clipped text** | Text cut off at container edge | `word-break: break-word` or `overflow-wrap: break-word` on the element |
-| **Tiny text** | Text smaller than 13px | Increase font-size. If it doesn't fit at 13px, remove content — never shrink below 13px |
+| **Tiny text** | Body text smaller than 14px (RWD7), or secondary/meta text (`--font-body-small` tier) smaller than 13px | Increase font-size. If it doesn't fit at the floor, remove content — never shrink below it |
 | **Buttons too small** | Touch target under 44px | Increase padding. Minimum 44x44px tap area |
 | **Wide tables** | Columns don't fit 375px | Wrap in scrollable container (horizontal scroll is acceptable) OR transform to card list |
 | **Long labels** | Labels wrap to 2+ lines breaking layout | Truncate with ellipsis, or shorten text. Check i18n files if text is localized |
@@ -314,7 +314,7 @@ After applying fixes, re-run the screenshot script and compare before/after.
 **Per-page checklist (RWD1–RWD10):**
 
 - [ ] No horizontal scrollbar on the page body at 375px
-- [ ] All text readable without zooming (minimum 13px body, 14px per design system)
+- [ ] All text readable without zooming (minimum 14px body per RWD7; 13px only for secondary/meta text)
 - [ ] All buttons/links tappable (minimum 44px touch target)
 - [ ] Tables either transform to cards OR scroll horizontally inside their container
 - [ ] Modals render as full-screen sheets below 640px
@@ -417,10 +417,10 @@ Replace `?` with `OK` or `FAIL`. Every cell must be `OK` before the PR merges.
 > 1. Tables → card list OR horizontal scroll with sticky first column. Never squeeze desktop columns.
 > 2. Sidebar → hidden. Hamburger or overlay menu.
 > 3. Long text → truncate with ellipsis (single line). Full text on detail screen.
-> 4. Font floor 13px. If it doesn't fit at 13px, remove content — don't shrink.
+> 4. Font floor: 14px body (RWD7); 13px only for secondary/meta text (`--font-body-small` tier). If it doesn't fit at the floor, remove content — don't shrink.
 > 5. Card padding 8px (not 16px) on mobile viewports.
 > 6. Side-by-side elements that don't fit → stack vertically.
 > 7. Filter bars → "Filters" button opening a sheet/drawer.
 > 8. Modals → full-screen sheets below 640px.
-> 9. Test in Chrome DevTools → iPhone SE (375x667).
+> 9. Test at 375x812 (matches the login helper + VIEWPORTS scripts; Chrome DevTools iPhone X/11-class preset).
 > 10. Desktop must remain untouched — all changes inside media queries or responsive prefixes.

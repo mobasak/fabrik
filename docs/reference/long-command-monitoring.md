@@ -1,6 +1,6 @@
 # Long Command Monitoring System v1.1.0
 
-**Why this exists:** Cascade (and other agents) have no built-in command timeout. When they run `npm install` or `pytest -x` or `fabrik apply` in foreground, they block waiting on the terminal — sometimes for minutes or hours. This system gives agents (and humans) a fire-and-poll model so the agent stays responsive while long commands run in the background.
+**Why this exists:** Claude Code (and coding agents generally) have no built-in command timeout. When they run `npm install` or `pytest -x` or `fabrik apply` in foreground, they block waiting on the terminal — sometimes for minutes or hours. This system gives agents (and humans) a fire-and-poll model so the agent stays responsive while long commands run in the background.
 
 **Lives in:** every project's `scripts/` directory. Job state goes to `.tmp/jobs/` (project-local, gitignored).
 
@@ -209,6 +209,6 @@ When updating these scripts, edit the `/opt/fabrik/scripts/` copies, then re-cop
 
 ## See also
 
-- `.windsurfrules` — Cascade contract requiring use of this system for long commands
+- `CLAUDE.md` § HARD STOPS — the binding rule requiring this system for foreground commands >30s
 - `scripts/sync_enforcement_to_projects.py` — propagates updates to all `/opt/*` projects
 - `src/fabrik/scaffold.py` — `SCRIPT_FILES` list controls what new scaffolds receive
