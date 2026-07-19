@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — subagent pool reaches above-policy models (max_price over-clamp) (2026-07-19)
+
+Re-synced the vendored `libs/subagents` from canonical `fabrik-lib` (`764df76`): `loop._apply_max_price`
+now applies the $1.5/Mtok pool-policy clamp ONLY to within-policy models; above-policy models keep their
+model-relative 3× ceiling, so `pick_models`-requested models priced over the cap (glm-5, kimi-k2.5,
+qwen3.7-max) no longer 404 with "no endpoints found that satisfy the max price". Also picks up the
+canonical `fanout(write-mode)` turn-hungry steering warning in `agent.py`. Faithful re-sync (matches
+canonical, no local drift).
+
 ### Changed — ONE agents doc + CLAUDE.md @imports the platform core (bootstrap surgery) (2026-07-19)
 
 Plan-2 Phase B (option b, spec § AGENTS.md resolution). `agents-fabrik.md` is now the ONE canonical agents

@@ -52,9 +52,23 @@ def _apply_max_price(merged: dict, model: str) -> None:
     # ("No endpoints found that satisfy the max price"), leaving the model UNCALLABLE (proven: v4-pro /
     # m2.5 / v3.2 all 200 without the cap, 404 with it). 3× headroom tolerates staleness + variance; the
     # policy caps gross overpay. OR still routes cheapest-first — this only blocks a >policy fallback.
+    #
+    # BUGFIX 2 (2026-07-19, above-policy reachability): the POLICY clamp must apply ONLY to WITHIN-policy
+    # models. An ABOVE-policy model (canonical rate > $1.5/Mtok) reaches here solely because a caller
+    # EXPLICITLY requested it (`pick_models` never auto-selects over the cap) — clamping ITS ceiling to
+    # $1.5 falls BELOW its real serving price, so OR again rejects EVERY provider ("No endpoints found
+    # that satisfy the max price", 404) and the explicitly-requested model is uncallable. For those,
+    # keep the model-relative 3× ceiling (no policy clamp). Proven live 2026-07-19: qwen3.7-max ($3.75),
+    # glm-5 ($1.92), kimi-k2.5 ($2.025) → 200 bare, 404 at max_price=1.5, 200 at 3×. Within-policy
+    # models are UNCHANGED (still min(rate·3, policy)).
     price = mp.get("completion")
     if isinstance(price, (int, float)):
-        mp = {"completion": min(price * 3.0, _MAX_POOL_PRICE_PER_MTOK)}
+        headroom = price * 3.0
+        mp = {
+            "completion": min(headroom, _MAX_POOL_PRICE_PER_MTOK)
+            if price <= _MAX_POOL_PRICE_PER_MTOK
+            else headroom
+        }
     prov = merged.get("provider")
     if prov is not None and not isinstance(prov, dict):
         return  # malformed caller `provider` (non-dict) — leave it AS-IS (never silently discard the
@@ -122,6 +136,14 @@ def _env_float(name: str, default: float) -> float:
 
 
 LoopStatus = Literal["done", "capped", "error"]
+
+# The finalize-on-cap directive: fed on ONE tools-omitted call when a tool-using agent has exhausted its
+# turn budget, so it writes a report from what it gathered instead of the loop returning its near-empty
+# last inter-tool preamble (the "early stopping generate" pattern — stevekinney.com/writing/agent-loops).
+_FINALIZE_DIRECTIVE = (
+    "You have reached your step budget. Do NOT call any more tools. Write your final report now from "
+    "what you have gathered — what you found, what you could not verify, and the recommended next step."
+)
 
 
 @dataclass
@@ -530,6 +552,46 @@ def run_loop(
 
             if max_cost_usd is not None and total_cost > max_cost_usd:
                 return _finish(last_text, "capped")
+
+        # FINALIZE-ON-CAP (the "early stopping generate" pattern): the turn budget is spent but the model
+        # was still tool-calling, so `last_text` is only its last inter-tool preamble (near-empty). Spend
+        # ONE tools-omitted call so it synthesizes a report from what it gathered — the difference between
+        # "capped = nothing" and "capped = a partial-but-real report". Gated on `advertised` (only a
+        # tool-using agent reaches here mid-loop) + remaining wall-clock + cost headroom (don't blow a
+        # cost-capped run past its ceiling on the salvage call). TOTAL: any failure degrades to the
+        # existing `_partial_fallback` — the never-raises contract is absolute.
+        if (
+            advertised
+            and (wall_clock_s - (time.monotonic() - start)) > 0
+            and (max_cost_usd is None or total_cost <= max_cost_usd)
+        ):
+            try:
+                fin_body = {
+                    k: v for k, v in (body or {}).items() if k != "tools"
+                } or None
+                fin_messages = messages + [
+                    {"role": "user", "content": _FINALIZE_DIRECTIVE}
+                ]
+                fin_remaining = wall_clock_s - (time.monotonic() - start)
+                fin_liveness = _transport.Liveness(
+                    hard_timeout_s=fin_remaining,
+                    idle_timeout_s=min(_defaults.idle_timeout_s, fin_remaining),
+                    connect_timeout_s=min(_defaults.connect_timeout_s, fin_remaining),
+                    first_token_timeout_s=(
+                        min(first_token_timeout_s, fin_remaining)
+                        if first_token_timeout_s > 0
+                        else 0.0
+                    ),
+                    restart_max=0,
+                )
+                fin = call(model, fin_messages, body=fin_body, liveness=fin_liveness)
+                if fin.cost_usd is not None:
+                    total_cost += fin.cost_usd
+                    cost_known = True
+                if fin.text:
+                    last_text = fin.text
+            except Exception:  # noqa: BLE001 — finalize is best-effort; the total contract is absolute
+                pass  # degrade to the last_text/partial salvage below — never crash the loop
 
         return _finish(last_text, "capped")
     finally:

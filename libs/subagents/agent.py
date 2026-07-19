@@ -27,6 +27,7 @@ import contextlib
 import logging
 import os
 import shutil
+import sys
 import threading
 import time
 import uuid
@@ -52,6 +53,14 @@ AgentStatus = Literal["done", "capped", "error", "out_of_scope"]
 # `research`/`spec` ground against the WEB (via `web_tools`, not repo files), and `code` GENERATES
 # (a self-contained "write function X" needs no repo grounding) — those set their own tools/keys.
 _GROUNDED_TASK_KINDS = frozenset({"review", "docs", "plan"})
+
+# A tool-enabled (write) fanout is turn-hungry for cheap pool models that read one file per turn — the
+# module's own cap-advice says such work needs ≈20+ turns; default to it when the caller didn't set one.
+_WRITE_DEFAULT_TURNS = 20
+# The verification task_types whose code can usually be INLINED → read_only single-shot (cheaper, never
+# caps). In write-mode they're the turn-hungry trap that stranded /opt/trade-intelligence, so warn (never
+# refuse — an exploration review that must DISCOVER files is a valid write-mode case).
+_WRITE_STEER_TASK_TYPES = frozenset({"review", "docs", "research"})
 
 
 def _outer_grace_s() -> float:
@@ -774,6 +783,15 @@ def fanout(
         raise ValueError(f"fanout: mode must be 'read_only' or 'write', got {mode!r}")
     if not units:
         raise ValueError("fanout: units is empty — nothing to dispatch")
+    if mode == "write" and task_type in _WRITE_STEER_TASK_TYPES:
+        # Loud, actionable, NON-blocking (like record_run's footgun warning). Never raises — a genuine
+        # exploration review that must read files to discover what's relevant is a valid write-mode use.
+        print(
+            f"⚠️  fanout({task_type!r}, mode='write'): review/grounding whose code you can INLINE is "
+            "cheaper + can't cap as mode='read_only' (single-shot). write-mode is for EXPLORATION that "
+            "must discover files; if that's you, you're fine — capped runs now return a partial report.",
+            file=sys.stderr,
+        )
     # fanout OWNS these AgentSpec fields (mode/task_type/parallel-safety are its job). Reject them
     # in **spec_kwargs UNIFORMLY + up front — Python's own duplicate-kwarg TypeError only fires for
     # the fields a given branch happens to pass (e.g. write-mode never passes allow_ungrounded), so
@@ -879,6 +897,9 @@ def fanout(
                 )
             owned_lists.append(list(op))
             tasks.append(unit["task"])
+        # Auto-tune the turn budget for tool work (see _WRITE_DEFAULT_TURNS) — only when the caller
+        # didn't set one; a caller-supplied max_turns always wins.
+        spec_kwargs.setdefault("max_turns", _WRITE_DEFAULT_TURNS)
         groups = workspace.disjoint(owned_lists)
         if len(groups) != len(units):
             raise ValueError(
