@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Archive the 2026-07-08 model-pipeline audit outputs (2026-07-19)
+
+`docs/development/audits/` (7 files: consolidated report + 6 per-phase findings ledgers) →
+`docs/archive/audits/`. They were the one-shot output of the executed-and-archived plan-3 model-pipeline
+audit — no script or scheduled task regenerates them (verified: no cron/timer, no caller outside
+`audit_pipeline.py`'s own docstring; its tests use tmp_path only), and nothing consumes them live.
+`INDEX.md` path references updated; the empty `docs/development/audits/` dir removed.
+
 ### Added — Coding-performance benchmark (LiveCodeBench, direct dispatch) (2026-07-19)
 
 `scripts/kilo-benchmarks/microbench_coding_direct.py` — a contamination-free, uniform `pass@1` coding
