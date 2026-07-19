@@ -97,15 +97,24 @@ _TASK_SUFFIX = (
 
 _CORPUS_SRC = r'''
 import json, sys
-from lcb_runner.benchmarks.code_generation import load_code_generation_dataset
 release, limit, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
-probs = load_code_generation_dataset(release_version=release)
+from lcb_runner.benchmarks.code_generation import CodeGenerationProblem
 if limit > 0:
-    probs = probs[:limit]
+    # STREAM only the first `limit` problems — the LiveCodeBench release is multi-GB sharded parquet;
+    # a bounded run (probe or --limit N) must NOT download it all. .take(N) reads only the first chunk.
+    from datasets import load_dataset
+    ds = load_dataset("livecodebench/code_generation_lite", split="test", version_tag=release,
+                      trust_remote_code=True, streaming=True)
+    probs = [CodeGenerationProblem(**r) for r in ds.take(limit)]
+else:
+    # whole release (limit<=0) needs every problem -> the full (cached-once) download
+    from lcb_runner.benchmarks.code_generation import load_code_generation_dataset
+    probs = load_code_generation_dataset(release_version=release)
 rows = [{"question_id": str(p.question_id), "prompt": p.question_content,
          "starter_code": p.starter_code or "", "sample": p.get_evaluation_sample()} for p in probs]
 json.dump(rows, open(out, "w"))
-print(f"loaded {len(rows)} problems from {release}", file=sys.stderr)
+print(f"loaded {len(rows)} problems from {release} (streamed)" if limit > 0 else
+      f"loaded {len(rows)} problems from {release} (full)", file=sys.stderr)
 '''
 
 _GRADE_SRC = r'''
