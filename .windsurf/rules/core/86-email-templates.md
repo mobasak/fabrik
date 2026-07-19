@@ -174,7 +174,7 @@ Every project must ship these transactional templates before go-live. Check the 
 
 #### Auth & Account (all project types)
 
-**Pattern A (default) — the app owns auth email natively.** With `fabrik-lib/fastapi-user-auth` (Pattern A, the default per `AGENTS.md § Supabase`), FastAPI issues its own JWTs and triggers verify-email and password-reset emails directly through **this MJML+Jinja2 pipeline** — no third-party auth mailer, no Auth Hooks, no built-in emails to disable. Every auth email is brand-correct, localized, and version-controlled in the repo by construction. Send via Resend on your authenticated subdomain like any other transactional mail.
+**Pattern A (default) — the app owns auth email natively.** With `fabrik-lib/fastapi-user-auth` (Pattern A, the default per `agents-fabrik.md § Supabase`), FastAPI issues its own JWTs and triggers verify-email and password-reset emails directly through **this MJML+Jinja2 pipeline** — no third-party auth mailer, no Auth Hooks, no built-in emails to disable. Every auth email is brand-correct, localized, and version-controlled in the repo by construction. Send via Resend on your authenticated subdomain like any other transactional mail.
 
 **Legacy — migrating off Supabase Auth (Pattern B):** a project still on Supabase Auth sends verify-email and password-reset by default using Supabase's generic template — wrong brand, wrong fonts, no i18n, no version control. **Disable Supabase's built-in emails** and route all auth emails through your MJML pipeline instead (via Supabase Auth Hooks or custom SMTP pointing to your Resend-authenticated subdomain) until the project migrates to Pattern A, after which the app owns these emails natively.
 

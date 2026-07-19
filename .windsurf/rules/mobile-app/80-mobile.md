@@ -15,7 +15,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets are regional addenda. i18n is built in from day 1, not retrofitted.
 
-**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (FastAPI on `postgres-main`, auth via `fabrik-lib/fastapi-user-auth`) deploys to VPS via `fabrik apply` with full registrar set — the same self-hosted Pattern-A stack as web (see `AGENTS.md § Supabase`; Supabase is retired as a default). This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
+**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (FastAPI on `postgres-main`, auth via `fabrik-lib/fastapi-user-auth`) deploys to VPS via `fabrik apply` with full registrar set — the same self-hosted Pattern-A stack as web (see `agents-fabrik.md § Supabase`; Supabase is retired as a default). This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
 
 ---
 
@@ -111,7 +111,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 ## Backend Integration
 
-The RN client is a **Pattern-A client** (same model as web): it talks to a **self-hosted FastAPI backend**, never to a data store or an external BaaS. See `AGENTS.md § Supabase` (self-hosted by default) and `35-security-auth.md` § Pattern A. Supabase is retired as a default; treat any Supabase-native path below as **legacy only — migrate to self-hosted**.
+The RN client is a **Pattern-A client** (same model as web): it talks to a **self-hosted FastAPI backend**, never to a data store or an external BaaS. See `agents-fabrik.md § Supabase` (self-hosted by default) and `35-security-auth.md` § Pattern A. Supabase is retired as a default; treat any Supabase-native path below as **legacy only — migrate to self-hosted**.
 
 - **FastAPI + `postgres-main` is the primary data layer**: app data, tenant-isolation RLS, storage routing, realtime. Auth is `fabrik-lib/fastapi-user-auth`.
 - **Auth (Pattern A):** the FastAPI auth service (`fabrik-lib/fastapi-user-auth`) issues the app's own JWT and owns registration, login, password reset, email verification, and OAuth/social — including **Sign in with Apple** (handled server-side, not by Supabase). The client stores the app-issued JWT in `expo-secure-store` and sends it in the `Authorization` header. Never store JWTs in AsyncStorage or MMKV. Token lifecycle (Argon2, 15-min access, refresh-token rotation, denylist) is exactly per `35-security-auth.md` § Pattern A.

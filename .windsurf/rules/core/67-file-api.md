@@ -22,7 +22,7 @@ trigger: glob
 
 - **Container volumes are ephemeral.** A redeploy destroys local disk; Backrest doesn't index large mutable blobs efficiently. **Therefore all binary persistence is to an external S3-compatible backend** — never local disk in production.
 - **Multi-tenant isolation enforced at the metadata tier.** Every file row carries `tenant_id`; cross-tenant access is banned at the DB level (see `95-multi-tenant-saas.md`).
-- **Auth:** Pattern A FastAPI-issued Bearer JWT for end-user uploads (`fabrik-lib/fastapi-user-auth`, per `AGENTS.md § Supabase`), `X-Internal-Token` for M2M (see `35-security-auth.md` + Node implementation in `12-node.md`). Legacy Supabase Auth (Pattern B) Bearer JWTs validate the same way for a project not yet migrated.
+- **Auth:** Pattern A FastAPI-issued Bearer JWT for end-user uploads (`fabrik-lib/fastapi-user-auth`, per `agents-fabrik.md § Supabase`), `X-Internal-Token` for M2M (see `35-security-auth.md` + Node implementation in `12-node.md`). Legacy Supabase Auth (Pattern B) Bearer JWTs validate the same way for a project not yet migrated.
 - **Threats this pack defends against:** SSRF via PDF rendering, ZIP bombs, ImageMagick coder vulns, polyglot files, presigned URL replay, cross-tenant dedup side-channel, OOM via in-memory buffering, supply-chain tampering of file-type detection.
 - **Decoupling principle:** every high-risk binary mutation is **physically isolated** in its own container. Image manipulation → `image-broker` microservice. AV scanning → `clamd` sidecar.
 
@@ -32,7 +32,7 @@ Two default backends (B2/R2) plus one legacy option. Pick by need; never run mul
 
 | Backend | When | SDK Configuration |
 | --- | --- | --- |
-| **Backblaze B2** | Default for new file-api services. Cheap egress, simple billing. Pairs with `fabrik-lib/storage` (B2 backend, URI-routed) per `AGENTS.md § Supabase`. | `endpoint: https://s3.<region>.backblazeb2.com`, **`forcePathStyle: true`** (B2 requires path-style — virtual-hosted bucket DNS fails). |
+| **Backblaze B2** | Default for new file-api services. Cheap egress, simple billing. Pairs with `fabrik-lib/storage` (B2 backend, URI-routed) per `agents-fabrik.md § Supabase`. | `endpoint: https://s3.<region>.backblazeb2.com`, **`forcePathStyle: true`** (B2 requires path-style — virtual-hosted bucket DNS fails). |
 | **Cloudflare R2** | High-egress workloads or projects already on Cloudflare. Zero egress fees. | `endpoint: https://<account>.r2.cloudflarestorage.com`, **`region: 'auto'`** (R2 ignores explicit regions; global routing). 5 MiB min chunk, 10000 max parts. |
 | **Supabase Storage** (legacy) | **Legacy — migrate to self-hosted.** ONLY a project already on Supabase for auth/DB and not yet migrated. New services use B2/R2 (`fabrik-lib/storage`); do not adopt Supabase Storage for new work. | Inject user's JWT into the `sessionToken` field — enforces RLS at the storage layer. Do NOT pass `x-amz-acl` headers (rejected by Supabase Storage API). |
 
@@ -330,7 +330,7 @@ CREATE INDEX files_hard_delete_idx ON files(hard_delete_at) WHERE deleted_at IS 
 
 - **Inline `sharp` is acceptable ONLY for trivial low-concurrency thumbnail generation** (e.g., admin dashboard avatars). Default to "trivial = forbidden, delegate".
 - For anything user-facing or high-concurrency: delegate to the `image-broker` microservice. It assumes the risk of parsing headers, enforcing dimensional limits (reject > 8000 px any side — decompression-bomb defense), and stripping all EXIF metadata (geo-coordinates, device IDs).
-- **Image-broker availability:** per `AGENTS.md § Fabrik Microservices`, image-broker is currently retired/not-deployed. New file-api projects that need image processing must either: (a) re-deploy image-broker first (re-build from `templates/file-api/` cousin + spec), or (b) vendor `/opt/fabrik-lib/image-broker/` as a copy per the `fabrik-lib` discipline. Do NOT inline `sharp` as a workaround.
+- **Image-broker availability:** per `agents-fabrik.md § Fabrik Microservices`, image-broker is currently retired/not-deployed. New file-api projects that need image processing must either: (a) re-deploy image-broker first (re-build from `templates/file-api/` cousin + spec), or (b) vendor `/opt/fabrik-lib/image-broker/` as a copy per the `fabrik-lib` discipline. Do NOT inline `sharp` as a workaround.
 
 ### Antivirus scanning → `clamd` sidecar, TCP :3310 INSTREAM
 

@@ -133,7 +133,7 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries
 
 ### FastAPI Client Resilience (SaaS / Mobile)
 
-Clients call a **self-hosted FastAPI backend** (Pattern A — `fabrik-lib/fastapi-user-auth`, per `AGENTS.md § Supabase`), never a database-as-a-service SDK directly. Browser `fetch` / mobile HTTP clients have no built-in timeout or retry for these calls — wire them explicitly:
+Clients call a **self-hosted FastAPI backend** (Pattern A — `fabrik-lib/fastapi-user-auth`, per `agents-fabrik.md § Supabase`), never a database-as-a-service SDK directly. Browser `fetch` / mobile HTTP clients have no built-in timeout or retry for these calls — wire them explicitly:
 
 ```typescript
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -151,7 +151,7 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 - **Backend outage fallback:** if the FastAPI API is down, the app shows cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
 - **Auth token refresh:** Pattern A issues its own JWTs with atomic refresh-token rotation; the app's auth client owns the refresh flow (per `35-security-auth.md` Pattern A). Do not scatter ad-hoc refresh logic across service calls — centralize it in the auth client.
 
-> **Legacy note.** A project still on Supabase Auth (Pattern B) wraps `supabase-js` REST calls (`from('table').select()`) in the same try/catch + cached-data-fallback discipline, and lets the SDK own token refresh. Pattern B is legacy — migrate to self-hosted Pattern A (`AGENTS.md § Supabase`).
+> **Legacy note.** A project still on Supabase Auth (Pattern B) wraps `supabase-js` REST calls (`from('table').select()`) in the same try/catch + cached-data-fallback discipline, and lets the SDK own token refresh. Pattern B is legacy — migrate to self-hosted Pattern A (`agents-fabrik.md § Supabase`).
 
 ### Circuit-Breaker Pattern
 

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 18 rule-pack cross-refs retargeted from the AGENTS.md stub to the canonical agents doc (2026-07-19)
+
+The named follow-up from plan-2 Phase B: `AGENTS.md § Supabase` / `§ Fabrik Microservices` / `§ Local LLM
+Agents` refs across 12 synced packs now point at `agents-fabrik.md § …` directly (every target section
+verified present) — no more stub-hop. `core/40-documentation.md`'s AGENTS.md maintenance rows stay (they
+govern the stub itself, still true).
+
 ### Fixed — subagent pool reaches above-policy models (max_price over-clamp) (2026-07-19)
 
 Re-synced the vendored `libs/subagents` from canonical `fabrik-lib` (`764df76`): `loop._apply_max_price`

@@ -97,7 +97,7 @@ async def test_create_item(client: AsyncClient):
 
 ## Tenant Isolation Testing (SaaS / Mobile with RLS)
 
-For multi-tenant projects using `postgres-main` RLS with `tenant_id` (RLS is owned by `fabrik-lib/fastapi-user-auth` on the `auth` schema; `auth.uid()` reads `request.jwt.claims`). Legacy Supabase-RLS projects run the same tests unchanged after migrating to `postgres-main` — see `AGENTS.md § Supabase`:
+For multi-tenant projects using `postgres-main` RLS with `tenant_id` (RLS is owned by `fabrik-lib/fastapi-user-auth` on the `auth` schema; `auth.uid()` reads `request.jwt.claims`). Legacy Supabase-RLS projects run the same tests unchanged after migrating to `postgres-main` — see `agents-fabrik.md § Supabase`:
 
 ```python
 @pytest.mark.asyncio

@@ -22,7 +22,7 @@ Apply when working on database models, migrations, schema changes, or query logi
 | Vector search | `postgres-main` with pgvector (`pgvector/pgvector:pg16`) + `fabrik-lib/rag` | same `postgres-main` DSN |
 | Legacy Supabase project (not yet migrated) | **Supabase** | Supabase connection string from dashboard |
 
-**Decision:** `postgres-main` for everything — it self-hosts DB, auth (`fastapi-user-auth`), pgvector, and RLS. Supabase is **retired as a default** (see `AGENTS.md § Supabase`); use it only for a legacy project that already runs on it, and plan its migration to `postgres-main` + Pattern A.
+**Decision:** `postgres-main` for everything — it self-hosts DB, auth (`fastapi-user-auth`), pgvector, and RLS. Supabase is **retired as a default** (see `agents-fabrik.md § Supabase`); use it only for a legacy project that already runs on it, and plan its migration to `postgres-main` + Pattern A.
 
 ---
 

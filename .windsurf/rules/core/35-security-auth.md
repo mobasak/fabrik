@@ -21,7 +21,7 @@ The auth architecture depends on the project's scaffold type and domain module d
 
 ### Pattern A — FastAPI as sole IdP (self-hosted auth) — **DEFAULT**
 
-**The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — Argon2 + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `AGENTS.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
+**The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — Argon2 + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `agents-fabrik.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
 
 - FastAPI owns credential hashing (Argon2), user state, token issuance, and validation.
 - Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
@@ -47,7 +47,7 @@ Tenant isolation, the dual-mode RLS contract, the `auth.*` helper definitions, `
 
 ### Pattern B — Supabase Auth + FastAPI backend (legacy / migration-only)
 
-Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight project). **Not for new work** — new user-facing products use Pattern A (`fabrik-lib/fastapi-user-auth`). A project still on Pattern B should plan its move to Pattern A / Pattern A-compat (see `AGENTS.md § Supabase`). The Supabase-JWT-validation guidance below remains authoritative for such projects.
+Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight project). **Not for new work** — new user-facing products use Pattern A (`fabrik-lib/fastapi-user-auth`). A project still on Pattern B should plan its move to Pattern A / Pattern A-compat (see `agents-fabrik.md § Supabase`). The Supabase-JWT-validation guidance below remains authoritative for such projects.
 
 - **Supabase Auth** handles user registration, login, password hashing, OAuth providers (including Sign in with Apple — mandatory on iOS if any social login is offered), email verification, and password reset.
 - **FastAPI** handles custom business logic, M2M auth, and any endpoints that need data beyond what Supabase exposes. FastAPI validates Supabase JWTs per the Supabase JWT validation section below — it does not issue its own user tokens.

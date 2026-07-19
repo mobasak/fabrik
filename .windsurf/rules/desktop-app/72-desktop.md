@@ -431,7 +431,7 @@ const ollama = spawn('ollama', ['serve'], { stdio: 'inherit' });
 ```
 
 - Models live on the user's disk (`~/.ollama/models/`).
-- Fabrik dev workstation already runs Ollama at `localhost:11434` (per `AGENTS.md § Local LLM Agents`).
+- Fabrik dev workstation already runs Ollama at `localhost:11434` (per `agents-fabrik.md § Local LLM Agents`).
 - App ships Ollama as a bundled dep OR detects an existing install. Bundling adds ~100 MB but eliminates "install Ollama first" friction.
 - Per `cost-budget.md`: local inference replaces OpenRouter API spend for offline use cases.
 - **Constraint:** Ollama capabilities are bounded by the user's GPU VRAM. Document the minimum hardware (e.g., 8 GB VRAM for Llama 3 8B q4).

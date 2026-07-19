@@ -13,7 +13,7 @@ trigger: glob
 
 Apply when planning or building a mobile app — especially during epic decomposition, epic-brief, and ticket creation. This pack answers "what must a mobile app include for launch?" not "how to code it." Skip for web-only SaaS, internal tools, or services with no mobile distribution.
 
-**Source:** Gemini Deep Research (2026-05-24), validated against `80-mobile.md`, `81-mobile-billing.md`, and production experience. Specific to a React Native / Expo client on a self-hosted FastAPI + `postgres-main` backend (Pattern A; see `AGENTS.md § Supabase`), deployed from a Turkish Teknokent LLC.
+**Source:** Gemini Deep Research (2026-05-24), validated against `80-mobile.md`, `81-mobile-billing.md`, and production experience. Specific to a React Native / Expo client on a self-hosted FastAPI + `postgres-main` backend (Pattern A; see `agents-fabrik.md § Supabase`), deployed from a Turkish Teknokent LLC.
 
 ## Five Phases
 
