@@ -313,23 +313,33 @@ def _rows_from_db(db_path: Path | None = None) -> list[dict]:
             """,
             FAMILIES,
         ).fetchall()
-    # Measured review grade (microbench_review -> model_review_metrics), keyed by model id.
-    # Where a model was benchmarked we use the REAL grade for Doc↔Code; else the heuristic below.
+    # Measured grades keyed by model id. DISPLAY ONLY (the sort stays `_compose_score` — D4): a
+    # measured CODING grade (microbench_coding_direct -> model_coding_metrics) is the real coding
+    # signal, so it wins for the Doc↔Code column; else the measured REVIEW grade (code-understanding
+    # proxy); else the heuristic. `coding_pass_at_1` feeds the new pass@1 % column.
     try:
-        from build_task_baselines import load_review_metrics
+        from build_task_baselines import load_coding_metrics, load_review_metrics
 
-        measured_review = load_review_metrics(db_path if db_path is not None else DB_PATH)
+        _db = db_path if db_path is not None else DB_PATH
+        measured_review = load_review_metrics(_db)
+        measured_coding = load_coding_metrics(_db)
     except Exception:  # never let a missing/locked benchmark table block the daily coding doc
-        measured_review = {}
+        measured_review, measured_coding = {}, {}
     out = []
     for r in rows:
         d = dict(r)
         if d["id"] in EXCLUDE_MODELS:
             continue
         d["score"] = _compose_score(d)
+        c = measured_coding.get(d["id"])
         m = measured_review.get(d["id"])
-        if m and m.get("grade"):
-            # ground-truth: measured on planted-bug corpus (recall/precision), not inferred
+        d["coding_pass_at_1"] = c.get("pass_at_1") if c else None
+        if c and c.get("grade"):
+            # measured LiveCodeBench pass@1 -> the real coding grade (this IS a coding-selection doc)
+            d["doc_grade"] = c["grade"]
+            d["doc_grade_measured"] = True
+        elif m and m.get("grade"):
+            # fallback: measured review grade (ground-truth code-understanding, not inferred)
             d["doc_grade"] = m["grade"]
             d["doc_grade_measured"] = True
         else:
@@ -385,7 +395,7 @@ def _render(rows: list[dict]) -> str:
         "",
         "> **Score composition**: 45% best-verified code score (max of SWE-bench-Verified and Aider-Polyglot; falls back to our own live HumanEval+/MBPP+ `coding_score` × 0.7 when neither external benchmark is populated) · 20% AA intelligence index · 15% Arena ELO · 10% output tok/s · 10% cost-inverse. Every component normalized to [0,1] before its weight is applied. Higher = better fit.",
         "",
-        "> **Doc↔Code grade**: review capability. `†` = MEASURED by `scripts/kilo-benchmarks/microbench_review.py` (real grade on a ground-truth planted-bug corpus — recall × precision); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. A measured grade always wins over the heuristic when present.",
+        "> **Doc↔Code grade + pass@1**: coding capability. `†` = MEASURED — the measured **coding** grade from `scripts/kilo-benchmarks/microbench_coding_direct.py` (LiveCodeBench pass@1, shown in the `pass@1` column) wins when present; else the measured **review** grade from `microbench_review.py` (ground-truth planted-bug corpus — code-understanding proxy); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. `pass@1` = LiveCodeBench coding accuracy (contamination-free); `—` until the coding bench has run on that model. (The row **sort** is the composite `Score`, not the grade — the grade/pass@1 are the coding signal; `pick_models(\"code\")` ranks on the measured `model_task_baseline` prior.)",
         "",
         '> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `scripts/kilo-benchmarks/microbench_coding.py` has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.',
         "",
@@ -420,13 +430,13 @@ def _render(rows: list[dict]) -> str:
         "",
         f"Auto tier — OpenRouter output ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok. `pick_models` auto-selects freely from this table (no operator approval required).",
         "",
-        "| # | Model | OR | OR_prov | Reason | Bench | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
-        "|---:|---|:-:|---|:-:|:-:|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
+        "| # | Model | OR | OR_prov | Reason | Bench | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |",
+        "|---:|---|:-:|---|:-:|:-:|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|",
     ]
 
     def _fmt_row(i: int, r: dict) -> str:
         return (
-            "| {i} | `{mid}` | {or_ok} | {prov} | {reason} | {bench} | {tps} | {inp} | {out} | {swe} | {aider} | {aa} | {arena} | {ctx} | **{grade}** | {score} |"
+            "| {i} | `{mid}` | {or_ok} | {prov} | {reason} | {bench} | {tps} | {inp} | {out} | {swe} | {aider} | {aa} | {arena} | {ctx} | **{grade}** | {passk} | {score} |"
         ).format(
             i=i,
             mid=_safe_md_id(r["id"]),
@@ -453,6 +463,8 @@ def _render(rows: list[dict]) -> str:
             # `†` marks a grade MEASURED by microbench_review (ground-truth planted-bug corpus);
             # unmarked = the heuristic composite below.
             grade=r["doc_grade"] + ("†" if r.get("doc_grade_measured") else ""),
+            # pass@1 % — measured LiveCodeBench coding accuracy (microbench_coding_direct); "—" until run
+            passk=(f"{r['coding_pass_at_1'] * 100:.0f}%" if r.get("coding_pass_at_1") is not None else "—"),
             score=f"{r['score']:.3f}",
         )
 
@@ -464,7 +476,7 @@ def _render(rows: list[dict]) -> str:
         lines.append(_fmt_row(i, r))
     if not auto_rows:
         lines.append(
-            "| — | _no Auto-tier candidates today (all rows over $1.5/Mtok output or unpriced)_ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"
+            "| — | _no Auto-tier candidates today (all rows over $1.5/Mtok output or unpriced)_ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"
         )
 
     lines.extend(
@@ -479,15 +491,15 @@ def _render(rows: list[dict]) -> str:
             "",
             f"On-request tier — OpenRouter output > ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok. Operator opt-in only: `pick_models` NEVER auto-promotes these. Selectable when the operator names one this turn and says why the Auto tier didn't suffice for this specific hard task. A pricier model that benchmarks brilliantly stays here until its OR output price drops ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok, at which point it auto-joins Auto on the next daily refresh.",
             "",
-            "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | Score |",
-            "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|",
+            "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |",
+            "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|",
         ]
     )
     for i, r in enumerate(onreq_rows, 1):
         lines.append(_fmt_row(i, r))
     if not onreq_rows:
         lines.append(
-            "| — | _no On-request rows today_ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"
+            "| — | _no On-request rows today_ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"
         )
 
     # ─── Un-benched candidates (visibility for future microbench runs) ─────

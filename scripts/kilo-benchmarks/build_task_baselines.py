@@ -158,6 +158,34 @@ def review_eligible(db_path: Path = DB_PATH) -> set[str]:
     }
 
 
+def load_coding_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
+    """model_id -> the LATEST-build coding metrics, or {} if the table isn't populated yet.
+
+    Parallel to load_review_metrics (measured by microbench_coding_direct -> model_coding_metrics).
+    Fail-soft: a missing table returns {} so the daily build/rankers fall back to prior behaviour
+    rather than crashing. Latest-PER-MODEL (correlated MAX), not the latest GLOBAL build, so a
+    partial re-run keeps every other model's most-recent coding metrics.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        if not conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='model_coding_metrics'"
+        ).fetchone():
+            return {}
+        rows = conn.execute(
+            "SELECT m.model_id, m.grade, m.pass_at_1, m.score5, m.cost_per_1k, m.p50_latency_s "
+            "FROM model_coding_metrics m "
+            "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_coding_metrics GROUP BY model_id) t "
+            "ON m.model_id=t.model_id AND m.built_at=t.mb"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        r[0]: {"grade": r[1], "pass_at_1": r[2], "score5": r[3], "cost_per_1k": r[4], "p50_latency_s": r[5]}
+        for r in rows
+    }
+
+
 def build(conn, task_type: str, categories: tuple[str, ...]) -> list[dict]:
     """One row per model with enough benchmark trials in `categories` to be a real prior.
 
@@ -238,6 +266,20 @@ def main(argv: list[str] | None = None) -> int:
             total = 0
             for task_type, cats in TASK_CATEGORIES.items():
                 rows = build(conn, task_type, cats)
+                if task_type == "code":
+                    # PRECEDENCE: a measured LiveCodeBench pass@1 (model_coding_metrics, written by
+                    # microbench_coding_direct with source='livecodebench:…') beats the terminal-bench
+                    # scraped 'code' baseline. Drop measured models from the scraped set so persist
+                    # (INSERT OR REPLACE on PK model_id,task_type) never clobbers the measured prior.
+                    measured = set(load_coding_metrics())
+                    kept = [r for r in rows if r["model_id"] not in measured]
+                    if len(kept) != len(rows):
+                        print(
+                            f"[baselines] code: preserved {len(rows) - len(kept)} measured "
+                            "livecodebench prior(s) over terminal-bench",
+                            file=sys.stderr,
+                        )
+                    rows = kept
                 total += persist(conn, rows)
                 print(
                     f"[baselines] {task_type:<6} <- {'+'.join(cats)}: {len(rows)} models",

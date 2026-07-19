@@ -213,7 +213,7 @@ direct `ai-consult` dispatch with real billed cost, mockably testable at $0.
 
 ---
 
-## Phase C — Wire the measured signal into coding-subagent selection
+## Phase C — ✅ EXECUTED 2026-07-19 — Wire the measured signal into coding-subagent selection
 
 **Goal:** persist to `model_coding_metrics` + `model_task_baseline(task_type='code')` with measured precedence,
 and surface the measured coding grade + `pass@1` in `CODING_SUBAGENT_SELECTION.md`.
