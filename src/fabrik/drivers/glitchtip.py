@@ -23,13 +23,13 @@ Design notes
   the orchestrator (Phase 4h) — rerunning ``fabrik apply`` on the same
   project must never error out on "already provisioned".
 
-* **DSN stored as-is.** The captured probe shows GlitchTip emits DSNs
-  with ``localhost:8000`` as the host (the service's own
-  ``GLITCHTIP_DOMAIN`` env var is unset upstream). This is a deployment
-  gap documented in ``docs/reference/glitchtip-api.md §"Known
-  configuration gap"`` — the driver intentionally does NOT post-process
-  the DSN. Misconfiguration surfaces to the operator rather than being
-  masked.
+* **DSN canonicalized (G7).** GlitchTip emits DSNs with
+  ``localhost:8000`` as the host (the service's own ``GLITCHTIP_DOMAIN``
+  env var is unset upstream — see ``docs/reference/glitchtip-api.md
+  §"Known configuration gap"``). The driver unconditionally rewrites a
+  loopback-host DSN to the public ``GLITCHTIP_URL`` host
+  (``_canonicalize_dsn``, with a warning log) and raises only if the DSN
+  is still unroutable after the rewrite (``_assert_routable_dsn``).
 
 * **DSN injection verification.** :func:`verify_dsn_injection` polls
   the deployed container via SSH+``docker inspect`` until ``SENTRY_DSN``

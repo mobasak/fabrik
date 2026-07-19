@@ -9,7 +9,7 @@ R2-backed object storage).
 - the `file-api` service that deployed it is **retired** (not on any of the 3 VPS),
 - `src/fabrik/drivers/supabase.py` (`SupabaseClient`, which operates on these tables)
   is exported from `drivers/__init__.py` but **not consumed by any live code path**,
-- the doc that cited it (`docs/reference/file-api-deployment.md`) is flagged
+- the doc that cited it (`docs/archive/file-api-deployment.md`) is flagged
   "pre-migration vintage".
 
 Kept as the schema-of-record in case a Supabase-backed SaaS is revived (the saas/mobile

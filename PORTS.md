@@ -57,7 +57,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | ~~18012~~ | ~~Translator API~~ | /opt/translator | **retired — not currently deployed** (no live container/router; `specs/services/translator.yaml` persists but nothing deployed. Port 18012 free) |
 | ~~18013~~ | ~~Proxy Manager~~ | /opt/proxy | **retired — not currently deployed** (no live container/router. Port 18013 free) |
 | ~~18014~~ | ~~DNS Manager~~ | /opt/dns-manager | **retired — not currently deployed** (no live container/router). **Port 18014 reallocated to site-provisioner** — see auto-generated table below |
-| 18015 | File API | /opt/file-api | https://files-api.vps1.ocoron.com |
+| ~~18015~~ | ~~File API~~ | /opt/file-api | **retired — not currently deployed** (no live container/router; `files-api.vps1.ocoron.com` NXDOMAIN. Port 18015 free) |
 | ~~18017~~ | ~~Email Gateway~~ | /opt/emailgateway | **retired — not currently deployed** (no live container/router. Port 18017 free) |
 | 18018 | Email Reader | /opt/email-reader | — |
 

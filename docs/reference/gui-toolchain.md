@@ -79,7 +79,7 @@ The web loop (Playwright MCP / shadcn MCP / Chrome DevTools MCP / axe) **cannot 
 
 ## Chrome extension (MV3) surface (reuse the web loop + 3 additions)
 
-Extension surfaces (popup / options / side-panel / content-script overlay) are **web tech**, so the agent **reuses the entire web loop above** (frontend-design → shadcn MCP → Playwright MCP → `@axe-core/playwright` + `toHaveScreenshot` → `/design-review`) with the **same Ocoron (Compact) design system** `.windsurf/rules/chrome-ext/70-chrome-ext.md` already mandates. **`70-chrome-ext.md` (§ Testing & UI Verification) is the authority — this is the toolchain view.** MV3 forces exactly three additions (full research: `docs/reference/chrome-ext-gui-research.md`, live-verified 2026-07-07):
+Extension surfaces (popup / options / side-panel / content-script overlay) are **web tech**, so the agent **reuses the entire web loop above** (frontend-design → shadcn MCP → Playwright MCP → `@axe-core/playwright` + `toHaveScreenshot` → `/design-review`) with the **same Ocoron (Compact) design system** `.windsurf/rules/chrome-ext/70-chrome-ext.md` already mandates. **`70-chrome-ext.md` (§ Testing & UI Verification) is the authority — this is the toolchain view.** MV3 forces exactly three additions (full research: `docs/reference/research/chrome-ext-gui-research.md`, live-verified 2026-07-07):
 
 | # | Addition | Why (MV3 fact) |
 |---|---|---|

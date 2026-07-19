@@ -311,8 +311,6 @@ docs/
 │   ├── architecture.md             # System architecture overview
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
-│   ├── fabrik.md
-│   ├── file-api-deployment.md      # File API deployment guide
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json  # Live-captured GlitchTip new-issue webhook envelope (watchdog parser pin)
 │   ├── glitchtip-api.md
@@ -352,7 +350,6 @@ docs/
 │   │   ├── Node API File Storage Rules.md
 │   │   ├── Node Backend Practices Research 2026.md
 │   │   └── cookie-consent-gdpr-2026-research.md
-│   ├── research-prompt-preamble-for-agent-rules.md
 │   ├── scaffold-type-decision-guide.md
 │   ├── scripts.md
 │   ├── service-contracts
@@ -457,8 +454,8 @@ docs/
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
-| [mobile-gui-research.md](docs/reference/mobile-gui-research.md) | Full RN/Expo mobile verify-stack research (Maestro MCP, Mobile Next MCP, RN a11y, visual regression, CI reality); defers to `mobile-app/80-mobile.md`; verified 2026-07-06 |
-| [chrome-ext-gui-research.md](docs/reference/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |
+| [mobile-gui-research.md](docs/reference/research/mobile-gui-research.md) | Full RN/Expo mobile verify-stack research (Maestro MCP, Mobile Next MCP, RN a11y, visual regression, CI reality); defers to `mobile-app/80-mobile.md`; verified 2026-07-06 |
+| [chrome-ext-gui-research.md](docs/reference/research/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |
 | [subagents-enhancement-proposal.md](docs/reference/subagents-enhancement-proposal.md) | Cross-repo proposal to the fabrik-lib AI — `subagents` module enhancements (footgun-free `fanout()` helper, serialization guard, quality-score back-fill) that eliminate the dispatch traps verified 2026-07-09 (plan-3 Phase C) |
 <!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |

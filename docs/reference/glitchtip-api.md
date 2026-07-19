@@ -2,10 +2,10 @@
 
 **Source:** Phase 4-pre Task 1 live probe against `https://errors.vps1.ocoron.com` (GlitchTip v6.1.5)
 **Captured:** 2026-04-18 UTC+3 via `scripts/probes/glitchtip_probe.sh`
-**Last Verified:** 2026-04-22 (E2E deploy validation — all registrars green including DSN injection)
+**Last Verified:** 2026-07-19 (contract re-verified against the driver + `TestWireShape` tests + live Authelia probe; the HTTP probe's JSON snapshots date from 2026-04-22 — re-run `scripts/probes/glitchtip_probe.sh` to refresh them)
 **Artifacts:** `.tmp/phase-4-pre/glitchtip-probe-{create,keys}.json` (regenerate by rerunning the probe)
 
-This document locks the **exact JSON field names the `glitchtip.py` driver (Phase 4f, 403 lines) must parse**. Any drift between GlitchTip versions silently breaking the driver will be caught by rerunning this probe as a contract test.
+This document locks the **exact JSON field names the `glitchtip.py` driver (501 lines) must parse**. Any drift between GlitchTip versions silently breaking the driver will be caught by rerunning this probe as a contract test.
 
 > **Lesson 31 (2026-04-22):** DSN injection into the container MUST be verified via `docker inspect "{{.Config.Env}}"` — NOT via `docker exec printenv`. Published images with `ENTRYPOINT ["something"]` reject `docker exec` with exit 126, making `printenv` unreliable for verification. The driver's `verify_dsn_injection()` helper already uses the correct method. See `docs/LESSONS_LEARNT.md` §Lesson 31.
 
@@ -114,16 +114,14 @@ Returns an **array**. First element is the default key (auto-created with the pr
 
 ### ⚠️ Known configuration gap (captured by probe)
 
-The DSNs above use `localhost:8000` as the host — this is **wrong** for external clients. GlitchTip's Coolify service is missing the `GLITCHTIP_DOMAIN` environment variable (expected value: `https://errors.vps1.ocoron.com`).
-
-**Fix (future work):** Add `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` to the GlitchTip compose environment via `fabrik apply` (SSH + Docker Compose) UI → Environment Variables → redeploy. After that, DSNs will be emitted as `https://...@errors.vps1.ocoron.com/2`.
-
-The driver must either:
-
-1. Accept the DSN as-is and let the user fix the service config, OR
-2. Post-process the DSN to replace the host if `GLITCHTIP_URL_OVERRIDE` is set.
-
-Option 1 is preferred — cleaner; misconfiguration is visible rather than masked.
+The DSNs above use `localhost:8000` as the host — wrong for external clients (`GLITCHTIP_DOMAIN` unset
+on the live app). **The driver handles this (G7):** `glitchtip.py` unconditionally canonicalizes any
+loopback-host DSN to the public `GLITCHTIP_URL` host (`_canonicalize_dsn` / `_assert_routable_dsn`,
+`glitchtip.py:98-175`, with a warning log) and raises only if the DSN is still unroutable after the
+rewrite. The service-side fix — `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` in the compose
+`environment:` block (`specs/infrastructure/glitchtip.yaml` / `/opt/glitchtip/compose.yaml` on vps1,
+then `docker compose up -d`) — would make GlitchTip emit correct DSNs at the source; until then the
+driver's rewrite is the safety net.
 
 ## Endpoint 3: Delete Project (cleanup / rollback)
 
@@ -135,6 +133,13 @@ Option 1 is preferred — cleaner; misconfiguration is visible rather than maske
 - **Success status:** `204 No Content` (empty response body)
 
 No response fields to parse. Driver checks `response.status_code == 204`.
+
+## Endpoint 4 (absent): Alert-webhook registration
+
+GlitchTip exposes **no API** to register alert webhooks — `/rules/`, `/alert-rules/`, and `/alerts/`
+all 404 (probed 2026-06-29; see `glitchtip.py::webhook_registration_reminder`, which surfaces the
+manual step). Webhook recipients are created in the GlitchTip **UI** per project (the watchdog
+`:8889` ingest hookup is a per-new-project manual step — `cli._emit_glitchtip_webhook_reminder`).
 
 ## Organization / Team enumeration (one-time setup)
 
@@ -153,13 +158,16 @@ Used to discover `TEAM_SLUG=vps1` for the Fabrik VPS.
 
 ## Security boundary
 
-**Updated 2026-05-15 (T2-08 Part A):** `errors.vps1.ocoron.com` was removed from Authelia's bulk-bypass block. It now falls through to the `*.vps1.ocoron.com → two_factor` catchall — the same defense-in-depth pattern as `monitor.vps1.ocoron.com` (Grafana). The full chain is now:
+GlitchTip is **Authelia full-bypass** (live-verified 2026-07-19: public `GET /` returns 200, no auth
+redirect). The Traefik router does carry `authelia-forward@docker`, but the Authelia access-control
+rule for `errors.vps1.ocoron.com` is **bypass** — mandated by LESSONS_LEARNT §8.13: forward-auth on a
+django-allauth SPA breaks login/signup (XHR gets a 302→HTML instead of JSON). The weekly
+`audit_authelia_gates.py` cron encodes this expectation. The chain:
 
 1. **Iptables DOCKER-USER chain** — only 80/443/6001/6002 allowed publicly
 2. **Traefik HTTPS termination** — routes `errors.vps1.ocoron.com` → `glitchtip-web:8000` on the `fabrik` Docker network
-3. **Authelia forward-auth (TOTP)** — gates `/` and any non-`/api/health` path on `errors.vps1.ocoron.com` per the `*.vps1.ocoron.com two_factor` catchall (post-2026-05-15)
-4. **GlitchTip's own django-allauth auth** — second factor for admin login behind Authelia (defense in depth)
-5. **Bearer-token auth** on all `/api/0/*` paths for machine-to-machine calls
+3. **GlitchTip's own django-allauth login + TOTP** — the effective auth layer (app-layer, per §8.13)
+4. **Bearer-token auth** on all `/api/0/*` paths for machine-to-machine calls
 
 **Important for Sentry SDK ingestion:** Fabrik microservices send Sentry-compatible events to the **internal** `http://glitchtip-web:8000` Docker DNS alias, NOT the public `https://errors.vps1.ocoron.com`. The Authelia gate at the public hostname does not affect SDK ingestion — see `docs/infrastructure/vps-urls.md` "Fabrik Microservices — GlitchTip DSN Convention".
 

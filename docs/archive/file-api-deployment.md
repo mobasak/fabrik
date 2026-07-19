@@ -162,13 +162,13 @@ Fabrik automatically loads secrets from the project's `.env` file:
 
 ```bash
 # /opt/file-api/.env
-SUPABASE_ANON_KEY=your_actual_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_actual_service_role_key
-R2_ACCOUNT_ID=066f5cf1dfe20ba18549a592809aa080
-R2_ACCESS_KEY_ID=735f0af6ebb94674962a918ee19d99d8
-R2_SECRET_ACCESS_KEY=2c2c01c9cdc01e27e004baa80b0e9aa5546013347f7305722fea2efce9d6d6c5
+SUPABASE_ANON_KEY=<redacted — real values live in the env vault, never in docs>
+SUPABASE_SERVICE_ROLE_KEY=<redacted — real values live in the env vault, never in docs>
+R2_ACCOUNT_ID=<redacted — real values live in the env vault, never in docs>
+R2_ACCESS_KEY_ID=<redacted — real values live in the env vault, never in docs>
+R2_SECRET_ACCESS_KEY=<redacted — real values live in the env vault, never in docs>
 R2_BUCKET=fabrik-files
-R2_ENDPOINT=https://066f5cf1dfe20ba18549a592809aa080.r2.cloudflarestorage.com
+R2_ENDPOINT=https://<redacted — R2 account id, see env vault>.r2.cloudflarestorage.com
 ```
 
 ### Step 3: Deploy with Fabrik
@@ -217,7 +217,7 @@ In Supabase dashboard → **Authentication** → **Users** → **Add user**
 
 Or via API:
 ```bash
-curl -X POST 'https://xjmsceegyztgtcpywhry.supabase.co/auth/v1/signup' \
+curl -X POST 'https://<your-project-ref>.supabase.co/auth/v1/signup' \
   -H 'apikey: YOUR_ANON_KEY' \
   -H 'Content-Type: application/json' \
   -d '{"email":"test@example.com","password":"testpassword123"}'
@@ -244,7 +244,7 @@ VALUES ('TENANT_ID', 'USER_ID', 'owner');
 ### 4. Get Auth Token
 
 ```bash
-curl -X POST 'https://xjmsceegyztgtcpywhry.supabase.co/auth/v1/token?grant_type=password' \
+curl -X POST 'https://<your-project-ref>.supabase.co/auth/v1/token?grant_type=password' \
   -H 'apikey: YOUR_ANON_KEY' \
   -H 'Content-Type: application/json' \
   -d '{"email":"test@example.com","password":"testpassword123"}'
@@ -255,11 +255,11 @@ Save the `access_token` from response.
 ### 5. Test File Upload Flow
 
 ```bash
-TOKEN="your_access_token_here"
+# $YOUR_ACCESS_TOKEN = access_token from the login response above
 
 # Request upload URL
 curl -X POST http://localhost:3000/api/files/upload-url \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "filename": "test.pdf",

@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference triage (third 5) + research-file consolidation (2026-07-19)
+
+**Archived:** `fabrik.md` (pre-migration Coolify-era CLI docstrings — superseded by the regenerated
+`fabrik-cli-reference.md`), `FINAL_REPORT.md` (zero-reference June benchmark report misfiled in
+reference/), `file-api-deployment.md` (the file-api SERVICE is retired — NXDOMAIN, no container; doc
+was actively wrong beyond its banner; **literal SUPABASE/R2 credential values in its sample .env +
+curl examples redacted before archiving** — values remain in git history, rotation recommended;
+PORTS.md's 18015 row now struck-through like its retired siblings). **Moved to
+docs/reference/research/:** `chrome-ext-gui-research.md`, `mobile-gui-research.md`,
+`research-prompt-preamble-for-agent-rules.md` (citers retargeted: rules/70, gui-toolchain, INDEX;
+preamble's stale Next.js-14 default updated). **Converged in place:** `fabrik-vultr.md` (provision
+HAS `-y` — doc contradicted itself; weekly-maintenance cron is NOT scheduled — doc asserted it was;
+tests 36→63; Hub-DR status synced to the GREEN 5m46s drill) and `glitchtip-api.md` (Coolify-era
+config-gap prose rewritten to the driver's actual G7 loopback-DSN canonicalization — the driver's own
+stale docstring fixed too, 43 tests green; **Security boundary was backwards** — GlitchTip is
+Authelia full-bypass with app-layer django-allauth per §8.13, live-verified public 200 + router label
+nuance documented; new "Endpoint 4 (absent)" section records the no-webhook-API fact). 3-pass loop
+(Opus + 2 Sonnet → Opus confirm caught 3 redaction gaps → sweep clean).
+
 ### Changed — docs/reference triage (second 5): archive 3, regenerate the driver + CLI references (2026-07-19)
 
 **Archived:** `DOCUMENTATION_STANDARD.md` (a 2025-12 parallel doc standard contradicting the live

@@ -5,7 +5,7 @@ Context and constraints:
 - Budget-conscious: prefer low-maintenance, durable, low-ops approaches
 - Dev environment: WSL Ubuntu 24.04
 - Deployment: x86_64 Ubuntu VPS via `fabrik apply` (SSH + Docker Compose) (Docker Compose)
-- Defaults: Python + FastAPI + Uvicorn, Next.js 14 + TypeScript + Tailwind, PostgreSQL 16
+- Defaults: Python + FastAPI + Uvicorn, Next.js + TypeScript + Tailwind (SaaS) / Astro static-first (websites), PostgreSQL 16
 - Mobile: React Native / TypeScript
 - Chrome extensions: Manifest V3
 - Base images: slim-bookworm only, never Alpine
