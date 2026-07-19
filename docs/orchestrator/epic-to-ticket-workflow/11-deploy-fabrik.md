@@ -18,7 +18,7 @@
        · the Tech Plan (`03-tech-plan-fabrik` output) — **Retrofit branch only**, when the Deploy Plan was
          skipped and the registrar/compose context must be derived
        · **Retrofit branch only:** the retrofit's target rule pack + the Compliance-Report row that emitted
-         the epic — the Vision Summary's `## Compliance Report` section produced by `mega-epic-breakdown/00-trigger-fabrik` (EXISTING mode); `02` CONSUMES it to emit the Retrofit epic — for the success criterion
+         the epic — the Vision Summary's `## Compliance Report` section produced by `mega-epic-breakdown/00-trigger-mega-epic-fabrik` (EXISTING mode); `02` CONSUMES it to emit the Retrofit epic — for the success criterion
        · `compose.yaml` · `compose.dev.yaml` · `.env` + `.env.example` · `PORTS.md` (port-conflict check)
        · `docs/operations/fabrik-lifecycle.md` — the deploy contract (register via `fabrik apply` → verify
          via `fabrik verify`)

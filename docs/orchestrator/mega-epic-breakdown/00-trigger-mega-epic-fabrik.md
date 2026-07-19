@@ -80,7 +80,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 **Role.** Technical strategist. Build a shared, grounded understanding of what's being built (NEW) or extended (EXISTING), and produce a deploy-ready Vision Summary that grounds all downstream epic + ticket work in Fabrik's actual infrastructure.
 
-**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-fabrik` consumes both modes identically; the extras drive Retrofit epic emission in 02). ⚠️ **Persisted on confirm — decisions never live only in chat:** the confirmed Summary is written to `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md` and mirrored as a Traycer artifact (§ Output Contract → *Persist on confirm*). Tickets are created later by `03-expand-epic-files-fabrik`.
+**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-fabrik` consumes both modes identically; the extras drive Retrofit epic emission in 02). ⚠️ **Persisted + LOCKED on confirm — the Vision Summary IS the project's decisions lock** (it carries Technology Decisions, the fabrik-lib Verdict, Rejected Alternatives and — EXISTING — Locked Decisions): on the owner's confirm it is written to `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md` with a `**Status:** LOCKED <YYYY-MM-DD>` header line (the BIG-flow Gate-1 marker downstream automation greps) and mirrored as a Traycer artifact (§ Output Contract → *Persist on confirm*). Tickets are created later by `03-expand-epic-files-fabrik`.
 
 **Agreed outputs by mode:**
 
@@ -101,7 +101,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 **Fabrik lifecycle (mental model).** Every project passes through 4 stages (enumerated below; `docs/operations/fabrik-lifecycle.md` carries **no stage model** — it covers only the deploy/runtime detail of stages 3–4):
 
-1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails + spec `shape:` block. The scaffold is a Context Injection.
+1. **Intent & Scaffolding (WSL)** — preplan (operator-manual deep research — Gemini / ChatGPT / Claude — dropped into `docs/preplans/*.md`; `fabrik preplan` merely files/ingests the artifact) → `fabrik scaffold` → AI guardrails + spec `shape:` block. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI).
 3. **Proper Registration (VPS)** — `fabrik apply` fires **10** registrars. **Only 7 are flag-driven** — postgres (`needs_database`), redis (`needs_cache`), gatus (`is_public`+domain), backrest (`has_persistent_data`), authelia (`is_admin_dashboard`+domain), meilisearch (`has_search_feature`), prometheus (`exposes_metrics`+domain). The other 3 are NOT flag-driven: **grafana** fires *always*, **glitchtip** fires on `shape.kind`, and **`watchdog`** fires from the spec's `watchdog:` block and is **ON by default** (opt-OUT: disable with `watchdog: { enabled: false }`).
 4. **Verification & Testing** — `fabrik verify`, drift detection (`fabrik audit-registrars`), alerting.
@@ -131,7 +131,7 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every scaffold with a user/admin GUI surface (per the **Rule-area applicability matrix** — mode-agnostic; sited under Step E3 but binding in BOTH modes — **feature-trigger, NOT scaffold-type-gated**; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes. ⚠️ **The scaffolder only ships `scripts/validate_i18n.py` to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus`** (`I18N_ENABLED_TYPES`, `src/fabrik/scaffold.py:186`). A **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the i18n feature-trigger must therefore carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`), or its Done-When cites a script the project will never have.
-- **Responsive** — every scaffold with a web GUI surface (same feature-trigger as i18n) responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`. Carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing).
+- **Responsive** — every scaffold with a web GUI surface (same feature-trigger as i18n) responsive from 375px to 2560px (RWD1–RWD10) **by default**. See `docs/reference/mobile-responsive-testing-guide.md`. Carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing). **Owner-exception path (some SaaS surfaces are genuinely desktop-bound — dense data grids, trading consoles, back-office tooling):** the exception is an OWNER DECISION recorded in the vision/decisions artifact as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive.
 - **Dark + light mode** — both mandatory for every scaffold with a GUI surface (same feature-trigger as i18n). OS preference detected, manual toggle, preference persists.
 - **Resilience** — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/core/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added.
 - **Abuse detection** — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock). Rule pack: `.windsurf/rules/saas/87-abuse-detection.md`.
@@ -719,7 +719,7 @@ A **superset** of the NEW-mode Vision Summary: identical **required sections**, 
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
-<!-- This is an Existing-mode Continuation produced by 00-trigger-fabrik.
+<!-- This is an Existing-mode Continuation produced by 00-trigger-mega-epic-fabrik.
      02-epic-decomposition-fabrik consumes it identically to a new-project
      Vision Summary. Extra sections: Locked Decisions, Compliance Report. -->
 
@@ -858,12 +858,15 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ```bash
 # 1. write it to disk (already-allowlisted specs tree; free naming, matched by check_doc_sprawl.py)
-#    (paste the confirmed Vision Summary markdown into this file)
+#    First line after the title MUST be the lock header — the owner's confirm IS the lock, and this
+#    line is the BIG-flow Gate-1 marker downstream automation greps:
+#      **Status:** LOCKED <YYYY-MM-DD>
+#    (then paste the confirmed Vision Summary markdown — decisions and all — into this file)
 $EDITOR docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md
 # 2. mirror it as a Traycer artifact so the cockpit's "Vision" cell renders (no-op headless)
 python /opt/fabrik/scripts/traycer_mirror.py \
        --src docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md \
-       --name vision --kind spec --title "Vision Summary — <project>" --status 1 --embed
+       --name vision --kind spec --title "Vision Summary — <project>" --status 2 --embed
 ```
 
 DISK is source of truth (D8); the mirror is an env-guarded projection (`$TRAYCER_EPIC_ID`) `[canonical: EPIC-ARTIFACT-SCHEMA.md]`. **Consumed by** `02-epic-decomposition-fabrik` (multi-epic) or `epic-to-ticket-workflow/00-trigger-fabrik` (single-epic) — from the persisted file OR conversation; `03-expand-epic-files-fabrik` creates tickets per epic from the confirmed decomposition.

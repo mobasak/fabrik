@@ -118,7 +118,7 @@ length cap):**
 | Scaffold | <type> | <signal it was derived from> |
 | target_vps | vps1|vps2|vps3 | <reason — a spoke reaches shared infra at 10.99.0.1, not Docker DNS> |
 | Backing services | <postgres-main / redis-main / MeiliSearch / B2 / …> | <extends/wraps/replaces/consumes> |
-| LLM gateway | openrouter/kilo-cli/none | <reason> |
+| LLM gateway | openrouter/none | <reason> |
 | Watchdog | accept-defaults/raise/opt-out | <reason> |
 | i18n / Responsive / Dark+Light | <mechanism or N/A> | <trigger> |
 | <every further choice this run made> | … | … |

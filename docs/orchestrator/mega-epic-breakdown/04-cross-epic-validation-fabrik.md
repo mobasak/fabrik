@@ -14,7 +14,7 @@
      from the inline decision, or `(deeper, optional: …)` you may skip):
        · the **epic ticket FILES** — `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (enumerate with
          Glob; the file count IS the epic count)
-       · the **Vision Summary** (`00-trigger-fabrik` output — its `## Full Feature Inventory` and, in
+       · the **Vision Summary** (`00-trigger-mega-epic-fabrik` output — its `## Full Feature Inventory` and, in
          EXISTING mode, its `## Compliance Report`)
        · the **Infrastructure Decisions** spec — content decided by `02`, PERSISTED by `03` to
          `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md`; read it from disk (every
@@ -50,7 +50,7 @@ The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driv
 
 **Required** — hard requirements, not preferences; if any is absent this command does not review, it **routes back** (Step 1):
 
-- **Vision Summary** (`00-trigger-fabrik`) — its `## Full Feature Inventory` is lens A's yardstick; in EXISTING mode its `## Compliance Report` drives lens D's Deferred-Compliance check.
+- **Vision Summary** (`00-trigger-mega-epic-fabrik`) — its `## Full Feature Inventory` is lens A's yardstick; in EXISTING mode its `## Compliance Report` drives lens D's Deferred-Compliance check.
 - **Infrastructure Decisions** spec (decided by `02`, persisted to disk by `03` at `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md` — read it there; it also carries the `## Deferred Compliance (not actioned this run)` section lens D checks) + **Dependency Graph** (`02-epic-decomposition-fabrik`, in conversation) — lens D's and lens C's yardsticks.
 - **Epic ticket FILES** (`03-expand-epic-files-fabrik`) — one per epic under `docs/development/epics/`; enumerate with Glob, **the file count IS the epic count**.
 
@@ -111,7 +111,7 @@ Each reviewer commits to a lens before seeing the others; **you (Opus) refute/me
 
 | Check | PASS | FAIL |
 |---|---|---|
-| Inventory present | section present AND ≥1 feature | missing/empty → Vision Summary corrupted; route to `00-trigger-fabrik`, do NOT continue |
+| Inventory present | section present AND ≥1 feature | missing/empty → Vision Summary corrupted; route to `00-trigger-mega-epic-fabrik`, do NOT continue |
 | Every feature assigned | all mapped (counts BOTH numbered delta features `1,2,…` AND EXISTING-mode Retrofit features `R1,R2,…`) | feature #X "[name]" in no epic |
 | No feature in two epics | each in exactly one (delta + Retrofit alike) | #X claimed by Epic A and Epic B |
 | No phantom features | epics contain only inventory features | Epic N claims "[name]" absent from the Vision Summary |
@@ -162,7 +162,7 @@ Each reviewer commits to a lens before seeing the others; **you (Opus) refute/me
 |---|---|---|
 | `Port` | present **and not already allocated** — verify against `PORTS.md`, don't eyeball | missing, OR taken in `PORTS.md`, OR two epics claim the same port → route to `02` (it allocates from `PORTS.md`) |
 | `target_vps` | `vps1`/`vps2`/`vps3` | missing — the tech plan cannot pick the DB host |
-| `Responsive` / `Dark+Light` | present AND the value **matches the feature trigger** — mandatory iff a GUI surface exists (saas-skeleton / docusaurus front / chrome-extension popup / mobile-app / desktop-app, OR python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML) `[canonical: 00-trigger-fabrik § Rule-area applicability matrix — the trigger is the GUI SURFACE, not the scaffold type]`; `N/A` only when no HTML/native UI exists | missing, OR `N/A — non-GUI scaffold` on an epic whose Shape has `is_admin_dashboard`/`is_public`+HTML — a rule-pack violation, not a metadata gap |
+| `Responsive` / `Dark+Light` | present AND the value **matches the feature trigger** — mandatory iff a GUI surface exists (saas-skeleton / docusaurus front / chrome-extension popup / mobile-app / desktop-app, OR python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML) `[canonical: 00-trigger-mega-epic-fabrik § Rule-area applicability matrix — the trigger is the GUI SURFACE, not the scaffold type]`; `N/A` only when no HTML/native UI exists | missing, OR `N/A — non-GUI scaffold` on an epic whose Shape has `is_admin_dashboard`/`is_public`+HTML — a rule-pack violation, not a metadata gap |
 | **`Registrars` ↔ `Shape`** — a SEMANTIC cross-check, not presence | every firing flag has its registrar listed: `needs_database`⇒postgres · `needs_cache`⇒redis · `has_persistent_data`⇒backrest · `has_search_feature`⇒meilisearch · **`is_public` AND `spec.domain`**⇒gatus · **`is_admin_dashboard` AND `spec.domain`**⇒authelia · **`exposes_metrics` AND `spec.domain`**⇒prometheus; plus **glitchtip** (`shape.kind ∈ {service, worker, wordpress}`), **grafana** (always) and **watchdog** (opt-OUT). ⚠️ `has_bearer_api` fires **no** registrar — only the Authelia `^/api/` bypass `[canonical: src/fabrik/orchestrator/infrastructure.py — the applicability matrix]` | the list contradicts `Shape` — e.g. `needs_database: true` but postgres absent. **Not a metadata gap — a silently-broken deploy**: `fabrik apply` skips the registrar and the service comes up without its database `[canonical: CLAUDE.md § Spec contract awareness]` → route to `02` |
 | the other **10** fields — present **and value-shaped** (not presence-only) | `Scaffold` · `Shape` · `Concurrency` · `i18n` · `Rule Packs` · `HAS_USER_GUIDE` ∈ {true,false} · **`Universal categories` = comma-separated 1–14, verbatim from `02` sub-step 2h** (a hand-invented list is a FAIL) · `Email` ∈ {transactional, marketing, two-stream, none, N/A} · `Abuse Detection` = `required` (SaaS w/ free tier) or `N/A — <reason>` · `FINANCIALS` = `required` (SaaS launch gate) or `N/A — <reason>` | missing: [name], **or present with an off-contract value** — a presence-only pass is the same regression this table flags for `Registrars` |
 | Ticket is self-sufficient | the whole ettw chain (`00-trigger` consume → `01-decisions-lock`) runs from ONLY this ticket + the Infrastructure Decisions spec | needs context only the Vision Summary carries |
@@ -173,7 +173,7 @@ Classify every surviving finding, then handle it autonomously — everything sho
 
 - **Surgical ticket fix** (a missing Metadata field, a wrong title format, an absent `Owned paths`, an off-contract field value) → a **scoped fixup ticket** naming the finding's `path:line` + the required value, **dispatched** through `libs/subagents`: the pool `pick_models("docs")`/`pick_models("spec")` via `fanout` for an epic-file edit, or **`claude -p opus`** for a high-risk one (e.g. a migration-owner correction) `[canonical: 06-ticket-breakdown-fabrik § Step 9 — the coder tiers]`. Re-read + re-review to confirm. ⚠️ **NOT** a `Registrars`↔`Shape` mismatch — lens E routes that to `02` (a silently-broken deploy, not a metadata gap) and lens E is the authority on it.
 - **Boundary / scope change** (orphans, duplicates, phantoms, a wrong split, a port re-allocation, a missing Infrastructure-Decisions **section**) → **route back**: `02-epic-decomposition-fabrik` (boundaries, ports, Step 3 sections, sub-step 2h universal coverage) — ⚠️ but a missing Infrastructure-Decisions **FILE** is `03`'s (02 persists nothing), and a missing or incomplete `## Deferred Compliance (not actioned this run)` section inside it routes **by cause, per lens D — the authority on it**: rows present in the Compliance Report but absent from the spec → `03` didn't carry them; rows the owner deferred that `02` never surfaced → `02` 2b. Then `03-expand-epic-files-fabrik` to recreate the affected tickets. Never re-cut epics here.
-- **Vision Summary corrupted** (lens A's inventory missing/empty) → route to `00-trigger-fabrik`; do NOT continue.
+- **Vision Summary corrupted** (lens A's inventory missing/empty) → route to `00-trigger-mega-epic-fabrik`; do NOT continue.
 - **BLOCKED cases** — 3 consecutive same-test failures on one fixup → case 1 (Telegram, pause that thread, continue); missing infra → case 2; unresolvable spec contradiction → case 3.
 
 **LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until a fresh cross-epic round finds nothing AND changes nothing (`found:0, fixed:0`)**. The pass that produced a fixup is never the last; run one more. Only that no-op validates the decomposition.

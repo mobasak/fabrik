@@ -81,7 +81,7 @@ The two orchestrator chains (mega + ettw) run the **same end-to-end pipeline** a
    `/fabrik-plan-after-chat` → execute — each grounded against the applicable `.windsurf/rules` packs and
    converged by its paired `-review`. **Epic** (needs a ticket store + dispatched agents) →
    `epic-to-ticket-workflow/00-trigger-fabrik` directly. **Multi-epic vision** →
-   `mega-epic-breakdown/00-trigger-fabrik` (spec-grade intake — its Required sections carry everything
+   `mega-epic-breakdown/00-trigger-mega-epic-fabrik` (spec-grade intake — its Required sections carry everything
    `/fabrik-spec` produces; its Scale Assessment down-routes). The distinguishing test, once: *does it need
    tickets and dispatched agents, or is it one plan an operator session can carry?* Routing is symmetric —
    `/fabrik-spec` up-routes and ettw-00 mirrors (shipped 2026-07-18), so no entry point is "wrong." (Existing project → mega-00 in **EXISTING mode** — see § Which workflow.) ⚠️ A feature-scale entry **completes at its `execute`** — steps 2–5 below are the epic/vision tiers' path, not a continuation of feature-scale work.

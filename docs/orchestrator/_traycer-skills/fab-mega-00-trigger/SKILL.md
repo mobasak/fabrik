@@ -7,7 +7,7 @@ description: "Mega-epic step 00: project intake -> grounded, confirmed Vision Su
 
 Read the command specification at:
 
-`/opt/fabrik/docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik.md`
+`/opt/fabrik/docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md`
 
 Follow it **exactly** as written. It is the canonical, git-tracked source; this
 skill is only the Traycer-invocation shim. Do not improvise beyond the spec.

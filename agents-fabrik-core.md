@@ -16,7 +16,7 @@ facts needed in most turns (spec 2026-07-18 § Constraints: @import criterion = 
   compose) — same code runs unmodified; host names are env-layer, never code logic.
 - **Front door (three tiers):** feature-scale → `/fabrik-spec` pipeline · epic →
   `docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik` · multi-epic vision →
-  `docs/orchestrator/mega-epic-breakdown/00-trigger-fabrik` (EXISTING mode for existing projects). Test:
+  `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik` (EXISTING mode for existing projects). Test:
   needs tickets + dispatched agents ⇒ epic/vision; one operator-carried plan ⇒ feature-scale.
 - **Discipline delivery (north-star § Enforcement Model):** plan-time `python scripts/select_rules.py`
   (ACTIVE packs); review-time `python scripts/review_rubric.py --changed <paths>` (injected rubric +

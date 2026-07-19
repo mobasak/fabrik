@@ -2,7 +2,7 @@
      Unlike the Traycer source, our orchestrator READS THIS FILE DIRECTLY — no GUI copy-paste.
      It is TOOL-CAPABLE: it can read the repo, run commands, and fetch live sources.
      Keep it in lockstep with the Traycer twin; the ONLY intended differences are
-     (a) the orchestrator framing, (b) the tool-capable inheritance from `00-trigger-fabrik`,
+     (a) the orchestrator framing, (b) the tool-capable inheritance from `00-trigger-mega-epic-fabrik`,
      and (c) the persistence model — we have NO native ticket store, so tickets are WRITTEN TO DISK
      under docs/development/epics/ (see § Output Contract). Traycer keeps them in its own store.
 
@@ -15,7 +15,7 @@
      Reads — this list is the ACTING set. Every other backticked path below is provenance for a decision
      already stated inline: act on the inline statement, and open the source only if it is insufficient
      (if it IS insufficient, that is a defect in this file — report it, don't quietly absorb the cost):
-       · the confirmed artifacts from `02-epic-decomposition-fabrik` + the `00-trigger-fabrik` Vision
+       · the confirmed artifacts from `02-epic-decomposition-fabrik` + the `00-trigger-mega-epic-fabrik` Vision
          Summary — all from CONVERSATION, not disk (§ Input Contract). 02 writes nothing to disk, so a
          cold re-entry has nothing to re-read: re-run 02 rather than inventing a source.
        · `PORTS.md` — to ground every `Port:` a ticket asserts (Step 2, sub-step 2a)
@@ -71,7 +71,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
 - Compact Epic Proposal (from `02-epic-decomposition-fabrik`) — confirmed
 - Infrastructure Decisions spec (from `02-epic-decomposition-fabrik`) — confirmed
 - Dependency Graph (from `02-epic-decomposition-fabrik`) — confirmed
-- The confirmed **Vision Summary** (from `00-trigger-fabrik`, still in conversation) — 02 does not restate it, and Step 2 cannot write a ticket without it: `## Full Feature Inventory` (Scope In must cite its feature IDs **and names** — 02's compact entry carries only the numbers), `## Out of Scope (Vision Level)` (vision-level exclusions), and — EXISTING mode — the `## Compliance Report (Existing-mode extra section)` gap row each Retrofit epic's Success Criterion #1 hinges on
+- The confirmed **Vision Summary** (from `00-trigger-mega-epic-fabrik`, still in conversation) — 02 does not restate it, and Step 2 cannot write a ticket without it: `## Full Feature Inventory` (Scope In must cite its feature IDs **and names** — 02's compact entry carries only the numbers), `## Out of Scope (Vision Level)` (vision-level exclusions), and — EXISTING mode — the `## Compliance Report (Existing-mode extra section)` gap row each Retrofit epic's Success Criterion #1 hinges on
 
 ⚠️ `docs/operations/fabrik-lifecycle.md` covers **only lifecycle stages 3–4** (deploy/runtime behaviour + data safety); it carries **no** stage model. The 4-stage model (scaffold → implement → `fabrik apply` → `fabrik verify`) is asserted by the command chain itself: a **delta-feature** epic ticket must pass all four. ⚠️ **Retrofit exception:** a Retrofit on an already-deployed service creates **no new deploy unit** — it has no Stage-1/Stage-3 of its own; its Stage-3 equivalent is the gate + the compliance-row flip in Success Criteria #1.
 
@@ -81,7 +81,7 @@ You are a ticket breakdown orchestrator. You read the confirmed compact epic pro
 
 ### Step 1: Read All Epic Specs
 
-Take every confirmed artifact from `02-epic-decomposition-fabrik` — the Compact Epic Proposal, the Infrastructure Decisions, and the Dependency Graph — **plus the `00-trigger-fabrik` Vision Summary** (§ Input Contract; 02 does not restate it, and Scope In needs its feature names). On the fabrik path these are **in the conversation** (02 emits them there). ⚠️ 02 writes NOTHING to disk, so on a cold re-entry there is nothing to re-read: **re-run 02** rather than inventing a source — a ticket built on a half-remembered proposal is worse than no ticket. There is no `read_spec` tool here — that is Traycer's; our orchestrator reads the repo and the conversation directly.
+Take every confirmed artifact from `02-epic-decomposition-fabrik` — the Compact Epic Proposal, the Infrastructure Decisions, and the Dependency Graph — **plus the `00-trigger-mega-epic-fabrik` Vision Summary** (§ Input Contract; 02 does not restate it, and Scope In needs its feature names). On the fabrik path these are **in the conversation** (02 emits them there). ⚠️ 02 writes NOTHING to disk, so on a cold re-entry there is nothing to re-read: **re-run 02** rather than inventing a source — a ticket built on a half-remembered proposal is worse than no ticket. There is no `read_spec` tool here — that is Traycer's; our orchestrator reads the repo and the conversation directly.
 
 Log each fetch: "Read: [spec title] — [N] characters."
 
@@ -105,7 +105,7 @@ Each unit adjudicates, for its epic:
 1. **`Port:`** — absent from the **inlined `PORTS.md` allocation table** (a cheap second pair of eyes on YOUR read, not independent verification).
 2. **`Rule Packs:`** — every path 02 named appears in the **inlined `ls` output**; a path absent from it does not exist (again: confirming YOUR read).
 3. **`Registrars:` ↔ `Shape:`** — consistent, including the carve-outs stated at Metadata below: gatus / authelia / prometheus each need `spec.domain` too, and `infra: {<name>: false}` force-disables.
-4. **`Scaffold:`** ∈ the 11 scaffoldable types, and the **i18n trap**: `scripts/validate_i18n.py` ships only to the 5 `I18N_ENABLED_TYPES` — `saas-skeleton` · `static-site` · `desktop-app` · `mobile-app` · `docusaurus`, so a **Success Criterion** citing it on a `python-api` is a defect **unless** the epic carries an explicit vendor-the-i18n-kit step (`templates/i18n-kit/` → `scripts/`) — which `02-epic-decomposition-fabrik` § ── CHECKPOINT: Present Epic Proposal + Infrastructure Decisions ── → 1. Epic list → the compact-entry `i18n:` field makes MANDATORY exactly when the GUI trigger fires on a scaffold outside those 5 `[canonical: 00-trigger-fabrik § Architectural Mandates → i18n — vendor the kit, or the criterion cites a script the project will never have]`.
+4. **`Scaffold:`** ∈ the 11 scaffoldable types, and the **i18n trap**: `scripts/validate_i18n.py` ships only to the 5 `I18N_ENABLED_TYPES` — `saas-skeleton` · `static-site` · `desktop-app` · `mobile-app` · `docusaurus`, so a **Success Criterion** citing it on a `python-api` is a defect **unless** the epic carries an explicit vendor-the-i18n-kit step (`templates/i18n-kit/` → `scripts/`) — which `02-epic-decomposition-fabrik` § ── CHECKPOINT: Present Epic Proposal + Infrastructure Decisions ── → 1. Epic list → the compact-entry `i18n:` field makes MANDATORY exactly when the GUI trigger fires on a scaffold outside those 5 `[canonical: 00-trigger-mega-epic-fabrik § Architectural Mandates → i18n — vendor the kit, or the criterion cites a script the project will never have]`.
 
 ⚠️ **Checks 3 and 4 are where this leg earns its dispatch** — a per-epic consistency proof over 10 registrars × 8 flags with two carve-out rules, plus a cross-field trap check. Those are exactly the errors a single context makes while composing five tickets at once. Checks 1–2 are cheap confirmations of a read you already did; do not mistake them for independent verification.
 
@@ -193,13 +193,13 @@ target_vps: [vps]
 - **Owned paths:** [the file globs THIS epic writes — carried verbatim from 02's `Owned paths:`. ⚠️ **The concurrency contract.** Every epic named in `Parallel with:` must have DISJOINT owned paths, and at most one epic in a parallel set may own migrations (`alembic/versions/**`, `db/schema.sql`) — 02's parallel gate 2/3 + 3/3 proved this. The executing agent treats these as its **File Scope (owned paths)**: it writes here and nowhere else. A file outside this list showing up in the diff is a scope violation, not a bonus]
 
 ### Metadata
-- Scaffold: [carried verbatim from 02's `Scaffold:` — one of the 11: `python-api` · `python-api-gpu` · `node-api` · `saas-skeleton` · `file-api` · `file-worker` · `static-site` · `docusaurus` · `chrome-extension` · `mobile-app` · `desktop-app`. ⚠️ `wordpress` is NOT one of them — it survives in `SCAFFOLD_TYPES` for the legacy deploy/shape path only; a WordPress epic is out of scope, route it to `/opt/wpf` `[canonical: 00-trigger-fabrik § Step N1 — agents-fabrik.md § Scaffold Types carries the wordpress row, marked RETIRED (scaffold path retired 2026-06-17, ef27a2c)]`]
+- Scaffold: [carried verbatim from 02's `Scaffold:` — one of the 11: `python-api` · `python-api-gpu` · `node-api` · `saas-skeleton` · `file-api` · `file-worker` · `static-site` · `docusaurus` · `chrome-extension` · `mobile-app` · `desktop-app`. ⚠️ `wordpress` is NOT one of them — it survives in `SCAFFOLD_TYPES` for the legacy deploy/shape path only; a WordPress epic is out of scope, route it to `/opt/wpf` `[canonical: 00-trigger-mega-epic-fabrik § Step N1 — agents-fabrik.md § Scaffold Types carries the wordpress row, marked RETIRED (scaffold path retired 2026-06-17, ef27a2c)]`]
 - Port: [value]
 - target_vps: [`vps1` (hub, default) / `vps2` / `vps3` — carried verbatim from 02's `Target host:`. Drives the spec's `target_vps:` field, and epic-to-ticket re-checks it as overlay constraint #31. ⚠️ A spoke-targeted service reaches shared infra over the mesh (`10.99.0.1`), NOT by Docker DNS]
 - Shape: [`kind` + the 8 canonical flags: is_public, is_admin_dashboard, has_bearer_api, has_persistent_data, needs_database, has_search_feature, needs_cache, exposes_metrics — plus `watchdog.enabled`. Carried verbatim from 02's `Shape:`. ⚠️ `has_bearer_api` fires **no** registrar of its own]
 - Concurrency: [mechanism]
 - i18n: [mechanism or N/A]
-- Responsive: [carry from compact entry verbatim — per `00-trigger-fabrik` § Architectural Mandates (always-read; it points to the Rule-area applicability matrix at Step E3.B), GUI mandates trigger on the *GUI surface*, NOT the scaffold type; mandatory for saas-skeleton / docusaurus front / mobile-app / desktop-app AND for python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output; N/A only when no HTML/native UI exists (pure JSON API, file-worker queue consumer). Chrome-extension popup is fixed 400px (carve-out per `00-trigger-fabrik` § Architectural Mandates → Responsive).]
+- Responsive: [carry from compact entry verbatim — per `00-trigger-mega-epic-fabrik` § Architectural Mandates (always-read; it points to the Rule-area applicability matrix at Step E3.B), GUI mandates trigger on the *GUI surface*, NOT the scaffold type; mandatory for saas-skeleton / docusaurus front / mobile-app / desktop-app AND for python-api/node-api/file-api when `shape.is_admin_dashboard: true` OR `shape.is_public: true` with HTML output; N/A only when no HTML/native UI exists (pure JSON API, file-worker queue consumer). Chrome-extension popup is fixed 400px (carve-out per `00-trigger-mega-epic-fabrik` § Architectural Mandates → Responsive).]
 - Dark+Light: [carry from compact entry verbatim — same feature-based trigger as Responsive above]
 - Rule Packs: [IDs]
 - HAS_USER_GUIDE: [true/false]
@@ -217,7 +217,7 @@ Inherited from the Infrastructure Decisions spec at `docs/superpowers/specs/YYYY
 
 ### Entry Point for epic-to-ticket-workflow
 When dispatched, run **`epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode** using this ticket as the starting context — it verifies this ticket's 15-field Metadata block and **emits the INFRA-CHECK** that everything downstream consumes. It then hands off to `01-decisions-lock-fabrik`, which uses this ticket as its Decisions Lock **input** — `01` § Step 1 Path B reads this file, § Step 5 drafts the decisions lock from it.
-⚠️ **Do NOT dispatch straight to `01`.** `01-decisions-lock-fabrik` § Path B expects INFRA-CHECK to already exist — it reads "`00-trigger-fabrik` ran in consume mode over the dispatched epic ticket **FILE on disk**", and only `00` emits it. Skipping `00` starves `01` and `03-tech-plan` of every propagated field.
+⚠️ **Do NOT dispatch straight to `01`.** `01-decisions-lock-fabrik` § Path B expects INFRA-CHECK to already exist — it reads "`00-trigger-mega-epic-fabrik` ran in consume mode over the dispatched epic ticket **FILE on disk**", and only `00` emits it. Skipping `00` starves `01` and `03-tech-plan` of every propagated field.
 Infrastructure Decisions spec provides the shared infra context.
 ```
 
