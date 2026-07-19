@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — parked-items sweep: drift-alert chain live again; dead modules removed; leak triaged (2026-07-19)
+
+**(1) Registrar-drift alert chain RESTORED on vps1:** the `pushgateway` scrape job applied to the live
+`prometheus.yml` (backup taken, SIGHUP reload) — verified: pushgateway target `up`,
+`fabrik_audit_drift_total` = 710 series now in Prometheus; `FabrikRegistrarDrift` can fire again.
+health-monitoring.md's gap paragraph closed. **(2) Leak triage:** the "Supabase keys" in the old
+file-api doc were placeholders (never a leak — only the public project ref was real). The R2
+access-key pair IS real, matches the LIVE key in `/opt/fabrik/.env` + `/opt/fabrik-lib/.env`
+(WSL-only usage; zero fleet usage), and the repo is PUBLIC — **revocation via the Cloudflare dashboard
+is required** (the scoped CF API token cannot manage tokens, 403; key id prefix `735f0a`). Full
+git-history secrets scan run across all 26,823 objects. **(3) Dead code deleted:**
+`src/fabrik/provisioner.py` (zero callers — the retained-for-CLI rationale belonged to
+drivers/coolify.py), `scripts/kpi_tracker.py` + `tests/test_kpi_tracker.py` (dormant KPI subsystem);
+`provisioner.md` archived with its subject. **(4) Sibling benchmark plan:** gate-required
+`## Behavior Contract` Given/When/Then index appended (22 behaviors restating their per-phase
+contracts verbatim; phase text untouched) — `check_test_proposal.py` now PASSes.
+
+### Changed — Review-subagent value gate tightened + full benchmark leaderboards in the selection doc (2026-07-19)
+
+`build_task_baselines.review_eligible()` gained two operator constraints — `REVIEW_MAX_RUN_COST` (< $0.007 per
+review) and `REVIEW_TRUST_FLOOR_SCORE5` (≥ 3.5, grade ≥ B+) — tightening the review-eligible set (57 → 4:
+`qwen3-max`, `gemini-3-flash-preview`, `deepseek-v4-flash`, `deepseek-v3.2-exp`). `rank_task_subagents` now
+appends full measured-column leaderboards ("Full review benchmark results" — all 57 — and "Full coding
+benchmark results") to `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` with real columns
+(score5·recall·precision·$/1k·$/run·p50·tok/s·n_err), reads all DBs `mode=ro` for concurrent-write safety, and
+derives the `✅` eligible flag from `review_eligible()` so it never drifts from the constants. Tests updated for
+the 5-constraint gate.
+
 ### Fixed — docs/reference triage (final 3): orchestrator default-path inversion; check-arch amd64 bug; vast/trueforge converged (2026-07-19)
 
 Root-of-docs/reference triage COMPLETE (all 26 files). **orchestrator.md** — the Usage sections said

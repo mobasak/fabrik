@@ -336,7 +336,6 @@ docs/
 │   │   └── kilo-complete-reference.md # Complete Kilo reference
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
-│   ├── provisioner.md
 │   ├── research                      # Gemini deep-research outputs (sources for rule packs)
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Electron Desktop App Best Practices.md

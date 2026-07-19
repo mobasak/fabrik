@@ -27,7 +27,7 @@ The full observability stack is deployed and operational. node-exporter + cAdvis
 
 > **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, scraped by dedicated `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs in `prometheus.yml` (targets `10.99.0.2/3` over the mesh), plus the `aro-wake` job (all 3 hosts) and push-based Loki log shipping.
 
-**⚠️ Pushgateway scrape gap (found 2026-07-19):** `audit_all_registrars.py` pushes drift metrics to the `pushgateway` container hourly (healthy, metrics present), but the live `prometheus.yml` has **no `pushgateway` scrape job** — so `fabrik_audit_drift_total` currently does not reach Prometheus and `FabrikRegistrarDrift` cannot fire. (The chain WAS whole at the 2026-05-16 roundtrip verification below — the scrape job has since drifted out of the live config.) The job is now in the repo mirror (`configs/prometheus/prometheus.yml`, `honor_labels: true`); **apply to vps1** (append the job to `/opt/monitoring/configs/prometheus/prometheus.yml` + `docker exec prometheus kill -HUP 1`) to close the chain.
+**Pushgateway scrape (gap found + closed 2026-07-19):** `audit_all_registrars.py` pushes drift metrics to the `pushgateway` container hourly; the `pushgateway` scrape job (`honor_labels: true`) had drifted out of the live `prometheus.yml` — silently disabling `FabrikRegistrarDrift` — and is now restored in BOTH the repo mirror (`configs/prometheus/prometheus.yml`) and live vps1 (applied + SIGHUP 2026-07-19; verified: pushgateway target `up`, `fabrik_audit_drift_total` = 710 series in Prometheus).
 
 ### Deployed Services (Verified 2026-06-16)
 
