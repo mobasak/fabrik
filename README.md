@@ -476,7 +476,7 @@ nano .env
 
 **Required:**
 - `VPS_HOST`, `VPS_USER` - SSH access to your VPS (used by SSH+Compose deployer)
-- `DNS_MANAGER_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
+- `SITE_PROVISIONER_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
 
 ### Create Your First Project
 

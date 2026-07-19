@@ -11,7 +11,7 @@
 2. [Fabrik Source Code — Deployment Path](#2-fabrik-source-code--deployment-path)
 3. [Specs](#3-specs)
 4. [Templates](#4-templates)
-5. [Local Config Mirrors (`configs/`)](#5-local-config-mirrors-configs)
+5. [Local Config Mirrors — `configs/`](#5-local-config-mirrors--configs)
 6. [Probes & Enforcement Scripts](#6-probes--enforcement-scripts)
 7. [VPS-Side Files & Services](#7-vps-side-files--services)
 8. [VPS Infrastructure Invariants](#8-vps-infrastructure-invariants)
@@ -120,7 +120,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 |---|---|---|---|
 | `drivers/ssh.py` | `ssh(cmd, timeout, dry_run)`, `scp_to_vps(src, dst)` | SSH to VPS (host alias `vps`, configurable via `FABRIK_VPS_SSH_HOST`) | **Primary deploy driver.** All VPS mutations go through SSH. Non-zero exits raise `RuntimeError` with stderr included. |
 | `drivers/locks.py` | `run_locked(resource, script, timeout)`, `git_commit_config(path)` | VPS `flock -x -w` + git | Multi-step VPS mutations that must be serialized (Authelia config edits, Backrest config edits). `git_commit_config()` whitelist: **only** `/opt/monitoring/configs/gatus` may be committed; secret-bearing configs use `.bak.{ts}`. |
-| `drivers/dns.py` | `DNSClient`, `DNSRecord`, `add_dns_record()` | site-provisioner service (`dns.vps1.ocoron.com`) | Domain registration, A/CNAME/TXT record management, Cloudflare zone provisioning, SSL readiness polling. Auth via `SITE_PROVISIONER_API_KEY` + `X-API-Key` header. |
+| `drivers/dns.py` | `DNSClient`, `DNSRecord`, `add_dns_record()` | site-provisioner service (`provision.vps1.ocoron.com`) | Domain registration, A/CNAME/TXT record management, Cloudflare zone provisioning, SSL readiness polling. Auth via `SITE_PROVISIONER_API_KEY` + `X-API-Key` header. |
 | `drivers/cloudflare.py` | `CloudflareClient` | Cloudflare API (direct) | Fallback when site-provisioner unavailable. Needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID`. |
 | `drivers/supabase.py` | `SupabaseClient` | Supabase API | When `spec.infrastructure.database == supabase`: create project, user, run migrations. |
 | `drivers/r2.py` | `R2Client` | Cloudflare R2 (S3-compatible) | Object storage ops when `spec.storage.type == r2`. |

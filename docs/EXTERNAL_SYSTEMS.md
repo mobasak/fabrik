@@ -100,7 +100,7 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 **Usage in Fabrik:**
 - Driver: `/opt/fabrik/src/fabrik/drivers/dns.py`
-- Service URL: `https://dns.vps1.ocoron.com` (internal proxy)
+- Service URL: `https://provision.vps1.ocoron.com` (internal proxy)
 - Functions: Create/update DNS records
 
 **Rate Limits:**

@@ -26,7 +26,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `ssh.py` | 126 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`) | always |
 | `locks.py` | 160 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
 | `coolify.py` | 714 | `CoolifyClient` — Coolify v4 API; `docker_compose_raw` MUST be base64 (Lesson 1); git-sourced apps ignore compose PATCH (§8.10) | always |
-| `dns.py` | 575 | `DNSClient` — site-provisioner service at `dns.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
+| `dns.py` | 689 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
 | `postgres.py` | 205 | `create_database()`, `drop_database()` — per-service DB on `postgres-main`; SQL identifier validation; drops deferred to operator | `shape.needs_database` |
 | `gatus.py` | 249 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
@@ -101,7 +101,7 @@ with DNSClient() as dns:
     dns.register_domain("new-domain.com", contact={...})
 ```
 
-`DNSClient` routes through site-provisioner at `dns.vps1.ocoron.com`; falls back to `drivers/cloudflare.py` if the service is unreachable.
+`DNSClient` routes through site-provisioner at `provision.vps1.ocoron.com`; falls back to `drivers/cloudflare.py` if the service is unreachable.
 
 ### GlitchTip — error tracking (shape-gated)
 
@@ -231,7 +231,7 @@ Canonical source: `/opt/fabrik/.env` (git-ignored; `.env.example` is tracked). R
 | Driver | Variables |
 |---|---|
 | `coolify` | `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` |
-| `dns` | `DNS_MANAGER_URL` (defaults to `https://dns.vps1.ocoron.com`), `SITE_PROVISIONER_API_KEY` |
+| `dns` | `SITE_PROVISIONER_URL` (defaults to `https://provision.vps1.ocoron.com`), `SITE_PROVISIONER_API_KEY` |
 | `cloudflare` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID_OCORON` |
 | `glitchtip` | `GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`, `GLITCHTIP_ADMIN_EMAIL`, `GLITCHTIP_ADMIN_PASSWORD` |
 | `grafana` | `GRAFANA_SERVICE_ACCOUNT_TOKEN` |

@@ -5,7 +5,8 @@
 **Port:** 8001 (internal container) / 18014 (host/registered)
 **Source:** `/opt/site-provisioner`
 **Status:** Live on vps1 (container `site-provisioner`, healthy, on the `fabrik` network) — the one Fabrik microservice still deployed. Contract field names like `ready_for_coolify` are historical — they predate the SSH+Compose migration but remain on the API surface as a stable contract; consumers now interpret "ready" as "ready for the SSH deployer to run `docker compose up -d`".
-**Last verified:** 2026-06-17
+**Last verified:** 2026-07-19 (container healthy on `fabrik` network; container-internal `/health` 200)
+**External access:** IP-allowlisted at Traefik (`site-provisioner-ipallowlist` middleware: internal nets + vps1 + the operator IP) — from any other source IP every path, `/health` included, returns **403** by design.
 
 ---
 
@@ -30,7 +31,7 @@ site-provisioner manages registrar selection internally (Namecheap, DomainNameAP
 ```python
 from fabrik.drivers.dns import DNSClient
 
-dns = DNSClient()  # reads DNS_MANAGER_URL from env
+dns = DNSClient()  # reads SITE_PROVISIONER_URL from env
 ```
 
 ### CLI Commands
@@ -48,7 +49,7 @@ fabrik domain zones                    # List all Cloudflare zones
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SITE_PROVISIONER_URL` | No | `https://provision.vps1.ocoron.com` | Service URL |
-| `SITE_PROVISIONER_TOKEN` | Prod only | — | Bearer token for auth |
+| `SITE_PROVISIONER_API_KEY` | Prod only | — | API key sent as `X-API-Key` header |
 | `VPS_IP` | For provision | — | Target IP for DNS records |
 
 ---
@@ -56,7 +57,7 @@ fabrik domain zones                    # List all Cloudflare zones
 ## Workflow 1: Deploy New Website (Existing Domain)
 
 ```
-FABRIK                              dns-manager              Cloudflare
+FABRIK                              site-provisioner              Cloudflare
   │                                      │                       │
   │ POST /api/cloudflare/zones/{d}/provision                     │
   │ {target_ip, subdomains, ...}         │                       │
@@ -91,10 +92,10 @@ fabrik apply specs/newsite.yaml
 ## Workflow 2: Buy + Deploy New Domain
 
 ```
-FABRIK                              dns-manager              Registrar
+FABRIK                              site-provisioner              Registrar
   │                                      │                       │
   │ POST /api/domains/check              │                       │
-  │ {domains: ["newsite.com"]}           │                       │
+  │ {domain: "newsite.com"}              │                       │
   │─────────────────────────────────────►│ Query registrars      │
   │                                      │──────────────────────►│
   │◄─────────────────────────────────────│                       │
@@ -149,7 +150,7 @@ fabrik apply specs/newsite.yaml
 | `GET` | `/api/domains` | List all registered domains |
 | `GET` | `/api/domains/{domain}` | Domain details |
 | `POST` | `/api/domains/check` | Check availability (queries all registrars) |
-| `POST` | `/api/domains/register` | Register new domain (dns-manager selects registrar) |
+| `POST` | `/api/domains/register` | Register new domain (site-provisioner selects registrar) |
 | `GET` | `/api/domains/pricing/{tld}` | TLD pricing (from all registrars) |
 
 ### Registrar DNS Endpoints
@@ -213,7 +214,7 @@ GET /api/cloudflare/zones/{domain}/ready
 
 ## Notes
 
-- **DNSSEC** may require specific auth configuration in dns-manager. If it fails, other features still work.
+- **DNSSEC** may require specific auth configuration in site-provisioner. If it fails, other features still work.
 - Some registrar endpoints require whitelisted IP — only works from VPS, not from WSL dev. Cloudflare endpoints work from anywhere.
-- Fabrik does not manage API keys or tokens for any provider — dns-manager holds all credentials.
-- dns-manager sets appropriate nameservers at registration time so DNS works immediately — no propagation wait.
+- Fabrik does not manage API keys or tokens for any provider — site-provisioner holds all credentials.
+- site-provisioner sets appropriate nameservers at registration time so DNS works immediately — no propagation wait.

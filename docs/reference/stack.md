@@ -387,7 +387,7 @@ That's how you scale to 3 businesses without new architecture each time.
 | `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 | ✅ Deployed VPS |
 | `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 | ✅ Deployed VPS |
 | `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 | 🟡 WSL only |
-| `/opt/dns-manager` | DNS management | FastAPI, Namecheap/Cloudflare | 8001 | ✅ Deployed VPS |
+| `/opt/dns-manager` | DNS management | FastAPI, Namecheap/Cloudflare | 8001 | ❌ Retired — replaced by site-provisioner (`provision.vps1.ocoron.com`) |
 
 #### Tier 2: Core Products
 
@@ -476,7 +476,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 | Service | Provider | Usage | Project |
 |---------|----------|-------|---------|
-| **DNS Manager** | Namecheap (via dns-manager) | Domain/DNS management | dns-manager |
+| **DNS/Domains** | Namecheap + Cloudflare (via site-provisioner) | Domain/DNS management | site-provisioner |
 
 #### Calendar & Data
 

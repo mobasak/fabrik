@@ -211,7 +211,7 @@ Immediately below the header, list the platform-debt items (one line each) when 
 - **Scaffold:** The detected type from the Step 2 table.
 - **x86_64:** `Confirmed` if all required Docker images are verified linux/amd64-compatible; `Conflict` if any required image is amd64-incompatible; `Unknown` if not yet verified.
 - **Duplicate:** `none` or the name of any similar project found in `docs/BUSINESS_MODEL.md`.
-- **Internal APIs:** Comma-separated list of existing Fabrik microservices the new project plans to **consume** (e.g. `dns-manager, image-broker`). Use `none` if the project consumes no internal services. Purely about **consumption**; exposure is captured by `User Guide`.
+- **Internal APIs:** Comma-separated list of existing Fabrik microservices the new project plans to **consume** (e.g. `site-provisioner`). Use `none` if the project consumes no internal services. Purely about **consumption**; exposure is captured by `User Guide`.
 - **User Guide:** `true` if the project ships a user-facing guide (UI scaffolds + external APIs); `false` for internal-only APIs and back-end workers. Set per the routing table / overlay #15. Propagated downstream as `HAS_USER_GUIDE` per the existing `epic-brief` Metadata contract.
 - **Infra:** Operational-health value from constraint #13. Possible values: `healthy`, `degraded`, `unknown`. Derived from the current Gatus dashboard at `status.vps1.ocoron.com`.
 - **Design System:** `read` if `.windsurf/rules/core/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.

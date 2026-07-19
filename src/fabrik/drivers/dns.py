@@ -1,7 +1,7 @@
 """
 DNS Client - Wrapper for Site Provisioner service.
 
-This client calls the site-provisioner service at VPS (dns.vps1.ocoron.com),
+This client calls the site-provisioner service at VPS (provision.vps1.ocoron.com),
 which provides unified access to both Namecheap and Cloudflare DNS.
 """
 
@@ -61,7 +61,7 @@ class DNSClient:
 
         Args:
             base_url: Site Provisioner URL. Defaults to SITE_PROVISIONER_URL env var
-                     or https://dns.vps1.ocoron.com
+                     or https://provision.vps1.ocoron.com
             api_key: API key sent as X-API-Key header. Defaults to SITE_PROVISIONER_API_KEY
                      env var. If not set, requests are unauthenticated (local/dev only).
             timeout: Request timeout in seconds
@@ -69,8 +69,8 @@ class DNSClient:
         """
         resolved_url: str = (
             base_url
-            or os.getenv("SITE_PROVISIONER_URL", "https://dns.vps1.ocoron.com")
-            or "https://dns.vps1.ocoron.com"
+            or os.getenv("SITE_PROVISIONER_URL", "https://provision.vps1.ocoron.com")
+            or "https://provision.vps1.ocoron.com"
         )
         self.base_url = resolved_url.rstrip("/")
         self.api_key = api_key or os.getenv("SITE_PROVISIONER_API_KEY")

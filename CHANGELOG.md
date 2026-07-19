@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — site-provisioner contract converged; dead dns.vps1 host purged repo-wide (2026-07-19)
+
+`docs/reference/service-contracts/site-provisioner.md` (the folder's only file — needed: cited by
+mega-00, agents-fabrik, EXTERNAL_SYSTEMS; no generator/cron) verified claim-by-claim (42 claims) and
+fixed: auth is `SITE_PROVISIONER_API_KEY` via `X-API-Key` (doc said Bearer `SITE_PROVISIONER_TOKEN` —
+a consumer following it got 401s), domain-check payload is singular `{domain}` (doc's plural got 422s),
+driver env comment, `dns-manager` prose renamed, Last-verified refreshed + the Traefik IP-allowlist
+(external 403-by-design) documented. The convergence loop (4 passes, Opus+Sonnet) then purged every
+live reference to the NXDOMAIN `dns.vps1.ocoron.com` host: `drivers/dns.py` defaults + module
+docstring, hub `compose.yaml` env (was exporting the dead legacy var), `proof_run.py` required-env set
+(hard-failed on fresh `.env` — it demanded `DNS_MANAGER_URL` which `.env.example` no longer defines),
+README required-env line, reference docs (drivers/architecture/cli-reference/stack), EXTERNAL_SYSTEMS,
+DEPLOYMENT_ARCHITECTURE (+ its broken TOC fragment), workflows doc, traycer examples. Historical/
+RETIRED-marked mentions left as-is; frozen-banner `tasks.md` deliberately untouched. 24 dns tests green.
+
 ### Changed — Merge docs/reference/research-files into docs/reference/research (2026-07-19)
 
 All 12 research docs moved (`git mv`) into `docs/reference/research/`; the empty `research-files/`

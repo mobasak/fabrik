@@ -309,7 +309,7 @@ The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset 
 | **Data** | `postgres-main` (shared), `redis-main` (shared), Backblaze B2 (via Backrest) |
 | **Observability** | Prometheus + Grafana + Alertmanager + Loki + Promtail; GlitchTip (errors); Gatus (uptime); Apprise (notifications) |
 | **Search / PDF / Browser** | MeiliSearch, Gotenberg, Browserless (all internal APIs) |
-| **DNS** | site-provisioner service (`dns.vps1.ocoron.com`) → Namecheap + Cloudflare |
+| **DNS** | site-provisioner service (`provision.vps1.ocoron.com`) → Namecheap + Cloudflare |
 
 Full inventory in `docs/infrastructure/vps-complete-inventory.md` and `AGENTS.md`.
 

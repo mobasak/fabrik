@@ -13,7 +13,7 @@ When Traycer creates plan files (Epic Briefs, PLAN_TEMPLATE, EXECUTION_PLAN_TEMP
 | Project | Plan Location | ❌ Wrong |
 |---------|---------------|---------|
 | `/opt/translator` | `/opt/translator/docs/development/plans/` | `/opt/fabrik/docs/development/plans/` |
-| `/opt/dns-manager` | `/opt/dns-manager/docs/development/plans/` | `/opt/fabrik/docs/development/plans/` |
+| `/opt/site-provisioner` | `/opt/site-provisioner/docs/development/plans/` | `/opt/fabrik/docs/development/plans/` |
 | `/opt/fabrik` | `/opt/fabrik/docs/development/plans/` | ✅ (This is Fabrik itself) |
 
 ---

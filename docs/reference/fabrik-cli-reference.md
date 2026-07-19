@@ -317,7 +317,7 @@ fabrik app-logs <spec_path> [-n LINES] [-f]
 
 ## Domain management
 
-All domain/DNS operations go through the site-provisioner microservice at `dns.vps1.ocoron.com`.
+All domain/DNS operations go through the site-provisioner microservice at `provision.vps1.ocoron.com`.
 
 | Command | Defined | Purpose |
 |---|---|---|

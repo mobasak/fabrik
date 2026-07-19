@@ -14,7 +14,7 @@ services:
       - COOLIFY_API_TOKEN=${COOLIFY_API_TOKEN:?COOLIFY_API_TOKEN is required}
       - COOLIFY_SERVER_UUID=${COOLIFY_SERVER_UUID:-}
       - COOLIFY_PROJECT_UUID=${COOLIFY_PROJECT_UUID:-}
-      - DNS_MANAGER_URL=${DNS_MANAGER_URL:-https://dns.vps1.ocoron.com}
+      - SITE_PROVISIONER_URL=${SITE_PROVISIONER_URL:-https://provision.vps1.ocoron.com}
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     healthcheck:

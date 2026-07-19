@@ -164,7 +164,7 @@ The VPS (not Coolify) runs `git pull` + `docker compose up -d --wait` over SSH (
 - API service → `gzip@docker`
 - Public service → no auth middleware
 
-DNS for `*.vps1.ocoron.com` is managed by **site-provisioner** (`dns.vps1.ocoron.com`, port 18014). The `fabrik domain` CLI covers `check` / `buy` / `provision` / `ready` / `zones` against Namecheap + Cloudflare + SSL + CDN + WAF + analytics. Full service contract: [docs/reference/service-contracts/site-provisioner.md](../reference/service-contracts/site-provisioner.md).
+DNS for `*.vps1.ocoron.com` is managed by **site-provisioner** (`provision.vps1.ocoron.com`, port 18014). The `fabrik domain` CLI covers `check` / `buy` / `provision` / `ready` / `zones` against Namecheap + Cloudflare + SSL + CDN + WAF + analytics. Full service contract: [docs/reference/service-contracts/site-provisioner.md](../reference/service-contracts/site-provisioner.md).
 
 The 4-layer security model wraps every deployed service:
 

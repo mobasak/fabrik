@@ -199,7 +199,7 @@ def load_env() -> dict[str, str]:
         "COOLIFY_SERVER_UUID",
         "COOLIFY_PROJECT_UUID",
         "COOLIFY_ENVIRONMENT_UUID",
-        "DNS_MANAGER_URL",
+        "SITE_PROVISIONER_URL",
         "GITHUB_TOKEN",
         "GITHUB_USERNAME",
         # H4: Cloudflare bypass
