@@ -156,3 +156,67 @@ def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
     if shared is not None and shared.is_file():
         _apply_env_file(shared, keys, loaded)
     return loaded
+
+
+# One-line purpose per curated key — powers env_status()'s "which keys do I actually need, and which
+# are optional/feature-gated" report, so an "X_API_KEY not set" stops being a per-project mystery.
+KEY_INFO: dict[str, str] = {
+    "OPENROUTER_API_KEY": "REQUIRED to dispatch any pool agent (the OpenRouter transport)",
+    "SUBAGENT_RUNS_DSN": "optional — Postgres flywheel ledger (unset → local .jsonl only)",
+    "SUBAGENT_PROJECT": "optional — default project tag for flywheel rows",
+    "SUBAGENT_SELECTION_DOC": "optional — path to a synced model-ranking doc",
+    "SUBAGENT_LIVE_PRICING": "optional — '1' enables live OpenRouter pricing lookups",
+    "SUBAGENTS_REFERER": "optional — OpenRouter HTTP-Referer header",
+    "SUBAGENTS_TITLE": "optional — OpenRouter X-Title header",
+    "EXA_API_KEY": "optional — web_tools Exa search (only needed if you use web_search)",
+    "BRAVE_API_KEY": "optional — web_tools Brave search (only if you use web_search_brave)",
+    "FIRECRAWL_API_KEY": "optional — web_tools Firecrawl (only if you use web_scrape/web_crawl)",
+    "CONTEXT7_API_KEY": "optional — web_tools Context7 docs (only if you use docs_lookup)",
+}
+
+
+def _file_keys(p: Path | None) -> dict[str, str]:
+    """Parse a curated `.env`/fleet file → its key→value map; `{}` for missing/unreadable. Never raises."""
+    if p is None or not p.is_file():
+        return {}
+    try:
+        return _parse_env_text(p.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError):
+        return {}
+
+
+def env_status(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> str:
+    """One-command report of every curated subagents key: is it resolvable in the process env, WHICH
+    file provides it (project `.env` vs the fleet-wide `~/.config/fabrik/subagents.env`), and — for a
+    missing one — the EXACT file to add it to + whether it's required or feature-gated. Stops the
+    per-project "where do the MCP/web keys go?" guessing. Run `python -m subagents.env_status [repo]`.
+    Never raises."""
+    proj = _find_dotenv(repo)
+    shared = _shared_env_path()
+    in_proj, in_shared = _file_keys(proj), _file_keys(shared)
+    fleet_display = str(shared) if shared else "~/.config/fabrik/subagents.env"
+    fleet_found = bool(shared and shared.is_file())
+    proj_display = str(proj) if proj else f"{repo}/.env"
+    lines = [
+        f"subagents env status — repo: {repo}",
+        f"  fleet file:   {fleet_display}"
+        + ("" if fleet_found else "   (NOT FOUND — create it; set shared keys here ONCE)"),
+        f"  project .env: {proj_display}" + ("" if proj else "   (none found)"),
+        "  set a shared key (OpenRouter / Exa / Brave / …) ONCE in the fleet file and EVERY project inherits it.",
+        "",
+    ]
+    for k in keys:
+        # Resolvable if defined in ANY source load_env consults (real env OR project .env OR fleet
+        # file) — a key sitting in the project .env is available even before load_env populates it.
+        in_p, in_s = bool(in_proj.get(k)), bool(in_shared.get(k))
+        present = bool(os.environ.get(k)) or in_p or in_s
+        info = KEY_INFO.get(k, "")
+        if present:
+            src = "project .env" if in_p else "fleet file" if in_s else "process env"
+            lines.append(f"  [OK]      {k:<24} (from {src}) — {info}")
+        else:
+            lines.append(
+                f"  [MISSING] {k:<24} — {info}\n"
+                f"            add to the fleet file ({fleet_display}, all projects) OR {proj_display}"
+            )
+    return "\n".join(lines)

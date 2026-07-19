@@ -54,13 +54,15 @@ def _apply_max_price(merged: dict, model: str) -> None:
     # policy caps gross overpay. OR still routes cheapest-first — this only blocks a >policy fallback.
     #
     # BUGFIX 2 (2026-07-19, above-policy reachability): the POLICY clamp must apply ONLY to WITHIN-policy
-    # models. An ABOVE-policy model (canonical rate > $1.5/Mtok) reaches here solely because a caller
-    # EXPLICITLY requested it (`pick_models` never auto-selects over the cap) — clamping ITS ceiling to
-    # $1.5 falls BELOW its real serving price, so OR again rejects EVERY provider ("No endpoints found
-    # that satisfy the max price", 404) and the explicitly-requested model is uncallable. For those,
-    # keep the model-relative 3× ceiling (no policy clamp). Proven live 2026-07-19: qwen3.7-max ($3.75),
-    # glm-5 ($1.92), kimi-k2.5 ($2.025) → 200 bare, 404 at max_price=1.5, 200 at 3×. Within-policy
-    # models are UNCHANGED (still min(rate·3, policy)).
+    # models. An ABOVE-policy model (canonical rate > `_MAX_POOL_PRICE_PER_MTOK`) reaches here whenever it
+    # is selected — now that the always-on selection cap is REMOVED, `pick_models` returns such models by
+    # default (e.g. the hub review roster ranks glm-5.2). Clamping ITS provider ceiling to $1.5 falls
+    # BELOW its real serving price, so OR rejects EVERY provider ("No endpoints found that satisfy the max
+    # price", 404) and the model is uncallable — the exact thing the cap-removal exists to enable. For
+    # those, keep the model-relative 3× ceiling (no policy clamp): this is what makes the pricier
+    # auto-selected models callable. Proven live 2026-07-19: qwen3.7-max ($3.75), glm-5 ($1.92),
+    # kimi-k2.5 ($2.025) → 200 bare, 404 at max_price=1.5, 200 at 3×. Within-policy models are UNCHANGED
+    # (still min(rate·3, `_MAX_POOL_PRICE_PER_MTOK`) — the reference threshold, no longer a selection cap).
     price = mp.get("completion")
     if isinstance(price, (int, float)):
         headroom = price * 3.0

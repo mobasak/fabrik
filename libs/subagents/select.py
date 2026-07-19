@@ -69,10 +69,10 @@ _OUT_PRICE: dict[str, float] = {
     "x-ai/grok-4.20-multi-agent": 2.50,
 }
 
-# Fleet cost policy: the Auto-tier output-price cap. `pick_models` ALWAYS enforces this (so it is
-# the sole gatekeeper — no rule/command file needs to name a roster or a price); a caller opts into
-# the On-request tier for a pricier model with `allow_above_cap=True`. Changing the policy = change
-# this one constant.
+# Reference output-price ($/Mtok) — the OLD Auto-tier cap. NO LONGER auto-enforced by `pick_models`
+# (removed 2026-07-19 per operator: the pool is curated, and per-run task cost is pennies regardless
+# of $/Mtok — a blanket cap wrongly excluded the hub's top reviewers). Kept as a named reference a
+# caller can still pass to `max_cost_per_mtok` if they deliberately want the old ≤$1.5 budget.
 _MAX_POOL_PRICE_PER_MTOK = 1.5
 
 # --- Live pricing fallback (opt-in) --------------------------------------------------
@@ -115,11 +115,12 @@ def _fetch_openrouter_prices() -> dict[str, float]:
 
 
 # task_type -> models ranked BEST-FIRST (highest quality first).
-#   ALLOWED POOL — fleet policy (2026-07-08): a model is selectable only if its OUTPUT price is
-#   <= $1.5/Mtok. The Auto-tier members are the ≤$1.5 models in _OUT_PRICE (output $0.18-$1.20); a
-#   future cheaper model can join once it clears a benchmark. glm-5/5.x ($3.00+), kimi ($2.03-3.50),
-#   grok ($2.50), qwen ($3.75) all EXCEED $1.5 -> excluded from selection; they stay PRICED (for an
-#   explicit opt-in test) but pick_models never returns them.
+#   NO PRICE CAP (2026-07-19): `pick_models` no longer filters by output price — the fresh hub
+#   ranking (auto-read from `_HUB_SELECTION_DOC` when co-located, else `SUBAGENT_SELECTION_DOC`)
+#   drives selection and it deliberately ranks pricier high-quality reviewers (gemini-3-flash-preview,
+#   gpt-5.1-codex-mini, glm-5.2, …) in-band because per-run task cost is pennies. This vendored `_TABLE`
+#   is only the LAST-RESORT FALLBACK for an environment with neither the hub doc nor the env var; it can
+#   drift from the daily-refreshed doc, so treat it as a floor, not the truth.
 #   (The earlier 2026-07-06/07 api-quota empirical seed — m3-first for review, m2.5-first for spec — was
 #    SUPERSEDED by the 2026-07-10 research-backed reorder below; the flywheel still refines from real runs.)
 # Reordered 2026-07-10 (plan-1 pool-utilization) to a RESEARCH-BACKED, best-first (quality) order with a
@@ -289,9 +290,22 @@ def load_task_ranking(
     return {k: v for k, v in out.items() if v}
 
 
+# Canonical hub location of the daily-refreshed ranking. When ``SUBAGENT_SELECTION_DOC`` is unset but
+# the hub is CO-LOCATED (fabrik-lib dev, or the hub itself), the module auto-reads this fresh doc so
+# selection stays synced with no env wiring — that is the "why aren't the updated docs synced" fix.
+# A vendored copy in a deployed project (no ``/opt/fabrik``) simply misses it and falls back to the
+# env var or the vendored ``_TABLE`` (portable, zero-regression).
+_HUB_SELECTION_DOC = "/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+
+
 def _synced_ranking() -> dict[str, list[str]]:
-    """Env-driven, mtime-cached parse of the synced doc (re-reads when the daily refresh bumps it)."""
+    """mtime-cached parse of the synced ranking doc (re-reads when the daily refresh bumps it).
+
+    Resolution order: ``SUBAGENT_SELECTION_DOC`` env → the co-located hub doc
+    (:data:`_HUB_SELECTION_DOC`, if it exists) → ``{}`` (caller uses the vendored ``_TABLE``)."""
     path = os.getenv("SUBAGENT_SELECTION_DOC")
+    if not path and os.path.exists(_HUB_SELECTION_DOC):
+        path = _HUB_SELECTION_DOC
     if not path:
         return {}
     try:
@@ -371,24 +385,23 @@ def pick_models(
     live: bool | None = None,
     allow_above_cap: bool = False,
 ) -> list[str]:
-    """Return up to ``n`` model ids for ``task_type``, best-first, under the fleet cost cap.
+    """Return up to ``n`` model ids for ``task_type``, best-first (rank order of the synced doc /
+    vendored table), with NO default price cap.
 
-    This is the SOLE gatekeeper for the ≤$1.5/Mtok fleet policy: it ALWAYS enforces
-    :data:`_MAX_POOL_PRICE_PER_MTOK` on the default (Auto) tier — a pricier model can never
-    reach the default pool even if the synced ranking doc surfaces one or a caller passes a
-    looser ``max_cost_per_mtok``. Rule/command packs therefore name no model rosters; they name
-    only the invariant + this mechanism (see ``PROPOSED_RULE-using-subagents.md``).
+    The always-on ≤$1.5/Mtok fleet cap was REMOVED (operator decision 2026-07-19): the pool is
+    curated cheap+high-quality and per-run task cost is pennies regardless of $/Mtok, so the blanket
+    cap wrongly excluded the hub's top-ranked (unpriced or >$1.5) reviewers. Price filtering is now
+    OPT-IN only, via ``max_cost_per_mtok``.
 
     Args:
         task_type: one of :data:`TASK_KINDS`. Unknown → ``ValueError``.
-        n: how many models to return (e.g. for a parallel A/B). May return fewer if the
-           ceiling or ``exclude`` filters them out.
-        max_cost_per_mtok: an ADDITIONAL, tighter ceiling on output $/M — the min-spend guard.
-           It can only lower the effective cap (``min`` with the always-on fleet cap), never
-           raise it above $1.5 on the Auto tier.
-        allow_above_cap: the On-request tier. ``True`` drops the always-on ≤$1.5 fleet cap so a
-           pricier benchmarked model (kept in the data, never in the default pool) can be
-           selected — then only ``max_cost_per_mtok`` (if given) applies. Default ``False``.
+        n: how many models to return (e.g. for a parallel A/B). May return fewer if
+           ``max_cost_per_mtok`` or ``exclude`` filters them out.
+        max_cost_per_mtok: an OPT-IN output $/M ceiling — the only price filter left (the min-spend
+           budget guard). ``None`` (default) = no price filtering at all. An unpriced model prices
+           to +inf and is dropped ONLY when this ceiling is set (fail-closed under a budget).
+        allow_above_cap: retained for backward compatibility; a NO-OP now (there is no always-on cap
+           left to bypass).
         exclude: model ids to skip (e.g. one that failed this session — the reliability lever).
         prefer: ``"quality"`` = the source ranking (best output first); ``"value"`` = re-rank
                 by rank-adjusted cheapness (``(rank_weight)/price``) so a nearly-as-good but
@@ -415,24 +428,16 @@ def pick_models(
     ranked = [
         m for m in (table.get(task_type) or _TABLE[task_type]) if m not in excluded
     ]
-    # AUTO-TIER PRICE CAP — pick_models is the SOLE gatekeeper. The fleet ≤$1.5/Mtok cap is ALWAYS
-    # enforced: even if the synced CODING_SUBAGENT_SELECTION.md is refreshed with a pricier model, or
-    # a caller passes a looser `max_cost_per_mtok`, a >$1.5 model can never reach the default pool.
-    # `max_cost_per_mtok` can only make the ceiling TIGHTER (min of the two). A caller opts into the
-    # On-request tier for a pricier model with `allow_above_cap=True` — then only its own ceiling (if
-    # any) applies. FAIL-CLOSED: an unpriced model (unknown even to the live fetch) prices to +inf and
-    # is DROPPED by any ceiling — a hard budget guard must not be bypassed by an unknown price.
-    ceilings = [
-        c
-        for c in (
-            None if allow_above_cap else _MAX_POOL_PRICE_PER_MTOK,
-            max_cost_per_mtok,
-        )
-        if c is not None
-    ]
-    if ceilings:
-        cap = min(ceilings)
-        ranked = [m for m in ranked if _price_or_inf(m, live) <= cap]
+    # PRICE CAP REMOVED (operator decision 2026-07-19). The former always-on ≤$1.5/Mtok fleet cap is
+    # gone: the pool is curated cheap+high-quality, and per-run task cost — especially for review/spec
+    # fan-outs — is pennies regardless of $/Mtok (the hub's TASK_SUBAGENT_SELECTION.md ranks all models
+    # together, WITHOUT a $1.5 split, for exactly this reason). The blanket cap wrongly excluded the
+    # hub's top-ranked reviewers (e.g. gemini-3-flash-preview, gpt-5.1-codex-mini, glm-5.2) and every
+    # UNPRICED model. Now: only an OPT-IN `max_cost_per_mtok` (the min-spend budget guard) filters —
+    # an unpriced model prices to +inf and is dropped ONLY when that ceiling is set. `allow_above_cap`
+    # is retained for backward compatibility but is a NO-OP (there is no default cap left to bypass).
+    if max_cost_per_mtok is not None:
+        ranked = [m for m in ranked if _price_or_inf(m, live) <= max_cost_per_mtok]
     if prefer == "value":
         # value = rank_weight / price; rank_weight is higher for better-ranked models, so a
         # cheaper model only overtakes a better-ranked one when its price advantage outweighs

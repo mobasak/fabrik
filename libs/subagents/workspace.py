@@ -21,9 +21,18 @@ from __future__ import annotations
 import contextlib
 import fnmatch
 import functools
+import os
 import re
+import shutil
 import subprocess
+import time
 from pathlib import Path
+
+# Ownership sidecar: `<base>/.owner-<agent_id>` records the PID that created a worktree, so the GC can
+# tell a LIVE agent's worktree (owner still running) from an ORPHAN (owner dead) — dir mtime is a
+# creation-time proxy, NOT a liveness signal. A SIBLING file (not inside the worktree) → never in
+# `worktree_diff`, and `.owner-*` never matches the sweep's `agent-*` glob.
+_OWNER_PREFIX = ".owner-"
 
 try:
     import fcntl  # POSIX advisory file locking (Linux/WSL — the fleet target)
@@ -85,6 +94,12 @@ def create_worktree(repo: str, agent_id: str, *, base: str = "HEAD") -> str:
     wt.parent.mkdir(parents=True, exist_ok=True)
     with _repo_worktree_lock(repo):
         _run_git(["worktree", "add", "--detach", str(wt), base], cwd=repo)
+        # Ownership marker (INSIDE the lock so a concurrent sweep never sees the worktree without it):
+        # the creating PID, so `sweep_stale_worktrees` skips this worktree while this process lives.
+        with contextlib.suppress(OSError):
+            (wt.parent / f"{_OWNER_PREFIX}{agent_id}").write_text(
+                str(os.getpid()), encoding="utf-8"
+            )
     return str(wt)
 
 
@@ -98,10 +113,45 @@ def worktree_diff(worktree: str) -> str:
     return _run_git(["diff", "--cached"], cwd=worktree)
 
 
+def _owner_alive(owner_file: Path) -> bool:
+    """True if ``owner_file`` records the PID of a STILL-RUNNING process (a live worktree owner → the
+    GC must not sweep it). Absent / garbled / non-positive / dead-PID → False (an orphan, reclaimable).
+
+    NB (bounded, accepted limitation): PID REUSE — if the original owner died and its PID was recycled
+    by an unrelated long-lived process — reads as alive and delays this orphan's reclaim until that
+    process exits (a leak, never corruption; probability ~ live_procs/pid_max)."""
+    try:
+        pid = int(owner_file.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    if pid <= 0:
+        # `os.kill(0, 0)` targets the CALLER's process group and `os.kill(-N, 0)` a process group —
+        # both succeed, falsely reading "alive". A truncated/corrupted sidecar ("0"/negative) must read
+        # DEAD (else it pins the worktree forever, bypassing the age gate). The docstring's "garbled →
+        # False" contract requires this — `int()` accepts "0"/"-1" without raising.
+        return False
+    try:
+        os.kill(pid, 0)  # signal 0 = liveness probe, sends nothing
+    except ProcessLookupError:
+        return False  # no such process → dead
+    except PermissionError:
+        return True  # exists but owned by another user → alive
+    except (OSError, OverflowError):
+        return False  # a bad/huge pid can't be alive
+    return True
+
+
 def remove_worktree(repo: str, worktree: str) -> None:
-    """Force-remove a worktree (discards its uncommitted changes)."""
-    with _repo_worktree_lock(repo):
-        _run_git(["worktree", "remove", "--force", worktree], cwd=repo)
+    """Force-remove a worktree (discards its uncommitted changes) and drop its ownership sidecar."""
+    p = Path(worktree)
+    try:
+        with _repo_worktree_lock(repo):
+            _run_git(["worktree", "remove", "--force", worktree], cwd=repo)
+    finally:
+        # Drop the sidecar EVEN IF git-remove raised — otherwise a failed remove leaks the marker until
+        # the next startup sweep. (The sweep's orphan-sidecar cleanup is only a backstop.)
+        with contextlib.suppress(OSError):
+            (p.parent / f"{_OWNER_PREFIX}{p.name}").unlink()
 
 
 def prune_worktrees(repo: str) -> None:
@@ -113,6 +163,67 @@ def prune_worktrees(repo: str) -> None:
     """
     with _repo_worktree_lock(repo):
         _run_git(["worktree", "prune"], cwd=repo)
+
+
+def sweep_stale_worktrees(repo: str, *, max_age_s: float) -> int:
+    """Reclaim ORPHANED subagent worktrees a prior run's cleanup ``finally`` never removed.
+
+    A ``finally`` cannot be guaranteed: an OOM-kill / SIGKILL, or the outer wall-clock backstop
+    abandoning ``_run_one``'s event-loop thread (a Python thread can't be cancelled), leaves BOTH the
+    ``<repo>/.tmp/subagents/agent-*`` directory AND git's registration behind — which piled up
+    fleet-wide (~2.9 GB across projects, proportional to pool use). ``git worktree prune`` alone can't
+    reclaim these (the directory still exists), so this removes the directory too.
+
+    **Self-healing**: :func:`~subagents.agent.arun_agents` calls this at batch startup, so orphans
+    from a crashed run are reclaimed on the NEXT pool run instead of accumulating forever. It removes
+    a worktree ONLY when its directory mtime is older than ``max_age_s`` — chosen well beyond any live
+    batch's ``wall_clock_s`` — so a CONCURRENTLY-running agent's fresh worktree (recent mtime) is never
+    swept. Best-effort per item: a ``git worktree remove`` failure falls back to ``rmtree``. Returns
+    the count reclaimed. NEVER raises.
+    """
+    base = Path(repo) / ".tmp" / "subagents"
+    if not base.is_dir():
+        return 0
+    now = time.time()
+    reclaimed = 0
+    # Hold the cross-process admin lock ONCE for the whole sweep and call `_run_git` DIRECTLY —
+    # `remove_worktree`/`prune_worktrees` re-acquire the same lock, which would self-deadlock.
+    with _repo_worktree_lock(repo):
+        for wt in sorted(base.glob("agent-*")):
+            if not wt.is_dir():
+                continue
+            owner = base / f"{_OWNER_PREFIX}{wt.name}"
+            # Reclaim ONLY a dir WE created — a real git worktree (has a `.git` file) or one still
+            # carrying our ownership sidecar. A foreign/user dir under this private scratch path is
+            # NEVER deleted (a bare `agent-*` dir with neither is left untouched).
+            if not ((wt / ".git").exists() or owner.exists()):
+                continue
+            if _owner_alive(owner):  # the creating process is STILL RUNNING → live worktree, keep it
+                continue
+            try:
+                # Secondary guard: even for a dead/absent owner, only sweep a stale dir — this catches
+                # a live agent whose sidecar write failed (its dir is still fresh).
+                if now - wt.stat().st_mtime < max_age_s:
+                    continue
+            except OSError:
+                continue
+            with contextlib.suppress(subprocess.CalledProcessError, OSError):
+                _run_git(["worktree", "remove", "--force", str(wt)], cwd=repo)
+            if wt.exists():  # remove refused (e.g. a half-created wt) → force the dir
+                shutil.rmtree(wt, ignore_errors=True)
+            with contextlib.suppress(OSError):
+                owner.unlink()
+            if not wt.exists():
+                reclaimed += 1
+        # Clean any orphaned ownership sidecar whose worktree is already gone (a prior `finally`
+        # rmtree'd the dir but not the sidecar) — else `.owner-*` files pile up as their own tiny leak.
+        for sc in base.glob(f"{_OWNER_PREFIX}agent-*"):
+            if not (base / sc.name[len(_OWNER_PREFIX) :]).exists():
+                with contextlib.suppress(OSError):
+                    sc.unlink()
+        with contextlib.suppress(subprocess.CalledProcessError, OSError):
+            _run_git(["worktree", "prune"], cwd=repo)  # drop the now-dangling registrations
+    return reclaimed
 
 
 def changed_paths(worktree: str) -> list[str]:
@@ -340,6 +451,8 @@ __all__ = [
     "create_worktree",
     "worktree_diff",
     "remove_worktree",
+    "prune_worktrees",
+    "sweep_stale_worktrees",
     "changed_paths",
     "paths_in_scope",
     "diff_paths",

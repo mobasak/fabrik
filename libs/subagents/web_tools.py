@@ -65,6 +65,20 @@ def _need(env: str) -> str:
     return val
 
 
+def _missing_key_hint(env: str) -> str:
+    """An ACTIONABLE 'key not set' message: names WHERE to add the key (the fleet-wide file / the
+    project `.env`) + the doctor command — so a project doesn't rediscover the config every time."""
+    from ._dotenv import _shared_env_path
+
+    fleet = _shared_env_path()
+    fleet_s = str(fleet) if fleet else "~/.config/fabrik/subagents.env"
+    return (
+        f"{env} not set. Add it once to the fleet-wide `{fleet_s}` (every project's pool then "
+        f"inherits it) or to this project's `.env`. Run `python -m subagents.env_status <repo>` "
+        f"to see which keys are set/missing and where to put them."
+    )
+
+
 def _fetch(
     client: httpx.Client,
     method: str,
@@ -270,7 +284,7 @@ def execute_web_tool(
             return _context7_docs(arguments, cli, timeout_s)
         return ToolResult(ok=False, output="", error=f"unknown web tool {name!r}")
     except _MissingKeyError as exc:
-        return ToolResult(ok=False, output="", error=f"{exc.args[0]} not set")
+        return ToolResult(ok=False, output="", error=_missing_key_hint(exc.args[0]))
     except (httpx.HTTPError, _HttpError) as exc:  # status/timeout/connect/transport
         return ToolResult(ok=False, output="", error=f"http error: {exc}")
     except (

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import os as _os
 
-from ._dotenv import load_env
+from ._dotenv import env_status, load_env
 from .agent import (
     AgentResult,
     AgentSpec,
@@ -89,6 +89,7 @@ __all__ = [
     "flush_outbox",
     "audit_unrecorded",
     "load_env",
+    "env_status",
     "SUBAGENT_RUNS_DDL",
     "SAFE_RESEARCH_SERVERS",
 ]

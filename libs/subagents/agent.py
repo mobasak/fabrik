@@ -82,6 +82,17 @@ def _outer_grace_s() -> float:
         return 30.0
 
 
+def _worktree_max_age_s() -> float:
+    """Age (s) past which a leftover ``.tmp/subagents/agent-*`` worktree is treated as an ORPHAN and
+    swept at batch startup (see :func:`~subagents.workspace.sweep_stale_worktrees`). MUST exceed the
+    longest ``wall_clock_s`` in use so a live concurrent batch's fresh worktree is never reclaimed;
+    the 2h default dwarfs the 600s pool default. Env ``SUBAGENT_WORKTREE_MAX_AGE_S``."""
+    try:
+        return float(os.getenv("SUBAGENT_WORKTREE_MAX_AGE_S", "7200"))
+    except ValueError:
+        return 7200.0
+
+
 def _settle_result(fut: asyncio.Future, value: Any) -> None:  # noqa: ANN401
     if not fut.done():
         fut.set_result(value)
@@ -510,8 +521,13 @@ async def _run_one(
             try:
                 async with git_lock:
                     await asyncio.to_thread(workspace.remove_worktree, repo, wt)
-            except Exception:  # noqa: BLE001 — best-effort cleanup; never mask the real result
-                pass
+            except Exception:  # noqa: BLE001 — `git worktree remove` failed; force-reclaim the dir
+                # so this run can't leak an orphan (the exact junk the startup sweep also cleans),
+                # then prune the now-dangling registration. Best-effort; never mask the real result.
+                with contextlib.suppress(Exception):
+                    shutil.rmtree(wt, ignore_errors=True)
+                    async with git_lock:
+                        await asyncio.to_thread(workspace.prune_worktrees, repo)
 
         result.latency_s = time.monotonic() - t0
         result.model = (
@@ -595,6 +611,15 @@ async def arun_agents(
     call = loop_fn if loop_fn is not None else run_loop
     resolved_ledger_path = ledger_path or _default_ledger_path(repo)
     ledger = Ledger(resolved_ledger_path)
+    # Self-healing worktree GC (fleet-wide leak fix): reclaim orphaned worktrees a PRIOR run's
+    # cleanup `finally` couldn't remove — an OOM/SIGKILL or the outer wall-clock backstop abandoning
+    # the event-loop thread skips the `finally`, leaking the dir + registration. Sweeping here (best-
+    # effort, age-gated so a live concurrent batch is never touched) means orphans are reclaimed on
+    # the next pool run instead of piling up (~2.9 GB fleet-wide before this). Never fails the batch.
+    with contextlib.suppress(Exception):
+        await asyncio.to_thread(
+            workspace.sweep_stale_worktrees, repo, max_age_s=_worktree_max_age_s()
+        )
     # Read-only agents (tools_enabled=False → single-shot, they never write the tree) are ALWAYS
     # parallel-safe regardless of owned_paths — each is its own group. Only WRITER agents need
     # owned_paths serialization (empty owned_paths = "writes anywhere" ⇒ overlaps everything ⇒
@@ -839,7 +864,8 @@ def fanout(
         models = (diverse + rest)[:draw]
     if not models:
         raise ValueError(
-            f"fanout: pick_models({task_type!r}) returned no models under the ≤$1.5 cost cap"
+            f"fanout: pick_models({task_type!r}) returned no models "
+            "(empty ranking/table, or every candidate excluded by `exclude`/`max_cost_per_mtok`)"
         )
 
     specs: list[AgentSpec] = []
