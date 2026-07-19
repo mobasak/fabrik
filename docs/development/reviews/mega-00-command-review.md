@@ -24,6 +24,8 @@ here FIRST, then implemented into the command file.** One row per input; status 
 
 | 14 | 2026-07-19 | External systems are stored in `secrets/all-envs.env` — is the tech-stack guide reference stale? Is the env fully up to date, how often refreshed? | Commands now ALSO read `scripts/service_catalog.json` (the secret-free projection of `all-envs.env` — the only form agents may read; the guide reference stays for stack DEFAULTS). Freshness verified: consolidation current (zero `/opt/*/.env` newer than it); refresh is ON-DEMAND via `refresh_service_inventory.py` (built as a cron entry-point but NOT scheduled) | ✅ this commit · ⏳ operator call: schedule the cron |
 
+| 15 | 2026-07-19 | Is `technology-stack-decision-guide.md` 100% aligned with `all-envs.env`? List all contradictions | **No — 8 hard contradictions** (Kilo/OpenAI/Anthropic-direct/Ollama LLM ladder; role_mapper selection; Supabase as DB option; Next.js for marketing sites vs Astro factory; Shopify e-commerce vs Vendure factory; managed-auth default vs Pattern A; "avoid self-host ML" vs python-api-gpu; "no Redis by default" vs 12F-VI mandate) + the guide knows ~8 of the registry's 91 providers + stale Next.js 14 pin. Catalog's own `kilo` row also still `active` | ⏳ operator call: rewrite guide + fix catalog kilo row |
+
 ## Prior inputs that shaped both `00`s (context)
 
 - Decisions must never live only in chat → `00`s are chat-only; persistence lives in `01-decisions-lock`
