@@ -12,9 +12,18 @@ letter scale as review) -> model_coding_metrics + model_task_baseline(code).
              code passes or it doesn't -> no "precision" column, unlike review).
     columns  # . model . grade . pass@1 % . $/1k . p50 s
 
-    python microbench_coding_direct.py --probe --models X Y       # 1-2 problems x models, real-token estimate
-    python microbench_coding_direct.py --all --release-version release_v5 --limit 50   # full run (persists)
+    bash setup_lcb_grader.sh                                      # ONCE: provision the .lcb-venv grader
+    python microbench_coding_direct.py --probe                   # size cost (streams 2 problems, ~$0.35)
+    python microbench_coding_direct.py --all --limit 50          # full run (persists) — default conc 32
     python microbench_coding_direct.py --report                  # print the latest stored table
+
+    ⚠️ OPERATIONAL REALITY (learned 2026-07-19 the hard way — don't re-discover it):
+    - The FULL 57×50 run is ~$17-24 real and ~75min at conc 32 (~6h at the old conc 6). The probe's
+      2 problems UNDER-price it ~3x (short problems); trust --probe for order-of-magnitude, not exact.
+    - Reasoning models (o3/gpt-5-pro/claude/qwen-max) are the slow + costly tail AND are On-request tier
+      (pick_models never auto-selects them). To rank only the SELECTABLE pool cheaply+fast: --models with
+      just the auto-tier ids (~$5-8, ~30min).
+    - It STREAMS the corpus (no multi-GB download); the full release is ~3GB sharded — never fetch it all.
 
 Isolation: NEVER touches the pool-coupled microbench_coding.py. The build writes NO real db
 (tests use temp sqlite); the operator triggers the real ~$12-18 run.
@@ -486,8 +495,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--release-version", default="release_v5", help="LiveCodeBench window (default release_v5)")
     p.add_argument("--limit", type=int, default=50, help="problems from the window (default 50; <=0 = all)")
     p.add_argument("--cost-cap", type=float, default=20.0, help="running billed-$ dispatch gate (default 20)")
-    p.add_argument("--max-tokens", type=int, default=MAX_TOKENS)
-    p.add_argument("--concurrency", type=int, default=6)
+    p.add_argument("--max-tokens", type=int, default=MAX_TOKENS,
+                   help="output cap per call (default 4096 — generous for fairness; lower = faster+cheaper "
+                        "but may truncate verbose reasoning models)")
+    p.add_argument("--concurrency", type=int, default=32,
+                   help="parallel in-flight calls (default 32). Reasoning models are SLOW (~60s/call), so "
+                        "throughput is concurrency-bound — the full 57×50 run is ~75min at 32, ~6h at 6. "
+                        "I/O-bound, so raise it freely; lower only if you hit provider rate limits.")
     p.add_argument("--probe", action="store_true", help="1-2 problems x models -> real-token cost estimate, no persist")
     p.add_argument("--all", action="store_true", help="run + persist metrics + task_baseline")
     p.add_argument("--report", action="store_true", help="print the latest stored table + exit")
