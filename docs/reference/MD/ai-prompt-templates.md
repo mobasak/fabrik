@@ -288,7 +288,7 @@ Ask the user **only** when BOTH hold: (a) the answer **materially changes** the 
 
 ### 6. Route to the least-powerful capable model
 
-Match model power to the task; **turn count beats token price** — the cheapest model takes 2–3× the turns on multi-step work and costs more overall. Mechanical/transcription → cheapest; multi-file pattern-matching → mid; design judgment / broad-codebase reasoning → most capable. Always pass the model explicitly on a dispatch; an omitted model silently inherits the most expensive one.
+Match model power to the task; **turn count beats token price** — the cheapest model takes 2–3× the turns on multi-step work and costs more overall. Mechanical/transcription → cheapest; multi-file pattern-matching → mid; design judgment / broad-codebase reasoning → most capable. Always pass the model explicitly on a dispatch; an omitted model silently inherits the parent's model (usually the most expensive one).
 
 ### 7. Structure the prompt for the model, not the human
 
@@ -367,4 +367,4 @@ Keep prompt/reference docs machine-parseable — these prevent both human error 
 
 ### Enforcement
 
-Lint with `markdownlint-cli2` (or `remark-lint`) against a config that enables the IDs above; run it in CI with `--max-warnings=0`. For prose length, `MD013` (line-length) is the Markdown analogue of a code linter's line-length rule.
+Lint with `markdownlint-cli2` (or `remark-lint`) against a config that enables the IDs above; run it in CI with `--max-warnings=0`. For prose length, `MD013` (line-length) is the Markdown analogue of a code linter's line-length rule. (This prescribes the target config for NEW projects — the hub's own `.markdownlint.json` intentionally relaxes several of these IDs for authoring ergonomics.)

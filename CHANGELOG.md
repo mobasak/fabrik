@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference/MD triage: archive 2 orphans, converge the 2 keepers (2026-07-19)
+
+`prompt-repository-structure.md` + `rag-chunking-rules.md` → `docs/archive/` — zero live references
+anywhere (repo-wide + rule packs + commands + a synced project + home skills; only old session
+transcripts matched). The folder is fleet-synced (`fabrik_synced_manifest.py:74`) and scaffold-seeded
+(`scaffold.py:355`) — no generator/cron creates its files. Kept + converged to a verified no-op
+(3 passes, Opus + Sonnet verifiers): **ai-prompt-templates.md** (the CLAUDE.md-bound prompt canon —
+fixed the omitted-model inheritance claim; noted the hub's relaxed markdownlint config vs the
+prescribed target) and **markdown-cheatsheet.md** (its own 80/20 example violated its blank-line rule
+and rendered broken — rebuilt and empirically re-parsed as 5 clean blocks; MD022 blank lines added
+throughout; HR Setext caveat; table now a superset of rules/40's list so the "Full cheatsheet"
+pointer is honest).
+
 ### Fixed — docs/operations full claim-by-claim verification (2026-07-19)
 
 Second, deeper pass over all 11 runbooks: 8 parallel verifiers extracted ~300 checkable claims and

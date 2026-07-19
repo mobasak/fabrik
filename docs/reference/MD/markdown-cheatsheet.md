@@ -5,6 +5,7 @@ Quick reference for writing clean, AI-friendly Markdown.
 ---
 
 ## Headings
+
 ```md
 # H1 – Title (one per document)
 ## H2 – Section
@@ -13,6 +14,7 @@ Quick reference for writing clean, AI-friendly Markdown.
 ```
 
 ## Emphasis
+
 ```md
 **Bold** — importance
 *Italic* — nuance
@@ -20,6 +22,7 @@ Quick reference for writing clean, AI-friendly Markdown.
 ```
 
 ## Lists
+
 ```md
 - Bullet item
 - Bullet item
@@ -34,6 +37,7 @@ Quick reference for writing clean, AI-friendly Markdown.
 ```
 
 ## Code
+
 ````md
 Inline: `git status`
 
@@ -47,12 +51,14 @@ def hello():
 Rules: triple backticks, always specify language if known, blank line before and after.
 
 ## Blockquotes
+
 ```md
 > This is a blockquote
 >> Nested quote
 ```
 
 ## Links & Images
+
 ```md
 [Link text](https://example.com)
 [Local file](docs/spec.md)
@@ -60,6 +66,7 @@ Rules: triple backticks, always specify language if known, blank line before and
 ```
 
 ## Tables
+
 ```md
 | Column A | Column B |
 |----------|----------|
@@ -70,16 +77,21 @@ Rules: triple backticks, always specify language if known, blank line before and
 ```
 
 ## Horizontal Rule
+
 ```md
 ---
 ```
 
+Always precede `---` with a blank line — placed right after a paragraph it parses as a Setext heading underline, not a rule.
+
 ## Comments
+
 ```md
 <!-- Not rendered -->
 ```
 
 ## Escaping
+
 ```md
 \*Not italic\*
 \# Not a heading
@@ -103,6 +115,8 @@ These matter for prompt quality and RAG retrieval:
 | Keep tables simple and atomic | Multi-line cells break parsers |
 | No commented-out content blocks | Confuses AI + pollutes diffs |
 | Structure before wording | Headings and lists first, prose second |
+| Use `-` for unordered lists (not `*` or `+`) | One consistent marker across the fleet |
+| Lists imply constraints or steps — don't mix narrative paragraphs inside lists | Keeps items atomic for parsing and retrieval |
 
 ---
 
@@ -110,11 +124,17 @@ These matter for prompt quality and RAG retrieval:
 
 If you know only this, you are productive:
 
-```md
+````md
 # Title
+
 ## Section
+
 - Bullet
 - Bullet
+
 **Important**
-```code block```
+
+```text
+code block
 ```
+````
