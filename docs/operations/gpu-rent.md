@@ -160,7 +160,7 @@ fabrik gpu compare pod-h100 --hours 4 --needs-checkpointing
 
 Output includes recommended provider + rationale.
 
-### `fabrik gpu list` / `status` / `destroy` / `reconcile` / `history`
+### `fabrik gpu list` / `status` / `destroy` / `pause` / `resume` / `reconcile` / `history`
 
 All five commands are **provider-aware** (live-validated 2026-06-16, G-LIVE-10/11). They read the session's recorded `provider` from `data/gpu-rent-state.json` and dispatch to the matching API — so a Modal-rented pod is destroyed via Modal SDK, a Vast-rented one via Vast REST, etc.
 

@@ -24,7 +24,7 @@ RunPod has 5 product surfaces. Fabrik's Phase 1 + 2 + 3 use only the first two.
 
 | Gap | Impact on Fabrik | Mitigation |
 |---|---|---|
-| No published rate limits | Can't proactively throttle in driver | `_request()` already retries on 5xx (which includes 429 surrogates); add explicit 429 handling in Phase 2 if we hit it |
+| No published rate limits | Can't proactively throttle in driver | 429 currently **fails fast** (raised as a 4xx before the 5xx-retry branch — `_request()` never retries it); add explicit 429→retry handling as a Phase 2 enhancement if we hit it |
 | No published SLA | No guarantee `wait_for_running()` timeout (300s) is generous enough | We'll widen if Phase 1 G-LIVE-2 ever times out |
 | No webhooks | Can't subscribe to "pod started" / "pod terminated" events | Polling via `get_pod()` is sufficient; `wait_for_running()` is the implementation |
 | No idempotency keys | Re-running `create_pod()` after a network blip could create duplicates | State file's `FABRIK_SESSION_ID` env tag identifies our pods; reaper destroys duplicates |
@@ -58,8 +58,8 @@ In Fabrik: stored in `/opt/fabrik/.env.sysadmin` as `RUNPOD_API_KEY=<key>`. Load
 | `GET` | `/pods` | `list_pods()` | Returns list (empty `[]` if no pods). |
 | `GET` | `/pods/{podId}` | `get_pod(pod_id)` | Returns Pod (200/400/404). |
 | `DELETE` | `/pods/{podId}` | `destroy_pod(pod_id)` | Returns `204` with `"Pod successfully deleted."` |
-| `POST` | `/pods/{podId}/stop` | (not wrapped — Phase 2+ if needed) | Stop without destroy; reduces cost. |
-| `POST` | `/pods/{podId}/start` | (not wrapped) | Restart a stopped pod. |
+| `POST` | `/pods/{podId}/stop` | `pause_pod(pod_id)` | Stop without destroy; reduces cost (`fabrik gpu pause`). |
+| `POST` | `/pods/{podId}/start` | `resume_pod(pod_id)` | Restart a stopped pod (`fabrik gpu resume`). |
 | `POST` | `/pods/{podId}/reset` | (not wrapped) | Reset GPU. |
 | `POST` | `/pods/{podId}/restart` | (not wrapped) | Reboot container. |
 | `POST` | `/pods/{podId}/update` | (not wrapped) | Update config. |
@@ -74,7 +74,7 @@ All fields are optional unless noted. The ones we actually use are **bold**.
 | `name` | string | No | Max 191 chars, default: "my pod" |
 | **`computeType`** | string | No | `"GPU"` or `"CPU"`. Fabrik sets `"GPU"`. Default: `"GPU"`. |
 | **`cloudType`** | string | No | `"SECURE"` or `"COMMUNITY"`. Fabrik defaults to `"SECURE"` (datacenter, more stable). `"COMMUNITY"` is ~50% cheaper but shared host kernel — rule `76-gpu-workers.md` line 342 warns custom CUDA drivers may conflict. |
-| **`imageName`** | string | No | Docker image tag (e.g. `runpod/pytorch:2.1.0-py3.10-cuda12.1.1`). Required for our use. |
+| **`imageName`** | string | No | Docker image tag (e.g. `nvidia/cuda:12.4.1-runtime-ubuntu22.04` — the shipped default; `runpod/pytorch:*` tags get removed from the registry without notice, see Lesson at gpu_rent.py:169-172). Required for our use. |
 | **`gpuTypeIds`** | array[string] | No | Priority-ordered. Fabrik passes a single ID — see `GPU_TYPE_IDS` in driver. |
 | `gpuCount` | integer | No | Default: 1. Fabrik defaults to 1. |
 | `gpuTypePriority` | string | No | `"availability"` or `"custom"`. Default: `"availability"`. |

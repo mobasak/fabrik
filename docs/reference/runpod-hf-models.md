@@ -2,7 +2,7 @@
 
 **Last verified:** 2026-06-16 (RunPod's "Deploy LLM from Hugging Face" picker, vLLM-backed endpoint)
 **Source:** RunPod console at `console.runpod.io/serverless/new` → "Deploy LLM from Hugging Face"
-**Why this exists:** when picking the template for the [`fabrik gpu rent`](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) plan's `RUNPOD_SERVERLESS_TEMPLATE_ID`, you choose the underlying model. Re-verify before relying on any specific row — RunPod adds/removes models without notice.
+**Why this exists:** when picking the template for the [`fabrik gpu rent`](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) plan's serverless template (`fabrik gpu rent ... --template <id>`), you choose the underlying model. Re-verify before relying on any specific row — RunPod adds/removes models without notice.
 
 ---
 
@@ -180,7 +180,7 @@ Grouped by family. **vLLM-served** under the hood via RunPod's HF deployment flo
    ```bash
    RUNPOD_API_KEY=<your-runpod-key>
    MAX_DAILY_GPU_COST=50
-   RUNPOD_SERVERLESS_TEMPLATE_ID=<the-template-id>
+   fabrik gpu rent serverless --template <the-template-id>   # the ID is passed via --template, not env; only RUNPOD_SERVERLESS_ENDPOINT_ID (reuse path) is read from env
    ```
 
 4. Call from Fabrik:
@@ -206,7 +206,7 @@ Grouped by family. **vLLM-served** under the hood via RunPod's HF deployment flo
 ## When to re-verify this list
 
 - Before any new `fabrik gpu` Phase 1 release.
-- Before swapping the production `RUNPOD_SERVERLESS_TEMPLATE_ID` to a different model.
+- Before swapping the production serverless template (`--template <id>`) to a different model.
 - Quarterly (audit step on the calendar).
 - If a Phase 1 G-LIVE-1 drill fails with "model not found" — the model may have been removed by RunPod.
 

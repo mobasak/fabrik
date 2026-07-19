@@ -305,7 +305,6 @@ docs/
 │   ├── # (Archived — CRITICAL_RULES.md → docs/archive/2026-06-25-critical-rules-legacy.md)
 │   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
-│   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
 │   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
 │   ├── architecture.md             # System architecture overview

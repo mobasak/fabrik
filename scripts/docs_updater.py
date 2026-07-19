@@ -735,7 +735,6 @@ def generate_docs_structure_tree() -> str:
         "fabrik-cli-reference.md": "Fabrik CLI command reference",
         "drivers.md": "Fabrik driver API (DNS, Cloudflare, GPU providers, etc.)",
         "orchestrator.md": "Deployment orchestrator module",
-        "PLANNING_REFERENCES.md": "INDEX for AI planning phases",
         "prebuilt-app-containers.md": "Prebuilt container catalog",
         "project-registry.md": "Master inventory of all /opt projects",
         "roadmap.md": "Complete 8-phase roadmap summary",

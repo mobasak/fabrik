@@ -87,13 +87,16 @@ python scripts/container_images.py pull nginx:alpine
 | PostgreSQL | Official | `postgres:16-alpine` | Shared database |
 | Redis | Official | `redis:7-alpine` | Caching |
 | Traefik | Official | `traefik:v2.11` | Reverse proxy (routes containers on `fabrik` net) |
+| Authelia | Official | `authelia/authelia:4.39.19` | Forward-auth SSO (admin dashboards) |
+| GlitchTip | Official | `glitchtip/glitchtip:latest` | Error tracking (Sentry-compatible) |
+| Meilisearch | Official | `getmeili/meilisearch:v1.13` | Search (shape.has_search_feature) |
 
 ### External Services
 
 | Service | Provider | Purpose |
 |---------|----------|---------|
 | Backblaze B2 | Backblaze | Object storage for backups |
-| Supabase | Supabase | Managed PostgreSQL + pgvector (some projects) |
+| ~~Supabase~~ | — | Retired as a runtime target 2026-07-03 — self-host (`postgres-main` + pgvector) by default; ADR-recorded exception only (see `agents-fabrik.md` § Supabase) |
 
 ### Fabrik Custom Services (Built In-House)
 
@@ -671,7 +674,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 > **Status (2026-06-16):** Several of these are no longer aspirational — `caronc/apprise`,
 > `getmeili/meilisearch:v1.13`, `gotenberg/gotenberg:8.32.0`, `n8nio/n8n`, and a
-> browserless image (live as `ghcr.io/browserless/chromium`, not `browserless/chrome`)
+> browserless image (live as `ghcr.io/browserless/chromium` — the tables below use the live name)
 > are deployed on vps1. The "This Week / This Month" headings below are the original
 > planning cadence, not current to-do items.
 
@@ -699,7 +702,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 | Image | amd64 | Replaces | Accelerates |
 |-------|-------|----------|-------------|
 | `getmeili/meilisearch` ✅ | ✅ | PostgreSQL full-text search | **youtube, trade-intelligence** - fast fuzzy search |
-| `browserless/chrome` ✅ | ✅ | Local Playwright/Selenium | **youtube, llm_batch_processor** - headless browser as service |
+| `ghcr.io/browserless/chromium` ✅ | ✅ | Local Playwright/Selenium | **youtube, llm_batch_processor** - headless browser as service |
 | `gotenberg/gotenberg` ✅ | ✅ | WeasyPrint custom code | **proposal-creator** - PDF generation API (HTML/Office to PDF) |
 
 ---
@@ -710,7 +713,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 | Image | Purpose | Impact |
 |-------|---------|--------|
-| `browserless/chrome` ✅ | Headless browser pool | Replace local Selenium, scale scraping |
+| `ghcr.io/browserless/chromium` ✅ | Headless browser pool | Replace local Selenium, scale scraping |
 | `getmeili/meilisearch` ✅ | Search transcripts/comments | Fast full-text search across all content |
 | `minio/minio` ✅ | Store video/audio files | S3-compatible storage for media |
 | `caronc/apprise` ✅ | Job completion alerts | Notify on scrape complete/errors |
@@ -745,7 +748,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 | Image | Purpose | Impact |
 |-------|---------|--------|
-| `browserless/chrome` ✅ | Headless browser farm | Scale Playwright automation |
+| `ghcr.io/browserless/chromium` ✅ | Headless browser farm | Scale Playwright automation |
 | `redis:7-bookworm` ✅ | Job queue | Replace DB polling with proper queue |
 
 ---
@@ -769,7 +772,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 | Image | Purpose | Impact |
 |-------|---------|--------|
 | `getmeili/meilisearch` ✅ | Search engine | Fast search across trade records |
-| `browserless/chrome` ✅ | Web scraping | Headless scraping at scale |
+| `ghcr.io/browserless/chromium` ✅ | Web scraping | Headless scraping at scale |
 | `nocodb/nocodb` ✅ | Data exploration | Visual data analysis |
 | `metabase/metabase` ⚠️ | BI dashboards | Trade analytics dashboards |
 
@@ -793,7 +796,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 | Image | Purpose | Impact |
 |-------|---------|--------|
-| `browserless/chrome` ✅ | Forum scraping | Scale forum data collection |
+| `ghcr.io/browserless/chromium` ✅ | Forum scraping | Scale forum data collection |
 | `getmeili/meilisearch` ✅ | Content search | Search collected content |
 
 ---
@@ -807,7 +810,7 @@ These services benefit ALL Fabrik projects:
 | **Notifications** | `caronc/apprise` | All - alerts, job status, errors |
 | **Object Storage** | `minio/minio` | All - files, media, exports |
 | **Search** | `getmeili/meilisearch` | youtube, trade-intelligence, ugc |
-| **Browser Farm** | `browserless/chrome` | youtube, llm_batch, trade-intelligence |
+| **Browser Farm** | `ghcr.io/browserless/chromium` | youtube, llm_batch, trade-intelligence |
 | **PDF Generation** | `gotenberg/gotenberg` | proposal-creator, complianceOS |
 | **Workflows** | `n8nio/n8n` | Automation, integrations |
 | **DB Admin** | `dpage/pgadmin4` | All PostgreSQL projects |
@@ -829,7 +832,7 @@ minio/minio             # Object storage
 
 ```bash
 # Deploy based on active project
-browserless/chrome      # If doing scraping
+ghcr.io/browserless/chromium      # If doing scraping
 gotenberg/gotenberg     # If doing PDF generation
 getmeili/meilisearch    # If need search
 ```

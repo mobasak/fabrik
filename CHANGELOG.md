@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference triage (sixth 5): PLANNING_REFERENCES archived; 4 keepers converged (2026-07-19)
+
+**Archived:** `PLANNING_REFERENCES.md` — a January parallel planning index superseded by the binding
+orientation flow (CLAUDE.md § Orient → select_rules.py + agents-fabrik.md + /fabrik-spec); it mandated
+an archived file as a live Python standard and used retired phase/tooling framing. **Converged:**
+`prebuilt-app-containers.md` (3 missing live shared-infra rows added — Authelia/GlitchTip/Meilisearch,
+tags byte-verified vs composes; Supabase row retired; browserless image name unified to the live
+`ghcr.io` form in 8 spots); `provisioner.md` (truth upgrade: `provisioner.py` is fully ORPHANED — zero
+live callers; the retained-for-CLI rationale belongs to drivers/coolify.py; wrong saga method name +
+drifted cli.py citation fixed — **`src/fabrik/provisioner.py` flagged as a deletion candidate**);
+`runpod-api.md` (pause/resume ARE wrapped since 2026-06-17 — doc predated them; 429 documented as
+fails-fast, the doc claimed retry; dead `runpod/pytorch` image example → the shipped nvidia/cuda
+default per the registry-removal lesson); `runpod-hf-models.md` (phantom `RUNPOD_SERVERLESS_TEMPLATE_ID`
+env var — never read by code — replaced with the real `--template` flag); `gpu-rent.md` commands
+heading gains pause/resume. 2-pass loop (Opus + 2 Sonnet → Sonnet confirm NO-OP).
+
 ### Changed — docs/reference triage (fifth 5): all keepers; marketing draft → research/ (2026-07-19)
 
 `marketing-distribution-channels-draft.md` (zero refs, raw research data) → `docs/reference/research/`.

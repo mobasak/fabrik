@@ -10,13 +10,16 @@
 > and new provisioning goes through `DeploymentOrchestrator`
 > (`src/fabrik/orchestrator/__init__.py`). This module still
 > `import`s `CoolifyClient` and the saga's Step 2 cannot complete
-> because the Coolify API is no longer reachable. It is retained only
-> for the un-ported legacy CLI commands (`fabrik status`, `fabrik logs`,
-> `fabrik reconcile-all`) that still construct a `CoolifyClient`.
-> **`fabrik reconcile-all` is currently broken** — it calls
-> `CoolifyClient().list_applications()` at startup (`cli.py:1475`), which
-> now fails against the decommissioned API. Do not plan new work against
-> this module.
+> because the Coolify API is no longer reachable. **The module is fully
+> orphaned — no live code path imports it** (no CLI command, test, or
+> route references `SiteProvisioner`/`ProvisionJob`); it is kept only as
+> a reference artifact of the pre-migration saga design and is an
+> archive/deletion candidate. (The "retained for `fabrik status`/`logs`/
+> `reconcile-all`" rationale belongs to `drivers/coolify.py`, which those
+> commands import directly.) **`fabrik reconcile-all` is currently
+> broken** — it calls `CoolifyClient().list_applications()` at startup
+> (`cli.py:1511`), which fails against the decommissioned API. Do not
+> plan new work against this module.
 
 The Site Provisioner orchestrates Steps 0-1-2 for **brand-new WordPress site bootstrap** (domain registration → DNS + CF zone → legacy Coolify app + WP install) using a saga pattern with granular states for safe retries and partial failure recovery. The Step 2 Coolify deploy path is dead; only Steps 0-1 (CF zone + DNS) still function against live infrastructure.
 
@@ -164,7 +167,7 @@ sequenceDiagram
     Saga->>CA: state == GATE_WAIT_CF_ACTIVE & zone active
     CA-->>Saga: state = STEP2_COOLIFY_CREATED
     Saga->>EV: state == STEP2_COOLIFY_APP_CREATED (alias)
-    EV->>EV: bulk_update_env_vars + save_job
+    EV->>EV: update_service_env_vars + save_job
     EV-->>Saga: state unchanged (STEP2_COOLIFY_CREATED)
     Saga->>TD: state == STEP2_ENV_SET (alias)
     TD-->>Saga: state = STEP2_COOLIFY_DEPLOY_RUNNING
