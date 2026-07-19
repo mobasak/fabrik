@@ -62,11 +62,11 @@ def test_load_coding_metrics_latest_per_model_and_fail_soft(tmp_path):
     assert load_coding_metrics(db) == {}  # absent table -> fail-soft {}
     conn = sqlite3.connect(db)
     conn.execute("CREATE TABLE model_coding_metrics (model_id TEXT, grade TEXT, pass_at_1 REAL, "
-                 "score5 REAL, cost_per_1k REAL, p50_latency_s REAL, built_at TEXT)")
-    conn.executemany("INSERT INTO model_coding_metrics VALUES (?,?,?,?,?,?,?)", [
-        ("m1", "B", 0.6, 3.0, 0.1, 2.0, "2026-07-18"),
-        ("m1", "A", 0.8, 4.0, 0.1, 2.0, "2026-07-19"),  # newer -> wins
-        ("m2", "C", 0.4, 2.0, 0.1, 2.0, "2026-07-19"),
+                 "score5 REAL, cost_per_1k REAL, p50_latency_s REAL, n_err INT, built_at TEXT)")
+    conn.executemany("INSERT INTO model_coding_metrics VALUES (?,?,?,?,?,?,?,?)", [
+        ("m1", "B", 0.6, 3.0, 0.1, 2.0, 0, "2026-07-18"),
+        ("m1", "A", 0.8, 4.0, 0.1, 2.0, 0, "2026-07-19"),  # newer -> wins
+        ("m2", "C", 0.4, 2.0, 0.1, 2.0, 0, "2026-07-19"),
     ])
     conn.commit()
     conn.close()

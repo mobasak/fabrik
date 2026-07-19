@@ -29,6 +29,18 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+@pytest.fixture(autouse=True)
+def _code_gate_off(monkeypatch):
+    """Default the CODE gate OFF for render() unit tests. `code_eligible()`/`load_coding_metrics`
+    read the real kilo_agents.db, which would filter synthetic `rows` and pollute assertions. A
+    test that specifically exercises the code gate re-enables it. Mirrors how tests pin the review
+    gate off with `_review_bench_ran → False`."""
+    import rank_task_subagents as _rts
+
+    monkeypatch.setattr(_rts, "_code_bench_ran", lambda *_a, **_k: False)
+    monkeypatch.setattr(_rts, "_code_benchmark_models", lambda *_a, **_k: [])
+
+
 def _postgres_reachable() -> bool:
     """True iff `sudo -n -u postgres psql` can connect to fabrik_analytics.subagent_runs
     on this host. Used to gate the live-DB integration test — CI hosts without postgres
@@ -269,7 +281,7 @@ def test_glm_4_5_air_style_demotion(monkeypatch) -> None:
         ("review", "z-ai/glm-4.5-air", 16, 0.002, 1.0, 0.81),  # → 1.58 shrunk_q
         ("review", "keeper/model", 50, 0.005, 3.5, 0.9),
     ]
-    md = render(rows)
+    md = render(rows, include_full_results=False)
     assert "z-ai/glm-4.5-air" not in md, "glm-4.5-air must be excluded (shrunk_q=1.58 < 2.5)"
     assert "keeper/model" in md
 

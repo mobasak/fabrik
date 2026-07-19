@@ -437,6 +437,151 @@ def _review_benchmark_models() -> list[str]:
     )
 
 
+def _full_review_results_table() -> list[str]:
+    """Human-readable FULL review-benchmark leaderboard — every measured column, all models, real
+    names. Rows lead with the `provider/model` id (NOT a rank int) so `load_task_ranking` SKIPS this
+    table (its parser needs cells[0].isdecimal()) — display-only appendix, never a routing source.
+    Empty list if the benchmark table isn't populated. Never raises."""
+    import sqlite3
+
+    db_path = Path(__file__).resolve().parent / "kilo_agents.db"
+
+    def _n(v: object, spec: str, pre: str = "") -> str:
+        try:
+            return f"{pre}{format(v, spec)}" if v is not None else "—"
+        except Exception:
+            return "—"
+
+    try:
+        # mode=ro: this may run (e.g. via daily_refresh) while a live benchmark WRITES kilo_agents.db —
+        # a read-write connection can hit "database is locked" (matches every other reader in this file).
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            if not conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='model_review_metrics'"
+            ).fetchone():
+                return []
+            rows = conn.execute(
+                "SELECT m.model_id, m.grade, m.score5, m.recall, m.precision, m.cost_per_1k, "
+                "m.out_price_mtok, m.cost_usd, m.p50_latency_s, m.tokens_per_s, m.n_mut, m.n_ctrl "
+                "FROM model_review_metrics m JOIN (SELECT model_id, MAX(built_at) mb "
+                "FROM model_review_metrics GROUP BY model_id) t "
+                "ON m.model_id=t.model_id AND m.built_at=t.mb ORDER BY m.score5 DESC"
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return []
+    if not rows:
+        return []
+    out = [
+        "",
+        "## Full review benchmark results — all measured columns (display only; not parsed for routing)",
+        "_source: `microbench_review.py` → `model_review_metrics`. `eligible` = passes the reviewer gate "
+        "(precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s). `score5` = F1(recall,precision)×5._",
+        "| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | p50 s | tok/s | n_mut | n_ctrl | eligible |",
+        "|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|",
+    ]
+    # eligible flag from the SAME gate function → never drifts from the constants
+    try:
+        from build_task_baselines import review_eligible
+
+        eligible_set = review_eligible()
+    except Exception:
+        eligible_set = set()
+    for model, grade, s5, rec, prec, c1k, opm, cusd, p50, tps, nmut, nctrl in rows:
+        elig = "✅" if model in eligible_set else "—"
+        out.append(
+            f"| `{model}` | {grade or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(prec, '.2f')} | "
+            f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {_n(p50, '.1f')} | "
+            f"{_n(tps, '.0f')} | {nmut if nmut is not None else '—'} | {nctrl if nctrl is not None else '—'} | {elig} |"
+        )
+    return out
+
+
+def _full_coding_results_table() -> list[str]:
+    """Human-readable FULL coding-benchmark leaderboard — LiveCodeBench pass@1 + every measured column,
+    all models, real names. Rows lead with the `provider/model` id so `load_task_ranking` SKIPS this
+    table (display-only appendix, never a routing source). Empty if the table is unpopulated. Never raises."""
+    import sqlite3
+
+    db_path = Path(__file__).resolve().parent / "kilo_agents.db"
+
+    def _n(v: object, spec: str, pre: str = "") -> str:
+        try:
+            return f"{pre}{format(v, spec)}" if v is not None else "—"
+        except Exception:
+            return "—"
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            if not conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='model_coding_metrics'"
+            ).fetchone():
+                return []
+            rows = conn.execute(
+                "SELECT m.model_id, m.grade, m.pass_at_1, m.score5, m.cost_per_1k, m.cost_usd, "
+                "m.p50_latency_s, m.tokens_per_s, m.n_graded, m.n_err "
+                "FROM model_coding_metrics m JOIN (SELECT model_id, MAX(built_at) mb "
+                "FROM model_coding_metrics GROUP BY model_id) t "
+                "ON m.model_id=t.model_id AND m.built_at=t.mb ORDER BY m.pass_at_1 DESC, m.cost_per_1k ASC"
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return []
+    if not rows:
+        return []
+    # eligible flag + tier from the SAME gate/tier source → never drifts from the constants
+    try:
+        from build_task_baselines import code_eligible, code_tier
+
+        elig_set = code_eligible()
+    except Exception:
+        elig_set = set()
+
+        def code_tier(_m: str) -> str | None:  # type: ignore[misc]
+            return None
+
+    out = [
+        "",
+        "## Full coding benchmark results — LiveCodeBench pass@1 (display only; not parsed for routing)",
+        "_source: `microbench_coding_direct.py` → `model_coding_metrics` (contamination-free LiveCodeBench). "
+        "`pass@1` = fraction solved · `score5` = pass@1×5 · `value` = score5÷$/1k · `eligible` = clears the code "
+        "gate (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s) · `tier` = curated use-case._",
+        "| model | grade | pass@1 | score5 | $/1k | $/run | p50 s | tok/s | value | family | n_graded | n_err | eligible | tier |",
+        "|---|:-:|--:|--:|--:|--:|--:|--:|--:|:-:|--:|--:|:-:|:-:|",
+    ]
+    for model, grade, p1, s5, c1k, cusd, p50, tps, ng, nerr in rows:
+        value = f"{(s5 / c1k):.1f}" if (s5 is not None and c1k) else "—"
+        family = model.split("/", 1)[0]
+        elig = "✅" if model in elig_set else "—"
+        tier = code_tier(model) or "—"
+        out.append(
+            f"| `{model}` | {grade or '—'} | {_n(p1, '.3f')} | {_n(s5, '.2f')} | {_n(c1k, '.3f', '$')} | "
+            f"{_n(cusd, '.4f', '$')} | {_n(p50, '.1f')} | {_n(tps, '.0f')} | {value} | {family} | "
+            f"{ng if ng is not None else '—'} | {nerr if nerr is not None else '—'} | {elig} | {tier} |"
+        )
+    return out
+
+
+def _fmt_bench_review_row(rank: int, model: str, review_metrics: dict, tiers: object) -> str:
+    """Render a benchmark-measured review row that SHOWS its metrics (previously all `—`).
+
+    Maps `model_review_metrics` into the 8-col table shape so `pick_models` still parses (model at
+    col 2, `n` at the last col): shrunk_q=`score5†`, success=recall, avg_cost=`$/1k`,
+    avg_quality=precision. `n=0` is preserved — these have no fleet usage, so a caller passing
+    `min_n>=1` still filters them out. The `†` marks a benchmark measurement, not fleet usage."""
+    d = review_metrics.get(model) or {}
+    s5, rec, c1k, prec = d.get("score5"), d.get("recall"), d.get("cost_per_1k"), d.get("precision")
+    q = f"{s5:.2f}†" if s5 is not None else "[benchmark]"
+    su = f"{rec:.2f}" if rec is not None else "—"
+    ac = f"${c1k:.4f}" if c1k is not None else "—"
+    aq = f"{prec:.2f}" if prec is not None else "—"
+    return f"| {rank} | `{model}` | {q} | {su} | {ac} | {aq} | {_fmt_tier(tiers, model)} | 0 |"
+
+
 def _review_bench_ran() -> bool:
     """Has the review benchmark produced ANY metrics? Distinguishes 'benchmark never ran' (gate
     inactive → prior behaviour) from 'benchmark ran but nobody cleared the gate' (gate ACTIVE →
@@ -450,7 +595,127 @@ def _review_bench_ran() -> bool:
         return False
 
 
-def render(rows: list, state: str = "ok") -> str:
+def _selected_shortlists() -> list[str]:
+    """The headline: the SELECTED reviewers + coders (gate outputs), shown UPFRONT so the reader
+    sees the shortlists without hunting `✅` in the 57-row leaderboards below. Display-only; the
+    rows lead with a backticked model id so `load_task_ranking` skips them. Never raises."""
+    import sqlite3
+
+    db_path = Path(__file__).resolve().parent / "kilo_agents.db"
+
+    def _n(v: object, spec: str, pre: str = "") -> str:
+        try:
+            return f"{pre}{format(v, spec)}" if v is not None else "—"
+        except Exception:
+            return "—"
+
+    try:
+        from build_task_baselines import CODE_TIERS, code_eligible, code_tier, review_eligible
+
+        rev_set, cod_set = review_eligible(), code_eligible()
+    except Exception:
+        return []
+    if not rev_set and not cod_set:
+        return []
+
+    def _q(sql: str) -> list:
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            try:
+                return conn.execute(sql).fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            return []
+
+    out: list[str] = ["", "## ✅ Selected subagents — the gate shortlists (`pick_models` picks from these)", ""]
+
+    if rev_set:
+        rrows = _q(
+            "SELECT m.model_id, m.grade, m.score5, m.recall, m.cost_per_1k, m.cost_usd, m.p50_latency_s "
+            "FROM model_review_metrics m JOIN (SELECT model_id, MAX(built_at) mb FROM model_review_metrics "
+            "GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb ORDER BY m.score5 DESC"
+        )
+        out += [
+            f"### Reviewers — {len(rev_set)} selected",
+            "_gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s_",
+            "| model | grade | score5 | recall | $/1k | $/run | p50 s |",
+            "|---|:-:|--:|--:|--:|--:|--:|",
+        ]
+        out += [
+            f"| `{mid}` | {g or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(c1k, '.3f', '$')} | "
+            f"{_n(cusd, '.4f', '$')} | {_n(p50, '.1f')} |"
+            for mid, g, s5, rec, c1k, cusd, p50 in rrows
+            if mid in rev_set
+        ]
+        out.append("")
+
+    if cod_set:
+        crows = {
+            r[0]: r
+            for r in _q(
+                "SELECT m.model_id, m.grade, m.pass_at_1, m.score5, m.cost_per_1k, m.cost_usd, m.p50_latency_s "
+                "FROM model_coding_metrics m JOIN (SELECT model_id, MAX(built_at) mb FROM model_coding_metrics "
+                "GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb"
+            )
+        }
+        out += [
+            f"### Coders — {len(cod_set)} selected (by tier)",
+            "_gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_",
+        ]
+        # tiered groups first (in CODE_TIERS order), then any eligible-but-untiered model
+        groups = [(t, [m for m in ms if m in cod_set]) for t, ms in CODE_TIERS.items()]
+        groups.append(("untiered", [m for m in cod_set if code_tier(m) is None]))
+        for tier, models in groups:
+            if not models:
+                continue
+            out += [f"**{tier}:**", "| model | grade | pass@1 | $/1k | $/run | p50 s |", "|---|:-:|--:|--:|--:|--:|"]
+            for m in models:
+                r = crows.get(m)
+                if r:
+                    out.append(
+                        f"| `{m}` | {r[1] or '—'} | {_n(r[2], '.3f')} | {_n(r[4], '.3f', '$')} | "
+                        f"{_n(r[5], '.4f', '$')} | {_n(r[6], '.1f')} |"
+                    )
+            out.append("")
+    return out
+
+
+def _code_benchmark_models() -> list[str]:
+    """The code-ELIGIBLE set ranked best-first (measured pass@1 desc, then real $/1k asc). Empty if
+    the coding benchmark hasn't run → the `### code` section keeps its auto-tier CODING fallback.
+    This is the coding analog of `_review_benchmark_models`. Never raises."""
+    try:
+        from build_task_baselines import code_eligible, load_coding_metrics
+
+        metrics = load_coding_metrics()
+        elig = code_eligible()
+    except Exception:
+        return []
+
+    def _cost(m: str) -> float:
+        c = metrics.get(m, {}).get("cost_per_1k")
+        return c if c is not None else 1e9
+
+    return sorted(
+        (m for m in metrics if m in elig),
+        key=lambda m: (-(metrics[m].get("pass_at_1") or 0), _cost(m), m),
+    )
+
+
+def _code_bench_ran() -> bool:
+    """Has the coding benchmark produced ANY metrics? Distinguishes 'never ran' (code gate inactive
+    → prior behaviour) from 'ran' (gate ACTIVE → ineligible fleet code rows dropped, fail-closed).
+    Monkeypatch point for tests, mirroring `_review_bench_ran`. Never raises."""
+    try:
+        from build_task_baselines import load_coding_metrics
+
+        return bool(load_coding_metrics())
+    except Exception:
+        return False
+
+
+def render(rows: list, state: str = "ok", include_full_results: bool = True) -> str:
     """Emit the ranked markdown from aggregated rows.
 
     Rows shape: (task_type, model, n, avg_cost, avg_quality, success_rate).
@@ -510,12 +775,30 @@ def render(rows: list, state: str = "ok") -> str:
     # no benchmark analog.
     coding_fallback_models: list[str] = _load_coding_fallback()
 
+    # CODE gate — the operator's coding constraints (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s),
+    # mirroring the review gate. When the coding benchmark HAS run, `code_eligible()` supersedes the
+    # auto-tier CODING_SUBAGENT_SELECTION fallback for selection, so pick_models("code") returns exactly
+    # the eligible set (ranked). Inactive (empty gate) when the benchmark has never run → prior behaviour.
+    code_benchmark: list[str] = _code_benchmark_models()
+    code_gate: set[str] = set(code_benchmark)
+    code_bench_ran: bool = _code_bench_ran()
+    if code_bench_ran:
+        coding_fallback_models = code_benchmark
+
     # REVIEW gate + supplement — the operator's permanent constraints (precision ≥ 99% · real
     # $/1k ≤ 0.70 · p50 ≤ 10s) applied to the `review` task_type. `review_benchmark` is the
     # eligible set ranked best-first; `review_gate` filters fleet review rows to only these ids.
     # Both empty when the benchmark hasn't run → review behaves as before (no gate).
     review_benchmark: list[str] = _review_benchmark_models()
     review_gate: set[str] = set(review_benchmark)
+    # measured metrics for the benchmark review rows, so the doc SHOWS score5/recall/$1k/precision
+    # instead of `—` placeholders (the data was loaded to RANK these models, then discarded at render).
+    try:
+        from build_task_baselines import load_review_metrics as _load_rev_metrics
+
+        review_metrics: dict = _load_rev_metrics()
+    except Exception:
+        review_metrics = {}
     # Gate is active whenever the benchmark RAN — even if zero models cleared it (fail-closed: drop
     # the ineligible fleet review rows rather than pass them through). Inactive only when the
     # benchmark has never run (no data → don't blank the section).
@@ -527,6 +810,10 @@ def render(rows: list, state: str = "ok") -> str:
             "`/opt/fabrik-lib/subagents/subagents/select.py:58`.\n"
         )
     out = [header]
+    # Headline the SELECTED shortlists at the TOP (gated like the real-DB leaderboards below,
+    # so unit tests asserting on synthetic `rows` don't read the real kilo_agents.db).
+    if include_full_results:
+        out.extend(_selected_shortlists())
     # Track which task_types actually emitted a section — the CODING
     # supplement below emits its own `### code` header when no fleet code
     # section was produced.
@@ -541,6 +828,10 @@ def render(rows: list, state: str = "ok") -> str:
         # than pass them through); inactive only when the benchmark has never run (no data).
         if task_type == "review" and review_bench_ran:
             task_rows = [r for r in task_rows if r[1] in review_gate]
+        # Permanent code gate: only code_eligible() models survive in `code` once the coding
+        # benchmark has run (fail-closed, mirroring review).
+        if task_type == "code" and code_bench_ran:
+            task_rows = [r for r in task_rows if r[1] in code_gate]
         # Fabrik-lib 2026-07-11 contract — the doc's rank order IS the
         # contract. Compute shrunk_q per row, apply the quality gate, then
         # sort survivors by (top-2-eligible desc, cost asc, model asc). Model
@@ -614,9 +905,7 @@ def render(rows: list, state: str = "ok") -> str:
                 [m for m in review_benchmark if m not in emitted_review_models],
                 start=review_last_rank + 1,
             ):
-                out.append(
-                    f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
-                )
+                out.append(_fmt_bench_review_row(i, model, review_metrics, tiers))
         out.append("")
         emitted_task_types.add(task_type)
 
@@ -643,14 +932,21 @@ def render(rows: list, state: str = "ok") -> str:
         # this section lists the gate-eligible benchmark models so pick_models("review") has a list.
         out.append("### review (n_eligible_fleet=0, gated benchmark from model_review_metrics)")
         out.append(
+            "_benchmark rows (`†`): shrunk_q=score5 · success=recall · avg_cost=$/1k · avg_quality=precision · n=0 (no fleet usage yet)_"
+        )
+        out.append(
             "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
         )
         out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
         for rank, model in enumerate(review_benchmark, start=1):
-            out.append(
-                f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
-            )
+            out.append(_fmt_bench_review_row(rank, model, review_metrics, tiers))
         out.append("")
+
+    # Human-readable full leaderboards (all measured columns) appended below the router sections.
+    # These read the real kilo_agents.db — gated off in unit tests that assert on synthetic `rows`.
+    if include_full_results:
+        out.extend(_full_review_results_table())
+        out.extend(_full_coding_results_table())
 
     return "\n".join(out) + "\n"
 

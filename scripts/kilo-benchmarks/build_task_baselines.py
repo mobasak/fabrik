@@ -85,7 +85,8 @@ def ensure_table(db_path: Path = DB_PATH) -> None:
 # REVIEW-subagent eligibility gate — the OPERATOR'S PERMANENT constraints.
 #
 # A model may be dispatched as a REVIEW subagent only if the ground-truth benchmark
-# (microbench_review -> model_review_metrics) shows it clears ALL THREE. This is the single source
+# (microbench_review -> model_review_metrics) shows it clears ALL FIVE (precision · $/1k · p50 · $/run ·
+# score5-floor). This is the single source
 # of truth consumed by BOTH rank_task_subagents (gates the `review` task_type) and
 # rank_coding_subagents (feeds the measured Doc↔Code grade). Change a threshold HERE, once.
 # =================================================================================================
@@ -103,6 +104,9 @@ REVIEW_MAX_P50_S = (
 # the precision/cost/p50 gate — an "eligible" reviewer that catches nothing. This is the floor, not a
 # quality bar; the operator may raise it (recall differentiation among survivors is the ranking's job).
 REVIEW_MIN_RECALL = 0.0  # strict `>`: recall must exceed this (catch ≥1 defect)
+# Operator value tightening (2026-07-19): a reviewer must also be cheap-PER-REVIEW and trustworthy.
+REVIEW_MAX_RUN_COST = 0.007  # real $ for ONE review pass (usage.cost); strict `<`
+REVIEW_TRUST_FLOOR_SCORE5 = 3.5  # grade ≥ B+; below this recall < 0.55 → misses too many defects
 
 
 def load_review_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
@@ -123,7 +127,7 @@ def load_review_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
         # everyone else. (Correlated MAX per model_id.)
         rows = conn.execute(
             "SELECT m.model_id, m.grade, m.score5, m.recall, m.precision, m.cost_per_1k, "
-            "m.p50_latency_s FROM model_review_metrics m "
+            "m.p50_latency_s, m.cost_usd FROM model_review_metrics m "
             "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_review_metrics GROUP BY model_id) t "
             "ON m.model_id=t.model_id AND m.built_at=t.mb"
         ).fetchall()
@@ -137,13 +141,15 @@ def load_review_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
             "precision": r[4],
             "cost_per_1k": r[5],
             "p50_latency_s": r[6],
+            "cost_usd": r[7],
         }
         for r in rows
     }
 
 
 def review_eligible(db_path: Path = DB_PATH) -> set[str]:
-    """Models that clear the permanent review gate (precision, real $/1k, p50 latency).
+    """Models that clear the permanent review gate: precision ≥ 0.99 · $/1k ≤ 0.70 · p50 ≤ 10s ·
+    $/run < 0.007 · score5 ≥ 3.5 (all five — the operator's constants above).
 
     Empty set if the benchmark hasn't run — callers treat "no benchmark data" as "gate not active"
     (fall back to prior behaviour) rather than "nothing eligible".
@@ -155,6 +161,8 @@ def review_eligible(db_path: Path = DB_PATH) -> set[str]:
         and (d["recall"] or 0) > REVIEW_MIN_RECALL  # must catch ≥1 defect (not a do-nothing model)
         and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= REVIEW_MAX_COST_PER_1K
         and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= REVIEW_MAX_P50_S
+        and (d["cost_usd"] if d["cost_usd"] is not None else 1e9) < REVIEW_MAX_RUN_COST
+        and (d["score5"] or 0) >= REVIEW_TRUST_FLOOR_SCORE5
     }
 
 
@@ -173,7 +181,7 @@ def load_coding_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
         ).fetchone():
             return {}
         rows = conn.execute(
-            "SELECT m.model_id, m.grade, m.pass_at_1, m.score5, m.cost_per_1k, m.p50_latency_s "
+            "SELECT m.model_id, m.grade, m.pass_at_1, m.score5, m.cost_per_1k, m.p50_latency_s, m.n_err "
             "FROM model_coding_metrics m "
             "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_coding_metrics GROUP BY model_id) t "
             "ON m.model_id=t.model_id AND m.built_at=t.mb"
@@ -181,9 +189,70 @@ def load_coding_metrics(db_path: Path = DB_PATH) -> dict[str, dict]:
     finally:
         conn.close()
     return {
-        r[0]: {"grade": r[1], "pass_at_1": r[2], "score5": r[3], "cost_per_1k": r[4], "p50_latency_s": r[5]}
+        r[0]: {
+            "grade": r[1],
+            "pass_at_1": r[2],
+            "score5": r[3],
+            "cost_per_1k": r[4],
+            "p50_latency_s": r[5],
+            "n_err": r[6],
+        }
         for r in rows
     }
+
+
+# =================================================================================================
+# CODE-subagent eligibility gate + curated use-case tiers — the OPERATOR'S coding constraints.
+# Mirrors the REVIEW gate above; consumed by rank_task_subagents (the `### Full coding` table).
+# Coding is GENERATION not detection, so there is no `precision` analog — the trust axis is
+# RELIABILITY (`n_err`: does it reliably PRODUCE an answer) plus `pass_at_1` (is it correct).
+# Change a threshold HERE, once.
+# =================================================================================================
+CODE_MAX_ERRORS = 1  # n_err ≤ : reliability — ≤1 of 50 problems errored (the coding "trust" axis)
+CODE_MIN_PASS_AT_1 = 0.90  # pass@1 ≥ : quality floor (grade A+); cuts the grade-A 0.88 tail
+CODE_MAX_COST_PER_1K = 3.5  # $/1k ≤ : affordable
+CODE_MAX_P50_S = 10.0  # p50 ≤ : responsive
+
+# Curated use-case tiers over the eligible set. NOT pure thresholds — a judgment on how
+# pick_models("code") dispatches at different stakes. RE-CURATE when the benchmark re-runs
+# (a model absent here but still eligible has tier=None). No "specialized" tier: the aggregate
+# LiveCodeBench pass@1 measures no sub-topic strength, so we don't label one.
+CODE_TIERS: dict[str, tuple[str, ...]] = {
+    "daily-driver": (  # A+, cheap (≤$1.33/1k), fast — the everyday workhorses
+        "google/gemini-3-flash-preview",
+        "deepseek/deepseek-v3.2-exp",
+        "qwen/qwen3-coder-next",
+        "openai/gpt-5.4-mini",
+    ),
+    "premium": (  # highest quality (0.98/0.94) but 2-3x the cost — for hard / high-stakes code
+        "openai/gpt-5.6-luna",
+        "writer/palmyra-x5",
+    ),
+}
+
+
+def code_eligible(db_path: Path = DB_PATH) -> set[str]:
+    """Models that clear the permanent coding gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s.
+
+    Empty set if the benchmark hasn't run — callers treat "no benchmark data" as "gate not active"
+    (fall back to prior behaviour) rather than "nothing eligible". A missing metric fails CLOSED.
+    """
+    return {
+        m
+        for m, d in load_coding_metrics(db_path).items()
+        if (d["n_err"] if d.get("n_err") is not None else 999) <= CODE_MAX_ERRORS
+        and (d["pass_at_1"] or 0) >= CODE_MIN_PASS_AT_1
+        and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= CODE_MAX_COST_PER_1K
+        and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= CODE_MAX_P50_S
+    }
+
+
+def code_tier(model_id: str) -> str | None:
+    """The curated use-case tier for a coding model, or None if untiered. Display-only."""
+    for tier, models in CODE_TIERS.items():
+        if model_id in models:
+            return tier
+    return None
 
 
 def build(conn, task_type: str, categories: tuple[str, ...]) -> list[dict]:

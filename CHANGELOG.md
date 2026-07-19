@@ -21,7 +21,7 @@ drivers/coolify.py), `scripts/kpi_tracker.py` + `tests/test_kpi_tracker.py` (dor
 `## Behavior Contract` Given/When/Then index appended (22 behaviors restating their per-phase
 contracts verbatim; phase text untouched) — `check_test_proposal.py` now PASSes.
 
-### Changed — Review-subagent value gate tightened + full benchmark leaderboards in the selection doc (2026-07-19)
+### Changed — Review + code subagent value gates + full benchmark leaderboards in the selection doc (2026-07-19)
 
 `build_task_baselines.review_eligible()` gained two operator constraints — `REVIEW_MAX_RUN_COST` (< $0.007 per
 review) and `REVIEW_TRUST_FLOOR_SCORE5` (≥ 3.5, grade ≥ B+) — tightening the review-eligible set (57 → 4:
@@ -30,7 +30,12 @@ appends full measured-column leaderboards ("Full review benchmark results" — a
 benchmark results") to `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` with real columns
 (score5·recall·precision·$/1k·$/run·p50·tok/s·n_err), reads all DBs `mode=ro` for concurrent-write safety, and
 derives the `✅` eligible flag from `review_eligible()` so it never drifts from the constants. Tests updated for
-the 5-constraint gate.
+the 5-constraint gate. **Coding gate added** — `build_task_baselines.code_eligible()` (constants
+`CODE_MAX_ERRORS=1 · CODE_MIN_PASS_AT_1=0.90 · CODE_MAX_COST_PER_1K=3.5 · CODE_MAX_P50_S=10.0`) shortlists 6
+coding models, with curated `CODE_TIERS` (`daily-driver` × 4, `premium` × 2). The code gate now **filters the
+`### code` router section** (mirroring the review gate) so `pick_models("code")` returns exactly those 6, and
+`TASK_SUBAGENT_SELECTION.md` **leads with a "✅ Selected subagents" headline** listing the selected reviewers +
+coders (by tier) — plus `value · family · eligible · tier` columns in the full coding leaderboard.
 
 ### Fixed — docs/reference triage (final 3): orchestrator default-path inversion; check-arch amd64 bug; vast/trueforge converged (2026-07-19)
 
