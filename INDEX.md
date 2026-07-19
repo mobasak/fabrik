@@ -273,15 +273,11 @@ docs/
 ├── archive                         # Archived and completed documentation
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
-│   ├── backlog                     # Deferred residuals (low-severity, fix-on-prompt)
-│   │   └── 2026-06-30-kilo-scraper-residuals.md  # post-adversarial-review LOW findings + upstream-fabrik-lib PR (M5)
-│   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
-│   │   ├── 2026-04-13-fabrik-control-plane.md
-│   │   ├── 2026-04-18-zero-touch-deployment.md
-│   │   ├── archived
-│   │   ├── issues
-│   │   └── previously-planned-fabrik-phases
-│   └── wordpress-files-index.md
+│   ├── capability-defects.md       # Known capability defects ledger
+│   ├── epics                       # Epic ticket store (YYYY-MM-DD-epic-*.md)
+│   ├── plans                       # ACTIVE plan documents (YYYY-MM-DD-plan-*.md); completed → archived/
+│   │   └── archived                # Executed/superseded plans
+│   └── reviews                     # Review ledgers + code-review reports
 ├── examples                        # Example code and configuration
 │   └── health_check_usage.py
 ├── guides                          # Step-by-step guides and tutorials

@@ -1,5 +1,5 @@
 """Regression tests for the four proven code defects in
-docs/development/plans/2026-07-13-plan-1.md — one per defect (Behavior Contract).
+docs/development/plans/archived/2026-07-13-plan-1.md — one per defect (Behavior Contract).
 
 Each test FAILS against the pre-fix code (that is what proves the defect) and passes
 after the fix. Transport (SSH/Docker) is mocked; the real call graphs are exercised.

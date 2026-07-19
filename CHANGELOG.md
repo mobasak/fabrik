@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plans housekeeping: remove youtube pre-plan, archive backlog + 3 completed plans (2026-07-19)
+
+Removed `docs/development/plans/youtube/` (a 2026-05-17 pre-planning vision doc, superseded).
+`docs/development/backlog/` → `docs/archive/backlog/` (its one file: Kilo-scraper residuals — Kilo retired).
+Archived 3 verified-complete plans to `plans/archived/`: `2026-07-09-plan-3-pool-dispatch-map` (EXECUTED,
+Phases A–C ✅, D optional-by-design), `2026-07-13-plan-1` (FIXED, kept regression tests verified present),
+`2026-07-18-plan-1-external-services-registry` (EXECUTED, all 4 phases ✅). Active plans dir now holds only
+the 4 genuinely-open plans (transdoc, watchdog-deploy-side, universal-watchdog, wavespeed). `INDEX.md`
+tree block re-grounded against the real directory layout.
+
 ### Changed — Archive the 2026-07-08 model-pipeline audit outputs (2026-07-19)
 
 `docs/development/audits/` (7 files: consolidated report + 6 per-phase findings ledgers) →
