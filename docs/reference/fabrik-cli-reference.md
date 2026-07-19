@@ -1,10 +1,10 @@
 # Fabrik CLI Reference
 
-**Last Updated:** 2026-06-16
+**Last Updated:** 2026-07-19
 **Source:** `src/fabrik/cli.py`
 **Live help:** `fabrik --help` (run from any directory)
 
-The `fabrik` CLI is the single entry point for the **4-stage Fabrik lifecycle**: Intent → Scaffolding → Deploy → Verify. It deploys to a single VPS (`vps1.ocoron.com`) via **SSH + Docker Compose** — no Coolify API layer, no PaaS, no Kubernetes.
+The `fabrik` CLI is the single entry point for the **4-stage Fabrik lifecycle**: Intent → Scaffolding → Deploy → Verify. It deploys across the 3-host fleet (vps1 hub + vps2/vps3 spokes; route with `--target-vps`, shared infra hub-only) via **SSH + Docker Compose** — no Coolify API layer, no PaaS, no Kubernetes.
 
 This page documents **every command currently in `cli.py`** with what it does, when to use it, and the line in the source where it's defined. Commands are grouped by lifecycle stage rather than alphabetically, because that's how you'll actually invoke them.
 
@@ -16,7 +16,6 @@ Capture the "why" of a project before any code or scaffolding exists. Optional b
 
 ### `fabrik preplan new <slug>` — author a preplan
 
-**Defined:** `cli.py:1947` (group) + `cli.py:1970` (subcommand)
 **Purpose:** Create `docs/preplans/<YYYY-MM-DD>-<slug>.md` from a 9-section template so the intent of the project is captured **before** scaffolding.
 
 ```bash
@@ -36,7 +35,6 @@ Produce a working project directory with template-driven structure, governance f
 
 ### `fabrik scaffold` — create a new project
 
-**Defined:** `cli.py:1561`
 **Purpose:** Materialize `/opt/<name>/` with everything needed to start coding. Reads `templates/<type>/defaults.yaml` for shape flags; emits `project.yaml`, `specs/services/<name>.yaml`, `.env.example`, README, tests, CI workflow.
 
 ```bash
@@ -46,10 +44,11 @@ fabrik scaffold <name> [--type <type>] [-d <description>] \
 
 | Flag | Purpose |
 |---|---|
-| `--type` / `-t` | One of `python-api` (default), `node-api`, `saas-skeleton`, `static-site`, `docusaurus`, `file-api`, `file-worker`, `chrome-extension`, `desktop-app`, `mobile-app`. (`wordpress` is still accepted as a type but scaffolding redirects to the standalone `/opt/wpf` `wpf` CLI.) |
+| `--type` / `-t` | One of `python-api` (default), `node-api`, `saas-skeleton`, `static-site`, `docusaurus`, `file-api`, `file-worker`, `chrome-extension`, `desktop-app`, `mobile-app`, `python-api-gpu`. (`wordpress` is still accepted as a type but scaffolding redirects to the standalone `/opt/wpf` `wpf` CLI.) |
 | `--db` | Provision a local Postgres DB for WSL dev + add `DATABASE_URL` to `.env.local`. |
 | `--no-spec` | Skip emitting `/opt/fabrik/specs/services/<name>.yaml` (rare). |
 | `--from-preplan` | Ingest a preplan (see `fabrik preplan new`); pre-fills type/shape/domain/secrets. |
+| `--github-create` / `--no-github` | Create the GitHub repo + push on scaffold (auto-enables for build-context types); `--no-github` opts out. |
 
 ```bash
 fabrik scaffold my-api --type python-api -d "Customer API" --db
@@ -59,12 +58,10 @@ fabrik scaffold notes --from-preplan docs/preplans/2026-05-30-notes.md
 
 ### `fabrik new` — alias **(hidden)**
 
-**Defined:** `cli.py:142` (`hidden=True`)
 **Purpose:** Backward-compatibility alias for `scaffold`. Not shown in `--help`. New code should use `fabrik scaffold`.
 
 ### `fabrik templates` — list scaffold templates
 
-**Defined:** `cli.py:631`
 **Purpose:** Enumerate available templates. Mirrors what `--type` accepts.
 
 ```bash
@@ -73,7 +70,6 @@ fabrik templates
 
 ### `fabrik validate-deploy` — local readiness check
 
-**Defined:** `cli.py:1704`
 **Purpose:** Pre-flight a scaffolded project before deploy. Runs 5 local checks: template match, `.env.example`, Dockerfile, `/health` endpoint presence, spec pre-existence. **Warnings only — always exits 0.**
 
 ```bash
@@ -82,7 +78,6 @@ fabrik validate-deploy /opt/my-api --type python-api
 
 ### `fabrik validate` — standards compliance
 
-**Defined:** `cli.py:1734`
 **Purpose:** Verify an existing project conforms to current Fabrik scaffold standards (required files, structure, conventions).
 
 ```bash
@@ -91,7 +86,6 @@ fabrik validate /opt/my-api --type python-api
 
 ### `fabrik fix` — add missing required files
 
-**Defined:** `cli.py:1767`
 **Purpose:** Complementary to `validate`. Adds the missing required files (governance, `.gitignore` entries, etc.) without touching content. Always preview with `--dry-run` first.
 
 ```bash
@@ -105,8 +99,7 @@ fabrik fix /opt/my-api
 
 ### `fabrik plan <spec_path>` — dry-run preview
 
-**Defined:** `cli.py:242`
-**Purpose:** Show exactly what `fabrik apply` would do without executing anything. Lists which of the 9 registrars will fire per the `shape:` block, with skip reasons.
+**Purpose:** Show exactly what `fabrik apply` would do without executing anything. Lists which of the 7 registrars will fire per the `shape:` block, with skip reasons.
 
 ```bash
 fabrik plan specs/services/my-api.yaml
@@ -115,8 +108,7 @@ fabrik plan specs/services/my-api.yaml -s API_KEY=preview
 
 ### `fabrik apply` — **the primary deploy command**
 
-**Defined:** `cli.py:382`
-**Purpose:** Run the full orchestrator pipeline end-to-end: validate spec → secrets resolution → DNS provisioning → SSH deploy (SCP compose.yaml + .env → `docker compose up -d --wait`) → 9 registrars based on `shape:` → health verification → rollback on failure.
+**Purpose:** Run the full orchestrator pipeline end-to-end: validate spec → secrets resolution → DNS provisioning → SSH deploy (SCP compose.yaml + .env → `docker compose up -d --wait`) → 7 registrars based on `shape:` → health verification → rollback on failure.
 
 ```bash
 fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] \
@@ -129,6 +121,7 @@ fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] \
 | `<spec_path>` | Path to `specs/services/<name>.yaml`. If omitted, resolves from `project.yaml` in cwd. |
 | `--dry-run` | Simulate every mutation without executing. |
 | `--skip-dns` | Don't touch DNS records. Use for re-runs where DNS is already correct. |
+| `--skip-health-check` | Skip the post-deploy health verification step. |
 | `--skip-deploy` | Validate + prepare, but don't push the container. Diagnostic. |
 | `-s KEY=VALUE` | Override a single secret on the command line (highest precedence). |
 | `--legacy` | Force the deprecated Coolify-API path (render-only; not for new deploys). |
@@ -151,20 +144,9 @@ fabrik apply specs/services/my-api.yaml -s API_KEY=override -y
 fabrik apply specs/services/my-api.yaml --keep-on-failure   # iterate on a broken deploy
 ```
 
-### `fabrik deploy [--project <path>]` — project-folder deploy
-
-**Defined:** `cli.py:2367`
-**Purpose:** Deploy resolved from a project's `project.yaml` rather than from an explicit spec path. Routes WordPress projects to the standalone `wpf` CLI; routes everything else to `DeploymentOrchestrator.deploy()`. Effectively a project-centric wrapper over `fabrik apply`.
-
-```bash
-fabrik deploy                              # from cwd
-fabrik deploy --project /opt/my-api
-fabrik deploy --project /opt/my-api --dry-run
-```
 
 ### `fabrik redeploy <app>` — code-only update
 
-**Defined:** `cli.py:1163`
 **Purpose:** Rebuild and restart a service without re-running registrars. The deployer SSHes in, runs `git pull` (git-sourced apps), `docker compose build`, `docker compose up -d --wait`. **Health-check rollback** is built in for git-sourced apps: if the new container fails to come up healthy, the deployer auto-reverts to the last-known-good commit and rebuilds.
 
 ```bash
@@ -175,7 +157,7 @@ fabrik redeploy <app> [--force] [--refresh-infra --spec <path>] [--dry-run] \
 | Flag | Purpose |
 |---|---|
 | `--force` / `-f` | Add `--no-cache` to build (git) or `--force-recreate` to `up` (non-git). |
-| `--refresh-infra --spec <path>` | Re-run all 9 registrars against the existing container without rebuilding. Use when `shape:` flags change but code hasn't. |
+| `--refresh-infra --spec <path>` | Re-run all 7 registrars against the existing container without rebuilding. Use when `shape:` flags change but code hasn't. |
 | `--dry-run` | Simulate (`--refresh-infra` path only — standard redeploy ignores this flag). |
 | `--target-vps` | Which fleet host the app lives on: `vps1` (default), `vps2`, `vps3`. Resolution: CLI flag > state file `.fabrik/state/<app>.json::target_vps` > `vps1`. |
 
@@ -189,8 +171,7 @@ fabrik redeploy --refresh-infra --spec specs/services/my-api.yaml
 
 ### `fabrik destroy <spec_path>` — tear down a deployment
 
-**Defined:** `cli.py:859`
-**Purpose:** Reverse the full provisioner chain. Tears down all 9 registrars in destroy order (prometheus → meilisearch → authelia → glitchtip → grafana → backrest → gatus → postgres → redis), then `docker compose down`, `rm -rf /opt/<name>`, `docker image prune`, then DNS.
+**Purpose:** Reverse the full provisioner chain. Tears down all 7 registrars in destroy order (meilisearch → authelia → glitchtip → backrest → gatus → postgres (reverse of apply order)), then `docker compose down`, `rm -rf /opt/<name>`, `docker image prune`, then DNS.
 
 ```bash
 fabrik destroy <spec_path> [--yes] [--keep-dns] [--drop-data] \
@@ -222,7 +203,6 @@ fabrik destroy specs/services/my-api.yaml --use-state -y         # tear down fro
 
 ### `fabrik verify <domain>` — postcondition check
 
-**Defined:** `cli.py:1817`
 **Purpose:** Probe a live deployment against a declarative postcondition spec at `specs/verification/<type>.yaml`. Returns a check-by-check pass/fail report.
 
 ```bash
@@ -243,7 +223,6 @@ fabrik verify my-api.vps1.ocoron.com --no-rollback
 
 ### `fabrik audit-registrars` — drift detection
 
-**Defined:** `cli.py:1263`
 **Purpose:** Compare each spec's shape-resolved registrars against live VPS state. Per registrar per spec it returns one of:
 
 - **`present`** — live matches what shape says
@@ -272,7 +251,6 @@ fabrik audit-registrars --json | jq .                       # machine-readable
 
 ### `fabrik reconcile-all` — sweep the fleet
 
-**Defined:** `cli.py:1358`
 **Purpose:** Re-run `InfrastructureProvisioner` against every spec to converge live state back to what the specs say. Use after `audit-registrars` flags drift.
 
 ```bash
@@ -287,7 +265,6 @@ fabrik reconcile-all --yes                  # apply across fleet
 
 ### `fabrik status <spec_path>` — current state
 
-**Defined:** `cli.py:646`
 **Purpose:** Read the live container state + the local `.fabrik/state/<id>.json` and report status.
 
 ```bash
@@ -296,17 +273,15 @@ fabrik status specs/services/my-api.yaml
 
 ### `fabrik logs <spec_path>` — centralized logs (Loki)
 
-**Defined:** `cli.py:774` (with `def logs(...)` at 796)
 **Purpose:** Query Loki for centralized container logs.
 
 ```bash
-fabrik logs <spec_path> [--lines N] [--follow]
+fabrik logs [service] [-n/--tail N] [--since 1h] [--follow]
 fabrik logs --local [-f] [--service <name>]      # local dev stack via docker compose logs
 ```
 
 ### `fabrik app-logs <spec_path>` — live container tail
 
-**Defined:** `cli.py:708`
 **Purpose:** Tail the live container's logs via SSH `docker logs`.
 
 ```bash
@@ -319,14 +294,15 @@ fabrik app-logs <spec_path> [-n LINES] [-f]
 
 All domain/DNS operations go through the site-provisioner microservice at `provision.vps1.ocoron.com`.
 
-| Command | Defined | Purpose |
-|---|---|---|
-| `fabrik domain check <domain>` | `cli.py:2108` | Availability check across registrars. |
-| `fabrik domain buy <domain> [--years N] [-y]` | `cli.py:2366` | Register a new domain via Namecheap. |
-| `fabrik domain ready <domain> [--wait]` | `cli.py:2240` | Poll DNS + SSL readiness before deploying. |
-| `fabrik domain zones` | `cli.py:2341` | List all Cloudflare zones. |
-| `fabrik domain integrations <domain>` | `cli.py:2277` | GA4, GSC, Bing, IndexNow metadata. |
-| `fabrik domain sitemap <domain> --sitemap-url <url>` | `cli.py:2317` | Regenerate and resubmit a sitemap. |
+| Command | Purpose |
+|---|---|
+| `fabrik domain check <domain>` | Availability check across registrars. |
+| `fabrik domain buy <domain> [--years N] [-y]` | Register a new domain via Namecheap. |
+| `fabrik domain provision <domain> [--ip ..] [--subdomain ..] [--no-dnssec] [--no-cache] [--no-shield] [--no-waf] [--setup-google] [--no-bing] [--no-indexnow] [--setup-ga4] [--ga4-account-id ..] [--sitemap-url ..]` | Full DNS/CDN/security/analytics provisioning for a domain. |
+| `fabrik domain ready <domain> [--wait]` | Poll DNS + SSL readiness before deploying. |
+| `fabrik domain zones` | List all Cloudflare zones. |
+| `fabrik domain integrations <domain>` | GA4, GSC, Bing, IndexNow metadata. |
+| `fabrik domain sitemap <domain> --sitemap-url <url>` | Regenerate and resubmit a sitemap. |
 
 ```bash
 fabrik domain check ocoron.com
@@ -340,7 +316,6 @@ fabrik domain ready my-api.vps1.ocoron.com --wait
 
 ### `fabrik dev` — local dev stack
 
-**Defined:** `cli.py:2604`
 **Purpose:** Run the project's `compose.dev.yaml` stack locally in WSL via `docker compose up`. Hot-reload + bind mounts; the container has its own system Python (no `.venv` inside).
 
 ```bash
@@ -357,8 +332,7 @@ Fails clean if `compose.dev.yaml` is missing.
 
 ### `fabrik review` — pre-PR review pack
 
-**Defined:** `cli.py:2561`
-**Purpose:** Bundle `git diff + spec + docs/preplan.md + resolved registrar table` into a single markdown at `.fabrik/review/<YYYY-MM-DD-HHMMSS>.md`. Intended for handoff to a human reviewer or a Kilo-CLI reviewer agent.
+**Purpose:** Bundle `git diff + spec + docs/preplan.md + resolved registrar table` into a single markdown at `.fabrik/review/<YYYY-MM-DD-HHMMSS>.md`. Intended for handoff to a human reviewer or a Claude Code / pool review run.
 
 ```bash
 fabrik review [--since HEAD~N] [--spec <path>] [--out <file>]
@@ -370,10 +344,6 @@ fabrik review --since HEAD~3
 fabrik review --spec specs/services/api.yaml --out review.md
 ```
 
-Dispatch the bundle with:
-```bash
-kilo run --agent reviewer --input .fabrik/review/<ts>.md
-```
 
 ---
 
@@ -381,7 +351,6 @@ kilo run --agent reviewer --input .fabrik/review/<ts>.md
 
 ### `fabrik projects` — list the registry
 
-**Defined:** `cli.py:1427`
 **Purpose:** List every project from `data/projects.yaml` with status.
 
 ```bash
@@ -392,7 +361,6 @@ fabrik projects [--status <status>] [--sync]
 
 ### `fabrik scan` — refresh the registry
 
-**Defined:** `cli.py:1477`
 **Purpose:** Walk `/opt/<*>` and update `data/projects.yaml` + the auto-generated blocks in `docs/BUSINESS_MODEL.md` and `PORTS.md`.
 
 ```bash
@@ -401,7 +369,6 @@ fabrik scan [--health] [--base <path>]
 
 ### `fabrik vps-sync` — refresh VPS state docs
 
-**Defined:** `cli.py:1135`
 **Purpose:** Pull live VPS state and regenerate `docs/infrastructure/vps-status.md`, `docs/infrastructure/vps-urls.md`, and `docs/infrastructure/vps-complete-inventory.md`. **Read-only on the VPS.**
 
 ```bash
@@ -414,25 +381,45 @@ fabrik vps-sync [--dry-run]
 
 ```bash
 fabrik ai usage [--month YYYY-MM] [--project <name>]
+fabrik seo site-register <site-id> [...]
+fabrik seo job-create <site-id> [...]
 fabrik seo job-run <job-id> [--wait]
 fabrik seo briefs-list <site-id> [--status <status>]
 ```
 
 > `fabrik ai generate` / `fabrik ai revise` were removed (2026-06-16); `usage` is the only `ai` subcommand. The `content` group remains registered but has no subcommands (`content publish` removed with `content_publisher.py`).
 
-| Command | Defined |
-|---|---|
-| `fabrik ai usage` | `cli.py:2117` |
-| `fabrik seo job-run` | `cli.py:2543` |
-| `fabrik seo briefs-list` | `cli.py:2568` |
+All AI/SEO subcommands: `ai usage` · `seo site-register` · `seo job-create` · `seo job-run` · `seo briefs-list`.
 
 ---
+
+## GPU rental — `fabrik gpu`
+
+Rent/manage GPU compute across RunPod, Modal, and Vast (auto-selection by workload/utilization; cost guards via `--max-cost` + `MAX_DAILY_GPU_COST`). Full runbook: `docs/operations/gpu-rent.md`.
+
+```bash
+fabrik gpu rent --workload <desc> [--provider auto|runpod|modal|vast] [--utilization F] [--needs-checkpointing] [--needs-serverless] [--max-lifetime H] [--max-cost USD] [--dry-run] [...]
+fabrik gpu list | status | destroy | pause | resume | history [--lines N] | compare
+fabrik gpu reconcile [--provider all|runpod|modal|vast] [--auto-destroy]
+```
+
+## DR / Vultr fleet — `fabrik vultr`
+
+Disposable-instance provisioning + DR drills (see `docs/operations/disaster-recovery.md`).
+
+```bash
+fabrik vultr list | status | cost | cleanup
+fabrik vultr provision <name>        # real spoke provisioning
+fabrik vultr destroy <name>
+fabrik vultr drill hub|spoke|spoke-restore   # disposable DR drill
+fabrik vultr drill-history
+fabrik vultr reconcile
+```
 
 ## Portability
 
 ### `fabrik export` — package a project for transport
 
-**Defined:** `cli.py:2625`
 **Purpose:** Bundle a project (and optionally its data) into a transportable archive for migration to another host.
 
 ```bash
@@ -441,7 +428,6 @@ fabrik export [--output <path>] [--include-data] [--skip-remote]
 
 ### `fabrik import` — restore an exported bundle
 
-**Defined:** `cli.py:2693`
 **Purpose:** Restore a previously-exported bundle.
 
 ```bash
@@ -507,4 +493,4 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 - [operations/fabrik-lifecycle.md](../operations/fabrik-lifecycle.md) — runtime behavior & data safety per operation
 - [reference/orchestrator.md](orchestrator.md) — orchestrator pipeline internals
 - [reference/drivers.md](drivers.md) — every external-API client
-- [reference/templates.md](templates.md) — all 11 scaffold templates
+- [reference/templates.md](templates.md) — all 12 scaffold types

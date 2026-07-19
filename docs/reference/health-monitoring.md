@@ -231,7 +231,7 @@ fabrik apply <spec> \
   && fabrik verify <domain> --spec registrars
 ```
 
-Implementation: `src/fabrik/audit.py` mirrors each driver's transport (SSH for 7 of 9 registrars; `requests` for glitchtip; `n/a` for grafana which has no driftable state). State file persisted at `.fabrik/state/<spec.id>.json` (T2-01) feeds future state-aware destroy (T4-01).
+Implementation: `src/fabrik/audit.py` mirrors each driver's transport (10 audit functions in `_AUDIT_FUNCS` — SSH for most; `requests` for glitchtip; `n/a` for grafana which has no driftable state). State file persisted at `.fabrik/state/<spec.id>.json` (T2-01) feeds future state-aware destroy (T4-01).
 
 ## Weekly Authelia Drift Cron (T2-03 G-G4, 2026-05-15)
 
@@ -247,7 +247,7 @@ Log lives at `/var/log/fabrik-audit.log` (writable by `ozgur:ozgur`). Each run a
 
 ## Hourly Per-Registrar Drift Alert (T4-04 G-G5, 2026-05-16)
 
-Generalises the Authelia weekly cron to all 9 registrars at hourly cadence. `scripts/audit_all_registrars.py` walks every spec, calls `fabrik.audit.audit_all`, emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` gauge metrics, pushes via SSH to the VPS-local pushgateway (`prom/pushgateway:v1.9.0` at `127.0.0.1:9091`).
+Generalises the Authelia weekly cron to all 10 audited registrars at hourly cadence. `scripts/audit_all_registrars.py` walks every spec, calls `fabrik.audit.audit_all`, emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` gauge metrics, pushes via SSH to the VPS-local pushgateway (`prom/pushgateway:v1.9.0` at `127.0.0.1:9091`).
 
 ```cron
 0 * * * * PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1
@@ -285,5 +285,5 @@ The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to 
 - `scripts/audit_authelia_gates.py` - weekly Authelia-Traefik drift audit (T2-03 G-G4)
 - `src/fabrik/orchestrator/coolify_alias.py` - Coolify alias-watcher write side (T2-04 G-J3)
 - `ops/coolify-alias-watcher/` - WSL mirror of the VPS-side `/opt/coolify-alias-watcher/`
-- `docs/reference/drivers.md` - Coolify + DNS driver configuration
+- `docs/reference/drivers.md` - driver API reference (registrar drivers + DNS/GPU providers)
 - `.env.example` - authoritative environment variable reference

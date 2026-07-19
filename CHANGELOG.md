@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference triage (second 5): archive 3, regenerate the driver + CLI references (2026-07-19)
+
+**Archived:** `DOCUMENTATION_STANDARD.md` (a 2025-12 parallel doc standard contradicting the live
+binding system — its taxonomy/CHANGELOG-format/template-paths/Cascade-enforcement all diverge from
+rules/40 + `_doc_registry.py`; following it produced gate-rejected files), `exampleconsultancysitemap.md`
+(scraped WP-era site map, INDEX-only), `excel-file-generation.md` (orphan). INDEX phantom rows purged
+(the whole nonexistent `guides/` tree, the `.html` twin), docs_updater inventory rows cleaned.
+**drivers.md regenerated against code:** 27 modules (7 previously-missing rows added incl. core
+redis/prometheus + the GPU/provisioning set), 9 stale line counts corrected (postgres was ~7× off),
+4 usage examples that raised `TypeError` fixed to the real signatures, tests section 331/12 → 377/17,
+coolify row marked legacy. **fabrik-cli-reference.md regenerated:** phantom `fabrik deploy` section
+removed (command absorbed into `apply`), 9→7 registrars + real destroy order, `logs` signature fixed,
+Kilo dispatch dropped, fleet wording, 12 scaffold types + missing flags, NEW `fabrik gpu` (9 subs) +
+`fabrik vultr` (9 subs) + `domain provision` + seo subcommand sections, all drifted `cli.py:NNN` refs
+stripped. Refuted-by-code: `verify --spec registrars` IS real (spec + verify.py exist — the CLI help
+text is what's incomplete). Adjacent: health-monitoring citer + registrar-audit counts (9→10 per
+`_AUDIT_FUNCS`). 3-pass loop (2 Opus + 1 Sonnet), final sweep clean.
+
 ### Changed — docs/reference triage (first 5): archive the mis-catalogued directives doc; converge the keepers (2026-07-19)
 
 **Archived + de-synced:** `ai_agent_prompt_directives.md` — a WPF-era brand-identity prompt library

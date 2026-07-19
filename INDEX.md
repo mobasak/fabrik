@@ -56,7 +56,6 @@
 │   ├── QUICKSTART.md       # Getting started guide
 │   ├── CONFIGURATION.md    # Configuration guide
 │   ├── TROUBLESHOOTING.md  # Dev troubleshooting
-│   ├── guides/             # How-to guides
 │   ├── reference/          # Technical reference
 │   ├── operations/         # Runbooks
 │   ├── development/        # Plans and specs
@@ -278,13 +277,6 @@ docs/
 │   ├── plans                       # ACTIVE plan documents (YYYY-MM-DD-plan-*.md); completed → archived/
 │   │   └── archived                # Executed/superseded plans
 │   └── reviews                     # Review ledgers + code-review reports
-├── guides                          # Step-by-step guides and tutorials
-│   ├── DEPLOYMENT_READY_CHECKLIST.md # Make projects deployment-ready
-│   ├── EXCEL_FILE_GENERATION.md    # Excel file generation guide
-│   ├── FABRIK_INTEGRATION.md       # Build Fabrik-compatible microservices
-│   ├── domain-hosting-automation.md # Domain + hosting automation
-│   ├── traycer-free-tier-agents-testing.md # Traycer free-tier agent testing
-│   └── traycer-kilo-workflow-analysis.md # Traycer + Kilo workflow analysis
 ├── infrastructure                  # Infrastructure docs
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   ├── archive                     # Archived and completed documentation
@@ -312,14 +304,12 @@ docs/
 │   ├── # (Moved — AI taxonomy is now .windsurf/rules/ai/)
 │   ├── # (Archived — CRITICAL_RULES.md → docs/archive/2026-06-25-critical-rules-legacy.md)
 │   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
-│   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
 │   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
 │   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
 │   ├── architecture.md             # System architecture overview
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
-│   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik.md
 │   ├── file-api-deployment.md      # File API deployment guide
@@ -471,7 +461,6 @@ docs/
 | [chrome-ext-gui-research.md](docs/reference/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |
 | [subagents-enhancement-proposal.md](docs/reference/subagents-enhancement-proposal.md) | Cross-repo proposal to the fabrik-lib AI — `subagents` module enhancements (footgun-free `fanout()` helper, serialization guard, quality-score back-fill) that eliminate the dispatch traps verified 2026-07-09 (plan-3 Phase C) |
 <!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
-| [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
 
 **SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for AI chat integration

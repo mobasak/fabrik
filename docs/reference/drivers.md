@@ -19,23 +19,25 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 
 ---
 
-## All Drivers (22 modules, 2026-04-22)
+## All Drivers (27 modules, 2026-07-19)
 
 | File | Lines | Used during deploy for | Shape gate |
 |---|---:|---|---|
-| `ssh.py` | 126 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`) | always |
-| `locks.py` | 160 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
-| `coolify.py` | 714 | `CoolifyClient` — Coolify v4 API; `docker_compose_raw` MUST be base64 (Lesson 1); git-sourced apps ignore compose PATCH (§8.10) | always |
+| `ssh.py` | 138 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`) | always |
+| `locks.py` | 165 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
+| `coolify.py` | 934 | `CoolifyClient` — legacy Coolify v4 API client (Coolify decommissioned 2026-05-30; retained for `reconcile-all`/legacy paths only) | legacy |
 | `dns.py` | 689 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
-| `postgres.py` | 205 | `create_database()`, `drop_database()` — per-service DB on `postgres-main`; SQL identifier validation; drops deferred to operator | `shape.needs_database` |
-| `gatus.py` | 249 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
-| `backrest.py` | 273 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` | `shape.has_persistent_data` |
-| `glitchtip.py` | 403 | `create_project()`, `delete_project()`, `verify_dsn_injection()` — Sentry-compatible; **DSN verification via `docker inspect`** (Lesson 31) | `shape.kind in {service, worker, wordpress}` |
+| `postgres.py` | 1380 | `create_database()`, `drop_database()` — per-service DB + role on `postgres-main` (registrar injects `DATABASE_URL` on first create); watchdog/subagent roles, allocations, analytics DB; SQL identifier validation; drops deferred to operator | `shape.needs_database` |
+| `gatus.py` | 398 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
+| `backrest.py` | 408 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` | `shape.has_persistent_data` |
+| `glitchtip.py` | 501 | `create_project()`, `delete_project()`, `verify_dsn_injection()` — Sentry-compatible; **DSN verification via `docker inspect`** (Lesson 31) | `shape.kind in {service, worker, wordpress}` |
 | `grafana.py` | 291 | `post_deployment_annotation()`, `delete_annotation()` — global annotations; non-fatal (decorative) | always (universal) |
-| `authelia.py` | 520 | `add_access_rule()`, `remove_access_rule()` — `docker exec` into Authelia + `run_locked()`; supports `insert_before_twofactor=True` for `^/api/` bypass | `shape.is_admin_dashboard` + `domain` (+ bypass when `shape.has_bearer_api`) |
+| `authelia.py` | 592 | `add_access_rule()`, `remove_access_rule()` — `docker exec` into Authelia + `run_locked()`; supports `insert_before_twofactor=True` for `^/api/` bypass | `shape.is_admin_dashboard` + `domain` (+ bypass when `shape.has_bearer_api`) |
+| `redis.py` | 293 | `acquire_db_index()`, `release_db_index()` — per-service Redis DB index on `redis-main` via `assignments.json`; registrar injects `REDIS_URL` | `shape.needs_cache` |
+| `prometheus.py` | 521 | `add_scrape_target()`, `remove_scrape_target()` — scrape config for `/metrics` | `shape.exposes_metrics` + `domain` |
 | `meilisearch.py` | 262 | `create_index()`, `delete_index()` — container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside container (no secret on SSH wire) | `shape.has_search_feature` |
-| `compose_updater.py` | 445 | `update_compose_service()` — surgical YAML patching of Coolify's `docker_compose_raw` (used for env-var plumbing, label additions) | on demand |
+| `compose_updater.py` | 451 | `update_compose_service()` — surgical YAML patching of Coolify's `docker_compose_raw` (used for env-var plumbing, label additions) | on demand |
 | `preflight.py` | 312 | Readiness probes invoked before deploy (DNS resolves, Coolify reachable, required secrets present) | always |
 | `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
 | `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |
@@ -45,8 +47,13 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `seo.py` | 384 | `SEOClient` — keyword research (**not deploy** — content pipeline) | content |
 | `tco.py` | 114 | `TCOClient` — content generation (**not deploy** — content pipeline) | content |
 | `uptime_kuma.py` | 193 | `UptimeKumaClient` — **superseded by Gatus**; kept for old projects only | legacy |
+| `modal_provider.py` | 731 | Modal serverless GPU provider (`fabrik gpu` auto/modal path) | GPU rental |
+| `runpod.py` | 380 | `RunPodClient` — RunPod pods + serverless endpoints (rest.runpod.io / api.runpod.ai) | GPU rental |
+| `vast_provider.py` | 825 | Vast.ai spot/interruptible + serverless GPU provider | GPU rental |
+| `vultr.py` | 298 | Vultr provisioning for `fabrik vultr` (DR drills, disposable spokes) | provisioning |
+| `watchdog.py` | 1284 | Watchdog sidecar registrar — config emission, `WATCHDOG_TRIGGER_SOURCES`, RO/RW DSNs | `watchdog.enabled` |
 
-Total: 22 driver modules + `__init__.py`.
+Total: 27 driver modules + `__init__.py`.
 
 ---
 
@@ -112,7 +119,7 @@ result = create_project("my-api")  # {status: "created"|"exists", dsn: "http://.
 
 # Inject DSN into Coolify app env, then verify container picks it up
 # verify_dsn_injection uses `docker inspect` — works on scratch/distroless (Lesson 31)
-ok = verify_dsn_injection("my-api", expected_dsn=result["dsn"], timeout=60)
+ok = verify_dsn_injection("my-api", expected_dsn=result["dsn"], max_wait=60)
 ```
 
 ### Authelia — SSO/2FA forward-auth
@@ -139,10 +146,10 @@ add_access_rule(domain="dashboard.vps1.ocoron.com", policy="two_factor")
 from fabrik.drivers.gatus import add_endpoint, remove_endpoint
 
 add_endpoint(
-    name="my-api",
-    url="https://my-api.vps1.ocoron.com/health",
+    project_name="my-api",
+    domain="my-api.vps1.ocoron.com",   # bare hostname — no scheme/path
+    health_path="/health",
     interval="60s",
-    group="apps",
 )
 ```
 
@@ -156,8 +163,7 @@ from fabrik.drivers.backrest import add_backup_plan, remove_backup_plan
 add_backup_plan(
     plan_id="my-api-data",
     paths=["/opt/my-api/data"],
-    schedule="0 3 * * *",     # daily 03:00
-    retention={"daily": 7, "weekly": 4, "monthly": 12},
+    schedule_cron="0 3 * * *",     # daily 03:00
 )
 ```
 
@@ -179,9 +185,9 @@ Inside the container, the shell evaluates `$MEILI_MASTER_KEY` from env — secre
 from fabrik.drivers.grafana import post_deployment_annotation
 
 post_deployment_annotation(
-    service="my-api",
-    version=spec_hash,
-    tags=["deploy", "prod"],
+    project_name="my-api",
+    git_sha=spec_hash,
+    extra_tags=["prod"],
 )
 ```
 
@@ -248,14 +254,14 @@ Never commit `.env`. Never `source` a `.env` file — values can contain shell m
 ## Tests
 
 ```bash
-# All driver tests (331 tests as of 2026-04-22, across 12 driver modules)
+# All driver tests (377 tests as of 2026-07-19, across 17 driver test modules)
 pytest tests/drivers/ -q
 
 # One driver
 pytest tests/drivers/test_glitchtip.py -q
 ```
 
-Test files: `test_authelia.py`, `test_backrest.py`, `test_compose_updater.py`, `test_container_resolver.py`, `test_gatus.py`, `test_glitchtip.py`, `test_grafana.py`, `test_locks.py`, `test_meilisearch.py`, `test_postgres.py`, `test_preflight.py`, `test_ssh.py`.
+Test files: `test_authelia.py`, `test_backrest.py`, `test_compose_updater.py`, `test_coolify.py`, `test_dns_client.py`, `test_gatus.py`, `test_gatus_aro_wake.py`, `test_glitchtip.py`, `test_grafana.py`, `test_locks.py`, `test_meilisearch.py`, `test_postgres.py`, `test_preflight.py`, `test_prometheus_aro_wake.py`, `test_ssh.py`, `test_vultr_client.py`, `test_watchdog_peer_map.py`.
 
 ---
 
