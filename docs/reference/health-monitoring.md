@@ -1,7 +1,7 @@
 # Health Monitoring
 
 **Version:** 1.4.0
-**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md:55` — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
+**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md` (the `verifier.py` row) — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
 
 ---
 

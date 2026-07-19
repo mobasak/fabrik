@@ -9,16 +9,17 @@
 > is unchanged. See [docs/operations/deployment.md](../operations/deployment.md)
 > for the current flow.
 
-The orchestrator module (`src/fabrik/orchestrator/`) provides unified end-to-end deployment automation. The pipeline is **shape-driven**: the `shape.*` flags on a spec decide which registrars run (Postgres DB, Gatus endpoint, Backrest backup plan, GlitchTip project, Grafana annotation, Authelia rule, MeiliSearch index).
+The orchestrator module (`src/fabrik/orchestrator/`) provides unified end-to-end deployment automation. The pipeline is **shape-driven**: the `shape.*` flags on a spec decide which registrars run — 10 in order: postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, watchdog (`infrastructure.py:136-147`).
 
 ---
 
 ## Overview
 
 ```text
-fabrik apply --dry-run spec.yaml   # Simulate deployment
-fabrik apply spec.yaml              # Full deployment (legacy path)
-fabrik apply --use-orchestrator spec.yaml  # Use new orchestrator
+fabrik apply --dry-run spec.yaml   # Simulate deployment (orchestrator, no mutations)
+fabrik apply spec.yaml              # Full deployment — the orchestrator IS the default
+fabrik apply --legacy spec.yaml     # Force the deprecated render-only legacy path
+# (--use-orchestrator is accepted as a no-op for backward compat)
 ```
 
 ---
@@ -43,17 +44,21 @@ fabrik apply --use-orchestrator spec.yaml  # Use new orchestrator
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| `__init__.py` | 320 | `DeploymentOrchestrator` main class — drives the state machine; calls each stage; wires `RollbackManager` on error |
+| `__init__.py` | 513 | `DeploymentOrchestrator` main class — drives the state machine; calls each stage; wires `RollbackManager` on error |
 | `states.py` | 54 | `DeploymentState` enum + `can_transition()` (illegal transitions raise `InvalidStateTransitionError`) |
-| `context.py` | 59 | `DeploymentContext`, `ResourceRecord` — shared state across stages; every rollback-able resource calls `ctx.add_resource(...)` |
-| `exceptions.py` | 59 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
-| `secrets.py` | 137 | `SecretsManager` — precedence: `-s` flags → project `.env` → `/opt/fabrik/.env` → env vars; CSPRNG generate (`secrets.choice()`, 32-char alphanumeric) |
-| `validator.py` | 318 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
-| `deployer_ssh.py` | — | **`ServiceDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; waits for container Up |
+| `context.py` | 83 | `DeploymentContext`, `ResourceRecord` — shared state across stages; every rollback-able resource calls `ctx.add_resource(...)` |
+| `exceptions.py` | 64 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
+| `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
+| `validator.py` | 343 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
+| `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
 | `deployer_coolify.py` | — | Legacy Coolify-API deployer (PATCH/POST `dockercompose` + `deploy(force=True)`) — retained on disk, non-functional since Coolify decommissioned 2026-05-30 |
-| `infrastructure.py` | 510 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch |
-| `verifier.py` | 372 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, SSL valid, `SENTRY_DSN` in container env via `docker inspect` (Lesson 31). Workers (no HTTP) skip the HTTP probe and assert `Coolify status == running:healthy`. |
-| `rollback.py` | 382 | `RollbackManager.rollback(ctx)` — LIFO reverse-order cleanup. DB drops are **logged for operator, not auto-executed**; config mutations and ephemeral resources (annotations, projects, DNS records) are auto-cleaned |
+| `infrastructure.py` | 1002 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres (+`DATABASE_URL` inject) → redis (+`REDIS_URL`) → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch → prometheus → watchdog |
+| `verifier.py` | 542 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, Authelia-middleware + api-bypass checks. Workers (no HTTP) skip the HTTP probe — the compose healthcheck is the proof (B35). DSN verification lives in the glitchtip registrar, not here; `check_ssl()` exists as a standalone helper, not called by `verify()`. |
+| `rollback.py` | 452 | `RollbackManager.rollback(ctx)` — LIFO reverse-order cleanup. DB drops are **logged for operator, not auto-executed**; config mutations and ephemeral resources (annotations, projects, DNS records) are auto-cleaned |
+| `destroyer.py` | 813 | `destroy_from_state()` + per-registrar `_destroy_*` teardown (reverse order) — the `fabrik destroy` path |
+| `vultr_drill.py` / `vultr_provision.py` / `vultr_state.py` | — | The `fabrik vultr` DR-drill + permanent-spoke provisioning subsystem (see `docs/reference/fabrik-vultr.md`) |
+| `gpu_rent.py` + `gpu_*.py` (5 modules) | — | On-demand GPU rental across RunPod/Modal/Vast (see `docs/operations/gpu-rent.md`) |
+| `sysadmin_tokens.py` / `coolify_alias.py` | — | Spoke sysadmin token pool · legacy Docker-network alias helper |
 
 ---
 
@@ -82,17 +87,17 @@ else:
 # Dry run (simulates all steps — always uses orchestrator)
 fabrik apply --dry-run specs/my-app.yaml
 
-# Full deployment with orchestrator (opt-in today; default after Phase 4 completion)
-fabrik apply --use-orchestrator specs/my-app.yaml
-
-# Legacy path (no orchestrator) — default today
+# Full deployment — the orchestrator pipeline is the DEFAULT (since 2026-05-05)
 fabrik apply specs/my-app.yaml
+
+# Deprecated render-only legacy path (explicit opt-in only)
+fabrik apply --legacy specs/my-app.yaml
 
 # Project-based deploy (reads /opt/<name>/project.yaml, routes by type)
 cd /opt/my-app && fabrik apply
 ```
 
-`--dry-run` always uses the orchestrator (see `cli.py:284`); otherwise the flag `--use-orchestrator` is required until Phase 4 flips the default.
+The orchestrator pipeline is the default for every `fabrik apply` invocation (dry-run included); `--legacy` is the only way off it.
 
 ---
 
@@ -120,7 +125,6 @@ source:
   image: my/image:tag
   image_port: 8000
 
-coolify: {project: default, server: localhost}
 
 env:
   PORT: "8000"
@@ -157,10 +161,12 @@ backup:
 
 The orchestrator automatically loads secrets from the project's `.env` file during deployment.
 
-**Secret Loading Precedence:**
+**Secret Loading Precedence** (orchestrator `from_env` path):
 1. Command-line `-s` flags (highest)
 2. Project `.env` file at `/opt/{spec_id}/.env`
-3. Environment variables (lowest)
+3. Environment variables
+
+(NB `SecretsManager.get()` itself checks env vars FIRST, then `.env`, then CSPRNG-generates — the two code paths order env vs `.env` differently; `secrets.py:87-97`.)
 
 **How It Works:**
 1. `fabrik scaffold` auto-detects secrets from `.env.example` and adds them to the spec's `from_env` field
@@ -214,14 +220,14 @@ Invalid transitions raise `InvalidStateTransitionError`.
 ## Tests
 
 ```bash
-# Run all orchestrator tests (144 tests as of 2026-04-22)
+# Run all orchestrator tests (~411 tests across 22 files, 2026-07-19)
 pytest tests/orchestrator/ -q
 
 # Run specific test file
 pytest tests/orchestrator/test_validator.py -q
 ```
 
-**Test files (9):** `test_deployer.py`, `test_e2e_rollback.py`, `test_infrastructure.py`, `test_integration.py`, `test_rollback.py`, `test_secrets.py`, `test_states.py`, `test_validator.py`, `test_verifier.py`.
+**Test files (22):** the original 9 (`test_deployer.py`, `test_e2e_rollback.py`, `test_infrastructure.py`, `test_integration.py`, `test_rollback.py`, `test_secrets.py`, `test_states.py`, `test_validator.py`, `test_verifier.py`) plus `test_deployer_ssh.py`, `test_destroyer.py`, `test_refresh_infrastructure.py`, `test_spoke_dsn_mesh.py`, `test_sysadmin_tokens.py`, `test_template_defaults.py`, `test_plan1_defects.py`, and the `test_gpu_*` / `test_vultr_*` sets.
 
 **Related:** `tests/drivers/` has 331 additional tests across the 12 driver modules used by `InfrastructureProvisioner`.
 

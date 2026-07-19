@@ -196,11 +196,11 @@ class TrueForgeClient:
                     os_name = platform.get("os", "unknown")
                     architectures.append(f"{os_name}/{arch}")
 
-            arm64_supported = any("arm64" in a or "aarch64" in a for a in architectures)
+            amd64_supported = any("amd64" in a or "x86_64" in a for a in architectures)
 
             return {
                 "image": f"oci.trueforge.org/tccr/{image_name}:{tag}",
-                "arm64_supported": arm64_supported,
+                "amd64_supported": amd64_supported,
                 "architectures": architectures,
                 "multi_arch": len(architectures) > 1,
             }
@@ -210,7 +210,7 @@ class TrueForgeClient:
             )
             return {
                 "image": f"oci.trueforge.org/tccr/{image_name}:{tag}",
-                "arm64_supported": None,
+                "amd64_supported": None,
                 "error": str(e),
                 "architectures": [],
             }
@@ -220,7 +220,7 @@ class TrueForgeClient:
             )
             return {
                 "image": f"oci.trueforge.org/tccr/{image_name}:{tag}",
-                "arm64_supported": None,
+                "amd64_supported": None,
                 "error": str(e),
                 "architectures": [],
             }
@@ -265,11 +265,11 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
                         arch_str += f"/{variant}"
                     architectures.append(arch_str)
 
-            arm64_supported = any("arm64" in a or "aarch64" in a for a in architectures)
+            amd64_supported = any("amd64" in a or "x86_64" in a for a in architectures)
 
             return {
                 "image": f"{image}:{tag}",
-                "arm64_supported": arm64_supported,
+                "amd64_supported": amd64_supported,
                 "architectures": architectures,
                 "multi_arch": len(architectures) > 1,
             }
@@ -277,7 +277,7 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
             console.print(f"[red]Error parsing manifest for {image}:{tag}: {e}[/red]")
             return {
                 "image": f"{image}:{tag}",
-                "arm64_supported": None,
+                "amd64_supported": None,
                 "error": str(e),
                 "architectures": [],
             }
@@ -285,7 +285,7 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
             console.print(f"[red]Unexpected error checking manifest for {image}:{tag}: {e}[/red]")
             return {
                 "image": f"{image}:{tag}",
-                "arm64_supported": None,
+                "amd64_supported": None,
                 "error": f"Unexpected error: {str(e)}",
                 "architectures": [],
             }
@@ -311,18 +311,18 @@ def _check_arm64_via_docker(image: str, tag: str) -> dict:
             os_name = platform.get("os", "unknown")
             architectures.append(f"{os_name}/{arch}")
 
-        arm64_supported = any("arm64" in a or "aarch64" in a for a in architectures)
+        amd64_supported = any("amd64" in a or "x86_64" in a for a in architectures)
 
         return {
             "image": full_image,
-            "arm64_supported": arm64_supported,
+            "amd64_supported": amd64_supported,
             "architectures": architectures,
             "multi_arch": len(architectures) > 1,
         }
     except subprocess.TimeoutExpired:
         return {
             "image": full_image,
-            "arm64_supported": None,
+            "amd64_supported": None,
             "error": "Timeout checking manifest",
             "architectures": [],
         }
@@ -330,7 +330,7 @@ def _check_arm64_via_docker(image: str, tag: str) -> dict:
         console.print(f"[red]Error parsing manifest for {full_image}: {e}[/red]")
         return {
             "image": full_image,
-            "arm64_supported": None,
+            "amd64_supported": None,
             "error": str(e),
             "architectures": [],
         }
@@ -339,7 +339,7 @@ def _check_arm64_via_docker(image: str, tag: str) -> dict:
         console.print(f"[red]docker manifest inspect failed for {full_image}: {err}[/red]")
         return {
             "image": full_image,
-            "arm64_supported": None,
+            "amd64_supported": None,
             "error": err,
             "architectures": [],
         }
@@ -448,10 +448,10 @@ def cmd_check_arch(args):
     if result.get("error"):
         console.print(f"[yellow]Warning: {result['error']}[/yellow]")
 
-    arm64 = result.get("arm64_supported")
-    if arm64 is True:
+    amd64 = result.get("amd64_supported")
+    if amd64 is True:
         status = "[green]✓ amd64 SUPPORTED[/green]"
-    elif arm64 is False:
+    elif amd64 is False:
         status = "[red]✗ amd64 NOT SUPPORTED[/red]"
     else:
         status = "[yellow]? UNKNOWN[/yellow]"
@@ -465,9 +465,9 @@ def cmd_check_arch(args):
 
     console.print(Panel(Markdown(content), title="Architecture Check"))
 
-    if arm64 is True:
+    if amd64 is True:
         console.print("\n[green]✓ Safe to deploy on VPS1 (amd64)[/green]")
-    elif arm64 is False:
+    elif amd64 is False:
         console.print("\n[red]✗ DO NOT deploy on VPS1 - no amd64 support![/red]")
         console.print("[dim]Look for an alternative image or check if there's an amd64 tag[/dim]")
 
@@ -493,8 +493,8 @@ def cmd_info(args):
         return
 
     arch_result = check_arm64_support(f"{namespace}/{repo}", tag)
-    arm64 = arch_result.get("arm64_supported")
-    arm64_status = "✓ Yes" if arm64 else ("✗ No" if arm64 is False else "? Unknown")
+    amd64 = arch_result.get("amd64_supported")
+    amd64_status = "✓ Yes" if amd64 else ("✗ No" if amd64 is False else "? Unknown")
 
     content = f"""
 ## {info.get("namespace", namespace)}/{info.get("name", repo)}
@@ -506,7 +506,7 @@ def cmd_info(args):
 - Pulls: {info.get("pull_count", 0):,}
 - Last Updated: {format_date(info.get("last_updated"))}
 
-**amd64 Support:** {arm64_status}
+**amd64 Support:** {amd64_status}
 **Architectures:** {", ".join(arch_result.get("architectures", [])) or "Check specific tag"}
 
 **Links:**
@@ -532,7 +532,7 @@ def cmd_pull(args):
 
     result = check_arm64_support(image)
 
-    if result.get("arm64_supported") is False:
+    if result.get("amd64_supported") is False:
         console.print(f"[red]Warning: {image} does not support amd64![/red]")
         if not args.force:
             console.print("[yellow]Use --force to pull anyway (for local testing only)[/yellow]")
@@ -729,8 +729,8 @@ def cmd_trueforge_info(args):
 
     # Check architecture
     arch_result = client.check_arm64_via_oci(args.image)
-    arm64 = arch_result.get("arm64_supported")
-    arm64_status = "✓ Yes" if arm64 else ("✗ No" if arm64 is False else "? Unknown")
+    amd64 = arch_result.get("amd64_supported")
+    amd64_status = "✓ Yes" if amd64 else ("✗ No" if amd64 is False else "? Unknown")
 
     content = f"""
 ## {info.get("name", args.image)}
@@ -740,7 +740,7 @@ def cmd_trueforge_info(args):
 **Created:** {format_date(info.get("created_at"))}
 **Updated:** {format_date(info.get("updated_at"))}
 
-**amd64 Support:** {arm64_status}
+**amd64 Support:** {amd64_status}
 **Architectures:** {", ".join(arch_result.get("architectures", [])) or "Check specific tag"}
 
 **Links:**

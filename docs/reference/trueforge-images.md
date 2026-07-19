@@ -1,10 +1,10 @@
 # TrueForge Container Images
 
-**Total Images:** 120
-**amd64 Support:** 99/100 apps ✅ (only `deluge` is amd64-only)
+**Total Images:** 203+ (live-counted 2026-07-19 via the GitHub Packages API — the registry grows; NEVER trust a static count, run `python scripts/container_images.py trueforge list`)
 **Registry:** `oci.trueforge.org/tccr/<name>`
 **Source:** https://github.com/trueforge-org/containerforge
-**Last Updated:** 2026-01-06
+**Last Updated:** 2026-07-19 (static 120-row catalog dropped — it had drifted 69% under the live registry; use the live commands below)
+**Fabrik usage today:** none — no spec/compose/template references a TrueForge image; this doc is the evaluation reference for when one is considered.
 
 ## Quick Commands
 
@@ -63,135 +63,16 @@ python scripts/container_images.py trueforge info <name> # Get TrueForge image i
 - **Supply Chain Visibility**: Shows build provenance and architectures for TrueForge images.
 - **Smart Recommendations**: Curated list of lightweight, secure, and amd64-compatible images for common infrastructure needs.
 
-## Complete Image Catalog
+## Image catalog — live, not static
 
-| Image | amd64 | Registry URL | Category |
-|-------|:-----:|--------------|----------|
-| actions-runner | ✅ | oci.trueforge.org/tccr/actions-runner | CI/CD |
-| adguardhome-sync | ✅ | oci.trueforge.org/tccr/adguardhome-sync | Network |
-| airsonic-advanced | ✅ | oci.trueforge.org/tccr/airsonic-advanced | Media |
-| alpine | ✅ | oci.trueforge.org/tccr/alpine | Base |
-| apprise-api | ✅ | oci.trueforge.org/tccr/apprise-api | Notifications |
-| autoscan | ✅ | oci.trueforge.org/tccr/autoscan | Media |
-| balfolk-ics | ✅ | oci.trueforge.org/tccr/balfolk-ics | Utility |
-| bazarr | ✅ | oci.trueforge.org/tccr/bazarr | Media (*arr) |
-| build_cache | ⚠️ | oci.trueforge.org/tccr/build_cache | CI/CD |
-| busybox | ⚠️ | oci.trueforge.org/tccr/busybox | Base |
-| caddy | ✅ | oci.trueforge.org/tccr/caddy | Web Server |
-| calibre-web | ✅ | oci.trueforge.org/tccr/calibre-web | Media |
-| cloudflareddns | ✅ | oci.trueforge.org/tccr/cloudflareddns | DNS |
-| cni-plugins | ✅ | oci.trueforge.org/tccr/cni-plugins | Kubernetes |
-| code-server | ✅ | oci.trueforge.org/tccr/code-server | Development |
-| davos | ⚠️ | oci.trueforge.org/tccr/davos | Download |
-| db-wait-mariadb | ⚠️ | oci.trueforge.org/tccr/db-wait-mariadb | Database |
-| db-wait-mongodb | ⚠️ | oci.trueforge.org/tccr/db-wait-mongodb | Database |
-| db-wait-postgres | ⚠️ | oci.trueforge.org/tccr/db-wait-postgres | Database |
-| db-wait-redis | ⚠️ | oci.trueforge.org/tccr/db-wait-redis | Database |
-| deemix | ✅ | oci.trueforge.org/tccr/deemix | Media |
-| deluge | ❌ | oci.trueforge.org/tccr/deluge | Download |
-| devcontainer | ✅ | oci.trueforge.org/tccr/devcontainer | Development |
-| doplarr | ✅ | oci.trueforge.org/tccr/doplarr | Media |
-| duplicacy | ✅ | oci.trueforge.org/tccr/duplicacy | Backup |
-| duplicati | ✅ | oci.trueforge.org/tccr/duplicati | Backup |
-| emby | ✅ | oci.trueforge.org/tccr/emby | Media Server |
-| esphome | ✅ | oci.trueforge.org/tccr/esphome | Home Automation |
-| faster-whisper | ✅ | oci.trueforge.org/tccr/faster-whisper | AI/ML |
-| flood | ✅ | oci.trueforge.org/tccr/flood | Download |
-| foldingathome | ✅ | oci.trueforge.org/tccr/foldingathome | Science |
-| gc | ⚠️ | oci.trueforge.org/tccr/gc | Utility |
-| go-alpine | ⚠️ | oci.trueforge.org/tccr/go-alpine | Base |
-| go-yq | ✅ | oci.trueforge.org/tccr/go-yq | Utility |
-| golang | ✅ | oci.trueforge.org/tccr/golang | Base |
-| hishtory-server | ✅ | oci.trueforge.org/tccr/hishtory-server | Development |
-| home-assistant | ✅ | oci.trueforge.org/tccr/home-assistant | Home Automation |
-| irqbalance | ✅ | oci.trueforge.org/tccr/irqbalance | System |
-| it-tools | ✅ | oci.trueforge.org/tccr/it-tools | Utility |
-| jackett | ✅ | oci.trueforge.org/tccr/jackett | Media (*arr) |
-| java11 | ✅ | oci.trueforge.org/tccr/java11 | Base |
-| java17 | ✅ | oci.trueforge.org/tccr/java17 | Base |
-| java21 | ✅ | oci.trueforge.org/tccr/java21 | Base |
-| java25 | ✅ | oci.trueforge.org/tccr/java25 | Base |
-| java8 | ✅ | oci.trueforge.org/tccr/java8 | Base |
-| jbops | ✅ | oci.trueforge.org/tccr/jbops | Media |
-| jellyfin | ✅ | oci.trueforge.org/tccr/jellyfin | Media Server |
-| jellyseer | ✅ | oci.trueforge.org/tccr/jellyseer | Media |
-| jellyseerr | ⚠️ | oci.trueforge.org/tccr/jellyseerr | Media |
-| k8s-sidecar | ✅ | oci.trueforge.org/tccr/k8s-sidecar | Kubernetes |
-| kavita | ✅ | oci.trueforge.org/tccr/kavita | Media |
-| kometa | ✅ | oci.trueforge.org/tccr/kometa | Media |
-| kopia | ✅ | oci.trueforge.org/tccr/kopia | Backup |
-| kube-sa-proxy | ✅ | oci.trueforge.org/tccr/kube-sa-proxy | Kubernetes |
-| kubectl | ✅ | oci.trueforge.org/tccr/kubectl | Kubernetes |
-| lazylibrarian | ✅ | oci.trueforge.org/tccr/lazylibrarian | Media |
-| lidarr | ✅ | oci.trueforge.org/tccr/lidarr | Media (*arr) |
-| lvm-disk-watcher | ✅ | oci.trueforge.org/tccr/lvm-disk-watcher | System |
-| mariadb-client | ✅ | oci.trueforge.org/tccr/mariadb-client | Database |
-| medusa | ✅ | oci.trueforge.org/tccr/medusa | Media |
-| mergerfs | ✅ | oci.trueforge.org/tccr/mergerfs | Storage |
-| minisatip | ✅ | oci.trueforge.org/tccr/minisatip | Media |
-| mongosh | ✅ | oci.trueforge.org/tccr/mongosh | Database |
-| nextcloud-fpm | ✅ | oci.trueforge.org/tccr/nextcloud-fpm | Cloud |
-| nextcloud-imaginary | ✅ | oci.trueforge.org/tccr/nextcloud-imaginary | Cloud |
-| nextcloud-notify-push | ✅ | oci.trueforge.org/tccr/nextcloud-notify-push | Cloud |
-| nginx | ✅ | oci.trueforge.org/tccr/nginx | Web Server |
-| node | ✅ | oci.trueforge.org/tccr/node | Base |
-| nzbget | ✅ | oci.trueforge.org/tccr/nzbget | Download |
-| nzbhydra2 | ✅ | oci.trueforge.org/tccr/nzbhydra2 | Download |
-| ombi | ✅ | oci.trueforge.org/tccr/ombi | Media |
-| opentofu-runner | ⚠️ | oci.trueforge.org/tccr/opentofu-runner | CI/CD |
-| openvscode-server | ✅ | oci.trueforge.org/tccr/openvscode-server | Development |
-| overseerr | ✅ | oci.trueforge.org/tccr/overseerr | Media |
-| owntone | ⚠️ | oci.trueforge.org/tccr/owntone | Media |
-| pairdrop | ⚠️ | oci.trueforge.org/tccr/pairdrop | File Sharing |
-| piper | ✅ | oci.trueforge.org/tccr/piper | AI/ML |
-| plex | ✅ | oci.trueforge.org/tccr/plex | Media Server |
-| posterizarr | ⚠️ | oci.trueforge.org/tccr/posterizarr | Media |
-| postgres-init | ⚠️ | oci.trueforge.org/tccr/postgres-init | Database |
-| postgresql | ✅ | oci.trueforge.org/tccr/postgresql | Database |
-| postgresql-client | ✅ | oci.trueforge.org/tccr/postgresql-client | Database |
-| prowlarr | ✅ | oci.trueforge.org/tccr/prowlarr | Media (*arr) |
-| pyload-ng | ✅ | oci.trueforge.org/tccr/pyload-ng | Download |
-| python | ✅ | oci.trueforge.org/tccr/python | Base |
-| python-alpine | ⚠️ | oci.trueforge.org/tccr/python-alpine | Base |
-| python-node | ✅ | oci.trueforge.org/tccr/python-node | Base |
-| qbitmanage | ✅ | oci.trueforge.org/tccr/qbitmanage | Download |
-| qbittorrent | ✅ | oci.trueforge.org/tccr/qbittorrent | Download |
-| qui | ✅ | oci.trueforge.org/tccr/qui | Utility |
-| radarr | ✅ | oci.trueforge.org/tccr/radarr | Media (*arr) |
-| readarr | ✅ | oci.trueforge.org/tccr/readarr | Media (*arr) |
-| renovate | ✅ | oci.trueforge.org/tccr/renovate | CI/CD |
-| requestrr | ✅ | oci.trueforge.org/tccr/requestrr | Media |
-| resilio-sync | ✅ | oci.trueforge.org/tccr/resilio-sync | File Sync |
-| rflood | ⚠️ | oci.trueforge.org/tccr/rflood | Download |
-| sabnzbd | ✅ | oci.trueforge.org/tccr/sabnzbd | Download |
-| scratch | ✅ | oci.trueforge.org/tccr/scratch | Base |
-| seerr | ✅ | oci.trueforge.org/tccr/seerr | Media |
-| shellcheck | ✅ | oci.trueforge.org/tccr/shellcheck | Development |
-| smartctl-exporter | ✅ | oci.trueforge.org/tccr/smartctl-exporter | Monitoring |
-| snapdrop | ✅ | oci.trueforge.org/tccr/snapdrop | File Sharing |
-| sonarr | ✅ | oci.trueforge.org/tccr/sonarr | Media (*arr) |
-| stash | ✅ | oci.trueforge.org/tccr/stash | Media |
-| tautulli | ✅ | oci.trueforge.org/tccr/tautulli | Media |
-| theme-park | ✅ | oci.trueforge.org/tccr/theme-park | Utility |
-| tqm | ✅ | oci.trueforge.org/tccr/tqm | Utility |
-| transmission | ✅ | oci.trueforge.org/tccr/transmission | Download |
-| ubuntu | ✅ | oci.trueforge.org/tccr/ubuntu | Base |
-| unifi-network-application | ✅ | oci.trueforge.org/tccr/unifi-network-application | Network |
-| unpackerr | ✅ | oci.trueforge.org/tccr/unpackerr | Download |
-| valkey-tools | ✅ | oci.trueforge.org/tccr/valkey-tools | Database |
-| volsync | ⚠️ | oci.trueforge.org/tccr/volsync | Backup |
-| vscode-tunnel | ⚠️ | oci.trueforge.org/tccr/vscode-tunnel | Development |
-| watchtower | ✅ | oci.trueforge.org/tccr/watchtower | Container Mgmt |
-| webhook | ✅ | oci.trueforge.org/tccr/webhook | Automation |
-| whisparr | ✅ | oci.trueforge.org/tccr/whisparr | Media (*arr) |
-| wud | ✅ | oci.trueforge.org/tccr/wud | Container Mgmt |
-| wud-plus | ⚠️ | oci.trueforge.org/tccr/wud-plus | Container Mgmt |
-| yq | ✅ | oci.trueforge.org/tccr/yq | Utility |
+The registry moves too fast for a hand-copied table (120 rows here had become 203+ live). Enumerate live instead:
 
-**Legend:**
-- ✅ = amd64 supported (verified from docker-bake.hcl)
-- ❌ = AMD64 only
-- ⚠️ = Not in apps/ folder (base images, verify before use)
+```bash
+python scripts/container_images.py trueforge list          # all packages
+python scripts/container_images.py trueforge tags <name>    # tags for one
+python scripts/container_images.py trueforge info <name>    # metadata + architectures
+python scripts/container_images.py check-arch oci.trueforge.org/tccr/<name>   # amd64 gate (fixed 2026-07-19 — it previously tested arm64 and mislabeled it amd64)
+```
 
 ## Fabrik-Relevant Images (amd64 Ready)
 

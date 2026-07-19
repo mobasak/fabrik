@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs/reference triage (final 3): orchestrator default-path inversion; check-arch amd64 bug; vast/trueforge converged (2026-07-19)
+
+Root-of-docs/reference triage COMPLETE (all 26 files). **orchestrator.md** — the Usage sections said
+the LEGACY path is the default and `--use-orchestrator` required (reality inverted since 2026-05-05);
+plus SSHDeployer rename, verifier row corrected (no SENTry-DSN check there; workers = compose
+healthcheck; check_ssl uncalled), 7→10 registrars, secrets two-path ordering nuance, coolify example
+line dropped, counts/tests refreshed, destroyer/vultr/gpu module rows added; the health-monitoring
+citer retargeted to a drift-proof row-name reference. **Real code bug fixed:**
+`scripts/container_images.py check-arch` computed **arm64** presence but reported it as "amd64
+supported" — an amd64-only image got "DO NOT deploy on VPS1", the exact inverse; now computes
+amd64/x86_64 (key renamed `amd64_supported`). **trueforge-images.md** — static 120-row catalog had
+drifted 69% under the live registry (203+ packages, live-counted via the GitHub API); dropped in
+favor of the live `trueforge list` commands + the Fabrik shortlist; zero-live-usage note added.
+**vast-api.md** — 6 load-bearing fixes (bundles search is POST not PUT, serverless IS implemented
+(Phase 3.5, only `run_endpoint_async` pending), real `VAST_GPU_NAMES` dict, `volume_gb` ignored,
+needs_serverless no longer excludes Vast, `reliability2` callout); `gpu-rent.md`'s stale "Vast has no
+serverless" line fixed. 2-pass loop (Opus + 2 Sonnet → Sonnet confirm found 2 → sweep clean).
+
 ### Fixed — docs/reference triage (eighth 5): the 8-contradiction tech-stack guide reconciled; templates.md tables regenerated (2026-07-19)
 
 **The big one (fleet-synced):** `technology-stack-decision-guide.md`'s 8 hard contradictions vs the

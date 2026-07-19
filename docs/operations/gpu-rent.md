@@ -355,8 +355,7 @@ its next run. Or run `fabrik gpu reconcile --auto-destroy` manually.
 - **Modal serverless deployment**: shape is in the driver but actual
   `App.deploy()` requires an operator-supplied Modal App definition file
   — Phase 6 work.
-- **Vast.ai serverless**: Vast.ai has no first-class serverless concept.
-  Use `--provider runpod` or `--provider modal` for serverless.
+- ~~Vast.ai serverless~~ — **now supported** (Phase 3.5: endptjobs/workergroups wired; LIVE-16 reconcile GREEN; LIVE-14 endpoint create needs ≥$5 account balance).
 - **HF inference endpoints / OpenAI-compatible /v1 routes**: RunPod's
   vLLM template exposes both `/run` (Fabrik's path) and `/v1/chat/completions`
   (OpenAI-compat). Phase 1 wires `/run`. For OpenAI-compat, use the

@@ -505,7 +505,7 @@ vastai delete volume <id>
 Storage billed at `storage_cost` $/GB/month, applied per-second (so a 100 GB volume at $0.05/GB/month = ~$0.000002/s = $0.07/day).
 
 ### 8.4 Driver model
-`vast_provider.py::create_pod()` accepts `container_disk_gb=` (passed as `--disk`) and `volume_gb=` (currently maps to `--create-volume` against the same offer). For Fabrik's transient rentals, **container disk is sufficient** — volumes are an optimization for long-running training where you'd otherwise re-download model weights every restart.
+`vast_provider.py::create_pod()` accepts `container_disk_gb=` (passed as `--disk`) and `volume_gb=` (accepted but **ignored** — `vast_provider.py:214`: container disk is the only storage primitive `create_pod()` wires up). For Fabrik's transient rentals, **container disk is sufficient** — volumes are an optimization for long-running training where you'd otherwise re-download model weights every restart.
 
 ---
 
@@ -761,7 +761,7 @@ Get keys at [cloud.vast.ai/manage-keys/](https://cloud.vast.ai/manage-keys/).
 - `POST /api/v0/subaccounts/` — create subaccount
 
 #### Search
-- `PUT /api/v0/bundles/` — **search offers** (yes, PUT, not GET — quirk)
+- `POST /api/v0/bundles/` — **search offers** (yes, POST with the structured filter dict as the JSON body — live-verified via `vastai --explain`; not GET, not PUT)
 
 #### Instances
 - `PUT /api/v0/asks/<offer_id>/` — **create instance** (returns `{"new_contract": <id>}` per quirk)
@@ -857,25 +857,25 @@ Get keys at [cloud.vast.ai/manage-keys/](https://cloud.vast.ai/manage-keys/).
 
 ### 13.1 Driver: `src/fabrik/drivers/vast_provider.py`
 - `VastClient.__init__`: reads `VAST_API_KEY` from env / `.env.sysadmin`.
-- `create_pod(gpu_type_id, image_name, ...)`: 2-phase — `_request("PUT", "/bundles/", body={"q": search_query})` to find an offer matching the requested GPU + filters, then `_request("PUT", f"/asks/{offer_id}/", body={...})` to claim it. Returns `{"id": new_contract, ...}` — handles the `new_contract` quirk (§11.4).
+- `create_pod(gpu_type_id, image_name, ...)`: 2-phase — `_request("POST", "/bundles/", json=search_query)` (the structured filter dict IS the body — no `{"q": ...}` wrapper; NB the driver filters on `reliability2`, not `reliability` — vast_provider.py:245) to find an offer matching the requested GPU + filters, then `_request("PUT", f"/asks/{offer_id}/", body={...})` to claim it. Returns `{"id": new_contract, ...}` — handles the `new_contract` quirk (§11.4).
 - `wait_for_running()`: polls `GET /instances/<id>/`, checks `actual_status` against `{"running"}` vs terminal-bad set `{"exited", "unknown", "offline"}` (§6.3 poll-trap).
 - `destroy_pod()`: `DELETE /instances/<id>/`.
 - `list_pods()`: `GET /instances/`, filters by `FABRIK_SESSION_ID` env tag (C4 invariant — never touches foreign instances).
 - `billing_pods()`: scrapes per-instance hourly rate from `/instances/<id>/` response + multiplies by wall-clock; Vast has no separate billing API per llms.txt.
-- Serverless methods (`create_endpoint`, `run_endpoint_sync`, `destroy_endpoint`): **Phase 3 work** — currently raise `NotImplementedError`.
+- Serverless methods `create_endpoint` (vast_provider.py:545), `destroy_endpoint` (:655), `run_endpoint_sync` (:670): **implemented (Phase 3.5)** — see §13.4. Only `run_endpoint_async` (:719) still raises `NotImplementedError`.
 
 ### 13.2 GPU type translation
 `VAST_GPU_NAMES` in [`vast_provider.py`](../../src/fabrik/drivers/vast_provider.py):
 ```python
 VAST_GPU_NAMES = {
-    "pod-h100": "H100_SXM5",
-    "pod-h100-pcie": "H100_PCIE",
+    "pod-h100": "H100 SXM",
+    "pod-h100-pcie": "H100",  # PCIe variant just called "H100"
+    "pod-h100-nvl": "H100 NVL",
+    "pod-a100": "A100",
+    "pod-a100-sxm": "A100 SXM4",
     "pod-h200": "H200",
-    "pod-a100": "A100_SXM4",
-    "pod-a100-sxm": "A100_SXM4",
     "pod-l40s": "L40S",
-    "pod-rtx-4090": "RTX_4090",
-    # "serverless" is NOT in this map — Vast serverless is Phase 3
+    "pod-rtx-4090": "RTX 4090",
 }
 ```
 
@@ -883,7 +883,7 @@ VAST_GPU_NAMES = {
 `selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` in [`gpu_rent.py`](../../src/fabrik/orchestrator/gpu_rent.py):
 - `needs_checkpointing=True` + spot-OK → **recommend Vast** (interruptible) for the cost win
 - Vast is also the fallback when RunPod doesn't carry the GPU (e.g. RTX 3090, A6000)
-- `needs_serverless=True` → **does NOT route to Vast yet** (Phase 3) — currently → RunPod
+- `needs_serverless=True` → **no longer excludes Vast** (Phase 3.5 dropped the exclusion, `gpu_rent.py:287-289`) — all three providers are serverless-eligible; Vast is vetoed only by the separate checkpointing rule
 
 ### 13.4 Phase 3.5 — shipped 2026-06-17 (commit `48b41ea` + `5a72cb4`)
 
