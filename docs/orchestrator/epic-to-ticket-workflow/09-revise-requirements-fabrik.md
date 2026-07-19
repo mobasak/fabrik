@@ -17,7 +17,7 @@
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
      from the inline decision, or `(deeper, optional: …)` you may skip):
        · `docs/operations/fabrik-lifecycle.md` — the epic's lifecycle stage (change friction)
-       · the plan artifacts — Epic Brief (`01-epic-brief-fabrik`) · Core Flows (`02-core-flows-fabrik`) ·
+       · the plan artifacts — Decisions Lock (`01-decisions-lock-fabrik`) · Core Flows (`02-core-flows-fabrik`) ·
          Tech Plan (`03-tech-plan-fabrik`) · Deploy Plan (`04-deploy-plan-fabrik`) · Ticket Outline
          (`05-ticket-outline-fabrik`) · Ticket Breakdown (`06-ticket-breakdown-fabrik` output) · the
          `[PRIMARY PATH]` Index
@@ -58,7 +58,7 @@ Requirements change. The goal is not to resist it but to propagate it **delibera
 
 ### Step 1: Internalize Current State
 
-Read the full artifact set (the Reads budget): `docs/operations/fabrik-lifecycle.md` (lifecycle stage → change friction) · **Epic Brief** (Success Criteria, Out of Scope, Metadata incl. `Epic Flavor` for Path B `[canonical: 01-epic-brief-fabrik § INFRA-CHECK — Path B carries Epic Flavor]`) · **Core Flows** (when present — `[PRIMARY PATH]` markers, Flow Index, i18n decisions) · **Tech Plan** (when present — Architecture, Data Model, Shape Block, resilience table) · **Deploy Plan** (when present — may be SKIPPED entirely for code-only Retrofit epics `[canonical: 04-deploy-plan-fabrik § Retrofit branch]`) · **Ticket Outline** · **Ticket Breakdown** · **INFRA-CHECK** (Path A = 10 required fields; Path B = the 16-field set incl. `Registrars`, `Universal categories`, `Epic Flavor` `[canonical: 01-epic-brief-fabrik § INFRA-CHECK — Path A 10 / Path B 16]`).
+Read the full artifact set (the Reads budget): `docs/operations/fabrik-lifecycle.md` (lifecycle stage → change friction) · **Decisions Lock** (Success Criteria, Out of Scope, Metadata incl. `Epic Flavor` for Path B `[canonical: 01-decisions-lock-fabrik § INFRA-CHECK — Path B carries Epic Flavor]`) · **Core Flows** (when present — `[PRIMARY PATH]` markers, Flow Index, i18n decisions) · **Tech Plan** (when present — Architecture, Data Model, Shape Block, resilience table) · **Deploy Plan** (when present — may be SKIPPED entirely for code-only Retrofit epics `[canonical: 04-deploy-plan-fabrik § Retrofit branch]`) · **Ticket Outline** · **Ticket Breakdown** · **INFRA-CHECK** (Path A = 10 required fields; Path B = the 16-field set incl. `Registrars`, `Universal categories`, `Epic Flavor` `[canonical: 01-decisions-lock-fabrik § INFRA-CHECK — Path A 10 / Path B 16]`).
 
 **Implementation state per ticket** (from `git log`/branch + ticket status): **Not-Started** · **In-Progress** · **Done-still-valid** (change doesn't touch it) · **Done-but-affected** (change invalidates part of it — highest friction).
 
@@ -66,9 +66,9 @@ Read the full artifact set (the Reads budget): `docs/operations/fabrik-lifecycle
 
 Crystallize with the operator: what specifically changed and why · a *revision* (modify existing scope) or a *new requirement* (expand it) · what the operator thinks is affected · what triggered it.
 
-**Scope-creep escape hatch:** if the change invalidates **>50%** of Success Criteria (Delta-feature) OR introduces a new domain not in the current plan → **STOP**. Recommend closing this epic and starting fresh (`00-trigger-fabrik → 01-epic-brief-fabrik` for a single epic). `09` steers a plan; it does not pivot it.
+**Scope-creep escape hatch:** if the change invalidates **>50%** of Success Criteria (Delta-feature) OR introduces a new domain not in the current plan → **STOP**. Recommend closing this epic and starting fresh (`00-trigger-fabrik → 01-decisions-lock-fabrik` for a single epic). `09` steers a plan; it does not pivot it.
 
-**Additive fast-path:** if the change is purely additive (a new feature touching no existing ticket) → after the Step-4 operator OK, run the top-down cascade (Step 5) and the Step-8 consistency gate for the **new scope only** — Brief → INFRA-CHECK → flows → Tech Plan → Deploy Plan → outline → new tickets (via `06-ticket-breakdown-fabrik`) → Index — then re-execute (Step 9). The fast-path's speed is skipping the Step-6/7 re-evaluation of existing untouched tickets — never the cascade for the new scope, the Step-8 gate, or the scope confirmation.
+**Additive fast-path:** if the change is purely additive (a new feature touching no existing ticket) → after the Step-4 operator OK, run the top-down cascade (Step 5) and the Step-8 consistency gate for the **new scope only** — Decisions Lock → INFRA-CHECK → flows → Tech Plan → Deploy Plan → outline → new tickets (via `06-ticket-breakdown-fabrik`) → Index — then re-execute (Step 9). The fast-path's speed is skipping the Step-6/7 re-evaluation of existing untouched tickets — never the cascade for the new scope, the Step-8 gate, or the scope confirmation.
 
 **Retrofit-epic adjustments** (`Epic Flavor: Retrofit`, Title prefix `Retrofit:` `[canonical: mega-epic-breakdown/03-expand-epic-files-fabrik § Step 2 — Retrofit detected from the Title prefix]`):
 
@@ -85,11 +85,11 @@ Trace effects through EVERY artifact layer — is it affected? which sections? h
 
 ### Step 4: Present Impact + Operator Checkpoint
 
-Present per-artifact (what's affected, severity, preliminary proposal) and per-ticket (counts of Not-Started / In-Progress / Done-still-valid / Done-but-affected) to the operator — via the Telegram digest + the VS Code diff. **Get the operator's agreement on the scope of changes before updating anything.** This scope confirmation is one of the operator decisions (alongside the Step-2 escape-hatch call and the Step-6 Done-but-affected / In-Progress picks); the cascade edits and re-execution they imply run autonomously.
+Present per-artifact (what's affected, severity, preliminary proposal) and per-ticket (counts of Not-Started / In-Progress / Done-still-valid / Done-but-affected) to the operator — in-session, with the artifact diff. **Get the operator's agreement on the scope of changes before updating anything.** This scope confirmation is one of the operator decisions (alongside the Step-2 escape-hatch call, the Step-6 Done-but-affected / In-Progress picks, **and — Path A, when the Decisions Lock was edited — the post-cascade `01R` re-lock confirm, a SEPARATE explicit confirm per `01R` Phase 2 that must land BEFORE Step 9's autonomous re-execution begins**); the cascade edits and re-execution they imply run autonomously.
 
 ### Step 5: Update Artifacts (Top-Down Cascade)
 
-Strict order — complete one layer before the next; skipping the order is the biggest source of half-updated specs: **Epic Brief** (Success Criteria, Out of Scope, Metadata) → **INFRA-CHECK re-eval** (User Guide flip, Port, Internal APIs, Shape — but for a Retrofit epic a User Guide flip is a scope-leak signal → the Step-2 boundary check, not a normal re-eval) → **Core Flows** (journeys, `[PRIMARY PATH]`, i18n) → **Tech Plan** (architecture, data model, resilience, shape block) → **Deploy Plan** (registrar surface, compose contract, env vars) → **Ticket Outline** (rebatch for parallelism, budget ≥3:1) → **Ticket Breakdown** (always re-evaluate against updated specs) → **`[PRIMARY PATH]` Index** (regenerate) → **Implementation-state actions** (per Done-but-affected ticket). Per layer: think → update → verify consistency with prior layers. ⚠️ A DB **field/enum/model** change means the data contract must be re-frozen — route it through `/fabrik-data-contract` (`docs/data-contract.md`) before any ticket consumes the stale contract `[canonical: CLAUDE.md § Doc Sync Matrix — DB field/enum/model → re-freeze data-contract.md]`.
+Strict order — complete one layer before the next; skipping the order is the biggest source of half-updated specs: **Decisions Lock** (Success Criteria, Out of Scope, Metadata — ⚠️ **lock lifecycle**: editing it flips `Status: LOCKED → DRAFT`; after the cascade completes, re-run `01R-decisions-review-fabrik` to re-converge, and it re-locks **per its own Phase-2 path rules** — Path A: the operator (already driving this `09`) confirms; Path B: auto-lock on the no-op — never leave edited content under a stale `LOCKED` line the driver's Gate-1 predicate still trusts) → **INFRA-CHECK re-eval** (User Guide flip, Port, Internal APIs, Shape — but for a Retrofit epic a User Guide flip is a scope-leak signal → the Step-2 boundary check, not a normal re-eval) → **Core Flows** (journeys, `[PRIMARY PATH]`, i18n) → **Tech Plan** (architecture, data model, resilience, shape block) → **Deploy Plan** (registrar surface, compose contract, env vars) → **Ticket Outline** (rebatch for parallelism, budget ≥3:1) → **Ticket Breakdown** (always re-evaluate against updated specs) → **`[PRIMARY PATH]` Index** (regenerate) → **Implementation-state actions** (per Done-but-affected ticket). Per layer: think → update → verify consistency with prior layers. ⚠️ A DB **field/enum/model** change means the data contract must be re-frozen — route it through `/fabrik-data-contract` (`docs/data-contract.md`) before any ticket consumes the stale contract `[canonical: CLAUDE.md § Doc Sync Matrix — DB field/enum/model → re-freeze data-contract.md]`.
 
 ### Step 6: Ticket Re-Evaluation
 
@@ -130,7 +130,7 @@ Then hand off: the next step is **`10-cross-artifact-validation-command`** (`09`
 - **Write code itself** — the coder agents (pool `pick_models("code")` / `claude -p`) implement, dispatched through `07`.
 - **Run the standalone cross-artifact audit** — Step 8 is `09`'s internal handoff gate; the separate post-fact audit is `10-cross-artifact-validation-command` (`09`'s paired review per CC5).
 - **Deploy** — that is `11-deploy-command` (the deploy-out gate). `09` stops after the revised tickets validate.
-- **Restart the epic from scratch** — >50% SC invalidation (Delta-feature, or >30% Retrofit) → recommend closing + starting fresh (`00-trigger-fabrik → 01-epic-brief-fabrik`, or `mega-epic-breakdown/02-epic-decomposition-fabrik`); `09` steers, it doesn't pivot.
+- **Restart the epic from scratch** — >50% SC invalidation (Delta-feature, or >30% Retrofit) → recommend closing + starting fresh (`00-trigger-fabrik → 01-decisions-lock-fabrik`, or `mega-epic-breakdown/02-epic-decomposition-fabrik`); `09` steers, it doesn't pivot.
 - **Skip the operator scope checkpoint** — every change goes through Step 4 with explicit operator agreement; never begin the Step-5 cascade without it. (The cascade + re-execution are autonomous; the operator decisions — the Step-2 escape hatch, the Step-4 confirmation, the Step-6 picks — are not.)
 - **Change the Epic Flavor** (Delta-feature ↔ Retrofit) — a Flavor flip needs re-decomposition at `mega-epic-breakdown/02-epic-decomposition-fabrik`; within `09` the Flavor is immutable.
 - **Change ticket Title prefixes** — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>`.
@@ -143,7 +143,8 @@ Then hand off: the next step is **`10-cross-artifact-validation-command`** (`09`
 - Change crystallized with the operator; scope-creep escape hatch applied at >50% (Delta) / >30% (Retrofit) invalidation.
 - Impact analysis traces ALL artifact layers including INFRA-CHECK and implementation state.
 - Impact presented at the Step-4 operator checkpoint; the operator confirms before any update.
-- Cascade top-down (Brief → INFRA-CHECK → Flows → Tech Plan → Deploy Plan → Outline → Tickets → Index), each layer think → update → verify; a DB field/enum/model change re-freezes `docs/data-contract.md`.
+- Cascade top-down (Decisions Lock → INFRA-CHECK → Flows → Tech Plan → Deploy Plan → Outline → Tickets → Index), each layer think → update → verify; a DB field/enum/model change re-freezes `docs/data-contract.md`.
+- **Lock lifecycle honored:** if the Decisions Lock was edited, its `Status:` was flipped `LOCKED → DRAFT` at edit time and `01R-decisions-review-fabrik` was re-run to re-converge and re-lock **per its Phase-2 path rules** (Path A: operator confirm — the operator is already driving this `09`; Path B: auto on no-op) before re-execution — no edited content ships under a stale `LOCKED` line.
 - Every ticket classified; Done-but-affected gets the three-option matrix, operator picks per ticket.
 - Doc Sync Matrix re-derived + `[PRIMARY PATH]` Index regenerated for changed tickets; new tickets follow full `06`-breakdown structure.
 - Cross-artifact consistency pass clean (Step 8) before re-execution — no contradictions.

@@ -60,17 +60,17 @@ Every command in mega-epic-breakdown (00, 02, 03, 04 — `05` retired) must be e
 
 ## Handoff to epic-to-ticket-workflow
 
-30. Does each epic output file contain enough context for epic-to-ticket-workflow/01-epic-brief to START? (scope, success criteria, constraints, metadata)
+30. Does each epic output file contain enough context for epic-to-ticket-workflow/01-decisions-lock to START? (scope, success criteria, constraints, metadata)
 31. Does each epic output file reference the shared infrastructure decisions? (not duplicate them)
 32. Does each epic output file state what PRIOR EPICS produced that this epic consumes? (DB tables, API contracts, env vars)
 33. Does each epic output file state what THIS EPIC produces that later epics need? (contracts, not implementation details)
-34. Can Traycer run epic-to-ticket-workflow/01-epic-brief with ONLY the epic output file + the infrastructure decisions file? (no need to re-read the full vision research)
+34. Can Traycer run epic-to-ticket-workflow/01-decisions-lock with ONLY the epic output file + the infrastructure decisions file? (no need to re-read the full vision research)
 
 ## Context Window Respect
 
-35. Is the vision summary within its **mode-specific** budget? (NEW ≤5,000 / ≤8,000 hard; EXISTING ≤6,000 / ≤10,000 hard — see item 75. Both fit alongside the epic brief in a 200K context; the EXISTING allowance covers Locked Decisions + Compliance Report.)
+35. Is the vision summary within its **mode-specific** budget? (NEW ≤5,000 / ≤8,000 hard; EXISTING ≤6,000 / ≤10,000 hard — see item 75. Both fit alongside the decisions lock in a 200K context; the EXISTING allowance covers Locked Decisions + Compliance Report.)
 36. Is each epic output file ≤10,000 tokens? (must fit alongside tech plan, deploy plan in later steps)
-37. Is the infrastructure decisions file ≤5,000 tokens? (loaded alongside every epic brief)
+37. Is the infrastructure decisions file ≤5,000 tokens? (loaded alongside every decisions lock)
 38. Are details that belong in tech-plan/deploy-plan DEFERRED to those steps? (decomposition decides WHAT, not HOW)
 39. Does it avoid re-stating the full vision research in every epic file? (reference it, don't copy it)
 
@@ -139,10 +139,10 @@ Every command in mega-epic-breakdown (00, 02, 03, 04 — `05` retired) must be e
 79. **Dependency Graph** (02 output): Mermaid diagram with `subgraph "Phase N"` blocks + execution order + parallel lanes identified. Terminology is **Phase**, not **Batch** — consistent across 02 + 04 and `scripts/epic_order.py`'s `--json` phase output (see anti-pattern 101 below). ⚠️ The graph is now the *human-readable* twin of the machine truth: 03 emits `depends_on`/`parallel_with` in each ticket's typed frontmatter (item 84a), and `epic_order.py` derives the authoritative phased order from THOSE, not from this mermaid. The mermaid must not contradict the frontmatter (a mismatch is a defect 04 flags).
 80. **Validation Report** (**04 output** — 05 retired): Feature Coverage, Epic Tickets (per-epic PASS/FAIL), Dependency Graph, Infrastructure Decisions (14-section check), Handoff Readiness (15-field Metadata check), **Ticket-set integrity** (the `scripts/epic_order.py --check --expected-count` gate absorbed from retired 05 — count-match, epic-number contiguity, duplicate/orphan detection, parallel-set disjointness + single-migration-owner proof), Overall result, and the **code-generated phased Execution Order** (`scripts/epic_order.py --json`, NOT hand-written). There is no downstream dispatch command: the report's execution order feeds the cockpit (epic-card click) / driver (phase queue) directly.
 
-## Handoff Format (epic file → epic-to-ticket-workflow/01-epic-brief)
+## Handoff Format (epic file → epic-to-ticket-workflow/01-decisions-lock)
 
 81. Each epic ticket (Traycer-stored, not on-disk file) MUST contain a `### Metadata` section with all **15 fields**: Scaffold, Port, target_vps, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, HAS_USER_GUIDE, Registrars, Universal categories, Abuse Detection, Email, FINANCIALS (last 3 conditional — `N/A` allowed). Match per `03-expand-epic-files-fabrik` Metadata template + `04-cross-epic-validation-fabrik` Step 6 Handoff Readiness check + `epic-to-ticket-workflow/00-trigger-fabrik` § Entry Points → Multi-epic (consume mode) consume-mode field list (the upstream `mega-epic-breakdown/03` enforces; the downstream `epic-to-ticket-workflow/01` Path B consumes).
-82. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what epic-to-ticket-workflow/01-epic-brief uses to validate coverage.
+82. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what epic-to-ticket-workflow/01-decisions-lock uses to validate coverage.
 83. Each epic output file MUST contain a `## Dependencies` section stating: what prior epics produced (DB tables, API contracts, env vars) that this epic assumes exist.
 84. Each epic output file MUST be SELF-SUFFICIENT — Traycer running epic-to-ticket-workflow/01 reads ONLY this file + infrastructure-decisions.md. No need to load the full vision research.
 

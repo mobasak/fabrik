@@ -1,6 +1,6 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET BREAKDOWN (our own, tool-capable twin of 06-ticket-breakdown-command)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
-     TOOL-CAPABLE: it READS the confirmed outline + Tech/Deploy/Core-Flows/Brief from disk and writes complete
+     TOOL-CAPABLE: it READS the confirmed outline + Tech/Deploy/Core-Flows + the LOCKED Decisions Lock from disk and writes complete
      executable ticket specs. The outline decided WHAT; this decides HOW (steps, file paths, governance).
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
@@ -9,7 +9,7 @@
        · Tech Plan (`03-tech-plan-fabrik`) — real class/function names, Data Model, resilience timeouts
        · Core Flows (`02-core-flows-fabrik`, if present) — `[PRIMARY PATH]` sequences, Microcopy, i18n
        · Deploy Plan (`04-deploy-plan-fabrik`) — env vars, compose contract, registrar surface
-       · Epic Brief (`01-epic-brief-fabrik`) — Success Criteria, Out of Scope · the `00-trigger-fabrik` INFRA-CHECK
+       · Decisions Lock (`01-decisions-lock-fabrik`) — Success Criteria, Out of Scope · the `00-trigger-fabrik` INFRA-CHECK
      The category-table rule packs are INJECTED into each ticket's Context Files (the CODING agent reads them,
      not this command); the coder-agent roster is resolved LIVE by `pick_models` at dispatch — both provenance.
      -->
@@ -31,7 +31,7 @@ Technical project manager who expands the outline MAP into complete executable s
 
 ### Step 1: Validate Inputs
 
-**Always:** the confirmed Ticket Outline (`05-ticket-outline-fabrik`) — hard stop without it. **Per scaffold** (from the outline Metadata): headless (`python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`) → Epic Brief + Tech Plan + Deploy Plan; GUI (`saas-skeleton`/`static-site`/`chrome-extension`/`mobile-app`/`desktop-app`) → + Core Flows; `docusaurus` → Epic Brief + scaffold templates; feature-for-existing → Epic Brief + the produced specs. Hard stop on any missing. State which inputs were consumed.
+**Always:** the confirmed Ticket Outline (`05-ticket-outline-fabrik`) — hard stop without it. **Per scaffold** (from the outline Metadata): headless (`python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`) → Decisions Lock + Tech Plan + Deploy Plan; GUI (`saas-skeleton`/`static-site`/`chrome-extension`/`mobile-app`/`desktop-app`) → + Core Flows; `docusaurus` → Decisions Lock + scaffold templates; feature-for-existing → Decisions Lock + the produced specs. Hard stop on any missing. State which inputs were consumed.
 
 ### Step 2: Consume the Outline (Primary Frame)
 
@@ -39,7 +39,7 @@ For each ticket in the batch, read ALL outline fields: **Title** (verbatim) · *
 
 ### Step 3: Read Secondary Inputs for Grounding
 
-For the CONTENT of Steps (function names, paths, schemas): **Tech Plan** (Component Architecture class/function names, Data Model tables/columns, resilience timeouts, Shape Block) · **Core Flows** (`[PRIMARY PATH]` sequences, Microcopy Hot-Spots, i18n Decisions) · **Deploy Plan** (env vars, compose contract, registrar surface) · **Epic Brief** (Success Criteria, Out of Scope) · **INFRA-CHECK** (Port, Internal APIs, Shape).
+For the CONTENT of Steps (function names, paths, schemas): **Tech Plan** (Component Architecture class/function names, Data Model tables/columns, resilience timeouts, Shape Block) · **Core Flows** (`[PRIMARY PATH]` sequences, Microcopy Hot-Spots, i18n Decisions) · **Deploy Plan** (env vars, compose contract, registrar surface) · **Decisions Lock** (Success Criteria, Out of Scope) · **INFRA-CHECK** (Port, Internal APIs, Shape).
 
 ### Step 4: Produce Each Ticket
 
@@ -78,7 +78,7 @@ For the CONTENT of Steps (function names, paths, schemas): **Tech Plan** (Compon
 5. UPDATE `db/schema.sql` — the schema source-of-truth reference (do not execute directly).
 6. UPDATE `src/myservice/health.py` — add a `SELECT 1` check to `/health` for the new DB connection.
 
-**Spec References:** Epic Brief § Success Criteria #1 · Tech Plan § B/§ C · Deploy Plan § Registrar Surface (postgres fires).
+**Spec References:** Decisions Lock § Success Criteria #1 · Tech Plan § B/§ C · Deploy Plan § Registrar Surface (postgres fires).
 
 **Dependencies:** None (foundation ticket).
 
@@ -113,7 +113,7 @@ Per ticket, inject the criterion when the trigger fires: **Factor III** (any con
 
 ### Step 7: [PRIMARY PATH] Test Coverage
 
-If the outline `Touches` field names a PRIMARY PATH: inject "integration test at `tests/integration/test_<flow>.py` covers the `[PRIMARY PATH]` end-to-end and passes." Test code is IN scope; use a real DB (no mocks) per `core/45-testing-strategy.md`; for scaffolds without Core Flows, one test per primary success path from the Epic Brief; skip for docs-only tickets.
+If the outline `Touches` field names a PRIMARY PATH: inject "integration test at `tests/integration/test_<flow>.py` covers the `[PRIMARY PATH]` end-to-end and passes." Test code is IN scope; use a real DB (no mocks) per `core/45-testing-strategy.md`; for scaffolds without Core Flows, one test per primary success path from the Decisions Lock; skip for docs-only tickets.
 
 ### Step 8: Lessons Learnt
 

@@ -216,8 +216,8 @@ Inherited from the Infrastructure Decisions spec at `docs/superpowers/specs/YYYY
 [From Dependency Graph — where this epic sits in the execution sequence]
 
 ### Entry Point for epic-to-ticket-workflow
-When dispatched, run **`epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode** using this ticket as the starting context — it verifies this ticket's 15-field Metadata block and **emits the INFRA-CHECK** that everything downstream consumes. It then hands off to `01-epic-brief-fabrik`, which uses this ticket as its Epic Brief **input** — `01` § Step 1 Path B reads this file, § Step 5 drafts the brief from it.
-⚠️ **Do NOT dispatch straight to `01`.** `01-epic-brief-fabrik` § Path B expects INFRA-CHECK to already exist — it reads "`00-trigger-fabrik` ran in consume mode over the dispatched epic ticket **FILE on disk**", and only `00` emits it. Skipping `00` starves `01` and `03-tech-plan` of every propagated field.
+When dispatched, run **`epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode** using this ticket as the starting context — it verifies this ticket's 15-field Metadata block and **emits the INFRA-CHECK** that everything downstream consumes. It then hands off to `01-decisions-lock-fabrik`, which uses this ticket as its Decisions Lock **input** — `01` § Step 1 Path B reads this file, § Step 5 drafts the decisions lock from it.
+⚠️ **Do NOT dispatch straight to `01`.** `01-decisions-lock-fabrik` § Path B expects INFRA-CHECK to already exist — it reads "`00-trigger-fabrik` ran in consume mode over the dispatched epic ticket **FILE on disk**", and only `00` emits it. Skipping `00` starves `01` and `03-tech-plan` of every propagated field.
 Infrastructure Decisions spec provides the shared infra context.
 ```
 
@@ -287,7 +287,7 @@ Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enf
 - Description: self-sufficient spec derived verbatim from 02's confirmed output
 - Status: TODO (ready for dispatch)
 
-**Consumed by:** coding agents running `epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode when the ticket is dispatched — **not** `01` directly (see the Entry Point note in the template: only `00` emits the INFRA-CHECK that `01` § Path B expects). `01-epic-brief-fabrik` then reads this same ticket file directly (its Path B) — but only AFTER `00` has emitted the INFRA-CHECK.
+**Consumed by:** coding agents running `epic-to-ticket-workflow/00-trigger-fabrik` in multi-epic (consume) mode when the ticket is dispatched — **not** `01` directly (see the Entry Point note in the template: only `00` emits the INFRA-CHECK that `01` § Path B expects). `01-decisions-lock-fabrik` then reads this same ticket file directly (its Path B) — but only AFTER `00` has emitted the INFRA-CHECK.
 
 ## Does NOT
 

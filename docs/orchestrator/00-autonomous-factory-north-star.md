@@ -87,7 +87,7 @@ The two orchestrator chains (mega + ettw) run the **same end-to-end pipeline** a
    `/fabrik-spec` up-routes and ettw-00 mirrors (shipped 2026-07-18), so no entry point is "wrong." (Existing project → mega-00 in **EXISTING mode** — see § Which workflow.) ⚠️ A feature-scale entry **completes at its `execute`** — steps 2–5 below are the epic/vision tiers' path, not a continuation of feature-scale work.
 2. **Epic decomposition** — on the operator's agreement, `mega-epic-breakdown/` splits the vision into independent epics (`00-trigger` → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch-epic-tickets`).
 3. **Scaffold** — create the scaffold project (`fabrik scaffold`, one of the 11 types) if it doesn't exist; if it does, **review it and bring it to 100 % compatible** with the agreed spec/`shape:`.
-4. **Per-epic → tickets** — each epic runs the `epic-to-ticket-workflow/` (`00-trigger` → `01-epic-brief` … `10-cross-artifact-validation` → `11-deploy`).
+4. **Per-epic → tickets** — each epic runs the `epic-to-ticket-workflow/` (`00-trigger` → `01-decisions-lock` … `10-cross-artifact-validation` → `11-deploy`).
 5. **Per-ticket execution** — each ticket is executed by subagents (`claude -p` and the `libs/subagents` pool), coder + reviewer, converged per ticket.
 
 **One tool-capable engine — the front-end is interchangeable (D2 corrected 2026-07-18):**
@@ -215,7 +215,7 @@ The `epic-to-ticket-workflow/` twins are built on the decisions below (operator 
 - **CC4 — `04` is deploy-*plan*; `11` is the deploy.**
 - **CC5 — `08`/`10` roles under CC1:** `08-implementation-validation` **is** `07-execute`'s review (code vs spec); `10-cross-artifact-validation` **is** the cross-cutting integration review (plan→execute boundary + `09-revise`'s review). Distinct jobs — **not** merged.
 - **CC6 — Per-command build pipeline (serial; one command fully before the next):** reconcile the Traycer source to a no-op (`/fabrik-docs-review`) + hollow-citation sweep → fix per the design critique + citation discipline + add the `Reads:` header → checklist-eval to **0 FAIL** (against `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` — by path; never a hard-coded count) → build the tool-capable twin (embedded convergence terminal phase, fan-out on ground/validate, live-research on vendor-touch, disk-reads for epic files) → north-star check (R2/R3/R7/R8/R23) → gate + commit (explicit paths).
-- **CC7 — Template first:** `01-epic-brief-fabrik` + its `01-review` twin are built first as the reference pair; the operator reviews the pattern before it is replicated across `02`–`11`.
+- **CC7 — Template first:** `01-decisions-lock-fabrik` + its `01R-decisions-review-fabrik` twin are built first as the reference pair; the operator reviews the pattern before it is replicated across `02`–`11`.
 
 Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-07-16, each to an md5-stable no-op via its paired review — commits through `1fd7d432`; `11-deploy` is the human gate, converged by a grounding+consistency pass). The shared review skill was **extended folder-neutral + renamed → `/fabrik-workflow-review`** (it now serves BOTH folders via a type-conditional yardstick; a duplicate `/fabrik-mega-review` was rejected per CC1). Remaining: the **`mega` parity** — `04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity. Tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 

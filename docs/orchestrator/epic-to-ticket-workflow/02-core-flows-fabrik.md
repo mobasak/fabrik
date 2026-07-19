@@ -1,18 +1,19 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — CORE FLOWS (our own, tool-capable twin of 02-core-flows-command)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      GUI-ONLY: runs only when 00-trigger-fabrik's route included `core-flows`. TOOL-CAPABLE: it READS the
-     Epic Brief + design-system + UI rule pack from disk, and gates with final_gate.py.
+     Decisions Lock + design-system + UI rule pack from disk, and gates with final_gate.py.
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
      from the inline decision, or `(deeper, optional: …)` you may skip):
-       · the Epic Brief — `01-epic-brief-fabrik`'s output (the dispatched epic file, Path B) — the PRIMARY
-         flow-context source
+       · the LOCKED Decisions-Lock artifact — `docs/superpowers/specs/YYYY-MM-DD-<slug>-decisions.md`
+         (`01`'s output, locked by `01R`) — the PRIMARY flow-context source; Path B: plus the dispatched
+         epic file
        · the `00-trigger-fabrik` INFRA-CHECK (the field values it emitted)
        · `.windsurf/rules/core/ocoron-design-system.md` — § Verbal Identity · § States (§ Voice lives under
          Verbal Identity)
        · the scaffold's UI rule pack (Step 3 table) + any domain pack the epic touches (Step 3)
        · `docs/operations/fabrik-lifecycle.md` (flows → registrars)
-       · the pre-research file ONLY if the Epic Brief's Context & Problem is thin on flow detail (Step 2.3)
+       · the pre-research file ONLY if the Decisions Lock's Context & Problem is thin on flow detail (Step 2.3)
      -->
 
 <!-- ⚠️ QUALITY GATE: any modification MUST pass EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
@@ -26,7 +27,7 @@ Product manager who designs user experiences through flow mapping — entry poin
 
 ## Core Philosophy
 
-Alignment, not artifacts. Flows are discussed and agreed in conversation before they are documented — do not rush to draft. Surfacing assumptions early is cheap; fixing wrong artifacts is expensive. Consume what `00-trigger-fabrik` and `01-epic-brief-fabrik` established; do not redo work. Only proceed when the user explicitly confirms — silence is not confirmation.
+Alignment, not artifacts. Flows are discussed and agreed in conversation before they are documented — do not rush to draft. Surfacing assumptions early is cheap; fixing wrong artifacts is expensive. Consume what `00-trigger-fabrik` and `01-decisions-lock-fabrik` established; do not redo work. Only proceed when the user explicitly confirms — silence is not confirmation.
 
 ## Processing User Request
 
@@ -36,7 +37,7 @@ Alignment, not artifacts. Flows are discussed and agreed in conversation before 
 
 - **Skipped for** `python-api` · `python-api-gpu` · `node-api` · `file-api` · `file-worker` · `wordpress` (→ `/opt/wpf`) · `docusaurus` `[canonical: 00-trigger-fabrik § Step 6 routing table]`. If the route skipped `core-flows` for this scaffold, this command should not have been triggered — say so and stop.
 - **Path B (multi-epic):** if the epic ticket's scaffold is in the skip list, do not run — UNLESS the epic touches UI (user-facing flows), in which case it runs regardless of backend scaffold. Then:
-  - Read `Universal categories` from the Epic Brief Metadata. Scope Core Flows to journeys serving ONLY the categories this epic owns; a sibling epic's categories are `Out of Scope` here.
+  - Read `Universal categories` from the Decisions Lock Metadata. Scope Core Flows to journeys serving ONLY the categories this epic owns; a sibling epic's categories are `Out of Scope` here.
   - Read `Epic Flavor`. `Delta-feature` → full Step 4 + 4b + 5. `Retrofit` → scope-narrow to ONLY the surface the retrofit touches (`Retrofit: i18n` → locale-loading flows; `Retrofit: Resilience` → state-flag updates to existing flows, no new flows; `Retrofit: <UI area>` → that UI's flows). Skip Step 5 for code-only retrofits with no new UI. Retrofit target ≤100 lines (vs Delta's 200).
 - **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`): map BOTH client-side UX AND backend-served UX (e.g. extension popup + FastAPI dashboard; mobile screens + API-driven notifications).
 
@@ -44,9 +45,9 @@ Alignment, not artifacts. Flows are discussed and agreed in conversation before 
 
 Read in order; everything builds on these:
 
-1. **Epic Brief** (this epic) — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata. Every flow must trace to ≥1 Success Criterion.
+1. **Decisions Lock** (this epic) — Goal, Context & Problem, Decisions, Success Criteria, Out of Scope, Metadata (the artifact also carries INFRA-CHECK, Constraint findings, Route, grounded deps). Every flow must trace to ≥1 Success Criterion.
 2. **INFRA-CHECK** — capture `Scaffold`, `Rule Packs`, `Shape`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Design System`; **Path B also**: `Registrars`, `Universal categories`, `Epic Flavor`, `Abuse Detection`, `Email`, `FINANCIALS`. Core Flows uses `Universal categories` + `Epic Flavor` for scope (Step 1); `Abuse Detection`/`Email` surface only in signup/transactional flows; `FINANCIALS` is a `ticket-outline` doc deliverable, not a flow input. `Responsive: 375px–2560px` and `Dark+Light: mandatory` bind flows across the full breakpoint range and both themes — **feature-trigger** (any scaffold with a web GUI surface, incl. python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) `[canonical: mega/00 § Rule-area applicability matrix]`.
-3. **Epic Brief Context & Problem** is the primary flow-context source. Re-read the pre-research file `00-trigger-fabrik` identified ONLY if that section is thin on flow-level detail — do not re-discover (`00-trigger-fabrik` already did discovery).
+3. **Decisions Lock Context & Problem** is the primary flow-context source. Re-read the pre-research file `00-trigger-fabrik` identified ONLY if that section is thin on flow-level detail — do not re-discover (`00-trigger-fabrik` already did discovery).
 4. `.windsurf/rules/core/ocoron-design-system.md` — must already be read (INFRA-CHECK `Design System: read`). If it shows not-read, stop and route back to `00-trigger-fabrik`.
 5. `docs/operations/fabrik-lifecycle.md` — flows touching an admin dashboard trigger the authelia registrar; flows with search trigger meilisearch. Flag these for the shape block (Step 4).
 
@@ -61,11 +62,11 @@ Read the scaffold-specific UI pack for user-facing structural patterns only (nev
 | `mobile-app` | `.windsurf/rules/mobile-app/80-mobile.md` + `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` |
 | `desktop-app` | `.windsurf/rules/desktop-app/72-desktop.md` (+ `.windsurf/rules/core/20-typescript.md` for language conventions) |
 
-Also read **only when the epic touches that domain** (judged from the Epic Brief): auth/login/signup → `core/35-security-auth.md` · payments/billing → `core/85-payments-billing.md` · multi-tenant UI → `saas/95-multi-tenant-saas.md`. State which packs were read.
+Also read **only when the epic touches that domain** (judged from the Decisions Lock): auth/login/signup → `core/35-security-auth.md` · payments/billing → `core/85-payments-billing.md` · multi-tenant UI → `saas/95-multi-tenant-saas.md`. State which packs were read.
 
 ### Step 4: Map Journeys
 
-Identify all personas from the Epic Brief. For each, map **Entry Point → Actions → Feedback → Exit**, with:
+Identify all personas from the Decisions Lock. For each, map **Entry Point → Actions → Feedback → Exit**, with:
 
 - Decision points where system or user picks a path.
 - Edge cases + error scenarios with explicit system response.
@@ -114,14 +115,14 @@ Present. Iterate until the user explicitly confirms flows are complete — silen
 - Decompose flows into tickets — that is `05-ticket-outline-command`.
 - Design state-machine implementations (Redux/Zustand) — flows name USER-VISIBLE state names only; the pattern is `03-tech-plan-command`'s concern.
 - Specify literal microcopy — name the outcome per `[canonical: ocoron-design-system.md § Verbal Identity]`; the implementer writes it.
-- Re-derive INFRA-CHECK fields — consume from the Epic Brief Metadata verbatim (Step 2). A missing Path B field (e.g. `Universal categories`) → stop, route back to `00-trigger-fabrik`.
+- Re-derive INFRA-CHECK fields — consume from the Decisions Lock Metadata verbatim (Step 2). A missing Path B field (e.g. `Universal categories`) → stop, route back to `00-trigger-fabrik`.
 - Design observability events / deploy config — that is `03-tech-plan-command` + `06-ticket-breakdown-command` (observability) and `04-deploy-plan-command` (compose/Traefik/healthcheck).
 - Write i18n implementation code — UX behavior at flow level only; implementation is `03-tech-plan-command` + `06-ticket-breakdown-command`.
 
 ## Acceptance Criteria
 
 - Runs only when `00-trigger-fabrik` Step 6 routing included `core-flows`; two-faced types map client + backend flows.
-- Upstream consumed: Epic Brief sections + INFRA-CHECK fields + design-system + `fabrik-lifecycle.md`; scaffold UI pack (Step 3 table) + domain packs (only when the epic touches them) read and stated.
+- Upstream consumed: Decisions Lock sections + INFRA-CHECK fields + design-system + `fabrik-lifecycle.md`; scaffold UI pack (Step 3 table) + domain packs (only when the epic touches them) read and stated.
 - All personas have complete journeys; every flow traces to ≥1 Success Criterion; gaps surfaced, not dropped.
 - UX dimensions aligned with the user before documentation; resilience paths for every external-service action.
 - i18n Decisions captured when applicable; 7-state flags only where the rule applies; Microcopy Hot-Spots as outcomes only; shape implications flagged.

@@ -9,7 +9,7 @@
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
      from the inline decision, or `(deeper, optional: …)` you may skip):
-       · the validation specs — Epic Brief (`01-epic-brief-fabrik`) · Core Flows (`02-core-flows-fabrik`) ·
+       · the validation specs — Decisions Lock (`01-decisions-lock-fabrik`) · Core Flows (`02-core-flows-fabrik`) ·
          Tech Plan (`03-tech-plan-fabrik`) · Deploy Plan (`04-deploy-plan-fabrik`) — the "what was planned"
        · the ticket set (`06-ticket-breakdown-fabrik` output) — every ticket's Scope / Steps / Acceptance
        · the `[PRIMARY PATH]` Index (from `06`) — the test files + the flows they cover
@@ -36,7 +36,7 @@ The **epic-level implementation-vs-spec review orchestrator** — Opus 4.8, runn
 
 Two questions, answered by reading code + running commands + reasoning — never by self-report:
 
-1. **Alignment** — does the code match what was planned (Epic Brief, Core Flows, Tech Plan, Deploy Plan, tickets)?
+1. **Alignment** — does the code match what was planned (Decisions Lock, Core Flows, Tech Plan, Deploy Plan, tickets)?
 2. **Correctness** — does it actually work? Bugs, silent failures, security gaps?
 
 - **Every finding cites** `[canonical: 08-implementation-validation-command § Core Philosophy]`: a code location (`file:line`), the spec it should align with (document + section), and a verification (command output or the code you read). A finding without all three is not a finding.
@@ -61,7 +61,7 @@ Small epics (≤8 tickets): the three lenses combine into one run. Either way th
 
 **Retrofit-epic adjustments** (Title prefix `Retrofit:` `[canonical: mega-epic-breakdown/03-expand-epic-files-fabrik § Step 2 — Retrofit detected from the Title prefix]`):
 
-- **Success Criteria count** — a Retrofit Brief is 3–5 SC (not 5–8); flag low-SC as PASS when Retrofit, Blocker only for a Delta-feature with <5 SC `[canonical: mega-epic-breakdown/03-expand-epic-files-fabrik § Success Criteria]`.
+- **Success Criteria count** — a Retrofit Decisions Lock is 3–5 SC (not 5–8); flag low-SC as PASS when Retrofit, Blocker only for a Delta-feature with <5 SC `[canonical: mega-epic-breakdown/03-expand-epic-files-fabrik § Success Criteria]`.
 - **Deploy Plan absence** — if `04-deploy-plan-fabrik` was SKIPPED per its Retrofit branch, state `Deploy Plan: skipped per Retrofit branch` and proceed; do NOT flag missing.
 - **Core Flows absence** — if `02-core-flows-fabrik` produced no flows for a code-only retrofit, do NOT flag missing; verify only the flows it produced.
 - **Per-ticket Architectural Mandate scope** — for Retrofit tickets, enforce only the mandate rows touching the retrofit's target area `[canonical: 06-ticket-breakdown-fabrik § Step 4 Retrofit branch — Step-6 mandate rows]` (others inherited from the existing project).
@@ -69,7 +69,7 @@ Small epics (≤8 tickets): the three lenses combine into one run. Either way th
 
 ### Step 2: Read Everything (the Reads budget)
 
-Read the **specs** (the "what was planned"): Epic Brief Success Criteria · Core Flows `[PRIMARY PATH]` markers + error paths · Tech Plan Component Architecture + Data Model + resilience table + Shape Block · Deploy Plan registrar surface + compose contract + env vars · every ticket's Scope/Steps/Acceptance · the `[PRIMARY PATH]` Index.
+Read the **specs** (the "what was planned"): Decisions Lock Success Criteria · Core Flows `[PRIMARY PATH]` markers + error paths · Tech Plan Component Architecture + Data Model + resilience table + Shape Block · Deploy Plan registrar surface + compose contract + env vars · every ticket's Scope/Steps/Acceptance · the `[PRIMARY PATH]` Index.
 
 Read the **implementation**: every file in each ticket's Scope (critical tickets full, simple spot-checked) · the test files named in the Index · `compose.yaml` · `Dockerfile` · `.env.example` · `specs/services/<id>.yaml` shape block · and the scaffold docs the completeness lens (Step 3) checks — `docs/CHANGELOG.md` · `INDEX.md` · `docs/CONFIGURATION.md` · `docs/RESILIENCE.md` · `docs/data-contract.md` · `docs/DEPLOYMENT.md` · `docs/FEATURES.md` · `docs/LESSONS_LEARNT.md`.
 
@@ -106,7 +106,7 @@ Each reviewer commits to a lens before seeing the others; **you (Opus) refute/me
 Classify every surviving finding (Step 5), then handle it autonomously — everything short of a BLOCKED case:
 
 - **Mechanical / correctness / drift** (missing timeout, wrong column name, missing CHANGELOG entry, shape mismatch, silent failure) → create a **scoped fixup ticket** (one fix per issue, NOT a re-do) carrying the finding's `file:line` + spec ref as context, and **dispatch it to a coder agent** — the pool `pick_models("code")` via `fanout` (≤$1.5/Mtok auto-tier, records the flywheel) for simple mechanical fixes, or **`claude -p opus`** in an isolated git worktree for a high-risk fix (auth/schema/migrations/concurrency/secrets) `[canonical: 06-ticket-breakdown-fabrik § Step 9 — the coder tiers]`. Re-read the affected files + re-review to confirm resolution.
-- **Product misalignment** (code deviates from Epic Brief / Core Flows intent — not a code bug but a requirements gap) → **route to `09-revise-requirements-command`**; do NOT edit the Epic Brief / Core Flows / Tech Plan here.
+- **Product misalignment** (code deviates from Decisions Lock / Core Flows intent — not a code bug but a requirements gap) → **route to `09-revise-requirements-command`**; do NOT edit the Decisions Lock / Core Flows / Tech Plan here.
 - **3 consecutive same-test failures on one fixup** → **BLOCKED case 1** → Telegram, pause THAT thread, continue. **Missing infra** → **BLOCKED case 2**. **Unresolvable spec contradiction** → **BLOCKED case 3** → route to `09`.
 
 **LOOP:** every fixup dispatched → re-reviewed (Step 3) → re-classified — **until a fresh epic-level review round finds nothing AND changes nothing (`found:0, fixed:0`)**. The pass that produced a fixup is never the last; run one more. Only that no-op validates the epic.
@@ -119,7 +119,7 @@ Classify every surviving finding (Step 5), then handle it autonomously — every
 | **Bug** | Logic error, broken flow, missing/stub test, wrong behavior | Fixup ticket → coder. |
 | **Edge Case** | Unhandled Core Flows scenario | Fixup if cheap + clearly in-scope; else a Telegram note for the operator. |
 | **Technical Drift** | Deviated from Tech Plan, technically sound | Note it (Telegram); the Tech Plan re-freeze routes to `09-revise-requirements-command` (spec edits live there, never a direct edit here). |
-| **Product Misalignment** | Deviated from Epic Brief / Core Flows | Route to `09-revise-requirements-command`. |
+| **Product Misalignment** | Deviated from Decisions Lock / Core Flows | Route to `09-revise-requirements-command`. |
 | **Validated** | Meets criteria, aligned, correct | Confirm. |
 
 Post the running result to the Telegram digest (`Validation: 10 clean / 2 fixups → re-review`), not a per-finding human prompt.
@@ -132,12 +132,12 @@ When the epic-level review reaches the `found:0, fixed:0` no-op: run **`final_ga
 
 - **Write code itself** — coder agents implement the fixups (Step 4 creates the scoped fixup + dispatches it: pool `pick_models("code")` or `claude -p`). The review finds + orchestrates; it does not hand-edit the implementation.
 - **Re-run the ticket execution** — that is `07-execute-fabrik` (the full coder dispatch + per-ticket converge). `08` validates the finished epic and dispatches *scoped fixups*, not a re-do.
-- **Validate cross-artifact (spec-vs-spec) consistency** — that is `10-cross-artifact-validation-command` (across Epic Brief, Core Flows, Tech Plan, Deploy Plan, ticket specs). `08` is implementation-vs-spec.
-- **Change the Epic Brief / Core Flows / Tech Plan / Deploy Plan** — Product Misalignment routes to `09-revise-requirements-command`, never a direct edit here.
+- **Validate cross-artifact (spec-vs-spec) consistency** — that is `10-cross-artifact-validation-command` (across Decisions Lock, Core Flows, Tech Plan, Deploy Plan, ticket specs). `08` is implementation-vs-spec.
+- **Change the Decisions Lock / Core Flows / Tech Plan / Deploy Plan** — Product Misalignment routes to `09-revise-requirements-command`, never a direct edit here.
 - **Stop and wait for a human on a finding** — drift is handled by fixup + re-dispatch + re-review; only the 3 BLOCKED cases pause a thread (via Telegram).
 - **Trust agent self-reports** — every finding needs `file:line` + spec ref + verification (Core Philosophy). A coder's "gate passed" is a claim; the returned `final_gate.py --json` `status:"success"` is the proof.
 - **Force `final_gate.py --systemic` for a Retrofit epic where Epic Closure was skipped** at `06`/`07` — use Tier-2 `--json` there (Step 1).
-- **Flag a Retrofit Brief with 3–5 Success Criteria as under-specced** — that is the Retrofit default; low-SC is a Blocker only for a Delta-feature with <5 SC.
+- **Flag a Retrofit Decisions Lock with 3–5 Success Criteria as under-specced** — that is the Retrofit default; low-SC is a Blocker only for a Delta-feature with <5 SC.
 - **Execute `fabrik apply` / deploy** — that is `11-deploy-command` (the deploy-out gate). `08` is the PRE-deploy epic-level review.
 - **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); the coder fixups merge via `07`-style worktree→default-branch.
 

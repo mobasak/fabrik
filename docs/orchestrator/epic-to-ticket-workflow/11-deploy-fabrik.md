@@ -14,7 +14,7 @@
        · `specs/services/<id>.yaml` — the spec: `id`, `domain`, `kind`, `port`, the `shape:` block
        · the Deploy Plan (`04-deploy-plan-fabrik` output) when it ran — registrar surface map, compose
          contract, env vars; ELSE derive from the spec + `compose.yaml` + `.env.example` (do not block)
-       · the Epic Brief (`01-epic-brief-fabrik`) — Success Criteria, for the ticket's verification lines
+       · the Decisions Lock (`01-decisions-lock-fabrik`) — Success Criteria, for the ticket's verification lines
        · the Tech Plan (`03-tech-plan-fabrik` output) — **Retrofit branch only**, when the Deploy Plan was
          skipped and the registrar/compose context must be derived
        · **Retrofit branch only:** the retrofit's target rule pack + the Compliance-Report row that emitted
@@ -67,7 +67,7 @@ Stop at the first available per row; never block on a missing Deploy Plan:
 | Shape + registrar surface (**all 10 registrars**, each fires/doesn't) | Deploy Plan (`04`) | derive: **7 are shape-flag-driven** — `needs_database`→postgres · `needs_cache`→redis · `has_persistent_data`→backrest · `has_search_feature`→meilisearch · **`is_public` AND `spec.domain` set**→gatus · **`is_admin_dashboard` AND `spec.domain`**→authelia (+ the `^/api/` bypass first if `has_bearer_api`) · **`exposes_metrics` AND `spec.domain`**→prometheus. The other **3 are NOT shape-flag-derived**: **glitchtip** fires on `shape.kind ∈ {service, worker, wordpress}`; **grafana ALWAYS**; **watchdog** unless the spec sets `watchdog: {enabled: false}` (opt-OUT). ⚠️ `has_bearer_api` drives **no standalone registrar** — only the Authelia bypass `[canonical: src/fabrik/orchestrator/infrastructure.py — the applicability matrix]` |
 | Compose contract (memory limits, `platform: linux/amd64`, healthcheck `start_period`, `fabrik` network, Traefik labels, **no host `ports:`**) | Deploy Plan `04` | read `compose.yaml` |
 | Env vars | Deploy Plan `04` | read `.env.example` |
-| Success Criteria | Epic Brief (`01`) | ask the operator |
+| Success Criteria | Decisions Lock (`01`) | ask the operator |
 | Lifecycle contract | `docs/operations/fabrik-lifecycle.md` | always present (synced) |
 
 ### Step 3: Construct the Deploy Ticket
@@ -102,7 +102,7 @@ fires the registrars. First deploy 5–7 min (a --wait health poll up to 300s is
     curl -sI https://<domain>/health                                  # 200
 
 ### Success criteria
-- SC<n>: <from the Epic Brief> → verified by: <command>
+- SC<n>: <from the Decisions Lock> → verified by: <command>
 
 ### Rollback (deploy failing past ~10 min)
     fabrik destroy specs/services/<id>.yaml --use-state --drop-data --keep-dns --dry-run   # review first

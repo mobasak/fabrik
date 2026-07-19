@@ -1,12 +1,12 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET OUTLINE (our own, tool-capable twin of 05-ticket-outline-command)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
-     TOOL-CAPABLE: it READS the Epic Brief + Core Flows + Tech Plan + Deploy Plan + INFRA-CHECK from disk and
+     TOOL-CAPABLE: it READS the Decisions Lock + Core Flows + Tech Plan + Deploy Plan + INFRA-CHECK from disk and
      builds the maximum-parallelism dependency graph. Produces the MAP; `06-ticket-breakdown-command` produces
      the DETAIL.
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
      from the inline decision, or `(deeper, optional: …)` you may skip):
-       · the Epic Brief (`01-epic-brief-fabrik`) · Core Flows (`02-core-flows-fabrik`, if the route ran it) ·
+       · the **LOCKED** Decisions Lock (`01-decisions-lock-fabrik`, locked by `01R` — never consume a `DRAFT`) · Core Flows (`02-core-flows-fabrik`, if the route ran it) ·
          Tech Plan (`03-tech-plan-fabrik`) · Deploy Plan (`04-deploy-plan-fabrik`) · the `00-trigger-fabrik` INFRA-CHECK
        · `docs/operations/fabrik-lifecycle.md` (deploy/runtime, stages 3–4 ONLY — the foundation→…→closure stage model is this chain's own convention, NOT from this doc)
        · `AGENTS.md § "What every API scaffold emits automatically"` (scaffold-provided code — do not re-ticket it)
@@ -37,7 +37,7 @@ Technical project manager who maps the full epic into a **maximum-parallelism de
 
 ### Step 1: Consume Upstream
 
-Read in order: **Epic Brief** (`01-epic-brief-fabrik`) — Success Criteria (each maps to ≥1 ticket), Out of Scope (hard boundary), Metadata; **Core Flows** (`02-core-flows-fabrik`, when present) — `[PRIMARY PATH]` markers, Flow Index; **Tech Plan** (`03-tech-plan-fabrik`) — Component Architecture, Data Model, Issue classification, Shape Block, resilience table; **Deploy Plan** (`04-deploy-plan-fabrik`) — Shape confirmation, registrar surface, env vars, compose contract; **INFRA-CHECK** — Internal APIs (consumed), Port, User Guide, Concurrency, i18n, Shape; `docs/operations/fabrik-lifecycle.md` — deploy/runtime mechanics (stages 3–4 only; the foundation→implementation→integration→closure model is this chain's own convention, not from that doc).
+Read in order: **Decisions Lock** (`01-decisions-lock-fabrik`) — Success Criteria (each maps to ≥1 ticket), Out of Scope (hard boundary), Metadata; **Core Flows** (`02-core-flows-fabrik`, when present) — `[PRIMARY PATH]` markers, Flow Index; **Tech Plan** (`03-tech-plan-fabrik`) — Component Architecture, Data Model, Issue classification, Shape Block, resilience table; **Deploy Plan** (`04-deploy-plan-fabrik`) — Shape confirmation, registrar surface, env vars, compose contract; **INFRA-CHECK** — Internal APIs (consumed), Port, User Guide, Concurrency, i18n, Shape; `docs/operations/fabrik-lifecycle.md` — deploy/runtime mechanics (stages 3–4 only; the foundation→implementation→integration→closure model is this chain's own convention, not from that doc).
 
 **Feature for existing project:** outline covers ONLY the feature scope; consume the existing `specs/services/<id>.yaml` (new tickets may ADD shape fields, never remove).
 
@@ -133,7 +133,7 @@ Every project doc assigned to exactly one ticket — a scaffolded template where
 | `docs/RESILIENCE.md` | T? | Tech Plan resilience table |
 | `db/schema.sql` + Alembic migration | T? | Tech Plan Data Model (⚠️ there is no `docs/DATABASE_SCHEMA.md`) |
 | `docs/TROUBLESHOOTING.md` | T? | Closure ticket (or the deploy-integration ticket for a Retrofit that skips closure) |
-| `docs/BUSINESS_MODEL.md` | T? | Epic Brief (commercial projects only) |
+| `docs/BUSINESS_MODEL.md` | T? | Decisions Lock (commercial projects only) |
 | `docs/FINANCIALS.md` | T? | required when `Metadata.FINANCIALS: required`; filled by the billing-integration ticket |
 
 Docs are filled BY the ticket that implements the related functionality (not a separate "docs ticket"); if a scaffold lacks a doc (e.g. `file-worker` has no `API_REFERENCE.md`), mark N/A; `06-ticket-breakdown-command` enforces this matrix per-ticket.
@@ -148,7 +148,7 @@ Present the outline table + parallel mermaid diagram + batch proposal + time-sav
 
 ## Acceptance Criteria
 
-- Upstream consumed (Epic Brief, Core Flows when present, Tech Plan, Deploy Plan, INFRA-CHECK, `fabrik-lifecycle.md`); feature-for-existing-project + two-faced types handled.
+- Upstream consumed (Decisions Lock, Core Flows when present, Tech Plan, Deploy Plan, INFRA-CHECK, `fabrik-lifecycle.md`); feature-for-existing-project + two-faced types handled.
 - Every ticket has Title, Scope, Depends, **Parallel** (⚡/⛓️), Stage, Gate, Touches, Shape, Complexity, Docs, Lessons.
 - **Parallelism maximized** (no artificial chains; budget ≥3:1 or justified; ≤3 sequential hops) and **validated** (no ⚡ with a dependency, bidirectional; no shared-state conflict between ⚡ tickets).
 - Mermaid uses `subgraph`, consistent with the fields; batches of 3–5 maximizing ⚡; time savings stated.

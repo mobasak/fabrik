@@ -101,7 +101,7 @@ This command (`00-trigger`) is the **mandatory entry point** for every epic-to-t
 - **Delta-feature epic** — Title `Epic N — <feature area>`. Default behavior: 5–8 Success Criteria target, `fabrik apply` succeeds + `/health` returns 200 as the deploy-level criterion, Epic Closure mandatory.
 - **Retrofit epic** — Title `Epic N — Retrofit: <area>` (e.g. `Retrofit: i18n`, `Retrofit: Resilience on YouTube Data API`) per `mega-epic-breakdown/03-expand-epic-files-fabrik` § Step 2 + § Success Criteria (Title prefix + Success-Criteria defaults). Different defaults: 3–5 Success Criteria target, `python scripts/final_gate.py --json` returning `"status":"success"` (the FULL Tier-2 gate) for the modified scope + Compliance Report gap moves Partial/Violates → Compliant as the deploy/gate-level criterion, Epic Closure optional (Epic-Closure default per `epic-to-ticket-workflow/06-ticket-breakdown-command` Step 10 — it is **not** in `mega/03`).
 
-Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Retrofit` to the propagated block so downstream `01-epic-brief-fabrik` applies the correct Success-Criteria branch (`05` re-derives the flavour from the ticket Title prefix) without re-deriving from the Title.
+Propagate the flavor into INFRA-CHECK by adding `Epic Flavor: Delta-feature | Retrofit` to the propagated block so downstream `01-decisions-lock-fabrik` applies the correct Success-Criteria branch (`05` re-derives the flavour from the ticket Title prefix) without re-deriving from the Title.
 
 ## **Processing User Request**
 
@@ -229,18 +229,18 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 | Scaffold | Route | Skip | User Guide |
 |---|---|---|---|
-| `saas-skeleton` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
-| `python-api` | epic-brief → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | per #16 |
-| `python-api-gpu` | epic-brief → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | per #16 |
-| `node-api` | epic-brief → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | per #16 |
-| `file-api` | epic-brief → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | false |
-| `file-worker` | epic-brief → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | false |
-| `chrome-extension` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
-| `mobile-app` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
-| `desktop-app` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
-| `static-site` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
+| `saas-skeleton` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
+| `python-api` | decisions-lock → decisions-review → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | per #16 |
+| `python-api-gpu` | decisions-lock → decisions-review → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | per #16 |
+| `node-api` | decisions-lock → decisions-review → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | per #16 |
+| `file-api` | decisions-lock → decisions-review → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | false |
+| `file-worker` | decisions-lock → decisions-review → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | core-flows | false |
+| `chrome-extension` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
+| `mobile-app` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
+| `desktop-app` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
+| `static-site` | decisions-lock → decisions-review → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `wordpress` | Use `/opt/wpf/` factory (`wpf wp apply <domain>`) instead | not this workflow | — |
-| `docusaurus` | epic-brief → ticket-outline → ticket-breakdown → deploy-plan → execute | core-flows, tech-plan | false |
+| `docusaurus` | decisions-lock → decisions-review → ticket-outline → ticket-breakdown → deploy-plan → execute | core-flows, tech-plan | false |
 | Feature (existing) | Use `mega-epic-breakdown/00-trigger-fabrik` (declare EXISTING mode at Step 0) instead | not this workflow | — |
 
 **Cross-cutting** (anytime): `revise-requirements`, `cross-artifact-validation`, `implementation-validation`, `deploy`.
@@ -251,8 +251,8 @@ Emit **verbatim**, all fields populated:
 
 > ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` (produced by the **Microservices** pre-flight check — the project's own service-to-service endpoints, read from its spec + `compose.yaml`). ⚠️ **Any internal API listed ⇒ M2M auth via `X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY`** — never unauthenticated, never public-auth'd *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| Shape:* `<fields>` *| target_vps:* `vps1|vps2|vps3` (regex `^vps[1-9][0-9]?$`; the fleet is 3 hosts today) *| Rule Packs:* `<IDs>` *| Registrars:* `<list — Path B only>` *| Universal categories:* `<1–14 — Path B only>` *| Epic Flavor:* `Delta-feature/Retrofit/N-A` *| LLM Gateway:* `openrouter/kilo-cli/contested-<vendor>/none` *| Watchdog:* `accept-defaults/raise/opt-out`
 
-**Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, **target_vps** (REQUIRED in `01` — it picks the DB host), and — **Path B only** — **Registrars**, **Universal categories**, **Epic Flavor** (consumed by `01`'s Success-Criteria branch; `05` has **no** `Epic Flavor` field and re-derives the flavour from the ticket Title prefix), plus the **3 SaaS-conditional** fields `01` requires (`N/A` allowed): **Abuse Detection**, **Email**, **FINANCIALS** (`01-epic-brief-fabrik` § Step 5 → Metadata).
-**Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Vector DB, **Watchdog**, **LLM Gateway** — ⚠️ recorded on the **INFRA-CHECK line**, which IS the carrier that satisfies #27/#28's MUST-state (`03-tech-plan-command` **Step 1** captures every INFRA-CHECK field). They do **not** enter `01`'s Epic-Brief Metadata — it has no slot for Watchdog / LLM Gateway (it DOES have a `target_vps` slot) — so do not expect them in the brief.
+**Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs, **target_vps** (REQUIRED in `01` — it picks the DB host), and — **Path B only** — **Registrars**, **Universal categories**, **Epic Flavor** (consumed by `01`'s Success-Criteria branch; `05` has **no** `Epic Flavor` field and re-derives the flavour from the ticket Title prefix), plus the **3 SaaS-conditional** fields `01` requires (`N/A` allowed): **Abuse Detection**, **Email**, **FINANCIALS** (`01-decisions-lock-fabrik` § Step 5 → Metadata).
+**Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Vector DB, **Watchdog**, **LLM Gateway** — ⚠️ recorded on the **INFRA-CHECK line**, which IS the carrier that satisfies #27/#28's MUST-state (`03-tech-plan-command` **Step 1** captures every INFRA-CHECK field). They do **not** enter `01`'s Metadata carry (it has no Watchdog / LLM-Gateway slot; it DOES have `target_vps`) — but `01`'s **Decisions table** DOES record the Watchdog and LLM-Gateway choices with their one-line why, and the INFRA-CHECK section reproduces the full line verbatim, so nothing informational is lost in the artifact.
 
 Present:
 
@@ -263,6 +263,16 @@ Present:
 5. Suggested next command.
 
 User confirms. Proceed.
+
+### **Step 8: Hand off — this command is CHAT-ONLY**
+
+`00` persists nothing. Its entire output — the INFRA-CHECK line, constraint findings, confirmed route —
+lives in this chat and is consumed by the NEXT command, `01-decisions-lock-fabrik`, which writes the run's
+one persisted decisions artifact (`docs/superpowers/specs/YYYY-MM-DD-<slug>-decisions.md`, Traycer artifact
+`decisions`) and hands it to `01R-decisions-review-fabrik` to converge and lock — Path A: on the
+operator's confirm (Gate 1); Path B (epic-fed): auto-lock on the no-op, no operator step
+`[canonical: 01R § Phase 2]`. Do not write the artifact here; do not end the session between `00` and `01` (the chat IS
+the carrier of the INFRA-CHECK until `01` persists it).
 
 ## **Acceptance Criteria**
 
@@ -291,8 +301,10 @@ User confirms. Proceed.
 - INFRA-CHECK emitted verbatim, all fields populated.
 - Route includes `deploy-plan` and `ticket-outline` in the sequence.
 - Route confirmed by user.
+- **Hand-off stated (Step 8)** — `00` persisted nothing (chat-only by design); the run continues straight
+  into `01-decisions-lock-fabrik` in the SAME session, which persists the decisions artifact.
 - No unresolved conflicts at hand-off.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this command's output with `/fabrik-workflow-review <emitted INFRA-CHECK> trigger` — it forces the no-op on the INFRA-CHECK (all fields present, valued, Path-A/B-consistent, no silent drops) before anything consumes it. Then hand the confirmed epic to `01-epic-brief-fabrik`.
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this command's output with `/fabrik-workflow-review <emitted INFRA-CHECK> trigger` — it forces the no-op on the INFRA-CHECK (all fields present, valued, Path-A/B-consistent, no silent drops) before anything consumes it. Then hand the confirmed epic to `01-decisions-lock-fabrik`.

@@ -7,7 +7,7 @@
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
      from the inline decision, or `(deeper, optional: …)` you may skip):
        · the Tech Plan (`03-tech-plan-fabrik` output — Shape Block, deployment constraints, resilience table)
-       · the `00-trigger-fabrik` INFRA-CHECK · the Epic Brief Metadata (`01-epic-brief-fabrik`) for Path B
+       · the `00-trigger-fabrik` INFRA-CHECK · the Decisions Lock Metadata (`01-decisions-lock-fabrik`) for Path B
        · `docs/operations/fabrik-lifecycle.md` (registrar mechanics — what each creates + tears down)
        · `.windsurf/rules/core/35-security-auth.md` (M2M / bearer `^/api/` auth; the resource-based health-endpoint bypass is inline at Step 8, canonical in `core/30-ops.md`)
      -->
@@ -108,7 +108,7 @@ Present the deploy plan; the user confirms shape + compose + registrars + env va
 - Write the actual `compose.yaml` content — Step 3 names the contract; literal content is `06-ticket-breakdown-command` per-ticket.
 - Execute `fabrik apply` — that is `11-deploy-command` (Stage 3); this command is the pre-flight verification.
 - Redeclare the Shape Block — Step 2 VERIFIES the `03-tech-plan-fabrik` Step-7 declaration; declaring is upstream's job.
-- Re-derive INFRA-CHECK fields — consume from the Epic Brief Metadata verbatim (Step 1); a missing Path B field routes back to `00-trigger-fabrik`.
+- Re-derive INFRA-CHECK fields — consume from the Decisions Lock Metadata verbatim (Step 1); a missing Path B field routes back to `00-trigger-fabrik`.
 - Write env values (secrets, keys) — Step 5 names the checklist; values are populated at `fabrik apply` time per `core/35-security-auth.md`.
 - Run Steps 2–8 for a code-only Retrofit that changes no shape/compose/registrar/env — per the Step-1 skip rule (state which Steps run).
 - Validate the Deploy Plan against downstream commands — that is `08-implementation-validation-command` + `10-cross-artifact-validation-command`.

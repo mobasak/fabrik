@@ -80,7 +80,7 @@ Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesy
 
 **Role.** Technical strategist. Build a shared, grounded understanding of what's being built (NEW) or extended (EXISTING), and produce a deploy-ready Vision Summary that grounds all downstream epic + ticket work in Fabrik's actual infrastructure.
 
-**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-fabrik` consumes both modes identically; the extras drive Retrofit epic emission in 02). No files written to disk by this command. Tickets are created later by `03-expand-epic-files-fabrik`.
+**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-fabrik` consumes both modes identically; the extras drive Retrofit epic emission in 02). ⚠️ **Persisted on confirm — decisions never live only in chat:** the confirmed Summary is written to `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md` and mirrored as a Traycer artifact (§ Output Contract → *Persist on confirm*). Tickets are created later by `03-expand-epic-files-fabrik`.
 
 **Agreed outputs by mode:**
 
