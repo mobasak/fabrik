@@ -745,7 +745,6 @@ def generate_docs_structure_tree() -> str:
         "trueforge-images.md": "Trueforge image catalog",
         "gatus.md": "Gatus runbook",
         "traycer-evaluation.md": "Traycer integration evaluation",
-        "global-gates.md": "Global gate definitions",
         "kilo-benchmarks-testing.md": "Kilo benchmarks testing",
         "KILO_MODEL_CAPABILITIES.md": "Kilo model capabilities",
         "KILO-TOKEN-LEAN-WORKFLOW.md": "Kilo token-lean workflow",

@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs/reference triage (fourth 5): registrar-drift alert chain found broken; 2 archived (2026-07-19)
+
+**Operational find:** the hourly `audit_all_registrars.py` pushes drift metrics to a healthy
+pushgateway (1424 metric lines), but the live `prometheus.yml` lost its `pushgateway` scrape job —
+`fabrik_audit_drift_total` is empty in Prometheus, so the `FabrikRegistrarDrift` → Telegram alert
+chain CANNOT fire (it worked at the 2026-05-16 roundtrip; the job drifted out since). The job is
+restored in the repo mirror (`configs/prometheus/prometheus.yml`, `honor_labels: true`); **live vps1
+apply is an operator step** (append job + `docker exec prometheus kill -HUP 1`). **Archived:**
+`global-gates.md` (Feb-era gate model, no implementing script — the dangling `make global-gates`
+target removed too) and `kpi-schema.md` (dormant KPI subsystem — the dead `kpi-schema-validate` CI
+job removed; `kpi_tracker.py` remains, uncalled). **Converged:** `health-monitoring.md` (live-probed:
+16 scrape jobs / 20 targets up / ~34 Gatus endpoints; spoke scrape jobs now exist — doc said the
+opposite; citation off-by-one), `gui-toolchain.md` (Uniwind third styling option synced from
+rules/80), `LOCAL_LLM_INFRASTRUCTURE.md` (kept — Ollama live + pipeline-maintained; hand-prose
+re-scoped: dev-box tooling only, Kilo/Cascade sections marked retired history, capability matrix now
+defers to the auto-generated table, fallback chain rewritten to OpenRouter pool + Claude Code,
+systemd unit corrected). 3-pass loop (Opus + 2 Sonnet → Opus confirm found 4 → sweep clean).
+
 ### Changed — docs/reference triage (third 5) + research-file consolidation (2026-07-19)
 
 **Archived:** `fabrik.md` (pre-migration Coolify-era CLI docstrings — superseded by the regenerated

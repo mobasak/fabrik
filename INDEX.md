@@ -314,7 +314,6 @@ docs/
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json  # Live-captured GlitchTip new-issue webhook envelope (watchdog parser pin)
 │   ├── glitchtip-api.md
-│   ├── global-gates.md             # Global gate definitions
 │   ├── gpu
 │   │   ├── Architectural Paradigms in Specialized GPU Infrastructure A Comparative Technical Analysis of TensorDock, RunPod, and Vast.ai for Q2 2026.md
 │   │   ├── Choosing ML Framework Templates.md
@@ -337,7 +336,6 @@ docs/
 │   │   ├── REVIEWER_BENCHMARK_RESULTS.md # Reviewer benchmark results
 │   │   ├── kilo-benchmarks-testing.md # Kilo benchmarks testing
 │   │   └── kilo-complete-reference.md # Complete Kilo reference
-│   ├── kpi-schema.md
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── provisioner.md
@@ -458,7 +456,6 @@ docs/
 | [chrome-ext-gui-research.md](docs/reference/research/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |
 | [subagents-enhancement-proposal.md](docs/reference/subagents-enhancement-proposal.md) | Cross-repo proposal to the fabrik-lib AI — `subagents` module enhancements (footgun-free `fanout()` helper, serialization guard, quality-score back-fill) that eliminate the dispatch traps verified 2026-07-09 (plan-3 Phase C) |
 <!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
-| [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
 
 **SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for AI chat integration
 

@@ -1,7 +1,7 @@
 # Health Monitoring
 
 **Version:** 1.4.0
-**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md:54` — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
+**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md:55` — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
 
 ---
 
@@ -23,9 +23,11 @@
 
 The full observability stack is deployed and operational. node-exporter + cAdvisor export host/container metrics to Prometheus (these replaced Netdata, removed 2026-05-30); Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
 
-**Live coverage (verified 2026-06-17, 3-host fleet):** Gatus = 31 endpoints across 18 config files (was 33 — the `coolify` + `coolify-public` endpoints were removed 2026-06-17) · Prometheus = 13 `job_name`s configured / 12 active / 14 targets up (`fabrik-services` is a null placeholder; `pushgateway` is a container, not a scrape job; the single `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
+**Live coverage (verified 2026-07-19, 3-host fleet):** Gatus = ~34 endpoints across 18 config files · Prometheus = 16 `job_name`s configured / 20 targets, 20 up (`fabrik-services` is a null placeholder; the `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
 
-> **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, but there are NO `*-spokes` scrape jobs in `prometheus.yml`. Spoke visibility comes via the `aro-wake` job (covers all 3 hosts) plus push-based Loki log shipping.
+> **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, scraped by dedicated `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs in `prometheus.yml` (targets `10.99.0.2/3` over the mesh), plus the `aro-wake` job (all 3 hosts) and push-based Loki log shipping.
+
+**⚠️ Pushgateway scrape gap (found 2026-07-19):** `audit_all_registrars.py` pushes drift metrics to the `pushgateway` container hourly (healthy, metrics present), but the live `prometheus.yml` has **no `pushgateway` scrape job** — so `fabrik_audit_drift_total` currently does not reach Prometheus and `FabrikRegistrarDrift` cannot fire. (The chain WAS whole at the 2026-05-16 roundtrip verification below — the scrape job has since drifted out of the live config.) The job is now in the repo mirror (`configs/prometheus/prometheus.yml`, `honor_labels: true`); **apply to vps1** (append the job to `/opt/monitoring/configs/prometheus/prometheus.yml` + `docker exec prometheus kill -HUP 1`) to close the chain.
 
 ### Deployed Services (Verified 2026-06-16)
 

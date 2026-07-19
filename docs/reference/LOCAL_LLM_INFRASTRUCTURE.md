@@ -1,8 +1,10 @@
 # Local LLM Infrastructure (Ollama)
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-07-19 (hand-written sections re-grounded; the model-status tables below are auto-refreshed daily by `kilo_agents_db.py`)
 
-Local AI inference via Ollama on the development machine. Provides zero-cost, offline-capable AI for development workflows without API rate limits or outages.
+Local AI inference via Ollama on the development machine. Provides zero-cost, offline-capable AI for **dev-box tooling** (benchmark pipeline, local experiments) without API rate limits or outages.
+
+**Scope (binding):** local Ollama is **NOT an agent or application LLM path**. Agent/orchestration work runs on **Claude Code (Max OAuth)**; programmatic/app LLM calls go through **OpenRouter** (the subagent pool). The Windsurf Cascade / Kilo CLI integration sections further down describe retired tooling — kept as setup history for the local models themselves; do not wire new work through them.
 
 ---
 
@@ -44,18 +46,16 @@ Based on technical specifications and behavior within the Ollama environment, he
 
 ### Model Capabilities Matrix
 
-| Model Name | `context_window_k` | `has_vision` | `has_tools` | `is_agentic` | `has_reasoning` |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **qwen2.5-coder:32b** | 128 | False | True | True | True |
-| **llama3.1:70b** | 128 | False | True | True | True |
-| **deepseek-coder-v2:16b** | 128 | False | True | True | True |
-| **llama3.1:8b** | 128 | False | True | False (Limited) | True (Basic) |
+The authoritative per-model capabilities are the **auto-generated Installed Models table at the end of
+this file** (synced daily from the model DB — the bare `qwen2.5-coder:32b` / `llama3.1:*` /
+`deepseek-coder-v2:16b` tags run at 32K context with no tool/agentic wiring; only the custom
+`fabrik-*` Modelfile variants carry Tools/Agentic ✓). Read capabilities there, not from memory.
 
 ### Detailed Capabilities Breakdown
 
-- **`context_window_k` (128K):** All models technically support 128K tokens, but 64GB RAM creates practical limits. The 70B model uses low-context (32K) to avoid ~20GB KV cache consumption.
+- **`context_window_k`:** the bare tags run at **32K** as configured (the model families support up to 128K, but RAM limits + the DB's recorded config cap them at 32K — read the auto-generated table).
 - **`has_vision` (False):** These are text-only versions optimized for coding. For vision tasks, use `llama3.2-vision`.
-- **`has_tools` (True):** All support Function Calling via Ollama for Kilo CLI and Traycer orchestration.
+- **`has_tools`:** the bare tags carry **no tool wiring**; only the custom `fabrik-*` Modelfile variants have Tools/Agentic ✓ (see the auto-generated table).
 - **`is_agentic` (Multi-step reasoning):** 32B and 70B models are highly agentic with self-correction. 8B model is best for one-shot tasks.
 - **`has_reasoning` (Chain-of-thought):** All use sophisticated attention mechanisms. 70B has highest reasoning density (Senior Architect), 16B DeepSeek specializes in surgical logical reasoning.
 
@@ -78,7 +78,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 **Service status:**
 ```bash
-systemctl --user status ollama  # or: ollama serve
+systemctl status ollama   # system unit at /etc/systemd/system/ollama.service (+ override.conf drop-in)
 ```
 
 ---
@@ -296,11 +296,11 @@ free -h
 
 ## Fallback Strategy
 
-When local models struggle, escalate to cloud:
+When local models struggle, escalate to the platform's real LLM paths:
 
-1. **First:** Local model (free)
-2. **Escalate:** Kilo CLI free tier models
-3. **Premium:** Claude/GPT via Kilo (paid)
+1. **First:** Local model (free — dev-box tooling only)
+2. **Escalate:** the OpenRouter subagent pool (`fanout` → `pick_models`, flywheel-ranked)
+3. **Authoritative:** Claude Code (Max OAuth) — native subagents / your own session
 
 ---
 

@@ -123,3 +123,8 @@ scrape_configs:
   static_configs:
   - targets:
     - redis-exporter:9121
+- job_name: pushgateway
+  honor_labels: true
+  static_configs:
+  - targets:
+    - pushgateway:9091

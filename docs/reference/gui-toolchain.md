@@ -64,7 +64,7 @@ The web loop (Playwright MCP / shadcn MCP / Chrome DevTools MCP / axe) **cannot 
 
 | Layer | Tool | Role | Cost / CI | Install |
 |---|---|---|---|---|
-| foundation (styling) | **`react-native-unistyles` v3** (Ocoron theming) or **NativeWind v4.1** | RN styling with the same Ocoron tokens as web (`mobile-app/80-mobile.md` decides) | free | npm |
+| foundation (styling) | **`react-native-unistyles` v3** (Ocoron theming) · **NativeWind v4.1** · **Uniwind** (build-time Tailwind-v4) | RN styling with the same Ocoron tokens as web (`mobile-app/80-mobile.md` decides) | free | npm |
 | foundation (components) | **React Native Reusables** (shadcn-for-RN) | copy-in universal components; **CLI, not MCP** — the agent calls `npx @react-native-reusables/cli@latest add <c>` | free (MIT) | CLI |
 | **see + verify (primary)** ⭐ | **Maestro MCP** | one server = **drive + E2E flows + screenshots + visual regression** (`inspect_screen`, `take_screenshot`, `run`). The RN analogue of Playwright MCP *and* toHaveScreenshot combined. | free/self-host; Cloud tools paid | `claude mcp add maestro -- maestro mcp` (needs the `maestro` CLI) |
 | see + verify (exploratory) | **Mobile Next MCP** (`@mobilenext/mobile-mcp`) — the pack's listed a11y-tree driver | free-form element-level driving (a11y-tree list, coordinate taps) when YAML flows are too coarse; Apache-2.0, active | free/self-host | `claude mcp add mobile-mcp -- npx -y @mobilenext/mobile-mcp@latest` |
