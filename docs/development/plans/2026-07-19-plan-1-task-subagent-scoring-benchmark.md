@@ -1,6 +1,6 @@
 # Task-Subagent Scoring Benchmark — Implementation Plan
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Date: 2026-07-19
 Spec: [docs/superpowers/specs/2026-07-19-task-subagent-scoring-benchmark-design.md](../../superpowers/specs/2026-07-19-task-subagent-scoring-benchmark-design.md) (CONVERGED)
 Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_review.py` + `microbench_coding_direct.py`
@@ -58,7 +58,7 @@ Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_
 
 ---
 
-## Phase A — Shared harness: dispatch + persistence + flywheel recording
+## Phase A — Shared harness: dispatch + persistence + flywheel recording — ✅ EXECUTED 2026-07-20
 
 **Files:** create `scripts/kilo-benchmarks/microbench_judged.py` (+ `scripts/kilo-benchmarks/tests/test_judged_harness.py`). One responsibility: the task-agnostic spine + a grader-registry seam that Phases B–D fill.
 

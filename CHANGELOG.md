@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Judged task-subagent benchmark harness (docs/research/plan/spec scoring) (2026-07-19)
+
+New `scripts/kilo-benchmarks/microbench_judged.py` — a task-agnostic benchmark spine (dispatch →
+grade → `persist_metrics`/`persist_baseline` → batched-resume `main()`) parallel to
+`microbench_review.py` (review) and `microbench_coding_direct.py` (code), giving `pick_models()` a
+measured prior for the four task types that had none. Generation is direct via the vendored
+ai-consult transport (all ~57 pool models, real billed cost); grading is per-task and local ($0). It
+writes BOTH a `model_task_baseline` prior AND one `subagent_runs` flywheel row per dispatch
+(`quality_score=score5`) — the latter clears the ranker's `HAVING COUNT(*) >= 3` gate so a cold model
+surfaces. Phase A: the shared harness + `record_flywheel` + a $0 `--smoke` path. Tests:
+`tests/test_judged_harness.py`. The paid `--all` 57-model run is an operator step (runbook), not
+autonomous.
+
 ### Fixed — parked-items sweep: drift-alert chain live again; dead modules removed; leak triaged (2026-07-19)
 
 **(1) Registrar-drift alert chain RESTORED on vps1:** the `pushgateway` scrape job applied to the live
