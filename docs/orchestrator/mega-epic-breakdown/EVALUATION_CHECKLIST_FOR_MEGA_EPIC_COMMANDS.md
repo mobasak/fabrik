@@ -55,7 +55,7 @@ Every command in mega-epic-breakdown (00, 02, 03, 04 — `05` retired) must be e
 25. Backing services: which existing VPS services will be used (postgres-main, redis-main, MeiliSearch, etc.)?
 26. External services: which third-party APIs/services (Backblaze B2, Paddle, Cloudflare, etc.)?
 27. Domain/routing: which subdomains, which Traefik routing rules?
-28. Scaffold type per epic: which of the 11 mega-epic-breakdown scaffold types applies (`python-api`, `python-api-gpu`, `node-api`, `saas-skeleton`, `file-api`, `file-worker`, `static-site`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app` per `00-trigger-mega-epic-fabrik` § Shape model — WordPress is RETIRED; website needs route to `/opt/web-ecommerce-factory`)?
+28. Scaffold type per epic: which of the 11 mega-epic-breakdown scaffold types applies (`python-api`, `python-api-gpu`, `node-api`, `saas-skeleton`, `file-api`, `file-worker`, `static-site`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app` per `00-trigger-mega-epic-fabrik` § Shape model — website needs route to `/opt/web-ecommerce-factory`)?
 29. Shape block per epic: what registrars will each epic's `fabrik apply` activate?
 
 ## Handoff to epic-to-ticket-workflow

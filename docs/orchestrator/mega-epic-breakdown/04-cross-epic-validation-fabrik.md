@@ -204,7 +204,7 @@ python /opt/fabrik/scripts/epic_order.py --json --epics-dir docs/development/epi
 
 Paste its `phases` into the report verbatim. It is deterministic over `depends_on`/`parallel_with`, so the order is reproducible and driver-consumable — not a per-run judgement.
 
-**Hand off — `05-dispatch` is RETIRED.** At the no-op, dispatch is no longer a command that renders instructions; it is:
+**Hand off.** At the no-op, dispatch is not a command that renders instructions; it is:
 - **In Traycer / the cockpit** — the operator **clicks an epic card** (mirrored by `03` via `traycer_mirror.py`), which opens the epic-to-ticket workflow for that epic in `consume` mode. The card carries the epic's `owned_paths` as the executing agent's File Scope.
 - **Headless / the driver** — the driver reads `epic_order.py --json` and enqueues each phase in order (parallel `⚡` epics concurrently), running `epic-to-ticket-workflow/00-trigger-fabrik` (consume mode) per epic.
 
