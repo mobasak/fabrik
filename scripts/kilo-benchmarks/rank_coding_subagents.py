@@ -491,8 +491,8 @@ def _render(rows: list[dict]) -> str:
             "",
             f"On-request tier — OpenRouter output > ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok. Operator opt-in only: `pick_models` NEVER auto-promotes these. Selectable when the operator names one this turn and says why the Auto tier didn't suffice for this specific hard task. A pricier model that benchmarks brilliantly stays here until its OR output price drops ≤ ${AUTO_OUTPUT_PRICE_CEILING:.1f}/Mtok, at which point it auto-joins Auto on the next daily refresh.",
             "",
-            "| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |",
-            "|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|",
+            "| # | Model | OR | OR_prov | Reason | Bench | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |",
+            "|---:|---|:-:|---|:-:|:-:|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|",
         ]
     )
     for i, r in enumerate(onreq_rows, 1):

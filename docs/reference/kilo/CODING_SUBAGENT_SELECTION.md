@@ -48,8 +48,8 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 
 On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_models` NEVER auto-promotes these. Selectable when the operator names one this turn and says why the Auto tier didn't suffice for this specific hard task. A pricier model that benchmarks brilliantly stays here until its OR output price drops ≤ $1.5/Mtok, at which point it auto-joins Auto on the next daily refresh.
 
-| # | Model | OR | OR_prov | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |
-|---:|---|:-:|---|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|
+| # | Model | OR | OR_prov | Reason | Bench | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |
+|---:|---|:-:|---|:-:|:-:|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|
 | 1 | `z-ai/glm-5` | ✅ | StreamLake | ✅ | — | 68 | 0.950 | 3.150 | 72.8 | — | — | 1461 | 202k | **C†** | — | 0.558 |
 | 2 | `z-ai/glm-4.6` | ✅ | Venice | ✅ | — | 68 | 0.500 | 2.000 | 68.2 | — | — | 1458 | 202k | **B** | — | 0.547 |
 | 3 | `z-ai/glm-4.5` | ✅ | Z.AI | ✅ | — | 69 | 0.600 | 2.200 | 64.2 | — | — | 1448 | 131k | **C+** | — | 0.520 |

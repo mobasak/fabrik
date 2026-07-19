@@ -53,6 +53,16 @@ MAX_TOKENS = 4096
 # answer; scoring it 0 would poison the ranker into never picking a model we failed to reach.
 MIN_MEASURED = 3
 
+# ── Cost safety (real money — every knob here is fail-SAFE: bound spend, over-count when unsure) ──
+_PER_CALL_COST_CAP = 0.50  # hard per-CALL ceiling passed to the transport (one call can never eat the batch)
+# When a provider returns NO billed cost (cost_unknown), the running total would go blind and the
+# cost-cap could never trigger. Fall back to a CONSERVATIVE token estimate (higher than most real
+# rates) so an unknown-cost call still counts toward the cap — over-counting stops the run early,
+# never drains the account silently.
+_FALLBACK_COST_PER_MTOK = 5.0
+_LCB_TIMEOUT_S = 900  # outer wall-clock on the .lcb-venv grader subprocess (a hung sandbox = wedged run)
+_BALANCE_SAFETY_FRAC = 0.90  # never let a run's cost-cap exceed 90% of the live OpenRouter balance
+
 _TASK_SUFFIX = (
     "\n\nWrite a complete, correct Python 3 solution. Read from stdin and write to stdout unless a "
     "function signature / starter code is given. Output ONLY the code, in a single ```python block."
@@ -105,7 +115,9 @@ def _run_lcb(src: str, args: list[str]) -> None:
         f.write(src)
         helper = f.name
     try:
-        subprocess.run([str(LCB_VENV_PY), helper, *args], check=True)
+        # timeout: a model's generated code can hang the sandbox past codegen_metrics' per-problem
+        # cap (deadlocked child, un-reaped process); without this the whole run wedges indefinitely.
+        subprocess.run([str(LCB_VENV_PY), helper, *args], check=True, timeout=_LCB_TIMEOUT_S)
     finally:
         Path(helper).unlink(missing_ok=True)
 
@@ -164,7 +176,14 @@ def generate(
     """
     if _or_run is None:
         raise RuntimeError("libs.subagents._transport unavailable — cannot generate (grading/report still work).")
-    body = {"usage": {"include": True}}
+    # max_tokens bounds output length (unbounded output = unbounded cost); usage.include -> real billed cost.
+    body = {"usage": {"include": True}, "max_tokens": max_tokens}
+
+    def _bill(r: object, toks: int) -> float:
+        # real billed cost when the provider returned it; else a CONSERVATIVE token estimate so the
+        # running cost-cap is never blind on an unknown-cost call (fail-safe: over-count, stop early).
+        c = getattr(r, "cost_usd", None)
+        return float(c) if c is not None else toks * _FALLBACK_COST_PER_MTOK / 1e6
     # Seed every slot with a "not_run" placeholder so a cap-cancelled / never-dispatched slot is a
     # real _Gen(code=None) -> counted as n_err (never a raw None that would crash grade()).
     out: dict[str, list[_Gen]] = {
@@ -177,12 +196,13 @@ def generate(
         prompt = prob.prompt + (f"\n\nStarter code:\n{prob.starter_code}" if prob.starter_code else "") + _TASK_SUFFIX
         t0 = time.time()
         try:
-            r = _or_run(model, [{"role": "user", "content": prompt}], body=body, max_cost_usd=max(cost_cap, 0.01))
+            # per-call cap = a small FIXED ceiling (never the whole batch budget); one call can't drain it.
+            r = _or_run(model, [{"role": "user", "content": prompt}], body=body, max_cost_usd=_PER_CALL_COST_CAP)
             dt = time.time() - t0
-            if r.error or not r.text:
-                return model, i, _Gen(None, float(r.cost_usd or 0.0), None, 0, r.error or "empty")
             toks = int((r.usage or {}).get("completion_tokens") or 0)
-            return model, i, _Gen(extract_code(r.text), float(r.cost_usd or 0.0), dt, toks, None)
+            if r.error or not r.text:
+                return model, i, _Gen(None, _bill(r, toks), None, 0, r.error or "empty")
+            return model, i, _Gen(extract_code(r.text), _bill(r, toks), dt, toks, None)
         except Exception as e:  # noqa: BLE001 — a single call's failure is that slot's error, never fatal
             return model, i, _Gen(None, 0.0, None, 0, str(e)[:120])
 
@@ -349,6 +369,25 @@ def persist_baseline(scores: dict[str, CodingScore], window: str, db_path: Path 
 
 
 # ── report ────────────────────────────────────────────────────────────────────────────────────
+def _openrouter_balance() -> float | None:
+    """Live remaining OpenRouter credit in $, or None if unreachable. One read-only GET."""
+    import os
+    import urllib.request
+
+    key = os.getenv("OPENROUTER_API_KEY")
+    if not key:
+        return None
+    try:
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/credits", headers={"Authorization": f"Bearer {key}"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 — fixed https host, not user input
+            d = json.loads(resp.read()).get("data", {})
+        return float(d.get("total_credits", 0)) - float(d.get("total_usage", 0))
+    except Exception:
+        return None
+
+
 def _resolve_models(explicit: list[str] | None, db_path: Path = DB_PATH) -> list[str]:
     """Default = the SAME models the review table measured (apples-to-apples, by construction)."""
     if explicit:
@@ -435,7 +474,23 @@ def main(argv: list[str] | None = None) -> int:
     corpus = load_corpus(window, limit)
     print(f"[coding-bench] corpus: {len(corpus)} problems from {window}", file=sys.stderr)
 
-    gens = generate(models, corpus, cost_cap=args.cost_cap, max_tokens=args.max_tokens,
+    # ── COST SAFETY (real money): never let the run's cap exceed the LIVE OpenRouter balance ──
+    eff_cap = args.cost_cap
+    bal = _openrouter_balance()
+    if bal is not None:
+        safe = round(bal * _BALANCE_SAFETY_FRAC, 2)
+        print(f"[coding-bench] OpenRouter balance ${bal:.2f}; requested cost-cap ${args.cost_cap:.2f}", file=sys.stderr)
+        if args.cost_cap > safe:
+            eff_cap = safe
+            print(f"[coding-bench] ⚠️  cost-cap ${args.cost_cap:.2f} exceeds 90% of balance — LOWERED to "
+                  f"${eff_cap:.2f} to protect the account", file=sys.stderr)
+        if eff_cap < 0.01:
+            print("[coding-bench] balance exhausted — refusing to run", file=sys.stderr)
+            return 1
+    else:
+        print("[coding-bench] ⚠️  could not read OpenRouter balance — proceeding on the cost-cap alone", file=sys.stderr)
+
+    gens = generate(models, corpus, cost_cap=eff_cap, max_tokens=args.max_tokens,
                     max_concurrency=args.concurrency)
     scores = grade(gens, corpus)
 

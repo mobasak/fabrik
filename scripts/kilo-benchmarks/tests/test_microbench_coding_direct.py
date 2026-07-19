@@ -71,6 +71,38 @@ def test_cost_cap_stops_dispatch_and_marks_n_err(monkeypatch):
     assert n_err > 0  # cap-stopped slots are errors, NOT graded as pass=0
 
 
+def test_generate_bounds_output_and_per_call_cost(monkeypatch):
+    """F1+F3: the request body carries max_tokens (bounds output/cost); the per-call cap is the fixed
+    ceiling _PER_CALL_COST_CAP, NOT the whole batch budget (one call can't drain the run)."""
+    seen = {}
+
+    def fake_run(model, messages, *, body=None, max_cost_usd=None):
+        seen["body"] = body
+        seen["cap"] = max_cost_usd
+        return types.SimpleNamespace(error=None, text="```python\nx=1\n```", cost_usd=0.01,
+                                     usage={"completion_tokens": 3})
+
+    monkeypatch.setattr(m, "_or_run", fake_run)
+    m.generate(["mdl"], [m.Problem("q", "p", "", {"input_output": "{}"})],
+               cost_cap=20.0, max_tokens=1234, max_concurrency=1)
+    assert seen["body"]["max_tokens"] == 1234  # F1: output length bounded
+    assert seen["cap"] == m._PER_CALL_COST_CAP and m._PER_CALL_COST_CAP < 20.0  # F3: per-call ceiling
+
+
+def test_unknown_cost_still_counts_toward_cap(monkeypatch):
+    """F2: a provider returning NO billed cost must not blind the running cap — a conservative token
+    estimate keeps the gate engaged so the account can't drain silently."""
+    def fake_run(model, messages, *, body=None, max_cost_usd=None):
+        return types.SimpleNamespace(error=None, text="```python\nx=1\n```", cost_usd=None,
+                                     usage={"completion_tokens": 1_000_000})  # 1M tok, cost UNKNOWN
+
+    monkeypatch.setattr(m, "_or_run", fake_run)
+    corpus = [m.Problem(f"q{i}", "p", "", {"input_output": "{}"}) for i in range(10)]
+    gens = m.generate(["mdl"], corpus, cost_cap=1.0, max_concurrency=1)
+    # estimate per call = 1e6 * _FALLBACK_COST_PER_MTOK / 1e6 = $5 > $1 cap -> gate engages, rest cancel
+    assert sum(1 for g in gens["mdl"] if g.code is not None) < 10
+
+
 def test_generation_error_is_slot_error_not_fatal(monkeypatch):
     def boom(model, messages, *, body=None, max_cost_usd=None):
         raise RuntimeError("network down")
