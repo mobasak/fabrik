@@ -278,8 +278,6 @@ docs/
 │   ├── plans                       # ACTIVE plan documents (YYYY-MM-DD-plan-*.md); completed → archived/
 │   │   └── archived                # Executed/superseded plans
 │   └── reviews                     # Review ledgers + code-review reports
-├── examples                        # Example code and configuration
-│   └── health_check_usage.py
 ├── guides                          # Step-by-step guides and tutorials
 │   ├── DEPLOYMENT_READY_CHECKLIST.md # Make projects deployment-ready
 │   ├── EXCEL_FILE_GENERATION.md    # Excel file generation guide
@@ -578,7 +576,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_scaffold_chrome_ext_wxt.py](tests/test_scaffold_chrome_ext_wxt.py) | chrome-extension scaffold emits a WXT+Preact extension (structure + governance asserts; toolchain-gated `wxt build` integration test) |
 | **src/fabrik/spec_generator.py** | [reusable] Spec generation and project context extraction — SPEC_ENABLED_TYPES, SECRET_PATTERNS, extract_project_context(), generate_spec(), generate_and_save_spec() |
 | [test_spec_generator.py](tests/test_spec_generator.py) | 40 tests for spec_generator (constants, _is_secret, compose/env parsing, context extraction, spec generation, save round-trip) |
-| [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag | When scaffold.py or cli.py new/scaffold commands change | N/A |
+| [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag |
 | [test_spec_loader.py](tests/test_spec_loader.py) | 7 tests for T1-02 G-B1a template-defaults deep-merge (happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern infra.postgres override survives merge, missing-template tolerance, `_deep_merge` unit edge cases, primary-path load_spec→resolve_applicability integration) |
 | **src/fabrik/locks_local.py** | T2-01 G-F2 — project-scoped fcntl-based `file_lock()` context manager for WSL-side Python orchestration concurrency (NOT [reusable]; project-internal, imports fabrik.config) |
 | **src/fabrik/state.py** | T2-01 G-F3 — per-deploy state file persistence under `.fabrik/state/<id>.json`; `save()`, `load()`, `archive_destroyed()`, `find_by_spec_id()`, `DATA_BEARING_REGISTRARS` constant. Project-scoped. |
@@ -608,7 +606,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | `src/logger.js` | pino JSON logger with SERVICE_NAME env var (node-api + file-api) | Logging config changes | [reusable] |
 | `lib/logger.ts` | pino TypeScript logger with SERVICE_NAME env var (saas-skeleton) | Logging config changes | [reusable] |
 | `worker/logger.py` | structlog JSON logger for file-worker with SERVICE_NAME binding | Logging config changes | [reusable] |
-| [test_node_scaffold_logging.py](tests/test_node_scaffold_logging.py) | 17 tests for node-api + file-api pino logging scaffold (logger.js, X-Request-ID, SERVICE_NAME) |
+| [test_node_scaffold_logging.py](tests/test_node_scaffold_logging.py) | 17 tests for node-api + file-api pino logging scaffold (logger.js, X-Request-ID, SERVICE_NAME) | Logging config changes | N/A |
 
 ### Traycer Documentation
 

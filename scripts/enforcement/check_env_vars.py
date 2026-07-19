@@ -79,6 +79,10 @@ def check_file(file_path: Path) -> list[CheckResult]:
     if "test" in file_path.name.lower() or "spec" in file_path.name.lower():
         return results
 
+    # docs/ holds documentation + archived examples, never production code.
+    if file_path.parts and file_path.parts[0] == "docs":
+        return results
+
     try:
         content = file_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):

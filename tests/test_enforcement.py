@@ -20,6 +20,12 @@ class TestCheckEnvVars:
         assert results[0].check_name == "env_vars"
         assert "host" in results[0].message.lower()
 
+    def test_skips_docs_tree(self) -> None:
+        """docs/ holds documentation + archived examples, never production code."""
+        from scripts.enforcement.check_env_vars import check_file
+
+        assert check_file(Path("docs/archive/examples/health_check_usage.py")) == []
+
     def test_detects_hardcoded_url(self, tmp_path: Path) -> None:
         """Should detect hardcoded http://localhost URLs."""
         from scripts.enforcement.check_env_vars import check_file

@@ -32,6 +32,7 @@ SKIP_PATTERNS = [
     "node_modules/",
     ".venv/",
     "scripts/",
+    "docs/",
 ]
 
 PRODUCTION_PY_EXTENSIONS = {".py"}

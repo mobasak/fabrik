@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "enforcement"))
-from check_print_ban import is_template_generator  # noqa: E402
+from check_print_ban import is_template_generator, should_skip  # noqa: E402
 
 
 def _write(tmp_path: Path, text: str) -> str:
@@ -45,3 +45,9 @@ def test_marker_past_first_lines_does_not_match(tmp_path: Path) -> None:
 
 def test_missing_file_returns_false(tmp_path: Path) -> None:
     assert not is_template_generator(str(tmp_path / "does-not-exist.py"))
+
+
+def test_docs_files_are_skipped() -> None:
+    # docs/ holds documentation + archived examples, never production code.
+    assert should_skip("docs/archive/examples/health_check_usage.py")
+    assert not should_skip("src/fabrik/cli.py")

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Archive docs/examples (redundant health-checker demo) (2026-07-19)
+
+`docs/examples/health_check_usage.py` → `docs/archive/examples/` — a March hand-written usage demo
+for `scripts/health_checker.py`, fully duplicated by `docs/workflows/HEALTH_CHECKER_WORKFLOW.md`
+(same exit codes + CLI usage), not fleet-synced, referenced only by INDEX's tree, no generator
+script/cron. INDEX.md tree updated; also fixed two malformed table rows (MD056, from April) at the
+spec-generation and node-logging test entries. `check_print_ban.py` now skips `docs/` (documentation
+and archived examples are never production code — the archived demo's print() calls tripped the gate)
++ a regression test.
+
 ### Changed — Archive the completed 2026-07-04 review artifact (2026-07-19)
 
 `docs/development/reviews/2026-07-04-plan-1-saas-fastapi-user-auth-flip-review.md` →
