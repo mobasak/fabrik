@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference triage (seventh 5): 3 archived, 1 to research/, stack.md status tables fixed (2026-07-19)
+
+**Archived:** `SaaS-GUI.md` (recommended patterns the binding saas/60 pack BANS — NextAuth/Clerk,
+frontend Prisma — under an "IMPLEMENTED" header; superseded by 60-saas-ui + gui-toolchain; stale
+scaffold.py comment fixed too), `scaffold-type-decision-guide.md` (its premise — choosing WordPress
+as a scaffold — is retired; routing lives canonically in agents-fabrik + mega-00),
+`scripts.md` (March API doc: 40% documents functions deleted in the 2026-07-11 sync_projects
+refactor; zero real citers — superseded by INDEX rows + AFTER-EDIT headers). **Moved to research/:**
+`saas-alternative-gui.md` (zero live refs). **stack.md fixed in place** (the designated inventory):
+§11.1's four "✅ Deployed VPS" microservice rows were ALL false (only site-provisioner is live) — now
+❌ Retired with correct ports; complianceOS → the real `/opt/compliance-ops` in active dev;
+spect-interviewer/backupsystem/`/opt/backup` phantoms cleared; §11.1 banner repoints live truth to
+PROJECT_CATALOG.md + PORTS.md + agents-fabrik; §11.4 library tables scoped as a dated dep snapshot;
+namecheap→site-provisioner tags. 2-pass loop (2 Opus + 2 Sonnet → Sonnet confirm NO-OP).
+
 ### Changed — docs/reference triage (sixth 5): PLANNING_REFERENCES archived; 4 keepers converged (2026-07-19)
 
 **Archived:** `PLANNING_REFERENCES.md` — a January parallel planning index superseded by the binding

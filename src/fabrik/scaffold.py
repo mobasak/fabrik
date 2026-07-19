@@ -1186,7 +1186,7 @@ def _scaffold_shared(
 
     # Note: templates/docs/ removed - templates/scaffold/docs/ is the canonical source
 
-    # Copy templates/saas-skeleton/ for reference (used in 20-typescript.md)
+    # Copy templates/saas-skeleton/ for reference (binding UI pack: saas/60-saas-ui.md)
     # Exclude build artifacts to prevent session poisoning (.next contains hardcoded /opt/fabrik paths)
     fabrik_saas_skeleton = FABRIK_ROOT / "templates" / "saas-skeleton"
     project_saas_skeleton = project_dir / "templates" / "saas-skeleton"

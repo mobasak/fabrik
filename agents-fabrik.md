@@ -470,7 +470,6 @@ Our agents plan against these rules but do NOT inline them into tickets — the 
 | Database & Vector Strategy | `.windsurf/rules/core/25-data-postgres.md` + `core/65-rag-search.md` | PostgreSQL host selection, migrations, pgvector, hybrid search |
 | Owner Profile | `docs/owner_ozgur_basak.md` | Calibrating tone / framing for planning output |
 | Port Allocations | `PORTS.md` | Assigning ports to new services |
-| Scaffold Decision Guide | `docs/reference/scaffold-type-decision-guide.md` | Choosing WordPress vs Docusaurus vs static-site |
 | SaaS UI Patterns | `docs/reference/research/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md` | Planning SaaS frontend |
 | Chrome Extension UI | `docs/reference/research/Modern GUI Approaches for Chrome Extensions.md` | Planning Chrome extensions |
 | Mobile UI | `docs/reference/research/Modern Mobile GUI Approaches for Android and iOS.md` | Planning mobile apps |

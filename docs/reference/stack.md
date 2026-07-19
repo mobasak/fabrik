@@ -376,16 +376,16 @@ That's how you scale to 3 businesses without new architecture each time.
 
 ### 11.1 Active Projects in /opt
 
-> **Full project registry with statuses:** See the auto-generated inventory in [`docs/BUSINESS_MODEL.md`](../BUSINESS_MODEL.md) (synced by `fabrik projects` / `sync_projects.py`). The old hand-maintained `project-registry.md` is archived.
+> **Live truth:** the auto-generated registry (`docs/PROJECT_CATALOG.md`, synced by `sync_projects.py`) + `PORTS.md` + `agents-fabrik.md` § Microservices. The hand-maintained rows below are a STATUS SNAPSHOT (reconciled 2026-07-19) — for live status always prefer those sources.
 
 #### Tier 1: Infrastructure Services (Deploy First)
 
 | Project | Purpose | Stack | Port | Status |
 |---------|---------|-------|------|--------|
-| `/opt/proxy` | Proxy management (Webshare.io) | Python | 8000 | ✅ Deployed VPS |
-| `/opt/captcha` | Captcha solving wrapper | FastAPI, Anti-Captcha | 8000 | ✅ Deployed VPS |
-| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 | ✅ Deployed VPS |
-| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 | ✅ Deployed VPS |
+| `/opt/proxy` | Proxy management (Webshare.io) | Python | 18013 | ❌ Retired — not deployed (no live container/router) |
+| `/opt/captcha` | Captcha solving wrapper | FastAPI, Anti-Captcha | 18011 | ❌ Retired — not deployed |
+| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 18017 | ❌ Retired — not deployed |
+| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 18012 | ❌ Retired — code removed from /opt (archived 2026-05-20) |
 | `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 | 🟡 WSL only |
 | `/opt/dns-manager` | DNS management | FastAPI, Namecheap/Cloudflare | 8001 | ❌ Retired — replaced by site-provisioner (`provision.vps1.ocoron.com`) |
 
@@ -404,19 +404,18 @@ That's how you scale to 3 businesses without new architecture each time.
 | Project | Purpose | Status |
 |---------|---------|--------|
 | `/opt/brand-identity-creator` | Brand design automation | 🔴 Needs Dev |
-| `/opt/complianceOS` | Compliance management SaaS | 📋 Planned (10 days) |
+| `/opt/compliance-ops` | Compliance management SaaS | 🟡 Active dev (saas-skeleton, port 3005) |
 | `/opt/trade-intelligence` | Foreign trade intelligence (billofladingdata.com) | 🔴 Starting |
 | `/opt/triggered-content-orchestration` | Content publishing automation (SaaS) | 📋 Major project |
 | `/opt/ugc` | User-generated content collection (forums) | 📋 Not started |
-| `/opt/spect-interviewer` | Project specification assistant | 🟡 Early stage |
+| `/opt/spect-interviewer` | Project specification assistant | ❌ Removed — no /opt dir |
 
 #### Support & Utilities
 
 | Project | Purpose | Status |
 |---------|---------|--------|
 | `/opt/iterative_image_editor` | Image editing with FLUX | 🟡 Dev (merge into image-generation?) |
-| `/opt/backupsystem` | Backup automation (WSL) | ✅ Working |
-| `/opt/backup` (VPS) | VPS backup to B2 | ✅ Deployed VPS |
+| ~~`/opt/backupsystem`~~ | Backup automation (WSL) | ❌ Removed — no /opt dir; backups run via Backrest/restic + dr_env_backup.sh |
 | `/opt/fabrik` | Deployment automation CLI | 🟡 In Development |
 | `/opt/web-scraper` | Scrapers for calendar-orchestration-engine | ✅ Working |
 
@@ -443,7 +442,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 | Service | Provider | Usage | Project |
 |---------|----------|-------|---------|
-| **Webshare.io** | webshare.io | Datacenter/residential proxies | youtube, proxy, namecheap |
+| **Webshare.io** | webshare.io | Datacenter/residential proxies | youtube, proxy (retired), site-provisioner |
 | **Anti-Captcha** | anti-captcha.com | Captcha solving | captcha, youtube |
 | **Apify** | apify.com | YouTube Comments Scraper (fallback) | youtube, proxy |
 | **Tor** | torproject.org | SOCKS5 proxy (fallback) | youtube |
@@ -501,7 +500,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 | Database | Version | Usage | Projects |
 |----------|---------|-------|----------|
-| **PostgreSQL** | 16 | Primary relational DB | youtube, translator, calendar-orchestration-engine, proxy, llm_batch_processor, namecheap |
+| **PostgreSQL** | 16 | Primary relational DB | youtube, calendar-orchestration-engine, llm_batch_processor (+ historical: translator/proxy/namecheap, retired) |
 | **SQLite** | - | Lightweight embedded DB | emailgateway |
 
 #### Database Instances
@@ -517,6 +516,10 @@ That's how you scale to 3 businesses without new architecture each time.
 ---
 
 ### 11.4 Python Libraries
+
+> **Dated dependency snapshot (2025-12).** The per-library "Projects" columns below reference some
+> since-retired projects (translator, proxy, captcha, namecheap) — read them as a historical dep
+> inventory, not live usage.
 
 #### Web Frameworks & APIs
 
@@ -691,7 +694,7 @@ That's how you scale to 3 businesses without new architecture each time.
 | Soniox | `SONIOX_API_KEYS` | youtube |
 | YouTube Data API | `YOUTUBE_API_KEY` | youtube |
 | RapidAPI | `RAPIDAPI_KEY` | youtube |
-| Webshare.io | `WEBSHARE_API_KEY` | youtube, proxy, namecheap |
+| Webshare.io | `WEBSHARE_API_KEY` | youtube, proxy (retired), site-provisioner |
 | Anti-Captcha | `ANTICAPTCHA_API_KEY` | captcha |
 | Apify | `APIFY_API_TOKEN` | youtube, proxy |
 | Factory.ai | `FACTORY_API_KEY` | proposal-creator, calendar-orchestration-engine |
@@ -701,7 +704,7 @@ That's how you scale to 3 businesses without new architecture each time.
 | Amazon SES | `SES_SMTP_USER`, `SES_SMTP_PASS` | emailgateway |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | email-reader |
 | Microsoft 365 | `M365_CLIENT_ID`, `M365_TENANT_ID` | email-reader |
-| Namecheap | `NAMECHEAP_API_KEY`, `NAMECHEAP_API_USER` | namecheap |
+| Namecheap | `NAMECHEAP_API_KEY`, `NAMECHEAP_API_USER` | site-provisioner (registrar backend; the old namecheap project is retired) |
 | Abstract API | `ABSTRACT_API_KEY` | calendar-orchestration-engine |
 | BFL (FLUX) | `BFL_API_KEY` | iterative_image_editor |
 

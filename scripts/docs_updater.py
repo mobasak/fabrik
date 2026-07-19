@@ -725,7 +725,6 @@ def generate_docs_structure_tree() -> str:
         "traycer-kilo-workflow-analysis.md": "Traycer + Kilo workflow analysis",
         "TRAYCER_YOLO_WORKFLOW.md": "Traycer YOLO (fast-path) workflow guide",
         "reference/": "Technical reference and module documentation",
-        "SaaS-GUI.md": "SaaS skeleton GUI guide",
         "architecture.md": "System architecture overview",
         "property-testing.md": "Property-based testing with Hypothesis",
         "verification-framework.md": "3-lane verification system",

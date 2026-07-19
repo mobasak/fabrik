@@ -305,7 +305,6 @@ docs/
 │   ├── # (Archived — CRITICAL_RULES.md → docs/archive/2026-06-25-critical-rules-legacy.md)
 │   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
-│   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
 │   ├── architecture.md             # System architecture overview
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
@@ -347,8 +346,6 @@ docs/
 │   │   ├── Node API File Storage Rules.md
 │   │   ├── Node Backend Practices Research 2026.md
 │   │   └── cookie-consent-gdpr-2026-research.md
-│   ├── scaffold-type-decision-guide.md
-│   ├── scripts.md
 │   ├── service-contracts
 │   │   └── site-provisioner.md
 │   ├── stack.md                    # Technology stack & tools inventory
@@ -449,7 +446,6 @@ docs/
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
-| [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
 | [mobile-gui-research.md](docs/reference/research/mobile-gui-research.md) | Full RN/Expo mobile verify-stack research (Maestro MCP, Mobile Next MCP, RN a11y, visual regression, CI reality); defers to `mobile-app/80-mobile.md`; verified 2026-07-06 |
 | [chrome-ext-gui-research.md](docs/reference/research/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |
