@@ -1,9 +1,9 @@
 # Orchestrator Cockpit — Requirements
 
-**Status:** LOCKED (v1) — CLOSED TO EXECUTION 2026-07-17: Traycer Desktop evaluated per these requirements
-and NOT adopted (Electron; native Epic Mode runs its own pipeline, not this one — see
-`orchestrator-cockpit-decisions.md` § FINAL CLOSURE). **The agetor fork is the sole active plan** against
-this requirement set. · **Date:** 2026-07-16 · **Owner:** ob@ocoron.com
+**Status:** LOCKED (v1) — under active evaluation. Both **Traycer Desktop** and the **agetor fork** are
+live candidates against this requirement set; we're currently spiking agetor (Phase 0 passed 2026-07-18)
+to see if it earns the pick. **No final choice yet — Traycer is NOT ruled out** (see
+`orchestrator-cockpit-decisions.md`). · **Date:** 2026-07-16 (amended 2026-07-18) · **Owner:** ob@ocoron.com
 **What this is:** the requirement set for the **Fabrik-managed orchestration front-end** — the
 interactive cockpit the operator drives the `/fabrik-*` pipeline from. This is the north-star's
 **Phase-D** deliverable (`[canonical: docs/orchestrator/00-autonomous-factory-north-star.md § D-Zed]`),

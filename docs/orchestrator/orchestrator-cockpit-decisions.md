@@ -1,6 +1,6 @@
 # Orchestrator Cockpit — Locked Decisions & Workflow Model
 
-**Status:** CLOSED-TO-EXECUTION 2026-07-17 — Traycer Desktop evaluated and NOT adopted (kept as fallback); **agetor fork is the sole active plan.** · **Date:** 2026-07-16 (amended 2026-07-17) · **Owner:** ob@ocoron.com
+**Status:** ACTIVE EVALUATION — currently **spiking the agetor fork** (Phase 0 WSLg render + Claude-Code wiring passed 2026-07-18) to see if it earns the pick. **Traycer Desktop remains a live candidate / fallback — NOT ruled out;** the choice between the two is still open. · **Date:** 2026-07-16 (amended 2026-07-18) · **Owner:** ob@ocoron.com
 **Companion to:** `orchestrator-cockpit-requirements.md` (the 17 requirements). This file records the
 **decisions** made while brainstorming the cockpit — persisted so they survive context compaction.
 
@@ -14,7 +14,7 @@
 - **D4 — No direct OpenRouter in the cockpit.** OpenRouter is reached **only through `fabrik-lib/subagents`**, dispatched by the Claude orchestrator (pool = programmatic breadth, never an interactive tab). Cockpit only runs Claude Code.
 - **D5 — Two-level nested workflow.** The core model:
   - **Project level = `mega-epic-breakdown`** → produces **Vision · Decisions · Infra-Decisions · External-Tools (fabrik-lib verdict) · Specs · Epics**. **NO tickets.**
-  - **Epic level = `epic-to-ticket-workflow`** (run when you drill INTO an epic) → produces **Epic-Brief · Core-Flows · Tech-Plan · Deploy-Plan · Tickets · Executions · Reviews**.
+  - **Epic level = `epic-to-ticket-workflow`** (run when you drill INTO an epic) → produces **Decisions-Lock · Core-Flows · Tech-Plan · Deploy-Plan · Tickets · Executions · Reviews**.
   - **Tickets are epic-scoped executable leaves** — the units AI agents run. **Executions** = agent runs per ticket.
   - **Hierarchy: Project ▸ Epic ▸ Ticket ▸ Execution.**
 - **D6 — `00` & `02` are interactive chat artifacts** (Vision Summary; compact epic proposal). Approved **in spirit** (interactive, lean, confirm-before-expand). **Improvement locked: persist on confirm** — do NOT leave load-bearing artifacts chat-only; the headless driver, cold re-runs, and the GUI cards all need them read back.
@@ -105,7 +105,7 @@ build, run one real Claude task end-to-end) — now with the HiDPI blocker alrea
 
 ---
 
-## ⚠️ FINAL CLOSURE 2026-07-17 — Epic Mode probe confirms the reversal; Traycer evaluation CLOSED
+## Epic Mode probe 2026-07-17 — Traycer runs its OWN pipeline (evaluation input, NOT a closure)
 
 **Test run (operator, live):** connected Claude Opus 4.8 inside Traycer Desktop (WSL) and asked, on
 entering an epic, which workflow files it follows. Full reply on record in the conversation transcript
@@ -120,11 +120,11 @@ this doc is derived from. Key finding, verbatim from the agent's own account:
 
 **What this proves:**
 1. **Tool-capability is real** — Claude Code inside Traycer genuinely invokes the `Skill` tool, reads the
-   real filesystem, reports precisely. The original reason we left Traycer (tool-less chat) is confirmed
+   real filesystem, reports precisely. The original concern with Traycer (tool-less chat) is confirmed
    solved at the engine level. Req #6 (subscription auth, tool-capable agent) → ✅.
 2. **But "entering an epic" runs TRAYCER'S OWN pipeline, not ours.** `traycer-epic-brief` →
    `traycer-tech-plan` → `traycer-ticket-breakdown` → `traycer-execute` structurally mirrors our
-   `01-epic-brief-fabrik → 03-tech-plan-fabrik → 06-ticket-breakdown-fabrik → 07-execute-fabrik` almost
+   `01-decisions-lock-fabrik → 03-tech-plan-fabrik → 06-ticket-breakdown-fabrik → 07-execute-fabrik` almost
    1:1 — validating our design's shape — but it is a **separate, non-Fabrik-aware implementation**: no
    BLOCKING live-research gate, no `fabrik-lib` verdict, no Tier-2 `final_gate.py` enforcement, no rule-pack
    awareness, no `docs/development/epics/` file convention. Req #14 (embed OUR `/fabrik-*` pipeline) →
@@ -139,15 +139,15 @@ is **already confirmed working** (installed, connected, running, tonight). The o
 WSL support; it was whether Traycer's workflow model fits **our** pipeline. This probe answered that: no,
 not without adversarial reconfiguration.
 
-**DECISION — CLOSED:** Traycer Desktop evaluation is **done**. Verdict: **kept installed as a reference
-implementation / break-glass fallback, NOT adopted as the cockpit.** **Proceed with the agetor fork (D1)**
-as the active, sole plan. This closes the requirements (`orchestrator-cockpit-requirements.md`) and this
-decisions doc's open evaluation — both move from brainstorm-status to **execution-ready** for the agetor
-fork. Next concrete step: the agetor WSLg spike (`/tmp/agetor-eval`, HiDPI blocker already cleared).
+**Working direction (NOT final):** the Epic Mode probe leans us toward the **agetor fork** — Traycer's
+native pipeline isn't Fabrik-aware and it's Electron. But **Traycer Desktop stays a live candidate /
+break-glass fallback; nothing is ruled out.** We're currently **spiking agetor** to see whether it earns
+the pick before committing either way. Next concrete step: the agetor WSLg spike (`/tmp/agetor-eval`,
+HiDPI blocker already cleared) → wire Claude Code → live-task trial, then compare against Traycer.
 
 ---
 
-## Amendment 2026-07-16 (superseded above) — Traycer Desktop (open-source) was a live contender
+## Amendment 2026-07-16 — Traycer Desktop (open-source) is a live contender
 
 Traycer shipped a **free, open-source (MIT) desktop app** (`github.com/traycerai/traycer`) **purpose-built for exactly this cockpit's pattern** — command-file workflows + a Next-Steps DAG + custom CLI agents + epics/tickets/artifacts + worktrees + subscription auth. It likely **obsoletes the agetor fork** *if* one crux holds (tool-capable command execution, below).
 
@@ -188,8 +188,60 @@ Does a Traycer **workflow command** execute through the **tool-capable Claude Co
 
 ---
 
+## Phase 0 — WSLg render spike: RESOLVED ✅ GO (2026-07-18)
+
+The make-or-break question is answered: **agetor's Electrobun (WebKitGTK) Linux build renders
+under WSLg**, and its real orchestrator cockpit UI (task composer + BACKLOG→DONE kanban) painted
+crisply and interactively (an earlier Chromium-under-WSLg attempt could not render at all). Backend
+wired too: 27 SQLite migrations applied, API on `127.0.0.1:4318`, and PATH-rehydrate found the
+subscription `claude=/home/ozgur/.local/bin/claude` + `tmux=/usr/bin/tmux` (no `ANTHROPIC_API_KEY`).
+**Direction (not final): agetor is the leading fork candidate; the from-scratch Tauri option is set
+aside. Traycer Desktop stays a live fallback.** Full live-task drive (worktree + tmux + approval card)
+not yet exercised.
+
+### WSLg baseline — fold ALL of this into the fork's Linux launcher (so nothing is hand-edited)
+- **System libs (apt):** `libwebkit2gtk-4.1-0`, `libayatana-appindicator3-1`. Electrobun's
+  `libNativeWrapper.so` dlopen-fails without them.
+- **`LD_LIBRARY_PATH` → the app's `bin/`:** Electrobun ships `libasar.so` beside the wrapper but
+  omits an `$ORIGIN` rpath, so the loader can't find it. The fork launcher MUST export this (or we
+  patch the rpath at build).
+- **Software compositing:** the `X11 Error: GLXBadWindow` + `libEGL … DRI3` warnings are **benign** —
+  WebKitGTK falls back to software compositing and paints correctly. No `/dev/dri` needed (that was
+  the Chromium/ANGLE wall). Do NOT chase GPU flags.
+- **HiDPI (the fiddly part):** Windows monitor scaling (200%) → WSLg presents a **1920×1200 logical**
+  X-screen, not native 4K. `.wslgconfig` `WESTON_RDP_DISABLE_HI_DPI_SCALING=true` is **kept** — it's
+  required by sibling **Chromium WSLg apps** (calendar-engine admin-ui, Brand Identity Creator);
+  removing it to get native-4K crispness risks regressing them (that flag was the Traycer HiDPI fix).
+  Consequence: on 1920×1200 logical you can't have both razor-crisp (`GDK_SCALE=2` halves usable
+  logical px) AND the full 6-column board (needs ~2060 logical). Dialed-in compromise that fits:
+  - `GDK_SCALE=1`, window frame **1912×1117 @ (0,0)** (`DEFAULT_FRAME`), renderer **`html{zoom:0.9}`**
+    to shrink the board ~10% so every column fits. Fork ships this as a real **Ctrl± zoom / window
+    setting**, not a source constant.
+- **Prereqs:** Bun 1.3.14 (`~/.bun/bin/bun`), tmux 3.4, WSL claude v2.1.214.
+
+### Claude Code wiring — subscription-only, VERIFIED (2026-07-18)
+- **Harness:** built-in `claude-code` (also `codex`), enabled by default, `is_builtin=1`. No custom
+  `home` → agetor does NOT override `HOME`/`CLAUDE_CONFIG_DIR`, so claude reads the real `~/.claude` +
+  `~/.claude.json` = your OAuth subscription (`mob@ocoron.com`, `~/.claude/.credentials.json`).
+- **Binary:** `resolveBin()` (`agents.ts`) → `harness.bin` → `AGETOR_CLAUDE_BIN` → `Bun.which("claude")`.
+  Resolves to `/home/ozgur/.local/bin/claude` v2.1.214.
+- **Drive:** `spawnClaudeViaTmux` (`claude-tmux.ts:3576`) builds env via `buildClaudeSessionEnv`, then
+  `tmux new-session -e K=V …` on agetor's **private tmux socket** (`tmuxSocketArgs()` → `-L <name>`).
+- **⚠️ CRITICAL metered-key leak (found + fixed):** `/opt/fabrik/.env:29` exports `ANTHROPIC_API_KEY`
+  (for `fabrik ai generate`). It was inherited into agetor's process → its private tmux server's global
+  env → every claude session (a session inherits the server env, not just `-e` vars). Claude Code
+  prioritizes the API key over OAuth, so it would have **silently billed the metered API**. Two-layer fix:
+  1. **Code (fork-grade):** `buildClaudeSessionEnv` now `delete`s `ANTHROPIC_API_KEY` + `ANTHROPIC_AUTH_TOKEN`.
+  2. **Launch:** start agetor with those unset so the tmux *server* env is clean.
+  Verified: agetor `/proc/<pid>/environ` = **0** ANTHROPIC keys (login shell = 1). Fork must bake BOTH in.
+
+### Spike-only edits (throwaway `/tmp/agetor-eval` clone — NOTHING in `/opt/fabrik` touched)
+- `src/bun/index.ts` + `vite.config.ts`: HMR port `5173→5199` (5173 was owned by calendar-engine's
+  vite — a **port collision**, not a bug; the fork picks a private port or a free-port probe).
+- `src/bun/window-lifecycle.ts` `DEFAULT_FRAME` and `src/mainview/index.css` `zoom` — the window-fit
+  values above.
+
 ## Open items (NOT yet locked)
-- **WSLg runtime spike** — does agetor's Electrobun Linux build render under WSLg? The make-or-break; decides **agetor fork vs Tauri-fresh**. Clone ready at `/tmp/agetor-eval`.
 - Exact left-column **cell grouping** per GUI (Mega: Artifacts/Decisions/Specs-Infra/Epics; Epic: Artifacts/Tickets/Executions — subject to refinement).
 - **Per-epic directory (D9) vs flat epic file** — D9 proposed, not ratified.
 - Whether **executions** persist to disk (logs) or SQLite-only.
