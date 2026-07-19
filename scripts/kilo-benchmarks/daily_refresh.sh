@@ -92,14 +92,14 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   # ─── DB safety snapshot BEFORE the pipeline mutates kilo_agents.db (added 2026-07-19) ───
   # kilo_agents.db is now gitignored (git no longer versions it — it kept poisoning the tree),
-  # so keep a rolling on-disk snapshot here as its safety net. Retain the last 7; backups/ is
-  # itself gitignored (*.backup.*). Non-fatal: a failed snapshot must not abort the refresh.
+  # so keep a rolling on-disk snapshot here as its safety net. Retain the last 3 (~39MB); backups/
+  # is itself gitignored (*.backup.*). Non-fatal: a failed snapshot must not abort the refresh.
   mkdir -p "$KB/backups"
   if [ -f "$KB/kilo_agents.db" ]; then
     cp -p "$KB/kilo_agents.db" "$KB/backups/kilo_agents.db.backup.$(date -u +%Y%m%d-%H%M%S)" \
       && echo "[db-backup] pre-run snapshot taken" \
       || echo "[db-backup] snapshot FAILED (non-fatal)"
-    ls -1t "$KB"/backups/kilo_agents.db.backup.* 2>/dev/null | tail -n +8 | xargs -r rm -f
+    ls -1t "$KB"/backups/kilo_agents.db.backup.* 2>/dev/null | tail -n +4 | xargs -r rm -f
   fi
 
   # Per-step timing wrapper (added 2026-06-30). Calls "$@" with timing instrumentation,
@@ -491,6 +491,28 @@ mkdir -p "$(dirname "$LOG_FILE")"
     echo "[daily_refresh] CRITICAL: heartbeat timestamp write failed (disk full? permission?)"
     "$VENV_PY" -c "from alerting import send_alert; send_alert(title='daily_refresh.sh: heartbeat timestamp write FAILED', body='Could not write to $KB/cache/daily_refresh_last_success.txt. Tomorrow heartbeat will alert as STALE; please investigate disk / permissions now.', severity='critical')" 2>/dev/null || true
   fi
+
+  # ─── Disk hygiene — keep the on-disk footprint BOUNDED (added 2026-07-19) ───
+  # gitignoring the caches stopped them poisoning the tree, but they still grew on disk.
+  # Prune every run so the WSL box never fills with pipeline trash. All non-fatal. The
+  # API-response caches (.microbench_cache / translation_bench/cache) are cost-savers, so
+  # prune only by AGE (keep the recent ones); logs + audits + stray pytest caches go by count.
+  {
+    # 30-day age prune of the response caches (recent kept → re-runs stay cheap)
+    find "$KB/.microbench_cache" -type f -mtime +30 -delete 2>/dev/null || true
+    find "$KB/translation_bench/cache" -type f -mtime +30 -delete 2>/dev/null || true
+    # keep the newest 5 direct-vendor audit files
+    ls -1t "$KB"/cache/direct_vendor_audit_* 2>/dev/null | tail -n +6 | xargs -r rm -f
+    # cap the rotated logs at the newest 3
+    ls -1t "$KB"/cache/update.log.* 2>/dev/null | tail -n +4 | xargs -r rm -f
+    # drop stray pytest caches + __pycache__ under kilo-benchmarks (regenerated on demand)
+    find "$KB" -type d \( -name .pytest_cache -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true
+    # remove stale daily lockfiles from /tmp (keep today's UTC)
+    for _lf in /tmp/.fabrik_daily_*; do
+      [ -e "$_lf" ] && [ "$_lf" != "/tmp/.fabrik_daily_$(date -u +%Y%m%d)" ] && rm -f "$_lf"
+    done 2>/dev/null || true
+    echo "[disk-hygiene] pruned caches/logs/audits/backups to bounded limits"
+  } || echo "[daily_refresh] disk-hygiene step errored (non-fatal)"
 
   # ─── Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-07-19) ───
   # Regenerating these every run but never committing them left the working tree
