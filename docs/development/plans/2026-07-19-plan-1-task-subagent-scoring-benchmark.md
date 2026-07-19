@@ -78,7 +78,7 @@ Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_
 
 ---
 
-## Phase B — research grader (EM/F1 + claude-evaluator tiebreak) + corpus  *(parallelizable with C, D after A)*
+## Phase B — research grader (EM/F1 + claude-evaluator tiebreak) + corpus  *(parallelizable with C, D after A)* — ✅ EXECUTED 2026-07-20
 
 **Files:** `scripts/kilo-benchmarks/research_grader.py` (flat) + `scripts/kilo-benchmarks/corpora/research_qa.json` + `scripts/kilo-benchmarks/vendor/claude_evaluator/**` + `tests/test_research_grader.py`.
 
@@ -98,7 +98,7 @@ Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_
 
 ---
 
-## Phase C — docs grader (bidirectional git-grounded recall/precision) + corpus  *(parallelizable)*
+## Phase C — docs grader (bidirectional git-grounded recall/precision) + corpus  *(parallelizable)* — ✅ EXECUTED 2026-07-20
 
 **Files:** `scripts/kilo-benchmarks/docs_grader.py` (flat) + `scripts/kilo-benchmarks/mine_docs_corpus.py` (flat) + generated `scripts/kilo-benchmarks/corpora/docs_pairs.json` (data) + `tests/test_docs_grader.py`.
 
@@ -116,7 +116,7 @@ Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_
 
 ---
 
-## Phase D — plan+spec structural filter + correlated prior + flywheel wiring  *(parallelizable)*
+## Phase D — plan+spec structural filter + correlated prior + flywheel wiring  *(parallelizable)* — ✅ EXECUTED 2026-07-20
 
 **Files:** `scripts/kilo-benchmarks/structural_grader.py` (flat) + `scripts/kilo-benchmarks/correlated_prior.py` (flat) + `tests/test_structural_grader.py`.
 

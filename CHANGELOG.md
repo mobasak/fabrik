@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Research + plan/spec graders for the judged benchmark; grader-review fixes (Phases B+D) (2026-07-19)
+
+`research_grader.py` (EM/F1 + fabrik-private Q&A corpus + injectable claude-evaluator near-miss
+tiebreak) and `structural_grader.py` (deterministic plan/spec filter — phases/command-gates/resolving
+`path:line` citations/sections/shape) + `correlated_prior.py` (seeds plan/spec priors from
+code+review / docs+plan). Wired into `microbench_judged.main()` via a grader auto-import map; `--task
+docs --all` now resolves `docs_pairs.json`; the $0 `--smoke` forces the stub (never fires a real
+grader/npx). **Adversarial review (3 parallel Opus finders + a re-review) fixed a load-bearing docs
+bug** — a whole-doc tokenizer mispaired backticks across lines so the human's own A+ patch scored 0;
+now line-scoped + a direct add/remove edit comparison (corpus ground-truth patches score 5.0). Also:
+research abstention now falls back to F1 (never silently un-measures a model) + judge score clamped;
+structural `\btests?\b`/URL-stripped-citations/command-token gates; correlated spec prior guarded on
+docs presence. Tests: `tests/test_research_grader.py`, `tests/test_structural_grader.py` (+ harness
+regressions).
+
+### Added — Docs grader + git-mined corpus for the judged benchmark (Phase C) (2026-07-19)
+
+`scripts/kilo-benchmarks/docs_grader.py` — the `docs` task grader (`register_grader("docs", …)`) for
+`microbench_judged.py`. The model's answer is a doc-reconciliation PATCH; it is graded BIDIRECTIONALLY
+against the human's real git doc update: **precision** = fraction of the patch's ADDED backtick symbols
+that resolve in the codebase (`_codebase_haystack(root, skip_md=True)` — a hallucinated symbol scores 0),
+**recall** = required additions present AND required removals absent vs the `ground_truth` doc text;
+`score5 = f1(recall, precision) * 5`, with `recall`/`precision` set on the `TaskScore`. Reuses the proven
+`doc_reconcile` token/haystack plumbing verbatim (no fork); torch-free, deterministic, $0. Companion
+`mine_docs_corpus.py` mines a bounded window of git history for code+doc co-change commits and freezes
+~4-8 `{stale_doc, diff, ground_truth}` triples to `corpora/docs_pairs.json` (credential-in-URL doc
+placeholders filtered so the frozen corpus is gate-clean). Tests: `tests/test_docs_grader.py`.
+
 ### Added — Judged task-subagent benchmark harness (docs/research/plan/spec scoring) (2026-07-19)
 
 New `scripts/kilo-benchmarks/microbench_judged.py` — a task-agnostic benchmark spine (dispatch →

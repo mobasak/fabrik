@@ -25,24 +25,42 @@ def _measured_gen(model: str, i: int, task_type: str = "research", text: str = "
 
 
 def _score(model: str, score5: float, n: int = 3) -> mj.TaskScore:
-    return mj.TaskScore(model=model, score5=score5, n_graded=n, n_err=0, cost_usd=0.03,
-                        latencies=[1.0] * n, out_tokens=15)
+    return mj.TaskScore(
+        model=model,
+        score5=score5,
+        n_graded=n,
+        n_err=0,
+        cost_usd=0.03,
+        latencies=[1.0] * n,
+        out_tokens=15,
+    )
 
 
 # ── (a) record_flywheel — the surface-a-cold-model fix [TDD, highest risk] ─────────────────────
 def test_record_flywheel_writes_one_row_per_success_with_score5(monkeypatch):
     calls: list[dict] = []
-    monkeypatch.setattr(mj, "record_agent_run", lambda spec, res, **kw: calls.append(
-        {"model": spec.model, "task_type": spec.task_type, "status": res.status,
-         "quality_score": kw.get("quality_score"), "project": kw.get("project")}) or True)
+    monkeypatch.setattr(
+        mj,
+        "record_agent_run",
+        lambda spec, res, **kw: calls.append(
+            {
+                "model": spec.model,
+                "task_type": spec.task_type,
+                "status": res.status,
+                "quality_score": kw.get("quality_score"),
+                "project": kw.get("project"),
+            }
+        )
+        or True,
+    )
     gens = {"m/x": [_measured_gen("m/x", i) for i in range(3)]}
     scores = {"m/x": _score("m/x", 4.2)}
     n = mj.record_flywheel(gens, scores, project="microbench")
     assert n == 3
     assert len(calls) == 3
-    assert all(c["quality_score"] == 4.2 for c in calls)       # quality_score == score5
-    assert all(c["task_type"] == "research" for c in calls)    # task_type carried on the SPEC
-    assert all(c["status"] == "done" for c in calls)           # else record_run nulls the score
+    assert all(c["quality_score"] == 4.2 for c in calls)  # quality_score == score5
+    assert all(c["task_type"] == "research" for c in calls)  # task_type carried on the SPEC
+    assert all(c["status"] == "done" for c in calls)  # else record_run nulls the score
     assert all(c["project"] == "microbench" for c in calls)
 
 
@@ -70,8 +88,12 @@ def test_persist_metrics_roundtrips_with_grade_cut(tmp_path):
     scores = {"m/a": _score("m/a", 4.6), "m/b": _score("m/b", 2.1)}
     mj.persist_metrics(scores, "research", "v1", db)
     conn = sqlite3.connect(db)
-    rows = {r[0]: r for r in conn.execute(
-        "SELECT model_id, task_type, score5, grade, n_graded FROM model_judged_metrics").fetchall()}
+    rows = {
+        r[0]: r
+        for r in conn.execute(
+            "SELECT model_id, task_type, score5, grade, n_graded FROM model_judged_metrics"
+        ).fetchall()
+    }
     conn.close()
     assert rows["m/a"][1] == "research" and rows["m/a"][3] == "A+"  # 4.6 → A+
     assert rows["m/b"][3] == "C"  # 2.1 → C
@@ -115,14 +137,21 @@ def test_measured_models_resume_skip_is_window_scoped(tmp_path):
 # ── spine: the stub grader + smoke run end-to-end ($0) ─────────────────────────────────────────
 def test_stub_grader_and_smoke_end_to_end(tmp_path, monkeypatch):
     recorded: list = []
-    monkeypatch.setattr(mj, "record_agent_run", lambda spec, res, **kw: recorded.append(spec) or True)
+    monkeypatch.setattr(
+        mj, "record_agent_run", lambda spec, res, **kw: recorded.append(spec) or True
+    )
     db = tmp_path / "k.db"
     scores = mj.run_smoke("research", db)
     s = scores["smoke/echo-model"]
     assert s.is_measured and s.n_graded >= mj.MIN_MEASURED  # ≥3 items → measured
-    assert len(recorded) >= mj.MIN_MEASURED                 # ≥3 flywheel rows → clears HAVING COUNT>=3
+    assert len(recorded) >= mj.MIN_MEASURED  # ≥3 flywheel rows → clears HAVING COUNT>=3
     conn = sqlite3.connect(db)
-    assert conn.execute("SELECT COUNT(*) FROM model_task_baseline WHERE task_type='research'").fetchone()[0] == 1
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM model_task_baseline WHERE task_type='research'"
+        ).fetchone()[0]
+        == 1
+    )
     conn.close()
 
 
@@ -130,14 +159,16 @@ def test_stub_grader_and_smoke_end_to_end(tmp_path, monkeypatch):
 def test_finalize_scores_overrides_grader_omitted_cost():
     """The harness owns cost/latency/tokens/n_err from gens — a grader that forgets to thread them
     (returns cost_usd=0) must NOT zero the cross-batch cost gate (reviewer finding #1)."""
-    gens = {"m/x": [
-        mj._Gen(text="a", cost_usd=0.04, latency_s=2.0, out_tokens=10, error=None),
-        mj._Gen(text="b", cost_usd=0.06, latency_s=1.0, out_tokens=5, error=None),
-        mj._Gen(text=None, cost_usd=0.0, latency_s=None, out_tokens=0, error="404"),
-    ]}
+    gens = {
+        "m/x": [
+            mj._Gen(text="a", cost_usd=0.04, latency_s=2.0, out_tokens=10, error=None),
+            mj._Gen(text="b", cost_usd=0.06, latency_s=1.0, out_tokens=5, error=None),
+            mj._Gen(text=None, cost_usd=0.0, latency_s=None, out_tokens=0, error="404"),
+        ]
+    }
     grader_out = {"m/x": mj.TaskScore(model="m/x", score5=4.0, n_graded=2, n_err=0, cost_usd=0.0)}
     fin = mj._finalize_scores(grader_out, gens)["m/x"]
-    assert fin.cost_usd == 0.1            # real billed cost from gens, not the grader's 0.0
+    assert fin.cost_usd == 0.1  # real billed cost from gens, not the grader's 0.0
     assert fin.out_tokens == 15 and fin.n_err == 1
     assert fin.median_latency > 0
 
@@ -145,7 +176,9 @@ def test_finalize_scores_overrides_grader_omitted_cost():
 def test_record_flywheel_counts_committed_not_attempted(monkeypatch):
     """record_flywheel returns the COMMITTED count; on a no-DSN box record_agent_run outboxes and
     returns False → n==0 with no crash (reviewer finding F-A — the count must not overclaim)."""
-    monkeypatch.setattr(mj, "record_agent_run", lambda spec, res, **kw: False)  # outboxed, not committed
+    monkeypatch.setattr(
+        mj, "record_agent_run", lambda spec, res, **kw: False
+    )  # outboxed, not committed
     gens = {"m/x": [_measured_gen("m/x", i) for i in range(3)]}
     n = mj.record_flywheel(gens, {"m/x": _score("m/x", 5.0, n=3)}, project="microbench")
     assert n == 0  # 3 attempted, 0 committed — honest
@@ -161,30 +194,52 @@ def test_done_gate_nulls_score_for_non_done_result():
     captured: list = []
 
     class _Cur:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, row=None):
             if row is not None:
                 captured.append(row)
 
     class _Conn:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def cursor(self): return _Cur()
-        def close(self): pass
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def cursor(self):
+            return _Cur()
+
+        def close(self):
+            pass
 
     spec = AgentSpec(task="p", model="m/x", task_type="research")
 
     def _row_for(status: str):
         captured.clear()
-        res = AgentResult(agent_id="a1", text="t", diff="", status=status, provider=None,
-                          cost_usd=0.0, turns=1, latency_s=1.0, out_tokens=1, model="m/x")
-        record_agent_run(spec, res, quality_score=4.2, project="t", dsn="fake://x",
-                         connect=lambda dsn: _Conn())
+        res = AgentResult(
+            agent_id="a1",
+            text="t",
+            diff="",
+            status=status,
+            provider=None,
+            cost_usd=0.0,
+            turns=1,
+            latency_s=1.0,
+            out_tokens=1,
+            model="m/x",
+        )
+        record_agent_run(
+            spec, res, quality_score=4.2, project="t", dsn="fake://x", connect=lambda dsn: _Conn()
+        )
         return captured[0]
 
-    assert _row_for("done")[9] == 4.2      # quality_score persists for a done result
-    assert _row_for("capped")[9] is None   # …but is NULLed for a non-done result
+    assert _row_for("done")[9] == 4.2  # quality_score persists for a done result
+    assert _row_for("capped")[9] is None  # …but is NULLed for a non-done result
 
 
 def test_metrics_pk_includes_window_same_model_two_windows_survive(tmp_path):
@@ -218,7 +273,9 @@ def test_persist_metrics_artifact_merges_across_batches(tmp_path, monkeypatch):
     monkeypatch.setattr(mj, "CACHE_DIR", tmp_path / "cache")
     db = tmp_path / "k.db"
     a1 = mj.persist_metrics({"m/a": _score("m/a", 4.0)}, "research", "v1", db)
-    a2 = mj.persist_metrics({"m/b": _score("m/b", 3.0)}, "research", "v1", db)  # same file, 2nd batch
+    a2 = mj.persist_metrics(
+        {"m/b": _score("m/b", 3.0)}, "research", "v1", db
+    )  # same file, 2nd batch
     assert a1 == a2 and "v1" in a1.name
     art = json.loads(a1.read_text())
     assert set(art) == {"m/a", "m/b"}  # merged, not overwritten
@@ -253,7 +310,9 @@ def test_report_stored_empty_task_prints_friendly_message(tmp_path, capsys):
     """report_stored on a task with no rows (table present) prints the friendly message, not
     'built None' (reviewer final-pass — closes Guard 2's coverage gap)."""
     db = tmp_path / "k.db"
-    mj.persist_metrics({"m/a": _score("m/a", 4.0)}, "research", "v1", db)  # creates table, research only
+    mj.persist_metrics(
+        {"m/a": _score("m/a", 4.0)}, "research", "v1", db
+    )  # creates table, research only
     mj.report_stored("plan", db)  # table exists, zero plan rows → latest is None
     out = capsys.readouterr().out
     assert "no stored plan metrics" in out and "built None" not in out
@@ -264,7 +323,24 @@ def test_report_stored_empty_task_prints_friendly_message(tmp_path, capsys):
 def test_resolve_models_auto_tier_is_task_scoped(monkeypatch):
     """--auto-tier must select THIS task's pool, not always research's (finding #4)."""
     seen: list = []
-    monkeypatch.setattr("libs.subagents.select.pick_models",
-                        lambda task, n=1, **kw: seen.append(task) or ["x/y"])
+    monkeypatch.setattr(
+        "libs.subagents.select.pick_models", lambda task, n=1, **kw: seen.append(task) or ["x/y"]
+    )
     mj._resolve_models(None, auto_tier=True, task_type="docs")
     assert seen == ["docs"]
+
+
+def test_corpus_files_map_matches_disk():
+    """F1 regression: main() resolves the docs corpus to docs_pairs.json (NOT docs_qa.json), and both
+    generation corpora exist on disk — else `--task docs --all` fails 'corpus missing'."""
+    assert mj._CORPUS_FILES == {"research": "research_qa.json", "docs": "docs_pairs.json"}
+    for fn in mj._CORPUS_FILES.values():
+        assert (mj.SCRIPT_DIR / "corpora" / fn).exists(), fn
+
+
+def test_main_routes_structural_tasks_to_correlated_prior(capsys):
+    """plan/spec have no generation corpus → main(--all) exits 1 pointing at correlated_prior, not a
+    misleading 'corpus missing'. Returns before any model resolution / network."""
+    rc = mj.main(["--task", "plan", "--all", "--models", "x/y"])
+    assert rc == 1
+    assert "correlated_prior" in capsys.readouterr().err

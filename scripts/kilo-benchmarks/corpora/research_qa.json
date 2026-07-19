@@ -1,0 +1,50 @@
+[
+  {
+    "question": "What is the name of the external Docker network that all fabrik containers run on?",
+    "context": "All fabrik containers attach to a single external Docker network (renamed from 'coolify' on 2026-05-31; `fabrik apply` now rejects the old 'coolify' name). Traefik routes traffic on it; no service binds host ports directly.",
+    "gold": "fabrik",
+    "aliases": ["fabrik network", "the fabrik net", "fabrik net"]
+  },
+  {
+    "question": "What WireGuard subnet does the fabrik VPS fleet run on?",
+    "context": "The fleet is vps1 (LA, hub) plus vps2/vps3 (Coventry, spokes), meshed over WireGuard on the 10.99.0.0/24 subnet. Spokes reach hub-only shared infra at 10.99.0.1 (the hub's address on that subnet) on the per-service port.",
+    "gold": "10.99.0.0/24",
+    "aliases": ["10.99.0.0 / 24"]
+  },
+  {
+    "question": "What container-DNS hostname and port does fabrik code use to reach the shared Postgres (never localhost)?",
+    "context": "Backing services are addressed by container DNS, never localhost: the shared Postgres is at postgres-main:5432 and shared Redis at redis-main:6379. localhost inside a container is the container itself, not the shared DB.",
+    "gold": "postgres-main:5432",
+    "aliases": ["postgres-main port 5432", "postgres-main on 5432"]
+  },
+  {
+    "question": "What container-DNS hostname and port does fabrik code use to reach the shared Redis?",
+    "context": "Backing services are addressed by container DNS, never localhost: the shared Postgres is at postgres-main:5432 and shared Redis at redis-main:6379.",
+    "gold": "redis-main:6379",
+    "aliases": ["redis-main port 6379", "redis-main on 6379"]
+  },
+  {
+    "question": "In the fabrik fleet, which VPS is the hub?",
+    "context": "The fleet is vps1 (LA, hub) plus vps2/vps3 (Coventry, spokes). Shared infra (postgres-main, redis-main, glitchtip, authelia, loki, meilisearch) is hub-only.",
+    "gold": "vps1",
+    "aliases": ["vps1 (LA)"]
+  },
+  {
+    "question": "How many characters does a password generated under the fabrik password policy have?",
+    "context": "The fabrik password policy generates a 32-character password drawn from [a-zA-Z0-9] via secrets.choice().",
+    "gold": "32",
+    "aliases": ["32 characters", "32-char"]
+  },
+  {
+    "question": "In microbench_judged.py, how many graded items must a model have (MIN_MEASURED) to count as 'measured'?",
+    "context": "A model is MEASURED only if enough items actually returned; MIN_MEASURED = 3. A 404 or timeout is not a wrong answer, so an unreached model is left unmeasured rather than scored 0.",
+    "gold": "3",
+    "aliases": ["3 items", "three"]
+  },
+  {
+    "question": "On which internal TCP port does the fabrik watchdog sidecar serve its error-webhook ingest?",
+    "context": "As of 2026-07-04 the watchdog sidecar serves the error-webhook ingest on port 8889 (agent.py _IngestHandler), reading WATCHDOG_TRIGGER_SOURCES; a GlitchTip to :8889 trigger works.",
+    "gold": "8889",
+    "aliases": [":8889", "port 8889"]
+  }
+]

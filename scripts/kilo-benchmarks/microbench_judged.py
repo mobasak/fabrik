@@ -66,14 +66,20 @@ except Exception:  # pragma: no cover - flywheel best-effort when the pool is ab
     record_agent_run = None  # type: ignore[assignment]
 
 SCALE = 5.0
-MAX_TOKENS = 2048  # docs/research outputs are short; bound output length (unbounded = unbounded cost)
+MAX_TOKENS = (
+    2048  # docs/research outputs are short; bound output length (unbounded = unbounded cost)
+)
 # A model is MEASURED only if enough items actually returned — a 404/timeout is not a wrong answer;
 # scoring it 0 would poison the ranker into never picking a model we merely failed to reach.
 MIN_MEASURED = 3
 
 # ── Cost safety (real money — every knob here is fail-SAFE: bound spend, over-count when unsure) ──
-_PER_CALL_COST_CAP = 0.25  # hard per-CALL ceiling passed to the transport (one call can't eat the batch)
-_FALLBACK_COST_PER_MTOK = 5.0  # conservative estimate when a provider returns NO billed cost (over-count → stop early)
+_PER_CALL_COST_CAP = (
+    0.25  # hard per-CALL ceiling passed to the transport (one call can't eat the batch)
+)
+_FALLBACK_COST_PER_MTOK = (
+    5.0  # conservative estimate when a provider returns NO billed cost (over-count → stop early)
+)
 _BALANCE_SAFETY_FRAC = 0.90  # never let a run's cost-cap exceed 90% of the live OpenRouter balance
 BATCH_SIZE = 8  # persist after EACH batch — an interrupted run loses ≤ one batch; a re-run RESUMES
 
@@ -92,7 +98,9 @@ class _Gen:
     out_tokens: int
     error: str | None
     spec: object | None = None  # AgentSpec — carries model + task_type into the flywheel row
-    result: object | None = None  # AgentResult(status="done") — required or record_run nulls the score
+    result: object | None = (
+        None  # AgentResult(status="done") — required or record_run nulls the score
+    )
 
 
 @dataclass
@@ -123,7 +131,15 @@ class TaskScore:
     def grade(self) -> str:
         """Same F1/score→letter cuts as microbench_review/coding (one scale across all tables)."""
         s = self.clamped_score5
-        for cut, g in ((4.5, "A+"), (4.0, "A"), (3.5, "B+"), (3.0, "B"), (2.5, "C+"), (2.0, "C"), (1.0, "D")):
+        for cut, g in (
+            (4.5, "A+"),
+            (4.0, "A"),
+            (3.5, "B+"),
+            (3.0, "B"),
+            (2.5, "C+"),
+            (2.0, "C"),
+            (1.0, "D"),
+        ):
             if s >= cut:
                 return g
         return "F"
@@ -191,7 +207,9 @@ def _stub_grader(gens: dict[str, list[_Gen]], corpus: list[dict]) -> dict[str, T
     return scores
 
 
-def _finalize_scores(scores: dict[str, TaskScore], gens: dict[str, list[_Gen]]) -> dict[str, TaskScore]:
+def _finalize_scores(
+    scores: dict[str, TaskScore], gens: dict[str, list[_Gen]]
+) -> dict[str, TaskScore]:
     """Overlay the OBJECTIVE metrics (cost / latency / tokens / n_err) onto each TaskScore from the
     real generations — so cost-safety + the cost/latency columns NEVER depend on a Phase-B/C/D grader
     remembering to thread them (a grader owns only score5 / n_graded / recall / precision / structural).
@@ -208,8 +226,9 @@ def _finalize_scores(scores: dict[str, TaskScore], gens: dict[str, list[_Gen]]) 
 
 
 # ── generation ────────────────────────────────────────────────────────────────────────────────
-def _synth_pair(model: str, task_type: str, prompt: str, i: int, gen: _Gen, run_id: str,
-                window: str = "v1") -> None:
+def _synth_pair(
+    model: str, task_type: str, prompt: str, i: int, gen: _Gen, run_id: str, window: str = "v1"
+) -> None:
     """Attach the synthetic (AgentSpec, AgentResult) flywheel pair to a SUCCESSFUL _Gen.
 
     Raw `_transport.run` yields no AgentSpec/AgentResult (unlike the pool's `run_agents`), yet
@@ -258,7 +277,9 @@ def generate(
     """
     run = run_fn or _or_run
     if run is None:
-        raise RuntimeError("libs.subagents._transport unavailable — cannot generate (grading/report still work).")
+        raise RuntimeError(
+            "libs.subagents._transport unavailable — cannot generate (grading/report still work)."
+        )
     build_prompt = prompt_fn or PROMPTERS.get(task_type) or default_prompt
     body = {"usage": {"include": True}, "max_tokens": max_tokens}
     run_id = uuid.uuid4().hex[:8]  # per-run nonce → unique agent_ids across --fresh / windows
@@ -279,11 +300,20 @@ def generate(
         prompt = build_prompt(item)
         t0 = time.time()
         try:
-            r = run(model, [{"role": "user", "content": prompt}], body=body, max_cost_usd=_PER_CALL_COST_CAP)
+            r = run(
+                model,
+                [{"role": "user", "content": prompt}],
+                body=body,
+                max_cost_usd=_PER_CALL_COST_CAP,
+            )
             dt = time.time() - t0
             toks = int((getattr(r, "usage", None) or {}).get("completion_tokens") or 0)
             if getattr(r, "error", None) or not getattr(r, "text", None):
-                return model, i, _Gen(None, _bill(r, toks), None, 0, getattr(r, "error", None) or "empty")
+                return (
+                    model,
+                    i,
+                    _Gen(None, _bill(r, toks), None, 0, getattr(r, "error", None) or "empty"),
+                )
             gen = _Gen(r.text, _bill(r, toks), dt, toks, None)
             _synth_pair(model, task_type, prompt, i, gen, run_id, window)
             return model, i, gen
@@ -308,7 +338,9 @@ def generate(
 
 
 # ── flywheel (the surface-a-cold-model fix) ────────────────────────────────────────────────────
-def record_flywheel(gens: dict[str, list[_Gen]], scores: dict[str, TaskScore], *, project: str = "microbench") -> int:
+def record_flywheel(
+    gens: dict[str, list[_Gen]], scores: dict[str, TaskScore], *, project: str = "microbench"
+) -> int:
     """One flywheel row per SUCCESSFUL dispatch, `quality_score=score5` (the model's graded score).
 
     Load-bearing: these rows clear rank_task_subagents' `HAVING COUNT(*) >= 3` gate so a cold model
@@ -327,7 +359,9 @@ def record_flywheel(gens: dict[str, list[_Gen]], scores: dict[str, TaskScore], *
             if g.text is None or g.spec is None or g.result is None:
                 continue
             try:
-                if record_agent_run(g.spec, g.result, quality_score=score.clamped_score5, project=project):
+                if record_agent_run(
+                    g.spec, g.result, quality_score=score.clamped_score5, project=project
+                ):
                     n += 1
             except Exception:  # noqa: BLE001 — flywheel is best-effort
                 pass
@@ -346,7 +380,9 @@ def _ensure_metrics_table(conn: object) -> None:
     """)
 
 
-def persist_metrics(scores: dict[str, TaskScore], task_type: str, window: str, db_path: Path = DB_PATH) -> Path:
+def persist_metrics(
+    scores: dict[str, TaskScore], task_type: str, window: str, db_path: Path = DB_PATH
+) -> Path:
     """Store MEASURED models in model_judged_metrics (one table, task_type-discriminated) + a JSON artifact."""
     import sqlite3
 
@@ -359,9 +395,23 @@ def persist_metrics(scores: dict[str, TaskScore], task_type: str, window: str, d
                 continue
             conn.execute(
                 "INSERT OR REPLACE INTO model_judged_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (s.model, task_type, s.clamped_score5, s.grade, s.recall, s.precision, s.structural,
-                 round(s.cost_usd, 6), s.cost_per_1k, s.median_latency, s.tokens_per_s,
-                 s.n_graded, s.n_err, window, today),
+                (
+                    s.model,
+                    task_type,
+                    s.clamped_score5,
+                    s.grade,
+                    s.recall,
+                    s.precision,
+                    s.structural,
+                    round(s.cost_usd, 6),
+                    s.cost_per_1k,
+                    s.median_latency,
+                    s.tokens_per_s,
+                    s.n_graded,
+                    s.n_err,
+                    window,
+                    today,
+                ),
             )
         conn.commit()
     finally:
@@ -374,19 +424,35 @@ def persist_metrics(scores: dict[str, TaskScore], task_type: str, window: str, d
     if art.exists():
         try:
             loaded = json.loads(art.read_text())
-            merged = loaded if isinstance(loaded, dict) else {}  # a non-object JSON → reset (no crash)
+            merged = (
+                loaded if isinstance(loaded, dict) else {}
+            )  # a non-object JSON → reset (no crash)
         except (OSError, json.JSONDecodeError):
             merged = {}
     merged.update(
-        {s.model: {"grade": s.grade, "score5": s.clamped_score5, "recall": s.recall,
-                   "precision": s.precision, "structural": s.structural, "cost_per_1k": s.cost_per_1k,
-                   "p50_latency_s": s.median_latency, "n_graded": s.n_graded, "n_err": s.n_err}
-         for s in scores.values() if s.is_measured})
+        {
+            s.model: {
+                "grade": s.grade,
+                "score5": s.clamped_score5,
+                "recall": s.recall,
+                "precision": s.precision,
+                "structural": s.structural,
+                "cost_per_1k": s.cost_per_1k,
+                "p50_latency_s": s.median_latency,
+                "n_graded": s.n_graded,
+                "n_err": s.n_err,
+            }
+            for s in scores.values()
+            if s.is_measured
+        }
+    )
     art.write_text(json.dumps(merged, indent=2))
     return art
 
 
-def persist_baseline(scores: dict[str, TaskScore], task_type: str, window: str, db_path: Path = DB_PATH) -> int:
+def persist_baseline(
+    scores: dict[str, TaskScore], task_type: str, window: str, db_path: Path = DB_PATH
+) -> int:
     """Write measured score5 as the task_type prior that pick_models(task_type) shrinks against.
 
     source='microbench_judged:<task>' tags provenance. (build_task_baselines only EMITS ops/code
@@ -409,8 +475,16 @@ def persist_baseline(scores: dict[str, TaskScore], task_type: str, window: str, 
                 "INSERT OR REPLACE INTO model_task_baseline "
                 "(model_id, task_type, baseline, pass_rate, n_tasks, n_trials, source, built_at) "
                 "VALUES (?,?,?,?,?,?,?,?)",
-                (s.model, task_type, s.clamped_score5, round(s.clamped_score5 / SCALE, 4),
-                 s.n_graded, s.n_graded, f"microbench_judged:{task_type}", today),
+                (
+                    s.model,
+                    task_type,
+                    s.clamped_score5,
+                    round(s.clamped_score5 / SCALE, 4),
+                    s.n_graded,
+                    s.n_graded,
+                    f"microbench_judged:{task_type}",
+                    today,
+                ),
             )
             n += 1
         conn.commit()
@@ -430,7 +504,9 @@ def load_judged_metrics(task_type: str, db_path: Path = DB_PATH) -> dict[str, di
     import sqlite3
 
     out: dict[str, dict] = {}
-    if not Path(db_path).exists():  # mode=ro refuses to CREATE a missing file → guard first (fail-soft)
+    if not Path(
+        db_path
+    ).exists():  # mode=ro refuses to CREATE a missing file → guard first (fail-soft)
         return {}
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)  # concurrent-write safe (read-only)
     try:
@@ -442,16 +518,28 @@ def load_judged_metrics(task_type: str, db_path: Path = DB_PATH) -> dict[str, di
             "SELECT model_id, score5, grade, recall, precision, structural, cost_per_1k, "
             "p50_latency_s, tokens_per_s, n_graded, n_err, built_at "
             "FROM model_judged_metrics WHERE task_type=? ORDER BY built_at, window",
-            (task_type,),  # (built_at, window) → deterministic latest-per-model on a same-day tie (C3)
+            (
+                task_type,
+            ),  # (built_at, window) → deterministic latest-per-model on a same-day tie (C3)
         ).fetchall()
     except sqlite3.Error:
         return {}
     finally:
         conn.close()
     for r in rows:  # ORDER BY built_at ASC → later dates overwrite → latest-per-model wins
-        out[r[0]] = {"score5": r[1], "grade": r[2], "recall": r[3], "precision": r[4],
-                     "structural": r[5], "cost_per_1k": r[6], "p50_latency_s": r[7],
-                     "tokens_per_s": r[8], "n_graded": r[9], "n_err": r[10], "built_at": r[11]}
+        out[r[0]] = {
+            "score5": r[1],
+            "grade": r[2],
+            "recall": r[3],
+            "precision": r[4],
+            "structural": r[5],
+            "cost_per_1k": r[6],
+            "p50_latency_s": r[7],
+            "tokens_per_s": r[8],
+            "n_graded": r[9],
+            "n_err": r[10],
+            "built_at": r[11],
+        }
     return out
 
 
@@ -467,7 +555,8 @@ def _measured_models(task_type: str, window: str, db_path: Path = DB_PATH) -> se
             return set()
         today = date.today().isoformat()
         return {
-            r[0] for r in conn.execute(
+            r[0]
+            for r in conn.execute(
                 "SELECT DISTINCT model_id FROM model_judged_metrics WHERE task_type=? AND window=? AND built_at=?",
                 (task_type, window, today),
             ).fetchall()
@@ -477,8 +566,12 @@ def _measured_models(task_type: str, window: str, db_path: Path = DB_PATH) -> se
 
 
 # ── model resolution + balance guard (mirror the coding bench) ─────────────────────────────────
-def _resolve_models(explicit: list[str] | None, auto_tier: bool, task_type: str = "research",
-                    db_path: Path = DB_PATH) -> list[str]:
+def _resolve_models(
+    explicit: list[str] | None,
+    auto_tier: bool,
+    task_type: str = "research",
+    db_path: Path = DB_PATH,
+) -> list[str]:
     """Default = all ~57 models the sibling benches measured (review ∪ coding). --auto-tier restricts
     to THIS task's pick_models-selectable pool (out ≤ $1.5/Mtok). Explicit --models always wins."""
     if explicit:
@@ -496,8 +589,12 @@ def _resolve_models(explicit: list[str] | None, auto_tier: bool, task_type: str 
     ids: set[str] = set()
     try:
         for tbl in ("model_review_metrics", "model_coding_metrics"):
-            if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tbl,)).fetchone():
-                ids.update(r[0] for r in conn.execute(f"SELECT DISTINCT model_id FROM {tbl}").fetchall())  # noqa: S608
+            if conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tbl,)
+            ).fetchone():
+                ids.update(
+                    r[0] for r in conn.execute(f"SELECT DISTINCT model_id FROM {tbl}").fetchall()
+                )  # noqa: S608
     finally:
         conn.close()
     return sorted(ids)
@@ -524,14 +621,20 @@ def _openrouter_balance() -> float | None:
 # ── report ─────────────────────────────────────────────────────────────────────────────────────
 def report(scores: dict[str, TaskScore], task_type: str) -> None:
     ranked = sorted(scores.values(), key=lambda s: (-s.clamped_score5, s.model))
-    print(f"\n[{task_type}] {'#':>2}  {'model':<34} {'grade':<5} {'/5':>5} {'$/1k':>8} {'p50 s':>6} {'n':>4}")
+    print(
+        f"\n[{task_type}] {'#':>2}  {'model':<34} {'grade':<5} {'/5':>5} {'$/1k':>8} {'p50 s':>6} {'n':>4}"
+    )
     print("-" * 78)
     for i, s in enumerate((s for s in ranked if s.is_measured), 1):
-        print(f"     {i:>2}  {s.model:<34} {s.grade:<5} {s.clamped_score5:>5.2f} "
-              f"{s.cost_per_1k:>8.4f} {s.median_latency:>6.1f} {s.n_graded:>4}")
+        print(
+            f"     {i:>2}  {s.model:<34} {s.grade:<5} {s.clamped_score5:>5.2f} "
+            f"{s.cost_per_1k:>8.4f} {s.median_latency:>6.1f} {s.n_graded:>4}"
+        )
     unmeasured = [s.model for s in scores.values() if not s.is_measured]
     if unmeasured:
-        print(f"\nunmeasured ({len(unmeasured)}, < {MIN_MEASURED} graded / unreachable): {', '.join(unmeasured)}")
+        print(
+            f"\nunmeasured ({len(unmeasured)}, < {MIN_MEASURED} graded / unreachable): {', '.join(unmeasured)}"
+        )
 
 
 def report_stored(task_type: str, db_path: Path = DB_PATH) -> None:
@@ -547,7 +650,9 @@ def report_stored(task_type: str, db_path: Path = DB_PATH) -> None:
         latest = conn.execute(
             "SELECT MAX(built_at) FROM model_judged_metrics WHERE task_type=?", (task_type,)
         ).fetchone()[0]
-        if latest is None:  # table exists but no rows for THIS task → friendly message, not "built None"
+        if (
+            latest is None
+        ):  # table exists but no rows for THIS task → friendly message, not "built None"
             print(f"no stored {task_type} metrics — run with --all first")
             return
         # (built_at, window) order → dedupe to ONE deterministic row per model, so two windows sharing
@@ -571,8 +676,10 @@ def report_stored(task_type: str, db_path: Path = DB_PATH) -> None:
 # ── smoke ($0, no network — proves the persist + surfacing path end-to-end) ────────────────────
 def _smoke_corpus(n: int = 3) -> list[dict]:
     """A ≥3-item synthetic corpus (≥3 so the stub model clears the ranker's HAVING COUNT>=3 gate)."""
-    return [{"question": f"smoke-q{i}", "context": f"ctx{i}", "gold": f"a{i}", "prompt": f"echo a{i}"}
-            for i in range(max(3, n))]
+    return [
+        {"question": f"smoke-q{i}", "context": f"ctx{i}", "gold": f"a{i}", "prompt": f"echo a{i}"}
+        for i in range(max(3, n))
+    ]
 
 
 def _echo_run(model: str, messages: list[dict], *, body: dict, max_cost_usd: float) -> object:
@@ -588,13 +695,43 @@ def _echo_run(model: str, messages: list[dict], *, body: dict, max_cost_usd: flo
     return _R(text=messages[0]["content"])
 
 
+# Grader modules that self-register into GRADERS on import. main() imports the one for `--task` so the
+# CLI works without the caller hand-importing it; the smoke deliberately does NOT (see run_smoke).
+_GRADER_MODULES: dict[str, str] = {
+    "research": "research_grader",
+    "docs": "docs_grader",
+    "plan": "structural_grader",
+    "spec": "structural_grader",
+}
+# Generation-based tasks map to their corpus file (research: fixed Q&A; docs: git-mined stale→fresh
+# pairs). plan/spec are absent here on purpose — they are structural (no generation corpus).
+_CORPUS_FILES: dict[str, str] = {
+    "research": "research_qa.json",
+    "docs": "docs_pairs.json",
+}
+
+
+def _ensure_grader(task_type: str) -> None:
+    """Import the grader module for `task_type` so it self-registers into GRADERS. Best-effort — a missing
+    module leaves GRADERS unchanged and main()'s `not in GRADERS` guard reports it cleanly."""
+    mod = _GRADER_MODULES.get(task_type)
+    if mod and task_type not in GRADERS:
+        try:
+            __import__(mod)
+        except Exception as e:  # noqa: BLE001 — a broken grader module is a clean "no grader" below
+            print(f"[judged] could not import {mod}: {e}", file=sys.stderr)
+
+
 def run_smoke(task_type: str, db_path: Path = DB_PATH) -> dict[str, TaskScore]:
-    """End-to-end $0 stub: dispatch (echo) → grade (registered grader or stub) → persist baseline +
-    metrics + flywheel. Proves a seeded model gets ≥3 flywheel rows so rank_task_subagents surfaces it."""
+    """End-to-end $0 stub proving the persist + flywheel + surfacing path — NOT grader correctness (the
+    graders are unit-tested separately). It FORCES `_stub_grader` regardless of what is registered, so it
+    stays fully offline/$0 even if a real grader (e.g. research_grader, whose near-miss tiebreak would
+    shell out to npx on the echo corpus) has been imported. Proves a seeded model gets ≥3 flywheel rows so
+    rank_task_subagents surfaces it."""
     corpus = _smoke_corpus()
     models = ["smoke/echo-model"]
     gens = generate(models, corpus, task_type, cost_cap=1.0, window="smoke", run_fn=_echo_run)
-    grader = GRADERS.get(task_type, _stub_grader)
+    grader = _stub_grader  # FORCED — never the real grader (keeps the smoke $0 + offline; reviewer F1/F3)
     scores = _finalize_scores(grader(gens, corpus), gens)
     persist_metrics(scores, task_type, "smoke", db_path)
     persist_baseline(scores, task_type, "smoke", db_path)
@@ -602,16 +739,25 @@ def run_smoke(task_type: str, db_path: Path = DB_PATH) -> dict[str, TaskScore]:
     # accepted NOW. On a box with no DSN route to postgres, record_agent_run durably OUTBOXES each row
     # and returns False → committed<attempted, and a hub-side flush_outbox lands them later. Report
     # BOTH so the smoke never claims "0 rows" when 3 were durably captured (reviewer finding F-A).
-    attempted = sum(1 for m, gl in gens.items() if (scores.get(m) and scores[m].is_measured)
-                    for g in gl if g.spec is not None)
+    attempted = sum(
+        1
+        for m, gl in gens.items()
+        if (scores.get(m) and scores[m].is_measured)
+        for g in gl
+        if g.spec is not None
+    )
     committed = record_flywheel(gens, scores, project="microbench-smoke")
     measured = sum(s.is_measured for s in scores.values())
     if record_agent_run is None:
-        print("[smoke] ⚠️  libs.subagents absent — the flywheel path was NOT exercised (surfacing unproven here)")
+        print(
+            "[smoke] ⚠️  libs.subagents absent — the flywheel path was NOT exercised (surfacing unproven here)"
+        )
     # key the headline off MEASURED (not attempted) so a pool-absent box doesn't misreport "0 measured"
     # when the grader did measure the model (reviewer C2); report the flywheel counts honestly alongside.
-    print(f"[smoke] {task_type}: {measured} measured; {attempted} flywheel rows attempted, "
-          f"{committed} committed now ({attempted - committed} outboxed for hub flush)")
+    print(
+        f"[smoke] {task_type}: {measured} measured; {attempted} flywheel rows attempted, "
+        f"{committed} committed now ({attempted - committed} outboxed for hub flush)"
+    )
     return scores
 
 
@@ -619,15 +765,40 @@ def run_smoke(task_type: str, db_path: Path = DB_PATH) -> dict[str, TaskScore]:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="microbench_judged", description=__doc__)
     p.add_argument("--task", choices=_TASK_KINDS, default="research", help="task type to benchmark")
-    p.add_argument("--models", nargs="*", help="explicit model ids (default: all review∪coding models)")
-    p.add_argument("--window", default="v1", help="corpus/window tag stored with the metrics (default v1)")
-    p.add_argument("--cost-cap", type=float, default=15.0, help="running billed-$ dispatch gate (default 15)")
-    p.add_argument("--max-tokens", type=int, default=MAX_TOKENS, help=f"output cap per call (default {MAX_TOKENS})")
-    p.add_argument("--concurrency", type=int, default=16, help="parallel in-flight calls (default 16)")
-    p.add_argument("--auto-tier", action="store_true", help="restrict to the pick_models-selectable pool (cost lever)")
-    p.add_argument("--all", action="store_true", help="run + persist metrics + task_baseline (batched, resumable)")
-    p.add_argument("--fresh", action="store_true", help="with --all: re-measure even models already done today")
-    p.add_argument("--smoke", action="store_true", help="$0 stub end-to-end (proves surfacing) + exit")
+    p.add_argument(
+        "--models", nargs="*", help="explicit model ids (default: all review∪coding models)"
+    )
+    p.add_argument(
+        "--window", default="v1", help="corpus/window tag stored with the metrics (default v1)"
+    )
+    p.add_argument(
+        "--cost-cap", type=float, default=15.0, help="running billed-$ dispatch gate (default 15)"
+    )
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=MAX_TOKENS,
+        help=f"output cap per call (default {MAX_TOKENS})",
+    )
+    p.add_argument(
+        "--concurrency", type=int, default=16, help="parallel in-flight calls (default 16)"
+    )
+    p.add_argument(
+        "--auto-tier",
+        action="store_true",
+        help="restrict to the pick_models-selectable pool (cost lever)",
+    )
+    p.add_argument(
+        "--all",
+        action="store_true",
+        help="run + persist metrics + task_baseline (batched, resumable)",
+    )
+    p.add_argument(
+        "--fresh", action="store_true", help="with --all: re-measure even models already done today"
+    )
+    p.add_argument(
+        "--smoke", action="store_true", help="$0 stub end-to-end (proves surfacing) + exit"
+    )
     p.add_argument("--report", action="store_true", help="print the latest stored table + exit")
     args = p.parse_args(argv)
 
@@ -638,14 +809,33 @@ def main(argv: list[str] | None = None) -> int:
         run_smoke(args.task)
         return 0
 
+    _ensure_grader(
+        args.task
+    )  # auto-import the grader module so the CLI works without a hand-import
     if args.task not in GRADERS:
-        print(f"no grader registered for '{args.task}' — import its grader module first", file=sys.stderr)
+        print(
+            f"no grader registered for '{args.task}' — its grader module failed to import",
+            file=sys.stderr,
+        )
+        return 1
+    # Only the GENERATION-based tasks (research/docs) have a paid --all run against a corpus. plan/spec
+    # are structural: their prior comes from `correlated_prior.build()` + the flywheel — no generation,
+    # no corpus of prompts. Directing there is correct, not an error.
+    if args.task not in _CORPUS_FILES:
+        print(
+            f"'{args.task}' has no generation corpus — it is scored structurally: run "
+            "`python correlated_prior.py` to seed its prior, and structural_grade runs on real plans/specs.",
+            file=sys.stderr,
+        )
         return 1
     models = _resolve_models(args.models, args.auto_tier, args.task)
     if not models:
-        print("no models resolved (pass --models or run the review/coding bench first)", file=sys.stderr)
+        print(
+            "no models resolved (pass --models or run the review/coding bench first)",
+            file=sys.stderr,
+        )
         return 1
-    corpus_path = SCRIPT_DIR / "corpora" / f"{args.task}_qa.json"
+    corpus_path = SCRIPT_DIR / "corpora" / _CORPUS_FILES[args.task]
     if not corpus_path.exists():
         print(f"corpus missing: {corpus_path} — author it first (Phase B/C)", file=sys.stderr)
         return 1
@@ -660,20 +850,36 @@ def main(argv: list[str] | None = None) -> int:
     bal = _openrouter_balance()
     if bal is not None:
         safe = round(bal * _BALANCE_SAFETY_FRAC, 2)
-        print(f"[judged] OpenRouter balance ${bal:.2f}; requested cost-cap ${args.cost_cap:.2f}", file=sys.stderr)
+        print(
+            f"[judged] OpenRouter balance ${bal:.2f}; requested cost-cap ${args.cost_cap:.2f}",
+            file=sys.stderr,
+        )
         if args.cost_cap > safe:
             eff_cap = safe
-            print(f"[judged] ⚠️  cost-cap LOWERED to ${eff_cap:.2f} (90% of balance) to protect the account", file=sys.stderr)
+            print(
+                f"[judged] ⚠️  cost-cap LOWERED to ${eff_cap:.2f} (90% of balance) to protect the account",
+                file=sys.stderr,
+            )
         if eff_cap < 0.01:
             print("[judged] balance exhausted — refusing to run", file=sys.stderr)
             return 1
     else:
-        print("[judged] ⚠️  could not read OpenRouter balance — proceeding on the cost-cap alone", file=sys.stderr)
+        print(
+            "[judged] ⚠️  could not read OpenRouter balance — proceeding on the cost-cap alone",
+            file=sys.stderr,
+        )
 
     grader = GRADERS[args.task]
     if not args.all:
-        gens = generate(models, corpus, args.task, cost_cap=eff_cap, max_tokens=args.max_tokens,
-                        max_concurrency=args.concurrency, window=args.window)
+        gens = generate(
+            models,
+            corpus,
+            args.task,
+            cost_cap=eff_cap,
+            max_tokens=args.max_tokens,
+            max_concurrency=args.concurrency,
+            window=args.window,
+        )
         report(_finalize_scores(grader(gens, corpus), gens), args.task)
         return 0
 
@@ -682,18 +888,33 @@ def main(argv: list[str] | None = None) -> int:
         done = _measured_models(args.task, args.window)
         if done:
             models = [m for m in models if m not in done]
-            print(f"[judged] resume: {len(done)} already measured today — {len(models)} to go", file=sys.stderr)
+            print(
+                f"[judged] resume: {len(done)} already measured today — {len(models)} to go",
+                file=sys.stderr,
+            )
     all_scores: dict[str, TaskScore] = {}
     spent = 0.0
     for bi in range(0, len(models), BATCH_SIZE):
-        batch = models[bi:bi + BATCH_SIZE]
+        batch = models[bi : bi + BATCH_SIZE]
         rem = round(eff_cap - spent, 2)
         if rem < 0.05:
-            print(f"[judged] cost-cap ${eff_cap:.2f} reached after {len(all_scores)} models — stopping", file=sys.stderr)
+            print(
+                f"[judged] cost-cap ${eff_cap:.2f} reached after {len(all_scores)} models — stopping",
+                file=sys.stderr,
+            )
             break
-        gens = generate(batch, corpus, args.task, cost_cap=rem, max_tokens=args.max_tokens,
-                        max_concurrency=args.concurrency, window=args.window)
-        scores = _finalize_scores(grader(gens, corpus), gens)  # harness owns cost/latency/tokens/n_err
+        gens = generate(
+            batch,
+            corpus,
+            args.task,
+            cost_cap=rem,
+            max_tokens=args.max_tokens,
+            max_concurrency=args.concurrency,
+            window=args.window,
+        )
+        scores = _finalize_scores(
+            grader(gens, corpus), gens
+        )  # harness owns cost/latency/tokens/n_err
         persist_metrics(scores, args.task, args.window)
         persist_baseline(scores, args.task, args.window)
         record_flywheel(gens, scores)
@@ -702,10 +923,16 @@ def main(argv: list[str] | None = None) -> int:
         spent += sum(g.cost_usd for gl in gens.values() for g in gl)
         all_scores.update(scores)
         nm = sum(1 for s in scores.values() if s.is_measured)
-        print(f"[judged] batch {bi // BATCH_SIZE + 1}: +{nm}/{len(batch)} measured & PERSISTED; "
-              f"spent ${spent:.2f}/${eff_cap:.2f}", file=sys.stderr)
+        print(
+            f"[judged] batch {bi // BATCH_SIZE + 1}: +{nm}/{len(batch)} measured & PERSISTED; "
+            f"spent ${spent:.2f}/${eff_cap:.2f}",
+            file=sys.stderr,
+        )
     report(all_scores, args.task)
-    print(f"\n[judged] persisted {sum(s.is_measured for s in all_scores.values())} models; spent ${spent:.2f}", file=sys.stderr)
+    print(
+        f"\n[judged] persisted {sum(s.is_measured for s in all_scores.values())} models; spent ${spent:.2f}",
+        file=sys.stderr,
+    )
     return 0
 
 
