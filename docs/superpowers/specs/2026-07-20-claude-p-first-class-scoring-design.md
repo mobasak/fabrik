@@ -102,26 +102,37 @@ model-weighted weekly quota**. But the absolute allotment is never needed: the *
   per day (`input`/`output`/`cacheRead`/`cacheCreation`), for `claude-opus-4-8`/`claude-sonnet-5`/
   `claude-haiku-4-5-20251001`/`claude-fable-5`, with months of history.
 
-**Derivation (the undisclosed quota cancels — only the FRACTION consumed is used):**
+**Derivation (the undisclosed quota cancels — only the FRACTION consumed is used). ⚠️ weight the token
+TYPES — `byModel` shows `cacheRead` dwarfs `input+output` ~300× and Anthropic prices it near-zero, so a
+flat token count mis-prices badly:**
 ```
 weekly $/account   = $200 / 4.33 ≈ $46.15
+eff_units(x)       = w_in·input + w_out·output + w_cc·cacheCreation + w_cr·cacheRead   # per-type weights
 $ burned in window = Δ(sevenDay.usedPercent) × $46.15
-tokens burned/tier = Δ(usage-history.byModel[tier])          # exact
-rate[tier] ($/tok) = ($46.15 × Δ%used) ÷ Δtokens[tier]
-cost_usd(run)      = run_tokens × rate[tier]                 # same units as OpenRouter usage.cost
+rate ($/eff-unit)  = ($46.15 × Δ%used) ÷ Δ eff_units(window)          # from the LOGGED usedPercent + byModel
+cost_usd(run)      = eff_units(run) × rate                            # run's OWN per-type tokens, cache-light
 ```
+`--output-format json` reports the four token types per call, so `eff_units` is computable exactly. The
+weights `w_*` are either Anthropic's published input:output:cache-write:cache-read **price ratios** (grounded
+at build) OR **regressed** empirically: `Δ%used ~ (input, output, cacheCreation, cacheRead)` across logged
+windows → the four weights, no assumption. (The benchmark's fresh calls are cache-light, so its cost is
+dominated by input+output regardless — the weighting mostly affects reading the orchestrator's usage during
+calibration.)
 - **Measure tokens per run (confounder-proof), then cost = tokens × a CACHED rate — never read Δ%used live
   during a run.** Each `claude -p --output-format json` call yields its OWN `usage` tokens, summed per model:
   exact, per-call, and immune to **rotation mid-run** (same tokens whichever account serves it) and
   **concurrent usage** (the orchestrator + other sessions hit the same accounts — counting only the benchmark's
   own calls excludes them). `total_$[model] = tokens[model] × rate[model]`; `$/run`, `$/1k` derive exactly as
   the coding/review benches do from `usage.cost`.
-- **`rate[tier]` is calibrated SEPARATELY (a stable constant), not from the noisy run.** `derive_rates.py`
-  reads the two JSON files over a **quiet, mostly-single-tier window** — where `Δ(sevenDay.usedPercent) × $46.15
-  ÷ Δtokens[tier]` is clean — or regresses `Δ%used` on per-tier tokens across windows when mixed. Cached in
-  `claude_code_rates.json`. The FIRST single-tier scoring run in a quiet window IS that calibration; every run
-  thereafter just multiplies its measured tokens by the cached rate. (Reading Δ%used *during* a rotating,
-  concurrently-shared run would over-attribute — hence the split.)
+- **`rate` (per eff-unit) is calibrated SEPARATELY (a stable constant), not from the noisy run.** ⚠️
+  `sevenDay.usedPercent` is a **live snapshot only** (grounded: `statusline.json` is atomically overwritten by
+  `statusline-tap.js` each update — NO history in `usage-history.json`). So calibration needs one of: **(a) a
+  tiny `usedPercent` logger** — a periodic appender snapshotting `statusline.json.rateLimits` to a history file
+  (the honest fix; also feeds the regression), or **(b) controlled before/after bursts** — read `usedPercent`,
+  run a burst big enough to move the integer % measurably, read again. Then `rate = ($46.15 × Δ%used) ÷ Δ
+  eff_units`, cached in `claude_code_rates.json`. Every run thereafter multiplies its own eff_units by the
+  cached rate. (Reading Δ%used *during* a rotating, concurrently-shared benchmark would over-attribute — hence
+  the measure/calibrate split.)
 - **cost_usd** drops straight into the existing gates + value ranker (`$/1k`) with **zero grader change**.
   `total_cost_usd`/`statusline.cost.totalUsd` are kept only as a "what OpenRouter would charge" cross-check,
   never as the subscription cost.
@@ -176,7 +187,7 @@ none is cited — the internal precedent at the cited `path:line` is the groundi
 | Dep | Use | Grounded |
 |---|---|---|
 | Claude Code CLI | the `--print --model <alias> --output-format json` dispatch (via `claude-evaluator._call_cli` → `npx @anthropic-ai/claude-code`; the on-box `claude` 2.1.215 is the same CLI) | flags grounded: `--print/-p`, `--output-format`, `--model`, `--add-dir`, `--allowedTools`, `--max-turns` (`claude --help`, 2026-07-20) + `_call_cli` [core.py:197-208](/opt/fabrik-lib/claude-evaluator/claude_evaluator/core.py#L197). ⚠️ **`_call_cli` uses `--output-format text`, so the `json` `usage`-block shape is UNexercised in-tree** — its exact keys (`input_tokens`/`output_tokens`/`cache_*`) are a named open item, confirmed by ONE real `--output-format json` probe before parsing (bounded, single call). |
-| claude-manager extension (`vishalguptax.claude-manager`) | the on-disk quota + per-tier token data the cost model reads | **GROUNDED 2026-07-20**: `~/.claude/.claude-manager/statusline.json` → `rateLimits.sevenDay.usedPercent` (model-weighted weekly-quota %, e.g. 36, + `resetsAt`) + `usage-history.json` → `days[date].byModel[tier]` (exact input/output/cache tokens per tier per day, months of history). No manual entry — `derive_rates.py` reads both. (`~/.claude/manager-accounts/` is only rotation creds — the earlier miss.) |
+| claude-manager extension (`vishalguptax.claude-manager`) | the on-disk quota + per-tier token data the cost model reads | **GROUNDED 2026-07-20**: `statusline.json` → `rateLimits.sevenDay.usedPercent` (Anthropic's model-weighted weekly-quota %, e.g. 36, + `resetsAt`) — ⚠️ **LIVE snapshot only, atomically overwritten, no history** → a `usedPercent` logger is needed. `usage-history.json` → `days[date].byModel[tier]` = exact **per-type** tokens (`input`/`output`/`cacheCreation`/`cacheRead`, months deep) — ⚠️ `cacheRead` ~300× `input+output` + priced near-zero → weight the types. (`~/.claude/manager-accounts/` = rotation creds only, the earlier miss.) |
 | Model aliases | `--model` values | grounded (system-confirmed): `claude-opus-4-8` · `claude-sonnet-5` · `claude-haiku-4-5-20251001` · `claude-fable-5`. |
 
 ---
@@ -189,7 +200,7 @@ none is cited — the internal precedent at the cited `path:line` is the groundi
 | plan/spec structural grading | **VENDOR as-is** | `structural_grader.structural_grade` (built, unit-tested) — now fed real generations |
 | correlated cold-start prior + measured-source precedence | **VENDOR as-is** | `correlated_prior` + the A6 precedence guard (built) |
 | `claude -p` CLI dispatch (subprocess + `--model` + fail-closed) | **VENDOR + ENHANCE** | `claude-evaluator._call_cli` [core.py:188](/opt/fabrik-lib/claude-evaluator/claude_evaluator/core.py#L188) — already vendored in-tree. **Enhance (core):** `--output-format json` to capture the `usage` token block (`_call_cli` uses `text` + discards it) + `--max-turns`/`--allowedTools`/`--add-dir`. **Upstream:** append to `/opt/fabrik-lib/claude-evaluator/UPSTREAM_FEEDBACK.md` — "json-output mode returning the usage token block for cost/benchmark tracking" (generic; any cost-tracking use wants it). The thin `claude_p.py` wrapper (tier→alias, benchmark flags, `(text,usage)` return) stays hub-internal. |
-| subscription-derived cost model | **BUILD** (~40 lines) | `derive_rates.py` (reads the claude-manager `statusline.json`/`usage-history.json` → `rate[tier]` → `claude_code_rates.json` cache) + `derive_cost(tokens, tier, rates)`. Ladder checked: `cost-budget/` (per-project caps + a cost_ledger — RECORDS/CAPS spend, doesn't DERIVE a rate), `api-quota/` (X-RateLimit headers + KeyPool rotation — tracks API-key rate limits, not the subscription's weekly quota) — neither amortizes a fixed subscription over observed quota, so BUILD is justified. Project-specific → no fabrik-lib candidate. *(Future: feed `derive_cost` output into `cost-budget`'s `cost_ledger` — out of scope.)* |
+| subscription-derived cost model | **BUILD** (~60 lines) | a tiny `usedPercent` logger (appends `statusline.json.rateLimits` snapshots → JSONL, since it has no history) + `derive_rates.py` (logger history + `usage-history.json` type-weighted → `rate` → `claude_code_rates.json`) + `derive_cost(eff_units, tier, rates)`. Ladder checked: `cost-budget/` (per-project caps + a cost_ledger — RECORDS/CAPS spend, doesn't DERIVE a rate), `api-quota/` (X-RateLimit headers + KeyPool rotation — tracks API-key rate limits, not the subscription's weekly quota) — neither amortizes a fixed subscription over observed quota, so BUILD is justified. Project-specific → no fabrik-lib candidate. *(Future: feed `derive_cost` output into `cost-budget`'s `cost_ledger` — out of scope.)* |
 
 **🆕 fabrik-lib candidate:** none (hub-internal; the reusable runtime transport is the subagents module's, not ours).
 
@@ -241,17 +252,19 @@ whole interface; how the orchestrator acts on them is Claude's native decision.
 **Resolved this session:** the CLI + flags + aliases (grounded on-box); the three harness seams (read at
 path:line); plan/spec-generation via the built structural grader; the cost-model math.
 
-**Now RESOLVED (grounded this session):**
-- **The quota / per-tier rate** — was flagged as an ops-input / possible blocker; **grounded on-disk** in the
-  claude-manager extension (`statusline.json` `rateLimits.sevenDay.usedPercent` × $46.15/wk ÷
-  `usage-history.json` per-tier tokens). `derive_rates.py` computes it automatically; no manual entry, no
-  disclosed allotment needed. The undisclosed absolute quota cancels (only the % consumed is used).
+**Grounded this session (the DATA source is confirmed on-disk):** the claude-manager extension records the
+live `sevenDay.usedPercent` (`statusline.json`) + exact per-tier per-type tokens (`usage-history.json byModel`)
+— so no disclosed allotment is needed. But two calibration items are genuinely open (verified, not
+hand-waved):
 
-**Still open — each self-service, none blocks writing the plan:**
-- **Per-tier weight separation** — when a window mixes tiers, separating `rate[opus]` vs `rate[haiku]` from a
-  single `sevenDay.usedPercent` needs either a mostly-single-tier calibration window (the scoring run provides
-  one per tier) or a small regression of `Δ%used` on per-tier tokens across windows. *Resolution:* the scoring
-  run calibrates one tier at a time; `derive_rates.py` regresses if windows are mixed.
+**Still open — self-service at build, none blocks writing the plan:**
+- **A `usedPercent` logger** — `sevenDay.usedPercent` is a LIVE snapshot only (no history; verified). *Resolution:*
+  add a tiny periodic appender (snapshot `statusline.json.rateLimits` → a JSONL history) so `Δ%used` is
+  measurable across windows; until it has run a while, fall back to controlled before/after calibration bursts.
+- **Per-token-type weights** — `cacheRead` dwarfs `input+output` ~300× and is priced near-zero, so cost must
+  weight the four types. *Resolution:* seed `w_*` from Anthropic's published input:output:cache-write:cache-read
+  price ratios (ground live at build), then refine by regressing `Δ%used` on the four token types once the logger
+  has data. (Benchmark calls are cache-light, so its own cost is input+output-dominated regardless.)
 - **Gate policy (carve-out vs derived-cost gate)** — *Resolution:* recommend carve-out + derived-cost-shown
   (operator intent: reserve Claude for hard tasks). Surfaced for the operator's final sign-off; the
   implementation makes it a one-flag choice.
@@ -267,9 +280,10 @@ path:line); plan/spec-generation via the built structural grader; the cost-model
 2. `claude-code/{opus,sonnet,haiku,fable}` are **scored on all six task types** with the SAME graders as the
    OpenRouter models (review F1×5, code pass@1×5, research EM/F1, docs recall/precision, plan/spec
    structural) — plan/spec now generation-benchmarked.
-3. Cost is **subscription-derived** (`tokens × rate[tier]`), never OpenRouter pricing; `rate[tier]` is
-   **auto-derived** from the claude-manager extension's `sevenDay.usedPercent` × $46.15/wk ÷ per-tier tokens
-   (`usage-history.json`), no manual entry; raw tokens always recorded; `total_cost_usd` ignored.
+3. Cost is **subscription-derived** (`eff_units × rate`, `eff_units` = type-weighted tokens so near-free
+   `cacheRead` doesn't swamp it), never OpenRouter pricing; `rate` derived from the claude-manager
+   `sevenDay.usedPercent` (via a logger, since it's snapshot-only) × $46.15/wk ÷ `eff_units`; per-type tokens
+   always recorded; `total_cost_usd` ignored.
 4. `TASK_SUBAGENT_SELECTION.md` surfaces `claude-code/*` rows as `claude-code/<tier> · q<score5> ·
    ~$<derived>/run · <p50>s · claude (subscription-derived)` in the full tables AND the carved-in routing
    sections + `✅ Selected subagents` shortlists — parser-compatible, zero module change.
