@@ -217,7 +217,8 @@ none is cited — the internal precedent at the cited `path:line` is the groundi
   and `claude-evaluator/` dispatches via the Claude Code CLI. So this reuses an established pattern, not a new
   gateway. Namespace `claude-code/<tier>`, **never `anthropic/*`** (that per-token OR route stays banned).
 - **Quality graders unchanged** — identical score5/pass@1; only the transport + cost differ.
-- **Cost derived, never OpenRouter pricing** — `tokens × rate[tier]`, rate from config.
+- **Cost derived, never OpenRouter pricing** — `eff_units × rate` (type-weighted tokens), rate from the
+  quota-calibrated config.
 - **Quota-bound, not $-bound** — the ~440 `claude -p` invocations (review 30 + code 50 + research 8 + docs 6
   + plan/spec ~6–8 each ≈ 110 problems × 4 tiers) consume the **shared rotation quota**. Run off-peak, low
   concurrency, resumable (`_measured_models`); it competes with the watchdog/sysadmin for quota. Operator-triggered, never cron.
