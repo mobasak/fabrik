@@ -54,6 +54,21 @@ SKIP_PATTERNS = [
     r"check_secrets\.py$",  # Skip self to avoid false positives on patterns
 ]
 
+# Documentation placeholders that REFERENCE (not hardcode) a credential — README/example values
+# like `API_KEY="your-key-here"`, `<your-token>`, `{{VAR}}`, `changeme`. Anchored to the WHOLE
+# captured value, so a real secret that merely CONTAINS one of these words is still flagged.
+_PLACEHOLDER_VALUES = re.compile(
+    r"^(?:"
+    r"<[^>]*>"  # <your-token>, <password>
+    r"|\{\{?[^}]*\}?\}"  # {{VAR}} / {value}
+    r"|x{4,}|\.{3,}|-{3,}|\*{3,}|_{3,}"  # xxxx / ... / --- / *** / ___
+    r"|your[-_][a-z0-9-]*"  # your-key-here, your_api_key
+    r"|[a-z0-9]*[-_]?(?:key|token|secret|password|pw)[-_]?here"  # key-here, api-key-here
+    r"|(?:change[-_]?me|replace[-_]?me|placeholder|redacted|dummy|example|sample|todo|tbd|none|null)"
+    r")$",
+    re.I,
+)
+
 
 def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[CheckResult]:
     """Check a file for hardcoded secrets.
@@ -96,6 +111,11 @@ def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[C
             if line_num <= len(lines) and "noqa" in lines[line_num - 1]:
                 continue
             secret = match.group()
+            # Skip obvious doc placeholders (your-key-here, <token>, {{VAR}}, changeme…) — the
+            # quoted value REFERENCES a credential in an example, it doesn't hardcode one.
+            value = re.search(r"['\"]([^'\"\n]+)['\"]", secret)
+            if value and _PLACEHOLDER_VALUES.match(value.group(1).strip()):
+                continue
             masked = secret[:4] + "..." + secret[-4:] if len(secret) > 8 else "***"
             results.append(
                 CheckResult(

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_secrets no longer flags obvious doc placeholders (2026-07-19)
+
+The generic "Hardcoded credential" pattern had no placeholder exclusion (only the DB-URL patterns skipped
+`${VAR}`/`<...>`), so a README/example like `API_KEY="your-key-here"` tripped it as a leaked secret. Added an
+anchored `_PLACEHOLDER_VALUES` skip for `your-key-here`, `<token>`, `{{VAR}}`, `changeme`, `xxxx`,
+`placeholder`, `redacted`, etc. — anchored to the WHOLE value, so a real secret that merely CONTAINS such a
+word is still flagged. Verified `sk-ant-`/real credentials still caught (no false negatives); 3 regression tests.
+Synced enforcement check → propagates on re-sync.
+
+
 ### Changed — Docs-truth convergence: purge, relocate, verify, enforce (2026-07-20)
 
 Phase A (plan `2026-07-20-plan-1-docs-truth-convergence.md`): archived 58 dead/dormant/shipped artifacts
