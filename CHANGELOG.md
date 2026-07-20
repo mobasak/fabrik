@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
+
+`detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a
+nonexistent path → "Cannot read file 'src'" → **mypy never ran** for every flat-layout repo (youtube, captcha,
+email-reader, image-generation, llm_batch_processor, marketing-argumant-generator, proxy, Reference_Creator).
+Type-checking was effectively OFF for ~8 projects; the failure looked like a baseline people learned to ignore.
+Fix: flat-layout now returns `""` when the project's `[tool.mypy]` declares `files=`/`packages=` (mypy
+self-discovers), else `"."` — scoped by a new `_MYPY_EXCLUDE_RE` so mypy checks the project's OWN code and
+never a synced `scripts/`/`data/` file it cannot fix. src-layout unchanged. Validated against src, flat-no-config,
+and flat+files= layouts; 5 regression tests. Synced enforcement file → propagates on re-sync.
+NOTE: this ENABLES type-checking that was off — flat repos with accrued type debt will now show real mypy
+errors (fixable by cleaning types, or adding `ignore_missing_imports`/`files=` to their `[tool.mypy]`).
+
+
 ### Added — Judged-task eligibility gates + selection-doc wiring for docs/research/plan/spec (Phase E) (2026-07-19)
 
 `build_task_baselines.judged_eligible(task_type)` + `load_judged_metrics` — per-task gates mirroring

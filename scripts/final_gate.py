@@ -188,7 +188,14 @@ def run_mypy_with_recovery(target: str, timeout: int = 30) -> tuple[int, str]:
     import shutil
 
     mypy_cache = PROJECT_ROOT / ".mypy_cache"
-    cmd_base = [PYTHON, "-m", "mypy", "--config-file=pyproject.toml", target]
+    cmd_base = [PYTHON, "-m", "mypy", "--config-file=pyproject.toml"]
+    # Flat-layout fallback (target "."): exclude synced infra dirs so mypy checks only the
+    # project's own code, never a synced enforcement script or data/ file it cannot fix.
+    if target == ".":
+        cmd_base += ["--exclude", _MYPY_EXCLUDE_RE]
+    # An empty target means "let [tool.mypy] files= drive discovery" — pass no path at all.
+    if target:
+        cmd_base.append(target)
 
     # First attempt: with incremental cache (fast path)
     try:
@@ -393,22 +400,50 @@ def run_formatting_fixes(
     return results
 
 
-def detect_src_package() -> str:
-    """Detect the package directory under src/ for mypy.
+# Infra/scaffold dirs that are never the project's own type-checked source. A src-layout
+# target only ever checks src/, so these are implicitly excluded there; for a flat-layout
+# fallback (target ".") we exclude them explicitly so mypy never fails on a SYNCED enforcement
+# script or a data/ file the project cannot fix.
+_MYPY_EXCLUDE_RE = (
+    r"(^|/)(scripts|tests|docs|config|db|data|logs|backups|output|libs|templates|"
+    r"node_modules|migrations|\.venv|\.git)(/|$)"
+)
 
-    If exactly one package exists, return it. Otherwise return src/ for whole tree.
+
+def _mypy_config_selects_files() -> bool:
+    """True when pyproject's [tool.mypy] declares files=/packages=/modules= — i.e. the project
+    tells mypy exactly what to check, so the gate passes NO target and lets mypy self-discover."""
+    pp = PROJECT_ROOT / "pyproject.toml"
+    if not pp.exists():
+        return False
+    try:
+        import tomllib
+
+        mypy_cfg = tomllib.loads(pp.read_text(encoding="utf-8")).get("tool", {}).get("mypy", {})
+    except (OSError, ValueError):
+        return False
+    return bool(mypy_cfg.get("files") or mypy_cfg.get("packages") or mypy_cfg.get("modules"))
+
+
+def detect_src_package() -> str:
+    """The mypy target for this project.
+
+    - src-layout: the single package under src/ (e.g. ``src/foo``), else ``src/`` for the tree.
+    - flat-layout (no src/): ``""`` when the project's own [tool.mypy] declares files=/packages=
+      (mypy self-discovers), otherwise ``"."`` (scoped by _MYPY_EXCLUDE_RE in run_mypy_with_recovery).
+
+    NEVER returns a hardcoded ``src/`` for a flat project — that made mypy target a nonexistent path
+    ("Cannot read file 'src'"), silently disabling type-checking for every flat-layout repo.
     """
     src_dir = PROJECT_ROOT / "src"
-    if not src_dir.exists():
-        return "src/"
-    # Find all package directories (not dot/underscore prefixed)
-    packages = [
-        item for item in src_dir.iterdir() if item.is_dir() and not item.name.startswith((".", "_"))
-    ]
-    # If exactly one package, use it; otherwise scan whole src/
-    if len(packages) == 1:
-        return f"src/{packages[0].name}"
-    return "src/"
+    if src_dir.exists():
+        packages = [
+            item
+            for item in src_dir.iterdir()
+            if item.is_dir() and not item.name.startswith((".", "_"))
+        ]
+        return f"src/{packages[0].name}" if len(packages) == 1 else "src/"
+    return "" if _mypy_config_selects_files() else "."
 
 
 def run_static_checks(
