@@ -12,8 +12,11 @@ Handover: fabrik-lib subagents-module AI, 2026-07-20 (see § Boundaries).
 
 Score the operator's own Claude Max tiers — **`claude-code/{opus,sonnet,haiku,fable}`** — on the **same
 benchmarks** as the 57 OpenRouter models, across **all six task types** (review · code · research · docs ·
-plan · spec), so `pick_models(task_type)` routes each task to best **value across cheap models AND Claude**.
-Cost is **derived from the fixed Claude Max subscription quota**, never OpenRouter per-token pricing.
+plan · spec), so the shared ranking (`pick_models` + `TASK_SUBAGENT_SELECTION.md`) shows best **value across
+cheap models AND Claude** on one axis. The benchmark only *produces the scores*; the **native Claude
+orchestrator reads the ranking and routes each task** — cheap OpenRouter model via the pool, or its own native
+Claude subagent — accordingly (see § Boundaries: the pool never dispatches `claude -p`). Cost is **derived from
+the fixed Claude Max subscription quota**, never OpenRouter per-token pricing.
 
 **Why (operator):** 3 rotated Claude Max accounts (~$600/mo effective; $200/account) do the bulk of
 coding/reviewing inline — the expensive fixed subscription is the workhorse. The weekly quota is burned in
@@ -32,8 +35,9 @@ claude-code/haiku    q4.21   ~$0.02/run   3.5s   claude (subscription-derived)
 ```
 i.e. `claude-code/<tier> | q<score5> | ~$<derived>/run | <p50>s | claude (subscription-derived)`.
 
-**Out of scope:** the runtime `claude -p` transport + flywheel recording + letting `claude-code/*` through
-`pick_models` (the subagents-module AI owns these — § Boundaries); any change to how the 57 OpenRouter models
+**Out of scope:** the **native orchestrator's runtime routing** (Claude's own Task-tool decision to spawn a
+native subagent on a recommended tier — informed by these scores, but Claude's logic, not a pool transport; see
+§ Boundaries — there is NO runtime `claude -p` transport to build); any change to how the 57 OpenRouter models
 are scored; a PoLL LLM-judge (still deferred).
 
 ---
@@ -186,15 +190,25 @@ none is cited — the internal precedent at the cited `path:line` is the groundi
 
 ---
 
-## Boundaries (coordinate — do NOT build the other side)
+## Boundaries — `claude -p` lives ONLY in the benchmark (no runtime pool transport)
 
-**THIS spec owns:** the `claude -p` **benchmark** dispatch shim in the 3 harnesses; the derived-cost model +
-`claude_code_rates.json`; the gate carve-out decision; the emitted `claude-code/*` rows in
-`TASK_SUBAGENT_SELECTION.md`; the plan/spec-generation extension.
+**Corrected (operator, 2026-07-20):** the subagents module will **NOT** dispatch `claude -p`. The pool is
+**OpenRouter-only**, and the **orchestrator is native Claude (opus/fable) always** — it is not a pool-dispatched
+worker. So `claude -p` exists **only in this benchmark**, purely to *produce the scores*. There is no runtime
+`claude -p` transport to coordinate — the handover's "runtime transport + let claude-code/* through pick_models"
+is superseded by this.
 
-**The subagents-module AI owns (do NOT build):** the **runtime** `claude -p` transport + flywheel recording +
-letting `claude-code/*` through `pick_models` (auto-discovery shipped fleet-wide, fabrik-lib ee91f8b). The
-emitted rows are the coordination surface — same doc format, zero parser change.
+**Runtime routing (informational — not built here):** the benchmark's `claude-code/*` scores are **surfaced**
+(mentioned) in `TASK_SUBAGENT_SELECTION.md` + whatever ranking the subagents module reads. The **native Claude
+orchestrator consults that ranking and spawns its OWN native subagents** (Task tool, opus/sonnet/haiku) for the
+recommended tier — dispatch differs by **namespace**: a `claude-code/*` pick = "spawn a native subagent," an
+`openrouter/*` pick = "dispatch via the pool." Same ranking, two dispatch mechanisms; the pool never calls
+`claude -p`.
+
+**THIS spec owns (all of it):** the `claude -p` **benchmark** dispatch (VENDOR+ENHANCE claude-evaluator); the
+derived-cost model + `claude_code_rates.json`; the gate carve-out; the emitted `claude-code/*` scoring rows.
+Nothing depends on a subagents-module change — the emitted rows (same doc format, zero parser change) are the
+whole interface; how the orchestrator acts on them is Claude's native decision.
 
 ---
 
