@@ -339,9 +339,9 @@ Details: `docs/DEPLOYMENT_ARCHITECTURE.md` §8.4.
 ## Related
 
 - [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — the canonical deploy reference (§1–11)
-- [Orchestrator](orchestrator.md)
-- [Drivers](drivers.md)
+- [Deployment Orchestrator](modules/deployment-orchestrator.md)
+- [Drivers](modules/drivers.md)
 - [CLI Reference](fabrik-cli-reference.md)
-- [Templates](templates.md)
+- [Templates](modules/templates.md)
 - [LESSONS_LEARNT.md](../LESSONS_LEARNT.md) — every live-incident invariant
 - [AGENTS.md](../../AGENTS.md) — Fabrik identity + tech stack + VPS inventory

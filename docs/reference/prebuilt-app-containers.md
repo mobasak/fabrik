@@ -204,6 +204,23 @@ subcommand is the amd64 gate (fixed 2026-07-19 — it previously computed arm64 
 it as amd64 support). Fabrik usage today: no spec/compose/template references a TrueForge image — this
 section is the evaluation reference for when a client requires supply-chain compliance.
 
+**Fabrik-relevant shortlist (amd64-ready; verify per image before use):**
+
+| Image | Fabrik Use Case |
+|-------|-----------------|
+| **apprise-api** | Notification service for all Fabrik projects |
+| **postgresql** | Supply-chain secure PostgreSQL for enterprise |
+| **nginx** | Web server with attestations |
+| **caddy** | Alternative web server with auto-HTTPS |
+| **duplicati** | Backup solution (alternative to LinuxServer) |
+| **code-server** | VS Code in browser for remote development |
+| **faster-whisper** | Speech-to-text for transcription projects |
+| **it-tools** | Developer utilities dashboard |
+| **webhook** | Webhook receiver for automation |
+| **renovate** | Dependency update automation |
+| **home-assistant** | Home automation platform |
+| **cloudflareddns** | Dynamic DNS updates for Cloudflare |
+
 **Pull example:**
 ```bash
 docker pull oci.trueforge.org/tccr/home-assistant:latest

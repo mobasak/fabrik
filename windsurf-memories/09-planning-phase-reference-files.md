@@ -12,8 +12,7 @@
 - `docs/reference/SaaS-GUI.md` - SaaS UI/UX patterns
 
 ### Infrastructure & Containers
-- `docs/reference/prebuilt-app-containers.md` - Prebuilt Docker containers (CHECK BEFORE BUILDING)
-- `docs/reference/trueforge-images.md` - Supply-chain secure images
+- `docs/reference/prebuilt-app-containers.md` - Prebuilt Docker containers (CHECK BEFORE BUILDING; §4 covers TrueForge supply-chain images)
 - `.windsurf/rules/core/25-data-postgres.md` - PostgreSQL/Supabase/pgvector selection
 - `docs/reference/wordpress/plugin-stack.md` - WordPress plugin stack
 
