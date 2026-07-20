@@ -131,4 +131,4 @@ These are installed but may not add value. Review periodically:
 
 - [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) — auto-generated current list
 - [windsurf_features.md](windsurf_features.md) — IDE feature guide
-- [cascade-guide.md](cascade-guide.md) — Cascade configuration
+- [cascade-guide.md](../../archive/cascade-guide.md) — Cascade configuration (archived — Cascade retired 2026-07-19)
