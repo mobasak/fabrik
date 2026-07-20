@@ -155,10 +155,26 @@ def path_is_existing(rel_path: Path, repo_root: Path) -> bool:
             check=False,
         )
         rel_str = str(rel_path).replace("\\", "/")
-        return any(
-            line[:1] == "R" and line.split(" -> ", 1)[-1].strip() == rel_str
-            for line in status.stdout.splitlines()
+        archive_prefixes = (
+            "docs/archive/",
+            "docs/infrastructure/archive/",
+            "docs/development/plans/archived/",
+            "docs/superpowers/specs/archived/",
+            "docs/superpowers/plans/archived/",
         )
+        for line in status.stdout.splitlines():
+            if line[:1] != "R" or " -> " not in line:
+                continue
+            src_part = line[3:].split(" -> ", 1)[0].strip().strip('"')
+            dst_part = line.split(" -> ", 1)[-1].strip().strip('"')
+            if dst_part != rel_str:
+                continue
+            # A rename only counts as "existing" when its SOURCE was a live doc:
+            # moving a file OUT of an archive (or any allowlist-only location)
+            # into a default-denied dir is new content appearing there — run the
+            # allowlist (closes the rename-smuggle hole, Phase-F review 1a).
+            return not src_part.startswith(archive_prefixes)
+        return False
     except Exception:
         # Git unavailable → fall back to the permissive legacy behavior so the
         # gate never hard-fails outside a repo.

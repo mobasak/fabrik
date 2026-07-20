@@ -71,3 +71,14 @@ def test_untracked_new_file_is_new(tmp_repo):
     p = tmp_repo / "docs" / "operations" / "untracked.md"
     p.write_text("# u\n")
     assert _exists_for_gate(tmp_repo, "docs/operations/untracked.md") is False
+
+
+def test_rename_from_archive_into_blocked_dir_is_treated_as_new(tmp_repo):
+    """(e) The smuggle hole: git mv FROM an archive INTO a blocked dir must run
+    the allowlist (Phase-F review finding 1a)."""
+    arch = tmp_repo / "docs" / "archive" / "old.md"
+    arch.write_text("# archived\n")
+    _git(tmp_repo, "add", "docs/archive/old.md")
+    _git(tmp_repo, "commit", "-qm", "archive doc")
+    _git(tmp_repo, "mv", "docs/archive/old.md", "docs/operations/smuggled.md")
+    assert _exists_for_gate(tmp_repo, "docs/operations/smuggled.md") is False

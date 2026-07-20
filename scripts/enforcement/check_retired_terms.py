@@ -64,7 +64,7 @@ def main() -> int:
         # Doc-level banner rule: a retirement banner in the file head marks the
         # WHOLE doc's mentions as documented-historical (the traycer-README pattern).
         head = " ".join(lines[:30])
-        if re.search(r"[Rr]etired 2026|RETIRED 2026|retirement banner|historical|vintage|[Pp]re-migration|decommission|Coolify-era|Coolify-API era", head):
+        if re.search(r"[Rr]etired 2026|RETIRED 2026|retirement banner|[Pp]re-migration vintage|[Pp]re-migration context|decommission|Coolify-era|Coolify-API era|Coolify-flavored historical", head):
             continue
         for i, line in enumerate(lines):
             if not TERMS.search(line):

@@ -190,7 +190,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Full quality gate before Traycer commit
 
-**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block, `final_gate.py:674-834`), **plus 11 Tier-2-only checks** (`final_gate.py:841-894`), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`, `final_gate.py:977-983`) — **29 checks total**.
+**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block, `final_gate.py:674-834`), **plus 14 Tier-2-only checks** (`final_gate.py:841-919` — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **32 checks total**.
 
 **The 11 Tier-2-only checks:**
 - **Project Structure** - `check_structure.py`
