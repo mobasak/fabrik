@@ -254,7 +254,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T16:00 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T18:12 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -278,8 +278,13 @@ docs/
 │   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
 │   │   ├── 2026-06-29-plan-watchdog-deploy-side.md
 │   │   ├── 2026-07-20-plan-1-docs-truth-convergence.md
+│   │   ├── 2026-07-20-plan-2-claude-p-first-class-scoring.md
 │   │   └── archived
 │   └── reviews
+│       ├── docs-truth-infra-ops-review.md
+│       ├── docs-truth-orchestrator-review.md
+│       ├── docs-truth-root-review.md
+│       ├── docs-truth-workflows-reference-traycer-review.md
 │       └── mega-00-command-review.md
 ├── infrastructure                  # Infrastructure docs
 │   ├── archive                     # Archived and completed documentation

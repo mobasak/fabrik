@@ -19,7 +19,7 @@ Finished plans: `docs/development/plans/archived/`.
 | Phase | Location |
 |-------|----------|
 | Active | `docs/development/plans/` |
-| Completed/obsolete | `docs/archive/YYYY-MM-DD-<slug>/` |
+| Completed/obsolete | `docs/development/plans/archived/` |
 
 No deletion. History is preserved.
 

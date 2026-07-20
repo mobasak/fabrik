@@ -466,14 +466,14 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 | `destroy` | `orchestrator/destroyer.destroy_deployment()` (default) or `destroy_from_state()` (`--use-state`) |
 | `verify` | `verify.py::PostconditionChecker` |
 | `audit-registrars` | `audit.py::audit_all` |
-| `reconcile-all` | `orchestrator/reconcile.py` (re-uses `InfrastructureProvisioner`) |
+| `reconcile-all` | `cli.py::reconcile_all()` (`cli.py:1487`) → `orchestrator/__init__.py::DeploymentOrchestrator.refresh_infrastructure()` (`:312`) |
 | `validate-deploy`, `validate`, `fix` | `deploy_validator.py` + `scaffold.py` |
 | `vps-sync` | `scripts/vps_sync.py` |
 | `status`, `logs`, `app-logs` | `cli.py` directly + `drivers/ssh.py` |
 | `domain *` | `drivers/dns.py::DNSClient` |
 | `dev`, `review`, `import`, `export` | `dev_tools.py` + `portability.py` |
 | `ai usage` | `ai/tracker.py::UsageTracker` |
-| `seo *` | `seo/` package |
+| `seo *` | `cli.py` (subcommands directly) + `drivers/seo.py::SEOClient` |
 
 ---
 

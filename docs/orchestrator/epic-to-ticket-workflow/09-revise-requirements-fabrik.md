@@ -1,5 +1,5 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — REVISE REQUIREMENTS (our own, tool-capable twin of
-     09-revise-requirements-command). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the driver) —
+     09-revise-requirements-fabrik). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the driver) —
      never pasted into a planner GUI.
      THIS IS THE OPERATOR'S RE-STEERING TOOL. It is reached by an OPERATOR scope-change, an
      `08-implementation-validation-fabrik` Product Misalignment, or a BLOCKED-case-3 escalation (an
@@ -112,7 +112,7 @@ For every ticket whose Scope changed: re-run the Doc Sync Matrix logic (add/remo
 
 ### Step 8: Cross-Artifact Consistency Pass (handoff gate)
 
-Before re-execution, confirm: every Success Criterion → ≥1 ticket · every Tech Plan component → a ticket · every `[PRIMARY PATH]` Index row → an existing ticket with a test AC · every Doc Sync trigger → an AC · INFRA-CHECK fields propagated everywhere · no removed entity still referenced · no contradiction between layers · parallelism budget still ≥3:1 · shape → deploy-plan → compose chain consistent. A contradiction → return to the originating layer; never re-execute with a known contradiction. (This is `09`'s internal handoff gate; the standalone post-fact audit is `10-cross-artifact-validation-command`, `09`'s paired review per CC5.)
+Before re-execution, confirm: every Success Criterion → ≥1 ticket · every Tech Plan component → a ticket · every `[PRIMARY PATH]` Index row → an existing ticket with a test AC · every Doc Sync trigger → an AC · INFRA-CHECK fields propagated everywhere · no removed entity still referenced · no contradiction between layers · parallelism budget still ≥3:1 · shape → deploy-plan → compose chain consistent. A contradiction → return to the originating layer; never re-execute with a known contradiction. (This is `09`'s internal handoff gate; the standalone post-fact audit is `10-cross-artifact-validation-fabrik`, `09`'s paired review per CC5.)
 
 ### Step 9: Re-Execute the Revised Tickets + Hand Off (autonomous)
 
@@ -122,13 +122,13 @@ Once the operator has confirmed the scope (Step 4), settled any Step-6 ticket-le
 - **Done-but-affected tickets amended in place** → after the delta ticket lands, re-validate the affected slice through **`08-implementation-validation-fabrik`** (the epic-level code-vs-spec pass) so the amendment didn't regress a neighbor.
 - **LOOP** dispatch → converge → re-validate until every revised ticket is Done — halting only on the 3 BLOCKED cases (each → Telegram, pause THAT ticket, continue).
 
-Then hand off: the next step is **`10-cross-artifact-validation-command`** (`09`'s paired review — the spec-vs-spec audit across the revised artifacts), then the **deploy-out human gate** → `11-deploy-command`. `09` never runs `fabrik apply`.
+Then hand off: the next step is **`10-cross-artifact-validation-fabrik`** (`09`'s paired review — the spec-vs-spec audit across the revised artifacts), then the **deploy-out human gate** → `11-deploy-command`. `09` never runs `fabrik apply`.
 
 ## Does NOT
 
 - **Re-implement execution or review** — `09` INVOKES `07-execute-fabrik` (coder dispatch + per-ticket converge) and `08-implementation-validation-fabrik` (epic-level code-vs-spec); it drives them, it does not duplicate their loops.
 - **Write code itself** — the coder agents (pool `pick_models("code")` / `claude -p`) implement, dispatched through `07`.
-- **Run the standalone cross-artifact audit** — Step 8 is `09`'s internal handoff gate; the separate post-fact audit is `10-cross-artifact-validation-command` (`09`'s paired review per CC5).
+- **Run the standalone cross-artifact audit** — Step 8 is `09`'s internal handoff gate; the separate post-fact audit is `10-cross-artifact-validation-fabrik` (`09`'s paired review per CC5).
 - **Deploy** — that is `11-deploy-command` (the deploy-out gate). `09` stops after the revised tickets validate.
 - **Restart the epic from scratch** — >50% SC invalidation (Delta-feature, or >30% Retrofit) → recommend closing + starting fresh (`00-trigger-fabrik → 01-decisions-lock-fabrik`, or `mega-epic-breakdown/02-epic-decomposition-fabrik`); `09` steers, it doesn't pivot.
 - **Skip the operator scope checkpoint** — every change goes through Step 4 with explicit operator agreement; never begin the Step-5 cascade without it. (The cascade + re-execution are autonomous; the operator decisions — the Step-2 escape hatch, the Step-4 confirmation, the Step-6 picks — are not.)
@@ -149,8 +149,8 @@ Then hand off: the next step is **`10-cross-artifact-validation-command`** (`09`
 - Doc Sync Matrix re-derived + `[PRIMARY PATH]` Index regenerated for changed tickets; new tickets follow full `06`-breakdown structure.
 - Cross-artifact consistency pass clean (Step 8) before re-execution — no contradictions.
 - **Re-execution autonomous** (Step 9): new/amended tickets driven through `07-execute-fabrik` (pool + `claude -p` coders via `libs/subagents`, per-ticket converge to no-op), Done-but-affected amendments re-validated through `08-implementation-validation-fabrik`, **looping until every revised ticket is Done** — halting only on the 3 BLOCKED cases.
-- Handoff to `10-cross-artifact-validation-command` (`09`'s paired review), then the deploy-out gate → `11-deploy-command`. Never runs `fabrik apply`.
+- Handoff to `10-cross-artifact-validation-fabrik` (`09`'s paired review), then the deploy-out gate → `11-deploy-command`. Never runs `fabrik apply`.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** `09`'s paired review is **`10-cross-artifact-validation-command`** `[canonical: north star § Command-chain build plan — CC5, "10 is the cross-cutting integration review + 09-revise's review"]` — the spec-vs-spec audit that forces the revised artifacts to a no-op. Then the **deploy-out human gate** → `11-deploy-command`. New/amended tickets re-enter via `07-execute-fabrik`; Done-but-affected amendments re-validate via `08-implementation-validation-fabrik`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** `09`'s paired review is **`10-cross-artifact-validation-fabrik`** `[canonical: north star § Command-chain build plan — CC5, "10 is the cross-cutting integration review + 09-revise's review"]` — the spec-vs-spec audit that forces the revised artifacts to a no-op. Then the **deploy-out human gate** → `11-deploy-command`. New/amended tickets re-enter via `07-execute-fabrik`; Done-but-affected amendments re-validate via `08-implementation-validation-fabrik`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*

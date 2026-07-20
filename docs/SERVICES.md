@@ -72,7 +72,7 @@ See [vps-urls.md](infrastructure/vps-urls.md) for complete URL reference.
 
 ## Startup Order
 
-For VPS setup (one-time): run `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vpsN` — see [`docs/infrastructure/vps-bootstrap-plan.md`](infrastructure/vps-bootstrap-plan.md). Order (per the script's 14 steps): system → Docker + fabrik network → Wireguard mesh → DOCKER-USER chain → monitoring agents → Traefik → DNS records.
+For VPS setup (one-time): run `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vpsN` — see [`docs/infrastructure/vps-bootstrap-plan.md`](infrastructure/vps-bootstrap-plan.md). Order (per the script's 17 steps, 00-16): system → Docker + fabrik network → Wireguard mesh → DOCKER-USER chain → monitoring agents → Traefik → DNS records → AI sysadmin pack (step 14) → aro-wake (step 15) → compose-boot reboot-race safety net (step 16).
 
 For Fabrik usage (each run):
 

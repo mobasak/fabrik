@@ -209,7 +209,7 @@ vps1's Prometheus runs **16 configured jobs**; `fabrik-services` currently has n
 | `aro-wake` | `10.0.1.1:8201` (vps1, hub), `10.99.0.2:8201` (vps2, spoke), `10.99.0.3:8201` (vps3, spoke) | 3 targets; SLI metrics over docker-bridge (vps1) + wg0 (spokes) |
 | `fabrik-services` | (null today) | spec-driven, `shape.exposes_metrics: true`; 30 s scrape; HTTPS |
 
-There is **no** `traefik`, `pushgateway`, `glitchtip`, `node-spokes`, `cadvisor-spokes`, or `promtail-spokes` scrape job in the live config (those appeared in earlier drafts of this doc). Spoke node/container/promtail metrics are not currently scraped; spoke observability is the `aro-wake` job's 3 targets plus push-based Loki log shipping.
+The repo `configs/prometheus/prometheus.yml` (re-verified 2026-07-20) HAS `pushgateway` (`:126`, restored 2026-07-19), `node-spokes` (`:46`), `cadvisor-spokes` (`:58`) and `promtail-spokes` (`:70`) scrape jobs — 17 `job_name`s total (16 active; `fabrik-services` is a null-target placeholder). Spoke node/container/log metrics ARE federated over the mesh; there is still no `traefik` or `glitchtip` scrape job.
 
 Every series carries a `host` label (`vps1`, `vps2`, or `vps3`). Grafana dashboards all have a `$host` template variable (regex `/^vps/`).
 

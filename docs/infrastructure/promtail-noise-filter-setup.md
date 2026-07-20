@@ -1,6 +1,6 @@
 # Promtail Log Noise Filter — Setup
 
-**Last Updated:** 2026-06-16 (corrected the drop filter to its real 5-entry value — `^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)$`, verified against both the repo `configs/promtail/promtail-config.yaml` and the live container; the four `coolify-*` entries are dead residue from the pre-decommission era and now match no live container [candidate for cleanup]; vps1 container count corrected 28→31. **Prior 2026-06-06:** aro-wake on full fleet writes to host journald + `/var/log/aro-wake.log` — those aren't shipped by Promtail's docker-socket discovery, so no aro-wake noise filter is needed. Each host's Loki ingest stream for `host="vpsN"` will not include aro-wake-internal logs; operators read those locally via `sudo tail /var/log/aro-wake.log`.)
+**Last Updated:** 2026-07-20 (drop filter re-verified against the repo `configs/promtail/promtail-config.yaml`: it is now the single-entry regex `^ocoron-com-backup-1$` — the four dead `coolify-*` entries were cleaned in commit `05b93197`, 2026-06-17; vps1 container count corrected 28→31. **Prior 2026-06-06:** aro-wake on full fleet writes to host journald + `/var/log/aro-wake.log` — those aren't shipped by Promtail's docker-socket discovery, so no aro-wake noise filter is needed. Each host's Loki ingest stream for `host="vpsN"` will not include aro-wake-internal logs; operators read those locally via `sudo tail /var/log/aro-wake.log`.)
 **Status:** ✅ Live on vps1. Spoke-side promtail containers are running at `/opt/monitoring-agent/` on vps2/vps3 and push logs to `loki:3100` via mesh (verified 2026-06-07T20:20Z — Loki has streams labelled `host=vps1`, `host=vps2`, `host=vps3`). The `promtail-spokes` Prometheus scrape job that previously scraped each spoke promtail's `/metrics` endpoint is **NOT in `prometheus.yml` today** — promtail log shipping continues to work (it's push-based, not scrape-based) but promtail-internal metrics aren't currently scraped.
 **Container:** `promtail` (stable name)
 **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml` (host bind mount)
@@ -12,7 +12,7 @@
 
 Promtail by default tails every Docker container log under `/var/lib/docker/containers/*/*log` and ships them all to Loki. Some containers produce only Docker-daemon noise with no actionable signal — the WordPress backup sidecar's cron loop is the classic example post-Coolify. A `drop` stage in the Promtail pipeline filters these by container name before shipping, reducing Loki ingestion volume + query noise.
 
-The original filter set (2026-05-08) included Coolify-internal containers (`coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`) — Coolify itself was removed on 2026-05-30, so those four containers no longer exist. Note, however, that they are **still listed in the drop regex** as dead residue: the live (and repo) filter is `^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)$` — 5 entries, of which only `ocoron-com-backup-1` matches a live container. The four `coolify-*` entries are harmless (they match nothing) but are a candidate for config cleanup.
+The original filter set (2026-05-08) included Coolify-internal containers (`coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`) — Coolify itself was removed on 2026-05-30, so those four containers no longer exist. Those four entries have since been removed (commit `05b93197`, 2026-06-17): the repo filter is now the single-entry regex `^ocoron-com-backup-1$`.
 
 ## Prerequisites
 
@@ -90,7 +90,7 @@ scrape_configs:
       # loop that fills Loki with non-actionable output. Update the regex
       # when more drop candidates surface.
       - drop:
-          expression: '^(coolify-db|coolify-redis|coolify-realtime|coolify-sentinel|ocoron-com-backup-1)\$'
+          expression: '^ocoron-com-backup-1\$'
           source: container_name
 
       - output:

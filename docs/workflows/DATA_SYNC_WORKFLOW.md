@@ -1,6 +1,6 @@
 # Data Sync Workflow
 
-**Last Updated:** 2026-06-16
+**Last Updated:** 2026-07-20
 **Status:** PRODUCTION (env-consolidation in Section 1.2 is DEPRECATED — see banner there)
 **Scripts:** Multiple (see sections below)
 
@@ -174,7 +174,36 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
 | **Workflow Doc** | `docs/workflows/KILO_AGENT_MANAGEMENT.md` |
 
-**Note:** Re-enabled 2026-05-13 after switching from LLM-based to deterministic Pareto algorithm. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`.
+**Note:** Re-enabled 2026-05-13 after switching from LLM-based to deterministic Pareto algorithm. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`. Chained inside the same `FABRIK_DISABLE_KILO_WORKFLOW` guard as § 3.1b below (`scripts/wsl_startup_hook.sh:99-113`).
+
+### 3.1b Embedding Selection Pipeline (Daily)
+
+Mirrors the chat-model pipeline shape (catalog scrape → shortlists → role winners) for embedding models specifically. Runs immediately after § 3.1's `generate_kilo_agents.py`, inside the same `FABRIK_DISABLE_KILO_WORKFLOW` guard — an independent `&&` chain, so a broken embeddings catalog does not kill the chat-model workflow above it.
+
+| Script | Purpose |
+|--------|---------|
+| `embedding_models_db.py all` | Refresh embedding-model catalog from Kilo CLI + Ollama |
+| `embedding_pre_filter.py` | Pre-filter candidates before role mapping |
+| `embedding_role_mapper.py` | Deterministic role assignment for embedding models |
+| `embedding_export_markdown.py` | Export role winners to markdown |
+| **Workflow Doc** | `docs/workflows/KILO_BENCHMARK_WORKFLOW.md` |
+
+### 3.1c OpenRouter Category Routing (Daily)
+
+Reads `agents` + `agent_categories`, writes `openrouter:{category}` pins to `agent_roles`, then injects `OPENROUTER_ROUTES` markers into the 7 `ai/NN-*.md` rule packs. Runs in its own subshell (`scripts/wsl_startup_hook.sh:126-157`), independent of the Kilo/embedding guard above — each step fails loud + non-fatal (`|| echo ... non-fatal`) so one broken script cannot short-circuit the rest. Kill-switch: `touch /tmp/.openrouter_routing_disabled` (disables the *next* scheduled run, not one already in flight).
+
+| Order | Script | Purpose |
+|-------|--------|---------|
+| 1 | `verify_openrouter_catalog.py --apply --ingest-new` | Verify pricing/capabilities against the live OpenRouter API, auto-fix discrepancies, mark delisted rows deprecated, ingest new ones — runs BEFORE the classifier so it sees the corrected catalog |
+| 2 | `classify_ai_category.py` | Classify models into the 7 categories |
+| 3 | `category_route_mapper.py` | Rank per-category, write `openrouter:{category}` pins |
+| 4 | `category_export_markdown.py` | Inject `OPENROUTER_ROUTES` markers + refresh verification stamps in the 7 packs |
+| 5 | `update_gateway_counts.py` | Inject gateway counts |
+| 6 | `fetch_replicate_prices.py` | Fetch Replicate pricing |
+| 7 | `fetch_fal_prices.py` | Fetch fal.ai pricing — **conditional on `$FAL_KEY`** being set |
+| 8 | `derive_cheapest_gateway.py` | Derive cheapest gateway per model |
+| 9 | `export_models_browser.py` | Export the models browser data file |
+| — | **Workflow Doc** | `docs/workflows/KILO_BENCHMARK_WORKFLOW.md` (§ OpenRouter category routing) |
 
 ### 3.2 Windsurf Extensions Sync (Daily)
 
@@ -211,19 +240,34 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 
 | Step | Script | Purpose |
 |------|--------|---------|
-| 1 | `sync_projects.py` | Refresh project registry + BUSINESS_MODEL.md + PORTS.md |
+| 1 | `sync_projects.py` | Refresh project registry + `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11) + PORTS.md |
 | 2 | `sync_cascade_backup.sh` | Check Cascade memory backup freshness (warn if >7d) |
 | 3 | `health_summary.py` | Scaffold health overview across all projects |
-| 4 | `kilo_agents_db.py all` | Agent sync + benchmarks + snapshots from Kilo CLI + Ollama |
-| 5 | `update_kilo_benchmarks.py --force` | Scrape Arena ELO + Terminal-Bench scores |
-| 6 | `scrape_artificial_analysis.py` | Scrape throughput (tokens/sec) + TTFT |
-| 7 | `role_mapper.py` | Deterministic role assignment (pre_filter → selector → post_filter → DB, ~50ms, $0 cost) |
-| 8 | `export_traycer_registry.py` | Refresh `scripts/kilo_47_agents_final.json` from DB |
-| 9 | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
-| 10 | `check_ai_pack_freshness.py` | Warn-only: flag `.windsurf/rules/ai/*.md` packs >90d unverified (`AI_PACK_STALE_DAYS` override) |
-| 11 | `sync_extensions.sh` | Windsurf extensions docs (retries 3x if IDE not ready) |
+| *(4a-4f gated together on `FABRIK_DISABLE_KILO_WORKFLOW`, chained `&&` — a failure anywhere in 4a-4f stops the rest of 4a-4f, but not steps 5+)* | | |
+| 4a | `kilo_agents_db.py all` | Agent sync + benchmarks + snapshots from Kilo CLI + Ollama |
+| 4b | `update_kilo_benchmarks.py --force` | Scrape Arena ELO + Terminal-Bench scores |
+| 4c | `scrape_artificial_analysis.py` | Scrape throughput (tokens/sec) + TTFT |
+| 4d | `role_mapper.py` | Deterministic role assignment (pre_filter → selector → post_filter → DB, ~50ms, $0 cost) |
+| 4e | `export_traycer_registry.py` | Refresh `scripts/kilo_47_agents_final.json` from DB |
+| 4f | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
+| 4g | `embedding_models_db.py all` | Refresh embedding-model catalog (§ 3.1b) |
+| 4h | `embedding_pre_filter.py` | Pre-filter embedding-model candidates |
+| 4i | `embedding_role_mapper.py` | Deterministic role assignment for embedding models |
+| 4j | `embedding_export_markdown.py` | Export embedding role winners to markdown |
+| *(5a-5i gated together on `/tmp/.openrouter_routing_disabled`, own subshell — independent of step 4's guard; each sub-step fails loud + non-fatal, § 3.1c)* | | |
+| 5a | `verify_openrouter_catalog.py --apply --ingest-new` | Verify pricing/capabilities vs live OpenRouter API, auto-fix, ingest new |
+| 5b | `classify_ai_category.py` | Classify models into the 7 categories |
+| 5c | `category_route_mapper.py` | Rank per-category, write `openrouter:{category}` pins |
+| 5d | `category_export_markdown.py` | Inject `OPENROUTER_ROUTES` markers + refresh verification stamps |
+| 5e | `update_gateway_counts.py` | Inject gateway counts |
+| 5f | `fetch_replicate_prices.py` | Fetch Replicate pricing |
+| 5g | `fetch_fal_prices.py` | Fetch fal.ai pricing — conditional on `$FAL_KEY` |
+| 5h | `derive_cheapest_gateway.py` | Derive cheapest gateway per model |
+| 5i | `export_models_browser.py` | Export the models browser data file |
+| 6 | `check_ai_pack_freshness.py` | Warn-only: flag `.windsurf/rules/ai/*.md` packs >90d unverified (`AI_PACK_STALE_DAYS` override) |
+| 7 | `sync_extensions.sh` | Windsurf extensions docs (retries 3x if IDE not ready) |
 
-**Note:** Steps 4-9 are the Kilo agent workflow. Deterministic algorithm (no LLM) re-enabled 2026-05-13. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`.
+**Note:** Steps 4a-4j are the Kilo agent + embedding-selection workflow (§ 3.1, § 3.1b). Deterministic algorithm (no LLM) re-enabled 2026-05-13. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`. Steps 5a-5i are OpenRouter category routing (§ 3.1c); kill-switch: `touch /tmp/.openrouter_routing_disabled`. Full source: `scripts/wsl_startup_hook.sh`.
 
 ### Hibernate / Wake Behavior
 

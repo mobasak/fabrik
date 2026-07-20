@@ -10,7 +10,7 @@ Before starting, ensure you have:
 
 - [ ] VPS with SSH access configured
 - [ ] SSH key pair (public key on VPS)
-- [ ] Namecheap account with API access
+- [ ] Cloudflare account with API access (default DNS driver; Namecheap is optional, only needed if running the namecheap service locally)
 - [ ] Backblaze B2 account
 - [ ] A domain you control
 
@@ -43,7 +43,7 @@ Required variables:
 ```bash
 # VPS (SSH key-based; fabrik SSHes here to deploy)
 VPS_HOST=your-vps-ip
-VPS_USER=deploy
+VPS_USER=ozgur
 # Configure a `vps` alias in ~/.ssh/config (or set FABRIK_VPS_SSH_HOST)
 
 # DNS — Cloudflare driver (current/primary)
@@ -73,8 +73,10 @@ fabrik preplan new hello-api
 fabrik scaffold hello-api --from-preplan docs/preplans/$(date -u +%F)-hello-api.md
 
 # OR scaffold directly without a preplan — spec auto-generated with `shape:` defaults from the template.
-# Emits per-project CLAUDE.md (Claude Code bootstrap) + AGENTS-compact.md (Kilo CLI)
-# alongside the existing .windsurfrules (Cascade). Ends with a Traycer next-step hint.
+# Emits per-project CLAUDE.md (Claude Code bootstrap) + AGENTS-compact.md (Kilo CLI's bootstrap;
+# Kilo CLI itself RETIRED 2026-07-19 — file still synced for now) alongside the existing
+# .windsurfrules (Windsurf Cascade's bootstrap; Cascade itself RETIRED 2026-07-19 — file still
+# synced for now). Ends with a Traycer next-step hint.
 fabrik scaffold hello-api --type python-api
 
 # Optionally also create a private GitHub repo (mobasak/<name>) at the same time:
@@ -179,7 +181,7 @@ See `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` for details.
 - [CONFIGURATION.md](CONFIGURATION.md) — every env var explained
 - [reference/architecture.md](reference/architecture.md) — how the pieces fit together
 - [reference/fabrik-cli-reference.md](reference/fabrik-cli-reference.md) — all 22 CLI commands
-- [reference/modules/templates.md](reference/modules/templates.md) — 12 deploy templates (11 scaffold types + `next-tailwind` deploy-only)
+- [reference/modules/templates.md](reference/modules/templates.md) — deploy templates for the scaffold types (`wordpress` is a recognised deploy/shape type with no template — redirects to the legacy `/opt/wpf` CLI; `next-tailwind` does not exist — planned-but-unimplemented, tracked as G10)
 - [reference/modules/deployment-orchestrator.md](reference/modules/deployment-orchestrator.md) + [reference/modules/drivers.md](reference/modules/drivers.md)
 - [LESSONS_LEARNT.md](LESSONS_LEARNT.md) — every live-incident invariant (read before deep changes)
 - [infrastructure/vps-status.md](infrastructure/vps-status.md) — VPS inventory

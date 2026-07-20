@@ -356,7 +356,7 @@ Layer 3 (highest): ctx.secrets (from SecretsManager — env vars, .env file, -s 
 
 ## Compose Validation Rules
 
-The deployer validates compose.yaml for **template and docker** source types before deploying (module: `deployer_ssh._validate_compose()`). Git and local sources skip validation — their compose.yaml comes from the repo, not the deployer. Rules sourced from `.windsurf/rules/core/30-ops.md`:
+The deployer validates compose.yaml for **template and docker** source types before deploying (module: `deployer_ssh._validate_compose()`). Only **local**-sourced deploys skip validation; git-sourced deploys ARE validated too (`deployer_ssh._deploy_git` calls `_validate_compose()` — the D1 fix). Rules sourced from `.windsurf/rules/core/30-ops.md`:
 
 | Rule | Requirement | Reason |
 |---|---|---|

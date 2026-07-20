@@ -101,7 +101,7 @@ That's it. No Step 6.
 
 ## What `bootstrap-spoke-restore.sh` does, step by step
 
-Step functions run `step_00`..`step_12` plus two drill-oriented sub-steps `step_09b` (verify restored configs) and `step_09c` (start core services in drill mode). Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure. Confirm the current set with `grep -nE '^step_' scripts/bootstrap/bootstrap-spoke-restore.sh`.
+Step functions run `step_00`..`step_12` plus sub-steps `step_09b` (verify restored configs), `step_09c` (start core services in drill mode), `step_11b` (B2-write loop-closure test) and `step_11c` (install `fabrik-compose-boot.service`). Each prints `[ ok ]` on success, `[WARN]` on soft failure, `[FAIL]` + exit on hard failure. Confirm the current set with `grep -nE '^step_' scripts/bootstrap/bootstrap-spoke-restore.sh`.
 
 | # | Step | What |
 |---|---|---|

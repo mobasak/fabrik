@@ -34,7 +34,7 @@ Intent (preplan)
     ↓
 Scaffolding (fabrik scaffold — context injection)
     ↓
-Agentic Implementation (Traycer plan → Claude Code / Kilo / Windsurf code)
+Agentic Implementation (Traycer plan → Claude Code + the OpenRouter pool; Kilo CLI / Windsurf Cascade retired 2026-07-19)
     ↓
 Proper Registration (fabrik apply → SSH + Docker Compose + 9 registrars)
     ↓

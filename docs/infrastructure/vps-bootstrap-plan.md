@@ -117,4 +117,4 @@ If a step fails partway, fix it, then re-run the script with the same arguments.
 
 The original plan from `vps-captured-state-20260520.txt` (now in `docs/archive/`) proposed a single end-to-end script. Most of it materialized; the parts that didn't are listed above as "Pending follow-ups". The plan-era doc has been superseded — no longer maintained.
 
-State capture from that era: `docs/archive/vps-captured-state-20260520.txt` (737 lines, vps1 only, Coolify-era — historical reference; archived 2026-07-20).
+State capture from that era: `docs/archive/vps-captured-state-20260520.txt` (741 lines, vps1 only, Coolify-era — historical reference; archived 2026-07-20).

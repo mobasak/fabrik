@@ -1,6 +1,6 @@
 # Health Summary Workflow
 
-**Last Updated:** 2026-03-25
+**Last Updated:** 2026-07-20
 **Status:** PRODUCTION
 **Script:** `scripts/health_summary.py`
 **Source Code:** `src/fabrik/cli.py` -> `fabrik scan --health`
@@ -49,7 +49,7 @@ The script verifies these files in every project folder:
 
 ## Exclusion Rules
 
-Project directories are filtered using `sync_projects._is_excluded(name)`, which uses shared `fnmatch` patterns such as `_*`, `.*`, `fabrik`, `__pycache__`, `venv`, and `google`.
+Project directories are filtered using `sync_projects._is_excluded(name)`, which uses shared `fnmatch` patterns against `DEFAULT_EXCLUDES` (`scripts/sync_projects.py:35-46`, 11 patterns): `_*`, `.*`, `fabrik`, `fabrik-lib`, `fabrik-libs`, `mt-router`, `__pycache__`, `venv`, `google`, `archived`, `containerd`.
 
 ---
 

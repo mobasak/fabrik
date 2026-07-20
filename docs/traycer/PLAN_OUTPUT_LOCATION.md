@@ -12,7 +12,7 @@ When Traycer creates plan files (Epic Briefs, PLAN_TEMPLATE, EXECUTION_PLAN_TEMP
 
 | Project | Plan Location | ❌ Wrong |
 |---------|---------------|---------|
-| `/opt/translator` | `/opt/translator/docs/development/plans/` | `/opt/fabrik/docs/development/plans/` |
+| `/opt/captcha` | `/opt/captcha/docs/development/plans/` | `/opt/fabrik/docs/development/plans/` |
 | `/opt/site-provisioner` | `/opt/site-provisioner/docs/development/plans/` | `/opt/fabrik/docs/development/plans/` |
 | `/opt/fabrik` | `/opt/fabrik/docs/development/plans/` | ✅ (This is Fabrik itself) |
 
@@ -33,10 +33,9 @@ When Traycer creates plan files (Epic Briefs, PLAN_TEMPLATE, EXECUTION_PLAN_TEMP
 
 ## Templates Available in Every Project
 
-After `fabrik scaffold`, each project has:
-- `templates/docs/PLAN_TEMPLATE.md`
-- `templates/docs/EXECUTION_PLAN_TEMPLATE.md`
-- `templates/docs/FEATURES_TEMPLATE.md`
-- `templates/docs/MODULE_REFERENCE_TEMPLATE.md`
+The `templates/docs/` path was removed (`src/fabrik/scaffold.py:1173`: "templates/docs/ removed - templates/scaffold/docs/ is the canonical source"). Of the 4 templates this section used to list, only 1 still lands in scaffolded projects:
 
-Use these project-local templates, not Fabrik's.
+- `FEATURES_TEMPLATE.md` — still live, now sourced from `templates/scaffold/docs/FEATURES_TEMPLATE.md`, landing at `docs/reference/scaffold-templates/FEATURES_TEMPLATE.md` in each scaffolded project (confirmed present in `/opt/site-provisioner`).
+- `PLAN_TEMPLATE.md`, `EXECUTION_PLAN_TEMPLATE.md`, `MODULE_REFERENCE_TEMPLATE.md` — retired; they survive only as historical copies under `templates/.archive/legacy-docs-2026-03-24/` and are not injected into any live scaffolded project.
+
+Use the project-local `docs/reference/scaffold-templates/FEATURES_TEMPLATE.md`, not Fabrik's.

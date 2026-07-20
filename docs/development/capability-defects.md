@@ -5,8 +5,7 @@
 
 ## Mechanical fixes
 
-- [dry-run] would write stub: docs/reference/capabilities/rn-billing-kit.md *(capability docs live in /opt/fabrik-lib — cross-repo; the dry-run path is the hub-side landing slot, not yet created)*
-- [dry-run] would write stub: docs/reference/capabilities/rn-media-kit.md *(same — cross-repo capability, hub landing slot not yet created)*
+- _(none)_
 
 ## Doc drift (flagged — NOT auto-rewritten)
 
@@ -16,5 +15,4 @@
 
 | Capability | Kind | Defect | Recommended action |
 |---|---|---|---|
-| `rn-billing-kit` | lib-module | incomplete | REVISE — missing its README/doc; add one so agents can use it. |
-| `rn-media-kit` | lib-module | incomplete | REVISE — missing its README/doc; add one so agents can use it. |
+| _(none)_ | | | |

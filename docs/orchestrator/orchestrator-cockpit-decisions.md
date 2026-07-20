@@ -11,7 +11,7 @@
 - **D1 — Fork target = agetor** (`alamops/agetor`, MIT, Electrobun, v0.0.17). Strongest lightweight *native* fork base; deep source read = genuinely high-quality (5k-LOC tmux driver, deep tests, full git-host integrations). **REINSTATED 2026-07-17** after the Traycer Desktop detour (see amendment below) — **pending the WSLg runtime spike**, now with the HiDPI display blocker already cleared (`.wslgconfig` fix confirmed working).
 - **D2 — Native desktop app, not browser-served.** Lightweight (Electrobun/Tauri class). **Not Electron.** (Rejected Conductor for being browser-served; rejected Daintree/Emdash/AO for Electron weight.)
 - **D3 — Auth:** Claude Code via **OAuth / subscription, per-user local login**. **No `ANTHROPIC_API_KEY`, no Agent-SDK metered credit.** (agetor already drives `claude` interactive = subscription.)
-- **D4 — No direct OpenRouter in the cockpit.** OpenRouter is reached **only through `fabrik-lib/subagents`**, dispatched by the Claude orchestrator (pool = programmatic breadth, never an interactive tab). Cockpit only runs Claude Code.
+- **D4 — No direct OpenRouter in the cockpit.** OpenRouter is reached **only through `libs/subagents`**, dispatched by the Claude orchestrator (pool = programmatic breadth, never an interactive tab). Cockpit only runs Claude Code.
 - **D5 — Two-level nested workflow.** The core model:
   - **Project level = `mega-epic-breakdown`** → produces **Vision · Decisions · Infra-Decisions · External-Tools (fabrik-lib verdict) · Specs · Epics**. **NO tickets.**
   - **Epic level = `epic-to-ticket-workflow`** (run when you drill INTO an epic) → produces **Decisions-Lock · Core-Flows · Tech-Plan · Deploy-Plan · Tickets · Executions · Reviews**.
@@ -250,4 +250,4 @@ not yet exercised.
 - Requirements: `docs/orchestrator/orchestrator-cockpit-requirements.md`
 - Research: `docs/reference/research/ai-coding-orchestrator-comparison.md`
 - North-star (this is its Phase-D cockpit): `docs/orchestrator/00-autonomous-factory-north-star.md`
-- Fork-target deep read: `alamops/agetor` @ v0.0.17 (`agents.ts:286` subscription-drive; `03-expand-epic-files-fabrik.md:24` disk-is-the-store).
+- Fork-target deep read: `alamops/agetor` @ v0.0.17 (`agents.ts:286` subscription-drive; `03-expand-epic-files-fabrik.md:60` disk-is-the-store).

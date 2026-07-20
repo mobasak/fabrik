@@ -108,7 +108,7 @@ python scripts/container_images.py pull nginx:alpine
 | ~~fabrik-dns-manager~~ | `/opt/dns-manager` | Python/FastAPI | 8001 | DNS management (Namecheap, Cloudflare) — **RETIRED** (not deployed) |
 | ~~fabrik-emailgateway~~ | `/opt/emailgateway` | Node.js/Fastify | 3000 | Email sending (Resend, SES) — **RETIRED** (not deployed) |
 | ~~fabrik-file-api~~ | `/opt/file-api` | Node.js/Express | 3000 | File operations API — **RETIRED** (not deployed) |
-| fabrik-file-worker | `/opt/file-worker` | Python | - | Background file processing |
+| ~~fabrik-file-worker~~ | `/opt/file-worker` | Python | - | Background file processing — **RETIRED** (not deployed) |
 | ~~fabrik-image-broker~~ | `/opt/image-generation` | Python/FastAPI | 8000 | AI image generation (FLUX) — **retired 2026-06-02** |
 
 > **Note (2026-06):** The only live Fabrik microservice is **site-provisioner**. The struck-through rows above are retired/not-deployed.
@@ -291,6 +291,8 @@ image: getmeili/meilisearch:v1.13
 # ✅ BEST - pinned digest (immutable)
 image: getmeili/meilisearch@sha256:abc123...
 ```
+
+> **Known drift (2026-07-20):** the deployed compose files (`infra/vps1/{authelia,meilisearch}/compose.yaml`) already follow this policy — pinned to `authelia/authelia:4.39.19` and `getmeili/meilisearch:v1.13` respectively. The `specs/infrastructure/{authelia,meilisearch}.yaml` source-of-truth spec files have NOT been updated to match — they still declare a floating `:latest` tag (`specs/infrastructure/authelia.yaml:6`, `specs/infrastructure/meilisearch.yaml:6`). Pinning the specs is pending; don't take the spec layer as ground truth for the currently-deployed tag until that's done.
 
 ### Architecture Verification
 

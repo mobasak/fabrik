@@ -15,8 +15,9 @@ cp .env.example .env
 # 2. Edit with your values
 nano .env
 
-# 3. Verify
-python -m fabrik.config --verify
+# 3. Verify (fabrik.config has no CLI/--verify flag — instantiate Config()
+#    directly; it raises ValueError if a required var, e.g. VPS_HOST, is missing)
+python -c "from fabrik.config import Config; Config(); print('OK — required vars present')"
 ```
 
 **All variables are documented in `.env.example` with inline comments.**
@@ -56,9 +57,16 @@ archived plan.
 New projects never needed a Coolify API token.
 -->
 
-### FABRIK_EXEC_MODE — WordPress driver execution mode (T1.1)
+### FABRIK_EXEC_MODE — WordPress driver execution mode
 
-**Why needed:** The `fabrik.drivers.wordpress` module (`ContainerResolver` + `WordPressClient`) historically assumed it was running on a WSL workstation that reaches the VPS over SSH. Phase 1 of the WordPress Factory introduces on-VPS execution surfaces (T1.5 cron, Phase 5 watchdog) where wrapping every `docker exec` in `ssh vps …` is pointless overhead. `FABRIK_EXEC_MODE` flips the dispatch at the driver level so the same code path runs unchanged in both environments.
+> **⚠️ Moved to `/opt/wpf`.** WordPress deploy/site-management logic lives in the standalone
+> `/opt/wpf` project now, not in this repo — there is no `fabrik.drivers.wordpress` module or
+> `ContainerResolver`/`WordPressClient` class in `/opt/fabrik`. The real driver is
+> `/opt/wpf/src/wpf/drivers/wordpress.py` (`ContainerResolver` + `WordPressClient` classes live
+> there), and `FABRIK_EXEC_MODE` is set in `/opt/wpf/.env.example`, not this repo's `.env.example`.
+> Kept here only as a pointer for anyone still looking for it in Fabrik.
+
+**Why needed:** The driver historically assumed it was running on a WSL workstation that reaches the VPS over SSH. On-VPS execution surfaces (systemd cron, self-healing watchdog) make wrapping every `docker exec` in `ssh vps …` pointless overhead. `FABRIK_EXEC_MODE` flips the dispatch at the driver level so the same code path runs unchanged in both environments.
 
 **Values:**
 
@@ -122,20 +130,20 @@ New projects never needed a Coolify API token.
 - ~~`IMAGE_BROKER_URL` — Image Broker endpoint (http://localhost:18016)~~ — **RETIRED 2026-06-02** (image-broker no longer deployed)
 - `CONTENT_WORKER_ID` — Worker identifier for brief lifecycle tracking (default: fabrik-content-publisher)
 
-**WordPress credentials:** `WP_ADMIN_USER` and `WP_ADMIN_PASSWORD` are read by `deployer.py` for the REST API client (`WordPressAPIClient`). The domain is derived from the site spec — no `WP_SITE_URL` env var is needed. To target a different site, run with a different spec/site_id.
+**WordPress credentials:** `WP_ADMIN_USER` and `WP_ADMIN_PASSWORD` are read by `/opt/wpf/src/wpf/engine/deployer.py` (the standalone `/opt/wpf` project — there is no `deployer.py` or `WordPressAPIClient` class in this repo; the WP REST calls there use `requests` directly, no dedicated client class). The domain is derived from the site spec — no `WP_SITE_URL` env var is needed. To target a different site, run with a different spec/site_id.
 
 **Development:** All services run locally via docker-compose. Use `http://localhost:PORT`.
 **Production:** Services deployed on VPS at `*.vps1.ocoron.com` with internal Docker networking.
 
 ### AI Model Aggregator Keys
 
-Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_prices` with live per-model pricing across aggregators, so the AI Models Browser surfaces the cheapest gateway per row (same OR ↔ Kilo cheapest-rate pattern, extended to non-LLM specialists). See [docs/development/plans/2026-06-29-plan-2-aggregator-pricing.md](development/plans/2026-06-29-plan-2-aggregator-pricing.md).
+Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_prices` with live per-model pricing across aggregators, so the AI Models Browser surfaces the cheapest gateway per row (same OR ↔ Kilo cheapest-rate pattern, extended to non-LLM specialists). See [docs/development/plans/archived/2026-06-29-plan-2-aggregator-pricing.md](development/plans/archived/2026-06-29-plan-2-aggregator-pricing.md).
 
 - `FAL_KEY` — fal.ai key in `KEY_ID:SECRET` format. Get from [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys). Read-only catalog access is sufficient for price discovery. **Positive balance required** for the specialty bench (`microbench_specialty.py`) since it enqueues real image generations against Fal.ai's BFL Flux mirror.
 
 ### Specialty-service bench providers (kilo-benchmarks)
 
-Used by [scripts/kilo-benchmarks/microbench_specialty.py](../scripts/kilo-benchmarks/microbench_specialty.py) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/2026-07-03-plan-1-full-speed-coverage-close.md).
+Used by [scripts/kilo-benchmarks/microbench_specialty.py](../scripts/kilo-benchmarks/microbench_specialty.py) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md).
 
 - `REPLICATE_API_TOKEN` — Replicate prediction API. Get from [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens). Unlocks Stability SD family + Stable Audio rows (~6 rows).
 - `RECRAFT_API_KEY` — Recraft direct REST. Get from [recraft.ai/profile/api](https://www.recraft.ai/profile/api). Unlocks `recraft/v3` + `recraft/nano-banana` (~2 rows; 40 credits ≈ $0.04 per image).
@@ -514,7 +522,7 @@ Before deploying:
 - [ ] SSH access verified: `ssh deploy@$VPS_HOST`
 - [ ] Database accessible: `psql $DATABASE_URL`
 - [ ] Backups configured: Backrest configured at `backup.vps1.ocoron.com` (Backblaze B2 remote)
-- [ ] Verification passed: `python -m fabrik.config --verify`
+- [ ] Verification passed: `python -c "from fabrik.config import Config; Config()"` (no `--verify` CLI exists; this raises `ValueError` if a required var is missing)
 - [ ] Master backup exists: `/opt/fabrik/.env` synced
 
 ---
@@ -606,10 +614,10 @@ environment:
   - DB_PORT=5432
 ```
 
-**Supabase:**
+**Supabase (retired as the default — deliberate ADR-recorded exception only, see `agents-fabrik.md` § Supabase):**
 ```python
 # Use full connection string
-DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this
+DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only
 ```
 
 ### 6. Validation Patterns
@@ -659,11 +667,11 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost').split(',')
 
 ## n8n Webhook Notifications
 
-Fabrik fires fire-and-forget webhooks after deploy and content publish events.
+Fabrik fires fire-and-forget webhooks after deploy events; a content-publish webhook function exists but is not currently wired to a caller.
 
 **How it works:**
-1. `deploy_router.py` calls `notify_deploy()` after every `fabrik apply`
-2. `content_publisher.py` calls `notify_content()` after every `fabrik content publish`
+1. `src/fabrik/deploy_router.py` calls `notify_deploy()` (defined in `src/fabrik/notifications.py`) after every `fabrik apply`
+2. `notify_content()` is also defined in `src/fabrik/notifications.py` (fires `N8N_WEBHOOK_CONTENT`) but has no call site in this repo — there is no `content_publisher.py` and no `fabrik content publish` command wired to it
 3. n8n receives the POST, formats the message, POSTs to Apprise
 4. Apprise fans out to configured channels (Telegram, email, etc.)
 

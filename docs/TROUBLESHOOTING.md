@@ -173,13 +173,17 @@ curl -fsS https://<name>.vps1.ocoron.com/api/health   # verify path manually
 
 If the manual curl succeeds but the orchestrator still 404s, the verifier is reading the wrong key — open an issue.
 
-### Docusaurus deploy reaches `running:healthy` after orchestrator gives up
+### Docusaurus deploy reaches `running:healthy` after orchestrator gives up (LEGACY — Coolify-era)
+
+> **⚠️ Legacy-Coolify-era troubleshooting, retained for archaeology.** Deploy is SSH + Docker
+> Compose (`deployer_ssh.py`) now — this symptom belonged to the retired Coolify orchestrator
+> and cannot recur under the current deployer.
 
 **Symptom:** `fabrik apply <docusaurus-spec>` fails verification, but `docker compose ps` shows the container as `running:healthy` 1–2 minutes later.
 
 **Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which the container reports `exited:unhealthy` (old container removed, new one not yet running; pre-2026-05-30 this was visible as Coolify reporting `exited:unhealthy`). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
 
-**If you still see this with another slow-build type:** bump `terminal_grace_period` further in `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`. Genuine failures still terminate via `fabrik apply` (SSH + Docker Compose)'s explicit `failed` deployment-job state, so longer grace only affects the legitimate deploy-recreate path.
+**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` exist only in the retired `src/fabrik/orchestrator/deployer_coolify.py` (line 564) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
 
 ### Port Already in Use
 
@@ -191,11 +195,17 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 2. Find process: `ss -tlnp | grep 8000`
 3. Use different port in spec
 
-### `fabrik apply` fails with "spec renders compose with `build:` but `source.type` is 'template'"
+### `fabrik apply` fails with "spec renders compose with `build:` but `source.type` is 'template'" (LEGACY — Coolify-era)
+
+> **⚠️ Legacy-Coolify-era troubleshooting, retained for archaeology.** The quoted fail-fast
+> message and its B7 preflight check belonged to the retired Coolify orchestrator
+> (`deployer_coolify.py`) — the active `deployer_ssh.py` has no such preflight and never emits
+> this message, so this symptom cannot recur under the current deployer. The scaffold-time git
+> remote detection described below is still current and still worth checking.
 
 **Symptom:** `fabrik apply specs/services/<name>.yaml` fail-fasts before deploying with the message `source.type is 'template' (not 'git'). Coolify's inline-compose endpoint has no source for 'build:' to consume — the build will never run.`
 
-**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 291) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`, and the deployer's B7 preflight in `src/fabrik/orchestrator/deployer_ssh.py` rejects the deploy. A `WARNING` is logged at scaffold time (`spec_generator.py` line 426): *"No git remote configured at `<path>` — emitting source.type=template. This spec will fail the deployer's build-source check..."* (older versions of the warning said "Coolify deploy").
+**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 296) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`. Under the retired Coolify orchestrator this tripped a B7 preflight that lived in `deployer_coolify.py`; the active `deployer_ssh.py` has no equivalent check. A `WARNING` is still logged at scaffold time (`spec_generator.py` around line 429): *"No git remote configured at `<path>` — emitting source.type=template..."* (older versions of the warning said "Coolify deploy").
 
 **Fix:** Add a remote and re-emit the spec.
 

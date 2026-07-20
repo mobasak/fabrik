@@ -34,7 +34,7 @@
          `.windsurf/rules/desktop-app/00-domain-desktop-app.md` ·
          `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md`.
          ⚠️ All four are `activation: manual` with NO frontmatter `globs:`, and `select_rules.py` selects
-         on `globs:` ALONE — `:24-39` parses only `globs:`/`description:`, and `:108` branches on
+         on `globs:` ALONE — `:24-39` parses only `globs:`/`description:`, and `:137` branches on
          `any(_glob_has_match(...))`, which is False for an empty glob list; `activation:` is never read.
          So they are AVAILABLE forever and `select_rules.py` will NEVER surface them: open them by path
          or silently miss them.

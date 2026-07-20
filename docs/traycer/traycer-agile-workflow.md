@@ -1,6 +1,6 @@
 # Traycer Agile Workflow (Detailed Reference)
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-07-20
 
 Complete breakdown of the default Traycer Agile Workflow commands, including roles, philosophy, artifact structures, and acceptance criteria.
 
@@ -471,5 +471,5 @@ Each ticket:
 - [Traycer Integration Guide](README.md)
 - [Traycer YOLO Workflow](../archive/traycer-yolo-workflow.md) (archived — Kilo-era fast path)
 - [Traycer Refactoring Workflow](traycer-refactoring-workflow.md)
-- [Mandatory Workflow](../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
+- [Mandatory Workflow](../../agents-fabrik.md#workflow-mandatory--three-tiers-by-scale) — See "Workflow (mandatory) — three tiers by scale" section
 - [AGENTS.md](../../AGENTS.md)

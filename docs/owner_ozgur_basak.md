@@ -47,8 +47,8 @@ Extremely fast learner; capable of specialist-level depth across multiple techni
 
 | Category | Tools |
 |----------|-------|
-| **Dev Environment** | WSL Ubuntu (Windsurf), Windows |ARM Ubuntu VPS |
-| **AI Assistants** | Traycer, kilo, Windsurf Cascade which allows to reach all AI agents |
+| **Dev Environment** | WSL Ubuntu + VS Code + Claude Code, Windows, x86_64 Ubuntu VPS fleet (linux/amd64) |
+| **AI Assistants** | Traycer + Claude Code (Windsurf Cascade + Kilo CLI RETIRED 2026-07-19) |
 | **Automation** | scrapers, API-first workflows |
 | **Productivity** | M365 |
 

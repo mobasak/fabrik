@@ -131,17 +131,17 @@ Data source: `scripts/kilo-benchmarks/rank_coding_subagents.py` (single source o
 |---------|--------|----------|----------|
 | [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |
-| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 11 scaffold types with `.droid/`, AI guardrails, and spec emission |
+| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 12 scaffold types with `.droid/`, AI guardrails, and spec emission |
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
 | [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
-| [Kilo AI Review](#kilo-ai-review) | ✅ Shipped | Developer | AI-powered code review with fix suggestions |
-| [Development Workspace](#development-workspace) | ✅ Shipped | Developer | `.droid/` per-project workspace for Kilo sessions, transcripts, cost tracking, model sync |
+| [AI Code Review](#ai-code-review) | ✅ Shipped | Developer | `/fabrik-review` — adversarial review gate: OpenRouter-pool finders + native Claude reviewers, converge to a no-op |
+| [Development Workspace](#development-workspace) | ✅ Shipped | Developer | `.droid/` per-project workspace for review artifacts, transcripts, cost tracking, model sync |
 | [Deploy State Store](#deploy-state-store) | ✅ Shipped | Operator | `.fabrik/state/` records what was deployed; feeds audit, destroy, export, verify |
 | [Registrar Audit & Reconcile](#registrar-audit--reconcile) | ✅ Shipped | Operator | Spec ↔ live drift detection across the fleet |
 | [Local Dev Loop](#local-dev-loop) | ✅ Shipped | Developer | `fabrik dev` / `fabrik logs --local` / `fabrik review` |
 | [State-Driven Destroy](#state-driven-destroy) | ✅ Shipped | Operator | `fabrik destroy --use-state` reverses what was actually deployed |
 | [Cross-VPS Portability](#cross-vps-portability) | ✅ Shipped (import untested) | Operator | `fabrik export` / `fabrik import` — bundle VPS state for rebuild |
-| [i18n Kit](#i18n-kit) | ✅ Shipped | Developer | Multi-platform i18n: one JSON format, one validator, 6 platform loaders — auto-provisioned by scaffold |
+| [i18n Kit](#i18n-kit) | ✅ Shipped | Developer | Multi-platform i18n: one JSON format, one validator, 5 platform loaders — auto-provisioned by scaffold |
 | [VPS AI Sysadmin](#vps-ai-sysadmin) | ✅ Shipped | Operator | On-demand AI system administrator — Claude Code on VPS, triggered via Telegram, autonomous diagnostics and remediation |
 | [VPS Audit System](#vps-audit-system) | ✅ Shipped | Operator | 7 audit prompts + 7 runner scripts for systematic VPS health checks: security, performance, containers, observability, backup |
 
@@ -300,7 +300,7 @@ fabrik scaffold my-project --type python-api
 - `AGENTS.md` — file copy of `/opt/fabrik/AGENTS.md` (Traycer)
 - `AGENTS-compact.md` — file copy of `/opt/fabrik/AGENTS-compact.md` (Kilo CLI)
 - `CLAUDE.md` — file copy of `/opt/fabrik/CLAUDE.md` (Claude Code) — *added T1-02 G-B5*
-- `.windsurfrules` — file copy of `/opt/fabrik/.windsurfrules` (Windsurf Cascade)
+- `.windsurfrules` — file copy of `/opt/fabrik/.windsurfrules` (compact synced contract file; consumed by non-Claude tooling — Windsurf Cascade itself is retired)
 - `.windsurf/rules/` — file copy of `/opt/fabrik/.windsurf/rules/`
 
 **Optional flags:**
@@ -309,7 +309,7 @@ fabrik scaffold my-project --type python-api
 
 **Output trailer:** Every successful scaffold ends with a `# Next: cd /opt/<name>; open Traycer …` hint pointing at the Traycer-managed workflow (T1-02 G-B4).
 
-**Project Types:** `python-api`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`
+**Project Types:** `python-api`, `python-api-gpu`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`
 
 </details>
 
@@ -361,7 +361,7 @@ A structured workflow that ensures every code change goes through planning, impl
 ### The Flow
 
 ```
-PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → VERIFY → SYNC → COMMIT
+PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → REVIEW → FINAL_GATE → VERIFY → SYNC → COMMIT
 ```
 
 | Step | Action |
@@ -369,9 +369,9 @@ PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → VE
 | 1 | Traycer Plan (spec, edge cases, env vars) |
 | 2 | Coder Implements |
 | 2.5 | Self-Review (MANDATORY) |
-| 3 | Final Gate (pre-Kilo) |
-| 4 | Kilo Review Loop |
-| 5 | Final Gate (post-Kilo) |
+| 3 | Final Gate (pre-review) |
+| 4 | `/fabrik-review` Loop |
+| 5 | Final Gate (post-review) |
 | 6 | Traycer Verification |
 | 7 | Sync Only |
 | 8 | Commit |
@@ -387,30 +387,27 @@ PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → VE
 
 ---
 
-## Kilo AI Review
+## AI Code Review
 
 **Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
 
-> **Headline:** AI-powered code review with actionable fix suggestions
+> **Headline:** `/fabrik-review` — adversarial code review: parallel OpenRouter-pool finders (recall) plus native Claude reviewers (authority) iterate to a fixed point.
 
 ### What It Does
 
-Kilo is a diff-aware AI code reviewer that analyzes changes against your task spec. It identifies issues, suggests fixes, and validates plan coverage—all with structured JSON output for automation.
+`/fabrik-review` is the review gate (Kilo CLI, retired 2026-07-19, is no longer in this loop). Independent finders dispatched via the OpenRouter subagents pool (`libs.subagents.select.pick_models("review")` through `fanout()`) scan the diff in parallel for defects; native Claude reviewers cover the high-risk slices (auth, schema, migrations, concurrency); a refute/merge pass separates real defects from false positives, then fixes are applied with regression guards. The loop repeats until a fresh pass finds nothing and changes nothing.
 
 ### How To Use
 
 ```bash
-python scripts/kilo_code_review.py review <files> --plan "Task description" --output json
+/fabrik-review
 ```
 
-### Marketing Copy
+### Technical Details
 
-| Channel | Copy |
-|---------|------|
-| **Landing Page** | "AI code review that understands your intent. Kilo checks your changes against your plan." |
-| **Email Subject** | "Meet Kilo: Your AI code reviewer that actually reads the spec" |
-| **Social Media** | "🤖 Kilo AI review: $0.03-0.40 per review, catches issues humans miss #AICodeReview" |
-| **Sales One-liner** | "Kilo reviews code against your spec, not just syntax—finding logic errors, not just lint." |
+- Pool dispatch: `libs/subagents/agent.py::fanout("review", units, repo=..., mode="read_only")`
+- Every pool dispatch records a `subagent_runs` flywheel row (`record_agent_run`) — never `record_run`, which silently no-ops on a raw result
+- Rubric injection (mandatory-core floor + glob-matched packs) is layered in via `scripts/review_rubric.py`
 
 ---
 
@@ -418,49 +415,21 @@ python scripts/kilo_code_review.py review <files> --plan "Task description" --ou
 
 **Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
 
-> **Headline:** Every scaffolded project gets a `.droid/` directory — the runtime workspace for Kilo CLI, Traycer dispatch, multi-model consultations, and development cost tracking.
+> **Headline:** Every scaffolded project gets a `.droid/` directory — the runtime workspace for review artifacts, Traycer dispatch reports, multi-model consultations, and development cost tracking.
 
 ### What It Does
 
-`.droid/` is created by `fabrik scaffold` (part of `SHARED_DIRS` in `scaffold.py`) for all 11 scaffold types. `fabrik fix` also creates/updates it on existing projects. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
-
-The 9-step development flow generates artifacts at each stage. `.droid/` is where they accumulate:
-
-| Path | Written by | What it stores |
-|------|-----------|---------------|
-| `review-context/` | Kilo agent scripts | Task/plan `.md` files Kilo reviews against (git-tracked) |
-| `traycer-reports/` | `kilo_dispatch.py` | Traycer analysis reports after dispatched sessions (git-tracked) |
-| `transcripts/` | `kilo_terminal_runner.py` | Raw terminal output from each agent session (timestamped, per-model) |
-| `consultations/` | `kilo_consult.py` | Multi-model architecture consultation JSON (Claude, GPT, Gemini queried in parallel) |
-| `responses/` | Ad-hoc gap analysis runs | Cross-model JSON responses from plan reviews |
-| `docs_log/` | `docs_updater.py` | Which docs were auto-generated and when |
-| `docs_queue/` | `docs_updater.py` | Pending doc generation jobs |
-| `dev_tracker.db` | `dev_tracker.py` | SQLite — gate results, review costs, issues, workflow events |
-| `kilo_usage.jsonl` | Kilo agent `.sh` scripts | Append-only JSONL — token counts + cost per review |
-| `kilo_model_sync.log` | `kilo_model_sync_startup.sh` | Daily cron model availability sync log |
+`.droid/` is created by `fabrik scaffold` (part of `SHARED_DIRS` in `scaffold.py`) for all 12 scaffold types. `fabrik fix` also creates/updates it on existing projects. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state — `/fabrik-review` bundles, Traycer dispatch reports, per-session transcripts, multi-model consultation JSON, the doc-generation queue/log, and a SQLite dev-tracker (`dev_tracker.db`) recording gate results, review costs, and workflow events.
 
 ### How To Use
 
 ```bash
-# Cost report across all Kilo sessions
+# Cost report across dev sessions
 python scripts/kilo_cost_report.py
 
 # Query the dev tracker
 python scripts/dev_tracker.py report summary
-python scripts/dev_tracker.py report costs
-python scripts/dev_tracker.py query "SELECT * FROM ai_usage ORDER BY timestamp DESC LIMIT 10"
-
-# Run a multi-model consultation
-python scripts/kilo_consult.py --question "Should we use saga or orchestrator pattern?"
 ```
-
-### How It Connects to the Workflow
-
-- **Step 4 (Kilo review):** reads task context from `review-context/` via `--plan .droid/review-context/task.md`
-- **After each session:** `kilo_terminal_runner.py` saves the transcript and logs cost/tokens to `dev_tracker.db`
-- **After each review:** generated Kilo agent scripts append to `kilo_usage.jsonl`
-- **Traycer dispatch:** `kilo_dispatch.py` writes `traycer-reports/latest.md`
-- **Model sync (daily cron):** `kilo_model_sync.py --sync` checks LLM provider availability, logs to `kilo_model_sync.log`
 
 ---
 
@@ -513,7 +482,7 @@ Every successful `fabrik apply` writes an 8-field JSON manifest to `.fabrik/stat
     └── <YYYY-MM-DD-HHMMSS>.md     # Review bundles from `fabrik review` (gitignored)
 ```
 
-Also related (outside `.fabrik/`): `data/projects.yaml` holds the project registry and `data/provision-jobs/` holds SiteProvisioner saga state.
+Also related (outside `.fabrik/`): `data/projects.yaml` holds the project registry. Site provisioning (domain → DNS → initial deploy) is not saga state inside this repo — it's the standalone site-provisioner microservice (`provision.vps1.ocoron.com`); see `docs/reference/service-contracts/site-provisioner.md`.
 
 ### Data-Bearing Protection
 
@@ -594,7 +563,7 @@ Stage 2 of the Fabrik lifecycle (Agentic Implementation) is where the developer 
 
 - **`fabrik dev`** — runs the project's `compose.dev.yaml` stack locally via `docker compose up`. Hot-reload + bind mounts, no VPS involvement.
 - **`fabrik logs --local`** — tails `docker compose -f compose.dev.yaml logs` (sibling of the Loki-backed `fabrik logs <service>` for remote queries).
-- **`fabrik review`** — bundles `git diff` + `specs/services/<id>.yaml` + `docs/preplan.md` + the resolved-registrar table into `.fabrik/review/<ts>.md`. Hand the bundle to a human reviewer or dispatch to Kilo CLI's reviewer agent.
+- **`fabrik review`** — bundles `git diff` + `specs/services/<id>.yaml` + `docs/preplan.md` + the resolved-registrar table into `.fabrik/review/<ts>.md`. Hand the bundle to a human reviewer or dispatch it to the `/fabrik-review` pool.
 
 ### How To Use
 
@@ -613,8 +582,12 @@ fabrik review                          # uses HEAD by default
 fabrik review --since HEAD~3           # last 3 commits
 fabrik review --out /tmp/review.md     # custom output path
 
-# 4. Dispatch (out-of-band)
-kilo run --agent reviewer --input .fabrik/review/<ts>.md
+# 4. Dispatch (out-of-band) — pool review finders
+python -c "
+from libs.subagents import fanout
+results, table = fanout('review', ['.fabrik/review/<ts>.md'], repo='/opt/fabrik')
+print(table)
+"
 ```
 
 ### Why This Matters
@@ -764,7 +737,7 @@ Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergo
 
 **Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.4
 
-> **Headline:** One JSON format, one validator, 6 platform loaders — auto-provisioned by `fabrik scaffold` for every GUI project type.
+> **Headline:** One JSON format, one validator, 5 platform loaders — auto-provisioned by `fabrik scaffold` for every GUI project type it covers (chrome-extension uses its own native i18n instead — see Platform Coverage).
 
 ### What It Does
 
@@ -777,9 +750,10 @@ Every GUI scaffold type ships with internationalization out of the box. `fabrik 
 | **saas-skeleton** | React context | `lib/i18n/I18nProvider.tsx` + `server.ts` + `LanguageSwitcher.tsx`, `public/i18n/en.json` |
 | **static-site** | Vanilla DOM | `static/js/i18n.js`, `static/i18n/en.json`, HTML snippets |
 | **desktop-app** | Vanilla DOM | Same as static-site (Electron is Chromium) |
-| **chrome-extension** | Chrome adapter | `extension/src/i18n.js`, `scripts/chrome_messages.py` (generates `_locales/`) |
 | **mobile-app** | RN adapter | `scripts/sync_rn_locales.py` (syncs to `src/locales/` for i18next) |
 | **docusaurus** | Docusaurus adapter | `scripts/sync_docusaurus.py` (syncs custom strings to `i18n/<lang>/code.json`) |
+
+**chrome-extension is not i18n-kit-provisioned.** Its i18n is owned natively by `@wxt-dev/i18n` (`src/locales/*.json` → build-time `_locales/`) — no `chrome_messages.py`/`i18n.js` provisioning (`I18N_ENABLED_TYPES` in `scaffold.py`, lines 186-193).
 
 All types also receive: `scripts/validate_i18n.py` (3-level validator), `en.json` + example translations, `docs/reference/multilingual-plan.md` (1170-line architecture bible).
 
@@ -794,7 +768,7 @@ All types also receive: `scripts/validate_i18n.py` (3-level validator), `en.json
 }
 ```
 
-Nested dot-path keys (`nav.home`), `{variable}` interpolation, `_meta` block for completeness tracking. Same format consumed by all 6 loaders.
+Nested dot-path keys (`nav.home`), `{variable}` interpolation, `_meta` block for completeness tracking. Same format consumed by all 5 i18n-kit loaders.
 
 ### Translation Workflow
 
@@ -804,38 +778,28 @@ Nested dot-path keys (`nav.home`), `{variable}` interpolation, `_meta` block for
 3. AI translates en.json → tr.json (Claude/GPT first pass)
 4. python scripts/validate_i18n.py --validate tr
    ├── Level 1: Structural (keys match, placeholders preserved) — free, instant
-   ├── Level 2: Back-translation via Kilo CLI (semantic drift detection)
-   └── Level 3: Native-speaker critique via Kilo CLI (tone/grammar + auto-fix)
+   ├── Level 2: Back-translation (semantic drift detection)
+   └── Level 3: Native-speaker critique (tone/grammar + auto-fix)
 5. Ship.
 ```
 
 ### Validation
 
-Per-language model selection optimized by the validator:
-
-| Language | Kilo Model | Rationale |
-|----------|-----------|-----------|
-| Turkish | `kilo/x-ai/grok-4.3` | Best at Turkish register (sen vs siz) |
-| Spanish | `kilo/~google/gemini-pro-latest` | Catches technical term misses |
-| Portuguese (BR) | `kilo/~google/gemini-pro-latest` | Knows BR tech keeps English terms |
-| Japanese | `kilo/anthropic/claude-sonnet-4.6` | Best at cultural nuance |
-| Default | `kilo/x-ai/grok-4.3` | Fallback for any new language |
-
-Override per-run: `KILO_I18N_MODEL="kilo/x-ai/grok-4.3" python scripts/validate_i18n.py --validate tr`
+Levels 2/3 route through the OpenRouter subagents pool rather than the retired Kilo CLI. Per-language model choice is driven by the translation-ranked leaderboard (`docs/reference/kilo/TRANSLATION_SELECTION.md`, seeded from `scripts/kilo-benchmarks/rank_translation.py` against `agents WHERE service_type='translation'`) rather than a hardcoded per-language table.
 
 ### Rule Pack Integration
 
 - **60-saas-ui.md**: "Use scaffolded `lib/i18n/` — do not install next-intl or react-i18next"
-- **70-chrome-ext.md**: "Sync i18n via `scripts/chrome_messages.py`"
+- **70-chrome-ext.md**: use `@wxt-dev/i18n`'s `t()` — not the fabrik i18n-kit loader
 - **80-mobile.md**: "Source-of-truth at `static/i18n/`, sync via `scripts/sync_rn_locales.py`"
 
 These rules ensure coding agents use the scaffolded i18n system rather than installing their own.
 
 ### Technical Details
 
-- **Source:** `templates/i18n-kit/` in the fabrik repo (19 files, ~1600 LoC)
+- **Source:** `templates/i18n-kit/` in the fabrik repo (20 files, ~1750 LoC)
 - **Provisioner:** `_provision_i18n()` in `scaffold.py`, called from `create_project()` after type-specific scaffolder runs
-- **Types map:** `I18N_ENABLED_TYPES` in `scaffold.py` — maps scaffold type → strategy (`react`, `vanilla`, `chrome`, `rn`, `docusaurus`)
+- **Types map:** `I18N_ENABLED_TYPES` in `scaffold.py` — maps scaffold type → strategy (`react`, `vanilla` ×2, `rn`, `docusaurus`); chrome-extension is deliberately absent (owned by `@wxt-dev/i18n`)
 - **Battle-tested:** Originally built for the Tojlo project (738 keys, 6 languages, 24 pages), generalized for all fabrik GUI types
 
 ---

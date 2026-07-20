@@ -50,10 +50,11 @@ Explore the project folder and derive the scaffold type from concrete signals �
 | 7     | `package.json` with `react-native` in **production** dependencies                                                 | `mobile-app`                                                                                                                                                                                       |
 | 8     | `package.json` with `electron` in **production** dependencies                                                     | `desktop-app`                                                                                                                                                                                      |
 | 9     | `package.json` (no `next`, no `react-native`, no `electron`) + `Dockerfile` + `src/`                              | `node-api` *or* `file-api` — filesystem alone cannot distinguish. **Ask the user**, or rely on `project.yaml.type`.                                                                                |
-| 10    | `pyproject.toml` (Python project)                                                                                 | `python-api` *or* `file-worker` — filesystem alone is insufficient. **Ask the user**, or rely on `project.yaml.type`. A `worker/` directory is a *weak hint* for `file-worker`, not authoritative. |
-| 11    | `compose.yaml` (with no `project.yaml`)                                                                           | Inspect declared services to narrow the stack. **Not authoritative on its own** — cross-check with another row.                                                                                    |
-| 12    | `Dockerfile` only (no other signal above)                                                                         | Inspect base image to narrow language family. **Then ask the user to declare the scaffold** — base image alone is insufficient.                                                                    |
-| 13    | None of the above                                                                                                 | Ask the user to declare the scaffold.                                                                                                                                                              |
+| 10    | `pyproject.toml` (Python project) + `src/<package>/gpu_handler.py` present                                        | `python-api-gpu` — the GPU-aware `python-api` variant (adds an on-demand GPU rental helper). Confirm against `project.yaml.type`.                                                                  |
+| 11    | `pyproject.toml` (Python project), no `gpu_handler.py`                                                            | `python-api` *or* `file-worker` — filesystem alone is insufficient. **Ask the user**, or rely on `project.yaml.type`. A `worker/` directory is a *weak hint* for `file-worker`, not authoritative. |
+| 12    | `compose.yaml` (with no `project.yaml`)                                                                           | Inspect declared services to narrow the stack. **Not authoritative on its own** — cross-check with another row.                                                                                    |
+| 13    | `Dockerfile` only (no other signal above)                                                                         | Inspect base image to narrow language family. **Then ask the user to declare the scaffold** — base image alone is insufficient.                                                                    |
+| 14    | None of the above                                                                                                 | Ask the user to declare the scaffold.                                                                                                                                                              |
 
 
 **Note on filesystem-indistinguishable scaffolds:** these groups share a base template (per `AGENTS.md` § Scaffold Types) and look identical on disk. Disambiguation requires `project.yaml.type` or an explicit user answer:
@@ -88,7 +89,7 @@ When Step 2 row 13 fires (no scaffold detected, new project) or the workspace's 
 - `## 8. Open questions` — unresolved decisions to surface in the plan
 - `## 9. Notes (VPS1 inventory reminders)` — postgres-main, redis-main, X-Internal-Token, /health-bypass, /metrics, GlitchTip — treat as ground truth
 
-**Handoff to scaffold:** once the preplan is selected and reviewed, the operator invokes `fabrik scaffold <name> --from-preplan docs/preplans/<file>`. That command (T3-01 G-A4) copies the preplan into `<project>/docs/preplan.md` and injects a `Preplan:` reference line into all 4 AI guardrail files (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent (Claude Code, Kilo, Windsurf, Traycer itself) reads the same intent without re-deriving it.
+**Handoff to scaffold:** once the preplan is selected and reviewed, the operator invokes `fabrik scaffold <name> --from-preplan docs/preplans/<file>`. That command (T3-01 G-A4) copies the preplan into `<project>/docs/preplan.md` and injects a `Preplan:` reference line into all 4 AI guardrail files (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent (Claude Code + the OpenRouter pool; Kilo CLI and Windsurf Cascade retired 2026-07-19; Traycer itself) reads the same intent without re-deriving it.
 
 State which preplan was selected and what the parsed values were (project type, shape block, domain). If no preplan exists, state `none — proceeding to Step 3 on the interview-only path`.
 
@@ -100,7 +101,7 @@ Discovery order (try each branch in turn; stop at the first that produces a file
 
 1. **Override:** If the user's trigger argument explicitly names a research file path (freeform — e.g. *"use docs/development/plans/2026-04-13-foo.md as the research"*), Traycer reads that file. There is no formal flag parser; Traycer interprets the user's intent from the trigger text.
 2. **Primary:** If `docs/development/plans/00-research.md` exists, read it fully.
-3. **Fallback:** Scan top-level `docs/development/plans/*.md` (ignore subdirectories `archived/`, `issues/`, `previously-planned-fabrik-phases/`) for any file whose body discusses the user's request. Prefer the most recently modified file matching `YYYY-MM-DD-*.md`. If multiple plausible candidates exist, list them and ask the user to pick.
+3. **Fallback:** Scan top-level `docs/development/plans/*.md` (ignore the `archived/` subdirectory — the only direct `plans/`-level sibling) for any file whose body discusses the user's request. Prefer the most recently modified file matching `YYYY-MM-DD-*.md`. If multiple plausible candidates exist, list them and ask the user to pick.
 
 If none of the three branches produces a file, proceed with the interview-only approach.
 
@@ -171,6 +172,7 @@ Based on scaffold type and Step 5 findings, classify the project and suggest a w
 | ---------------------------- | ---------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------- |
 | `saas-skeleton`              | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | —                         | true                                                       |
 | `python-api`                 | epic-brief → tech-plan → ticket-breakdown → execute              | `core-flows`              | external→true / internal→false (set in Step 5 overlay #15) |
+| `python-api-gpu`             | epic-brief → tech-plan → ticket-breakdown → execute              | `core-flows`              | external→true / internal→false (set in Step 5 overlay #15) |
 | `node-api`                   | epic-brief → tech-plan → ticket-breakdown → execute              | `core-flows`              | external→true / internal→false (set in Step 5 overlay #15) |
 | `file-api`                   | epic-brief → tech-plan → ticket-breakdown → execute              | `core-flows`              | false                                                      |
 | `file-worker`                | epic-brief → tech-plan → ticket-breakdown → execute              | `core-flows`              | false                                                      |
@@ -532,9 +534,9 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    - **Gate Tier**: 1 (lean, well-defined) or 2 (milestone closure, full gate)
    - **Execution Metadata**:
      - **Plan Required:** Yes / No
-     - **Kilo CLI — First Choice:** *(exact agent script name, e.g. `T4-Pro-00-opus46-code-auto-i1500-o7500.sh`)*
-     - **Kilo CLI — Budget:** *(exact agent script name or `—` if no budget fallback)*
-     - **Cascade — Budget:** *(exact model name or `—` if no budget fallback)*
+     - **Dispatch Agent — First Choice:** *(Claude Code, or an exact OpenRouter pool model name via `pick_models(task_type)`)*
+     - **Dispatch Agent — Budget:** *(exact pool model name or `—` if no budget fallback)*
+     - *(Kilo CLI / Windsurf Cascade retired 2026-07-19 — no longer valid Execution Metadata fields; see the Agent Selection rules below.)*
 
    > **Drafting rules:**
    > - Complete every field fully — no stubs, no placeholders, no empty acceptance criteria
@@ -556,9 +558,10 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    >   by a ticket. Nothing silently dropped.
 
    > **Cross-cutting enforcement:**
-   > Cross-cutting always-on rules live in each coding agent's bootstrap file —
-   > `CLAUDE.md` (Claude Code), `.windsurfrules` (Cascade), `AGENTS-compact.md` (Kilo CLI).
-   > Topic-specific deep-dives live in `.windsurf/rules/**/*.md` packs (loaded on demand by all three).
+   > Cross-cutting always-on rules live in `CLAUDE.md` — the live bootstrap file for Claude Code, the
+   > only coding-agent dispatch path (`.windsurfrules` for Cascade and `AGENTS-compact.md` for Kilo CLI
+   > still exist on disk but both dispatch routes were RETIRED 2026-07-19).
+   > Topic-specific deep-dives live in `.windsurf/rules/**/*.md` packs (loaded on demand).
    > The Verification checklist above hardcodes the checks so they appear in every ticket regardless
    > of whether the agent reads its bootstrap.
    > Additionally, for each ticket:
@@ -919,8 +922,8 @@ For every check below, run the literal command and quote the output as evidence.
 | 8     | `Lessons Learnt:` field present on every ticket                                                                      | For each ticket's Completion Self-Check section in the spec set, confirm the literal text `Lessons Learnt:` appears with either `none` or a structured entry. Silence = BLOCKING. | **Lessons Learnt Missing** (BLOCKING)                                                                                            |
 | 9     | Lessons Learnt entries actually appended to `docs/LESSONS_LEARNT.md`                                                 | For each ticket whose `Lessons Learnt:` field is a structured entry (not `none`), confirm a corresponding `# Lesson <N>:` heading exists in `docs/LESSONS_LEARNT.md`              | Bug                                                                                                                              |
 | 10    | `# Lesson <N>:` numbering is sequential and unique                                                                   | `grep -E '^# Lesson [0-9]+:' docs/LESSONS_LEARNT.md` then verify N values are sequential and unique. Duplicates or gaps usually indicate a parallel-execution artifact.           | Bug                                                                                                                              |
-| 11    | Sensitive files have pre-modification backups                                                                        | If diff touches `.env*`, `*.key`, `*.pem`, `secrets/`, `.ssh/`: `ls <file>.backup.*` for each. Per `.windsurfrules` § Sensitive Data Protection.                                  | Bug                                                                                                                              |
-| 12    | First-output rule honored per agent type                                                                             | For Cascade-implemented tickets: look in execution logs for `RULES ACTIVE: CASCADE`                                                                                                | [3 rules]`. For Kilo-implemented tickets: look for COMPLETION CONTRACT sequence (IMPLEMENT → QUALITY GATE → CHANGELOG → EXIT 0). |
+| 11    | Sensitive files have pre-modification backups                                                                        | If diff touches `.env*`, `*.key`, `*.pem`, `secrets/`, `.ssh/`: `ls <file>.backup.*` for each. Per `.windsurf/rules/core/35-security-auth.md`.                                    | Bug                                                                                                                              |
+| 12    | First-output rule honored                                                                                            | Look in execution logs for `RULES ACTIVE: CLAUDE-CODE                                                                                                                              | [3 rules]` (Kilo CLI's COMPLETION CONTRACT sequence is retired 2026-07-19).                                                       |
 | 13    | No `git commit` / `git add` issued by agent                                                                          | Confirm commit history shows only `final_gate.py`-style auto-staged commits, not manual `git commit -m` interleaved                                                               | Observation if minor; Bug if it caused a parallel-execution race (the production-observed git poisoning)                         |
 | 14    | Logger imports correct                                                                                               | See command block below                                                                                                                                                           | Cross-Cutting Violation                                                                                                          |
 | 15    | All `compose.yaml` services have HEALTHCHECK + linux/amd64 + slim-bookworm                                           | `scripts/enforcement/check_docker.py` (Tier 3) — re-run if not in current gate tier                                                                                               | Cross-Cutting Violation                                                                                                          |
@@ -1489,12 +1492,12 @@ For every ticket, verify:
 - **Documentation Sync Matrix injections present** — for each ticket, the matrix rows triggered by the ticket's Scope are injected verbatim as Acceptance Criteria. Missing injections → finding.
 - `Final Gate Instruction` **field** present and is one of the three valid commands (`--lean --json`, `--json`, `--systemic --json`). Missing or malformed → finding.
 - `Lessons Learnt:` **line** present in every ticket's Completion Self-Check (mandatory per v_final-v7). Missing → finding.
-- **Agent-aware first-output line** in every Governance Checklist (`RULES ACTIVE: CASCADE | [3 rules]` for Cascade OR COMPLETION CONTRACT sequence for Kilo). Missing → finding.
+- **Agent-aware first-output line** in every Governance Checklist (`RULES ACTIVE: CLAUDE-CODE | [3 rules]` — the Cascade/Kilo variants of this line are retired 2026-07-19). Missing → finding.
 - **No-**`git`**-commands line** in every DO NOT (matches `AGENTS-compact.md` HARD STOPS). Missing → finding.
-- **Sensitive-file backup line** in Governance Checklist when ticket touches `.env*`, `*.key`, `*.pem`, `secrets/`, `.ssh/` (per `.windsurfrules` § Sensitive Data Protection). Missing → finding.
+- **Sensitive-file backup line** in Governance Checklist when ticket touches `.env*`, `*.key`, `*.pem`, `secrets/`, `.ssh/` (per `.windsurf/rules/core/35-security-auth.md`). Missing → finding.
 - `[PRIMARY PATH]` **integration test Acceptance Criterion** present in every ticket whose scope touches a `[PRIMARY PATH]` flow. Missing → finding.
 - **Auto-generated Epic Closure ticket** present as the final ticket with `Gate Tier: 3`, dependencies on all feature tickets, and the same field structure as feature tickets (including `Lessons Learnt:`). Missing or malformed → finding.
-- **Kebab-case naming exception list** honored — `LESSONS_LEARNT.md` is uppercase per v_final-v7 and is a kebab-case exception alongside `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `Makefile`, `Dockerfile`. Tickets that touch `src/fabrik/scaffold.py` `SHARED_TEMPLATE_MAP` should have the alignment Acceptance Criterion (current `scaffold.py` line 182 has the bug `lessons-learnt.md`).
+- **Kebab-case naming exception list** honored — `LESSONS_LEARNT.md` is uppercase per v_final-v7 and is a kebab-case exception alongside `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `Makefile`, `Dockerfile`. Tickets that touch `src/fabrik/scaffold.py` `SHARED_TEMPLATE_MAP` should have the alignment Acceptance Criterion (the lowercase-`lessons-learnt.md` bug this once described is already fixed — `scaffold.py:210` maps to the correct uppercase `docs/LESSONS_LEARNT.md`; re-check on future edits to `SHARED_TEMPLATE_MAP`).
 
 ##### Dimension 8 — `docs/LESSONS_LEARNT.md` Coherence
 

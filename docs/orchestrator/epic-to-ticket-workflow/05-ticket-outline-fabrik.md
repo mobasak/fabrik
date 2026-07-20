@@ -1,7 +1,7 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET OUTLINE (our own, tool-capable twin of 05-ticket-outline-command)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the Decisions Lock + Core Flows + Tech Plan + Deploy Plan + INFRA-CHECK from disk and
-     builds the maximum-parallelism dependency graph. Produces the MAP; `06-ticket-breakdown-command` produces
+     builds the maximum-parallelism dependency graph. Produces the MAP; `06-ticket-breakdown-fabrik` produces
      the DETAIL.
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
@@ -9,10 +9,10 @@
        · the **LOCKED** Decisions Lock (`01-decisions-lock-fabrik`, locked by `01R` — never consume a `DRAFT`) · Core Flows (`02-core-flows-fabrik`, if the route ran it) ·
          Tech Plan (`03-tech-plan-fabrik`) · Deploy Plan (`04-deploy-plan-fabrik`) · the `00-trigger-fabrik` INFRA-CHECK
        · `docs/operations/fabrik-lifecycle.md` (deploy/runtime, stages 3–4 ONLY — the foundation→…→closure stage model is this chain's own convention, NOT from this doc)
-       · `AGENTS.md § "What every API scaffold emits automatically"` (scaffold-provided code — do not re-ticket it)
+       · `agents-fabrik.md:431 § "What every API scaffold emits automatically"` (scaffold-provided code — do not re-ticket it)
        · the existing project's `specs/services/<id>.yaml` (feature-for-existing-project only)
      The category-table `Rule Pack` column and cross-command `§` refs are **provenance** — the packs feed
-     `06-ticket-breakdown-command`'s injection; you do not open them here.
+     `06-ticket-breakdown-fabrik`'s injection; you do not open them here.
      -->
 
 <!-- ⚠️ QUALITY GATE: any modification MUST pass EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
@@ -22,14 +22,14 @@
 
 ## Role
 
-Technical project manager who maps the full epic into a **maximum-parallelism dependency graph**. You produce the MAP; `06-ticket-breakdown-command` (run in batches) produces the DETAIL.
+Technical project manager who maps the full epic into a **maximum-parallelism dependency graph**. You produce the MAP; `06-ticket-breakdown-fabrik` (run in batches) produces the DETAIL.
 
 ## Core Philosophy
 
 - **CHEAP and FAST.** Output ≤100 lines for a 20-ticket epic.
 - **MAXIMIZE parallelism — the #1 design goal.** Every ticket that CAN run parallel MUST be marked parallel. Sequential chains waste agent time. Ideal: wide batches (4–5 parallel) + short chains (2–3 sequential). More than 3 sequential hops first→last → justify or redesign.
 - **Respect the 4-stage lifecycle:** foundation (scaffold/schema/config) → implementation (endpoints/logic) → integration (wiring/deploy) → closure (validation/docs).
-- Get STRUCTURE right (names, scopes, dependencies, parallel lanes, batches); do NOT write Steps / Acceptance Criteria / governance — that's `06-ticket-breakdown-command`. Consume upstream; do not redo work. Only proceed on explicit confirmation.
+- Get STRUCTURE right (names, scopes, dependencies, parallel lanes, batches); do NOT write Steps / Acceptance Criteria / governance — that's `06-ticket-breakdown-fabrik`. Consume upstream; do not redo work. Only proceed on explicit confirmation.
 
 **Parallelism budget:** after drafting, count `total tickets` vs `longest sequential chain`. Target **≥3:1** (15 tickets / chain of 5 = 3:1). Below 2:1 → redesign to break unnecessary dependencies.
 
@@ -43,11 +43,11 @@ Read in order: **Decisions Lock** (`01-decisions-lock-fabrik`) — Success Crite
 
 **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`): split into a backend lane (deploys to VPS) + a client lane (builds locally / ships to store) — naturally parallel.
 
-**Multi-epic dispatch mode:** downstream of `mega-epic-breakdown/05-dispatch-epic-tickets-fabrik` (i.e. `00-trigger-fabrik` ran in consume mode `[canonical: 00-trigger-fabrik § Entry Points → Multi-epic]`):
+**Multi-epic dispatch mode:** downstream of `mega-epic-breakdown/04-cross-epic-validation-fabrik` (which absorbed the retired 05-dispatch) (i.e. `00-trigger-fabrik` ran in consume mode `[canonical: 00-trigger-fabrik § Entry Points → Multi-epic]`):
 - **15-field Metadata** inherited verbatim from the dispatched ticket — carry to every ticket, do NOT re-derive.
 - **Universal categories** (1–14, from the ticket Metadata `[canonical: mega/02-epic-decomposition-fabrik sub-step 2h]`) constrain scope: only owned categories yield tickets; sibling-owned categories become `Out of Scope` lines.
-- **Epic flavour** from the Title prefix `[canonical: mega/03-expand-epic-files-fabrik § Step 2]`: **Delta-feature** (`Epic N — <area>`) → 8–12 tickets for a 5–8-criteria epic; **Retrofit** (`Epic N — Retrofit: <area>`) → **3–5 tickets**, do NOT pad; Epic Closure ticket **OPTIONAL** — include it only if the retrofit genuinely needs a project-wide systemic gate `[canonical: 06-ticket-breakdown-command § Step 10]`.
-- **Out of Scope (vision level)** inherited from `mega/00-trigger-fabrik` Vision Summary § Out of Scope — a ticket touching a vision-level exclusion is not allowed; raise back via `09-revise-requirements-command`.
+- **Epic flavour** from the Title prefix `[canonical: mega/03-expand-epic-files-fabrik § Step 2]`: **Delta-feature** (`Epic N — <area>`) → 8–12 tickets for a 5–8-criteria epic; **Retrofit** (`Epic N — Retrofit: <area>`) → **3–5 tickets**, do NOT pad; Epic Closure ticket **OPTIONAL** — include it only if the retrofit genuinely needs a project-wide systemic gate `[canonical: 06-ticket-breakdown-fabrik § Step 10]`.
+- **Out of Scope (vision level)** inherited from `mega/00-trigger-fabrik` Vision Summary § Out of Scope — a ticket touching a vision-level exclusion is not allowed; raise back via `09-revise-requirements-fabrik`.
 
 ### Step 2: Identify Work Units + Parallel Lanes
 
@@ -61,7 +61,7 @@ Group by component/layer/flow, then **optimize for parallelism.** **Lanes** = wo
 
 ### Step 2b: Ticket Category Coverage Check
 
-Every applicable category MUST have ≥1 ticket (scaffold type + shape block decide which are mandatory). The `Rule Pack` column is provenance for `06-ticket-breakdown-command`'s injection.
+Every applicable category MUST have ≥1 ticket (scaffold type + shape block decide which are mandatory). The `Rule Pack` column is provenance for `06-ticket-breakdown-fabrik`'s injection.
 
 | Category | When Mandatory | Rule Pack |
 |---|---|---|
@@ -97,13 +97,13 @@ Every applicable category MUST have ≥1 ticket (scaffold type + shape block dec
 | Abuse detection | SaaS free-tier signup surface (IP rate-limit, disposable-email block, progressive unlock) | `saas/87-abuse-detection` |
 | Epic Closure | Delta-feature: ALL (last ticket). Retrofit: OPTIONAL (§ Step 1) | (cross-cutting) |
 
-**Scaffold already provides (do NOT re-ticket)** `[canonical: AGENTS.md § What every API scaffold emits automatically]`: `internal_auth.py` (M2M), `metrics.py` + `/metrics`, `glitchtip_init` (Sentry SDK), the structured logger module, `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`. Tickets CONFIGURE/EXTEND these. **Combining:** related categories with the SAME dependency chain can share one ticket (Observability + Health); never merge categories with DIFFERENT chains (kills parallelism). "Mandatory" = the WORK must be done, not that it's a separate ticket.
+**Scaffold already provides (do NOT re-ticket)** `[canonical: agents-fabrik.md § What every API scaffold emits automatically]`: `internal_auth.py` (M2M), `metrics.py` + `/metrics`, `glitchtip_init` (Sentry SDK), the structured logger module, `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`. Tickets CONFIGURE/EXTEND these. **Combining:** related categories with the SAME dependency chain can share one ticket (Observability + Health); never merge categories with DIFFERENT chains (kills parallelism). "Mandatory" = the WORK must be done, not that it's a separate ticket.
 
 ### Step 3: Draft the Outline
 
 Per ticket, ONLY: `T<N> — <imperative Title>` · `Scope` (1–2 sentences, in/out) · `Depends` (`T1, T3` or `none`) · `Parallel` (`⚡ with T2, T4` or `⛓️ after T3` — **mandatory**) · `Stage` (foundation | implementation | integration | closure) · `Category` (from Step 2b — sets the ticket's rule pack) · `Gate` (**1 (lean)** = coding-time only / **2 (full)**) · `Touches` (`[PRIMARY PATH]` flow or none) · `Shape` (fields affected or N/A) · `Complexity` (simple | complex | critical — hints agent tier) · `Docs` (which scaffold docs this ticket fills, or none) · `Lessons` (trigger condition or none).
 
-⚠️ **`Gate` is the CODING-TIME tier only.** A ticket's **Final Gate Instruction** is Tier-2 `--json` (Tier-3 `--systemic --json` for the Epic Closure ticket) — `--lean` is **never** a completion gate `[canonical: CLAUDE.md § Completion Contract]`. **CHANGELOG:** every code ticket adds one `## [Unreleased]` entry — universal, enforced by `06-ticket-breakdown-command`, not per-ticket here. **Lessons:** flag `trigger condition` for auth changes / secret rotation / deploy-compose workaround / new registrar / external integration / high-risk; `06` enforces the actual `docs/LESSONS_LEARNT.md` entry.
+⚠️ **`Gate` is the CODING-TIME tier only.** A ticket's **Final Gate Instruction** is Tier-2 `--json` (Tier-3 `--systemic --json` for the Epic Closure ticket) — `--lean` is **never** a completion gate `[canonical: CLAUDE.md § Completion Contract]`. **CHANGELOG:** every code ticket adds one `## [Unreleased]` entry — universal, enforced by `06-ticket-breakdown-fabrik`, not per-ticket here. **Lessons:** flag `trigger condition` for auth changes / secret rotation / deploy-compose workaround / new registrar / external integration / high-risk; `06` enforces the actual `docs/LESSONS_LEARNT.md` entry.
 
 Rules: titles are imperatives · Scope ≤2 sentences · `Parallel` mandatory · Stage maps to the lifecycle · Complexity → agent tier (simple→free/local, complex→mid, critical→premium; user picks in `06`) · every Success Criterion → ≥1 ticket · every Tech Plan component → ≥1 ticket (or excluded with reason) · LAST ticket = "Epic Closure — Tier 3 systemic gate" for **delta-feature** (OPTIONAL for Retrofit).
 

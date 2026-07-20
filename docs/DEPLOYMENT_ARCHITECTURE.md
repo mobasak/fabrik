@@ -71,12 +71,12 @@ Click-based CLI. The commands below are the only public entry points for deploym
 
 | Command | Line | Function | Delegates to |
 |---|---|---|---|
-| `fabrik scaffold <name> --type <t>` | 1561 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
-| `fabrik apply <spec.yaml>` | 382 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`, dead code) |
-| `fabrik redeploy <app>` | 1182 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
-| `fabrik destroy <spec>` | 896 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
-| `fabrik vps-sync [--dry-run]` | 1137 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
-| `fabrik validate-deploy <project>` | 1715 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
+| `fabrik scaffold <name> --type <t>` | 1779 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
+| `fabrik apply <spec.yaml>` | 415 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`, dead code) |
+| `fabrik redeploy <app>` | 1279 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
+| `fabrik destroy <spec>` | 950 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
+| `fabrik vps-sync [--dry-run]` | 1224 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
+| `fabrik validate-deploy <project>` | 1920 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
 | `fabrik domain provision <domain>` | 2153 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
 | `fabrik domain ready <domain>` | 2240 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
 | `fabrik domain buy <domain>` | 2366 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
@@ -134,7 +134,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 
 | File | Status | Notes |
 |---|---|---|
-| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `provisioner.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
+| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
 
 **Shape-driven registrar drivers (all implemented):**
 
@@ -150,19 +150,9 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `drivers/meilisearch.py` | `create_index()`, `delete_index()` | Index creation. Container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside the container — no secret on SSH wire. | `shape.has_search_feature` |
 | `drivers/prometheus.py` | `add_scrape_target()`, `remove_scrape_target()` | Appends scrape target for `/metrics` endpoint and reloads Prometheus. | `shape.exposes_metrics` |
 
-### 2.5 Site-provisioner saga — `src/fabrik/provisioner.py`
+### 2.5 Site provisioning — standalone microservice
 
-Implements **Steps 0-1-2** of a brand-new site deployment (domain → DNS → initial deploy). Uses a saga pattern with persistent state (`/opt/fabrik/data/provision-jobs/`).
-
-| Class / fn | Role |
-|---|---|
-| `ProvisionState` | Saga state enum. |
-| `ContactInfo` | WHOIS contact for domain registration. |
-| `SiteProvisionRequest` | Input contract from web GUI / CLI. |
-| `ProvisionJob` | Persistent state on disk (resumable across CLI invocations). |
-| `SiteProvisioner.start(request)` | Saga runner. Each step is idempotent; `resume()` replays from the last successful state on failure. |
-| `provision_site(request)` | Entry point; returns a `ProvisionJob`. |
-| `get_provision_status(job_id)` | Polling endpoint for web GUI. |
+Site provisioning (domain → DNS → initial deploy) is not implemented inside this repo. It is the **site-provisioner** microservice at `provision.vps1.ocoron.com` (source: `/opt/site-provisioner`, container `site-provisioner` on the `fabrik` network) — see the full integration contract at `docs/reference/service-contracts/site-provisioner.md`. Fabrik's only caller is `drivers/dns.py::DNSClient` (§2.4).
 
 ### 2.6 Supporting modules
 
@@ -195,7 +185,6 @@ Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` o
 | `specs/infrastructure/gotenberg.yaml` | Gotenberg (HTML/Office → PDF) | ✅ deployed |
 | `specs/infrastructure/meilisearch.yaml` | MeiliSearch | ✅ deployed |
 | `specs/infrastructure/n8n.yaml` | n8n (workflow automation) | ✅ deployed |
-| `specs/infrastructure/minio.yaml` | MinIO (self-hosted S3) | ⏸ not deployed (Backblaze B2 via Backrest used instead) |
 
 ### 3.2 Service specs — `specs/services/`
 
@@ -228,6 +217,7 @@ Scaffold uses these to generate `/opt/<project>/` trees. Every template has a `d
 | Template | Kind | Key files |
 |---|---|---|
 | `templates/python-api/` | FastAPI service | `compose.yaml.j2`, `defaults.yaml` |
+| `templates/python-api-gpu/` | FastAPI + on-demand GPU rental (`app/gpu_handler.py` wraps `fabrik.orchestrator.gpu_rent`) | `defaults.yaml` (shape mirrors `python-api` — GPU auto-provisioning is a separate tracked slice, not a `Shape` field yet) |
 | `templates/node-api/` | Node.js API | `compose.yaml.j2`, `Dockerfile.j2`, `AGENTS.md.j2`, `defaults.yaml` |
 | `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind + Shadcn | `compose.yaml.j2`, `Dockerfile`, plus the full Next.js skeleton (largest template) |
 | `templates/static-site/` | Static HTML/JS (nginx) | `compose.yaml.j2`, `defaults.yaml` |
@@ -260,6 +250,7 @@ Source of truth: live `templates/*/defaults.yaml`. Derived by running `resolve_a
 | Template | kind | postgres | redis | gatus | backrest | glitchtip | grafana | authelia | meili | prometheus |
 |---|---|---|---|---|---|---|---|---|---|---|
 | **python-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ✅* |
+| **python-api-gpu** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ✅* |
 | **node-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ✅* |
 | **saas-skeleton** | service | ✅ | ⚙ | ✅* | ✅ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
 | **static-site** | static | ⚙ | ⚙ | ✅* | ⚙ | ✗ | ✅ | ⚙ | ⚙ | ⚙ |
@@ -391,7 +382,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 | Path | Purpose | Edit mechanism |
 |---|---|---|
 | `/opt/monitoring/compose.yaml` | Main monitoring stack (Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor). | `cd /opt/monitoring && sudo docker compose up -d`. |
-| `/opt/prometheus/compose.yaml` | Prometheus standalone. Intentionally separated — scrape targets need the `coolify` network attachment which compose stacks don't always preserve. | `cd /opt/prometheus && sudo docker compose up -d`. |
+| `/opt/prometheus/compose.yaml` | Prometheus standalone. Intentionally separated — scrape targets need the `fabrik` network attachment which compose stacks don't always preserve. | `cd /opt/prometheus && sudo docker compose up -d`. |
 | `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (curled from alertmanager container), fallback to `cd /opt/prometheus && sudo docker compose restart`. |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules. **Secret-bearing** (Telegram bot token). | Edit → `sudo docker restart alertmanager`. |
@@ -414,7 +405,6 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 | `/opt/fabrik/.env` | Canonical env file. All secrets (Cloudflare, Grafana SA, GlitchTip, Backrest, etc.). Backed up to `.env.backup.{ts}` before any edit. |
 | `/opt/fabrik/PORTS.md` | Port registry. Auto-updated by `sync_projects.py`. |
 | `/opt/fabrik/data/projects.yaml` | Project registry (paths, types, spec hashes). |
-| `/opt/fabrik/data/provision-jobs/` | Saga state for `SiteProvisioner`. |
 | `/opt/fabrik/.fabrik/state/` | Deploy state files (JSON) — used by `destroy_from_state()` for state-driven teardown. |
 | `/opt/fabrik/.tmp/` | Throwaway artifacts (probe outputs, intermediate backups). Git-ignored. |
 
@@ -539,7 +529,7 @@ fabrik validate-deploy /opt/my-api
    - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d --wait`
    - **Docker:** generate minimal compose from `source.image` → validate → SCP → `docker compose up -d --wait`
    - **Local:** verify compose exists at `source.path` → write .env → `docker compose up -d --wait`
-5. `InfrastructureProvisioner.provision(ctx)` — shape-driven dispatch. Registrar order (`_REGISTRAR_ORDER` in `orchestrator/infrastructure.py:84`): `postgres` → `redis` → `gatus` → `backrest` → `glitchtip` (+DSN injection & verification) → `grafana` (annotation) → `authelia` (+`^/api/` bypass when `has_bearer_api`) → `meilisearch` → `prometheus`. All failures are non-fatal **except** GlitchTip DSN-injection mismatch, which triggers rollback.
+5. `InfrastructureProvisioner.provision(ctx)` — shape-driven dispatch. Registrar order (`_REGISTRAR_ORDER` in `orchestrator/infrastructure.py:136`): `postgres` → `redis` → `gatus` → `backrest` → `glitchtip` (+DSN injection & verification) → `grafana` (annotation) → `authelia` (+`^/api/` bypass when `has_bearer_api`) → `meilisearch` → `prometheus`. All failures are non-fatal **except** GlitchTip DSN-injection mismatch, which triggers rollback.
 6. `DeploymentVerifier.verify()` — HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present (when GlitchTip applicable) via `docker inspect`.
 7. `_post_deploy_sync()` — runs `scripts/sync_projects.py`, `scripts/update_vps_docs.py`, `scripts/generate_vps_inventory.py --update`.
 

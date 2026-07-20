@@ -1,5 +1,5 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — CROSS-ARTIFACT VALIDATION (our own, tool-capable twin of
-     10-cross-artifact-validation-command). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the
+     10-cross-artifact-validation-fabrik). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the
      driver) — never pasted into a planner GUI.
      THIS IS THE CROSS-CUTTING INTEGRATION REVIEW + 09-REVISE'S PAIRED REVIEW (north star § Command-chain
      build plan — CC5): the SPEC-vs-SPEC pass that validates the seams BETWEEN artifacts (Decisions Lock ↔ Flows ↔

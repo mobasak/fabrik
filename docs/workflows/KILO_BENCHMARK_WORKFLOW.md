@@ -1,7 +1,7 @@
 # Kilo Agent Benchmark Workflow
 
 **Status:** ENABLED — runs by default in the WSL daily startup pipeline.
-**Last Updated:** 2026-06-27 (Phase 6 of OpenRouter routing plan added the "OpenRouter category routing (sibling, daily)" section)
+**Last Updated:** 2026-07-20 (reconciled the "OpenRouter category routing" table + Files Involved against the live `wsl_startup_hook.sh` — 6 gateway/pricing scripts were undocumented)
 
 This workflow keeps the Traycer CLI agent fleet in sync with current model
 benchmark data and assigns each model to a role using a **deterministic Pareto
@@ -52,14 +52,26 @@ the right model with the right role-specific prompt.
 ### OpenRouter category routing (sibling, daily)
 
 After the chat + embedding pipelines complete (and before the freshness check),
-three scripts inject per-category model picks into the 7 LLM-bearing
-`.windsurf/rules/ai/NN-*.md` packs:
+**9 scripts** run in its own subshell (`scripts/wsl_startup_hook.sh:126-157`) and
+inject per-category model picks into the 7 LLM-bearing
+`.windsurf/rules/ai/NN-*.md` packs, plus refresh gateway/pricing data consumed
+by the models browser:
 
-| Script | What it does |
-|---|---|
-| `classify_ai_category.py` | Pure-SQL classifier tags every active model in `agents` against the 7 LLM-bearing packs and writes rows to `agent_categories` (PK `(agent_id, category)`). Multi-category by design — a model that's strong for code AND long-context gets two rows. |
-| `category_route_mapper.py` | For each category in `ai_category_configs.yaml`, calls `category_selector.py` to pick the top-N by configured `sort_key` + floors. Writes pins to `agent_roles` with `role='openrouter:{category}'` + today's snapshot to `agent_roles_history`. Emits `openrouter_routes.json` (full detail) + `kilo_openrouter_routes_final.json` (Traycer-shaped compact form). |
-| `category_export_markdown.py` | Self-heal injection of `<!-- OPENROUTER_ROUTES:START/END -->` marker blocks into each pack + atomic refresh of the `Last content verification: YYYY-MM-DD` stamp. Mirror of `embedding_export_markdown.py:209-247`. |
+| Order | Script | What it does |
+|---|---|---|
+| 1 | `verify_openrouter_catalog.py --apply --ingest-new` | Verifies pricing/capabilities against the LIVE OpenRouter API, auto-fixes discrepancies, marks delisted rows deprecated, ingests new ones. Runs FIRST so the classifier below sees the corrected catalog. |
+| 2 | `classify_ai_category.py` | Pure-SQL classifier tags every active model in `agents` against the 7 LLM-bearing packs and writes rows to `agent_categories` (PK `(agent_id, category)`). Multi-category by design — a model that's strong for code AND long-context gets two rows. |
+| 3 | `category_route_mapper.py` | For each category in `ai_category_configs.yaml`, calls `category_selector.py` to pick the top-N by configured `sort_key` + floors. Writes pins to `agent_roles` with `role='openrouter:{category}'` + today's snapshot to `agent_roles_history`. Emits `openrouter_routes.json` (full detail) + `kilo_openrouter_routes_final.json` (Traycer-shaped compact form). |
+| 4 | `category_export_markdown.py` | Self-heal injection of `<!-- OPENROUTER_ROUTES:START/END -->` marker blocks into each pack + atomic refresh of the `Last content verification: YYYY-MM-DD` stamp. Mirror of `embedding_export_markdown.py:209-247`. |
+| 5 | `update_gateway_counts.py` | Injects live gateway counts (how many providers serve each model) into the exported data. |
+| 6 | `fetch_replicate_prices.py` | Fetches Replicate pricing for models routed through that gateway. |
+| 7 | `fetch_fal_prices.py` | Fetches fal.ai pricing — **conditional on `$FAL_KEY`** being set in the environment; skipped otherwise. |
+| 8 | `derive_cheapest_gateway.py` | Derives the cheapest gateway per model across the fetched price sources. |
+| 9 | `export_models_browser.py` | Exports the consolidated models-browser data file used by the OpenRouter models browser UI. |
+
+Steps 1-4 are the pack-routing core (documented in the plan below); steps 5-9
+are gateway/pricing enrichment added afterward and were previously undocumented
+here — reconciled 2026-07-20 against the live `wsl_startup_hook.sh`.
 
 The 7 categories (per `ai_category_configs.yaml`):
 `language`, `code`, `vision`, `multimodal`, `agentic`, `long-context`, `speech-audio`.
@@ -182,7 +194,7 @@ Non-kilo steps in `wsl_startup_hook.sh`:
 | Step | Script | Purpose |
 |---|---|---|
 | Env watcher | `watch_env_changes.sh` | Monitors `/opt/*/.env` changes (persistent background process). |
-| Project sync | `sync_projects.py` | Updates `data/projects.yaml`, `BUSINESS_MODEL.md`, `PORTS.md`. |
+| Project sync | `sync_projects.py` | Updates `data/projects.yaml`, `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11), `PORTS.md`. |
 | Cascade backup | `sync_cascade_backup.sh` | Verifies Cascade backup freshness. |
 | Health summary | `health_summary.py` | Daily system health snapshot. |
 | Extensions sync | `sync_extensions.sh` | Auto-updates Windsurf extensions docs. |
@@ -208,6 +220,15 @@ Non-kilo steps in `wsl_startup_hook.sh`:
 | `/opt/fabrik/scripts/kilo-benchmarks/embedding_export_markdown.py` | Updates embedding doc sections. |
 | `/opt/fabrik/scripts/generate_kilo_agents.py` | Generates Traycer CLI wrappers into `~/.traycer/cli-agents/`. |
 | `/opt/fabrik/scripts/check_ai_pack_freshness.py` | Warn-only: flags `.windsurf/rules/ai/*.md` packs whose `Last content verification:` line is >90d old (`AI_PACK_STALE_DAYS` override). Never modifies packs. |
+| `/opt/fabrik/scripts/kilo-benchmarks/verify_openrouter_catalog.py` | Verifies pricing/capabilities vs the live OpenRouter API before category routing runs. |
+| `/opt/fabrik/scripts/kilo-benchmarks/classify_ai_category.py` | Pure-SQL classifier, models → the 7 categories. |
+| `/opt/fabrik/scripts/kilo-benchmarks/category_route_mapper.py` | Per-category top-N selection → `agent_roles` pins. |
+| `/opt/fabrik/scripts/kilo-benchmarks/category_export_markdown.py` | Injects `OPENROUTER_ROUTES` markers into the 7 packs. |
+| `/opt/fabrik/scripts/kilo-benchmarks/update_gateway_counts.py` | Injects gateway counts into exported routing data. |
+| `/opt/fabrik/scripts/kilo-benchmarks/fetch_replicate_prices.py` | Fetches Replicate pricing. |
+| `/opt/fabrik/scripts/kilo-benchmarks/fetch_fal_prices.py` | Fetches fal.ai pricing (conditional on `$FAL_KEY`). |
+| `/opt/fabrik/scripts/kilo-benchmarks/derive_cheapest_gateway.py` | Derives cheapest gateway per model. |
+| `/opt/fabrik/scripts/kilo-benchmarks/export_models_browser.py` | Exports the consolidated models-browser data file. |
 | `/opt/fabrik/scripts/kilo-benchmarks/cache/update.log` | Daily pipeline log. |
 | `/opt/fabrik/scripts/kilo-benchmarks/cache/manual_workflow.log` | Manual trigger log (created on first manual run). |
 

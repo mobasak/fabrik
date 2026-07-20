@@ -2,6 +2,14 @@
 
 **Last Updated:** 2026-03-20
 
+> **RETIRED 2026-07-19:** Windsurf Cascade and Kilo CLI are retired as coding agents — Claude Code + the
+> OpenRouter subagent pool are the only dispatch paths now (`agents-fabrik.md:7,10`). Most of this file
+> still describes Cascade/Kilo as the live downstream coding-agent dispatch (the "3-layer model", the
+> Traycer→Kilo task flow, the Kilo/Cascade YOLO workflow diagrams, the Kilo Code Review CLI agents). Treat
+> those sections as **historical** — accurate as a record of how Traycer was wired pre-retirement, not as
+> current instructions. Mentions that are actively-misleading as live instructions are corrected inline
+> below; the rest is left as narrative history per scope.
+
 Templates and instructions for using Traycer.ai with Fabrik's spec pipeline. Traycer runs as a **Windsurf extension** (Windows 11 Pro) connecting to the WSL environment.
 
 ## What is Traycer?
@@ -23,7 +31,7 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 
 | Source | Who Reads | Content |
 |--------|-----------|---------|
-| `AGENTS.md` | Traycer orchestrator | Full identity, planning constraints, rule-pack registry |
+| `AGENTS.md` | Traycer orchestrator | 9-line pointer stub → canonical content lives in `agents-fabrik.md` (full identity, planning constraints, rule-pack registry) |
 | `AGENTS-compact.md` | Kilo CLI (via `opencode.json`) | Compact completion contract + workflow rules |
 | `.windsurfrules` + `.windsurf/rules/**/*.md` | Cascade (auto-discovery) | IDE behavior, language patterns, code review workflow |
 
@@ -40,11 +48,11 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 │                                                                           │
 │  .windsurfrules ─► Agent contract     Completion contract  Full identity  │
 │  10-python ──────► Python patterns    + workflow rules     Planning       │
-│  20-typescript ──► TypeScript         (34 lines, lean)     constraints    │
+│  20-typescript ──► TypeScript         (lean)                constraints    │
 │  30-ops ─────────► Docker patterns                         Rule-pack      │
 │  40-documentation► Doc rules                               registry       │
 │  50-code-review ─► Gate commands                           Stack defaults │
-│  87-abuse-detect ► SaaS anti-fraud                         Env context    │
+│  saas/87-abuse-detection ► SaaS anti-fraud                  Env context    │
 │                                                                           │
 │  CASCADE: .windsurfrules + rules/     KILO: AGENTS-compact TRAYCER:       │
 │  (never reads AGENTS.md)              (never reads full    AGENTS.md      │

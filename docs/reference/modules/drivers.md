@@ -37,7 +37,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `redis.py` | 293 | `acquire_db_index()`, `release_db_index()` — per-service Redis DB index on `redis-main` via `assignments.json`; registrar injects `REDIS_URL` | `shape.needs_cache` |
 | `prometheus.py` | 521 | `add_scrape_target()`, `remove_scrape_target()` — scrape config for `/metrics` | `shape.exposes_metrics` + `domain` |
 | `meilisearch.py` | 262 | `create_index()`, `delete_index()` — container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside container (no secret on SSH wire) | `shape.has_search_feature` |
-| `compose_updater.py` | 451 | `update_compose_service()` — surgical YAML patching of Coolify's `docker_compose_raw` (used for env-var plumbing, label additions) | on demand |
+| `compose_updater.py` | 451 | `class ComposeUpdater`, `.update(uuid, new_compose, ...)` — surgical YAML patching of Coolify's `docker_compose_raw` (used for env-var plumbing, label additions) | on demand |
 | `preflight.py` | 312 | Readiness probes invoked before deploy (DNS resolves, Coolify reachable, required secrets present) | always |
 | `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
 | `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |

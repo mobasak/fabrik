@@ -1,6 +1,6 @@
 # Technology Stack Decision Guide
 
-> **Source of truth for Fabrik defaults:** `AGENTS.md` § Tech Stack Defaults.
+> **Source of truth for Fabrik defaults:** `agents-fabrik.md:158` § Tech Stack Defaults. (`AGENTS.md` is a stub — kept sections including this one resolve in `agents-fabrik.md` under the same heading; `AGENTS.md` itself is not read by Claude Code.)
 > This guide is a **general-purpose reference** for choosing stacks across any product type.
 > When building Fabrik projects, the overrides below take precedence over generic recommendations.
 

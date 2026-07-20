@@ -1,6 +1,6 @@
 # Traycer Refactoring Workflow (Detailed Reference)
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-07-20
 
 Complete breakdown of the Traycer Refactoring Workflow commands, including roles, philosophy, artifact structures, and acceptance criteria.
 
@@ -542,5 +542,5 @@ Each ticket should include:
 - [Traycer Integration Guide](README.md)
 - [Traycer Agile Workflow](traycer-agile-workflow.md)
 - [Traycer YOLO Workflow](../archive/traycer-yolo-workflow.md) (archived — Kilo-era fast path)
-- [Mandatory Workflow](../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
+- [Mandatory Workflow](../../agents-fabrik.md#workflow-mandatory--three-tiers-by-scale) — See "Workflow (mandatory) — three tiers by scale" section
 - [AGENTS.md](../../AGENTS.md)

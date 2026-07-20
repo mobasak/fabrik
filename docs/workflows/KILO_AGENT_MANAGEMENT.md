@@ -104,7 +104,7 @@ Grouped by pipeline stage. Every active script has an explicit role; the depreca
 | `scrape_benchmarks.py` | Scrapes Arena ELO from openlm.ai/chatbot-arena and Terminal-Bench accuracy from tbench.ai. | HTML scraping with retry. | `cache/arena_*.{html,json}`, `cache/tbench_*.{html,json}` |
 | `scrape_benchlm.py` | Scrapes coding benchmark data from `benchlm.ai/api/data/leaderboard?category=coding` — SWE-bench Pro, weighted_coding, LiveCodeBench. | JSON API. | `cache/benchlm_cache.json` |
 | `scrape_artificial_analysis.py` | Scrapes throughput (tokens/sec) + TTFT from artificialanalysis.ai/leaderboards/models, matches to DB agents via canonical (provider, name) keys, applies manual overrides, writes `output_tokens_per_sec` + `ttft_ms` columns. | HTML scraping. | `cache/aa_raw.html`, `cache/aa_parsed.json`, agent rows |
-| `scrape_windsurf_models.py` | Scrapes Windsurf Cascade model catalog from docs.windsurf.com (credit multipliers per model). Uses Selenium for JS-rendered content. | Selenium. | `cache/windsurf_*.{html,json}` |
+| ~~`scrape_windsurf_models.py`~~ | **Retired 2026-07-20** — moved to `scripts/.archive/scrape_windsurf_models.py`; no longer invoked by the daily pipeline. Windsurf Cascade itself was retired 2026-07-19 (see `project_kilo_cascade_retired`), so the Cascade credit-multiplier catalog it scraped is dead data. The rest of the benchmark-ingestion pipeline below is unaffected and still live. | — | — |
 | `update_kilo_benchmarks.py` | Orchestrator: calls the scrapers, builds (model → score) maps, applies them to `kilo_agents.db`, also updates `docs/traycer/kilo_selected_agents.md` and Cascade docs. | WSL startup (daily, with 20 h cache window); `--force` overrides cache. | `cache/benchmark_cache.json`, agent rows, docs |
 
 ### Selection pipeline (deterministic, no LLM)
@@ -153,7 +153,7 @@ Runs in strict order: `pre_filter` → `selector` → `post_filter` → DB write
 | `arena_raw.html`, `arena_parsed.json` | Arena ELO snapshot. | Per `scrape_benchmarks.py` run. |
 | `tbench_raw.html`, `tbench_parsed.json` | Terminal-Bench snapshot. | Per `scrape_benchmarks.py` run. |
 | `benchlm_cache.json` | BenchLM coding scores. | Per `scrape_benchlm.py` run. |
-| `windsurf_raw.html`, `windsurf_parsed.json` | Windsurf Cascade model catalog. | Per `scrape_windsurf_models.py` run. |
+| ~~`windsurf_raw.html`, `windsurf_parsed.json`~~ | **Stale cache** — was the Windsurf Cascade model catalog. `scrape_windsurf_models.py` retired 2026-07-20 (moved to `scripts/.archive/`); these cache files no longer refresh. | Not refreshed (script retired). |
 | `benchmark_cache.json` | Last-update timestamp + combined map, used by `update_kilo_benchmarks.py` to skip runs within the 20 h window. | Refreshed on each successful merge. |
 | `update.log` | Append-only log for the daily pipeline. | Manually rotated. |
 | `shortlists.json` (top of `kilo-benchmarks/`) | Last `pre_filter.py` output, one section per role. Handy for debugging selection. | Overwritten on every `role_mapper.py` run. |
@@ -743,7 +743,7 @@ traceability (skipped slots + dominance swaps explained in `reason` fields).
 3. **Sync** — `update_kilo_benchmarks.py` writes benchmark data to `kilo_agents.db`
 4. **Override** — edit `cache/speed_overrides.json` to fill gaps for models AA doesn't track (proxy from a sibling version)
 5. **Assign** — `role_mapper.py` runs the deterministic pipeline and writes 5 agents per role
-6. **Test** — Manual testing, results logged in `AGENT_TESTING.md`
+6. **Test** — Manual testing; no dedicated results log exists (`AGENT_TESTING.md` does not exist anywhere in the repo — confirmed absent 2026-07-20). Notable findings go to `docs/LESSONS_LEARNT.md` instead.
 7. **Block** — `manage_blocked.py` to exclude problematic agents
 8. **Select** — `agent_selector.py` for runtime agent selection
 

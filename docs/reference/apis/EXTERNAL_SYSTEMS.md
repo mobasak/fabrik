@@ -300,6 +300,11 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ### Supabase
 
+> **⚠️ RETIRED as the default DB path (org-wide, 2026-07-03).** Self-host is now the default
+> (`postgres-main` + fastapi-user-auth). Supabase is a deliberate ADR-recorded exception only —
+> see `agents-fabrik.md` § Supabase. The driver + `SUPABASE_*` env vars still exist for that
+> exception path; entry below kept for reference, not as the co-equal default it once was.
+
 **Purpose:** Backend-as-a-Service (PostgreSQL + Auth + Storage)
 
 **Documentation:**
@@ -1076,7 +1081,7 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 The only Fabrik-authored microservice still deployed is:
 
-- **site-provisioner** (`https://provision.vps1.ocoron.com`) — domain/DNS/container provisioning; container live and healthy on the `fabrik` network. See [`docs/../service-contracts/site-provisioner.md`](../service-contracts/site-provisioner.md).
+- **site-provisioner** (`https://provision.vps1.ocoron.com`) — domain/DNS/container provisioning; container live and healthy on the `fabrik` network. See [`docs/reference/service-contracts/site-provisioner.md`](../service-contracts/site-provisioner.md).
 
 The shared infra services (also internal) are catalogued in their own sections above: **Gatus** (status), **Backrest** (backup), **Grafana/Prometheus/Loki/Promtail** (monitoring stack), **Apprise** (notifications), **n8n** (automation), **Browserless**, **Gotenberg**, **Meilisearch**.
 
@@ -1101,7 +1106,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 **Usage in Fabrik:**
 - Functions: SEO optimization, meta tags, schema markup
-- Detection: `/opt/fabrik/src/fabrik/wordpress/seo.py`
+- Detection: `/opt/wpf/src/wpf/modules/seo.py`
 
 **Notes:**
 - WordPress.org plugin
@@ -1119,7 +1124,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 **Usage in Fabrik:**
 - Functions: SEO optimization, meta tags, schema markup
-- Detection: `/opt/fabrik/src/fabrik/wordpress/seo.py`
+- Detection: `/opt/wpf/src/wpf/modules/seo.py`
 
 **Notes:**
 - WordPress.org plugin
@@ -1137,7 +1142,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 **Usage in Fabrik:**
 - Functions: Contact form creation
-- Driver: `/opt/fabrik/src/fabrik/wordpress/forms.py`
+- Driver: `/opt/wpf/src/wpf/modules/forms.py`
 
 **Notes:**
 - WordPress.org plugin
@@ -1155,7 +1160,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 **Usage in Fabrik:**
 - Functions: Contact form creation (fallback)
-- Driver: `/opt/fabrik/src/fabrik/wordpress/forms.py`
+- Driver: `/opt/wpf/src/wpf/modules/forms.py`
 
 **Notes:**
 - WordPress.org plugin
@@ -1176,7 +1181,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 **Usage in Fabrik:**
 - Functions: Website analytics tracking
-- Injector: `/opt/fabrik/src/fabrik/wordpress/analytics.py`
+- Injector: `/opt/wpf/src/wpf/modules/analytics.py`
 
 **Rate Limits:**
 - Free: 10M hits/month
@@ -1198,7 +1203,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 **Usage in Fabrik:**
 - Functions: Tag management, marketing pixels
-- Injector: `/opt/fabrik/src/fabrik/wordpress/analytics.py`
+- Injector: `/opt/wpf/src/wpf/modules/analytics.py`
 
 **Rate Limits:**
 - Free: 1M tags/month
@@ -1929,45 +1934,6 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 ---
 
-## Additional Backup Tools (Referenced)
-
-### Restic
-
-**Purpose:** Modern backup tool
-
-**Documentation:**
-- Website: https://restic.net/
-- Docker: `restic/restic`
-
-**Usage in Fabrik:**
-- Functions: Fast, secure backups
-- Status: Referenced, not deployed
-
-**Notes:**
-- Official image available
-- amd64 compatible
-- Deduplication and encryption
-
----
-
-### Borg
-
-**Purpose:** Deduplicating backup tool
-
-**Documentation:**
-- Website: https://borgbackup.org/
-- Docker: `lscr.io/linuxserver/borg`
-
-**Usage in Fabrik:**
-- Functions: Deduplicated backups
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
 ## Additional Web Servers (Referenced)
 
 ### Nginx
@@ -2007,239 +1973,9 @@ The shared infra services (also internal) are catalogued in their own sections a
 
 ---
 
-## Additional Monitoring Tools (Referenced)
-
-### Netdata
-
-**Purpose:** Real-time system monitoring
-
-**Documentation:**
-- Website: https://www.netdata.cloud/
-- Docker: `netdata/netdata`
-
-**Usage in Fabrik:**
-- Functions: Real-time monitoring
-- Status: Referenced, not deployed
-
-**Notes:**
-- Official image available
-- amd64 compatible
-- Real-time metrics
-
----
-
-## Additional Download Managers (Referenced)
-
-### qBittorrent
-
-**Purpose:** BitTorrent client
-
-**Documentation:**
-- Website: https://www.qbittorrent.org/
-- Docker: `lscr.io/linuxserver/qbittorrent`
-
-**Usage in Fabrik:**
-- Functions: Torrent downloads
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-### SABnzbd
-
-**Purpose:** Usenet download manager
-
-**Documentation:**
-- Website: https://sabnzbd.org/
-- Docker: `lscr.io/linuxserver/sabnzbd`
-
-**Usage in Fabrik:**
-- Functions: Usenet downloads
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-### NZBGet
-
-**Purpose:** Usenet download manager
-
-**Documentation:**
-- Website: https://nzbget.net/
-- Docker: `lscr.io/linuxserver/nzbget`
-
-**Usage in Fabrik:**
-- Functions: Usenet downloads
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-## Additional VPN Tools (Referenced)
-
-### WireGuard
-
-**Purpose:** VPN protocol
-
-**Documentation:**
-- Website: https://www.wireguard.com/
-- Docker: `lscr.io/linuxserver/wireguard`
-
-**Usage in Fabrik:**
-- Functions: VPN connections
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-- Modern, fast VPN
-
----
-
-### OpenVPN
-
-**Purpose:** VPN protocol
-
-**Documentation:**
-- Website: https://openvpn.net/
-- Docker: `lscr.io/linuxserver/openvpn-as`
-
-**Usage in Fabrik:**
-- Functions: VPN connections
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-- Mature VPN solution
-
----
-
-## Additional Dashboard Tools (Referenced)
-
-### Heimdall
-
-**Purpose:** Dashboard for services
-
-**Documentation:**
-- Website: https://heimdall.site/
-- Docker: `lscr.io/linuxserver/heimdall`
-
-**Usage in Fabrik:**
-- Functions: Service dashboard
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-### Homer
-
-**Purpose:** Dashboard for services
-
-**Documentation:**
-- Website: https://github.com/bastienwirtz/homer
-- Docker: `lscr.io/linuxserver/homer`
-
-**Usage in Fabrik:**
-- Functions: Service dashboard
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-### Organizr
-
-**Purpose:** Dashboard for services
-
-**Documentation:**
-- Website: https://organizr.app/
-- Docker: `lscr.io/linuxserver/organizr`
-
-**Usage in Fabrik:**
-- Functions: Service dashboard
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-## Additional Media Servers (Referenced)
-
-### Plex
-
-**Purpose:** Media server
-
-**Documentation:**
-- Website: https://www.plex.tv/
-- Docker: `lscr.io/linuxserver/plex`
-
-**Usage in Fabrik:**
-- Functions: Media streaming
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
-### Jellyfin
-
-**Purpose:** Media server
-
-**Documentation:**
-- Website: https://jellyfin.org/
-- Docker: `lscr.io/linuxserver/jellyfin`
-
-**Usage in Fabrik:**
-- Functions: Media streaming
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-- Open source
-
----
-
-### Emby
-
-**Purpose:** Media server
-
-**Documentation:**
-- Website: https://emby.media/
-- Docker: `lscr.io/linuxserver/emby`
-
-**Usage in Fabrik:**
-- Functions: Media streaming
-- Status: Referenced, not deployed
-
-**Notes:**
-- LinuxServer.io image available
-- amd64 compatible
-
----
-
 ## Summary
 
-**Total External Systems:** 84
+**Total External Systems:** 76 (deduplicated 2026-07-20 — 13 sections that repeated an earlier entry under a mirrored "Additional X (Referenced)" tail category were collapsed to one copy each: WireGuard, SABnzbd, Restic, qBittorrent, Plex, Organizr, OpenVPN, NZBGet, Jellyfin, Homer, Heimdall, Emby, Borg; the residual "Additional Monitoring Tools (Referenced): Netdata" entry was removed 2026-07-20 — it contradicted this doc's own removal note above (netdata was removed from the fleet 2026-05-30, not merely "referenced, not deployed"))
 
 **Categories:**
 - Infrastructure & Deployment: 2
@@ -2248,32 +1984,32 @@ The shared infra services (also internal) are catalogued in their own sections a
 - Databases & Caching: 3
 - Email & Communication: 5
 - Translation Services: 2
-- AI/LLM Services: 4
+- AI/LLM Services: 3
 - Image & Media APIs: 3
 - Scraping & Automation: 6
-- Monitoring & Observability: 2
+- Monitoring & Observability: 1
 - Security & Code Quality: 1
 - Development Tools: 3
 - WordPress Plugins: 4
 - Analytics & Tag Management: 2
 - Container Registries: 3
-- Infrastructure Services: 7
+- Infrastructure Services: 6
 - Monitoring Stack: 6
-- Reverse Proxy & SSL: 2
 - Media & Entertainment (Referenced): 3
 - Download Managers (Referenced): 3
 - VPN (Referenced): 2
 - Dashboards (Referenced): 3
 - Additional Backup Tools (Referenced): 2
+- Reverse Proxy & SSL: 2
+- Additional Container Registries: 2
 - Additional Infrastructure Tools (Referenced): 2
 - Additional Web Servers (Referenced): 2
-- Additional Monitoring Tools (Referenced): 1
 
 **Status:**
 - **Fully Configured:** 28 systems
 - **Infrastructure Deployed:** 7 systems (Apprise, Browserless, Gotenberg, Meilisearch, Minio, n8n, Monitoring Stack)
 - **Placeholder:** 8 systems (OpenAI, Anthropic, Unsplash, Gumroad, Telegram, etc.)
-- **Referenced/Not Deployed:** 21 systems (Plex, Jellyfin, qBittorrent, WireGuard, etc.)
+- **Referenced/Not Deployed:** 17 systems (Plex, Jellyfin, qBittorrent, WireGuard, etc.)
 
 **Next Steps:**
 1. Configure placeholder systems as needed

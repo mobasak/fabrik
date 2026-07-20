@@ -40,7 +40,7 @@ Runs AFTER `03-tech-plan-fabrik`, BEFORE `05-ticket-outline-command`. A pre-flig
 
 ### Step 2: Confirm Shape Block
 
-Verify the Tech-Plan shape block against the architecture — **all 8 flags** `[canonical: spec_loader.py — SpecShape]`:
+Verify the Tech-Plan shape block against the architecture — **all 8 flags** `[canonical: spec_loader.py — Shape (:205)]`:
 
 ```yaml
 shape:

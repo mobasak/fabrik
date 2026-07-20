@@ -162,7 +162,7 @@ Steps:
 
 **Validation gate:** re-run the Phase-3 audit script (`scratchpad docs_link_audit.py`, now checked into the phase as a throwaway or run via the Phase-F check in `--preview` mode): INDEX dead refs = 0; unindexed live docs = 0; then the standard closing sequence (check_doc_sync → doc_reconcile → commit → **full `/fabrik-review` looped to no-op** → gate → ✅ + plan staged).
 
-## Phase E — Full claim-level verification fleet (all live docs)
+## Phase E — Full claim-level verification fleet (all live docs) — ✅ EXECUTED 2026-07-20 (~2,200 claims / ~110 docs / 118 findings all FIXED; 4 evidence ledgers in reviews/, 0 UNRESOLVED; pool waves that capped were re-run native per AFCL's pool-hang friction)
 
 **Interfaces — Consumes:** the stable tree (paths final). **Produces:** one evidence ledger per folder-wave at `docs/development/reviews/docs-truth-<wave>-review.md` (allowlisted pattern), each row `claim → proof (path:line | command output | live probe) → verdict (VERIFIED | FIXED | REMOVED)`; all fixes applied. Later phases rely on: zero UNRESOLVED rows.
 

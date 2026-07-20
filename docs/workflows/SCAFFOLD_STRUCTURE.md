@@ -1,6 +1,6 @@
 # Fabrik Scaffold Structure
 
-**Last Updated:** 2026-06-17 (WordPress scaffolding retired — `_scaffold_wordpress` + `WORDPRESS_TEMPLATE_DIR` removed from `scaffold.py`; `fabrik scaffold --type wordpress` redirects to `/opt/wpf` before writing; wordpress-only `--preset`/`--dev-port` flags removed.) · 2026-06-16 (WordPress correction: deployment moved out of Fabrik to `/opt/wpf/`; `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`.) · 2026-04-29 (code-truth pass: enforcement script count corrected to 35, `SPEC_ENABLED_TYPES` list corrected against `src/fabrik/spec_generator.py:58`, post-scaffold initialization section trimmed to only describe steps the user must do manually — `git init` / `.venv` / `pre-commit install` are now performed by `create_project()` itself; `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.)
+**Last Updated:** 2026-07-20 — `SCAFFOLD_TYPES` (12, incl. `python-api-gpu`), `SPEC_ENABLED_TYPES` (10, incl. `chrome-extension`/`mobile-app`), and the enforcement-dir file count (49) re-verified against `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `scripts/enforcement/`. WordPress scaffolding is fully retired from Fabrik — see `/opt/wpf/`. `fabrik new` remains deprecated/hidden (Phase 4k).
 **Script:** `@/opt/fabrik/src/fabrik/scaffold.py` (scaffold command)
 
 > Complete reference for the folder and file structure created by `fabrik scaffold`. Sister doc to the broader `FABRIK_SCAFFOLD_WORKFLOW.md` (this file is narrowly scoped to the file tree).
@@ -77,7 +77,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   ├── README.md
 │   └── TROUBLESHOOTING.md
 ├── scripts/
-│   ├── enforcement/              # Entire dir copied from Fabrik (41 files inc. __init__.py)
+│   ├── enforcement/              # Entire dir copied from Fabrik (49 files, recounted 2026-07-20 via `git ls-files scripts/enforcement/ | wc -l`)
 │   ├── ci_local.sh               # CI local clean-room replica (python API types) — mirrors .github/workflows/ci.yml
 │   ├── docs_updater.py
 │   ├── final_gate.py
@@ -222,17 +222,22 @@ Templates use Jinja2 syntax for variable substitution:
 
 After scaffold completes, `fabrik scaffold` automatically generates a deployment spec file for supported types:
 
-**Supported types (`SPEC_ENABLED_TYPES`, source: `@/opt/fabrik/src/fabrik/spec_generator.py:58`):**
+**Supported types (`SPEC_ENABLED_TYPES`, source: `@/opt/fabrik/src/fabrik/spec_generator.py:60-73`, 10 entries):**
 
 - `python-api`
+- `python-api-gpu`
 - `saas-skeleton`
 - `node-api`
 - `file-api`
 - `file-worker`
 - `static-site`
 - `docusaurus`
+- `chrome-extension`
+- `mobile-app`
 
-> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are packaged artifacts (Chrome Web Store / app stores / direct dist) — no VPS deploy, so no spec. `wordpress` no longer scaffolds in Fabrik — **creation, deployment + lifecycle all moved out** to the standalone `/opt/wpf/` project (`wpf` CLI, per-site `specs/sites/<domain>.yaml`). `fabrik scaffold --type wordpress` redirects to the `wpf` CLI (no skeleton built; `templates/wordpress/` retired), and `fabrik apply` on a `wordpress`-type project errors and redirects to `wpf`.
+> **`chrome-extension` and `mobile-app` ARE in `SPEC_ENABLED_TYPES`** — each bundles a deployable FastAPI backend (port 8000, `/health`: `chrome-extension`'s `server/`, `mobile-app`'s `server/` per `scaffold.py:4878-4890`), so each gets its own `specs/services/<name>.yaml` for that backend. Only the packaged client artifact (Chrome Web Store `.zip` / App Store build) is out-of-spec.
+>
+> **Excluded by design:** `wordpress` (no longer scaffolds in Fabrik — **creation, deployment + lifecycle all moved out** to the standalone `/opt/wpf/` project, `wpf` CLI, per-site `specs/sites/<domain>.yaml`; `fabrik scaffold --type wordpress` redirects to the `wpf` CLI, no skeleton built, `templates/wordpress/` retired; `fabrik apply` on a `wordpress`-type project errors and redirects to `wpf`) and `desktop-app` (a genuinely packaged, direct-distribution artifact with no server component — no VPS deploy, so no spec).
 
 **Spec file location:** `/opt/fabrik/specs/services/{project-name}.yaml`
 
@@ -267,6 +272,7 @@ Different scaffold types create variations:
 | Type | Base Template | Additional Files |
 |------|---------------|------------------|
 | `python-api` | `templates/scaffold/` | FastAPI + Uvicorn setup |
+| `python-api-gpu` | `templates/python-api-gpu/` | GPU-aware `python-api` variant (`gpu_rent` job-handler hook) |
 | `saas-skeleton` | `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind |
 | `static-site` | `templates/saas-skeleton/` | Same as saas-skeleton (landing pages) |
 | `node-api` | `templates/node-api/` | Express + JavaScript |
@@ -275,7 +281,7 @@ Different scaffold types create variations:
 | `wordpress` | _(retired — moved to `/opt/wpf/`)_ | `fabrik scaffold --type wordpress` redirects to the `wpf` CLI; no scaffolding or deploy in Fabrik |
 | `docusaurus` | `templates/docusaurus/` | Docusaurus docs site |
 | `chrome-extension` | `templates/chrome-extension/` | Chrome extension (WXT + Preact) + Python backend |
-| `mobile-app` | `templates/mobile-app/` | React Native + TypeScript |
+| `mobile-app` | `templates/mobile-app/` | Expo/React Native client + bundled FastAPI backend (`server/`) that deploys via `fabrik apply`, mirroring `chrome-extension` |
 | `desktop-app` | `templates/desktop-app/` | Electron + TypeScript |
 
 > ✅ **Resolved 2026-06-17:** WordPress scaffolding was retired (the code-side decision). `_scaffold_wordpress` + `WORDPRESS_TEMPLATE_DIR` were removed from `scaffold.py`; `fabrik scaffold --type wordpress` now redirects to the `/opt/wpf` `wpf` CLI before writing anything (no crash, no partial directory). `wordpress` stays a recognised deploy/shape type.
@@ -290,7 +296,7 @@ Different scaffold types create variations:
 2. `.venv` creation + `pip install -r requirements-dev.txt` (Python types only)
 3. `pre-commit install` (via `_install_pre_commit()`, `scaffold.py:327`)
 4. Initial commit (`git add . && git commit -m "Initial commit"`)
-5. `_post_scaffold_sync()` registers the project in `data/projects.yaml` and refreshes `docs/BUSINESS_MODEL.md`
+5. `_post_scaffold_sync()` registers the project in `data/projects.yaml` and refreshes the Fabrik-level `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11 — not the new project's own per-project `docs/BUSINESS_MODEL.md`, which is seeded separately from the scaffold's `BUSINESS_MODEL_TEMPLATE.md`)
 6. `generate_and_save_spec()` for `SPEC_ENABLED_TYPES` (skipped if `--no-spec`)
 7. `validate-deploy` warnings printed (non-blocking)
 

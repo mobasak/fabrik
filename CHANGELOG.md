@@ -55,6 +55,17 @@ multilingual-plan retarget to the i18n-kit template); truth annotations in DATA_
 rows), FABRIK_SCAFFOLD (template base-dir note), glitchtip-sdk (spec removed), capability-defects
 (cross-repo), cli-reference/agents-fabrik (project-side preplan), README (illustrative site spec).
 
+Phase E: full claim-level verification of every live doc — ~2,200 claims across ~110 docs (orchestrator
+chain, 17 skills, mega+cockpit, root canonicals, operations, infrastructure, workstation, workflows,
+reference+modules+apis, traycer+misc) by a native-Opus/Sonnet verifier fleet with pool breadth; 118
+FALSE/STALE findings fixed same-day via verified ledgers + dedicated fixers. Headliners: retired-triad
+(Kilo/Cascade) live-framing purged repo-wide; the 2026-07-19 pushgateway restore propagated to 6 infra
+docs; FINAL_GATE tier tables reconciled to the real gate (5 dead check scripts flagged); SPEC_ENABLED_TYPES
+7→10 truth; EXTERNAL_SYSTEMS deduped 84→76; phantom code references (fabrik.drivers.wordpress,
+content_publisher, config --verify, SiteProvisioner) replaced with /opt/wpf + notifications.py reality;
+12-scaffold-type count fixed across 8 docs. Evidence ledgers: docs/development/reviews/docs-truth-*.md
+(4 ledgers, 0 UNRESOLVED rows).
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a

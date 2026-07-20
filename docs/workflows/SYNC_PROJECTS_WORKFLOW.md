@@ -1,6 +1,6 @@
 # Sync Projects Workflow (Projects → Fabrik)
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-07-20
 **Status:** PRODUCTION
 **Script:** `scripts/sync_projects.py`
 **Source Code:** `src/fabrik/cli.py` → `fabrik scan` command
@@ -186,11 +186,13 @@ Updates the `<!-- AUTO-GENERATED:PROJECTS:START -->` block:
 
 ## Excluded Directories
 
-Pattern matching via `fnmatch`:
+Pattern matching via `fnmatch` against `DEFAULT_EXCLUDES` (`scripts/sync_projects.py:35-46`, 11 patterns):
 - `_*` — staging areas
 - `.*` — hidden directories
-- `fabrik` — Fabrik itself (the tool, not a project)
-- `__pycache__`, `venv`, `google` — system/tool dirs
+- `fabrik`, `fabrik-lib`, `fabrik-libs` — Fabrik itself + its vendored-module source repos (not projects)
+- `mt-router` — infra-role repo, not a scaffolded project
+- `archived` — retired-project holding directory
+- `__pycache__`, `venv`, `google`, `containerd` — system/tool dirs
 
 ---
 

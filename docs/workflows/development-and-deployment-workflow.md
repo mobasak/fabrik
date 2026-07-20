@@ -2,7 +2,7 @@
 
 **Audience:** Owner reference + onboarding agents (Traycer / Claude Code / Cascade / Kilo CLI).
 **Authority:** This document narrates the workflow. Authoritative rule sources stay in [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md), [.windsurfrules](../../.windsurfrules), [AGENTS-compact.md](../../AGENTS-compact.md), and the topic packs under [.windsurf/rules/](../../.windsurf/rules/). When this document and a rule file disagree, the rule file wins — update this document.
-**Updated:** 2026-06-16
+**Updated:** 2026-07-20
 
 > **⚠️ Partially pre-migration vintage.** Sections that mention Coolify
 > (Coolify dashboard, `coolify.vps1.ocoron.com`, Coolify deploy step) are
@@ -27,7 +27,7 @@ Four families of files orchestrate the agents:
 | [CLAUDE.md](../../CLAUDE.md) | **Claude Code** (coder) | Always-on rules + HARD STOPS for Claude Code |
 | [.windsurfrules](../../.windsurfrules) | **Windsurf Cascade** (coder) | Always-on rules + HARD STOPS for Cascade |
 | [AGENTS-compact.md](../../AGENTS-compact.md) | **Kilo CLI** (coder, via `opencode.json`) | Self-contained always-on rules for Kilo |
-| [.windsurf/rules/](../../.windsurf/rules/) (30 packs) | All 3 coders | Scope-relevant topic deep-dives, loaded on demand |
+| [.windsurf/rules/](../../.windsurf/rules/) (55 packs) | All 3 coders | Scope-relevant topic deep-dives, loaded on demand |
 
 ---
 
@@ -41,7 +41,7 @@ You do external research with ChatGPT / Claude / Gemini, then drop the writeup a
 fabrik scaffold <name> --type <type>
 ```
 
-`<type>` is one of **11** scaffold types: `python-api`, `node-api`, `saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `static-site`.
+`<type>` is one of **12** scaffold types (`SCAFFOLD_TYPES`, `src/fabrik/scaffold.py:138-152`): `python-api`, `python-api-gpu` (GPU-aware `python-api` variant, hooks `gpu_rent` into the job handler), `node-api`, `saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `static-site`.
 
 The scaffold writes the full project tree under `/opt/<name>/` and emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block — `kind` (`service` / `worker` / `wordpress` / `static`) + flags (`is_public`, `has_persistent_data`, `needs_database`) — drives which infrastructure registrars run later during `fabrik apply`: `postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`.
 
@@ -173,7 +173,7 @@ The 4-layer security model wraps every deployed service:
 3. **`X-Internal-Token`** (via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`, same value written to each service's `/opt/<svc>/.env` by `deployer_ssh`) for all API-to-API calls. Validation is constant-time (`hmac.compare_digest`). Exceptions: `file-api` uses Supabase Bearer JWT (user auth, different pattern); `site-provisioner` uses Traefik IP allowlist.
 4. **Traefik** routes public sites (`ocoron.com`, `status.vps1.ocoron.com`) without auth.
 
-Single-image Coolify Applications get a container name with a timestamp suffix that changes per redeploy. To keep Gatus and inter-service URLs stable, install a stable alias on the `fabrik` network: (a) add to compose `networks.fabrik.aliases`, (b) live-apply with `docker network disconnect fabrik <uuid-name>` then `docker network connect --alias <stable> --alias <uuid-name> fabrik <uuid-name>`, (c) register in `scripts/vps_apply_limits.sh` `apply_alias` section (reboot persistence). Currently registered: `browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`. Procedure + canonical pair list: [docs/infrastructure/archive/coolify-stable-aliases.md](../infrastructure/archive/coolify-stable-aliases.md).
+Single-image Coolify Applications get a container name with a timestamp suffix that changes per redeploy. To keep Gatus and inter-service URLs stable, install a stable alias on the network: (a) add to compose `networks.fabrik.aliases`, (b) live-apply with `docker network disconnect <network> <uuid-name>` then `docker network connect --alias <stable> --alias <uuid-name> <network> <uuid-name>`, (c) register the `prefix:alias` pair in `scripts/vps_apply_limits.sh`'s `for pair in ...` loop (`:118-122`), which calls the script's own `apply_alias()` function (defined `:101-114`) for reboot persistence. Currently registered: `browserless`, `gotenberg`, `meilisearch`, `glitchtip-web` (4 pairs, confirmed via the loop body). **⚠️ Network-name residue:** `apply_alias()`'s `docker network disconnect`/`connect` calls (`:110-111`) still hardcode the legacy `coolify` network name, not `fabrik` — pre-rename residue left over from the 2026-05-31 `coolify`→`fabrik` network rename, pending an upstream fix to the script (do not edit the script from this project). Procedure + canonical pair list: [docs/infrastructure/archive/coolify-stable-aliases.md](../infrastructure/archive/coolify-stable-aliases.md).
 
 ## 11. Observability fires
 
@@ -181,7 +181,7 @@ The moment the container is up:
 
 - **Gatus** (`status.vps1.ocoron.com`) probes `/health` (memory storage, ~30 endpoints). 3 consecutive failures → push notification via Apprise → Telegram.
 - **Prometheus** (internal `:9090`) scrapes `/metrics` (Authelia-bypassed by global `*.vps1.ocoron.com → /health` rule, which also covers `/metrics` per service config).
-- **Alertmanager** (internal `:9093`) routes alerts. **10 rules** in `configs/prometheus/rules/alerts.yml`:
+- **Alertmanager** (internal `:9093`) routes alerts. **12 rules** in `configs/prometheus/rules/alerts.yml`:
 
   | Alert | Severity | Threshold | For |
   |---|---|---|---|
@@ -195,6 +195,8 @@ The moment the container is up:
   | HostHighMemory | critical | >90% | 5m |
   | HostDiskFull | critical | >85% | 5m |
   | ServiceUnhealthy | critical | target down | 2m |
+  | AroWakeLowSuccessRate | warning | Claude-call success ratio <90% (rate-limited wakes excluded from denominator) | 15m |
+  | AroWakeCostBurnHigh | warning | Claude cost burn >$5/h on a host | 10m |
 
   Routing: `Prometheus → Alertmanager → Telegram (native telegram_configs)`. ARO Brain (LLM alert triage) is planned but not yet deployed.
 - **Loki** (internal `:3100`) ingests logs via **Promtail**. High-cardinality fields (`request_id`, `user_id`, `client_ip`) must be embedded in the JSON payload, not used as stream labels.
@@ -269,14 +271,14 @@ Every claim in this document is checkable. The grep / file commands below valida
 
 | Claim | Verify with |
 |---|---|
-| 30 rule packs in `.windsurf/rules/` | `ls /opt/fabrik/.windsurf/rules/ \| wc -l` |
-| 11 scaffold types | `grep -E 'shape.kind' /opt/fabrik/templates/*/defaults.yaml \| wc -l` |
+| 55 rule packs in `.windsurf/rules/` (recursive) | `find /opt/fabrik/.windsurf/rules -name "*.md" \| wc -l` |
+| 12 scaffold types (`SCAFFOLD_TYPES`, incl. `python-api-gpu`) | `sed -n '/^SCAFFOLD_TYPES = frozenset(/,/^)/p' /opt/fabrik/src/fabrik/scaffold.py \| grep -c '"'` |
 | Pack registry matches actual files | `awk '/^### Pack Registry/,/^### Project Type/' /opt/fabrik/AGENTS.md \| grep -c '^\| \`'` |
 | `kilo_dispatch.py` injection caps (40 / 6) | `grep -E 'MAX_RULE_LINES\|MAX_LINES_PER_PACK' /opt/fabrik/scripts/kilo_dispatch.py` |
 | `final_gate.py` flags (`--lean`, `--systemic`, `--json`) | `grep -nE '^\s+"--(lean\|systemic\|json)"' /opt/fabrik/scripts/final_gate.py` |
-| `fabrik` CLI subcommands (scaffold / deploy / apply / redeploy / domain / new) | `grep -roE 'fabrik (scaffold\|deploy\|apply\|redeploy\|domain\|new)' /opt/fabrik/src/fabrik/ \| sort -u` |
-| 10 Prometheus alerts in `alerts.yml` | `grep -cE '^\s+- alert:' /opt/fabrik/configs/prometheus/rules/alerts.yml` |
-| 4 currently-registered Coolify stable aliases | `grep -E '^apply_alias ' /opt/fabrik/scripts/vps_apply_limits.sh \| wc -l` |
+| `fabrik` CLI subcommands (scaffold / apply / redeploy / domain / new — **not** `deploy`, no such command exists) | `grep -roE 'fabrik (scaffold\|apply\|redeploy\|domain\|new)' /opt/fabrik/src/fabrik/ \| sort -u` |
+| 12 Prometheus alerts in `alerts.yml` | `grep -cE '^\s+- alert:' /opt/fabrik/configs/prometheus/rules/alerts.yml` |
+| 4 currently-registered stable aliases | `grep -cE '^\s*"[a-zA-Z0-9-]+:[a-zA-Z0-9-]+"' /opt/fabrik/scripts/vps_apply_limits.sh` |
 | 6 pre-flight items in AGENTS.md | `awk '/^## 🛑 MANDATORY/,/^## Planning Constraints/' /opt/fabrik/AGENTS.md \| grep -cE '^[0-9]+\. \*\*'` |
 | 12 planning constraints in AGENTS.md | `awk '/^## Planning Constraints/,/^---$/' /opt/fabrik/AGENTS.md \| grep -cE '^[0-9]+\. \*\*'` |
 | 0 packs left with `activation: always_on` | `grep -rl 'activation: always_on' /opt/fabrik/.windsurf/rules/**/*.md \| wc -l` |

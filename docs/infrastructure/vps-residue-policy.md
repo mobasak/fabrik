@@ -23,7 +23,7 @@ Implementation: `scripts/vps_sync.py::verify_residue()` (multi-point audit) + `v
 
 ## Pre-action discipline
 
-1. **Always use `fabrik destroy --drop-data -y`** for throwaway test specs. Reverses the provision chain in strict inverse order — 8 teardown steps then state archive (per `src/fabrik/orchestrator/destroyer.py`: meilisearch → authelia → glitchtip → backrest → gatus → postgres → app/compose stack → DNS record → local project files, then state-file archive). Shape-gated steps (prometheus, redis) and informational ones (grafana) run only when applicable.
+1. **Always use `fabrik destroy --drop-data -y`** for throwaway test specs. Reverses the provision chain in strict inverse order — 9 teardown steps then state archive (per `src/fabrik/orchestrator/destroyer.py`: meilisearch → authelia → glitchtip → backrest → gatus → postgres → app/compose stack → DNS record → local project files, then state-file archive). Shape-gated steps (prometheus, redis) and informational ones (grafana) run only when applicable.
 2. **Never use long-lived test names** like `fabrik-test`, `proxy-test`. Use timestamped throwaways (e.g. `fabrik-e2e-2026-05-17`).
 3. **After ANY `fabrik destroy`, run `fabrik vps-sync --verify`** to confirm orphans are zero across all registrars.
 
@@ -119,7 +119,7 @@ Net: post-sweep, the only "residue still on disk" entries are `/opt/.archive/` a
 
 - Deploy + destroy mechanics: `docs/operations/deployment.md`
 - DR (full restore from B2): `docs/operations/disaster-recovery.md`
-- Provisioner / destroyer: `src/fabrik/orchestrator/infrastructure.py` (provision side) + `src/fabrik/orchestrator/destroyer.py::destroy_deployment()` (inverse — 8 teardown steps + state archive, see destroyer module docstring for canonical order)
+- Provisioner / destroyer: `src/fabrik/orchestrator/infrastructure.py` (provision side) + `src/fabrik/orchestrator/destroyer.py::destroy_deployment()` (inverse — 9 teardown steps + state archive, see destroyer module docstring for canonical order)
 - Backups status: [`vps-complete-inventory.md § Backups`](vps-complete-inventory.md) — 4 hub plans + 2 plans per spoke shipped 2026-06-01 (W2 + W11)
 
 ## Why this matters

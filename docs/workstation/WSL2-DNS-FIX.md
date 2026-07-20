@@ -45,7 +45,7 @@ Created `/etc/resolv.conf`:
 ```
 nameserver 1.1.1.1
 nameserver 8.8.8.8
-options timeout:1 attempts:2
+# (re-verified 2026-07-20: the live file carries the two nameserver lines + a 2026-05-31 diagnosis comment; the earlier `options timeout:1 attempts:2` line is no longer present)
 ```
 
 ### Step 3: Make Immutable

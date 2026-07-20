@@ -1,6 +1,6 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-04-03
+**Last Updated:** 2026-07-20
 **Script:** `scripts/final_gate.py`
 
 > Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
@@ -50,7 +50,7 @@ is also true CI-parity (CI's clean checkout has no untracked files).
 │  PHASE 1: AUTO-FIX     │  PHASE 2: STATIC      │  PHASE 3: REPO │
 │  ├── whitespace        │  ├── ruff             │  ├── structure │
 │  ├── EOF newlines      │  ├── mypy             │  ├── conventions│
-│  ├── ruff format       │  ├── bandit           │  ├── changelog │
+│  ├── ruff format       │  ├── bandit           │  ├── doc sync  │
 │  └── ruff --fix        │  ├── semgrep          │  └── symlinks  │
 │                        │  ├── yaml/json        │                │
 │                        │  ├── sqlfluff         │                │
@@ -155,82 +155,83 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ### Tier 1 (LEAN) - `--lean` - Agent Self-Review
 
-**Purpose:** Fast showstoppers only (syntax, secrets, schema sync, changelog)
+**Purpose:** Fast showstoppers only (syntax, secrets, schema sync, doc sync)
 
-**Phase 3: Repo Consistency (5 checks)**
+**Phase 3: Repo Consistency (17 checks)** — `run_consistency_checks(tier=1)`, `final_gate.py:654-838`
+- **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
-  - Enforces use of environment variables
 - **.env Updates (Secrets)** - `check_env_vars.py`
   - Validates .env files don't contain actual secrets
-  - Ensures .env.example is properly maintained
-- **Schema Sync (DB Models)** - `check_schema_sync.py`
+- **Imports Resolvable (clean checkout)** - `check_imports_resolvable.py` *(advisory)*
+  - Catches shipped code importing a module not in the repo (gitignored/never `git add`ed) — green locally, `ModuleNotFoundError` in CI/deploy
+- **Lint Ratchet (repo-wide, no new debt)** - `check_lint_ratchet.py` *(advisory)* — repo-wide ruff count may only go down
+- **Schema Sync (DB Models)** - `check_schema_sync.py` *(advisory)*
   - Only runs if .py or .sql files changed
-  - Ensures database schema changes are documented in `db/schema.sql`
-- **CHANGELOG.md Updated** - `check_changelog.py`
-  - Enforces changelog entry for every task (prevents forgetting across tasks 1-9)
-  - Reduces token spike at milestone by enforcing incrementally
-  - Context stays small, fixes are instantaneous
-- **Print/Console Ban** - `check_print_ban.py`
-  - Bans `print()` in `.py` and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` production code
-  - Skips test files (all extensions) and `scripts/` directory
+- **Doc Sync Matrix** - `check_doc_sync.py`
+  - The single "update docs when code changes" gate — consolidates what `check_changelog.py` / `check_index_md.py` / `check_configuration_md.py` / `check_openapi_sync.py` used to check (those 5 scripts still exist on disk but are dead code, never invoked — see § All Checks Reference)
+- **Subagent Flywheel (pool-or-declare — BLOCKING)** - `check_subagent_flywheel.py` — fails the gate when a substantial code change ran zero pool subagent runs and carries no `NO-POOL:` declaration
+- **Mutation (advisory, opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(advisory)* — only runs when `FABRIK_MUTMUT=1`
+- **Doc stub fill (advisory)** - `check_doc_stubs.py` *(advisory)*
 - **Script Coupling Header** - `check_script_headers.py`
   - Each staged `scripts/**/*.py` declares, via a `# AFTER-EDIT:` header, the files to update when it changes (or `none`)
   - WARN-tier, touch-on-change (mirrors Doc Sync): warns on a missing header, or when a listed coupled file wasn't also staged; never blocks
+- **Print/Console.log Ban** - `check_print_ban.py`
+  - Bans `print()` in `.py` and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` production code
+- **No Host Ports on Traefik Services** - `check_no_host_ports.py`
+- **Full Traefik Label Set (§7)** - `check_traefik_labels.py`
+- **Spec <-> Project DB Name Match (Phase 1c)** - `check_spec_db_match.py`
+- **Undeclared Imports (requirements.txt)** - `check_undeclared_imports.py`
+- **Fabrik-Synced Files Unmodified** - `check_synced_unmodified.py`
+
+**Phase 2: Static Analysis** — Tier 1 also runs `ruff` (only if changed `.py` files), `check json`, `check yaml`; mypy/bandit/semgrep/sqlfluff/vulture are Tier-2-only (`final_gate.py:561-562`).
 
 ### Tier 2 (FULL) - Default - Phase Handover
 
 **Purpose:** Full quality gate before Traycer commit
 
-**Phase 3: Repo Consistency (17 checks)**
+**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block, `final_gate.py:674-834`), **plus 11 Tier-2-only checks** (`final_gate.py:841-894`), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`, `final_gate.py:977-983`) — **29 checks total**.
+
+**The 11 Tier-2-only checks:**
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
 - **Rule File Size** - `check_rule_size.py`
   - Ensures `.windsurf/rules/` files are < 50KB each
-- **opencode.json** - `check_opencode_json.py`
+- **opencode.json (Kilo-Safe Rules)** - `check_opencode_json.py`
   - Validates Kilo-safe rules configuration
-- **INDEX.md** - `check_index_md.py`
-  - Ensures master file index is current
-- **One-Test Rule** - `check_test_proposal.py`
+- **Behavior Contract Proposal** - `check_test_proposal.py`
   - Verifies test justification is documented
-- **README.md** - `check_readme_md.py`
+- **README.md (Primary Entry Point)** - `check_readme_md.py`
   - Validates primary entry point documentation
-- **CONFIGURATION.md** - `check_configuration_md.py`
-  - Ensures environment variables are documented
 - **.env Updates (Secrets)** - `check_env_updates.py`
   - Validates secrets not committed to git
-- **OpenAPI Sync** - `check_openapi_sync.py`
-  - Validates API documentation matches routes
-- **Test Coverage** - `check_test_coverage.py`
+- **Test Coverage (New Code)** - `check_test_coverage.py`
   - Ensures new code has test coverage
-- **.env.example** - `check_env_example.py`
+- **.env.example Completeness** - `check_env_example.py`
   - Validates all environment variables are documented
-- **Compose Services** - `check_compose_services.py`
+- **Compose Services Docs** - `check_compose_services.py`
   - Ensures Docker Compose services are documented
-- **Schema Sync (DB Models)** - `check_schema_sync.py`
-  - Ensures DB models match schema documentation
-- **Secrets (Zero Hardcoding)** - `check_secrets.py`
-  - Scans for hardcoded secrets
-- **Kilo CLI Health Check** - `check_kilo_health.sh`
-  - Validates Kilo CLI installation and configuration
 - **User Guide Presence** - `check_user_guide.py`
   - Verifies `docs/user-guide/` exists with `.md` files when `project.yaml` has `has_user_guide: true`
   - Skips silently when `has_user_guide` is false or absent
 - **Reusable Module Tagging** - `check_reusable_modules.py` *(advisory — warning only)*
   - Checks `src/utils/` and `src/lib/` modules are tagged `[reusable]` in `INDEX.md`
   - Surfaces warnings in yellow but does not fail the gate
-- **Schema Sync** - `check_schema_sync.py` also runs *advisory* (`advisory=True`): when a model/schema
-  change is staged, it emits a `⚠`-marked WARN if `docs/data-contract.md` exists and wasn't updated. It
-  never fails the gate (grandfathers existing projects); the model-without-schema check remains hard-fail.
-- **`--json` `warnings` array:** advisory checks that emit a `⚠`-prefixed line surface it under a top-level
-  `warnings` list in `--json` output (previously advisory output was human-mode-only). Benign passed-check
-  chatter and plain `WARNING:` output are excluded — a check opts in by prefixing with `⚠`.
+
+**Kilo CLI Health Check** - `check_kilo_health.sh` — runs at `tier >= 2`, i.e. Tier 2 **and** Tier 3, not Tier-2-only.
+
+**Not wired into the gate** (exist on disk, never invoked — see § All Checks Reference): `check_index_md.py`, `check_configuration_md.py`, `check_openapi_sync.py`, `check_changelog.py`, `check_docs.py`. Their intent is now covered by `check_doc_sync.py` (Doc Sync Matrix, Tier 1+2) and `docs_updater.py --check` (Tier 3).
+
+**`--json` `warnings` array:** advisory checks that emit a `⚠`-prefixed line surface it under a top-level
+`warnings` list in `--json` output (previously advisory output was human-mode-only). Benign passed-check
+chatter and plain `WARNING:` output are excluded — a check opts in by prefixing with `⚠`.
 
 ### Tier 3 (SYSTEMIC) - `--systemic` - Repo Health
 
 **Purpose:** On-demand repo/system hygiene (no showstoppers)
 
-**Phase 3: Repo Consistency (13 checks)**
+**Phase 3: Repo Consistency (13 checks)** — `final_gate.py:654-983`
+- **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
 - **Docker** - `check_docker.py`
   - Validates amd64 compatibility, No-Alpine base images, HEALTHCHECK presence
 - **Port Registration** - `check_ports.py`
@@ -239,8 +240,6 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Validates environment variable contracts are consistent
 - **Dependencies Sync** - `check_deps_sync.py`
   - Ensures dependencies are properly documented
-- **Documentation** - `check_docs.py`
-  - Validates required documentation files are present
 - **Documentation Sprawl** - `check_doc_sprawl.py`
   - Detects documentation sprawl and duplication
 - **Watchdog Scripts** - `check_watchdog.py`
@@ -251,10 +250,16 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Detects duplicate files and configurations
 - **Documentation Drift** - `docs_updater.py --check`
   - Ensures documentation matches code implementation
-- **Fabrik Conventions** - `validate_conventions.py --strict`
+- **VPS Docs Freshness** - `check_vps_docs.py`
+  - Checks VPS-facing docs haven't gone stale against the live fleet
+- **Fabrik Conventions** - `validate_conventions.py --strict --git-diff`
   - Validates naming conventions and structure
-- **Kilo CLI Health Check** - `check_kilo_health.sh`
+- **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)
   - Validates Kilo CLI installation and configuration
+
+**Note:** `check_docs.py` ("Documentation") is NOT part of this list — it exists on disk but was removed
+from the gate (`final_gate.py:926-928`: hardcoded to `src/fabrik/`, dead in every scaffolded project). Its
+intent is covered by the Doc Sync Matrix (`check_doc_sync.py`, Tier 1+2) and `docs_updater.py --check` above.
 
 ### Phase 4: Sync Steps
 
@@ -342,19 +347,18 @@ python -m sqlfluff lint --dialect postgres *.sql
 
 ### Enforcement Scripts
 
-All repo consistency checks are implemented by scripts in `scripts/enforcement/`. Each script validates specific Fabrik conventions:
+All repo consistency checks are implemented by scripts in `scripts/enforcement/`. Each script validates specific Fabrik conventions. This list is reconciled against the actual `run_static_checks`/`run_consistency_checks` call sites in `scripts/final_gate.py` (2026-07-20):
 
+**Gate-wired (invoked by `final_gate.py`):**
+- `check_convergence.py` — Convergence-evidence gate for changed plans/reviews (every tier)
 - `check_structure.py` — Validates required directories exist
 - `check_rule_size.py` — Ensures rule files < 50KB
-- `check_opencode.json.py` — Validates Kilo-safe instruction list
-- `check_index_md.py` — Verifies INDEX.md reflects current structure
-- `check_test_proposal.py` — Enforces One-Test Rule documentation
+- `check_opencode_json.py` — Validates Kilo-safe instruction list
+- `check_test_proposal.py` — Enforces Behavior Contract / One-Test Rule documentation
 - `check_readme_md.py` — Validates README.md structure
-- `check_configuration_md.py` — Ensures env vars documented
 - `check_env_updates.py` — Prevents secret commits
-- `check_changelog.py` — Validates CHANGELOG.md updated
-- `check_schema_sync.py` — Checks DB models match schema.sql
-- `check_openapi_sync.py` — Validates API docs match routes
+- `check_env_vars.py` — Validates .env doesn't contain actual secrets
+- `check_schema_sync.py` — Checks DB models match schema.sql (advisory)
 - `check_test_coverage.py` — Ensures new code has tests
 - `check_env_example.py` — Validates .env.example completeness
 - `check_compose_services.py` — Documents Docker services
@@ -364,8 +368,37 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_ports.py` — Checks PORTS.md registration
 - `check_health.py` — Validates /health endpoint
 - `check_deps_sync.py` — Validates dependencies documented
-- `check_docs.py` — Ensures required docs present
-- `validate_conventions.py` — Enforces naming/structure conventions
+- `validate_conventions.py` — Enforces naming/structure conventions (Tier 3, `--strict --git-diff`)
+- `check_doc_sync.py` — Doc Sync Matrix (the consolidated "update docs when code changes" gate)
+- `check_imports_resolvable.py` — Phantom-import guard (clean-checkout parity, advisory)
+- `check_lint_ratchet.py` — Repo-wide ruff count may only go down (advisory)
+- `check_subagent_flywheel.py` — Pool-or-declare subagent flywheel (BLOCKING)
+- `check_mutation.py` — Mutation testing (advisory, opt-in `FABRIK_MUTMUT=1`)
+- `check_doc_stubs.py` — Doc stub force-fill (advisory)
+- `check_script_headers.py` — Script `# AFTER-EDIT:` coupling header
+- `check_print_ban.py` — Bans `print()`/`console.log()` in production code
+- `check_no_host_ports.py` — No host-bound ports on Traefik-routed compose services
+- `check_traefik_labels.py` — Full Traefik label set on `traefik.enable=true` services
+- `check_spec_db_match.py` — Spec ↔ project DB-name consistency
+- `check_undeclared_imports.py` — Undeclared-import guard vs requirements.txt
+- `check_synced_unmodified.py` — Fabrik-synced files match `/opt/fabrik` canonical bytes
+- `check_user_guide.py` — User-guide presence when `project.yaml::has_user_guide` is true
+- `check_reusable_modules.py` — Reusable-module `[reusable]` tagging in INDEX.md (advisory)
+- `check_doc_sprawl.py` — Documentation sprawl/duplication detection
+- `check_watchdog.py` — Watchdog monitoring scripts present
+- `check_duplicates.py` — Duplicate file/config detection
+- `check_vps_docs.py` — VPS-facing docs freshness vs the live fleet
+- `docs_updater.py --check` — Documentation drift vs code implementation
+- `check_kilo_health.sh` — Kilo CLI installation/config (runs at `tier >= 2`)
+
+**On disk but NOT gate-wired** (dead code — no call site in `final_gate.py`; verified via grep 2026-07-20). Their intent is now covered by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check`, not by these files:
+- `check_changelog.py` — was: validates CHANGELOG.md updated
+- `check_index_md.py` — was: verifies INDEX.md reflects current structure
+- `check_configuration_md.py` — was: ensures env vars documented in CONFIGURATION.md
+- `check_openapi_sync.py` — was: validates API docs match routes
+- `check_docs.py` — was: ensures required docs present (removed per inline comment `final_gate.py:926-928`: hardcoded to `src/fabrik/`, dead in every scaffolded project)
+
+Do not delete these 5 files yourself — they are dead but undecided (kept for reference / possible future re-wiring).
 
 ---
 
@@ -425,7 +458,9 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 
 #### check_index_md.py
 
-**Purpose:** Ensures INDEX.md reflects current file structure.
+**⚠️ NOT gate-wired** — exists on disk, no call site in `final_gate.py` (verified 2026-07-20). Covered instead by `check_doc_sync.py` (Doc Sync Matrix).
+
+**Purpose (as written, dead):** Ensures INDEX.md reflects current file structure.
 
 **Validates:**
 - All important files are listed
@@ -497,7 +532,9 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 
 #### check_configuration_md.py
 
-**Purpose:** Ensures CONFIGURATION.md documents all env vars.
+**⚠️ NOT gate-wired** — exists on disk, no call site in `final_gate.py` (verified 2026-07-20). Covered instead by `check_doc_sync.py` (Doc Sync Matrix), which fires on new env vars per the Doc Sync Matrix.
+
+**Purpose (as written, dead):** Ensures CONFIGURATION.md documents all env vars.
 
 **Validates:**
 - Every environment variable is documented
@@ -530,7 +567,9 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 
 #### check_changelog.py
 
-**Purpose:** Ensures CHANGELOG.md is updated for significant code changes.
+**⚠️ NOT gate-wired** — exists on disk, no call site in `final_gate.py` (verified 2026-07-20). Covered instead by `check_doc_sync.py` (Doc Sync Matrix), which folds in the CHANGELOG-on-change rule.
+
+**Purpose (as written, dead):** Ensures CHANGELOG.md is updated for significant code changes.
 
 **Triggers when:**
 - Changes in `src/`, `scripts/`, `templates/`
@@ -567,7 +606,9 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 
 #### check_openapi_sync.py
 
-**Purpose:** Ensures API documentation matches actual routes.
+**⚠️ NOT gate-wired** — exists on disk, no call site in `final_gate.py` (verified 2026-07-20). Covered instead by `check_doc_sync.py` (Doc Sync Matrix), which folds in API/SDK/CLI-change → `docs/QUICKSTART.md`.
+
+**Purpose (as written, dead):** Ensures API documentation matches actual routes.
 
 **Validates:**
 - All endpoints are documented
@@ -702,7 +743,9 @@ API_KEY = os.getenv('API_KEY')
 
 #### check_docs.py
 
-**Purpose:** Ensures all required documentation files are present.
+**⚠️ NOT gate-wired** — removed from the gate per inline comment `final_gate.py:926-928` ("hardcoded to `src/fabrik/`, dead in every scaffolded project"); the file still exists on disk. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
+
+**Purpose (as written, dead):** Ensures all required documentation files are present.
 
 **Validates:**
 - README.md exists and has required sections
@@ -774,8 +817,10 @@ API_KEY = os.getenv('API_KEY')
 
 **Purpose:** Governance files must be local copies, not symlinks.
 
-**Validates:**
+**Validates 8 governance paths** (`check_symlinks()`, `final_gate.py:988-1027`):
 - `AGENTS.md` — Local copy
+- `agents-fabrik.md` — Local copy (canonical agents doc, synced 2026-07-19)
+- `agents-fabrik-core.md` — Local copy (@import-ed platform core, synced 2026-07-19)
 - `AGENTS-compact.md` — Local copy
 - `opencode.json` — Local copy
 - `.windsurfrules` — Local copy
@@ -797,7 +842,7 @@ API_KEY = os.getenv('API_KEY')
 | bandit | 180 |
 | sqlfluff | 180 |
 | ruff | 120 |
-| semgrep | 300 |
+| semgrep | 30 (hardcoded at the call site, `final_gate.py:588`; the `TIMEOUTS["semgrep"]=300` dict entry at `:69` is dead — never read) |
 
 ### Max Iterations
 

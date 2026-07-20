@@ -12,7 +12,7 @@ open-source agent orchestrator** (current pick: **agetor**, `alamops/agetor`, MI
 
 **Relationship to the rest of the factory:**
 - **This cockpit** = the **interactive** operator surface (drive spec→plan→execute, approve the two gates). Runs `claude` **interactive** per task.
-- **`fabrik-lib/subagents` pool** = OpenRouter breadth, **dispatched by Claude inside those tasks** — never a cockpit feature.
+- **`libs/subagents` pool** = OpenRouter breadth, **dispatched by Claude inside those tasks** — never a cockpit feature.
 - **D3 driver** (`docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md`) = the **headless** twin of this cockpit (`claude -p` + the same pool) for unattended runs.
 - All three share the command layer + the pool; OpenRouter lives in exactly one place (the pool), reached **through Claude, not around it**.
 
@@ -29,7 +29,7 @@ open-source agent orchestrator** (current pick: **agetor**, `alamops/agetor`, MI
 
 ## Auth (hard)
 6. Drive **Claude Code via OAuth / subscription, per-user local login** — **no `ANTHROPIC_API_KEY`, not the metered Agent-SDK credit path.** (Claude Code prioritizes an API-key env var over subscription auth — it must stay unset.)
-7. **No direct OpenRouter in the cockpit.** OpenRouter is reached **only through `fabrik-lib/subagents`**, dispatched by the Claude orchestrator (pool = programmatic breadth, never an interactive tab). Dropped as a first-class feature 2026-07-16.
+7. **No direct OpenRouter in the cockpit.** OpenRouter is reached **only through `libs/subagents`**, dispatched by the Claude orchestrator (pool = programmatic breadth, never an interactive tab). Dropped as a first-class feature 2026-07-16.
 
 ## Orchestration
 8. **Per-task git worktree isolation** — parallel agents on disjoint files (the `owned_paths` contract, north-star R16).

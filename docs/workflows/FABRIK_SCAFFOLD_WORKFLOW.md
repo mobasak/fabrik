@@ -10,7 +10,7 @@
 > the Docker network is named `fabrik` (renamed from `coolify` 2026-05-31),
 > but no Coolify control plane runs.
 
-**Last Updated:** 2026-04-29 (full code-truth rewrite: every CLI command/flag, `SCAFFOLD_TYPES`, `SPEC_ENABLED_TYPES`, template inventory, and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. Aspirational sections that referenced files that never shipped — "Template Complexity Tiers", "Factory Configuration" — have been removed. `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.) · 2026-06-16: fixed dead links — `docs/DEPLOYMENT.md` → `docs/DEPLOYMENT_ARCHITECTURE.md` (renamed canonical deploy doc) and repointed the removed `wordpress-site-workflow.md` references to the separate WordPress Factory project at `/opt/wpf/`. · 2026-06-16: WordPress correction — `fabrik wp` group removed; WordPress deployment moved fully out of Fabrik to `/opt/wpf/` (`wpf` CLI), `fabrik apply` on a `wordpress`-type project errors/redirects, and `wordpress` is now a scaffold-skeleton-only type. Flagged `templates/wordpress/` missing on disk despite `scaffold.py` referencing it. · 2026-06-17: WordPress scaffolding retired — `_scaffold_wordpress` + `WORDPRESS_TEMPLATE_DIR` removed; `fabrik scaffold --type wordpress` redirects to `/opt/wpf` before writing (no skeleton, no partial dir); wordpress-only `--preset`/`--dev-port` flags removed.
+**Last Updated:** 2026-07-20 — every CLI command/flag, `SCAFFOLD_TYPES` (12, incl. `python-api-gpu`), `SPEC_ENABLED_TYPES` (10, incl. `chrome-extension`/`mobile-app`), template inventory (19 directories), and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. WordPress scaffolding is fully retired from Fabrik — see `/opt/wpf/` and the WordPress notes throughout this doc. `fabrik new` remains deprecated/hidden (Phase 4k).
 **Scope:** This doc is **canonical for the project-creation half** (`fabrik scaffold` and the file tree it produces). For the **deployment half** (`fabrik apply` — the single deploy command — orchestrator state machine, registrars, verifier, rollback), see `@/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md`.
 **Source code:** `src/fabrik/scaffold.py` (scaffolders) + `src/fabrik/cli.py` (CLI) + `src/fabrik/spec_generator.py` (auto-spec)
 
@@ -51,13 +51,17 @@ Fabrik is a **spec-driven deployment automation** system that:
 ### Architecture
 
 ```text
-┌── fabrik CLI (src/fabrik/cli.py) — 17 top-level commands + 5 groups ─────┐
+┌── fabrik CLI (src/fabrik/cli.py) — 23 @cli.command + 7 @cli.group ───────┐
 │ Project lifecycle:  scaffold  validate  validate-deploy  fix  scan       │
-│                     projects  templates                                  │
-│ Deploy / ops:       plan  apply  deploy  status  app-logs  logs  destroy │
-│                     redeploy  verify                                     │
-│ Groups:             wp  ai  domain  content  seo                         │
+│                     projects  templates  export  import  dev  review     │
+│ Deploy / ops:       plan  apply  status  app-logs  logs  destroy         │
+│                     redeploy  verify  vps-sync  audit-registrars         │
+│                     reconcile-all                                       │
+│ Groups (7):         preplan  ai  domain  content  seo  vultr  gpu        │
 │ Hidden/deprecated:  new   (Phase 4k 2026-04-22)                           │
+│ Note: there is NO standalone "deploy" command — `fabrik apply` is the    │
+│ single deploy entry point (verified via `grep -n 'def deploy\b'` = 0     │
+│ hits, 2026-07-20).                                                       │
 └────────────────────────────────────────────────────────────────────────────────────┘
      │
      ├─ fabrik scaffold → src/fabrik/scaffold.py + templates/<type>/
@@ -100,6 +104,7 @@ Does it need to run continuously (24/7)?
 | Type | Runtime | Runs 24/7 | Container | Deploy Method |
 |------|---------|-----------|-----------|---------------|
 | `python-api` | Python | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `python-api-gpu` | Python | ✅ Yes | ✅ Yes | GPU-aware `python-api` variant (hooks `gpu_rent` into the job handler); `fabrik apply` → Coolify |
 | `node-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
 | `file-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
 | `file-worker` | Python | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
@@ -107,7 +112,7 @@ Does it need to run continuously (24/7)?
 | `wordpress` | PHP | ✅ Yes | ✅ Yes | Scaffold skeleton only — deploy via separate `/opt/wpf/` (`wpf` CLI); `fabrik apply` errors/redirects. Preset: `saas`/`company`/`content`/`landing`/`ecommerce` |
 | `docusaurus` | TypeScript | ❌ No | ❌ No | Static host |
 | `chrome-extension` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify (backend) + Chrome Web Store (extension) |
-| `mobile-app` | TypeScript | ❌ No | ❌ No | App stores |
+| `mobile-app` | TypeScript | ✅ Yes (backend) | ✅ Yes (backend) | Ships an Expo/RN client (App Stores) **AND** a bundled minimal FastAPI backend (`server/`, Pattern-A) that DOES deploy via `fabrik apply` → Coolify — mirrors `chrome-extension` (`scaffold.py:4878-4890`) |
 | `desktop-app` | TypeScript | ❌ No | ❌ No | Direct dist |
 | `static-site` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
 
@@ -116,6 +121,7 @@ Does it need to run continuously (24/7)?
 | Type | Runtime | Container | Key Dirs | Deploy |
 |------|---------|-----------|----------|--------|
 | `python-api` | Python | ✅ | `src/`, `tests/` | Coolify |
+| `python-api-gpu` | Python | ✅ | `src/`, `tests/` (+ `gpu_rent` job-handler hook) | Coolify |
 | `node-api` | Node.js | ✅ | `src/` | Coolify |
 | `file-api` | Node.js | ✅ | `src/` | Coolify |
 | `file-worker` | Python | ✅ | `worker/` | Coolify |
@@ -123,7 +129,7 @@ Does it need to run continuously (24/7)?
 | `wordpress` | PHP | ✅ | `plugins/`, `themes/`, `backup/` | Scaffold only — deploy via `/opt/wpf/` (`wpf` CLI). Preset: `saas`/`company`/`content`/`landing`/`ecommerce` |
 | `docusaurus` | TypeScript | ❌ | `docs/`, `openapi.yaml`, `src/css/` | Static host |
 | `chrome-extension` | TypeScript | ✅ | `extension/`, `server/` | Coolify (backend) + Chrome Web Store (extension) |
-| `mobile-app` | TypeScript | ❌ | `src/navigation/`, `src/features/` | App stores |
+| `mobile-app` | TypeScript | ✅ (backend) | `src/navigation/`, `src/features/`, `server/` | App stores (client) + Coolify (bundled FastAPI backend, mirrors `chrome-extension`) |
 | `desktop-app` | TypeScript | ❌ | `electron/` | Direct dist |
 | `static-site` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Coolify |
 
@@ -591,7 +597,7 @@ After file creation, `fabrik scaffold` also:
 5. **Pre-commit install** - Copies config and runs `pre-commit install`
 6. **Type patching** - Updates `project.yaml` with actual project type and port
 7. **Initial commit** - Stages all files and commits "Initial commit"
-8. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and `docs/BUSINESS_MODEL.md`
+8. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and the Fabrik-level `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11 — not to be confused with the new project's own per-project `docs/BUSINESS_MODEL.md`, seeded separately from `docs/BUSINESS_MODEL_TEMPLATE.md`, see § Documentation above)
 9. **Auto-spec generation** - For SPEC_ENABLED_TYPES, generates deployment spec at `/opt/fabrik/specs/services/{name}.yaml` (skipped if `--no-spec`)
 10. **Deployment validation** - Runs `validate-deploy` checks and prints warnings (non-blocking)
 
@@ -633,22 +639,26 @@ make review       # Run Kilo code review
 > The deploy half is documented canonically in `@/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md`. Below is the syntax-only summary; that file is the source of truth for state-machine, registrar, and verifier behavior.
 
 ```bash
-# Preview deployment plan (dry run; legacy path)
+# Preview deployment plan (dry run)
 fabrik plan <spec.yaml> [-s KEY=VALUE]
 
-# Execute deployment (legacy path; --use-orchestrator opts into the new pipeline)
-fabrik apply <spec.yaml> \
+# Execute deployment. spec_path is OPTIONAL — omit it to resolve from
+# /opt/<project>/project.yaml in cwd (routes WordPress vs. service).
+fabrik apply [<spec.yaml>] \
   [-s KEY=VALUE]            # multiple secrets, KEY=VALUE format
   [--yes]                   # skip confirmation prompt
-  [--dry-run]               # simulate without making changes (forces orchestrator path)
+  [--dry-run]               # simulate without making changes
   [--skip-dns]              # skip DNS record creation
   [--skip-deploy]           # render files only, skip Coolify deploy
-  [--use-orchestrator]      # use new orchestrator pipeline (will become default post-Phase 4)
+  [--use-orchestrator]      # DEPRECATED, hidden, no-op: the orchestrator pipeline has been the
+                             #   default since 2026-05-05 (G1) — kept only for backward compatibility
+  [--legacy]                # G1 escape hatch: OPT OUT of the orchestrator back to the
+                             #   pre-orchestrator pipeline (render + DNS + deploy_to_coolify only,
+                             #   skips GlitchTip/Gatus/Authelia/Backrest/Meilisearch/Grafana/Postgres
+                             #   registrars). Do NOT use for new deploys.
   [--skip-health-check]     # skip verifier HTTP probe
   [--keep-on-failure]       # B27: leave Coolify app + DNS + GlitchTip etc. on failure (proof-run / debugging)
-
-# Project-based deploy (reads /opt/<project>/project.yaml; routes WordPress vs. service)
-fabrik apply [<spec_path>] [--dry-run]   # no spec_path = resolve from project.yaml in cwd
+  [--target-vps vps1|vps2|vps3]  # W-Multi M4: override the spec's target_vps for this run
 
 # Status
 fabrik status <spec.yaml>
@@ -675,7 +685,7 @@ fabrik destroy <spec.yaml> \
 # List all projects (reads data/projects.yaml)
 fabrik projects [--status <deployed|ready|development>] [--sync]
 
-# Scan /opt for projects, refresh registry + BUSINESS_MODEL.md
+# Scan /opt for projects, refresh registry + docs/PROJECT_CATALOG.md
 fabrik scan [--base /opt] [--health]
 
 # Validate scaffold structure (file presence per type)
@@ -716,17 +726,22 @@ fabrik seo    site-register | ...                    # SEO service (keyword rese
 
 **Purpose:** Automatically generate deployment spec files when scaffolding projects, eliminating manual spec creation.
 
-**Enabled Types (`SPEC_ENABLED_TYPES`, source: `src/fabrik/spec_generator.py:58`):**
+**Enabled Types (`SPEC_ENABLED_TYPES`, source: `src/fabrik/spec_generator.py:60-73`, 10 entries — reconciled 2026-07-20):**
 
 - `python-api`
+- `python-api-gpu`
 - `saas-skeleton`
 - `node-api`
 - `file-api`
 - `file-worker`
 - `static-site`
 - `docusaurus`
+- `chrome-extension`
+- `mobile-app`
 
-> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are **packaged artifacts** (Chrome Web Store / app stores / direct dist) — they don't deploy to a VPS, so emitting a `specs/services/<name>.yaml` would just create a phantom DNS record + Coolify app on every `fabrik apply`. `wordpress` no longer scaffolds in Fabrik — `fabrik scaffold --type wordpress` redirects to the standalone `/opt/wpf/` project (`wpf` CLI, per-site `specs/sites/<domain>.yaml`), and `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`.
+> **`chrome-extension` and `mobile-app` ARE in `SPEC_ENABLED_TYPES`** (added since the "packaged artifacts" framing below was written) — both bundle a deployable FastAPI backend (port 8000, `/health`): `chrome-extension`'s `server/` and `mobile-app`'s `server/` (`scaffold.py:4878-4890`) each get their own `specs/services/<name>.yaml` for that backend. Only the packaged client artifact (the extension `.zip` / the App Store build) is out-of-spec — the backend is a normal VPS deploy.
+>
+> **Excluded by design:** `wordpress` (no longer scaffolds in Fabrik — `fabrik scaffold --type wordpress` redirects to the standalone `/opt/wpf/` project, `wpf` CLI, per-site `specs/sites/<domain>.yaml`; `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`) and `desktop-app` (a genuinely packaged, direct-distribution artifact with no server component — emitting a spec for it would create a phantom DNS record + Coolify app on every `fabrik apply`).
 
 **How it works:**
 1. After `fabrik scaffold` completes, `create_project()` calls `generate_and_save_spec()`
@@ -774,11 +789,12 @@ fabrik validate-deploy /opt/my-api --type python-api
 
 ### Available Templates
 
-Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:127`):
+Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:138-152`, 12 entries):
 
 | Template | Language | Use Case | VPS Deploy? | Spec Auto-Generated? |
 |----------|----------|----------|-------------|-----------------------|
 | `python-api` | Python | FastAPI REST APIs | ✅ Coolify | ✅ |
+| `python-api-gpu` | Python | GPU-aware `python-api` variant (`gpu_rent` job-handler hook) | ✅ Coolify | ✅ |
 | `node-api` | Node.js | Express/Fastify APIs | ✅ Coolify | ✅ |
 | `file-api` | Node.js | File handling APIs (S3/local) | ✅ Coolify | ✅ |
 | `file-worker` | Python | Background file processors (queue consumer, no HTTP) | ✅ Coolify (Kind.WORKER) | ✅ |
@@ -786,33 +802,40 @@ Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:127`):
 | `static-site` | TypeScript | Static websites (Next.js + Tailwind) | ✅ Coolify | ✅ |
 | `docusaurus` | TypeScript | Documentation sites with OpenAPI | ✅ Coolify (static host) | ✅ |
 | `wordpress` | PHP | WordPress sites (preset: saas/company/content/landing/ecommerce) | Scaffold skeleton only — deploy via separate `/opt/wpf/` (`wpf` CLI, `specs/sites/<domain>.yaml`); `fabrik apply` errors/redirects | ❌ (deploy is out of Fabrik) |
-| `chrome-extension` | TypeScript | Browser extensions + FastAPI backend | ✅ backend only via `fabrik apply` (SSH + Docker Compose); extension → Chrome Web Store | ❌ (artifact) |
-| `mobile-app` | TypeScript | React Native apps | ❌ App stores | ❌ (artifact) |
+| `chrome-extension` | TypeScript | Browser extensions + FastAPI backend | ✅ backend only via `fabrik apply` (SSH + Docker Compose); extension → Chrome Web Store | ✅ (backend only) |
+| `mobile-app` | TypeScript | React Native apps + bundled FastAPI backend | ✅ backend only via `fabrik apply` (mirrors `chrome-extension`); RN client → App Stores | ✅ (backend only) |
 | `desktop-app` | TypeScript | Electron apps | ❌ Direct dist | ❌ (artifact) |
 
 ### Template Locations
 
-`@/opt/fabrik/templates/` — 16 directories, verified 2026-04-29:
+`@/opt/fabrik/templates/` — **19 directories** (recount 2026-07-20, `ls -d templates/*/`):
 
 ```text
 /opt/fabrik/templates/
 ├── scaffold/           # Shared scaffolding (docs/, docker/, scripts/, db/, python/) consumed by every type
 ├── saas-skeleton/      # Full Next.js SaaS starter (also reused by static-site)
-├── next-tailwind/      # Next.js + Tailwind primitives shared by saas-skeleton / static-site
 ├── static-site/        # Static-site-specific overrides (small)
 ├── python-api/         # Python FastAPI template
+├── python-api-gpu/     # GPU-aware python-api variant
 ├── node-api/           # Node.js API template
 ├── file-api/           # File handling API (Node.js)
 ├── file-worker/        # Background worker (Python)
-├── wordpress/          # ⚠️ referenced by scaffold.py (WORDPRESS_TEMPLATE_DIR) but MISSING on disk (removed in WP→/opt/wpf migration)
 ├── docusaurus/         # Docusaurus documentation site
 ├── chrome-extension/   # Browser extension (WXT + Preact) + FastAPI backend
-├── mobile-app/         # React Native
+├── mobile-app/         # React Native + bundled FastAPI backend
 ├── desktop-app/        # Electron
 ├── spec-pipeline/      # Traycer Stage 0 discovery pipeline (4 prompt files + README)
 ├── traycer/            # Traycer integration helpers
-└── prompts/            # Shared LLM prompt fragments
+├── prompts/            # Shared LLM prompt fragments
+├── i18n-kit/           # Internationalization starter kit
+├── modal/              # Modal.com GPU-job template primitives
+├── _partials/          # Shared partial fragments consumed by other templates
+└── preplan/            # Preplan discovery-doc templates
 ```
+
+**`templates/wordpress/`** — ⚠️ referenced by `scaffold.py` history (`WORDPRESS_TEMPLATE_DIR`) but confirmed MISSING on disk (removed in the WP → `/opt/wpf` migration; already self-flagged by this doc's own change history above).
+
+**`templates/next-tailwind/`** — does **not** exist on disk (confirmed via `ls -d templates/*/`, 2026-07-20). This directory was never re-created after being referenced by an earlier draft of this doc; `saas-skeleton/` and `static-site/` are self-contained and do not depend on a shared `next-tailwind/` primitives directory.
 
 ---
 
@@ -1133,13 +1156,13 @@ class Config:
 
 ## File Reference Links
 
-> All paths verified to exist as of 2026-04-29.
+> Recounted 2026-07-20 against `ls -d templates/*/` — 19 directories; `next-tailwind/` and `wordpress/` do not exist on disk (see § Template Locations above).
 
-### Top-level template directories (`@/opt/fabrik/templates/`)
+### Top-level template directories (`@/opt/fabrik/templates/`, 19 total)
 
-- `chrome-extension/` `desktop-app/` `docusaurus/` `file-api/` `file-worker/` `mobile-app/`
-- `next-tailwind/` `node-api/` `prompts/` `python-api/` `saas-skeleton/`
-- `scaffold/` `spec-pipeline/` `static-site/` `traycer/` `wordpress/`
+- `_partials/` `chrome-extension/` `desktop-app/` `docusaurus/` `file-api/` `file-worker/`
+- `i18n-kit/` `mobile-app/` `modal/` `node-api/` `preplan/` `prompts/` `python-api/`
+- `python-api-gpu/` `saas-skeleton/` `scaffold/` `spec-pipeline/` `static-site/` `traycer/`
 
 ### Shared scaffold scaffolding (`templates/scaffold/`)
 
@@ -1169,7 +1192,7 @@ class Config:
 
 ### Source Code
 
-- `@/opt/fabrik/src/fabrik/cli.py` — all 17 top-level commands + 5 groups
+- `@/opt/fabrik/src/fabrik/cli.py` — 23 `@cli.command` decorators (one hidden: `new`) + 7 `@cli.group()` groups (`preplan`, `ai`, `domain`, `content`, `seo`, `vultr`, `gpu`); no standalone `deploy` command exists
 - `@/opt/fabrik/src/fabrik/scaffold.py` — `create_project()`, per-type scaffolders, `SCAFFOLD_TYPES`, `SHARED_DIRS`
 - `@/opt/fabrik/src/fabrik/spec_generator.py` — `SPEC_ENABLED_TYPES`, `generate_and_save_spec()`
 - `@/opt/fabrik/src/fabrik/deploy_validator.py` — `validate-deploy` 5-check module
@@ -1197,7 +1220,7 @@ class Config:
 
 ## Fabrik CLI Reference
 
-All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and signatures verified 2026-04-29.
+All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and signatures verified 2026-07-20.
 
 ### Project Creation & Management
 
@@ -1205,7 +1228,7 @@ All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and sig
 |---------|-------------|
 | `fabrik scaffold <name>` | Create new project tree + `project.yaml` + (for `SPEC_ENABLED_TYPES`) `specs/services/<name>.yaml`. Canonical entry point. |
 | ~~`fabrik new <name>`~~ | **DEPRECATED 2026-04-22 (Phase 4k):** hidden, removed-after-next-release. Use `fabrik scaffold`. |
-| `fabrik scan` | Scan `/opt/*`, update registry + BUSINESS_MODEL.md (`--health` runs health summary; `--base` overrides scan root) |
+| `fabrik scan` | Scan `/opt/*`, update registry + `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11) (`--health` runs health summary; `--base` overrides scan root) |
 | `fabrik projects` | List all tracked projects (`--status`, `--sync`) |
 | `fabrik validate <path>` | Validate project file structure against scaffold expectations |
 | `fabrik validate-deploy <path>` | 5 deploy-readiness checks (template, .env.example, Dockerfile, /health, spec) |
@@ -1216,9 +1239,8 @@ All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and sig
 
 | Command | Description |
 |---------|-------------|
-| `fabrik apply <spec>` | Deploy from a spec (legacy path; `--use-orchestrator` opts into the new pipeline; `--keep-on-failure` for proof-runs) |
-| `fabrik apply [<spec_path>]` | Deploy. No spec_path = resolve from `project.yaml` in cwd. WordPress redirects to the `wpf` CLI. |
-| `fabrik plan <spec>` | Preview deployment (dry run, legacy path) |
+| `fabrik apply [<spec_path>]` | Deploy from a spec, or (if `spec_path` omitted) resolve from `project.yaml` in cwd. The orchestrator pipeline is the default since 2026-05-05 (G1) — `--use-orchestrator` is a deprecated, hidden no-op kept for backward compat; `--legacy` opts OUT back to the pre-orchestrator pipeline. `--keep-on-failure` for proof-runs. WordPress redirects to the `wpf` CLI. |
+| `fabrik plan <spec>` | Preview deployment (dry run) |
 | `fabrik status <spec>` | Check deployment status (Coolify + DNS + cert) |
 | `fabrik app-logs <spec>` | Coolify container logs for the spec's app (`-n`, `--follow`) |
 | `fabrik logs <service>` | Loki query by service name (`-n`, `--since 1h\|24h\|7d`) |

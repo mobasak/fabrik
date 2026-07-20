@@ -18,9 +18,9 @@ All rows are exposed via `fabrik scaffold --type <name>`. (`wordpress` is a reco
 | `python-api-gpu` | python-api + `gpu_handler.py` (on-demand GPU rent) | 8000 | GPU-burst APIs/workers | service, public, metrics |
 | `node-api` | Node.js 22 + Express/Fastify | 3000 | Node.js APIs | service, public, metrics |
 | `saas-skeleton` | Next.js 15 + React 19 + TypeScript + Tailwind | 3000 | Full SaaS apps & dashboards | service, public, bearer-api, DB, cache, persistent, metrics |
-| `static-site` | Static HTML/JS via nginx | 80 | Landing pages, doc sites | static, public |
+| `static-site` | No own `Dockerfile.j2` — routed through `_scaffold_saas_skeleton` (Next.js 15 + React 19 + TypeScript + Tailwind, same as `saas-skeleton`) | 3000 | Landing pages, doc sites | static, public |
 | `docusaurus` | Docusaurus 3 | 3000 | Documentation sites | static, public |
-| `file-api` | Python + FastAPI (file-ops microservice) | 8000 | File upload/transform services | service, public, persistent |
+| `file-api` | Node.js 22 (`file-api/Dockerfile.j2`) — presigned-URL file-ops microservice | 3000 | File upload/transform services | service, public, persistent |
 | `file-worker` | Python background worker (variant of file-api) | — | Async file processing | worker, persistent |
 | `chrome-extension` | MV3 (WXT + Preact) | — | Browser extensions; compose.yaml.j2 deploys a companion FastAPI backend via `fabrik apply` | service (all-false flags; backend deployable) |
 | `desktop-app` | Electron-style | — | Desktop apps; template carries a compose.yaml.j2 but the scaffolder does not emit a spec today | service (all-false flags) |

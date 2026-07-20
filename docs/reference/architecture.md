@@ -66,8 +66,8 @@ Each template has `defaults.yaml` declaring its default shape flags.
 | `context.py` | `DeploymentContext` — shared state, resource log for rollback |
 | `validator.py` | Pydantic validation + SSRF check + idempotency hash |
 | `secrets.py` | `SecretsManager` — CSPRNG generate, `-s` > project `.env` > fabrik `.env` > env |
-| `deployer_ssh.py` | **`ServiceDeployer` (current)** — idempotent `docker compose up -d` over SSH |
-| `deployer_coolify.py` | Legacy Coolify-API deployer — retained on disk, non-functional (Coolify decommissioned 2026-05-30) |
+| `deployer_ssh.py` | **`SSHDeployer` (current)** — idempotent `docker compose up -d` over SSH |
+| `deployer_coolify.py` | Legacy Coolify-API deployer — retained on disk, non-functional (Coolify decommissioned 2026-05-30); keeps the legacy class name `ServiceDeployer` (`deployer_coolify.py:24`) |
 | `infrastructure.py` | **`InfrastructureProvisioner`** — shape-driven registrar dispatch |
 | `verifier.py` | HTTP 200, DNS, SSL, SENTRY_DSN injection (via `docker inspect`) |
 | `rollback.py` | `RollbackManager` — LIFO cleanup; DB drops logged, not auto-executed |
@@ -83,9 +83,8 @@ Every external call goes through a driver. No ad-hoc HTTP or SSH allowed in CLI/
 |---|---|
 | **VPS primitives** | `ssh.py`, `locks.py` |
 | **Coolify + networking** | `coolify.py`, `compose_updater.py`, `preflight.py`, `dns.py`, `cloudflare.py` |
-| **Shape-gated registrars** | `postgres.py`, `gatus.py`, `backrest.py`, `glitchtip.py`, `grafana.py`, `authelia.py`, `meilisearch.py` |
+| **Shape-gated registrars** | `postgres.py`, `redis.py`, `gatus.py`, `backrest.py`, `glitchtip.py`, `grafana.py`, `authelia.py`, `meilisearch.py`, `prometheus.py` |
 | **Optional infra** | `supabase.py`, `r2.py` |
-| **WordPress** | `wordpress.py`, `wordpress_api.py` |
 | **Content pipeline** | `image_broker.py`, `seo.py`, `tco.py` |
 | **Legacy** | `uptime_kuma.py` (superseded by Gatus) |
 
@@ -103,8 +102,9 @@ Click-based. ~30 top-level commands/groups. See `docs/reference/fabrik-cli-refer
 | `deploy_validator.py` | Scaffold-level readiness (Dockerfile, `.env`, healthcheck, platform) |
 | `compose_linter.py` | Coolify compatibility: no public ports, amd64 platform, fabrik network |
 | `registry.py` | `ProjectRegistry` → `/opt/fabrik/data/projects.yaml` |
-| `provisioner.py` | Saga for brand-new-site setup (domain → DNS → Coolify bootstrap) |
 | `verify.py` | `PostconditionChecker` framework for declarative post-deploy checks |
+
+> `provisioner.py` (the `SiteProvisioner` saga for brand-new-site setup: domain → DNS → Coolify bootstrap) was **removed 2026-07-19** (`fd2b89ad`, fully orphaned dead code). New-site domain provisioning now goes through the standalone `site-provisioner` microservice (`docs/reference/service-contracts/site-provisioner.md`). Archived reference: `docs/archive/provisioner.md`.
 
 ---
 
@@ -120,7 +120,7 @@ User: cd /opt/my-api && fabrik apply
      c. SecretsManager.load() — project .env merged with fabrik .env
      d. DNSClient.add_record(domain, VPS_IP)              [if --skip-dns not set]
      e. TemplateRenderer.render() + ComposeLinter.lint()
-     f. ServiceDeployer (`deployer_ssh.py`) — `docker compose up -d` over SSH
+     f. SSHDeployer (`deployer_ssh.py`) — `docker compose up -d` over SSH
      g. InfrastructureProvisioner.provision(ctx)          [SHAPE-GATED]:
           postgres.create_database()      if needs_database
           gatus.add_endpoint()            if is_public + domain
@@ -192,7 +192,6 @@ src/fabrik/
 ├── compose_linter.py          # Coolify-compat: no public ports, amd64, fabrik network
 ├── config.py                  # FABRIK_ROOT, ensure_directories
 ├── registry.py                # ProjectRegistry → data/projects.yaml
-├── provisioner.py             # SiteProvisioner — 15-state saga for new site bootstrap
 ├── state.py                   # .fabrik/state/<id>.json — 8-field deploy manifest
 ├── locks_local.py             # File-based lock preventing concurrent applies
 ├── verify.py                  # PostconditionChecker framework
@@ -204,8 +203,8 @@ src/fabrik/
 ├── dev_tools.py               # fabrik dev / fabrik review / fabrik logs --local
 ├── orchestrator/              # 22 modules — deployment state machine
 │   ├── __init__.py            #   DeploymentOrchestrator — top-level runner
-│   ├── deployer_ssh.py        #   ServiceDeployer (current) — docker compose up -d over SSH
-│   ├── deployer_coolify.py    #   Legacy Coolify-API deployer — retained, non-functional
+│   ├── deployer_ssh.py        #   SSHDeployer (current) — docker compose up -d over SSH
+│   ├── deployer_coolify.py    #   Legacy Coolify-API deployer — retained, non-functional; keeps the legacy class name ServiceDeployer (:24)
 │   ├── infrastructure.py      #   InfrastructureProvisioner — 9 shape-gated registrars
 │   ├── rollback.py            #   RollbackManager — LIFO cleanup
 │   ├── secrets.py             #   SecretsManager — CSPRNG + env precedence

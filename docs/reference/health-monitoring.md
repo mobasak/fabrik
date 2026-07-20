@@ -23,7 +23,7 @@
 
 The full observability stack is deployed and operational. node-exporter + cAdvisor export host/container metrics to Prometheus (these replaced Netdata, removed 2026-05-30); Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
 
-**Live coverage (verified 2026-07-19, 3-host fleet):** Gatus = ~34 endpoints across 18 config files · Prometheus = 16 `job_name`s configured / 20 targets, 20 up (`fabrik-services` is a null placeholder; the `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
+**Live coverage (verified 2026-07-20, 3-host fleet):** Gatus = ~34 endpoints across 18 config files · Prometheus = 17 `job_name`s configured / 21 targets, 21 up (16 job_names carry real targets + the `pushgateway` job restored 2026-07-19; `fabrik-services` is a null placeholder with zero targets; the `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
 
 > **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, scraped by dedicated `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs in `prometheus.yml` (targets `10.99.0.2/3` over the mesh), plus the `aro-wake` job (all 3 hosts) and push-based Loki log shipping.
 
@@ -268,11 +268,11 @@ Generalises the Authelia weekly cron to all 10 audited registrars at hourly cade
 
 ## Stable Docker DNS Aliases (T2-04 G-J3, 2026-05-15) — LEGACY / not deployed
 
-> **Decommissioned (2026-06):** This mechanism existed to work around Coolify renaming Application containers on every redeploy. Coolify has since been decommissioned (`coolify` is now only a legacy Docker-network name), so the per-redeploy rename problem no longer exists and the alias-watcher is **not running** — `/opt/coolify-alias-watcher/` is absent on the VPS. The repo files (`src/fabrik/orchestrator/coolify_alias.py`, `ops/coolify-alias-watcher/`) remain as a historical mirror. The description below documents the original design.
+> **Decommissioned (2026-06):** This mechanism existed to work around Coolify renaming Application containers on every redeploy. Coolify has since been decommissioned (`coolify` is now only a legacy Docker-network name), so the per-redeploy rename problem no longer exists and the alias-watcher is **not running** — `/opt/coolify-alias-watcher/` is absent on the VPS. The repo files (`src/fabrik/orchestrator/coolify_alias.py` live; the former `ops/coolify-alias-watcher/` WSL mirror was archived to `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/`) remain as a historical mirror. The description below documents the original design.
 
 Adjacent to the audit/verify primitives above — the alias-watcher keeps friendly Docker DNS names alive for Gatus monitors and inter-service URLs that target Coolify Application containers. Coolify renames Application containers on every redeploy (`<24-char-uuid>-<10-digit-timestamp>`); without the watcher, `gatus:8080 → meilisearch:7700` resolution would break after each redeploy of the meilisearch container.
 
-The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to `docker events --filter event=start`), reads the prefix→alias map from `/opt/coolify-alias-watcher/aliases.json`, and re-applies aliases within ~1s. WSL mirror in repo at `ops/coolify-alias-watcher/`.
+The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to `docker events --filter event=start`), reads the prefix→alias map from `/opt/coolify-alias-watcher/aliases.json`, and re-applies aliases within ~1s. WSL mirror in repo archived at `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/`.
 
 **Orchestrator integration:** new services that need stable DNS opt in by setting `coolify.alias: <name>` in their spec's `CoolifyConfig` block. `fabrik apply` calls `src/fabrik/orchestrator/coolify_alias.py::add_alias(ctx.coolify_uuid, alias)` after the Coolify create-app step, which writes atomically to aliases.json and restarts the watcher. Non-fatal: alias-watcher failure logs a warning but never aborts deploy.
 
@@ -286,6 +286,6 @@ The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to 
 - `src/fabrik/audit.py` - per-registrar audit module (T2-02)
 - `scripts/audit_authelia_gates.py` - weekly Authelia-Traefik drift audit (T2-03 G-G4)
 - `src/fabrik/orchestrator/coolify_alias.py` - Coolify alias-watcher write side (T2-04 G-J3)
-- `ops/coolify-alias-watcher/` - WSL mirror of the VPS-side `/opt/coolify-alias-watcher/`
+- `ops/.archive/2026-06-17-coolify-decommission/coolify-alias-watcher/` - archived WSL mirror of the VPS-side `/opt/coolify-alias-watcher/`
 - `docs/reference/modules/drivers.md` - driver API reference (registrar drivers + DNS/GPU providers)
 - `.env.example` - authoritative environment variable reference
