@@ -69,6 +69,16 @@ _PLACEHOLDER_VALUES = re.compile(
     re.I,
 )
 
+# DSN credential segments that are obvious connection-string EXAMPLES, not real
+# passwords — `postgresql://user:pass@host:port/db`, `mongodb://user:password@…`.
+# A backtick-wrapped example DSN in a reference doc is the #1 secrets false positive;
+# the quote-anchored _PLACEHOLDER_VALUES check above never sees it (backticks ≠ quotes).
+# A real hardcoded password (`admin:Xk9d2@`) does NOT match — only literal placeholders do.
+_DSN_PLACEHOLDER_PW = re.compile(
+    r"^(?:pass|passwd|password|pwd|pw|secret|your[-_]?password)$",
+    re.I,
+)
+
 
 def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[CheckResult]:
     """Check a file for hardcoded secrets.
@@ -115,6 +125,11 @@ def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[C
             # quoted value REFERENCES a credential in an example, it doesn't hardcode one.
             value = re.search(r"['\"]([^'\"\n]+)['\"]", secret)
             if value and _PLACEHOLDER_VALUES.match(value.group(1).strip()):
+                continue
+            # DSN example with a placeholder credential (`://user:pass@`) — a doc
+            # connection-string template, not a hardcoded secret.
+            dsn_pw = re.search(r"://[^:@\s]+:([^@\s]+)@", secret)
+            if dsn_pw and _DSN_PLACEHOLDER_PW.match(dsn_pw.group(1).strip()):
                 continue
             masked = secret[:4] + "..." + secret[-4:] if len(secret) > 8 else "***"
             results.append(

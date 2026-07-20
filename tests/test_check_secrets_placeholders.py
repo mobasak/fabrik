@@ -32,3 +32,22 @@ def test_real_credentials_still_flagged(tmp_path):
 
 def test_real_provider_keys_still_flagged(tmp_path):
     assert _scan(tmp_path, 'k = "sk-ant-' + "a" * 40 + '"')
+
+
+def test_example_dsn_credentials_are_skipped(tmp_path):
+    # Backtick-wrapped connection-string EXAMPLES in reference docs — placeholder creds.
+    for v in [
+        "Connection String: `postgresql://user:pass@host:port/db`",
+        "URI: `postgresql://user:password@host:5432/db`",
+        "`mongodb://user:pwd@host:27017/db`",
+        "`mongodb+srv://user:password@cluster/db`",
+    ]:
+        assert _scan(tmp_path, v) == [], v
+
+
+def test_real_dsn_password_still_flagged(tmp_path):
+    for v in [
+        "url = `postgresql://admin:Xk9d2RealPw@host:5432/db`",
+        "`mongodb://root:s3cr3tValue@host:27017/db`",
+    ]:
+        assert _scan(tmp_path, v), f"MISSED real DSN secret: {v}"

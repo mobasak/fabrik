@@ -11,6 +11,9 @@ The generic "Hardcoded credential" pattern had no placeholder exclusion (only th
 anchored `_PLACEHOLDER_VALUES` skip for `your-key-here`, `<token>`, `{{VAR}}`, `changeme`, `xxxx`,
 `placeholder`, `redacted`, etc. — anchored to the WHOLE value, so a real secret that merely CONTAINS such a
 word is still flagged. Verified `sk-ant-`/real credentials still caught (no false negatives); 3 regression tests.
+Also extended to backtick-wrapped example DSNs — `postgresql://user:pass@host:port/db` /
+`mongodb://user:password@…` in reference docs are connection-string templates, not secrets (the quote-anchored
+placeholder check never saw backticks). A real DSN password (`admin:Xk9d2@`) is still flagged; +2 regression tests.
 Synced enforcement check → propagates on re-sync.
 
 
