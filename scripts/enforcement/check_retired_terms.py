@@ -83,4 +83,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # noqa: BLE001 — WARN-only contract: never block the gate
+        print(f"check_retired_terms: internal error ({exc}) — advisory check, not blocking")
+        sys.exit(0)

@@ -152,8 +152,8 @@ def _resolves(target: str, src: Path) -> bool:
     if _PLACEHOLDER_RE.search(t):
         return True
     t = t.replace("%20", " ")
-    norm = t
-    if not t.startswith("../"):
+    norm = t.lstrip("/") if t.startswith("/") else t
+    if not norm.startswith("../"):
         while norm.startswith("./"):
             norm = norm[2:]
     if norm.rstrip("/") in PROJECT_CONTEXT_ALLOW or norm in PROJECT_CONTEXT_ALLOW:
@@ -163,6 +163,10 @@ def _resolves(target: str, src: Path) -> bool:
         return True
     # source-relative resolution
     cand = (src.parent / t).resolve()
+    in_repo = str(cand).startswith(str(REPO) + "/")
+    in_fabrik_lib = str(cand).startswith("/opt/fabrik-lib/")  # sanctioned sibling repo
+    if not (in_repo or in_fabrik_lib):
+        return False  # escaped to the host FS — never resolve there
     return cand.exists()
 
 
