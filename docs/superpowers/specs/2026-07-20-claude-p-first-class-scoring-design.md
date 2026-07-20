@@ -110,11 +110,18 @@ tokens burned/tier = Δ(usage-history.byModel[tier])          # exact
 rate[tier] ($/tok) = ($46.15 × Δ%used) ÷ Δtokens[tier]
 cost_usd(run)      = run_tokens × rate[tier]                 # same units as OpenRouter usage.cost
 ```
-- **Auto-calibrated, zero manual entry:** a small `derive_rates.py` reads the two JSON files and computes
-  `rate[tier]` (per-tier via the `byModel` split; regress `Δ%used` on per-tier tokens across windows to
-  separate the weights, or read a mostly-single-tier window). **The scoring run IS the probe** — running one
-  tier's ~110 problems moves `sevenDay.usedPercent` by a measurable Δ against a known token count → `rate[tier]`
-  directly. `claude_code_rates.json` is the cached output, refreshed on each run (not hand-authored).
+- **Measure tokens per run (confounder-proof), then cost = tokens × a CACHED rate — never read Δ%used live
+  during a run.** Each `claude -p --output-format json` call yields its OWN `usage` tokens, summed per model:
+  exact, per-call, and immune to **rotation mid-run** (same tokens whichever account serves it) and
+  **concurrent usage** (the orchestrator + other sessions hit the same accounts — counting only the benchmark's
+  own calls excludes them). `total_$[model] = tokens[model] × rate[model]`; `$/run`, `$/1k` derive exactly as
+  the coding/review benches do from `usage.cost`.
+- **`rate[tier]` is calibrated SEPARATELY (a stable constant), not from the noisy run.** `derive_rates.py`
+  reads the two JSON files over a **quiet, mostly-single-tier window** — where `Δ(sevenDay.usedPercent) × $46.15
+  ÷ Δtokens[tier]` is clean — or regresses `Δ%used` on per-tier tokens across windows when mixed. Cached in
+  `claude_code_rates.json`. The FIRST single-tier scoring run in a quiet window IS that calibration; every run
+  thereafter just multiplies its measured tokens by the cached rate. (Reading Δ%used *during* a rotating,
+  concurrently-shared run would over-attribute — hence the split.)
 - **cost_usd** drops straight into the existing gates + value ranker (`$/1k`) with **zero grader change**.
   `total_cost_usd`/`statusline.cost.totalUsd` are kept only as a "what OpenRouter would charge" cross-check,
   never as the subscription cost.
