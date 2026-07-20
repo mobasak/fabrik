@@ -287,9 +287,9 @@ def load_judged_metrics(task_type: str, db_path: Path = DB_PATH) -> dict[str, di
             "m.cost_per_1k, m.p50_latency_s, m.n_err FROM model_judged_metrics m "
             "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_judged_metrics "
             "WHERE task_type=? GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb "
-            "WHERE m.task_type=?",
-            (task_type, task_type),
-        ).fetchall()
+            "WHERE m.task_type=? ORDER BY m.built_at, m.window",  # (built_at,window) → deterministic
+            (task_type, task_type),  # last-wins on a same-day two-window tie (window ∈ PK, unlike the
+        ).fetchall()  # review/coding metrics tables — the MAX-join alone would return BOTH window rows
     finally:
         conn.close()
     return {

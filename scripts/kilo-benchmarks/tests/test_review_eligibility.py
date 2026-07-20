@@ -349,3 +349,26 @@ def test_judged_eligible_gate_maths(tmp_path):
     conn.close()
     assert btb.judged_eligible("research", db) == {"good/research"}
     assert btb.judged_eligible("plan", db) == {"good/plan"}  # structural: cost/latency ignored
+
+
+def test_load_judged_metrics_deterministic_on_two_windows_same_day(tmp_path):
+    """Whole-plan review #2: model_judged_metrics has `window` in its PK, so two windows the same day
+    leave two rows per model that both satisfy MAX(built_at). The loader must be DETERMINISTIC (higher
+    window wins via ORDER BY built_at, window), not flip-flop — unlike the review/coding tables which
+    have no window in their PK."""
+    db = tmp_path / "k.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE model_judged_metrics (model_id TEXT, task_type TEXT, score5 REAL, grade TEXT, "
+        "recall REAL, precision REAL, structural TEXT, cost_usd REAL, cost_per_1k REAL, "
+        "p50_latency_s REAL, tokens_per_s REAL, n_graded INTEGER, n_err INTEGER, window TEXT, built_at TEXT)"
+    )
+    for win, s5 in (("v1", 3.6), ("v2", 3.4)):  # same model, same day, two windows
+        conn.execute(
+            "INSERT INTO model_judged_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("m/x", "research", s5, "B+", None, None, None, None, 1.0, 2.0, None, 3, 0, win, "2026-07-20"),
+        )
+    conn.commit()
+    conn.close()
+    got = btb.load_judged_metrics("research", db)
+    assert set(got) == {"m/x"} and got["m/x"]["score5"] == 3.4  # v2 (higher window) wins, deterministic

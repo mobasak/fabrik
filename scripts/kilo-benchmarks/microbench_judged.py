@@ -915,9 +915,14 @@ def main(argv: list[str] | None = None) -> int:
         scores = _finalize_scores(
             grader(gens, corpus), gens
         )  # harness owns cost/latency/tokens/n_err
-        persist_metrics(scores, args.task, args.window)
-        persist_baseline(scores, args.task, args.window)
+        # Order matters for crash-safe resume: the flywheel rows + baseline FIRST, then persist_metrics
+        # LAST — because `_measured_models` keys resume on model_judged_metrics. If a hard crash lands
+        # between them, the model is NOT marked "done", so a resume re-runs it (re-paying, re-writing
+        # the flywheel — benign dup rows) rather than leaving a "measured" model with < 3 flywheel rows
+        # that never clears the ranker's HAVING COUNT>=3 gate (whole-plan review finding #1).
         record_flywheel(gens, scores)
+        persist_baseline(scores, args.task, args.window)
+        persist_metrics(scores, args.task, args.window)  # ← resume marker: written LAST
         # spend from the REAL generations, never a grader's (possibly-zeroed) TaskScore.cost_usd —
         # this is the cross-batch cost gate, so it must not depend on grader bookkeeping (finding #1).
         spent += sum(g.cost_usd for gl in gens.values() for g in gl)
