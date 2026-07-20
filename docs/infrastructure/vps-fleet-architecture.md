@@ -127,13 +127,13 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### 2. Observability — single pane on vps1
 
-- `prometheus` on vps1 has **15 active jobs / 20 targets / 20 up** (17 jobs configured in `prometheus.yml` — `fabrik-services` has null targets; `pushgateway` scrape restored 2026-07-19; repo-file re-verified 2026-07-20). Spoke node/container/log metrics ARE federated: `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (`prometheus.yml:46,58,70`) scrape `10.99.0.{2,3}` over the mesh — 2 targets each, all up. Plus the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters.
+- `prometheus` on vps1: **17 jobs configured / 16 active** (`fabrik-services` null-target; `pushgateway` scrape restored 2026-07-19; repo-file re-verified 2026-07-20 — prior live probe 2026-07-12: 20/20 targets up). Spoke node/container/log metrics ARE federated: `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (`prometheus.yml:46,58,70`) scrape `10.99.0.{2,3}` over the mesh — 2 targets each, all up. Plus the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters.
 - vps1-local series carry `host=vps1` label. ~~Spoke alert rules `spoke_health` group~~ — **NOT in alerts.yml**. The 5 live rule groups: `aro_wake` (2), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1, separate file). `host_health` matches on `host` label — for spokes the only series with that label are the `aro-wake` job's, so spoke-side host-level alerting is currently aro-wake-flavored only.
 - `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
 - `alertmanager` sends to Telegram **natively** (`telegram_configs`) and webhooks `aro-wake` — it does **not** route via `apprise` (`configs/alertmanager/alertmanager.yml:58-84`).
 - `gatus` probes 31 endpoints (across 18 config files) via mesh (re-verified live 2026-06-17; was 33 before the `coolify`/`coolify-public` endpoints were removed).
-- Total: **20/20 scrape targets up across 15 active jobs** (re-verified live 2026-07-12 via `/api/v1/targets`); 17 jobs are configured in `prometheus.yml` (the `fabrik-services` job has null targets so it isn't counted active; `pushgateway` restored 2026-07-19). The 3 spoke jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes` — 2 targets each) are live.
+- Total: **17 jobs configured / 16 active** in `prometheus.yml` (`fabrik-services` null-target; `pushgateway` restored 2026-07-19). Prior live probe 2026-07-12 (`/api/v1/targets`, pre-restore): 20/20 targets up. The 3 spoke jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes` — 2 targets each) are live.
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)
 

@@ -189,9 +189,9 @@ aro-wake binds the host's `0.0.0.0:8201`, but containers on the `fabrik` network
 
 ---
 
-## Prometheus scrape targets (15 active jobs / 20 targets, all 20 up — re-verified live 2026-07-12)
+## Prometheus scrape targets (17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up))
 
-vps1's Prometheus runs **16 configured jobs**; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving **15 active jobs and 20 active targets, all up**. This includes the spoke federation (`node-spokes` / `cadvisor-spokes` / `promtail-spokes`, 2 targets each, live since `8342ef1`). The live `prometheus.yml` job set:
+vps1's Prometheus runs **17 configured jobs**; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving **16 active jobs** (`pushgateway` restored 2026-07-19; prior 2026-07-12 live probe: 20/20 targets up). This includes the spoke federation (`node-spokes` / `cadvisor-spokes` / `promtail-spokes`, 2 targets each, live since `8342ef1`). The live `prometheus.yml` job set:
 
 | Job | Target(s) | Notes |
 | :--- | :--- | :--- |

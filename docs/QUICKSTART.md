@@ -181,7 +181,7 @@ See `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` for details.
 - [CONFIGURATION.md](CONFIGURATION.md) — every env var explained
 - [reference/architecture.md](reference/architecture.md) — how the pieces fit together
 - [reference/fabrik-cli-reference.md](reference/fabrik-cli-reference.md) — all 22 CLI commands
-- [reference/modules/templates.md](reference/modules/templates.md) — deploy templates for the scaffold types (`wordpress` is a recognised deploy/shape type with no template — redirects to the legacy `/opt/wpf` CLI; `next-tailwind` does not exist — planned-but-unimplemented, tracked as G10)
+- [reference/modules/templates.md](reference/modules/templates.md) — deploy templates for the scaffold types (`wordpress` is a recognised deploy/shape type with no template — redirects to the legacy `/opt/wpf` CLI; `next-tailwind` is planned-but-unimplemented — template files exist but there is no scaffolder function, `spec_generator.py:53`)
 - [reference/modules/deployment-orchestrator.md](reference/modules/deployment-orchestrator.md) + [reference/modules/drivers.md](reference/modules/drivers.md)
 - [LESSONS_LEARNT.md](LESSONS_LEARNT.md) — every live-incident invariant (read before deep changes)
 - [infrastructure/vps-status.md](infrastructure/vps-status.md) — VPS inventory

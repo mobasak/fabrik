@@ -10,7 +10,7 @@ Source of truth for the Shape matrix: `src/fabrik/spec_loader.py::Shape`.
 
 ## Deploy Templates (reconciled 2026-07-19 against `templates/*/defaults.yaml`)
 
-All rows are exposed via `fabrik scaffold --type <name>`. (`wordpress` is a recognised deploy/shape type with NO template — scaffolding redirects to the legacy `/opt/wpf` CLI. `next-tailwind` does not exist — planned-but-unimplemented, tracked as G10. `modal` in `templates/` is rendered by the GPU path, not by TemplateRenderer.)
+All rows are exposed via `fabrik scaffold --type <name>`. (`wordpress` is a recognised deploy/shape type with NO template — scaffolding redirects to the legacy `/opt/wpf` CLI. `next-tailwind` is planned-but-unimplemented — template files exist but no scaffolder function (`spec_generator.py:53`). `modal` in `templates/` is rendered by the GPU path, not by TemplateRenderer.)
 
 | Template | Stack | Port | Typical use | Default shape (true flags) |
 |---|---|---|---|---|

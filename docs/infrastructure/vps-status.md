@@ -32,7 +32,7 @@
 | :--- | :--- |
 | Wireguard mesh | ✅ both spokes handshaking in the last ~2 min |
 | Cross-Atlantic mesh RTT | ✅ ~135–136 ms, 0 % loss (vps2 ~135.6 ms, vps3 ~136.6 ms; re-verified live 2026-06-15) |
-| Prometheus scrape targets | ✅ 20 / 20 up across 15 active jobs; 16 jobs configured in `prometheus.yml` (`fabrik-services` has null targets) — re-verified live 2026-07-12. `node-spokes` / `cadvisor-spokes` / `promtail-spokes` ARE live (2 targets each, `prometheus.yml:46,58,70`) |
+| Prometheus scrape targets | ✅ 17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up). `node-spokes` / `cadvisor-spokes` / `promtail-spokes` ARE live (2 targets each, `prometheus.yml:46,58,70`) |
 | Mesh-bound shared infra on vps1 (`5432, 6379, 8000, 9091, 3100`) | ✅ all 5 listening on `10.99.0.1` |
 | Spoke DNS resolving | ✅ `vps2.ocoron.com`, `*.vps2`, `vps3.ocoron.com`, `*.vps3` all return correct A records |
 | Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
@@ -610,7 +610,7 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 ## Observability snapshot
 
-### Prometheus — 20 / 20 targets up across 15 active jobs (re-verified live 2026-07-12; 16 job_names configured, `fabrik-services` null-target. Spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` IS live — 2 targets each)
+### Prometheus — 17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up) ( Spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` IS live — 2 targets each)
 
 vps1-local (11 jobs / 11 targets — re-verified against `/api/v1/targets` 2026-07-12): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `redis`. (`pushgateway` runs as a container but is NOT a scrape job; `fabrik-services` is configured with null targets — a placeholder.) Plus `aro-wake` (3 targets) and the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each). So 16 job_names configured → 15 active at that probe. **Current repo config (2026-07-20): 17 `job_name`s / 16 active — `pushgateway` scrape RESTORED `b8071f40` 2026-07-19** (it is no longer an unscraped container).
 

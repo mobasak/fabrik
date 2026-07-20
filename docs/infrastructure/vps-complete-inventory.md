@@ -16,7 +16,7 @@
 - **Spoke DNS (NEW today):** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128`; `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151`. Wildcards cover `auth.vpsN`, `<tenant>.vpsN`, etc. Apex + wildcard each, no per-service A records needed.
 - **Spoke Traefik:** listening on 80 + 443 on each spoke's public IP; `authelia-vps1@file` middleware ready (forward-auth → `http://10.99.0.1:9091/api/verify`). Public TLS via Let's Encrypt will issue on first tenant deploy.
 - **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
-- **Prometheus:** **16 jobs configured in `configs/prometheus/prometheus.yml` but 15 ACTIVE** (`fabrik-services` has null targets) — **20 targets, 20 up (verified 2026-06-18 via /api/v1/targets)**; every series carries `host` + `role` labels. Spoke federation jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) added 2026-06-17 in commit `8342ef1`, scraping spoke exporters over the wg0 mesh.
+- **Prometheus:** **17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up)**; every series carries `host` + `role` labels. Spoke federation jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) added 2026-06-17 in commit `8342ef1`, scraping spoke exporters over the wg0 mesh.
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
 - **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1).
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
@@ -60,7 +60,7 @@ ssh vps3 'sudo docker ps --format "{{.Names}}" | wc -l'   # expect 5
 # Mesh handshake state
 ssh vps 'sudo wg show'
 
-# Prometheus targets across hosts (expect 20/20 up; 16 jobs configured in prometheus.yml but 15 ACTIVE — fabrik-services has null targets. Verified 2026-06-18 post spoke federation.)
+# Prometheus targets across hosts (expect all up; 17 jobs configured / 16 active — fabrik-services null-target; pushgateway restored 2026-07-19.)
 # Note: prometheus image has no curl/wget. Probe via a fabrik-net container that does (e.g. apprise):
 ssh vps 'sudo docker exec apprise curl -sf http://prometheus:9090/api/v1/targets' \
   | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]["activeTargets"]; up=sum(1 for t in d if t["health"]=="up"); print(f"{up}/{len(d)} up")'
@@ -432,7 +432,7 @@ Rule precedence: Authelia is first-match-wins. Specific `^/api/` bypasses for ad
 
 ### Prometheus scrape targets (**17 `job_name`s configured / 16 active** in `configs/prometheus/prometheus.yml` — `fabrik-services` is a null-target placeholder; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20. Prior live probe 2026-07-12: 20/20 targets up. Spoke federation IS live: `node-spokes` / `cadvisor-spokes` / `promtail-spokes` scrape `10.99.0.{2,3}` over `wg0` (2 targets each))
 
-vps1-local + mesh (15 active jobs / 20 targets — re-verified live 2026-07-12):
+vps1-local + mesh (17 jobs configured / 16 active — pushgateway restored 2026-07-19; prior live probe 2026-07-12 = 20/20 targets):
 
 | Job | Target |
 | :--- | :--- |
@@ -699,7 +699,7 @@ This table answers "when X breaks, what wakes up an AI to look at it?" — and l
 
 | Source | What it observes | Where the signal lands | Wakes an AI? |
 | :--- | :--- | :--- | :--- |
-| `prometheus` (vps1) | 20 active targets across 15 active jobs (re-verified live 2026-07-12): node, cadvisor, postgres, redis, gatus, grafana, authelia, meilisearch, loki, alertmanager, prometheus, `aro-wake` (3 targets — vps1+vps2+vps3 over mesh), plus the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each, `prometheus.yml:46,58,70`). (No `blackbox`, `fabrik-registrar`, `pushgateway`, or `glitchtip-web` scrape jobs; the `pushgateway` container runs but isn't scraped.) | `alertmanager` → Telegram (native) **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
+| `prometheus` (vps1) | 17 jobs configured / 16 active (pushgateway restored 2026-07-19; prior live probe 2026-07-12 = 20/20 targets): node, cadvisor, postgres, redis, gatus, grafana, authelia, meilisearch, loki, alertmanager, prometheus, `aro-wake` (3 targets — vps1+vps2+vps3 over mesh), plus the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each, `prometheus.yml:46,58,70`). (No `blackbox`, `fabrik-registrar`, or `glitchtip-web` scrape jobs; `pushgateway` IS scraped since the 2026-07-19 restore.) | `alertmanager` → Telegram (native) **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
 | `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
 | `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
 | `gatus` (vps1) | 31 synthetic endpoints across 18 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
