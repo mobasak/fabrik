@@ -950,7 +950,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 - **[AGENTS.md](AGENTS.md)** - **Traycer orchestrator contract** (planning constraints, rule-pack registry, stack defaults)
 - **[INDEX.md](INDEX.md)** - Master documentation map
 - **[Quick Start](docs/QUICKSTART.md)** - Get running in 5 minutes
-- **[FAQ](docs/FAQ.md)** - Comprehensive Q&A (500+ lines)
+- **[FAQ](docs/archive/FAQ.md)** - Comprehensive Q&A (500+ lines)
 
 ### Guides
 

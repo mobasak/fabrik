@@ -9,7 +9,7 @@ Wire a Fabrik project into the fleet-wide model-selection flywheel: every subage
 
 **Canonical references:**
 
-- Design spec: [docs/superpowers/specs/2026-07-06-subagent-runs-telemetry-design.md](../../docs/superpowers/specs/2026-07-06-subagent-runs-telemetry-design.md)
+- Design spec: [docs/superpowers/specs/archived/2026-07-06-subagent-runs-telemetry-design.md](../../docs/superpowers/specs/archived/2026-07-06-subagent-runs-telemetry-design.md)
 - Implementation plan (archived): [docs/development/plans/archived/2026-07-06-plan-1-subagent-runs-lean.md](../../docs/development/plans/archived/2026-07-06-plan-1-subagent-runs-lean.md)
 - Module: [`/opt/fabrik-lib/subagents/`](../../../fabrik-lib/subagents/) — README + `subagents/pg_ledger.py` + `subagents/select.py`
 - Upstream feedback log: `/opt/fabrik-lib/subagents/UPSTREAM_FEEDBACK.md`

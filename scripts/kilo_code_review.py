@@ -26,7 +26,7 @@ Exit codes:
     1 - Review failed (FAIL verdict with issues remaining)
     2 - Error (Kilo unavailable, invalid input, etc.)
 
-Workflow Doc: docs/workflows/KILO_REVIEW_WORKFLOW.md
+Workflow Doc: docs/archive/KILO_REVIEW_WORKFLOW.md
   ⚠️  Update the workflow doc when modifying this script.
 """
 

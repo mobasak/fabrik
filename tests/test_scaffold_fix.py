@@ -174,7 +174,7 @@ class TestFixProjectReferenceDocsRefresh:
             assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
 
     def test_dry_run_previews_reference_doc_refresh(self, tmp_path):
-        """dry_run accurately reports the 4 reference docs as refreshed."""
+        """dry_run accurately reports the reference docs as refreshed."""
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
         (project_dir / ".git").mkdir()

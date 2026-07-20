@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical MCP server list — source of truth for the fabrik-lib subagents POOL (read via AgentSpec.mcp_config). Standard .mcp.json format; keys via ${ENV} expansion from the process env (never inline). NOT named .mcp.json on purpose: Claude Code auto-loads a project .mcp.json and would double-register the user-scoped servers in ~/.claude.json. Claude Code stays on user scope; the pool reads THIS file. Keep the two consistent when adding a server. Design: docs/superpowers/specs/2026-07-07-subagent-tool-parity-design.md + .windsurf/rules/core/62-using-subagents.md.",
+  "_comment": "Canonical MCP server list — source of truth for the fabrik-lib subagents POOL (read via AgentSpec.mcp_config). Standard .mcp.json format; keys via ${ENV} expansion from the process env (never inline). NOT named .mcp.json on purpose: Claude Code auto-loads a project .mcp.json and would double-register the user-scoped servers in ~/.claude.json. Claude Code stays on user scope; the pool reads THIS file. Keep the two consistent when adding a server. Design: docs/superpowers/specs/archived/2026-07-07-subagent-tool-parity-design.md + .windsurf/rules/core/62-using-subagents.md.",
   "mcpServers": {
     "exa": {
       "type": "stdio",

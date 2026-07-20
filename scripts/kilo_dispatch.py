@@ -38,7 +38,7 @@ Usage:
         --task-file docs/development/plans/my-plan.md \
         --template plan
 
-Workflow Doc: docs/workflows/KILO_DISPATCH_WORKFLOW.md
+Workflow Doc: docs/archive/KILO_DISPATCH_WORKFLOW.md
   ⚠️  Update the workflow doc when modifying this script.
 """
 

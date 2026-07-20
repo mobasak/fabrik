@@ -1,6 +1,6 @@
 """Local coding benchmark runner — EvalPlus + libs.subagents composition.
 
-Spec: docs/superpowers/specs/2026-07-10-coding-microbench-runner-design.md
+Spec: docs/superpowers/specs/archived/2026-07-10-coding-microbench-runner-design.md
 Plan: docs/development/plans/2026-07-10-plan-2-coding-microbench-runner.md
 
 Runs HumanEval + MBPP via EvalPlus against configured target models, dispatched
