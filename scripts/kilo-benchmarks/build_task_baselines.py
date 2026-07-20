@@ -265,7 +265,9 @@ def code_tier(model_id: str) -> str | None:
 #   plan/spec     (STRUCTURAL, no generation): quality only (score5 already = structural-fraction × 5).
 # =================================================================================================
 JUDGED_TRUST_FLOOR_SCORE5 = 3.5  # score5 ≥ : quality floor for every judged task (≈ B+; trust)
-JUDGED_MAX_COST_PER_1K = 5.0  # $/1k ≤ : research/docs affordability (generation cost per 1000 items)
+JUDGED_MAX_COST_PER_1K = (
+    5.0  # $/1k ≤ : research/docs affordability (generation cost per 1000 items)
+)
 JUDGED_MAX_P50_S = 15.0  # p50 ≤ : research/docs responsiveness (seconds)
 _JUDGED_COST_TASKS = ("research", "docs")  # the cost/latency-gated (generation) judged tasks
 
@@ -288,13 +290,24 @@ def load_judged_metrics(task_type: str, db_path: Path = DB_PATH) -> dict[str, di
             "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_judged_metrics "
             "WHERE task_type=? GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb "
             "WHERE m.task_type=? ORDER BY m.built_at, m.window",  # (built_at,window) → deterministic
-            (task_type, task_type),  # last-wins on a same-day two-window tie (window ∈ PK, unlike the
+            (
+                task_type,
+                task_type,
+            ),  # last-wins on a same-day two-window tie (window ∈ PK, unlike the
         ).fetchall()  # review/coding metrics tables — the MAX-join alone would return BOTH window rows
     finally:
         conn.close()
     return {
-        r[0]: {"grade": r[1], "score5": r[2], "recall": r[3], "precision": r[4],
-               "structural": r[5], "cost_per_1k": r[6], "p50_latency_s": r[7], "n_err": r[8]}
+        r[0]: {
+            "grade": r[1],
+            "score5": r[2],
+            "recall": r[3],
+            "precision": r[4],
+            "structural": r[5],
+            "cost_per_1k": r[6],
+            "p50_latency_s": r[7],
+            "n_err": r[8],
+        }
         for r in rows
     }
 
