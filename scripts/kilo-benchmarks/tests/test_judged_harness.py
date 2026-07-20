@@ -141,7 +141,7 @@ def test_stub_grader_and_smoke_end_to_end(tmp_path, monkeypatch):
         mj, "record_agent_run", lambda spec, res, **kw: recorded.append(spec) or True
     )
     db = tmp_path / "k.db"
-    scores = mj.run_smoke("research", db)
+    scores = mj.run_smoke("research", db, write_flywheel=True)  # exercise the flywheel-write path
     s = scores["smoke/echo-model"]
     assert s.is_measured and s.n_graded >= mj.MIN_MEASURED  # ≥3 items → measured
     assert len(recorded) >= mj.MIN_MEASURED  # ≥3 flywheel rows → clears HAVING COUNT>=3
@@ -362,3 +362,21 @@ def test_run_smoke_cli_path_is_production_safe(monkeypatch):
     assert fly_calls == []  # NO production flywheel write
     assert scores["smoke/echo-model"].is_measured
     assert persisted_dbs and persisted_dbs[0] != mj.DB_PATH  # a TEMP db, not the real store
+
+
+def test_main_smoke_never_writes_production(monkeypatch):
+    """Pass-2 P2-1: driving the actual CLI entrypoint `main(["--smoke"])` must write NEITHER a real
+    subagent_runs row NOR the real DB_PATH — this guards the CLI wiring itself (not just run_smoke's
+    args), so a regression dropping the safe kwarg is caught."""
+    fly_calls: list = []
+    persisted_dbs: list = []
+    monkeypatch.setattr(mj, "record_agent_run", lambda *a, **k: fly_calls.append(1) or True)
+    real_pm = mj.persist_metrics
+    monkeypatch.setattr(
+        mj, "persist_metrics",
+        lambda scores, t, w, db: persisted_dbs.append(db) or real_pm(scores, t, w, db),
+    )
+    rc = mj.main(["--task", "research", "--smoke"])
+    assert rc == 0
+    assert fly_calls == []  # the CLI wrote NO real subagent_runs row
+    assert persisted_dbs and all(db != mj.DB_PATH for db in persisted_dbs)  # temp db only, never prod

@@ -86,17 +86,16 @@ def _removed_lines(patch: str) -> str:
             continue
         if not in_hunk or not line:
             continue  # diff --git / index / --- / +++ headers that precede the first hunk
-        # A NEXT file's `--- a/f2` / `+++ b/f2` header inside a multi-file `diff -u` (no `diff --git`
-        # separator) starts with '-'/'+'; catch it structurally so it is not mis-read as removed content
-        # (whole-plan review A3/B3). Mirrors doc_reconcile._added_lines' header handling.
-        if line.startswith("--- ") or line.startswith("+++ "):
-            in_hunk = False  # the previous file's hunk body has ended; a new file block begins
-            continue
         marker = line[0]
         if marker == "-":
             removed.append(line[1:])
         elif marker not in (" ", "+", "\\"):
             in_hunk = False  # left the hunk body → the next file's header block has begun
+    # NOTE (whole-plan review A3/B3, Pass-2 refute): a multi-file `diff -u` (no `diff --git` separator)
+    # leaves a following `--- a/f2` header inside the hunk, captured here as "a/f2". That is HARMLESS —
+    # `_line_tokens` extracts only backtick identifiers, and a diff header has none. A `startswith("--- ")`
+    # guard was tried and REVERTED: doc patches are single-file, and the guard would false-skip a real
+    # removed content line whose text starts with `-- ` (net-negative). Mirrors the reused `_added_lines`.
     return "\n".join(removed)
 
 

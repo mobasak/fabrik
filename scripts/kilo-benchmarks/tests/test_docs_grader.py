@@ -133,15 +133,3 @@ def test_multiline_doc_with_odd_backticks_tokenizes_per_line():
     assert "prose" in whole_toks  # ...but the whole-doc path DOES — proves why the fix is needed
 
 
-def test_removed_lines_skips_multifile_diff_u_header():
-    """A3/B3: a plain `diff -u` multi-file patch (no `diff --git` separator) must not capture the 2nd
-    file's `--- a/f2` header as removed content."""
-    import docs_grader as dg
-
-    patch = (
-        "--- a/f1\n+++ b/f1\n@@ -1,1 +1,1 @@\n-old `sym_one`\n+new `sym_two`\n"
-        "--- a/f2\n+++ b/f2\n@@ -1,1 +1,1 @@\n-gone `sym_three`\n+kept `sym_four`\n"
-    )
-    removed = dg._removed_lines(patch)
-    assert "a/f2" not in removed  # the file header was NOT mis-read as removed content
-    assert dg._line_tokens(removed) == {"sym_one", "sym_three"}  # only real removed symbols

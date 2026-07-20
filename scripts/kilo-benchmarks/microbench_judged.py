@@ -725,7 +725,7 @@ def _ensure_grader(task_type: str) -> None:
 
 
 def run_smoke(
-    task_type: str, db_path: Path | None = None, *, write_flywheel: bool = True
+    task_type: str, db_path: Path | None = None, *, write_flywheel: bool = False
 ) -> dict[str, TaskScore]:
     """End-to-end $0 stub proving the persist + flywheel CODE path — NOT grader correctness (graders are
     unit-tested separately). FORCES `_stub_grader` so it stays fully offline/$0 even if a real grader is
@@ -734,9 +734,10 @@ def run_smoke(
     ⚠️ SAFE BY DEFAULT — it must NEVER touch production data (whole-plan review A1): `smoke/echo-model`
     scores 5.0, and neither `judged_eligible`/`load_judged_metrics` nor `rank_task_subagents` filter it
     out — so a smoke write to the REAL `kilo_agents.db` / `subagent_runs` would activate the research gate
-    and drop every real fleet model. So: `db_path=None` → a throwaway TEMP sqlite (never `DB_PATH`), and
-    the CLI passes `write_flywheel=False` (no `subagent_runs` write). The real surfacing is proven by the
-    unit tests (temp db + injected recorder), not by writing to prod."""
+    and drop every real fleet model. So BOTH defaults are safe (Pass-2 P2-1): `db_path=None` → a throwaway
+    TEMP sqlite (never `DB_PATH`), and `write_flywheel=False` → NO `subagent_runs` write. Dropping either
+    kwarg is safe. ONLY a test that wants to exercise the flywheel write passes `write_flywheel=True` (with
+    an injected recorder). The real surfacing is proven by the unit tests, not by writing to prod."""
     if db_path is None:
         import tempfile
 
