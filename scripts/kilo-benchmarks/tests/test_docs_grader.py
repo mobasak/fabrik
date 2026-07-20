@@ -131,5 +131,3 @@ def test_multiline_doc_with_odd_backticks_tokenizes_per_line():
     assert {"db_host", "db_port"} <= line_toks  # per-line: both real idents, cleanly
     assert "prose" not in line_toks  # line-scoping does NOT sweep cross-line prose
     assert "prose" in whole_toks  # ...but the whole-doc path DOES — proves why the fix is needed
-
-

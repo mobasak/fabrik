@@ -217,9 +217,16 @@ def test_correlated_prior_never_clobbers_a_measured_baseline(tmp_path):
     conn.commit()
     conn.close()
     # a correlated run tries to write plan priors for both models
-    n = cp._write_priors(db, "plan", {"m/measured": 3.0, "m/cold": 3.2}, "correlated:code+review", 5.0)
+    n = cp._write_priors(
+        db, "plan", {"m/measured": 3.0, "m/cold": 3.2}, "correlated:code+review", 5.0
+    )
     assert n == 1  # only m/cold written; m/measured skipped (measured wins)
     conn = sqlite3.connect(db)
-    row = conn.execute("SELECT baseline, source FROM model_task_baseline WHERE model_id='m/measured'").fetchone()
+    row = conn.execute(
+        "SELECT baseline, source FROM model_task_baseline WHERE model_id='m/measured'"
+    ).fetchone()
     conn.close()
-    assert row == (4.8, "microbench_judged:plan")  # untouched — the correlated 3.0 did NOT clobber it
+    assert row == (
+        4.8,
+        "microbench_judged:plan",
+    )  # untouched — the correlated 3.0 did NOT clobber it

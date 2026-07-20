@@ -771,7 +771,9 @@ def run_smoke(
         if write_flywheel
         else "flywheel write skipped (CLI is read-safe; the write path is proven by the unit tests)"
     )
-    print(f"[smoke] {task_type}: {measured} measured (TEMP db {db_path}); {attempted} flywheel rows would write; {fly}")
+    print(
+        f"[smoke] {task_type}: {measured} measured (TEMP db {db_path}); {attempted} flywheel rows would write; {fly}"
+    )
     return scores
 
 
@@ -820,7 +822,9 @@ def main(argv: list[str] | None = None) -> int:
         report_stored(args.task)
         return 0
     if args.smoke:
-        run_smoke(args.task, write_flywheel=False)  # CLI: temp db + NO production flywheel write (A1)
+        run_smoke(
+            args.task, write_flywheel=False
+        )  # CLI: temp db + NO production flywheel write (A1)
         return 0
 
     _ensure_grader(

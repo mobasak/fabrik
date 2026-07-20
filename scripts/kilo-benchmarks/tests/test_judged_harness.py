@@ -355,7 +355,8 @@ def test_run_smoke_cli_path_is_production_safe(monkeypatch):
     monkeypatch.setattr(mj, "record_agent_run", lambda *a, **k: fly_calls.append(1) or True)
     real_pm = mj.persist_metrics
     monkeypatch.setattr(
-        mj, "persist_metrics",
+        mj,
+        "persist_metrics",
         lambda scores, t, w, db: persisted_dbs.append(db) or real_pm(scores, t, w, db),
     )
     scores = mj.run_smoke("research", write_flywheel=False)  # the CLI path
@@ -377,10 +378,13 @@ def test_main_smoke_never_writes_production(monkeypatch):
     monkeypatch.setattr(mj, "record_flywheel", lambda *a, **k: fly_attempts.append(1) or 0)
     real_pm = mj.persist_metrics
     monkeypatch.setattr(
-        mj, "persist_metrics",
+        mj,
+        "persist_metrics",
         lambda scores, t, w, db: persisted_dbs.append(db) or real_pm(scores, t, w, db),
     )
     rc = mj.main(["--task", "research", "--smoke"])
     assert rc == 0
     assert fly_attempts == []  # the CLI never even ATTEMPTS a flywheel write (write_flywheel=False)
-    assert persisted_dbs and all(db != mj.DB_PATH for db in persisted_dbs)  # temp db only, never prod
+    assert persisted_dbs and all(
+        db != mj.DB_PATH for db in persisted_dbs
+    )  # temp db only, never prod
