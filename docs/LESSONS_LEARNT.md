@@ -4765,3 +4765,25 @@ Bonus finding from the same phase: OR's `/api/v1/chat/completions` streaming res
 **Rule:** a `git diff <base>..HEAD` range sees only committed history. If a step runs *before* its own commit (per-phase / pre-commit), it must use **staged** mode (`git diff --cached`) to see the work; reserve `--range` for post-commit receipts (the Finish coverage check, where all phases ARE committed). The two modes are NOT interchangeable by position in the pipeline.
 
 **How to apply:** (1) when wiring a diff-scoped tool into a pipeline, match the git mode to *when* it runs relative to the commit — staged before, range after. (2) The **whole-plan `/fabrik-review` over the cumulative diff is not ceremony** — it catches integration/wiring/ordering bugs that per-phase reviews structurally cannot (each phase's tests pass in isolation). Never skip it. (3) A tool that "finds nothing" is suspicious when you expected it to fire — assert it *does* fire in a test (the fix here added a test proving staged mode fires while `--range` on an un-advanced HEAD misses).
+
+## A patch-snippet tokenizer applied to a whole document silently zeroed the docs benchmark (2026-07-20)
+
+**Context:** the judged-benchmark docs grader reused `doc_reconcile._extract_tokens` — built for short
+`+`-line patch snippets — to extract backtick symbols from *whole* multi-line docs. Its regex `` `[^`]+` ``
+pairs backticks across newlines, so on a full document the ticks pair *sequentially* and sweep the prose
+between an even→odd tick in as a fake "symbol". The recall metric was then measured against mispaired
+prose, so the human's OWN A+ reconciliation patch scored **0.00** on half the corpus — the benchmark
+wasn't measuring reconciliation at all, and every model would have gotten a near-zero docs score.
+
+**Why it survived the sub-agent's own tests:** the unit fixtures were 2-line docs with per-line-balanced
+backticks, which never trigger cross-line mispairing. Green tests, broken metric.
+
+**How it was caught + fixed:** an adversarial reviewer *empirically graded each corpus pair's own
+ground-truth patch* (definitionally A+) and saw 0.00/0.24/0.00. Fix: line-scoped tokenization
+(`_line_tokens`) + a direct add/remove edit comparison; a regression test now grades every corpus
+ground-truth patch (all 5.0).
+
+**How to apply:** (1) a helper written for one input shape (a diff hunk) is not safe on another (a full
+doc) just because the types match — re-verify the assumption. (2) For a grader/metric, always add a test
+that runs the KNOWN-PERFECT reference input through it and asserts a perfect score; a metric that scores
+the gold answer 0 is the loudest possible signal, and it's cheap to assert.
