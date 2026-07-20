@@ -254,7 +254,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:55 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T16:00 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -265,7 +265,7 @@ docs/
 ├── LESSONS_LEARNT.md
 ├── PROJECT_CATALOG.md
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
-├── README.md                       # Documentation index (Legacy)
+├── README.md                       # Folder index / charter
 ├── SERVICES.md                     # External services Fabrik depends on
 ├── STRATEGIC_BACKLOG.md
 ├── TROUBLESHOOTING.md              # Common issues & solutions
@@ -292,12 +292,12 @@ docs/
 │   │   ├── 06-backup-disaster-recovery.md
 │   │   ├── 07-pre-production-checklist.md
 │   │   ├── 08-hardening-remediation.md
-│   │   └── README.md               # Documentation index (Legacy)
+│   │   └── README.md               # Folder index / charter
 │   ├── glitchtip-sdk-integration-setup.md
 │   ├── grafana-dashboards-setup.md
 │   ├── grafana-provisioning-setup.md
 │   ├── probe-reports
-│   │   ├── README.md               # Documentation index (Legacy)
+│   │   ├── README.md               # Folder index / charter
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
 │   │   ├── infra-probe-2026-05-31T23-07Z.yaml
@@ -396,7 +396,7 @@ docs/
 │   └── traycer-command-wiring.md
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── preplans
-│   └── README.md                   # Documentation index (Legacy)
+│   └── README.md                   # Folder index / charter
 ├── reference                       # Technical reference and module documentation
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
 │   ├── MD
@@ -481,7 +481,7 @@ docs/
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
-│   ├── README.md                   # Documentation index (Legacy)
+│   ├── README.md                   # Folder index / charter
 │   ├── fabrik-workflow.md
 │   ├── kilo_selected_agents.md     # Kilo selected agents
 │   ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference

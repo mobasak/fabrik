@@ -713,7 +713,7 @@ def generate_docs_structure_tree() -> str:
         "FAQ.md": "Frequently asked questions",
         "INDEX.md": "Main documentation entry point",
         "TESTING.md": "How to run and write tests",
-        "README.md": "Documentation index (Legacy)",
+        "README.md": "Folder index / charter",
         "QUICKSTART.md": "Get Fabrik running in 5 minutes",
         "CONFIGURATION.md": "Environment variables and settings",
         "SERVICES.md": "External services Fabrik depends on",
