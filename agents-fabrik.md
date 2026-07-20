@@ -476,7 +476,6 @@ Our agents plan against these rules but do NOT inline them into tickets — the 
 | Ocoron Design System | `.windsurf/rules/core/ocoron-design-system.md` | Visual + verbal identity for UI projects |
 | Ocoron Mobile Design | `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` | Mobile component patterns (list items, sheets, navigation, forms) |
 | Mobile Responsive Testing | `docs/reference/mobile-responsive-testing-guide.md` | Single source of truth for RWD testing (Playwright, screenshots, fix patterns) |
-| Cascade Models | `docs/reference/windsurf/cascade-models.md` | Selecting Windsurf Cascade model tier |
 | Deployment Architecture | `docs/DEPLOYMENT_ARCHITECTURE.md` | Code-level map of every file on the SSH+Compose deploy path |
 | Deployment Procedures | `docs/operations/deployment.md` | `fabrik apply` / `redeploy` / `destroy` workflows + golden rules |
 | Fabrik Lifecycle | `docs/operations/fabrik-lifecycle.md` | Runtime behavior, data safety, downtime, `.env` merge |

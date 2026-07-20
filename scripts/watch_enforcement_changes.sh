@@ -66,7 +66,6 @@ WATCH_SCRIPTS=(
 
 # Reference docs to watch
 WATCH_DOCS=(
-    "${FABRIK_ROOT}/docs/reference/windsurf/cascade-models.md"
     "${FABRIK_ROOT}/docs/reference/long-command-monitoring.md"
 )
 

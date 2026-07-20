@@ -18,7 +18,6 @@ opencode.json
 # Reference docs (synced from fabrik)
 docs/reference/kilo/
 docs/reference/MD/
-docs/reference/windsurf/cascade-models.md
 docs/reference/long-command-monitoring.md
 docs/reference/technology-stack-decision-guide.md
 docs/reference/ai_agent_prompt_directives.md

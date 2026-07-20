@@ -70,7 +70,6 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   │   └── PLANS.md
 │   ├── reference/
 │   │   └── windsurf/
-│   │       └── cascade-models.md
 │   ├── BUSINESS_MODEL.md
 │   ├── CONFIGURATION.md
 │   ├── FEATURES.md
@@ -159,7 +158,6 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `/opt/fabrik/.windsurf/rules/` | `.windsurf/rules/` | Windsurf IDE rules (22 files) |
 | `/opt/fabrik/.windsurf/workflows/` | `.windsurf/workflows/` | Cascade slash-command workflows |
 | `/opt/fabrik/opencode.json` | `opencode.json` | Kilo CLI configuration |
-| `/opt/fabrik/docs/reference/windsurf/cascade-models.md` | `docs/reference/windsurf/cascade-models.md` | Cascade model reference |
 
 ### Type-Specific Documents
 

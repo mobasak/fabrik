@@ -217,7 +217,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
   _step "update_kilo_benchmarks" "$VENV_PY" "$KB/update_kilo_benchmarks.py" --force \
     || echo "[daily_refresh] kilo benchmark scrape failed (non-fatal)"
 
-  # ── KILO_* + cascade-models catalog regen (deploy-readiness-gaps Phase 3a) ──
+  # ── KILO_* selection-catalog regen (deploy-readiness-gaps Phase 3a) ──
   # Regenerate the three synced reference docs that were drifting daily (the
   # check_synced_unmodified gate fired on every project). MUST run AFTER the
   # benchmark scrape above (fresh data) and BEFORE embedding_export_markdown.py
@@ -228,9 +228,6 @@ mkdir -p "$(dirname "$LOG_FILE")"
     || echo "[daily_refresh] generate_model_capabilities failed (non-fatal)"
   _step "generate_selection_guide_roster" "$VENV_PY" "$KB/generate_selection_guide_roster.py" \
     || echo "[daily_refresh] generate_selection_guide_roster failed (non-fatal)"
-  _step "scrape_windsurf_models" "$VENV_PY" "$KB/scrape_windsurf_models.py" \
-    || echo "[daily_refresh] scrape_windsurf_models failed (non-fatal)"
-
   # Fabrik capability catalog regen (plan 2026-07-12-plan-2). Re-derives
   # capabilities.json + docs/CAPABILITIES.md + llms.txt by introspecting the
   # 7 tool surfaces (cli/driver/registrar/script/lib-module/scaffold/rules)
@@ -451,7 +448,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   # ── Push regenerated synced files to all projects (deploy-readiness-gaps Phase 3b) ──
   # The catalog regen above rewrites synced governance files (.windsurf/rules/ai/*.md
-  # + the KILO_* / cascade-models reference docs). Without this push, every project's
+  # + the KILO_* reference docs). Without this push, every project's
   # check_synced_unmodified gate fires daily. Runs LAST so it captures every
   # regenerated file. flock serializes against a manual operator run of
   # sync_enforcement_to_projects.py (the script has no internal lock); -w 0 means
@@ -547,7 +544,6 @@ mkdir -p "$(dirname "$LOG_FILE")"
       docs/reference/kilo/IMAGE_GEN_SELECTION.md \
       docs/reference/kilo/CANDIDATE_SIGNUPS.md \
       docs/CAPABILITIES.md capabilities.json \
-      docs/reference/windsurf/cascade-models.md \
       docs/traycer/kilo_selected_agents.md \
       2>/dev/null || true
     if git diff --cached --quiet; then

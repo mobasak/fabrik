@@ -8,7 +8,7 @@ Syncs to all /opt projects:
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
 - Governance directories: .windsurf/rules/, .windsurf/workflows/, docs/reference/kilo/
-- Reference docs: docs/reference/windsurf/cascade-models.md
+- Reference docs: long-command-monitoring, technology-stack-decision-guide, etc. (REFERENCE_DOCS)
 
 Supports:
 - --dry-run: Report what would be copied without writing anything
@@ -555,7 +555,7 @@ def sync_scripts_to_project(
                     if dirpath.is_dir() and not any(dirpath.iterdir()):
                         dirpath.rmdir()
 
-        # Sync reference docs (cascade-models.md, etc.)
+        # Sync reference docs (REFERENCE_DOCS list)
         for source_rel, dest_rel in REFERENCE_DOCS:
             source = FABRIK_ROOT / source_rel
             if source.exists():
@@ -644,6 +644,7 @@ def sync_scripts_to_project(
         for stale_rel in (
             "docs/reference/fabrik-lifecycle.md",  # moved to docs/operations/
             "docs/reference/fabrik-project-catalog.md",  # consolidated into docs/BUSINESS_MODEL.md
+            "docs/reference/windsurf/cascade-models.md",  # Cascade retired 2026-07-19; doc archived, pipeline dismantled 2026-07-20
         ):
             stale_path = project_dir / stale_rel
             if stale_path.exists():

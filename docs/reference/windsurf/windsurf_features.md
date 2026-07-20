@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-05-21
 
-All Windsurf IDE features beyond Cascade chat. For Cascade itself, see [cascade-guide.md](cascade-guide.md).
+All Windsurf IDE features beyond Cascade chat. (Cascade as an LLM route is RETIRED 2026-07-19; its guide is archived at [cascade-guide.md](../../archive/cascade-guide.md).)
 
 ---
 
@@ -204,7 +204,7 @@ Connect Cascade to external tools — databases, APIs, browsers.
 
 Config: `~/.codeium/windsurf/mcp_config.json` — max 100 tools across all servers.
 
-See [cascade-guide.md](cascade-guide.md#mcp-model-context-protocol) for full configuration details.
+See [cascade-guide.md](../../archive/cascade-guide.md#mcp-model-context-protocol) (archived) for full configuration details.
 
 ---
 
@@ -214,7 +214,7 @@ See [cascade-guide.md](cascade-guide.md#mcp-model-context-protocol) for full con
 - **Rules:** User-defined instructions in `.windsurf/rules/**/*.md` with trigger modes (always_on, glob, model_decision, manual)
 - **Workflows:** Reusable agentic recipes in `.windsurf/workflows/*.md`
 
-See [cascade-guide.md](cascade-guide.md#memories--rules) for full details.
+See [cascade-guide.md](../../archive/cascade-guide.md#memories--rules) (archived) for full details.
 
 ---
 
@@ -284,7 +284,7 @@ Access: **Windsurf Settings** (top right dropdown or `Cmd/Ctrl + Shift + P` → 
 
 ## See Also
 
-- [Cascade Guide](cascade-guide.md) — Cascade features, memories, rules, MCP, workflows
-- [Cascade Models](cascade-models.md) — model selection and credits
+- [Cascade Guide](../../archive/cascade-guide.md) — archived (Cascade retired 2026-07-19)
+- [Cascade Models](../../archive/cascade-models.md) — archived (pipeline dismantled 2026-07-20)
 - [Windsurf Changelog](https://windsurf.com/changelog) — latest updates
 - [Windsurf Docs](https://docs.windsurf.com) — official documentation

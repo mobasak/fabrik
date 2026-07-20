@@ -254,7 +254,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:12 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:31 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -468,8 +468,6 @@ docs/
 │   ├── vps-env-site-provisioner.txt
 │   └── windsurf                    # Windsurf IDE optimization
 │       ├── actively-used-windsurf-extensions.md
-│       ├── cascade-guide.md
-│       ├── cascade-models.md
 │       ├── overview.md
 │       ├── recommended-extensions.md
 │       └── windsurf_features.md

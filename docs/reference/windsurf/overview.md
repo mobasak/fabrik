@@ -10,8 +10,8 @@ Documentation for Windsurf IDE + Cascade AI as used in the Fabrik workflow.
 
 | Document | Description | Auto-updated? |
 |---|---|---|
-| [cascade-guide.md](cascade-guide.md) | Cascade features — modes, memories, rules, MCP, workflows, tools, flows | Manual |
-| [cascade-models.md](cascade-models.md) | Model tiers, credit multipliers, benchmarks | Yes (scraper) |
+| [cascade-guide.md](../../archive/cascade-guide.md) | Cascade features (ARCHIVED — Cascade LLM route retired 2026-07-19) | Archived |
+| [cascade-models.md](../../archive/cascade-models.md) | Model tiers (ARCHIVED — daily scrape pipeline dismantled 2026-07-20) | Archived |
 | [windsurf_features.md](windsurf_features.md) | All Windsurf IDE features — Tab, Command, Devin, Previews, deploys, etc. | Manual |
 | [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) | Currently installed extensions (11) | Yes (daily WSL hook) |
 

@@ -51,7 +51,6 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 
 | File | Purpose |
 |------|----------|
-| `docs/reference/windsurf/cascade-models.md` | Windsurf AI model reference |
 | `docs/reference/long-command-monitoring.md` | Long command monitoring system documentation |
 | `docs/reference/technology-stack-decision-guide.md` | Stack selection guide |
 | `docs/operations/fabrik-lifecycle.md` | Runtime behavior & data safety |

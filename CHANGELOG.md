@@ -26,6 +26,13 @@ Hotfixed the runtime-injected `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` retire
 82) + the mega-00 lifecycle bullet to the Claude-Code+pool reality; excised fabrik-vultr drill retros to
 archive; fixed 4 released plan-lock paths; retargeted all inbound links + INDEX rows.
 
+Phase B: dismantled the Windsurf-Cascade zombie pipeline atomically — scrape step + the
+`cascade-models.md` entry removed from daily_refresh.sh's all-or-nothing `git add` block (a missing
+path there silently kills the nightly auto-commit of every selection doc), `scrape_windsurf_models.py`
+retired to `scripts/.archive/`, scaffold copy block + manifest row + gitignore-block line + watch line +
+pre-commit pattern removed, orphan-prune entry added so project copies delete on next sync;
+`cascade-models.md` + `cascade-guide.md` archived with all live links retargeted.
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a

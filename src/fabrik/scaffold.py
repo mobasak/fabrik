@@ -1100,13 +1100,6 @@ def _scaffold_shared(
     if afcl_template.exists():
         shutil.copy(afcl_template, project_dir / "AFCL.md")
 
-    # Copy cascade-models.md (Windsurf AI model reference)
-    fabrik_cascade_models = FABRIK_ROOT / "docs" / "reference" / "windsurf" / "cascade-models.md"
-    if fabrik_cascade_models.exists():
-        cascade_target_dir = project_dir / "docs" / "reference" / "windsurf"
-        cascade_target_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(fabrik_cascade_models, cascade_target_dir / "cascade-models.md")
-
     # Copy kilo_47_agents_final.json (Kilo CLI agent configuration)
     fabrik_kilo_config = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
     if fabrik_kilo_config.exists():
@@ -6094,7 +6087,6 @@ def fix_project(
             source = FABRIK_ROOT / "docs" / "reference" / doc_name
             if source.exists():
                 added.append(f"docs/reference/{doc_name} (refreshed from master)")
-
 
         # kilo_47_agents_final.json — always refreshed
         if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():

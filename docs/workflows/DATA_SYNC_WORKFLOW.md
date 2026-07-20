@@ -124,7 +124,7 @@ What it syncs:
 - **Governance directories:** .windsurf/rules/*
 - **Core scripts (6):** final_gate.py, kilo_code_review.py, kilo_docs_enforcer.py, docs_updater.py, update_agents_toc.py, health_checker.py
 - **Run scripts (11):** rund, rundsh, runc, runk, runls, runlast, runwait, runtail, runclean, sync_cascade_backup.sh, sync_extensions.sh
-- **Reference docs (2):** docs/reference/windsurf/cascade-models.md, docs/reference/long-command-monitoring.md
+- **Reference docs:** docs/reference/long-command-monitoring.md (+ the rest of REFERENCE_DOCS in fabrik_synced_manifest.py)
 - **Enforcement checks (30+):** scripts/enforcement/*.py
 
 ### 2.2 Doc Policy Deployment

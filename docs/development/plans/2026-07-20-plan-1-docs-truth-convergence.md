@@ -98,7 +98,7 @@ grep -c "Kilo CLI" docs/orchestrator/epic-to-ticket-workflow/EVALUATION_CHECKLIS
 ```
 Then: `python scripts/enforcement/check_doc_sync.py` (resolve in-phase WARNs) → stage code, run `python scripts/doc_reconcile.py` on the staged diff, review+add its patches → commit Phase A (explicit paths, trailers) → **run the full `/fabrik-review` methodology on Phase A's changed surface (pool finders via `fanout("review", …, mode="read_only")` + ≥1 native fabrik-reviewer on Opus), refute → prove-before-fix, loop to a `found: 0, fixed: 0` no-op pass** → re-run gate → mark phase ✅ in this file, stage it in the phase commit.
 
-## Phase B — Cascade zombie dismantle (one atomic commit)
+## Phase B — Cascade zombie dismantle (one atomic commit) — ✅ EXECUTED 2026-07-20 (all 4 gates green: staging-block existence empty, bash -n OK, sync dry-run clean, repo-wide sweep sanctioned-only)
 
 **Interfaces — Consumes:** Phase A's tree. **Produces:** `daily_refresh.sh` with no cascade path in the `git add` block (`:527-541`); `scrape_windsurf_models.py` retired; manifest without `:108`; the orphan-prune entry so project copies of `cascade-models.md` are deleted on next sync. Later phases rely on: `docs/reference/windsurf/` contains only IDE/extension docs + `overview.md`.
 

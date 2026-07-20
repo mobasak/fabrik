@@ -105,7 +105,6 @@ SEEDED_NOT_ENFORCED = {"PORTS.md"}
 
 # Reference docs → (source relpath, dest relpath). Path-preserved unless noted.
 REFERENCE_DOCS = [
-    ("docs/reference/windsurf/cascade-models.md", "docs/reference/windsurf/cascade-models.md"),
     ("docs/reference/long-command-monitoring.md", "docs/reference/long-command-monitoring.md"),
     (
         "docs/reference/technology-stack-decision-guide.md",

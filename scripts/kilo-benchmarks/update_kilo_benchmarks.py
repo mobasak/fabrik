@@ -8,7 +8,6 @@ Uses scrape_benchmarks.py and scrape_windsurf_models.py for proper data extracti
 Updates:
   - docs/traycer/kilo_selected_agents.md (readable table)
   - scripts/kilo_selected_agents.json (benchmark fields)
-  - docs/reference/windsurf/cascade-models.md (Windsurf models)
   - .tmp/benchmarks/ (raw scraped data)
 
 Usage:

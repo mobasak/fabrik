@@ -534,7 +534,6 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
      - **Plan Required:** Yes / No
      - **Kilo CLI — First Choice:** *(exact agent script name, e.g. `T4-Pro-00-opus46-code-auto-i1500-o7500.sh`)*
      - **Kilo CLI — Budget:** *(exact agent script name or `—` if no budget fallback)*
-     - **Cascade — First Choice:** *(exact model name from cascade-models.md, e.g. `Claude Sonnet 4.6`)*
      - **Cascade — Budget:** *(exact model name or `—` if no budget fallback)*
 
    > **Drafting rules:**
@@ -582,7 +581,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > - Classify by the higher of scope (single file → cross-component) and risk (docs → architecture)
    > - Then select **exact agent names** from the reference files — generic bands (`Local free`, `Cloud mid-tier`, `Premium`) are **invalid**
    > - **Kilo CLI (RETIRED 2026-07-19):** the `~/.traycer/cli-agents/` dispatch path is retired; naming conventions archived at `docs/archive/kilo-cli/KILO_AGENT_NAMING.md`. Dispatch coding agents via Claude Code; pool fan-out via the OpenRouter subagents module.
-   > - **Cascade:** Use the exact model name from `docs/reference/windsurf/cascade-models.md` (e.g. `Claude Sonnet 4.6`, `GPT-5.3-Codex (Medium Reasoning)`, `SWE-1.5`)
+   > - **Cascade (RETIRED 2026-07-19):** the Windsurf Cascade dispatch route is retired; do not plan agent slots on it.
    > - Budget field: only fill if a cheaper agent can handle it reliably; use `—` otherwise
    > - Only one local Ollama agent can run at a time (hardware constraint)
 

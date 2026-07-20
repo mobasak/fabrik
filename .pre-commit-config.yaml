@@ -45,5 +45,5 @@ repos:
         name: Sync governance + enforcement to all projects
         entry: bash -c 'if [ "$(pwd)" = "/opt/fabrik" ]; then /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force 2>&1 | tail -3; fi'
         language: system
-        files: '(^CLAUDE\.md$|^AGENTS\.md$|^AGENTS-compact\.md$|^opencode\.json$|^\.windsurfrules$|^\.windsurf/rules/|^scripts/(final_gate|kilo_code_review|kilo_docs_enforcer|docs_updater|update_agents_toc|health_checker)\.py$|^scripts/enforcement/|^docs/reference/windsurf/cascade-models\.md$|^docs/reference/technology-stack-decision-guide\.md$|^docs/reference/prebuilt-app-containers\.md$|^scripts/kilo_47_agents_final\.json$)'
+        files: '(^CLAUDE\.md$|^AGENTS\.md$|^AGENTS-compact\.md$|^opencode\.json$|^\.windsurfrules$|^\.windsurf/rules/|^scripts/(final_gate|kilo_code_review|kilo_docs_enforcer|docs_updater|update_agents_toc|health_checker)\.py$|^scripts/enforcement/|^docs/reference/technology-stack-decision-guide\.md$|^docs/reference/prebuilt-app-containers\.md$|^scripts/kilo_47_agents_final\.json$)'
         pass_filenames: false
