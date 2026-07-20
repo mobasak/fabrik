@@ -494,13 +494,15 @@ def persist_baseline(
 
 
 def load_judged_metrics(task_type: str, db_path: Path = DB_PATH) -> dict[str, dict]:
-    """Latest-per-model metrics for ONE task_type (the Phase-E leaderboard + `<task>_eligible()` source).
+    """Latest-per-model metrics for ONE task_type — used by this module's `report_stored` and by
+    `correlated_prior.build`.
 
-    ⚠️ Phase E readers MUST call THIS — the harness stores ALL judged tasks in the single
-    `model_judged_metrics` table (task_type-discriminated), NOT per-task `model_<task>_metrics`
-    tables. A naive mirror of `load_review_metrics`/`load_coding_metrics` that queried
-    `model_research_metrics`/`model_docs_metrics` would read an empty (non-existent) table and silently
-    drop every model. Fail-soft: empty dict when the table/task is absent (benchmark not yet run)."""
+    NOTE (whole-plan review B2): the Phase-E *ranker* path (`judged_eligible`, `_full_judged_results_table`,
+    `_selected_shortlists`) reads a PARALLEL copy of this in `build_task_baselines.load_judged_metrics` —
+    kept there deliberately so the daily ranker doesn't import this heavier module (which does `load_env`
+    + the transport import). The two are the same query (single `model_judged_metrics` table,
+    task_type-discriminated, latest-per-model with `ORDER BY built_at, window`); if you change one's
+    latest-per-model semantics, change the other too. Fail-soft: empty dict when the table/task is absent."""
     import sqlite3
 
     out: dict[str, dict] = {}
@@ -722,23 +724,34 @@ def _ensure_grader(task_type: str) -> None:
             print(f"[judged] could not import {mod}: {e}", file=sys.stderr)
 
 
-def run_smoke(task_type: str, db_path: Path = DB_PATH) -> dict[str, TaskScore]:
-    """End-to-end $0 stub proving the persist + flywheel + surfacing path — NOT grader correctness (the
-    graders are unit-tested separately). It FORCES `_stub_grader` regardless of what is registered, so it
-    stays fully offline/$0 even if a real grader (e.g. research_grader, whose near-miss tiebreak would
-    shell out to npx on the echo corpus) has been imported. Proves a seeded model gets ≥3 flywheel rows so
-    rank_task_subagents surfaces it."""
+def run_smoke(
+    task_type: str, db_path: Path | None = None, *, write_flywheel: bool = True
+) -> dict[str, TaskScore]:
+    """End-to-end $0 stub proving the persist + flywheel CODE path — NOT grader correctness (graders are
+    unit-tested separately). FORCES `_stub_grader` so it stays fully offline/$0 even if a real grader is
+    imported.
+
+    ⚠️ SAFE BY DEFAULT — it must NEVER touch production data (whole-plan review A1): `smoke/echo-model`
+    scores 5.0, and neither `judged_eligible`/`load_judged_metrics` nor `rank_task_subagents` filter it
+    out — so a smoke write to the REAL `kilo_agents.db` / `subagent_runs` would activate the research gate
+    and drop every real fleet model. So: `db_path=None` → a throwaway TEMP sqlite (never `DB_PATH`), and
+    the CLI passes `write_flywheel=False` (no `subagent_runs` write). The real surfacing is proven by the
+    unit tests (temp db + injected recorder), not by writing to prod."""
+    if db_path is None:
+        import tempfile
+
+        db_path = Path(tempfile.mkdtemp(prefix="judged-smoke-")) / "smoke.db"
     corpus = _smoke_corpus()
     models = ["smoke/echo-model"]
     gens = generate(models, corpus, task_type, cost_cap=1.0, window="smoke", run_fn=_echo_run)
     grader = _stub_grader  # FORCED — never the real grader (keeps the smoke $0 + offline; reviewer F1/F3)
     scores = _finalize_scores(grader(gens, corpus), gens)
-    persist_metrics(scores, task_type, "smoke", db_path)
+    persist_metrics(scores, task_type, "smoke", db_path)  # → the TEMP db, never DB_PATH
     persist_baseline(scores, task_type, "smoke", db_path)
-    # attempted = flywheel rows this run WOULD write (measured successes); committed = rows the DB
-    # accepted NOW. On a box with no DSN route to postgres, record_agent_run durably OUTBOXES each row
-    # and returns False → committed<attempted, and a hub-side flush_outbox lands them later. Report
-    # BOTH so the smoke never claims "0 rows" when 3 were durably captured (reviewer finding F-A).
+    # attempted = flywheel rows this run WOULD write (measured successes). committed is written ONLY when
+    # write_flywheel=True (tests, with an injected recorder) — the CLI passes False so it never writes a
+    # real subagent_runs row for the fake model (A1). On a no-DSN box record_agent_run OUTBOXES + returns
+    # False, so committed<attempted is normal (a hub-side flush_outbox lands them).
     attempted = sum(
         1
         for m, gl in gens.items()
@@ -746,18 +759,18 @@ def run_smoke(task_type: str, db_path: Path = DB_PATH) -> dict[str, TaskScore]:
         for g in gl
         if g.spec is not None
     )
-    committed = record_flywheel(gens, scores, project="microbench-smoke")
+    committed = record_flywheel(gens, scores, project="microbench-smoke") if write_flywheel else 0
     measured = sum(s.is_measured for s in scores.values())
-    if record_agent_run is None:
+    if write_flywheel and record_agent_run is None:
         print(
             "[smoke] ⚠️  libs.subagents absent — the flywheel path was NOT exercised (surfacing unproven here)"
         )
-    # key the headline off MEASURED (not attempted) so a pool-absent box doesn't misreport "0 measured"
-    # when the grader did measure the model (reviewer C2); report the flywheel counts honestly alongside.
-    print(
-        f"[smoke] {task_type}: {measured} measured; {attempted} flywheel rows attempted, "
+    fly = (
         f"{committed} committed now ({attempted - committed} outboxed for hub flush)"
+        if write_flywheel
+        else "flywheel write skipped (CLI is read-safe; the write path is proven by the unit tests)"
     )
+    print(f"[smoke] {task_type}: {measured} measured (TEMP db {db_path}); {attempted} flywheel rows would write; {fly}")
     return scores
 
 
@@ -806,7 +819,7 @@ def main(argv: list[str] | None = None) -> int:
         report_stored(args.task)
         return 0
     if args.smoke:
-        run_smoke(args.task)
+        run_smoke(args.task, write_flywheel=False)  # CLI: temp db + NO production flywheel write (A1)
         return 0
 
     _ensure_grader(

@@ -197,3 +197,29 @@ def test_graders_registered_and_flywheel_note_present():
     assert "flywheel" in note and "defer" in note, (
         "must state the flywheel is primary + PoLL deferred"
     )
+
+
+def test_correlated_prior_never_clobbers_a_measured_baseline(tmp_path):
+    """A6: a MEASURED `microbench_judged:*` plan/spec baseline must survive a daily correlated run —
+    _write_priors skips a (model, task) that already has a measured source."""
+    import sqlite3
+
+    import correlated_prior as cp
+    from build_task_baselines import ensure_table
+
+    db = tmp_path / "k.db"
+    ensure_table(db)
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO model_task_baseline (model_id, task_type, baseline, pass_rate, n_tasks, n_trials, source, built_at) "
+        "VALUES ('m/measured','plan',4.8,0.96,10,10,'microbench_judged:plan','2026-07-20')"
+    )
+    conn.commit()
+    conn.close()
+    # a correlated run tries to write plan priors for both models
+    n = cp._write_priors(db, "plan", {"m/measured": 3.0, "m/cold": 3.2}, "correlated:code+review", 5.0)
+    assert n == 1  # only m/cold written; m/measured skipped (measured wins)
+    conn = sqlite3.connect(db)
+    row = conn.execute("SELECT baseline, source FROM model_task_baseline WHERE model_id='m/measured'").fetchone()
+    conn.close()
+    assert row == (4.8, "microbench_judged:plan")  # untouched — the correlated 3.0 did NOT clobber it

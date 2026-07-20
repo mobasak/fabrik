@@ -9,6 +9,14 @@ verdicts) is the primary quality signal downstream. `score5` here is the weighte
 structural checks passed × 5; a HARD-FAIL (an output with no phases/gates — or, for a spec, no
 sections/shape — at all) disqualifies with score5=0.
 
+⚠️ SCOPE (whole-plan review B1): this is a LIBRARY grader, registered + unit-tested but NOT batch-run in
+production by this plan. `microbench_judged --task plan/spec --all` is intentionally refused (plan/spec have
+no generation corpus), so nothing writes `model_judged_metrics` for plan/spec today — their judged gate +
+leaderboard stay dormant (fail-soft-inactive), and their ACTIVE signals are `correlated_prior` (the
+cold-start baseline) + the flywheel (real `subagent_runs` verdicts), exactly as the spec's "flywheel-primary,
+PoLL-deferred" design intends. `structural_grade` is here for a future caller that has real plan/spec text to
+grade (e.g. a fleet-plan-quality job) — invoke it directly then; it needs no benchmark wiring to be useful.
+
 Registered into `microbench_judged.GRADERS` on import (the Phase-B/C/D grader seam):
 
     GRADERS["plan"] = lambda g, c: structural_grade(g, c, "plan")

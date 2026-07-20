@@ -57,12 +57,28 @@ def _mean_prior(a: dict[str, float], b: dict[str, float]) -> dict[str, float]:
 def _write_priors(
     db_path: Path, task_type: str, priors: dict[str, float], source: str, scale: float
 ) -> int:
-    """INSERT OR REPLACE one baseline row per model (idempotent on PK model_id,task_type)."""
+    """INSERT OR REPLACE one baseline row per model (idempotent on PK model_id,task_type).
+
+    Source-precedence guard (whole-plan review A6): a MEASURED `microbench_judged:*` baseline for this
+    (model, task_type) beats a correlated guess — never clobber it. Today plan/spec have no measured
+    baseline (main() refuses their generation), so this is future-proofing for when a judged plan/spec
+    bench lands; the daily correlated run must not silently overwrite it (mirrors the review/code
+    precedence in build_task_baselines)."""
     today = date.today().isoformat()
     conn = sqlite3.connect(db_path)
     n = 0
     try:
+        measured = {
+            r[0]
+            for r in conn.execute(
+                "SELECT model_id FROM model_task_baseline "
+                "WHERE task_type=? AND source LIKE 'microbench_judged:%'",
+                (task_type,),
+            ).fetchall()
+        }
         for model, baseline in priors.items():
+            if model in measured:
+                continue  # a measured prior wins — do not overwrite it with a correlated guess
             conn.execute(
                 "INSERT OR REPLACE INTO model_task_baseline "
                 "(model_id, task_type, baseline, pass_rate, n_tasks, n_trials, source, built_at) "

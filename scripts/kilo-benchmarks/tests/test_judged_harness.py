@@ -344,3 +344,21 @@ def test_main_routes_structural_tasks_to_correlated_prior(capsys):
     rc = mj.main(["--task", "plan", "--all", "--models", "x/y"])
     assert rc == 1
     assert "correlated_prior" in capsys.readouterr().err
+
+
+def test_run_smoke_cli_path_is_production_safe(monkeypatch):
+    """Whole-plan review A1: run_smoke(write_flywheel=False) writes NO flywheel row and persists to a
+    TEMP db (never DB_PATH) — else smoke/echo-model (score5=5) would land in the real gate/tables and
+    drop every real fleet model."""
+    fly_calls: list = []
+    persisted_dbs: list = []
+    monkeypatch.setattr(mj, "record_agent_run", lambda *a, **k: fly_calls.append(1) or True)
+    real_pm = mj.persist_metrics
+    monkeypatch.setattr(
+        mj, "persist_metrics",
+        lambda scores, t, w, db: persisted_dbs.append(db) or real_pm(scores, t, w, db),
+    )
+    scores = mj.run_smoke("research", write_flywheel=False)  # the CLI path
+    assert fly_calls == []  # NO production flywheel write
+    assert scores["smoke/echo-model"].is_measured
+    assert persisted_dbs and persisted_dbs[0] != mj.DB_PATH  # a TEMP db, not the real store
