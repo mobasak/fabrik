@@ -46,7 +46,7 @@ a review is never un-armed) plus every pack whose glob matches a changed path (m
 only for command-chain reviews (`--workflow mega|ettw`) — the authoring-QA checklist items. Wired into
 `/fabrik-review`, mega-`04`, ettw-`08`/`10`. Byproduct: a `# promote-to-check_*` candidate list feeding the
 drain-Tier-3-into-Tier-1 direction. Honest bound (spec L1): injection raises compliance probability — it is
-maximally-enforced, not a guarantee. Design: `docs/superpowers/specs/2026-07-18-fabrik-factory-architecture-design.md`.
+maximally-enforced, not a guarantee. Design: `docs/superpowers/specs/archived/2026-07-18-fabrik-factory-architecture-design.md`.
 
 ## Coding microbench — live pass@1 for the coding-subagent ranking (2026-07-11)
 

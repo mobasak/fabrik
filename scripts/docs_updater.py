@@ -37,8 +37,7 @@ Usage:
     python scripts/docs_updater.py --sync            # Create missing stubs
     python scripts/docs_updater.py --sync --dry-run  # Preview changes
 
-Workflow Doc: docs/workflows/DOCUMENTATOR_WORKFLOW.md
-  ⚠️  Update the workflow doc when modifying this script.
+Workflow Doc: docs/archive/DOCUMENTATOR_WORKFLOW.md (archived — Kilo-era framing; this script is LIVE)
 """
 
 from __future__ import annotations

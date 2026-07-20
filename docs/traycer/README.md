@@ -500,7 +500,7 @@ Your custom instructions here...
 {{planMarkdown}}  # or {{userQuery}}, {{comments}}, {{reviewComments}}
 ```
 
-**Fabrik Custom Templates:** Located in `~/.traycer/prompt-templates/`, these templates integrate Fabrik's workflow and conventions into Traycer handoffs. See `docs/traycer/TEMPLATE_MAPPING.md` for the full inventory.
+**Fabrik Custom Templates:** Located in `~/.traycer/prompt-templates/`, these templates integrate Fabrik's workflow and conventions into Traycer handoffs. (The former `TEMPLATE_MAPPING.md` inventory is archived at `docs/archive/TEMPLATE_MAPPING.md` — its 3-layer Traycer/Kilo/Cascade model is 2/3 retired.)
 
 ## Phase Management & Automation
 

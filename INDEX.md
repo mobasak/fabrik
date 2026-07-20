@@ -254,170 +254,257 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-05-03T21:25 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:12 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
+├── CAPABILITIES.md
 ├── CONFIGURATION.md                # Environment variables and settings
-├── DEPLOYMENT.md                   # How to deploy services to VPS
+├── DEPLOYMENT_ARCHITECTURE.md
 ├── EXTERNAL_SYSTEMS.md             # External service dependencies
-├── FAQ.md                          # Frequently asked questions
 ├── FEATURES.md                     # Feature list
 ├── LESSONS_LEARNT.md
+├── PROJECT_CATALOG.md
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
 ├── SERVICES.md                     # External services Fabrik depends on
+├── STRATEGIC_BACKLOG.md
 ├── TROUBLESHOOTING.md              # Common issues & solutions
-├── architecture
-│   └── WORDPRESS-MODULE-INTEGRATION.md # WordPress module integration
 ├── archive                         # Archived and completed documentation
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
-│   ├── capability-defects.md       # Known capability defects ledger
-│   ├── epics                       # Epic ticket store (YYYY-MM-DD-epic-*.md)
-│   ├── plans                       # ACTIVE plan documents (YYYY-MM-DD-plan-*.md); completed → archived/
-│   │   └── archived                # Executed/superseded plans
-│   └── reviews                     # Review ledgers + code-review reports
+│   ├── capability-defects.md
+│   ├── epics
+│   │   └── 2026-07-14-epic-1-fleet-ci-deploy-debt.md
+│   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
+│   │   ├── 2026-06-29-plan-watchdog-deploy-side.md
+│   │   ├── 2026-07-20-plan-1-docs-truth-convergence.md
+│   │   └── archived
+│   └── reviews
+│       └── mega-00-command-review.md
 ├── infrastructure                  # Infrastructure docs
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   ├── archive                     # Archived and completed documentation
-│   │   ├── coolify-api-reference.md  # Coolify v4 API (historical — Coolify removed 2026-05)
-│   │   ├── coolify-migration.md      # Coolify migration procedures (historical)
-│   │   └── coolify-stable-aliases.md # UUID-alias watcher (historical)
-│   ├── grafana-dashboards-setup.md
+│   ├── audit-prompts
+│   │   ├── 01-full-system-audit.md
+│   │   ├── 02-container-health.md
+│   │   ├── 03-security-hardening.md
+│   │   ├── 04-performance-bottleneck.md
+│   │   ├── 05-observability-pipeline.md
+│   │   ├── 06-backup-disaster-recovery.md
+│   │   ├── 07-pre-production-checklist.md
+│   │   ├── 08-hardening-remediation.md
+│   │   └── README.md               # Documentation index (Legacy)
 │   ├── glitchtip-sdk-integration-setup.md
+│   ├── grafana-dashboards-setup.md
 │   ├── grafana-provisioning-setup.md
+│   ├── probe-reports
+│   │   ├── README.md               # Documentation index (Legacy)
+│   │   ├── infra-probe-2026-05-31T15-49Z.yaml
+│   │   ├── infra-probe-2026-05-31T22-36Z.yaml
+│   │   ├── infra-probe-2026-05-31T23-07Z.yaml
+│   │   ├── infra-probe-2026-06-01T00-14Z.yaml
+│   │   ├── infra-probe-2026-06-01T19-02Z.yaml
+│   │   ├── infra-probe-2026-06-01T21-59Z.yaml
+│   │   ├── infra-probe-2026-06-01T22-50Z.yaml
+│   │   ├── infra-probe-2026-06-06T22-39Z.yaml
+│   │   └── infra-probe-2026-06-07T20-20Z.yaml
 │   ├── prometheus-app-metrics-setup.md
 │   ├── promtail-noise-filter-setup.md
-│   ├── vps-ai-sysadmin.md           # AI sysadmin reference (host process)
-│   ├── vps-bootstrap-plan.md        # Bootstrap automation (pointer to scripts/bootstrap/)
-│   ├── vps-residue-policy.md        # Residue / hygiene policy
-│   ├── vps-status.md                # Current VPS fleet state
-│   ├── vps-urls.md                  # All deployed service URLs
-│   ├── audit-prompts/               # 8 self-contained AI audit prompts
-│   └── vps-complete-inventory.md
+│   ├── traycer-command-wiring.md
+│   ├── vps-ai-sysadmin.md
+│   ├── vps-bootstrap-plan.md
+│   ├── vps-complete-inventory.md
+│   ├── vps-fleet-architecture.md
+│   ├── vps-hub-rebuild.md
+│   ├── vps-residue-policy.md
+│   ├── vps-spoke-rebuild.md
+│   ├── vps-status.md               # Current VPS state and configuration
+│   └── vps-urls.md                 # All deployed service URLs
 ├── operations                      # Operational runbooks and VPS state
+│   ├── AI_MODELS_BROWSER_OPS.md
+│   ├── MCP_HTTP_TRANSPORT.md
+│   ├── credential-recovery.md
+│   ├── deployment.md
 │   ├── disaster-recovery.md        # Backup and recovery procedures
+│   ├── fabrik-lifecycle.md
+│   ├── gpu-rent.md
+│   ├── hub-restore-inventory.md
 │   ├── n8n-webhooks.md             # n8n webhook configuration
-│   ├── wsl-environment.md          # WSL-side ops: crontab + bashrc chain + project-cron lifecycle + recovery (2026-06-30)
+│   ├── spoke-restore-inventory.md
+│   └── wsl-environment.md
+├── orchestrator
+│   ├── 00-autonomous-factory-north-star.md
+│   ├── _traycer-skills
+│   │   ├── fab-ettw-00-trigger
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-01-decisions-lock
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-01r-decisions-review
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-02-core-flows
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-03-tech-plan
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-04-deploy-plan
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-05-ticket-outline
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-06-ticket-breakdown
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-07-execute
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-08-implementation-validation
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-09-revise-requirements
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-10-cross-artifact-validation
+│   │   │   └── SKILL.md
+│   │   ├── fab-ettw-11-deploy
+│   │   │   └── SKILL.md
+│   │   ├── fab-mega-00-trigger
+│   │   │   └── SKILL.md
+│   │   ├── fab-mega-02-decompose
+│   │   │   └── SKILL.md
+│   │   ├── fab-mega-03-expand
+│   │   │   └── SKILL.md
+│   │   └── fab-mega-04-validate
+│   │       └── SKILL.md
+│   ├── epic-to-ticket-workflow
+│   │   ├── 00-trigger-fabrik.md
+│   │   ├── 01-decisions-lock-fabrik.md
+│   │   ├── 01R-decisions-review-fabrik.md
+│   │   ├── 02-core-flows-fabrik.md
+│   │   ├── 03-tech-plan-fabrik.md
+│   │   ├── 04-deploy-plan-fabrik.md
+│   │   ├── 05-ticket-outline-fabrik.md
+│   │   ├── 06-ticket-breakdown-fabrik.md
+│   │   ├── 07-execute-fabrik.md
+│   │   ├── 08-implementation-validation-fabrik.md
+│   │   ├── 09-revise-requirements-fabrik.md
+│   │   ├── 10-cross-artifact-validation-fabrik.md
+│   │   ├── 11-deploy-fabrik.md
+│   │   └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
+│   ├── mega-epic-breakdown
+│   │   ├── 00-trigger-mega-epic-fabrik.md
+│   │   ├── 02-epic-decomposition-fabrik.md
+│   │   ├── 03-expand-epic-files-fabrik.md
+│   │   ├── 04-cross-epic-validation-fabrik.md
+│   │   ├── EPIC-ARTIFACT-SCHEMA.md
+│   │   ├── EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md
+│   │   └── _retired
+│   │       └── 05-dispatch-epic-tickets-fabrik.RETIRED.md
+│   ├── orchestrator-cockpit-decisions.md
+│   ├── orchestrator-cockpit-feature-set.md
+│   └── orchestrator-cockpit-requirements.md
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
+├── preplans
+│   └── README.md                   # Documentation index (Legacy)
 ├── reference                       # Technical reference and module documentation
-│   ├── # (Moved — AI taxonomy is now .windsurf/rules/ai/)
-│   ├── # (Archived — CRITICAL_RULES.md → docs/archive/2026-06-25-critical-rules-legacy.md)
-│   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md
+│   ├── MD
+│   │   ├── ai-prompt-templates.md
+│   │   └── markdown-cheatsheet.md
 │   ├── ai.md
 │   ├── architecture.md             # System architecture overview
-│   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
+│   ├── convergence-prompts.md
+│   ├── drivers.md                  # Fabrik driver API (DNS, Cloudflare, GPU providers, etc.)
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
+│   ├── fabrik-vultr.md
 │   ├── fixtures
-│   │   └── glitchtip-webhook.json  # Live-captured GlitchTip new-issue webhook envelope (watchdog parser pin)
+│   │   └── glitchtip-webhook.json
 │   ├── glitchtip-api.md
-│   ├── gpu
-│   │   ├── Architectural Paradigms in Specialized GPU Infrastructure A Comparative Technical Analysis of TensorDock, RunPod, and Vast.ai for Q2 2026.md
-│   │   ├── Choosing ML Framework Templates.md
-│   │   ├── The 2026 DePIN GPU Landscape A Technical Audit of Akash, Spheron, and Salad Cloud for Solo PaaS Infrastructure.md
-│   │   └── The 2026 Zero-Maintenance AI Inference Landscape A Strategic Analysis for Solo Developers.md
+│   ├── gui-toolchain.md
 │   ├── health-monitoring.md        # Health monitoring patterns
 │   ├── kilo
-│   │   ├── KILO-TOKEN-LEAN-WORKFLOW.md # Kilo token-lean workflow
-│   │   ├── KILO_AGENT_NAMING.md
+│   │   ├── AGGREGATOR_ROADMAP.md
+│   │   ├── AI_VENDOR_ACCESS.md
+│   │   ├── BENCHMARK_SOURCES.md
+│   │   ├── CANDIDATE_SIGNUPS.md
+│   │   ├── CODING_SUBAGENT_SELECTION.md
+│   │   ├── IMAGE_GEN_SELECTION.md
 │   │   ├── KILO_AGENT_SELECTION_GUIDE.md
-│   │   ├── KILO_CLI_REFERENCE.md
 │   │   ├── KILO_MODEL_CAPABILITIES.md # Kilo model capabilities
-│   │   ├── KILO_MODEL_SELECTION.md
-│   │   ├── KILO_PERFORMANCE_TUNING.md
-│   │   ├── KILO_PLATFORM_FEATURES.md
-│   │   ├── KILO_TROUBLESHOOTING.md
-│   │   ├── KILO_UPDATE_SCHEDULE.md
-│   │   ├── KILO_USAGE_GUIDE.md
-│   │   ├── README.md               # Documentation index (Legacy)
-│   │   ├── REVIEWER_BENCHMARK_RESULTS.md # Reviewer benchmark results
-│   │   ├── kilo-benchmarks-testing.md # Kilo benchmarks testing
-│   │   └── kilo-complete-reference.md # Complete Kilo reference
+│   │   ├── STT_SELECTION.md
+│   │   ├── TASK_SUBAGENT_SELECTION.md
+│   │   ├── TRANSLATION_SELECTION.md
+│   │   └── TTS_SELECTION.md
+│   ├── long-command-monitoring.md
+│   ├── mobile-responsive-testing-guide.md
+│   ├── modal-api.md
+│   ├── openrouter-api.md
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
-│   ├── research                      # Gemini deep-research outputs (sources for rule packs)
+│   ├── research
 │   │   ├── AI for Autonomous System Administration.md
+│   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
+│   │   ├── Free Trade Data API Alternatives.md
+│   │   ├── Global Trade Alert Data Assessment.md
 │   │   ├── Modern GUI Approaches for Chrome Extensions.md
 │   │   ├── Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md
 │   │   ├── Modern Mobile GUI Approaches for Android and iOS.md
 │   │   ├── Node API File Storage Rules.md
 │   │   ├── Node Backend Practices Research 2026.md
-│   │   └── cookie-consent-gdpr-2026-research.md
+│   │   ├── Zero-Edit 3D API Evaluation.md
+│   │   ├── ai-coding-orchestrator-comparison.md
+│   │   ├── chrome-ext-gui-research.md
+│   │   ├── cookie-consent-gdpr-2026-research.md
+│   │   ├── marketing-distribution-channels-draft.md
+│   │   ├── mobile-gui-research.md
+│   │   ├── research-prompt-preamble-for-agent-rules.md
+│   │   └── saas-alternative-gui.md
+│   ├── runpod-api.md
+│   ├── runpod-hf-models.md
 │   ├── service-contracts
 │   │   └── site-provisioner.md
-│   ├── stack.md                    # Technology stack & tools inventory
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── template_renderer.md
 │   ├── templates.md                # Available deployment templates
+│   ├── terminal-bench-runner.md
 │   ├── trueforge-images.md         # Trueforge image catalog
-│   ├── windsurf                    # Windsurf IDE optimization
-│   │   ├── actively-used-windsurf-extensions.md
-│   │   ├── cascade-guide.md
-│   │   ├── cascade-models.md
-│   │   ├── csharp-cpp-setup.md
-│   │   ├── features.md
-│   │   ├── overview.md
-│   │   └── recommended-extensions.md
-│   ├── wordpress                   # WordPress technical docs
-│   │   ├── 01 WordPress Production SOP Enhancement.md
-│   │   ├── 02 Techinical Implementation Addendum.md
-│   │   ├── A perfect systems architect operating a Zero-Ops pipeline.md
-│   │   ├── architecture.md         # System architecture overview
-│   │   ├── deployment-workflow.md  # WordPress deployment workflow
-│   │   ├── fixes.md                # Critical fixes
-│   │   ├── pages-idempotency.md    # Page creation idempotency
-│   │   ├── plugin-evaluation.md    # WordPress plugin evaluation criteria
-│   │   ├── plugin-stack.md         # Curated WordPress plugin stack
-│   │   └── site-specification.md   # Site spec YAML format
-│   └── wordpress.md                # WordPress module overview
+│   ├── vast-api.md
+│   ├── vps-all-container-envs.txt
+│   ├── vps-env-exited-apps.txt
+│   ├── vps-env-site-provisioner.txt
+│   └── windsurf                    # Windsurf IDE optimization
+│       ├── actively-used-windsurf-extensions.md
+│       ├── cascade-guide.md
+│       ├── cascade-models.md
+│       ├── overview.md
+│       ├── recommended-extensions.md
+│       └── windsurf_features.md
+├── superpowers
+│   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
+│   │   └── archived
+│   └── specs
+│       ├── 2026-07-15-autonomous-factory-driver-design.md
+│       ├── 2026-07-19-task-subagent-scoring-benchmark-design.md
+│       ├── 2026-07-20-claude-p-first-class-scoring-design.md
+│       └── archived
 ├── traycer
-│   ├── AGENT-TIMEOUT-POLICY.md     # Agent timeout policy
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
-│   ├── QUICKSTART-MCP-KILO.md      # MCP Kilo quickstart
 │   ├── README.md                   # Documentation index (Legacy)
-│   ├── TEMPLATE_MAPPING.md         # Template mapping
-│   ├── TRAYCER-KILO-AGENTS-GUIDE.md # Traycer Kilo agents guide
-│   ├── TRAYCER-KILO-DIRECT-CLI.md  # Traycer Kilo direct CLI
-│   ├── epic-kilo-integration.md    # Epic Kilo integration
 │   ├── fabrik-workflow.md
 │   ├── kilo_selected_agents.md     # Kilo selected agents
-│   ├── mcp-kilo-setup-guide.md     # MCP Kilo setup guide
-│   ├── templates
-│   │   ├── plan_template.md
-│   │   ├── task_execution_template.md
-│   │   └── verification_template.md
 │   ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference
-│   ├── traycer-evaluation.md       # Traycer integration evaluation
-│   ├── traycer-managed-development-workflow
-│   │   ├── 1-trigger-workflow.md
-│   │   ├── 2-epic-brief.md
-│   │   ├── 3-core-flows.md
-│   │   ├── 4-tech-plan.md
-│   │   ├── 5-ticket-breakdown.md
-│   │   ├── 6-execute.md
-│   │   ├── 7-implementation-validation.md
-│   │   ├── 8-revise-requirements.md
-│   │   └── 9-cross-artifact-validation.md
-│   ├── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
-│   └── traycer-yolo-workflow.md
-└── workflows                       # Workflow documentation
-    ├── DATA_SYNC_WORKFLOW.md
-    ├── DEV_TRACKER_WORKFLOW.md     # Development tracker workflow
-    ├── DOCUMENTATOR_WORKFLOW.md    # Documentator workflow
-    ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow
-    ├── FINAL_GATE_WORKFLOW.md      # Final gate workflow
-    ├── HEALTH_CHECKER_WORKFLOW.md  # Health checker workflow
-    ├── HEALTH_SUMMARY_WORKFLOW.md
-    ├── KILO_AGENT_MANAGEMENT.md    # Kilo agent management
-    ├── KILO_CLI_OUTPUT_WORKFLOW.md
-    ├── KILO_DISPATCH_WORKFLOW.md
-    ├── KILO_REVIEW_WORKFLOW.md     # Kilo review workflow
-    ├── SCAFFOLD_STRUCTURE.md
-    ├── SYNC_ENFORCEMENT_WORKFLOW.md # Sync enforcement workflow
-    ├── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
-    └── windsurf-triggered-workflows.md
+│   └── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
+├── workflows                       # Workflow documentation
+│   ├── DATA_SYNC_WORKFLOW.md
+│   ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow
+│   ├── FINAL_GATE_WORKFLOW.md      # Final gate workflow
+│   ├── HEALTH_CHECKER_WORKFLOW.md  # Health checker workflow
+│   ├── HEALTH_SUMMARY_WORKFLOW.md
+│   ├── KILO_AGENT_MANAGEMENT.md    # Kilo agent management
+│   ├── KILO_BENCHMARK_WORKFLOW.md
+│   ├── SCAFFOLD_STRUCTURE.md
+│   ├── SYNC_ENFORCEMENT_WORKFLOW.md # Sync enforcement workflow
+│   ├── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
+│   └── development-and-deployment-workflow.md
+├── workstation
+│   └── wsl-shell-mcp-setup.md
+└── zed
+    ├── check_zed_extensions.py
+    └── zed-acp-side-by-side-analysis.md
 ```
 <!-- AUTO-GENERATED:STRUCTURE:END -->
 
@@ -433,7 +520,7 @@ docs/
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [FAQ.md](docs/FAQ.md) | Frequently asked questions |
+| [FAQ.md](docs/archive/FAQ.md) | FAQ (archived 2026-07-20 — stale marketing tone; rewrite if needed) |
 | [.env.example](.env.example) | Environment variable reference (AUTHORITATIVE with inline comments) |
 
 ### Core Reference
@@ -441,7 +528,7 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [architecture.md](docs/reference/architecture.md) | System architecture, components, data flow |
-| [stack.md](docs/reference/stack.md) | Technology stack, APIs, libraries |
+| [stack.md](docs/archive/stack.md) | Coolify-era stack overview (archived 2026-07-20; live truth: agents-fabrik.md + PROJECT_CATALOG) |
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
@@ -586,10 +673,10 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | Document | Purpose |
 |----------|--------|
 | [README.md](docs/traycer/README.md) | Traycer integration guide - features, modes, workflows |
-| [traycer-yolo-workflow.md](docs/traycer/traycer-yolo-workflow.md) | YOLO (fast-path) workflow with Kilo agents |
+| [traycer-yolo-workflow.md](docs/archive/traycer-yolo-workflow.md) | Kilo-era YOLO workflow (archived 2026-07-20) |
 | [traycer-agile-workflow.md](docs/traycer/traycer-agile-workflow.md) | 8-command Agile Workflow reference |
 | [traycer-refactoring-workflow.md](docs/traycer/traycer-refactoring-workflow.md) | 4-command Refactoring Workflow reference |
-| [traycer-evaluation.md](docs/traycer/traycer-evaluation.md) | Integration evaluation & decision |
+| [traycer-evaluation.md](docs/archive/traycer-evaluation.md) | 2026-02 adoption decision record (archived 2026-07-20) |
 | [templates/](docs/traycer/templates/) | Plan, execution, verification templates |
 
 **Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
@@ -609,14 +696,14 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | Document | Purpose |
 |----------|--------|
 | [FINAL_GATE_WORKFLOW.md](docs/workflows/FINAL_GATE_WORKFLOW.md) | Final gate quality checks |
-| [KILO_REVIEW_WORKFLOW.md](docs/workflows/KILO_REVIEW_WORKFLOW.md) | Kilo code review workflow |
-| [DOCUMENTATOR_WORKFLOW.md](docs/workflows/DOCUMENTATOR_WORKFLOW.md) | Documentator workflow |
+| [KILO_REVIEW_WORKFLOW.md](docs/archive/KILO_REVIEW_WORKFLOW.md) | Kilo code review workflow (archived 2026-07-20) |
+| [DOCUMENTATOR_WORKFLOW.md](docs/archive/DOCUMENTATOR_WORKFLOW.md) | Kilo-era documentator doc (archived; script docs_updater.py is LIVE) |
 | [FABRIK_SCAFFOLD_WORKFLOW.md](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) | Fabrik scaffold workflow |
 | [KILO_AGENT_MANAGEMENT.md](docs/workflows/KILO_AGENT_MANAGEMENT.md) | Kilo agent management |
 | [HEALTH_CHECKER_WORKFLOW.md](docs/workflows/HEALTH_CHECKER_WORKFLOW.md) | Health checker workflow |
 | [SYNC_ENFORCEMENT_WORKFLOW.md](docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md) | Sync enforcement workflow |
 | [SYNC_PROJECTS_WORKFLOW.md](docs/workflows/SYNC_PROJECTS_WORKFLOW.md) | Sync projects workflow |
-| [DEV_TRACKER_WORKFLOW.md](docs/workflows/DEV_TRACKER_WORKFLOW.md) | Development tracker workflow |
+| [DEV_TRACKER_WORKFLOW.md](docs/archive/DEV_TRACKER_WORKFLOW.md) | Kilo-era dev tracker doc (archived 2026-07-20) |
 
 ### Project Context
 

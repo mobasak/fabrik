@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-20.** Kilo-era workflow doc. NOTE: the subject script `scripts/docs_updater.py` is **LIVE and gate-load-bearing** (docs_updater --check is part of the convergence contract) — only this doc's Kilo-CLI framing is retired. Current reference: the script's own docstring.
+
 # Documentator Agent Workflow
 
 **Status:** ✅ **PRODUCTION READY** (2026-03-23)

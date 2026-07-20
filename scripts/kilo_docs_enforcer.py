@@ -34,8 +34,7 @@ Exit codes:
     1 - Missing required documentation (CRITICAL or MAJOR severity)
     2 - Error (git unavailable, database error, etc.)
 
-Workflow Doc: docs/workflows/DOCUMENTATOR_WORKFLOW.md
-  ⚠️  Update the workflow doc when modifying this script.
+Workflow Doc: docs/archive/DOCUMENTATOR_WORKFLOW.md (archived — Kilo-era framing)
 """
 
 from __future__ import annotations

@@ -581,7 +581,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > **Agent Selection — exact names required:**
    > - Classify by the higher of scope (single file → cross-component) and risk (docs → architecture)
    > - Then select **exact agent names** from the reference files — generic bands (`Local free`, `Cloud mid-tier`, `Premium`) are **invalid**
-   > - **Kilo CLI:** Use the exact script filename from `~/.traycer/cli-agents/` (naming convention in `docs/reference/kilo/KILO_AGENT_NAMING.md`). Local agents: `Local_Coder_qwen32b.sh`, `Local_Fixer_ds16b.sh`, `Local_Documentator_llama3.1-8b.sh`, `Local_Review_llama70b.sh`
+   > - **Kilo CLI (RETIRED 2026-07-19):** the `~/.traycer/cli-agents/` dispatch path is retired; naming conventions archived at `docs/archive/kilo-cli/KILO_AGENT_NAMING.md`. Dispatch coding agents via Claude Code; pool fan-out via the OpenRouter subagents module.
    > - **Cascade:** Use the exact model name from `docs/reference/windsurf/cascade-models.md` (e.g. `Claude Sonnet 4.6`, `GPT-5.3-Codex (Medium Reasoning)`, `SWE-1.5`)
    > - Budget field: only fill if a cheaper agent can handle it reliably; use `—` otherwise
    > - Only one local Ollama agent can run at a time (hardware constraint)

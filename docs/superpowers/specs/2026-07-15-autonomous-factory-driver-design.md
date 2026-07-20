@@ -3,7 +3,7 @@
 **Status:** CONVERGED 2026-07-19 (rewritten + re-converged via /fabrik-spec-review, 8-pass ledger, md5 no-op `ae36e681…`; supersedes the 2026-07-15 convergence) — **awaiting operator approval**
 **Date:** 2026-07-15 · **Rewritten:** 2026-07-19 · **Owner:** operator
 **Why rewritten:** two things landed after the original convergence. (1) The **enforcement architecture**
-(spec `2026-07-18-fabrik-factory-architecture-design.md`, EXECUTED 2026-07-19) — armed reviews via
+(spec `archived/2026-07-18-fabrik-factory-architecture-design.md`, EXECUTED 2026-07-19) — armed reviews via
 `scripts/review_rubric.py` are now live fleet-wide **inside the commands**, so the driver no longer needs a
 converger of its own — it sequences commands that already converge themselves.
 (2) The operator's working model sharpened: Traycer Desktop sessions (parallel, one per project) are the

@@ -541,6 +541,6 @@ Each ticket should include:
 
 - [Traycer Integration Guide](README.md)
 - [Traycer Agile Workflow](traycer-agile-workflow.md)
-- [Traycer YOLO Workflow](traycer-yolo-workflow.md)
+- [Traycer YOLO Workflow](../archive/traycer-yolo-workflow.md) (archived — Kilo-era fast path)
 - [Mandatory Workflow](../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
 - [AGENTS.md](../../AGENTS.md)

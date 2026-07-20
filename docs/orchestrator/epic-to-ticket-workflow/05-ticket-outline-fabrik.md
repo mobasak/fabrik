@@ -87,7 +87,7 @@ Every applicable category MUST have ≥1 ticket (scaffold type + shape block dec
 | GPU / AI Inference | provisions/consumes GPU compute | `core/76-gpu-workers` |
 | Docusaurus Site | docusaurus scaffold | `core/42-docusaurus` |
 | AI Agent / Prompt Design | new prompts / skills / agent defs | `docs/reference/MD/ai-prompt-templates.md` |
-| Kilo Integration | calling Kilo CLI / new Kilo use cases | `docs/reference/kilo/KILO_CLI_REFERENCE.md` + `KILO_USE_CASES.md` |
+| Subagent-pool integration | dispatching pool workers / non-coding AI tasks | `.windsurf/rules/core/62-using-subagents.md` + `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` |
 | Testing | ALL (one integration test per PRIMARY PATH) | `core/45-testing-strategy` |
 | Documentation | ALL (per the Step-6b matrix) | `core/40-documentation` + `docs/reference/MD/markdown-cheatsheet.md` |
 | Audit log (immutable) | any sensitive-ops writer (auth/billing/admin/GDPR/KVKK) | `core/app-audit-log` (vendored `/opt/fabrik-lib/app-audit-log/`) |

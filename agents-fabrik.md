@@ -480,10 +480,7 @@ Our agents plan against these rules but do NOT inline them into tickets — the 
 | Deployment Architecture | `docs/DEPLOYMENT_ARCHITECTURE.md` | Code-level map of every file on the SSH+Compose deploy path |
 | Deployment Procedures | `docs/operations/deployment.md` | `fabrik apply` / `redeploy` / `destroy` workflows + golden rules |
 | Fabrik Lifecycle | `docs/operations/fabrik-lifecycle.md` | Runtime behavior, data safety, downtime, `.env` merge |
-| Kilo Agent Naming | `docs/reference/kilo/KILO_AGENT_NAMING.md` | Naming new Kilo CLI agents |
-| Kilo Agent Selection | `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` | Model routing, quality floors, current roster |
-| Kilo CLI Reference | `docs/reference/kilo/KILO_CLI_REFERENCE.md` | Kilo as AI infrastructure — serve, MCP, skills, programmatic patterns |
-| Kilo Use Cases | `docs/reference/kilo/KILO_USE_CASES.md` | 11 non-coding domains (data extraction, translation, content, legal, etc.) |
+| Subagent Selection (pool) | `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` | Model routing, quality floors, current roster (auto-generated daily) |
 | Kilo Agent Registry | `scripts/kilo_47_agents_final.json` | Authoritative agent selection list |
 | AI Prompt Templates | `docs/reference/MD/ai-prompt-templates.md` | Designing system prompts, skills, AGENTS.md, review templates |
 | RAG Chunking Rules | `.windsurf/rules/core/66-rag-chunking.md` | Planning search/RAG features — heading-based splitting, chunk envelopes |

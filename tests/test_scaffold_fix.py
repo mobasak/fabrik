@@ -155,24 +155,6 @@ class TestFixProjectReferenceDocsRefresh:
         assert target.read_text() == canonical
         assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
 
-    def test_kilo_naming_is_overwritten_when_target_exists(self, tmp_path):
-        """KILO_AGENT_NAMING.md is refreshed even if target exists."""
-        project_dir = tmp_path / "test-project"
-        project_dir.mkdir()
-        (project_dir / ".git").mkdir()
-
-        kilo_dir = project_dir / "docs" / "reference" / "kilo"
-        kilo_dir.mkdir(parents=True)
-        target = kilo_dir / "KILO_AGENT_NAMING.md"
-        target.write_text("# stale\n")
-
-        added = fix_project(project_dir, dry_run=False)
-
-        if (FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md").exists():
-            canonical = (FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md").read_text()
-            assert target.read_text() == canonical
-            assert any("KILO_AGENT_NAMING.md (refreshed from master)" in e for e in added)
-
     def test_kilo_47_agents_json_is_overwritten_when_target_exists(self, tmp_path):
         """kilo_47_agents_final.json is refreshed even if target exists."""
         project_dir = tmp_path / "test-project"
@@ -205,7 +187,5 @@ class TestFixProjectReferenceDocsRefresh:
             )
         if (FABRIK_ROOT / "docs" / "reference" / "prebuilt-app-containers.md").exists():
             assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
-        if (FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md").exists():
-            assert any("KILO_AGENT_NAMING.md (refreshed from master)" in e for e in added)
         if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():
             assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)

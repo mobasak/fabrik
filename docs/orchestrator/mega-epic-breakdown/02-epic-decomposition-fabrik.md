@@ -6,7 +6,7 @@
 
      ⚠️ The decomposition JUDGMENT — where the epic boundaries fall — is SINGLE-AGENT Opus work: never
      fan THAT out (the optional consistency-check fanout below is a different activity, and is allowed)
-     `[canonical: docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md § Capability delta —
+     `[canonical: docs/superpowers/specs/archived/2026-07-16-traycer-fabrik-twins-design.md § Capability delta —
      "mega-02's decomposition is single-agent judgment (+ optional grounder fan-out for its consistency
      checks)"]`. There is (almost) no research leg here: the Vision Summary arrives already live-grounded by
      `00-trigger-mega-epic-fabrik`'s ⛔BLOCKING N3k gate — inherit it, never re-run it. The SINGLE exception is Step 2f's

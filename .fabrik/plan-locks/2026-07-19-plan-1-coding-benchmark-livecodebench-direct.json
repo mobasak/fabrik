@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-19-plan-1-coding-benchmark-livecodebench-direct.md",
+  "plan": "docs/development/plans/archived/2026-07-19-plan-1-coding-benchmark-livecodebench-direct.md",
   "owned_paths": [
     "scripts/kilo-benchmarks/microbench_coding_direct.py",
     "scripts/kilo-benchmarks/build_task_baselines.py",

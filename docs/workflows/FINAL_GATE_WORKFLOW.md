@@ -972,7 +972,7 @@ python -m bandit -r src/
 ## See Also
 
 - [AGENTS.md](../../AGENTS.md) — Traycer orchestrator contract
-- [KILO_REVIEW_WORKFLOW.md](KILO_REVIEW_WORKFLOW.md) — AI code review workflow
+- [KILO_REVIEW_WORKFLOW.md](../archive/KILO_REVIEW_WORKFLOW.md) — Kilo-CLI code review workflow (archived — Kilo CLI retired; reviews run via /fabrik-review)
 - [KILO_AGENT_MANAGEMENT.md](KILO_AGENT_MANAGEMENT.md) — Agent discovery, benchmarking, role assignment
-- [DOCUMENTATOR_WORKFLOW.md](DOCUMENTATOR_WORKFLOW.md) — Documentation generation
+- [DOCUMENTATOR_WORKFLOW.md](../archive/DOCUMENTATOR_WORKFLOW.md) — Kilo-era documentation-generation workflow (archived; the live doc updater is `scripts/docs_updater.py`)
 - [FABRIK_SCAFFOLD_WORKFLOW.md](FABRIK_SCAFFOLD_WORKFLOW.md) — Project scaffold reference

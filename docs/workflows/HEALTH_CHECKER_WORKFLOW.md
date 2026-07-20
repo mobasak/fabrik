@@ -186,4 +186,4 @@ python scripts/health_checker.py --health-url http://localhost:8000/health --che
 ## Related Workflows
 
 - [Final Gate Workflow](FINAL_GATE_WORKFLOW.md) — Runs health checks as part of enforcement
-- [Dev Tracker Workflow](DEV_TRACKER_WORKFLOW.md) — Logs health check failures
+- [Dev Tracker Workflow](../archive/DEV_TRACKER_WORKFLOW.md) — Kilo-era dev tracker (archived; nothing live invokes dev_tracker.py)

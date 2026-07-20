@@ -1107,13 +1107,6 @@ def _scaffold_shared(
         cascade_target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(fabrik_cascade_models, cascade_target_dir / "cascade-models.md")
 
-    # Copy KILO_AGENT_NAMING.md (Kilo CLI agent naming conventions)
-    fabrik_kilo_naming = FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
-    if fabrik_kilo_naming.exists():
-        kilo_target_dir = project_dir / "docs" / "reference" / "kilo"
-        kilo_target_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(fabrik_kilo_naming, kilo_target_dir / "KILO_AGENT_NAMING.md")
-
     # Copy kilo_47_agents_final.json (Kilo CLI agent configuration)
     fabrik_kilo_config = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
     if fabrik_kilo_config.exists():
@@ -6021,16 +6014,6 @@ def fix_project(
                 shutil.copy(source, target)
                 added.append(f"docs/reference/{doc_name} (refreshed from master)")
 
-        # Always refresh KILO_AGENT_NAMING.md from canonical source.
-        kilo_naming_source = FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
-        if kilo_naming_source.exists():
-            kilo_naming_target = (
-                project_path / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
-            )
-            kilo_naming_target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(kilo_naming_source, kilo_naming_target)
-            added.append("docs/reference/kilo/KILO_AGENT_NAMING.md (refreshed from master)")
-
         # Always refresh kilo_47_agents_final.json from canonical source.
         kilo_config_source = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
         if kilo_config_source.exists():
@@ -6112,9 +6095,6 @@ def fix_project(
             if source.exists():
                 added.append(f"docs/reference/{doc_name} (refreshed from master)")
 
-        # KILO_AGENT_NAMING.md — always refreshed
-        if (FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md").exists():
-            added.append("docs/reference/kilo/KILO_AGENT_NAMING.md (refreshed from master)")
 
         # kilo_47_agents_final.json — always refreshed
         if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():

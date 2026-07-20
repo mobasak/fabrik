@@ -469,7 +469,7 @@ Each ticket:
 ## See Also
 
 - [Traycer Integration Guide](README.md)
-- [Traycer YOLO Workflow](traycer-yolo-workflow.md)
+- [Traycer YOLO Workflow](../archive/traycer-yolo-workflow.md) (archived — Kilo-era fast path)
 - [Traycer Refactoring Workflow](traycer-refactoring-workflow.md)
 - [Mandatory Workflow](../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
 - [AGENTS.md](../../AGENTS.md)

@@ -8,7 +8,7 @@
 
      ⚠️ Dispatch: the per-epic cross-field ADJUDICATION leg fans out (Step 2, sub-step 2a) — one unit per epic file — but the
      epic-file CONTENT stays single-agent Opus
-     `[canonical: docs/superpowers/specs/2026-07-16-traycer-fabrik-twins-design.md § Capability delta —
+     `[canonical: docs/superpowers/specs/archived/2026-07-16-traycer-fabrik-twins-design.md § Capability delta —
      "mega-03 (one grounder per epic file)"; and "the synthesis/decision (… the epic-file content …)
      stays the driving Opus's"]`. A grounder that returns Success Criteria or Scope has overstepped.
 

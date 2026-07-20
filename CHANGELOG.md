@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Docs-truth convergence: purge, relocate, verify, enforce (2026-07-20)
+
+Phase A (plan `2026-07-20-plan-1-docs-truth-convergence.md`): archived 58 dead/dormant/shipped artifacts
+with recorded dormancy proofs — 10 Kilo-CLI prose guides (→ `docs/archive/kilo-cli/`), 6 retired workflow
+docs, 10 Kilo-era traycer docs, stack.md, FAQ.md, 2 Coolify-era captures + the 2026-05-20 state txt, 3
+dormant plans (wavespeed proven-unexecuted, transdoc, universal-watchdog), 23 shipped/dormant specs + the
+twins plan (→ `specs|plans/archived/`); deleted a tracked `.bak` and a stray `fitness-plan.jsx`. Removed the
+dead KILO_AGENT_NAMING scaffold seed/refresh/report blocks (`scaffold.py` ×3 + test + pre-commit pattern).
+Hotfixed the runtime-injected `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` retired-triad items (41-43b, 79,
+82) + the mega-00 lifecycle bullet to the Claude-Code+pool reality; excised fabrik-vultr drill retros to
+archive; fixed 4 released plan-lock paths; retargeted all inbound links + INDEX rows.
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a
