@@ -158,7 +158,6 @@
 - [scripts/kilo_dispatch.py](INDEX.md): Kilo Dispatch — Cascade-to-Kilo CLI Bridge
 - [scripts/kilo_docs_enforcer.py](INDEX.md): noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)
 - [scripts/kilo_terminal_runner.py](INDEX.md): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
-- [scripts/kpi_tracker.py](INDEX.md): KPI Tracker CLI for managing AI execution metrics.
 - [scripts/lint_fix_agent.py](INDEX.md): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
 - [scripts/migrate_db_rename.py](INDEX.md): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](INDEX.md): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
@@ -177,7 +176,7 @@
 - [scripts/traycer_mirror.py](INDEX.md): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](INDEX.md): Traycer Report Writer
 - [scripts/update_agents_toc.py](INDEX.md): Update AGENTS.md Table of Contents
-- [scripts/update_vps_docs.py](INDEX.md): update_vps_docs.py — regenerate dynamic sections of VPS documentation.
+- [scripts/update_vps_docs.py](INDEX.md): AFTER-EDIT: none
 - [scripts/vps_sync.py](INDEX.md): Refresh VPS documentation from live state.
 - [spec-pipeline](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [traycer](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)

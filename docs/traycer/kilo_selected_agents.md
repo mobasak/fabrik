@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-19T06:00:48.275392
+**Last Updated:** 2026-07-20T06:00:48.411076
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -38,7 +38,7 @@
 | 29 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
 | 30 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $3.15 | 202K |  | ✓ | ✓ | 2 | 562 | ✅ |
 | 31 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 202K |  | ✓ | ✓ | 2 | 1034 | ✅ |
-| 32 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.10 | $0.30 | 262K | ✓ | ✓ | ✓ | 1 | 5840 | ✅ |
+| 32 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.07 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5358 | ✅ |
 | 33 | **gemma-4-26b-a4b-it:free** | google | 1460 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1460 | ✅ |
 | 34 | **deepseek-v4-flash** | deepseek | 1460 | ~ | $0.10 | $0.20 | 1048K |  | ✓ | ✓ | 1 | 8513 | ✅ |
 | 35 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.50 | $2.00 | 202K |  | ✓ | ✓ | 2 | 897 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-07-19:** Auto-updated from benchmarks
+- **2026-07-20:** Auto-updated from benchmarks

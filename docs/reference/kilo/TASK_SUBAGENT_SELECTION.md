@@ -55,20 +55,21 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.30 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
 
-### research (n_total=176)
+### research (n_total=179)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `z-ai/glm-4.5-air` | 2.67 | 0.50 | $0.0023 | 2.83 | 2 | 10 |
 | 2 | `minimax/minimax-m3` | 2.82 | 0.53 | $0.0090 | 2.90 | 2 | 40 |
 | 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.52 | $0.0092 | 3.76 | 3 | 122 |
-| 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
+| 4 | `smoke/echo-model` | 5.00 | 1.00 | $0.0000 | 5.00 |  | 3 |
+| 5 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
 
-### review (n_total=4636)
+### review (n_total=4662)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2-exp` | 2.97 | 0.39 | $0.0004 | 2.92 | 3 | 109 |
-| 2 | `deepseek/deepseek-v4-flash` | 3.16 | 0.06 | $0.0005 | 3.07 | 2 | 67 |
-| 3 | `google/gemini-3-flash-preview` | 3.65 | 0.37 | $0.0007 | 3.61 | 3 | 97 |
+| 1 | `deepseek/deepseek-v4-flash` | 3.16 | 0.06 | $0.0005 | 3.07 | 2 | 67 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.42 | $0.0005 | 2.95 | 3 | 119 |
+| 3 | `google/gemini-3-flash-preview` | 3.63 | 0.41 | $0.0010 | 3.59 | 3 | 106 |
 | 4 | `qwen/qwen3-max` | 4.07† | 0.69 | $0.1647 | 1.00 | 2 | 0 |
 
 ### spec (n_total=155)
