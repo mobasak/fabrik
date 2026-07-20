@@ -566,6 +566,107 @@ def _full_coding_results_table() -> list[str]:
     return out
 
 
+def _full_judged_results_table(task_type: str) -> list[str]:
+    """Full judged-benchmark leaderboard for ONE task (research/docs carry cost+latency columns;
+    plan/spec are structural-only — no generation, so no cost/latency). Display-only appendix (rows lead
+    with the backticked id → `load_task_ranking` skips them). Empty if the task has no metrics. Never raises."""
+    try:
+        from build_task_baselines import judged_eligible, load_judged_metrics
+
+        metrics = load_judged_metrics(task_type)
+        elig = judged_eligible(task_type)
+    except Exception:
+        return []
+    if not metrics:
+        return []
+
+    def _n(v: object, spec: str, pre: str = "") -> str:
+        try:
+            return f"{pre}{format(v, spec)}" if v is not None else "—"
+        except Exception:
+            return "—"
+
+    ordered = sorted(
+        metrics.items(),
+        key=lambda kv: (-(kv[1].get("score5") or 0),
+                        kv[1].get("cost_per_1k") if kv[1].get("cost_per_1k") is not None else 1e9, kv[0]),
+    )
+    out = ["", f"## Full {task_type} benchmark results — judged (display only; not parsed for routing)"]
+    if task_type in ("research", "docs"):
+        rp = "`recall`/`prec` bidirectional git-grounded · " if task_type == "docs" else ""
+        out.append(
+            f"_source: `microbench_judged.py --task {task_type}` → `model_judged_metrics`. {rp}"
+            "`value`=score5÷$/1k · `eligible` = score5 ≥ 3.5 · $/1k ≤ 5 · p50 ≤ 15s._"
+        )
+        if task_type == "docs":
+            out.append("| model | grade | score5 | recall | prec | $/1k | p50 s | value | family | eligible |")
+            out.append("|---|:-:|--:|--:|--:|--:|--:|--:|:-:|:-:|")
+        else:
+            out.append("| model | grade | score5 | $/1k | p50 s | value | family | eligible |")
+            out.append("|---|:-:|--:|--:|--:|--:|:-:|:-:|")
+        for m, d in ordered:
+            s5, c1k = d.get("score5"), d.get("cost_per_1k")
+            value = f"{(s5 / c1k):.1f}" if (s5 is not None and c1k) else "—"
+            flag = "✅" if m in elig else "—"
+            fam = m.split("/", 1)[0]
+            if task_type == "docs":
+                out.append(
+                    f"| `{m}` | {d.get('grade') or '—'} | {_n(s5, '.2f')} | {_n(d.get('recall'), '.2f')} | "
+                    f"{_n(d.get('precision'), '.2f')} | {_n(c1k, '.3f', '$')} | {_n(d.get('p50_latency_s'), '.1f')} | "
+                    f"{value} | {fam} | {flag} |"
+                )
+            else:
+                out.append(
+                    f"| `{m}` | {d.get('grade') or '—'} | {_n(s5, '.2f')} | {_n(c1k, '.3f', '$')} | "
+                    f"{_n(d.get('p50_latency_s'), '.1f')} | {value} | {fam} | {flag} |"
+                )
+    else:  # plan / spec — structural filter, no cost/latency
+        out.append(
+            "_source: `structural_grader` (plan/spec structural filter, no paid generation) → "
+            "`model_judged_metrics`. `structural` = checks passed · `eligible` = score5 ≥ 3.5._"
+        )
+        out.append("| model | grade | score5 | structural | family | eligible |")
+        out.append("|---|:-:|--:|:-:|:-:|:-:|")
+        for m, d in ordered:
+            flag = "✅" if m in elig else "—"
+            out.append(
+                f"| `{m}` | {d.get('grade') or '—'} | {_n(d.get('score5'), '.2f')} | "
+                f"{d.get('structural') or '—'} | {m.split('/', 1)[0]} | {flag} |"
+            )
+    return out
+
+
+def _judged_bench_ran(task_type: str) -> bool:
+    """Has the judged benchmark produced ANY metrics for this task? Distinguishes 'never ran' (gate
+    inactive → prior behaviour) from 'ran' (gate ACTIVE → ineligible fleet rows dropped, fail-closed).
+    Monkeypatch point for tests, mirroring `_code_bench_ran`. Never raises."""
+    try:
+        from build_task_baselines import load_judged_metrics
+
+        return bool(load_judged_metrics(task_type))
+    except Exception:
+        return False
+
+
+def _judged_benchmark_models(task_type: str) -> list[str]:
+    """The judged-ELIGIBLE set for a task, ranked best-first (score5 desc, then $/1k asc). Empty if the
+    benchmark hasn't run. Analog of `_code_benchmark_models`. Never raises."""
+    try:
+        from build_task_baselines import judged_eligible, load_judged_metrics
+
+        metrics = load_judged_metrics(task_type)
+        elig = judged_eligible(task_type)
+    except Exception:
+        return []
+
+    def _cost(m: str) -> float:
+        c = metrics.get(m, {}).get("cost_per_1k")
+        return c if c is not None else 1e9
+
+    return sorted((m for m in metrics if m in elig),
+                  key=lambda m: (-(metrics[m].get("score5") or 0), _cost(m), m))
+
+
 def _fmt_bench_review_row(rank: int, model: str, review_metrics: dict, tiers: object) -> str:
     """Render a benchmark-measured review row that SHOWS its metrics (previously all `—`).
 
@@ -610,12 +711,20 @@ def _selected_shortlists() -> list[str]:
             return "—"
 
     try:
-        from build_task_baselines import CODE_TIERS, code_eligible, code_tier, review_eligible
+        from build_task_baselines import (
+            CODE_TIERS,
+            code_eligible,
+            code_tier,
+            judged_eligible,
+            load_judged_metrics,
+            review_eligible,
+        )
 
         rev_set, cod_set = review_eligible(), code_eligible()
+        judged_sets = {jt: judged_eligible(jt) for jt in ("research", "docs", "plan", "spec")}
     except Exception:
         return []
-    if not rev_set and not cod_set:
+    if not rev_set and not cod_set and not any(judged_sets.values()):
         return []
 
     def _q(sql: str) -> list:
@@ -678,6 +787,38 @@ def _selected_shortlists() -> list[str]:
                         f"{_n(r[5], '.4f', '$')} | {_n(r[6], '.1f')} |"
                     )
             out.append("")
+
+    # Judged-task shortlists (research/docs generation-gated; plan/spec structural-gated) — same headline.
+    jgate_desc = {
+        "research": "score5 ≥ 3.5 · $/1k ≤ 5 · p50 ≤ 15s",
+        "docs": "score5 ≥ 3.5 · $/1k ≤ 5 · p50 ≤ 15s",
+        "plan": "score5 ≥ 3.5 (structural filter; flywheel is the primary signal)",
+        "spec": "score5 ≥ 3.5 (structural filter; flywheel is the primary signal)",
+    }
+    for jt in ("research", "docs", "plan", "spec"):
+        jset = judged_sets.get(jt) or set()
+        if not jset:
+            continue
+        jm = load_judged_metrics(jt)
+        ranked = sorted(jset, key=lambda x: (-(jm.get(x, {}).get("score5") or 0), x))
+        out += [f"### {jt.capitalize()} — {len(jset)} selected", f"_gate: {jgate_desc[jt]}_"]
+        if jt in ("research", "docs"):
+            out += ["| model | grade | score5 | $/1k | p50 s |", "|---|:-:|--:|--:|--:|"]
+            for m in ranked:
+                d = jm.get(m, {})
+                out.append(
+                    f"| `{m}` | {d.get('grade') or '—'} | {_n(d.get('score5'), '.2f')} | "
+                    f"{_n(d.get('cost_per_1k'), '.3f', '$')} | {_n(d.get('p50_latency_s'), '.1f')} |"
+                )
+        else:
+            out += ["| model | grade | score5 | structural |", "|---|:-:|--:|:-:|"]
+            for m in ranked:
+                d = jm.get(m, {})
+                out.append(
+                    f"| `{m}` | {d.get('grade') or '—'} | {_n(d.get('score5'), '.2f')} | "
+                    f"{d.get('structural') or '—'} |"
+                )
+        out.append("")
     return out
 
 
@@ -785,6 +926,15 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     if code_bench_ran:
         coding_fallback_models = code_benchmark
 
+    # JUDGED gates (research/docs/plan/spec) — mirror the code/review gates. Empty + inactive until the
+    # operator runs `microbench_judged --all` (research/docs) / `correlated_prior` (plan/spec); once a
+    # task's benchmark has run, its gate filters that task's fleet rows to the eligible set (fail-closed).
+    judged_gate: dict[str, set[str]] = {}
+    judged_ran: dict[str, bool] = {}
+    for _jt in ("research", "docs", "plan", "spec"):
+        judged_ran[_jt] = _judged_bench_ran(_jt)
+        judged_gate[_jt] = set(_judged_benchmark_models(_jt))
+
     # REVIEW gate + supplement — the operator's permanent constraints (precision ≥ 99% · real
     # $/1k ≤ 0.70 · p50 ≤ 10s) applied to the `review` task_type. `review_benchmark` is the
     # eligible set ranked best-first; `review_gate` filters fleet review rows to only these ids.
@@ -832,6 +982,9 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
         # benchmark has run (fail-closed, mirroring review).
         if task_type == "code" and code_bench_ran:
             task_rows = [r for r in task_rows if r[1] in code_gate]
+        # Judged gates (research/docs/plan/spec) — fail-closed once that task's benchmark has run.
+        if task_type in judged_gate and judged_ran.get(task_type):
+            task_rows = [r for r in task_rows if r[1] in judged_gate[task_type]]
         # Fabrik-lib 2026-07-11 contract — the doc's rank order IS the
         # contract. Compute shrunk_q per row, apply the quality gate, then
         # sort survivors by (top-2-eligible desc, cost asc, model asc). Model
@@ -947,6 +1100,8 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     if include_full_results:
         out.extend(_full_review_results_table())
         out.extend(_full_coding_results_table())
+        for _jt in ("research", "docs", "plan", "spec"):
+            out.extend(_full_judged_results_table(_jt))
 
     return "\n".join(out) + "\n"
 

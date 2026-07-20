@@ -255,6 +255,69 @@ def code_tier(model_id: str) -> str | None:
     return None
 
 
+# =================================================================================================
+# JUDGED-task eligibility gates (research / docs / plan / spec) — mirrors review/code above.
+# Data is written by microbench_judged.py → model_judged_metrics (task_type-discriminated). Until the
+# operator runs the paid `--all` benchmark, every reader returns {} → the gate is INACTIVE (fail-soft
+# prior behaviour), never "nothing eligible". THRESHOLDS ARE PROVISIONAL — RE-CALIBRATE after the first
+# real run (exactly as review/code were tuned from measured results). Change a threshold HERE, once.
+#   research/docs (GENERATION-based): quality + cost + latency.
+#   plan/spec     (STRUCTURAL, no generation): quality only (score5 already = structural-fraction × 5).
+# =================================================================================================
+JUDGED_TRUST_FLOOR_SCORE5 = 3.5  # score5 ≥ : quality floor for every judged task (≈ B+; trust)
+JUDGED_MAX_COST_PER_1K = 5.0  # $/1k ≤ : research/docs affordability (generation cost per 1000 items)
+JUDGED_MAX_P50_S = 15.0  # p50 ≤ : research/docs responsiveness (seconds)
+_JUDGED_COST_TASKS = ("research", "docs")  # the cost/latency-gated (generation) judged tasks
+
+
+def load_judged_metrics(task_type: str, db_path: Path = DB_PATH) -> dict[str, dict]:
+    """model_id -> the LATEST-build judged metrics for ONE task_type, or {} if unpopulated.
+
+    Reads the single `model_judged_metrics` table (task_type-discriminated) that microbench_judged
+    writes — NOT a per-task `model_<task>_metrics` table (there is none). Latest-PER-MODEL (correlated
+    MAX), fail-soft to {} on a missing table so the ranker falls back to prior behaviour."""
+    conn = sqlite3.connect(db_path)
+    try:
+        if not conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='model_judged_metrics'"
+        ).fetchone():
+            return {}
+        rows = conn.execute(
+            "SELECT m.model_id, m.grade, m.score5, m.recall, m.precision, m.structural, "
+            "m.cost_per_1k, m.p50_latency_s, m.n_err FROM model_judged_metrics m "
+            "JOIN (SELECT model_id, MAX(built_at) AS mb FROM model_judged_metrics "
+            "WHERE task_type=? GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb "
+            "WHERE m.task_type=?",
+            (task_type, task_type),
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        r[0]: {"grade": r[1], "score5": r[2], "recall": r[3], "precision": r[4],
+               "structural": r[5], "cost_per_1k": r[6], "p50_latency_s": r[7], "n_err": r[8]}
+        for r in rows
+    }
+
+
+def judged_eligible(task_type: str, db_path: Path = DB_PATH) -> set[str]:
+    """Models that clear the gate for a judged task. research/docs gate on quality+cost+latency;
+    plan/spec gate on quality only (structural — no generation, so no cost/latency). Empty set when the
+    benchmark hasn't run (gate inactive). A missing metric fails CLOSED (excluded)."""
+    metrics = load_judged_metrics(task_type, db_path)
+    cost_gated = task_type in _JUDGED_COST_TASKS
+    out: set[str] = set()
+    for m, d in metrics.items():
+        if (d["score5"] or 0) < JUDGED_TRUST_FLOOR_SCORE5:
+            continue
+        if cost_gated:
+            if (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) > JUDGED_MAX_COST_PER_1K:
+                continue
+            if (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) > JUDGED_MAX_P50_S:
+                continue
+        out.add(m)
+    return out
+
+
 def build(conn, task_type: str, categories: tuple[str, ...]) -> list[dict]:
     """One row per model with enough benchmark trials in `categories` to be a real prior.
 

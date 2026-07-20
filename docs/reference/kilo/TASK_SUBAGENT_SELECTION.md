@@ -53,7 +53,7 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 ### plan (n_total=28)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-pro` | 3.30 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
+| 1 | `deepseek/deepseek-v4-pro` | 3.20 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
 
 ### research (n_total=179)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |

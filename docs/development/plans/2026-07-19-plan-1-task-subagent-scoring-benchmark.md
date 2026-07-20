@@ -1,6 +1,6 @@
 # Task-Subagent Scoring Benchmark — Implementation Plan
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-20
 Date: 2026-07-19
 Spec: [docs/superpowers/specs/2026-07-19-task-subagent-scoring-benchmark-design.md](../../superpowers/specs/2026-07-19-task-subagent-scoring-benchmark-design.md) (CONVERGED)
 Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_review.py` + `microbench_coding_direct.py`
@@ -134,7 +134,7 @@ Scope: hub-internal `scripts/kilo-benchmarks/` tool — parallel to `microbench_
 
 ---
 
-## Phase E — populate the selection MD files + docs + smoke  *(depends on A–D)*
+## Phase E — populate the selection MD files + docs + smoke  *(depends on A–D)* — ✅ EXECUTED 2026-07-20
 
 **Files (modify):** `scripts/kilo-benchmarks/build_task_baselines.py` (add `<task>_eligible()` per task), `scripts/kilo-benchmarks/rank_task_subagents.py` (gate filter + `_full_<task>_results_table()` + `_selected_shortlists` extension), `scripts/kilo-benchmarks/tests/test_review_eligibility.py` (per-task render tests), `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` (regenerated), `CHANGELOG.md`, `docs/FEATURES.md`, `INDEX.md`, `scripts/kilo-benchmarks/daily_refresh.sh` (add the judged bench to the refresh) + a runbook note.
 

@@ -27,6 +27,9 @@
 #        → queries the DB for GLM/Kimi/Minimax/DeepSeek active LLMs,
 #          applies a weighted composite score + Doc↔Code letter grade,
 #          writes docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+#   8b1. correlated_prior.py
+#        → seeds plan/spec cold-start priors (plan←code+review, spec←docs+plan)
+#          into model_task_baseline (FREE; paid judged bench is operator-only)
 #   8b. rank_task_subagents.py
 #        → queries fabrik_analytics.subagent_runs, aggregates per
 #          (task_type, model) with 90-day window + min 3 runs, writes
@@ -389,6 +392,14 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # Non-fatal — a missing table doesn't take down the rest of the pipeline.
   _step "rank_coding_subagents" "$VENV_PY" "$KB/rank_coding_subagents.py" \
     || echo "[daily_refresh] rank_coding_subagents failed (non-fatal)"
+
+  # Correlated cold-start priors for plan/spec (FREE, no generation): seeds model_task_baseline
+  # from today's code+review (+ docs, once benched) metrics, so pick_models("plan"/"spec") shrinks
+  # against a non-blind prior. Idempotent; fail-soft. Runs BEFORE rank_task_subagents so the priors
+  # are fresh in the regenerated doc. (The PAID judged bench — microbench_judged.py --task
+  # research/docs --all — is an OPERATOR step, never run here; it spends money + takes ~an hour.)
+  _step "correlated_prior" "$VENV_PY" "$KB/correlated_prior.py" \
+    || echo "[daily_refresh] correlated_prior failed (non-fatal)"
 
   # Task-subagent ranking → docs/reference/kilo/TASK_SUBAGENT_SELECTION.md.
   # Reads fleet-wide subagent_runs on fabrik_analytics; emits per-task ranking.

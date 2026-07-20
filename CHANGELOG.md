@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Judged-task eligibility gates + selection-doc wiring for docs/research/plan/spec (Phase E) (2026-07-19)
+
+`build_task_baselines.judged_eligible(task_type)` + `load_judged_metrics` — per-task gates mirroring
+`review_eligible`/`code_eligible` (research/docs gate on score5 + $/1k + p50; plan/spec on score5 only;
+fail-soft-inactive until the benchmark runs). `rank_task_subagents` gains `_full_judged_results_table`,
+`_judged_bench_ran`/`_judged_benchmark_models`, the `### <task>` router-section gate filter, and 4 new
+sections under the `✅ Selected subagents` headline. `correlated_prior.py` is now seeded free in
+`daily_refresh.sh` (plan←code+review; spec waits for docs); `TASK_SUBAGENT_SELECTION.md` regenerated.
+Render regression tests per task type (`test_review_eligibility.py`) + gate-maths tests. The paid
+57-model research/docs run stays an operator step. Completes plan
+`2026-07-19-plan-1-task-subagent-scoring-benchmark`.
+
 ### Added — Research + plan/spec graders for the judged benchmark; grader-review fixes (Phases B+D) (2026-07-19)
 
 `research_grader.py` (EM/F1 + fabrik-private Q&A corpus + injectable claude-evaluator near-miss

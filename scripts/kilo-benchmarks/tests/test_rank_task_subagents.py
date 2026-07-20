@@ -39,6 +39,9 @@ def _code_gate_off(monkeypatch):
 
     monkeypatch.setattr(_rts, "_code_bench_ran", lambda *_a, **_k: False)
     monkeypatch.setattr(_rts, "_code_benchmark_models", lambda *_a, **_k: [])
+    # Same for the judged gates (research/docs/plan/spec) — they read the real kilo_agents.db too.
+    monkeypatch.setattr(_rts, "_judged_bench_ran", lambda *_a, **_k: False)
+    monkeypatch.setattr(_rts, "_judged_benchmark_models", lambda *_a, **_k: [])
 
 
 def _postgres_reachable() -> bool:

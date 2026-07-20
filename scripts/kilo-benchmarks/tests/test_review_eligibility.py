@@ -13,6 +13,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import build_task_baselines as btb  # noqa: E402
@@ -291,3 +293,59 @@ def test_render_code_fallback_uses_eligible_set_when_gate_active(monkeypatch):
     md = rts.render(rows, state="ok", include_full_results=False)
     assert "bench/eligible" in md, "benchmark-only eligible coder did not surface via the fallback"
     assert "old/fallback" not in md, "old _load_coding_fallback used instead of code_benchmark when gate active"
+
+
+# ── Phase E: the judged gates (research/docs/plan/spec) drop ineligible rows from their section ──
+@pytest.mark.parametrize("jt", ["research", "docs", "plan", "spec"])
+def test_render_judged_section_drops_ineligible(monkeypatch, jt):
+    """Per new task type: once the judged benchmark RAN, the `### <task>` router section keeps only the
+    gate-eligible models — an ineligible fleet row is dropped (mirrors the review/code gate render tests)."""
+    monkeypatch.setattr(rts, "_judged_bench_ran", lambda t: t == jt)
+    monkeypatch.setattr(rts, "_judged_benchmark_models", lambda t: ["good/model"] if t == jt else [])
+    rows = [
+        (jt, "good/model", 6, 0.001, 4.0, 1.0),  # eligible fleet row
+        (jt, "bad/model", 6, 0.001, 4.0, 1.0),  # ineligible -> dropped
+    ]
+    md = rts.render(rows, state="ok", include_full_results=False)
+    section = md.split(f"### {jt}")[1] if f"### {jt}" in md else ""
+    assert "good/model" in section
+    assert "bad/model" not in section, f"ineligible model leaked into the {jt} section"
+
+
+def test_render_judged_gate_inactive_when_no_benchmark(monkeypatch):
+    """Benchmark never ran → the judged gate does NOT filter (prior behaviour), so the row survives."""
+    monkeypatch.setattr(rts, "_judged_bench_ran", lambda t: False)
+    monkeypatch.setattr(rts, "_judged_benchmark_models", lambda t: [])
+    rows = [("research", "bad/model", 6, 0.001, 4.0, 1.0)]
+    md = rts.render(rows, state="ok", include_full_results=False)
+    assert "bad/model" in md
+
+
+def test_judged_eligible_gate_maths(tmp_path):
+    """build_task_baselines.judged_eligible: research/docs gate on score5+cost+latency; plan/spec on
+    score5 only; a missing metric fails closed; empty when the benchmark hasn't run."""
+    db = tmp_path / "k.db"
+    assert btb.judged_eligible("research", db) == set()  # no table yet → inactive
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE model_judged_metrics (model_id TEXT, task_type TEXT, score5 REAL, grade TEXT, "
+        "recall REAL, precision REAL, structural TEXT, cost_usd REAL, cost_per_1k REAL, "
+        "p50_latency_s REAL, tokens_per_s REAL, n_graded INTEGER, n_err INTEGER, window TEXT, built_at TEXT)"
+    )
+    rows = [
+        ("good/research", "research", 4.0, 2.0, 5.0),  # passes all
+        ("pricey/research", "research", 4.0, 9.0, 5.0),  # $/1k too high → out
+        ("slow/research", "research", 4.0, 2.0, 30.0),  # p50 too high → out
+        ("weak/research", "research", 3.0, 2.0, 5.0),  # score5 below floor → out
+        ("good/plan", "plan", 4.0, None, None),  # plan: quality-only → in (no cost/latency)
+        ("weak/plan", "plan", 3.0, None, None),  # below floor → out
+    ]
+    for mid, tt, s5, c1k, p50 in rows:
+        conn.execute(
+            "INSERT INTO model_judged_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (mid, tt, s5, "A", None, None, "5/5", None, c1k, p50, None, 3, 0, "v1", "2026-07-20"),
+        )
+    conn.commit()
+    conn.close()
+    assert btb.judged_eligible("research", db) == {"good/research"}
+    assert btb.judged_eligible("plan", db) == {"good/plan"}  # structural: cost/latency ignored

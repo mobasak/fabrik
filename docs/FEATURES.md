@@ -71,6 +71,33 @@ are `n_err` (never scored 0); `is_measured` gated at 3 graded. `--probe` sizes t
 is a running-total dispatch gate. On-demand only (NOT in `daily_refresh.sh`) — the real ~$12-18 57-model run is
 an operator action. Tests: `tests/test_lcb_smoke.py`, `test_microbench_coding_direct.py`, `test_coding_baselines.py`.
 
+### Judged task-subagent benchmark — docs / research / plan / spec scoring
+
+`scripts/kilo-benchmarks/microbench_judged.py` gives `pick_models()` a **measured, contamination-free
+prior** for the four task types that previously had none. A task-agnostic spine (dispatch → grade →
+persist → batched-resume) fed by a per-task GRADER, all on **fabrik-private / post-cutoff corpora** so a
+model can't have memorized answers about our own repo:
+- **research** (`research_grader.py`) — normalized EM / token-F1 (HotpotQA-vendored) on fabrik-private
+  Q&A, with an injectable `claude-evaluator` near-miss tiebreak (subscription npx, $0 OpenRouter;
+  abstention → F1 fallback, judge score clamped).
+- **docs** (`docs_grader.py`) — **bidirectional** git-grounded recall/precision on a stale-doc→code-diff
+  reconciliation, reusing `doc_reconcile` symbol plumbing (per-line tokenization; torch-free, $0).
+- **plan / spec** (`structural_grader.py`) — a deterministic **structural filter** (phases,
+  command-gates, resolving `path:line` citations, sections, `shape:` flags) + a **correlated cold-start
+  prior** (`correlated_prior.py`: plan←code+review, spec←docs+plan; seeded free in `daily_refresh.sh`)
+  + the **flywheel as the primary signal**; the PoLL LLM-judge is a documented deferred seam.
+
+Each measured model gets BOTH a `model_task_baseline` prior AND one `subagent_runs` flywheel row per
+dispatch (`quality_score=score5`) — the latter clears the ranker's `HAVING COUNT(*) >= 3` gate so a
+cold model **surfaces**. Per-task **eligibility gates** (`build_task_baselines.judged_eligible`:
+research/docs on score5+$/1k+p50, plan/spec on score5) filter the `### <task>` router sections and drive
+the **✅ Selected subagents** headline + full leaderboards in `TASK_SUBAGENT_SELECTION.md` — mirroring
+the review/code gates, fail-soft-inactive until the benchmark runs. **The paid `--task research|docs
+--all` 57-model run is an OPERATOR action** (~$8–15, ~an hour; balance-guarded, per-call + running-total
+cost caps, batched-resumable via `_measured_models`) — never run autonomously; a `--smoke` proves the
+$0 persist+surfacing path. Tests: `tests/test_judged_harness.py`, `test_research_grader.py`,
+`test_docs_grader.py`, `test_structural_grader.py`, `test_review_eligibility.py`.
+
 ---
 
 ## Fleet AI-sysadmin Claude quota-rotation (2026-07-08)
