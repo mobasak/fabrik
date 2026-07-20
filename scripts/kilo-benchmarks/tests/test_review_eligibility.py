@@ -205,7 +205,21 @@ def _coding_db(tmp_path, rows):
         g = r[5] if len(r) > 5 else ("A+" if p1 >= 0.9 else "A")
         conn.execute(
             "INSERT INTO model_coding_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (m, p1, p1 * 5, g, 0.05, c1k, p50, 50.0, 50, 50 - nerr, nerr, "release_v5", "2026-07-19"),
+            (
+                m,
+                p1,
+                p1 * 5,
+                g,
+                0.05,
+                c1k,
+                p50,
+                50.0,
+                50,
+                50 - nerr,
+                nerr,
+                "release_v5",
+                "2026-07-19",
+            ),
         )
     conn.commit()
     conn.close()
@@ -286,13 +300,19 @@ def test_render_code_fallback_uses_eligible_set_when_gate_active(monkeypatch):
     eligible coder still reaches pick_models('code'). Covers the `coding_fallback_models` override."""
     monkeypatch.setattr(rts, "_code_bench_ran", lambda *_a, **_k: True)
     monkeypatch.setattr(rts, "_code_benchmark_models", lambda *_a, **_k: ["bench/eligible"])
-    monkeypatch.setattr(rts, "_load_coding_fallback", lambda *_a, **_k: ["old/fallback"])  # must NOT win
+    monkeypatch.setattr(
+        rts, "_load_coding_fallback", lambda *_a, **_k: ["old/fallback"]
+    )  # must NOT win
     monkeypatch.setattr(rts, "_review_benchmark_models", lambda *_a, **_k: [])
     monkeypatch.setattr(rts, "_review_bench_ran", lambda *_a, **_k: False)
-    rows = [("review", "x/y", 6, 0.001, 4.0, 1.0)]  # a non-code row so render doesn't emit the empty stub
+    rows = [
+        ("review", "x/y", 6, 0.001, 4.0, 1.0)
+    ]  # a non-code row so render doesn't emit the empty stub
     md = rts.render(rows, state="ok", include_full_results=False)
     assert "bench/eligible" in md, "benchmark-only eligible coder did not surface via the fallback"
-    assert "old/fallback" not in md, "old _load_coding_fallback used instead of code_benchmark when gate active"
+    assert "old/fallback" not in md, (
+        "old _load_coding_fallback used instead of code_benchmark when gate active"
+    )
 
 
 # ── Phase E: the judged gates (research/docs/plan/spec) drop ineligible rows from their section ──
@@ -301,7 +321,9 @@ def test_render_judged_section_drops_ineligible(monkeypatch, jt):
     """Per new task type: once the judged benchmark RAN, the `### <task>` router section keeps only the
     gate-eligible models — an ineligible fleet row is dropped (mirrors the review/code gate render tests)."""
     monkeypatch.setattr(rts, "_judged_bench_ran", lambda t: t == jt)
-    monkeypatch.setattr(rts, "_judged_benchmark_models", lambda t: ["good/model"] if t == jt else [])
+    monkeypatch.setattr(
+        rts, "_judged_benchmark_models", lambda t: ["good/model"] if t == jt else []
+    )
     rows = [
         (jt, "good/model", 6, 0.001, 4.0, 1.0),  # eligible fleet row
         (jt, "bad/model", 6, 0.001, 4.0, 1.0),  # ineligible -> dropped
@@ -366,9 +388,27 @@ def test_load_judged_metrics_deterministic_on_two_windows_same_day(tmp_path):
     for win, s5 in (("v1", 3.6), ("v2", 3.4)):  # same model, same day, two windows
         conn.execute(
             "INSERT INTO model_judged_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            ("m/x", "research", s5, "B+", None, None, None, None, 1.0, 2.0, None, 3, 0, win, "2026-07-20"),
+            (
+                "m/x",
+                "research",
+                s5,
+                "B+",
+                None,
+                None,
+                None,
+                None,
+                1.0,
+                2.0,
+                None,
+                3,
+                0,
+                win,
+                "2026-07-20",
+            ),
         )
     conn.commit()
     conn.close()
     got = btb.load_judged_metrics("research", db)
-    assert set(got) == {"m/x"} and got["m/x"]["score5"] == 3.4  # v2 (higher window) wins, deterministic
+    assert (
+        set(got) == {"m/x"} and got["m/x"]["score5"] == 3.4
+    )  # v2 (higher window) wins, deterministic

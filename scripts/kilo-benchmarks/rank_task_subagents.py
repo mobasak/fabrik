@@ -588,10 +588,16 @@ def _full_judged_results_table(task_type: str) -> list[str]:
 
     ordered = sorted(
         metrics.items(),
-        key=lambda kv: (-(kv[1].get("score5") or 0),
-                        kv[1].get("cost_per_1k") if kv[1].get("cost_per_1k") is not None else 1e9, kv[0]),
+        key=lambda kv: (
+            -(kv[1].get("score5") or 0),
+            kv[1].get("cost_per_1k") if kv[1].get("cost_per_1k") is not None else 1e9,
+            kv[0],
+        ),
     )
-    out = ["", f"## Full {task_type} benchmark results — judged (display only; not parsed for routing)"]
+    out = [
+        "",
+        f"## Full {task_type} benchmark results — judged (display only; not parsed for routing)",
+    ]
     if task_type in ("research", "docs"):
         rp = "`recall`/`prec` bidirectional git-grounded · " if task_type == "docs" else ""
         out.append(
@@ -599,7 +605,9 @@ def _full_judged_results_table(task_type: str) -> list[str]:
             "`value`=score5÷$/1k · `eligible` = score5 ≥ 3.5 · $/1k ≤ 5 · p50 ≤ 15s._"
         )
         if task_type == "docs":
-            out.append("| model | grade | score5 | recall | prec | $/1k | p50 s | value | family | eligible |")
+            out.append(
+                "| model | grade | score5 | recall | prec | $/1k | p50 s | value | family | eligible |"
+            )
             out.append("|---|:-:|--:|--:|--:|--:|--:|--:|:-:|:-:|")
         else:
             out.append("| model | grade | score5 | $/1k | p50 s | value | family | eligible |")
@@ -663,8 +671,10 @@ def _judged_benchmark_models(task_type: str) -> list[str]:
         c = metrics.get(m, {}).get("cost_per_1k")
         return c if c is not None else 1e9
 
-    return sorted((m for m in metrics if m in elig),
-                  key=lambda m: (-(metrics[m].get("score5") or 0), _cost(m), m))
+    return sorted(
+        (m for m in metrics if m in elig),
+        key=lambda m: (-(metrics[m].get("score5") or 0), _cost(m), m),
+    )
 
 
 def _fmt_bench_review_row(rank: int, model: str, review_metrics: dict, tiers: object) -> str:
@@ -737,7 +747,11 @@ def _selected_shortlists() -> list[str]:
         except Exception:
             return []
 
-    out: list[str] = ["", "## ✅ Selected subagents — the gate shortlists (`pick_models` picks from these)", ""]
+    out: list[str] = [
+        "",
+        "## ✅ Selected subagents — the gate shortlists (`pick_models` picks from these)",
+        "",
+    ]
 
     if rev_set:
         rrows = _q(
@@ -778,7 +792,11 @@ def _selected_shortlists() -> list[str]:
         for tier, models in groups:
             if not models:
                 continue
-            out += [f"**{tier}:**", "| model | grade | pass@1 | $/1k | $/run | p50 s |", "|---|:-:|--:|--:|--:|--:|"]
+            out += [
+                f"**{tier}:**",
+                "| model | grade | pass@1 | $/1k | $/run | p50 s |",
+                "|---|:-:|--:|--:|--:|--:|",
+            ]
             for m in models:
                 r = crows.get(m)
                 if r:
