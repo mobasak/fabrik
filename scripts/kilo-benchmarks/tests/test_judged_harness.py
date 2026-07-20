@@ -368,9 +368,13 @@ def test_main_smoke_never_writes_production(monkeypatch):
     """Pass-2 P2-1: driving the actual CLI entrypoint `main(["--smoke"])` must write NEITHER a real
     subagent_runs row NOR the real DB_PATH — this guards the CLI wiring itself (not just run_smoke's
     args), so a regression dropping the safe kwarg is caught."""
-    fly_calls: list = []
+    fly_attempts: list = []
     persisted_dbs: list = []
-    monkeypatch.setattr(mj, "record_agent_run", lambda *a, **k: fly_calls.append(1) or True)
+    # Spy on record_flywheel itself (not record_agent_run) so the guard is ENVIRONMENT-INDEPENDENT
+    # (Pass-3 P3-1): record_flywheel is invoked iff write_flywheel=True — a fact of the CLI wiring,
+    # regardless of whether the pool is present (record_agent_run no-ops when absent, which would make a
+    # record_agent_run spy vacuous in a pool-absent CI).
+    monkeypatch.setattr(mj, "record_flywheel", lambda *a, **k: fly_attempts.append(1) or 0)
     real_pm = mj.persist_metrics
     monkeypatch.setattr(
         mj, "persist_metrics",
@@ -378,5 +382,5 @@ def test_main_smoke_never_writes_production(monkeypatch):
     )
     rc = mj.main(["--task", "research", "--smoke"])
     assert rc == 0
-    assert fly_calls == []  # the CLI wrote NO real subagent_runs row
+    assert fly_attempts == []  # the CLI never even ATTEMPTS a flywheel write (write_flywheel=False)
     assert persisted_dbs and all(db != mj.DB_PATH for db in persisted_dbs)  # temp db only, never prod
