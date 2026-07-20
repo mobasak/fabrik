@@ -684,9 +684,9 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 **Archived (2026-02-27):** `droid exec` system archived. Fabrik now uses **Traycer + Kilo + Windsurf Cascade** workflow.
 
-- `scripts/droid_models.py` → `scripts/.archive/2026-02-27-droid-exec-cleanup/`
-- `docs/reference/droid-exec-usage.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
-- `docs/reference/spec-pipeline.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
+- `scripts/.archive/2026-02-27-droid-exec-cleanup/droid_models.py` (was scripts/) → `scripts/.archive/2026-02-27-droid-exec-cleanup/`
+- `docs/archive/2026-02-27-droid-exec-cleanup/droid-exec-usage.md` (was docs/reference/) → `docs/archive/2026-02-27-droid-exec-cleanup/`
+- `docs/archive/2026-02-27-droid-exec-cleanup/spec-pipeline.md` (was docs/reference/) → `docs/archive/2026-02-27-droid-exec-cleanup/`
 - `config/models.yaml` → `config/.archive/2026-02-27-droid-exec-cleanup/`
 
 **Scripts:** `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`

@@ -240,7 +240,10 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
   - Validates environment variable contracts are consistent
 - **Dependencies Sync** - `check_deps_sync.py`
   - Ensures dependencies are properly documented
-- **Documentation Sprawl** - `check_doc_sprawl.py`
+- **Documentation Sprawl** - `check_doc_sprawl.py` (2026-07-20: new-file detection is HEAD-or-staged-rename — a merely-staged new .md no longer bypasses the allowlist)
+- **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger exempt; blocking)
+- **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking)
+- **Retired-Tech Tripwire** - `check_retired_terms.py` (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing)
   - Detects documentation sprawl and duplication
 - **Watchdog Scripts** - `check_watchdog.py`
   - Ensures watchdog monitoring scripts are present
@@ -384,7 +387,10 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_synced_unmodified.py` — Fabrik-synced files match `/opt/fabrik` canonical bytes
 - `check_user_guide.py` — User-guide presence when `project.yaml::has_user_guide` is true
 - `check_reusable_modules.py` — Reusable-module `[reusable]` tagging in INDEX.md (advisory)
-- `check_doc_sprawl.py` — Documentation sprawl/duplication detection
+- `check_doc_sprawl.py` — Documentation sprawl/duplication detection (HEAD-or-rename existing-file test)
+- `check_doc_links.py` — Live-tree link integrity (docs-truth durability gate)
+- `check_doc_index.py` — INDEX.md ↔ docs tree bidirectional drift
+- `check_retired_terms.py` — Retired-tech advisory tripwire (always exit 0)
 - `check_watchdog.py` — Watchdog monitoring scripts present
 - `check_duplicates.py` — Duplicate file/config detection
 - `check_vps_docs.py` — VPS-facing docs freshness vs the live fleet

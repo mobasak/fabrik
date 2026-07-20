@@ -273,7 +273,7 @@ Other handlers accept different `input` shapes — check the template's docs. Fo
 ## Cross-references
 
 - [`src/fabrik/drivers/runpod.py`](../../../src/fabrik/drivers/runpod.py) — Fabrik's implementation of this surface (~360 lines)
-- [`docs/reference/runpod-hf-models.md`](runpod-hf-models.md) — HuggingFace models available for serverless deployment
-- [`docs/development/plans/2026-06-16-fabrik-gpu-rent.md`](../../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) — implementation plan
+- [`docs/reference/apis/runpod-hf-models.md`](runpod-hf-models.md) — HuggingFace models available for serverless deployment
+- [`docs/development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md`](../../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) — implementation plan
 - [`.windsurf/rules/core/76-gpu-workers.md`](../../../.windsurf/rules/core/76-gpu-workers.md) — decision framework
 - `https://docs.runpod.io/llms.txt` — canonical API index (re-verify against this)

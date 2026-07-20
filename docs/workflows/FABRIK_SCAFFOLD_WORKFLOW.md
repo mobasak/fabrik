@@ -404,10 +404,10 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 
 | File | Source Template | Purpose |
 |------|-----------------|---------|
-| *(Template paths below are relative to `templates/scaffold/` — e.g. `docs/CHANGELOG_TEMPLATE.md` = `templates/scaffold/docs/CHANGELOG_TEMPLATE.md`)* | | |
+| *(Template paths below are relative to `templates/scaffold/` — e.g. `templates/scaffold/docs/CHANGELOG_TEMPLATE.md` = `templates/scaffold/docs/CHANGELOG_TEMPLATE.md`)* | | |
 | **Root Files** | | |
-| `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
-| `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |
+| `README.md` | `templates/scaffold/docs/PROJECT_README_TEMPLATE.md` | Project overview |
+| `CHANGELOG.md` | `templates/scaffold/docs/CHANGELOG_TEMPLATE.md` | Version history |
 | `AGENTS.md` | Copied from `/opt/fabrik/AGENTS.md` | AI agent instructions |
 | `.windsurfrules` | Copied from `/opt/fabrik/.windsurfrules` | Cascade compact agent contract |
 | `.gitignore` | Generated inline | Git ignore patterns |
@@ -423,11 +423,11 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `project.yaml` | Generated inline | Project metadata — source of truth for sync |
 | `opencode.json` | Copied from Fabrik | Kilo CLI configuration |
 | **Documentation** | | |
-| `docs/README.md` | `docs/DOCS_INDEX_TEMPLATE.md` | Docs index |
-| `docs/QUICKSTART.md` | `docs/QUICKSTART_TEMPLATE.md` | Getting started |
-| `docs/CONFIGURATION.md` | `docs/CONFIGURATION_TEMPLATE.md` | Config reference |
-| `docs/TROUBLESHOOTING.md` | `docs/TROUBLESHOOTING_TEMPLATE.md` | Common issues |
-| `docs/BUSINESS_MODEL.md` | `docs/BUSINESS_MODEL_TEMPLATE.md` | Business context |
+| `docs/README.md` | `templates/scaffold/docs/DOCS_INDEX_TEMPLATE.md` | Docs index |
+| `docs/QUICKSTART.md` | `templates/scaffold/docs/QUICKSTART_TEMPLATE.md` | Getting started |
+| `docs/CONFIGURATION.md` | `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md` | Config reference |
+| `docs/TROUBLESHOOTING.md` | `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` | Common issues |
+| `docs/BUSINESS_MODEL.md` | `templates/scaffold/docs/BUSINESS_MODEL_TEMPLATE.md` | Business context |
 | **Source Code** | | |
 | `src/<package>/main.py` | Generated inline | FastAPI entry point |
 | `src/<package>/__init__.py` | Generated inline | Package init |
@@ -597,7 +597,7 @@ After file creation, `fabrik scaffold` also:
 5. **Pre-commit install** - Copies config and runs `pre-commit install`
 6. **Type patching** - Updates `project.yaml` with actual project type and port
 7. **Initial commit** - Stages all files and commits "Initial commit"
-8. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and the Fabrik-level `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11 — not to be confused with the new project's own per-project `docs/BUSINESS_MODEL.md`, seeded separately from `docs/BUSINESS_MODEL_TEMPLATE.md`, see § Documentation above)
+8. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and the Fabrik-level `docs/PROJECT_CATALOG.md` (renamed from `BUSINESS_MODEL.md` 2026-07-11 — not to be confused with the new project's own per-project `docs/BUSINESS_MODEL.md`, seeded separately from `templates/scaffold/docs/BUSINESS_MODEL_TEMPLATE.md`, see § Documentation above)
 9. **Auto-spec generation** - For SPEC_ENABLED_TYPES, generates deployment spec at `/opt/fabrik/specs/services/{name}.yaml` (skipped if `--no-spec`)
 10. **Deployment validation** - Runs `validate-deploy` checks and prints warnings (non-blocking)
 

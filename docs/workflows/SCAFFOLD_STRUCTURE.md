@@ -328,4 +328,4 @@ Projects stay synchronized with Fabrik master via:
 - [FABRIK_SCAFFOLD_WORKFLOW.md](FABRIK_SCAFFOLD_WORKFLOW.md) - Detailed scaffold workflow
 - [SYNC_ENFORCEMENT_WORKFLOW.md](SYNC_ENFORCEMENT_WORKFLOW.md) - How syncing works
 - [FINAL_GATE_WORKFLOW.md](FINAL_GATE_WORKFLOW.md) - Quality gates
-- `templates/README.md` - Template development guide
+- `docs/reference/modules/templates.md` - Template reference (templates/ has no dev-guide README of its own)

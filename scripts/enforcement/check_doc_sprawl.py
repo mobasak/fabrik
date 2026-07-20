@@ -110,7 +110,7 @@ def get_repo_root() -> Path:
 
 
 def is_tracked(rel_path: Path, repo_root: Path) -> bool:
-    """Check if file is tracked in git (repo-relative path)."""
+    """Check if file is tracked in git (repo-relative path; INDEX lookup)."""
     try:
         result = subprocess.run(
             ["git", "ls-files", "--error-unmatch", str(rel_path)],
@@ -123,6 +123,46 @@ def is_tracked(rel_path: Path, repo_root: Path) -> bool:
     except Exception:
         # If git fails (not a repo, etc.), treat as untracked
         return False
+
+
+def path_is_existing(rel_path: Path, repo_root: Path) -> bool:
+    """A path counts as an EXISTING doc (exempt from the new-file allowlist) only if:
+
+    - it is present in HEAD (a committed doc being edited), OR
+    - its staged status is a rename (``R*``) from a tracked path (``git mv`` — the
+      content pre-existed under another name).
+
+    A brand-new file that was merely ``git add``-ed is NOT existing — the old
+    index-based ``is_tracked()`` early-allow let any staged addition bypass the
+    default-deny allowlist entirely (docs-truth plan Phase F fix).
+    """
+    try:
+        in_head = subprocess.run(
+            ["git", "cat-file", "-e", f"HEAD:{rel_path}"],
+            cwd=repo_root,
+            capture_output=True,
+            check=False,
+        )
+        if in_head.returncode == 0:
+            return True
+        # NOTE: no pathspec — limiting status to the new path makes git report a
+        # staged rename as a plain "A" (it can't see both sides), hiding the R.
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        rel_str = str(rel_path).replace("\\", "/")
+        return any(
+            line[:1] == "R" and line.split(" -> ", 1)[-1].strip() == rel_str
+            for line in status.stdout.splitlines()
+        )
+    except Exception:
+        # Git unavailable → fall back to the permissive legacy behavior so the
+        # gate never hard-fails outside a repo.
+        return is_tracked(rel_path, repo_root)
 
 
 def get_suggestion(path_str: str) -> str:
@@ -181,8 +221,10 @@ def check_file(file_path: Path) -> list[CheckResult]:
 
     path_str = str(rel_path).replace("\\", "/")  # Normalize for Windows
 
-    # ALLOW: Tracked files (edits to existing docs)
-    if is_tracked(rel_path, repo_root):
+    # ALLOW: Existing docs only — present in HEAD or a staged RENAME of a tracked
+    # doc. A staged brand-new file is NOT existing (the old index-based check let
+    # any `git add`-ed .md bypass the allowlist).
+    if path_is_existing(rel_path, repo_root):
         return results
 
     # ALLOW: Root allowlist (exact match)

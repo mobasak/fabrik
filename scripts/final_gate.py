@@ -932,6 +932,29 @@ def run_consistency_checks(
                 "Documentation Sprawl",
             )
         )
+        # Docs-truth durability gates (2026-07-20 convergence): links + index are
+        # blocking (the tree was converged to zero drift and must stay there);
+        # retired-terms is WARN-only — the SCRIPT always exits 0, advisory=True
+        # just preserves its stdout.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_doc_links.py",
+                "Doc Link Integrity (live tree)",
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_doc_index.py",
+                "INDEX.md ↔ docs tree drift",
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_retired_terms.py",
+                "Retired-Tech Tripwire (advisory)",
+                advisory=True,
+            )
+        )
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_watchdog.py",

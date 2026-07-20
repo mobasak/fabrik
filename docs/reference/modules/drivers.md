@@ -271,7 +271,7 @@ Contract tests against live services — run before shipping driver changes. Als
 
 | Script | Tests |
 |---|---|
-| `scripts/probes/glitchtip_probe.sh` | Create project → fetch DSN → delete. Contract captured in `docs/reference/../apis/glitchtip-api.md`. |
+| `scripts/probes/glitchtip_probe.sh` | Create project → fetch DSN → delete. Contract captured in `docs/reference/apis/glitchtip-api.md`. |
 | `scripts/probes/grafana_token_check.sh` | `/api/annotations` write + delete. Validates `GRAFANA_SERVICE_ACCOUNT_TOKEN` scope. |
 
 ---

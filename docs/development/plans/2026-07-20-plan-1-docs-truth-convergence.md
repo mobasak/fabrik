@@ -182,7 +182,7 @@ python scripts/enforcement/check_convergence.py                          # expec
 ```
 Close each wave-batch with the standard sequence; the phase-final closing includes **`/fabrik-review` over the cumulative Phase-E diff looped to no-op** → ✅ + plan staged.
 
-## Phase F — Enforcement gates (the durability layer)
+## Phase F — Enforcement gates (the durability layer) — ✅ EXECUTED 2026-07-20 (sprawl fix TDD red→green 4/4; 3 new checks written, tested [41/41], gate-registered; FULL Tier-2 gate 37/0 success with them live; links-gate drove ~10 further genuine doc fixes to reach zero)
 
 **Interfaces — Consumes:** the clean tree (must be green under the new checks before they land in the gate — else the gate is born red). **Produces:** three new checks + one fix, registered in `final_gate.py` (Tier-2 standard; `check_retired_terms` WARN-tier), with tests. Names/CLIs later phases + CLAUDE.md cite: `python scripts/enforcement/check_doc_links.py [--json]`, `check_doc_index.py [--json]`, `check_retired_terms.py [--json]`.
 

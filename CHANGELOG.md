@@ -66,6 +66,13 @@ content_publisher, config --verify, SiteProvisioner) replaced with /opt/wpf + no
 12-scaffold-type count fixed across 8 docs. Evidence ledgers: docs/development/reviews/docs-truth-*.md
 (4 ledgers, 0 UNRESOLVED rows).
 
+Phase F (durability): 3 new enforcement gates + 1 fix, all TDD'd (tests/enforcement/, 41 passing) and
+live in the FULL Tier-2 gate (37/0 green): `check_doc_links.py` (zero broken repo-path references in the
+live knowledge tree — born from the 668 broken pairs the audit found; blocking), `check_doc_index.py`
+(INDEX ↔ tree bidirectional drift; blocking), `check_retired_terms.py` (WARN-only tripwire for unmarked
+Kilo/Cascade/Coolify/Supabase live-framing; always exits 0 — 68 advisory backlog items recorded), and the
+`check_doc_sprawl.py` staged-add bypass closed (existing = in-HEAD or staged-rename; proven red→green).
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a
