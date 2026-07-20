@@ -1,6 +1,6 @@
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — ENTRYPOINT (our own, tool-capable)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in Zed) — never pasted into a planner GUI.
-     Unlike the Traycer source (docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md), this
+     Unlike the Traycer twin (the `-command` files live in Traycer's server-side "My Workflow" store, not this repo), this
      agent is TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, reads the files it cites, grounds
      external facts LIVE via MCP (exa/brave/context7, cite URL+date), and gates with
      `python scripts/final_gate.py`. Orientation file to read FIRST: `agents-fabrik.md`.

@@ -16,7 +16,7 @@ Provides the primitives every phase of the audit consumes:
 - `_render_consolidated_report(phase_mds, out)` — Phase F: aggregate every
   phase MD into the operator-facing report.
 
-The consolidated report + per-phase findings land under `docs/development/audits/`.
+The consolidated report + per-phase findings land under `docs/archive/audits/`.
 """
 
 from __future__ import annotations
@@ -445,7 +445,7 @@ def _run_inline_ingestor_scan(scripts: list[Path]) -> list[dict]:
 
 def _render_consolidated_report(phase_mds: list[Path], out: Path) -> None:
     """Phase F: aggregate every phase's findings MD into one operator-facing
-    report at `docs/development/audits/2026-07-08-model-pipeline-audit.md`.
+    report at `docs/archive/audits/2026-07-08-model-pipeline-audit.md`.
 
     Sections:
       (1) Summary — total findings by severity, per phase.

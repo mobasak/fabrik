@@ -398,6 +398,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 
 | File | Source Template | Purpose |
 |------|-----------------|---------|
+| *(Template paths below are relative to `templates/scaffold/` — e.g. `docs/CHANGELOG_TEMPLATE.md` = `templates/scaffold/docs/CHANGELOG_TEMPLATE.md`)* | | |
 | **Root Files** | | |
 | `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
 | `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |

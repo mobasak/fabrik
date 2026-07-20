@@ -43,7 +43,7 @@ Without this rewrite, services would either:
 
 ## Prerequisites
 
-- GlitchTip deployed via `fabrik apply specs/services/glitchtip.yaml` (web + worker containers + `glitchtip` DB on `postgres-main`).
+- GlitchTip originally deployed via `fabrik apply specs/services/glitchtip.yaml` (spec since removed — GlitchTip is hub shared-infra; web + worker containers + `glitchtip` DB on `postgres-main`).
 - `glitchtip-web` reachable on the `fabrik` Docker network (vps1):
 
   ```bash

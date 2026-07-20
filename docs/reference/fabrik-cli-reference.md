@@ -52,7 +52,7 @@ fabrik scaffold <name> [--type <type>] [-d <description>] \
 
 ```bash
 fabrik scaffold my-api --type python-api -d "Customer API" --db
-fabrik scaffold notes --from-preplan docs/preplans/2026-05-30-notes.md
+fabrik scaffold notes --from-preplan docs/preplans/<your-preplan>.md   # example path
 # WordPress: scaffolding moved to /opt/wpf — use the `wpf` CLI (e.g. `wpf new blog`)
 ```
 
@@ -332,7 +332,7 @@ Fails clean if `compose.dev.yaml` is missing.
 
 ### `fabrik review` — pre-PR review pack
 
-**Purpose:** Bundle `git diff + spec + docs/preplan.md + resolved registrar table` into a single markdown at `.fabrik/review/<YYYY-MM-DD-HHMMSS>.md`. Intended for handoff to a human reviewer or a Claude Code / pool review run.
+**Purpose:** Bundle `git diff + spec + the project's docs/preplan.md + resolved registrar table` into a single markdown at `.fabrik/review/<YYYY-MM-DD-HHMMSS>.md`. Intended for handoff to a human reviewer or a Claude Code / pool review run.
 
 ```bash
 fabrik review [--since HEAD~N] [--spec <path>] [--out <file>]

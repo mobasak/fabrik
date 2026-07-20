@@ -86,7 +86,7 @@ Output shape in `cache/update.log` on success (per-category counts shown are liv
 
 Cross-links:
 
-- Plan: [`docs/development/plans/2026-06-27-plan-openrouter-routing.md`](../development/plans/archived/2026-06-27-plan-openrouter-routing.md)
+- Plan: [`docs/development/plans/archived/2026-06-27-plan-openrouter-routing.md`](../development/plans/archived/2026-06-27-plan-openrouter-routing.md)
 - Benchmark-source rationale (esp. the `:free` model coverage gap): [`docs/reference/kilo/BENCHMARK_SOURCES.md`](../reference/kilo/BENCHMARK_SOURCES.md) §4.5
 - Pack freshness consumer: [`scripts/check_ai_pack_freshness.py`](../../scripts/check_ai_pack_freshness.py) (regex contract at lines 25-26)
 

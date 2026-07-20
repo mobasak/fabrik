@@ -45,6 +45,16 @@ into `modules/templates.md`, `trueforge-images.md` merged into `prebuilt-app-con
 own relative links retargeted; `docs_updater.py` module-stub detector taught the modules/ home (it had
 resurrected a stub at the old path).
 
+Phase D: index layer rebuilt — `docs/README.md` created (per-folder charter); INDEX dead refs fixed
+(EXTENSIONS pointer, coolify_services_f5, 2 removed content-tests, traycer/templates row, kilo_agents.db
+path, manifest line-number citations, src/logger.js cross-repo note); STRUCTURE tree regenerated;
+`docs_updater.py` comments dict pruned (53 dead rows; 3 registry-listed project names restored);
+`audit_pipeline.py` docstrings retargeted to `docs/archive/audits/`; PLANS.md dead 2026-03-24 auto-gen
+block replaced with a truthful pointer; hub-pack fixes (`ai/00` AI_TAXONOMY prose claim, `saas/60`
+multilingual-plan retarget to the i18n-kit template); truth annotations in DATA_SYNC (2 stale-script
+rows), FABRIK_SCAFFOLD (template base-dir note), glitchtip-sdk (spec removed), capability-defects
+(cross-repo), cli-reference/agents-fabrik (project-side preplan), README (illustrative site spec).
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a

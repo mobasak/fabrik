@@ -145,7 +145,7 @@ python scripts/final_gate.py --lean --check --json                          # ex
 ```
 Close with the standard sequence (check_doc_sync → doc_reconcile → commit → **full `/fabrik-review` looped to no-op** → gate → ✅ + plan staged).
 
-## Phase D — Index layer + hub-pack dead-link retargets
+## Phase D — Index layer + hub-pack dead-link retargets — ✅ EXECUTED 2026-07-20 (docs/README.md created; INDEX dead refs 0; dict pruned 53/restored 3; both hub-pack fixes grounded; validate_i18n refs adjudicated already-correct project-context — they join the F-gate allowlist)
 
 **Interfaces — Consumes:** final paths from Phase C's table. **Produces:** `docs/README.md` (the tree charter: one paragraph per folder, its role, what belongs/doesn't); INDEX.md drift-free (the contract Phase F's `check_doc_index.py` enforces); pruned `docs_updater.py` comments dict; retargeted rule packs.
 

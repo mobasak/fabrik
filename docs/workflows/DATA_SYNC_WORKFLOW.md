@@ -132,7 +132,7 @@ What it syncs:
 | Field | Value |
 |-------|-------|
 | **Script** | `scripts/deploy_doc_policy.py` |
-| **Reads** | `templates/docs/.doc-policy.md` |
+| **Reads** | `templates/docs/.doc-policy.md` — ⚠ template absent at this path (2026-07-20): the script currently no-ops; retarget or retire the script |
 | **Writes** | `.doc-policy.md` in every `/opt/*/` project |
 | **Trigger** | Manual |
 | **Automation** | ❌ Not automated |
@@ -190,7 +190,7 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 | Field | Value |
 |-------|-------|
 | **Script** | `scripts/sync_cascade_backup.sh` |
-| **Reads** | `docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md` age |
+| **Reads** | `docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md` age — ⚠ file absent + Cascade retired 2026-07-19: script is a retirement-cleanup candidate |
 | **Writes** | Console warning if stale (>7 days) |
 | **Trigger** | WSL startup hook (daily) |
 

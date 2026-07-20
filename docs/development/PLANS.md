@@ -7,11 +7,9 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v2 | 2026-03-24T22:20 -->
-| Plan | Date | Status | Progress |
-|------|------|--------|----------|
-| [ocoron.com Deployment Without Content](plans/archived/2026-03-15-ocoron-deployment-without-content.md) | 2026-03-15 | ARCHIVED | 1/8 ✓ |
-| *(Archived plans moved to `plans/archived/`)* | - | - | - |
+<!-- generator retired 2026-07-20 (was Traycer-managed, last ran 2026-03-24; docs_updater skips this block by design) -->
+Active plans: see `docs/development/plans/*.md` (each carries its own `Status:` field).
+Finished plans: `docs/development/plans/archived/`.
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

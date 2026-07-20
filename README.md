@@ -669,7 +669,7 @@ fabrik review --since HEAD~3            # last 3 commits
 Full WordPress site deployment from spec:
 
 ```yaml
-# specs/sites/ocoron.com.yaml
+# specs/sites/<site>.yaml — illustrative (live example archived as specs/sites/archived-ocoron.com.v1.yaml)
 schema_version: 1
 preset: company
 

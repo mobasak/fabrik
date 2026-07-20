@@ -11,7 +11,7 @@ trigger: glob
 
 # AI Model & Tool Selection — Index
 
-This folder is the **canonical AI ruleset** (it replaced the former `docs/reference/AI_TAXONOMY.md`, now a redirect stub). This file is the index + the global selection discipline; the per-category packs carry the catalogue and the binding default for each category.
+This folder is the **canonical AI ruleset** (it replaced the former `docs/reference/AI_TAXONOMY.md`, which has been removed). This file is the index + the global selection discipline; the per-category packs carry the catalogue and the binding default for each category.
 
 > Last content verification: 2026-06-29 (gateway-agnostic policy: Kilo CLI and OpenRouter are peer gateways; pick by cost+availability per model. Prior text mandated "Kilo CLI before paid external APIs" — superseded because OpenRouter often prices the same model cheaper and many sweet-spot models (e.g. `qwen/qwen-mt-turbo` via DashScope) aren't on Kilo at all.) Last full lineup check: 2026-06-25 (Claude lineup, Soniox TTS, Recraft/FLUX).
 >

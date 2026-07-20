@@ -293,7 +293,7 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
   - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/scaffold/i18n-kit/`.
 - Locale-aware formatting: use `formatDate()`, `formatNumber()`, `formatCurrency()` from `useI18n()` — never hardcode date/number formats.
 - For RTL support, multilingual rules, and formatting rules see `ocoron-design-system.md` § Multilingual and RTL + § Date/Time/Currency Formatting.
-- See `docs/reference/multilingual-plan.md` for the full architecture, key naming convention, and anti-patterns.
+- See `templates/scaffold/i18n-kit/docs/multilingual-plan.md` (hub; scaffold-seeded into projects as `docs/multilingual-plan.md`) for the full architecture, key naming convention, and anti-patterns.
 
 ---
 

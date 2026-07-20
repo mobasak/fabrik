@@ -117,7 +117,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 
 **No quality checks - sync side-effects only:**
 
-- Sync Windsurf Extensions → docs/reference/EXTENSIONS.md
+- Sync Windsurf Extensions → docs/reference/windsurf/actively-used-windsurf-extensions.md
 - Sync Cascade Backup (freshness check)
 
 ---
@@ -254,7 +254,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:42 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:55 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -265,6 +265,7 @@ docs/
 ├── LESSONS_LEARNT.md
 ├── PROJECT_CATALOG.md
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
+├── README.md                       # Documentation index (Legacy)
 ├── SERVICES.md                     # External services Fabrik depends on
 ├── STRATEGIC_BACKLOG.md
 ├── TROUBLESHOOTING.md              # Common issues & solutions
@@ -401,7 +402,6 @@ docs/
 │   ├── MD
 │   │   ├── ai-prompt-templates.md
 │   │   └── markdown-cheatsheet.md
-│   ├── ai.md
 │   ├── apis
 │   │   ├── EXTERNAL_SYSTEMS.md     # External service dependencies
 │   │   ├── glitchtip-api.md
@@ -438,7 +438,6 @@ docs/
 │   │   ├── deployment-orchestrator.md
 │   │   ├── drivers.md              # Fabrik driver API (DNS, Cloudflare, GPU providers, etc.)
 │   │   └── templates.md            # Available deployment templates
-│   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
@@ -584,7 +583,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [proof_run.py](scripts/proof_run.py) | Live-deploy proof harness — scaffolds → pushes → `fabrik apply` → curl-verifies every type in `SCAFFOLD_TYPES` against the production VPS. Pulls Coolify build logs into `proof-logs/<type>-<ts>-build.log`. Supports `--keep-on-failure` and direct-Cloudflare DNS-cleanup fallback. Run quarterly + after any change to verifier/validator/spec_generator/scaffolder. See `PROOF.md` for the latest run output and `CHANGELOG.md [Unreleased]` B23–B46 for the 22 defects it surfaced on first execution. |
 | [inject_deploy_resources.py](scripts/inject_deploy_resources.py) | F5 helper — idempotent string-precise injection of `deploy.resources.limits` into a single-service `compose.yaml`. Used to backfill the 7 Coolify Applications (git-sourced Fabrik microservices). No-op if the deploy block is already present. Usage: `python3 scripts/inject_deploy_resources.py <compose.yaml> <memory> <cpus>`. |
 | [backfill_ci.py](scripts/backfill_ci.py) | Backfills the fabrik-managed CI (`.github/workflows/ci.yml` + `scripts/ci_local.sh`) onto an existing project that predates it, **safely** — the generated CI is a lint ratchet (`src/fabrik/ci_scaffold.py`), so this also seeds `.fabrik/lint-baseline.json` at the project's CURRENT ruff count, landing CI GREEN (debt tolerated, growth blocked) instead of flooding red. Grounds `needs_database` from the hub spec `shape` / `.env.example`. **Dry-run by default**; `--apply` writes the files (working tree only, NEVER commits/pushes across repos). Usage: `python scripts/backfill_ci.py <project> [--apply]`. |
-| [coolify_services_f5.py](scripts/coolify_services_f5.py) | F5 helper — injects `deploy.resources.limits` into the 12 Coolify Services (one-click stacks). GETs each service via `/api/v1/services/<uuid>`, edits `docker_compose_raw` with string-precise injection (no YAML round-trip), PATCHes back **base64-encoded** (API requirement). Memory values mirror `vps_apply_limits.sh`. Supports `--dry-run`, `--apply`, `--only <name>`. Idempotent. See Lesson 62. |
+| coolify_services_f5.py (archived with the Coolify decommission) | F5 helper — injects `deploy.resources.limits` into the 12 Coolify Services (one-click stacks). GETs each service via `/api/v1/services/<uuid>`, edits `docker_compose_raw` with string-precise injection (no YAML round-trip), PATCHes back **base64-encoded** (API requirement). Memory values mirror `vps_apply_limits.sh`. Supports `--dry-run`, `--apply`, `--only <name>`. Idempotent. See Lesson 62. |
 | [src/fabrik/dev_tools.py](src/fabrik/dev_tools.py) | T3-03 local-dev helpers used by `fabrik review` / `fabrik dev` / `fabrik logs --local`. `find_spec`, `build_review_bundle`, `save_review_bundle`, `run_dev_compose`, `run_local_logs`. Each compose runner accepts an injectable `runner` callable so tests can mock docker. Pure module — no orchestrator side effects. |
 | [tests/test_dev_tools.py](tests/test_dev_tools.py) | 20 tests for T3-03 — `TestReviewBundle` (9: find_spec local/none/central-fallback, build_review_bundle with/without spec/preplan, save default + --out, CLI emits summary + writes bundle), `TestDevCompose` (3: -1 when compose missing, runner argv contract, CLI exit-1 path), `TestLocalLogs` (5: -1 when compose missing, runner with -f + service, bare -f only when follow, CLI exit-1, remote-requires-SERVICE exit-2), Smoke (3: --help exits 0 for review/dev/logs). All pass. |
 | [tests/test_postgres_registry.py](tests/test_postgres_registry.py) | 12 tests for T4-01 G-J4 — `TestListAllocations` (3: payload parse, empty-file → empty-shape, missing-file → empty-shape), `TestRegisterAllocation` (2: append preserves siblings, dry-run skips tee/mv), `TestUnregisterAllocation` (2: removes entry, missing-entry no-op), `TestAuditPostgresDrift` (5: four-quadrant DB×registry classification + registry-read-failure fallback). All SSH boundary mocked. |
@@ -629,8 +628,6 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_seo_client.py](tests/content/test_seo_client.py) | 7 tests for SEOClient driver (domain lookup, briefs lifecycle) |
 | [test_tco_client.py](tests/content/test_tco_client.py) | 2 tests for TCOClient driver (generate_from_brief, error propagation) |
 | [test_image_broker_client.py](tests/content/test_image_broker_client.py) | 3 tests for ImageBrokerClient driver (auto_download success/failure) |
-| [test_orchestrator.py](tests/content/test_orchestrator.py) | Tests for the content-publisher orchestrator (publish_page legacy + batch brief-drain). NOTE: the `content_publisher.py` / `content/orchestrator.py` modules were removed with the WordPress→/opt/wpf move 2026-05-30. |
-| [test_cli_content.py](tests/content/test_cli_content.py) | 4 tests for `fabrik content publish` CLI command (help, unknown domain ValueError, dry-run, connection error) |
 | [test_saas_logger.py](tests/test_saas_logger.py) | 5 tests for saas-skeleton pino logger scaffold generation |
 | [test_scaffold_logging.py](tests/test_scaffold_logging.py) | Tests for python-api + chrome-extension scaffold logging (logger.py, middleware.py, correlation ID) |
 | [test_scaffold_chrome_ext_wxt.py](tests/test_scaffold_chrome_ext_wxt.py) | chrome-extension scaffold emits a WXT+Preact extension (structure + governance asserts; toolchain-gated `wxt build` integration test) |
@@ -663,7 +660,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 |----------------|---------|-------------|-----|
 | `src/{package}/logger.py` | structlog JSON logger with SERVICE_NAME binding and contextvars merge | Logging config changes | [reusable] |
 | `src/{package}/middleware.py` | X-Request-ID correlation middleware (ContextVar + structlog.contextvars) | Middleware pattern changes | [reusable] |
-| `src/logger.js` | pino JSON logger with SERVICE_NAME env var (node-api + file-api) | Logging config changes | [reusable] |
+| `src/logger.js` (in /opt/fabrik-lib) | pino JSON logger with SERVICE_NAME env var (node-api + file-api) | Logging config changes | [reusable, cross-repo] |
 | `lib/logger.ts` | pino TypeScript logger with SERVICE_NAME env var (saas-skeleton) | Logging config changes | [reusable] |
 | `worker/logger.py` | structlog JSON logger for file-worker with SERVICE_NAME binding | Logging config changes | [reusable] |
 | [test_node_scaffold_logging.py](tests/test_node_scaffold_logging.py) | 17 tests for node-api + file-api pino logging scaffold (logger.js, X-Request-ID, SERVICE_NAME) | Logging config changes | N/A |
@@ -677,7 +674,6 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [traycer-agile-workflow.md](docs/traycer/traycer-agile-workflow.md) | 8-command Agile Workflow reference |
 | [traycer-refactoring-workflow.md](docs/traycer/traycer-refactoring-workflow.md) | 4-command Refactoring Workflow reference |
 | [traycer-evaluation.md](docs/archive/traycer-evaluation.md) | 2026-02 adoption decision record (archived 2026-07-20) |
-| [templates/](docs/traycer/templates/) | Plan, execution, verification templates |
 
 **Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
 
@@ -801,11 +797,11 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/kilo-benchmarks/blocked_writes.py` - **Direct-vendor blocked-write review queue.** `record_blocked_write(vendor, model_id, parsed, db, reason, raw_text, *, today=None) -> Path` — appends to `cache/blocked_writes/YYYY-MM-DD.md`. Idempotent per `(vendor, id, parsed, db, day)` tuple; escapes `|`/newlines/tabs so raw text can't corrupt the table. Wired into `fetch_direct_vendor_prices.py`'s `refused_diff` alert path (guarded import — defense-in-depth). Landed 2026-07-08 as plan-4 Phase D.
 - `scripts/kilo-benchmarks/tools/sanitize_kilo_config.py` - **Kilo CLI opencode.json sanitizer.** Idempotently strips stale `subagent_model` + `subagent_variant_overrides` keys that Kilo v7.0.33+ rejects with `Configuration is invalid`. Backs up the config before mutating. Used by plan-4 Phase B — before the fix `kilo models --verbose` returned 0 catalog entries silently, killing the dual-routing verification chain. Landed 2026-07-08.
 - `scripts/kilo-benchmarks/audit_pipeline.py` - **Model-Discovery Pipeline Audit helpers.** `_load_ingestor_findings` + `_load_findings_generic` + `_render_findings_md` + `_verify_tier_split` + `_dispatch_pool_audit` (thin wrapper over `libs.subagents.run_agents` + `record_agent_run` per result) + `_run_inline_ingestor_scan` (deterministic grep-based fallback) + `_render_consolidated_report`. Consumes the 6 phase MDs at `docs/archive/audits/phase-{a,b,c,d,e}-*-findings.md` and emits the operator-facing `docs/archive/audits/2026-07-08-model-pipeline-audit.md`. Landed 2026-07-08 as Phase A-F of the audit plan.
-- `docs/reference/kilo/AI_VENDOR_ACCESS.md` - **Hand-authored vendor-access catalog.** Single source of truth for which vendors the operator can call today (LLM gateways, specialty vendors, direct-API-need-signup, web-only accounts). 24 rows across 4 tables; Status: ✅ accessible, ⚠️ accessible-low-balance, ❌ needs-signup / deprecated / web-only. Parsed by `seed_specialty_catalog.py` to set `agents.reachable_with_existing_keys`. Governance-synced to every project via `fabrik_synced_manifest.py:69`. Landed 2026-07-07 as Phase A of best-model-suggester.
+- `docs/reference/kilo/AI_VENDOR_ACCESS.md` - **Hand-authored vendor-access catalog.** Single source of truth for which vendors the operator can call today (LLM gateways, specialty vendors, direct-API-need-signup, web-only accounts). 24 rows across 4 tables; Status: ✅ accessible, ⚠️ accessible-low-balance, ❌ needs-signup / deprecated / web-only. Parsed by `seed_specialty_catalog.py` to set `agents.reachable_with_existing_keys`. Governance-synced to every project via the `fabrik_synced_manifest.py` GOVERNANCE_DIRS kilo row. Landed 2026-07-07 as Phase A of best-model-suggester.
 - `scripts/kilo-benchmarks/seed_specialty_catalog.py` - **Phase A seeder for best-model-suggester.** Reads `AI_VENDOR_ACCESS.md`, migrates `agents` with two columns (`quality_elo REAL`, `reachable_with_existing_keys INTEGER NOT NULL DEFAULT 0`), seeds missing TTS/STT/translation/image_gen rows from `specialty_pricing.PRICING`, and backfills `quality_elo` for 4 image_gen rows from live Arena Elos (ArtificialAnalysis image + HF TTS Arena V2). Idempotent (PRAGMA-guarded migration, INSERT OR IGNORE seeding). Landed 2026-07-07.
 - `scripts/kilo-benchmarks/suggest_model.py` - **Phase B Pareto-ranked model suggester CLI.** `--task {tts|stt|translation|image_gen|music_gen|video_gen|llm|coding_llm}`, `--volume-{chars,minutes,images}`, `--top`, `--json`. Exit 0 on candidates, 1 on empty pool (`NO DATA for task=<t> under accessible vendors`), 2 on missing volume flag. Normalizes mixed pricing_unit (image vs M-tokens) via `_normalize_cost`; ranks by (cost ↑, quality_elo ↓) Pareto frontier. Landed 2026-07-07 as Phase B of best-model-suggester.
 - `scripts/kilo-benchmarks/rank_{tts,stt,translation,image_gen}.py` - **Phase B per-task rankers.** Pattern-clone of `rank_coding_subagents.py`'s atomic-write layout; each queries `agents WHERE service_type=<task> AND reachable_with_existing_keys=1` via `suggest_model._rank_service_type`, renders top-10 markdown table, atomic-writes to `docs/reference/kilo/{TTS,STT,TRANSLATION,IMAGE_GEN}_SELECTION.md`. Wired into `daily_refresh.sh` steps 8c–8f (non-fatal). Landed 2026-07-07.
-- `docs/reference/kilo/{TTS,STT,TRANSLATION,IMAGE_GEN}_SELECTION.md` - **Auto-generated per-task selection docs.** `Last refresh: YYYY-MM-DD` header + Pareto-ranked table (up to 10 rows). Governance-synced to every project via `fabrik_synced_manifest.py:69`. Emitted by `rank_{tts,stt,translation,image_gen}.py` daily. Landed 2026-07-07.
+- `docs/reference/kilo/{TTS,STT,TRANSLATION,IMAGE_GEN}_SELECTION.md` - **Auto-generated per-task selection docs.** `Last refresh: YYYY-MM-DD` header + Pareto-ranked table (up to 10 rows). Governance-synced to every project via the `fabrik_synced_manifest.py` GOVERNANCE_DIRS kilo row. Emitted by `rank_{tts,stt,translation,image_gen}.py` daily. Landed 2026-07-07.
 - `scripts/kilo-benchmarks/seed_watchlist_and_gpu.py` - **Phase E seeder for watch-list vendors + GPU providers.** Creates `gpu_providers` table (id, provider, gpu_sku, tier, usd_per_hour, usd_per_second, cold_start_s, reachable_with_existing_keys, signup_trigger, last_verified, notes) + adds `agents.signup_trigger TEXT`. Seeds 4 watch-list LLM rows (Together/Hyperbolic/Cerebras/Novita, all reachable=0) + 7 GPU rows (Vast/RunPod/Modal reachable=1 matches gpu-rent driver set, Hyperbolic/Novita reachable=0). Idempotent. Landed 2026-07-07.
 - `scripts/kilo-benchmarks/scrape_gpu_prices.py` - **Phase E GPU price refresher.** Uses vendored `libs/web_scrape` (fail-soft: any network error leaves DB prices intact). `--dry-run --json` reads current DB snapshot without touching the network — safe for CI + the E.4 plan gate. Landed 2026-07-07 (live scrape path is a stub — full HTML parsing per-vendor is a follow-up).
 - `scripts/kilo-benchmarks/rank_candidate_signups.py` - **Phase E candidate-signups ranker.** Union-selects `reachable_with_existing_keys=0` rows across `agents` + `gpu_providers`, ranks by cost, emits `docs/reference/kilo/CANDIDATE_SIGNUPS.md`. Pattern-clones `rank_coding_subagents.py`'s atomic-write layout. Landed 2026-07-07.
@@ -847,7 +843,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/kilo-benchmarks/daily_refresh.sh` - Cron-installed (`0 6 * * *` UTC) wrapper that runs the full daily chain: verifier → migrate columns → derive_quality_v2 → classifier → route mapper → pack markdown export → models_browser regen. Cron-safe (no PATH assumptions, no shell-activity dependency).
 - `scripts/kilo-benchmarks/derive_quality_v2.py` - Multi-signal quality_tier deriver. 9 signals: arena + tbench + weighted_coding + design_arena_avg + AA index (OR-embedded) + AA scraped (own leaderboard) + SWE-bench Verified % + Aider Polyglot % + design_arena coding-only ELO + family regex + cost proxy + reasoning + context. Without it, ~85% of models default to T1.
 - `scripts/kilo-benchmarks/scrape_coding_benchmarks.py` - Mines three public coding leaderboards (SWE-bench Verified swebench.com, Aider Polyglot aider.chat, OpenRouter design_arena coding categories) into agents.swe_bench_verified_pct / aider_polyglot_pct / design_arena_coding_elo. No inference cost. Permissive canonical-name matching across word-order/date-suffix/agent-prefix variants.
-- `scripts/kilo_agents.db` - SQLite agent/model database
+- `scripts/kilo-benchmarks/kilo_agents.db` - SQLite agent/model database
 
 ### Active Agents
 

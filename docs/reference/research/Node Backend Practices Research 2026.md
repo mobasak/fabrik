@@ -119,8 +119,8 @@ process.on('SIGTERM', async () \=\> {
 
 ## **Related Rule Packs**
 
-* .windsurf/rules/core/13-docker-vps.md (Traefik, shared 12 GB limits, container definitions)
-* .windsurf/rules/core/14-postgres-redis.md (Database pooling, Docker network DNS)
+* .windsurf/rules/core/30-ops.md (Traefik, shared 12 GB limits, container definitions)
+* .windsurf/rules/core/25-data-postgres.md (Database pooling, Docker network DNS)
 
 ## **Done When**
 
