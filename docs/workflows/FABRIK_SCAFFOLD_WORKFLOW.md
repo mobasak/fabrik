@@ -1187,8 +1187,8 @@ class Config:
 
 - `@/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md` — **canonical deploy reference** (read this for the deploy half)
 - `@/opt/fabrik/docs/reference/fabrik-cli-reference.md` — full CLI flag-by-flag reference
-- `@/opt/fabrik/docs/reference/orchestrator.md` — orchestrator module map
-- `@/opt/fabrik/docs/reference/templates.md` — deploy-template catalogue (12 deploy templates)
+- `@/opt/fabrik/docs/reference/modules/deployment-orchestrator.md` — orchestrator module map
+- `@/opt/fabrik/docs/reference/modules/templates.md` — deploy-template catalogue (12 deploy templates)
 - `@/opt/fabrik/docs/workflows/SCAFFOLD_STRUCTURE.md` — sister doc on file structure (kept narrow; this doc is the broader workflow ref)
 - `/opt/wpf/` — separate **WordPress Factory** project (`wpf` CLI): WordPress deployment + site-creation lifecycle + per-site `specs/sites/<domain>.yaml` schema. Fabrik only provides the `wordpress` **scaffold type** (skeleton); it does **not** deploy WordPress.
 

@@ -179,7 +179,7 @@ See `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` for details.
 - [CONFIGURATION.md](CONFIGURATION.md) — every env var explained
 - [reference/architecture.md](reference/architecture.md) — how the pieces fit together
 - [reference/fabrik-cli-reference.md](reference/fabrik-cli-reference.md) — all 22 CLI commands
-- [reference/templates.md](reference/templates.md) — 12 deploy templates (11 scaffold types + `next-tailwind` deploy-only)
-- [reference/orchestrator.md](reference/orchestrator.md) + [reference/drivers.md](reference/drivers.md)
+- [reference/modules/templates.md](reference/modules/templates.md) — 12 deploy templates (11 scaffold types + `next-tailwind` deploy-only)
+- [reference/modules/deployment-orchestrator.md](reference/modules/deployment-orchestrator.md) + [reference/modules/drivers.md](reference/modules/drivers.md)
 - [LESSONS_LEARNT.md](LESSONS_LEARNT.md) — every live-incident invariant (read before deep changes)
 - [infrastructure/vps-status.md](infrastructure/vps-status.md) — VPS inventory

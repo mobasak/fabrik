@@ -8,7 +8,7 @@ commands were **removed 2026-06-16** — they contradicted how Fabrik actually d
 AI: operational AI (sysadmin bot, watchdog, aro-wake, bootstrap) runs on **Claude
 Code subscription OAuth**, and content/LLM calls go through **OpenRouter**, never a
 direct Anthropic API key. The canonical provider contract lives in
-[`spec_loader`](../../src/fabrik/spec_loader.py) — `llm_provider: claude-code | openrouter`.
+[`spec_loader`](../../../src/fabrik/spec_loader.py) — `llm_provider: claude-code | openrouter`.
 
 ## Public API
 
@@ -41,6 +41,6 @@ fabrik ai usage --month 2026-06  # Filter by month
 
 ## See also
 
-- [CONFIGURATION.md](../CONFIGURATION.md)
-- [SERVICES.md](../SERVICES.md)
-- [gpu-rent.md](../operations/gpu-rent.md) — the live writer of GPU usage rows
+- [CONFIGURATION.md](../../CONFIGURATION.md)
+- [SERVICES.md](../../SERVICES.md)
+- [gpu-rent.md](../../operations/gpu-rent.md) — the live writer of GPU usage rows

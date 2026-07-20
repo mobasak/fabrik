@@ -491,6 +491,6 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 - [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — code-level map of every file on the deploy path
 - [operations/deployment.md](../operations/deployment.md) — apply/redeploy/destroy procedures
 - [operations/fabrik-lifecycle.md](../operations/fabrik-lifecycle.md) — runtime behavior & data safety per operation
-- [reference/orchestrator.md](orchestrator.md) — orchestrator pipeline internals
-- [reference/drivers.md](drivers.md) — every external-API client
-- [reference/templates.md](templates.md) — all 12 scaffold types
+- [reference/modules/deployment-orchestrator.md](modules/deployment-orchestrator.md) — orchestrator pipeline internals
+- [reference/modules/drivers.md](modules/drivers.md) — every external-API client
+- [reference/modules/templates.md](modules/templates.md) — all 12 scaffold types

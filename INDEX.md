@@ -254,14 +254,13 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:31 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T15:42 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
 ├── CAPABILITIES.md
 ├── CONFIGURATION.md                # Environment variables and settings
 ├── DEPLOYMENT_ARCHITECTURE.md
-├── EXTERNAL_SYSTEMS.md             # External service dependencies
 ├── FEATURES.md                     # Feature list
 ├── LESSONS_LEARNT.md
 ├── PROJECT_CATALOG.md
@@ -282,7 +281,6 @@ docs/
 │   └── reviews
 │       └── mega-00-command-review.md
 ├── infrastructure                  # Infrastructure docs
-│   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   ├── archive                     # Archived and completed documentation
 │   ├── audit-prompts
 │   │   ├── 01-full-system-audit.md
@@ -310,7 +308,6 @@ docs/
 │   │   └── infra-probe-2026-06-07T20-20Z.yaml
 │   ├── prometheus-app-metrics-setup.md
 │   ├── promtail-noise-filter-setup.md
-│   ├── traycer-command-wiring.md
 │   ├── vps-ai-sysadmin.md
 │   ├── vps-bootstrap-plan.md
 │   ├── vps-complete-inventory.md
@@ -322,7 +319,6 @@ docs/
 │   └── vps-urls.md                 # All deployed service URLs
 ├── operations                      # Operational runbooks and VPS state
 │   ├── AI_MODELS_BROWSER_OPS.md
-│   ├── MCP_HTTP_TRANSPORT.md
 │   ├── credential-recovery.md
 │   ├── deployment.md
 │   ├── disaster-recovery.md        # Backup and recovery procedures
@@ -395,7 +391,8 @@ docs/
 │   │       └── 05-dispatch-epic-tickets-fabrik.RETIRED.md
 │   ├── orchestrator-cockpit-decisions.md
 │   ├── orchestrator-cockpit-feature-set.md
-│   └── orchestrator-cockpit-requirements.md
+│   ├── orchestrator-cockpit-requirements.md
+│   └── traycer-command-wiring.md
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── preplans
 │   └── README.md                   # Documentation index (Legacy)
@@ -405,14 +402,20 @@ docs/
 │   │   ├── ai-prompt-templates.md
 │   │   └── markdown-cheatsheet.md
 │   ├── ai.md
+│   ├── apis
+│   │   ├── EXTERNAL_SYSTEMS.md     # External service dependencies
+│   │   ├── glitchtip-api.md
+│   │   ├── modal-api.md
+│   │   ├── openrouter-api.md
+│   │   ├── runpod-api.md
+│   │   ├── runpod-hf-models.md
+│   │   └── vast-api.md
 │   ├── architecture.md             # System architecture overview
 │   ├── convergence-prompts.md
-│   ├── drivers.md                  # Fabrik driver API (DNS, Cloudflare, GPU providers, etc.)
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-vultr.md
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json
-│   ├── glitchtip-api.md
 │   ├── gui-toolchain.md
 │   ├── health-monitoring.md        # Health monitoring patterns
 │   ├── kilo
@@ -430,11 +433,15 @@ docs/
 │   │   └── TTS_SELECTION.md
 │   ├── long-command-monitoring.md
 │   ├── mobile-responsive-testing-guide.md
-│   ├── modal-api.md
-│   ├── openrouter-api.md
+│   ├── modules
+│   │   ├── ai.md
+│   │   ├── deployment-orchestrator.md
+│   │   ├── drivers.md              # Fabrik driver API (DNS, Cloudflare, GPU providers, etc.)
+│   │   └── templates.md            # Available deployment templates
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── research
+│   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -453,16 +460,10 @@ docs/
 │   │   ├── mobile-gui-research.md
 │   │   ├── research-prompt-preamble-for-agent-rules.md
 │   │   └── saas-alternative-gui.md
-│   ├── runpod-api.md
-│   ├── runpod-hf-models.md
 │   ├── service-contracts
 │   │   └── site-provisioner.md
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
-│   ├── template_renderer.md
-│   ├── templates.md                # Available deployment templates
 │   ├── terminal-bench-runner.md
-│   ├── trueforge-images.md         # Trueforge image catalog
-│   ├── vast-api.md
 │   ├── vps-all-container-envs.txt
 │   ├── vps-env-exited-apps.txt
 │   ├── vps-env-site-provisioner.txt
@@ -499,9 +500,10 @@ docs/
 │   ├── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
 │   └── development-and-deployment-workflow.md
 ├── workstation
+│   ├── MCP_HTTP_TRANSPORT.md
+│   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   └── wsl-shell-mcp-setup.md
 └── zed
-    ├── check_zed_extensions.py
     └── zed-acp-side-by-side-analysis.md
 ```
 <!-- AUTO-GENERATED:STRUCTURE:END -->
@@ -528,8 +530,8 @@ docs/
 | [architecture.md](docs/reference/architecture.md) | System architecture, components, data flow |
 | [stack.md](docs/archive/stack.md) | Coolify-era stack overview (archived 2026-07-20; live truth: agents-fabrik.md + PROJECT_CATALOG) |
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
-| [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
-| [templates.md](docs/reference/templates.md) | Available deployment templates |
+| [drivers.md](docs/reference/modules/drivers.md) | Fabrik driver API (DNS, GPU providers, registrars) |
+| [templates.md](docs/reference/modules/templates.md) | Available deployment templates |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
 | [mobile-gui-research.md](docs/reference/research/mobile-gui-research.md) | Full RN/Expo mobile verify-stack research (Maestro MCP, Mobile Next MCP, RN a11y, visual regression, CI reality); defers to `mobile-app/80-mobile.md`; verified 2026-07-06 |
 | [chrome-ext-gui-research.md](docs/reference/research/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |

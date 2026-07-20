@@ -424,7 +424,7 @@ class TestVerifyDsnInjection:
 class TestWireShape:
     def test_create_url_matches_probe_contract(self, fake_env):
         """Must hit POST /api/0/teams/{org}/{team}/projects/ per
-        docs/reference/glitchtip-api.md §Endpoint 1."""
+        docs/reference/apis/glitchtip-api.md §Endpoint 1."""
         captured = []
 
         def fake_get(url, **_kw):

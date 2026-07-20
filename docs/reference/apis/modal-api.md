@@ -1,7 +1,7 @@
 # Modal — full reference for Fabrik
 
 **Last verified:** 2026-06-16 against `modal-1.5.0` SDK + [modal.com/docs/guide](https://modal.com/docs/guide).
-**Why this file exists:** the Modal driver lives at [`src/fabrik/drivers/modal_provider.py`](../../src/fabrik/drivers/modal_provider.py); the orchestrator's [`selection_advice()`](../../src/fabrik/orchestrator/gpu_rent.py) routes low-utilization workloads here. This doc is the source of truth for what Modal can/can't do, what every knob means, and which Fabrik surfaces map to which Modal primitive. Re-verify the **Pricing** + **GPU types** sections quarterly.
+**Why this file exists:** the Modal driver lives at [`src/fabrik/drivers/modal_provider.py`](../../../src/fabrik/drivers/modal_provider.py); the orchestrator's [`selection_advice()`](../../../src/fabrik/orchestrator/gpu_rent.py) routes low-utilization workloads here. This doc is the source of truth for what Modal can/can't do, what every knob means, and which Fabrik surfaces map to which Modal primitive. Re-verify the **Pricing** + **GPU types** sections quarterly.
 
 ---
 
@@ -12,7 +12,7 @@
 | When does `fabrik gpu rent --provider modal` win? | Low-utilization (<50%) bursty inference. Per-second billing crushes RunPod's hourly when the GPU sits idle 30+ min/hr. Also: native pipelines (functions chained as a graph). |
 | When does RunPod still win? | Sustained inference / training (≥50% util). RunPod's H100 Secure is $2.89/hr; Modal's H100 is $3.95/hr — break-even is roughly 73% utilization. |
 | Auth | `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` in `/opt/fabrik/.env.sysadmin`. Operator-generated via `.venv/bin/python -m modal setup` (interactive browser). |
-| Default GPU for `pod-rtx-4090` kind | Mapped to **L4** (Modal doesn't sell RTX 4090s). See `MODAL_GPU_TYPES` in [`modal_provider.py`](../../src/fabrik/drivers/modal_provider.py). |
+| Default GPU for `pod-rtx-4090` kind | Mapped to **L4** (Modal doesn't sell RTX 4090s). See `MODAL_GPU_TYPES` in [`modal_provider.py`](../../../src/fabrik/drivers/modal_provider.py). |
 | Pricing model | Per-second, no minimums. CPU $0.0000131/core/sec, RAM $0.00000222/GiB/sec, GPU per table below. |
 | Free tier | $30/mo on Starter, $100/mo on Team. Don't burn credits on training — use for inference smoke tests. |
 | What Modal does NOT do (vs RunPod) | No bring-your-own-container in the RunPod sense — you build images via the Python `Image` builder. No native "rent a pod and SSH in" — `Sandbox` is the equivalent, but it's an exec-on-container, not a long-lived shell. |
@@ -864,7 +864,7 @@ This is the integration shape used by Phase 3.5 (`fabrik gpu rent --kind serverl
 | L40S | $0.86 | $1.95 | 44% |
 | L4 / RTX-4090 | $0.69 (RunPod 4090) | $0.80 (L4) | 86% |
 
-Below the break-even utilization rate, Modal wins on net cost because of per-second vs hourly billing. This is the math `gpu_rent.selection_advice()` encodes — see [`src/fabrik/orchestrator/gpu_rent.py`](../../src/fabrik/orchestrator/gpu_rent.py).
+Below the break-even utilization rate, Modal wins on net cost because of per-second vs hourly billing. This is the math `gpu_rent.selection_advice()` encodes — see [`src/fabrik/orchestrator/gpu_rent.py`](../../../src/fabrik/orchestrator/gpu_rent.py).
 
 ---
 
@@ -913,7 +913,7 @@ Two bugs from the pre-live driver:
 The reference doc §3.5 had warned `with app.run():` was required; the pre-live driver ignored it. Lesson 70 added.
 
 ### 21.2 Orchestrator routing
-`selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` in [`src/fabrik/orchestrator/gpu_rent.py`](../../src/fabrik/orchestrator/gpu_rent.py):
+`selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` in [`src/fabrik/orchestrator/gpu_rent.py`](../../../src/fabrik/orchestrator/gpu_rent.py):
 - High utilization (≥50%) → recommend **RunPod**.
 - Low utilization (<50%) + bursty → recommend **Modal** (per-second billing wins).
 - Checkpointing tolerant + spot-OK → recommend **Vast.ai**.

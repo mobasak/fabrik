@@ -1,7 +1,7 @@
 """GlitchTip error-tracking project provisioning (Sentry-compatible API).
 
 Wraps three live-captured GlitchTip API endpoints (see
-``docs/reference/glitchtip-api.md`` — probe-anchored 2026-04-18):
+``docs/reference/apis/glitchtip-api.md`` — probe-anchored 2026-04-18):
 
 * ``POST /api/0/teams/{org}/{team}/projects/`` — create project, returns 201
 * ``GET  /api/0/projects/{org}/{slug}/keys/``  — fetch DSN, returns 200
@@ -25,7 +25,7 @@ Design notes
 
 * **DSN canonicalized (G7).** GlitchTip emits DSNs with
   ``localhost:8000`` as the host (the service's own ``GLITCHTIP_DOMAIN``
-  env var is unset upstream — see ``docs/reference/glitchtip-api.md
+  env var is unset upstream — see ``docs/reference/apis/glitchtip-api.md
   §"Known configuration gap"``). The driver unconditionally rewrites a
   loopback-host DSN to the public ``GLITCHTIP_URL`` host
   (``_canonicalize_dsn``, with a warning log) and raises only if the DSN
@@ -243,7 +243,7 @@ def _headers() -> dict[str, str]:
             "Create a personal auth token (scopes: project:read, "
             "project:write, project:admin, team:admin) in the GlitchTip "
             "UI → Profile → Auth Tokens, OR follow the manage.py shell "
-            "recipe in docs/reference/glitchtip-api.md."
+            "recipe in docs/reference/apis/glitchtip-api.md."
         )
     return {
         "Authorization": f"Bearer {token}",
@@ -292,7 +292,7 @@ def _fetch_dsn(org: str, name: str, headers: dict[str, str]) -> str:
     """Fetch the public DSN for an existing project.
 
     Returns the first key's ``dsn.public`` value — verified shape
-    matches ``docs/reference/glitchtip-api.md §Endpoint 2``.
+    matches ``docs/reference/apis/glitchtip-api.md §Endpoint 2``.
     """
     resp = requests.get(_keys_url(org, name), headers=headers, timeout=_DEFAULT_TIMEOUT)
     resp.raise_for_status()

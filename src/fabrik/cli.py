@@ -3258,7 +3258,7 @@ def gpu():
 
     Mirrors `fabrik vultr` for GPU rentals. See:
       docs/development/plans/2026-06-16-fabrik-gpu-rent.md
-      docs/reference/runpod-api.md
+      docs/reference/apis/runpod-api.md
     """
     pass
 

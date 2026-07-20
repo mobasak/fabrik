@@ -2,7 +2,7 @@
 
 **Last verified:** 2026-06-16 (RunPod's "Deploy LLM from Hugging Face" picker, vLLM-backed endpoint)
 **Source:** RunPod console at `console.runpod.io/serverless/new` → "Deploy LLM from Hugging Face"
-**Why this exists:** when picking the template for the [`fabrik gpu rent`](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) plan's serverless template (`fabrik gpu rent ... --template <id>`), you choose the underlying model. Re-verify before relying on any specific row — RunPod adds/removes models without notice.
+**Why this exists:** when picking the template for the [`fabrik gpu rent`](../../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) plan's serverless template (`fabrik gpu rent ... --template <id>`), you choose the underlying model. Re-verify before relying on any specific row — RunPod adds/removes models without notice.
 
 ---
 
@@ -212,7 +212,7 @@ Grouped by family. **vLLM-served** under the hood via RunPod's HF deployment flo
 
 ## Notes
 
-- All models above are **vLLM-served** under RunPod's HF deployment flow. vLLM is the rule's default per [`76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) line 183.
+- All models above are **vLLM-served** under RunPod's HF deployment flow. vLLM is the rule's default per [`76-gpu-workers.md`](../../../.windsurf/rules/core/76-gpu-workers.md) line 183.
 - "Params" column is best-effort from HF model card; in some cases (Korean models, Asian-team models) the cards don't always declare clean param counts.
 - Some models above (rerank models, turn-detector, music gen) aren't text-generation LLMs — they're listed because RunPod's HF flow accepts them, but they won't work for chat-completion smoke tests.
 - For non-LLM workloads (image gen, audio, custom CUDA), use the **Docker image** deployment path or **Pods** (`--kind pod-*`), not this list.

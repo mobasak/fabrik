@@ -62,7 +62,7 @@ This pipeline is AI-managed and automated end to end: scaffold → spec → `fab
 | "driver not yet shipped" | **Stale — it exists.** Builds image, writes `compose.watchdog.yaml`, brings the sidecar up. Lacks Tier-D wiring + deploy-key + app healthcheck. | `src/fabrik/drivers/watchdog.py` |
 | design spec at `docs/superpowers/specs/…` | **Not in `/opt/fabrik`.** Authoritative set is in fabrik-lib. | `/opt/fabrik-lib/docs/superpowers/specs/2026-06-28-watchdog-autonomous-remediation-design.md` + 7 plans + convergence-review |
 | Tier-D contradicts the rule packs | **Resolved** — Tier-D canonical, synced fleet-wide, gate-green. | `convergence-review.md:40`; `.windsurf/rules/core/60-watchdog.md:77-105` |
-| issue 1 = "confirm field set" | **Bigger** — the parser is a pure function **not wired into the bus** (`TriggerBus(sources={})`), no HTTP ingest exists, and GlitchTip exposes **no API** to read webhook config/logs. | `agent.py:623-624`; `error_tracker_webhook.py:109-123`; `docs/reference/glitchtip-api.md` |
+| issue 1 = "confirm field set" | **Bigger** — the parser is a pure function **not wired into the bus** (`TriggerBus(sources={})`), no HTTP ingest exists, and GlitchTip exposes **no API** to read webhook config/logs. | `agent.py:623-624`; `error_tracker_webhook.py:109-123`; `docs/reference/apis/glitchtip-api.md` |
 
 **Conclusion:** both issues are real and worth doing; the framing was stale. Net scope is larger than the handoff implied (deploy-key + app-healthcheck + bus-wiring are prerequisites, not afterthoughts).
 
@@ -78,7 +78,7 @@ This pipeline is AI-managed and automated end to end: scaffold → spec → `fab
 ## 2. Issue 1 — GlitchTip webhook payload: capture, pin, and keep pinned
 
 ### 2.1 Why it can't be an API read
-GlitchTip's documented API (`docs/reference/glitchtip-api.md`) covers only project create / DSN fetch / delete / list-teams — **no** alert-rule, webhook-recipient, or delivery-log endpoint, and **no** documented event-ingest endpoint. So the only way to see the real outgoing envelope is to **receive it at a listener** after a real event.
+GlitchTip's documented API (`docs/reference/apis/glitchtip-api.md`) covers only project create / DSN fetch / delete / list-teams — **no** alert-rule, webhook-recipient, or delivery-log endpoint, and **no** documented event-ingest endpoint. So the only way to see the real outgoing envelope is to **receive it at a listener** after a real event.
 
 ### 2.2 The parser we must pin against
 `from_payload` (`/opt/fabrik-lib/watchdog/.../error_tracker_webhook.py:109-123`) tries the Slack-style **envelope** first, then a Sentry **issue** fallback:
@@ -104,7 +104,7 @@ New `scripts/probes/glitchtip_webhook_capture.py` (reusing `drivers/glitchtip.py
 Leave the error-tracker source **out** of `WATCHDOG_TRIGGER_SOURCES` (default `emitter,health`, `bus.py:19`) until (a) the fixture is pinned **and** (b) fabrik-lib registers the source token + ingest. Document this as a cross-repo dependency; until then the trigger source is dormant by design.
 
 ### 2.6 Evidence (Issue 1)
-- No webhook/alert/log API: `docs/reference/glitchtip-api.md` (create/keys/delete/teams only).
+- No webhook/alert/log API: `docs/reference/apis/glitchtip-api.md` (create/keys/delete/teams only).
 - Parser branches: `error_tracker_webhook.py:37-67` (envelope), `:70-106` (fallback).
 - Bus default + unwired source: `bus.py:19`, `agent.py:623-624`.
 - Reusable driver surface: `src/fabrik/drivers/glitchtip.py:202,257,281,341`.

@@ -4,8 +4,8 @@
 **Companion docs:**
 
 - [Plan](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) — implementation plan + validation gates
-- [RunPod API reference](../reference/runpod-api.md) — what the driver wraps
-- [RunPod HF models](../reference/runpod-hf-models.md) — deployable model catalog
+- [RunPod API reference](../reference/apis/runpod-api.md) — what the driver wraps
+- [RunPod HF models](../reference/apis/runpod-hf-models.md) — deployable model catalog
 - [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — decision framework
 
 ## TL;DR
@@ -59,7 +59,7 @@ provider call.
 
 1. **RunPod account + API key.** Generate at
    <https://www.console.runpod.io/user/settings> → "API Keys".
-2. **(serverless)** A deployed endpoint. Easiest: <https://console.runpod.io/serverless/new> → "Deploy LLM from Hugging Face" → pick a model (see [reference catalog](../reference/runpod-hf-models.md)).
+2. **(serverless)** A deployed endpoint. Easiest: <https://console.runpod.io/serverless/new> → "Deploy LLM from Hugging Face" → pick a model (see [reference catalog](../reference/apis/runpod-hf-models.md)).
    Capture the **endpoint ID** from the URL (e.g. `5fm6047mmhueoe`).
 3. **Drop credentials into `/opt/fabrik/.env.sysadmin`:**
 
@@ -367,7 +367,7 @@ its next run. Or run `fabrik gpu reconcile --auto-destroy` manually.
 ## See also
 
 - [Plan](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md)
-- [RunPod API reference](../reference/runpod-api.md)
-- [RunPod HF models catalog](../reference/runpod-hf-models.md)
+- [RunPod API reference](../reference/apis/runpod-api.md)
+- [RunPod HF models catalog](../reference/apis/runpod-hf-models.md)
 - [`.windsurf/rules/core/76-gpu-workers.md`](../../.windsurf/rules/core/76-gpu-workers.md) — the decision framework
 - [`.../scripts/systemd/README.md`](../../scripts/systemd/README.md) — systemd timer install

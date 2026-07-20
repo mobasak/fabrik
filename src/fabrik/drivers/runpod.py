@@ -272,7 +272,7 @@ class RunPodClient:
     def pause_pod(self, pod_id: str) -> dict[str, Any]:
         """Stop a pod without destroying it.
 
-        RunPod API: POST /pods/{pod_id}/stop (verified at docs/reference/
+        RunPod API: POST /pods/{pod_id}/stop (verified at docs/reference/apis/
         runpod-api.md). Stopped pods keep their volume + container disk
         but stop billing GPU/CPU time. Restart with resume_pod().
         """

@@ -35,8 +35,8 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 - All containers have stable `container_name:` (Lesson 22) so `docker exec` / `docker inspect` targeting is deterministic
 
 **Code:**
-- Driver: [`src/fabrik/orchestrator/deployer_ssh.py`](../src/fabrik/orchestrator/deployer_ssh.py)
-- Bootstrap a fresh spoke: [`scripts/bootstrap/bootstrap-vps.sh`](../scripts/bootstrap/bootstrap-vps.sh) (14 idempotent steps)
+- Driver: [`src/fabrik/orchestrator/deployer_ssh.py`](../../../src/fabrik/orchestrator/deployer_ssh.py)
+- Bootstrap a fresh spoke: [`scripts/bootstrap/bootstrap-vps.sh`](../../../scripts/bootstrap/bootstrap-vps.sh) (14 idempotent steps)
 
 **No external API; no rate limits.**
 
@@ -1076,7 +1076,7 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 The only Fabrik-authored microservice still deployed is:
 
-- **site-provisioner** (`https://provision.vps1.ocoron.com`) — domain/DNS/container provisioning; container live and healthy on the `fabrik` network. See [`docs/reference/service-contracts/site-provisioner.md`](reference/service-contracts/site-provisioner.md).
+- **site-provisioner** (`https://provision.vps1.ocoron.com`) — domain/DNS/container provisioning; container live and healthy on the `fabrik` network. See [`docs/../service-contracts/site-provisioner.md`](../service-contracts/site-provisioner.md).
 
 The shared infra services (also internal) are catalogued in their own sections above: **Gatus** (status), **Backrest** (backup), **Grafana/Prometheus/Loki/Promtail** (monitoring stack), **Apprise** (notifications), **n8n** (automation), **Browserless**, **Gotenberg**, **Meilisearch**.
 

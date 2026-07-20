@@ -21,7 +21,7 @@ Zed is on **Windows**, connected to **WSL Ubuntu** via Zed remoting. Projects: `
 | OpenRouter models | `openrouter-curated` (`openai_compatible`) — **28 curated models**, real context sizes from OR's live API; a true whitelist (native provider can't filter — merges the full catalog) |
 | Workspace parity | VSCode keymap, VSCode Modern Dark theme, minimap off, terminal copy-on-select + 20k scrollback + `.venv` auto-detect, WSL projects |
 | Python (optional) | `ruff` + `basedpyright` referenced; `format_on_save` OFF (no surprise shared-repo reformat) |
-| Extension gate | `docs/zed/check_zed_extensions.py` — derives required extensions from `settings.json`, checks Zed's `index.json`; `--json`, exit 0/1 |
+| Extension gate | `scripts/check_zed_extensions.py (moved from docs/zed/ 2026-07-20)` — derives required extensions from `settings.json`, checks Zed's `index.json`; `--json`, exit 0/1 |
 
 ### ⏳ Pending — your UI actions (config is ready, inert until done)
 1. **OpenRouter key** → `agent: open settings` → LLM Providers → **openrouter-curated** → paste `sk-or-v1-…`.

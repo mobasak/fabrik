@@ -89,7 +89,7 @@ Every external call goes through a driver. No ad-hoc HTTP or SSH allowed in CLI/
 | **Content pipeline** | `image_broker.py`, `seo.py`, `tco.py` |
 | **Legacy** | `uptime_kuma.py` (superseded by Gatus) |
 
-See `docs/reference/drivers.md` for shape gates and usage.
+See `docs/reference/modules/drivers.md` for shape gates and usage.
 
 ### 5. CLI — `src/fabrik/cli.py` (~3,900 lines)
 

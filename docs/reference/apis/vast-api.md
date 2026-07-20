@@ -1,7 +1,7 @@
 # Vast.ai — full reference for Fabrik
 
 **Last verified:** 2026-06-16 against [docs.vast.ai/llms.txt](https://docs.vast.ai/llms.txt) (246 indexed pages) + `vastai` CLI v0.3+.
-**Why this file exists:** Vast.ai is the third provider in Fabrik's GPU surface. The driver lives at [`src/fabrik/drivers/vast_provider.py`](../../src/fabrik/drivers/vast_provider.py); the orchestrator's [`selection_advice()`](../../src/fabrik/orchestrator/gpu_rent.py) routes checkpoint-tolerant + spot-OK workloads here. This file is the source of truth for what Vast can/can't do, what every CLI flag/API field means, and which Fabrik surfaces map to which Vast primitive. Re-verify the **Pricing** + **Serverless** sections quarterly.
+**Why this file exists:** Vast.ai is the third provider in Fabrik's GPU surface. The driver lives at [`src/fabrik/drivers/vast_provider.py`](../../../src/fabrik/drivers/vast_provider.py); the orchestrator's [`selection_advice()`](../../../src/fabrik/orchestrator/gpu_rent.py) routes checkpoint-tolerant + spot-OK workloads here. This file is the source of truth for what Vast can/can't do, what every CLI flag/API field means, and which Fabrik surfaces map to which Vast primitive. Re-verify the **Pricing** + **Serverless** sections quarterly.
 
 ---
 
@@ -865,7 +865,7 @@ Get keys at [cloud.vast.ai/manage-keys/](https://cloud.vast.ai/manage-keys/).
 - Serverless methods `create_endpoint` (vast_provider.py:545), `destroy_endpoint` (:655), `run_endpoint_sync` (:670): **implemented (Phase 3.5)** — see §13.4. Only `run_endpoint_async` (:719) still raises `NotImplementedError`.
 
 ### 13.2 GPU type translation
-`VAST_GPU_NAMES` in [`vast_provider.py`](../../src/fabrik/drivers/vast_provider.py):
+`VAST_GPU_NAMES` in [`vast_provider.py`](../../../src/fabrik/drivers/vast_provider.py):
 ```python
 VAST_GPU_NAMES = {
     "pod-h100": "H100 SXM",
@@ -880,7 +880,7 @@ VAST_GPU_NAMES = {
 ```
 
 ### 13.3 When the orchestrator routes here
-`selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` in [`gpu_rent.py`](../../src/fabrik/orchestrator/gpu_rent.py):
+`selection_advice(kind, hours, utilization_rate, needs_checkpointing, needs_serverless)` in [`gpu_rent.py`](../../../src/fabrik/orchestrator/gpu_rent.py):
 - `needs_checkpointing=True` + spot-OK → **recommend Vast** (interruptible) for the cost win
 - Vast is also the fallback when RunPod doesn't carry the GPU (e.g. RTX 3090, A6000)
 - `needs_serverless=True` → **no longer excludes Vast** (Phase 3.5 dropped the exclusion, `gpu_rent.py:287-289`) — all three providers are serverless-eligible; Vast is vetoed only by the separate checkpointing rule

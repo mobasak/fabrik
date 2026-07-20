@@ -33,6 +33,15 @@ retired to `scripts/.archive/`, scaffold copy block + manifest row + gitignore-b
 pre-commit pattern removed, orphan-prune entry added so project copies delete on next sync;
 `cascade-models.md` + `cascade-guide.md` archived with all live links retargeted.
 
+Phase C: reference/ subfoldered — 7 external API contracts (incl. `EXTERNAL_SYSTEMS.md` from docs root)
+→ `reference/apis/`; 4 module references → `reference/modules/` with `orchestrator.md` renamed
+`deployment-orchestrator.md` (kills the docs/orchestrator/ name collision); `template_renderer.md` merged
+into `modules/templates.md`, `trueforge-images.md` merged into `prebuilt-app-containers.md`;
+`traycer-command-wiring.md` → orchestrator/, `WSL2-DNS-FIX.md` + `MCP_HTTP_TRANSPORT.md` → workstation/,
+`check_zed_extensions.py` → scripts/. All inbound citers (code comments, docs, INDEX) + every moved file's
+own relative links retargeted; `docs_updater.py` module-stub detector taught the modules/ home (it had
+resurrected a stub at the old path).
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a

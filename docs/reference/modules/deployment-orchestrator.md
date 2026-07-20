@@ -6,7 +6,7 @@
 > "Coolify mutations" / "Coolify status" describe the pre-2026-05 deploy path.
 > Today `deployer_ssh.py` (SSH + Docker Compose) is the active deployer; the
 > orchestrator's overall structure (shape-driven registrars, verifier, rollback)
-> is unchanged. See [docs/operations/deployment.md](../operations/deployment.md)
+> is unchanged. See [docs/operations/deployment.md](../../operations/deployment.md)
 > for the current flow.
 
 The orchestrator module (`src/fabrik/orchestrator/`) provides unified end-to-end deployment automation. The pipeline is **shape-driven**: the `shape.*` flags on a spec decide which registrars run — 10 in order: postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, watchdog (`infrastructure.py:136-147`).
@@ -239,7 +239,7 @@ See `docs/DEPLOYMENT_ARCHITECTURE.md` §9.6 for the canonical **maximal-shape E2
 
 ## Related
 
-- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — canonical deploy reference (read this first)
+- [DEPLOYMENT_ARCHITECTURE.md](../../DEPLOYMENT_ARCHITECTURE.md) — canonical deploy reference (read this first)
 - [Drivers Reference](drivers.md)
-- [CLI Reference](fabrik-cli-reference.md)
+- [CLI Reference](../fabrik-cli-reference.md)
 - [Templates](templates.md)

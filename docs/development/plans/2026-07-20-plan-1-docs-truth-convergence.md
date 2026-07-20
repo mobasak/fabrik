@@ -114,7 +114,7 @@ Steps (single commit — verified breakage analysis: a missing path in the atomi
 
 **Validation gate:** the three commands above + `grep -rn "cascade-models" scripts/ src/ docs --include='*' | grep -v archive` → expect empty. Close with the standard sequence: check_doc_sync → doc_reconcile on staged diff → commit → **full `/fabrik-review` on the phase surface, looped to no-op** → gate green → mark phase ✅ + stage plan file.
 
-## Phase C — Relocations, merges, subfoldering
+## Phase C — Relocations, merges, subfoldering — ✅ EXECUTED 2026-07-20 (15 renames + 2 merges; moved-file link scan 0 broken; old-path sweep clean; fabrik.cli import OK; glitchtip tests 43/43; docs_updater stub-resurrection bug found+fixed)
 
 **Interfaces — Consumes:** Phase A/B tree. **Produces (the path contract every later phase + the fleet cites):**
 

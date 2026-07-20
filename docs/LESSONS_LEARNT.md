@@ -2987,7 +2987,7 @@ Authelia forward-auth IS still appropriate for services **without** mature nativ
 - n8n basic auth (weak)
 - Coolify UI (has auth, but extra kill-switch layer is useful for the deployment control plane itself)
 
-**Applied fix (2026-04-18):** Moved `errors.vps1.ocoron.com` from the `^/api/` bypass rule into the full-bypass domain list (same list as `pdf`, `browser`, `dns`, `search`, etc.). Created GlitchTip superuser via `./manage.py shell` instead of UI signup. TOTP 2FA enforced at the app layer. Bearer-token auth on `/api/0/*` remains the machine-to-machine boundary. See `docs/reference/glitchtip-api.md` for the captured API contract and security-boundary diagram.
+**Applied fix (2026-04-18):** Moved `errors.vps1.ocoron.com` from the `^/api/` bypass rule into the full-bypass domain list (same list as `pdf`, `browser`, `dns`, `search`, etc.). Created GlitchTip superuser via `./manage.py shell` instead of UI signup. TOTP 2FA enforced at the app layer. Bearer-token auth on `/api/0/*` remains the machine-to-machine boundary. See `docs/reference/apis/glitchtip-api.md` for the captured API contract and security-boundary diagram.
 
 **Decision rule** (copy this into the deployment checklist for every new admin dashboard):
 
@@ -4450,7 +4450,7 @@ After all three fixes, the script completed cleanly on both vps2 and vps3 (fresh
 ## Lesson 70 — "Phase complete" is a lie unless every code path has a live gate; warning notes in docs are not implementation
 
 **Date:** 2026-06-16
-**Context:** `fabrik gpu rent --provider modal` shipped (commit `391c749`) with `modal_provider.py::create_pod()` marked "Phase 2 complete." It wasn't. The driver decorated `@app.function` inside an inner scope (Modal forbids; raised `InvalidError: must apply to functions in global scope, unless serialized=True`) AND called `.spawn()` outside an `app.run()` context (raised `ExecutionError: Function has not been hydrated...`). Both errors fired on the very first live call. The reference doc I'd authored at `docs/reference/modal-api.md §3.5` had explicitly warned `with app.run():` was required and `§21.1` carried a "Phase 2 punts on that integration" note. **The warning notes were not implementation.** They were a TODO that got buried under "Phase complete" headers.
+**Context:** `fabrik gpu rent --provider modal` shipped (commit `391c749`) with `modal_provider.py::create_pod()` marked "Phase 2 complete." It wasn't. The driver decorated `@app.function` inside an inner scope (Modal forbids; raised `InvalidError: must apply to functions in global scope, unless serialized=True`) AND called `.spawn()` outside an `app.run()` context (raised `ExecutionError: Function has not been hydrated...`). Both errors fired on the very first live call. The reference doc I'd authored at `docs/reference/apis/modal-api.md §3.5` had explicitly warned `with app.run():` was required and `§21.1` carried a "Phase 2 punts on that integration" note. **The warning notes were not implementation.** They were a TODO that got buried under "Phase complete" headers.
 
 Two distinct failures, one root cause:
 

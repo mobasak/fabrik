@@ -16,7 +16,7 @@
 #   GLITCHTIP_TEAM_SLUG   — team slug (from Teams tab)
 #
 # Output: writes raw JSON to .tmp/phase-4-pre/glitchtip-probe-<step>.json,
-# then summarizes key fields on stdout for pasting into docs/reference/glitchtip-api.md
+# then summarizes key fields on stdout for pasting into docs/reference/apis/glitchtip-api.md
 #
 # Usage:
 #   bash scripts/probes/glitchtip_probe.sh [--keep]

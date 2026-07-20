@@ -197,6 +197,13 @@ python scripts/container_images.py trueforge info home-assistant
 python scripts/container_images.py check-arch oci.trueforge.org/tccr/home-assistant
 ```
 
+**Live catalog, never a static count** (merged from the former `trueforge-images.md`, 2026-07-20):
+the registry grows continuously (a hand-copied 120-row table had drifted to 203+ live images) — NEVER
+trust a static count; enumerate live via `trueforge list` / `trueforge tags <name>`. The `check-arch`
+subcommand is the amd64 gate (fixed 2026-07-19 — it previously computed arm64 presence and mislabeled
+it as amd64 support). Fabrik usage today: no spec/compose/template references a TrueForge image — this
+section is the evaluation reference for when a client requires supply-chain compliance.
+
 **Pull example:**
 ```bash
 docker pull oci.trueforge.org/tccr/home-assistant:latest

@@ -1,7 +1,7 @@
 # Health Monitoring
 
 **Version:** 1.4.0
-**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md` (the `verifier.py` row) — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
+**Last Updated:** 2026-06-16 (monitoring stack stood up under Coolify 2026-04-17; the observability containers themselves still run but are no longer Coolify-managed post-2026-05 SSH+Compose migration — Coolify is now only a legacy Docker-network name. Verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/modules/deployment-orchestrator.md` (the `verifier.py` row) — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier.)
 
 ---
 
@@ -287,5 +287,5 @@ The watcher service (`/opt/coolify-alias-watcher/`) is event-driven (listens to 
 - `scripts/audit_authelia_gates.py` - weekly Authelia-Traefik drift audit (T2-03 G-G4)
 - `src/fabrik/orchestrator/coolify_alias.py` - Coolify alias-watcher write side (T2-04 G-J3)
 - `ops/coolify-alias-watcher/` - WSL mirror of the VPS-side `/opt/coolify-alias-watcher/`
-- `docs/reference/drivers.md` - driver API reference (registrar drivers + DNS/GPU providers)
+- `docs/reference/modules/drivers.md` - driver API reference (registrar drivers + DNS/GPU providers)
 - `.env.example` - authoritative environment variable reference

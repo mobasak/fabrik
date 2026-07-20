@@ -656,11 +656,19 @@ def detect_new_modules() -> list[Path]:
     base = PROJECT_ROOT / "src" / "fabrik"
     if not base.exists():
         return []
+    # Module reference docs live in docs/reference/modules/ (docs-truth convergence
+    # 2026-07-20); the flat docs/reference/<name>.md location is the legacy fallback.
+    # orchestrator's doc is renamed to avoid colliding with docs/orchestrator/.
+    name_map = {"orchestrator": "deployment-orchestrator"}
     mods = []
     for d in base.iterdir():
         if d.is_dir() and is_public_module(d):
-            ref = PROJECT_ROOT / "docs" / "reference" / f"{d.name}.md"
-            if not ref.exists():
+            doc_name = name_map.get(d.name, d.name)
+            candidates = [
+                PROJECT_ROOT / "docs" / "reference" / "modules" / f"{doc_name}.md",
+                PROJECT_ROOT / "docs" / "reference" / f"{d.name}.md",
+            ]
+            if not any(c.exists() for c in candidates):
                 mods.append(d)
     return mods
 

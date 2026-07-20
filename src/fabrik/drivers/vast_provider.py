@@ -226,7 +226,7 @@ class VastClient:
         # 1) Search marketplace for cheapest matching offer.
         # CRITICAL: verified --explain on the vastai CLI shows the real API
         # contract is POST /bundles/ with the FULL query AS JSON BODY (not
-        # url-encoded params, not GET). See docs/reference/vast-api.md §11.4
+        # url-encoded params, not GET). See docs/reference/apis/vast-api.md §11.4
         # quirks. Defaults `external=false rentable=true type=on-demand` match
         # the CLI's default query.
         # `reliability2 >= 0.98` filters out flaky hosts (those whose containers

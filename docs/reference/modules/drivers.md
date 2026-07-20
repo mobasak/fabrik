@@ -271,15 +271,15 @@ Contract tests against live services — run before shipping driver changes. Als
 
 | Script | Tests |
 |---|---|
-| `scripts/probes/glitchtip_probe.sh` | Create project → fetch DSN → delete. Contract captured in `docs/reference/glitchtip-api.md`. |
+| `scripts/probes/glitchtip_probe.sh` | Create project → fetch DSN → delete. Contract captured in `docs/reference/../apis/glitchtip-api.md`. |
 | `scripts/probes/grafana_token_check.sh` | `/api/annotations` write + delete. Validates `GRAFANA_SERVICE_ACCOUNT_TOKEN` scope. |
 
 ---
 
 ## Related
 
-- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — canonical deploy reference with full driver catalog (§2.4) and shape gates
-- [Orchestrator](orchestrator.md) — how drivers are invoked during a deploy
-- [CLI Reference](fabrik-cli-reference.md)
+- [DEPLOYMENT_ARCHITECTURE.md](../../DEPLOYMENT_ARCHITECTURE.md) — canonical deploy reference with full driver catalog (§2.4) and shape gates
+- [Orchestrator](deployment-orchestrator.md) — how drivers are invoked during a deploy
+- [CLI Reference](../fabrik-cli-reference.md)
 - [Templates](templates.md)
-- [glitchtip-api.md](glitchtip-api.md) — live-captured GlitchTip API contract
+- [../apis/glitchtip-api.md](../apis/glitchtip-api.md) — live-captured GlitchTip API contract

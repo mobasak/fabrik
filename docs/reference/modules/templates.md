@@ -183,10 +183,34 @@ fabrik apply /opt/fabrik/specs/services/my-api.yaml [--dry-run]
 
 ---
 
+## Renderer internals (`src/fabrik/template_renderer.py`)
+
+The `TemplateRenderer` class renders these templates from specs (merged here from the former
+`template_renderer.md`, 2026-07-20):
+
+```python
+from fabrik.template_renderer import TemplateRenderer
+
+renderer = TemplateRenderer()
+files = renderer.render(spec, secrets={"DB_PASSWORD": "secret"}, dry_run=True)
+```
+
+| Method | Description |
+|--------|-------------|
+| `list_templates()` | Returns list of available template names |
+| `template_exists(name)` | Check if a template exists |
+| `render(spec, secrets, dry_run)` | Render template files for a spec |
+
+Security — path-traversal prevention: both `render()` and `template_exists()` validate that template
+paths stay within the templates directory via `.resolve().relative_to()`; `render()` raises
+`ValueError` on escape, `template_exists()` returns `False` (safe default). Example blocked input:
+`../../etc/passwd`.
+
+---
+
 ## Related
 
-- [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) §4 — template catalog in the deploy reference
-- [Orchestrator](orchestrator.md) — how shape flags drive the provisioner
+- [DEPLOYMENT_ARCHITECTURE.md](../../DEPLOYMENT_ARCHITECTURE.md) §4 — template catalog in the deploy reference
+- [Deployment Orchestrator](deployment-orchestrator.md) — how shape flags drive the provisioner
 - [Drivers](drivers.md) — shape-gated registrars
-- [CLI Reference](fabrik-cli-reference.md)
-- [template_renderer.md](template_renderer.md) — renderer internals
+- [CLI Reference](../fabrik-cli-reference.md)
