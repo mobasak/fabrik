@@ -121,14 +121,14 @@ PARAMS = {
                            "FLOOR": _floor("review", "`fabrik-researcher`"), "EXTRA": ""},
     },
     "fabrik-review": {
-        "term-coverage": {"RESIDUAL": "", "PASS_CAP": "6"},
+        "term-coverage": {"RESIDUAL": "", "PASS_CAP": "20"},
         "grounding-code": {"SCOPE": "a diff inside a project"},
         "subagents-core": {"HEADLINE": "flywheel (pool finders record; native finders don't)", "TASK_TYPE": '"review"', "PROJECT": "review",
                            "FLOOR": _floor("review", "`fabrik-reviewer`"),
                            "EXTRA": " Finders inline the diff via `fanout(\"review\", …, mode=\"read_only\")` (sets `tools_enabled=False`+`allow_ungrounded=True`); use `mode=\"write\"` for real file reads."},
     },
     "fabrik-repo-review": {
-        "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the explicitly-tracked deferred backlog (out-of-scope / escalated) — never an in-scope CONFIRMED or PLAUSIBLE finding.", "PASS_CAP": "8"},
+        "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the explicitly-tracked deferred backlog (out-of-scope / escalated) — never an in-scope CONFIRMED or PLAUSIBLE finding.", "PASS_CAP": "20"},
         "grounding-code": {"SCOPE": "a project"},
         "subagents-core": {"HEADLINE": "flywheel (pool workers record; native reviewers don't)", "TASK_TYPE": '"review"', "PROJECT": "repo-review",
                            "FLOOR": _floor("review", "`fabrik-reviewer`"),
