@@ -706,12 +706,12 @@
 | `grok-latest` | $2.00 | $6.00 | 500K | 🧠 🔧 🖼️ | — | — |
 
 <!-- EMBEDDING_CATALOG:START (auto-managed by embedding_export_markdown.py) -->
-*Auto-generated on 2026-07-20 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 27 models.***
+*Auto-generated on 2026-07-21 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 27 models.***
 
 | Provider | Model | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned | GA | Status |
 |---|---|---|---|---|---|---|---|---|---|
 | nvidia | `nvidia/llama-nemotron-embed-vl-1b-v2:free` | $0 | 131k | — | 1 (bulk) | ✓ | — | — | active |
-| nvidia | `nvidia/nemotron-3-embed-1b:free` | $0 | 16k | — | 1 (bulk) | — | — | — | active |
+| nvidia | `nvidia/nemotron-3-embed-1b:free` | $0 | 32k | — | 1 (bulk) | — | — | — | active |
 | perplexity | `perplexity/pplx-embed-v1-0.6b` | $0.0040/M | 32k | — | 1 (bulk) | — | — | ✓ | active |
 | baai | `baai/bge-base-en-v1.5` | $0.0050/M | 8k | — | 1 (bulk) | — | — | ✓ | active |
 | intfloat | `intfloat/e5-base-v2` | $0.0050/M | 8k | — | 1 (bulk) | — | — | ✓ | active |

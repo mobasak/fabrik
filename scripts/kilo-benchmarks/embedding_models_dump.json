@@ -6,7 +6,7 @@
     "name": "NVIDIA: Nemotron 3 Embed 1B (free)",
     "created": 1784203294,
     "description": "NVIDIA Nemotron 3 Embed 1B is an open text embedding model from NVIDIA, optimized for high-throughput, low-latency retrieval. It is suited for enterprise search, RAG, code retrieval, and agentic retrieval...",
-    "context_length": 16384,
+    "context_length": 32768,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -23,7 +23,7 @@
       "completion": "0"
     },
     "top_provider": {
-      "context_length": 16384,
+      "context_length": 32768,
       "max_completion_tokens": null,
       "is_moderated": false
     },
@@ -34,7 +34,14 @@
       "temperature",
       "top_p"
     ],
-    "default_parameters": {},
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
     "supported_voices": null,
     "knowledge_cutoff": null,
     "expiration_date": null,

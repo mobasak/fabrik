@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-19T11:59:05.480426",
-  "total_models": 689,
+  "timestamp": "2026-07-21T08:34:32.133497",
+  "total_models": 684,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -519,6 +519,11 @@
     },
     "mancer/weaver": {
       "id": "mancer/weaver",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "meituan/longcat-2.0": {
+      "id": "meituan/longcat-2.0",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1537,11 +1542,6 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
-    "tencent/hy3:free": {
-      "id": "tencent/hy3:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "thedrummer/cydonia-24b-v4.1": {
       "id": "thedrummer/cydonia-24b-v4.1",
       "url": "https://openrouter.ai/api/v1",
@@ -1725,11 +1725,6 @@
       "id": "claude-sonnet-5",
       "npm": "@ai-sdk/anthropic"
     },
-    "cognitivecomputations/dolphin-mistral-24b-venice-edition:free": {
-      "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "google/gemini-2.5-flash-image": {
       "id": "google/gemini-2.5-flash-image",
       "url": "https://openrouter.ai/api/v1",
@@ -1767,21 +1762,6 @@
     },
     "google/gemma-4-31b-it:free": {
       "id": "google/gemma-4-31b-it:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "meta-llama/llama-3.2-3b-instruct:free": {
-      "id": "meta-llama/llama-3.2-3b-instruct:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "meta-llama/llama-3.3-70b-instruct:free": {
-      "id": "meta-llama/llama-3.3-70b-instruct:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "nousresearch/hermes-3-llama-3.1-405b:free": {
-      "id": "nousresearch/hermes-3-llama-3.1-405b:free",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1825,18 +1805,13 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
-    "qwen/qwen3-coder:free": {
-      "id": "qwen/qwen3-coder:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "qwen/qwen3-next-80b-a3b-instruct:free": {
-      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
     "sakana/fugu-ultra": {
       "id": "sakana/fugu-ultra",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "tencent/hy3:free": {
+      "id": "tencent/hy3:free",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     }
