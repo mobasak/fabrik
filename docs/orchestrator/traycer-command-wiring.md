@@ -4,6 +4,10 @@
 chains *inside Traycer*, so that every command produces a **Traycer card** (artifact) the cockpit renders, and
 the whole idea → epics → tickets → execution flow is driven from the Traycer desktop app.
 
+**Where this doc lives:** `docs/orchestrator/traycer-command-wiring.md` — moved here from `docs/infrastructure/`
+(commit `32b1b57c`), so it sits beside the command set it describes. `docs/infrastructure/` holds VPS/observability
+runbooks and contains **no command files**.
+
 **The one fact everything derives from:** Traycer is a **layer**, not an AI. **Claude Max (Claude Code) is the
 engine connected to it** — so the Traycer path is fully tool-capable (shell, MCP, subagents). There is **ONE
 tool-capable command set** (the `-fabrik` files under `docs/orchestrator/**`); the old tool-less `-command`
@@ -16,12 +20,91 @@ twins were archived (north-star D2, 2026-07-18).
 | Part | Where it lives | Role |
 |---|---|---|
 | **Command files** (`-fabrik`) | `docs/orchestrator/mega-epic-breakdown/**` · `docs/orchestrator/epic-to-ticket-workflow/**` | The runnable workflow definitions Claude executes. Git-tracked = source of truth. |
-| **Skill wrappers** (`SKILL.md`) | `docs/orchestrator/_traycer-skills/**` → copied to **`~/.traycer/.claude/skills/**`** | Make the commands appear in the **`/traycer` menu** (owner entry point) and be followed by the Traycer-spawned Claude harness. |
+| **Skill wrappers** (`SKILL.md`) | `docs/orchestrator/_traycer-skills/**` → installed into **two** skill dirs (see § The doorbell model) | Register the commands under a slash name so they appear in a menu. 13 lines each, **no logic** — a pointer at the canonical `-fabrik` file. |
 | **Projection + schema** | `scripts/traycer_mirror.py` · `scripts/epic_order.py` · `docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md` | Turn a disk artifact into a Traycer **card**; order/validate the epic set. |
 
 **Golden rule (D8):** **DISK is the source of truth; the Traycer store is a projection.** A command writes its
 artifact to a git-tracked disk path, then *mirrors* it into the Traycer store. Never make the Traycer store the
 only copy — a card with no disk file dies with the session.
+
+---
+
+## The doorbell model — why a command is never copied
+
+The single most confusing thing here is that a command *looks* like it exists in three places. It does not. It
+exists in **one** place; the other two hold a **doorbell button**.
+
+```
+~/.claude/skills/fab-mega-02-decompose/SKILL.md          13 lines  ← the button (a pointer)
+~/.traycer/.claude/skills/fab-mega-02-decompose/SKILL.md 13 lines  ← the button (a pointer)
+docs/orchestrator/mega-epic-breakdown/
+        02-epic-decomposition-fabrik.md                 548 lines  ← THE COMMAND
+```
+
+The whole wrapper is frontmatter (`name`, `description`) plus: *"Read the command specification at `<abs path>`.
+Follow it exactly as written."* It carries **zero instructions**. Pressing the doorbell doesn't hand anyone a
+copy of the house — it sends them to the address.
+
+Three consequences, and they are the point:
+
+- **Editing a `-fabrik.md` file is live immediately.** No re-copy, no re-register, no sync step. There is no
+  second copy of the command that can go stale, because there is no second copy at all.
+- **The only thing that can break is the address.** Rename or move a `-fabrik.md` and the doorbell rings at a
+  house that isn't there — and it fails *silently*: the command runs and reads nothing. Renames must be paired
+  with a wrapper update. This is the one integrity check that matters (see § Verify the wire works).
+- **Never inline a command body into a wrapper.** That forks it, and the fork is the copy that rots.
+
+### The two skill dirs, and why they differ
+
+| Dir | Surfaces in | Install form | Why |
+|---|---|---|---|
+| `~/.claude/skills/` | the **engine's** menu (`/fab-…` invocable by Claude) | **symlinks** → `_traycer-skills/<name>/SKILL.md` | Outside Traycer's control, so a link is safe → drift is structurally impossible. |
+| `~/.traycer/.claude/skills/` | the **`/traycer` menu** (owner entry point) | **real copies** | Traycer-managed (`SkillSyncService`); symlink tolerance unverified, so don't risk its own dir. |
+
+Symlink at the **file** level (real dir, linked `SKILL.md`) — a loader that walks with `follow_symlinks=False`
+would skip a symlinked *directory*, but reads a linked file transparently.
+
+⚠️ **The Traycer dir is the one that can be pruned.** Traycer ships `resources/skills/manifest.json` (its own 14
+skills, by `name` + `sha256`) and reconciles that dir on start/upgrade. A manifest keyed by name *suggests*
+repair-my-own-entries — which would leave `fab-*` alone — but this is **unverified** (`traycer-host` is an
+obfuscated binary). Assume a host **upgrade** may wipe them; recovery is one `cp -r` from `_traycer-skills/`.
+
+### The 17 registered commands (slash name → the file it points at)
+
+**mega-epic-breakdown/** — above-epic portfolio decomposition (4)
+
+| Slash command | Canonical file |
+|---|---|
+| `/fab-mega-00-trigger` | `00-trigger-mega-epic-fabrik.md` ⟵ *renamed from `00-trigger-fabrik.md`* |
+| `/fab-mega-02-decompose` | `02-epic-decomposition-fabrik.md` |
+| `/fab-mega-03-expand` | `03-expand-epic-files-fabrik.md` |
+| `/fab-mega-04-validate` | `04-cross-epic-validation-fabrik.md` |
+
+**epic-to-ticket-workflow/** — per-epic design → build → deploy (13)
+
+| Slash command | Canonical file |
+|---|---|
+| `/fab-ettw-00-trigger` | `00-trigger-fabrik.md` |
+| `/fab-ettw-01-decisions-lock` | `01-decisions-lock-fabrik.md` |
+| `/fab-ettw-01r-decisions-review` | `01R-decisions-review-fabrik.md` |
+| `/fab-ettw-02-core-flows` | `02-core-flows-fabrik.md` |
+| `/fab-ettw-03-tech-plan` | `03-tech-plan-fabrik.md` |
+| `/fab-ettw-04-deploy-plan` | `04-deploy-plan-fabrik.md` |
+| `/fab-ettw-05-ticket-outline` | `05-ticket-outline-fabrik.md` |
+| `/fab-ettw-06-ticket-breakdown` | `06-ticket-breakdown-fabrik.md` |
+| `/fab-ettw-07-execute` | `07-execute-fabrik.md` |
+| `/fab-ettw-08-implementation-validation` | `08-implementation-validation-fabrik.md` |
+| `/fab-ettw-09-revise-requirements` | `09-revise-requirements-fabrik.md` |
+| `/fab-ettw-10-cross-artifact-validation` | `10-cross-artifact-validation-fabrik.md` |
+| `/fab-ettw-11-deploy` | `11-deploy-fabrik.md` |
+
+⚠️ Note `01R` — the file is upper-case `R`, the slash name lower-case `01r`. The **frontmatter `name:` is what
+resolves the command**, not the directory or the filename; a mismatch makes a command silently un-invokable.
+
+*(Mega numbering skips `01` — no such command ever existed. Mega `05` is **retired**, not merely unused: its
+tombstone is `_retired/05-dispatch-epic-tickets-fabrik.RETIRED.md`, its ticket-set integrity gate was absorbed
+into `04` via `epic_order.py --check`, and dispatch is now the cockpit epic-card click / the driver's phase
+queue. No command may reference a live `05` (checklist 84f).)*
 
 ---
 
@@ -73,16 +156,26 @@ python /opt/fabrik/scripts/traycer_mirror.py \
 
 1. **Commands** already live at `docs/orchestrator/{mega-epic-breakdown,epic-to-ticket-workflow}/`. Nothing to
    move — they are the canonical set.
-2. **Skill wrappers → the `/traycer` menu.** `/traycer` surfaces the skills in **`~/.traycer/.claude/skills/`**
-   (the Traycer-managed dir for the Claude harness — that's where Traycer's own `traycer-epic-brief`,
-   `traycer-execute`, … live; one such dir per harness: `.claude` / `.opencode` / `.codex` / `.agents`). To
-   register a fabrik command there, copy its thin wrapper `docs/orchestrator/_traycer-skills/<name>/SKILL.md`
-   into `~/.traycer/.claude/skills/<name>/SKILL.md`. The wrapper only surfaces the command + points at the
-   canonical `-fabrik` file — **never copy the command body** (that forks it; one source of truth in
-   `docs/orchestrator/`). ⚠️ Traycer may re-sync that dir, so keep the wrapper *sources* in the repo
-   (`_traycer-skills/`) and re-copy after a Traycer update (a tiny install step). *(The global
-   `~/.claude/skills/` copies only make the commands available to Claude directly — they do NOT put them in the
-   `/traycer` menu.)*
+2. **Install the 17 wrappers into both skill dirs** (per § The doorbell model — link one, copy the other):
+
+   ```bash
+   SRC=/opt/fabrik/docs/orchestrator/_traycer-skills
+
+   # engine menu — symlinks, cannot drift
+   for d in "$SRC"/*/; do n=$(basename "$d")
+     mkdir -p ~/.claude/skills/"$n"
+     ln -sfn "$SRC/$n/SKILL.md" ~/.claude/skills/"$n"/SKILL.md
+   done
+
+   # /traycer menu — real copies (Traycer-managed dir; re-run after a host upgrade)
+   cp -r "$SRC"/fab-* ~/.traycer/.claude/skills/
+   ```
+
+   `~/.traycer/.claude/skills/` is the Traycer-managed dir for the Claude harness — where its own
+   `traycer-epic-brief`, `traycer-execute`, … live; one such dir per harness (`.claude` / `.opencode` /
+   `.codex` / `.agents`). Installing to only `~/.claude/skills/` makes the commands invocable but leaves them
+   **absent from the `/traycer` menu**. Wrapper *sources* stay in the repo — both dirs are installs, never
+   the master.
 3. **Scripts are hub-absolute.** Commands call `python /opt/fabrik/scripts/traycer_mirror.py` and
    `…/epic_order.py` by absolute path — they need no per-project install.
 4. **The one env var:** Traycer sets **`$TRAYCER_EPIC_ID`** per epic; that is what makes mirroring fire. (Set
@@ -105,8 +198,11 @@ idea (in Traycer chat, Claude Max = engine)
  ├─ /fab-mega-04-validate → epic_order.py --check (integrity) + --json (phased order); no new content, arms review
  │
  ▼  each epic card → dispatched (cockpit card-click, or the driver's phase queue)
- └─ per epic: epic-to-ticket-workflow  00-trigger(consume) → 01-brief → … → 06-ticket-breakdown → tickets
-              → 07-execute → 08/10 armed review (review_rubric.py) → 11-deploy  ⟨GATE: manual `fabrik apply`⟩
+ └─ per epic: epic-to-ticket-workflow  00-trigger(consume) → 01-decisions-lock → 01R-decisions-review
+              ⟨GATE 1: operator confirm flips DRAFT → LOCKED⟩ → 02-core-flows → 03-tech-plan → 04-deploy-plan
+              → 05-ticket-outline → 06-ticket-breakdown → tickets → 07-execute
+              → 08 / 10 armed review (review_rubric.py), 09 revises on drift → 11-deploy
+              ⟨GATE 2: manual `fabrik apply`⟩
 ```
 
 - Card **status** moves `0 → 1 → 2` as an epic/ticket progresses; the cockpit shows the live board.
@@ -119,6 +215,22 @@ idea (in Traycer chat, Claude Max = engine)
 ## Verify the wire works
 
 ```bash
+# ── shim integrity: the 5 checks. Run after ANY rename/move under docs/orchestrator/ ──
+SRC=/opt/fabrik/docs/orchestrator/_traycer-skills
+for d in "$SRC"/*/; do n=$(basename "$d")
+  # 3. THE CRITICAL ONE — does the address still exist? (a rename fails silently otherwise)
+  t=$(grep -o '/opt/fabrik/docs/[^ `]*\.md' "$d/SKILL.md" | head -1)
+  [ -f "$t" ] || echo "BROKEN ADDRESS  $n -> ${t:-<none>}"
+  # 5. frontmatter name must equal dir name, else un-invokable under the expected name
+  [ "$(grep -m1 '^name:' "$d/SKILL.md" | sed 's/^name:[[:space:]]*//')" = "$n" ] || echo "NAME MISMATCH  $n"
+  # 1. traycer-dir copy in sync (the ~/.claude one is a symlink — cannot drift)
+  cmp -s "$d/SKILL.md" ~/.traycer/.claude/skills/"$n"/SKILL.md || echo "STALE COPY     $n"
+done
+# 2. orphans: installed fab-* with no repo source · 4. stray files besides SKILL.md
+ls -d ~/.traycer/.claude/skills/fab-*/ | while read b; do [ -d "$SRC/$(basename $b)" ] || echo "ORPHAN $b"; done
+find "$SRC" -type f ! -name SKILL.md
+# silence from all of the above = wired correctly
+
 # card renders when inside Traycer:
 TRAYCER_EPIC_ID=<epic-id> python /opt/fabrik/scripts/traycer_mirror.py --src <disk file> --name smoke --kind spec --title smoke
 ls ~/.traycer/epics/<epic-id>/artifacts/smoke/index.md          # → exists
