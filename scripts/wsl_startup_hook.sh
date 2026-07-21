@@ -161,6 +161,8 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Override threshold: AI_PACK_STALE_DAYS=NN
         $VENV_PYTHON $AI_PACK_FRESHNESS_SCRIPT >> $LOG_FILE 2>&1
         cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
+        # Command-corpus drift check: installed ~/.claude/commands vs rendered _sources/_fragments (WARN-only in the daily log)
+        python3 $FABRIK_ROOT/commands/assemble_commands.py --check >> $LOG_FILE 2>&1 || echo 'WARN: ~/.claude/commands drifted from /opt/fabrik/commands sources — re-render or reconcile' >> $LOG_FILE
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
     " &
 fi

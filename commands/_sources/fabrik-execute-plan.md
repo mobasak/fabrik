@@ -1,0 +1,667 @@
+---
+description: Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases
+argument-hint: "<path to plan file>"
+---
+
+# Autonomous Plan Executor
+
+You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan — it IS the approval. The plan and its design spec together govern this execution — `superpowers:subagent-driven-development` and `superpowers:executing-plans` are superseded by this command when invoked via `/fabrik-execute-plan`.
+
+## Before You Start
+
+1. Read the plan file fully.
+2. Read `AGENTS.md` — the canonical infra + codebase map.
+3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
+4. Read the design spec the plan references (usually linked at the top or in `docs/superpowers/specs/`).
+5. Read `AFCL.md` if it exists — known friction points.
+6. Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec).
+7. **Acquire the scope lock (this is what lets several scoped runs share one project).** Read the plan's
+   `## File Scope (owned paths)`. Scan `.fabrik/plan-locks/*.json` for any lock with `status:"active"`
+   whose paths overlap yours. **Overlap → `BLOCKED: scope overlap with <plan-id> on <path>` and STOP**
+   (the other run owns that file). No overlap → create `.fabrik/plan-locks/<plan-id>.json` =
+   `{plan, owned_paths, branch, started_at, status:"active"}`.
+8. **Isolate + verify clean + capture the baseline.**
+   - **Don't nest a worktree:** if you're already in a linked worktree (`GIT_DIR != GIT_COMMON` and
+     `git rev-parse --show-superproject-working-tree` is empty, so it's not a submodule), work in place —
+     don't create another.
+   - **Isolate concurrent runs:** if any *other* plan-lock is `active`, run this plan in its **own git
+     worktree** (`isolation:"worktree"`) so two runs never share a working tree (ensure its `.venv`/deps
+     exist before any gate runs there); if yours is the only active run, the main worktree is fine.
+   - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not → STOP.
+   - **Capture the baseline (shared-master attribution — do this BEFORE Phase A).** Record the starting gate
+     state: `python scripts/final_gate.py --lean --json` → note its `status` and **every already-red check +
+     which file owns it** (yours vs. a sibling's / an untracked file). This is your attribution reference: a
+     red at finish that was **already red at start is NOT yours to fix** (a sibling owns it — shared-master);
+     only a **newly**-red check is. It's what lets you answer "did I introduce this?" instead of chasing a
+     sibling's file or an untracked plan (the exact trap that stalls a run at the end).
+9. **Critical pre-flight review (ONCE, before Phase A — the plan may be stale even if it converged).** A plan
+   is grounded when written, not necessarily now — the repo moves under it (siblings commit, deps drift,
+   an approach gets invalidated). Read the plan **adversarially against the code AS IT IS NOW**: does any
+   phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since
+   changed, or rest on an approach the codebase has moved past? Spot-check the plan's key `Interfaces` and
+   Evidence `path:line`s still resolve. If a gap would prevent *starting correctly* →
+   `BLOCKED: <concern> — searched: <what you checked> — missing: <need>` and surface it to the user before
+   executing. This is a **one-time upfront sanity gate**; it does NOT weaken the autonomous contract — once
+   past it you execute start→finish per §Execution Contract, **fixing (not asking)** at every step. (This is
+   `executing-plans`' "review critically, raise concerns before starting," adapted: a pre-flight, not a
+   licence to stop mid-run.)
+10. **Track in-session with TodoWrite** — create one todo per phase (and per parallel task) so progress is
+    visible; the plan file's `Status:` field + phase-done markers remain the **durable** record a resumed
+    run reads (§Plan Status Tracking). The todo list is the ephemeral view, the plan file is the source of truth.
+
+> **Branch model — deliberate divergence, not an omission.** Fabrik runs on **shared `master`** with
+> plan-locks + Agent Provenance Trailers + explicit-path commits (§Commit Provenance Trailers), so
+> `executing-plans`' "never start on main without consent" and the `finishing-a-development-branch`
+> merge/PR handoff are intentionally **superseded** — there is no feature branch to finish; the plan-lock IS
+> the isolation and the per-phase commits ARE the integration. Worktrees are used only to isolate
+> *concurrent* runs (step 8), not as a merge-to-main gate.
+
+## Self-Service Knowledge Hierarchy
+
+When you encounter uncertainty, resolve it yourself in this order — do NOT ask the user unless you exhaust all levels:
+
+| Level | Source | What it answers |
+|---|---|---|
+| 1 | The plan file itself | What to build, exact code, exact commands |
+| 2 | The design spec | Why decisions were made, grounded references |
+| 3 | `.windsurf/rules/` packs (match by glob) | How to write code for this domain (workers, security, ops, etc.) |
+| 4 | `AGENTS.md` | Infra map, service topology, DB schemas |
+| 5 | `docs/` + `AFCL.md` | Configuration, troubleshooting, known friction |
+| 6 | `grep` / `Read` the codebase | Existing patterns, function signatures, imports |
+| 7 | `mcp__context7` (library docs) → `mcp__exa__web_search_exa` / `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
+| 8 | **STOP and ask the user** | Only after 3 failed resolution attempts across levels 1-7 |
+
+Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missing: <what you need>`
+
+## Execution Contract
+
+> ⛔ **TWO NON-NEGOTIABLES — the failures this contract exists to stop. READ FIRST.**
+>
+> 1. **No self-authorized deferral.** You do **NOT** get to decide to skip, descope, defer, simplify away, or
+>    "leave for later" any step, task, or phase in the plan. There is **no** *optional / nice-to-have /
+>    out-of-scope-for-now / TODO-revisit / follow-up-PR / good-enough* bucket for plan work — **every step
+>    ships in THIS run**, or you halt with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
+>    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction). *"I judged X
+>    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
+>    wait"* are **contract violations, not decisions.** A step you believe is genuinely wrong is a `BLOCKED`
+>    for the **user** to rule on — never a silent skip or a quiet descope.
+> 2. **The plan file is updated every phase, INSIDE that phase's commit — not optional, not "at the end".** A
+>    phase is **not complete** until the plan file records it: mark the phase `✅ EXECUTED <YYYY-MM-DD>
+>    (<short-commit>)` at its boundary and **stage the plan file in the same phase commit** (flip `Status:`
+>    `CONVERGED → IN-PROGRESS` on start; `→ EXECUTED <date>` at the end). **A phase commit that did not also
+>    stage the plan-file update is an INCOMPLETE phase — go back and record it before moving on.** The plan
+>    file is the durable state; leaving it stale is how a resumed run redoes or drops work. (§Plan Status Tracking)
+
+1. **The plan is the approval — run start→finish, autonomously.** Execute every phase without per-step
+   confirmation and **without stopping mid-run to ask or to narrate progress.** Never end a turn with
+   "shall I continue / proceeding now unless you redirect" — keep going until the plan is `EXECUTED`,
+   `BLOCKED`, or a HARD STOP fires. The only permitted mid-run halts are a real `BLOCKED` (3 consecutive
+   same-test failures, missing infra, unresolvable spec/scope contradiction) or a HARD STOP. Permitted
+   output between start and finish is **exactly**: a one-line phase-boundary marker per phase, and the
+   final completion block. Commit per phase as specified.
+2. **Fix, don't ask.** Test failures mean your code is wrong. Read the error, fix, re-run. After 3 consecutive failures on the same test with different fix approaches → STOP and report.
+3. **Phase reviews run as parallel subagents.** At each phase boundary, run the full `/fabrik-review`
+   methodology on the changed surface *plus everything it calls / is called by* — dispatch its independent
+   **finder passes pool-default** (per `/fabrik-review` § Dispatch policy — `fanout("review", …, mode="read_only")`, which auto-records each finder UNSCORED then wants a `set_quality` back-fill), reserving
+   **native `fabrik-reviewer` (Opus)** for a phase diff touching auth / schema / migrations / secrets /
+   concurrency, then merge + **refute** false positives (you, the orchestrator on Opus), and
+   **prove-before-fix** each surviving finding — **CONFIRMED and PLAUSIBLE alike** — with a kept regression
+   test. Every finding terminates **FIXED or REFUTED** (proof required to refute); a PLAUSIBLE finding you
+   "couldn't reproduce" is NOT resolved — fix it defensively or prove it impossible. There is no
+   noted/deferred/residual bucket for an in-scope finding (see `/fabrik-review` Phase 3 + the disposition
+   ledger). After fixing, **re-run a fresh `/fabrik-review` finder round on the updated surface** (not just
+   the gate — the gate finds no logic bugs), and **iterate find → fix → re-review until one full round
+   returns zero CONFIRMED OR PLAUSIBLE findings and every finding sits at FIXED/REFUTED.** Re-run the phase
+   gate after each fix too. The next phase begins **only** after that clean round — a single pass is never enough.
+3b. **GUI phases also run the Build Verification Loop (per `/fabrik-ui-design`) — a BLOCKING per-screen gate,
+   looped to a no-op, alongside `/fabrik-review`.** **A GUI-phase build+verify subagent runs as
+   `subagent_type: fabrik-gui`** (web/extension surfaces — browser MCPs Playwright/shadcn/chrome-devtools to
+   build the screen and drive/screenshot its own render); the rendered critique stays the `design-review`
+   agent. For each screen the phase built: **drive the running screen
+   via the surface's MCP** — **web:** Playwright MCP (screenshot 375/768/1440); **mobile (RN):** Maestro MCP +
+   Mobile Next MCP, **deferring to `.windsurf/rules/mobile-app/80-mobile.md`**; **extension (MV3):** the web loop
+   via a Playwright load-extension fixture, **deferring to `.windsurf/rules/chrome-ext/70-chrome-ext.md`** — match
+   it to `docs/ui-design.md` +
+   `docs/data-contract.md` (flows within click budget, all enriched states, no invented field/component,
+   design-system tokens only), run the surface's a11y/visual/token **+ performance** gate (**web:**
+   `@axe-core/playwright` `violations == []` + `toHaveScreenshot` + a Core-Web-Vitals budget via the
+   `chrome-devtools` MCP `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); **mobile:**
+   `eslint-plugin-react-native-a11y` +
+   `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright`
+   `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the
+   `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until
+   a fresh pass is `found: 0, fixed: 0`. The next phase begins only after that no-op. Non-GUI phases skip this.
+4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to.
+5. **Documentation is blocking, per phase — not advisory.** Before each phase commit, run
+   `python scripts/enforcement/check_doc_sync.py`; **any WARNING whose trigger file is in *this phase's*
+   changed set MUST be resolved** (update the doc) before you commit — treat it as an error, not a hint.
+   The plan's declared doc steps are checked artifacts of their phase gate. As the **final phase of any run
+   that shipped a feature / route / service / schema / config change**, run `/fabrik-docs-review` to
+   converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness.
+6. **LESSONS_LEARNT** — at the end, either add an entry to `docs/LESSONS_LEARNT.md` or confirm `none` in the completion block. This is a Completion Contract requirement.
+7. **Keep the plan's `Status:` current** — flip it `CONVERGED → IN-PROGRESS` on start, mark each phase done at its boundary, and `→ EXECUTED` (or `BLOCKED — <reason>`) at the end. See **Plan Status Tracking**. The plan file is the durable state a resumed run relies on.
+
+## Commit Provenance Trailers
+
+Every commit made during plan execution MUST include git trailers that identify which agent, phase, and task produced it. Git can't distinguish AI agents by author — all commits show the same user. Trailers solve this.
+
+### Trailer schema
+
+| Trailer | Values | Required |
+|---|---|---|
+| `Agent-Role` | `orchestrator`, `subagent`, `review-fix` | Always |
+| `Agent-Phase` | `A`, `B`, `C`, ... | Always (during plan execution) |
+| `Agent-Task` | Task number (`4`, `5`, ...) | Subagent commits only |
+| `Agent-Context` | Short description of what this agent did | Always |
+| `Merged-From` | Comma-separated branch list | Orchestrator squash commits only |
+| `Conflicts-Resolved` | Count of merge conflicts resolved | Orchestrator squash commits only |
+
+### Commit message format
+
+**Subagent commit** (in worktree, before merge):
+```bash
+git commit -m "$(cat <<'EOF'
+feat(scope): Phase B Task 5 — GDPR schema + routes
+
+Agent-Role: subagent
+Agent-Phase: B
+Agent-Task: 5
+Agent-Context: GDPR schema migration + Flask consent routes
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+**Orchestrator phase commit** (after squash-merging subagent branches):
+```bash
+git commit -m "$(cat <<'EOF'
+feat(scope): Phase B — Compliance
+
+Merged-From: phase-B-task-4 (audit-log vendor), phase-B-task-5 (GDPR schema), phase-B-task-6 (audit wiring)
+Agent-Role: orchestrator
+Agent-Phase: B
+Agent-Context: merged 3 subagent branches, ran phase gate + review
+Conflicts-Resolved: 0
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+**Inline phase commit** (no subagents, orchestrator did the work directly):
+```bash
+git commit -m "$(cat <<'EOF'
+feat(scope): Phase D — File Cache
+
+Agent-Role: orchestrator
+Agent-Phase: D
+Agent-Context: inline execution, no subagents (low complexity)
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+**Review-fix commit** (from `/fabrik-review` findings):
+```bash
+git commit -m "$(cat <<'EOF'
+fix(scope): Phase B review — null guard in audit_log.record_event
+
+Agent-Role: review-fix
+Agent-Phase: B
+Agent-Context: fixed CONFIRMED finding from /fabrik-review — missing None check on target_id
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
+)"
+```
+
+### Querying provenance after the fact
+
+```bash
+# All subagent commits
+git log --format='%h %s %(trailers:key=Agent-Role)' | grep subagent
+
+# What happened in Phase B?
+git log --format='%h %s%(trailers:key=Agent-Role,key=Agent-Task,separator=, )' --grep='Phase B'
+
+# Which phases had merge conflicts?
+git log --format='%h %s %(trailers:key=Conflicts-Resolved)' | grep -v ': 0' | grep -v '^$'
+
+# All review fixes
+git log --format='%h %s' --grep='Agent-Role: review-fix'
+```
+
+## Execution Loop
+
+```
+read plan → read spec → read active rule packs → read AGENTS.md
+acquire scope lock (.fabrik/plan-locks/<id>.json) — BLOCK on overlap; isolate in a worktree if another run is active
+verify OWNED paths clean
+
+for each PHASE in dependency order:
+
+    if Subagent Mandates table says "parallel":
+        dispatch subagents per §Subagent Strategy below
+        merge results per §Merge Protocol below
+    else (inline):
+        for each TASK in this phase:
+            for each STEP:
+                execute step
+                if test fails: read error → fix → re-run (max 3 attempts)
+
+    run phase validation gate (bash checks from the plan)
+    fix any gate failures → re-run
+    run: python scripts/enforcement/check_doc_sync.py
+    → any WARNING whose trigger file is in THIS phase's diff is BLOCKING: update the doc before commit
+    STAGE the phase's code changes, THEN run the Tier-1 doc-reconcile loop on the STAGED diff: `python scripts/doc_reconcile.py` — **no `--range`**: it reads `git diff --cached`, so it sees the just-staged phase changes. (Do NOT use `--range <phase-base>..HEAD` HERE — the phase isn't committed yet, so a committed-history range is an empty no-op; `--range` is only for the Finish receipt, when all phases ARE committed.) It dispatches a cheap pool author (`pick_models("docs")`) → verify-before-apply → converge, and APPLIES the verified doc patches to the working tree. Then YOU review the applied patches for truth (inject a native-Claude verify_fn for a high-risk doc) and `git add` them so they ride THIS phase's commit. Replaces hand-authoring the declared doc-update steps; hand-write only judgment-heavy prose the loop can't.
+    commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: the pool authors one test per behavior the implementer did NOT already TDD (fanout("code", mode="write"), disjoint owned_paths, sandbox self-verify), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
+    /fabrik-review on phase's changed surface (code + the authored tests) — PARALLEL pool finders (fanout("review", mode="read_only") auto-records → set_quality back-fill; native fabrik-reviewer/Opus for auth/schema/risky diffs) → refute → prove-before-fix
+    iterate: fix → re-run finders → repeat until one review round is clean, THEN next phase
+    fix CONFIRMED findings → commit review fixes with Agent-Role: review-fix trailer
+    re-run gate until clean
+    UPDATE THE PLAN FILE: mark this phase ✅ EXECUTED <date> (<commit>) [+ flip Status on the first/last phase]
+    commit phase with provenance trailers per §Commit Provenance Trailers — STAGE THE PLAN FILE in THIS commit
+    (a phase commit without the staged plan-file update is INCOMPLETE — §Execution Contract non-negotiable #2)
+    (report ONE line: ✓ Phase X — … ; do NOT stop to ask — continue to next phase; NEVER defer/skip a step — non-negotiable #1)
+
+whole-plan doc-coverage RECEIPT (the free "definitely-done" check): run
+    python scripts/enforcement/check_doc_sync.py --range <the step-8 baseline>..HEAD
+    python scripts/enforcement/check_doc_stubs.py --range <the step-8 baseline>..HEAD
+    → asserts EVERY fired-trigger doc was touched across the WHOLE plan (not just the last commit); an ERROR-tier miss (CHANGELOG/CONFIGURATION/schema) is BLOCKING — reconcile it (doc_reconcile.py or by hand) before Finish.
+
+if this run shipped a feature/route/service/schema/config change:
+    run /fabrik-docs-review → converge docs to a truthful fixed point
+
+run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
+fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours)
+run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ no-op) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → offer push/hold/deploy
+```
+
+## Subagent Strategy
+
+### When to dispatch
+
+Check the plan's design spec for a **Subagent Mandates** table. It specifies per-phase:
+- How many parallel subagents
+- What each subagent does
+- Where results merge
+
+Phases marked "inline" or with 1 subagent → execute directly, no dispatch.
+
+### Isolation model: worktrees
+
+Every parallel subagent MUST use `isolation: "worktree"` in the Agent tool call. This gives each subagent its own git worktree — a separate working directory with its own branch. They cannot clobber each other.
+
+```
+Phase with 3 parallel subagents:
+
+  main worktree (orchestrator)
+    ├── worktree-1/ (subagent 1, branch: phase-B-task-4)
+    ├── worktree-2/ (subagent 2, branch: phase-B-task-5)
+    └── worktree-3/ (subagent 3, branch: phase-B-task-6)
+
+Each subagent commits to its own branch.
+Orchestrator merges branches back sequentially.
+```
+
+### Briefing template
+
+Each subagent starts **cold** — it has zero context from this conversation. The prompt you give it must be self-contained. Use this template:
+
+```
+You are executing Task {N} of the fabrik-lib integration plan as an isolated subagent.
+
+## Your assignment
+
+{Copy the FULL task text from the plan — every step, every code block, every
+command. Do NOT say "read the plan at <path>" — the subagent should have
+everything it needs right here. Only reference the plan/spec for WHY context.}
+
+## Interfaces
+
+Consumes: {copy the task's Consumes block}
+Produces: {copy the task's Produces block}
+
+## Files you will touch
+
+Create: {list}
+Modify: {list with line ranges}
+Test: {list}
+
+## Before you start
+
+1. Read `AGENTS.md` — infra map.
+2. Run `python scripts/select_rules.py` and read every ACTIVE pack.
+3. Read the design spec at {path} — sections {X, Y} for context on why.
+4. Read `AFCL.md` if it exists.
+
+## Global Constraints
+
+{Copy the plan's Global Constraints section verbatim.}
+
+## Vendoring protocol (if this task vendors a module)
+
+1. Copy files as specified in the steps below.
+2. Fix internal imports: `from module_name import X` → `from libs.module_name import X`
+3. Add `__init__.py` if the source module lacks one.
+4. Verify: `python -c "from libs.X import Y"` — must exit 0.
+5. If you FIX a bug in the vendored copy, append a dated note to
+   `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md` (symptom + fix) so fabrik-lib upstreams it. This is the
+   only write allowed outside the project tree.
+
+## Self-Service Knowledge Hierarchy
+
+{Copy the full hierarchy table from this command.}
+
+## When done
+
+Commit your work to the worktree branch with provenance trailers:
+  git add {explicit file list}
+  git commit -m "$(cat <<'EOF'
+  feat(scope): Phase {X} Task {N} — {title}
+
+  Agent-Role: subagent
+  Agent-Phase: {X}
+  Agent-Task: {N}
+  Agent-Context: {one-line summary of what you did}
+
+  Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+  EOF
+  )"
+
+Do NOT push. Do NOT merge. The orchestrator handles that.
+
+Report: list of files changed, tests passing (count), any issues encountered.
+```
+
+### Dispatch pattern
+
+Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls. This runs them truly in parallel:
+
+```python
+# Example: Phase B with 3 parallel subagents
+Agent(
+    description="Phase B Task 4 — audit-log vendor",
+    isolation="worktree",
+    prompt="You are executing Task 4 of the fabrik-lib integration plan..."
+)
+Agent(
+    description="Phase B Task 5 — GDPR schema + routes",
+    isolation="worktree",
+    prompt="You are executing Task 5 of the fabrik-lib integration plan..."
+)
+Agent(
+    description="Phase B Task 6 — audit wiring",
+    isolation="worktree",
+    prompt="You are executing Task 6 of the fabrik-lib integration plan..."
+)
+# All three dispatch in ONE message → true parallel execution
+```
+
+### Model selection (specify it explicitly — an omitted model burns the session default)
+
+**Always pass `model=` on every Agent dispatch.** An omitted model inherits *this* session's model —
+usually the most capable and most expensive — which silently defeats cost control. Pick the **least
+powerful model that can do the role**, because **turn count beats token price**: the cheapest models take
+2–3× the turns on multi-step work, costing more overall.
+
+| Role | Model |
+|---|---|
+| Implementer — the phase brief contains the exact code/commands (transcription + test) | cheapest tier |
+| Implementer — 1–2 files, complete spec, mechanical | cheap |
+| Implementer — multi-file integration, pattern-matching, debugging judgment | standard (Sonnet) |
+| Implementer — design judgment / broad-codebase reasoning | most capable (Opus) |
+| Finder / reviewer | **pool-default** (`fanout("review", …)` — flywheel-ranked, no default price cap; auto-records to the flywheel, `set_quality` back-fill); native `fabrik-reviewer` on **Opus** when the diff touches auth / schema / migrations / secrets / concurrency — scale to the diff's risk, not a flat default |
+
+### File handoffs — move artifacts as FILES, not pasted text
+
+Everything you paste into a dispatch prompt **and** everything a subagent prints back stays resident in
+your context and is **re-read on every later turn** — a real session hit 42k chars of pasted prior-task
+history. Conserve the orchestrator's context:
+
+- **Brief as a file:** write the phase's brief (its steps + `Interfaces` + `Global Constraints`) to a scratch
+  file (e.g. `<scratchpad>/phase-<X>-brief.md`) and give the subagent the **path**, introduced as "read this
+  first — your requirements, use its exact values verbatim." Exact values (signatures, magic strings, test
+  cases) live only in the brief.
+- **Report as a file:** tell the subagent to write its full report to `<scratchpad>/phase-<X>-task-<N>-report.md`
+  and **return only** status + commit range + a one-line test summary + concerns. The reviewer reads the
+  brief + report + the diff (`git diff <base>..<head>`) as files.
+- **Never paste session history / prior-phase summaries into a dispatch.** A cold subagent needs only its
+  brief, the `Interfaces` it touches, the Global Constraints, and your resolution of any ambiguity you
+  spotted. Nothing else — not "state after Phases A–C."
+
+### Implementer status protocol
+
+Each implementer subagent reports exactly one status; handle each — **never force the same model to retry
+unchanged**:
+
+- **DONE** → a `DONE` is a **claim, not proof — verify it yourself before accepting the phase.** Read the
+  actual `git diff <base>..<head>` (using the base you recorded *before* dispatching — never `HEAD~1`, which
+  truncates a multi-commit task): do the changes match the assignment, and did it change only its owned
+  paths? **Re-run the covering tests yourself** (the subagent's "N/N passing" line is its report, not your
+  evidence — a fresh run in your turn is). Only a diff that matches + your own green run → phase-boundary
+  `/fabrik-review`.
+- **DONE_WITH_CONCERNS** → read the concerns first; if correctness/scope, resolve before review; if
+  observations, note in the ledger and proceed.
+- **NEEDS_CONTEXT** → supply the missing context, re-dispatch (same model).
+- **BLOCKED** → diagnose: context gap → re-dispatch with more context; needs more reasoning → re-dispatch
+  on a more capable model; task too large → split it; **plan itself wrong → escalate to the user** (`BLOCKED:`).
+
+### Reviewer & fix-dispatch discipline
+
+- **Do NOT pre-judge findings in a review dispatch.** Never tell a finder what *not* to flag or pre-rate a
+  severity ("treat as Minor at most", "the plan chose this"). If your dispatch text contains "don't flag" /
+  "the plan mandates it" — stop, you're suppressing a finding to save a loop. Let it surface and adjudicate
+  it in the refute/merge step. A plan-mandated finding that conflicts with the plan is the **user's** call.
+- **One fix subagent for the whole findings list, not one per finding.** Per-finding fixers each rebuild
+  context and re-run suites — a real session's per-finding fix wave cost more than all its tasks combined.
+  Batch CONFIRMED findings into a single fix dispatch; it re-runs the covering tests and reports results.
+
+### Flywheel — `fanout` auto-records; YOU back-fill the score (feeds `pick_models`)
+
+This command dispatches its pool workers via **`fanout(task_type, units, …)`** — the designed **first mover**
+is the per-phase **implementer** fan-out (§Subagent Strategy: `fanout("code", units, mode="write", …)` with
+disjoint `owned_paths`). `fanout` **auto-records one row per unit UNSCORED** at dispatch and returns
+`(results, results_table)` — the human table is already built for you. After you **EVALUATE** each worker's
+output (its diff verified + tests re-run by YOU), **back-fill your 0–5 verdict**:
+
+```python
+results, table = fanout("code", units, mode="write", repo=REPO, project=<project>)  # auto-records UNSCORED
+# … you verify each diff + re-run its covering tests yourself …
+for r in results:
+    set_quality(r.agent_id, score(r), project=<project>, task_type="code", model=r.model)
+```
+
+⚠️ A **native** Claude Task implementer / `fabrik-reviewer` finder (Runtime A) produces **no `AgentResult`** →
+it **cannot** record; only pool dispatches feed the flywheel. A phase that ran inline / solo or native →
+**nothing to record**. ⚠️ never hand-roll `run_agents`+`record_run` — `record_run` silently no-ops on a raw
+`AgentResult`; `fanout` (auto-record) + `set_quality` (back-fill) IS the whole recording path, one shared 0–5
+verdict in both the returned `results_table` and the DB row.
+
+**Pool-default (per `62` § Dispatch policy):** implementers `fanout` to the pool **by default** — the plumbing
+is proven (`from libs.subagents import fanout, set_quality` resolve + rows land in `subagent_runs`;
+`check_subagent_flywheel.py` WARNs on a pool run left unscored). Reserve **native** implementers for high-risk
+units (auth/schema/migrations/concurrency) + the decide/merge — a native Task subagent produces no
+`AgentResult`, so it records nothing.
+
+The module captures cost / turns / latency automatically; **YOU supply the `set_quality` score** (0 = wrong/
+unusable, 5 = fully correct, high-signal). `fanout`'s auto-record and `set_quality` connect via the module's
+configured DSN; exact connection handling (WSL dev vs VPS `SUBAGENT_RUNS_DSN`), the import path, and the
+`result` object are per `fabrik-lib/README.md` + the vendored module's own `README.md`.
+
+> Rollout safety: on a genuine pool dispatch, wrap the import — `try: from libs.subagents import fanout,
+> set_quality / except ImportError: fanout = None` — and guard with `if fanout:` so a not-yet-vendored project
+> no-ops instead of erroring.
+
+## Merge Protocol
+
+After all subagents for a phase complete, merge their branches back to the working branch. This is the critical step — do it carefully.
+
+### Sequential merge, lowest task number first
+
+```bash
+# 1. Verify you're on the working branch, tree is clean
+git status --short  # must be empty
+
+# 2. Merge each subagent branch in task-number order (lowest first)
+git merge --no-ff phase-B-task-4 -m "merge: Phase B Task 4 — audit-log vendor"
+git merge --no-ff phase-B-task-5 -m "merge: Phase B Task 5 — GDPR schema"
+git merge --no-ff phase-B-task-6 -m "merge: Phase B Task 6 — audit wiring"
+
+# 3. If a merge conflicts:
+#    - Read BOTH sides of the conflict
+#    - The HIGHER task number wins on semantic conflicts (it has more context)
+#    - For additive conflicts (both added to same file, different locations):
+#      keep both additions
+#    - For import conflicts: combine both import sets
+#    - Resolve, then: git add <resolved files> && git merge --continue
+
+# 4. After all merges: verify the combined result compiles
+python -c "import src.module_that_changed"  # or whatever the plan's verify command is
+
+# 5. Clean up worktree branches
+git branch -d phase-B-task-4 phase-B-task-5 phase-B-task-6
+```
+
+### Conflict resolution rules
+
+| Conflict type | Resolution |
+|---|---|
+| Both edited same function | Higher task number wins (more context) |
+| Both added imports to same file | Combine — keep all imports from both |
+| Both added code to same file at different locations | Keep both additions |
+| Both modified the same test | Higher task number wins; re-run to verify |
+| One added a file the other also added | Higher task number wins; diff to check for lost work |
+| Schema/migration ordering | Merge both migrations; adjust sequence numbers if needed |
+
+### Post-merge verification
+
+After merging all subagent branches for a phase:
+
+1. Run ALL tests that any subagent in this phase touched
+2. Run the phase validation gate
+3. Run `python scripts/enforcement/check_doc_sync.py`
+4. Fix any issues (you're the orchestrator — you fix merge-induced bugs)
+5. Squash the merge commits into one phase commit with provenance trailers:
+   ```bash
+   git reset --soft <pre-merge-commit>
+   git add <all phase files — explicit list>
+   git commit -m "$(cat <<'EOF'
+   feat(scope): Phase {X} — {title}
+
+   Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
+   Agent-Role: orchestrator
+   Agent-Phase: {X}
+   Agent-Context: merged {N} subagent branches, ran phase gate
+   Conflicts-Resolved: {count}
+
+   Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+   EOF
+   )"
+   ```
+6. THEN proceed to `/fabrik-review`
+
+## Inter-Phase Parallelism
+
+The design spec may indicate that some phases are independent (e.g., "Phases A, C, D are independent — MAY run in parallel"). If so:
+
+1. Only parallelize phases that the spec explicitly marks as independent.
+2. Each parallel phase gets its own worktree (same `isolation: "worktree"` model as subagents within a phase).
+3. After all parallel phases complete, merge them sequentially (alphabetical phase order).
+4. Run the validation gate for EACH phase after merge to confirm nothing broke.
+5. Run `/fabrik-review` on the combined changed surface.
+
+**Caution:** Inter-phase parallelism multiplies merge complexity. Only do it when the spec says the phases are truly independent (no shared files, no interface dependencies). When in doubt, run phases sequentially.
+
+## When Vendoring (Copying fabrik-lib Modules)
+
+1. Copy the files as the plan specifies
+2. Fix internal imports: `from module_name import X` → `from libs.module_name import X`
+3. Add `__init__.py` if the source module doesn't have one
+4. Verify: `python -c "from libs.X import Y"` — must exit 0
+5. Then proceed to wiring steps
+6. **If you FIX a bug in the vendored copy** (not just adapt imports/wiring): append a dated note to
+   `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md` — the symptom + how you fixed it — so the fabrik-lib AI
+   upstreams it for every future project. This single append is the **only** write permitted outside the
+   project tree.
+
+## Plan Status Tracking
+
+Keep the plan file's own `**Status:**` field current as you execute — it is the **durable record** of
+where execution stands, and a resumed session reads it to know what is already done. All of these edits
+are part of the phase commits (explicit path: the plan file) and carry the same provenance trailers; do
+**not** delete the `## Evidence` / `## Self-audit` sections (they remain the execution's design record).
+
+- **On start** (before the first phase commit): flip `**Status:** CONVERGED` → `**Status:** IN-PROGRESS`.
+  This also moves the plan out of `check_convergence.py`'s scope — it only gates plans whose Status is
+  `CONVERGED`/`zero unknowns` — so the Evidence stays as the design record with no re-validation.
+- **At each phase boundary** (after the phase commit AND a clean `/fabrik-review`): mark that phase done
+  in the plan — append `— ✅ EXECUTED <YYYY-MM-DD> (<short-commit>)` to the phase's heading (or tick its
+  DoD checklist). A resumed run skips phases already marked done.
+- **On completion** (all phases done, final gate green): flip `**Status:** IN-PROGRESS` →
+  `**Status:** EXECUTED <YYYY-MM-DD>` and add a one-line completion stamp (final commit + gate result).
+- **On a HARD STOP / BLOCKED**: set `**Status:** BLOCKED — <what> (Phase N)` so the halt reason lives in
+  the plan, not just the chat.
+
+## Progress Reporting
+
+After each phase: `✓ Phase {X} — {title} — {n} tests passing, gate green, review clean`
+
+If subagents were used: `  ↳ merged {n} subagent branches, {n} conflicts resolved`
+
+After all phases, output the CLAUDE.md completion block:
+```
+GATE: python scripts/final_gate.py --json → success   # FULL (Tier 2)
+DOCS UPDATED: <files>
+CHANGELOG: <entry>
+LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
+```
+
+## Finish (shared-master — there is no branch to merge)
+
+Fabrik commits per-phase directly to `master` and the plan-lock was your isolation, so
+`finishing-a-development-branch`'s merge / PR / keep / discard menu **does not apply** — there is nothing
+to merge back. "Finishing" is:
+
+1. **Final whole-plan review — the cross-phase net the per-phase reviews CAN'T see.** Run **`/fabrik-review`
+   over the CUMULATIVE diff across ALL phases** (`git diff <the step-8 baseline commit>..HEAD` — the whole
+   plan's surface, NOT a single phase's slice), looped to a no-op round (zero CONFIRMED or PLAUSIBLE, every
+   finding FIXED/REFUTED). The per-phase boundary reviews caught phase-local defects; this catches what only
+   appears once the phases combine — a Phase-A interface a later phase quietly violated, a global invariant
+   that only breaks in aggregate, a regression a later phase introduced into earlier phases' code, a
+   requirement that fell between phases. This is **not a new methodology** — it's `/fabrik-review` over the
+   whole plan. Fix + re-review to a clean pass before you proceed to archive.
+2. **Gate green (fresh, this turn)** — `python scripts/final_gate.py --json` (Tier 2) shows
+   `"status":"success"`; fix to green first. Run it **now**, in the finishing turn — never cite an earlier
+   run (freshness, CLAUDE.md FINAL OUTPUT). **Cross-check the step-8 baseline:** any check that was *already
+   red at start* is a sibling's / an untracked file's — say so and do **not** fix it (shared-master
+   discipline); only a **newly**-red check is yours.
+3. **Requirements coverage — gate-green is NOT requirements-met.** Re-read the plan and checklist each
+   item you agreed to deliver (every `Interfaces.Produces` and each "What we already agreed" line) against
+   what actually shipped: point to the commit/file that delivers it. Report any gap explicitly — a passing
+   gate does not prove the plan's intent was built (it proves format + the tests you wrote pass). Don't flip
+   `Status: EXECUTED` with an un-delivered requirement unaccounted for.
+4. **Clean up your OWN worktree only** — if THIS run used its own worktree (step 8, concurrent run): `cd` to
+   the main repo root first (`git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`), then
+   `git worktree remove <path>` + `git worktree prune`. **Provenance guard:** remove only a worktree THIS run
+   created — never a harness-owned or a sibling's tree. (The Merge Protocol already deletes the *subagent*
+   branches; this is the *orchestrator's own* worktree.)
+5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
+   `final_commit`), flip the plan `Status: EXECUTED <date>`, output the completion block above.
+6. **Archive the plan — ONLY when 100% verified done.** The plan is finished only when ALL of: the
+   whole-plan review (step 1) came back clean, the final gate (step 2) is green THIS turn, and requirements
+   coverage (step 3) accounts for every agreed item. Then `git mv docs/development/plans/<plan>.md
+   docs/development/plans/archived/<plan>.md` (explicit paths) and repoint the lock's `plan` field to the
+   archived path. **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
+   review finding** — archiving IS the "I am 100% sure this is done" act, and a plan in `archived/` is a
+   claim that nothing is left. Commit the move with the plan-status commit (explicit paths).
+7. **Present the only decisions left — structured, not open-ended.** The commits are already on `master`; what
+   remains is the user's call, so end by offering exactly three:
+   - **push** — `git push` to `origin/master` (HARD STOP: only if the user said so this turn),
+   - **hold** — leave the commits local/unpushed, or
+   - **trigger deploy** — `fabrik redeploy` / `fabrik apply` is **hub-side + user-run** (trigger-not-execute);
+     name it as the next step, don't run it.
+
+   Don't trail off with "what next?" — offer these three and stop.

@@ -41,6 +41,15 @@ repos:
       # Auto-sync governance files to all /opt projects when they change
       # Only runs in Fabrik repo - silently passes in other projects
       # Triggers on: governance files, core scripts, enforcement scripts, reference docs
+      # Command-corpus drift gate: installed ~/.claude/commands must match
+      # the rendered _sources/_fragments (hand-edits are silently lost on re-render)
+      - id: command-corpus-check
+        name: Command corpus matches rendered sources
+        entry: bash -c 'if [ "$(pwd)" = "/opt/fabrik" ]; then python3 /opt/fabrik/commands/assemble_commands.py --check; fi'
+        language: system
+        files: '^commands/'
+        pass_filenames: false
+
       - id: governance-sync
         name: Sync governance + enforcement to all projects
         entry: bash -c 'if [ "$(pwd)" = "/opt/fabrik" ]; then /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force 2>&1 | tail -3; fi'

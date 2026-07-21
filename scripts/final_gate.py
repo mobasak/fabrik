@@ -669,6 +669,17 @@ def run_consistency_checks(
         )
     )
 
+    # Coverage-checklist gate (every tier): a changed reviews/ artifact from the
+    # coverage-adjudicated commands (/fabrik-review, /fabrik-repo-review) must
+    # embed a fully-adjudicated Coverage Checklist (or a Declared residual).
+    # Inert when no such artifact changed. See scripts/enforcement/check_review_coverage.py.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_review_coverage.py",
+            "Coverage Checklist (reviews)",
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):
