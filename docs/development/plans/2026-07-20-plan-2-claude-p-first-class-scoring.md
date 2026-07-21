@@ -89,7 +89,7 @@ no DB / cache / deploy / GUI.
 
 ---
 
-## Phase A — Dispatch shim + three-number cost model
+## Phase A — Dispatch shim + three-number cost model — ✅ EXECUTED 2026-07-20
 
 Two pure-new modules + a ratios file. Foundation: everything downstream consumes them. Fully unit-testable
 with mocked subprocess + fixture json — no real Claude call.

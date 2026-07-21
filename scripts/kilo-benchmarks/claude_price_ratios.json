@@ -1,0 +1,8 @@
+{
+  "_comment": "Anthropic API list prices (USD per 1M tokens, input/output) — grounded 2026-07-20 from platform.claude.com/docs/en/about-claude/pricing. Used by derive_cost.api_equiv (the ranking axis). Cache multipliers x the input price, from the prompt-caching doc. NOTE: claude-code/sonnet carries an intro $2/$10 through 2026-08-31 (standard $3/$15 after) — edit 'in'/'out' below if scoring claude-sonnet-5 during the intro window.",
+  "claude-code/opus":   {"in": 5.0,  "out": 25.0},
+  "claude-code/sonnet": {"in": 3.0,  "out": 15.0},
+  "claude-code/haiku":  {"in": 1.0,  "out": 5.0},
+  "claude-code/fable":  {"in": 10.0, "out": 50.0},
+  "_cache": {"read": 0.1, "write_5m": 1.25, "write_1h": 2.0}
+}
