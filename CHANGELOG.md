@@ -17,7 +17,8 @@ OpenRouter models on review + code. `build_task_baselines.review_eligible`/`code
 past the **cost/latency** gates only (the quality floors — precision/recall/score5, pass@1/n_err — still bite),
 so premium tiers stay shortlist-visible while the value sort ranks by ①; `rank_task_subagents` keeps
 `claude-code/*` **display-only** (excluded from the rank-led routing sections `pick_models` reads — they're
-spawn-native, the pool can't dispatch them) and emits a preamble surfacing ② amortized + ③ quota-draw.
+spawn-native, the pool can't dispatch them) and emits a preamble surfacing ② amortized + ③ quota-draw. The
+doc's "no aggregated runs" stub guard also respects a claude-only benchmark, so those scores aren't hidden.
 
 ### Fixed — check_secrets no longer flags obvious doc placeholders (2026-07-19)
 

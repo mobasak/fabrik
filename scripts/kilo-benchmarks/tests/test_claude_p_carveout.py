@@ -105,6 +105,21 @@ def test_claude_code_excluded_from_pool_routing(tmp_path, monkeypatch):
     assert "claude-code/opus" not in out.get("review", [])  # claude excluded from pool routing
 
 
+def test_claude_only_benchmark_not_suppressed_by_stub_guard(monkeypatch):
+    # a review benchmark RAN but its only eligible tiers are claude-code/* → review_benchmark is [] after
+    # FIX-2's routing filter; the doc must NOT return the "No aggregated runs yet" stub (which would hide
+    # the ✅ Selected shortlist that displays those claude reviewers).
+    monkeypatch.setattr(r, "_review_benchmark_models", lambda *a, **k: [])  # claude-only → routing-filtered empty
+    monkeypatch.setattr(r, "_review_bench_ran", lambda *a, **k: True)  # but the benchmark DID run
+    monkeypatch.setattr(r, "_code_bench_ran", lambda *a, **k: False)
+    monkeypatch.setattr(r, "_code_benchmark_models", lambda *a, **k: [])
+    monkeypatch.setattr(r, "_judged_bench_ran", lambda *a, **k: False)
+    monkeypatch.setattr(r, "_judged_benchmark_models", lambda *a, **k: [])
+    monkeypatch.setattr(r, "_load_coding_fallback", lambda *a, **k: [])
+    md = r.render([], include_full_results=False)
+    assert "No aggregated runs yet" not in md  # not stubbed — a benchmark ran (display would show claude)
+
+
 def test_preamble_renders_from_sidecar(tmp_path, monkeypatch):
     (tmp_path / "claude_p_cost.json").write_text(
         json.dumps({"amortized_per_mtok": 0.093, "quota_draw_pct": 12.5, "built_at": "x"})

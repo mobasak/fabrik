@@ -1007,7 +1007,17 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     # benchmark has never run (no data → don't blank the section).
     review_bench_ran: bool = _review_bench_ran()
 
-    if not kept and not coding_fallback_models and not review_benchmark:
+    # Stub only when there is genuinely NOTHING to show. A benchmark that ran but whose only eligible
+    # tiers are claude-code/* leaves the routing lists empty (FIX-2 strips them — they're spawn-native),
+    # yet the ✅ Selected shortlist below still DISPLAYS them; don't blank that behind the stub. Routing
+    # correctly still falls back to _TABLE (no rank-led sections emitted).
+    if (
+        not kept
+        and not coding_fallback_models
+        and not review_benchmark
+        and not review_bench_ran
+        and not code_bench_ran
+    ):
         return header + (
             "No aggregated runs yet — `pick_models` continues to use vendored `_TABLE` default at "
             "`/opt/fabrik-lib/subagents/subagents/select.py:58`.\n"
