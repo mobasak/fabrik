@@ -232,9 +232,9 @@ proof is the Evidence (Phase 4).
   defer it to a meta-section.** The last steps of *every* phase, in order:
   1. run the phase's validation gate → fix to green;
   2. `python scripts/enforcement/check_doc_sync.py` + the phase's declared doc-update steps;
-  3. **`/fabrik-review` on this phase's changed surface — a BLOCKING gate, looped to a no-op pass** (zero
-     CONFIRMED *or* PLAUSIBLE findings, every finding FIXED/REFUTED; the pass that fixed anything is never the
-     last — see Phase 3 for the full methodology);
+  3. **`/fabrik-review` on this phase's changed surface — a BLOCKING gate, run to its coverage-adjudicated
+     exit** (every checklist class CLEAN/FIXED/REFUTED, every finding FIXED/REFUTED; the pass that fixed
+     anything is never the last look at the classes it touched — see Phase 3 for the full methodology);
   3b. **GUI phases only — the Build Verification Loop (per `/fabrik-ui-design`), a BLOCKING per-screen gate
      looped to a no-op.** For each screen the phase built: **drive the running screen via the surface's MCP** —
      **web:** Playwright MCP (screenshot 375/768/1440); **mobile (RN):** Maestro MCP + Mobile Next MCP, **deferring

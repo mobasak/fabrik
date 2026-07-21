@@ -130,7 +130,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright`
    `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the
    `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until
-   a fresh pass is `found: 0, fixed: 0`. The next phase begins only after that no-op. Non-GUI phases skip this.
+   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip this.
 4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to.
 5. **Documentation is blocking, per phase — not advisory.** Before each phase commit, run
    `python scripts/enforcement/check_doc_sync.py`; **any WARNING whose trigger file is in *this phase's*
@@ -276,7 +276,7 @@ if this run shipped a feature/route/service/schema/config change:
 
 run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
 fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours)
-run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ no-op) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → offer push/hold/deploy
+run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → offer push/hold/deploy
 ```
 
 ## Subagent Strategy
@@ -627,7 +627,7 @@ to merge back. "Finishing" is:
 
 1. **Final whole-plan review — the cross-phase net the per-phase reviews CAN'T see.** Run **`/fabrik-review`
    over the CUMULATIVE diff across ALL phases** (`git diff <the step-8 baseline commit>..HEAD` — the whole
-   plan's surface, NOT a single phase's slice), looped to a no-op round (zero CONFIRMED or PLAUSIBLE, every
+   plan's surface, NOT a single phase's slice), run to its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED, every
    finding FIXED/REFUTED). The per-phase boundary reviews caught phase-local defects; this catches what only
    appears once the phases combine — a Phase-A interface a later phase quietly violated, a global invariant
    that only breaks in aggregate, a regression a later phase introduced into earlier phases' code, a

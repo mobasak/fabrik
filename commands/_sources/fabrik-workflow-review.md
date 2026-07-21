@@ -35,7 +35,7 @@ Each finder names a concrete failure scenario. YOU keep refute/merge/decide.
 
 ## Phase 2 — Verify / refute
 
-Dedup; for each candidate try to REFUTE from the real source (quote the line/anchor that disproves it). Refute only when provably impossible or factually wrong — never merely for being rare. `found:` counts every candidate raised this pass, including refuted ones (a pass that raised any is not a no-op).
+Dedup; for each candidate try to REFUTE from the real source (quote the line/anchor that disproves it). Refute only when provably impossible or factually wrong — never merely for being rare. Log every candidate raised (including refuted ones) in the ledger; a fix is an edit → the md5 changes → the next pass is owed. A pass whose refutations leave the artifact unchanged still converges only via the md5-verified, edit-free round.
 
 ## Phase 3 — Fix + re-check
 

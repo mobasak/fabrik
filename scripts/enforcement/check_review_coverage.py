@@ -62,8 +62,17 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
 
 
 def _table_rows(section: str) -> list[str]:
-    """Data rows of the first markdown table in ``section`` (skips header + rule)."""
-    rows = [l for l in section.splitlines() if l.lstrip().startswith("|")]
+    """Data rows of the FIRST contiguous markdown table in ``section`` (skips
+    header + rule). Stops at the first non-table line so a Pass Ledger emitted
+    under the same heading is never mistaken for checklist rows."""
+    rows: list[str] = []
+    in_table = False
+    for line in section.splitlines():
+        if line.lstrip().startswith("|"):
+            rows.append(line)
+            in_table = True
+        elif in_table:
+            break
     return [r for r in rows[2:]] if len(rows) >= 3 else []
 
 

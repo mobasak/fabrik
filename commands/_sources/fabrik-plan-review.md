@@ -165,7 +165,7 @@ A plan file has one durable name and moves through statuses in place:
 plan left in the active `docs/development/plans/` directory is clutter that misleads the next agent into
 treating it as still-open work — the exact confusion this rule prevents.
 
-`/fabrik-execute-plan`'s Finish step performs the archive (only after the whole-plan `/fabrik-review` no-op +
+`/fabrik-execute-plan`'s Finish step performs the archive (only after the whole-plan `/fabrik-review` coverage-adjudicated exit +
 a fresh green gate + requirements coverage confirm 100%). **This command enforces the same rule from the review
 side:** if you are pointed at a plan already at `Status: EXECUTED` that still sits in the active dir, do not
 re-converge it — **archive it** (the `git mv` above) and report that. Never mark a plan `EXECUTED` — that is the
