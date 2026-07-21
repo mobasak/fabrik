@@ -14,8 +14,10 @@ prices + cache multipliers, grounded 2026-07-20). Wired into `microbench_review.
 `microbench_coding_direct.py` (`generate`) via a `claude-code/*` namespace branch (low-concurrency, ①→cost_usd,
 ②/③→`claude_p_cost.json` sidecar). Lets `claude-code/{opus,sonnet,haiku,fable}` be scored beside the 57
 OpenRouter models on review + code. `build_task_baselines.review_eligible`/`code_eligible` carve `claude-code/*`
-past the eligibility gates (premium tiers stay shortlist-visible; the value sort still ranks by ①), and
-`rank_task_subagents` emits a `claude-code/*` preamble surfacing ② amortized + ③ quota-draw from the sidecar.
+past the **cost/latency** gates only (the quality floors — precision/recall/score5, pass@1/n_err — still bite),
+so premium tiers stay shortlist-visible while the value sort ranks by ①; `rank_task_subagents` keeps
+`claude-code/*` **display-only** (excluded from the rank-led routing sections `pick_models` reads — they're
+spawn-native, the pool can't dispatch them) and emits a preamble surfacing ② amortized + ③ quota-draw.
 
 ### Fixed — check_secrets no longer flags obvious doc placeholders (2026-07-19)
 

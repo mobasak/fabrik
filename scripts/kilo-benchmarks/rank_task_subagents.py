@@ -455,7 +455,10 @@ def _claude_p_preamble() -> list[str]:
     return [
         f"_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's "
         f"tokens, comparable to the pool). Context — ② amortized ≈${amort:.3f}/M · ③ last run's weekly-quota "
-        f"draw ≈{quota:.1f}% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter)._",
+        f"draw ≈{quota:.1f}% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A "
+        f"`claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency "
+        f"gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never "
+        f"returns them._",
     ]
 
 
@@ -962,7 +965,12 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     # mirroring the review gate. When the coding benchmark HAS run, `code_eligible()` supersedes the
     # auto-tier CODING_SUBAGENT_SELECTION fallback for selection, so pick_models("code") returns exactly
     # the eligible set (ranked). Inactive (empty gate) when the benchmark has never run → prior behaviour.
-    code_benchmark: list[str] = _code_benchmark_models()
+    # claude-code/* are DISPLAY-only (spawn-native per the spec Boundaries — the pool can't dispatch a
+    # claude-code/* id, it would 404 in _transport). Keep them OUT of the rank-led routing sections that
+    # pick_models parses; they stay visible in the ✅ Selected shortlist (model-id-led) + the full tables.
+    code_benchmark: list[str] = [
+        m for m in _code_benchmark_models() if not m.startswith("claude-code/")
+    ]
     code_gate: set[str] = set(code_benchmark)
     code_bench_ran: bool = _code_bench_ran()
     if code_bench_ran:
@@ -981,7 +989,10 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     # $/1k ≤ 0.70 · p50 ≤ 10s) applied to the `review` task_type. `review_benchmark` is the
     # eligible set ranked best-first; `review_gate` filters fleet review rows to only these ids.
     # Both empty when the benchmark hasn't run → review behaves as before (no gate).
-    review_benchmark: list[str] = _review_benchmark_models()
+    # claude-code/* excluded from the rank-led routing set (see code_benchmark above — spawn-native, not pool).
+    review_benchmark: list[str] = [
+        m for m in _review_benchmark_models() if not m.startswith("claude-code/")
+    ]
     review_gate: set[str] = set(review_benchmark)
     # measured metrics for the benchmark review rows, so the doc SHOWS score5/recall/$1k/precision
     # instead of `—` placeholders (the data was loaded to RANK these models, then discarded at render).
