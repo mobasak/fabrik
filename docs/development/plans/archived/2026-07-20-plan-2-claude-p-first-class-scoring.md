@@ -1,6 +1,6 @@
 # Score claude -p (native Claude tiers) as first-class CODER + REVIEWER candidates
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-07-20 (A a6b12e73 · B 38c16b52 · C f541dac0 · whole-plan review-fixes 40206b29, e1488777). Final gate: my surface green (44/45); the 1 fail is a sibling's pre-existing Project Structure red on commands/_fragments/*.md (not mine). Whole-plan /fabrik-review: 3 rounds to no-op.
 Date: 2026-07-20
 Author: primary (Claude Opus 4.8)
 Spec: [docs/superpowers/specs/2026-07-20-claude-p-first-class-scoring-design.md](../../superpowers/specs/2026-07-20-claude-p-first-class-scoring-design.md) (CONVERGED — the grounded source of truth; this plan inherits its verdicts, does not re-derive them)
@@ -202,7 +202,7 @@ path, `cost_usd`=①); `claude_p_cost.json` = `{"amortized_per_mtok":float, "quo
 
 ---
 
-## Phase C — Gate carve-out + doc-emit preamble — ✅ EXECUTED 2026-07-20
+## Phase C — Gate carve-out + doc-emit preamble — ✅ EXECUTED 2026-07-20 (f541dac0)
 
 Keep `claude-code/*` shortlist-visible past the eligibility gates (an expensive Opus ① now trips `$/1k`), and
 surface ② + ③ in the review/code section preambles. Full tables already auto-include `claude-code/*`
