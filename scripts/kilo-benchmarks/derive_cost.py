@@ -97,3 +97,29 @@ def quota_snapshot(statusline_path: str | Path | None = None) -> float:
         return float(sd.get("usedPercent", 0.0) or 0.0)
     except (OSError, ValueError, TypeError, AttributeError):  # AttributeError: malformed non-object json
         return 0.0
+
+
+_COST_SIDECAR = _HERE / "claude_p_cost.json"
+
+
+def out_price_mtok(model: str, ratios_path: str | Path | None = None) -> float:
+    """The $/M output list price for a claude-code/* model — the `_DirectResult.out_price_mtok` reference."""
+    return float(_load_ratios(ratios_path)[model]["out"])
+
+
+def write_cost_sidecar(
+    quota_before: float,
+    quota_after: float,
+    path: str | Path | None = None,
+    *,
+    when: datetime.datetime | None = None,
+) -> dict:
+    """Write the ②/③ sidecar the ranker preamble reads: ② amortized $/M + ③ weekly-quota-draw %."""
+    built = (when or datetime.datetime.now()).isoformat(timespec="seconds")
+    data = {
+        "amortized_per_mtok": amortized_rate() * 1_000_000.0,
+        "quota_draw_pct": max(0.0, quota_after - quota_before),
+        "built_at": built,
+    }
+    Path(path or _COST_SIDECAR).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return data

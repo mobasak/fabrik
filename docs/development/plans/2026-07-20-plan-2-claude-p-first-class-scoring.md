@@ -89,7 +89,7 @@ no DB / cache / deploy / GUI.
 
 ---
 
-## Phase A — Dispatch shim + three-number cost model — ✅ EXECUTED 2026-07-20
+## Phase A — Dispatch shim + three-number cost model — ✅ EXECUTED 2026-07-20 (a6b12e73)
 
 Two pure-new modules + a ratios file. Foundation: everything downstream consumes them. Fully unit-testable
 with mocked subprocess + fixture json — no real Claude call.
@@ -152,7 +152,7 @@ with mocked subprocess + fixture json — no real Claude call.
 
 ---
 
-## Phase B — Harness namespace-branch dispatch (review + code)
+## Phase B — Harness namespace-branch dispatch (review + code) — ✅ EXECUTED 2026-07-20
 
 Wire `claude-code/*` into both harnesses as a `model.startswith("claude-code/")` branch that builds the SAME
 result object the graders already consume — from `(text, usage)` via `claude_p_call` + `derive_cost.api_equiv`.

@@ -511,11 +511,51 @@ def _direct_call(model: str, task: str, max_tokens: int, pricing: dict, timeout:
     )
 
 
+def _claude_p_direct(model: str, task: str, timeout: float):
+    """Dispatch a claude-code/* review via the single-shot shim; build a _DirectResult (cost_usd = ① api_equiv).
+
+    `task` (methodology + code) is passed as the shim's PROMPT with system="" — transport parity with the
+    OpenRouter user-only call (`_direct_call` sends the same task as one user message, no system). A failed
+    claude -p call becomes this model's error (like a failed OR call), never fatal.
+    """
+    import time
+
+    import claude_p
+    import derive_cost
+
+    t0 = time.monotonic()
+    try:
+        text, usage = claude_p.claude_p_call(model, task, system="", timeout=timeout)
+        cost = derive_cost.api_equiv(usage, model)  # ① — inside try: an unpriced model becomes an error
+        out_price = derive_cost.out_price_mtok(model)  # result, NOT a KeyError that crashes the whole run
+    except Exception as e:  # noqa: BLE001 — a failed claude -p call is that model's error, not fatal
+        return _DirectResult(
+            model, error=f"{type(e).__name__}: {str(e)[:120]}", latency_s=time.monotonic() - t0
+        )
+    lat = time.monotonic() - t0
+    return _DirectResult(
+        model,
+        text=text,
+        out_tokens=usage["output_tokens"],
+        cost_usd=cost,  # ① the ranking axis
+        latency_s=lat,
+        out_price_mtok=out_price,
+    )
+
+
 def run_direct(models, corpus, max_tokens: int, concurrency: int, timeout: float = 150.0):
-    """Grade every model via a direct OR call — reaches models the pool 404s. Same (specs, meta, results)."""
+    """Grade every model via a direct OR call — reaches models the pool 404s. Same (specs, meta, results).
+
+    A `claude-code/*` model routes to the single-shot `claude -p` shim instead of the OR call (same
+    _DirectResult shape, same grader). When any claude-code/* tier is scored the run is capped to low
+    concurrency (they share the rotation quota) and the ②/③ cost sidecar is written for the ranker preamble.
+    """
     from concurrent.futures import ThreadPoolExecutor
 
-    pricing = _or_pricing()
+    import derive_cost
+
+    # Only the OR path needs pricing/creds; a pure claude-code/* run bills the subscription (no OR key).
+    pricing = _or_pricing() if any(not m.startswith("claude-code/") for m in models) else {}
     sys_prompt = methodology("review")
     specs, meta, tasks = [], [], []
     for model in models:
@@ -524,10 +564,22 @@ def run_direct(models, corpus, max_tokens: int, concurrency: int, timeout: float
             specs.append(AgentSpec(task=task, model=model, task_type="review"))
             meta.append((model, it))
             tasks.append((model, task))
+
+    has_claude = any(m.startswith("claude-code/") for m in models)
+    if has_claude:
+        concurrency = min(concurrency, 2)  # claude -p shares the rotation quota → low concurrency
+    q_before = derive_cost.quota_snapshot() if has_claude else None
+
+    def _dispatch(mt):
+        model, task = mt
+        if model.startswith("claude-code/"):
+            return _claude_p_direct(model, task, timeout)
+        return _direct_call(model, task, max_tokens, pricing, timeout)
+
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
-        results = list(
-            ex.map(lambda mt: _direct_call(mt[0], mt[1], max_tokens, pricing, timeout), tasks)
-        )
+        results = list(ex.map(_dispatch, tasks))
+    if has_claude:  # ②/③ sidecar for the ranker preamble
+        derive_cost.write_cost_sidecar(q_before, derive_cost.quota_snapshot())
     return specs, meta, results
 
 

@@ -217,7 +217,8 @@ def generate(
     dispatch (in-flight ones finish). Overshoot bounded by <= max_concurrency in-flight. Errored /
     cap-stopped calls come back `code=None` -> counted as n_err, never scored 0.
     """
-    if _or_run is None:
+    if _or_run is None and any(not m.startswith("claude-code/") for m in models):
+        # a pure claude-code/* batch bills the subscription and never touches the OR transport.
         raise RuntimeError("libs.subagents._transport unavailable — cannot generate (grading/report still work).")
     # max_tokens bounds output length (unbounded output = unbounded cost); usage.include -> real billed cost.
     body = {"usage": {"include": True}, "max_tokens": max_tokens}
@@ -239,6 +240,17 @@ def generate(
         prompt = prob.prompt + (f"\n\nStarter code:\n{prob.starter_code}" if prob.starter_code else "") + _TASK_SUFFIX
         t0 = time.time()
         try:
+            if model.startswith("claude-code/"):
+                # claude-code/* → the single-shot shim (same user prompt as the OR call, system="" for
+                # parity); ① api_equiv is the cost. A raised shim error falls to the except → n_err slot.
+                import claude_p
+                import derive_cost
+
+                text, usage = claude_p.claude_p_call(model, prompt, system="", timeout=150.0)
+                dt = time.time() - t0
+                return model, i, _Gen(
+                    extract_code(text), derive_cost.api_equiv(usage, model), dt, usage["output_tokens"], None
+                )
             # per-call cap = a small FIXED ceiling (never the whole batch budget); one call can't drain it.
             r = _or_run(model, [{"role": "user", "content": prompt}], body=body, max_cost_usd=_PER_CALL_COST_CAP)
             dt = time.time() - t0
@@ -249,6 +261,11 @@ def generate(
         except Exception as e:  # noqa: BLE001 — a single call's failure is that slot's error, never fatal
             return model, i, _Gen(None, 0.0, None, 0, str(e)[:120])
 
+    if any(m.startswith("claude-code/") for m in models):
+        max_concurrency = min(max_concurrency, 2)  # claude -p shares the rotation quota → low concurrency
+    # NB: the ②/③ cost sidecar is written ONCE by the caller around the whole run (main), not here —
+    # in --all, generate() runs per batch, so a per-batch write would overwrite ③ with the last batch only.
+
     tasks = [(m, i, p) for m in models for i, p in enumerate(corpus)]
     with ThreadPoolExecutor(max_workers=max_concurrency) as ex:
         futs = {ex.submit(_one, m, i, p): (m, i) for m, i, p in tasks}
@@ -258,7 +275,11 @@ def generate(
             except CancelledError:
                 continue  # cap-stopped before it ran — slot stays code=None -> counted as n_err
             out[model][i] = gen
-            spent += gen.cost_usd
+            # claude-code/* is subscription-QUOTA-bound, not $-bound (spec Constraints): its ① is a
+            # valuation, not real OpenRouter spend, so it must NOT trip the $ cost-cap and stop the sweep
+            # early (which would under-score it). The weekly quota is its real guard (the CLI hard-stops).
+            if not model.startswith("claude-code/"):
+                spent += gen.cost_usd
             if spent >= cost_cap and not stopped:
                 stopped = True
                 # cancel not-yet-started dispatches (in-flight finish); their slots stay code=None -> n_err
@@ -565,18 +586,30 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("[coding-bench] ⚠️  could not read OpenRouter balance — proceeding on the cost-cap alone", file=sys.stderr)
 
+    # ②/③ cost sidecar: capture the weekly-quota draw ONCE around the whole run (both paths below), so
+    # --all batching can't overwrite ③. claude ① is a valuation, never real OR spend → excluded from every
+    # real-$ total ($ cost-cap + probe estimate).
+    import derive_cost
+    has_claude = any(m.startswith("claude-code/") for m in models)
+    q0 = derive_cost.quota_snapshot() if has_claude else None
+
+    def _real_spend(sc):  # real OpenRouter $ only (excludes subscription-billed claude-code/*)
+        return sum(s.cost_usd for m, s in sc.items() if not m.startswith("claude-code/"))
+
     if args.probe or not args.all:
         # single small pass — probe (cost sizing) or a no-persist preview
         gens = generate(models, corpus, cost_cap=eff_cap, max_tokens=args.max_tokens,
                         max_concurrency=args.concurrency)
         scores = grade(gens, corpus)
         if args.probe:
-            total = sum(s.cost_usd for s in scores.values())
+            total = _real_spend(scores)
             full = int(args.limit if args.limit > 0 else 50)
             print(f"\n[probe] {len(corpus)} problems x {len(models)} models = ${total:.4f} real billed")
             print(f"[probe] est. full run ({full} problems): ~${total / max(len(corpus), 1) * full:.2f} "
                   "(⚠️ a 2-problem sample under-prices the real run ~3x)")
         report(scores)
+        if has_claude:  # ②/③ sidecar for the ranker preamble
+            derive_cost.write_cost_sidecar(q0, derive_cost.quota_snapshot())
         return 0
 
     # ── --all: BATCHED, RESUMABLE, incremental-persist run (F11 crash-safety) ──
@@ -602,12 +635,16 @@ def main(argv: list[str] | None = None) -> int:
         scores = grade(gens, corpus)
         persist_metrics(scores, window)      # ← persist THIS batch immediately (crash-safe)
         persist_baseline(scores, window)
-        spent += sum(s.cost_usd for s in scores.values())
+        spent += _real_spend(scores)  # claude ① excluded — the $ cap gates REAL OR spend only
         all_scores.update(scores)
         nm = sum(1 for s in scores.values() if s.is_measured)
         print(f"[coding-bench] batch {bi // BATCH_SIZE + 1}: +{nm}/{len(batch)} measured & PERSISTED; "
               f"spent ${spent:.2f}/${eff_cap:.2f}", file=sys.stderr)
     report(all_scores)
+    # Gate on the POST-resume-skip `models` actually run this session (reassigned by the resume-skip above):
+    # a resume that skipped every claude tier must NOT overwrite ③ with a ~0 draw. q0 is model-independent.
+    if any(m.startswith("claude-code/") for m in models):  # ②/③ sidecar once for the whole --all run
+        derive_cost.write_cost_sidecar(q0, derive_cost.quota_snapshot())
     tot = sum(1 for s in all_scores.values() if s.is_measured)
     print(f"\n[coding-bench] persisted {tot} models -> model_coding_metrics + model_task_baseline(code); "
           f"spent ${spent:.2f}", file=sys.stderr)

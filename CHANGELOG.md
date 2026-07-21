@@ -6,12 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added — claude -p native tiers scored as first-class review+code candidates (2026-07-20)
 
-Phase A of plan-2: `scripts/kilo-benchmarks/claude_p.py` (single-shot `claude -p` dispatch shim, transport
-parity with the OpenRouter single completion — no tools, single turn, methodology in the prompt not
-`--system-prompt`) + `derive_cost.py` (three-number cost model: ① API-equivalent cache-aware $ = the ranking
-axis, ② amortized subscription $, ③ weekly-quota draw = the 3-accounts→1 lever) + `claude_price_ratios.json`
-(Anthropic list prices + cache multipliers, grounded 2026-07-20). Lets `claude-code/{opus,sonnet,haiku,fable}`
-be scored beside the 57 OpenRouter models on review + code.
+plan-2: `scripts/kilo-benchmarks/claude_p.py` (single-shot `claude -p` dispatch shim, transport parity with
+the OpenRouter single completion — no tools, single turn, methodology in the prompt not `--system-prompt`) +
+`derive_cost.py` (three-number cost model: ① API-equivalent cache-aware $ = the ranking axis, ② amortized
+subscription $, ③ weekly-quota draw = the 3-accounts→1 lever) + `claude_price_ratios.json` (Anthropic list
+prices + cache multipliers, grounded 2026-07-20). Wired into `microbench_review.py` (`run_direct`) and
+`microbench_coding_direct.py` (`generate`) via a `claude-code/*` namespace branch (low-concurrency, ①→cost_usd,
+②/③→`claude_p_cost.json` sidecar). Lets `claude-code/{opus,sonnet,haiku,fable}` be scored beside the 57
+OpenRouter models on review + code.
 
 ### Fixed — check_secrets no longer flags obvious doc placeholders (2026-07-19)
 
