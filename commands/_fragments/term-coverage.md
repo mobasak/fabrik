@@ -1,6 +1,6 @@
 ## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)
 
-This is a LOOP with a **deterministic exit: full coverage, not a lucky empty pass**. An empty finder round proves that *sample* found nothing — not that nothing exists — so "a pass found nothing" is NEVER the exit test by itself. The exit is a fully-adjudicated **Coverage Checklist**:
+This is a LOOP that runs **until no issues remain to raise AND every class is proven hunted** — two conditions, BOTH required, neither sufficient alone. A quiet round alone is not the exit (that *sample* found nothing ≠ nothing exists). A fully-adjudicated checklist alone is not the exit either (adjudication without a confirming quiet round is premature). The exit needs BOTH:
 
 **Before Pass 1 — three mechanical obligations, in order:**
 1. **Anchor:** read the NEWEST `docs/development/reviews/*-review.md` for this scope (if any). Compute the surface hash: `git rev-parse HEAD` + `git diff HEAD | md5sum`. If it matches the prior report's recorded `Surface:` line, this run **re-adjudicates THAT report's checklist** (verification + delta only — a new finding must name the rubric class it belongs to, or it is a rubric gap to report). Unchanged surface + previously fully-adjudicated checklist = a short verification report, honestly.
@@ -10,6 +10,7 @@ This is a LOOP with a **deterministic exit: full coverage, not a lucky empty pas
 The Coverage Checklist: one row per failure class from the rubric output (FLOOR + MATCHED + workflow checklist), PLUS the standing recurrence classes: **fail-open vs fail-closed on every gate/guard · cost/quota/limit accounting edges (unknown≠0, per-call vs batch) · boundary/sentinel/prefix collisions · behavior-without-a-test**. Every row starts `UNCHECKED`.
 
 Loop passes as specified (finders → refute → prove & fix → regression-guard), updating rows as you go. **You are DONE only when ALL of these hold:**
+- **The final round raised NOTHING — `found: 0, fixed: 0`**, where `found` counts every candidate any finder RAISED, **including ones you refute in triage** (a round that raised 3 and refuted all 3 is NOT quiet — run the next full round). Keep hunting while anything is still turning up; the loop, not the checklist, decides when the hunting stops.
 - **Every row is adjudicated** — `CLEAN` (hunted this run, with what/where evidence), `FIXED(n)`, or `REFUTED(n, proof)`. No `UNCHECKED` rows. An in-scope CONFIRMED or PLAUSIBLE finding terminates FIXED or REFUTED — never silently passed.{{RESIDUAL}}
 - **The last code-changing pass was followed by a confirming re-check** of every class its fixes touched (fixes introduce defects — the pass that changed code is never the last look at those classes).
 - **Mechanical gates are green** (`final_gate`) — lint/type/test classes are the gates' job; do not spend finder passes re-discovering what a gate catches.

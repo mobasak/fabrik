@@ -127,6 +127,9 @@ def check_file(p: Path) -> list[str]:
             if re.search(r"\bCLEAN\b", r) and not _PATHISH.search(r) and len(r.strip()) < 70]
     if bare:
         errs.append(f"{len(bare)} CLEAN row(s) without evidence (name the files/paths hunted): {bare[:3]}")
+    founds = re.findall(r"found:\s*(\d+)", text)
+    if founds and int(founds[-1]) != 0 and not residual_ok:
+        errs.append(f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or declare the residual")
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
     if missing:
