@@ -243,7 +243,7 @@ python /opt/fabrik/scripts/traycer_mirror.py --src docs/superpowers/specs/YYYY-M
 
 ### Step 3: Pre-handoff self-audit + Confirm
 
-`[canonical: the light half of the sibling convergence discipline — a fresh-eyes pass, NOT a freeze loop. `03` has no owner checkpoint (it is a transform), so this pass runs before routing to `04`; the heavy loop-to-a-no-op is `04`'s job. It catches the integrity defects `04`'s `epic_order.py` gate would bounce back — cheaper to catch here than to round-trip.]`
+`[canonical: the light half of the sibling convergence discipline — a fresh-eyes pass, NOT a freeze loop. `03` has no owner checkpoint (it is a transform), so this pass runs before routing to `04`; the heavy loop-to-its-lens-adjudicated-exit is `04`'s job. It catches the integrity defects `04`'s `epic_order.py` gate would bounce back — cheaper to catch here than to round-trip.]`
 
 Before routing to `04`, re-walk everything you just wrote with fresh eyes — you are your own first reviewer. Report the result inline (`Self-audit: files ✓ · frontmatter ✓ · machine==prose ✓ · titles ✓ · infra-cite ✓ · [N] edits forced`). If any check forces an edit, apply it (it is your own output — fix it now), re-check that item, then route. Audit all five:
 

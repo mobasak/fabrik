@@ -359,9 +359,9 @@ Do NOT re-decide in epic-to-ticket-workflow. Do NOT copy into epic files.]
 
 ### Step 3.5: Pre-checkpoint self-audit (fresh eyes, before you present)
 
-`[canonical: the light half of the sibling convergence discipline — a plan/data-contract self-audit pass, NOT a freeze loop. The heavy cross-epic convergence-to-a-no-op is `04-cross-epic-validation-fabrik`'s job (its finder loop + `epic_order.py`); this is only the single fresh-eyes pass that stops the owner having to catch drift `02` could have caught itself.]`
+`[canonical: the light half of the sibling convergence discipline — a plan/data-contract self-audit pass, NOT a freeze loop. The heavy cross-epic convergence-to-its-lens-adjudicated-exit is `04-cross-epic-validation-fabrik`'s job (its finder loop + `epic_order.py`); this is only the single fresh-eyes pass that stops the owner having to catch drift `02` could have caught itself.]`
 
-Before presenting, re-walk the finished decomposition ONCE with fresh eyes — you are your own first reviewer. The spirit is *"the pass that changed something is never the last pass"*: if this audit forces any edit, re-run the check(s) it touched, then present. Do not iterate to a no-op here (that is 04) — run it once, fix what it finds, state what it found.
+Before presenting, re-walk the finished decomposition ONCE with fresh eyes — you are your own first reviewer. The spirit is *"the pass that changed something is never the last pass"*: if this audit forces any edit, re-run the check(s) it touched, then present. Do not iterate to convergence here (that is 04's lens-adjudicated loop) — run it once, fix what it finds, state what it found.
 
 Audit all four, and report the result inline at the top of the checkpoint (`Self-audit: coverage ✓ · parallel gates ✓ · categories ✓ · field/graph ✓ · [N] edits forced`):
 

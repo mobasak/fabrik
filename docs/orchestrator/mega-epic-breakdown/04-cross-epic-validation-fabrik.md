@@ -3,7 +3,7 @@
      never pasted into a planner GUI.
      THIS IS THE MEGA ANALOG OF ettw `10-cross-artifact-validation` — a CONVERGING review, not a one-shot
      audit. Opus dispatches reviewer agents across the cross-epic seams AND fixup agents to close what they
-     find, and loops the epic set to a no-op. It is AUTONOMOUS: the operator already agreed to the
+     find, and runs the epic set to its lens-adjudicated exit (all five report lenses PASS-with-evidence, min-2 rounds, cap 20). It is AUTONOMOUS: the operator already agreed to the
      decomposition at `02`; there is no human step here `[canonical: north star § Human gates — R14: the two
      gates are plan-in (the operator's spec/plan approval upstream) and deploy-out (`11-deploy`)]`. It halts
      only on the 3 BLOCKED cases.
@@ -33,7 +33,7 @@
 
 ## Role
 
-The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. After `03-expand-epic-files-fabrik` writes one file per epic, this reads the **whole decomposition** and proves it is ready to execute: every feature covered exactly once, no broken or invented dependencies, disjoint parallel lanes, each ticket self-sufficient for the ettw chain. It dispatches reviewer agents to find seam defects and fixup agents to close them, and **loops the epic set to a no-op — it does not stop and ask** except on the three BLOCKED cases. It writes no epic content itself; the fixup agents do (Step 3).
+The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. After `03-expand-epic-files-fabrik` writes one file per epic, this reads the **whole decomposition** and proves it is ready to execute: every feature covered exactly once, no broken or invented dependencies, disjoint parallel lanes, each ticket self-sufficient for the ettw chain. It dispatches reviewer agents to find seam defects and fixup agents to close them, and **runs the epic set to its lens-adjudicated exit — it does not stop and ask** except on the three BLOCKED cases. It writes no epic content itself; the fixup agents do (Step 3).
 
 **Why a converging review, not an audit** `[canonical: north star § Command-chain build plan — CC1: a doer produces, a separate review forces the no-op]`: `02`/`03` produce; a single PASS/FAIL pass would hand the owner a defect list and stop. This is the mega analog of ettw `10` — it converges the artifact set instead.
 
@@ -56,8 +56,8 @@ The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driv
 
 ## Output Contract
 
-**Format:** the Cross-Epic Validation Report (markdown, structure in Step 4), posted to the Telegram digest at the no-op. **Structure-bounded, NOT token-capped** `[canonical: EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md — item 93]`: a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see. **Do not add one.**
-**Result:** the converged verdict — `found:0, fixed:0` with the fixup count and any route-backs; never a bare defect list.
+**Format:** the Cross-Epic Validation Report (markdown, structure in Step 4), posted to the Telegram digest at the adjudicated exit. **Structure-bounded, NOT token-capped** `[canonical: EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md — item 93]`: a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see. **Do not add one.**
+**Result:** the adjudicated verdict — all five report lenses PASS-with-evidence, with the round ledger, fixup count and any route-backs; never a bare defect list.
 **Consumed by:** the cockpit (epic cards → GUI card-click dispatch) / the driver (`epic_order.py --json` → phase queue); or `02`/`03`/`00` on a route-back. (`05-dispatch` retired — dispatch is code + GUI, not a command.)
 
 ## Processing User Request
@@ -176,11 +176,11 @@ Classify every surviving finding, then handle it autonomously — everything sho
 - **Vision Summary corrupted** (lens A's inventory missing/empty) → route to `00-trigger-mega-epic-fabrik`; do NOT continue.
 - **BLOCKED cases** — 3 consecutive same-test failures on one fixup → case 1 (Telegram, pause that thread, continue); missing infra → case 2; unresolvable spec contradiction → case 3.
 
-**LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until a fresh cross-epic round finds nothing AND changes nothing (`found:0, fixed:0`)**. The pass that produced a fixup is never the last; run one more. Only that no-op validates the decomposition.
+**LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until every report lens (Feature Coverage · Epic Tickets · Dependency Graph · Infrastructure Decisions · Handoff Readiness) carries an adjudicated PASS-with-evidence, with zero unresolved findings**. An empty round proves that *sample* found nothing, not that nothing exists — the lens verdicts are the exit, not a lucky quiet pass. **Minimum two full rounds, ALWAYS** (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched. **Hard cap 20 rounds:** still churning at the cap → STOP and declare the residual (which lenses, what risk) in the report instead of looping on. Keep the `found:`/`fixed:` ledger per round (`found` counts refuted candidates too).
 
 ### Step 4: Report + Hand Off
 
-At the `found:0, fixed:0` no-op, post the report to the Telegram digest (not a per-finding prompt):
+At the adjudicated exit, post the report to the Telegram digest (not a per-finding prompt):
 
 ```markdown
 # Cross-Epic Validation Report
@@ -204,7 +204,7 @@ python /opt/fabrik/scripts/epic_order.py --json --epics-dir docs/development/epi
 
 Paste its `phases` into the report verbatim. It is deterministic over `depends_on`/`parallel_with`, so the order is reproducible and driver-consumable — not a per-run judgement.
 
-**Hand off.** At the no-op, dispatch is not a command that renders instructions; it is:
+**Hand off.** At the adjudicated exit, dispatch is not a command that renders instructions; it is:
 - **In Traycer / the cockpit** — the operator **clicks an epic card** (mirrored by `03` via `traycer_mirror.py`), which opens the epic-to-ticket workflow for that epic in `consume` mode. The card carries the epic's `owned_paths` as the executing agent's File Scope.
 - **Headless / the driver** — the driver reads `epic_order.py --json` and enqueues each phase in order (parallel `⚡` epics concurrently), running `epic-to-ticket-workflow/00-trigger-fabrik` (consume mode) per epic.
 
@@ -227,11 +227,11 @@ A route-back instead hands to `02`/`03`/`00` and re-enters here after they re-em
 - Every epic ticket read as a FILE from `docs/development/epics/` (Glob/Read); the specs read fresh — never from memory or a Traycer store.
 - Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1 native `fabrik-reviewer` on Opus** — across all five lenses, with Opus refuting/merging/deciding.
 - Feature coverage (delta + `R`-prefixed alike), ticket structure (incl. all 5 `Dependencies` sub-bullets with a real `Owned paths`), graph (cycles, roots, **disjoint parallel paths**, **single migration owner**, consumed artifacts, critical path + SPLIT-CANDIDATE, minimality), Infrastructure Decisions (+ the Deferred Compliance appendix in EXISTING mode), and handoff readiness (15 fields; **`Registrars` ↔ `Shape`**; `Port` free in `PORTS.md`) all verified — each binary with `path:line` evidence.
-- Findings handled **autonomously**: surgical fixups dispatched (pool `pick_models("docs"/"spec")` or `claude -p`), re-reviewed, **looping until `found:0, fixed:0`**; boundary/scope changes routed to `02`/`03`; a corrupted Vision Summary to `00`; only the 3 BLOCKED cases pause (Telegram).
+- Findings handled **autonomously**: surgical fixups dispatched (pool `pick_models("docs"/"spec")` or `claude -p`), re-reviewed, **looping to the lens-adjudicated exit (min-2 rounds, cap 20)**; boundary/scope changes routed to `02`/`03`; a corrupted Vision Summary to `00`; only the 3 BLOCKED cases pause (Telegram).
 - Epic-count sanity surfaced (3–7 typical; 10+ or 2 remarked, never a silent pass).
 - Ticket-set integrity gated in code (`epic_order.py --check --expected-count`, folded from retired `05`) before the review lenses run.
-- The no-op report emits the code-generated topological execution order (`epic_order.py --json`) for the cockpit (card-click) / driver (phase queue) to dispatch — `05-dispatch` retired.
+- The exit report emits the code-generated topological execution order (`epic_order.py --json`) for the cockpit (card-click) / driver (phase queue) to dispatch — `05-dispatch` retired.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** `04` **is** the mega chain's cross-epic review — the analog of ettw `10` `[canonical: north star § Command-chain build plan — CC5, "10-cross-artifact-validation is the cross-cutting integration review"]`. It is a review twin, so it has **no downstream paired review**: it self-converges via its own finder loop (which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers). It also **absorbs the retired `05`**: ticket-set integrity (Step 1.5) + the code-generated execution order (Step 4) are now `04`'s, run via `scripts/epic_order.py`. At the no-op → cockpit card-click / driver phase-queue dispatch; a route-back re-enters via `02`/`03`/`00`.
+**Next (CC1 pairing, north star § Command-chain build plan):** `04` **is** the mega chain's cross-epic review — the analog of ettw `10` `[canonical: north star § Command-chain build plan — CC5, "10-cross-artifact-validation is the cross-cutting integration review"]`. It is a review twin, so it has **no downstream paired review**: it self-converges via its own finder loop (which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers). It also **absorbs the retired `05`**: ticket-set integrity (Step 1.5) + the code-generated execution order (Step 4) are now `04`'s, run via `scripts/epic_order.py`. At the adjudicated exit → cockpit card-click / driver phase-queue dispatch; a route-back re-enters via `02`/`03`/`00`.
