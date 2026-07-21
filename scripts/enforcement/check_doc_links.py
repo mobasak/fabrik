@@ -115,11 +115,7 @@ def _tracked_md_sources() -> list[Path]:
         "docs/development/",
         "docs/superpowers/",
     )
-    srcs = [
-        p
-        for p in out
-        if not p.startswith(skip_prefixes) and p != "docs/LESSONS_LEARNT.md"
-    ]
+    srcs = [p for p in out if not p.startswith(skip_prefixes) and p != "docs/LESSONS_LEARNT.md"]
     srcs += [p for p in ROOT_SOURCES if (REPO / p).exists()]
     return [REPO / p for p in sorted(set(srcs)) if str(Path(p)) not in SOURCE_WAIVERS]
 
@@ -134,9 +130,14 @@ def _iter_refs(text: str):
         # documented-stale convention: a line carrying the warning marker or an
         # explicit retirement note may cite a path that intentionally no longer
         # exists (Phase-D truth annotations) — skip its refs.
-        if ("\u26a0" in line or "⚠" in line or "no longer exists" in line
-                or ".deprecated" in line or "since removed" in line
-                or "does not exist" in line):
+        if (
+            "\u26a0" in line
+            or "⚠" in line
+            or "no longer exists" in line
+            or ".deprecated" in line
+            or "since removed" in line
+            or "does not exist" in line
+        ):
             continue
         for m in _LINK_RE.finditer(line):
             yield m.group(1), "link"
@@ -196,11 +197,7 @@ def main() -> int:
             if not _resolves(target, src):
                 broken.append(f"{rel_src}: broken ref -> {target}")
     if as_json:
-        print(
-            json.dumps(
-                {"status": "success" if not broken else "failure", "broken": broken}
-            )
-        )
+        print(json.dumps({"status": "success" if not broken else "failure", "broken": broken}))
     else:
         for b in broken:
             print(f"ERROR: {b}")

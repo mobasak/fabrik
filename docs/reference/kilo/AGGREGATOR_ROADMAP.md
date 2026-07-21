@@ -6,7 +6,7 @@ Hand-authored companion to `AI_VENDOR_ACCESS.md` (which lists vendors WIRED toda
 
 Currently wired (see `AI_VENDOR_ACCESS.md`):
 - **OpenRouter** — primary LLM gateway (18 provider families, 347 active models)
-- **Kilo CLI** — peer gateway to OR (subscription-billed, dual-routes with OR on 345 models)
+- ~~**Kilo CLI**~~ — RETIRED 2026-07-19 (was a peer gateway to OR; OpenRouter is now the sole pool gateway)
 - **SiliconFlow** — 72-model LLM/image/TTS/embedding gateway (wired 2026-07-09)
 - **ModelScope** — 55-model Alibaba model-hub gateway (Zhipu GLM direct, Intern-S, ERNIE-4.5, MiMo, Hunyuan Hy3, XiYanSQL) (wired 2026-07-09 as plan-2)
 - **Alibaba DashScope** — Qwen-MT-Turbo specialist route

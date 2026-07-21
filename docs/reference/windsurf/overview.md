@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-05-21
 
-Documentation for Windsurf IDE + Cascade AI as used in the Fabrik workflow.
+Documentation for the Windsurf IDE as used in the Fabrik workflow. (The Cascade AI route and Kilo CLI are RETIRED 2026-07-19 — agents run via VS Code + Claude Code; rows below describing them are historical.)
 
 ---
 
@@ -19,12 +19,12 @@ Documentation for Windsurf IDE + Cascade AI as used in the Fabrik workflow.
 
 ## How Fabrik Uses Windsurf
 
-Windsurf is the primary IDE. Three executors read different instruction files:
+Historically three executors read different instruction files (only Claude Code remains live; Cascade + Kilo CLI retired 2026-07-19):
 
 | Executor | Reads | Instruction file |
 |---|---|---|
-| **Cascade** (Windsurf AI) | `.windsurfrules` + `.windsurf/rules/**/*.md` + `AGENTS.md` | Glob-triggered rule packs |
-| **Kilo CLI** (terminal agent) | `AGENTS-compact.md` via `opencode.json` | Compact instructions |
+| ~~**Cascade**~~ (Windsurf AI — RETIRED) | `.windsurfrules` + `.windsurf/rules/**/*.md` + `AGENTS.md` | Glob-triggered rule packs |
+| ~~**Kilo CLI**~~ (terminal agent — RETIRED) | `AGENTS-compact.md` via `opencode.json` | Compact instructions |
 | **Claude Code** (this tool) | `CLAUDE.md` | Full dev contract |
 
 All three get the same spec contract awareness rules (inline in their respective files).
@@ -46,6 +46,6 @@ All three get the same spec contract awareness rules (inline in their respective
 
 ## See Also
 
-- `.windsurf/rules/` — the actual rule packs loaded by Cascade
+- `.windsurf/rules/` — the rule packs (formerly loaded by Cascade; still the synced governance source read by Claude Code tooling)
 - `.windsurf/workflows/` — reusable workflow recipes
 - `AGENTS.md` — always-on instructions for all executors

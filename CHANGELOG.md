@@ -73,6 +73,9 @@ live knowledge tree — born from the 668 broken pairs the audit found; blocking
 Kilo/Cascade/Coolify/Supabase live-framing; always exits 0 — 68 advisory backlog items recorded), and the
 `check_doc_sprawl.py` staged-add bypass closed (existing = in-HEAD or staged-rename; proven red→green).
 
+Phase G (finish): whole-plan receipts green; gate auto-fixes folded (ruff format on the relocated
+`scripts/check_zed_extensions.py`, EOF newlines on 4 released plan-lock JSONs); full Tier-2 gate 44/0.
+
 ### Fixed — final_gate mypy target: flat-layout projects were silently un-type-checked (2026-07-19)
 
 `detect_src_package()` returned a hardcoded `"src/"` for projects with no `src/` dir, so mypy targeted a

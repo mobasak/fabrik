@@ -1,9 +1,27 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-19 (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-07-20 (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 100: a gate check is not "live" until its PASS line appears in the target tier's OUTPUT — and a path pin is a one-line edit, not a placement argument
+
+**Date:** 2026-07-20 · **Context:** docs-truth convergence plan (7 phases, ~2,200 claims verified, 3 new enforcement gates)
+
+Two lessons from one run. (1) I registered three new enforcement checks "in the tier-2 band" by
+inserting next to `check_doc_sprawl`'s registration — which actually sits inside `if tier == 3:`. The
+tier-2 gate ran green (37/0) and I claimed "with them live"; a native-Opus reviewer proved the tier-2
+output contained none of them. Registration is a CLAIM; the check's own PASS/FAIL line in the target
+tier's output is the PROOF — always grep the gate output for the new check's display name before
+claiming liveness. (2) During planning I first defended every doc's location because "a script pins
+this path" — but a writer constant, an rsync line, or an AFTER-EDIT header is a one-line edit, not an
+architecture. Decide where a doc SHOULD live first; treat pins as migration steps with costs, never as
+walls. (Corollary shipped the same day: the sprawl gate's index-based `is_tracked` let any staged new
+.md bypass the allowlist, and a `git mv` from an archive could smuggle content into blocked dirs —
+"existing" must mean in-HEAD or renamed-from-a-live-path.)
 
 ---
 

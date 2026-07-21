@@ -1,16 +1,33 @@
 {
-  "plan": "docs/development/plans/2026-07-20-plan-1-docs-truth-convergence.md",
+  "plan": "docs/development/plans/archived/2026-07-20-plan-1-docs-truth-convergence.md",
   "owned_paths": [
     "docs/** (per plan File Scope; excludes docs/reference/LOCAL_LLM_INFRASTRUCTURE.md, docs/reference/kilo/*SELECTION*.md, sibling plan/spec files)",
-    "scripts/enforcement/check_doc_{links,index,sprawl}.py", "scripts/enforcement/check_retired_terms.py",
-    "scripts/final_gate.py", "scripts/kilo-benchmarks/daily_refresh.sh", "scripts/kilo-benchmarks/update_kilo_benchmarks.py",
-    "scripts/sync_enforcement_to_projects.py", "scripts/watch_enforcement_changes.sh", "scripts/docs_updater.py",
-    "scripts/kilo_docs_enforcer.py", "scripts/kilo-benchmarks/audit_pipeline.py", "scripts/fabrik_synced_manifest.py",
-    "src/fabrik/scaffold.py", "tests/test_scaffold_fix.py", "tests/enforcement/test_check_doc_*.py", "tests/enforcement/test_check_retired_terms.py",
-    "templates/scaffold/gitignore-synced-block.txt", ".pre-commit-config.yaml", "INDEX.md", "CHANGELOG.md", "agents-fabrik.md",
-    ".windsurf/rules/ai/00-ai-model-selection.md", ".windsurf/rules/saas/60-saas-ui.md", ".fabrik/plan-locks/*.json (path-field fixes)"
+    "scripts/enforcement/check_doc_{links,index,sprawl}.py",
+    "scripts/enforcement/check_retired_terms.py",
+    "scripts/final_gate.py",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "scripts/kilo-benchmarks/update_kilo_benchmarks.py",
+    "scripts/sync_enforcement_to_projects.py",
+    "scripts/watch_enforcement_changes.sh",
+    "scripts/docs_updater.py",
+    "scripts/kilo_docs_enforcer.py",
+    "scripts/kilo-benchmarks/audit_pipeline.py",
+    "scripts/fabrik_synced_manifest.py",
+    "src/fabrik/scaffold.py",
+    "tests/test_scaffold_fix.py",
+    "tests/enforcement/test_check_doc_*.py",
+    "tests/enforcement/test_check_retired_terms.py",
+    "templates/scaffold/gitignore-synced-block.txt",
+    ".pre-commit-config.yaml",
+    "INDEX.md",
+    "CHANGELOG.md",
+    "agents-fabrik.md",
+    ".windsurf/rules/ai/00-ai-model-selection.md",
+    ".windsurf/rules/saas/60-saas-ui.md",
+    ".fabrik/plan-locks/*.json (path-field fixes)"
   ],
   "branch": "master",
   "started_at": "2026-07-20T00:00:00Z",
-  "status": "active"
+  "status": "released",
+  "completed_at": "2026-07-20"
 }

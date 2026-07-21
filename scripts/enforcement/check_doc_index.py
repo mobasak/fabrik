@@ -70,11 +70,7 @@ def main() -> int:
             problems.append(f"live doc not in INDEX.md: {p}")
 
     if as_json:
-        print(
-            json.dumps(
-                {"status": "success" if not problems else "failure", "drift": problems}
-            )
-        )
+        print(json.dumps({"status": "success" if not problems else "failure", "drift": problems}))
     else:
         for x in problems:
             print(f"ERROR: {x}")

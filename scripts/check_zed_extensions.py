@@ -13,6 +13,7 @@ Exit code 0 = all required extensions installed; 1 = something missing/not found
 Mappings below are explicit on purpose (a language-server NAME is not always its
 extension ID). Extend SERVER_TO_EXTENSION / THEME_TO_EXTENSION as you add tooling.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -199,8 +200,10 @@ def main() -> int:
     for w in warnings:
         print(f"  [WARN] {w}")
     if missing:
-        print(f"\nFAIL: {len(missing)} extension(s) missing — install via zed: extensions "
-              f"({', '.join(sorted(missing))}).")
+        print(
+            f"\nFAIL: {len(missing)} extension(s) missing — install via zed: extensions "
+            f"({', '.join(sorted(missing))})."
+        )
         return 1
     print("\nOK: all required Zed extensions are installed.")
     return 0
