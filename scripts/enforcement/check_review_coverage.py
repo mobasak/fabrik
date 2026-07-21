@@ -35,7 +35,7 @@ CHECKLIST_HEAD = re.compile(r"coverage checklist", re.I)
 COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")
 VERDICT = re.compile(r"\b(CLEAN|FIXED\s*\(?\d*\)?|REFUTED)\b")
 UNCHECKED = re.compile(r"\bUNCHECKED\b")
-RESIDUAL_HEAD = re.compile(r"^#{2,4}\s*.*declared residual", re.I | re.M)
+BLOCKED_HEAD = re.compile(r"^#{2,4}\s*.*BLOCKED", re.M)
 RECURRENCE = {
     "fail-open/fail-closed": re.compile(r"fail[- ]open", re.I),
     "cost/quota accounting": re.compile(r"\b(cost|quota|limit)\b", re.I),
@@ -116,11 +116,11 @@ def check_file(p: Path) -> list[str]:
     if not rows:
         errs.append("Coverage Checklist has no table rows")
         return errs
-    residual_ok = bool(RESIDUAL_HEAD.search(text))
+    blocked_ok = bool(BLOCKED_HEAD.search(text)) and bool(re.search(r"3\b.{0,40}attempt|attempt.{0,40}\b3\b|three (?:consecutive|failed)", text, re.I))
     unchecked = [r.strip() for r in rows if UNCHECKED.search(r)]
     noverdict = [r.strip() for r in rows if not UNCHECKED.search(r) and not VERDICT.search(r)]
-    if unchecked and not residual_ok:
-        errs.append(f"{len(unchecked)} UNCHECKED row(s) with no 'Declared residual' section: {unchecked[:3]}")
+    if unchecked and not blocked_ok:
+        errs.append(f"{len(unchecked)} UNCHECKED row(s) with no ## BLOCKED escalation (finding + 3 failed attempts): {unchecked[:3]}")
     if noverdict:
         errs.append(f"{len(noverdict)} row(s) without a CLEAN/FIXED/REFUTED verdict: {noverdict[:3]}")
     bare = [r.strip() for r in rows
@@ -128,8 +128,8 @@ def check_file(p: Path) -> list[str]:
     if bare:
         errs.append(f"{len(bare)} CLEAN row(s) without evidence (name the files/paths hunted): {bare[:3]}")
     founds = re.findall(r"found:\s*(\d+)", text)
-    if founds and int(founds[-1]) != 0 and not residual_ok:
-        errs.append(f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or declare the residual")
+    if founds and int(founds[-1]) != 0 and not blocked_ok:
+        errs.append(f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts)")
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
     if missing:

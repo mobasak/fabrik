@@ -26,8 +26,10 @@ full, demonstrably-thorough grounding round makes ZERO edits to the artifact** (
 The failure this exists to stop: ground once → fix what you found → declare "converged." That is NOT
 converged — fixes open new gaps, so **the pass in which you edited is NEVER the last pass**. **Minimum two passes, ALWAYS** —
 even an edit-free pass 1 must be confirmed by an independent pass 2; accuracy outranks pass-count.
-**Hard cap 20 passes:** still churning at the cap → STOP and declare the unconverged axes + the
-accepted risk in the report instead of looping on.
+The final pass must also have **raised zero candidates** (refuted counts as raised — log them; a pass that
+raised anything owes the next pass). **There is NO pass ceiling** — an axis stuck after 3 consecutive
+reconcile attempts is BLOCKED-escalated to the operator (named, with the 3 attempts) while the rest converges;
+never a self-declared "accepted risk".
 
 **Anti-cheat (mechanical, not vibes):** record the artifact's `md5sum` at the start and end of the final
 pass. Identical hash = a real no-op. A no-op asserted without matching hashes does not count. Maintain a

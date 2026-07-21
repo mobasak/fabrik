@@ -219,8 +219,8 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`f
 - **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED), the last code-changing pass has
   had its touched classes re-checked, and the mechanical gates are green → **EXIT** (the Termination
   contract's conditions). This — not an empty pass — is the ONLY thing that ends the review and lets the
-  caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. At the pass cap with rows still churning:
-  STOP and declare the residual per the contract.
+  caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
+  BLOCKED-escalate it per the contract and keep looping on the rest.
 
 **The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
 first pass found" is not an exit — those classes return to UNCHECKED until a fresh round re-adjudicates them.

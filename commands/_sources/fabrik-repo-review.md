@@ -130,8 +130,8 @@ demonstrably-thorough FULL certification pass across all in-scope units — a co
 row is adjudicated** (CLEAN / FIXED / REFUTED — the only standing residual being the explicitly-tracked
 deferred backlog) and every class the certification's own fixes touched has been re-checked. If certification
 surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes
-— bounded by the Termination contract's pass cap; at the cap, STOP and declare the residual. Do not claim the
-exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
+— with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination
+contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
 + each fix's regression test. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
 — not just the in-scope tests.
 
