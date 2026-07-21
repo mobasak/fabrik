@@ -1,4 +1,4 @@
-<!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET BREAKDOWN (our own, tool-capable twin of 06-ticket-breakdown-command)
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET BREAKDOWN (our own, tool-capable twin of 06-ticket-breakdown-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the confirmed outline + Tech/Deploy/Core-Flows + the LOCKED Decisions Lock from disk and writes complete
      executable ticket specs. The outline decided WHAT; this decides HOW (steps, file paths, governance).
@@ -153,7 +153,7 @@ If every scope file is `docs/` / root `*.md` / templates: Gate Tier 1 (coding-ti
 
 ### Step 12: Present Batch
 
-Present: `## Batch N of M — Parallel Map` (⚡/⛓️), the full tickets, the `[PRIMARY PATH]` Index table (Flow · Test Path · Ticket), then "Batch N of M complete. Next: Batch N+1." Scope drift → `09-revise-requirements-command`; inconsistent specs → `10-cross-artifact-validation-command`.
+Present: `## Batch N of M — Parallel Map` (⚡/⛓️), the full tickets, the `[PRIMARY PATH]` Index table (Flow · Test Path · Ticket), then "Batch N of M complete. Next: Batch N+1." Scope drift → `09-revise-requirements-fabrik`; inconsistent specs → `10-cross-artifact-validation-fabrik`.
 
 ### Step 13: Cross-Check
 
@@ -162,8 +162,8 @@ Every ticket has ALL fields (no stubs/placeholders/truncation) · Steps use VERB
 ## Does NOT
 
 - Change outline ticket boundaries / move features between tickets — that is `05-ticket-outline-fabrik` (route back on a wrong boundary).
-- Execute tickets — that is `07-execute-command` (the coder dispatch); this writes the spec.
-- Validate implementation correctness — that is `08-implementation-validation-command`; cross-artifact — `10-cross-artifact-validation-command`.
+- Execute tickets — that is `07-execute-fabrik` (the coder dispatch); this writes the spec.
+- Validate implementation correctness — that is `08-implementation-validation-fabrik`; cross-artifact — `10-cross-artifact-validation-fabrik`.
 - Rename/restructure Titles — the outline emits `Tn — <verb>` (or `Tn — Retrofit: <area>` `[canonical: mega/03-expand-epic-files-fabrik § Step 2]`); expand the spec under the existing Title.
 - Inject rule packs not in the outline's category table (route back to 05); write commit messages/PRs; run `git commit`/`push` (auto-staged by `final_gate.py` on success).
 - Force Epic Closure for a scoped Retrofit (state "skipped (Retrofit — [reason])"); propose `revise-requirements` mid-batch; re-enforce all mandate rows for a Retrofit (only the target area).
@@ -181,4 +181,4 @@ Every ticket has ALL fields (no stubs/placeholders/truncation) · Steps use VERB
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this batch with `/fabrik-workflow-review <batch path> ticket-breakdown` — it forces the no-op (every ticket concrete + isolation-simulation-clean, all outline fields honored, Doc Sync + mandate + test + Lessons criteria injected, agent tier assigned via `pick_models`/`claude -p`, no `DATABASE_SCHEMA.md`, zero hollow citations) before dispatch. Then → `07-execute-command` (dispatch Batch 1's ⚡ tickets to separate coder agents). *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this batch with `/fabrik-workflow-review <batch path> ticket-breakdown` — it forces the no-op (every ticket concrete + isolation-simulation-clean, all outline fields honored, Doc Sync + mandate + test + Lessons criteria injected, agent tier assigned via `pick_models`/`claude -p`, no `DATABASE_SCHEMA.md`, zero hollow citations) before dispatch. Then → `07-execute-fabrik` (dispatch Batch 1's ⚡ tickets to separate coder agents).

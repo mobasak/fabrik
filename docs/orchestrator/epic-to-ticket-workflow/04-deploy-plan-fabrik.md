@@ -1,4 +1,4 @@
-<!-- ⚠️ FABRIK FACTORY WORKFLOW — DEPLOY PLAN (our own, tool-capable twin of 04-deploy-plan-command)
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — DEPLOY PLAN (our own, tool-capable twin of 04-deploy-plan-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the Tech Plan + INFRA-CHECK from disk and verifies the planned deploy against the
      REAL `fabrik apply` invariants in code (deployer_ssh._validate_compose, the registrars). A pre-flight —
@@ -25,7 +25,7 @@ Deployment engineer who confirms the service is ready for `fabrik apply` — ver
 
 ## Core Philosophy
 
-Runs AFTER `03-tech-plan-fabrik`, BEFORE `05-ticket-outline-command`. A pre-flight that catches deploy-blocking issues before tickets are designed — cheap now, expensive after 20 tickets. Consume upstream; do not redo work. Only proceed when the user explicitly confirms — silence ≠ confirmation.
+Runs AFTER `03-tech-plan-fabrik`, BEFORE `05-ticket-outline-fabrik`. A pre-flight that catches deploy-blocking issues before tickets are designed — cheap now, expensive after 20 tickets. Consume upstream; do not redo work. Only proceed when the user explicitly confirms — silence ≠ confirmation.
 
 ## Processing User Request
 
@@ -33,7 +33,7 @@ Runs AFTER `03-tech-plan-fabrik`, BEFORE `05-ticket-outline-command`. A pre-flig
 
 1. **Tech Plan** (`03-tech-plan-fabrik`) — Shape Block Declaration (Step 7), Component Architecture deployment **constraints**, resilience table.
 2. **INFRA-CHECK** — **Path A**: capture `Shape`, `Concurrency`, `Port`, **`target_vps`**, `Scaffold`, `Rule Packs`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Abuse Detection`, `Email`, `FINANCIALS`. ⚠️ **`target_vps` decides the deploy host AND the DB/cache host** — a spoke (`vps2`/`vps3`) reaches shared infra at `10.99.0.1`, never by Docker DNS. **Path B**: also `Registrars`, `Universal categories`, `Epic Flavor` (Delta-feature | Retrofit) `[canonical: 00-trigger-fabrik § Entry Points → Multi-epic]`.
-   - **`Registrars` cross-check (Path B):** the Step-4 Registrar Surface Map MUST match the Metadata `Registrars` list. Tech Plan says "fires authelia" but the list omits it → mismatch; route back to `mega-epic-breakdown/02-epic-decomposition-command`.
+   - **`Registrars` cross-check (Path B):** the Step-4 Registrar Surface Map MUST match the Metadata `Registrars` list. Tech Plan says "fires authelia" but the list omits it → mismatch; route back to `mega-epic-breakdown/02-epic-decomposition-fabrik`.
    - **`Universal categories` scope (Path B):** own category #3 (Persistence) but NOT #4 (Workers) → the Surface Map must NOT include worker-related registrars; sibling-owned categories' registrars are out-of-scope.
    - **`Epic Flavor: Retrofit` skip rule (Path B):** a code-only retrofit that changes no shape/compose/registrar/env (e.g. `Retrofit: i18n`, `Retrofit: Resilience` on existing calls, `Retrofit: Auth hardening`) may **skip this command entirely** — state "Skipped per Retrofit Epic Flavor; existing compose unchanged." Run it ONLY when the retrofit adds a registrar / shape flag / external dep / env var (e.g. `Retrofit: search` → `has_search_feature` + meilisearch → Steps 2+4+5; `Retrofit: backup` → `has_persistent_data` + backrest → Steps 2+4). State which Steps run.
 3. `docs/operations/fabrik-lifecycle.md` — registrar mechanics (what each creates and removes).
@@ -97,21 +97,21 @@ Confirm `fabrik destroy --use-state` cleanly reverses everything `fabrik apply` 
 
 ### Step 9: Present and Confirm
 
-Present the deploy plan; the user confirms shape + compose + registrars + env vars + destroy path. Silence ≠ confirmation. Any mismatch (e.g. code needs Redis but `shape.needs_cache: false`) → flag as a correction to resolve before `05-ticket-outline-command`.
+Present the deploy plan; the user confirms shape + compose + registrars + env vars + destroy path. Silence ≠ confirmation. Any mismatch (e.g. code needs Redis but `shape.needs_cache: false`) → flag as a correction to resolve before `05-ticket-outline-fabrik`.
 
-**Downstream doc feed:** the Deploy Plan informs the project's **`docs/DEPLOYMENT.md`** (from `DEPLOYMENT_TEMPLATE.md` — compose contract, env vars, registrar surface). ⚠️ **`docs/DEPLOYMENT_ARCHITECTURE.md` is a hub-only doc — never a project's.** `05-ticket-outline-command`'s Documentation Assignment Matrix assigns which ticket fills `docs/DEPLOYMENT.md`.
+**Downstream doc feed:** the Deploy Plan informs the project's **`docs/DEPLOYMENT.md`** (from `DEPLOYMENT_TEMPLATE.md` — compose contract, env vars, registrar surface). ⚠️ **`docs/DEPLOYMENT_ARCHITECTURE.md` is a hub-only doc — never a project's.** `05-ticket-outline-fabrik`'s Documentation Assignment Matrix assigns which ticket fills `docs/DEPLOYMENT.md`.
 
 ## Does NOT
 
 - Design Component Architecture / Data Model / resilience table — that is `03-tech-plan-fabrik` Step 6.
-- Decompose into tickets — that is `05-ticket-outline-command`.
-- Write the actual `compose.yaml` content — Step 3 names the contract; literal content is `06-ticket-breakdown-command` per-ticket.
-- Execute `fabrik apply` — that is `11-deploy-command` (Stage 3); this command is the pre-flight verification.
+- Decompose into tickets — that is `05-ticket-outline-fabrik`.
+- Write the actual `compose.yaml` content — Step 3 names the contract; literal content is `06-ticket-breakdown-fabrik` per-ticket.
+- Execute `fabrik apply` — that is `11-deploy-fabrik` (Stage 3); this command is the pre-flight verification.
 - Redeclare the Shape Block — Step 2 VERIFIES the `03-tech-plan-fabrik` Step-7 declaration; declaring is upstream's job.
 - Re-derive INFRA-CHECK fields — consume from the Decisions Lock Metadata verbatim (Step 1); a missing Path B field routes back to `00-trigger-fabrik`.
 - Write env values (secrets, keys) — Step 5 names the checklist; values are populated at `fabrik apply` time per `core/35-security-auth.md`.
 - Run Steps 2–8 for a code-only Retrofit that changes no shape/compose/registrar/env — per the Step-1 skip rule (state which Steps run).
-- Validate the Deploy Plan against downstream commands — that is `08-implementation-validation-command` + `10-cross-artifact-validation-command`.
+- Validate the Deploy Plan against downstream commands — that is `08-implementation-validation-fabrik` + `10-cross-artifact-validation-fabrik`.
 
 ## Acceptance Criteria
 
@@ -129,4 +129,4 @@ Present the deploy plan; the user confirms shape + compose + registrars + env va
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this Deploy Plan with `/fabrik-workflow-review <spec path> deploy-plan` — it forces the no-op (all 8 shape flags mapped, all 10 registrars in the surface map, compose contract complete, destroy path reversible, `/health` not behind auth, zero hollow citations) before anything consumes it. Then → `05-ticket-outline-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this Deploy Plan with `/fabrik-workflow-review <spec path> deploy-plan` — it forces the no-op (all 8 shape flags mapped, all 10 registrars in the surface map, compose contract complete, destroy path reversible, `/health` not behind auth, zero hollow citations) before anything consumes it. Then → `05-ticket-outline-fabrik`.

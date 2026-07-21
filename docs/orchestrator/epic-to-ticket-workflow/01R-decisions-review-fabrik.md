@@ -24,8 +24,10 @@
 This is a LOOP, not a one-shot. It ends — and the artifact may be presented for locking — **only when a
 full, demonstrably-thorough grounding round makes ZERO edits to the artifact** (a genuine no-op pass).
 The failure this exists to stop: ground once → fix what you found → declare "converged." That is NOT
-converged — fixes open new gaps, so **the pass in which you edited is NEVER the last pass**. Minimum two
-passes whenever pass 1 changes anything.
+converged — fixes open new gaps, so **the pass in which you edited is NEVER the last pass**. **Minimum two passes, ALWAYS** —
+even an edit-free pass 1 must be confirmed by an independent pass 2; accuracy outranks pass-count.
+**Hard cap 20 passes:** still churning at the cap → STOP and declare the unconverged axes + the
+accepted risk in the report instead of looping on.
 
 **Anti-cheat (mechanical, not vibes):** record the artifact's `md5sum` at the start and end of the final
 pass. Identical hash = a real no-op. A no-op asserted without matching hashes does not count. Maintain a

@@ -1,4 +1,4 @@
-<!-- ⚠️ FABRIK FACTORY WORKFLOW — CORE FLOWS (our own, tool-capable twin of 02-core-flows-command)
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — CORE FLOWS (our own, tool-capable twin of 02-core-flows-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      GUI-ONLY: runs only when 00-trigger-fabrik's route included `core-flows`. TOOL-CAPABLE: it READS the
      Decisions Lock + design-system + UI rule pack from disk, and gates with final_gate.py.
@@ -73,7 +73,7 @@ Identify all personas from the Decisions Lock. For each, map **Entry Point → A
 - Boundary conditions (token expiry, missing data, rate limits, permissions).
 - **Resilience (user's view):** for each action calling an external service (payment, search, upload, notification), document what the user sees when it's slow (loading state + timeout threshold) or down (graceful fallback + alternatives).
 - **Language context:** on mid-flow language switch — what persists? URL change? Form data survives?
-- **Shape implications:** a flow introducing a new backing-service interaction (search, storage, admin auth) → flag it; `03-tech-plan-command` must reflect it in the shape block.
+- **Shape implications:** a flow introducing a new backing-service interaction (search, storage, admin auth) → flag it; `03-tech-plan-fabrik` must reflect it in the shape block.
 
 Every journey traces to ≥1 Success Criterion. A criterion with no covering journey is a gap — surface it as a question.
 
@@ -89,11 +89,11 @@ Seek explicit alignment before documenting — do not assume: (1) **Information 
 
 ### Step 6: Document Flows (Spec Artifact)
 
-Document only after explicit confirmation. **Per-flow (target ≤30 lines, soft cap 50):** Flow name (short imperative) · Persona · Success Criterion it serves · **Mermaid sequence diagram** for genuinely multi-party logic (`participant` + `Note over`) · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — no test name, no Given/When/Then, no assertions; `06-ticket-breakdown-command` consumes it to nominate the integration-test target) · Decision points · Edge/error paths (every Step-4 error) · Resilience paths · State flags (only where the Step-5 rule warrants) describing user-visible behavior · **Microcopy Hot-Spots** (name the *outcome* the copy must communicate, never the literal string — the implementer writes copy per `[canonical: ocoron-design-system.md § Verbal Identity]`) · i18n Notes (when `i18n ≠ N/A`, one line per locale-sensitive element only where a developer would default wrong).
+Document only after explicit confirmation. **Per-flow (target ≤30 lines, soft cap 50):** Flow name (short imperative) · Persona · Success Criterion it serves · **Mermaid sequence diagram** for genuinely multi-party logic (`participant` + `Note over`) · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — no test name, no Given/When/Then, no assertions; `06-ticket-breakdown-fabrik` consumes it to nominate the integration-test target) · Decision points · Edge/error paths (every Step-4 error) · Resilience paths · State flags (only where the Step-5 rule warrants) describing user-visible behavior · **Microcopy Hot-Spots** (name the *outcome* the copy must communicate, never the literal string — the implementer writes copy per `[canonical: ocoron-design-system.md § Verbal Identity]`) · i18n Notes (when `i18n ≠ N/A`, one line per locale-sensitive element only where a developer would default wrong).
 
 **Spec-wide (target ≤200 lines, soft cap 400):** one **Personas** section · one **Flow Index** (flow → Success Criterion) · one **i18n Decisions** section (if applicable) · one flow per journey in encounter order.
 
-**Downstream doc feeds:** Core Flows informs `docs/FEATURES.md` + `docs/QUICKSTART.md`; `06-ticket-breakdown-command` Doc Sync Matrix assigns which ticket fills them.
+**Downstream doc feeds:** Core Flows informs `docs/FEATURES.md` + `docs/QUICKSTART.md`; `06-ticket-breakdown-fabrik` Doc Sync Matrix assigns which ticket fills them.
 
 **Hard exclusions:** no file paths · no codebase component names · no implementation detail (libraries, frameworks, API endpoints, DB tables) · no literal microcopy · no i18n implementation (no `next-intl` calls or locale paths — UX behavior only).
 
@@ -107,17 +107,17 @@ Walk before handoff; resolve gaps in conversation, do not hand off with known ga
 
 ### Step 8: Present and Iterate
 
-Present. Iterate until the user explicitly confirms flows are complete — silence and ambiguous responses are not confirmation. A mid-iteration requirement change (new persona, new Success Criterion, removed scope) → route to `09-revise-requirements-command`, don't silently absorb.
+Present. Iterate until the user explicitly confirms flows are complete — silence and ambiguous responses are not confirmation. A mid-iteration requirement change (new persona, new Success Criterion, removed scope) → route to `09-revise-requirements-fabrik`, don't silently absorb.
 
 ## Does NOT
 
-- Design data models / API endpoints / request/response shapes — that is `03-tech-plan-command` (Component Architecture / Data Model).
-- Decompose flows into tickets — that is `05-ticket-outline-command`.
-- Design state-machine implementations (Redux/Zustand) — flows name USER-VISIBLE state names only; the pattern is `03-tech-plan-command`'s concern.
+- Design data models / API endpoints / request/response shapes — that is `03-tech-plan-fabrik` (Component Architecture / Data Model).
+- Decompose flows into tickets — that is `05-ticket-outline-fabrik`.
+- Design state-machine implementations (Redux/Zustand) — flows name USER-VISIBLE state names only; the pattern is `03-tech-plan-fabrik`'s concern.
 - Specify literal microcopy — name the outcome per `[canonical: ocoron-design-system.md § Verbal Identity]`; the implementer writes it.
 - Re-derive INFRA-CHECK fields — consume from the Decisions Lock Metadata verbatim (Step 2). A missing Path B field (e.g. `Universal categories`) → stop, route back to `00-trigger-fabrik`.
-- Design observability events / deploy config — that is `03-tech-plan-command` + `06-ticket-breakdown-command` (observability) and `04-deploy-plan-command` (compose/Traefik/healthcheck).
-- Write i18n implementation code — UX behavior at flow level only; implementation is `03-tech-plan-command` + `06-ticket-breakdown-command`.
+- Design observability events / deploy config — that is `03-tech-plan-fabrik` + `06-ticket-breakdown-fabrik` (observability) and `04-deploy-plan-fabrik` (compose/Traefik/healthcheck).
+- Write i18n implementation code — UX behavior at flow level only; implementation is `03-tech-plan-fabrik` + `06-ticket-breakdown-fabrik`.
 
 ## Acceptance Criteria
 
@@ -132,4 +132,4 @@ Present. Iterate until the user explicitly confirms flows are complete — silen
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this Core Flows spec with `/fabrik-workflow-review <spec path> core-flows` — it forces the no-op (every Success Criterion covered, one `[PRIMARY PATH]` per flow, resilience + i18n + state flags present, no implementation detail, zero hollow citations) before anything consumes it. Then → `03-tech-plan-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this Core Flows spec with `/fabrik-workflow-review <spec path> core-flows` — it forces the no-op (every Success Criterion covered, one `[PRIMARY PATH]` per flow, resilience + i18n + state flags present, no implementation detail, zero hollow citations) before anything consumes it. Then → `03-tech-plan-fabrik`.

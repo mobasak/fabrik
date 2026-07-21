@@ -4,7 +4,7 @@
      THIS IS 07-EXECUTE'S PAIRED REVIEW (north star § Command-chain build plan — CC5): the epic-level
      code-vs-spec pass that catches the cross-ticket regressions a per-ticket converge cannot see. Opus
      orchestrates reviewer agents (find drift) AND coder agents (fix it), loops the implemented epic to a
-     no-op, and DOES NOT STOP until it validates clean — halting only on the 3 BLOCKED cases. There is NO
+     its lens-adjudicated exit, and DOES NOT STOP until it validates clean — halting only on the 3 BLOCKED cases. There is NO
      human step between the plan-in gate (passed) and the deploy-out gate (`11-deploy`).
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
@@ -28,7 +28,7 @@
 
 ## Role
 
-The **epic-level implementation-vs-spec review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. After `07-execute-fabrik` converges every ticket per-ticket, this reads the **implemented epic as a whole** and compares it against the planned specs — reasoning about alignment and correctness by reading actual files, never by trusting an agent's self-report. It dispatches reviewer agents to find drift and coder agents to fix it, and **loops the epic to a no-op — it does not stop and ask** except on the three BLOCKED cases. It writes no code itself; the coder agents do (Step 4).
+The **epic-level implementation-vs-spec review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. After `07-execute-fabrik` converges every ticket per-ticket, this reads the **implemented epic as a whole** and compares it against the planned specs — reasoning about alignment and correctness by reading actual files, never by trusting an agent's self-report. It dispatches reviewer agents to find drift and coder agents to fix it, and **runs the epic to its lens-adjudicated exit — it does not stop and ask** except on the three BLOCKED cases. It writes no code itself; the coder agents do (Step 4).
 
 **Why this runs after execute** `[canonical: 07-execute-fabrik § Step 3 — per-ticket converge is not epic-wide]`: `07` converges each ticket as it lands, but **later tickets can break earlier ones** (regressions), and **cross-ticket patterns are invisible per-ticket** (schema ↔ query mismatches, API contract breaks, scattered convention violations). This command catches those. It is **implementation-vs-spec**; the **spec-vs-spec** cross-artifact pass is `10-cross-artifact-validation-fabrik`.
 
@@ -40,7 +40,7 @@ Two questions, answered by reading code + running commands + reasoning — never
 2. **Correctness** — does it actually work? Bugs, silent failures, security gaps?
 
 - **Every finding cites** `[canonical: 08-implementation-validation-fabrik § Core Philosophy]`: a code location (`file:line`), the spec it should align with (document + section), and a verification (command output or the code you read). A finding without all three is not a finding.
-- **Autonomous between the two human gates** `[canonical: north star § Human gates — R14]`. The plan was approved (plan-in gate); the deploy is a separate human gate (`11-deploy-command`). This whole pass runs without a human step — drift → a scoped fixup ticket, re-dispatched, re-reviewed, until the epic validates.
+- **Autonomous between the two human gates** `[canonical: north star § Human gates — R14]`. The plan was approved (plan-in gate); the deploy is a separate human gate (`11-deploy-fabrik`). This whole pass runs without a human step — drift → a scoped fixup ticket, re-dispatched, re-reviewed, until the epic validates.
 - **The only halt conditions are the 3 BLOCKED cases** `[canonical: CLAUDE.md § Behavior — the three BLOCKED cases]`: **(1)** 3 consecutive same-test failures on one fixup; **(2)** missing infra; **(3)** an unresolvable spec contradiction. On any → Apprise→Telegram `BLOCKED: <what> — searched: <sources> — missing: <need>`, pause THAT thread, continue the rest.
 
 ## Processing User Request
@@ -55,9 +55,9 @@ From the argument: **`validate all`** → the entire epic; **`validate T5, T6`**
 |---|---|
 | **1 — Mechanical** | Read every file in scope. Check against the specs. Surface alignment findings. |
 | **2 — Deep** | Read the critical paths (auth, payments, external calls, migrations). Correctness, security, resilience. |
-| **3 — Resolution** | Classify findings (Step 5), dispatch fixups (Step 4), re-review — loop to a no-op. |
+| **3 — Resolution** | Classify findings (Step 5), dispatch fixups (Step 4), re-review — loop to the lens-adjudicated exit. |
 
-Small epics (≤8 tickets): the three lenses combine into one run. Either way the run **loops to `found:0, fixed:0`** (Step 4) — a single pass is never the completion.
+Small epics (≤8 tickets): the three lenses combine into one run. Either way the run **loops to the lens-adjudicated exit** (Step 4) — a single pass is never the completion.
 
 **Retrofit-epic adjustments** (Title prefix `Retrofit:` `[canonical: mega-epic-breakdown/03-expand-epic-files-fabrik § Step 2 — Retrofit detected from the Title prefix]`):
 
@@ -109,7 +109,7 @@ Classify every surviving finding (Step 5), then handle it autonomously — every
 - **Product misalignment** (code deviates from Decisions Lock / Core Flows intent — not a code bug but a requirements gap) → **route to `09-revise-requirements-fabrik`**; do NOT edit the Decisions Lock / Core Flows / Tech Plan here.
 - **3 consecutive same-test failures on one fixup** → **BLOCKED case 1** → Telegram, pause THAT thread, continue. **Missing infra** → **BLOCKED case 2**. **Unresolvable spec contradiction** → **BLOCKED case 3** → route to `09`.
 
-**LOOP:** every fixup dispatched → re-reviewed (Step 3) → re-classified — **until a fresh epic-level review round finds nothing AND changes nothing (`found:0, fixed:0`)**. The pass that produced a fixup is never the last; run one more. Only that no-op validates the epic.
+**LOOP:** every fixup dispatched → re-reviewed → re-classified — **until every lens of this command's review structure carries an adjudicated PASS-with-evidence, with zero unresolved findings** (the lens/dimension breakdown above is the single source of the lens set). An empty round proves that *sample* found nothing, not that nothing exists — the lens verdicts are the exit, not a lucky quiet pass. **Minimum two full rounds, ALWAYS** (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched. **Hard cap 20 rounds:** still churning at the cap → STOP and declare the residual (which lenses, what risk) in the report instead of looping on. Keep the `found:`/`fixed:` ledger per round (`found` counts refuted candidates too).
 
 ### Step 5: Classify + Present
 
@@ -126,7 +126,7 @@ Post the running result to the Telegram digest (`Validation: 10 clean / 2 fixups
 
 ### Step 6: Systemic Gate + Handoff
 
-When the epic-level review reaches the `found:0, fixed:0` no-op: run **`final_gate.py --systemic --json`** `[canonical: scripts/final_gate.py — Tier-3 repo-health]` to prove nothing regressed epic-wide (⚠️ **except** a Retrofit epic where Epic Closure was skipped → Tier-2 `--json`, per Step 1). Confirm `status:"success"`, then hand off: the next step is `10-cross-artifact-validation-fabrik` (the spec-vs-spec integration review), then the **deploy-out human gate** → `11-deploy-command`. This command never runs `fabrik apply`.
+When the epic-level review reaches its lens-adjudicated exit: run **`final_gate.py --systemic --json`** `[canonical: scripts/final_gate.py — Tier-3 repo-health]` to prove nothing regressed epic-wide (⚠️ **except** a Retrofit epic where Epic Closure was skipped → Tier-2 `--json`, per Step 1). Confirm `status:"success"`, then hand off: the next step is `10-cross-artifact-validation-fabrik` (the spec-vs-spec integration review), then the **deploy-out human gate** → `11-deploy-fabrik`. This command never runs `fabrik apply`.
 
 ## Does NOT
 
@@ -138,7 +138,7 @@ When the epic-level review reaches the `found:0, fixed:0` no-op: run **`final_ga
 - **Trust agent self-reports** — every finding needs `file:line` + spec ref + verification (Core Philosophy). A coder's "gate passed" is a claim; the returned `final_gate.py --json` `status:"success"` is the proof.
 - **Force `final_gate.py --systemic` for a Retrofit epic where Epic Closure was skipped** at `06`/`07` — use Tier-2 `--json` there (Step 1).
 - **Flag a Retrofit Decisions Lock with 3–5 Success Criteria as under-specced** — that is the Retrofit default; low-SC is a Blocker only for a Delta-feature with <5 SC.
-- **Execute `fabrik apply` / deploy** — that is `11-deploy-command` (the deploy-out gate). `08` is the PRE-deploy epic-level review.
+- **Execute `fabrik apply` / deploy** — that is `11-deploy-fabrik` (the deploy-out gate). `08` is the PRE-deploy epic-level review.
 - **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); the coder fixups merge via `07`-style worktree→default-branch.
 
 ## Acceptance Criteria
@@ -149,9 +149,9 @@ When the epic-level review reaches the `found:0, fixed:0` no-op: run **`final_ga
 - Correctness (silent failures, bugs, security), 12-Factor, concurrency, i18n, resilience, M2M auth, shape ↔ code, and deployment readiness all verified by reading.
 - Documentation completeness verified (all scaffold docs filled — `data-contract.md`/`DEPLOYMENT.md`, not the archived `DATABASE_SCHEMA.md`/hub-only `DEPLOYMENT_ARCHITECTURE.md`); per-ticket Lessons stated (silence = Blocker).
 - Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1 native `fabrik-reviewer` on Opus** — with Opus refuting/merging/deciding.
-- Findings handled **autonomously**: scoped fixup tickets dispatched to coders (pool `pick_models("code")` or `claude -p`), re-reviewed, **looping until `found:0, fixed:0`**; Product Misalignment routes to `09`; only the 3 BLOCKED cases pause (Telegram).
-- The `found:0, fixed:0` no-op is followed by `final_gate.py --systemic --json` `status:"success"` (Tier-2 for a skipped-closure Retrofit); then handoff to `10` → the deploy-out gate. Never runs `fabrik apply`.
+- Findings handled **autonomously**: scoped fixup tickets dispatched to coders (pool `pick_models("code")` or `claude -p`), re-reviewed, **looping to the lens-adjudicated exit (min-2 rounds, cap 20)**; Product Misalignment routes to `09`; only the 3 BLOCKED cases pause (Telegram).
+- The lens-adjudicated exit is followed by `final_gate.py --systemic --json` `status:"success"` (Tier-2 for a skipped-closure Retrofit); then handoff to `10` → the deploy-out gate. Never runs `fabrik apply`.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** `08` IS `07-execute`'s paired review `[canonical: north star § Command-chain build plan — CC5, "08 is 07-execute's review"]`. After the epic validates to a no-op, the chain continues to `10-cross-artifact-validation-fabrik` (the spec-vs-spec integration review), then the **deploy-out human gate** → `11-deploy-command`. A Product Misalignment routes to `09-revise-requirements-fabrik` and re-enters the chain. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** `08` IS `07-execute`'s paired review `[canonical: north star § Command-chain build plan — CC5, "08 is 07-execute's review"]`. After the epic validates to its lens-adjudicated exit, the chain continues to `10-cross-artifact-validation-fabrik` (the spec-vs-spec integration review), then the **deploy-out human gate** → `11-deploy-fabrik`. A Product Misalignment routes to `09-revise-requirements-fabrik` and re-enters the chain.

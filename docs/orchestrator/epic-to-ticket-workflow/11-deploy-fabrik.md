@@ -1,4 +1,4 @@
-<!-- ⚠️ FABRIK FACTORY WORKFLOW — DEPLOY (our own, tool-capable twin of 11-deploy-command).
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — DEPLOY (our own, tool-capable twin of 11-deploy-fabrik).
      Run by our orchestrator agent (Opus 4.8, via the driver) — never pasted into a planner GUI.
      ⚠️ THIS IS THE DEPLOY-OUT **HUMAN GATE** — R14's second gate `[canonical: north star § Requirements —
      R14: "Exactly two gates: plan approval in, deploy approval out (deploy = manual `fabrik apply`)"]`.
@@ -162,4 +162,4 @@ The operator returns the `fabrik apply` / `fabrik verify` output:
 
 ---
 
-**Next:** `11` is the **end of the ettw chain** — the epic is deployed. There is no paired review: `11` is a human gate, converged instead by a grounding+consistency pass `[canonical: docs/superpowers/specs/archived/2026-07-16-traycer-fabrik-twins-design.md § Success criteria]`. A deploy that surfaces a scope change routes to `09-revise-requirements-fabrik`; a registrar/compose mismatch routes to `04-deploy-plan-fabrik`. The next epic re-enters at `00-trigger-fabrik`. *(Downstream refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next:** `11` is the **end of the ettw chain** — the epic is deployed. There is no paired review: `11` is a human gate, converged instead by a grounding+consistency pass `[canonical: docs/superpowers/specs/archived/2026-07-16-traycer-fabrik-twins-design.md § Success criteria]`. A deploy that surfaces a scope change routes to `09-revise-requirements-fabrik`; a registrar/compose mismatch routes to `04-deploy-plan-fabrik`. The next epic re-enters at `00-trigger-fabrik`.

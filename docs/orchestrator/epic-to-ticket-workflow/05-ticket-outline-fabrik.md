@@ -1,4 +1,4 @@
-<!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET OUTLINE (our own, tool-capable twin of 05-ticket-outline-command)
+<!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET OUTLINE (our own, tool-capable twin of 05-ticket-outline-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the Decisions Lock + Core Flows + Tech Plan + Deploy Plan + INFRA-CHECK from disk and
      builds the maximum-parallelism dependency graph. Produces the MAP; `06-ticket-breakdown-fabrik` produces
@@ -136,7 +136,7 @@ Every project doc assigned to exactly one ticket — a scaffolded template where
 | `docs/BUSINESS_MODEL.md` | T? | Decisions Lock (commercial projects only) |
 | `docs/FINANCIALS.md` | T? | required when `Metadata.FINANCIALS: required`; filled by the billing-integration ticket |
 
-Docs are filled BY the ticket that implements the related functionality (not a separate "docs ticket"); if a scaffold lacks a doc (e.g. `file-worker` has no `API_REFERENCE.md`), mark N/A; `06-ticket-breakdown-command` enforces this matrix per-ticket.
+Docs are filled BY the ticket that implements the related functionality (not a separate "docs ticket"); if a scaffold lacks a doc (e.g. `file-worker` has no `API_REFERENCE.md`), mark N/A; `06-ticket-breakdown-fabrik` enforces this matrix per-ticket.
 
 ### Step 7: Coverage Cross-Check
 
@@ -144,7 +144,7 @@ Every Success Criterion → ≥1 ticket · every Tech Plan component → covered
 
 ### Step 8: Present and Iterate
 
-Present the outline table + parallel mermaid diagram + batch proposal + time-savings estimate. Iterate until the user explicitly confirms. A mid-iteration scope change → `09-revise-requirements-command`. Then instruct: *"Run `06-ticket-breakdown-command` for Batch 1 — its tickets are all ⚡ parallel; dispatch them to separate agents simultaneously."*
+Present the outline table + parallel mermaid diagram + batch proposal + time-savings estimate. Iterate until the user explicitly confirms. A mid-iteration scope change → `09-revise-requirements-fabrik`. Then instruct: *"Run `06-ticket-breakdown-fabrik` for Batch 1 — its tickets are all ⚡ parallel; dispatch them to separate agents simultaneously."*
 
 ## Acceptance Criteria
 
@@ -155,9 +155,9 @@ Present the outline table + parallel mermaid diagram + batch proposal + time-sav
 - All 4 lifecycle stages covered — except Closure on a Retrofit that skips it (0 legal, justified).
 - Category-coverage check passed (every mandatory category ≥1 ticket); scaffold-provided code not re-ticketed.
 - Every Success Criterion + every Tech Plan component covered; Doc Assignment Matrix complete (every scaffolded doc to exactly one ticket — `docs/DEPLOYMENT.md` not `DEPLOYMENT_ARCHITECTURE.md`; `db/schema.sql` + Alembic, no `DATABASE_SCHEMA.md`).
-- Complexity hints + Gate tiers assigned (1 lean / 2 full; Epic Closure = Tier 3); Lessons triggers flagged; CHANGELOG rule acknowledged; `09-revise-requirements-command` suggested on drift.
+- Complexity hints + Gate tiers assigned (1 lean / 2 full; Epic Closure = Tier 3); Lessons triggers flagged; CHANGELOG rule acknowledged; `09-revise-requirements-fabrik` suggested on drift.
 - Epic Closure final for delta-feature (OPTIONAL for Retrofit); output ≤100 lines (outline table); user explicitly confirms.
 
 ---
 
-**Next (CC1 pairing, north star § Command-chain build plan):** converge this outline with `/fabrik-workflow-review <outline path> ticket-outline` — it forces the no-op (parallelism ≥3:1 and bidirectionally validated, no shared-state ⚡ conflicts, every Success Criterion + mandatory category covered, Doc Assignment Matrix complete with the corrected doc names, zero hollow citations) before anything consumes it. Then → `06-ticket-breakdown-command` (Batch 1). *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 pairing, north star § Command-chain build plan):** converge this outline with `/fabrik-workflow-review <outline path> ticket-outline` — it forces the no-op (parallelism ≥3:1 and bidirectionally validated, no shared-state ⚡ conflicts, every Success Criterion + mandatory category covered, Doc Assignment Matrix complete with the corrected doc names, zero hollow citations) before anything consumes it. Then → `06-ticket-breakdown-fabrik` (Batch 1).

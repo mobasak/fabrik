@@ -5,7 +5,7 @@
      build plan — CC5): the SPEC-vs-SPEC pass that validates the seams BETWEEN artifacts (Decisions Lock ↔ Flows ↔
      Tech Plan ↔ Deploy Plan ↔ tickets ↔ INFRA-CHECK). Distinct from 08 (code-vs-spec). Opus orchestrates
      reviewer agents (find cross-artifact drift) AND fixup agents (correct the artifacts/tickets), loops the
-     artifact set to a no-op, and DOES NOT STOP until it validates clean — halting only on the 3 BLOCKED
+     artifact set to its lens-adjudicated exit, and DOES NOT STOP until it validates clean — halting only on the 3 BLOCKED
      cases. A change that needs full top-down PROPAGATION routes to `09-revise-requirements-fabrik`.
 
      Reads (open NOTHING else to act — every other citation below is `[canonical: …]` provenance you act on
@@ -28,7 +28,7 @@
 
 ## Role
 
-The **cross-artifact (spec-vs-spec) review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. It validates the **seams between artifacts** — where specs connect, where tickets derive from specs, where INFRA-CHECK fields propagate downstream — NOT the internal quality of any single artifact. It dispatches reviewer agents to find cross-artifact drift and fixup agents to correct it, and **loops the artifact set to a no-op — it does not stop and ask** except on the three BLOCKED cases. A finding that needs full top-down propagation routes to `09-revise-requirements-fabrik`.
+The **cross-artifact (spec-vs-spec) review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. It validates the **seams between artifacts** — where specs connect, where tickets derive from specs, where INFRA-CHECK fields propagate downstream — NOT the internal quality of any single artifact. It dispatches reviewer agents to find cross-artifact drift and fixup agents to correct it, and **runs the artifact set to its lens-adjudicated exit — it does not stop and ask** except on the three BLOCKED cases. A finding that needs full top-down propagation routes to `09-revise-requirements-fabrik`.
 
 **Where it runs** (CC5 — the cross-cutting integration review + `09`'s paired review) `[canonical: north star § Command-chain build plan — CC5, "10-cross-artifact-validation is the cross-cutting integration review (plan→execute boundary + 09-revise's review)"]`: as the **plan→execute integration gate** — canonically after `06-ticket-breakdown-fabrik` produces the tickets and before `07-execute-fabrik` (the CC5 plan→execute boundary, when all artifacts including tickets exist), and optionally earlier as a spec-only consistency check after `04-deploy-plan-fabrik` confirms shape and before `05-ticket-outline-fabrik` (when the Ticket Outline/Breakdown do not yet exist); as **`09`'s paired review** (after `09` propagates a change — did the cascade leave the artifacts consistent?); and after `07-execute-fabrik` if drift was noted.
 
@@ -51,7 +51,7 @@ Read in order (the Reads budget): **Decisions Lock** (Success Criteria, Out of S
 
 Build the mental model: Success Criteria ↔ flows ↔ components ↔ tickets ↔ tests ↔ docs ↔ INFRA-CHECK. For scaffolds without Core Flows or Tech Plan (per routing), derive from Success Criteria — don't flag an intentional absence. **When run early** (the optional pre-`05` spec-only check, no tickets yet), the ticket-dependent checks — Dimension 2's ticket/test legs and Dimension 7 (ticket structure) — are **deferred to the plan→execute run**; validate only the spec-to-spec seams then.
 
-**Multi-pass for large epics (>8 tickets)** — one converging run, three lenses: **1 Mechanical** (Dimensions 6 INFRA-CHECK, 7 Ticket Structure, 8 Lessons — objective, highest hit-rate) → **2 Tracing** (Dimensions 2 Coverage, 3 Interface, 5 Assumptions — structural gaps) → **3 Judgment** (Dimensions 1 Conceptual, 4 Specificity). Small epics (≤8): all dimensions in one pass. Either way the run **loops to `found:0, fixed:0`** (Step 4).
+**Multi-pass for large epics (>8 tickets)** — one converging run, three lenses: **1 Mechanical** (Dimensions 6 INFRA-CHECK, 7 Ticket Structure, 8 Lessons — objective, highest hit-rate) → **2 Tracing** (Dimensions 2 Coverage, 3 Interface, 5 Assumptions — structural gaps) → **3 Judgment** (Dimensions 1 Conceptual, 4 Specificity). Small epics (≤8): all dimensions in one pass. Either way the run **loops to the lens-adjudicated exit** (Step 4).
 
 ### Step 2: Dispatch the Cross-Artifact Review — reviewer agents (BOTH mechanisms)
 
@@ -97,16 +97,16 @@ Classify every surviving finding by significance — **Blocker** (broken cross-a
 - **Ticket reconciliation** — a finding that >50% of tickets need substantial rework → recommend a `06-ticket-breakdown-fabrik` re-run for that batch rather than N fixups. A Done-but-affected ticket → the three-option matrix (amend / rollback / accept divergence) is an **operator** pick (routed via `09`).
 - **BLOCKED cases** — 3 consecutive same-test failures on one fixup → case 1 (Telegram, pause that thread); missing infra → case 2; unresolvable spec contradiction → case 3 (→ `09`).
 
-**LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until a fresh cross-artifact round finds nothing AND changes nothing (`found:0, fixed:0`)**. The pass that produced a fixup is never the last; run one more. Only that no-op validates the artifact set.
+**LOOP:** every fixup dispatched → re-reviewed → re-classified — **until every lens of this command's review structure carries an adjudicated PASS-with-evidence, with zero unresolved findings** (the lens/dimension breakdown above is the single source of the lens set). An empty round proves that *sample* found nothing, not that nothing exists — the lens verdicts are the exit, not a lucky quiet pass. **Minimum two full rounds, ALWAYS** (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched. **Hard cap 20 rounds:** still churning at the cap → STOP and declare the residual (which lenses, what risk) in the report instead of looping on. Keep the `found:`/`fixed:` ledger per round (`found` counts refuted candidates too).
 
 ### Step 4: Present + Hand Off
 
-When the cross-artifact review reaches the `found:0, fixed:0` no-op: post the assessment to the Telegram digest (overall — coherent story or not — then Blockers → Significant → Minor), and hand off by outcome:
+When the cross-artifact review reaches its lens-adjudicated exit: post the assessment to the Telegram digest (overall — coherent story or not — then Blockers → Significant → Minor), and hand off by outcome:
 
-- **Early spec-only run** (pre-`05`, no tickets yet) reaches a clean no-op → the next step is `05-ticket-outline-fabrik` (the spec seams are consistent; now build the tickets).
+- **Early spec-only run** (pre-`05`, no tickets yet) reaches its adjudicated exit → the next step is `05-ticket-outline-fabrik` (the spec seams are consistent; now build the tickets).
 - Artifacts consistent, tickets reconciled (the plan→execute run) → the next step is `07-execute-fabrik` (or, as `09`'s paired review, back into the chain) — and `08-implementation-validation-fabrik` for any Done-but-affected amendment.
 - A recommended `06`-breakdown re-run or a routed propagation → `06-ticket-breakdown-fabrik` / `09-revise-requirements-fabrik`.
-- When the whole chain is clean → the **deploy-out human gate** → `11-deploy-command`. `10` is a PRE-deploy consistency gate; it never runs `fabrik apply`.
+- When the whole chain is clean → the **deploy-out human gate** → `11-deploy-fabrik`. `10` is a PRE-deploy consistency gate; it never runs `fabrik apply`.
 
 ## Does NOT
 
@@ -118,7 +118,7 @@ When the cross-artifact review reaches the `found:0, fixed:0` no-op: post the as
 - **Flag intentional differences** — an "Accepted deviation: [reason]" marker or a ticket Spec-References note is not a finding (the marker rule is one-way: present → intentional; absent + disagreement → finding).
 - **Flag a missing Deploy Plan / Epic Closure / a <5-SC Decisions Lock for a Retrofit** where `04`/`06` correctly skipped or the Retrofit default applies (per the Step-2 Retrofit adjustments); a Retrofit's 1:1 parallelism is not a budget failure.
 - **Change ticket Title prefixes** — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>`.
-- **Deploy** — that is `11-deploy-command` (the deploy-out gate). `10` is the pre-deploy consistency gate.
+- **Deploy** — that is `11-deploy-fabrik` (the deploy-out gate). `10` is the pre-deploy consistency gate.
 - **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); the fixups merge via `07`-style worktree→default-branch.
 
 ## Acceptance Criteria
@@ -129,9 +129,9 @@ When the cross-artifact review reaches the `found:0, fixed:0` no-op: post the as
 - Ticket structure verified (in the plan→execute run — Doc Sync Matrix, the two valid Final-Gate commands, Lessons, first-output, no-git, `[PRIMARY PATH]`, Epic Closure conditionality, parallelism budget with the Retrofit 1:1 carve-out).
 - `LESSONS_LEARNT.md` coherence verified (entries match, numbering sequential, no spec contradiction).
 - Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1 native `fabrik-reviewer` on Opus** — Opus refuting/merging/deciding.
-- Findings handled **autonomously**: surgical fixups dispatched (pool `pick_models("docs"/"spec"/"code")` or `claude -p`), re-reviewed, **looping until `found:0, fixed:0`**; a rippling change routes to `09`; a >50%-rework batch routes to `06`; only the 3 BLOCKED cases pause (Telegram).
-- The no-op hands off by outcome (`07`/`08`/`06`/`09`), and when the chain is clean → the deploy-out gate → `11-deploy-command`. Never runs `fabrik apply`.
+- Findings handled **autonomously**: surgical fixups dispatched (pool `pick_models("docs"/"spec"/"code")` or `claude -p`), re-reviewed, **looping to the lens-adjudicated exit (min-2 rounds, cap 20)**; a rippling change routes to `09`; a >50%-rework batch routes to `06`; only the 3 BLOCKED cases pause (Telegram).
+- The adjudicated exit hands off by outcome (`07`/`08`/`06`/`09`), and when the chain is clean → the deploy-out gate → `11-deploy-fabrik`. Never runs `fabrik apply`.
 
 ---
 
-**Next (CC1 doer→review pairing; `10`'s CC5 role, north star § Command-chain build plan):** `10` IS the cross-cutting integration review + `09-revise`'s paired review `[canonical: north star § Command-chain build plan — CC5]`. When the artifacts validate to a no-op, the chain continues by outcome — `07-execute-fabrik` (or `08-implementation-validation-fabrik` for Done-but-affected amendments), a routed `06-ticket-breakdown-fabrik` re-run or `09-revise-requirements-fabrik` propagation — and, when the whole chain is clean, the **deploy-out human gate** → `11-deploy-command`. *(Downstream ettw twins are built incrementally; refs point to the live Traycer `-command` source and flip to `-fabrik` as each twin lands.)*
+**Next (CC1 doer→review pairing; `10`'s CC5 role, north star § Command-chain build plan):** `10` IS the cross-cutting integration review + `09-revise`'s paired review `[canonical: north star § Command-chain build plan — CC5]`. When the artifacts validate to the lens-adjudicated exit, the chain continues by outcome — `07-execute-fabrik` (or `08-implementation-validation-fabrik` for Done-but-affected amendments), a routed `06-ticket-breakdown-fabrik` re-run or `09-revise-requirements-fabrik` propagation — and, when the whole chain is clean, the **deploy-out human gate** → `11-deploy-fabrik`.
