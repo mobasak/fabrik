@@ -2,7 +2,12 @@
 
 This is a LOOP with a **deterministic exit: full coverage, not a lucky empty pass**. An empty finder round proves that *sample* found nothing — not that nothing exists — so "a pass found nothing" is NEVER the exit test by itself. The exit is a fully-adjudicated **Coverage Checklist**:
 
-**Before Pass 1**, print the Coverage Checklist — one row per failure class from `python scripts/review_rubric.py --changed <paths>` (FLOOR + MATCHED + workflow checklist), PLUS the standing recurrence classes: **fail-open vs fail-closed on every gate/guard · cost/quota/limit accounting edges (unknown≠0, per-call vs batch) · boundary/sentinel/prefix collisions · behavior-without-a-test**. Every row starts `UNCHECKED`.
+**Before Pass 1 — three mechanical obligations, in order:**
+1. **Anchor:** read the NEWEST `docs/development/reviews/*-review.md` for this scope (if any). Compute the surface hash: `git rev-parse HEAD` + `git diff HEAD | md5sum`. If it matches the prior report's recorded `Surface:` line, this run **re-adjudicates THAT report's checklist** (verification + delta only — a new finding must name the rubric class it belongs to, or it is a rubric gap to report). Unchanged surface + previously fully-adjudicated checklist = a short verification report, honestly.
+2. **Rubric:** run `python scripts/review_rubric.py --changed <paths>` and paste its verbatim output into the report inside a fenced block — the class rows derive from IT, never from memory.
+3. **Persist:** create `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW, with the `Surface:` hash line and the Coverage Checklist skeleton. **A review that exists only in chat does not exist** — `check_review_coverage.py` (run by `final_gate` and the stop-hook) reads only this file; the review is INVALID until the adjudicated checklist + Pass Ledger live in it.
+
+The Coverage Checklist: one row per failure class from the rubric output (FLOOR + MATCHED + workflow checklist), PLUS the standing recurrence classes: **fail-open vs fail-closed on every gate/guard · cost/quota/limit accounting edges (unknown≠0, per-call vs batch) · boundary/sentinel/prefix collisions · behavior-without-a-test**. Every row starts `UNCHECKED`.
 
 Loop passes as specified (finders → refute → prove & fix → regression-guard), updating rows as you go. **You are DONE only when ALL of these hold:**
 - **Every row is adjudicated** — `CLEAN` (hunted this run, with what/where evidence), `FIXED(n)`, or `REFUTED(n, proof)`. No `UNCHECKED` rows. An in-scope CONFIRMED or PLAUSIBLE finding terminates FIXED or REFUTED — never silently passed.{{RESIDUAL}}

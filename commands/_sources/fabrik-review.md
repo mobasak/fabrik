@@ -243,7 +243,7 @@ So "test every behavior" (the Behavior Contract) costs **cents + minutes**, not 
 After each pass, show exactly what you inspected (files/paths + which failure classes) and what you found;
 a pass that finds nothing must still enumerate that coverage — an empty pass with no evidence doesn't count.
 
-**Emit BOTH exit proofs — the adjudicated Coverage Checklist (every row with its verdict + evidence) AND the numbered Pass Ledger (one row per pass):**
+**Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted) AND the numbered Pass Ledger. Chat output is a courtesy copy; the FILE is the review:**
 
 ```
 Pass 1 — finders: <classes covered> | found: 3 (2 CONFIRMED, 1 PLAUSIBLE) | fixed: 3 | → not done (changed code)

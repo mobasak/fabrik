@@ -91,6 +91,12 @@ def _checklist_section(text: str) -> str | None:
     return text[m.start(): m.end() + (nxt.start() if nxt else len(text))]
 
 
+SURFACE = re.compile(r"^Surface:\s*\S+", re.M)
+PASS2 = re.compile(r"\bPass\s*2\b")
+RUBRIC_RUN = re.compile(r"review_rubric\.py")
+_PATHISH = re.compile(r"[\w-]+[./][\w./-]+")
+
+
 def check_file(p: Path) -> list[str]:
     errs: list[str] = []
     text = p.read_text(encoding="utf-8", errors="replace")
@@ -99,6 +105,13 @@ def check_file(p: Path) -> list[str]:
         if COMMAND_MARK.search(text):
             errs.append("names /fabrik-review or /fabrik-repo-review but emits NO Coverage Checklist")
         return errs
+    # contract obligations recorded in the artifact itself
+    if not SURFACE.search(text):
+        errs.append("no `Surface:` hash line (cross-run anchor) — record `git rev-parse HEAD` + diff md5")
+    if not RUBRIC_RUN.search(text):
+        errs.append("no review_rubric.py invocation recorded — checklist classes must derive from the rubric, not memory")
+    if not PASS2.search(text):
+        errs.append("no `Pass 2` in the ledger — minimum two rounds ALWAYS (a clean pass 1 still needs its confirming round)")
     rows = _table_rows(section)
     if not rows:
         errs.append("Coverage Checklist has no table rows")
@@ -110,6 +123,10 @@ def check_file(p: Path) -> list[str]:
         errs.append(f"{len(unchecked)} UNCHECKED row(s) with no 'Declared residual' section: {unchecked[:3]}")
     if noverdict:
         errs.append(f"{len(noverdict)} row(s) without a CLEAN/FIXED/REFUTED verdict: {noverdict[:3]}")
+    bare = [r.strip() for r in rows
+            if re.search(r"\bCLEAN\b", r) and not _PATHISH.search(r) and len(r.strip()) < 70]
+    if bare:
+        errs.append(f"{len(bare)} CLEAN row(s) without evidence (name the files/paths hunted): {bare[:3]}")
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
     if missing:
