@@ -67,6 +67,16 @@ _OUT_PRICE: dict[str, float] = {
     "qwen/qwen3.7-max": 3.75,
     "x-ai/grok-4.20": 2.50,
     "x-ai/grok-4.20-multi-agent": 2.50,
+    # Priced 2026-07-20 — the hub's gate-selected review/code shortlist models (from
+    # TASK_SUBAGENT_SELECTION.md "✅ Selected subagents", $/M-out column). Needed so pick_models'
+    # cost logic + provider_max_price can price them; most are >$1.5 (the always-on cap is gone, so
+    # they are selected on quality, not price). deepseek-v4-flash is already priced above.
+    "qwen/qwen3-max": 3.90,
+    "google/gemini-3-flash-preview": 3.00,
+    "deepseek/deepseek-v3.2-exp": 0.41,
+    "openai/gpt-5.4-mini": 4.50,
+    "openai/gpt-5.6-luna": 6.00,
+    "writer/palmyra-x5": 6.00,
 }
 
 # Reference output-price ($/Mtok) — the OLD Auto-tier cap. NO LONGER auto-enforced by `pick_models`
@@ -133,6 +143,11 @@ def _fetch_openrouter_prices() -> dict[str, float]:
 # score AND cheapest — both agree, not a value compromise). EVERY Auto-tier model (≤$1.5) appears in ≥1 list
 # so pick_models can reach all of them (the `r1-distill` reasoning tail lives in the judgment lists). This is
 # the vendored FALLBACK seed; the flywheel (CODING_SUBAGENT_SELECTION.md) refines it. `pick_models` best-first.
+#   2026-07-20 REFRESH: `review` + `code` were re-seeded to the hub's GATE-SELECTED shortlists
+#   (TASK_SUBAGENT_SELECTION.md "✅ Selected subagents"). The prior "v4-flash leads code / v4-pro leads
+#   judgment" rationale still describes the OTHER task_types (spec/plan/docs/research), which are unchanged.
+#   Consumers now AUTO-DISCOVER their synced copy of that doc (`_project_selection_doc`), so this vendored
+#   table is only the last-resort OFFLINE floor.
 _TABLE: dict[str, list[str]] = {
     # judgment/generalist task_types → v4-pro (deepseek) → m3 (minimax) → glm-4.5-air (zai) = 3 families
     "spec": [
@@ -153,25 +168,30 @@ _TABLE: dict[str, list[str]] = {
         "minimax/minimax-m2.5",
         "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
-    # code → v4-flash (deepseek, cheap bulk) → qwen3-coder-next (qwen) → glm-4.7-flash (zai) = 3 families;
-    # then v4-pro (hard) → qwen3-coder-flash (fast/long-ctx):
+    # code → the hub's GATE-SELECTED coder shortlist (2026-07-20 refresh; TASK_SUBAGENT_SELECTION.md
+    # "Coders — 6 selected", daily-driver then premium). Top-3 = google/deepseek/qwen = 3 distinct
+    # families for fan-out recall diversity. glm-4.7-flash + qwen3-coder-flash stay at the TAIL: NOT
+    # gate-selected (the hub dropped them from the doc's `### code` routing), but retained so a priced
+    # ≤$1.5 coder is never stranded unreachable in the OFFLINE fallback. The synced doc wins when present.
     "code": [
-        "deepseek/deepseek-v4-flash",
+        "google/gemini-3-flash-preview",
+        "deepseek/deepseek-v3.2-exp",
         "qwen/qwen3-coder-next",
+        "openai/gpt-5.4-mini",
+        "openai/gpt-5.6-luna",
+        "writer/palmyra-x5",
         "z-ai/glm-4.7-flash",
-        "deepseek/deepseek-v4-pro",
         "qwen/qwen3-coder-flash",
-        "minimax/minimax-m3",
-        "deepseek/deepseek-v3.2",
     ],
+    # review → the hub's GATE-SELECTED reviewer shortlist (2026-07-20 refresh; TASK_SUBAGENT_SELECTION.md
+    # "Reviewers — 4 selected", score5-desc). Top-3 = qwen/google/deepseek = 3 distinct families. The old
+    # judgment-seed models (v4-pro, m3, glm-4.5-air, m2.5, r1-distill) remain reachable via spec/plan/docs/
+    # research; the synced doc (auto-discovered) wins over this offline floor when present.
     "review": [
-        "deepseek/deepseek-v4-pro",
-        "minimax/minimax-m3",
-        "z-ai/glm-4.5-air",
-        "deepseek/deepseek-v3.2",
+        "qwen/qwen3-max",
+        "google/gemini-3-flash-preview",
         "deepseek/deepseek-v4-flash",
-        "minimax/minimax-m2.5",
-        "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
+        "deepseek/deepseek-v3.2-exp",
     ],
     "docs": [
         "deepseek/deepseek-v4-pro",
@@ -297,15 +317,48 @@ def load_task_ranking(
 # env var or the vendored ``_TABLE`` (portable, zero-regression).
 _HUB_SELECTION_DOC = "/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
 
+# The fabrik sync delivers `docs/reference/kilo/` (incl. this doc) into EVERY project tree, but a deployed
+# project has no `/opt/fabrik` path and usually no `SUBAGENT_SELECTION_DOC` env — so without this a vendored
+# copy silently fell back to the (drifting) `_TABLE`. A vendored `subagents` lives UNDER that same project
+# tree (e.g. `<proj>/libs/subagents/subagents/`), so walking UP from this file finds the project's OWN fresh
+# synced copy — closing the flywheel loop with zero env/deploy wiring.
+_SYNCED_DOC_RELPATH = ("docs", "reference", "kilo", "TASK_SUBAGENT_SELECTION.md")
+
+
+def _project_selection_doc(start: Path | None = None) -> str | None:
+    """Ascend from ``start`` (default: this module's own location) to find the project's synced
+    ``docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`` — NEAREST ancestor first.
+
+    Returns the first (closest) existing match, or ``None`` when no copy sits above this module. The
+    walk runs to the filesystem root — bounded naturally by the path depth, with NO arbitrary depth cap
+    — so a module vendored at any depth still finds its project's doc; nearest-first guarantees the
+    project's OWN copy wins over any farther ancestor. Never raises."""
+    try:
+        anchor = (start or Path(__file__)).resolve()
+    except OSError:
+        return None
+    for parent in anchor.parents:
+        candidate = parent.joinpath(*_SYNCED_DOC_RELPATH)
+        try:
+            if candidate.is_file():
+                return str(candidate)
+        except OSError:  # a permission/again error on one ancestor must not abort the walk
+            continue
+    return None
+
 
 def _synced_ranking() -> dict[str, list[str]]:
     """mtime-cached parse of the synced ranking doc (re-reads when the daily refresh bumps it).
 
     Resolution order: ``SUBAGENT_SELECTION_DOC`` env → the co-located hub doc
-    (:data:`_HUB_SELECTION_DOC`, if it exists) → ``{}`` (caller uses the vendored ``_TABLE``)."""
+    (:data:`_HUB_SELECTION_DOC`, if it exists) → the project-relative synced copy
+    (:func:`_project_selection_doc`, discovered by walking up from this module) → ``{}`` (caller uses
+    the vendored ``_TABLE``)."""
     path = os.getenv("SUBAGENT_SELECTION_DOC")
     if not path and os.path.exists(_HUB_SELECTION_DOC):
         path = _HUB_SELECTION_DOC
+    if not path:
+        path = _project_selection_doc()
     if not path:
         return {}
     try:

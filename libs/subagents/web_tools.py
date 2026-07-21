@@ -119,6 +119,15 @@ def _dicts(seq: Any) -> list[dict]:
     return [x for x in seq if isinstance(x, dict)] if isinstance(seq, list) else []
 
 
+def _hits_json(hits: list[dict]) -> str:
+    """Serialize search hits as a JSON array of ``{title, url, snippet}`` — an UNAMBIGUOUS structured
+    form. The prior newline-joined ``title\\nurl\\nsnippet`` blob (joined by ``\\n\\n``) let a snippet
+    containing a blank line fake a result boundary, so a consumer could drop a URL-only hit or
+    fabricate a spurious one (UPSTREAM_FEEDBACK 2026-07-09). JSON escapes newlines, so the boundary is
+    exact; empty → ``[]`` so the consumer always parses valid JSON."""
+    return json.dumps(hits, ensure_ascii=False)
+
+
 def _exa_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
     key = _need("EXA_API_KEY")
     n = int(args.get("num_results", 10))
@@ -134,11 +143,15 @@ def _exa_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolResul
             "contents": {"text": True},
         },
     )
-    lines = [
-        f"{r.get('title', '')}\n{r.get('url', '')}\n{(r.get('text') or '')[:_SNIPPET]}"
+    hits = [
+        {
+            "title": r.get("title", ""),
+            "url": r.get("url", ""),
+            "snippet": (r.get("text") or "")[:_SNIPPET],
+        }
         for r in _dicts(_obj(body).get("results", []))
     ]
-    return ToolResult(ok=True, output=_truncate("\n\n".join(lines) or "(no results)"))
+    return ToolResult(ok=True, output=_truncate(_hits_json(hits)))
 
 
 def _brave_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
@@ -156,11 +169,15 @@ def _brave_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolRes
     )
     web = _obj(body).get("web")
     results = _dicts((web or {}).get("results", []) if isinstance(web, dict) else [])
-    lines = [
-        f"{r.get('title', '')}\n{r.get('url', '')}\n{(r.get('description') or '')[:_SNIPPET]}"
+    hits = [
+        {
+            "title": r.get("title", ""),
+            "url": r.get("url", ""),
+            "snippet": (r.get("description") or "")[:_SNIPPET],
+        }
         for r in results
     ]
-    return ToolResult(ok=True, output=_truncate("\n\n".join(lines) or "(no results)"))
+    return ToolResult(ok=True, output=_truncate(_hits_json(hits)))
 
 
 def _firecrawl_scrape(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
