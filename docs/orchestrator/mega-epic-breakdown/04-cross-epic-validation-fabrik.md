@@ -3,7 +3,7 @@
      never pasted into a planner GUI.
      THIS IS THE MEGA ANALOG OF ettw `10-cross-artifact-validation` — a CONVERGING review, not a one-shot
      audit. Opus dispatches reviewer agents across the cross-epic seams AND fixup agents to close what they
-     find, and runs the epic set to its lens-adjudicated exit (all five report lenses PASS-with-evidence, min-2 rounds, cap 20). It is AUTONOMOUS: the operator already agreed to the
+     find, and runs the epic set to its lens-adjudicated exit (every Step-4 report lens PASS-with-evidence, min-2 rounds, cap 20). It is AUTONOMOUS: the operator already agreed to the
      decomposition at `02`; there is no human step here `[canonical: north star § Human gates — R14: the two
      gates are plan-in (the operator's spec/plan approval upstream) and deploy-out (`11-deploy`)]`. It halts
      only on the 3 BLOCKED cases.
@@ -57,7 +57,7 @@ The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driv
 ## Output Contract
 
 **Format:** the Cross-Epic Validation Report (markdown, structure in Step 4), posted to the Telegram digest at the adjudicated exit. **Structure-bounded, NOT token-capped** `[canonical: EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md — item 93]`: a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see. **Do not add one.**
-**Result:** the adjudicated verdict — all five report lenses PASS-with-evidence, with the round ledger, fixup count and any route-backs; never a bare defect list.
+**Result:** the adjudicated verdict — every report lens PASS-with-evidence, with the round ledger, fixup count and any route-backs; never a bare defect list.
 **Consumed by:** the cockpit (epic cards → GUI card-click dispatch) / the driver (`epic_order.py --json` → phase queue); or `02`/`03`/`00` on a route-back. (`05-dispatch` retired — dispatch is code + GUI, not a command.)
 
 ## Processing User Request
@@ -176,7 +176,7 @@ Classify every surviving finding, then handle it autonomously — everything sho
 - **Vision Summary corrupted** (lens A's inventory missing/empty) → route to `00-trigger-mega-epic-fabrik`; do NOT continue.
 - **BLOCKED cases** — 3 consecutive same-test failures on one fixup → case 1 (Telegram, pause that thread, continue); missing infra → case 2; unresolvable spec contradiction → case 3.
 
-**LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until every report lens (Feature Coverage · Epic Tickets · Dependency Graph · Infrastructure Decisions · Handoff Readiness) carries an adjudicated PASS-with-evidence, with zero unresolved findings**. An empty round proves that *sample* found nothing, not that nothing exists — the lens verdicts are the exit, not a lucky quiet pass. **Minimum two full rounds, ALWAYS** (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched. **Hard cap 20 rounds:** still churning at the cap → STOP and declare the residual (which lenses, what risk) in the report instead of looping on. Keep the `found:`/`fixed:` ledger per round (`found` counts refuted candidates too).
+**LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until every verdict lens of the Step-4 report template carries an adjudicated PASS-with-evidence, with zero unresolved findings** (the template is the single source of the lens set). An empty round proves that *sample* found nothing, not that nothing exists — the lens verdicts are the exit, not a lucky quiet pass. **Minimum two full rounds, ALWAYS** (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched. **Hard cap 20 rounds:** still churning at the cap → STOP and declare the residual (which lenses, what risk) in the report instead of looping on. Keep the `found:`/`fixed:` ledger per round (`found` counts refuted candidates too).
 
 ### Step 4: Report + Hand Off
 
@@ -225,7 +225,7 @@ A route-back instead hands to `02`/`03`/`00` and re-enters here after they re-em
 ## Acceptance Criteria
 
 - Every epic ticket read as a FILE from `docs/development/epics/` (Glob/Read); the specs read fresh — never from memory or a Traycer store.
-- Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1 native `fabrik-reviewer` on Opus** — across all five lenses, with Opus refuting/merging/deciding.
+- Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1 native `fabrik-reviewer` on Opus** — across every report lens, with Opus refuting/merging/deciding.
 - Feature coverage (delta + `R`-prefixed alike), ticket structure (incl. all 5 `Dependencies` sub-bullets with a real `Owned paths`), graph (cycles, roots, **disjoint parallel paths**, **single migration owner**, consumed artifacts, critical path + SPLIT-CANDIDATE, minimality), Infrastructure Decisions (+ the Deferred Compliance appendix in EXISTING mode), and handoff readiness (15 fields; **`Registrars` ↔ `Shape`**; `Port` free in `PORTS.md`) all verified — each binary with `path:line` evidence.
 - Findings handled **autonomously**: surgical fixups dispatched (pool `pick_models("docs"/"spec")` or `claude -p`), re-reviewed, **looping to the lens-adjudicated exit (min-2 rounds, cap 20)**; boundary/scope changes routed to `02`/`03`; a corrupted Vision Summary to `00`; only the 3 BLOCKED cases pause (Telegram).
 - Epic-count sanity surfaced (3–7 typical; 10+ or 2 remarked, never a silent pass).
