@@ -327,3 +327,5 @@ Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enf
 - **Step 3 pre-handoff self-audit ran** (file+count closure · frontmatter completeness · machine-form == prose · title/flavour/floor · infra citation) and its result was stated before routing — `clean, 0 edits` or the edits it forced, re-checked.
 - **No § Guardrails prohibition tripped** — the run violates none of the hard prohibitions listed there.
 - Route to `04-cross-epic-validation-fabrik` stated after confirmation.
+
+**Next (CC1 pairing, north star § Command-chain build plan):** after the epic files + Infrastructure Decisions spec are written and the pre-handoff self-audit passes, converge the set with `/fabrik-workflow-review <epics dir> expanded-epic-files` — the shared paired review (its Phase-0 mega row) — then route to `04-cross-epic-validation-fabrik`. This converges the artifacts THEMSELVES; `04` reviews the cross-epic SEAMS.

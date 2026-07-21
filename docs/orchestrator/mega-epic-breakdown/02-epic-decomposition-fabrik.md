@@ -544,3 +544,5 @@ Iterate until the owner explicitly confirms:
 - Compliance Report consumed: one Retrofit epic emitted per `fix-now` row. Retrofit epics receive the same dependency analysis as delta-feature epics and pass through the parallel-classification gate.
 - `fix-later` and `accept-as-legacy` rows surfaced in the "Deferred Compliance" appendix — produce no epics.
 - Retrofit epic names prefixed `"Retrofit: "`.
+
+**Next (CC1 pairing, north star § Command-chain build plan):** after the owner confirms and the epic proposal persists, converge it with `/fabrik-workflow-review <persisted proposal path> epic-decomposition` — the shared paired review (its Phase-0 mega row) — before `03-expand-epic-files-fabrik` consumes it. This converges the artifact ITSELF; `04-cross-epic-validation-fabrik` remains the cross-epic seam review.

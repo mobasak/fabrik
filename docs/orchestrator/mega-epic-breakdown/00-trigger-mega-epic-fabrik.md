@@ -937,3 +937,5 @@ DISK is source of truth (D8); the mirror is an env-guarded projection (`$TRAYCER
 ## Examples
 
 The skeletons in Step N4 (NEW) and Step E5 (EXISTING) above are the authoritative output shape — our orchestrator follows them at runtime. Historical filled-in examples (read-once illustrative anchors, never pasted into our orchestrator) are archived at `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`.
+
+**Next (CC1 pairing, north star § Command-chain build plan):** after the owner confirms and the Vision Summary persists, converge it with `/fabrik-workflow-review <persisted vision path> vision-summary` — the shared paired review (its Phase-0 mega row; rubric from `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md`) — before `02-epic-decomposition-fabrik` consumes it. This converges the artifact ITSELF; `04-cross-epic-validation-fabrik` remains the cross-epic seam review.
