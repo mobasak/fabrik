@@ -19,6 +19,10 @@ so premium tiers stay shortlist-visible while the value sort ranks by ①; `rank
 `claude-code/*` **display-only** (excluded from the rank-led routing sections `pick_models` reads — they're
 spawn-native, the pool can't dispatch them) and emits a preamble surfacing ② amortized + ③ quota-draw. The
 doc's "no aggregated runs" stub guard also respects a claude-only benchmark, so those scores aren't hidden.
+`record_flywheel` excludes `claude-code/*` from the shared `subagent_runs` table (spawn-native, never
+pool-routed — closes the leak where a wiped scratch DB could surface a claude id to `pick_models`), and the
+shim raises on an empty/reasoning-only result (parity with the OpenRouter `if not r.text` path) + a non-object
+usage block.
 
 ### Fixed — check_secrets no longer flags obvious doc placeholders (2026-07-19)
 

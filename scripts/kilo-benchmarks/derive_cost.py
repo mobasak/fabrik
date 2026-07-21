@@ -11,6 +11,7 @@ prices from platform.claude.com/docs/en/about-claude/pricing; usage-history/stat
 ~/.claude/.claude-manager/ (days[date].byModel[model]={input,output,cacheRead,cacheCreation} camelCase;
 rateLimits.sevenDay.usedPercent).
 """
+
 from __future__ import annotations
 
 import datetime
@@ -23,13 +24,27 @@ _USAGE_HISTORY = Path.home() / ".claude" / ".claude-manager" / "usage-history.js
 _STATUSLINE = Path.home() / ".claude" / ".claude-manager" / "statusline.json"
 _MANAGER_ACCOUNTS = Path.home() / ".claude" / "manager-accounts"
 
-_SUBSCRIPTION_USD_PER_ACCOUNT = 200.0  # Max 20x, grounded 2026-07-20 support.claude.com/.../11049741
+_SUBSCRIPTION_USD_PER_ACCOUNT = (
+    200.0  # Max 20x, grounded 2026-07-20 support.claude.com/.../11049741
+)
 _ANCHOR_USD_PER_TOKEN = 9.3e-8  # research "typical" $0.093/M fallback when history is empty
-_MONTHLY_DAYS = 30  # most-recent N calendar-days in usage-history = the "monthly throughput" denominator
+_MONTHLY_DAYS = (
+    30  # most-recent N calendar-days in usage-history = the "monthly throughput" denominator
+)
 
 
 def _load_ratios(ratios_path: str | Path | None = None) -> dict:
     return json.loads(Path(ratios_path or _RATIOS).read_text(encoding="utf-8"))
+
+
+def _is_iso_date(s: object) -> bool:
+    """True iff s is a real YYYY-MM-DD date string — guards a non-date key (e.g. 'latest') from a
+    lexicographic `>= cutoff` compare that would pollute the monthly denominator."""
+    try:
+        datetime.date.fromisoformat(s)  # type: ignore[arg-type]
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def api_equiv(usage: dict, model: str, ratios_path: str | Path | None = None) -> float:
@@ -73,7 +88,7 @@ def amortized_rate(
         # a gapped history must not sum arbitrarily-old days into the "monthly" denominator (which would
         # skew the amortized rate). No recent usage → total 0 → fail-soft to the anchor below.
         cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
-        recent = [k for k in days if k >= cutoff]
+        recent = [k for k in days if _is_iso_date(k) and k >= cutoff]
         total = 0
         for dk in recent:
             for m in (days[dk].get("byModel") or {}).values():
@@ -95,7 +110,12 @@ def quota_snapshot(statusline_path: str | Path | None = None) -> float:
         d = json.loads(Path(statusline_path or _STATUSLINE).read_text(encoding="utf-8"))
         sd = (d.get("rateLimits") or {}).get("sevenDay") or {}
         return float(sd.get("usedPercent", 0.0) or 0.0)
-    except (OSError, ValueError, TypeError, AttributeError):  # AttributeError: malformed non-object json
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        AttributeError,
+    ):  # AttributeError: malformed non-object json
         return 0.0
 
 

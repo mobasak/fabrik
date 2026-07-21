@@ -526,8 +526,12 @@ def _claude_p_direct(model: str, task: str, timeout: float):
     t0 = time.monotonic()
     try:
         text, usage = claude_p.claude_p_call(model, task, system="", timeout=timeout)
-        cost = derive_cost.api_equiv(usage, model)  # ① — inside try: an unpriced model becomes an error
-        out_price = derive_cost.out_price_mtok(model)  # result, NOT a KeyError that crashes the whole run
+        cost = derive_cost.api_equiv(
+            usage, model
+        )  # ① — inside try: an unpriced model becomes an error
+        out_price = derive_cost.out_price_mtok(
+            model
+        )  # result, NOT a KeyError that crashes the whole run
     except Exception as e:  # noqa: BLE001 — a failed claude -p call is that model's error, not fatal
         return _DirectResult(
             model, error=f"{type(e).__name__}: {str(e)[:120]}", latency_s=time.monotonic() - t0
@@ -665,6 +669,12 @@ def record_flywheel(rows) -> int:
     n = 0
     for spec, res, it in rows:
         if res is None or getattr(res, "error", None):
+            continue
+        # claude-code/* are spawn-native, NOT pool workers — never record them to the shared postgres
+        # subagent_runs table. It is the fleet routing source rank_task_subagents aggregates, so a claude
+        # row there would surface in `### review` and make pick_models return an id the pool 404s on. Their
+        # scores live in model_review_metrics (display-only) — the coding path records nothing here either.
+        if spec.model.startswith("claude-code/"):
             continue
         flagged = cited_lines(res.text or "")
         # `is not None`, not truthiness: a control is truth_line=None; a mutant's truth_line is a

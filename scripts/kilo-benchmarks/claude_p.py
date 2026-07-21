@@ -10,6 +10,7 @@ single turn — transport parity with the OpenRouter single completion. The meth
 Grounded 2026-07-20 (CLI 2.1.216): `--output-format json` returns top-level {result, usage, ...}; usage keys
 are snake_case input_tokens/output_tokens/cache_read_input_tokens/cache_creation_input_tokens.
 """
+
 from __future__ import annotations
 
 import json
@@ -76,13 +77,16 @@ def claude_p_call(
             f"api_error_status={data.get('api_error_status')!r})"
         )
     text = data.get("result") or ""
-    raw = data.get("usage") or {}
+    raw = data.get("usage")
+    if not isinstance(raw, dict) or not raw:  # missing / non-object usage → RuntimeError, not AttributeError
+        raise RuntimeError(f"claude-code CLI returned no/invalid usage block: {proc.stdout[:200]!r}")
     usage = {k: int(raw.get(k, 0) or 0) for k in _USAGE_KEYS}
-    # Fail-closed: a valid-but-usage-less response (missing usage, or zero output = no completion) must NOT
-    # sail through as a $0 run — that would bias the ranking axis toward claude-p. Raise so the caller's
-    # dispatch branch records it as an error, exactly like a failed OpenRouter call.
-    if not raw or usage["output_tokens"] <= 0:
+    # Fail-closed: a valid-but-usage-less response must NOT sail through as a $0 run (biasing the ranking
+    # toward claude-p). Also treat an empty/whitespace result (a reasoning-only response with output tokens
+    # but no text) as no-completion — matching the OpenRouter path's `if not r.text` handling, so it becomes
+    # an error slot (n_err/excluded) rather than being scored 0 in coding (which would under-score claude).
+    if usage["output_tokens"] <= 0 or not text.strip():
         raise RuntimeError(
-            f"claude-code CLI returned no usable completion (empty/zero usage): {proc.stdout[:200]!r}"
+            f"claude-code CLI returned no usable completion (empty text / zero output): {proc.stdout[:200]!r}"
         )
     return text, usage

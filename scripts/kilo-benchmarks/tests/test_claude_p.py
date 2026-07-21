@@ -1,4 +1,5 @@
 """Behavior Contract — claude_p single-shot shim. Mocked subprocess, NO real Claude call."""
+
 import json
 import sys
 from pathlib import Path
@@ -68,7 +69,12 @@ def test_unknown_model_raises():
         claude_p.claude_p_call("claude-code/ghost", "hi")
 
 
-_OK_USAGE = {"input_tokens": 3, "output_tokens": 5, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+_OK_USAGE = {
+    "input_tokens": 3,
+    "output_tokens": 5,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+}
 
 
 def test_parity_empty_system_omits_flag_and_prompt_rides_stdin():
@@ -77,7 +83,9 @@ def test_parity_empty_system_omits_flag_and_prompt_rides_stdin():
         claude_p.claude_p_call("claude-code/haiku", "FULL METHODOLOGY + CODE", system="")
     cmd = run.call_args[0][0]
     assert "--system-prompt" not in cmd  # parity: methodology NOT split into a system prompt
-    assert run.call_args[1]["input"] == "FULL METHODOLOGY + CODE"  # rides in the user prompt (stdin)
+    assert (
+        run.call_args[1]["input"] == "FULL METHODOLOGY + CODE"
+    )  # rides in the user prompt (stdin)
 
 
 def test_nonempty_system_passes_flag():
@@ -92,7 +100,24 @@ def test_fail_closed_on_missing_usage():
     # valid json, exit 0, but NO usage block → must raise (else the run scores as free $0).
     payload = json.dumps({"result": "answer"})
     with mock.patch("claude_p.subprocess.run", return_value=_proc(0, payload)):
-        with pytest.raises(RuntimeError, match="no usable completion"):
+        with pytest.raises(RuntimeError, match="no/invalid usage block"):
+            claude_p.claude_p_call("claude-code/opus", "hi")
+
+
+def test_fail_closed_on_nondict_usage():
+    # a non-object usage (e.g. a list) → RuntimeError, NOT an uncaught AttributeError.
+    payload = json.dumps({"result": "answer", "usage": [1, 2]})
+    with mock.patch("claude_p.subprocess.run", return_value=_proc(0, payload)):
+        with pytest.raises(RuntimeError, match="no/invalid usage block"):
+            claude_p.claude_p_call("claude-code/opus", "hi")
+
+
+def test_fail_closed_on_empty_result_with_output_tokens():
+    # a reasoning-only response: output_tokens > 0 but empty result text → no completion → raise
+    # (parity with the OpenRouter `if not r.text` path; must NOT be scored 0 in coding).
+    payload = json.dumps({"result": "   ", "usage": {"input_tokens": 5, "output_tokens": 40}})
+    with mock.patch("claude_p.subprocess.run", return_value=_proc(0, payload)):
+        with pytest.raises(RuntimeError, match="empty text"):
             claude_p.claude_p_call("claude-code/opus", "hi")
 
 
@@ -104,7 +129,9 @@ def test_fail_closed_on_zero_output():
 
 
 def test_fail_closed_on_is_error():
-    payload = json.dumps({"is_error": True, "subtype": "error_max_turns", "result": "x", "usage": _OK_USAGE})
+    payload = json.dumps(
+        {"is_error": True, "subtype": "error_max_turns", "result": "x", "usage": _OK_USAGE}
+    )
     with mock.patch("claude_p.subprocess.run", return_value=_proc(0, payload)):
         with pytest.raises(RuntimeError, match="is_error"):
             claude_p.claude_p_call("claude-code/opus", "hi")
