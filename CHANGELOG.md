@@ -13,7 +13,9 @@ subscription $, ③ weekly-quota draw = the 3-accounts→1 lever) + `claude_pric
 prices + cache multipliers, grounded 2026-07-20). Wired into `microbench_review.py` (`run_direct`) and
 `microbench_coding_direct.py` (`generate`) via a `claude-code/*` namespace branch (low-concurrency, ①→cost_usd,
 ②/③→`claude_p_cost.json` sidecar). Lets `claude-code/{opus,sonnet,haiku,fable}` be scored beside the 57
-OpenRouter models on review + code.
+OpenRouter models on review + code. `build_task_baselines.review_eligible`/`code_eligible` carve `claude-code/*`
+past the eligibility gates (premium tiers stay shortlist-visible; the value sort still ranks by ①), and
+`rank_task_subagents` emits a `claude-code/*` preamble surfacing ② amortized + ③ quota-draw from the sidecar.
 
 ### Fixed — check_secrets no longer flags obvious doc placeholders (2026-07-19)
 

@@ -437,6 +437,28 @@ def _review_benchmark_models() -> list[str]:
     )
 
 
+def _claude_p_preamble() -> list[str]:
+    """The ②/③ context line for `claude-code/*` rows (reads `claude_p_cost.json` fail-soft). Empty if absent.
+
+    Emits an italic sub-header (like the `_gate: …_` lines) so the reader knows the `$/1k` cell for a
+    `claude-code/*` row is ① API-equivalent, and sees ② amortized + ③ quota-draw alongside.
+    """
+    import json
+
+    p = Path(__file__).resolve().parent / "claude_p_cost.json"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        amort = float(d.get("amortized_per_mtok", 0.0) or 0.0)
+        quota = float(d.get("quota_draw_pct", 0.0) or 0.0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return []
+    return [
+        f"_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's "
+        f"tokens, comparable to the pool). Context — ② amortized ≈${amort:.3f}/M · ③ last run's weekly-quota "
+        f"draw ≈{quota:.1f}% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter)._",
+    ]
+
+
 def _full_review_results_table() -> list[str]:
     """Human-readable FULL review-benchmark leaderboard — every measured column, all models, real
     names. Rows lead with the `provider/model` id (NOT a rank int) so `load_task_ranking` SKIPS this
@@ -479,6 +501,7 @@ def _full_review_results_table() -> list[str]:
         "## Full review benchmark results — all measured columns (display only; not parsed for routing)",
         "_source: `microbench_review.py` → `model_review_metrics`. `eligible` = passes the reviewer gate "
         "(precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s). `score5` = F1(recall,precision)×5._",
+        *_claude_p_preamble(),
         "| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | p50 s | tok/s | n_mut | n_ctrl | eligible |",
         "|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|",
     ]
@@ -550,6 +573,7 @@ def _full_coding_results_table() -> list[str]:
         "_source: `microbench_coding_direct.py` → `model_coding_metrics` (contamination-free LiveCodeBench). "
         "`pass@1` = fraction solved · `score5` = pass@1×5 · `value` = score5÷$/1k · `eligible` = clears the code "
         "gate (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s) · `tier` = curated use-case._",
+        *_claude_p_preamble(),
         "| model | grade | pass@1 | score5 | $/1k | $/run | p50 s | tok/s | value | family | n_graded | n_err | eligible | tier |",
         "|---|:-:|--:|--:|--:|--:|--:|--:|--:|:-:|--:|--:|:-:|:-:|",
     ]

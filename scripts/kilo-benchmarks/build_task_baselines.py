@@ -157,12 +157,17 @@ def review_eligible(db_path: Path = DB_PATH) -> set[str]:
     return {
         m
         for m, d in load_review_metrics(db_path).items()
-        if (d["precision"] or 0) >= REVIEW_MIN_PRECISION
-        and (d["recall"] or 0) > REVIEW_MIN_RECALL  # must catch ≥1 defect (not a do-nothing model)
-        and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= REVIEW_MAX_COST_PER_1K
-        and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= REVIEW_MAX_P50_S
-        and (d["cost_usd"] if d["cost_usd"] is not None else 1e9) < REVIEW_MAX_RUN_COST
-        and (d["score5"] or 0) >= REVIEW_TRUST_FLOOR_SCORE5
+        # carve-out: a claude-code/* native tier stays shortlist-visible past the gates — its ① API-equivalent
+        # cost can exceed $/1k + $/run and npx cold-start exceeds p50; the value sort still ranks it by ① cost.
+        if m.startswith("claude-code/")
+        or (
+            (d["precision"] or 0) >= REVIEW_MIN_PRECISION
+            and (d["recall"] or 0) > REVIEW_MIN_RECALL  # must catch ≥1 defect (not a do-nothing model)
+            and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= REVIEW_MAX_COST_PER_1K
+            and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= REVIEW_MAX_P50_S
+            and (d["cost_usd"] if d["cost_usd"] is not None else 1e9) < REVIEW_MAX_RUN_COST
+            and (d["score5"] or 0) >= REVIEW_TRUST_FLOOR_SCORE5
+        )
     }
 
 
@@ -240,10 +245,14 @@ def code_eligible(db_path: Path = DB_PATH) -> set[str]:
     return {
         m
         for m, d in load_coding_metrics(db_path).items()
-        if (d["n_err"] if d.get("n_err") is not None else 999) <= CODE_MAX_ERRORS
-        and (d["pass_at_1"] or 0) >= CODE_MIN_PASS_AT_1
-        and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= CODE_MAX_COST_PER_1K
-        and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= CODE_MAX_P50_S
+        # carve-out (see review_eligible) — a claude-code/* native tier stays past the gates; value sort ranks by ①.
+        if m.startswith("claude-code/")
+        or (
+            (d["n_err"] if d.get("n_err") is not None else 999) <= CODE_MAX_ERRORS
+            and (d["pass_at_1"] or 0) >= CODE_MIN_PASS_AT_1
+            and (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= CODE_MAX_COST_PER_1K
+            and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= CODE_MAX_P50_S
+        )
     }
 
 

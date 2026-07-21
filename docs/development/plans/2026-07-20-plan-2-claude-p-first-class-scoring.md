@@ -152,7 +152,7 @@ with mocked subprocess + fixture json — no real Claude call.
 
 ---
 
-## Phase B — Harness namespace-branch dispatch (review + code) — ✅ EXECUTED 2026-07-20
+## Phase B — Harness namespace-branch dispatch (review + code) — ✅ EXECUTED 2026-07-20 (38c16b52)
 
 Wire `claude-code/*` into both harnesses as a `model.startswith("claude-code/")` branch that builds the SAME
 result object the graders already consume — from `(text, usage)` via `claude_p_call` + `derive_cost.api_equiv`.
@@ -202,7 +202,7 @@ path, `cost_usd`=①); `claude_p_cost.json` = `{"amortized_per_mtok":float, "quo
 
 ---
 
-## Phase C — Gate carve-out + doc-emit preamble
+## Phase C — Gate carve-out + doc-emit preamble — ✅ EXECUTED 2026-07-20
 
 Keep `claude-code/*` shortlist-visible past the eligibility gates (an expensive Opus ① now trips `$/1k`), and
 surface ② + ③ in the review/code section preambles. Full tables already auto-include `claude-code/*`
