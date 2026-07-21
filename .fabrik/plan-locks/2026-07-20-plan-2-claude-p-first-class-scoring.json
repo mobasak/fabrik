@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/2026-07-20-plan-2-claude-p-first-class-scoring.md",
+  "owned_paths": [
+    "scripts/kilo-benchmarks/claude_p.py",
+    "scripts/kilo-benchmarks/derive_cost.py",
+    "scripts/kilo-benchmarks/claude_price_ratios.json",
+    "scripts/kilo-benchmarks/claude_p_cost.json",
+    "scripts/kilo-benchmarks/microbench_review.py",
+    "scripts/kilo-benchmarks/microbench_coding_direct.py",
+    "scripts/kilo-benchmarks/build_task_baselines.py",
+    "scripts/kilo-benchmarks/rank_task_subagents.py",
+    "scripts/kilo-benchmarks/tests/test_claude_p.py",
+    "scripts/kilo-benchmarks/tests/test_derive_cost.py",
+    "scripts/kilo-benchmarks/tests/test_claude_p_dispatch.py",
+    "scripts/kilo-benchmarks/tests/test_claude_p_carveout.py"
+  ],
+  "branch": "master",
+  "started_at": "2026-07-21T08:56:03Z",
+  "status": "active"
+}
