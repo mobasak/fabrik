@@ -6,7 +6,6 @@ All tests mock httpx.Client to avoid live service calls.
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
 from fabrik.drivers.image_broker import ImageBrokerClient
 

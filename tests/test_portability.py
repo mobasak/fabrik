@@ -30,7 +30,6 @@ from click.testing import CliRunner
 from fabrik import portability
 from fabrik.cli import cli
 
-
 # ---------------------------------------------------------------------------
 # Schema invariants (carried from T4-02 skeleton)
 # ---------------------------------------------------------------------------
@@ -41,9 +40,9 @@ def test_state_schema_has_no_local_machine_fields():
     machine-local fields. If a future ticket adds e.g. ``writer_hostname`` or
     ``wsl_distro``, this test should fail and prompt a portability review.
     """
-    from fabrik.state import save
-
     import inspect
+
+    from fabrik.state import save
 
     sig = inspect.signature(save)
     forbidden = {"writer_hostname", "wsl_distro", "operator_email", "host_id"}

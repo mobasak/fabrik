@@ -147,7 +147,6 @@ def test_dry_run_unmappable_count_is_returned() -> None:
     so a refactor can't drop the metric."""
     mod = _load()
     # Re-use the seed from above but inline-confirm the return shape
-    import sqlite3
     import tempfile
     from pathlib import Path as _P
     with tempfile.TemporaryDirectory() as td:

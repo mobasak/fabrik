@@ -17,7 +17,6 @@ Coverage:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,12 +24,10 @@ from click.testing import CliRunner
 
 from fabrik.cli import cli
 from fabrik.orchestrator.destroyer import (
-    ActionResult,
-    HANDLER_ARGS,
     HANDLER_FUNCS,
+    ActionResult,
     destroy_from_state,
 )
-
 
 # ---------------------------------------------------------------------------
 # Test helpers

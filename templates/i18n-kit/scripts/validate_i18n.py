@@ -361,7 +361,7 @@ def validate_structural(lang: str) -> list:
 
     # React Native: check src/locales/ is in sync with source JSON
     rn_locales = _SCRIPT_ROOT / "src" / "locales"
-    if rn_locales.exists() and I18N_DIR != rn_locales:
+    if rn_locales.exists() and rn_locales != I18N_DIR:
         rn_file = rn_locales / f"{lang}.json"
         if rn_file.exists():
             rn_data = flatten(json.loads(rn_file.read_text(encoding="utf-8")))

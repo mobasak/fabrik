@@ -9,10 +9,10 @@ provider dispatch, reaper tag-safety).
 """
 
 from __future__ import annotations
-import sys
+
 import os
-import json
-from unittest.mock import MagicMock, patch
+import sys
+from unittest.mock import MagicMock
 
 # Ensure fresh state file for these scenarios
 os.environ.pop("RUNPOD_SERVERLESS_ENDPOINT_ID", None)
@@ -186,6 +186,7 @@ def main():
     section("S7: Modal template renders with valid Python")
     # ========================================================================
     import ast
+
     from jinja2 import Template
 
     for template_id in ("echo-handler", "vllm-openai"):
@@ -210,6 +211,7 @@ def main():
     section("S8: Vast driver — workergroups path constant (regression guard)")
     # ========================================================================
     import inspect
+
     from fabrik.drivers import vast_provider as vp
 
     src = inspect.getsource(vp)

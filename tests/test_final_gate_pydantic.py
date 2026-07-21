@@ -81,8 +81,9 @@ shape:
 infrastructure:
   database: shared
 """)
-    from fabrik.spec_loader import load_spec
     from pydantic import ValidationError
+
+    from fabrik.spec_loader import load_spec
     with pytest.raises((ValidationError, Exception)) as exc_info:
         load_spec(str(spec_path))
     assert "database" in str(exc_info.value).lower() or "enum" in str(exc_info.value).lower()
@@ -103,8 +104,9 @@ shape:
 env:
   PORT: 3000
 """)
-    from fabrik.spec_loader import load_spec
     from pydantic import ValidationError
+
+    from fabrik.spec_loader import load_spec
     with pytest.raises((ValidationError, Exception)) as exc_info:
         load_spec(str(spec_path))
     assert "port" in str(exc_info.value).lower() or "string" in str(exc_info.value).lower()

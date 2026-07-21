@@ -21,7 +21,6 @@ import pytest
 
 from fabrik.spec_loader import _deep_merge, load_spec
 
-
 # ──────────────────────────────────────────────────────────────────────────
 # Fixtures: minimal specs written to a tmp dir + a sibling templates/ tree.
 # The fixture builds a fully-isolated /tmp filesystem so tests don't depend

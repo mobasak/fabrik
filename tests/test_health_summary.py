@@ -1,5 +1,5 @@
-import pytest
 from pathlib import Path
+
 from scripts.health_summary import scan_health
 
 

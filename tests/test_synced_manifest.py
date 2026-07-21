@@ -22,7 +22,6 @@ def test_atomic_copy_is_safe_for_a_concurrent_reader(tmp_path: Path) -> None:
     # atomically so the running process never sees a torn/partial file. Prove: after _atomic_copy, the
     # dest has new content, but a reader that opened the old file still reads the OLD bytes (old inode
     # preserved by os.replace), and no temp file leaks.
-    import os
 
     src = tmp_path / "src.py"
     src.write_text("NEW\n")

@@ -7,9 +7,9 @@ provider in dashboards.yaml.
 Run: cd configs/grafana && python3 build_dashboards.py
 """
 from __future__ import annotations
+
 import json
 import os
-from typing import Any
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "dashboards")
 DS = {"type": "prometheus", "uid": "prometheus"}

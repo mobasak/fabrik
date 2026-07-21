@@ -9,7 +9,6 @@ Covers ``_load_deploy_state(project_name)``:
 
 from __future__ import annotations
 
-import importlib
 import json
 
 import pytest

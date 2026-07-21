@@ -107,7 +107,7 @@ def test_data_bearing_auto_stamped_for_postgres_redis_meilisearch():
 
 def test_data_bearing_constant_is_canonical():
     state = _import()
-    assert state.DATA_BEARING_REGISTRARS == frozenset({"postgres", "redis", "meilisearch"})
+    assert frozenset({"postgres", "redis", "meilisearch"}) == state.DATA_BEARING_REGISTRARS
 
 
 def test_caller_specified_data_bearing_is_overwritten():

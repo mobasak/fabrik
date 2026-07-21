@@ -24,7 +24,6 @@ if str(SCRIPT_DIR) not in sys.path:
 
 # Module under test
 import fetch_direct_vendor_prices as orch  # noqa: E402
-from direct_vendor_parsers import ParsedRow  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -792,7 +791,9 @@ def test_H4_seed_does_not_overwrite_operator_set_routing_flags(tmp_path):
     cb7e7631 only removed the 4 Anthropic INSTANCES; the structural
     bug remained for any future direct-vendor row that gets OR-listed).
     """
-    import importlib, sys, sqlite3 as sq
+    import importlib
+    import sqlite3 as sq
+    import sys
     sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
     db = tmp_path / "seed.db"
     # Mirror just enough schema for the seed-upsert path
@@ -975,7 +976,7 @@ def test_H2_consecutive_fetch_failures_persisted_across_runs(tmp_path):
     counter becomes 1. Run 2 fails → counter becomes 2. Successful run
     resets to 0. Escalation alert fires at VENDOR_FAILURE_ESCALATE=7.
     """
-    import sys, json
+    import sys
     sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
     import fetch_direct_vendor_prices as m
 
@@ -1056,9 +1057,9 @@ def test_M3_consecutive_pricing_misses_atomic_update(tmp_path):
 
     This test simulates 3 sequential miss-bumps and verifies the counter
     end-state is 3 (i.e., no lost updates from interleaving)."""
-    import sys, sqlite3 as sq
+    import sqlite3 as sq
+    import sys
     sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
-    import fetch_direct_vendor_prices as m
 
     db = tmp_path / "k.db"
     _seed_db(db)
@@ -1080,7 +1081,7 @@ def test_M6_cartesia_sonic_regex_requires_version() -> None:
     """REGRESSION (M6): bare 'Sonic' (no version) must NOT anchor — if
     Cartesia adds a "Sonic Voice Agents" sub-product, it could quote a
     different price. Version 2 OR 3 accepted; 4+ requires deliberate code update."""
-    import sys, re as _re
+    import sys
     sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
     from direct_vendor_parsers.cartesia import _SONIC_RE
     assert _SONIC_RE.search("Sonic-2 pricing") is not None
@@ -1101,7 +1102,8 @@ def test_NF1_magnitude_bounds_accept_live_catalog_prices() -> None:
     pass _magnitude_check. Pre-fix bounds were too tight: google/veo-3
     at 750000/video-sec exceeded the 100000 ceiling, magnitude_check
     would REFUSE legit writes."""
-    import sys, sqlite3 as sq
+    import sqlite3 as sq
+    import sys
     sys.path.insert(0, str(REPO_ROOT / "scripts" / "kilo-benchmarks"))
     import fetch_direct_vendor_prices as m
 

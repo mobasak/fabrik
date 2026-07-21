@@ -7,9 +7,6 @@ level — these tests are the regression net for that contract.
 from __future__ import annotations
 
 import inspect
-from unittest.mock import patch
-
-import pytest
 
 
 def test_module_level_import_succeeds():
@@ -138,7 +135,7 @@ class TestPartialDestroyCLI:
         # cross-test HANDLER_FUNCS pollution that would otherwise leak.
         spec_path = self._make_spec(tmp_path)
         from fabrik.cli import cli
-        from fabrik.orchestrator.destroyer import ActionResult, HANDLER_FUNCS
+        from fabrik.orchestrator.destroyer import HANDLER_FUNCS, ActionResult
 
         calls: list[str] = []
 
@@ -177,7 +174,7 @@ class TestPartialDestroyCLI:
     def test_partial_with_valid_plus_unknown_still_exits_1(self, tmp_path, monkeypatch):
         spec_path = self._make_spec(tmp_path)
         from fabrik.cli import cli
-        from fabrik.orchestrator.destroyer import ActionResult, HANDLER_FUNCS
+        from fabrik.orchestrator.destroyer import HANDLER_FUNCS, ActionResult
 
         monkeypatch.setitem(
             HANDLER_FUNCS, "gatus", lambda *a, **k: ActionResult("gatus", "dry_run")
@@ -197,5 +194,5 @@ class TestPartialDestroyCLI:
     def test_handler_funcs_restored_after_monkeypatch(self):
         """Sanity: after monkeypatch teardown, HANDLER_FUNCS["gatus"] is
         the real `_destroy_gatus` again — proves F1 fix works."""
-        from fabrik.orchestrator.destroyer import _destroy_gatus, HANDLER_FUNCS
+        from fabrik.orchestrator.destroyer import HANDLER_FUNCS, _destroy_gatus
         assert HANDLER_FUNCS["gatus"] is _destroy_gatus

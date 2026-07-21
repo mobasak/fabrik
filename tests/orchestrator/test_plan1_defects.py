@@ -14,7 +14,6 @@ import pytest
 from fabrik.orchestrator.deployer_ssh import SSHDeployer, _validate_compose
 from fabrik.orchestrator.exceptions import DeployError
 
-
 # ── D1: _deploy_git must validate the compose (fail-closed on the standard path) ──────────
 
 _BAD_GIT_COMPOSE = (

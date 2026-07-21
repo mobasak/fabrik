@@ -15,11 +15,8 @@ from fabrik.orchestrator.coolify_alias import (
     ALIASES_PATH,
     SERVICE_UNIT,
     _load_remote_aliases,
-    _restart_watcher,
-    _write_remote_aliases,
     add_alias,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # add_alias

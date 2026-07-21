@@ -9,7 +9,12 @@ bodies with {{include:NAME}} markers) + PARAMS below (per-command variance).
 Rendered files carry a DO-NOT-HAND-EDIT banner. Edit fragments/sources, re-render.
 """
 from __future__ import annotations
-import argparse, difflib, re, sys, tempfile
+
+import argparse
+import difflib
+import re
+import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent

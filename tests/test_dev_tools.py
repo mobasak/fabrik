@@ -17,7 +17,6 @@ from click.testing import CliRunner
 from fabrik import dev_tools
 from fabrik.cli import cli
 
-
 # ---------------------------------------------------------------------------
 # Helpers — synthetic project tree
 # ---------------------------------------------------------------------------

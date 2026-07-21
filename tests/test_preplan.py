@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -43,7 +43,7 @@ class TestCreatePreplan:
         from fabrik.preplan import create_preplan
 
         path = create_preplan("my-test")
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         assert path.name == f"{today}-my-test.md"
         assert path.exists()
 

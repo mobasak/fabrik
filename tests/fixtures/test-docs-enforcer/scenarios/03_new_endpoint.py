@@ -1,6 +1,5 @@
 """Scenario 03: New FastAPI endpoint."""
 
-import os
 
 from fastapi import FastAPI
 

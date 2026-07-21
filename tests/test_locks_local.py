@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+
 # Redirect lock dir to a tmpdir BEFORE importing the module so the
 # LOCK_DIR module-level constant is honored. Caller of file_lock will
 # still create the directory.

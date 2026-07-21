@@ -272,7 +272,6 @@ def test_transaction_rollback_on_persist_failure(tmp_path, monkeypatch):
     # Now inject a failure mid-persist: monkeypatch _do_inserts to raise
     # after the first INSERT. The DELETE steps already ran; the
     # try/except wrapper must roll them back so prior content is intact.
-    import sqlite3 as _sqlite3
     real_do_inserts = mapper._do_inserts
 
     def fail_after_first_insert(conn, routes, today_iso):
@@ -541,7 +540,6 @@ def test_full_surface_pass6_fb_atomic_promote_or_restore(tmp_path, monkeypatch):
     eliminate. Now we snapshot both final paths to .bak before replacing,
     and restore on any replace failure so the end-state is always
     coherent (either both today or both yesterday)."""
-    import os as _os
     db = _build_db([("p/x", "language")])
     cfg = _make_yaml(tmp_path)
     routes_final = tmp_path / "routes.json"
@@ -594,7 +592,6 @@ def test_full_surface_pass7_f1_promote_failure_rolls_back_db(tmp_path, monkeypat
     consumers reading the DB saw today, consumers reading the JSON saw
     yesterday. Now the commit happens AFTER promote succeeds; a promote
     failure rolls back the DB so both stores end on yesterday."""
-    import os as _os
     db = _build_db([("p/x", "language")])
     cfg = _make_yaml(tmp_path)
     routes_final = tmp_path / "routes.json"
@@ -703,10 +700,10 @@ def test_full_surface_pass8_f1_commit_failure_restores_json(tmp_path, monkeypatc
 
     # JSON snapshots restored to yesterday.
     assert json.loads(routes_final.read_text())["DAY"] == "yesterday", (
-        f"split-brain: routes JSON not restored after commit failure"
+        "split-brain: routes JSON not restored after commit failure"
     )
     assert json.loads(traycer_final.read_text())["DAY"] == "yesterday", (
-        f"split-brain: traycer JSON not restored after commit failure"
+        "split-brain: traycer JSON not restored after commit failure"
     )
 
     # DB rollback effectively occurred (selector check via fresh connection).

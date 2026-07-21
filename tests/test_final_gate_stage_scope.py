@@ -13,7 +13,6 @@ from __future__ import annotations
 import subprocess
 
 import pytest
-
 import scripts.final_gate as gate
 
 

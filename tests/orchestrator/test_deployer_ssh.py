@@ -9,7 +9,7 @@ with mocked SSH.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -23,7 +23,6 @@ from fabrik.orchestrator.deployer_ssh import (
     _validate_name,
 )
 from fabrik.orchestrator.exceptions import DeployError
-
 
 # ======================================================================
 # _parse_env / _format_env

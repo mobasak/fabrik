@@ -59,7 +59,7 @@ def test_allowlist_is_registry_derived_permissive_union():
     import _doc_registry
 
     expected = _doc_registry.docs_allowlist() | _doc_registry.LEGACY_TOLERATED
-    assert cs.DOCS_ALLOWLIST == expected
+    assert expected == cs.DOCS_ALLOWLIST
     # it must be the RICHER derived set, proving the import path worked (not the fallback)
     assert cs.DOCS_ALLOWLIST != cs._FALLBACK_DOCS_ALLOWLIST
     assert len(cs.DOCS_ALLOWLIST) > len(cs._FALLBACK_DOCS_ALLOWLIST)

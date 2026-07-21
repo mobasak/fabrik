@@ -19,7 +19,6 @@ import json
 import os
 
 from fastapi import APIRouter, Query
-
 from mobile_config import AppConfig, evaluate
 
 router = APIRouter()

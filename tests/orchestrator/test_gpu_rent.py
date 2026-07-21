@@ -9,14 +9,13 @@ under test: resources are ALWAYS destroyed unless keep_warm_after_use
 from __future__ import annotations
 
 import json
-import os
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
 from fabrik.drivers.runpod import GPU_TYPE_IDS, RunPodError
-from fabrik.orchestrator import gpu_rent, gpu_reaper, gpu_state
+from fabrik.orchestrator import gpu_reaper, gpu_rent, gpu_state
 
 
 @pytest.fixture(autouse=True)
@@ -825,8 +824,9 @@ def test_vast_destroy_endpoint_idempotent_on_404(monkeypatch):
 
 def test_vast_resolve_template_hash_pinned():
     """Pinned vllm-openai → top hash f815ac7... (verified live 2026-06-17)."""
-    from fabrik.drivers.vast_provider import VastClient
     import unittest.mock
+
+    from fabrik.drivers.vast_provider import VastClient
     with unittest.mock.patch.object(VastClient, "__init__", lambda self, *a, **kw: None):
         c = VastClient()
         c.api_key = "test"
@@ -836,8 +836,9 @@ def test_vast_resolve_template_hash_pinned():
 
 def test_vast_resolve_template_hash_accepts_raw_hash():
     """A 32-char hex string is returned as-is (no lookup)."""
-    from fabrik.drivers.vast_provider import VastClient
     import unittest.mock
+
+    from fabrik.drivers.vast_provider import VastClient
     with unittest.mock.patch.object(VastClient, "__init__", lambda self, *a, **kw: None):
         c = VastClient()
         c.api_key = "test"

@@ -25,7 +25,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -82,7 +81,7 @@ def test_marker_self_heal_absent():
 def test_marker_replaces_existing():
     seeded = (
         "# Test Pack\n\nBody\n\n"
-        f"<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-01-01 -->\nOLD TABLE\n"
+        "<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-01-01 -->\nOLD TABLE\n"
         "<!-- OPENROUTER_ROUTES:END -->\n\nTail\n"
     )
     pack = _pack(seeded)
@@ -439,7 +438,7 @@ def test_full_surface_pass3_f2_bom_does_not_bypass_frontmatter():
     text, so `_frontmatter_end_index` returned 0 and the stamp landed
     inside the description. YAML_FRONTMATTER_RE now accepts optional BOM."""
     p = Path(tempfile.mkdtemp()) / "p.md"
-    p.write_bytes("﻿---\ntitle: A\ndescription: 'Foo # Bar'\n---\n# Real H1\n\nbody\n".encode("utf-8"))
+    p.write_bytes("﻿---\ntitle: A\ndescription: 'Foo # Bar'\n---\n# Real H1\n\nbody\n".encode())
     export.inject_pack(p, "language", _entry([_route("x/y")]))
     text = p.read_text(encoding="utf-8")
     fm_close = text.find("\n---\n", 5) + 5

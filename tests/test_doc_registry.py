@@ -163,7 +163,7 @@ def test_all_types_matches_scaffold_source_of_truth():
     type silently gets no docs. This is the drift the whole registry exists to prevent."""
     from fabrik.scaffold import SCAFFOLD_TYPES
 
-    assert reg.ALL_TYPES == frozenset(SCAFFOLD_TYPES), (
+    assert frozenset(SCAFFOLD_TYPES) == reg.ALL_TYPES, (
         f"ALL_TYPES drifted from SCAFFOLD_TYPES: "
         f"only-in-registry={reg.ALL_TYPES - SCAFFOLD_TYPES}, "
         f"only-in-scaffold={SCAFFOLD_TYPES - reg.ALL_TYPES}"

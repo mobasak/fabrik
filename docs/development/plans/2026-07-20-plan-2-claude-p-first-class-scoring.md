@@ -1,6 +1,6 @@
 # Score claude -p (native Claude tiers) as first-class CODER + REVIEWER candidates
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Date: 2026-07-20
 Author: primary (Claude Opus 4.8)
 Spec: [docs/superpowers/specs/2026-07-20-claude-p-first-class-scoring-design.md](../../superpowers/specs/2026-07-20-claude-p-first-class-scoring-design.md) (CONVERGED — the grounded source of truth; this plan inherits its verdicts, does not re-derive them)

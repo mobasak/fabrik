@@ -21,8 +21,8 @@ from unittest.mock import MagicMock, patch
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.infrastructure import (
-    InfrastructureProvisioner,
     _HUB_MESH_IP,
+    InfrastructureProvisioner,
     _rewrite_shared_infra_host,
 )
 

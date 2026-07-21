@@ -34,7 +34,6 @@ import pytest
 from fabrik.audit import audit_postgres
 from fabrik.drivers import postgres as pg_driver
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
