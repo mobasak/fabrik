@@ -175,3 +175,88 @@ def test_measured_requires_min_successful_mutants():
         "y", n_mut=3, caught=3, n_ctrl=8, ctrl_flagged=0, latencies=[1.0], out_tokens=1, cost=0.0
     )
     assert not below.is_measured and at.is_measured
+
+
+# ── equivalent-mutant filter (a mutant with no observable defect is not a valid test item) ────────
+
+
+def test_no_equivalent_mutants_survive_corpus_build():
+    """Every shipped mutant MUST be behaviorally distinguishable from its original over the victim's
+    input domain. An equivalent mutant (e.g. `<`->`<=` where the branch outcome is provably identical)
+    is UNKILLABLE: the reviewer correctly answers "no bug", we score it a miss, and every model loses
+    the same point — compressing all scores toward an artificial tie.
+
+    Proven live (2026-07-22): 5 of 22 mutants were equivalent, and all 4 claude tiers "missed" exactly
+    those 5 on 20/20 repeated trials each, manufacturing identical recall across models.
+    """
+    for it in mr.build_corpus():
+        if it.truth_line is None:
+            continue
+        assert not mr._is_equivalent_mutant(mr.VICTIMS[it.victim], it), (
+            f"equivalent (unkillable) mutant shipped in the corpus: {it.item_id}"
+        )
+
+
+def test_equivalence_checker_flags_a_known_equivalent_mutant():
+    """The checker must POSITIVELY identify a hand-built equivalent mutant — otherwise the filter
+    above could pass vacuously (e.g. if the checker always returned False).
+
+    Fixture: binary_search's `items[mid] < target` -> `<=`. It is UNCONDITIONALLY equivalent — the
+    preceding line already returned on `items[mid] == target`, so `items[mid] != target` is an
+    invariant by the time this branch runs and `<` / `<=` cannot diverge. Verified exhaustively
+    (3,600 list/target combinations, zero differences).
+    """
+    src = mr.VICTIMS["binary_search"]
+    equivalent_src = src.replace("if items[mid] < target:", "if items[mid] <= target:")
+    assert equivalent_src != src, "fixture failed to mutate"
+    item = mr.Item(
+        item_id="binary_search:equiv-fixture",
+        victim="binary_search",
+        numbered_code=mr._number(ast.unparse(ast.parse(equivalent_src))),
+        truth_line=7,
+        operator="<->=<",
+    )
+    assert mr._is_equivalent_mutant(src, item), "known-equivalent mutant was not detected"
+
+
+def test_equivalence_domain_covers_contract_violating_ranges():
+    """A domain that only exercises the SANE precondition can miss a flip that diverges solely on a
+    degenerate one — and would then wrongly certify a killable mutant as 'equivalent'.
+
+    Real near-miss (2026-07-22): clamp's `value < low` -> `<=` is identical for every valid range
+    (low <= high) and differs ONLY when low > high (an inverted range) at value == low. The first
+    domain used low in (0,5) / high in (5,10), so low > high never occurred and the mutant was
+    wrongly filtered. Assert the domain still reaches the degenerate case.
+    """
+    assert any(lo > hi for _v, lo, hi in mr._EQUIV_DOMAINS["clamp"]), (
+        "clamp domain no longer covers an inverted (low > high) range — equivalence verdicts for "
+        "boundary flips become unsound"
+    )
+    # ...and that the checker consequently classifies that flip as KILLABLE, not equivalent.
+    src = mr.VICTIMS["clamp"]
+    killable_src = src.replace("if value < low:", "if value <= low:")
+    item = mr.Item(
+        item_id="clamp:2:<->=<",
+        victim="clamp",
+        numbered_code=mr._number(ast.unparse(ast.parse(killable_src))),
+        truth_line=2,
+        operator="<->=<",
+    )
+    assert not mr._is_equivalent_mutant(src, item), (
+        "clamp `<`->`<=` diverges on an inverted range — it must NOT be filtered as equivalent"
+    )
+
+
+def test_equivalence_checker_keeps_a_real_bug():
+    """A genuinely killable mutant must NOT be filtered out (guards against over-eager exclusion)."""
+    src = mr.VICTIMS["within_budget"]
+    # `spent + incoming` -> `spent - incoming`: changes the result for any nonzero incoming.
+    real_bug_src = src.replace("spent + incoming", "spent - incoming")
+    item = mr.Item(
+        item_id="within_budget:real-fixture",
+        victim="within_budget",
+        numbered_code=mr._number(ast.unparse(ast.parse(real_bug_src))),
+        truth_line=2,
+        operator="+->-",
+    )
+    assert not mr._is_equivalent_mutant(src, item), "a real bug was wrongly filtered as equivalent"

@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review benchmark corpus shipped 4 UNKILLABLE (equivalent) mutants, compressing every model's score (2026-07-22)
+
+`microbench_review.py`'s AST mutator flips one operator per mutant, but 4 of its 22 flips produced a
+mutant **semantically identical to the original** — verified exhaustively, zero differences across
+every input tested: `binary_search:7` (`<`→`<=`; line 5 already returned on `==`, so `items[mid] !=
+target` is an invariant here — 3,600 combinations, 0 diffs), `page_offset:2` (`<`→`<=`; both assign
+`page = 1` — 625, 0 diffs), `retry_backoff:3` (`>`→`>=`; assigns `cap` to itself — 15,625, 0 diffs),
+`clamp:4` (`>`→`>=`; both return `high` at equality — 15,625, 0 diffs). A reviewer that correctly
+answered "no bug" was scored a MISS on all four, docking **every** model the same points — which is
+what compressed all four `claude-code/*` tiers to an identical `recall=0.6818 / score5=4.054`.
+Proven live: 20/20 repeated trials per model returned "no bug" from all 4 tiers on each, while a
+genuinely hard item (`is_expired:2`) cleanly separated them (haiku 4/5 · sonnet 0/5 · opus 0/5 ·
+fable 0/5).
+
+`build_corpus()` now differential-tests each mutant against its original over a per-victim input
+domain (a non-terminating mutant counts as diverged via a 0.25s per-call alarm) and drops any mutant
+with no observable difference — corpus 22+8 → **18 mutants + 8 controls**. Fail-open by design: a
+victim with no declared domain keeps its mutants rather than being silently dropped.
+
+⚠️ **Domain soundness is load-bearing.** A domain that only exercises the sane precondition can miss a
+flip that diverges solely on a degenerate one, and would then wrongly certify a killable mutant as
+equivalent. Real near-miss caught during review: `clamp:2` (`<`→`<=`) is identical for every VALID
+range (`low <= high`) and differs only when `low > high` at `value == low`; the first domain used
+`low ∈ (0,5)` / `high ∈ (5,10)` so `low > high` never occurred and the mutant was wrongly filtered.
+The clamp domain now covers inverted ranges and `clamp:2` is correctly KEPT as killable, with a test
+asserting the domain still reaches that case. +4 tests (no equivalent mutant survives the build · the
+checker positively detects an unconditionally-equivalent fixture · a real bug is NOT filtered · the
+domain covers contract-violating ranges).
+
+⚠️ Every existing `model_review_metrics` row (all 57 OpenRouter models + the 4 claude tiers, confirmed
+`n_mut=22` in the DB) was measured on the contaminated corpus and understates recall — a full re-score
+is required before those numbers are trusted.
+
 ### Fixed — coding benchmark's `--all` batch loop no longer loses a whole run to one bad batch (2026-07-22)
 
 Adversarial review of `microbench_coding_direct.py`'s `--all` batch loop surfaced five compounding

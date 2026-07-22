@@ -216,10 +216,96 @@ def _apply_flip(tree: ast.AST, line: int, from_type: type, to_type: type) -> Non
                 return
 
 
+# Input domains for the equivalent-mutant filter — must include the BOUNDARY values (x == low,
+# x == cap, size == capacity, …), because an operator flip at a boundary is exactly where an
+# equivalent mutant hides (`<` vs `<=` differ only at equality).
+_EQUIV_DOMAINS: dict[str, list[tuple]] = {
+    "binary_search": [
+        ([], 0),
+        ([5], 5),
+        ([5], 4),
+        ([5], 6),
+        ([1, 3, 5, 7], 1),
+        ([1, 3, 5, 7], 7),
+        ([1, 3, 5, 7], 4),
+        ([1, 3, 5, 7], 5),
+        ([1, 1, 1], 1),
+        ([2, 4], 3),
+    ],
+    "page_offset": [(p, pp) for p in (-2, 0, 1, 2, 5) for pp in (1, 10, 25)],
+    "retry_backoff": [(a, b, c) for a in (0, 1, 3, 5) for b in (1, 2) for c in (1, 8, 16, 1000)],
+    "running_avg": [(t, c, v) for t in (0, 10, -5) for c in (0, 1, 4) for v in (0, 3, -2)],
+    "within_budget": [(s, i, ll) for s in (0, 5, 10) for i in (0, 5, 10) for ll in (0, 10, 20)],
+    "is_expired": [(n, i, t) for n in (0, 100, 50) for i in (0, 50, 100) for t in (0, 50, 100)],
+    # NB: `hi` deliberately includes values BELOW `lo` (an inverted, contract-violating range). A
+    # domain that only covers lo <= hi cannot observe a flip that diverges solely on lo > hi, and
+    # would call such a mutant "equivalent" without ever testing the case (a real near-miss: clamp's
+    # `<`→`<=` differs ONLY on lo > hi ∧ value == lo). Cover the degenerate range explicitly.
+    "clamp": [(v, lo, hi) for v in (-1, 0, 1, 5, 10, 11) for lo in (0, 5) for hi in (-1, 0, 5, 10)],
+    "should_evict": [(s, c, p) for s in (0, 5, 10) for c in (0, 5, 10) for p in (True, False)],
+}
+_EQUIV_CALL_TIMEOUT_S = 0.25  # a mutant that loops forever HAS diverged — that counts as killable
+
+
+def _eval_victim(src: str, args: tuple):
+    """Run a victim/mutant on one input; return a comparable outcome tuple. Never raises."""
+    import signal
+
+    class _TimeoutError(Exception):
+        pass
+
+    def _on_alarm(_signum, _frame):
+        raise _TimeoutError
+
+    ns: dict = {}
+    try:
+        exec(compile(src, "<victim>", "exec"), ns)  # noqa: S102 — fixed in-repo victim source
+    except Exception as e:  # noqa: BLE001
+        return ("COMPILE_ERR", type(e).__name__)
+    fns = [v for k, v in ns.items() if callable(v) and not k.startswith("__")]
+    if not fns:
+        return ("NO_FN", None)
+    prev = signal.signal(signal.SIGALRM, _on_alarm)
+    signal.setitimer(signal.ITIMER_REAL, _EQUIV_CALL_TIMEOUT_S)
+    try:
+        return ("OK", fns[0](*args))
+    except _TimeoutError:
+        return ("TIMEOUT", None)
+    except Exception as e:  # noqa: BLE001
+        return ("EXC", type(e).__name__)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, prev)
+
+
+def _is_equivalent_mutant(original_src: str, item: Item) -> bool:
+    """True iff the mutant is behaviorally INDISTINGUISHABLE from the original over its domain.
+
+    An operator flip at a boundary (`<`→`<=` where the branch outcome is provably identical) yields a
+    mutant with NO observable defect. Scoring it as a planted bug is a benchmark defect, not a model
+    failure: the reviewer correctly returns `[]`, and we count that as a miss — depressing EVERY
+    model's recall by the same amount and compressing the scores toward an artificial tie. Proven
+    live: 5 of 22 mutants were unkillable, and all 4 claude tiers "missed" exactly those 5 on 20/20
+    trials each. Filter them out so recall measures real bug-finding.
+    """
+    domain = _EQUIV_DOMAINS.get(item.victim)
+    if not domain:  # no domain declared → cannot prove equivalence; keep the mutant (fail-open to
+        return False  # inclusion, so a new victim without a domain is never silently dropped)
+    mutant_src = "\n".join(
+        ln.split(": ", 1)[1] if ": " in ln else ln for ln in item.numbered_code.splitlines()
+    )
+    for args in domain:
+        if _eval_victim(original_src, args) != _eval_victim(mutant_src, args):
+            return False  # observable difference → a real, killable bug
+    return True
+
+
 def build_corpus() -> list[Item]:
     items: list[Item] = []
     for name, src in VICTIMS.items():
-        items.extend(_mutants_for(name, src))
+        # Drop equivalent mutants — they are unkillable by construction and would score a CORRECT
+        # "no bug found" as a miss for every model alike (see _is_equivalent_mutant).
+        items.extend(m for m in _mutants_for(name, src) if not _is_equivalent_mutant(src, m))
         # the un-mutated original is a CLEAN control (a finding here is a false positive).
         # Unparse it too, so it is byte-identical in FORMATTING to the mutants (only the operator
         # differs) — no reformatting "tell" that a model could use to guess mutant vs. control.
