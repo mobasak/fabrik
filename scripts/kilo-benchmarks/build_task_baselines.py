@@ -160,7 +160,8 @@ def review_eligible(db_path: Path = DB_PATH) -> set[str]:
         # QUALITY floors ALWAYS apply — a do-nothing reviewer (recall 0) is never eligible, claude or not.
         if (
             (d["precision"] or 0) >= REVIEW_MIN_PRECISION
-            and (d["recall"] or 0) > REVIEW_MIN_RECALL  # must catch ≥1 defect (not a do-nothing model)
+            and (d["recall"] or 0)
+            > REVIEW_MIN_RECALL  # must catch ≥1 defect (not a do-nothing model)
             and (d["score5"] or 0) >= REVIEW_TRUST_FLOOR_SCORE5
         )
         # …but the claude-code/* carve-out bypasses ONLY the COST/LATENCY gates (its ① API-equivalent cost
@@ -168,8 +169,10 @@ def review_eligible(db_path: Path = DB_PATH) -> set[str]:
         and (
             m.startswith("claude-code/")
             or (
-                (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= REVIEW_MAX_COST_PER_1K
-                and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= REVIEW_MAX_P50_S
+                (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9)
+                <= REVIEW_MAX_COST_PER_1K
+                and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9)
+                <= REVIEW_MAX_P50_S
                 and (d["cost_usd"] if d["cost_usd"] is not None else 1e9) < REVIEW_MAX_RUN_COST
             )
         )
@@ -261,7 +264,8 @@ def code_eligible(db_path: Path = DB_PATH) -> set[str]:
             m.startswith("claude-code/")
             or (
                 (d["cost_per_1k"] if d["cost_per_1k"] is not None else 1e9) <= CODE_MAX_COST_PER_1K
-                and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9) <= CODE_MAX_P50_S
+                and (d["p50_latency_s"] if d["p50_latency_s"] is not None else 1e9)
+                <= CODE_MAX_P50_S
             )
         )
     }

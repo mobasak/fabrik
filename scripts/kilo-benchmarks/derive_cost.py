@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -24,9 +25,18 @@ _USAGE_HISTORY = Path.home() / ".claude" / ".claude-manager" / "usage-history.js
 _STATUSLINE = Path.home() / ".claude" / ".claude-manager" / "statusline.json"
 _MANAGER_ACCOUNTS = Path.home() / ".claude" / "manager-accounts"
 
-_SUBSCRIPTION_USD_PER_ACCOUNT = (
-    200.0  # Max 20x, grounded 2026-07-20 support.claude.com/.../11049741
-)
+
+def _env_float(name: str, default: float) -> float:
+    """A malformed override must NOT crash the whole module at import time — fall back to default."""
+    try:
+        return float(os.getenv(name, default))
+    except (ValueError, TypeError):
+        return default
+
+
+# Max 20x, grounded 2026-07-20 support.claude.com/.../11049741 — env-overridable (not a secret; a
+# real-world price Anthropic can change) so a price update doesn't need a code edit + gate + commit.
+_SUBSCRIPTION_USD_PER_ACCOUNT = _env_float("CLAUDE_MAX_PRICE_USD", 200.0)
 _ANCHOR_USD_PER_TOKEN = 9.3e-8  # research "typical" $0.093/M fallback when history is empty
 _MONTHLY_DAYS = (
     30  # most-recent N calendar-days in usage-history = the "monthly throughput" denominator
@@ -67,6 +77,27 @@ def api_equiv(usage: dict, model: str, ratios_path: str | Path | None = None) ->
     return per_mtok / 1_000_000.0
 
 
+def amortized_cost(usage: dict, ratios_path: str | Path | None = None) -> float:
+    """② REAL out-of-pocket USD for one run's raw tokens: amortized_rate() × total tokens.
+
+    `usage` uses the same snake_case keys as `api_equiv` — the 4 CLI usage fields, summed (matching
+    how `amortized_rate`'s own denominator is computed). This is the actual subscription-derived cost
+    per row — NOT a list-price valuation (①) and NOT a single blended fleet-wide figure; each row's
+    own token volume × the current fleet rate. `ratios_path` is unused (kept for signature symmetry
+    with `api_equiv`; the rate has no per-model price component).
+    """
+    total = sum(
+        usage.get(k, 0) or 0
+        for k in (
+            "input_tokens",
+            "output_tokens",
+            "cache_read_input_tokens",
+            "cache_creation_input_tokens",
+        )
+    )
+    return amortized_rate() * total
+
+
 def amortized_rate(
     usage_history_path: str | Path | None = None, accounts_dir: str | Path | None = None
 ) -> float:
@@ -77,7 +108,9 @@ def amortized_rate(
     """
     ad = Path(accounts_dir or _MANAGER_ACCOUNTS)
     try:
-        n_accounts = sum(1 for p in ad.iterdir() if p.is_dir())
+        # skip dotdirs (.git, stray tmp dirs) — a real account dir never starts with "." — so a stray
+        # non-account subdir doesn't inflate n_accounts (which would over-state ②'s subscription fee).
+        n_accounts = sum(1 for p in ad.iterdir() if p.is_dir() and not p.name.startswith("."))
     except OSError:
         n_accounts = 1
     n_accounts = max(1, n_accounts)
@@ -87,8 +120,11 @@ def amortized_rate(
         # A real 30-CALENDAR-day window (ISO date-string >= cutoff), NOT the 30 most-recent present keys —
         # a gapped history must not sum arbitrarily-old days into the "monthly" denominator (which would
         # skew the amortized rate). No recent usage → total 0 → fail-soft to the anchor below.
+        today_iso = datetime.date.today().isoformat()
         cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
-        recent = [k for k in days if _is_iso_date(k) and k >= cutoff]
+        # upper-bound at today too — a clock-skewed source could carry a future-dated key, which
+        # would otherwise inflate the denominator (k >= cutoff alone never excludes k > today).
+        recent = [k for k in days if _is_iso_date(k) and cutoff <= k <= today_iso]
         total = 0
         for dk in recent:
             for m in (days[dk].get("byModel") or {}).values():

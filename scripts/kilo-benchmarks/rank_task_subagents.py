@@ -437,11 +437,15 @@ def _review_benchmark_models() -> list[str]:
     )
 
 
-def _claude_p_preamble() -> list[str]:
+def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
     """The ②/③ context line for `claude-code/*` rows (reads `claude_p_cost.json` fail-soft). Empty if absent.
 
     Emits an italic sub-header (like the `_gate: …_` lines) so the reader knows the `$/1k` cell for a
     `claude-code/*` row is ① API-equivalent, and sees ② amortized + ③ quota-draw alongside.
+
+    `has_amortized_col`: the review table has a per-row `②total$` column (raw-token persistence exists
+    for `microbench_review.py`); the coding table does NOT (`microbench_coding_direct.py` never captures
+    per-row raw tokens) — pass False there so the prose doesn't point at a column that isn't rendered.
     """
     import json
 
@@ -452,13 +456,19 @@ def _claude_p_preamble() -> list[str]:
         quota = float(d.get("quota_draw_pct", 0.0) or 0.0)
     except (OSError, ValueError, TypeError, AttributeError):
         return []
+    col_note = (
+        " `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole "
+        "measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate)."
+        if has_amortized_col
+        else " (no per-row ② column here — this harness doesn't persist raw tokens per run.)"
+    )
     return [
         f"_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's "
-        f"tokens, comparable to the pool). Context — ② amortized ≈${amort:.3f}/M · ③ last run's weekly-quota "
-        f"draw ≈{quota:.1f}% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A "
-        f"`claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency "
-        f"gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never "
-        f"returns them._",
+        f"tokens, comparable to the pool — a RATE).{col_note} Context — ② amortized ≈${amort:.3f}/M · ③ last "
+        f"run's weekly-quota draw ≈{quota:.1f}% (from `claude_p_cost.json`; ③ is a capacity estimate, not a "
+        f"precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the "
+        f"printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, "
+        f"so `pick_models` never returns them._",
     ]
 
 
@@ -486,9 +496,21 @@ def _full_review_results_table() -> list[str]:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='model_review_metrics'"
             ).fetchone():
                 return []
+            # raw per-type tokens (in_tokens/out_tokens_total/cache_read_tokens/cache_creation_tokens)
+            # are a later migration (persist_metrics ALTERs them in) — COALESCE so an un-migrated row
+            # (or a pre-migration OR row that never populated them) reads as NULL, not a query error.
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(model_review_metrics)")}
+            token_cols = (
+                "in_tokens",
+                "out_tokens_total",
+                "cache_read_tokens",
+                "cache_creation_tokens",
+            )
+            token_select = ", ".join(f"m.{c}" if c in cols else f"NULL AS {c}" for c in token_cols)
             rows = conn.execute(
                 "SELECT m.model_id, m.grade, m.score5, m.recall, m.precision, m.cost_per_1k, "
-                "m.out_price_mtok, m.cost_usd, m.p50_latency_s, m.tokens_per_s, m.n_mut, m.n_ctrl "
+                f"m.out_price_mtok, m.cost_usd, m.p50_latency_s, m.tokens_per_s, m.n_mut, m.n_ctrl, "
+                f"{token_select} "
                 "FROM model_review_metrics m JOIN (SELECT model_id, MAX(built_at) mb "
                 "FROM model_review_metrics GROUP BY model_id) t "
                 "ON m.model_id=t.model_id AND m.built_at=t.mb ORDER BY m.score5 DESC"
@@ -505,8 +527,8 @@ def _full_review_results_table() -> list[str]:
         "_source: `microbench_review.py` → `model_review_metrics`. `eligible` = passes the reviewer gate "
         "(precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s). `score5` = F1(recall,precision)×5._",
         *_claude_p_preamble(),
-        "| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | p50 s | tok/s | n_mut | n_ctrl | eligible |",
-        "|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|",
+        "| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl | eligible |",
+        "|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|",
     ]
     # eligible flag from the SAME gate function → never drifts from the constants
     try:
@@ -515,11 +537,42 @@ def _full_review_results_table() -> list[str]:
         eligible_set = review_eligible()
     except Exception:
         eligible_set = set()
-    for model, grade, s5, rec, prec, c1k, opm, cusd, p50, tps, nmut, nctrl in rows:
+    for (
+        model,
+        grade,
+        s5,
+        rec,
+        prec,
+        c1k,
+        opm,
+        cusd,
+        p50,
+        tps,
+        nmut,
+        nctrl,
+        intok,
+        outtok,
+        crtok,
+        cctok,
+    ) in rows:
         elig = "✅" if model in eligible_set else "—"
+        amort = "—"
+        if model.startswith("claude-code/") and None not in (intok, outtok, crtok, cctok):
+            try:
+                import derive_cost
+
+                usage = {
+                    "input_tokens": intok,
+                    "output_tokens": outtok,
+                    "cache_read_input_tokens": crtok,
+                    "cache_creation_input_tokens": cctok,
+                }
+                amort = f"${derive_cost.amortized_cost(usage):.6f}"
+            except Exception:
+                amort = "—"
         out.append(
             f"| `{model}` | {grade or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(prec, '.2f')} | "
-            f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {_n(p50, '.1f')} | "
+            f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {amort} | {_n(p50, '.1f')} | "
             f"{_n(tps, '.0f')} | {nmut if nmut is not None else '—'} | {nctrl if nctrl is not None else '—'} | {elig} |"
         )
     return out
@@ -576,7 +629,7 @@ def _full_coding_results_table() -> list[str]:
         "_source: `microbench_coding_direct.py` → `model_coding_metrics` (contamination-free LiveCodeBench). "
         "`pass@1` = fraction solved · `score5` = pass@1×5 · `value` = score5÷$/1k · `eligible` = clears the code "
         "gate (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s) · `tier` = curated use-case._",
-        *_claude_p_preamble(),
+        *_claude_p_preamble(has_amortized_col=False),
         "| model | grade | pass@1 | score5 | $/1k | $/run | p50 s | tok/s | value | family | n_graded | n_err | eligible | tier |",
         "|---|:-:|--:|--:|--:|--:|--:|--:|--:|:-:|--:|--:|:-:|:-:|",
     ]

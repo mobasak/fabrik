@@ -287,6 +287,11 @@ class ModelScore:
     out_price_mtok: float = (
         0.0  # the model's OpenRouter OUTPUT price, $/M tokens (static per model)
     )
+    # Raw per-type tokens (claude-code/* only — the OR path never populates these). Needed to compute
+    # ② (derive_cost.amortized_cost) — a real subscription-derived $, NOT a list-price valuation.
+    in_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
 
     # A model is only measured if enough calls actually returned. A 404/timeout is not "missed every
     # bug" — scoring it 0 would poison the ranker into never picking a model we simply failed to reach.
@@ -397,6 +402,9 @@ class _DirectResult:
         cost_usd=0.0,
         latency_s=None,
         out_price_mtok=0.0,
+        in_tokens=0,
+        cache_read_tokens=0,
+        cache_creation_tokens=0,
     ):
         import uuid
 
@@ -408,6 +416,11 @@ class _DirectResult:
         self.cost_usd = cost_usd
         self.latency_s = latency_s
         self.out_price_mtok = out_price_mtok
+        # raw per-type tokens (claude-code/* only — the OR path never populates these) — the input
+        # ② (real amortized $) needs, since it's a token-volume figure, not a list-price valuation.
+        self.in_tokens = in_tokens
+        self.cache_read_tokens = cache_read_tokens
+        self.cache_creation_tokens = cache_creation_tokens
         self.diff = ""
         self.provider = None
         self.turns = 1
@@ -544,6 +557,9 @@ def _claude_p_direct(model: str, task: str, timeout: float):
         cost_usd=cost,  # ① the ranking axis
         latency_s=lat,
         out_price_mtok=out_price,
+        in_tokens=usage["input_tokens"],
+        cache_read_tokens=usage["cache_read_input_tokens"],
+        cache_creation_tokens=usage["cache_creation_input_tokens"],
     )
 
 
@@ -571,7 +587,11 @@ def run_direct(models, corpus, max_tokens: int, concurrency: int, timeout: float
 
     has_claude = any(m.startswith("claude-code/") for m in models)
     if has_claude:
-        concurrency = min(concurrency, 2)  # claude -p shares the rotation quota → low concurrency
+        # conc=1: 2+ concurrent `claude -p` subprocesses can race the shared account-rotation state
+        # (a separate risk from quota consumption). conc=1 doesn't protect against an UNRELATED process
+        # sharing the same rotated account concurrently — that's outside this harness's control — but it
+        # does eliminate the self-inflicted 2-way race between this run's own dispatches.
+        concurrency = min(concurrency, 1)
     q_before = derive_cost.quota_snapshot() if has_claude else None
 
     def _dispatch(mt):
@@ -614,6 +634,9 @@ def grade(specs, meta, results):
         s.cost += res.cost_usd or 0.0
         if getattr(res, "out_price_mtok", 0.0):  # static per model — take from any successful call
             s.out_price_mtok = res.out_price_mtok
+        s.in_tokens += getattr(res, "in_tokens", 0) or 0
+        s.cache_read_tokens += getattr(res, "cache_read_tokens", 0) or 0
+        s.cache_creation_tokens += getattr(res, "cache_creation_tokens", 0) or 0
         if it.truth_line is None:  # clean control
             s.n_ctrl += 1
             s.ctrl_flagged += 1 if flagged else 0
@@ -697,17 +720,21 @@ def report(scores: dict[str, ModelScore]) -> None:
     """
     measured = [s for s in scores.values() if s.is_measured]
     unmeasured = [s for s in scores.values() if not s.is_measured]
-    print(f"\n{'':<32}{'|  CORRECTNESS':<26}{'|  COST':<26}{'|  SPEED':<16}")
+    # ② is a run TOTAL (not a per-1k/per-M RATE like its neighbors) — "②total$", never "②$/run", so it
+    # can't visually read as another rate column beside $/1k and out$/M (the label collision a review
+    # caught: two numbers differing by ~6 orders of magnitude under one loose "rate-shaped" header).
+    print(f"\n{'':<32}{'|  CORRECTNESS':<26}{'|  COST (① rate / ② total)':<34}{'|  SPEED':<16}")
     print(
         f"{'model':<32}{'grade':>6}{'/5':>6}{'rec':>6}{'prec':>6}  "
-        f"{'out$/M':>8}{'$/1k':>8}  {'p50 s':>7}{'tok/s':>8}"
+        f"{'out$/M':>8}{'$/1k':>8}{'②total$':>10}  {'p50 s':>7}{'tok/s':>8}"
     )
-    print("-" * 98)
+    print("-" * 106)
     for s in sorted(measured, key=lambda x: (x.score5, -x.median_latency), reverse=True):
         err = f"  ({s.n_err} err)" if s.n_err else ""
+        amort = f"${_amortized_cost_for(s):.6f}" if s.model.startswith("claude-code/") else "—"
         print(
             f"  {s.model[:29]:<30}{s.grade:>6}{s.score5:>6.2f}{s.recall * 100:>5.0f}%"
-            f"{s.precision * 100:>5.0f}%  {s.out_price_mtok:>8.2f}{s.cost_per_1k:>8.3f}  "
+            f"{s.precision * 100:>5.0f}%  {s.out_price_mtok:>8.2f}{s.cost_per_1k:>8.3f}{amort:>10}  "
             f"{s.median_latency:>7.1f}{s.tokens_per_s:>8.1f}{err}"
         )
     if unmeasured:
@@ -716,9 +743,47 @@ def report(scores: dict[str, ModelScore]) -> None:
             print(f"    · {s.model:<40} {s.n_err} errored / {s.n_err + s.n_mut + s.n_ctrl} calls")
     print(
         "\n  CORRECTNESS grade = F1(recall, precision)·5  ·  COST out$/M = OpenRouter OUTPUT list "
-        "price ($/M tokens), $/1k = REAL OpenRouter-billed cost (usage.cost) per 1000 reviews  ·  "
-        "SPEED p50 = median call latency, tok/s = aggregate output throughput"
+        "price ($/M tokens), $/1k = REAL OpenRouter-billed cost (usage.cost) per 1000 reviews (① "
+        "API-equivalent for claude-code/*, a RATE) · ②total$ = REAL subscription-derived $ (claude-code/* "
+        "only — amortized_rate × this run's OWN tokens, a lump-SUM for the whole measured run, NOT a "
+        "rate — expect it many orders of magnitude below $/1k; '—' for OR rows, which already show real "
+        "billed cost via $/1k)  ·  SPEED p50 = median call latency, tok/s = aggregate output throughput"
     )
+
+
+def _measured_review_models(db_path: Path = DB_PATH) -> set[str]:
+    """Models already measured TODAY in model_review_metrics — for RESUME (skip re-dispatching/paying
+    for a model whose score already landed). Mirrors microbench_coding_direct._measured_models; review
+    has no versioned corpus window (a fixed mutation-testing corpus), so "already measured" = built_at
+    == today. Fail-soft empty set if the table doesn't exist yet (first-ever run)."""
+    conn = sqlite3.connect(db_path)
+    try:
+        if not conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='model_review_metrics'"
+        ).fetchone():
+            return set()
+        today = date.today().isoformat()
+        return {
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT model_id FROM model_review_metrics WHERE built_at=?", (today,)
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+
+def _amortized_cost_for(s: ModelScore) -> float:
+    """② real subscription-derived $ for this model's measured run (claude-code/* only)."""
+    import derive_cost
+
+    usage = {
+        "input_tokens": s.in_tokens,
+        "output_tokens": s.out_tokens,
+        "cache_read_input_tokens": s.cache_read_tokens,
+        "cache_creation_input_tokens": s.cache_creation_tokens,
+    }
+    return derive_cost.amortized_cost(usage)
 
 
 def persist_metrics(scores: dict[str, ModelScore]) -> Path:
@@ -734,11 +799,30 @@ def persist_metrics(scores: dict[str, ModelScore]) -> Path:
                 tokens_per_s REAL, n_mut INTEGER, n_ctrl INTEGER, built_at TEXT,
                 PRIMARY KEY (model_id, built_at))
         """)
+        # Migration: raw per-type tokens (claude-code/* only) — needed for ② (derive_cost.amortized_cost),
+        # a REAL subscription-derived $, distinct from ① (the list-price valuation already in cost_usd).
+        # ALTER, not a schema rewrite — the table may already hold rows from before this column existed.
+        existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(model_review_metrics)")}
+        for col in ("in_tokens", "out_tokens_total", "cache_read_tokens", "cache_creation_tokens"):
+            if col not in existing_cols:
+                try:
+                    conn.execute(f"ALTER TABLE model_review_metrics ADD COLUMN {col} INTEGER")
+                except sqlite3.OperationalError as e:
+                    # PRAGMA-check-then-ALTER isn't atomic: two genuinely-simultaneous invocations
+                    # could both see the column missing and both ALTER — the second hits "duplicate
+                    # column name" (the column already exists by then, harmlessly). Any OTHER
+                    # OperationalError is a real problem and must still raise.
+                    if "duplicate column name" not in str(e):
+                        raise
         for s in scores.values():
             if not s.is_measured:
                 continue
             conn.execute(
-                "INSERT OR REPLACE INTO model_review_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO model_review_metrics "
+                "(model_id, score5, grade, recall, precision, out_price_mtok, cost_usd, cost_per_1k, "
+                "p50_latency_s, tokens_per_s, n_mut, n_ctrl, built_at, "
+                "in_tokens, out_tokens_total, cache_read_tokens, cache_creation_tokens) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     s.model,
                     s.score5,
@@ -753,6 +837,10 @@ def persist_metrics(scores: dict[str, ModelScore]) -> Path:
                     s.n_mut,
                     s.n_ctrl,
                     today,
+                    s.in_tokens,
+                    s.out_tokens,
+                    s.cache_read_tokens,
+                    s.cache_creation_tokens,
                 ),
             )
         conn.commit()
@@ -774,6 +862,13 @@ def persist_metrics(scores: dict[str, ModelScore]) -> Path:
                     "cost_per_1k": s.cost_per_1k,
                     "p50_latency_s": s.median_latency,
                     "tokens_per_s": s.tokens_per_s,
+                    # ② real subscription-derived $ (only meaningful for claude-code/*; 0 for OR rows
+                    # since they never populate in_tokens/cache_*).
+                    "amortized_cost_usd": (
+                        round(_amortized_cost_for(s), 6)
+                        if s.model.startswith("claude-code/")
+                        else None
+                    ),
                 }
                 for s in scores.values()
                 if s.is_measured
@@ -855,6 +950,13 @@ def main(argv: list[str] | None = None) -> int:
         default=2500,
         help="direct-mode output budget (reasoning headroom)",
     )
+    p.add_argument(
+        "--fresh",
+        action="store_true",
+        help="re-measure every model even if already measured today (default: RESUME — skip a model "
+        "whose score already landed, e.g. after a quota-hit mid-run; safe because this harness is "
+        "operator-triggered only, never in daily_refresh.sh)",
+    )
     args = p.parse_args(argv)
 
     if args.report:
@@ -868,6 +970,23 @@ def main(argv: list[str] | None = None) -> int:
         corpus = [i for i in corpus if i.victim in ("binary_search", "is_expired")]  # small slice
     else:
         models = args.models or pick_models("review", n=args.n)
+
+    if not args.fresh:
+        done = _measured_review_models()
+        skip = [m for m in models if m in done]
+        if skip:
+            models = [m for m in models if m not in done]
+            print(
+                f"[review-bench] resume: {len(skip)} model(s) already measured today — skipping "
+                f"({', '.join(skip)}); {len(models)} to go (--fresh to re-measure all)",
+                file=sys.stderr,
+            )
+        if not models:
+            print(
+                "[review-bench] nothing to do — every requested model was already measured today.",
+                file=sys.stderr,
+            )
+            return 0
 
     mode = "DIRECT-OR" if args.direct else "pool"
     print(

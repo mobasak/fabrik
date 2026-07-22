@@ -110,6 +110,7 @@
 - [scaffold](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [scripts/audit_authelia_gates.py](INDEX.md): Weekly drift audit for Authelia gating on admin dashboards.
 - [scripts/audit_infra_vs_docs.py](INDEX.md): Probe-vs-doc audit for the VPS fleet.
+- [scripts/check_zed_extensions.py](INDEX.md): Gate: verify every Zed extension that settings.json depends on is installed.
 - [scripts/classify_services.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/container_images.py](INDEX.md): Container Image Discovery Tool for Fabrik
 - [scripts/declare_subscription.py](INDEX.md): AFTER-EDIT: db/services_registry_schema.sql
@@ -119,6 +120,7 @@
 - [scripts/enforcement/check_android_env.py](INDEX.md): Verify WSL-to-Windows Android SDK communication.
 - [scripts/enforcement/check_configuration_md.py](INDEX.md): Enforce configuration documentation pattern.
 - [scripts/enforcement/check_convergence.py](INDEX.md): Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
+- [scripts/enforcement/check_doc_index.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_doc_stubs.py](INDEX.md): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_sync.py](INDEX.md): AFTER-EDIT: none
 - [scripts/enforcement/check_duplicates.py](INDEX.md): Check for code duplication using jscpd.
@@ -130,7 +132,9 @@
 - [scripts/enforcement/check_opencode_json.py](INDEX.md): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
 - [scripts/enforcement/check_plans.py](INDEX.md): Check plan document conventions.
 - [scripts/enforcement/check_readme_md.py](INDEX.md): Enforce README.md updates when structure changes.
+- [scripts/enforcement/check_retired_terms.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_reusable_modules.py](INDEX.md): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
+- [scripts/enforcement/check_review_coverage.py](INDEX.md): Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 - [scripts/enforcement/check_rule_size.py](INDEX.md): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
 - [scripts/enforcement/check_script_headers.py](INDEX.md): AFTER-EDIT: none
 - [scripts/enforcement/check_spec_db_match.py](INDEX.md): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
@@ -189,6 +193,7 @@
 - [alerting](/opt/fabrik-lib/alerting/README.md): alerting
 - [api-auth](/opt/fabrik-lib/api-auth/README.md): api-auth/
 - [api-quota](/opt/fabrik-lib/api-quota/README.md): fabrik-lib/api-quota — Track Upstream Quota + Rotate Across Many API Keys
+- [api-smoke-test](/opt/fabrik-lib/api-smoke-test/README.md): api-smoke-test
 - [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md): app-audit-log
 - [async-http-client](/opt/fabrik-lib/async-http-client/README.md): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
 - [captcha-solve](/opt/fabrik-lib/captcha-solve/README.md): captcha-solve — provider-pluggable captcha solving (reCAPTCHA / hCaptcha / Turnstile / image)

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-20T03:01:31+00:00",
+  "generated_at": "2026-07-22T03:15:49+00:00",
   "capabilities": [
     {
       "name": "fabrik ai usage",
@@ -9,7 +9,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:11+00:00"
+      "verified_at": "2026-07-22T03:15:30+00:00"
     },
     {
       "name": "fabrik app-logs",
@@ -19,7 +19,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:11+00:00"
+      "verified_at": "2026-07-22T03:15:30+00:00"
     },
     {
       "name": "fabrik apply",
@@ -29,7 +29,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:12+00:00"
+      "verified_at": "2026-07-22T03:15:31+00:00"
     },
     {
       "name": "fabrik audit-registrars",
@@ -39,7 +39,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:12+00:00"
+      "verified_at": "2026-07-22T03:15:31+00:00"
     },
     {
       "name": "fabrik content",
@@ -49,7 +49,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:13+00:00"
+      "verified_at": "2026-07-22T03:15:31+00:00"
     },
     {
       "name": "fabrik destroy",
@@ -59,7 +59,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:13+00:00"
+      "verified_at": "2026-07-22T03:15:32+00:00"
     },
     {
       "name": "fabrik dev",
@@ -69,7 +69,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:13+00:00"
+      "verified_at": "2026-07-22T03:15:32+00:00"
     },
     {
       "name": "fabrik domain buy",
@@ -79,7 +79,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:14+00:00"
+      "verified_at": "2026-07-22T03:15:32+00:00"
     },
     {
       "name": "fabrik domain check",
@@ -89,7 +89,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:14+00:00"
+      "verified_at": "2026-07-22T03:15:33+00:00"
     },
     {
       "name": "fabrik domain integrations",
@@ -99,7 +99,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:15+00:00"
+      "verified_at": "2026-07-22T03:15:33+00:00"
     },
     {
       "name": "fabrik domain provision",
@@ -109,7 +109,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:15+00:00"
+      "verified_at": "2026-07-22T03:15:33+00:00"
     },
     {
       "name": "fabrik domain ready",
@@ -119,7 +119,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:15+00:00"
+      "verified_at": "2026-07-22T03:15:34+00:00"
     },
     {
       "name": "fabrik domain sitemap",
@@ -129,7 +129,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:16+00:00"
+      "verified_at": "2026-07-22T03:15:34+00:00"
     },
     {
       "name": "fabrik domain zones",
@@ -139,7 +139,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:16+00:00"
+      "verified_at": "2026-07-22T03:15:34+00:00"
     },
     {
       "name": "fabrik export",
@@ -149,7 +149,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:16+00:00"
+      "verified_at": "2026-07-22T03:15:35+00:00"
     },
     {
       "name": "fabrik fix",
@@ -159,7 +159,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:17+00:00"
+      "verified_at": "2026-07-22T03:15:35+00:00"
     },
     {
       "name": "fabrik gpu compare",
@@ -169,7 +169,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:17+00:00"
+      "verified_at": "2026-07-22T03:15:35+00:00"
     },
     {
       "name": "fabrik gpu destroy",
@@ -179,7 +179,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:17+00:00"
+      "verified_at": "2026-07-22T03:15:36+00:00"
     },
     {
       "name": "fabrik gpu history",
@@ -189,7 +189,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:18+00:00"
+      "verified_at": "2026-07-22T03:15:36+00:00"
     },
     {
       "name": "fabrik gpu list",
@@ -199,7 +199,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:18+00:00"
+      "verified_at": "2026-07-22T03:15:36+00:00"
     },
     {
       "name": "fabrik gpu pause",
@@ -209,7 +209,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:19+00:00"
+      "verified_at": "2026-07-22T03:15:37+00:00"
     },
     {
       "name": "fabrik gpu reconcile",
@@ -219,7 +219,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:19+00:00"
+      "verified_at": "2026-07-22T03:15:37+00:00"
     },
     {
       "name": "fabrik gpu rent",
@@ -229,7 +229,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:19+00:00"
+      "verified_at": "2026-07-22T03:15:37+00:00"
     },
     {
       "name": "fabrik gpu resume",
@@ -239,7 +239,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:20+00:00"
+      "verified_at": "2026-07-22T03:15:38+00:00"
     },
     {
       "name": "fabrik gpu status",
@@ -249,7 +249,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:20+00:00"
+      "verified_at": "2026-07-22T03:15:38+00:00"
     },
     {
       "name": "fabrik import",
@@ -259,7 +259,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:20+00:00"
+      "verified_at": "2026-07-22T03:15:38+00:00"
     },
     {
       "name": "fabrik logs",
@@ -269,7 +269,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:21+00:00"
+      "verified_at": "2026-07-22T03:15:39+00:00"
     },
     {
       "name": "fabrik new",
@@ -279,7 +279,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:21+00:00"
+      "verified_at": "2026-07-22T03:15:39+00:00"
     },
     {
       "name": "fabrik plan",
@@ -289,7 +289,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:21+00:00"
+      "verified_at": "2026-07-22T03:15:39+00:00"
     },
     {
       "name": "fabrik preplan new",
@@ -299,7 +299,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:22+00:00"
+      "verified_at": "2026-07-22T03:15:40+00:00"
     },
     {
       "name": "fabrik projects",
@@ -309,7 +309,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:22+00:00"
+      "verified_at": "2026-07-22T03:15:40+00:00"
     },
     {
       "name": "fabrik reconcile-all",
@@ -319,7 +319,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:22+00:00"
+      "verified_at": "2026-07-22T03:15:41+00:00"
     },
     {
       "name": "fabrik redeploy",
@@ -329,7 +329,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:23+00:00"
+      "verified_at": "2026-07-22T03:15:41+00:00"
     },
     {
       "name": "fabrik review",
@@ -339,7 +339,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:23+00:00"
+      "verified_at": "2026-07-22T03:15:41+00:00"
     },
     {
       "name": "fabrik scaffold",
@@ -349,7 +349,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:24+00:00"
+      "verified_at": "2026-07-22T03:15:42+00:00"
     },
     {
       "name": "fabrik scan",
@@ -359,7 +359,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:24+00:00"
+      "verified_at": "2026-07-22T03:15:42+00:00"
     },
     {
       "name": "fabrik seo briefs-list",
@@ -369,7 +369,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:24+00:00"
+      "verified_at": "2026-07-22T03:15:42+00:00"
     },
     {
       "name": "fabrik seo job-create",
@@ -379,7 +379,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:25+00:00"
+      "verified_at": "2026-07-22T03:15:43+00:00"
     },
     {
       "name": "fabrik seo job-run",
@@ -389,7 +389,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:25+00:00"
+      "verified_at": "2026-07-22T03:15:43+00:00"
     },
     {
       "name": "fabrik seo site-register",
@@ -399,7 +399,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:25+00:00"
+      "verified_at": "2026-07-22T03:15:43+00:00"
     },
     {
       "name": "fabrik status",
@@ -409,7 +409,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:26+00:00"
+      "verified_at": "2026-07-22T03:15:44+00:00"
     },
     {
       "name": "fabrik templates",
@@ -419,7 +419,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:26+00:00"
+      "verified_at": "2026-07-22T03:15:44+00:00"
     },
     {
       "name": "fabrik validate",
@@ -429,7 +429,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:26+00:00"
+      "verified_at": "2026-07-22T03:15:44+00:00"
     },
     {
       "name": "fabrik validate-deploy",
@@ -439,7 +439,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:27+00:00"
+      "verified_at": "2026-07-22T03:15:45+00:00"
     },
     {
       "name": "fabrik verify",
@@ -449,7 +449,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:27+00:00"
+      "verified_at": "2026-07-22T03:15:45+00:00"
     },
     {
       "name": "fabrik vps-sync",
@@ -459,7 +459,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:28+00:00"
+      "verified_at": "2026-07-22T03:15:45+00:00"
     },
     {
       "name": "fabrik vultr cleanup",
@@ -469,7 +469,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:28+00:00"
+      "verified_at": "2026-07-22T03:15:46+00:00"
     },
     {
       "name": "fabrik vultr cost",
@@ -479,7 +479,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:28+00:00"
+      "verified_at": "2026-07-22T03:15:46+00:00"
     },
     {
       "name": "fabrik vultr destroy",
@@ -489,7 +489,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:29+00:00"
+      "verified_at": "2026-07-22T03:15:46+00:00"
     },
     {
       "name": "fabrik vultr drill",
@@ -499,7 +499,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:29+00:00"
+      "verified_at": "2026-07-22T03:15:47+00:00"
     },
     {
       "name": "fabrik vultr drill-history",
@@ -509,7 +509,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:29+00:00"
+      "verified_at": "2026-07-22T03:15:47+00:00"
     },
     {
       "name": "fabrik vultr list",
@@ -519,7 +519,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:30+00:00"
+      "verified_at": "2026-07-22T03:15:47+00:00"
     },
     {
       "name": "fabrik vultr provision",
@@ -529,7 +529,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:30+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "fabrik vultr reconcile",
@@ -539,7 +539,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:30+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "fabrik vultr status",
@@ -549,7 +549,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "authelia",
@@ -559,7 +559,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "backrest",
@@ -569,7 +569,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "cloudflare",
@@ -579,7 +579,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "compose_updater",
@@ -589,7 +589,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "coolify",
@@ -599,7 +599,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "dns",
@@ -609,7 +609,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "gatus",
@@ -619,7 +619,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "glitchtip",
@@ -629,7 +629,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "grafana",
@@ -639,7 +639,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "image_broker",
@@ -649,7 +649,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "locks",
@@ -659,7 +659,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "meilisearch",
@@ -669,7 +669,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "modal_provider",
@@ -679,7 +679,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "postgres",
@@ -689,7 +689,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "preflight",
@@ -699,7 +699,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "prometheus",
@@ -709,7 +709,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "r2",
@@ -719,7 +719,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "redis",
@@ -729,7 +729,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "runpod",
@@ -739,7 +739,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "seo",
@@ -749,7 +749,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "ssh",
@@ -759,7 +759,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "supabase",
@@ -769,7 +769,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "tco",
@@ -779,7 +779,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:48+00:00"
     },
     {
       "name": "uptime_kuma",
@@ -789,7 +789,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "vast_provider",
@@ -799,7 +799,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "vultr",
@@ -809,7 +809,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "watchdog",
@@ -819,7 +819,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "postgres",
@@ -829,7 +829,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "redis",
@@ -839,7 +839,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "gatus",
@@ -849,7 +849,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "backrest",
@@ -859,7 +859,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "glitchtip",
@@ -869,7 +869,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "grafana",
@@ -879,7 +879,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "authelia",
@@ -889,7 +889,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "meilisearch",
@@ -899,7 +899,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "prometheus",
@@ -909,7 +909,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "watchdog",
@@ -919,7 +919,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/Kilo_Review.sh",
@@ -929,7 +929,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/Local_Coder_qwen32b.sh",
@@ -939,7 +939,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/Local_Documentator_llama3.1-8b.sh",
@@ -949,7 +949,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/Local_Fixer_ds16b.sh",
@@ -959,7 +959,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/Local_Review_llama70b.sh",
@@ -969,7 +969,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/__init__.py",
@@ -979,7 +979,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/aro-wake/claude_rotate.py",
@@ -989,7 +989,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/aro-wake/main.py",
@@ -999,7 +999,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/audit_all_projects.py",
@@ -1009,7 +1009,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/audit_all_registrars.py",
@@ -1019,7 +1019,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/audit_authelia_gates.py",
@@ -1029,7 +1029,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/audit_capability_docs.py",
@@ -1039,7 +1039,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/audit_envs.py",
@@ -1049,7 +1049,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/audit_infra_vs_docs.py",
@@ -1059,7 +1059,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/backfill_ci.py",
@@ -1069,7 +1069,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/check_ai_pack_freshness.py",
@@ -1079,7 +1079,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/check_kilo_health.sh",
@@ -1089,7 +1089,17 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
+    },
+    {
+      "name": "scripts/check_zed_extensions.py",
+      "kind": "script",
+      "summary": "Gate: verify every Zed extension that settings.json depends on is installed.",
+      "invoke": "python scripts/check_zed_extensions.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/classify_services.py",
@@ -1099,7 +1109,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/coding-auto.sh",
@@ -1109,7 +1119,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/container_images.py",
@@ -1119,7 +1129,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/create_pg_dev_db.sh",
@@ -1129,7 +1139,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/dashboard_server.py",
@@ -1139,7 +1149,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/declare_subscription.py",
@@ -1149,7 +1159,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/deploy_doc_policy.py",
@@ -1159,7 +1169,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/dev_tracker.py",
@@ -1169,7 +1179,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/distribute_subagents.sh",
@@ -1179,7 +1189,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/doc_reconcile.py",
@@ -1189,7 +1199,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/docs_updater.py",
@@ -1199,7 +1209,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/dr_env_backup.sh",
@@ -1209,7 +1219,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/dr_env_recovery_test.sh",
@@ -1219,7 +1229,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/dr_env_watcher_loop.sh",
@@ -1229,7 +1239,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/__init__.py",
@@ -1239,7 +1249,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/_doc_registry.py",
@@ -1249,7 +1259,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_android_env.py",
@@ -1259,7 +1269,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_changelog.py",
@@ -1269,7 +1279,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_compose_services.py",
@@ -1279,7 +1289,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_configuration_md.py",
@@ -1289,7 +1299,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_convergence.py",
@@ -1299,7 +1309,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_deps_sync.py",
@@ -1309,7 +1319,27 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_doc_index.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md",
+      "invoke": "python scripts/enforcement/check_doc_index.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-22T03:15:49+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_doc_links.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: tests/enforcement/test_check_doc_links.py docs/workflows/FINAL_GATE_WORKFLOW.md",
+      "invoke": "python scripts/enforcement/check_doc_links.py",
+      "status": "manual",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_sprawl.py",
@@ -1319,7 +1349,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_stubs.py",
@@ -1329,7 +1359,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_sync.py",
@@ -1339,7 +1369,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_docker.py",
@@ -1349,7 +1379,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_docs.py",
@@ -1359,7 +1389,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_duplicates.py",
@@ -1369,7 +1399,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_contract.py",
@@ -1379,7 +1409,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_example.py",
@@ -1389,7 +1419,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_updates.py",
@@ -1399,7 +1429,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_vars.py",
@@ -1409,7 +1439,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_health.py",
@@ -1419,7 +1449,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_imports_resolvable.py",
@@ -1429,7 +1459,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_index_md.py",
@@ -1439,7 +1469,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_lint_ratchet.py",
@@ -1449,7 +1479,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_mutation.py",
@@ -1459,7 +1489,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_no_host_ports.py",
@@ -1469,7 +1499,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_openapi_sync.py",
@@ -1479,7 +1509,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_opencode_json.py",
@@ -1489,7 +1519,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_plan_quality.py",
@@ -1499,7 +1529,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_plans.py",
@@ -1509,7 +1539,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_ports.py",
@@ -1519,7 +1549,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_print_ban.py",
@@ -1529,7 +1559,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_readme_md.py",
@@ -1539,7 +1569,17 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_retired_terms.py",
+      "kind": "script",
+      "summary": "AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md",
+      "invoke": "python scripts/enforcement/check_retired_terms.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_reusable_modules.py",
@@ -1549,7 +1589,17 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
+    },
+    {
+      "name": "scripts/enforcement/check_review_coverage.py",
+      "kind": "script",
+      "summary": "Coverage-checklist gate \u2014 run by final_gate via run_optional_check (non-zero = fail).",
+      "invoke": "python scripts/enforcement/check_review_coverage.py",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_rule_size.py",
@@ -1559,7 +1609,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_schema_sync.py",
@@ -1569,7 +1619,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_script_headers.py",
@@ -1579,7 +1629,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_secrets.py",
@@ -1589,7 +1639,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_spec_db_match.py",
@@ -1599,7 +1649,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_structure.py",
@@ -1609,7 +1659,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_subagent_flywheel.py",
@@ -1619,7 +1669,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_synced_unmodified.py",
@@ -1629,7 +1679,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_test_coverage.py",
@@ -1639,7 +1689,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_test_proposal.py",
@@ -1649,7 +1699,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_traefik_labels.py",
@@ -1659,7 +1709,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_traycer_chain.py",
@@ -1669,7 +1719,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_undeclared_imports.py",
@@ -1679,7 +1729,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_user_guide.py",
@@ -1689,7 +1739,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_vps_docs.py",
@@ -1699,7 +1749,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/check_watchdog.py",
@@ -1709,7 +1759,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/enforcement/validate_conventions.py",
@@ -1719,7 +1769,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/epic_order.py",
@@ -1729,7 +1779,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/fabrik_synced_manifest.py",
@@ -1739,7 +1789,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/final_gate.py",
@@ -1749,7 +1799,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/fix_balanced_tier_agents.py",
@@ -1759,7 +1809,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/fix_economy_tier_agents.py",
@@ -1769,7 +1819,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/fix_traycer_agents.py",
@@ -1779,7 +1829,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/gather_envs.py",
@@ -1789,7 +1839,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/gen_dashboard.py",
@@ -1799,7 +1849,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/generate_capability_index.py",
@@ -1809,7 +1859,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/generate_kilo_agents.py",
@@ -1819,7 +1869,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/generate_vps_inventory.py",
@@ -1829,7 +1879,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/health_check_autonomous.py",
@@ -1839,7 +1889,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/health_checker.py",
@@ -1849,7 +1899,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/health_summary.py",
@@ -1859,7 +1909,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/implement_self_review_workflow.py",
@@ -1869,7 +1919,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/inject_deploy_resources.py",
@@ -1879,7 +1929,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_agent_health.sh",
@@ -1889,7 +1939,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_auto_route.py",
@@ -1899,7 +1949,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_code_review.py",
@@ -1909,7 +1959,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_code_review_bckp.py",
@@ -1919,7 +1969,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_consult.py",
@@ -1929,7 +1979,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_cost_report.py",
@@ -1939,7 +1989,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_cost_tracker.py",
@@ -1949,7 +1999,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_dispatch.py",
@@ -1959,7 +2009,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_docs_enforcer.py",
@@ -1969,7 +2019,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_model_sync.py",
@@ -1979,7 +2029,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_model_sync_startup.sh",
@@ -1989,7 +2039,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/kilo_terminal_runner.py",
@@ -1999,7 +2049,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/lint_fix_agent.py",
@@ -2009,7 +2059,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/mcp_kilo_server.py",
@@ -2019,7 +2069,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/migrate_db_rename.py",
@@ -2029,7 +2079,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/probes/glitchtip_probe.sh",
@@ -2039,7 +2089,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/probes/glitchtip_webhook_capture.py",
@@ -2049,7 +2099,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/probes/grafana_token_check.sh",
@@ -2059,7 +2109,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/process_monitor.py",
@@ -2069,7 +2119,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/proof_run.py",
@@ -2079,7 +2129,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/provision_glitchtip_project.sh",
@@ -2089,7 +2139,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/provision_grafana.sh",
@@ -2099,7 +2149,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/provision_watchdog_ro.py",
@@ -2109,7 +2159,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/refresh_service_inventory.py",
@@ -2119,7 +2169,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/registry_db.py",
@@ -2129,7 +2179,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/registry_sync.py",
@@ -2139,7 +2189,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/review_rubric.py",
@@ -2149,7 +2199,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/run_kilo_workflow.sh",
@@ -2159,7 +2209,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/seed_real_ports.py",
@@ -2169,7 +2219,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/select_rules.py",
@@ -2179,7 +2229,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/setup_model_updates.sh",
@@ -2189,7 +2239,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/snapshot_vps_state.py",
@@ -2199,7 +2249,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync-vps-sysadmin.sh",
@@ -2209,7 +2259,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_cascade_backup.sh",
@@ -2219,7 +2269,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_enforcement_to_projects.py",
@@ -2229,7 +2279,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_extensions.sh",
@@ -2239,7 +2289,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_gatus_to_vps.sh",
@@ -2249,7 +2299,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_projects.py",
@@ -2259,7 +2309,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_prometheus_to_vps.sh",
@@ -2269,7 +2319,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sync_schema_to_projects.py",
@@ -2279,7 +2329,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/bot.py",
@@ -2289,7 +2339,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/claude-keepalive-rotate.sh",
@@ -2299,7 +2349,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/claude-run.sh",
@@ -2309,7 +2359,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/claude_rotate.py",
@@ -2319,7 +2369,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/daily-digest.sh",
@@ -2329,7 +2379,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/detect_reversals.py",
@@ -2339,7 +2389,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/ensure-apprise-alerts-config.sh",
@@ -2349,7 +2399,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/fabrik-alert-canary.sh",
@@ -2359,7 +2409,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/install-docker-user-rules.sh",
@@ -2369,7 +2419,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/keepalive-status.sh",
@@ -2379,7 +2429,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/monthly-backup-verify.sh",
@@ -2389,7 +2439,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/morning-report.sh",
@@ -2399,7 +2449,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/proactive-check.sh",
@@ -2409,7 +2459,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/send-telegram.sh",
@@ -2419,7 +2469,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/sync-claude-accounts-to-fleet.sh",
@@ -2429,7 +2479,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/test_bot_rotation_wire.py",
@@ -2439,7 +2489,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/test_claude_rotate.py",
@@ -2449,7 +2499,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/test_claude_run.py",
@@ -2459,7 +2509,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/test_keepalive_status.py",
@@ -2469,7 +2519,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/test_sync_accounts.py",
@@ -2479,7 +2529,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly-maintenance.sh",
@@ -2489,7 +2539,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly-security.sh",
@@ -2499,7 +2549,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/test_process_monitor.py",
@@ -2509,7 +2559,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/traycer_agent_review.py",
@@ -2519,7 +2569,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/traycer_mirror.py",
@@ -2529,7 +2579,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/traycer_write_report.py",
@@ -2539,7 +2589,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/update_agents_toc.py",
@@ -2549,7 +2599,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/update_vps_docs.py",
@@ -2559,7 +2609,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/utils/__init__.py",
@@ -2569,7 +2619,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/utils/subprocess_helper.py",
@@ -2579,7 +2629,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/vps_apply_limits.sh",
@@ -2589,7 +2639,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/vps_sync.py",
@@ -2599,7 +2649,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/vultr_weekly_maintenance.sh",
@@ -2609,7 +2659,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/watch_enforcement_changes.sh",
@@ -2619,7 +2669,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/watch_env_changes.sh",
@@ -2629,7 +2679,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/watchdog.sh",
@@ -2639,7 +2689,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scripts/wsl_startup_hook.sh",
@@ -2649,7 +2699,7 @@
       "status": "manual",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "abuse-prevention",
@@ -2659,7 +2709,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/abuse-prevention/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "account",
@@ -2669,7 +2719,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/account/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "adaptive-dispatch",
@@ -2679,7 +2729,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/adaptive-dispatch/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai-consult",
@@ -2689,7 +2739,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ai-consult/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "alerting",
@@ -2699,7 +2749,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/alerting/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "api-auth",
@@ -2709,7 +2759,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-auth/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "api-quota",
@@ -2719,7 +2769,17 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-quota/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
+    },
+    {
+      "name": "api-smoke-test",
+      "kind": "lib-module",
+      "summary": "api-smoke-test",
+      "invoke": "vendor /opt/fabrik-lib/api-smoke-test/",
+      "status": "ok",
+      "defects": [],
+      "doc_link": "/opt/fabrik-lib/api-smoke-test/README.md",
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "app-audit-log",
@@ -2729,7 +2789,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/app-audit-log/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "async-http-client",
@@ -2739,7 +2799,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/async-http-client/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "captcha-solve",
@@ -2749,7 +2809,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/captcha-solve/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "chrome-ext-billing-kit",
@@ -2759,7 +2819,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/chrome-ext-billing-kit/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "claude-evaluator",
@@ -2769,7 +2829,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/claude-evaluator/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "concurrency-throttle",
@@ -2779,7 +2839,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/concurrency-throttle/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "cookie-consent",
@@ -2789,7 +2849,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cookie-consent/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "cost-budget",
@@ -2799,7 +2859,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cost-budget/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "credits",
@@ -2809,7 +2869,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/credits/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "cursor-pagination",
@@ -2819,7 +2879,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cursor-pagination/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "db-pool",
@@ -2829,7 +2889,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/db-pool/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "doc-convert",
@@ -2839,7 +2899,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-convert/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "doc-crawl",
@@ -2849,7 +2909,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-crawl/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "doc-translate",
@@ -2859,7 +2919,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-translate/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "docx-io",
@@ -2869,7 +2929,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/docx-io/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "email-templates",
@@ -2879,7 +2939,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/email-templates/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "email-transport",
@@ -2889,7 +2949,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/email-transport/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "expo-push",
@@ -2899,7 +2959,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/expo-push/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "fastapi-user-auth",
@@ -2909,7 +2969,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/fastapi-user-auth/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "file-cache",
@@ -2919,7 +2979,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/file-cache/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "gdpr-data-rights",
@@ -2929,7 +2989,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/gdpr-data-rights/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "gpu-rent",
@@ -2939,7 +2999,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/gpu-rent/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "health-probe",
@@ -2949,7 +3009,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/health-probe/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "i18n",
@@ -2959,7 +3019,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/i18n/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "info-tooltip",
@@ -2969,7 +3029,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/info-tooltip/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "job-queue",
@@ -2979,7 +3039,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/job-queue/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "legal-pages",
@@ -2989,7 +3049,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/legal-pages/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-config",
@@ -2999,7 +3059,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/mobile-config/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mt-router",
@@ -3009,7 +3069,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/mt-router/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "oauth-login",
@@ -3019,7 +3079,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/oauth-login/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "observability",
@@ -3029,7 +3089,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/observability/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ocr",
@@ -3039,7 +3099,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ocr/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "pause-state",
@@ -3049,7 +3109,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/pause-state/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "payments",
@@ -3059,7 +3119,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/payments/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "pdf-extract",
@@ -3069,7 +3129,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/pdf-extract/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "proxy-pool",
@@ -3079,7 +3139,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/proxy-pool/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "rag",
@@ -3089,7 +3149,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rag/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "request-metering",
@@ -3099,7 +3159,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/request-metering/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "revenuecat-entitlements",
@@ -3109,7 +3169,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/revenuecat-entitlements/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "rn-analytics-kit",
@@ -3119,7 +3179,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-analytics-kit/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "rn-auth-kit",
@@ -3129,7 +3189,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-auth-kit/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "rn-billing-kit",
@@ -3139,7 +3199,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-billing-kit/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "rn-compliance-kit",
@@ -3149,7 +3209,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-compliance-kit/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "rn-media-kit",
@@ -3159,7 +3219,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-media-kit/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "speech-detect",
@@ -3169,7 +3229,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/speech-detect/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "storage",
@@ -3179,7 +3239,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/storage/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "subagents",
@@ -3189,7 +3249,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/subagents/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "tenancy",
@@ -3199,7 +3259,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/tenancy/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ui-verify",
@@ -3209,7 +3269,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ui-verify/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "watchdog",
@@ -3219,7 +3279,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/watchdog/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "web-scrape",
@@ -3229,7 +3289,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/web-scrape/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "web-tools",
@@ -3239,7 +3299,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/web-tools/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "webhooks",
@@ -3249,7 +3309,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/webhooks/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "xlsx-io",
@@ -3259,7 +3319,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/xlsx-io/README.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": ".archive",
@@ -3269,7 +3329,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "_partials",
@@ -3279,7 +3339,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "chrome-extension",
@@ -3289,7 +3349,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "desktop-app",
@@ -3299,7 +3359,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "docusaurus",
@@ -3309,7 +3369,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "file-api",
@@ -3319,7 +3379,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "file-worker",
@@ -3329,7 +3389,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "i18n-kit",
@@ -3339,7 +3399,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app",
@@ -3349,7 +3409,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "modal",
@@ -3359,7 +3419,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "node-api",
@@ -3369,7 +3429,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "preplan",
@@ -3379,7 +3439,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "prompts",
@@ -3389,7 +3449,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "python-api",
@@ -3399,7 +3459,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "python-api-gpu",
@@ -3409,7 +3469,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "saas-skeleton",
@@ -3419,7 +3479,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "scaffold",
@@ -3429,7 +3489,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "spec-pipeline",
@@ -3439,7 +3499,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "static-site",
@@ -3449,7 +3509,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "traycer",
@@ -3459,7 +3519,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/00-ai-model-selection.md",
@@ -3469,7 +3529,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/00-ai-model-selection.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/10-speech-audio.md",
@@ -3479,7 +3539,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/10-speech-audio.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/20-vision.md",
@@ -3489,7 +3549,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/20-vision.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/25-3d-generation.md",
@@ -3499,7 +3559,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/25-3d-generation.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/30-language.md",
@@ -3509,7 +3569,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/30-language.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/40-multimodal.md",
@@ -3519,7 +3579,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/40-multimodal.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/50-agentic.md",
@@ -3529,7 +3589,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/50-agentic.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/60-code.md",
@@ -3539,7 +3599,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/60-code.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/70-data-predictive.md",
@@ -3549,7 +3609,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/70-data-predictive.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/80-specialized-domains.md",
@@ -3559,7 +3619,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/80-specialized-domains.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "ai/90-long-context.md",
@@ -3569,7 +3629,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/90-long-context.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "chrome-ext/00-domain-chrome-ext.md",
@@ -3579,7 +3639,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/00-domain-chrome-ext.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "chrome-ext/70-chrome-ext.md",
@@ -3589,7 +3649,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/70-chrome-ext.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "chrome-ext/89-extension-launch-checklist.md",
@@ -3599,7 +3659,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/89-extension-launch-checklist.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/10-python.md",
@@ -3609,7 +3669,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/10-python.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/12-node.md",
@@ -3619,7 +3679,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/12-node.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/15-api-contracts.md",
@@ -3629,7 +3689,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/15-api-contracts.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/20-typescript.md",
@@ -3639,7 +3699,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/20-typescript.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/25-data-postgres.md",
@@ -3649,7 +3709,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/25-data-postgres.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/30-ops.md",
@@ -3659,7 +3719,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/30-ops.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/35-security-auth.md",
@@ -3669,7 +3729,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/35-security-auth.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/40-documentation.md",
@@ -3679,7 +3739,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/40-documentation.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/42-docusaurus.md",
@@ -3689,7 +3749,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/42-docusaurus.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/45-testing-strategy.md",
@@ -3699,7 +3759,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/45-testing-strategy.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/50-code-review.md",
@@ -3709,7 +3769,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/50-code-review.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/55-observability.md",
@@ -3719,7 +3779,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/55-observability.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/58-resilience.md",
@@ -3729,7 +3789,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/58-resilience.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/60-watchdog.md",
@@ -3739,7 +3799,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/60-watchdog.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/62-using-subagents.md",
@@ -3749,7 +3809,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/62-using-subagents.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/65-rag-search.md",
@@ -3759,7 +3819,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/65-rag-search.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/66-rag-chunking.md",
@@ -3769,7 +3829,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/66-rag-chunking.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/67-file-api.md",
@@ -3779,7 +3839,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/67-file-api.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/75-workers-jobs.md",
@@ -3789,7 +3849,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/75-workers-jobs.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/76-gpu-workers.md",
@@ -3799,7 +3859,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/76-gpu-workers.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/85-payments-billing.md",
@@ -3809,7 +3869,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/85-payments-billing.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/86-email-templates.md",
@@ -3819,7 +3879,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/86-email-templates.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/90-bootstrap-scripts.md",
@@ -3829,7 +3889,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/90-bootstrap-scripts.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/app-audit-log.md",
@@ -3839,7 +3899,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/app-audit-log.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/cost-budget.md",
@@ -3849,7 +3909,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/cost-budget.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/ocoron-design-system.md",
@@ -3859,7 +3919,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/ocoron-design-system.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/self-healing.md",
@@ -3869,7 +3929,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/self-healing.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "core/tojlo-design-system.md",
@@ -3879,7 +3939,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/core/tojlo-design-system.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "desktop-app/00-domain-desktop-app.md",
@@ -3889,7 +3949,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/desktop-app/00-domain-desktop-app.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "desktop-app/72-desktop.md",
@@ -3899,7 +3959,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/desktop-app/72-desktop.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app/00-domain-mobile-app.md",
@@ -3909,7 +3969,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/00-domain-mobile-app.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app/80-mobile.md",
@@ -3919,7 +3979,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/80-mobile.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app/81-mobile-billing.md",
@@ -3929,7 +3989,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/81-mobile-billing.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app/89-mobile-launch-checklist.md",
@@ -3939,7 +3999,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/89-mobile-launch-checklist.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app/ocoron-mobile-design-system.md",
@@ -3949,7 +4009,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/ocoron-mobile-design-system.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "mobile-app/tojlo-mobile-design-system.md",
@@ -3959,7 +4019,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/tojlo-mobile-design-system.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "saas/00-domain-saas.md",
@@ -3969,7 +4029,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/00-domain-saas.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "saas/60-saas-ui.md",
@@ -3979,7 +4039,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/60-saas-ui.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "saas/87-abuse-detection.md",
@@ -3989,7 +4049,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/87-abuse-detection.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "saas/88-saas-launch-checklist.md",
@@ -3999,7 +4059,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/88-saas-launch-checklist.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     },
     {
       "name": "saas/95-multi-tenant-saas.md",
@@ -4009,7 +4069,7 @@
       "status": "ok",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/95-multi-tenant-saas.md",
-      "verified_at": "2026-07-20T03:01:31+00:00"
+      "verified_at": "2026-07-22T03:15:49+00:00"
     }
   ]
 }

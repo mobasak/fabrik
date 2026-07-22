@@ -4805,3 +4805,35 @@ ground-truth patch (all 5.0).
 doc) just because the types match — re-verify the assumption. (2) For a grader/metric, always add a test
 that runs the KNOWN-PERFECT reference input through it and asserts a perfect score; a metric that scores
 the gold answer 0 is the loudest possible signal, and it's cheap to assert.
+
+## Lesson 82 — A crash-safety fix at one loop layer does not close the class; the SAME pattern hides at every layer of the same loop, one per round
+
+**Context:** a 10-round `/fabrik-review` of `microbench_coding_direct.py`'s `--all` batch loop (the
+scoring benchmark's resumable, cost-capped dispatch loop) found a genuinely new, real bug in FIVE
+consecutive rounds (6 through 9, plus the original in 6) — not five unrelated bugs, but the SAME
+"an exception/edge-case at this layer crashes the whole run and loses already-spent money" pattern,
+recurring at a different layer each time: (1) the cost-cap `break` skipped a LATER free batch instead of
+only the current paid one; (2) `grade()`'s subprocess call could crash uncaught; (3) the two persist
+calls right after it had the identical gap; (4) the resume-gate only checked ONE of the two tables a
+successful run writes, silently treating a partial write as complete; (5) even after fix #1, the `break`
+vs `continue` distinction on a fully-exhausted batch still let an intervening all-OR batch stop the scan
+before a later free batch was reached. Each fix was correct and test-proven in isolation — and each one
+left the *next* layer of the exact same loop unexamined, because "I already fixed the crash-safety issue
+in this loop" reads as done after the first (or third, or fourth) instance.
+
+**Why it took 5 rounds, not 1:** every earlier round DID do a genuine fresh adversarial read of the whole
+file — this wasn't sloppiness, it's that a multi-layer loop (outer batch iteration → per-batch dispatch →
+per-batch grade → per-batch persist → cross-run resume-gate) has as many independent failure surfaces as
+it has layers, and "the loop is now crash-safe" is a claim about ONE layer until every layer still in the
+loop has been checked against the identical question: *if this specific step raises/behaves oddly, does
+the run survive, and is already-spent money accounted for either way?*
+
+**How to apply:** when a review finds a fail-open/crash-safety/cost-accounting bug inside a loop with
+multiple layers (dispatch, transform, persist, resume-check, cleanup), do not treat the fix as closing the
+CLASS — explicitly re-ask the identical question at every OTHER layer of that same loop before calling it
+done, in the same pass if possible. A `/fabrik-review` round that "fixed the crash-safety issue" is not
+license to skip re-asking it elsewhere in the same loop next round — that repetition is exactly why the
+termination contract's "the round that fixed something is never the last look" rule exists, and why it
+took a full 5 rounds (not 1) to reach a real fixed point here (confirmed only when round 10 came back
+clean on both the native and pool layer). A single "fix the bug and move on" pass would have shipped 4
+more of the same defect.

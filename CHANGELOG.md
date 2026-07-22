@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — coding benchmark's `--all` batch loop no longer loses a whole run to one bad batch (2026-07-22)
+
+Adversarial review of `microbench_coding_direct.py`'s `--all` batch loop surfaced five compounding
+crash/money-loss/data-loss gaps, all now closed: (1) the OR-dollar cost-cap carve-out used to `break` the
+entire scan once budget ran out, silently starving any LATER batch's `claude-code/*` models even though
+they're subscription-billed and cost $0 real OR spend — now drops only a batch's OR-priced members and
+keeps scanning, `continue`-ing past a fully-OR-priced exhausted batch instead of ending the run early; (2)
+`grade()`'s LiveCodeBench sandbox subprocess (`check=True`) could raise uncaught, crashing the whole
+multi-batch run and losing that batch's already-spent real money — now wrapped in try/except, counting the
+sunk spend and continuing to the next batch; (3) `persist_metrics`/`persist_baseline`'s raw sqlite writes
+had the same gap (a transient `database is locked` on the shared box would crash the run) — now isolated
+the same way; (4) the `--all` resume gate (`_measured_models`) only checked `model_coding_metrics`, so a
+partial persist (metrics committed, baseline write failed) was silently treated as fully measured forever,
+permanently missing its `model_task_baseline` routing-source row — now requires a row in BOTH tables.
+Also fixed the OR-path's empty-response check (missing `.strip()`, scoring a whitespace-only response a
+pass@1 FAILURE instead of excluding it, matching the review harness and the claude-code/* path already in
+the same file) and a shared preamble that referenced a `②total$` column the coding table doesn't render.
++8 tests (each independently proven to fail pre-fix, pass post-fix) across a 10-pass adversarial review
+(native Opus + pool fanout, `docs/development/reviews/2026-07-21-claude-p-scoring-review.md`).
+
+### Added — real ② (amortized $) persisted + shown per row, alongside ① (2026-07-21)
+
+The review table's `$/1k`/`$/M-out`/`$/run` columns are ① (API-equivalent list-price valuation) —
+correct for ranking, but NOT what the operator actually pays via Claude Max subscription (no API
+key). Nothing captured the raw per-type tokens needed to compute a REAL per-row ②, so it only existed
+as one blended fleet-wide preamble number. `derive_cost.amortized_cost(usage)` (= `amortized_rate()`
+× total tokens) is new; `_DirectResult`/`ModelScore` now carry `in_tokens`/`cache_read_tokens`/
+`cache_creation_tokens` end-to-end from the shim through `grade()`; `model_review_metrics` gains 4
+migrated columns (`ALTER TABLE`, safe on existing rows — pre-migration rows correctly show `—`, never
+a fabricated $0); the CLI report and `rank_task_subagents._full_review_results_table()` both add a
+`②$/run` column (claude-code/* only; OR rows show `—` since they already report real billed cost).
++7 tests.
+
+### Added — microbench_review resumes by default, skips already-measured models (2026-07-21)
+
+`microbench_review.py` had no resume mechanism at all (unlike the coding harness's `_measured_models`),
+so a quota-hit mid-run (live-tested: `claude-code/fable` errored 9/11 calls after opus/sonnet/haiku
+already scored) left no way to re-run without re-dispatching — and re-burning quota/$ — every model
+already measured that day. `_measured_review_models()` (generic per-`model_id`, today's `built_at`) now
+gates every dispatch mode (`--smoke`/`--all`/`--direct`/pool); `--fresh` re-measures all. Applies to ANY
+model, not just `claude-code/*` — a same-day re-run never re-scores an already-measured pool model
+either. `microbench_review.py` is operator-triggered only (confirmed: zero references in
+`daily_refresh.sh`), so this is a pure safety/cost win with no automated-pipeline impact. +5 tests.
+
 ### Added — claude -p native tiers scored as first-class review+code candidates (2026-07-20)
 
 plan-2: `scripts/kilo-benchmarks/claude_p.py` (single-shot `claude -p` dispatch shim, transport parity with

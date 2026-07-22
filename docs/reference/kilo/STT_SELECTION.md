@@ -1,4 +1,4 @@
-Last refresh: 2026-07-20
+Last refresh: 2026-07-22
 
 # STT Selection — Pareto-ranked at 60 minutes
 

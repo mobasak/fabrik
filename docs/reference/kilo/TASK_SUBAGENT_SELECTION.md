@@ -1,15 +1,19 @@
-Last refresh: 2026-07-20
+Last refresh: 2026-07-22
 Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shrunk_q ≥ 2.5; then cost-asc among survivors; top-2 slots require n ≥ 10 | tier_baseline T1=1.0, T2=2.5, T3=4.0 | Window: 90 days | Min runs: 3
 
 
 
 ## ✅ Selected subagents — the gate shortlists (`pick_models` picks from these)
 
-### Reviewers — 4 selected
+### Reviewers — 8 selected
 _gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s_
 | model | grade | score5 | recall | $/1k | $/run | p50 s |
 |---|:-:|--:|--:|--:|--:|--:|
+| `claude-code/fable` | A | 4.38 | 0.78 | $516.660 | $5.6833 | 30.4 |
+| `claude-code/opus` | A | 4.38 | 0.78 | $235.194 | $2.5871 | 27.9 |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | $0.165 | $0.0033 | 1.9 |
+| `claude-code/haiku` | A | 4.05 | 0.68 | $36.358 | $1.0907 | 17.5 |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | $157.125 | $4.7138 | 11.5 |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | $0.226 | $0.0068 | 1.3 |
 | `deepseek/deepseek-v4-flash` | B+ | 3.71 | 0.59 | $0.207 | $0.0062 | 7.9 |
 | `deepseek/deepseek-v3.2-exp` | B+ | 3.53 | 0.55 | $0.105 | $0.0032 | 2.1 |
@@ -40,14 +44,14 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | 5 | `deepseek/deepseek-v3.2-exp` | [benchmark] | — | — | — | 3 | 0 |
 | 6 | `openai/gpt-5.4-mini` | [benchmark] | — | — | — | 2 | 0 |
 
-### docs (n_total=87)
+### docs (n_total=101)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `z-ai/glm-4.5-air` | 2.79 | 0.43 | $0.0116 | 3.00 | 2 | 14 |
-| 2 | `minimax/minimax-m3` | 3.06 | 0.52 | $0.0209 | 3.25 | 2 | 29 |
-| 3 | `deepseek/deepseek-v4-pro` | 3.04 | 0.48 | $0.0697 | 2.71 | 3 | 29 |
-| 4 | `minimax/minimax-m2.5` | 3.31 | 0.33 | $0.0170 | 1.00 | 3 | 3 |
-| 5 | `deepseek/deepseek-v4-flash` | 2.69 | 0.33 | $0.0282 | 3.00 | 2 | 6 |
+| 1 | `z-ai/glm-4.5-air` | 2.74 | 0.40 | $0.0103 | 2.86 | 2 | 20 |
+| 2 | `minimax/minimax-m3` | 3.05 | 0.48 | $0.0224 | 3.22 | 2 | 31 |
+| 3 | `deepseek/deepseek-v4-pro` | 2.96 | 0.45 | $0.0778 | 2.62 | 3 | 31 |
+| 4 | `minimax/minimax-m2.5` | 3.33 | 0.20 | $0.0233 | 2.00 | 3 | 5 |
+| 5 | `deepseek/deepseek-v4-flash` | 2.72 | 0.25 | $0.0274 | 3.00 | 2 | 8 |
 | 6 | `deepseek/deepseek-v3.2` | 3.62 | 0.67 | $0.0584 | 3.00 | 3 | 6 |
 
 ### plan (n_total=28)
@@ -55,22 +59,21 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.20 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
 
-### research (n_total=179)
+### research (n_total=189)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `z-ai/glm-4.5-air` | 2.67 | 0.50 | $0.0023 | 2.83 | 2 | 10 |
-| 2 | `minimax/minimax-m3` | 2.82 | 0.53 | $0.0090 | 2.90 | 2 | 40 |
+| 1 | `z-ai/glm-4.5-air` | 2.50 | 0.48 | $0.0020 | 2.50 | 2 | 21 |
+| 2 | `minimax/minimax-m3` | 2.72 | 0.52 | $0.0087 | 2.77 | 2 | 42 |
 | 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.52 | $0.0092 | 3.76 | 3 | 122 |
-| 4 | `smoke/echo-model` | 5.00 | 1.00 | $0.0000 | 5.00 |  | 3 |
-| 5 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
+| 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
 
-### review (n_total=4662)
+### review (n_total=4784)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 3.16 | 0.06 | $0.0005 | 3.07 | 2 | 67 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.42 | $0.0005 | 2.95 | 3 | 119 |
-| 3 | `google/gemini-3-flash-preview` | 3.63 | 0.41 | $0.0010 | 3.59 | 3 | 106 |
-| 4 | `qwen/qwen3-max` | 4.07† | 0.69 | $0.1647 | 1.00 | 2 | 0 |
+| 1 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.43 | $0.0005 | 2.95 | 3 | 126 |
+| 2 | `deepseek/deepseek-v4-flash` | 3.29 | 0.29 | $0.0007 | 3.26 | 2 | 123 |
+| 3 | `google/gemini-3-flash-preview` | 3.25 | 0.45 | $0.0020 | 3.20 | 3 | 148 |
+| 4 | `qwen/qwen3-max` | 2.75 | 0.32 | $0.0035 | 2.44 | 2 | 44 |
 
 ### spec (n_total=155)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
@@ -80,68 +83,74 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 
 ## Full review benchmark results — all measured columns (display only; not parsed for routing)
 _source: `microbench_review.py` → `model_review_metrics`. `eligible` = passes the reviewer gate (precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s). `score5` = F1(recall,precision)×5._
-| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | p50 s | tok/s | n_mut | n_ctrl | eligible |
-|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
-| `openai/o3-mini` | A | 4.36 | 0.77 | 1.00 | $3.814 | $4.40 | $0.1144 | 3.4 | 204 | 22 | 8 | — |
-| `anthropic/claude-haiku-4.5` | A | 4.21 | 0.73 | 1.00 | $1.867 | $5.00 | $0.0560 | 3.5 | 83 | 22 | 8 | — |
-| `qwen/qwen3-max` | A | 4.07 | 0.69 | 1.00 | $0.165 | $3.90 | $0.0033 | 1.9 | 8 | 16 | 4 | ✅ |
-| `bytedance-seed/seed-1.6` | A | 4.05 | 0.68 | 1.00 | $1.041 | $2.00 | $0.0312 | 6.5 | 48 | 22 | 8 | — |
-| `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | 7.5 | 73 | 22 | 8 | — |
-| `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | 1.3 | 10 | 22 | 8 | ✅ |
-| `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | 5.0 | 87 | 22 | 8 | — |
-| `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | 5.1 | 78 | 22 | 8 | — |
-| `qwen/qwen3.7-max` | A | 4.05 | 0.68 | 1.00 | $3.563 | $4.42 | $0.1069 | 11.5 | 50 | 22 | 8 | — |
-| `x-ai/grok-4.5` | A | 4.05 | 0.68 | 1.00 | $3.363 | $6.00 | $0.1009 | 9.3 | 45 | 22 | 8 | — |
-| `z-ai/glm-5.1` | A | 4.05 | 0.68 | 1.00 | $4.611 | $3.04 | $0.1383 | 17.8 | 51 | 22 | 8 | — |
-| `z-ai/glm-5.2` | A | 4.05 | 0.68 | 1.00 | $0.643 | $0.92 | $0.0193 | 9.9 | 39 | 22 | 8 | — |
-| `z-ai/glm-5v-turbo` | A | 4.05 | 0.68 | 1.00 | $6.899 | $4.00 | $0.2070 | 39.0 | 43 | 22 | 8 | — |
-| `thinkingmachines/inkling` | A | 4.00 | 0.67 | 1.00 | $2.531 | $4.05 | $0.0734 | 5.8 | 65 | 21 | 8 | — |
-| `poolside/laguna-m.1` | B+ | 3.97 | 0.73 | 0.88 | $0.458 | $0.40 | $0.0137 | 11.7 | 73 | 22 | 8 | — |
-| `writer/palmyra-x5` | B+ | 3.91 | 0.64 | 1.00 | $0.512 | $6.00 | $0.0092 | 1.5 | 4 | 14 | 4 | — |
-| `aion-labs/aion-3.0` | B+ | 3.89 | 0.64 | 1.00 | $5.758 | $6.00 | $0.1728 | 23.8 | 30 | 22 | 8 | — |
-| `openai/gpt-5.6-luna` | B+ | 3.89 | 0.64 | 1.00 | $0.965 | $6.00 | $0.0289 | 2.7 | 34 | 22 | 8 | — |
-| `openai/o3-mini-high` | B+ | 3.89 | 0.64 | 1.00 | $10.157 | $4.40 | $0.3047 | 5.7 | 241 | 22 | 8 | — |
-| `qwen/qwen3.7-plus` | B+ | 3.89 | 0.64 | 1.00 | $1.183 | $1.28 | $0.0355 | 14.3 | 50 | 22 | 8 | — |
-| `z-ai/glm-5-turbo` | B+ | 3.89 | 0.64 | 1.00 | $2.436 | $4.00 | $0.0731 | 29.9 | 18 | 22 | 8 | — |
-| `nvidia/nemotron-3-ultra-550b-a55b` | B+ | 3.83 | 0.68 | 0.88 | $3.318 | $3.60 | $0.0995 | 14.7 | 78 | 22 | 8 | — |
-| `openai/o4-mini` | B+ | 3.83 | 0.68 | 0.88 | $2.036 | $4.40 | $0.0611 | 4.9 | 77 | 22 | 8 | — |
-| `bytedance-seed/seed-2.0-mini` | B+ | 3.71 | 0.59 | 1.00 | $0.935 | $0.40 | $0.0280 | 13.5 | 118 | 22 | 8 | — |
-| `deepseek/deepseek-v4-flash` | B+ | 3.71 | 0.59 | 1.00 | $0.207 | $0.20 | $0.0062 | 7.9 | 61 | 22 | 8 | ✅ |
-| `qwen/qwen3-max-thinking` | B+ | 3.71 | 0.59 | 1.00 | $0.327 | $3.90 | $0.0098 | 1.7 | 7 | 22 | 8 | — |
-| `qwen/qwen3.5-flash-02-23` | B+ | 3.71 | 0.59 | 1.00 | $1.449 | $0.26 | $0.0435 | 36.2 | 151 | 22 | 8 | — |
-| `xiaomi/mimo-v2.5-pro` | B+ | 3.71 | 0.59 | 1.00 | $2.284 | $0.87 | $0.0685 | 38.0 | 50 | 22 | 8 | — |
-| `nvidia/nemotron-3-super-120b-a12b` | B+ | 3.68 | 0.64 | 0.88 | $0.175 | $0.46 | $0.0053 | 5.5 | 36 | 22 | 8 | — |
-| `deepseek/deepseek-v3.2-exp` | B+ | 3.53 | 0.55 | 1.00 | $0.105 | $0.41 | $0.0032 | 2.1 | 6 | 22 | 8 | ✅ |
-| `minimax/minimax-m3` | B+ | 3.53 | 0.55 | 1.00 | $1.050 | $1.20 | $0.0315 | 9.3 | 78 | 22 | 8 | — |
-| `openai/gpt-5.1-codex-mini` | B+ | 3.53 | 0.55 | 1.00 | $0.343 | $2.00 | $0.0103 | 1.7 | 54 | 22 | 8 | — |
-| `openai/gpt-5.6-luna-pro` | B+ | 3.53 | 0.55 | 1.00 | $6.139 | $6.00 | $0.1842 | 5.0 | 95 | 22 | 8 | — |
-| `nvidia/nemotron-3-nano-30b-a3b` | B | 3.44 | 0.64 | 0.75 | $0.192 | $0.20 | $0.0058 | 7.1 | 111 | 22 | 8 | — |
-| `moonshotai/kimi-k2.5` | B | 3.33 | 0.50 | 1.00 | $6.671 | $2.85 | $0.2001 | 48.5 | 49 | 22 | 8 | — |
-| `xiaomi/mimo-v2.5` | B | 3.33 | 0.50 | 1.00 | $0.367 | $0.28 | $0.0110 | 19.1 | 45 | 22 | 8 | — |
-| `deepseek/deepseek-v3.2` | B | 3.31 | 0.59 | 0.75 | $0.067 | $0.40 | $0.0020 | 1.5 | 28 | 22 | 8 | — |
-| `minimax/minimax-m2.7` | B | 3.18 | 0.50 | 0.88 | $1.716 | $1.00 | $0.0515 | 22.8 | 53 | 22 | 8 | — |
-| `bytedance-seed/seed-1.6-flash` | B | 3.16 | 0.55 | 0.75 | $0.387 | $0.30 | $0.0116 | 7.0 | 144 | 22 | 8 | — |
-| `deepseek/deepseek-r1-distill-llama-70b` | B | 3.12 | 0.45 | 1.00 | $1.950 | $0.80 | $0.0585 | 106.2 | 22 | 22 | 8 | — |
-| `tencent/hy3-preview` | C+ | 2.99 | 0.45 | 0.88 | $0.557 | $0.21 | $0.0167 | 18.4 | 110 | 22 | 8 | — |
-| `minimax/minimax-m2.5` | C+ | 2.90 | 0.41 | 1.00 | $1.019 | $0.90 | $0.0306 | 9.9 | 74 | 22 | 8 | — |
-| `openai/gpt-5.4-mini` | C+ | 2.90 | 0.41 | 1.00 | $0.376 | $4.50 | $0.0113 | 1.0 | 20 | 22 | 8 | — |
-| `poolside/laguna-xs-2.1` | C+ | 2.88 | 0.68 | 0.50 | $0.161 | $0.12 | $0.0048 | 14.6 | 84 | 22 | 8 | — |
-| `amazon/nova-pro-v1` | C+ | 2.80 | 0.64 | 0.50 | $0.562 | $3.20 | $0.0169 | 1.2 | 61 | 22 | 8 | — |
-| `deepseek/deepseek-v4-pro` | C+ | 2.67 | 0.36 | 1.00 | $0.700 | $0.87 | $0.0210 | 2.8 | 30 | 22 | 8 | — |
-| `qwen/qwen3-coder-next` | C+ | 2.67 | 0.36 | 1.00 | $0.035 | $0.80 | $0.0010 | 0.8 | 12 | 22 | 8 | — |
-| `moonshotai/kimi-k2.6` | C | 2.41 | 0.32 | 1.00 | $7.787 | $4.00 | $0.2336 | 20.0 | 86 | 22 | 8 | — |
-| `nousresearch/hermes-4-405b` | C | 2.41 | 0.32 | 1.00 | $0.536 | $3.00 | $0.0161 | 2.7 | 14 | 22 | 8 | — |
-| `z-ai/glm-4.7-flash` | C | 2.41 | 0.32 | 1.00 | $0.942 | $0.40 | $0.0283 | 37.6 | 62 | 22 | 8 | — |
-| `tencent/hy3` | C | 2.40 | 0.32 | 1.00 | $0.048 | $0.80 | $0.0011 | 3.1 | 5 | 19 | 4 | — |
-| `qwen/qwen3-coder-plus` | C | 2.29 | 0.59 | 0.38 | $0.316 | $3.25 | $0.0095 | 2.5 | 14 | 22 | 8 | — |
-| `stepfun/step-3.7-flash` | C | 2.14 | 0.27 | 1.00 | $2.689 | $1.15 | $0.0807 | 17.9 | 132 | 22 | 8 | — |
-| `z-ai/glm-5` | C | 2.14 | 0.27 | 1.00 | $5.589 | $3.15 | $0.1677 | 57.9 | 34 | 22 | 8 | — |
-| `z-ai/glm-4.5-air` | D | 1.85 | 0.23 | 1.00 | $1.485 | $0.85 | $0.0446 | 36.0 | 56 | 22 | 8 | — |
-| `stepfun/step-3.5-flash` | D | 1.54 | 0.18 | 1.00 | $0.751 | $0.30 | $0.0225 | 48.7 | 51 | 22 | 8 | — |
-| `qwen/qwen3-coder-flash` | F | 0.00 | 0.77 | 0.00 | $0.072 | $0.97 | $0.0022 | 1.4 | 24 | 22 | 8 | — |
+_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.006/M · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
+| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl | eligible |
+|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
+| `claude-code/fable` | A | 4.38 | 0.78 | 1.00 | $516.660 | $50.00 | $5.6833 | — | 30.4 | 6 | 9 | 2 | ✅ |
+| `claude-code/opus` | A | 4.38 | 0.78 | 1.00 | $235.194 | $25.00 | $2.5871 | — | 27.9 | 3 | 9 | 2 | ✅ |
+| `openai/o3-mini` | A | 4.36 | 0.77 | 1.00 | $3.814 | $4.40 | $0.1144 | — | 3.4 | 204 | 22 | 8 | — |
+| `anthropic/claude-haiku-4.5` | A | 4.21 | 0.73 | 1.00 | $1.867 | $5.00 | $0.0560 | — | 3.5 | 83 | 22 | 8 | — |
+| `qwen/qwen3-max` | A | 4.07 | 0.69 | 1.00 | $0.165 | $3.90 | $0.0033 | — | 1.9 | 8 | 16 | 4 | ✅ |
+| `bytedance-seed/seed-1.6` | A | 4.05 | 0.68 | 1.00 | $1.041 | $2.00 | $0.0312 | — | 6.5 | 48 | 22 | 8 | — |
+| `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | — | 7.5 | 73 | 22 | 8 | — |
+| `claude-code/haiku` | A | 4.05 | 0.68 | 1.00 | $36.358 | $5.00 | $1.0907 | $0.007407 | 17.5 | 72 | 22 | 8 | ✅ |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $157.125 | $15.00 | $4.7138 | $0.014337 | 11.5 | 35 | 22 | 8 | ✅ |
+| `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | — | 1.3 | 10 | 22 | 8 | ✅ |
+| `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | — | 5.0 | 87 | 22 | 8 | — |
+| `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | — | 5.1 | 78 | 22 | 8 | — |
+| `qwen/qwen3.7-max` | A | 4.05 | 0.68 | 1.00 | $3.563 | $4.42 | $0.1069 | — | 11.5 | 50 | 22 | 8 | — |
+| `x-ai/grok-4.5` | A | 4.05 | 0.68 | 1.00 | $3.363 | $6.00 | $0.1009 | — | 9.3 | 45 | 22 | 8 | — |
+| `z-ai/glm-5.1` | A | 4.05 | 0.68 | 1.00 | $4.611 | $3.04 | $0.1383 | — | 17.8 | 51 | 22 | 8 | — |
+| `z-ai/glm-5.2` | A | 4.05 | 0.68 | 1.00 | $0.643 | $0.92 | $0.0193 | — | 9.9 | 39 | 22 | 8 | — |
+| `z-ai/glm-5v-turbo` | A | 4.05 | 0.68 | 1.00 | $6.899 | $4.00 | $0.2070 | — | 39.0 | 43 | 22 | 8 | — |
+| `thinkingmachines/inkling` | A | 4.00 | 0.67 | 1.00 | $2.531 | $4.05 | $0.0734 | — | 5.8 | 65 | 21 | 8 | — |
+| `poolside/laguna-m.1` | B+ | 3.97 | 0.73 | 0.88 | $0.458 | $0.40 | $0.0137 | — | 11.7 | 73 | 22 | 8 | — |
+| `writer/palmyra-x5` | B+ | 3.91 | 0.64 | 1.00 | $0.512 | $6.00 | $0.0092 | — | 1.5 | 4 | 14 | 4 | — |
+| `aion-labs/aion-3.0` | B+ | 3.89 | 0.64 | 1.00 | $5.758 | $6.00 | $0.1728 | — | 23.8 | 30 | 22 | 8 | — |
+| `openai/gpt-5.6-luna` | B+ | 3.89 | 0.64 | 1.00 | $0.965 | $6.00 | $0.0289 | — | 2.7 | 34 | 22 | 8 | — |
+| `openai/o3-mini-high` | B+ | 3.89 | 0.64 | 1.00 | $10.157 | $4.40 | $0.3047 | — | 5.7 | 241 | 22 | 8 | — |
+| `qwen/qwen3.7-plus` | B+ | 3.89 | 0.64 | 1.00 | $1.183 | $1.28 | $0.0355 | — | 14.3 | 50 | 22 | 8 | — |
+| `z-ai/glm-5-turbo` | B+ | 3.89 | 0.64 | 1.00 | $2.436 | $4.00 | $0.0731 | — | 29.9 | 18 | 22 | 8 | — |
+| `nvidia/nemotron-3-ultra-550b-a55b` | B+ | 3.83 | 0.68 | 0.88 | $3.318 | $3.60 | $0.0995 | — | 14.7 | 78 | 22 | 8 | — |
+| `openai/o4-mini` | B+ | 3.83 | 0.68 | 0.88 | $2.036 | $4.40 | $0.0611 | — | 4.9 | 77 | 22 | 8 | — |
+| `bytedance-seed/seed-2.0-mini` | B+ | 3.71 | 0.59 | 1.00 | $0.935 | $0.40 | $0.0280 | — | 13.5 | 118 | 22 | 8 | — |
+| `deepseek/deepseek-v4-flash` | B+ | 3.71 | 0.59 | 1.00 | $0.207 | $0.20 | $0.0062 | — | 7.9 | 61 | 22 | 8 | ✅ |
+| `qwen/qwen3-max-thinking` | B+ | 3.71 | 0.59 | 1.00 | $0.327 | $3.90 | $0.0098 | — | 1.7 | 7 | 22 | 8 | — |
+| `qwen/qwen3.5-flash-02-23` | B+ | 3.71 | 0.59 | 1.00 | $1.449 | $0.26 | $0.0435 | — | 36.2 | 151 | 22 | 8 | — |
+| `xiaomi/mimo-v2.5-pro` | B+ | 3.71 | 0.59 | 1.00 | $2.284 | $0.87 | $0.0685 | — | 38.0 | 50 | 22 | 8 | — |
+| `nvidia/nemotron-3-super-120b-a12b` | B+ | 3.68 | 0.64 | 0.88 | $0.175 | $0.46 | $0.0053 | — | 5.5 | 36 | 22 | 8 | — |
+| `deepseek/deepseek-v3.2-exp` | B+ | 3.53 | 0.55 | 1.00 | $0.105 | $0.41 | $0.0032 | — | 2.1 | 6 | 22 | 8 | ✅ |
+| `minimax/minimax-m3` | B+ | 3.53 | 0.55 | 1.00 | $1.050 | $1.20 | $0.0315 | — | 9.3 | 78 | 22 | 8 | — |
+| `openai/gpt-5.1-codex-mini` | B+ | 3.53 | 0.55 | 1.00 | $0.343 | $2.00 | $0.0103 | — | 1.7 | 54 | 22 | 8 | — |
+| `openai/gpt-5.6-luna-pro` | B+ | 3.53 | 0.55 | 1.00 | $6.139 | $6.00 | $0.1842 | — | 5.0 | 95 | 22 | 8 | — |
+| `nvidia/nemotron-3-nano-30b-a3b` | B | 3.44 | 0.64 | 0.75 | $0.192 | $0.20 | $0.0058 | — | 7.1 | 111 | 22 | 8 | — |
+| `moonshotai/kimi-k2.5` | B | 3.33 | 0.50 | 1.00 | $6.671 | $2.85 | $0.2001 | — | 48.5 | 49 | 22 | 8 | — |
+| `xiaomi/mimo-v2.5` | B | 3.33 | 0.50 | 1.00 | $0.367 | $0.28 | $0.0110 | — | 19.1 | 45 | 22 | 8 | — |
+| `deepseek/deepseek-v3.2` | B | 3.31 | 0.59 | 0.75 | $0.067 | $0.40 | $0.0020 | — | 1.5 | 28 | 22 | 8 | — |
+| `minimax/minimax-m2.7` | B | 3.18 | 0.50 | 0.88 | $1.716 | $1.00 | $0.0515 | — | 22.8 | 53 | 22 | 8 | — |
+| `bytedance-seed/seed-1.6-flash` | B | 3.16 | 0.55 | 0.75 | $0.387 | $0.30 | $0.0116 | — | 7.0 | 144 | 22 | 8 | — |
+| `deepseek/deepseek-r1-distill-llama-70b` | B | 3.12 | 0.45 | 1.00 | $1.950 | $0.80 | $0.0585 | — | 106.2 | 22 | 22 | 8 | — |
+| `tencent/hy3-preview` | C+ | 2.99 | 0.45 | 0.88 | $0.557 | $0.21 | $0.0167 | — | 18.4 | 110 | 22 | 8 | — |
+| `minimax/minimax-m2.5` | C+ | 2.90 | 0.41 | 1.00 | $1.019 | $0.90 | $0.0306 | — | 9.9 | 74 | 22 | 8 | — |
+| `openai/gpt-5.4-mini` | C+ | 2.90 | 0.41 | 1.00 | $0.376 | $4.50 | $0.0113 | — | 1.0 | 20 | 22 | 8 | — |
+| `poolside/laguna-xs-2.1` | C+ | 2.88 | 0.68 | 0.50 | $0.161 | $0.12 | $0.0048 | — | 14.6 | 84 | 22 | 8 | — |
+| `amazon/nova-pro-v1` | C+ | 2.80 | 0.64 | 0.50 | $0.562 | $3.20 | $0.0169 | — | 1.2 | 61 | 22 | 8 | — |
+| `deepseek/deepseek-v4-pro` | C+ | 2.67 | 0.36 | 1.00 | $0.700 | $0.87 | $0.0210 | — | 2.8 | 30 | 22 | 8 | — |
+| `qwen/qwen3-coder-next` | C+ | 2.67 | 0.36 | 1.00 | $0.035 | $0.80 | $0.0010 | — | 0.8 | 12 | 22 | 8 | — |
+| `moonshotai/kimi-k2.6` | C | 2.41 | 0.32 | 1.00 | $7.787 | $4.00 | $0.2336 | — | 20.0 | 86 | 22 | 8 | — |
+| `nousresearch/hermes-4-405b` | C | 2.41 | 0.32 | 1.00 | $0.536 | $3.00 | $0.0161 | — | 2.7 | 14 | 22 | 8 | — |
+| `z-ai/glm-4.7-flash` | C | 2.41 | 0.32 | 1.00 | $0.942 | $0.40 | $0.0283 | — | 37.6 | 62 | 22 | 8 | — |
+| `tencent/hy3` | C | 2.40 | 0.32 | 1.00 | $0.048 | $0.80 | $0.0011 | — | 3.1 | 5 | 19 | 4 | — |
+| `qwen/qwen3-coder-plus` | C | 2.29 | 0.59 | 0.38 | $0.316 | $3.25 | $0.0095 | — | 2.5 | 14 | 22 | 8 | — |
+| `stepfun/step-3.7-flash` | C | 2.14 | 0.27 | 1.00 | $2.689 | $1.15 | $0.0807 | — | 17.9 | 132 | 22 | 8 | — |
+| `z-ai/glm-5` | C | 2.14 | 0.27 | 1.00 | $5.589 | $3.15 | $0.1677 | — | 57.9 | 34 | 22 | 8 | — |
+| `z-ai/glm-4.5-air` | D | 1.85 | 0.23 | 1.00 | $1.485 | $0.85 | $0.0446 | — | 36.0 | 56 | 22 | 8 | — |
+| `stepfun/step-3.5-flash` | D | 1.54 | 0.18 | 1.00 | $0.751 | $0.30 | $0.0225 | — | 48.7 | 51 | 22 | 8 | — |
+| `qwen/qwen3-coder-flash` | F | 0.00 | 0.77 | 0.00 | $0.072 | $0.97 | $0.0022 | — | 1.4 | 24 | 22 | 8 | — |
 
 ## Full coding benchmark results — LiveCodeBench pass@1 (display only; not parsed for routing)
 _source: `microbench_coding_direct.py` → `model_coding_metrics` (contamination-free LiveCodeBench). `pass@1` = fraction solved · `score5` = pass@1×5 · `value` = score5÷$/1k · `eligible` = clears the code gate (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s) · `tier` = curated use-case._
+_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). (no per-row ② column here — this harness doesn't persist raw tokens per run.) Context — ② amortized ≈$0.006/M · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | pass@1 | score5 | $/1k | $/run | p50 s | tok/s | value | family | n_graded | n_err | eligible | tier |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|:-:|--:|--:|:-:|:-:|
 | `google/gemini-3-flash-preview` | A+ | 1.000 | 5.00 | $1.180 | $0.0590 | 3.0 | 102 | 4.2 | google | 50 | 0 | ✅ | daily-driver |

@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_task_baselines as b  # noqa: E402
+import derive_cost  # noqa: E402
 import rank_task_subagents as r  # noqa: E402
 
 
@@ -90,7 +91,9 @@ def test_claude_code_excluded_from_pool_routing(tmp_path, monkeypatch):
 
     # the review benchmark set contains a claude tier + an OR model; only the OR model may be pool-routable
     # (claude-code/* = spawn-native, the pool would 404 dispatching it).
-    monkeypatch.setattr(r, "_review_benchmark_models", lambda *a, **k: ["claude-code/opus", "openrouter/x"])
+    monkeypatch.setattr(
+        r, "_review_benchmark_models", lambda *a, **k: ["claude-code/opus", "openrouter/x"]
+    )
     monkeypatch.setattr(r, "_review_bench_ran", lambda *a, **k: True)
     monkeypatch.setattr(r, "_code_bench_ran", lambda *a, **k: False)
     monkeypatch.setattr(r, "_code_benchmark_models", lambda *a, **k: [])
@@ -109,7 +112,9 @@ def test_claude_only_benchmark_not_suppressed_by_stub_guard(monkeypatch):
     # a review benchmark RAN but its only eligible tiers are claude-code/* → review_benchmark is [] after
     # FIX-2's routing filter; the doc must NOT return the "No aggregated runs yet" stub (which would hide
     # the ✅ Selected shortlist that displays those claude reviewers).
-    monkeypatch.setattr(r, "_review_benchmark_models", lambda *a, **k: [])  # claude-only → routing-filtered empty
+    monkeypatch.setattr(
+        r, "_review_benchmark_models", lambda *a, **k: []
+    )  # claude-only → routing-filtered empty
     monkeypatch.setattr(r, "_review_bench_ran", lambda *a, **k: True)  # but the benchmark DID run
     monkeypatch.setattr(r, "_code_bench_ran", lambda *a, **k: False)
     monkeypatch.setattr(r, "_code_benchmark_models", lambda *a, **k: [])
@@ -117,7 +122,59 @@ def test_claude_only_benchmark_not_suppressed_by_stub_guard(monkeypatch):
     monkeypatch.setattr(r, "_judged_benchmark_models", lambda *a, **k: [])
     monkeypatch.setattr(r, "_load_coding_fallback", lambda *a, **k: [])
     md = r.render([], include_full_results=False)
-    assert "No aggregated runs yet" not in md  # not stubbed — a benchmark ran (display would show claude)
+    assert (
+        "No aggregated runs yet" not in md
+    )  # not stubbed — a benchmark ran (display would show claude)
+
+
+def test_full_table_renders_real_amortized_cost_when_tokens_present(tmp_path, monkeypatch):
+    db = tmp_path / "kilo_agents.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE model_review_metrics (model_id TEXT, grade TEXT, score5 REAL, recall REAL, "
+        "precision REAL, out_price_mtok REAL, cost_usd REAL, cost_per_1k REAL, p50_latency_s REAL, "
+        "tokens_per_s REAL, n_mut INTEGER, n_ctrl INTEGER, built_at TEXT, "
+        "in_tokens INTEGER, out_tokens_total INTEGER, cache_read_tokens INTEGER, cache_creation_tokens INTEGER)"
+    )
+    conn.execute(
+        "INSERT INTO model_review_metrics VALUES "
+        "('claude-code/haiku','A',4.38,0.78,1.0,5.0,0.44,40.1,28.6,26,9,2,'2026-07-21',9,142,20215,26030)"
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(r, "__file__", str(tmp_path / "rank_task_subagents.py"))
+    # `amortized_cost` reads REAL `~/.claude/.claude-manager/` state by default — pin the rate so the
+    # rendered figure is deterministic (a real box's live monthly throughput could push the ② cell past
+    # "$0.xxx" and make this test non-hermetic; see review Pass-8 finding).
+    monkeypatch.setattr(derive_cost, "amortized_rate", lambda *a, **k: 9.3e-8)
+    lines = r._full_review_results_table()
+    row = next(line for line in lines if "claude-code/haiku" in line)
+    assert "—" not in row.split("|")[9]  # the ②total$ cell is populated, not the "no data" dash
+    # 46,396 total tokens (9+142+20215+26030) × the pinned anchor rate — a fixed, deterministic figure.
+    assert f"${9.3e-8 * 46396:.6f}" in row
+
+
+def test_full_table_amortized_cost_dash_when_tokens_missing(tmp_path, monkeypatch):
+    # a row from BEFORE this migration — the real PRE-migration 13-column schema, no token columns —
+    # must show "—" for ②, never a fabricated $0 (the PRAGMA/NULL-AS fallback path).
+    db = tmp_path / "kilo_agents.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE model_review_metrics (model_id TEXT, score5 REAL, grade TEXT, recall REAL, "
+        "precision REAL, out_price_mtok REAL, cost_usd REAL, cost_per_1k REAL, p50_latency_s REAL, "
+        "tokens_per_s REAL, n_mut INTEGER, n_ctrl INTEGER, built_at TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO model_review_metrics VALUES "
+        "('claude-code/opus',4.38,'A',0.78,1.0,25.0,2.59,235.19,27.9,3,9,2,'2026-07-21')"
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(r, "__file__", str(tmp_path / "rank_task_subagents.py"))
+    lines = r._full_review_results_table()
+    row = next(line for line in lines if "claude-code/opus" in line)
+    cells = row.split("|")
+    assert cells[9].strip() == "—"  # the ②total$ cell — no data, honest dash
 
 
 def test_preamble_renders_from_sidecar(tmp_path, monkeypatch):
