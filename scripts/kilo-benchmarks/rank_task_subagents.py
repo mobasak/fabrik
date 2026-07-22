@@ -437,6 +437,30 @@ def _review_benchmark_models() -> list[str]:
     )
 
 
+# Operator-set status for the `claude-code/*` review rows. Rendered into the full review table so the
+# caveat travels WITH the numbers (the doc is regenerated daily — a hand-edited note would be wiped).
+# Remove/replace this block once the one-by-one re-test is finished and every tier is re-measured.
+_CLAUDE_P_RETEST_NOTICE = [
+    "_⚠️ **`claude-code/*` review rows — RE-TEST IN PROGRESS (operator call, 2026-07-22).** The initial "
+    "full-corpus runs of 2026-07-22 (opus · sonnet · haiku · fable, measured in 2-model batches) are "
+    "considered **INVALID** and must not be used for comparison or routing judgement. Each tier is "
+    "being re-measured **one model at a time** on the SAME unchanged 22-mutant corpus the OpenRouter "
+    "models were scored on._",
+    "",
+    "_**Re-test status** — ✅ `haiku` (2026-07-22): 4.054→**4.21**, recall 68%→**73%** (15→16 of 22 "
+    "caught) · ✅ `sonnet` (2026-07-23): **4.05 unchanged**, recall 68% (15 of 22) — reproduced its "
+    "batched score exactly · ✅ `fable` (2026-07-23): **4.05 unchanged**, recall 68% (15 of 22) — also "
+    "reproduced exactly · ⏳ `opus` — still carrying its INVALID batched score, to be re-run on operator "
+    "instruction (not scheduled; do not auto-run)._",
+    "",
+    "_Why one-at-a-time: a single 22-item pass carries enough sampling variance to shift a tier by "
+    "~5pp of recall (haiku moved 5pp on an identical corpus; repeated-trial probing showed the same "
+    "item flipping correct/incorrect across calls on identical input), so a batched run is not a sound "
+    "basis for ranking. The corpus itself is UNCHANGED and remains byte-identical to the one all 57 "
+    "OpenRouter models were measured against — those rows are unaffected and stay valid._",
+]
+
+
 def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
     """The ②/③ context line for `claude-code/*` rows (reads `claude_p_cost.json` fail-soft). Empty if absent.
 
@@ -526,6 +550,7 @@ def _full_review_results_table() -> list[str]:
         "## Full review benchmark results — all measured columns (display only; not parsed for routing)",
         "_source: `microbench_review.py` → `model_review_metrics`. `eligible` = passes the reviewer gate "
         "(precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s). `score5` = F1(recall,precision)×5._",
+        *_CLAUDE_P_RETEST_NOTICE,
         *_claude_p_preamble(),
         "| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl | eligible |",
         "|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|",

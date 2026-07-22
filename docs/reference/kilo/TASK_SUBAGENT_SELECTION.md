@@ -1,4 +1,4 @@
-Last refresh: 2026-07-22
+Last refresh: 2026-07-23
 Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shrunk_q ≥ 2.5; then cost-asc among survivors; top-2 slots require n ≥ 10 | tier_baseline T1=1.0, T2=2.5, T3=4.0 | Window: 90 days | Min runs: 3
 
 
@@ -9,11 +9,11 @@ Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shr
 _gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s_
 | model | grade | score5 | recall | $/1k | $/run | p50 s |
 |---|:-:|--:|--:|--:|--:|--:|
-| `claude-code/fable` | A | 4.38 | 0.78 | $516.660 | $5.6833 | 30.4 |
-| `claude-code/opus` | A | 4.38 | 0.78 | $235.194 | $2.5871 | 27.9 |
+| `claude-code/haiku` | A | 4.21 | 0.73 | $35.549 | $1.0665 | 16.5 |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | $0.165 | $0.0033 | 1.9 |
-| `claude-code/haiku` | A | 4.05 | 0.68 | $36.358 | $1.0907 | 17.5 |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | $157.125 | $4.7138 | 11.5 |
+| `claude-code/fable` | A | 4.05 | 0.68 | $448.486 | $13.4546 | 10.3 |
+| `claude-code/opus` | A | 4.05 | 0.68 | $215.978 | $6.4794 | 8.0 |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | $160.349 | $4.8105 | 12.4 |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | $0.226 | $0.0068 | 1.3 |
 | `deepseek/deepseek-v4-flash` | B+ | 3.71 | 0.59 | $0.207 | $0.0062 | 7.9 |
 | `deepseek/deepseek-v3.2-exp` | B+ | 3.53 | 0.55 | $0.105 | $0.0032 | 2.1 |
@@ -83,18 +83,23 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 
 ## Full review benchmark results — all measured columns (display only; not parsed for routing)
 _source: `microbench_review.py` → `model_review_metrics`. `eligible` = passes the reviewer gate (precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s). `score5` = F1(recall,precision)×5._
+_⚠️ **`claude-code/*` review rows — RE-TEST IN PROGRESS (operator call, 2026-07-22).** The initial full-corpus runs of 2026-07-22 (opus · sonnet · haiku · fable, measured in 2-model batches) are considered **INVALID** and must not be used for comparison or routing judgement. Each tier is being re-measured **one model at a time** on the SAME unchanged 22-mutant corpus the OpenRouter models were scored on._
+
+_**Re-test status** — ✅ `haiku` (2026-07-22): 4.054→**4.21**, recall 68%→**73%** (15→16 of 22 caught) · ✅ `sonnet` (2026-07-23): **4.05 unchanged**, recall 68% (15 of 22) — reproduced its batched score exactly · ✅ `fable` (2026-07-23): **4.05 unchanged**, recall 68% (15 of 22) — also reproduced exactly · ⏳ `opus` — still carrying its INVALID batched score, to be re-run on operator instruction (not scheduled; do not auto-run)._
+
+_Why one-at-a-time: a single 22-item pass carries enough sampling variance to shift a tier by ~5pp of recall (haiku moved 5pp on an identical corpus; repeated-trial probing showed the same item flipping correct/incorrect across calls on identical input), so a batched run is not a sound basis for ranking. The corpus itself is UNCHANGED and remains byte-identical to the one all 57 OpenRouter models were measured against — those rows are unaffected and stay valid._
 _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.006/M · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl | eligible |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
-| `claude-code/fable` | A | 4.38 | 0.78 | 1.00 | $516.660 | $50.00 | $5.6833 | — | 30.4 | 6 | 9 | 2 | ✅ |
-| `claude-code/opus` | A | 4.38 | 0.78 | 1.00 | $235.194 | $25.00 | $2.5871 | — | 27.9 | 3 | 9 | 2 | ✅ |
 | `openai/o3-mini` | A | 4.36 | 0.77 | 1.00 | $3.814 | $4.40 | $0.1144 | — | 3.4 | 204 | 22 | 8 | — |
 | `anthropic/claude-haiku-4.5` | A | 4.21 | 0.73 | 1.00 | $1.867 | $5.00 | $0.0560 | — | 3.5 | 83 | 22 | 8 | — |
+| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.007407 | 16.5 | 60 | 22 | 8 | ✅ |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | 1.00 | $0.165 | $3.90 | $0.0033 | — | 1.9 | 8 | 16 | 4 | ✅ |
 | `bytedance-seed/seed-1.6` | A | 4.05 | 0.68 | 1.00 | $1.041 | $2.00 | $0.0312 | — | 6.5 | 48 | 22 | 8 | — |
 | `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | — | 7.5 | 73 | 22 | 8 | — |
-| `claude-code/haiku` | A | 4.05 | 0.68 | 1.00 | $36.358 | $5.00 | $1.0907 | $0.007407 | 17.5 | 72 | 22 | 8 | ✅ |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $157.125 | $15.00 | $4.7138 | $0.014337 | 11.5 | 35 | 22 | 8 | ✅ |
+| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.009106 | 10.3 | 16 | 22 | 8 | ✅ |
+| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.008855 | 8.0 | 17 | 22 | 8 | ✅ |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $160.349 | $15.00 | $4.8105 | $0.014025 | 12.4 | 35 | 22 | 8 | ✅ |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | — | 1.3 | 10 | 22 | 8 | ✅ |
 | `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | — | 5.0 | 87 | 22 | 8 | — |
 | `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | — | 5.1 | 78 | 22 | 8 | — |
