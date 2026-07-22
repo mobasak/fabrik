@@ -177,86 +177,236 @@ def test_measured_requires_min_successful_mutants():
     assert not below.is_measured and at.is_measured
 
 
-# ── equivalent-mutant filter (a mutant with no observable defect is not a valid test item) ────────
+# ── HARD corpus (hand-planted logic bugs) — soundness proven by EXECUTION, never by eye ──────────
+# Every rule below is a lesson bought this week: the operator-flip corpus shipped 4 unkillable
+# (semantically equivalent) mutants that scored every correct "no bug" answer as a miss, flattening
+# all frontier models to an identical score. Hard items are therefore (a) kill-proven differentially
+# on concrete probe inputs, (b) single-line-diff verified so truth_line is exact, and (c) contract-
+# documented so ground truth never depends on guessing intent.
 
 
-def test_no_equivalent_mutants_survive_corpus_build():
-    """Every shipped mutant MUST be behaviorally distinguishable from its original over the victim's
-    input domain. An equivalent mutant (e.g. `<`->`<=` where the branch outcome is provably identical)
-    is UNKILLABLE: the reviewer correctly answers "no bug", we score it a miss, and every model loses
-    the same point — compressing all scores toward an artificial tie.
+def _sole_fn(src: str):
+    """Compile a hard-case snippet and return its single top-level function."""
+    import ast as _ast
 
-    Proven live (2026-07-22): 5 of 22 mutants were equivalent, and all 4 claude tiers "missed" exactly
-    those 5 on 20/20 repeated trials each, manufacturing identical recall across models.
-    """
-    for it in mr.build_corpus():
-        if it.truth_line is None:
-            continue
-        assert not mr._is_equivalent_mutant(mr.VICTIMS[it.victim], it), (
-            f"equivalent (unkillable) mutant shipped in the corpus: {it.item_id}"
+    tree = _ast.parse(src)
+    fns = [n for n in tree.body if isinstance(n, _ast.FunctionDef)]
+    assert len(fns) == 1, f"hard snippet must define exactly ONE top-level function, got {len(fns)}"
+    ns: dict = {}
+    exec(compile(src, "<hard-case>", "exec"), ns)  # noqa: S102 — fixed in-repo corpus source
+    return ns[fns[0].name]
+
+
+def test_hard_corpus_builds_with_derived_truth_lines():
+    corpus = mr.build_hard_corpus()
+    mutants = [i for i in corpus if i.truth_line is not None]
+    controls = [i for i in corpus if i.truth_line is None]
+    assert len(mutants) == len(mr.HARD_CASES) == 10
+    assert len(controls) == len(mr.HARD_CASES) == 10
+    assert len({i.item_id for i in corpus}) == len(corpus), "item ids must be unique"
+
+
+def test_hard_every_bug_is_kill_proven_by_execution():
+    """For EVERY hard case, at least one probe input must produce a DIFFERENT result from the
+    buggy version than from the clean one. A case failing this is an unkillable (invalid) item —
+    the exact defect class that invalidated the operator-flip corpus."""
+    for case in mr.HARD_CASES:
+        clean_fn = _sole_fn(case["clean"])
+        buggy_fn = _sole_fn(case["buggy"])
+        outcomes = []
+        for args in case["probes"]:
+            try:
+                c = ("OK", clean_fn(*args))
+            except Exception as e:  # noqa: BLE001 — outcome comparison, not error handling
+                c = ("EXC", type(e).__name__)
+            try:
+                b = ("OK", buggy_fn(*args))
+            except Exception as e:  # noqa: BLE001
+                b = ("EXC", type(e).__name__)
+            outcomes.append((c, b))
+        assert any(c != b for c, b in outcomes), (
+            f"hard case {case['name']!r}: NO probe distinguishes buggy from clean — unkillable item"
         )
 
 
-def test_equivalence_checker_flags_a_known_equivalent_mutant():
-    """The checker must POSITIVELY identify a hand-built equivalent mutant — otherwise the filter
-    above could pass vacuously (e.g. if the checker always returned False).
+def test_hard_clean_versions_run_without_error():
+    """Controls must be genuinely clean: every probe runs the clean version without raising."""
+    for case in mr.HARD_CASES:
+        clean_fn = _sole_fn(case["clean"])
+        for args in case["probes"]:
+            clean_fn(*args)  # raises = the control itself is broken
 
-    Fixture: binary_search's `items[mid] < target` -> `<=`. It is UNCONDITIONALLY equivalent — the
-    preceding line already returned on `items[mid] == target`, so `items[mid] != target` is an
-    invariant by the time this branch runs and `<` / `<=` cannot diverge. Verified exhaustively
-    (3,600 list/target combinations, zero differences).
-    """
-    src = mr.VICTIMS["binary_search"]
-    equivalent_src = src.replace("if items[mid] < target:", "if items[mid] <= target:")
-    assert equivalent_src != src, "fixture failed to mutate"
-    item = mr.Item(
-        item_id="binary_search:equiv-fixture",
-        victim="binary_search",
-        numbered_code=mr._number(ast.unparse(ast.parse(equivalent_src))),
-        truth_line=7,
-        operator="<->=<",
+
+def test_hard_truth_line_is_the_single_differing_line():
+    """truth_line must be derivable as the EXACT one line (rstrip-compared, indentation counts)
+    where buggy differs from clean — same line count, no second difference."""
+    for case in mr.HARD_CASES:
+        line = mr._hard_truth_line(case["clean"], case["buggy"])
+        c_lines = case["clean"].splitlines()
+        b_lines = case["buggy"].splitlines()
+        assert len(c_lines) == len(b_lines)
+        diffs = [
+            i + 1
+            for i, (a, b) in enumerate(zip(c_lines, b_lines, strict=True))
+            if a.rstrip() != b.rstrip()
+        ]
+        assert diffs == [line]
+
+
+def test_hard_truth_line_rejects_multi_line_diffs():
+    with __import__("pytest").raises(ValueError):
+        mr._hard_truth_line("a\nb\nc\n", "x\nb\ny\n")  # two differing lines
+    with __import__("pytest").raises(ValueError):
+        mr._hard_truth_line("a\nb\n", "a\nb\nc\n")  # different line counts
+
+
+def test_hard_task_template_used_for_hard_items_only():
+    hard_item = mr.build_hard_corpus()[0]
+    std_item = mr.build_corpus()[0]
+    assert "docstring states its intended CONTRACT" in mr._task_for(hard_item)
+    assert "docstring states its intended CONTRACT" not in mr._task_for(std_item)
+    # both keep the same JSON answer contract the grader parses
+    assert '"line"' in mr._task_for(hard_item) and '"line"' in mr._task_for(std_item)
+
+
+def test_hard_persist_goes_to_hard_table_never_standard(tmp_path, monkeypatch):
+    """--hard persistence must land in HARD_TABLE and leave model_review_metrics untouched, and
+    the hard resume-gate must read the hard table only (a standard-corpus measurement today must
+    NOT resume-skip a hard run of the same model)."""
+    import sqlite3 as _sq
+
+    db = tmp_path / "kilo_agents.db"
+    monkeypatch.setattr(mr, "DB_PATH", db)
+    monkeypatch.setattr(mr, "ensure_table", lambda _p: None)
+    s = mr.ModelScore(
+        "claude-code/haiku",
+        n_mut=10,
+        caught=7,
+        n_ctrl=10,
+        ctrl_flagged=0,
+        latencies=[1.0],
+        out_tokens=10,
+        cost=0.01,
     )
-    assert mr._is_equivalent_mutant(src, item), "known-equivalent mutant was not detected"
+    mr.persist_metrics({s.model: s}, table=mr.HARD_TABLE)
+    with _sq.connect(db) as c:
+        tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert mr.HARD_TABLE in tables
+    assert "model_review_metrics" not in tables, "--hard must not create/touch the standard table"
+    # resume separation: hard table sees the model, the standard gate does not
+    assert mr._measured_review_models(db_path=db, table=mr.HARD_TABLE) == {"claude-code/haiku"}
+    assert mr._measured_review_models(db_path=db) == set()
 
 
-def test_equivalence_domain_covers_contract_violating_ranges():
-    """A domain that only exercises the SANE precondition can miss a flip that diverges solely on a
-    degenerate one — and would then wrongly certify a killable mutant as 'equivalent'.
+def test_metrics_table_allowlist_is_enforced_not_advisory(tmp_path, monkeypatch):
+    """The table name is f-string-interpolated into SQL (sqlite can't parametrize identifiers), so
+    membership in _METRICS_TABLES must be a REAL check — an unknown table raises before any SQL runs
+    (review finding 2026-07-23: the allowlist existed only as a comment)."""
+    import pytest as _pt
 
-    Real near-miss (2026-07-22): clamp's `value < low` -> `<=` is identical for every valid range
-    (low <= high) and differs ONLY when low > high (an inverted range) at value == low. The first
-    domain used low in (0,5) / high in (5,10), so low > high never occurred and the mutant was
-    wrongly filtered. Assert the domain still reaches the degenerate case.
-    """
-    assert any(lo > hi for _v, lo, hi in mr._EQUIV_DOMAINS["clamp"]), (
-        "clamp domain no longer covers an inverted (low > high) range — equivalence verdicts for "
-        "boundary flips become unsound"
+    monkeypatch.setattr(mr, "DB_PATH", tmp_path / "kilo_agents.db")
+    monkeypatch.setattr(mr, "ensure_table", lambda _p: None)
+    with _pt.raises(ValueError, match="unknown metrics table"):
+        mr._measured_review_models(db_path=tmp_path / "kilo_agents.db", table="evil; DROP TABLE x")
+    with _pt.raises(ValueError, match="unknown metrics table"):
+        mr.persist_metrics({}, table="evil; DROP TABLE x")
+    # both legitimate tables still accepted
+    assert mr._measured_review_models(db_path=tmp_path / "kilo_agents.db") == set()
+    assert (
+        mr._measured_review_models(db_path=tmp_path / "kilo_agents.db", table=mr.HARD_TABLE)
+        == set()
     )
-    # ...and that the checker consequently classifies that flip as KILLABLE, not equivalent.
-    src = mr.VICTIMS["clamp"]
-    killable_src = src.replace("if value < low:", "if value <= low:")
-    item = mr.Item(
-        item_id="clamp:2:<->=<",
-        victim="clamp",
-        numbered_code=mr._number(ast.unparse(ast.parse(killable_src))),
-        truth_line=2,
-        operator="<->=<",
-    )
-    assert not mr._is_equivalent_mutant(src, item), (
-        "clamp `<`->`<=` diverges on an inverted range — it must NOT be filtered as equivalent"
-    )
 
 
-def test_equivalence_checker_keeps_a_real_bug():
-    """A genuinely killable mutant must NOT be filtered out (guards against over-eager exclusion)."""
-    src = mr.VICTIMS["within_budget"]
-    # `spent + incoming` -> `spent - incoming`: changes the result for any nonzero incoming.
-    real_bug_src = src.replace("spent + incoming", "spent - incoming")
-    item = mr.Item(
-        item_id="within_budget:real-fixture",
-        victim="within_budget",
-        numbered_code=mr._number(ast.unparse(ast.parse(real_bug_src))),
-        truth_line=2,
-        operator="+->-",
+def test_main_hard_never_touches_baseline_or_flywheel(monkeypatch, tmp_path):
+    """The load-bearing isolation guarantee lives in main()'s `if args.hard:` persist branch — test
+    it AT THE main() LEVEL, not just persist_metrics in isolation: a future refactor dropping the
+    guard must turn this red (review finding 2026-07-23: the branch was correct but uncovered)."""
+    calls = {"persist": 0, "flywheel": 0, "metrics": []}
+    monkeypatch.setattr(mr, "persist", lambda s: calls.__setitem__("persist", calls["persist"] + 1))
+    monkeypatch.setattr(
+        mr, "record_flywheel", lambda r: calls.__setitem__("flywheel", calls["flywheel"] + 1)
     )
-    assert not mr._is_equivalent_mutant(src, item), "a real bug was wrongly filtered as equivalent"
+    monkeypatch.setattr(
+        mr,
+        "persist_metrics",
+        lambda s, table="model_review_metrics": calls["metrics"].append(table)
+        or (tmp_path / "art.json"),
+    )
+    monkeypatch.setattr(mr, "_measured_review_models", lambda **k: set())
+    monkeypatch.setattr(mr, "run_direct", lambda m, c, mt, cc: ([], [], []))
+    rc = mr.main(["--hard", "--direct", "--persist", "--models", "claude-code/haiku"])
+    assert rc == 0
+    assert calls["persist"] == 0, "--hard must NEVER write model_task_baseline"
+    assert calls["flywheel"] == 0, "--hard must NEVER record flywheel rows"
+    assert calls["metrics"] == [mr.HARD_TABLE], "--hard metrics go to HARD_TABLE only"
+
+
+def test_main_hard_rejects_smoke(monkeypatch):
+    """--hard --smoke must fail loud (SystemExit), not silently dispatch a full 24-model x 20-item
+    run when the operator asked for a cheap slice."""
+    import pytest as _pt
+
+    with _pt.raises(SystemExit):
+        mr.main(["--hard", "--smoke", "--models", "claude-code/haiku"])
+
+
+def test_build_hard_corpus_refuses_unkillable_case(monkeypatch):
+    """Runtime enforcement: an unkillable case (buggy==clean on every probe) must abort the BUILD —
+    dispatch of an invalid item is never reachable, independent of whether the test suite ran."""
+    import pytest as _pt
+
+    bad = {
+        "name": "unkillable_fixture",
+        "clean": "def f(x):\n    return x + 1\n",
+        "buggy": "def f(x):\n    return 1 + x\n",  # semantically identical for ints
+        "probes": [(1,), (0,), (-5,)],
+    }
+    monkeypatch.setattr(mr, "HARD_CASES", [bad])
+    with _pt.raises(ValueError, match="not kill-proven"):
+        mr.build_hard_corpus()
+
+
+def test_hard_template_applies_to_clean_controls_too():
+    """Both the mutant AND its clean control must get the SAME hard template — a divergence would be
+    a formatting 'tell' letting a model infer mutant-vs-control from the prompt itself."""
+    corpus = mr.build_hard_corpus()
+    mutant = next(i for i in corpus if i.truth_line is not None)
+    control = next(i for i in corpus if i.truth_line is None)
+    assert "docstring states its intended CONTRACT" in mr._task_for(mutant)
+    assert "docstring states its intended CONTRACT" in mr._task_for(control)
+
+
+def test_main_hard_rejects_report(monkeypatch):
+    """--hard --report must fail loud — report_stored() reads ONLY the standard tables, so silently
+    printing standard-corpus numbers for a --hard ask would misrepresent their corpus."""
+    import pytest as _pt
+
+    with _pt.raises(SystemExit):
+        mr.main(["--hard", "--report"])
+
+
+def test_main_explicit_empty_models_dispatches_nothing(monkeypatch, capsys):
+    """`--models` with ZERO values is an explicit empty request — it must dispatch NOTHING, never
+    silently fall through to the full pick_models pool ([] is falsy; the old `or` pattern did)."""
+    called = []
+    monkeypatch.setattr(mr, "pick_models", lambda *a, **k: called.append(1) or ["m"])
+    monkeypatch.setattr(mr, "run_direct", lambda *a, **k: called.append("dispatch") or ([], [], []))
+    rc = mr.main(["--direct", "--models"])
+    assert rc == 0
+    assert not called, "explicit empty --models must neither pick_models nor dispatch"
+
+
+def test_kill_proven_rejects_snippet_without_single_function():
+    """_kill_proven's snippet loader must fail with the module's own clear ValueError, not an
+    opaque IndexError, when a case snippet doesn't define exactly one top-level function."""
+    import pytest as _pt
+
+    bad = {
+        "name": "no_fn_fixture",
+        "clean": "X = 1\n",
+        "buggy": "X = 2\n",
+        "probes": [()],
+    }
+    with _pt.raises(ValueError, match="exactly ONE top-level function"):
+        mr._kill_proven(bad)

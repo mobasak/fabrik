@@ -216,96 +216,10 @@ def _apply_flip(tree: ast.AST, line: int, from_type: type, to_type: type) -> Non
                 return
 
 
-# Input domains for the equivalent-mutant filter — must include the BOUNDARY values (x == low,
-# x == cap, size == capacity, …), because an operator flip at a boundary is exactly where an
-# equivalent mutant hides (`<` vs `<=` differ only at equality).
-_EQUIV_DOMAINS: dict[str, list[tuple]] = {
-    "binary_search": [
-        ([], 0),
-        ([5], 5),
-        ([5], 4),
-        ([5], 6),
-        ([1, 3, 5, 7], 1),
-        ([1, 3, 5, 7], 7),
-        ([1, 3, 5, 7], 4),
-        ([1, 3, 5, 7], 5),
-        ([1, 1, 1], 1),
-        ([2, 4], 3),
-    ],
-    "page_offset": [(p, pp) for p in (-2, 0, 1, 2, 5) for pp in (1, 10, 25)],
-    "retry_backoff": [(a, b, c) for a in (0, 1, 3, 5) for b in (1, 2) for c in (1, 8, 16, 1000)],
-    "running_avg": [(t, c, v) for t in (0, 10, -5) for c in (0, 1, 4) for v in (0, 3, -2)],
-    "within_budget": [(s, i, ll) for s in (0, 5, 10) for i in (0, 5, 10) for ll in (0, 10, 20)],
-    "is_expired": [(n, i, t) for n in (0, 100, 50) for i in (0, 50, 100) for t in (0, 50, 100)],
-    # NB: `hi` deliberately includes values BELOW `lo` (an inverted, contract-violating range). A
-    # domain that only covers lo <= hi cannot observe a flip that diverges solely on lo > hi, and
-    # would call such a mutant "equivalent" without ever testing the case (a real near-miss: clamp's
-    # `<`→`<=` differs ONLY on lo > hi ∧ value == lo). Cover the degenerate range explicitly.
-    "clamp": [(v, lo, hi) for v in (-1, 0, 1, 5, 10, 11) for lo in (0, 5) for hi in (-1, 0, 5, 10)],
-    "should_evict": [(s, c, p) for s in (0, 5, 10) for c in (0, 5, 10) for p in (True, False)],
-}
-_EQUIV_CALL_TIMEOUT_S = 0.25  # a mutant that loops forever HAS diverged — that counts as killable
-
-
-def _eval_victim(src: str, args: tuple):
-    """Run a victim/mutant on one input; return a comparable outcome tuple. Never raises."""
-    import signal
-
-    class _TimeoutError(Exception):
-        pass
-
-    def _on_alarm(_signum, _frame):
-        raise _TimeoutError
-
-    ns: dict = {}
-    try:
-        exec(compile(src, "<victim>", "exec"), ns)  # noqa: S102 — fixed in-repo victim source
-    except Exception as e:  # noqa: BLE001
-        return ("COMPILE_ERR", type(e).__name__)
-    fns = [v for k, v in ns.items() if callable(v) and not k.startswith("__")]
-    if not fns:
-        return ("NO_FN", None)
-    prev = signal.signal(signal.SIGALRM, _on_alarm)
-    signal.setitimer(signal.ITIMER_REAL, _EQUIV_CALL_TIMEOUT_S)
-    try:
-        return ("OK", fns[0](*args))
-    except _TimeoutError:
-        return ("TIMEOUT", None)
-    except Exception as e:  # noqa: BLE001
-        return ("EXC", type(e).__name__)
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, prev)
-
-
-def _is_equivalent_mutant(original_src: str, item: Item) -> bool:
-    """True iff the mutant is behaviorally INDISTINGUISHABLE from the original over its domain.
-
-    An operator flip at a boundary (`<`→`<=` where the branch outcome is provably identical) yields a
-    mutant with NO observable defect. Scoring it as a planted bug is a benchmark defect, not a model
-    failure: the reviewer correctly returns `[]`, and we count that as a miss — depressing EVERY
-    model's recall by the same amount and compressing the scores toward an artificial tie. Proven
-    live: 5 of 22 mutants were unkillable, and all 4 claude tiers "missed" exactly those 5 on 20/20
-    trials each. Filter them out so recall measures real bug-finding.
-    """
-    domain = _EQUIV_DOMAINS.get(item.victim)
-    if not domain:  # no domain declared → cannot prove equivalence; keep the mutant (fail-open to
-        return False  # inclusion, so a new victim without a domain is never silently dropped)
-    mutant_src = "\n".join(
-        ln.split(": ", 1)[1] if ": " in ln else ln for ln in item.numbered_code.splitlines()
-    )
-    for args in domain:
-        if _eval_victim(original_src, args) != _eval_victim(mutant_src, args):
-            return False  # observable difference → a real, killable bug
-    return True
-
-
 def build_corpus() -> list[Item]:
     items: list[Item] = []
     for name, src in VICTIMS.items():
-        # Drop equivalent mutants — they are unkillable by construction and would score a CORRECT
-        # "no bug found" as a miss for every model alike (see _is_equivalent_mutant).
-        items.extend(m for m in _mutants_for(name, src) if not _is_equivalent_mutant(src, m))
+        items.extend(_mutants_for(name, src))
         # the un-mutated original is a CLEAN control (a finding here is a false positive).
         # Unparse it too, so it is byte-identical in FORMATTING to the mutants (only the operator
         # differs) — no reformatting "tell" that a model could use to guess mutant vs. control.
@@ -322,8 +236,464 @@ def build_corpus() -> list[Item]:
 
 
 # =================================================================================================
+# 1b. HARD CORPUS — hand-planted single-line logic bugs in realistic functions (--hard mode).
+#
+# Why it exists: per-item probing (2026-07-23) proved the operator-flip corpus has almost no
+# resolution at the frontier — of its 22 mutants, 15 are caught by EVERY strong model, 6 by NONE,
+# and exactly 1 discriminates. Frontier tiers (claude-code/*, top OR models) therefore tie at the
+# same score regardless of capability. These items target the band a stronger reviewer separates
+# on: stateful traces, stdlib semantics (sort stability, OrderedDict, setdefault), contract-vs-code
+# reading, and placement bugs — not "spot the flipped operator in five lines".
+#
+# Soundness rules (each one is a lesson bought this week — see LESSONS_LEARNT 82 + the equivalent-
+# mutant incident):
+#   * Every buggy/clean pair differs on EXACTLY ONE line (rstrip-compared, so an indent-placement
+#     bug counts) — build_hard_corpus() derives truth_line from that diff and fails loud otherwise.
+#   * Every bug is KILL-PROVEN: `probes` are concrete inputs on which buggy != clean, executed by
+#     tests (test_microbench_review.py) — never certified by eye.
+#   * Ground truth is OBJECTIVE: each function's docstring states its contract; the bug violates
+#     the docstring, so "is this a bug?" never depends on the reviewer guessing intent.
+#   * Each snippet has exactly ONE top-level function (probes call it; tests rely on it).
+#
+# --hard NEVER touches the standard corpus, model_review_metrics, model_task_baseline, or the
+# flywheel — it persists to its own table (model_review_hard_metrics) so the established 61-model
+# baseline stays untouched and comparable.
+# =================================================================================================
+
+HARD_CASES: list[dict] = [
+    {
+        "name": "batch_records",
+        "clean": '''\
+def batch_records(records, size):
+    """Group records into consecutive batches of `size`, preserving order.
+    The final PARTIAL batch (fewer than `size` records) is included too."""
+    batches = []
+    batch = []
+    for r in records:
+        batch.append(r)
+        if len(batch) == size:
+            batches.append(batch)
+            batch = []
+    if batch:
+        batches.append(batch)
+    return batches
+''',
+        "buggy": '''\
+def batch_records(records, size):
+    """Group records into consecutive batches of `size`, preserving order.
+    The final PARTIAL batch (fewer than `size` records) is included too."""
+    batches = []
+    batch = []
+    for r in records:
+        batch.append(r)
+        if len(batch) == size:
+            batches.append(batch)
+            batch = []
+    if batches:
+        batches.append(batch)
+    return batches
+''',
+        "probes": [([1, 2], 5), ([1, 2, 3], 3), ([1, 2, 3, 4], 3)],
+    },
+    {
+        "name": "max_window_sum",
+        "clean": '''\
+def max_window_sum(xs, k):
+    """Maximum sum over any contiguous window of EXACTLY k elements.
+    xs always has at least k elements; values may be negative."""
+    cur = sum(xs[:k])
+    best = cur
+    for i in range(k, len(xs)):
+        cur += xs[i] - xs[i - k]
+        if cur > best:
+            best = cur
+    return best
+''',
+        "buggy": '''\
+def max_window_sum(xs, k):
+    """Maximum sum over any contiguous window of EXACTLY k elements.
+    xs always has at least k elements; values may be negative."""
+    cur = sum(xs[:k])
+    best = 0
+    for i in range(k, len(xs)):
+        cur += xs[i] - xs[i - k]
+        if cur > best:
+            best = cur
+    return best
+''',
+        "probes": [([-3, -1, -2], 2), ([9, 1, 1], 2), ([1, 2, 3], 2)],
+    },
+    {
+        "name": "merge_intervals",
+        "clean": '''\
+def merge_intervals(intervals):
+    """Merge overlapping (start, end) intervals, start <= end. Intervals that
+    merely TOUCH (one's end == the next one's start) merge as well."""
+    ordered = sorted(intervals)
+    merged = [list(ordered[0])]
+    for start, end in ordered[1:]:
+        if start <= merged[-1][1]:
+            if end > merged[-1][1]:
+                merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    return [tuple(pair) for pair in merged]
+''',
+        "buggy": '''\
+def merge_intervals(intervals):
+    """Merge overlapping (start, end) intervals, start <= end. Intervals that
+    merely TOUCH (one's end == the next one's start) merge as well."""
+    ordered = sorted(intervals)
+    merged = [list(ordered[0])]
+    for start, end in ordered[1:]:
+        if start < merged[-1][1]:
+            if end > merged[-1][1]:
+                merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    return [tuple(pair) for pair in merged]
+''',
+        "probes": [([(1, 3), (3, 5)],), ([(1, 4), (2, 6)],), ([(1, 2), (5, 6)],)],
+    },
+    {
+        "name": "try_consume",
+        "clean": '''\
+def try_consume(tokens, capacity, elapsed_s, rate_per_s, cost):
+    """Refill a token bucket, then try to spend `cost` tokens. Refill adds
+    elapsed_s * rate_per_s tokens, capped at `capacity`. If the refilled balance
+    COVERS the cost (balance >= cost), consume it and return (True, remaining);
+    otherwise consume nothing and return (False, refilled_balance)."""
+    refilled = tokens + elapsed_s * rate_per_s
+    if refilled > capacity:
+        refilled = capacity
+    if refilled >= cost:
+        return (True, refilled - cost)
+    return (False, refilled)
+''',
+        "buggy": '''\
+def try_consume(tokens, capacity, elapsed_s, rate_per_s, cost):
+    """Refill a token bucket, then try to spend `cost` tokens. Refill adds
+    elapsed_s * rate_per_s tokens, capped at `capacity`. If the refilled balance
+    COVERS the cost (balance >= cost), consume it and return (True, remaining);
+    otherwise consume nothing and return (False, refilled_balance)."""
+    refilled = tokens + elapsed_s * rate_per_s
+    if refilled > capacity:
+        refilled = capacity
+    if refilled > cost:
+        return (True, refilled - cost)
+    return (False, refilled)
+''',
+        "probes": [(0, 10, 5, 1, 5), (0, 10, 20, 1, 3), (2, 10, 1, 1, 9)],
+    },
+    {
+        "name": "top_n",
+        "clean": '''\
+def top_n(scored, n):
+    """Return the n highest-scoring (score, name) pairs, highest score first.
+    Pairs with EQUAL scores keep their original relative order from `scored`
+    (i.e. the ranking is stable)."""
+    ranked = sorted(scored, key=lambda pair: -pair[0])
+    return ranked[:n]
+''',
+        "buggy": '''\
+def top_n(scored, n):
+    """Return the n highest-scoring (score, name) pairs, highest score first.
+    Pairs with EQUAL scores keep their original relative order from `scored`
+    (i.e. the ranking is stable)."""
+    ranked = sorted(scored, key=lambda pair: (-pair[0], pair[1]))
+    return ranked[:n]
+''',
+        "probes": [
+            ([(5, "b"), (5, "a")], 2),
+            ([(3, "x"), (7, "y")], 1),
+            ([(2, "z"), (2, "y"), (9, "a")], 3),
+        ],
+    },
+    {
+        "name": "lru_trace",
+        "clean": '''\
+def lru_trace(capacity, ops):
+    """Simulate an LRU cache of the given capacity over `ops`; return
+    (get_results, final_keys_oldest_first). Each op is ("put", key, value) or
+    ("get", key). A GET on a present key returns its value and marks that key
+    the MOST recently used; a miss returns None. A put that exceeds capacity
+    evicts the LEAST recently used key."""
+    from collections import OrderedDict
+    cache = OrderedDict()
+    results = []
+    for op in ops:
+        if op[0] == "put":
+            _, key, value = op
+            if key in cache:
+                cache.move_to_end(key)
+            cache[key] = value
+            if len(cache) > capacity:
+                cache.popitem(last=False)
+        else:
+            _, key = op
+            if key in cache:
+                cache.move_to_end(key)
+                results.append(cache[key])
+            else:
+                results.append(None)
+    return (results, list(cache))
+''',
+        "buggy": '''\
+def lru_trace(capacity, ops):
+    """Simulate an LRU cache of the given capacity over `ops`; return
+    (get_results, final_keys_oldest_first). Each op is ("put", key, value) or
+    ("get", key). A GET on a present key returns its value and marks that key
+    the MOST recently used; a miss returns None. A put that exceeds capacity
+    evicts the LEAST recently used key."""
+    from collections import OrderedDict
+    cache = OrderedDict()
+    results = []
+    for op in ops:
+        if op[0] == "put":
+            _, key, value = op
+            if key in cache:
+                cache.move_to_end(key)
+            cache[key] = value
+            if len(cache) > capacity:
+                cache.popitem(last=False)
+        else:
+            _, key = op
+            if key in cache:
+                cache.move_to_end(key, last=False)
+                results.append(cache[key])
+            else:
+                results.append(None)
+    return (results, list(cache))
+''',
+        "probes": [
+            (
+                2,
+                [
+                    ("put", "a", 1),
+                    ("put", "b", 2),
+                    ("get", "a"),
+                    ("put", "c", 3),
+                    ("get", "a"),
+                    ("get", "b"),
+                    ("get", "c"),
+                ],
+            ),
+        ],
+    },
+    {
+        "name": "p95",
+        "clean": '''\
+def p95(sorted_vals):
+    """95th percentile of a non-empty ASCENDING-sorted list, by the nearest-rank
+    method: the value at 1-based rank ceil(0.95 * n), never below rank 1."""
+    import math
+    n = len(sorted_vals)
+    rank = math.ceil(0.95 * n)
+    if rank < 1:
+        rank = 1
+    return sorted_vals[rank - 1]
+''',
+        "buggy": '''\
+def p95(sorted_vals):
+    """95th percentile of a non-empty ASCENDING-sorted list, by the nearest-rank
+    method: the value at 1-based rank ceil(0.95 * n), never below rank 1."""
+    import math
+    n = len(sorted_vals)
+    rank = int(0.95 * n)
+    if rank < 1:
+        rank = 1
+    return sorted_vals[rank - 1]
+''',
+        "probes": [(list(range(1, 11)),), (list(range(1, 21)),), ([7],)],
+    },
+    {
+        "name": "latest_by_key",
+        "clean": '''\
+def latest_by_key(pairs):
+    """Collapse (key, value) pairs into a dict mapping each key to its LATEST
+    value (the last occurrence in `pairs` wins). Keys keep the order of their
+    first appearance."""
+    latest = {}
+    for key, value in pairs:
+        latest[key] = value
+    return latest
+''',
+        "buggy": '''\
+def latest_by_key(pairs):
+    """Collapse (key, value) pairs into a dict mapping each key to its LATEST
+    value (the last occurrence in `pairs` wins). Keys keep the order of their
+    first appearance."""
+    latest = {}
+    for key, value in pairs:
+        latest.setdefault(key, value)
+    return latest
+''',
+        "probes": [([("a", 1), ("b", 2), ("a", 3)],), ([("x", 9)],)],
+    },
+    {
+        "name": "get_setting",
+        "clean": '''\
+def get_setting(config, key, default):
+    """Return the stored value for `key` — INCLUDING falsy stored values such
+    as 0, "" or False. Only a genuinely MISSING key falls back to `default`."""
+    if key in config:
+        return config[key]
+    return default
+''',
+        "buggy": '''\
+def get_setting(config, key, default):
+    """Return the stored value for `key` — INCLUDING falsy stored values such
+    as 0, "" or False. Only a genuinely MISSING key falls back to `default`."""
+    if key in config:
+        return config[key] or default
+    return default
+''',
+        "probes": [({"a": 0}, "a", 42), ({"a": 7}, "a", 42), ({}, "a", 42)],
+    },
+    {
+        "name": "throttle",
+        "clean": '''\
+def throttle(times, window):
+    """Filter ascending event timestamps: an event is KEPT iff it is at least
+    `window` seconds after the most recent KEPT event. The first event is
+    always kept. Dropped events do NOT reset the window."""
+    kept = [times[0]]
+    last_kept = times[0]
+    for t in times[1:]:
+        if t - last_kept >= window:
+            kept.append(t)
+            last_kept = t
+    return kept
+''',
+        "buggy": '''\
+def throttle(times, window):
+    """Filter ascending event timestamps: an event is KEPT iff it is at least
+    `window` seconds after the most recent KEPT event. The first event is
+    always kept. Dropped events do NOT reset the window."""
+    kept = [times[0]]
+    last_kept = times[0]
+    for t in times[1:]:
+        if t - last_kept >= window:
+            kept.append(t)
+        last_kept = t
+    return kept
+''',
+        "probes": [([0, 5, 10], 8), ([0, 10, 20], 8), ([0, 1, 2, 3], 10)],
+    },
+]
+
+HARD_TABLE = "model_review_hard_metrics"
+# The ONLY tables persist_metrics/_measured_review_models may touch. Their SQL interpolates the table
+# name (sqlite can't parametrize identifiers), so membership here is ENFORCED at the top of both
+# functions — the "internal allowlist" is a real check, not a comment (review finding, 2026-07-23).
+_METRICS_TABLES = frozenset({"model_review_metrics", HARD_TABLE})
+
+
+def _hard_truth_line(clean: str, buggy: str) -> int:
+    """The single line (1-based) where buggy differs from clean — rstrip-compared, so a placement
+    (indent) bug counts as the changed line. Raises if the pair isn't an exactly-one-line diff:
+    a mislabeled item must never ship (the ground truth IS this diff)."""
+    c_lines, b_lines = clean.splitlines(), buggy.splitlines()
+    if len(c_lines) != len(b_lines):
+        raise ValueError("hard case clean/buggy line counts differ — cannot derive truth_line")
+    diffs = [
+        i + 1
+        for i, (a, b) in enumerate(zip(c_lines, b_lines, strict=True))
+        if a.rstrip() != b.rstrip()
+    ]
+    if len(diffs) != 1:
+        raise ValueError(f"hard case must differ on exactly one line, got {diffs}")
+    return diffs[0]
+
+
+def _kill_proven(case: dict) -> bool:
+    """True iff at least one probe input produces a DIFFERENT outcome from buggy vs clean.
+
+    Runtime enforcement of the corpus's core soundness property — an unkillable item (the defect
+    class that invalidated the operator-flip corpus) must never be DISPATCHED, not merely fail a
+    test that may not have run. Cases are small pure functions; executing every probe costs ms."""
+    import ast as _ast
+
+    def _fn(src: str):
+        tree = _ast.parse(src)
+        fns = [n for n in tree.body if isinstance(n, _ast.FunctionDef)]
+        if len(fns) != 1:  # fail loud with the module's own contract message, not a bare IndexError
+            raise ValueError(
+                f"hard case snippet must define exactly ONE top-level function, got {len(fns)}"
+            )
+        ns: dict = {}
+        exec(compile(src, "<hard-case>", "exec"), ns)  # noqa: S102 — fixed in-repo corpus source
+        return ns[fns[0].name]
+
+    clean_fn, buggy_fn = _fn(case["clean"]), _fn(case["buggy"])
+    for args in case["probes"]:
+        try:
+            c = ("OK", clean_fn(*args))
+        except Exception as e:  # noqa: BLE001 — outcome comparison
+            c = ("EXC", type(e).__name__)
+        try:
+            b = ("OK", buggy_fn(*args))
+        except Exception as e:  # noqa: BLE001
+            b = ("EXC", type(e).__name__)
+        if c != b:
+            return True
+    return False
+
+
+def build_hard_corpus() -> list[Item]:
+    """10 hand-planted single-line bugs + 10 clean controls (the fixed versions, same formatting —
+    no reformatting tell). truth_line is DERIVED from the clean/buggy diff, never hand-labeled,
+    and every case's killability is EXECUTED at build (fail loud, never ship an unkillable item)."""
+    items: list[Item] = []
+    for case in HARD_CASES:
+        if not _kill_proven(case):
+            raise ValueError(
+                f"hard case {case['name']!r} is not kill-proven: no probe distinguishes buggy "
+                "from clean — an unkillable item must never be dispatched"
+            )
+        line = _hard_truth_line(case["clean"], case["buggy"])
+        items.append(
+            Item(
+                item_id=f"hard:{case['name']}:{line}",
+                victim=case["name"],
+                numbered_code=_number(case["buggy"]),
+                truth_line=line,
+                operator="hand-planted",
+            )
+        )
+        items.append(
+            Item(
+                item_id=f"hard:{case['name']}:clean",
+                victim=case["name"],
+                numbered_code=_number(case["clean"]),
+                truth_line=None,
+                operator=None,
+            )
+        )
+    return items
+
+
+# =================================================================================================
 # 2. DISPATCH via the existing pool + 3. GRADE
 # =================================================================================================
+
+_TASK_HARD = (
+    "You are a code reviewer. The snippet below has line numbers prefixed as `N: `.\n"
+    "The function's docstring states its intended CONTRACT. The implementation may contain\n"
+    "AT MOST ONE single-line logic bug that makes it violate that contract, or none.\n"
+    'Return ONLY a JSON array of objects {{"line": <int>, "bug": "<short>"}} for lines you\n'
+    "believe are buggy. If the code is correct, return exactly []. No prose, JSON only.\n\n"
+    "```python\n{code}\n```"
+)
+
+
+def _task_for(it: Item) -> str:
+    """Per-item prompt: hard items describe a docstring-contract logic bug, standard items an
+    operator flip. Same JSON answer contract either way — grade() is corpus-agnostic."""
+    # getattr: dispatch tests use minimal duck-typed Item stubs that may omit item_id.
+    tmpl = _TASK_HARD if getattr(it, "item_id", "").startswith("hard:") else _TASK
+    return tmpl.format(code=it.numbered_code)
+
 
 _TASK = (
     "You are a code reviewer. The snippet below has line numbers prefixed as `N: `.\n"
@@ -450,7 +820,7 @@ def run(models: list[str], corpus: list[Item], cost_cap: float, concurrency: int
         for it in corpus:
             specs.append(
                 AgentSpec(
-                    task=_TASK.format(code=it.numbered_code),
+                    task=_task_for(it),
                     model=model,
                     system=sys_prompt,
                     task_type="review",
@@ -666,7 +1036,7 @@ def run_direct(models, corpus, max_tokens: int, concurrency: int, timeout: float
     specs, meta, tasks = [], [], []
     for model in models:
         for it in corpus:
-            task = f"{sys_prompt}\n\n{_TASK.format(code=it.numbered_code)}"
+            task = f"{sys_prompt}\n\n{_task_for(it)}"
             specs.append(AgentSpec(task=task, model=model, task_type="review"))
             meta.append((model, it))
             tasks.append((model, task))
@@ -837,22 +1207,29 @@ def report(scores: dict[str, ModelScore]) -> None:
     )
 
 
-def _measured_review_models(db_path: Path = DB_PATH) -> set[str]:
-    """Models already measured TODAY in model_review_metrics — for RESUME (skip re-dispatching/paying
-    for a model whose score already landed). Mirrors microbench_coding_direct._measured_models; review
-    has no versioned corpus window (a fixed mutation-testing corpus), so "already measured" = built_at
-    == today. Fail-soft empty set if the table doesn't exist yet (first-ever run)."""
+def _measured_review_models(
+    db_path: Path = DB_PATH, table: str = "model_review_metrics"
+) -> set[str]:
+    """Models already measured TODAY in the given metrics table — for RESUME (skip re-dispatching/
+    paying for a model whose score already landed). Mirrors microbench_coding_direct._measured_models;
+    review has no versioned corpus window (a fixed corpus per table), so "already measured" = built_at
+    == today. `table` separates the standard corpus (model_review_metrics) from --hard (HARD_TABLE) —
+    a hard run must never be resume-skipped because the STANDARD run already measured that model today.
+    Fail-soft empty set if the table doesn't exist yet (first-ever run)."""
+    if table not in _METRICS_TABLES:  # enforced allowlist — the f-string SQL below interpolates it
+        raise ValueError(f"unknown metrics table {table!r}; allowed: {sorted(_METRICS_TABLES)}")
     conn = sqlite3.connect(db_path)
     try:
         if not conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='model_review_metrics'"
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
         ).fetchone():
             return set()
         today = date.today().isoformat()
         return {
             r[0]
             for r in conn.execute(
-                "SELECT DISTINCT model_id FROM model_review_metrics WHERE built_at=?", (today,)
+                f"SELECT DISTINCT model_id FROM {table} WHERE built_at=?",
+                (today,),  # noqa: S608 — table from a fixed internal allowlist, never user input
             ).fetchall()
         }
     finally:
@@ -872,14 +1249,19 @@ def _amortized_cost_for(s: ModelScore) -> float:
     return derive_cost.amortized_cost(usage)
 
 
-def persist_metrics(scores: dict[str, ModelScore]) -> Path:
-    """Durably store ALL three metric families (model_task_baseline holds only the correctness prior)."""
+def persist_metrics(scores: dict[str, ModelScore], table: str = "model_review_metrics") -> Path:
+    """Durably store ALL three metric families (model_task_baseline holds only the correctness prior).
+
+    `table` routes --hard runs to their own table (HARD_TABLE) so the standard 61-model baseline in
+    model_review_metrics is never mixed with hard-corpus rows (different corpus => not comparable)."""
+    if table not in _METRICS_TABLES:  # enforced allowlist — the f-string SQL below interpolates it
+        raise ValueError(f"unknown metrics table {table!r}; allowed: {sorted(_METRICS_TABLES)}")
     ensure_table(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
     today = date.today().isoformat()
     try:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS model_review_metrics (
+        conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table} (
                 model_id TEXT NOT NULL, score5 REAL, grade TEXT, recall REAL, precision REAL,
                 out_price_mtok REAL, cost_usd REAL, cost_per_1k REAL, p50_latency_s REAL,
                 tokens_per_s REAL, n_mut INTEGER, n_ctrl INTEGER, built_at TEXT,
@@ -888,11 +1270,11 @@ def persist_metrics(scores: dict[str, ModelScore]) -> Path:
         # Migration: raw per-type tokens (claude-code/* only) — needed for ② (derive_cost.amortized_cost),
         # a REAL subscription-derived $, distinct from ① (the list-price valuation already in cost_usd).
         # ALTER, not a schema rewrite — the table may already hold rows from before this column existed.
-        existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(model_review_metrics)")}
+        existing_cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         for col in ("in_tokens", "out_tokens_total", "cache_read_tokens", "cache_creation_tokens"):
             if col not in existing_cols:
                 try:
-                    conn.execute(f"ALTER TABLE model_review_metrics ADD COLUMN {col} INTEGER")
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} INTEGER")
                 except sqlite3.OperationalError as e:
                     # PRAGMA-check-then-ALTER isn't atomic: two genuinely-simultaneous invocations
                     # could both see the column missing and both ALTER — the second hits "duplicate
@@ -904,7 +1286,7 @@ def persist_metrics(scores: dict[str, ModelScore]) -> Path:
             if not s.is_measured:
                 continue
             conn.execute(
-                "INSERT OR REPLACE INTO model_review_metrics "
+                f"INSERT OR REPLACE INTO {table} "  # noqa: S608 — table from a fixed internal allowlist, never user input
                 "(model_id, score5, grade, recall, precision, out_price_mtok, cost_usd, cost_per_1k, "
                 "p50_latency_s, tokens_per_s, n_mut, n_ctrl, built_at, "
                 "in_tokens, out_tokens_total, cache_read_tokens, cache_creation_tokens) "
@@ -932,7 +1314,8 @@ def persist_metrics(scores: dict[str, ModelScore]) -> Path:
         conn.commit()
     finally:
         conn.close()
-    art = Path(__file__).parent / f".microbench_cache/review_metrics_{today}.json"
+    stem = "review_hard_metrics" if table == HARD_TABLE else "review_metrics"
+    art = Path(__file__).parent / f".microbench_cache/{stem}_{today}.json"
     art.parent.mkdir(exist_ok=True)
     art.write_text(
         json.dumps(
@@ -1043,22 +1426,60 @@ def main(argv: list[str] | None = None) -> int:
         "whose score already landed, e.g. after a quota-hit mid-run; safe because this harness is "
         "operator-triggered only, never in daily_refresh.sh)",
     )
+    p.add_argument(
+        "--hard",
+        action="store_true",
+        help="use the HARD corpus (10 hand-planted subtle logic bugs + 10 clean controls, "
+        "kill-proven by differential tests) instead of the operator-flip corpus. Persists to "
+        f"{HARD_TABLE} ONLY — never touches model_review_metrics, model_task_baseline, or the "
+        "flywheel, so the established standard-corpus baseline stays untouched and comparable. "
+        "A diagnostic instrument for separating frontier models the standard corpus ties.",
+    )
     args = p.parse_args(argv)
 
     if args.report:
+        if args.hard:
+            # fail loud: report_stored() reads ONLY the standard tables (model_review_metrics /
+            # model_task_baseline) — silently printing standard-corpus numbers for a --hard ask
+            # would misrepresent which corpus they came from. Hard results render in
+            # rank_task_subagents' TASK_SUBAGENT_SELECTION.md hard table.
+            p.error(
+                "--report does not support --hard (it reads the standard tables only); "
+                "hard results render in docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+            )
         report_stored()
         return 0
 
-    corpus = build_corpus()
+    # `--models` with ZERO values ([] is falsy) must NOT silently fall through to the full
+    # pick_models pool — an explicit-but-empty list dispatches nothing, not 24 models.
+    def _models_or_pool(n: int) -> list[str]:
+        return args.models if args.models is not None else pick_models("review", n=n)
 
-    if args.smoke:
-        models = args.models or pick_models("review", n=2)
-        corpus = [i for i in corpus if i.victim in ("binary_search", "is_expired")]  # small slice
+    if args.hard:
+        if args.smoke:
+            # fail loud, not expensive: silently ignoring --smoke here would dispatch the FULL
+            # pool (n=24) x 20 items = 480 live calls when the operator asked for a cheap slice.
+            p.error("--smoke does not apply to --hard (different corpus); use --models to narrow")
+        corpus = build_hard_corpus()
+        models = _models_or_pool(args.n)
     else:
-        models = args.models or pick_models("review", n=args.n)
+        corpus = build_corpus()
+        if args.smoke:
+            models = _models_or_pool(2)
+            corpus = [
+                i for i in corpus if i.victim in ("binary_search", "is_expired")
+            ]  # small slice
+        else:
+            models = _models_or_pool(args.n)
+    if not models:
+        print(
+            "[review-bench] --models given with no values — nothing to dispatch.", file=sys.stderr
+        )
+        return 0
 
+    metrics_table = HARD_TABLE if args.hard else "model_review_metrics"
     if not args.fresh:
-        done = _measured_review_models()
+        done = _measured_review_models(table=metrics_table)
         skip = [m for m in models if m in done]
         if skip:
             models = [m for m in models if m not in done]
@@ -1074,7 +1495,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
-    mode = "DIRECT-OR" if args.direct else "pool"
+    mode = ("HARD:" if args.hard else "") + ("DIRECT-OR" if args.direct else "pool")
     print(
         f"[review-bench:{mode}] {len(models)} models x {len(corpus)} items "
         f"({sum(1 for i in corpus if i.truth_line is not None)} mutants + "
@@ -1091,14 +1512,25 @@ def main(argv: list[str] | None = None) -> int:
     report(scores)
 
     if args.persist or args.all:
-        n = persist(scores)
-        art = persist_metrics(scores)
-        fw = record_flywheel(rows)
-        print(
-            f"\n[review-bench] persisted {n} correctness priors -> model_task_baseline(review); "
-            f"cost+speed -> model_review_metrics + {art.name}; {fw} flywheel rows",
-            file=sys.stderr,
-        )
+        if args.hard:
+            # HARD mode is a diagnostic: metrics table only. Never the routing prior
+            # (model_task_baseline) and never the flywheel — different corpus, not comparable
+            # with (and must not contaminate) anything the standard corpus feeds.
+            art = persist_metrics(scores, table=HARD_TABLE)
+            print(
+                f"\n[review-bench] HARD corpus: persisted cost+speed+correctness -> {HARD_TABLE} + "
+                f"{art.name}; baseline prior + flywheel SKIPPED by design (diagnostic, non-routing)",
+                file=sys.stderr,
+            )
+        else:
+            n = persist(scores)
+            art = persist_metrics(scores)
+            fw = record_flywheel(rows)
+            print(
+                f"\n[review-bench] persisted {n} correctness priors -> model_task_baseline(review); "
+                f"cost+speed -> model_review_metrics + {art.name}; {fw} flywheel rows",
+                file=sys.stderr,
+            )
     else:
         print(
             "\n[review-bench] dry (no persist) — add --persist to write the prior + flywheel",

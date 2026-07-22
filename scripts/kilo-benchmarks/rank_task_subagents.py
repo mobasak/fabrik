@@ -458,6 +458,13 @@ _CLAUDE_P_RETEST_NOTICE = [
     "item flipping correct/incorrect across calls on identical input), so a batched run is not a sound "
     "basis for ranking. The corpus itself is UNCHANGED and remains byte-identical to the one all 57 "
     "OpenRouter models were measured against — those rows are unaffected and stay valid._",
+    "",
+    "_**Resolution caveat (per-item probing, 2026-07-23):** of this corpus's 22 mutants, 15 are "
+    "caught by every strong model and 6 by none — exactly 1 item discriminates at the frontier, so "
+    "near-identical scores among top models here reflect the INSTRUMENT's ceiling, not equal "
+    "capability. For separating frontier models use the HARD corpus (`microbench_review.py --hard` "
+    "→ its own table below): 10 hand-planted subtle logic bugs, kill-proven by differential tests, "
+    "persisted separately and never touching this baseline or routing._",
 ]
 
 
@@ -599,6 +606,106 @@ def _full_review_results_table() -> list[str]:
             f"| `{model}` | {grade or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(prec, '.2f')} | "
             f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {amort} | {_n(p50, '.1f')} | "
             f"{_n(tps, '.0f')} | {nmut if nmut is not None else '—'} | {nctrl if nctrl is not None else '—'} | {elig} |"
+        )
+    return out
+
+
+def _full_review_hard_results_table() -> list[str]:
+    """HARD-corpus review leaderboard (model_review_hard_metrics) — a DIAGNOSTIC instrument, never
+    a routing source. Separate table + section because the hard corpus (10 hand-planted subtle
+    logic bugs + 10 clean controls, kill-proven by differential tests) is a different, harder test
+    than the operator-flip corpus above: scores are NOT comparable across the two. Exists because
+    per-item probing proved the standard corpus ties frontier models (21 of its 22 mutants return
+    the identical verdict from every strong model). Empty list until a --hard run persists."""
+    import sqlite3
+
+    db_path = Path(__file__).resolve().parent / "kilo_agents.db"
+
+    def _n(v: object, spec: str, pre: str = "") -> str:
+        try:
+            return f"{pre}{format(v, spec)}" if v is not None else "—"
+        except Exception:
+            return "—"
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            if not conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='model_review_hard_metrics'"
+            ).fetchone():
+                return []
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(model_review_hard_metrics)")}
+            token_cols = (
+                "in_tokens",
+                "out_tokens_total",
+                "cache_read_tokens",
+                "cache_creation_tokens",
+            )
+            token_select = ", ".join(f"m.{c}" if c in cols else f"NULL AS {c}" for c in token_cols)
+            rows = conn.execute(
+                "SELECT m.model_id, m.grade, m.score5, m.recall, m.precision, m.cost_per_1k, "
+                f"m.out_price_mtok, m.cost_usd, m.p50_latency_s, m.tokens_per_s, m.n_mut, m.n_ctrl, "
+                f"{token_select} "
+                "FROM model_review_hard_metrics m JOIN (SELECT model_id, MAX(built_at) mb "
+                "FROM model_review_hard_metrics GROUP BY model_id) t "
+                "ON m.model_id=t.model_id AND m.built_at=t.mb ORDER BY m.score5 DESC"
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return []
+    if not rows:
+        return []
+    out = [
+        "",
+        "## HARD review benchmark — hand-planted subtle logic bugs (diagnostic only; NOT comparable "
+        "with the table above, never parsed for routing)",
+        "_source: `microbench_review.py --hard` → `model_review_hard_metrics`. 10 hand-planted "
+        "single-line logic bugs in realistic functions (stateful traces, stdlib semantics, "
+        "contract-vs-code, placement bugs — every bug kill-proven by differential execution, every "
+        "ground truth derived from a docstring contract) + 10 clean controls. Built to separate "
+        "frontier models the operator-flip corpus ties. No eligibility gate — this table ranks, it "
+        "does not route._",
+        *_claude_p_preamble(),
+        "| model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl |",
+        "|---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|",
+    ]
+    for (
+        model,
+        grade,
+        s5,
+        rec,
+        prec,
+        c1k,
+        opm,
+        cusd,
+        p50,
+        tps,
+        nmut,
+        nctrl,
+        intok,
+        outtok,
+        crtok,
+        cctok,
+    ) in rows:
+        amort = "—"
+        if model.startswith("claude-code/") and None not in (intok, outtok, crtok, cctok):
+            try:
+                import derive_cost
+
+                usage = {
+                    "input_tokens": intok,
+                    "output_tokens": outtok,
+                    "cache_read_input_tokens": crtok,
+                    "cache_creation_input_tokens": cctok,
+                }
+                amort = f"${derive_cost.amortized_cost(usage):.6f}"
+            except Exception:
+                amort = "—"
+        out.append(
+            f"| `{model}` | {grade or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(prec, '.2f')} | "
+            f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {amort} | {_n(p50, '.1f')} | "
+            f"{_n(tps, '.0f')} | {nmut if nmut is not None else '—'} | {nctrl if nctrl is not None else '—'} |"
         )
     return out
 
@@ -1240,6 +1347,7 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     # These read the real kilo_agents.db — gated off in unit tests that assert on synthetic `rows`.
     if include_full_results:
         out.extend(_full_review_results_table())
+        out.extend(_full_review_hard_results_table())
         out.extend(_full_coding_results_table())
         for _jt in ("research", "docs", "plan", "spec"):
             out.extend(_full_judged_results_table(_jt))

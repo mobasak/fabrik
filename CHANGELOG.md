@@ -4,38 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — review benchmark corpus shipped 4 UNKILLABLE (equivalent) mutants, compressing every model's score (2026-07-22)
+### Added — HARD review corpus (`microbench_review.py --hard`): 10 hand-planted subtle logic bugs that actually separate frontier models (2026-07-23)
 
-`microbench_review.py`'s AST mutator flips one operator per mutant, but 4 of its 22 flips produced a
-mutant **semantically identical to the original** — verified exhaustively, zero differences across
-every input tested: `binary_search:7` (`<`→`<=`; line 5 already returned on `==`, so `items[mid] !=
-target` is an invariant here — 3,600 combinations, 0 diffs), `page_offset:2` (`<`→`<=`; both assign
-`page = 1` — 625, 0 diffs), `retry_backoff:3` (`>`→`>=`; assigns `cap` to itself — 15,625, 0 diffs),
-`clamp:4` (`>`→`>=`; both return `high` at equality — 15,625, 0 diffs). A reviewer that correctly
-answered "no bug" was scored a MISS on all four, docking **every** model the same points — which is
-what compressed all four `claude-code/*` tiers to an identical `recall=0.6818 / score5=4.054`.
-Proven live: 20/20 repeated trials per model returned "no bug" from all 4 tiers on each, while a
-genuinely hard item (`is_expired:2`) cleanly separated them (haiku 4/5 · sonnet 0/5 · opus 0/5 ·
-fable 0/5).
-
-`build_corpus()` now differential-tests each mutant against its original over a per-victim input
-domain (a non-terminating mutant counts as diverged via a 0.25s per-call alarm) and drops any mutant
-with no observable difference — corpus 22+8 → **18 mutants + 8 controls**. Fail-open by design: a
-victim with no declared domain keeps its mutants rather than being silently dropped.
-
-⚠️ **Domain soundness is load-bearing.** A domain that only exercises the sane precondition can miss a
-flip that diverges solely on a degenerate one, and would then wrongly certify a killable mutant as
-equivalent. Real near-miss caught during review: `clamp:2` (`<`→`<=`) is identical for every VALID
-range (`low <= high`) and differs only when `low > high` at `value == low`; the first domain used
-`low ∈ (0,5)` / `high ∈ (5,10)` so `low > high` never occurred and the mutant was wrongly filtered.
-The clamp domain now covers inverted ranges and `clamp:2` is correctly KEPT as killable, with a test
-asserting the domain still reaches that case. +4 tests (no equivalent mutant survives the build · the
-checker positively detects an unconditionally-equivalent fixture · a real bug is NOT filtered · the
-domain covers contract-violating ranges).
-
-⚠️ Every existing `model_review_metrics` row (all 57 OpenRouter models + the 4 claude tiers, confirmed
-`n_mut=22` in the DB) was measured on the contaminated corpus and understates recall — a full re-score
-is required before those numbers are trusted.
+Per-item probing proved the operator-flip review corpus has almost no resolution at the frontier: of
+its 22 mutants, 15 are caught by EVERY strong model, 6 by NONE, and exactly 1 discriminates — so
+frontier tiers (claude-code/*, top OR models) tie at the same score regardless of capability. The new
+`--hard` mode uses `HARD_CASES`: 10 hand-planted single-line logic bugs in realistic functions
+(stateful traces, stdlib semantics — sort stability, OrderedDict LRU, `setdefault`; contract-vs-code
+reading; a placement/indent bug) each paired with its clean version as a control (10+10 items).
+Soundness is enforced mechanically, not by eye — every lesson from the equivalent-mutant incident:
+each buggy/clean pair differs on EXACTLY ONE rstrip-compared line (truth_line is DERIVED from that
+diff, `_hard_truth_line` fails loud otherwise); every bug is KILL-PROVEN by differential execution on
+concrete probe inputs (test-enforced); ground truth is a docstring contract the bug violates, so "is
+this a bug?" never depends on guessing intent. `--hard` persists to its own `model_review_hard_metrics`
+table ONLY — never `model_review_metrics`, `model_task_baseline`, or the flywheel — so the established
+61-model standard-corpus baseline stays untouched and comparable; the resume-gate is table-scoped so a
+standard measurement today never skips a hard run. The ranker renders a separate diagnostic
+"HARD review benchmark" table (never routing) and the standard table now carries a resolution caveat.
++7 tests (kill-proof · clean-controls-run · single-line-diff/truth_line integrity · multi-line-diff
+rejection · per-item template routing · hard-table isolation + resume separation). A 3-round
+`/fabrik-review` (13 findings: 8 fixed, 5 refuted — `docs/development/reviews/2026-07-23-hard-review-
+corpus-review.md`) then hardened it further: the metrics-table allowlist is ENFORCED (ValueError on an
+unknown table, not just a comment), killability is a BUILD-time invariant (`_kill_proven` executes
+every case's probes in `build_hard_corpus`, refusing an unkillable item at runtime independent of the
+test suite), `--hard --smoke` and `--hard --report` fail loud instead of silently dispatching/
+misreporting, an explicit-but-empty `--models` dispatches nothing (was: fell through to the full
+24-model pool), and the `main()`-level `--hard` isolation guarantee got a direct test. +8 more tests.
 
 ### Fixed — coding benchmark's `--all` batch loop no longer loses a whole run to one bad batch (2026-07-22)
 

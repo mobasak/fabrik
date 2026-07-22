@@ -59,12 +59,12 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.20 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
 
-### research (n_total=189)
+### research (n_total=192)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `z-ai/glm-4.5-air` | 2.50 | 0.48 | $0.0020 | 2.50 | 2 | 21 |
-| 2 | `minimax/minimax-m3` | 2.72 | 0.52 | $0.0087 | 2.77 | 2 | 42 |
-| 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.52 | $0.0092 | 3.76 | 3 | 122 |
+| 1 | `z-ai/glm-4.5-air` | 2.50 | 0.50 | $0.0024 | 2.50 | 2 | 22 |
+| 2 | `minimax/minimax-m3` | 2.72 | 0.53 | $0.0084 | 2.77 | 2 | 43 |
+| 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.53 | $0.0091 | 3.76 | 3 | 123 |
 | 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
 
 ### review (n_total=4784)
@@ -88,6 +88,8 @@ _⚠️ **`claude-code/*` review rows — RE-TEST IN PROGRESS (operator call, 20
 _**Re-test status** — ✅ `haiku` (2026-07-22): 4.054→**4.21**, recall 68%→**73%** (15→16 of 22 caught) · ✅ `sonnet` (2026-07-23): **4.05 unchanged**, recall 68% (15 of 22) — reproduced its batched score exactly · ✅ `fable` (2026-07-23): **4.05 unchanged**, recall 68% (15 of 22) — also reproduced exactly · ⏳ `opus` — still carrying its INVALID batched score, to be re-run on operator instruction (not scheduled; do not auto-run)._
 
 _Why one-at-a-time: a single 22-item pass carries enough sampling variance to shift a tier by ~5pp of recall (haiku moved 5pp on an identical corpus; repeated-trial probing showed the same item flipping correct/incorrect across calls on identical input), so a batched run is not a sound basis for ranking. The corpus itself is UNCHANGED and remains byte-identical to the one all 57 OpenRouter models were measured against — those rows are unaffected and stay valid._
+
+_**Resolution caveat (per-item probing, 2026-07-23):** of this corpus's 22 mutants, 15 are caught by every strong model and 6 by none — exactly 1 item discriminates at the frontier, so near-identical scores among top models here reflect the INSTRUMENT's ceiling, not equal capability. For separating frontier models use the HARD corpus (`microbench_review.py --hard` → its own table below): 10 hand-planted subtle logic bugs, kill-proven by differential tests, persisted separately and never touching this baseline or routing._
 _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.006/M · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl | eligible |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
