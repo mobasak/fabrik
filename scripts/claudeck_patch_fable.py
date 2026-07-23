@@ -67,7 +67,7 @@ for P in pkgs:
     if wh.exists():
         t4 = wh.read_text(); o4 = t4
         t4 = t4.replace("    if (ws.readyState !== 1) break;",
-                        "    if (ws.readyState !== 1) { /* detached: keep consuming; results persist to DB */ }", 1)
+                        "    if (ws.readyState !== 1) { /* detached: keep consuming; results persist to DB */ }")
         t4 = t4.replace("if (wfAborted || ws.readyState !== 1) break;",
                         "if (wfAborted) break; /* disconnect no longer stops workflows */")
         t4 = t4.replace("  // Abort all active SDK streams first (they may be blocked on approval)",
