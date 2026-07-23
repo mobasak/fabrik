@@ -34,6 +34,11 @@ CURATED = {
         "4e90716e-696b-4ddf-90ab-70e30f51f294",  # fix four bugs
         "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",  # update agents.md
     },
+    "/opt/fabrik-lib": {
+        "610c3b1c-a5ef-4ba0-a662-f3f87399a58b",
+        "413b420e-3b36-4d13-b4f6-ee3f71f98de2",
+        "67ccc993-3fda-4dcd-a392-4531f01c6e5d",
+    },
     "/opt/youtube": {
         "e4578f91-6989-44f5-ac25-ec1131457c24",  # build responsive rag dashboard
         "50328fe3-24e5-489b-b2ff-74b80bc12a81",  # debug stale-charged
