@@ -60,5 +60,19 @@ for P in pkgs:
             t = t.replace('haiku: "Haiku",', f'haiku: "Haiku",\n  "{FABLE}": "Fable 5",', 1)
         t = t.replace('opus: "Opus"', 'opus: "Opus 4.8"').replace('sonnet: "Sonnet"', 'sonnet: "Sonnet 5"')
         meta.write_text(t)
+
+    # 4) Detach run lifetime from connection lifetime: runs survive hibernation,
+    #    tab close and socket drops; results persist to DB; explicit Stop still works.
+    wh = P / "server/ws-handler.js"
+    if wh.exists():
+        t4 = wh.read_text(); o4 = t4
+        t4 = t4.replace("    if (ws.readyState !== 1) break;",
+                        "    if (ws.readyState !== 1) { /* detached: keep consuming; results persist to DB */ }", 1)
+        t4 = t4.replace("if (wfAborted || ws.readyState !== 1) break;",
+                        "if (wfAborted) break; /* disconnect no longer stops workflows */")
+        t4 = t4.replace("  // Abort all active SDK streams first (they may be blocked on approval)",
+                        "  // DETACH PATCH: runs survive disconnects; explicit Stop still aborts\n  if (false)")
+        if t4 != o4:
+            wh.write_text(t4); print(f"  detach patch applied ({tag})")
     print(f"patched {tag}")
 print(f"CLI: {wrapper or 'system claude not found'}")
