@@ -37,6 +37,11 @@ if MODEL_ID not in t:
 else:
     print("index.html already patched")
 
+al = P / "server/agent-loop.js"; t2 = al.read_text()
+if "claude-opus-4-6" in t2:
+    al.write_text(t2.replace("claude-opus-4-6", "claude-opus-4-8"))
+    print("agent-loop: stale opus id fixed")
+
 meta = P / "public/js/ui/input-meta.js"
 t = meta.read_text()
 if "Fable 5" not in t:
