@@ -86,7 +86,11 @@ def main() -> int:
         if Path(cwd).name in EXCLUDE and "--include-all" not in sys.argv:
             continue
         c_ms, l_ms = _epoch_ms(first or ""), _epoch_ms(last or "")
-        name = Path(cwd).name
+        # Group by the top-level /opt entry: fabrik-lib modules, worktrees and any
+        # subdir cwd belong to their parent project, never listed as projects.
+        top = Path(*Path(cwd).parts[:3])  # /opt/<name>
+        cwd = str(top)
+        name = top.name
         cur = db.execute(
             "INSERT OR IGNORE INTO sessions (id, claude_session_id, project_name, project_path,"
             " created_at, last_used_at, title) VALUES (?,?,?,?,?,?,?)",
