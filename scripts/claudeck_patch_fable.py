@@ -45,7 +45,7 @@ for P in pkgs:
         t = html.read_text()
         if FABLE not in t:
             t = t.replace('<option value="haiku">haiku</option>',
-                          f'<option value="haiku">haiku</option>\n          <option value="{FABLE}" selected>fable 5</option>', 1)
+                          f'<option value="haiku">haiku</option>\n          <option value="{FABLE}">fable 5</option>', 1)
             t = t.replace('data-target="model-select" data-value="haiku">Haiku</button>',
                           f'data-target="model-select" data-value="haiku">Haiku</button>\n              <button class="header-submenu-item" data-target="model-select" data-value="{FABLE}">Fable 5</button>', 1)
         t = t.replace('data-value="opus">Opus<', 'data-value="opus">Opus 4.8<')
