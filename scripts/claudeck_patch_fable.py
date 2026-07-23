@@ -50,3 +50,21 @@ if "Fable 5" not in t:
     print("input-meta.js patched")
 else:
     print("input-meta.js already patched")
+
+# Wire claudeck's SDK to the SYSTEM Claude Code CLI (bundled one is ~1.0.x:
+# no plugins, no skills, missing native tools like Monitor -> API 400 on resume).
+import shutil, subprocess
+al = P / "server/agent-loop.js"; t3 = al.read_text()
+claude_bin = shutil.which("claude")
+if claude_bin:
+    real = Path(subprocess.check_output(["readlink", "-f", claude_bin], text=True).strip())
+    wrapper = real.parent.parent / "cli-wrapper.cjs"
+    if wrapper.exists():
+        w = str(wrapper)
+        if "pathToClaudeCodeExecutable" not in t3:
+            t3 = t3.replace("  const opts = {", f'  const opts = {{\n    pathToClaudeCodeExecutable: "{w}",', 1)
+            al.write_text(t3); print(f"agent-loop: system CLI wired ({w})")
+        elif w not in t3:
+            import re
+            t3 = re.sub(r'pathToClaudeCodeExecutable: "[^"]*"', f'pathToClaudeCodeExecutable: "{w}"', t3)
+            al.write_text(t3); print(f"agent-loop: system CLI path refreshed ({w})")
