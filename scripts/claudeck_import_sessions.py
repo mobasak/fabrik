@@ -63,6 +63,18 @@ def scan(p: Path):
                 t = (t or "").strip()
                 if t and not t.startswith(("<", "[", "Caveat:")):
                     user_txt = t
+    # last timestamp from the file TAIL — the head-capped scan under-reads long
+    # sessions and sinks exactly the important chats to the bottom of the list
+    try:
+        with open(p, "rb") as fb:
+            fb.seek(max(0, p.stat().st_size - 131072))
+            tail_lines = fb.read().decode(errors="replace").splitlines()
+        for line in reversed(tail_lines):
+            try: ts = json.loads(line).get("timestamp")
+            except Exception: continue
+            if ts: last = ts; break
+    except OSError:
+        pass
     title = (summary or user_txt or p.stem)[:120]
     return cwd, title, first, last
 
