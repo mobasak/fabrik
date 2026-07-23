@@ -6,28 +6,42 @@ passes unknown values through verbatim — so a full model id in the menu just w
 Patches (in the live npx cache, located dynamically): index.html submenu button +
 hidden <select> option, and input-meta.js label. Safe to run daily via startup hook.
 """
-import re, sys
+
+import sys
 from pathlib import Path
 
 MODEL_ID = "claude-fable-5[1m]"
-pkgs = sorted(Path.home().glob(".npm/_npx/*/node_modules/claudeck"), key=lambda p: p.stat().st_mtime)
+pkgs = sorted(
+    Path.home().glob(".npm/_npx/*/node_modules/claudeck"), key=lambda p: p.stat().st_mtime
+)
 if not pkgs:
-    print("claudeck package not found in npx cache"); sys.exit(0)
+    print("claudeck package not found in npx cache")
+    sys.exit(0)
 P = pkgs[-1]
 
-html = P / "public/index.html"; t = html.read_text()
+html = P / "public/index.html"
+t = html.read_text()
 if MODEL_ID not in t:
-    t = t.replace('<option value="haiku">haiku</option>',
-                  f'<option value="haiku">haiku</option>\n          <option value="{MODEL_ID}">fable 5</option>', 1)
-    t = t.replace('data-target="model-select" data-value="haiku">Haiku</button>',
-                  f'data-target="model-select" data-value="haiku">Haiku</button>\n              <button class="header-submenu-item" data-target="model-select" data-value="{MODEL_ID}">Fable 5</button>', 1)
-    html.write_text(t); print("index.html patched")
+    t = t.replace(
+        '<option value="haiku">haiku</option>',
+        f'<option value="haiku">haiku</option>\n          <option value="{MODEL_ID}">fable 5</option>',
+        1,
+    )
+    t = t.replace(
+        'data-target="model-select" data-value="haiku">Haiku</button>',
+        f'data-target="model-select" data-value="haiku">Haiku</button>\n              <button class="header-submenu-item" data-target="model-select" data-value="{MODEL_ID}">Fable 5</button>',
+        1,
+    )
+    html.write_text(t)
+    print("index.html patched")
 else:
     print("index.html already patched")
 
-meta = P / "public/js/ui/input-meta.js"; t = meta.read_text()
+meta = P / "public/js/ui/input-meta.js"
+t = meta.read_text()
 if "Fable 5" not in t:
     t = t.replace('haiku: "Haiku",', f'haiku: "Haiku",\n  "{MODEL_ID}": "Fable 5",', 1)
-    meta.write_text(t); print("input-meta.js patched")
+    meta.write_text(t)
+    print("input-meta.js patched")
 else:
     print("input-meta.js already patched")
