@@ -24,6 +24,8 @@ STORE = Path.home() / ".claude/projects"
 # Automation projects whose sessions are pipeline runs, not operator chats —
 # they flood the claudeck list. Override per-run: --include-all
 EXCLUDE = {"kilo-benchmarks", "iterative_image_editor"}
+# Batch/pipeline sessions identified by their fixed harness prompt — never list in claudeck
+EXCLUDE_TITLE_PREFIXES = ("Process a YouTube transcript",)
 
 
 def _epoch_ms(iso: str) -> int:
@@ -103,6 +105,7 @@ def main() -> int:
         top = Path(*Path(cwd).parts[:3])  # /opt/<name>
         cwd = str(top)
         name = top.name
+        if title.startswith(EXCLUDE_TITLE_PREFIXES): continue
         cur = db.execute(
             "INSERT OR IGNORE INTO sessions (id, claude_session_id, project_name, project_path,"
             " created_at, last_used_at, title) VALUES (?,?,?,?,?,?,?)",
