@@ -67,12 +67,12 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.53 | $0.0091 | 3.76 | 3 | 123 |
 | 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
 
-### review (n_total=4784)
+### review (n_total=4787)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.43 | $0.0005 | 2.95 | 3 | 126 |
+| 1 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.43 | $0.0005 | 2.95 | 3 | 128 |
 | 2 | `deepseek/deepseek-v4-flash` | 3.29 | 0.29 | $0.0007 | 3.26 | 2 | 123 |
-| 3 | `google/gemini-3-flash-preview` | 3.25 | 0.45 | $0.0020 | 3.20 | 3 | 148 |
+| 3 | `google/gemini-3-flash-preview` | 3.25 | 0.46 | $0.0021 | 3.20 | 3 | 149 |
 | 4 | `qwen/qwen3-max` | 2.75 | 0.32 | $0.0035 | 2.44 | 2 | 44 |
 
 ### spec (n_total=155)
