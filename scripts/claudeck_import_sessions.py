@@ -39,6 +39,13 @@ CURATED = {
         "413b420e-3b36-4d13-b4f6-ee3f71f98de2",
         "67ccc993-3fda-4dcd-a392-4531f01c6e5d",
     },
+    "/opt/trade-intelligence": {
+        "1991fa9b-fc01-4eba-a3b0-c5d04349c135",
+        "37887efc-b5b9-4c00-b0f9-1590ad4b58c7",
+    },
+    "/opt/brand-identiy-creator": {
+        "a79679a4-f4f1-40ac-bef6-08f216442cf2",
+    },
     "/opt/youtube": {
         "e4578f91-6989-44f5-ac25-ec1131457c24",  # build responsive rag dashboard
         "50328fe3-24e5-489b-b2ff-74b80bc12a81",  # debug stale-charged
