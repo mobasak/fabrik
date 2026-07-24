@@ -138,6 +138,8 @@ clears the bar, flag it in the Context Ledger as a **`🆕 fabrik-lib candidate`
 reusable · rough interface`) and **surface it in the plan's handoff report** ("💡 fabrik-lib candidates: …").
 Propose only — never write into `/opt/fabrik-lib` from a project (cross-repo HARD STOP); the user/hub creates it.
 
+{{include:grounding-rules}}
+
 ## Phase 1 — Ground every claim BEFORE writing (adversarial)
 
 Treat every intended step as unproven until verified against the real code/schema:

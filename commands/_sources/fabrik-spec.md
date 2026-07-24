@@ -14,6 +14,8 @@ Turn a rough idea into an **approved design spec** — *what* to build, *why*, a
 - **Have we solved this BEFORE? (episodic memory — search, don't reinvent.)** The portfolio docs list what *shipped*; they do not record what we **tried, rejected, or learned the hard way**. Search past conversations (`mcp__plugin_episodic-memory_episodic-memory__search`, or the `episodic-memory:search-conversations` agent) for the capability, the vendor, and the failure mode. Report what you found, or state plainly that you searched and found nothing. ⚠️ **A hit is a LEAD, not a citation:** any external fact inside it (pricing, limits, versions, endpoints) is stale by construction and MUST be re-grounded live in Phase 1a. What history *is* authoritative for: a decision the owner already made, an approach already rejected **and why**, and a wall we already hit. Re-deriving those is exactly the waste this check exists to prevent.
 - **EXISTING project? INHERIT, don't re-decide.** If the project already has code / users / data, its tech choices are **Locked Decisions** — locked *because* data exists, users are paying, or tokens are issued (auth, DB, frontend, billing). Read them from the codebase (+ `docs/data-contract.md` / `docs/ui-design.md` if frozen) and design the **delta** against them. A spec that "improves" the auth of a live app with paying users is a **defect**, however good the new option is. Only genuinely NEW components get new decisions.
 
+{{include:grounding-rules}}
+
 ## Phase 1 — DUAL GROUNDING (gated — do NOT propose approaches before BOTH are satisfied)
 
 This is what makes it a *Fabrik* spec and not generic brainstorming: ground the design on two axes — live
