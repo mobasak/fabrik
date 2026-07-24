@@ -45,7 +45,7 @@ def test_flags_import_missing_from_requirements(tmp_path: Path):
     _write(tmp_path, "requirements.txt", "# nothing declared\n")
     _write(tmp_path, "src/app/main.py", "import yaml\n\nx = yaml\n")
     undeclared = _load().find_undeclared_imports(tmp_path)
-    dists = {d for _, d, _ in undeclared}
+    dists = {d for _, d, _, _ in undeclared}
     assert "PyYAML" in dists, f"expected PyYAML flagged, got {undeclared}"
 
 
@@ -95,7 +95,7 @@ def test_required_import_still_flagged_when_try_catches_other_error(tmp_path: Pa
     # a try that catches a NON-import error does not make the import optional
     _write(tmp_path, "requirements.txt", "# empty\n")
     _write(tmp_path, "src/app/main.py", "try:\n    import yaml\nexcept ValueError:\n    pass\n")
-    dists = {d for _, d, _ in _load().find_undeclared_imports(tmp_path)}
+    dists = {d for _, d, _, _ in _load().find_undeclared_imports(tmp_path)}
     assert "PyYAML" in dists
 
 
@@ -107,7 +107,7 @@ def test_fallback_import_in_handler_still_flagged(tmp_path: Path):
         "src/app/main.py",
         "try:\n    import cjson\nexcept ImportError:\n    import yaml  # fallback\n",
     )
-    dists = {d for _, d, _ in _load().find_undeclared_imports(tmp_path)}
+    dists = {d for _, d, _, _ in _load().find_undeclared_imports(tmp_path)}
     assert "PyYAML" in dists  # the fallback (yaml) is flagged; cjson (optional) is not
 
 
@@ -214,3 +214,79 @@ def test_fabrik_itself_is_clean():
         pytest.skip("fabrik has no requirements.txt")
     undeclared = _load().find_undeclared_imports(root)
     assert undeclared == [], f"fabrik src/ has undeclared imports: {undeclared}"
+
+
+def test_pyproject_only_dep_flagged_when_dockerfile_installs_requirements(tmp_path: Path):
+    """The curl_cffi/trade-intelligence class: declared in pyproject.toml only, while
+    the Dockerfile installs -r requirements.txt -> the container never gets it."""
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(
+        tmp_path,
+        "pyproject.toml",
+        '[project]\nname = "app"\ndependencies = ["PyYAML>=6.0"]\n',
+    )
+    _write(tmp_path, "Dockerfile", "FROM python:3.12\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n")
+    _write(tmp_path, "src/app/main.py", "import yaml\n\nx = yaml\n")
+    found = _load().find_undeclared_imports(tmp_path)
+    assert any(d == "PyYAML" and reason == "pyproject-only" for _, d, _, reason in found), found
+
+
+def test_pyproject_only_dep_ok_without_requirements_dockerfile(tmp_path: Path):
+    """No Dockerfile installing requirements.txt -> the manifest union stays authoritative."""
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(
+        tmp_path,
+        "pyproject.toml",
+        '[project]\nname = "app"\ndependencies = ["PyYAML>=6.0"]\n',
+    )
+    _write(tmp_path, "src/app/main.py", "import yaml\n\nx = yaml\n")
+    assert _load().find_undeclared_imports(tmp_path) == []
+
+
+def test_shipped_scripts_scanned_when_dockerfile_copies_them(tmp_path: Path):
+    """`COPY . .` ships scripts/ -> a module-level undeclared import there is a
+    container crash and must be flagged; without a shipping Dockerfile scripts/ stays
+    excluded as dev tooling."""
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(tmp_path, "src/app/main.py", "x = 1\n")
+    _write(tmp_path, "scripts/refresh.py", "import yaml\n\nx = yaml\n")
+    # no Dockerfile -> dev tooling, not scanned
+    assert _load().find_undeclared_imports(tmp_path) == []
+    _write(tmp_path, "Dockerfile", "FROM python:3.12\nRUN pip install -r requirements.txt\nCOPY . .\n")
+    found = _load().find_undeclared_imports(tmp_path)
+    assert any(d == "PyYAML" and "scripts" in example for _, d, example, _ in found), found
+
+
+def test_module_is_local_never_claims_site_packages(tmp_path: Path):
+    """Regression (curl_cffi incident): the project .venv lives INSIDE the repo, so an
+    installed dep's origin is under the root — it must still not count as first-party.
+    Uses the live env: yaml resolves from THIS venv's site-packages; pick the venv's
+    ancestor as project_root so the old code would have said True."""
+    import yaml  # noqa: F401  (guaranteed installed — the check itself maps it)
+
+    mod = _load()
+    venv_ancestor = Path(yaml.__file__).resolve()
+    while venv_ancestor.name not in (".venv", "venv") and venv_ancestor != venv_ancestor.parent:
+        venv_ancestor = venv_ancestor.parent
+    project_root = venv_ancestor.parent  # repo root containing the venv
+    assert mod._module_is_local("yaml", project_root) is False
+
+
+def test_untracked_file_not_scanned_in_git_repo(tmp_path: Path):
+    """A gitignored/untracked file on disk (a Fabrik-synced script) never reaches a
+    clean checkout or the container -> its imports must not fire the check."""
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(tmp_path, "Dockerfile", "FROM python:3.12\nRUN pip install -r requirements.txt\nCOPY . .\n")
+    _write(tmp_path, "src/app/main.py", "x = 1\n")
+    _write(tmp_path, "scripts/kilo_code_review.py", "import yaml\n\nx = yaml\n")  # NOT git-added
+    subprocess.run(
+        ["git", "add", "requirements.txt", "Dockerfile", "src/app/main.py"], cwd=tmp_path, check=True
+    )
+    assert _load().find_undeclared_imports(tmp_path) == []
+    # the same file TRACKED -> flagged
+    subprocess.run(["git", "add", "scripts/kilo_code_review.py"], cwd=tmp_path, check=True)
+    found = _load().find_undeclared_imports(tmp_path)
+    assert any(d == "PyYAML" for _, d, _, _ in found), found

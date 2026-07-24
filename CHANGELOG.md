@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_undeclared_imports: venv-in-repo made it a silent no-op; + pyproject-only deploy-manifest class + shipped-scripts scan (2026-07-24)
+
+Origin: trade-intelligence CI red since 07-21 on `curl_cffi` — declared in pyproject.toml only, while
+CI + Dockerfile install `-r requirements.txt`. The gate check for exactly this class never fired. THREE
+holes closed in `scripts/enforcement/check_undeclared_imports.py` (Fabrik-synced → all projects):
+- **The killer bug:** `_module_is_local()` treated anything under the repo root as first-party — and the
+  project `.venv` lives IN the repo root, so every installed dep resolved as "local" and the whole check
+  was a no-op in real projects (its tmp-dir tests couldn't see it). Site-packages/venv paths now excluded.
+- **New "pyproject-only" class:** when the Dockerfile installs `-r requirements.txt`, deploy reachability
+  is computed from requirements.txt ALONE — a dep only in pyproject.toml is flagged (the curl_cffi class).
+- **Shipped scripts scanned:** when the Dockerfile copies scripts/ (`COPY . .`), scripts/ joins the scan —
+  filtered to git-TRACKED files only, so synced-but-gitignored tooling (kilo_code_review.py) can't false-fire.
+Fleet sweep after fix: 4 TRUE deploy-breakers in 3 projects (trade-intelligence curl_cffi;
+fabrik-claim-validator asyncpg + pdfplumber; tryton-crm polib), zero false positives.
+Tests: tests/test_check_undeclared_imports.py (+4 behaviors, 22 passing).
+
 ### Added — Fail-closed test-DB guard: scaffold emits `tests/conftest.py` `require_throwaway()`; CI generators target `ci_test` (2026-07-23)
 
 Origin: a trade-intelligence session pointed `TEST_DATABASE_URL` at the dev Postgres and ran the full

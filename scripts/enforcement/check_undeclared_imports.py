@@ -1,3 +1,4 @@
+# AFTER-EDIT: tests/test_check_undeclared_imports.py
 """Fail when the app source imports a package that is declared in no manifest.
 
 The gap: check_deps_sync compares requirements.txt <-> pyproject.toml (manifest vs
@@ -131,19 +132,79 @@ _EXCLUDE_DIRS = {
 }
 
 
-def _scan_roots(project_root: Path) -> list[Path]:
-    """Deployable-source roots: src/ if present (the fabrik/std layout), else root."""
+def _read_dockerfile(project_root: Path) -> str:
+    try:
+        return (project_root / "Dockerfile").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def _dockerfile_installs_requirements(dockerfile: str) -> bool:
+    """True when the image's dependency set IS requirements.txt (`pip install … -r
+    requirements.txt`). Then a dep declared only in pyproject.toml never reaches the
+    container — the curl_cffi/trade-intelligence class."""
+    import re
+
+    return bool(re.search(r"pip3?\s+install\b[^\n]*-r\s+\S*requirements\.txt", dockerfile))
+
+
+def _dockerfile_ships_scripts(dockerfile: str) -> bool:
+    """True when scripts/ is copied into the image (wholesale `COPY . .` or an explicit
+    `COPY scripts`). Shipped scripts crash the container on undeclared imports exactly
+    like src/ does, so they join the scan."""
+    import re
+
+    return bool(
+        re.search(r"^\s*(COPY|ADD)\s+(--[^\s]+\s+)*(\.|\./|scripts[/\s])", dockerfile, re.M)
+    )
+
+
+def _scan_roots(project_root: Path, *, include_scripts: bool = False) -> list[Path]:
+    """Deployable-source roots: src/ if present (the fabrik/std layout), else root.
+    scripts/ joins only when the Dockerfile ships it (see _dockerfile_ships_scripts)."""
     src = project_root / "src"
-    return [src] if src.is_dir() else [project_root]
+    roots = [src] if src.is_dir() else [project_root]
+    scripts_dir = project_root / "scripts"
+    if include_scripts and scripts_dir.is_dir():
+        # scripts/ is in _EXCLUDE_DIRS (dev tooling by default), so in BOTH layouts it
+        # only gets scanned by being its own root — _iter_py_files excludes by dir name
+        # below each root, never the root itself.
+        roots.append(scripts_dir)
+    return roots
 
 
-def _iter_py_files(roots: list[Path]) -> Iterator[Path]:
+def _git_tracked(project_root: Path) -> set[Path] | None:
+    """Absolute paths of git-tracked (incl. staged) files, or None when git is
+    unavailable (fail-open). Git is the source of truth for what a clean checkout —
+    CI, and the VPS `git pull` the container builds from — actually receives; a
+    synced-but-gitignored file on disk (e.g. scripts/kilo_code_review.py) never ships,
+    so its imports must not fire this check."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "--cached", "-z"],
+            cwd=project_root,
+            capture_output=True,
+            timeout=30,
+            check=True,
+        ).stdout.decode("utf-8", errors="ignore")
+    except Exception:  # noqa: BLE001 — no git / not a repo -> scan everything as before
+        return None
+    return {(project_root / p).resolve() for p in out.split("\0") if p}
+
+
+def _iter_py_files(roots: list[Path], tracked: set[Path] | None = None) -> Iterator[Path]:
     for root in roots:
         if not root.is_dir():
             continue
         for path in root.rglob("*.py"):
-            if any(part in _EXCLUDE_DIRS for part in path.parts):
+            # Exclude by dir name BELOW the scan root only — a root explicitly added
+            # (e.g. scripts/ when the Dockerfile ships it) must not exclude itself.
+            if any(part in _EXCLUDE_DIRS for part in path.relative_to(root).parts[:-1]):
                 continue
+            if tracked is not None and path.resolve() not in tracked:
+                continue  # on disk but not in git -> never reaches CI/the container
             yield path
 
 
@@ -270,9 +331,18 @@ def _module_is_local(mod: str, project_root: Path) -> bool:
         candidates.append(spec.origin)
     candidates.extend(spec.submodule_search_locations or [])
     root = project_root.resolve()
+    # Installed-environment dirs commonly live INSIDE the repo (`.venv/` at the project
+    # root is the fabrik standard). A module resolved from site-packages is an installed
+    # DEP, never first-party — without this exclusion every installed dep counted as
+    # "local" and the whole check was a silent no-op in real projects (found via the
+    # curl_cffi/trade-intelligence incident: detection was perfect, verdict never fired).
+    _env_markers = {".venv", "venv", "site-packages", "dist-packages", "node_modules"}
     for path in candidates:
         try:
-            if Path(path).resolve().is_relative_to(root):
+            resolved = Path(path).resolve()
+            if any(part in _env_markers for part in resolved.parts):
+                continue
+            if resolved.is_relative_to(root):
                 return True
         except (ValueError, OSError):
             continue
@@ -293,34 +363,47 @@ def _own_dist_name(project_root: Path) -> str | None:
     return _norm_pkg(name) if isinstance(name, str) else None
 
 
-def find_undeclared_imports(project_root: Path) -> list[tuple[str, str, str]]:
-    """Return (import_name, distribution, example_file) for each undeclared import.
+def find_undeclared_imports(project_root: Path) -> list[tuple[str, str, str, str]]:
+    """Return (import_name, distribution, example_file, reason) per broken import.
 
-    Empty list = clean. Skips entirely when there is no requirements.txt (the deploy
-    manifest); such projects are out of scope for this check.
+    reason ∈ {"no-manifest", "pyproject-only"}. Empty list = clean. Skips entirely
+    when there is no requirements.txt (the deploy manifest); such projects are out
+    of scope for this check.
+
+    "pyproject-only" (the curl_cffi/trade-intelligence class): the Dockerfile installs
+    `-r requirements.txt`, so a dep declared only in pyproject.toml is installed by
+    NOBODY that matters — the dev .venv has it, the container and CI don't.
     """
     req = project_root / "requirements.txt"
     if not req.exists():
         return []
 
-    declared = parse_requirements_txt(req)
+    req_declared = parse_requirements_txt(req)
+    declared = set(req_declared)
     pyproject = project_root / "pyproject.toml"
     if pyproject.exists():
         declared |= parse_pyproject_deps(pyproject)
 
+    dockerfile = _read_dockerfile(project_root)
+    deploy_is_req = _dockerfile_installs_requirements(dockerfile)
+
     reachable = _reachable_distributions(declared)
-    roots = _scan_roots(project_root)
+    # What a fresh `pip install -r requirements.txt` ACTUALLY provides. Only computed
+    # when that is the deploy manifest — otherwise the union is authoritative as before.
+    req_reachable = _reachable_distributions(req_declared) if deploy_is_req else reachable
+    roots = _scan_roots(project_root, include_scripts=_dockerfile_ships_scripts(dockerfile))
     local = _local_toplevel_names(project_root, roots)
     own = _own_dist_name(project_root)
     dist_map = importlib.metadata.packages_distributions()
 
+    tracked = _git_tracked(project_root)
     # import_name -> first file that imported it (for a helpful message)
     imported: dict[str, str] = {}
-    for py_file in _iter_py_files(roots):
+    for py_file in _iter_py_files(roots, tracked):
         for mod in _top_level_imports(py_file):
             imported.setdefault(mod, str(py_file.relative_to(project_root)))
 
-    undeclared: list[tuple[str, str, str]] = []
+    undeclared: list[tuple[str, str, str, str]] = []
     for mod in sorted(imported):
         if mod in _STDLIB or mod in local:
             continue
@@ -333,9 +416,13 @@ def find_undeclared_imports(project_root: Path) -> list[tuple[str, str, str]]:
         # import is satisfied if ANY provider is declared/reachable; only flag when NONE
         # is (report the first provider name).
         norm_dists = [_norm_pkg(d) for d in dists]
-        if any(nd == own or nd in reachable for nd in norm_dists):
-            continue
-        undeclared.append((mod, dists[0], imported[mod]))
+        if any(nd == own or nd in req_reachable for nd in norm_dists):
+            continue  # the deploy install provides it
+        if any(nd in reachable for nd in norm_dists):
+            # declared, but only in pyproject — invisible to `pip install -r requirements.txt`
+            undeclared.append((mod, dists[0], imported[mod], "pyproject-only"))
+        else:
+            undeclared.append((mod, dists[0], imported[mod], "no-manifest"))
     return undeclared
 
 
@@ -353,8 +440,14 @@ def main() -> int:
     print(
         "ERROR: imports not declared in requirements.txt (fresh install / CI / deploy will crash):"
     )
-    for mod, dist, example in sorted(undeclared):
-        print(f"  - `import {mod}` -> package '{dist}' (e.g. {example}) is in no manifest")
+    for mod, dist, example, reason in sorted(undeclared):
+        detail = (
+            "declared ONLY in pyproject.toml — the Dockerfile/CI install `-r requirements.txt`, "
+            "so the container never gets it"
+            if reason == "pyproject-only"
+            else "is in no manifest"
+        )
+        print(f"  - `import {mod}` -> package '{dist}' (e.g. {example}) {detail}")
     print(
         "Fix: add the package(s) to requirements.txt (and pyproject.toml [project].dependencies)."
     )
