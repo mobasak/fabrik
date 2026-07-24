@@ -263,3 +263,9 @@ These items port the enforcement/research disciplines that make the standalone d
 137. **Research posture correct for the command's tier (inherit vs re-ground vs escape-hatch)** — a DOWNSTREAM ettw command **inherits** the live-grounding done by the front door (`mega/00` Vision Summary + `ettw/00-trigger` INFRA-CHECK) and is forbidden to re-run it, with a NARROW escape-hatch for a genuinely new fact the upstream never established (route back, or ground live + cite for that one item, or record a BLOCKING unknown). → CONFIRM a downstream command neither re-grounds what upstream pinned NOR silently guesses an uncovered fact.
 
 138. **Flywheel back-fill on any pool fanout** — if the command dispatches a `fanout` (grounders / reconcilers / finders — `03-tech-plan`, `06-ticket-breakdown`, `07`, `08`, `10` all do), does it require the `set_quality(...)` back-fill after merge+refute (an unrecorded pool run teaches the flywheel nothing — `check_subagent_flywheel.py` WARNs), and forbid hand-rolling `run_agents`+`record_run`? And keep the core JUDGMENT single-agent where the discipline demands it? → ADD the `set_quality` obligation wherever a fanout is mentioned.
+
+## Governance Grounding (rule-grounding-gate v1)
+
+139. Does the artifact carry a CONSTRAINTS DIGEST — one row per MUST/BAN/anti-pattern from the ACTIVE rule packs (`rule | pack:line | implication`), from fresh reads, and does every architecture/tool/dependency selection cite a digest row or state `unconstrained`?
+140. Are `## fabrik-lib Verdict` + `## Rejected Alternatives` present — one verdict row per feature (`vendor / wrap / build`) citing the module's own README from a fresh read, never from memory?
+141. Is every rejected external best-practice that collides with a digest row rejected WITH the rule citation (rule, not taste) — and is any digest missing a rule an ACTIVE pack contains flagged as INCOMPLETE-DIGEST?
