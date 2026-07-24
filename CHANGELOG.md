@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review hardening of the DB guard + undeclared-imports check: 10 review findings fixed across 4 adversarial rounds (2026-07-24)
+
+4-round review (3 pool finders + native Opus, R4 = quiet `NONE`) of the guard/enforcement work; full
+adjudication in `docs/development/reviews/2026-07-24-db-guard-undeclared-imports-review.md`. Fixed:
+ships_scripts regex over-match (`COPY ./src`); pip line-continuation blindness (`_PIP_CONT`); `pip install .`
+awareness (pyproject deps DO ship → union verdict); exact `requirements.txt` token (not `prod-requirements`);
+surrogateescape git decode; guard IGNORECASE + trailing-slash + CI-escape localhost-only + `?host=` query
+smuggle closed. Each with a regression test (51 passing). Empirically refuted: editable vendored first-party
+false-positive (youtube mt_router resolves local; fleet sweep clean).
+
 ### Fixed — check_undeclared_imports: venv-in-repo made it a silent no-op; + pyproject-only deploy-manifest class + shipped-scripts scan (2026-07-24)
 
 Origin: trade-intelligence CI red since 07-21 on `curl_cffi` — declared in pyproject.toml only, while

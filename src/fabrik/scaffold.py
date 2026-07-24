@@ -184,24 +184,33 @@ Postgres produces an error message instead of data loss.
 
 import os
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
-_DISPOSABLE_NAME = re.compile(r"(_test|throwaway|scratch)$")
+# IGNORECASE: Postgres treats unquoted names case-insensitively, so MY_TEST == my_test.
+_DISPOSABLE_NAME = re.compile(r"(_test|throwaway|scratch)$", re.IGNORECASE)
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]", ""}
 
 
 def require_throwaway(url: str) -> None:
     """Refuse destructive tests unless `url` targets a disposable database.
 
     Allowed: database name ending `_test`/`throwaway`/`scratch` (the fabrik CI
-    containers use `ci_test`), or a CI environment (GitHub Actions sets CI=true,
-    where every database is a fresh service container).
+    containers use `ci_test`), or a CI environment (GitHub Actions sets CI=true)
+    AND a localhost DB — CI=true alone must never unlock a remote/tunneled DB
+    (a dev shell can carry CI=true; the escape stays scoped to service containers).
     """
-    name = urlparse(url).path.lstrip("/")
-    if _DISPOSABLE_NAME.search(name) or os.environ.get("CI") == "true":
+    parsed = urlparse(url)
+    name = parsed.path.strip("/")
+    if _DISPOSABLE_NAME.search(name):
+        return
+    # libpq also accepts the host via ?host= — an empty netloc must not hide a remote.
+    hosts = {parsed.hostname or ""}
+    hosts.update(v for k, v in parse_qsl(parsed.query) if k == "host")
+    if os.environ.get("CI") == "true" and hosts <= _LOCAL_HOSTS:
         return
     raise RuntimeError(
         f"REFUSING destructive test: database {name!r} is not marked disposable "
-        f"(name must end _test/throwaway/scratch, or run in CI). Got: {url}"
+        f"(name must end _test/throwaway/scratch, or run in CI against localhost). Got: {url}"
     )
 '''
 

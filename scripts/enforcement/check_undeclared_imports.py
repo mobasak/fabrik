@@ -139,23 +139,54 @@ def _read_dockerfile(project_root: Path) -> str:
         return ""
 
 
+# A pip install command, tolerant of `\`-line-continuations (review finding: `[^\n]*`
+# could not cross `RUN pip install \\\n    -r requirements.txt`, silently disabling the
+# pyproject-only class for that very common Dockerfile style).
+_PIP_CONT = r"(?:[^\n\\]|\\\s*\n)*"
+
+
 def _dockerfile_installs_requirements(dockerfile: str) -> bool:
-    """True when the image's dependency set IS requirements.txt (`pip install … -r
-    requirements.txt`). Then a dep declared only in pyproject.toml never reaches the
-    container — the curl_cffi/trade-intelligence class."""
+    """True when the image installs `-r requirements.txt` — the ROOT manifest exactly
+    (`-r prod-requirements.txt` is a DIFFERENT file than the one this check parses, so
+    it must not activate requirements-only reasoning against the wrong manifest)."""
     import re
 
-    return bool(re.search(r"pip3?\s+install\b[^\n]*-r\s+\S*requirements\.txt", dockerfile))
+    return bool(
+        re.search(
+            rf"pip3?\s+install\b{_PIP_CONT}-r\s+(?:\./)?requirements\.txt(?=\s|$)",
+            dockerfile,
+            re.M,
+        )
+    )
+
+
+def _dockerfile_installs_pyproject(dockerfile: str) -> bool:
+    """True when the image ALSO installs the project itself (`pip install .` / `-e .`),
+    which pulls [project].dependencies from pyproject.toml — then a pyproject-only dep
+    DOES reach the container and must not be flagged (review finding #4)."""
+    import re
+
+    return bool(
+        re.search(
+            rf"pip3?\s+install\b{_PIP_CONT}(?:-e\s+)?[\"']?\.(?:\[[^\]\n]*\])?[\"']?(?=\s|$)",
+            dockerfile,
+            re.M,
+        )
+    )
 
 
 def _dockerfile_ships_scripts(dockerfile: str) -> bool:
     """True when scripts/ is copied into the image (wholesale `COPY . .` or an explicit
     `COPY scripts`). Shipped scripts crash the container on undeclared imports exactly
-    like src/ does, so they join the scan."""
+    like src/ does, so they join the scan.
+
+    The wholesale source must be a BARE `.`/`./` token — `COPY ./src /app` copies only
+    src/ and must NOT count (review finding: the earlier `\\.` alternative fired on any
+    `./<subdir>`, scanning scripts/ in projects that never ship it — false-positive risk)."""
     import re
 
     return bool(
-        re.search(r"^\s*(COPY|ADD)\s+(--[^\s]+\s+)*(\.|\./|scripts[/\s])", dockerfile, re.M)
+        re.search(r"^\s*(COPY|ADD)\s+(--[^\s]+\s+)*(\.{1,2}/?\s|scripts[/\s])", dockerfile, re.M)
     )
 
 
@@ -188,7 +219,7 @@ def _git_tracked(project_root: Path) -> set[Path] | None:
             capture_output=True,
             timeout=30,
             check=True,
-        ).stdout.decode("utf-8", errors="ignore")
+        ).stdout.decode("utf-8", errors="surrogateescape")
     except Exception:  # noqa: BLE001 — no git / not a repo -> scan everything as before
         return None
     return {(project_root / p).resolve() for p in out.split("\0") if p}
@@ -385,7 +416,10 @@ def find_undeclared_imports(project_root: Path) -> list[tuple[str, str, str, str
         declared |= parse_pyproject_deps(pyproject)
 
     dockerfile = _read_dockerfile(project_root)
-    deploy_is_req = _dockerfile_installs_requirements(dockerfile)
+    deploy_is_req = _dockerfile_installs_requirements(dockerfile) and not (
+        # `pip install .`/`-e .` in the image pulls pyproject deps too -> union is right
+        _dockerfile_installs_pyproject(dockerfile)
+    )
 
     reachable = _reachable_distributions(declared)
     # What a fresh `pip install -r requirements.txt` ACTUALLY provides. Only computed
@@ -442,8 +476,8 @@ def main() -> int:
     )
     for mod, dist, example, reason in sorted(undeclared):
         detail = (
-            "declared ONLY in pyproject.toml — the Dockerfile/CI install `-r requirements.txt`, "
-            "so the container never gets it"
+            "declared ONLY in pyproject.toml — the deploy image installs `-r requirements.txt` "
+            "(and never `pip install .`), so the container never gets it"
             if reason == "pyproject-only"
             else "is in no manifest"
         )

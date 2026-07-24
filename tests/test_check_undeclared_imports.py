@@ -290,3 +290,30 @@ def test_untracked_file_not_scanned_in_git_repo(tmp_path: Path):
     subprocess.run(["git", "add", "scripts/kilo_code_review.py"], cwd=tmp_path, check=True)
     found = _load().find_undeclared_imports(tmp_path)
     assert any(d == "PyYAML" for _, d, _, _ in found), found
+
+
+def test_dockerfile_regexes_review_matrix(tmp_path: Path):
+    """Review findings 3/4/7: line-continuations, pip install . detection, exact-manifest token."""
+    m = _load()
+    # finding 3: backslash line-continuation must still activate the class
+    assert m._dockerfile_installs_requirements("RUN pip install --no-cache-dir \\\n    -r requirements.txt\n")
+    # finding 7: a DIFFERENT manifest file must NOT activate requirements-only reasoning
+    assert not m._dockerfile_installs_requirements("RUN pip install -r prod-requirements.txt\n")
+    assert m._dockerfile_installs_requirements("RUN pip install -r ./requirements.txt\n")
+    # finding 4: `pip install .` variants pull pyproject deps into the image
+    for line in ("RUN pip install .\n", "RUN pip install -e .\n",
+                 'RUN pip install ".[dev,test]"\n', "RUN pip install .[all]\n",
+                 "RUN pip install --no-cache-dir -r requirements.txt && pip install .\n"):
+        assert m._dockerfile_installs_pyproject(line), line
+    for line in ("RUN pip install -r requirements.txt\n", "RUN pip install foo==1.2\n"):
+        assert not m._dockerfile_installs_pyproject(line), line
+
+
+def test_pyproject_only_not_flagged_when_image_also_installs_pyproject(tmp_path: Path):
+    """Review finding 4 end-to-end: `pip install .` in the image -> pyproject deps DO ship."""
+    _write(tmp_path, "requirements.txt", "# empty\n")
+    _write(tmp_path, "pyproject.toml", '[project]\nname = "app"\ndependencies = ["PyYAML>=6.0"]\n')
+    _write(tmp_path, "Dockerfile",
+           "FROM python:3.12\nRUN pip install -r requirements.txt\nRUN pip install .\n")
+    _write(tmp_path, "src/app/main.py", "import yaml\n\nx = yaml\n")
+    assert _load().find_undeclared_imports(tmp_path) == []

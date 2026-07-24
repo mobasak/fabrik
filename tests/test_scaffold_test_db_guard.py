@@ -69,3 +69,37 @@ def test_ci_generator_db_name_matches_marker(tmp_path):
     assert f"5432/{TEST_DB_NAME}" in wf  # TEST_DATABASE_URL path
     assert f"-e POSTGRES_DB={TEST_DB_NAME}" in local
     assert f"$PGPORT/{TEST_DB_NAME}" in local
+
+
+def test_guard_ci_escape_is_localhost_only(tmp_path, monkeypatch):
+    """Review fix: CI=true in a dev shell must NOT unlock a remote/tunneled DB —
+    the escape is scoped to localhost service containers."""
+    monkeypatch.setenv("CI", "true")
+    guard = _emitted_guard(tmp_path)
+    guard.require_throwaway("postgresql://postgres:pw@localhost:5432/postgres")  # CI + local: ok
+    with pytest.raises(RuntimeError, match="REFUSING"):
+        guard.require_throwaway("postgresql://postgres:pw@ti-dev-pg:54322/trade_intelligence")
+
+
+def test_guard_marker_is_case_insensitive(tmp_path, monkeypatch):
+    """Postgres unquoted names are case-insensitive: MY_TEST == my_test."""
+    monkeypatch.delenv("CI", raising=False)
+    guard = _emitted_guard(tmp_path)
+    guard.require_throwaway("postgresql://u:p@localhost:5432/MY_TEST")
+
+
+def test_guard_tolerates_trailing_slash(tmp_path, monkeypatch):
+    """Review finding 8: a trailing slash must not defeat the disposable marker."""
+    monkeypatch.delenv("CI", raising=False)
+    guard = _emitted_guard(tmp_path)
+    guard.require_throwaway("postgresql://u:p@localhost:5432/mydb_test/")
+
+
+def test_guard_ci_escape_rejects_query_string_remote_host(tmp_path, monkeypatch):
+    """Round-2 finding: libpq honors ?host= — an empty-netloc URL must not smuggle a
+    remote host past the localhost-only CI escape."""
+    monkeypatch.setenv("CI", "true")
+    guard = _emitted_guard(tmp_path)
+    guard.require_throwaway("postgresql:///postgres?host=localhost")  # local via query: ok
+    with pytest.raises(RuntimeError, match="REFUSING"):
+        guard.require_throwaway("postgresql:///postgres?host=ti-dev-pg")
