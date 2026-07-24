@@ -31,6 +31,12 @@
 
 # Cross-Epic Validation
 
+<!-- rule-grounding-cite v1 · companion to rule-grounding-gate v1 (commands/_fragments/grounding-rules.md) -->
+⚠️ **Constraints-Digest citation (BINDING):** every architecture, tool, or dependency selection in this
+step cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides
+with a digest row is DEAD. If no digest artifact exists upstream, STOP — run the Rule-grounding gate
+before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed.
+
 ## Role
 
 The **cross-epic (epic-set) review orchestrator** — Opus 4.8, running the driver's loop `[canonical: docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md]`. After `03-expand-epic-files-fabrik` writes one file per epic, this reads the **whole decomposition** and proves it is ready to execute: every feature covered exactly once, no broken or invented dependencies, disjoint parallel lanes, each ticket self-sufficient for the ettw chain. It dispatches reviewer agents to find seam defects and fixup agents to close them, and **runs the epic set to its lens-adjudicated exit — it does not stop and ask** except on the three BLOCKED cases. It writes no epic content itself; the fixup agents do (Step 3).

@@ -19,6 +19,12 @@
 
 # Ticket Breakdown (Batched)
 
+<!-- rule-grounding-cite v1 · companion to rule-grounding-gate v1 (commands/_fragments/grounding-rules.md) -->
+⚠️ **Constraints-Digest citation (BINDING):** every architecture, tool, or dependency selection in this
+step cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides
+with a digest row is DEAD. If no digest artifact exists upstream, STOP — run the Rule-grounding gate
+before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed.
+
 ## How You Use This Command
 
 After the outline is confirmed: `06-ticket-breakdown Batch 1: T1, T2, T3` → produces the parallel map (`T1 ⚡ T2 ⚡ T3`), 3 complete executable tickets (an agent starts coding immediately), the `[PRIMARY PATH]` Index rows, and "Batch 1 of N complete. Next: Batch 2." **Why batched:** 20+ tickets in one pass degrades on ticket 15+; batching (3–5/run) keeps every ticket at full quality. **Too-complex ticket:** split it autonomously into `T?a`/`T?b`, state the split + reason — do not ask. An agent should never plan mid-execution; if it would, the ticket was too big.
