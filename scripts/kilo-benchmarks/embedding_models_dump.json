@@ -317,7 +317,7 @@
     "name": "Thenlper: GTE-Base",
     "created": 1763433820,
     "description": "The gte-base embedding model encodes English sentences and paragraphs into a 768-dimensional dense vector space, delivering efficient and effective semantic embeddings optimized for textual similarity, semantic search, and clustering applications.",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -371,7 +371,7 @@
     "name": "Thenlper: GTE-Large",
     "created": 1763433655,
     "description": "The gte-large embedding model converts English sentences, paragraphs and moderate-length documents into a 1024-dimensional dense vector space, delivering high-quality semantic embeddings optimized for information retrieval, semantic textual similarity, reranking and...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -425,7 +425,7 @@
     "name": "Intfloat: E5-Large-v2",
     "created": 1763433432,
     "description": "The e5-large-v2 embedding model maps English sentences, paragraphs, and documents into a 1024-dimensional dense vector space, delivering high-accuracy semantic embeddings optimized for retrieval, semantic search, reranking, and similarity-scoring tasks.",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -479,7 +479,7 @@
     "name": "Intfloat: E5-Base-v2",
     "created": 1763433192,
     "description": "The e5-base-v2 embedding model encodes English sentences and paragraphs into a 768-dimensional dense vector space, producing efficient and high-quality semantic embeddings optimized for tasks such as semantic search, similarity scoring,...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -533,7 +533,7 @@
     "name": "Intfloat: Multilingual-E5-Large",
     "created": 1763433047,
     "description": "The multilingual-e5-large embedding model encodes sentences, paragraphs, and documents across over 90 languages into a 1024-dimensional dense vector space, delivering robust semantic embeddings optimized for multilingual retrieval, cross-language similarity, and...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -587,7 +587,7 @@
     "name": "Sentence Transformers: paraphrase-MiniLM-L6-v2",
     "created": 1763432454,
     "description": "The paraphrase-MiniLM-L6-v2 embedding model converts sentences and short paragraphs into a 384-dimensional dense vector space, producing high-quality semantic embeddings optimized for paraphrase detection, semantic similarity scoring, clustering, and lightweight retrieval...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -641,7 +641,7 @@
     "name": "Sentence Transformers: all-MiniLM-L12-v2",
     "created": 1763432155,
     "description": "The all-MiniLM-L12-v2 embedding model maps sentences and short paragraphs into a 384-dimensional dense vector space, producing efficient and high-quality semantic embeddings optimized for tasks such as semantic search, clustering, and...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -695,7 +695,7 @@
     "name": "BAAI: bge-base-en-v1.5",
     "created": 1763431837,
     "description": "The bge-base-en-v1.5 embedding model converts English sentences and paragraphs into 768-dimensional dense vectors, delivering efficient, high-quality semantic embeddings optimized for retrieval, semantic search, and document-matching workflows. This version (v1.5) features...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -749,7 +749,7 @@
     "name": "Sentence Transformers: multi-qa-mpnet-base-dot-v1",
     "created": 1763431339,
     "description": "The multi-qa-mpnet-base-dot-v1 embedding model transforms sentences and short paragraphs into a 768-dimensional dense vector space, generating high-quality semantic embeddings optimized for question-and-answer retrieval, semantic search, and similarity-scoring across diverse content.",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -803,7 +803,7 @@
     "name": "BAAI: bge-large-en-v1.5",
     "created": 1763431087,
     "description": "The bge-large-en-v1.5 embedding model maps English sentences, paragraphs, and documents into a 1024-dimensional dense vector space, delivering high-fidelity semantic embeddings optimized for semantic search, document retrieval, and downstream NLP tasks...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -912,7 +912,7 @@
     "name": "Sentence Transformers: all-mpnet-base-v2",
     "created": 1763421830,
     "description": "The all-mpnet-base-v2 embedding model encodes sentences and short paragraphs into a 768-dimensional dense vector space, providing high-fidelity semantic embeddings well suited for tasks like information retrieval, clustering, similarity scoring, and...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [
@@ -966,7 +966,7 @@
     "name": "Sentence Transformers: all-MiniLM-L6-v2",
     "created": 1763421176,
     "description": "The all-MiniLM-L6-v2 embedding model maps sentences and short paragraphs into a 384-dimensional dense vector space, enabling high-quality semantic representations that are ideal for downstream tasks such as information retrieval, clustering,...",
-    "context_length": 8192,
+    "context_length": 512,
     "architecture": {
       "modality": "text->embeddings",
       "input_modalities": [

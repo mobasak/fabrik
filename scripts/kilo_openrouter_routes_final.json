@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-21",
+  "generated_at": "2026-07-24",
   "categories": {
     "language": {
       "1": "openrouter/fusion",
@@ -25,8 +25,8 @@
       "3": "anthropic/claude-opus-4.7"
     },
     "long-context": {
-      "1": "meta-llama/llama-4-scout",
-      "2": "x-ai/grok-4.20"
+      "1": "x-ai/grok-4.20",
+      "2": "openrouter/auto"
     },
     "speech-audio": {
       "1": "openai/gpt-audio-mini"

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-21T08:34:32.133497",
-  "total_models": 684,
+  "timestamp": "2026-07-24T11:59:05.990007",
+  "total_models": 693,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -382,6 +382,16 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
+    "google/gemini-3.5-flash-lite": {
+      "id": "google/gemini-3.5-flash-lite",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "google/gemini-3.6-flash": {
+      "id": "google/gemini-3.6-flash",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
     "google/gemma-2-27b-it": {
       "id": "google/gemma-2-27b-it",
       "url": "https://openrouter.ai/api/v1",
@@ -454,6 +464,11 @@
     },
     "inclusionai/ling-2.6-flash": {
       "id": "inclusionai/ling-2.6-flash",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "inclusionai/ling-3.0-flash:free": {
+      "id": "inclusionai/ling-3.0-flash:free",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1202,6 +1217,16 @@
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
+    "poolside/laguna-s-2.1": {
+      "id": "poolside/laguna-s-2.1",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "poolside/laguna-s-2.1:free": {
+      "id": "poolside/laguna-s-2.1:free",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
     "poolside/laguna-xs-2.1": {
       "id": "poolside/laguna-xs-2.1",
       "url": "https://openrouter.ai/api/v1",
@@ -1807,11 +1832,6 @@
     },
     "sakana/fugu-ultra": {
       "id": "sakana/fugu-ultra",
-      "url": "https://openrouter.ai/api/v1",
-      "npm": "@openrouter/ai-sdk-provider"
-    },
-    "tencent/hy3:free": {
-      "id": "tencent/hy3:free",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     }

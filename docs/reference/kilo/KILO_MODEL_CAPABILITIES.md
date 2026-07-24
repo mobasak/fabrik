@@ -709,7 +709,7 @@
 | `grok-latest` | $2.00 | $6.00 | 500K | 🧠 🔧 🖼️ | — | — |
 
 <!-- EMBEDDING_CATALOG:START (auto-managed by embedding_export_markdown.py) -->
-*Auto-generated on 2026-07-23 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 27 models.***
+*Auto-generated on 2026-07-24 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 27 models.***
 
 | Provider | Model | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned | GA | Status |
 |---|---|---|---|---|---|---|---|---|---|
