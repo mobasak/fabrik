@@ -416,6 +416,7 @@ docs/
 │   │   ├── runpod-hf-models.md
 │   │   └── vast-api.md
 │   ├── architecture.md             # System architecture overview
+│   ├── claudeck-architecture.md    # Claudeck GUI ↔ WSL claude architecture (Client-Server Inversion)
 │   ├── convergence-prompts.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-vultr.md
@@ -446,6 +447,8 @@ docs/
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
+│   │   ├── 2026-07-22-claude-code-gui-lightweight-editor-research.md
+│   │   ├── 2026-07-22-claude-code-wsl-gui-boundary-research.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -537,8 +540,11 @@ docs/
 | [drivers.md](docs/reference/modules/drivers.md) | Fabrik driver API (DNS, GPU providers, registrars) |
 | [templates.md](docs/reference/modules/templates.md) | Available deployment templates |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
+| [claudeck-architecture.md](docs/reference/claudeck-architecture.md) | Claudeck GUI architecture — runs entirely inside WSL, browser is the only boundary crossing; state paths, model-resolution trap (stale picker → Fable patcher), ops commands, known limits; verified 2026-07-23 |
 | [mobile-gui-research.md](docs/reference/research/mobile-gui-research.md) | Full RN/Expo mobile verify-stack research (Maestro MCP, Mobile Next MCP, RN a11y, visual regression, CI reality); defers to `mobile-app/80-mobile.md`; verified 2026-07-06 |
 | [chrome-ext-gui-research.md](docs/reference/research/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |
+| [2026-07-22-claude-code-gui-lightweight-editor-research.md](docs/reference/research/2026-07-22-claude-code-gui-lightweight-editor-research.md) | Gemini deep research: lightweight editor + Claude GUI (Electron constraint confirmed; decoupled-stack recommendation); opcode WSL-bridge claim later disproven — see the round-2 doc |
+| [2026-07-22-claude-code-wsl-gui-boundary-research.md](docs/reference/research/2026-07-22-claude-code-wsl-gui-boundary-research.md) | Gemini deep research round 2: which Claude GUIs survive the Windows→WSL2 boundary (Claudeck success, opcode fail, Desktop partial); hub verification caveats included |
 <!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
 
 **SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for AI chat integration
