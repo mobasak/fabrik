@@ -181,6 +181,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 | Targeting 100% line coverage | One high-value integration test per feature |
 | Skipping tenant isolation tests in multi-tenant projects | Test both positive and negative per tenant-scoped endpoint |
 | Hardcoded test DB URL | `TEST_DATABASE_URL` from env — `localhost` in WSL dev, `postgres-main` in CI |
+| Destructive test (DROP SCHEMA/TABLE, TRUNCATE, migration re-apply) connecting unguarded | Call `require_throwaway(url)` (scaffold-emitted `tests/conftest.py`) FIRST — fail-closed: only DB names ending `_test`/`throwaway`/`scratch` (CI uses `ci_test`) or `CI=true` may proceed; a mispointed URL errors instead of wiping a dev DB |
 
 ---
 
@@ -202,6 +203,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 - [ ] Backend tests run against real PostgreSQL — no DB mocks in test files.
 - [ ] Test session uses `join_transaction_mode="create_savepoint"` — inner commits don't leak past rollback.
 - [ ] Test DB URL from `TEST_DATABASE_URL` env var — not hardcoded.
+- [ ] Destructive DB tests call `require_throwaway(TEST_DATABASE_URL)` before connecting — never point them at a dev/shared DB.
 - [ ] Backend tests use `httpx.AsyncClient` + `ASGITransport` — not sync `TestClient`.
 - [ ] Tests run via `uv run pytest` — not bare `pytest`.
 - [ ] Multi-tenant projects have tenant isolation tests (query as A, verify B invisible).

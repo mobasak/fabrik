@@ -19,7 +19,11 @@ from dataclasses import dataclass, field
 
 # The plain URL CI uses — NOT `postgresql+asyncpg://…`. The driver is chosen by the
 # app at runtime; the test env var must be the bare libpq URL both here and in CI.
-TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
+# The database NAME ends `_test` on purpose: destructive tests (DROP SCHEMA …) fail
+# closed unless the target DB is explicitly marked disposable (see the scaffold-emitted
+# tests/conftest.py `require_throwaway`) — a dev DB never matches the marker.
+TEST_DB_NAME = "ci_test"
+TEST_DATABASE_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
 # Ruff MUST be pinned: the lint ratchet compares a live `ruff check .` count against a seeded
 # baseline, and a newer ruff ships new rules ⇒ a higher count ⇒ the ratchet reds a repo with ZERO
 # code change. Pin to the version that seeds baselines (the hub venv's ruff) so CI and the baseline
@@ -64,6 +68,7 @@ def render_ci_workflow(cfg: CiConfig) -> str:
             f"        image: {cfg.pg_image()}",
             "        env:",
             "          POSTGRES_PASSWORD: postgres",
+            f"          POSTGRES_DB: {TEST_DB_NAME}",
             "        ports:",
             "          - 5432:5432",
             "        options: >-",
@@ -151,7 +156,7 @@ def render_ci_local(cfg: CiConfig) -> str:
             'echo "[ci_local] starting $PG_IMAGE"',
             # Bind to a FREE host port (docker assigns one) — a hardcoded 5432 collides with a
             # dev/shared Postgres already on the box, which fails this replica for no real reason.
-            'CID=$(docker run -d --rm -e POSTGRES_PASSWORD=postgres -p 127.0.0.1::5432 "$PG_IMAGE")',
+            f'CID=$(docker run -d --rm -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB={TEST_DB_NAME} -p 127.0.0.1::5432 "$PG_IMAGE")',
             "trap 'docker stop \"$CID\" >/dev/null 2>&1 || true' EXIT",
             # BOUNDED readiness wait — an unbounded `until` hangs forever if the container
             # dies or the image never becomes ready.
@@ -163,7 +168,7 @@ def render_ci_local(cfg: CiConfig) -> str:
             '[ -n "$pg_ready" ] || { echo "[ci_local] postgres not ready after 60s" >&2; exit 1; }',
             # Resolve the assigned host port and point the app at it (mirrors CI's plain URL).
             'PGPORT=$(docker port "$CID" 5432/tcp | head -1 | sed "s/.*://")',
-            'export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:$PGPORT/postgres"',  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
+            f'export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:$PGPORT/{TEST_DB_NAME}"',  # noqa: throwaway CI/localhost container credential (postgres:postgres), not a real secret
             "",
         ]
     lines += [

@@ -37,7 +37,7 @@ def test_plain_url_not_asyncpg_both_sides():
     local = render_ci_local(cfg)
     assert TEST_DATABASE_URL in wf  # CI runner is clean -> the fixed :5432 URL
     # local binds a FREE host port (no clash with a dev Postgres) but the URL stays plain libpq
-    assert "postgresql://postgres:postgres@localhost:$PGPORT/postgres" in local
+    assert "postgresql://postgres:postgres@localhost:$PGPORT/ci_test" in local
     assert "+asyncpg" not in wf and "+asyncpg" not in local
     assert "postgres:16" in wf  # no pgvector requested -> plain image
 

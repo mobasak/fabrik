@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Fail-closed test-DB guard: scaffold emits `tests/conftest.py` `require_throwaway()`; CI generators target `ci_test` (2026-07-23)
+
+Origin: a trade-intelligence session pointed `TEST_DATABASE_URL` at the dev Postgres and ran the full
+suite — the destructive tests (`DROP SCHEMA public CASCADE`) wiped the dev DB. Fleet-wide prevention,
+allowlist-shaped (a blacklist of one hostname protects only that hostname):
+- `src/fabrik/scaffold.py`: every scaffolded project now gets `tests/conftest.py` with
+  `require_throwaway(url)` — refuses any DB whose name doesn't end `_test`/`throwaway`/`scratch`
+  (or `CI=true`), so destructive tests error instead of destroying a dev/shared DB.
+- `src/fabrik/ci_scaffold.py`: both renderers (`ci.yml` + `ci_local.sh`) now create/target
+  `POSTGRES_DB: ci_test` (new `TEST_DB_NAME` const) so CI DBs pass the guard by *name*, not escape hatch.
+- `.windsurf/rules/core/45-testing-strategy.md`: anti-pattern row + Done-When checklist line.
+- Tests: `tests/test_scaffold_test_db_guard.py` (guard refuses dev names / allows markers / allows CI /
+  generator-name parity); `tests/test_ci_scaffold.py` URL assertion updated.
+
 ### Added — HARD review corpus (`microbench_review.py --hard`): 10 hand-planted subtle logic bugs that actually separate frontier models (2026-07-23)
 
 Per-item probing proved the operator-flip review corpus has almost no resolution at the frontier: of

@@ -169,6 +169,48 @@ UNSUPPORTED_FIX_TYPES = frozenset(
     }
 )
 
+# Fail-closed DB guard emitted into every scaffolded tests/conftest.py. Destructive
+# tests (DROP SCHEMA/TABLE, TRUNCATE, migration re-apply) MUST call require_throwaway()
+# before connecting — it refuses any database whose NAME is not explicitly marked
+# disposable, so a mispointed TEST_DATABASE_URL errors instead of wiping a dev DB.
+# Convention pairs with ci_scaffold.TEST_DB_NAME ("ci_test" — matches the marker).
+_TEST_DB_GUARD_CONFTEST = '''"""Shared test fixtures + the fail-closed database guard.
+
+Any test that DROPs/TRUNCATEs/re-migrates its target database MUST call
+`require_throwaway(url)` before connecting. Fail-closed: it refuses every database
+not explicitly marked disposable, so pointing TEST_DATABASE_URL at a dev/shared
+Postgres produces an error message instead of data loss.
+"""
+
+import os
+import re
+from urllib.parse import urlparse
+
+_DISPOSABLE_NAME = re.compile(r"(_test|throwaway|scratch)$")
+
+
+def require_throwaway(url: str) -> None:
+    """Refuse destructive tests unless `url` targets a disposable database.
+
+    Allowed: database name ending `_test`/`throwaway`/`scratch` (the fabrik CI
+    containers use `ci_test`), or a CI environment (GitHub Actions sets CI=true,
+    where every database is a fresh service container).
+    """
+    name = urlparse(url).path.lstrip("/")
+    if _DISPOSABLE_NAME.search(name) or os.environ.get("CI") == "true":
+        return
+    raise RuntimeError(
+        f"REFUSING destructive test: database {name!r} is not marked disposable "
+        f"(name must end _test/throwaway/scratch, or run in CI). Got: {url}"
+    )
+'''
+
+
+def _write_test_conftest(project_dir: Path) -> None:
+    """Emit tests/conftest.py with the fail-closed DB guard (see _TEST_DB_GUARD_CONFTEST)."""
+    (project_dir / "tests" / "conftest.py").write_text(_TEST_DB_GUARD_CONFTEST)
+
+
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
 FILE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-api"
 FILE_WORKER_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-worker"
@@ -1775,6 +1817,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
     # Create basic test
     (project_dir / "tests" / "__init__.py").write_text("")
+    _write_test_conftest(project_dir)
     (project_dir / "tests" / "test_health.py").write_text(
         f'"""Health endpoint tests."""\n'
         f"\n"
@@ -4607,6 +4650,7 @@ ephemeral — never register in a bare global).
 
     # tests/test_health.py
     (project_dir / "tests" / "__init__.py").write_text("")
+    _write_test_conftest(project_dir)
     (project_dir / "tests" / "test_health.py").write_text(
         f'"""Health endpoint tests."""\n'
         f"\n"
