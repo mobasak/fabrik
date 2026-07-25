@@ -161,12 +161,6 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Override threshold: AI_PACK_STALE_DAYS=NN
         $VENV_PYTHON $AI_PACK_FRESHNESS_SCRIPT >> $LOG_FILE 2>&1
         cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
-        # Claudeck backend always-on (desktop shortcut + cockpit depend on it)
-        ss -tln 2>/dev/null | grep -q ':9009 ' || (nohup npx -y claudeck > $HOME/claudeck.log 2>&1 &)
-        # Claudeck Fable menu patch (idempotent; survives claudeck updates)
-        python3 $FABRIK_ROOT/scripts/claudeck_patch_fable.py >> $LOG_FILE 2>&1
-        # Claudeck session sync: adopt native Claude Code sessions into claudeck's DB (idempotent)
-        python3 $FABRIK_ROOT/scripts/claudeck_import_sessions.py >> $LOG_FILE 2>&1
         # Postgres MCP tunnel: local 15432 -> hub postgres-main (mesh-bound 10.99.0.1:5432); idempotent
         pgrep -f "15432:10.99.0.1:5432" >/dev/null || nohup ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 15432:10.99.0.1:5432 vps >> $LOG_FILE 2>&1 &
         # Command-corpus drift check: installed ~/.claude/commands vs rendered _sources/_fragments (WARN-only in the daily log)
