@@ -226,7 +226,7 @@ Steps (TDD — risky first):
 5. Closing sequence (a)–(d), `Agent-Phase: C`. **(c) `/fabrik-review` — pool + native Opus (this phase
    touches the DB-write path + subprocess caps = the high-risk slice), quiet-round exit.**
 
-### Phase D — Search legs (`search/legs.py`) — vendored from rag
+### Phase D — Search legs (`search/legs.py`) — vendored from rag — ✅ EXECUTED 2026-07-26
 
 **Files:** `search/legs.py`, `tests/test_search_legs.py`. **One responsibility:** `search(conn, query,
 project=None, limit=10, after=None) -> list[Hit]` — 2-leg (tsvector + trgm) RRF fusion, read-only.
