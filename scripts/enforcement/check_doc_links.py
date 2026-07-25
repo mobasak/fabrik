@@ -117,6 +117,19 @@ def _tracked_md_sources() -> list[Path]:
     )
     srcs = [p for p in out if not p.startswith(skip_prefixes) and p != "docs/LESSONS_LEARNT.md"]
     srcs += [p for p in ROOT_SOURCES if (REPO / p).exists()]
+    # In a PROJECT, Fabrik-synced docs (gitignored, centrally distributed) are hub
+    # CONTEXT, never a link-check target: their hub-relative refs cannot resolve
+    # locally and cannot be fixed locally (synced-files gate forbids edits). The
+    # lock records exactly what was distributed.
+    lock = REPO / ".fabrik" / "synced.lock"
+    if lock.exists():
+        try:
+            import json as _json
+
+            synced = set(_json.loads(lock.read_text()))
+            srcs = [p for p in srcs if p not in synced]
+        except (ValueError, OSError):
+            pass  # unreadable lock -> keep prior behavior
     return [REPO / p for p in sorted(set(srcs)) if str(Path(p)) not in SOURCE_WAIVERS]
 
 
