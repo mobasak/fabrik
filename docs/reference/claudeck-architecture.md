@@ -64,8 +64,8 @@ verbatim (`MODEL_MAP[name] || name`).
   to `~/.claude/settings.json` → the operator's default (**Fable 5**). This is the right choice.
 - **Picker's hardcoded shortnames are STALE**: `opus`→`claude-opus-4-6`, `sonnet`→`claude-sonnet-4-6`
   (both superseded); only `haiku` is current. Picking "opus" is a silent downgrade.
-- **Fix in place:** `scripts/claudeck_patch_fable.py` (hub) patches a "Fable 5" entry into the menu of
-  the live npx cache — idempotent, re-run daily because `claudeck@latest` cache refreshes wipe it.
+- **Fix in place (historical):** a hub patcher script briefly added a "Fable 5" entry to the menu of
+  the live npx cache; the script was removed 2026-07-26 — if the entry vanishes after a claudeck update, leave the picker untouched (the unset default resolves to the operator's settings.json model).
 
 ## Operations
 

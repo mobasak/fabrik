@@ -1,6 +1,6 @@
 # session-recall — build plan (spec-fed)
 
-Status: IN-PROGRESS (execution started 2026-07-25)
+Status: EXECUTED 2026-07-26 — phases A–E complete; project Tier-2 gate 40/0; live E2E retrieved the build conversation's own turns; whole-plan review quiet
 Spec: `docs/superpowers/specs/2026-07-25-session-recall-design.md` (CONVERGED 2026-07-25 — inherits its
 grounding: cited external facts, fabrik-lib verdicts, parse contract, schema, rejected alternatives).
 Date: 2026-07-25

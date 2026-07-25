@@ -1,0 +1,16 @@
+{
+ "plan": "docs/development/plans/archived/2026-07-25-plan-1-session-recall.md",
+ "owned_paths": [
+  "/opt/session-recall/**",
+  "scripts/wsl_startup_hook.sh",
+  "CHANGELOG.md",
+  "docs/workflows/DATA_SYNC_WORKFLOW.md",
+  "CLAUDE.md",
+  "~/.claude.json"
+ ],
+ "branch": "master",
+ "started_at": "2026-07-25T23:40:00+03:00",
+ "status": "released",
+ "completed_at": "2026-07-26",
+ "final_commit": "project@Tier2-40/0"
+}
