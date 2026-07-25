@@ -8,21 +8,11 @@
 
 ## Automation now in place (no action needed — FYI)
 
-- **WSL cleaner** — `~/.local/bin/cache-prune.sh` (cron: Sun 03:00, logs to `~/.cache/cache-prune.log`).
-  Threshold-caps regenerable download caches (npm/uv/pip/selenium/puppeteer, only when over their size
-  limit — never `huggingface`/`ms-playwright`/`claude-cli-nodejs`); `pre-commit gc`; Docker image/builder
-  prune + stopped-container prune (>14d) with dangling-volume *reporting* (never auto-deletes volumes);
-  VS Code server logs (>1d) + VSIX cache; Kilo `log/` + package cache (snapshots age-gated >7d, `kilo.db`
-  kept); journal vacuum to 200M. **Caveat:** plain cron has no catch-up (no anacron) — if WSL is down at
-  Sun 03:00 it's skipped until next Sunday; run `cache-prune.sh` by hand anytime, or convert to a
-  `Persistent=true` systemd timer for catch-up (optional follow-up).
-- **Windows cleaner** — `C:\Users\user\scripts\cleanup-weekly.ps1` (Task Scheduler: `Fabrik-WeeklyCleanup`,
-  weekly). Age-gated: WSL crash dumps (>2d), `%TEMP%` (>7d), CrashDumps/Minidump (>7d), Windows Update
-  downloads (>14d), npm/pip cache. Has `-DryRun`. This owns the Windows side (WSL cleaner is `--no-windows`
-  equivalent by design — the two never overlap).
+- **Cleanup automation** — one cleaner per OS side + a manual compaction tool. Full reference:
+  [cleanup-automation.md](cleanup-automation.md). In short: `cache-prune.sh` (WSL, cron Sun 03:00),
+  `cleanup-weekly.ps1` (Windows, `Fabrik-WeeklyCleanup` task), `compact-wsl.bat` (manual vhdx compaction).
 - **`.wslconfig`** — swap pinned to `C:\wsl\swap.vhdx` (no more orphaned swaps in `%TEMP%`);
   risky `sparseVhd=true` removed (Microsoft flagged it as data-corruption risk); `autoMemoryReclaim=gradual` kept.
-- **Compaction script** — `compact-wsl.bat` on the Desktop (uses Optimize-VHD; see item A1 for why it barely helps).
 
 ---
 
