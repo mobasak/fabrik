@@ -14,6 +14,12 @@ from indexed history, with no daemons, no embeddings, no LLM calls, and bounded 
 
 ## Phase R0 — safe removal of episodic-memory (FIRST, before any build)
 
+> **⚠️ SUPERSEDED — R0 was fully executed 2026-07-25, before the build began.** The authoritative,
+> state-resynced record (including the `episodic-index.timer` respawner found later, its orphaned drop-in,
+> and two `~/.claude.json` remnants) lives in `docs/development/plans/2026-07-25-plan-1-session-recall.md`
+> § "What we already agreed". The paths below no longer exist — do not hunt for them; Phase A.2 of the plan
+> re-verifies the empty end-state only. Text below kept as the original design record.
+
 Ordered, fail-safe removal; the **hard fence** is stated first:
 
 > ⛔ **`~/.claude/projects/` is untouchable.** It is the live Claude Code history and the sole source of
