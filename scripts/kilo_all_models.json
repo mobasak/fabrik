@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-24T11:59:05.990007",
-  "total_models": 693,
+  "timestamp": "2026-07-25T00:04:29.898948",
+  "total_models": 698,
   "models": {
     "~anthropic/claude-fable-latest": {
       "id": "~anthropic/claude-fable-latest",
@@ -164,6 +164,16 @@
     },
     "anthropic/claude-opus-4.8-fast": {
       "id": "anthropic/claude-opus-4.8-fast",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "anthropic/claude-opus-5": {
+      "id": "anthropic/claude-opus-5",
+      "url": "https://openrouter.ai/api/v1",
+      "npm": "@openrouter/ai-sdk-provider"
+    },
+    "anthropic/claude-opus-5-fast": {
+      "id": "anthropic/claude-opus-5-fast",
       "url": "https://openrouter.ai/api/v1",
       "npm": "@openrouter/ai-sdk-provider"
     },
@@ -1733,6 +1743,10 @@
     "claude-opus-4-8": {
       "id": "claude-opus-4-8",
       "npm": "@ai-sdk/openai-compatible"
+    },
+    "claude-opus-5": {
+      "id": "claude-opus-5",
+      "npm": "@ai-sdk/anthropic"
     },
     "claude-sonnet-4-5": {
       "id": "claude-sonnet-4-5",

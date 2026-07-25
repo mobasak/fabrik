@@ -34,7 +34,7 @@ For STT/TTS, **prefer the direct vendor** (Soniox, Whisper API, gpt-4o-transcrib
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-25 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-07-25 UTC; auto-refreshed from `kilo_agents.db`):*
 
-STT-capable across all gateways: **31**
+STT-capable across all gateways: **25**
 
 Direct-vendor specialists (Soniox, Whisper API, gpt-4o-transcribe, Deepgram) are NOT in this DB — they live in their own `stt_quality` JSON and the bake-off browser's Audio/Vision tab. Gateway LLMs are last-resort.
 <!-- GATEWAY_COUNTS:END -->

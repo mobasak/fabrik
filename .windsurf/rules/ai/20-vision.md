@@ -41,7 +41,7 @@ Either gateway is fine — pick the cheaper rate per model from the bake-off bro
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-25 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-07-25 UTC; auto-refreshed from `kilo_agents.db`):*
 
-vision-input across all gateways: **185**
+vision-input across all gateways: **183**
 
 These are vision *understanding* models. Image *generation* (Recraft / FLUX) is not gateway-routed.
 <!-- GATEWAY_COUNTS:END -->

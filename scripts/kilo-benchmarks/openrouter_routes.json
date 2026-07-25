@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-24",
+  "generated_at": "2026-07-25",
   "assigned_by": "category_route_mapper",
   "categories": {
     "language": {
@@ -24,7 +24,7 @@
           "id": "openai/gpt-oss-20b",
           "provider": "openai",
           "input_cost_per_m": 0.03,
-          "output_cost_per_m": 0.14,
+          "output_cost_per_m": 0.13,
           "context_window_k": 131,
           "has_vision": false,
           "has_tools": true,
