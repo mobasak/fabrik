@@ -112,7 +112,8 @@
 - [scripts/audit_infra_vs_docs.py](INDEX.md): Probe-vs-doc audit for the VPS fleet.
 - [scripts/check_zed_extensions.py](INDEX.md): Gate: verify every Zed extension that settings.json depends on is installed.
 - [scripts/classify_services.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
-- [scripts/claudeck_import_sessions.py](INDEX.md): Import native Claude Code sessions (~/.claude/projects/*.jsonl) into claudeck's DB.
+- [scripts/claudeck_backfill_messages.py](INDEX.md): Backfill claudeck's messages table from native Claude Code session jsonl.
+- [scripts/claudeck_session_repair.py](INDEX.md): Repair an adopted Claude Code session for headless resume (idempotent, backed up).
 - [scripts/container_images.py](INDEX.md): Container Image Discovery Tool for Fabrik
 - [scripts/declare_subscription.py](INDEX.md): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](INDEX.md): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).

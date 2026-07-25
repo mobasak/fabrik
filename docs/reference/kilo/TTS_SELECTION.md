@@ -1,4 +1,4 @@
-Last refresh: 2026-07-23
+Last refresh: 2026-07-25
 
 # TTS Selection — Pareto-ranked at 100 000 chars
 

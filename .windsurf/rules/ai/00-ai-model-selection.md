@@ -116,18 +116,18 @@ When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the ac
 
 Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope, SiliconFlow, and ModelScope are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`, Hunyuan, Zhipu GLM direct).
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-24 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-07-24 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-25 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-07-25 UTC; auto-refreshed from `kilo_agents.db`):*
 
 | Gateway | Active routable models | Notes |
 |---|---|---|
-| **OpenRouter** | 345 | of which **342** dual-routed with Kilo, **3** OR-only |
-| **Kilo CLI** | 343 | of which **342** dual-routed with OR, **1** Kilo-only |
+| **OpenRouter** | 347 | of which **343** dual-routed with Kilo, **4** OR-only |
+| **Kilo CLI** | 344 | of which **343** dual-routed with OR, **1** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
 | **ModelScope** (direct) | 32 | Zhipu GLM direct (4) + Tencent Hunyuan Hy3 (1) + 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap |
 
-Capability counts (any-gateway): reasoning **211** · tools/function-calling **275** · vision-input **181** · translation-scored **9** · STT-capable **25**.
+Capability counts (any-gateway): reasoning **214** · tools/function-calling **279** · vision-input **185** · translation-scored **9** · STT-capable **31**.
 <!-- GATEWAY_COUNTS:END -->
 
 For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / Cybersecurity / Bio-Healthcare / Edge / Governance / Generative design) use domain tools, not gateway LLMs.
