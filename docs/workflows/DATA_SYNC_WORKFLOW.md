@@ -331,3 +331,12 @@ Each daily run is delimited by `=== Fabrik Daily Pipeline — YYYY-MM-DD HH:MM:S
 |--------|--------|
 | `sync_enforcement_to_projects.py` | Overwrites 30+ files per project — must be intentional |
 
+
+
+## Step 9 — session-recall incremental index (added 2026-07-26)
+
+The daily pipeline's last step runs `/opt/session-recall/.venv/bin/python -m ingest.reindex`
+(cwd `/opt/session-recall`, `timeout 600`, output to the shared `update.log`) — indexes the previous
+day's Claude Code sessions into the local `session_recall` Postgres DB serving the `session-recall`
+MCP tools. Fail-quiet: Postgres down = one log line, never a pipeline failure. The MCP server also
+self-heals staleness (>3 h) on first search of a session, so a missed morning run degrades gracefully.

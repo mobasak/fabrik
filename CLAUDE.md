@@ -106,6 +106,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 ```
 Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
+## Past sessions are searchable (session-recall)
+
+Full Claude Code history on this box is indexed locally. MCP tools: **`search_chats`** (keyword+substring,
+`project=`/`after=` filters) · **`get_chat`** (read a session window) · **`recent_chats`** (latest sessions).
+USE THEM when: resuming work ("continue where we left off"), the user references a prior decision/discussion
+not in this conversation ("as we decided", "the bug we fixed"), or after compaction when earlier context is
+unclear. Never claim no previous conversation exists without searching first.
+
 ## Pointers (detail in packs)
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).

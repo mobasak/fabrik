@@ -262,7 +262,7 @@ Steps:
    `EXPLAIN (FORMAT TEXT) <the legs query> | grep -c 'Bitmap Index Scan'` → `≥2` (both GIN indexes engaged).
 4. Closing sequence (a)–(d), `Agent-Phase: D`. **(c) `/fabrik-review` quiet-round exit (pool + native Opus).**
 
-### Phase E — MCP server + registration + hook + docs convergence
+### Phase E — MCP server + registration + hook + docs convergence — ✅ EXECUTED 2026-07-26
 
 **Files:** `server.py`, `tests/test_server.py`; edits `~/.claude.json` (backup first), hub
 `scripts/wsl_startup_hook.sh`, hub `CHANGELOG.md`; project docs per Doc Sync Matrix. **One

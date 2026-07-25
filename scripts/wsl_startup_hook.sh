@@ -26,6 +26,8 @@
 # 7. AI rule pack freshness check (warn-only): warns in update.log when any
 #      .windsurf/rules/ai/*.md 'Last content verification:' line is >90 days old
 # 8. Extensions sync: auto-update Windsurf extensions documentation (daily)
+# 9. session-recall incremental index: yesterday's Claude Code sessions into the
+#      local search DB (bounded: timeout 600; fail-quiet when Postgres is down)
 #
 # Full reference: docs/workflows/DATA_SYNC_WORKFLOW.md
 
@@ -165,6 +167,8 @@ if [ ! -f "$LOCK_FILE" ]; then
         pgrep -f "15432:10.99.0.1:5432" >/dev/null || nohup ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 15432:10.99.0.1:5432 vps >> $LOG_FILE 2>&1 &
         # Command-corpus drift check: installed ~/.claude/commands vs rendered _sources/_fragments (WARN-only in the daily log)
         python3 $FABRIK_ROOT/commands/assemble_commands.py --check >> $LOG_FILE 2>&1 || echo 'WARN: ~/.claude/commands drifted from /opt/fabrik/commands sources — re-render or reconcile' >> $LOG_FILE
+        # session-recall incremental index (fail-quiet; initial heavy ingest already done 2026-07-26)
+        cd /opt/session-recall && timeout 600 .venv/bin/python -m ingest.reindex >> $LOG_FILE 2>&1 || echo \"[session-recall] incremental index failed (non-fatal)\" >> $LOG_FILE
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
     " &
 fi

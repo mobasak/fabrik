@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — session-recall wired into the daily pipeline + fleet discoverability (2026-07-26)
+
+Startup-hook step 9: bounded (`timeout 600`) fail-quiet incremental index of Claude Code sessions into
+the local `session_recall` DB. CLAUDE.md gains "Past sessions are searchable" (3 MCP tools + trigger
+situations; synced fleet-wide). `docs/workflows/DATA_SYNC_WORKFLOW.md` documents the step. Build plan:
+`docs/development/plans/2026-07-25-plan-1-session-recall.md` (phases A–E executed).
+
+
 ### Fixed — /fabrik-review hardening of the DB guard + undeclared-imports check: 10 review findings fixed across 4 adversarial rounds (2026-07-24)
 
 4-round review (3 pool finders + native Opus, R4 = quiet `NONE`) of the guard/enforcement work; full
