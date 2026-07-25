@@ -1,6 +1,6 @@
 # session-recall — build plan (spec-fed)
 
-Status: CONVERGED (2026-07-25, /fabrik-plan-review: 4 passes to no-op + amendment round from operator-forwarded review [R0 state resync, unit-sweep verification, discoverability: behavioral tool descriptions + CLAUDE.md section + freshness self-heal, dual DSNs] + confirming no-op pass)
+Status: IN-PROGRESS (execution started 2026-07-25)
 Spec: `docs/superpowers/specs/2026-07-25-session-recall-design.md` (CONVERGED 2026-07-25 — inherits its
 grounding: cited external facts, fabrik-lib verdicts, parse contract, schema, rejected alternatives).
 Date: 2026-07-25
@@ -83,7 +83,7 @@ tool, fails candidate-check (b)).
 
 ## Phases
 
-### Phase A — Scaffold + preflight + DB bootstrap (hub-side start)
+### Phase A — Scaffold + preflight + DB bootstrap (hub-side start) — ✅ EXECUTED 2026-07-26
 
 > "Hub-side" = the `/opt/fabrik` repo **on this workstation** (the scaffold CLI lives in its venv).
 > **Nothing in any phase touches vps1 or any VPS** — store is local PG per the spec; there is no deploy.
@@ -146,6 +146,8 @@ Steps:
 (`psql -f db/schema.sql` twice → second run exit 0, zero errors); guard wiring — the scaffolded
 `tests/conftest.py` `require_throwaway` refuses `…/session_recall` and accepts `…/session_recall_test`
 (2 tests, TDD them first: red on a stub schema file, green after step 6).
+
+**Recorded Phase-A review amendments:** runtime deps = the plan's two pins PLUS the retained scaffold app's own deps (fastapi/uvicorn/pydantic/prometheus-client — A.4 keeps scaffold output intact, so its imports stay declared; undeclared-imports gate enforces); `SESSION_RECALL_TEST_DSN` is the third env name (test suite, `_test` DB); NOT NULL/DEFAULT constraints are deliberate additive hardening over the spec block; `docs/data-contract.md` frozen mode-B from the live schema (house-rule deviations recorded in the file).
 
 **Interfaces (A produces):** DB `session_recall` (+`_test`) with tables `sessions/turns/index_state` exactly
 as spec § Schema + the two additive btree indexes (A.6); roles `recall_rw`/`recall_ro` with TCP passwords in
@@ -243,12 +245,14 @@ Steps:
    trigram CTE `:372-381`, RRF `:405-407`) — adapt its sparse + trigram CTEs + RRF (`1.0/(rrf_k+rank)`,
    `rrf_k=60` per `search.py:57`) into a plain SQL query (no SQL function — two tables, no tenancy, no
    RLS). Dense leg stripped (spec verdict; adaptation, not core change).
-   ⚠️ **Predicate must match the expression index:** the trgm index is on `left(content, 300000)`, so the
-   trigram leg's predicate and ordering are `left(content, 300000) % $q` /
-   `similarity(left(content, 300000), $q)` — a predicate on bare `content` (as in `migration.sql:381`)
-   would seq-scan the 6.2 GB corpus. Same for `ts_headline` input.
+   ⚠️ **Predicate must match the expression index AND survive long documents (Phase-A review, live-proven):**
+   whole-string `%`/`similarity()` collapses toward 0 as documents grow — on real multi-KB turns the `%` leg
+   returns ZERO rows at the default 0.3 threshold. The trgm leg is therefore
+   `left(content, 300000) ILIKE '%' || $q || '%'` (substring match, accelerated by the SAME
+   `gin_trgm_ops` expression index) ranked by `word_similarity($q, left(content, 300000))`. A predicate on
+   bare `content` would seq-scan. Same `left(...)` input for `ts_headline`.
 2. TDD — Behavior Contract (D): (1) exact keyword hits rank via tsv leg (`websearch_to_tsquery('simple',…)`);
-   (2) substring/typo'd Turkish token hits via trgm leg (`left(content,300000) %`/`similarity`) — seeded
+   (2) substring/typo'd Turkish token hits via trgm leg (`left(content,300000) ILIKE`/`word_similarity`) — seeded
    fixture with a Turkish sentence; (3) RRF: a row hit by BOTH legs outranks single-leg rows; (4) `project=`
    and `after=` filters constrain results; (5) read-only — a `recall_ro` connection serves every function
    end-to-end; (6) `get_turns(conn, session_id, around_seq=None, window=20) -> list[Turn]` returns the
