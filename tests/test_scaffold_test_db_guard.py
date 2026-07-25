@@ -103,3 +103,21 @@ def test_guard_ci_escape_rejects_query_string_remote_host(tmp_path, monkeypatch)
     guard.require_throwaway("postgresql:///postgres?host=localhost")  # local via query: ok
     with pytest.raises(RuntimeError, match="REFUSING"):
         guard.require_throwaway("postgresql:///postgres?host=ti-dev-pg")
+
+
+def test_guard_refuses_dbname_query_override(tmp_path, monkeypatch):
+    """Review finding: `.../anything_test?dbname=session_recall` connects to the REAL
+    db (libpq honors ?dbname=) — the guard must resolve the effective name, not the path."""
+    monkeypatch.delenv("CI", raising=False)
+    guard = _emitted_guard(tmp_path)
+    with pytest.raises(RuntimeError, match="REFUSING"):
+        guard.require_throwaway("postgresql://u:p@127.0.0.1:5432/anything_test?dbname=session_recall")
+
+
+def test_guard_refuses_keyword_dsn_remote_prod(tmp_path, monkeypatch):
+    """A keyword-style DSN's whole string used to regex-match; a remote prod DB with a
+    `_test`-suffixed something must not slip through."""
+    monkeypatch.delenv("CI", raising=False)
+    guard = _emitted_guard(tmp_path)
+    with pytest.raises(RuntimeError, match="REFUSING"):
+        guard.require_throwaway("host=10.99.0.1 port=5432 dbname=remote_prod")

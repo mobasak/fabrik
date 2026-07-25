@@ -1,0 +1,71 @@
+# ⚠️ NOT DEPLOYED — workstation-local stdio MCP tool + CLI over a LOCAL Postgres.
+# This spec exists only for the project registry; `fabrik apply` must NOT run it
+# (it would deploy the dead scaffold FastAPI app). See the project README.
+id: session-recall
+kind: service
+template: python-api
+domain: session-recall.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: false
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: false  # uses LOCAL PostgreSQL, not postgres-main — no hub registrar
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+expose:
+  http: true
+  internal_only: false
+source:
+  type: git
+  repository: git@github.com:mobasak/session-recall.git
+  branch: mobasak/session-recall
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: ${PORT:-8000}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+secrets:
+  required: []
+  generate: []
+  from_env:
+  - SERVICE_INTERNAL_SECRET_KEY
+  from_file: {}
+resources:
+  memory: 512M
+  cpu: '0.5'
+health:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+companion_services: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
+watchdog:
+  enabled: false
+  daily_budget_usd: 1.0
+  daily_invocations_cap: 200
+  auto_tier_b: false
+  escalation_channel: apprise
+  llm_provider_primary: claude-code
+  llm_provider_fallback: openrouter
+  cheap_model: haiku
+  expensive_model: sonnet
+  per_incident_budget_usd: 0.5
+  deadman_timeout_seconds: 300
+  external_docs_enabled: true
+  propose_fix_prs: false
+  auto_code_fix: false
+  code_fix_window_sec: 1800
+  critical_paths: []
+  trigger_sources: []

@@ -191,6 +191,23 @@ _DISPOSABLE_NAME = re.compile(r"(_test|throwaway|scratch)$", re.IGNORECASE)
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]", ""}
 
 
+def _effective_db_and_hosts(url: str) -> tuple[str, set[str]]:
+    """Resolve the ACTUAL connected db name + all candidate hosts, honoring the ways
+    libpq lets either override the obvious slot: a URL `?dbname=`/`?host=` query
+    parameter, and keyword-DSN `dbname=`/`host=` tokens. Ignoring these was a real
+    bypass — `.../anything_test?dbname=prod` connects to prod (review finding)."""
+    parsed = urlparse(url)
+    kw = dict(parse_qsl(parsed.query))
+    if "://" not in url:  # keyword DSN: "host=... dbname=... port=..."
+        for tok in url.split():
+            if "=" in tok:
+                k, v = tok.split("=", 1)
+                kw.setdefault(k.strip(), v.strip())
+    name = kw.get("dbname") or parsed.path.strip("/")
+    hosts = {parsed.hostname or "", kw.get("host", ""), kw.get("hostaddr", "")}
+    return name, {h for h in hosts if h != "" or (parsed.hostname is None and not kw.get("host"))}
+
+
 def require_throwaway(url: str) -> None:
     """Refuse destructive tests unless `url` targets a disposable database.
 
@@ -199,13 +216,9 @@ def require_throwaway(url: str) -> None:
     AND a localhost DB — CI=true alone must never unlock a remote/tunneled DB
     (a dev shell can carry CI=true; the escape stays scoped to service containers).
     """
-    parsed = urlparse(url)
-    name = parsed.path.strip("/")
+    name, hosts = _effective_db_and_hosts(url)
     if _DISPOSABLE_NAME.search(name):
         return
-    # libpq also accepts the host via ?host= — an empty netloc must not hide a remote.
-    hosts = {parsed.hostname or ""}
-    hosts.update(v for k, v in parse_qsl(parsed.query) if k == "host")
     if os.environ.get("CI") == "true" and hosts <= _LOCAL_HOSTS:
         return
     raise RuntimeError(
