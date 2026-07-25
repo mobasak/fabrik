@@ -155,7 +155,7 @@ as spec § Schema + the two additive btree indexes (A.6); roles `recall_rw`/`rec
 `SESSION_RECALL_DATABASE_URL` (recall_ro, server) + `SESSION_RECALL_INDEXER_DSN` (recall_rw, indexer),
 both full DSNs read from `.env`; project venv at `/opt/session-recall/.venv`.
 
-### Phase B — Parser (`ingest/parse.py`) + fixtures
+### Phase B — Parser (`ingest/parse.py`) + fixtures — ✅ EXECUTED 2026-07-26
 
 **Files:** `ingest/__init__.py` + `ingest/parse.py`, `tests/fixtures/*.jsonl` (5 fixtures),
 `tests/test_parse.py`. **One responsibility:** one JSONL file → `ParseResult` (streaming), never raising
