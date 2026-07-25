@@ -189,7 +189,7 @@ Steps (TDD — risky first):
 4. Closing sequence — same as Phase A steps (a)–(d), scope = Phase B files, `Agent-Phase: B`.
    **(c) is the literal `/fabrik-review` blocking gate — pool finders + native Opus, quiet-round exit.**
 
-### Phase C — Indexer (`ingest/reindex.py`) + initial ingest
+### Phase C — Indexer (`ingest/reindex.py`) + initial ingest — ✅ EXECUTED 2026-07-26
 
 **Files:** `ingest/reindex.py`, `tests/test_reindex.py`. **One responsibility:** walk the live tree,
 incremental-ingest via `index_state`, batched `COPY`, bounded resources.
