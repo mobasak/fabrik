@@ -1,4 +1,4 @@
-Last refresh: 2026-07-25
+Last refresh: 2026-07-26
 
 # Candidate Signups — Watch-list vendors not currently reachable
 
@@ -10,5 +10,4 @@ before acting; some may have moved between refreshes.
 
 | # | Kind | Model / SKU | Provider | Price (context) | Signup trigger |
 |---|---|---|---|---:|---|
-| 1 | gpu | `hyperbolic:h100` | hyperbolic | $1.4900 /hr | signup — cheaper H100 than vast/runpod on-demand |
-| 2 | gpu | `novita:h100` | novita | $1.7900 /hr | signup — mid-market H100 |
+| — | _no candidate signups seeded_ | — | — | — | — |
