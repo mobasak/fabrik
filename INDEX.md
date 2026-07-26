@@ -153,6 +153,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │                                    # removed 2026-05-30; directory may be empty)
 ├── scripts/                         # Automation and tooling scripts
 │   ├── final_gate.py                # Mandatory pre-commit quality gate
+│   ├── ci_fix_dispatcher.py         # GitHub CI failure → headless coder-AI fix run (hourly cron)
 │   ├── docs_updater.py              # Auto-update docs structure
 │   ├── kilo_code_review.py          # Kilo-based code review runner
 │   ├── create_pg_dev_db.sh          # PostgreSQL dev database creation helper
@@ -270,6 +271,8 @@ docs/
 ├── STRATEGIC_BACKLOG.md
 ├── TROUBLESHOOTING.md              # Common issues & solutions
 ├── archive                         # Archived and completed documentation
+├── claudeck
+│   └── claudeck-integration-reference.md # Claudeck integration: patches, adoption kit, update-survival model
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
 │   ├── capability-defects.md
@@ -509,7 +512,12 @@ docs/
 ├── workstation
 │   ├── MCP_HTTP_TRANSPORT.md
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
-│   └── wsl-shell-mcp-setup.md
+│   ├── cleanup-automation.md       # WSL+Windows cleanup system reference (one cleaner per OS + manual compaction)
+│   ├── cleanup-maintenance-backlog.md # Remaining dev-box cleanup items after the 2026-07-25 sweep
+│   ├── session-recall.md           # session-recall tool: what it does, feature list, file map (code in /opt/session-recall)
+│   ├── vscode-configuration.md     # VS Code final config: extensions kept/removed, AI surface, perf settings
+│   ├── wsl-shell-mcp-setup.md
+│   └── wsl-startup-inventory.md    # What runs on WSL boot: systemd services, cron, timers, per-shell chain
 └── zed
     └── zed-acp-side-by-side-analysis.md
 ```
