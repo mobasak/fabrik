@@ -1,9 +1,38 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-07-20 (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-07-26 (Lesson 101 — a re-triage/re-bill dedup test must assert the CONSUMER's real bucketing invariant, not a proxy function in isolation; and "exempt on error" must split transient-transport from completed-but-unusable) (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 101: a loop-closing dedup test must assert the CONSUMER's real bucketing invariant — not a proxy function in isolation
+
+**Date:** 2026-07-26 · **Context:** `classify_services.py --tombstone-unresolved` — stop the daily pipeline re-billing a paid pool call for a permanently-unidentifiable provider key
+
+I built a tombstone to drop unresolvable providers OUT of the NEEDS-TRIAGE block, writing
+`category="?"`, and shipped a green test asserting `gather_envs.match_provider("WEIRDVENDOR_API_KEY",
+matchers) == "weirdvendor"`. The test passed; **the feature was broken.** The consumer
+(`gather_envs.consolidate`) decides NEEDS-TRIAGE membership **solely on `category=="?"`**, NOT on whether
+a `match` prefix fires — so a `category="?"` tombstone stayed in triage and re-billed every day. My test
+proved a **proxy** (the match function) instead of the **actual invariant** (the render/bucket loop the
+re-bill reads from). A native Opus review pass caught it; my own green test had hidden it.
+
+**Fixes:** (1) tombstone with a **non-`"?"` category** (`"unidentified"`) so it renders in its own section
+above triage; (2) the regression test runs the real `consolidate()` and asserts the provider is **not in
+the NEEDS-TRIAGE split** — verified **red-on-revert** (flip back to `"?"` → test fails). (3) Second trap,
+same change: my "don't tombstone on error" guard lumped a **transport error** (transient → must retry) with
+a **completed-but-no-JSON response** (permanent → must act), which reopened the re-bill hole for the
+no-JSON case. Splitting them (`errored` = only `r.error` set; a completed-no-JSON is unidentifiable →
+tombstone) closed it.
+
+**Rule:** when a test guards a loop-closing/dedup/idempotency behavior, assert against the **exact state the
+downstream consumer keys on** (read its code — which field, which bucket), never a convenient helper that
+merely *correlates*. And when exempting "failures" from a terminal action, **classify the failure**:
+transient (retry) vs terminal-but-unusable (act) are not the same branch. See
+[[feedback_converge_own_build_output]] — a green gate + a green test is not convergence; the forced no-op
+review is what surfaced this.
 
 ---
 
