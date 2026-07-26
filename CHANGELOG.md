@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — CI-failure prevention (gate runs pytest) + auto-fix dispatcher (2026-07-26)
+
+Prevention: `final_gate.py` Tier 2 now runs the project's test suite (`pytest tests/ -x -q`, 900s cap)
+**when the repo's own CI runs pytest** (CI parity — a repo whose CI doesn't run pytest has no CI red to
+prevent, and a hub-scale suite would brick the gate: fabrik's is ~3h). Closes the local-green/CI-red gap
+where an agent reaches `status:success` yet pushes test-failing code (proven live on trading-intelligence
+2026-07-24; its CI runs ruff+pytest while the gate ran neither). Synced fleet-wide. Net: `scripts/ci_fix_dispatcher.py`
+polls `gh run list` failures across /opt repos hourly and dispatches a headless coder-AI fix run in the
+failing repo (dedup, 2-attempt cap, dirty-worktree skip for sibling agents, quota cap 2/cycle; tests in
+`tests/test_ci_fix_dispatcher.py`). Also removed the stale `supabase-keepalive.yml` workflow (Supabase retired)
+and installed jscpd@5.0.9 locally (+`/usr/local/bin` symlink) so `check_duplicates` stops silently skipping.
+
 ### Added — session-recall wired into the daily pipeline + fleet discoverability (2026-07-26)
 
 Startup-hook step 9: bounded (`timeout 600`) fail-quiet incremental index of Claude Code sessions into

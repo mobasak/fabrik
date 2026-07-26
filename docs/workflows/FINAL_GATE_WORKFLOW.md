@@ -190,6 +190,13 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Full quality gate before Traycer commit
 
+**Pytest (CI parity)** — Tier 2 runs `pytest tests/ -x -q` (900s cap, blocking) **only when the repo's
+own `.github/workflows/*` run pytest**. Rationale: the gate must be equivalent to what CI will reject —
+an agent must not reach `status:success` and still push test-failing code (happened live on
+trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped (no CI red to prevent;
+fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
+no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
+
 **Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block, `final_gate.py:674-834`), **plus 14 Tier-2-only checks** (`final_gate.py:841-919` — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **32 checks total**.
 
 **The 11 Tier-2-only checks:**

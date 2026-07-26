@@ -67,6 +67,7 @@ TIMEOUTS = {
     "sqlfluff": 180,
     "ruff": 120,
     "semgrep": 300,
+    "pytest": 900,
 }
 
 # Max fix iterations to prevent infinite loops
@@ -611,6 +612,51 @@ def run_static_checks(
             results.append(("semgrep", code == 0, out if code != 0 else ""))
     else:
         results.append(("semgrep", True, "(no src/ changes, skipping)"))
+
+    # Pytest — CI parity (only when THIS repo's CI runs pytest). Prevents the
+    # #1 local-green/CI-red gap: an agent reaches "status: success" yet pushes
+    # test-failing code because the gate never ran the suite CI runs (proven
+    # live on trading-intelligence, 2026-07-24 — its CI runs ruff+pytest).
+    # Scoped to CI-parity deliberately: a repo whose CI does NOT run pytest has
+    # no CI red to prevent, and a hub-scale suite (fabrik: 2500 tests, ~3h)
+    # would brick every completion gate. -x stops at the first failure.
+    def _ci_runs_pytest() -> bool:
+        wf_dir = PROJECT_ROOT / ".github" / "workflows"
+        if not wf_dir.is_dir():
+            return False
+        for wf in wf_dir.glob("*.y*ml"):
+            try:
+                if "pytest" in wf.read_text(encoding="utf-8", errors="ignore"):
+                    return True
+            except OSError:
+                continue
+        return False
+
+    if (
+        (PROJECT_ROOT / "tests").is_dir()
+        and _ci_runs_pytest()
+        and (
+            not changed
+            or _has_path_prefix(changed, "src/")
+            or _has_path_prefix(changed, "tests/")
+            or _has_path_prefix(changed, "scripts/")
+        )
+    ):
+        code, out = run_cmd(
+            [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
+            timeout=TIMEOUTS["pytest"],
+        )
+        if "No module named pytest" in out:
+            results.append(("pytest", True, "(pytest not installed, skipping)"))
+        elif code == 5:  # pytest exit 5 = no tests collected
+            results.append(("pytest", True, "(no tests collected)"))
+        else:
+            tail = "\n".join(out.splitlines()[-30:])
+            results.append(("pytest", code == 0, tail if code != 0 else ""))
+    else:
+        results.append(
+            ("pytest", True, "(CI doesn't run pytest, no tests/, or no code changes — skipping)")
+        )
 
     # SQLFluff (skip if no .sql files changed)
     if not changed or _has_extension(changed, ".sql"):
