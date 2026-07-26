@@ -2,14 +2,14 @@
 
 **Status:** CONVERGED
 **Date:** 2026-07-12
-**Converged:** 2026-07-12 (`/fabrik-plan-review` — Pass 1 edit-free md5-verified no-op; verified 7 path:line refs, 14 structural pillars, 8 Behavior Contract tests, toolchain preflight (python/pytest/sqlite3/jq/curl/httpx/dotenv), no active sibling plan-lock, 0 placeholders / 0 OPEN residuals; md5 start=end `56767bfe9e257f3aae29dda78af0f464`)
-**Design spec:** [docs/superpowers/specs/2026-07-12-wavespeed-integration-design.md](../../superpowers/specs/2026-07-12-wavespeed-integration-design.md) (CONVERGED, md5 `6387897ccd8ff6989d02c4ab6665772e`)
+**Converged:** 2026-07-12; **re-converged 2026-07-26** (`/fabrik-plan-review`, plan sat unexecuted 14 days). The 2026-07-26 pass re-ground every load-bearing claim against LIVE code/DB/API and corrected 6 drift classes (spec archived → link repointed; DB 815→833 rows / `llm:656→674` / 87→88 cols; catalog 941→942 hard-counts softened to drift-tolerant; **spec-mapping `llm`-type omission → mandated explicit `llm→llm`**; `apply_flags` 2-tuple→3-tuple note; `DATA_PLACEHOLDER` :378→:371) — see `## Self-audit › Re-grounding pass — 2026-07-26`. Confirmed still-accurate: all other path:line refs, structural pillars, Behavior Contract, toolchain preflight, 0 placeholders / 0 OPEN residuals, plan genuinely unexecuted. Convergence md5 recorded in the `/fabrik-plan-review` report's Pass Ledger (a self-referential hash-in-file is elided).
+**Design spec:** [docs/superpowers/specs/archived/2026-07-12-wavespeed-integration-design.md](../../superpowers/specs/archived/2026-07-12-wavespeed-integration-design.md) (CONVERGED, md5 `6387897ccd8ff6989d02c4ab6665772e` — content intact; the spec was **archived** by commit `55a53b9a` while this plan sat unexecuted, so it now lives under `specs/archived/`. Executor: read it there.)
 **Scaffold type:** `python-api-gpu` (fabrik hub itself; scripts run hub-side via `daily_refresh.sh`)
 **Author:** primary (this session)
 
 ## Goal
 
-Wire the WaveSpeed AI catalog (941 models across 25 types on `https://api.wavespeed.ai/api/v3/`) into `scripts/kilo-benchmarks/kilo_agents.db` the same way SiliconFlow and ModelScope are wired: catalog scrape → row seed → per-model pricing → GUI surfacing. Purpose: give `pick_models` a WaveSpeed candidate pool and let `models_browser.html` compare cost/capability across vendors on one screen. Catalog-only (no benching this plan).
+Wire the WaveSpeed AI catalog (~941 models across 25 types on `https://api.wavespeed.ai/api/v3/` — **942 live as of 2026-07-26**; the catalog drifts daily and the scraper logs the actual count each run, so treat every model-count figure in this plan as an at-time-of-writing approximation, not an assertion) into `scripts/kilo-benchmarks/kilo_agents.db` the same way SiliconFlow and ModelScope are wired: catalog scrape → row seed → per-model pricing → GUI surfacing. Purpose: give `pick_models` a WaveSpeed candidate pool and let `models_browser.html` compare cost/capability across vendors on one screen. Catalog-only (no benching this plan).
 
 ## Global Constraints
 
@@ -19,7 +19,8 @@ Wire the WaveSpeed AI catalog (941 models across 25 types on `https://api.wavesp
 - **Bronze-tier rate limits do NOT bind catalog fetch** — `/api/v3/models` is a single request, well within any tier. See spec External deps table.
 - **Idempotency invariant**: every script re-runs safely (`INSERT OR IGNORE` on model_id PRIMARY KEY; `UPDATE ... AND COALESCE(via_wavespeed, 0) != 1` guards the flip-counter).
 - **Naming**: kebab-case for file names; snake_case for Python; `via_wavespeed INTEGER` column matches sibling naming (`via_openrouter/via_kilo/via_dashscope/via_siliconflow/via_modelscope` — all `INTEGER DEFAULT 0`).
-- **New service_type enum values**: `3d_gen`, `moderation` — Python-side convention (no SQL CHECK constraint on `agents.service_type`).
+- **New service_type enum values**: `3d_gen`, `moderation` — Python-side convention (no SQL CHECK constraint on `agents.service_type`). Two new values → the enum universe goes 10 → **12**.
+- **Mapping must cover ALL live serving types, incl. `llm`.** The live catalog has **25 `type` values**; the spec's mapping table (archived spec §Service_type mapping) enumerates only 24 — it **omits the WaveSpeed `type="llm"` group** (6 models: `ai-story-generator`, `prompt-optimizer`, `molmo2/prompt-optimizer`, `any-llm/vision`, `any-llm`, `nemotron-3-nano-omni/text`), even though its pricing table *does* define an `llm` row. `SERVICE_TYPE_MAPPING` therefore MUST include an explicit `"llm": "llm"` entry, or behavior 2 ("unknown types raise") crashes the Phase-B seed with `KeyError` on those 6 rows. Only `type="training"` maps to the skip sentinel (`None`); every other live type maps to a real enum.
 - **HTTP client**: `httpx` sync (matches `ms_enrich.py:23` idiom; kilo-benchmarks pipeline is sync).
 - **Cache dir**: `scripts/kilo-benchmarks/cache/` (gitignored via `cache/*.json`).
 - **Coupling header on every new `scripts/**/*.py`**: `# AFTER-EDIT: <files | none>` in first ~25 lines (gate-enforced by `check_script_headers.py`).
@@ -42,9 +43,9 @@ Wire the WaveSpeed AI catalog (941 models across 25 types on `https://api.wavesp
 | `scripts/kilo-benchmarks/scrape_modelscope_catalog.py:182` (precedent — ingest_new) | INSERT-new pattern: `INSERT OR IGNORE INTO agents (...)` — mirror | `scripts/kilo-benchmarks/scrape_modelscope_catalog.py:182-275` |
 | `scripts/kilo-benchmarks/seed_specialty_catalog.py:163` (precedent — service_type gate) | Real enum allowlist: `if service_type not in {"tts", "stt", "translation", "image_gen", "music_gen"}: continue` — extend to include `3d_gen`, `moderation` | `scripts/kilo-benchmarks/seed_specialty_catalog.py:163` |
 | `scripts/kilo-benchmarks/daily_refresh.sh` (precedent — orchestration) | 9-step sequence, non-fatal error handling per step; `set -u` (not `set -e` at step granularity) | `scripts/kilo-benchmarks/daily_refresh.sh` |
-| `scripts/kilo-benchmarks/export_models_browser.py:35` (precedent — payload) | `_fetch_chat_models` loads `SELECT * FROM agents`; payload is JSON blob injected into `models_browser.html` at the `<!--DATA_PLACEHOLDER-->` marker | `scripts/kilo-benchmarks/export_models_browser.py:35-78, 378` |
+| `scripts/kilo-benchmarks/export_models_browser.py:35` (precedent — payload) | `_fetch_chat_models` loads `SELECT * FROM agents`; payload is JSON blob injected into `models_browser.html` at the `<!--DATA_PLACEHOLDER-->` marker | `scripts/kilo-benchmarks/export_models_browser.py:35-78`; placeholder `.replace()` at **:371** (re-grounded 2026-07-26 — was cited :378) |
 | `agents.db` schema (grounded) | Columns present: `via_openrouter/via_kilo/via_dashscope/via_siliconflow/via_modelscope` (all `INTEGER DEFAULT 0`); `service_type TEXT DEFAULT 'llm'`. Column `via_wavespeed` **absent** — added Phase A. | `sqlite3 kilo_agents.db ".schema agents"` (verified this session) |
-| Current `service_type` distribution | `llm:656, image_gen:50, video_gen:28, tts:22, embedding:20, stt:18, translation:8, ocr:5, rerank:4, music_gen:4` — 10 enum values, 815 rows. Post-Phase-B: +12 enum values (`3d_gen`, `moderation`), +928 rows. | `sqlite3 kilo_agents.db "SELECT service_type, COUNT(*) FROM agents GROUP BY service_type"` |
+| Current `service_type` distribution | `llm:674, image_gen:50, video_gen:28, tts:22, embedding:20, stt:18, translation:8, ocr:5, rerank:4, music_gen:4` — 10 enum values, **833 rows** (re-grounded 2026-07-26; the daily `daily_refresh.sh` regenerates the DB, so this drifts — was 815 / `llm:656` when the plan was first drafted 2026-07-12). Post-Phase-B: **+2 enum values** (`3d_gen`, `moderation` → 12 total), **~+929 rows** (WaveSpeed-native inserts + flips; exact count logged at runtime). | `sqlite3 kilo_agents.db "SELECT service_type, COUNT(*) FROM agents GROUP BY service_type"` |
 | `libs/subagents/agent.py:689 fanout` + `pg_ledger.py:263 set_quality` + `pg_ledger.py:205 record_agent_run` | Pool-default fan-out API for parallel grounder / test-author / doc-reconciler workers | `libs/subagents/{agent.py,pg_ledger.py}` |
 | **Data contract** | Not applicable — no user-facing form fields, no new entity; only additive columns/enum values on the internal `agents` catalog table. Spec's `shape:` decision recorded here for the executor. | Spec § Shape / infra implications |
 | **UI design** | Not applicable — `models_browser.html` is an existing internal browser (additive badge only, no new screen). Non-GUI project (`python-api-gpu` hub scaffold). | Spec § Handoff |
@@ -54,7 +55,7 @@ Wire the WaveSpeed AI catalog (941 models across 25 types on `https://api.wavesp
 Distinct user-observable behaviors this plan adds (risk-ordered — highest first; TDD for the top two):
 
 1. **Idempotent scraper** — running `python scrape_wavespeed_catalog.py` twice back-to-back leaves the DB byte-identical after the first run (no phantom rows, no double-flipped flags). *(risky: touches ~928 new rows)*
-2. **Correct service_type mapping** — every WaveSpeed `type` in the catalog maps to the spec's mapping table; unknown types raise, don't silently `llm`-default. *(risky: silent misclassification would poison `pick_models`)*
+2. **Correct service_type mapping** — every WaveSpeed `type` in the catalog maps to a known enum (the spec's mapping table **plus the explicit `llm → llm` entry** the spec table omits — see Global Constraints); only `training` maps to the skip sentinel; a genuinely-unknown *future* type raises, never silently `llm`-defaults. *(risky: silent misclassification would poison `pick_models`; a missing mapping key crashes the seed)*
 3. **Flag-flip guarded counter** — the scraper reports the count of rows it flipped `via_wavespeed=1` vs rows already flipped, matching `apply_flags`' pattern (rowcount only counts newly-flipped).
 4. **Migration idempotency** — `python add_via_wavespeed_column.py` is safe to run N times; second run reports "already present".
 5. **Training rows skipped** — the 13 `type=training` rows never enter `agents` (not a serving endpoint).
@@ -80,7 +81,7 @@ Trivia skipped: `--dry-run` flag boilerplate, `--help` output, docstring format.
 ### Interfaces
 
 **Consumes** (from repo state):
-- `agents.db` schema at `sqlite3 kilo_agents.db "PRAGMA table_info(agents)"` — 87 columns, no `via_wavespeed`.
+- `agents.db` schema at `sqlite3 kilo_agents.db "PRAGMA table_info(agents)"` — **88 columns** (re-counted 2026-07-26), no `via_wavespeed`.
 - `WAVESPEED_API_KEY` from `/opt/fabrik/.env` (already present; loaded via `load_dotenv()`).
 
 **Produces** (for later phases):
@@ -105,7 +106,7 @@ Trivia skipped: `--dry-run` flag boilerplate, `--help` output, docstring format.
 5. Run the tests → **Expected: GREEN**. Fix to green if not.
 
 **A.2 — TDD service_type mapping correctness (behavior 2 — misclassification is silent poison).**
-1. Write `tests/test_scrape_wavespeed_catalog.py::test_service_type_mapping_covers_every_wavespeed_type` — parametrize every WaveSpeed `type` from the cached catalog (see A.4 for how to obtain it locally without hitting the API) and assert each maps to one of the 12 known enum values or raises `KeyError`. Include an explicit case that `type="training"` maps to a sentinel value (`None`) and the scraper skips those rows.
+1. Write `tests/test_scrape_wavespeed_catalog.py::test_service_type_mapping_covers_every_wavespeed_type` — parametrize every WaveSpeed `type` **present in the live/cached catalog** (see A.4 for how to obtain it locally without hitting the API) and assert each maps to one of the 12 known enum values — i.e. **NONE of the live serving types raises** (this is the assertion that catches the `llm`-omission: `type="llm"` MUST map to `"llm"`, not raise). `type="training"` maps to the sentinel `None` and the scraper skips those rows. Add a separate negative case: a synthetic/unknown type string (e.g. `"quantum-teleport"`) DOES raise `KeyError` — proving the raise-on-unknown guard exists without depending on a live type to be missing.
 2. Write `test_pricing_formula_per_service_type` — for each of the 8 mapped `service_type` values, assert `PRICING_MULTIPLIERS[st] * base_price` matches the spec's formula table (e.g. `image_gen: base × 1_000_000`; `video_gen: base × 5 × 1_000_000`).
 3. Run → **RED** (module or constants missing).
 4. Confirm RED for the right reason.
@@ -130,7 +131,7 @@ Trivia skipped: `--dry-run` flag boilerplate, `--help` output, docstring format.
 **A.4 — Verify with a real fetch (behavior 6 — cache round-trip).**
 1. Add `tests/test_scrape_wavespeed_catalog.py::test_fetch_and_cache_roundtrip` marked `@pytest.mark.integration` (opt-in) — actually hit the API, assert `CATALOG_CACHE_PATH` is written, load it back, assert `len(data) >= 900`.
 2. Run: `python scripts/kilo-benchmarks/scrape_wavespeed_catalog.py --dry-run 2>&1 | head -20`.
-   **Expected**: prints `[wavespeed] cached 941 models to scripts/kilo-benchmarks/cache/wavespeed_catalog.json` and `[wavespeed] dry-run — no rows written`.
+   **Expected**: prints `[wavespeed] cached <N> models to scripts/kilo-benchmarks/cache/wavespeed_catalog.json` (N ≈ 941–942, drifts daily) and `[wavespeed] dry-run — no rows written`.
 3. `ls -la scripts/kilo-benchmarks/cache/wavespeed_catalog.json` — expect a JSON file > 1 MB.
 
 **A.5 — Doc updates for this phase (per Doc Sync Matrix).**
@@ -164,7 +165,7 @@ Trivia skipped: `--dry-run` flag boilerplate, `--help` output, docstring format.
 
 ## Phase B — Full 941-row seed + via_wavespeed flip
 
-**Deliverable:** all 928 serving-eligible WaveSpeed rows in `agents.db`; overlaps flagged `via_wavespeed=1`; `INSERT OR IGNORE` collision policy resolved.
+**Deliverable:** all serving-eligible WaveSpeed rows (~929 = live-count − 13 `training`; 942−13 as of 2026-07-26) in `agents.db`; overlaps flagged `via_wavespeed=1`; `INSERT OR IGNORE` collision policy resolved.
 
 **Files:**
 - MODIFY `scripts/kilo-benchmarks/scrape_wavespeed_catalog.py` — enable the `--seed` code path (INSERT + flag-flip).
@@ -180,7 +181,7 @@ Trivia skipped: `--dry-run` flag boilerplate, `--help` output, docstring format.
 
 **Produces:**
 - `scrape_wavespeed_catalog.canonical_slug(model_id: str) -> str` — strips the `wavespeed-ai/`, `pruna-ai/`, etc. prefix; used for cross-vendor overlap detection.
-- `scrape_wavespeed_catalog.apply_wavespeed_flags(conn: sqlite3.Connection, ws_models: list[dict]) -> tuple[int, int]` — matches existing `apply_flags` signature; returns (matched, updated).
+- `scrape_wavespeed_catalog.apply_wavespeed_flags(conn: sqlite3.Connection, ws_models: list[dict]) -> tuple[int, int]` — returns (matched, updated). **Note (re-grounded 2026-07-26):** the precedent `apply_flags` at `scrape_modelscope_catalog.py:104` actually returns a **3-tuple** `tuple[int, int, list[str]]` (the third element is the list of matched agent-ids). Mirror its *matching logic*, but this function deliberately returns the 2-tuple the plan's tests assert on (drop the id-list, or keep it and adjust `test_apply_flags_guarded_counter` to unpack three — pick one and be consistent; the tests below assume the 2-tuple).
 - `scrape_wavespeed_catalog.ingest_new_wavespeed(conn, ws_models) -> tuple[int, int]` — returns (inserted, skipped). Uses `INSERT OR IGNORE INTO agents (…)` — matches modelscope precedent; existing rows are NEVER overwritten (WaveSpeed-native only inserts; overlaps get via_wavespeed flip only).
 - Agents rows inserted with columns filled: `id` (=WaveSpeed model_id verbatim, e.g. `wavespeed-ai/flux-schnell`), `api_id` (=model_id), `name`, `provider` (extracted from model_id prefix — `wavespeed-ai`/`pruna-ai`/`pixverse`/etc.), `service_type` (mapped), `output_cost_per_m` (computed), `input_cost_per_m` (=0 for non-LLM types), `description`, `via_wavespeed=1`, `status='active'`, `task_tier=2` (default balanced).
 - **Idempotency contract**: `INSERT OR IGNORE` on `agents.id PRIMARY KEY` — Phase A's spec residual **#1 resolved here**: existing row wins; WaveSpeed rows only INSERT for NEW model_ids; overlaps get `via_wavespeed=1` via `apply_wavespeed_flags`. This matches the modelscope precedent exactly.
@@ -218,7 +219,7 @@ Trivia skipped: `--dry-run` flag boilerplate, `--help` output, docstring format.
 4. Run → GREEN.
 
 **B.5 — Live seed against the real API.**
-1. Run: `python scripts/kilo-benchmarks/scrape_wavespeed_catalog.py --seed`. **Expected**: prints `[wavespeed] fetched 941 models · 13 training skipped · N matched (via_wavespeed flipped on existing rows) · M inserted (WaveSpeed-native new rows) · total 928 serving rows processed`.
+1. Run: `python scripts/kilo-benchmarks/scrape_wavespeed_catalog.py --seed`. **Expected**: prints `[wavespeed] fetched <N> models · 13 training skipped · N_matched (via_wavespeed flipped on existing rows) · M inserted (WaveSpeed-native new rows) · total <N−13> serving rows processed` (N ≈ 942 as of 2026-07-26 — the exact figure is whatever the live fetch returns; do not hard-assert 941/928).
 2. Verify: `sqlite3 scripts/kilo-benchmarks/kilo_agents.db "SELECT COUNT(*) FROM agents WHERE via_wavespeed = 1"`. **Expected**: ≥ 900 (M new + N flipped, all `via_wavespeed=1`).
 3. Verify: `sqlite3 scripts/kilo-benchmarks/kilo_agents.db "SELECT service_type, COUNT(*) FROM agents WHERE via_wavespeed = 1 GROUP BY service_type"`. **Expected**: roughly matches the spec's mapping-count table (`image_gen: ~363, video_gen: ~422, music_gen: ~76, stt: 10, ocr: 21, llm: 6, 3d_gen: 25, moderation: 5`; existing overlaps + inserts).
 4. Verify idempotency: run the scrape a second time. **Expected**: `matched N (0 newly flipped) · 0 inserted · idempotent no-op`.
@@ -404,7 +405,7 @@ Per `.windsurf/rules/core/62-using-subagents.md` § Dispatch policy, this plan's
 
 - [add_perf_seconds_column.py:20-32](../../../scripts/kilo-benchmarks/add_perf_seconds_column.py#L20-L32) — verbatim precedent for `ensure_via_wavespeed_column`.
 - [ms_enrich.py:23](../../../scripts/kilo-benchmarks/ms_enrich.py#L23) — `httpx` sync client idiom (matches kilo-benchmarks convention).
-- Live probe: `curl -sS -H "Authorization: Bearer $KEY" https://api.wavespeed.ai/api/v3/models | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["data"]))'` → **941** (verified 2026-07-12).
+- Live probe: `curl -sS -H "Authorization: Bearer $KEY" https://api.wavespeed.ai/api/v3/models | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["data"]))'` → **941** (verified 2026-07-12) → **942** (re-verified 2026-07-26; 25 types, 13 `training`, 6 `llm`, 929 serving — API HTTP 200, `WAVESPEED_API_KEY` present in `.env`).
 
 ### Phase B — grounded in
 
@@ -420,7 +421,7 @@ Per `.windsurf/rules/core/62-using-subagents.md` § Dispatch policy, this plan's
   87|via_modelscope|INTEGER|0|0|0
   ```
   `via_wavespeed` absent — added by Phase A migration.
-- Current service_type distribution: `llm:656, image_gen:50, video_gen:28, tts:22, embedding:20, stt:18, translation:8, ocr:5, rerank:4, music_gen:4` (10 enums, 815 rows — verified this session).
+- Current service_type distribution: `llm:674, image_gen:50, video_gen:28, tts:22, embedding:20, stt:18, translation:8, ocr:5, rerank:4, music_gen:4` (10 enums, **833 rows** — re-grounded 2026-07-26; was `llm:656` / 815 rows at first drafting — DB regenerated daily by `daily_refresh.sh`).
 
 ### Phase C — grounded in
 
@@ -430,7 +431,7 @@ Per `.windsurf/rules/core/62-using-subagents.md` § Dispatch policy, this plan's
 ### Phase D — grounded in
 
 - [export_models_browser.py:35-78](../../../scripts/kilo-benchmarks/export_models_browser.py#L35-L78) — `_fetch_chat_models` uses `SELECT * FROM agents` → `via_wavespeed` picked up automatically.
-- [export_models_browser.py:378](../../../scripts/kilo-benchmarks/export_models_browser.py#L378) — the `<!--DATA_PLACEHOLDER-->` injection marker.
+- [export_models_browser.py:371](../../../scripts/kilo-benchmarks/export_models_browser.py#L371) — the `<!--DATA_PLACEHOLDER-->` injection marker (`template.replace(...)`; re-grounded 2026-07-26 — was cited :378).
 - Live payload preview confirms `via_openrouter`, `via_kilo`, `via_dashscope`, `via_siliconflow`, `via_modelscope` all present in the JSON blob today.
 
 ## Self-audit
@@ -464,6 +465,21 @@ Verified:
 - Service_type new enum values (`3d_gen`, `moderation`) — introduced by Phase B seed; recognized by Phase C's allowlist extension; filtered by Phase D's dropdown. Names match end-to-end.
 
 Fixed-point claim: this DRAFT contains the full grounding a fresh executor needs — every file cited exists at the line noted (spec drift caught + corrected); every Interfaces.Produces is Interfaces.Consumed later; every phase has a runnable gate + review + doc step + explicit commit stanza. Convergence to CONVERGED is `/fabrik-plan-review`'s job.
+
+### Re-grounding pass — 2026-07-26 (`/fabrik-plan-review`, plan sat unexecuted 14 days)
+
+Re-verified every load-bearing citation against the LIVE code / DB / API this session; the following **drift** was found and corrected in place (all facts re-read, not remembered):
+
+| Claim (as first drafted) | Live truth 2026-07-26 | Fix |
+|---|---|---|
+| Design-spec link `specs/2026-07-12-wavespeed-integration-design.md` | spec **archived** to `specs/archived/…` by commit `55a53b9a` (content md5 intact) | link repointed (L6) |
+| `agents.db`: 815 rows, `llm:656`, 87 columns | **833 rows, `llm:674`, 88 columns** (daily regen) | L47, L83, L423 updated |
+| Catalog `941 models` / `928 serving` (hard-asserted) | **942 / 929** (25 types, 13 `training`, 6 `llm`) | softened to drift-tolerant "~/logged-at-runtime" everywhere |
+| Spec mapping table covers every type | **omits `type="llm"`** (6 models) — pricing table has `llm` but mapping doesn't → naive dict raises `KeyError` on seed | Global Constraints + behavior 2 + A.2 now mandate explicit `"llm":"llm"`; A.2 asserts no live type raises |
+| `apply_flags` returns `(matched, updated)` | precedent returns a **3-tuple** `(int,int,list[str])` | B Interfaces note added — mirror logic, keep the 2-tuple the tests assert |
+| `<!--DATA_PLACEHOLDER-->` at `export_models_browser.py:378` | at **:371** (`template.replace`) | L45, L433 updated |
+
+Confirmed **still accurate**: `add_perf_seconds_column.py:20-32`, `scrape_modelscope_catalog.py:104`/`:182`, `seed_specialty_catalog.py:163` allowlist, `ms_enrich.py:23` httpx idiom, `export_models_browser.py:35` `_fetch_chat_models`, the `via_*` column positions (35/36/46/47/87), `models_browser.html` badge pattern (line 843), `WAVESPEED_API_KEY` in `.env`, plan genuinely unexecuted (no `via_wavespeed` column, no scraper file, 0 seeded rows). No blocking unknowns remain — the `llm→llm` mapping fix is fully self-service (baked into the plan + enforced by A.2's test).
 
 ## Residual unknowns
 
