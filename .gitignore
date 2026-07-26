@@ -178,3 +178,15 @@ scripts/kilo-benchmarks/models_browser.html
 scripts/kilo-benchmarks/.lcb-venv/
 scripts/kilo-benchmarks/.lcb-src/
 scripts/kilo-benchmarks/.lcb-hf-cache/
+# Derived kilo selection/route dumps — regenerated every daily_refresh / kilo-review run
+# (pre_filter.py, embedding_*.py, category_*.py, kilo_model_sync.py write these from agents.db),
+# read from disk not git; tracking them churned the tree with daily +50/-50 reorderings and the
+# chore(pipeline) bot re-committed them every day. Untracked 2026-07-26 (same rationale as
+# models_browser.html / translation_bench above). Rebuilt on every run — never source.
+scripts/kilo_all_models.json
+scripts/kilo_47_agents_final.json
+scripts/kilo_embeddings_final.json
+scripts/kilo_openrouter_routes_final.json
+scripts/kilo-benchmarks/embedding_assignments.json
+scripts/kilo-benchmarks/openrouter_routes.json
+scripts/kilo-benchmarks/shortlists.json
