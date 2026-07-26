@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — service_catalog.json auto-freshens in the daily pipeline (2026-07-26)
+
+`daily_refresh.sh` now runs `gather_envs.py --apply` then `classify_services.py --apply
+--tombstone-unresolved` after the freshness heartbeat: any provider whose API key appears in an
+`/opt/*/.env` but matches no catalog entry is web-grounded by a cheap pool unit and merged into
+`scripts/service_catalog.json`. Idempotent and no-op at zero cost when nothing new (classify prints
+"nothing to do"). `--tombstone-unresolved` writes a `category="unidentified"` stub for a provider the web
+genuinely cannot classify (never for one that merely errored) so it leaves the NEEDS-TRIAGE block and is
+not re-billed on every subsequent run. Closes the "add a key today → catalog knows tomorrow" loop;
+status-drift of live vendors remains a periodic manual audit.
+
+
 ### Changed — scheduled-jobs doc home made explicit: RESILIENCE.md §7 is canonical (2026-07-26)
 
 Agents fragmented scheduling docs across SERVICES/OPERATIONS because the boundary rule lived only in an

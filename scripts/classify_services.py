@@ -67,6 +67,57 @@ def flagged_providers(path: Path) -> dict[str, dict]:
     return provs
 
 
+def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], set[str]]:
+    """Split pool results into (proposals, errored).
+
+    `errored` holds ONLY providers whose dispatch had a true transport/timeout/infra failure
+    (`r.error` set — agent.py sets it, with empty text, for every such case). Those must NOT be
+    tombstoned: the failure is transient, so the provider stays flagged and retries next run (C4).
+
+    A COMPLETED response with no parseable JSON (`had_error` False, `obj` None) is deliberately NOT
+    added to `errored`: the model answered but could not classify the vendor — a genuine
+    unidentifiable outcome, same as an explicit category="?". It flows through to the tombstone loop
+    and gets stubbed; otherwise it would re-bill a paid pool call on every daily run forever."""
+    proposals: dict[str, dict] = {}
+    errored: set[str] = set()
+    for prov, r in zip(names, results, strict=True):
+        had_error = getattr(r, "error", None) is not None
+        obj = extract_json(getattr(r, "text", "")) if not had_error else None
+        # KNOWN TRADEOFF: a COMPLETED response whose JSON is merely MALFORMED (trailing comma, bad
+        # fence) also parses to None and is treated as unidentifiable → tombstoned under --apply
+        # --tombstone-unresolved, not retried. Deliberate: bounded cost (no infinite re-bill) over
+        # retrying a one-off formatting glitch; the stub is labelled "unidentified" and is
+        # operator-reversible (delete it, or run classify_services.py without --tombstone to retry).
+        if had_error:
+            errored.add(prov)
+        proposals[prov] = obj or {
+            "category": "?",
+            "capability": "(no result)",
+            "cost": "?",
+            "url": "?",
+            "status": "?",
+        }
+    return proposals, errored
+
+
+def tombstone_entry(prov: str) -> dict:
+    """A catalog stub for a provider the WEB genuinely could not identify.
+
+    The `category` is a NON-"?" value ("unidentified") on purpose: gather_envs buckets the
+    NEEDS-TRIAGE block SOLELY on category=="?", so a "?" stub would stay in triage and get
+    re-dispatched (re-billed) every daily run — the exact loop this closes (C2). The match
+    prefix is the FULL provider name (not `prov.split("_")[0]`) so a compound name like
+    `aws_bedrock` tombstones only AWS_BEDROCK_* keys, never every AWS_* key (C5)."""
+    return {
+        "category": "unidentified",
+        "cost": "?",
+        "capability": "web could not classify; add a real entry or remove the key",
+        "url": "?",
+        "status": "unidentified",
+        "match": [prov.upper()],
+    }
+
+
 def unit_prompt(prov: str, info: dict) -> str:
     hints = ("\nKnown endpoint(s): " + ", ".join(sorted(set(info["urls"])))) if info["urls"] else ""
     return (
@@ -103,6 +154,14 @@ def main() -> int:
     ap.add_argument(
         "--only", help="comma-separated provider names to classify (default: all flagged)"
     )
+    ap.add_argument(
+        "--tombstone-unresolved",
+        action="store_true",
+        help="with --apply, also write a category='unidentified' stub (a non-'?' category, so it "
+        "leaves the NEEDS-TRIAGE block) for providers the web could not identify, so they are NOT "
+        "re-classified (re-billed) on every run. For the daily/automated path; a manual run omits "
+        "it to retry unknowns. Providers that only ERRORED (transport/no-key) are never tombstoned.",
+    )
     args = ap.parse_args()
 
     if not ALL_ENVS.exists():
@@ -132,16 +191,8 @@ def main() -> int:
         system=methodology("research"),
     )
 
-    proposals: dict[str, dict] = {}
+    proposals, errored = build_proposals(names, results)
     for prov, r in zip(names, results, strict=True):
-        obj = extract_json(getattr(r, "text", "")) if getattr(r, "error", None) is None else None
-        proposals[prov] = obj or {
-            "category": "?",
-            "capability": "(no result)",
-            "cost": "?",
-            "url": "?",
-            "status": "?",
-        }
         score = 5 if proposals[prov].get("category") not in (None, "?") else 2
         try:
             set_quality(
@@ -169,7 +220,8 @@ def main() -> int:
 
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     for prov, v in identified.items():
-        root = prov.split("_")[0].upper()
+        root = prov.upper()  # FULL provider name — a compound like `aws_bedrock` must match only
+        #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
         catalog[prov] = {
             "category": v.get("category", "?"),
             "cost": v.get("cost", "?"),
@@ -178,11 +230,26 @@ def main() -> int:
             "status": v.get("status", "active"),
             "match": [root],
         }
+    tombstoned = 0
+    if args.tombstone_unresolved:
+        # Persist a stub for a provider the WEB genuinely could not identify (not one that
+        # merely errored — C4) so it drops out of NEEDS-TRIAGE and the daily path stops
+        # re-dispatching a paid pool call for it forever. The category MUST be non-"?" —
+        # gather_envs buckets NEEDS-TRIAGE purely on category=="?", so a "?" stub would
+        # stay in triage and defeat the whole point (C2). The full provider name is the
+        # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
+        for prov in names:
+            if prov in identified or prov in catalog or prov in errored:
+                continue
+            catalog[prov] = tombstone_entry(prov)
+            tombstoned += 1
     tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
     tmp.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, CATALOG_PATH)
     print(
-        f"\nWrote {len(identified)} providers into {CATALOG_PATH}. "
+        f"\nWrote {len(identified)} identified"
+        + (f" + {tombstoned} unidentified-stub" if tombstoned else "")
+        + f" providers into {CATALOG_PATH}. "
         "Re-run scripts/gather_envs.py --apply to refresh all-envs.env."
     )
     return 0

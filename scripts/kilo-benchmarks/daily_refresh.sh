@@ -1,6 +1,9 @@
 #!/bin/bash
 # Daily refresh of the AI model catalog. Cron-safe (no PATH assumptions,
 # no shell activity required). Runs the full chain:
+#   0. gather_envs.py + classify_services.py --apply
+#        → refresh secrets/all-envs.env; web-ground + catalog any new external
+#          service whose key appeared (no-op at zero cost when nothing is new)
 #   1. verify_openrouter_catalog.py --apply --ingest-new
 #        → cross-checks the DB against live OpenRouter + Kilo CLI,
 #          fixes prices, marks delisted, ingests new
@@ -125,6 +128,18 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # condition is silent. Per Plan §"Phase 5 cron-skip heartbeat".
   _step "check_daily_refresh_freshness" "$VENV_PY" "$KB/check_daily_refresh_freshness.py" \
     || echo "[daily_refresh] freshness check errored (non-fatal)"
+
+  # Keep the external-service catalog fresh. gather_envs consolidates every
+  # /opt/*/.env into secrets/all-envs.env and flags any provider whose key
+  # prefix matches no catalog entry as `category=?` (NEEDS-TRIAGE). classify_services
+  # then web-grounds ONLY those unknowns via a cheap pool unit and merges them into
+  # scripts/service_catalog.json. Both are idempotent and NO-OP at zero cost when
+  # nothing new was added (classify prints "nothing to do" and exits 0), so this is
+  # cheap every day and self-updates the catalog the day after a new key appears.
+  _step "gather_envs" "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply \
+    || echo "[daily_refresh] gather_envs failed (non-fatal)"
+  _step "classify_services" "$VENV_PY" "$FABRIK_ROOT/scripts/classify_services.py" --apply --tombstone-unresolved \
+    || echo "[daily_refresh] classify_services failed (non-fatal)"
 
   # Ensure the OR richer-extraction columns (canonical_slug, knowledge_cutoff,
   # cache_read/write_cost_per_m, reasoning_mandatory, reasoning_supported_efforts,

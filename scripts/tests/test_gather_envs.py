@@ -9,6 +9,7 @@ idempotency-compare defect. Loads the scripts by path (scripts/ is not a package
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -136,3 +137,67 @@ def test_classify_input_has_no_secret_values(tmp_path):
     assert "super-secret-value-xyz" not in blob  # secret value never captured
     assert "sometoken" not in blob  # only scheme+host sent — the URL path token must NOT leak
     assert provs["zari"]["urls"] == ["https://api.zari.example"]
+
+
+def test_tombstone_leaves_needs_triage_closing_the_daily_rebill_loop(tmp_path, monkeypatch):
+    """C2 regression — the REAL re-bill invariant is gather_envs' NEEDS-TRIAGE bucketing,
+    which keys SOLELY on category=='?' (gather_envs.py render loop), NOT on match-prefix.
+
+    So a tombstone MUST carry a non-'?' category (classify writes 'unidentified') to render
+    in its own section and drop OUT of NEEDS-TRIAGE — the block classify_services.flagged_providers
+    re-dispatches (re-bills) from. A category='?' stub would STAY in triage and re-bill forever
+    (the exact defect the earlier match_provider-only test failed to catch)."""
+    cat = tmp_path / "service_catalog.json"
+    cat.write_text(
+        json.dumps({"weirdvendor": cs.tombstone_entry("weirdvendor")}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    files = _envs(
+        tmp_path,
+        {"proj": "WEIRDVENDOR_API_KEY=sk-tombstoned-001\nBRANDNEWTHING_API_KEY=tok-fresh-002\n"},
+    )
+    body, _ = ge.consolidate(files)
+    assert "NEEDS-TRIAGE" in body
+    above, triage = body.split("NEEDS-TRIAGE", 1)
+    # tombstoned provider renders ABOVE (its own 'unidentified' section) — not in triage
+    assert "WEIRDVENDOR_API_KEY" in above
+    assert "WEIRDVENDOR_API_KEY" not in triage
+    # a genuinely-uncatalogued key still lands in triage (billed once, correctly). Because
+    # flagged_providers reads ONLY the triage block, the tombstoned provider is never re-picked.
+    assert "BRANDNEWTHING_API_KEY" in triage
+
+
+def test_build_proposals_tombstones_no_json_but_spares_transport_errors():
+    """Pass-2 fix: the re-bill loop must close for a COMPLETED-but-no-JSON response too, not just
+    an explicit category='?'. build_proposals exempts ONLY true transport errors (r.error set) from
+    the tombstone path; a completed response with unparseable text is a genuine unidentifiable
+    outcome and must fall through to be tombstoned (else it re-bills every daily run forever)."""
+    from types import SimpleNamespace
+
+    def _res(error, text):  # minimal stand-in for libs.subagents.AgentResult
+        return SimpleNamespace(error=error, text=text)
+
+    names = ["goodvendor", "nojsonvendor", "transportfail"]
+    results = [
+        _res(None, '{"category":"ai-llm","cost":"$","capability":"x","url":"u","status":"active"}'),
+        _res(None, "Sorry, I really can't tell what this service is."),  # completed, no JSON
+        _res("timeout after 600s", ""),  # true transport failure
+    ]
+    proposals, errored = cs.build_proposals(names, results)
+    # transport failure is exempt (retries next run); the no-JSON one is NOT (it gets tombstoned)
+    assert errored == {"transportfail"}
+    assert "nojsonvendor" not in errored  # the closed re-bill hole
+    # the no-JSON vendor falls back to category='?' → flows to the tombstone loop
+    assert proposals["nojsonvendor"]["category"] == "?"
+    assert proposals["goodvendor"]["category"] == "ai-llm"  # valid JSON parsed through
+
+
+def test_tombstone_entry_is_non_question_category_with_scoped_prefix():
+    """C2+C5: the tombstone classify writes must use a non-'?' category (else it never leaves
+    NEEDS-TRIAGE) and a FULL-name match prefix (else `aws_bedrock` swallows every AWS_* key)."""
+    entry = cs.tombstone_entry("aws_bedrock")
+    assert entry["category"] not in (None, "?")  # C2: must exit the category=='?' triage bucket
+    assert entry["category"] == "unidentified"
+    assert entry["match"] == ["AWS_BEDROCK"]  # C5: scoped to the compound name, not ["AWS"]
+    assert entry["status"] == "unidentified"
