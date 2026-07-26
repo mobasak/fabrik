@@ -75,6 +75,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | Screen / flow / UI changed (GUI projects) | re-freeze `docs/ui-design.md` (via `/fabrik-ui-design`) |
 | Recurring symptom | `docs/TROUBLESHOOTING.md` |
 | Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` |
+| Scheduled job (Beat/cron) added/changed | `docs/RESILIENCE.md` §7 — the CANONICAL jobs/intervals inventory (OPERATIONS §3 links to it; SERVICES lists the beat service row only — never duplicate the table) |
 | Resilience pattern changed | `docs/RESILIENCE.md` |
 | Deploy config changed (deployed types) | `docs/DEPLOYMENT.md` |
 | Doc added/removed in `docs/` | `docs/README.md` (docs index) |

@@ -39,7 +39,7 @@
 **Guarantee:** [What this feed promises — e.g. "never silently serves a stale rate" — and the preconditions for the guarantee. Standing conditions usually include: the refresher service is running, the health endpoint is registered in Gatus, someone watches the alarm, credentials are valid.]
 
 **Refresh machinery:**
-- **Runs:** [`scripts/x/refresh_loop.sh` daily / cron every Nh / on webhook from vendor]
+- **Runs:** [`scripts/x/refresh_loop.sh` daily / cron every Nh / on webhook from vendor — if Beat/cron-driven, the canonical interval row lives in `RESILIENCE.md` §7; reference it, don't fork it]
 - **Sources:** [list of source URLs or endpoints + env vars that point to them]
 - **Change detection:** [content-hash / Last-Modified / ETag / vendor change-feed]
 - **On change:** [re-parse → reload → effective-date]
@@ -151,6 +151,10 @@ When the vendor didn't answer, we determined this empirically:
 ---
 
 ## 3. Recurring Operator Tasks
+
+> **Boundary:** the canonical scheduled-jobs inventory (Beat/cron names, intervals, TTLs) is
+> **`RESILIENCE.md` §7** — this section is the *manual fallback playbook* only. Link to §7 for
+> cadences; never restate them here. (`SERVICES.md` lists the beat service row only.)
 
 <!--
   Cadence-based playbooks. One entry per task that recurs without an explicit

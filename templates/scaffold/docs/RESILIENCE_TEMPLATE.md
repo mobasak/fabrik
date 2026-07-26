@@ -388,6 +388,10 @@ Lazy-fetch from B2 on cache-miss is acceptable for cold reads; use a signed-URL 
 
 ## 7. Proactive Monitoring Schedule
 
+**⚠️ CANONICAL scheduled-jobs inventory — the ONLY place Beat/cron jobs, intervals, and TTLs are listed.**
+`SERVICES.md` lists the beat/scheduler as a compose-service row only; `OPERATIONS.md` §3 links here for
+cadences and owns only the manual fallback playbooks. Never duplicate this table into either.
+
 The Beat / cron jobs that detect depletion BEFORE workers fail. **Every external API in §2 with a billable balance MUST have a row here.**
 
 | Job                          | Interval | Action                                                          |

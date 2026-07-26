@@ -22,6 +22,10 @@
 | [Project Name] API | [PORT] | `/health` | [Brief description] |
 <!-- One row per compose service: api, worker, beat, dashboard, … -->
 
+> **Scheduled jobs (Beat/cron):** the beat/scheduler appears above as a service row ONLY. The canonical
+> inventory of jobs, intervals, and TTLs is **`RESILIENCE.md` §7 (Proactive Monitoring Schedule)** —
+> never list individual jobs here.
+
 Deployed via **SSH + Docker Compose** direct to the VPS (no intermediary platform).
 Traefik handles external HTTPS; container ports are **not** exposed publicly. DB and
 cache use Docker DNS — `postgres-main:5432`, `redis-main:6379` — never `localhost`.

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — scheduled-jobs doc home made explicit: RESILIENCE.md §7 is canonical (2026-07-26)
+
+Agents fragmented scheduling docs across SERVICES/OPERATIONS because the boundary rule lived only in an
+HTML comment. Now visible in all three scaffold templates (RESILIENCE §7 header banner; SERVICES services
+table note; OPERATIONS §3 banner + §1 `Runs:` field) and enforced by a new Doc Sync Matrix row in CLAUDE.md:
+scheduled job added/changed → `docs/RESILIENCE.md` §7 (OPERATIONS links, SERVICES lists the service row only).
+
 ### Added — CI-failure prevention (gate runs pytest) + auto-fix dispatcher (2026-07-26)
 
 Prevention: `final_gate.py` Tier 2 now runs the project's test suite (`pytest tests/ -x -q`, 900s cap)
