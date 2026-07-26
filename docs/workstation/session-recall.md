@@ -59,6 +59,36 @@ an agent answer, from the *real transcripts* rather than its own memory:
 3. **Substantive titles** — title from the first *substantive* user message (command-stub / IDE-context / caveat openers skipped); a DB backfill upgrades existing generic titles.
 4. **SessionStart digest** (`session_context.py` + the installed hook) — at the start of **every** session in **every** repo, prints a bounded (~≤2K token) digest: last 5 sessions here (title·age), the most recent session's **closing context** (its last user requests *and* the last assistant deliverables, merged in order), 3 recent sessions elsewhere, and a footer naming the MCP tools. Fires on **all** sources (matcher `""` = startup/**resume**/**compact**/fork/clear — the real flow is close-VS-Code → reopen → *continue*, a `resume`). **Excludes the session being resumed** from every section (never injects the current chat's own turns back into itself). Exit-0-always; prints nothing if recall is down.
 
+## Design notes — lexical-only, and where it sits in the memory stack
+
+**It's lexical by design — no embeddings, no vector store, no LLM in the storage/retrieval loop.** Both
+search legs match on **surface form**, not meaning: tsvector stems word tokens (`run`/`running` match, but
+`car` never matches `automobile`); trigram matches 3-char overlap (this is what makes `gecmis` find `geçmiş`
+after `unaccent`, but `memoize` and `cache the result` share almost no trigrams). This is deliberate — a
+verbatim, deterministic, ~zero-cost index that hands back the **actual decision**, not an LLM's lossy
+paraphrase of it. It fits the house rule (*don't trust the model's memory — cite the real thing*) and the
+quota-is-the-binding-constraint reality; an LLM-distilled "episodic memory" would spend quota on every write
+and re-introduce exactly the paraphrase-drift this environment fights.
+
+**Known limitation (accepted):** because retrieval is lexical, it can miss a concept you recall by *meaning*
+but not by any word actually typed — e.g. searching *"that database speedup trick"* won't find a transcript
+that says *"add a btree index on `session_id`"* (no shared stem, no shared trigrams). The information is in
+the index verbatim; the query just can't reach it. Covered in practice by: **`recent_chats` + the digest**
+(recency — the "continue where we left off" path needs no naming), **concrete-term lookup** (most real
+searches use a file/flag/service name that *was* typed), and **`get_chat` + substantive titles** (walk into
+the right session from any nearby thread). **Semantic search was declined (v2 item 3, reaffirmed 2026-07-27)
+— not worth the pipeline/storage/tuning for how it's used.** If ever reopened, the only acceptable shape is a
+semantic *third leg over the same verbatim rows* (every hit still resolves to a real transcript via
+`get_chat`) — never a lossy summary store replacing the verbatim index.
+
+**Two-tier memory architecture (this box already runs the hybrid):**
+- **Verbatim episodic** = session-recall — *what happened, exactly, searchable.* The ground-truth backstop.
+- **Distilled semantic** = the `~/.claude/projects/*/memory/` auto-memory (`MEMORY.md` + per-fact files) —
+  *what's durably true, recalled by relevance.* Fast, curated, but a derivative.
+
+The layering is the point: the distilled layer for quick relevance, the verbatim layer as the source of
+truth it can always be checked against. session-recall is the **foundation**, not a competitor to it.
+
 ## Config (env / `/opt/session-recall/.env`, template in `.env.example`)
 
 | Var | Purpose |
