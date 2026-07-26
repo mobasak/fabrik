@@ -764,7 +764,7 @@ All Kilo CLI agents (both cloud and local) are controlled by the global configur
 <!-- AUTO-GENERATED:LOCAL_MODELS_START -->
 ## Installed Models (Auto-Generated)
 
-**Last Synced:** 2026-07-25 22:54
+**Last Synced:** 2026-07-26 06:03
 
 | Model | Role | Hardware | Size | Context | Vision | Tools | Agentic | ELO | Code |
 |-------|------|----------|------|---------|--------|-------|---------|-----|------|

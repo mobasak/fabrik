@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 48 -->
+<!-- Total projects: 49 -->
 
 ### Production Services (5 projects)
 
@@ -17,7 +17,7 @@
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (26 projects)
+### Active Development (27 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -35,6 +35,7 @@
 | **rn-kit-sandbox** | No description available | Python | 🔨 Development | - | ⚠️ No project.yaml |
 | **rnfinal** | Definitive flawless verification | Python | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
+| **session-recall** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory mobile app. | Python | 🔨 Development | - | ✅ Current |
 | **test-saas-platform** | Full-blown SaaS platform for testing mega-epic workflow | Node.js | 🔨 Development | - | ✅ Current |
 | **test-saas-scaffold** | Test SaaS scaffold project | Node.js | 🔨 Development | - | ✅ Current |
