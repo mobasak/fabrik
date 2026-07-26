@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — claude -p per-call cost helper (①/②) + Claude-state diagnostic export (2026-07-26)
+
+`scripts/claude_p_cost.py` — self-contained, no engine import: `api_equiv()` (① cache-aware Anthropic-list-price
+valuation, per model fable/opus/sonnet/haiku) + `real_usd()` (② real subscription $ = call tokens × the fleet's
+amortized rate) from a run's `claude -p --output-format json`; `--refresh` rebuilds the amortized sidecar from
+`~/.claude` usage history. Tests: `tests/test_claude_p_cost.py` (9). `scripts/sysadmin/export_claude_state.sh` —
+one-shot diagnostic dump of Claude quota/account state (confirms the live weekly % is not non-interactively
+readable: no `claude status` cmd, `statusline.rateLimits` null, `/status` interactive-only).
+
 ### Added — service_catalog.json auto-freshens in the daily pipeline (2026-07-26)
 
 `daily_refresh.sh` now runs `gather_envs.py --apply` then `classify_services.py --apply
