@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — in-code AI dispatch ladder codified in ai/00 (2026-07-26)
+
+Binding selection order for AI steps wired inside project code: `claude -p` haiku → opus →
+claude-fable-5 (measured escalation only), OpenRouter as the tested-lowest-cost fallback. Scoped to
+in-code single-call/worker dispatch; gradeable parallel fan-out stays pool-default per core/62.
+Data-plane SDK ban (core/57) and subscription-OAuth auth boundary unchanged.
+
 ### Added — claude -p per-call cost helper (①/②) + Claude-state diagnostic export (2026-07-26)
 
 `scripts/claude_p_cost.py` — self-contained, no engine import: `api_equiv()` (① cache-aware Anthropic-list-price

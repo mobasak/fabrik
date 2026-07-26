@@ -154,3 +154,23 @@ For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / 
 ## Operational AI paths — auth boundary
 
 Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`. That key exists ONLY for `fabrik ai generate` content utilities. Per-LLM-call cost caps apply to paid APIs via `core/cost-budget.md`; they must not be placed on the operational diagnose loop.
+
+## In-code AI agent calls — the dispatch ladder (BINDING)
+
+When project/pipeline code needs an **AI step wired into the code** (mechanical code can't do the job —
+transcript classification, fix dispatch, content triage), select the model by this ladder:
+
+1. **`claude -p --model haiku`** — the default first rung (subscription; cheapest capability tier).
+2. **`claude -p --model opus`** — only when haiku is measurably not enough (task fails its quality
+   gate / errors — a measured escalation, never a vibes one).
+3. **`claude -p --model claude-fable-5`** — only when opus is measurably not enough.
+4. **Fallback: OpenRouter** — when Claude can't serve the call (quota exhausted, capability/latency
+   mismatch, or the call must be metered-isolated from the subscription). The model is chosen by
+   **tested evidence, never assumption**: consult the selection MDs / `suggest_model.py`, or run a
+   scored bake-off — lowest cost that meets the required capability; record results (flywheel).
+
+Boundaries: `claude -p` is the subscription CLI — the sanctioned Claude path (see auth boundary
+above; never `ANTHROPIC_API_KEY`, never a vendor SDK — `core/57` hard constraint). Every rung wraps
+in the `58-resilience` contract, and any unattended paid-LLM loop still carries watchdog +
+cost-budget. This ladder governs **in-code single-call/worker dispatch**; gradeable parallel fan-out
+(review finders, graders, doc reconcilers) stays pool-default per `core/62-using-subagents.md`.
