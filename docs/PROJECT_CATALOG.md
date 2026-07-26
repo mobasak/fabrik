@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 49 -->
+<!-- Total projects: 50 -->
 
 ### Production Services (5 projects)
 
@@ -17,10 +17,11 @@
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (27 projects)
+### Active Development (28 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
+| **ai-model-catalog** | Cross-gateway AI model catalog: discovery, multi-gateway pricing, benchmarks, and task-scoped s... | Node.js | 🔨 Development | - | ✅ Current |
 | **calendar-orchestration-engine** | Event-intelligence and marketing-activity orchestration engine — ingests holidays/commerce/soci... | Python | 🔨 Development | https://calendar-orchestration-engine.vps1.ocoron.com | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
 | **compliance-ops** | Async compliance service platform for HealthTech startups. | Node.js | 🔨 Development | - | ✅ Current |
