@@ -113,6 +113,7 @@
 - [scripts/check_zed_extensions.py](INDEX.md): Gate: verify every Zed extension that settings.json depends on is installed.
 - [scripts/ci_fix_dispatcher.py](INDEX.md): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
 - [scripts/classify_services.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
+- [scripts/claude_p_cost.py](INDEX.md): AFTER-EDIT: none
 - [scripts/container_images.py](INDEX.md): Container Image Discovery Tool for Fabrik
 - [scripts/declare_subscription.py](INDEX.md): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](INDEX.md): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
@@ -290,6 +291,7 @@
 - [core/45-testing-strategy.md](.windsurf/rules/core/45-testing-strategy.md): Testing strategy — what to test per ticket type, smoke vs integration, regression rules
 - [core/50-code-review.md](.windsurf/rules/core/50-code-review.md): Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ
 - [core/55-observability.md](.windsurf/rules/core/55-observability.md): Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
+- [core/57-external-data-sourcing.md](.windsurf/rules/core/57-external-data-sourcing.md): External data sourcing — which mechanism (API/scrape/webhook/file/stream/MCP) and which vendor to reach for BEFORE writing an integration; pairs with 58-resilie
 - [core/58-resilience.md](.windsurf/rules/core/58-resilience.md): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 - [core/60-watchdog.md](.windsurf/rules/core/60-watchdog.md): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
 - [core/62-using-subagents.md](.windsurf/rules/core/62-using-subagents.md): How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp

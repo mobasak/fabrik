@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-26T06:03:41.984542
+**Last Updated:** 2026-07-27T06:00:49.142030
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -42,7 +42,7 @@
 | 33 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 204K |  | ✓ | ✓ | 2 | 1034 | ✅ |
 | 34 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.12 | $0.35 | 262K | ✓ | ✓ | ✓ | 1 | 4991 | ✅ |
 | 35 | **gemma-4-26b-a4b-it:free** | google | 1460 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1460 | ✅ |
-| 36 | **deepseek-v4-flash** | deepseek | 1460 | ~ | $0.09 | $0.19 | 1048K |  | ✓ | ✓ | 1 | 8894 | ✅ |
+| 36 | **deepseek-v4-flash** | deepseek | 1460 | ~ | $0.14 | $0.28 | 1048K |  | ✓ | ✓ | 1 | 5959 | ✅ |
 | 37 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.50 | $2.00 | 204K |  | ✓ | ✓ | 2 | 897 | ✅ |
 | 38 | **qwen3-235b-a22b-2507** | qwen | 1457 | ~ | $0.09 | $0.55 | 262K |  | ✓ |  | 1 | 3349 | ✅ |
 | 39 | **qwen3-vl-235b-a22b-instruct** | qwen | 1457 | ~ | $0.21 | $1.90 | 262K | ✓ | ✓ |  | 2 | 986 | ✅ |
@@ -64,9 +64,9 @@
 | 55 | **deepseek-v3.2-exp** | deepseek | 1431 | 39.6 | $0.27 | $0.41 | 163K |  | ✓ | ✓ | 1 | 3816 | ✅ |
 | 56 | **deepseek-chat-v3.1** | deepseek | 1430 | ~ | $0.25 | $0.95 | 163K |  | ✓ | ✓ | 2 | 1845 | ✅ |
 | 57 | **minimax-m2.1** | minimax | 1430 | 36.6 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1467 | ✅ |
-| 58 | **qwen3-30b-a3b-instruct-2507** | qwen | 1425 | ~ | $0.05 | $0.19 | 262K |  | ✓ |  | 1 | 5700 | ✅ |
+| 58 | **qwen3-30b-a3b-instruct-2507** | qwen | 1425 | ~ | $0.05 | $0.19 | 262K |  | ✓ |  | 1 | 9087 | ✅ |
 | 59 | **gemini-3.1-flash-lite-preview** | google | 1421 | ~ | $0.25 | $1.50 | 1048K | ✓ | ✓ | ✓ | 2 | 1197 | ✅ |
-| 60 | **gpt-5-chat** | openai | 1421 | ~ | $1.25 | $10.00 | 128K | ✓ |  |  | 1 | 181888000 | ✅ |
+| 60 | **gpt-5-chat** | openai | 1421 | ~ | $1.25 | $10.00 | 128K | ✓ |  |  | 1 | 182 | ✅ |
 
 ---
 
@@ -80,3 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
+- **2026-07-27:** Auto-updated from benchmarks
