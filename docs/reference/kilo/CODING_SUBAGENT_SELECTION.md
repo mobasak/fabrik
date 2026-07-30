@@ -1,6 +1,6 @@
 # Coding subagent selection
 
-**Generated:** 2026-07-27 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
+**Generated:** 2026-07-30 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
 
 Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
 
@@ -25,12 +25,12 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | Novita | — | ✅ | 104 | 0.070 | 0.270 | — | — | — | — | 262k | **C+** | — | 0.458 |
 | 6 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | ✅ | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B+†** | 74% | 0.452 |
 | 7 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | — | 0.440 |
-| 8 | `minimax/minimax-m3` | ✅ | GMICloud | ✅ | — | 73 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **B†** | 67% | 0.417 |
-| 9 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **A+†** | 95% | 0.413 |
-| 10 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | ✅ | — | 121 | 0.140 | 0.280 | — | — | 38 | 1460 | 1048k | **A+†** | 94% | 0.398 |
+| 8 | `minimax/minimax-m3` | ✅ | GMICloud | ✅ | — | 76 | 0.300 | 1.200 | — | — | 44 | 1485 | 1048k | **B†** | 67% | 0.417 |
+| 9 | `z-ai/glm-4.7-flash` | ✅ | Cloudflare | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **A+†** | 95% | 0.413 |
+| 10 | `deepseek/deepseek-v4-flash` | ✅ | DeepInfra | ✅ | — | 112 | 0.140 | 0.280 | — | — | 38 | 1460 | 1048k | **A+†** | 94% | 0.397 |
 | 11 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 69 | 0.250 | 1.000 | — | — | 38 | 1448 | 204k | **A†** | 84% | 0.370 |
-| 12 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | ✅ | — | 75 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A+†** | 92% | 0.317 |
-| 13 | `qwen/qwen3-coder-next` | ✅ | Ionstream | — | — | 129 | 0.110 | 0.800 | — | — | 21 | — | 262k | **A+†** | 90% | 0.254 |
+| 12 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | ✅ | — | 71 | 0.435 | 0.870 | — | — | 44 | — | 1048k | **A+†** | 92% | 0.316 |
+| 13 | `qwen/qwen3-coder-next` | ✅ | Ionstream | — | — | 139 | 0.180 | 0.900 | — | — | 21 | — | 262k | **A+†** | 90% | 0.254 |
 | 14 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | — | 0.225 |
 | 15 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **A†** | 80% | 0.224 |
 | 16 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **A+†** | 92% | 0.224 |
@@ -53,14 +53,14 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 | 2 | `z-ai/glm-4.6` | ✅ | Venice | ✅ | — | 68 | 0.500 | 2.000 | 68.2 | — | — | 1458 | 204k | **B** | — | 0.547 |
 | 3 | `z-ai/glm-4.5` | ✅ | Z.AI | ✅ | — | 69 | 0.600 | 2.200 | 64.2 | — | — | 1448 | 131k | **C+** | — | 0.520 |
 | 4 | `deepseek/deepseek-r1` | ✅ | Novita | ✅ | — | 18 | 0.700 | 2.500 | — | 71.4 | — | 1382 | 163k | **B** | — | 0.475 |
-| 5 | `moonshotai/kimi-k2.5` | ✅ | DigitalOcean | ✅ | — | 46 | 0.570 | 2.850 | 70.8 | — | — | — | 262k | **A+†** | 98% | 0.462 |
+| 5 | `moonshotai/kimi-k2.5` | ✅ | DeepInfra | ✅ | — | 46 | 0.570 | 2.850 | 70.8 | — | — | — | 262k | **A+†** | 98% | 0.462 |
 | 6 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 100% | 0.450 |
 | 7 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | — | 0.450 |
 | 8 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 98% | 0.443 |
-| 9 | `z-ai/glm-5.1` | ✅ | StreamLake | ✅ | — | 74 | 0.966 | 3.036 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.400 |
-| 10 | `z-ai/glm-5.2` | ✅ | StreamLake | ✅ | — | 183 | 0.718 | 2.257 | — | — | 42 | — | 1048k | **A+†** | 96% | 0.316 |
-| 11 | `moonshotai/kimi-k2.6` | ✅ | Inceptron | ✅ | — | 37 | 0.646 | 2.720 | — | — | 44 | — | 262k | **A+†** | 98% | 0.287 |
-| 12 | `moonshotai/kimi-k2.7-code` | ✅ | CoreWeave | ✅ | — | 48 | 0.780 | 3.500 | — | — | 42 | — | 262k | **A+†** | 98% | 0.277 |
+| 9 | `z-ai/glm-5.1` | ✅ | Baidu | ✅ | — | 74 | 0.966 | 3.036 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.400 |
+| 10 | `z-ai/glm-5.2` | ✅ | StreamLake | ✅ | — | 136 | 0.738 | 2.345 | — | — | 42 | — | 1048k | **A+†** | 96% | 0.310 |
+| 11 | `moonshotai/kimi-k2.6` | ✅ | Inceptron | ✅ | — | 38 | 0.646 | 2.720 | — | — | 44 | — | 262k | **A+†** | 98% | 0.288 |
+| 12 | `moonshotai/kimi-k2.7-code` | ✅ | CoreWeave | ✅ | — | 39 | 0.730 | 3.500 | — | — | 42 | — | 262k | **A+†** | 98% | 0.273 |
 | 13 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 204k | **B** | — | 0.245 |
 | 14 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | ✅ | — | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | — | 0.196 |
 | 15 | `moonshotai/kimi-k2-0905` | ✅ | Novita | — | — | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | — | 0.183 |
