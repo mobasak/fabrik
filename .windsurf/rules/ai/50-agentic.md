@@ -11,7 +11,7 @@ trigger: glob
 
 # 5. Agentic / Reasoning AI
 
-Last content verification: 2026-07-30
+Last content verification: 2026-07-31
 
 **Purpose:** Multi-step reasoning or tool use.
 
@@ -25,11 +25,11 @@ OpenAI o3/o4-mini, Claude (Projects / agent loops), LangChain Agents, AutoGPT.
 
 The major frontier (o3, Claude reasoning, Gemini 3.x Pro thinking, GLM-5.2) is on both Kilo and OpenRouter at frequently different per-token costs. For function-calling agents, filter on the `toolcall` flag (Kilo) or the `tools` chip (bake-off browser). Pick the cheaper gateway per model.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-30 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-07-30 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-31 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-07-31 UTC; auto-refreshed from `kilo_agents.db`):*
 
-reasoning-capable across all gateways: **213**
-tool/function-calling across all gateways: **305**
+reasoning-capable across all gateways: **240**
+tool/function-calling across all gateways: **303**
 
 All major frontier reasoning models (o3, Claude reasoning, Gemini 3.x thinking, GLM-5.2) are on both Kilo and OpenRouter — pick the cheaper rate per model.
 <!-- GATEWAY_COUNTS:END -->
@@ -38,8 +38,8 @@ All major frontier reasoning models (o3, Claude reasoning, Gemini 3.x thinking, 
 
 **Anti-pattern:** putting per-call $ caps on the operational diagnose loop — it must run (Claude Code is subscription-billed). See `core/cost-budget.md`.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-07-30 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-07-30 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-07-31 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-07-31 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
