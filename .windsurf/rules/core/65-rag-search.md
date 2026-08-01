@@ -135,8 +135,8 @@ async def embed(texts: list[str], model: str = "qwen/qwen3-embedding-8b") -> lis
 | Role | Use when | Model | Cost | Context |
 |---|---|---|---|---|
 | **Code-specific** | Separate pipeline — IDE semantic search, codebase retrieval | `mistralai/codestral-embed-2505` | $0.15/M | 8k |
-| **Premium quality** | Separate pipeline — only when max recall needed AND budget allows full re-embed | `openai/text-embedding-3-large` | $0.13/M | 8k |
-| **Premium quality fallback** | Fallback if P1 unavailable | `google/gemini-embedding-001` | $0.15/M | 20k |
+| **Premium quality** | Separate pipeline — only when max recall needed AND budget allows full re-embed | `voyageai/voyage-4-large` | $0.12/M | 32k |
+| **Premium quality fallback** | Fallback if P1 unavailable | `voyageai/voyage-multimodal-3.5` | $0.12/M | 32k |
 | **Default (TR+EN)** | Most projects — use ONE model for BOTH ingest and query | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
 | **Default (TR+EN) fallback** | Fallback if P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
 <!-- EMBEDDING_WINNERS:END -->

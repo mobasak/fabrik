@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 50 -->
+<!-- Total projects: 51 -->
 
 ### Production Services (5 projects)
 
@@ -70,10 +70,11 @@
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 
-### Shell Projects (1 projects)
+### Shell Projects (2 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **Traycer** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
+| **microsoft** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

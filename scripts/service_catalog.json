@@ -909,5 +909,65 @@
     "match": [
       "FACTORY"
     ]
+  },
+  "gemini": {
+    "category": "ai-llm",
+    "cost": "freemium",
+    "capability": "Google's AI language model API for text generation and analysis",
+    "url": "https://ai.google.dev",
+    "status": "active",
+    "match": [
+      "GEMINI"
+    ]
+  },
+  "session_recall_test": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "Browser session recording and replay for testing",
+    "url": "https://testingbot.com",
+    "status": "active",
+    "match": [
+      "SESSION_RECALL_TEST"
+    ]
+  },
+  "crowdlex": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": [
+      "CROWDLEX"
+    ]
+  },
+  "crowdlex_internal": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": [
+      "CROWDLEX_INTERNAL"
+    ]
+  },
+  "session_recall_indexer": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": [
+      "SESSION_RECALL_INDEXER"
+    ]
+  },
+  "wavespeed": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": [
+      "WAVESPEED"
+    ]
   }
 }

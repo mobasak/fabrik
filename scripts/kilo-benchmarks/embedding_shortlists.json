@@ -27,6 +27,30 @@
   ],
   "frontier_reference": [
     {
+      "id": "voyageai/voyage-4-large",
+      "provider": "voyageai",
+      "input_cost_per_m": 0.12,
+      "context_window_k": 32,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 0,
+      "dimensions": null,
+      "score_used": 0.12,
+      "score_type": "input_cost_per_m"
+    },
+    {
+      "id": "voyageai/voyage-multimodal-3.5",
+      "provider": "voyageai",
+      "input_cost_per_m": 0.12,
+      "context_window_k": 32,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 0,
+      "dimensions": null,
+      "score_used": 0.12,
+      "score_type": "input_cost_per_m"
+    },
+    {
       "id": "openai/text-embedding-3-large",
       "provider": "openai",
       "input_cost_per_m": 0.13,

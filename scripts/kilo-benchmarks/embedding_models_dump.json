@@ -1,5 +1,158 @@
 [
   {
+    "id": "voyageai/voyage-multimodal-3.5",
+    "canonical_slug": "voyageai/voyage-multimodal-3.5-20260727",
+    "hugging_face_id": null,
+    "name": "VoyageAI by MongoDB: voyage-multimodal-3.5",
+    "created": 1785188629,
+    "description": "voyage-multimodal-3.5 is a state-of-the-art multimodal embedding model capable of vectorizing not only text, images, and video individually, but also content that interleaves all three modalities. It delivers excellent performance for...",
+    "context_length": 32000,
+    "architecture": {
+      "modality": "text+image->embeddings",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000012",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 32000,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/voyageai/voyage-multimodal-3.5-20260727/endpoints"
+    }
+  },
+  {
+    "id": "voyageai/voyage-4-lite",
+    "canonical_slug": "voyageai/voyage-4-lite-20260727",
+    "hugging_face_id": null,
+    "name": "VoyageAI by MongoDB: voyage-4-lite",
+    "created": 1785188627,
+    "description": "voyage-4-lite is a lightweight, general-purpose embedding model optimized for low latency and cost. Enabled by Matryoshka learning and quantization-aware training, voyage-4-lite supports embeddings in 2048, 1024, 512, and 256 dimensions,...",
+    "context_length": 32000,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000002",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 32000,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/voyageai/voyage-4-lite-20260727/endpoints"
+    }
+  },
+  {
+    "id": "voyageai/voyage-4",
+    "canonical_slug": "voyageai/voyage-4-20260727",
+    "hugging_face_id": null,
+    "name": "VoyageAI by MongoDB: voyage-4",
+    "created": 1785188626,
+    "description": "voyage-4 is a general-purpose (including multilingual) embedding model optimized for retrieval/search and AI applications. voyage-4 supports embeddings in 2048, 1024, 512, and 256 dimensions, with multiple quantization options. Learn more...",
+    "context_length": 32000,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000006",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 32000,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/voyageai/voyage-4-20260727/endpoints"
+    }
+  },
+  {
+    "id": "voyageai/voyage-4-large",
+    "canonical_slug": "voyageai/voyage-4-large-20260727",
+    "hugging_face_id": null,
+    "name": "VoyageAI by MongoDB: voyage-4-large",
+    "created": 1785188624,
+    "description": "voyage-4-large is a state-of-the-art general-purpose and multilingual embedding optimized for retrieval quality. Enabled by Matryoshka learning and quantization-aware training, voyage-4-large supports embeddings in 2048, 1024, 512, and 256 dimensions, with...",
+    "context_length": 32000,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000012",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 32000,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/voyageai/voyage-4-large-20260727/endpoints"
+    }
+  },
+  {
     "id": "nvidia/nemotron-3-embed-1b:free",
     "canonical_slug": "nvidia/nemotron-3-embed-1b-20260716",
     "hugging_face_id": null,
@@ -1358,8 +1511,8 @@
       "completion": "0"
     },
     "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": null,
+      "context_length": 32000,
+      "max_completion_tokens": 32000,
       "is_moderated": false
     },
     "per_request_limits": null,
