@@ -11,9 +11,6 @@ env:
   PORT: "8016"
   LOG_LEVEL: INFO
   DATAFORSEO_AUTOCOMPLETE_CLIENT: gws-wiz-serp
-  SCRAPINGDOG_ADVANCE_SEARCH: "true"
-  SCRAPINGDOG_DOMAIN: google.com
-  SCRAPINGDOG_COUNTRY: us
   AUTOCOMPLETE_CACHE_TTL_DAYS: "30"
   SERP_CACHE_TTL_DAYS: "14"
   MAX_AUTOCOMPLETE_PATTERNS: "20"
@@ -21,8 +18,14 @@ env:
   MAX_SERP_TARGETS: "30"
   PROVIDER_TIMEOUT_SECONDS: "30"
   PROVIDER_MAX_RETRIES: "1"
-  KILO_API_URL: https://api.kilo.ai/api/openrouter/v1/chat/completions
-  LLM_DEFAULT_MODEL: anthropic/claude-haiku-4.5
+  # Kilo proxy retired — direct OpenRouter (legacy KILO_* names kept)
+  KILO_API_URL: https://openrouter.ai/api/v1/chat/completions
+  LLM_DEFAULT_MODEL: deepseek/deepseek-v3.2
+  # VPS containers have no claude CLI — force the HTTP chain (WSL dev uses claude-cli)
+  LLM_BACKEND: openrouter
+  LLM_DAILY_USD_CAP: "5.0"
+  COST_WAL_PATH: .tmp/cost_wal.sqlite
+  MENTION_PROBE_RUNS: "3"
 
 secrets:
   required:
@@ -30,8 +33,10 @@ secrets:
     - INTERNAL_API_TOKEN
     - DATAFORSEO_USERNAME
     - DATAFORSEO_PASSWORD
-    - SCRAPINGDOG_API_KEY
     - KILO_API_KEY
+    - DNS_MANAGER_TOKEN   # X-API-Key for site-provisioner GSC endpoints
+    - COST_LEDGER_DSN     # point at fabrik_analytics for the PORTFOLIO-wide cost ledger;
+                          # empty = project-local fallback table (per-project view only)
 
 depends:
   postgres: seo
