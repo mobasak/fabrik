@@ -1,4 +1,4 @@
-Last refresh: 2026-07-31
+Last refresh: 2026-08-01
 Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shrunk_q ≥ 2.5; then cost-asc among survivors; top-2 slots require n ≥ 10 | tier_baseline T1=1.0, T2=2.5, T3=4.0 | Window: 90 days | Min runs: 3
 
 
@@ -59,21 +59,21 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 |---:|---|---:|---:|---:|---:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.20 | 0.96 | $0.0161 | 3.05 | 3 | 28 |
 
-### research (n_total=211)
+### research (n_total=221)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `z-ai/glm-4.5-air` | 2.66 | 0.51 | $0.0016 | 2.70 | 2 | 39 |
-| 2 | `minimax/minimax-m3` | 2.70 | 0.53 | $0.0081 | 2.74 | 2 | 45 |
-| 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.53 | $0.0091 | 3.76 | 3 | 123 |
-| 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0051 | 4.00 | 3 | 4 |
+| 1 | `z-ai/glm-4.5-air` | 2.72 | 0.51 | $0.0015 | 2.77 | 2 | 43 |
+| 2 | `minimax/minimax-m3` | 2.60 | 0.53 | $0.0078 | 2.62 | 2 | 47 |
+| 3 | `deepseek/deepseek-v4-pro` | 3.78 | 0.53 | $0.0091 | 3.77 | 3 | 125 |
+| 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0035 | 4.00 | 3 | 6 |
 
-### review (n_total=4878)
+### review (n_total=4881)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2-exp` | 3.07 | 0.45 | $0.0008 | 3.05 | 3 | 174 |
+| 1 | `deepseek/deepseek-v3.2-exp` | 3.07 | 0.45 | $0.0008 | 3.05 | 3 | 175 |
 | 2 | `deepseek/deepseek-v4-flash` | 2.97 | 0.35 | $0.0010 | 2.92 | 2 | 143 |
-| 3 | `google/gemini-3-flash-preview` | 3.26 | 0.49 | $0.0027 | 3.21 | 3 | 164 |
-| 4 | `qwen/qwen3-max` | 2.83 | 0.43 | $0.0056 | 2.60 | 2 | 54 |
+| 3 | `google/gemini-3-flash-preview` | 3.26 | 0.49 | $0.0028 | 3.21 | 3 | 165 |
+| 4 | `qwen/qwen3-max` | 2.83 | 0.44 | $0.0060 | 2.60 | 2 | 55 |
 
 ### spec (n_total=155)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
@@ -95,13 +95,13 @@ _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of th
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
 | `openai/o3-mini` | A | 4.36 | 0.77 | 1.00 | $3.814 | $4.40 | $0.1144 | — | 3.4 | 204 | 22 | 8 | — |
 | `anthropic/claude-haiku-4.5` | A | 4.21 | 0.73 | 1.00 | $1.867 | $5.00 | $0.0560 | — | 3.5 | 83 | 22 | 8 | — |
-| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.007496 | 16.5 | 60 | 22 | 8 | ✅ |
+| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.007785 | 16.5 | 60 | 22 | 8 | ✅ |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | 1.00 | $0.165 | $3.90 | $0.0033 | — | 1.9 | 8 | 16 | 4 | ✅ |
 | `bytedance-seed/seed-1.6` | A | 4.05 | 0.68 | 1.00 | $1.041 | $2.00 | $0.0312 | — | 6.5 | 48 | 22 | 8 | — |
 | `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | — | 7.5 | 73 | 22 | 8 | — |
-| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.009215 | 10.3 | 16 | 22 | 8 | ✅ |
-| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.008961 | 8.0 | 17 | 22 | 8 | ✅ |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $160.349 | $15.00 | $4.8105 | $0.014194 | 12.4 | 35 | 22 | 8 | ✅ |
+| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.009571 | 10.3 | 16 | 22 | 8 | ✅ |
+| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.009306 | 8.0 | 17 | 22 | 8 | ✅ |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $160.349 | $15.00 | $4.8105 | $0.014741 | 12.4 | 35 | 22 | 8 | ✅ |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | — | 1.3 | 10 | 22 | 8 | ✅ |
 | `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | — | 5.0 | 87 | 22 | 8 | — |
 | `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | — | 5.1 | 78 | 22 | 8 | — |

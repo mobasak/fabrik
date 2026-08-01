@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-07-31T06:00:24.701536
+**Last Updated:** 2026-08-01T06:00:24.391073
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -38,11 +38,11 @@
 | 29 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.39 | $2.34 | 262K | ✓ | ✓ | ✓ | 2 | 790 | ✅ |
 | 30 | **gemma-4-31b-it** | google | 1462 | ~ | $0.10 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5221 | ✅ |
 | 31 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
-| 32 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $2.55 | 204K |  | ✓ | ✓ | 2 | 680 | ✅ |
-| 33 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 204K |  | ✓ | ✓ | 2 | 1034 | ✅ |
-| 34 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.07 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5358 | ✅ |
-| 35 | **gemma-4-26b-a4b-it:free** | google | 1460 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1460 | ✅ |
-| 36 | **deepseek-v4-flash** | deepseek | 1460 | ~ | $0.14 | $0.28 | 1048K |  | ✓ | ✓ | 1 | 5959 | ✅ |
+| 32 | **deepseek-v4-flash** | deepseek | 1462 | ~ | $0.14 | $0.28 | 1048K |  | ✓ | ✓ | 1 | 5967 | ✅ |
+| 33 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $2.55 | 204K |  | ✓ | ✓ | 2 | 680 | ✅ |
+| 34 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 204K |  | ✓ | ✓ | 2 | 1034 | ✅ |
+| 35 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.07 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5358 | ✅ |
+| 36 | **gemma-4-26b-a4b-it:free** | google | 1460 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1460 | ✅ |
 | 37 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.50 | $2.00 | 204K |  | ✓ | ✓ | 2 | 897 | ✅ |
 | 38 | **qwen3-235b-a22b-2507** | qwen | 1457 | ~ | $0.09 | $0.55 | 262K |  | ✓ |  | 1 | 3349 | ✅ |
 | 39 | **qwen3-vl-235b-a22b-instruct** | qwen | 1457 | ~ | $0.21 | $1.90 | 262K | ✓ | ✓ |  | 2 | 986 | ✅ |
@@ -54,7 +54,7 @@
 | 45 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
 | 46 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.25 | $1.00 | 204K |  | ✓ | ✓ | 2 | 1782 | ✅ |
 | 47 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
-| 48 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.30 | $3.00 | 262K |  | ✓ | ✓ | 2 | 620 | ✅ |
+| 48 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.23 | $2.30 | 262K |  | ✓ | ✓ | 2 | 809 | ✅ |
 | 49 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
 | 50 | **deepseek-r1-0528** | deepseek | 1436 | ~ | $0.50 | $2.15 | 163K |  | ✓ | ✓ | 2 | 826 | ✅ |
 | 51 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.15 | $0.90 | 204K |  | ✓ | ✓ | 2 | 2015 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-07-31:** Auto-updated from benchmarks
+- **2026-08-01:** Auto-updated from benchmarks

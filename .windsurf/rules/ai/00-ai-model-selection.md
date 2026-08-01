@@ -116,18 +116,18 @@ When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the ac
 
 Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope, SiliconFlow, and ModelScope are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`, Hunyuan, Zhipu GLM direct).
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-07-31 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-07-31 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-01 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-01 UTC; auto-refreshed from `kilo_agents.db`):*
 
 | Gateway | Active routable models | Notes |
 |---|---|---|
-| **OpenRouter** | 366 | of which **335** dual-routed with Kilo, **31** OR-only |
+| **OpenRouter** | 338 | of which **335** dual-routed with Kilo, **3** OR-only |
 | **Kilo CLI** | 335 | of which **335** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
 | **ModelScope** (direct) | 32 | Zhipu GLM direct (4) + Tencent Hunyuan Hy3 (1) + 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap |
 
-Capability counts (any-gateway): reasoning **240** · tools/function-calling **303** · vision-input **211** · translation-scored **9** · STT-capable **40**.
+Capability counts (any-gateway): reasoning **239** · tools/function-calling **301** · vision-input **209** · translation-scored **9** · STT-capable **41**.
 <!-- GATEWAY_COUNTS:END -->
 
 For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / Cybersecurity / Bio-Healthcare / Edge / Governance / Generative design) use domain tools, not gateway LLMs.
