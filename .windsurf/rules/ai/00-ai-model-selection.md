@@ -158,7 +158,12 @@ Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subs
 ## In-code AI agent calls — the dispatch ladder (BINDING)
 
 When project/pipeline code needs an **AI step wired into the code** (mechanical code can't do the job —
-transcript classification, fix dispatch, content triage), select the model by this ladder:
+transcript classification, fix dispatch, content triage), select the model by this ladder.
+
+**First choice — vendor a fabrik-lib dispatch template, don't hand-roll.** Implement this ladder via a
+shared **fabrik-lib** AI-dispatch template/module (vendor-don't-build, CLAUDE.md § Pointers) rather than a
+bespoke `claude -p` subprocess per project — so the ladder itself, the `58-resilience` wrap, and the
+cost-budget guard live in one audited place every project reuses. Then select the rung:
 
 1. **`claude -p --model haiku`** — the default first rung (subscription; cheapest capability tier).
 2. **`claude -p --model opus`** — only when haiku is measurably not enough (task fails its quality
