@@ -3,6 +3,19 @@ kind: service
 template: python-api
 domain: seo.vps1.ocoron.com
 
+# Project-shape descriptor — fabrik apply reads this to decide which registrars run.
+# Declared by the service owner (/opt/seo AI, 2026-08-02); grounded against the code.
+shape:
+  kind: service
+  is_public: false            # internal API (INTERNAL_API_TOKEN); no public Gatus health monitor
+  is_admin_dashboard: false   # no HTML admin UI, no Authelia
+  has_bearer_api: false       # INTERNAL_API_TOKEN is app-level, not behind Authelia
+  has_persistent_data: false  # all state in postgres-main::seo, backed up there
+  needs_database: true        # uses postgres-main::seo (depends.postgres: seo)
+  needs_cache: false          # no Redis
+  has_search_feature: false   # no Meilisearch index
+  exposes_metrics: true       # GET /metrics (src/seo/main.py:68) → Prometheus scrape job
+
 source:
   type: local
   path: /opt/seo
