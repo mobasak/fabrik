@@ -223,6 +223,7 @@
 - [info-tooltip](/opt/fabrik-lib/info-tooltip/README.md): info-tooltip
 - [job-queue](/opt/fabrik-lib/job-queue/README.md): job-queue
 - [legal-pages](/opt/fabrik-lib/legal-pages/README.md): legal-pages
+- [llm-visibility-probe](/opt/fabrik-lib/llm-visibility-probe/README.md): llm-visibility-probe
 - [mobile-config](/opt/fabrik-lib/mobile-config/README.md): mobile-config
 - [mt-router](/opt/fabrik-lib/mt-router/README.md): mt-router — Context-First Translation Router
 - [oauth-login](/opt/fabrik-lib/oauth-login/README.md): oauth-login
@@ -244,6 +245,7 @@
 - [storage](/opt/fabrik-lib/storage/README.md): fabrik-lib/storage — Unified File Storage
 - [subagents](/opt/fabrik-lib/subagents/README.md): subagents — vendorable parallel-subagent runtime (OpenRouter-direct)
 - [tenancy](/opt/fabrik-lib/tenancy/README.md): tenancy
+- [ui-inventory](/opt/fabrik-lib/ui-inventory/README.md): ui-inventory
 - [ui-verify](/opt/fabrik-lib/ui-verify/README.md): ui-verify
 - [watchdog](/opt/fabrik-lib/watchdog/README.md): watchdog — per-project AI self-heal sidecar (poll → diagnose → act → escalate)
 - [web-scrape](/opt/fabrik-lib/web-scrape/README.md): web-scrape — deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered
