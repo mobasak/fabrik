@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deployer: spec placeholder no longer clobbers a registrar-injected real value (2026-08-02)
+
+`_build_env_content` (`orchestrator/deployer_ssh.py`) now preserves an existing real `.env` value when the
+spec provides only a `…placeholder…` for that key (new `_is_placeholder` helper). Registrar-managed vars
+(`DATABASE_URL`, `REDIS_URL`, …) live in specs as literal placeholders and are filled in post-deploy via
+`inject_env()`; on a re-apply, layering the spec placeholder over the injected real value broke
+`docker compose up --wait` (the app couldn't reach its DB on the placeholder DSN) BEFORE the registrar could
+re-inject — a self-inflicted outage (site-provisioner, 2026-08-02). First deploys are unaffected (no real
+value to preserve). +3 regression tests in `tests/orchestrator/test_deployer_ssh.py` (100 pass).
+
+### Added — /fabrik-user-test: exhaustive user-simulation GUI gauntlet (2026-07-26)
+
+New command (commands/_sources/fabrik-user-test.md + PARAMS): whole-app adversarial user test for
+ANY GUI surface (SaaS, website, docusaurus, mobile, extension, desktop). Four-mode interactive-element
+inventory as the coverage denominator, flow×persona×state matrix, MANDATORY parallel fabrik-gui
+subagents + pool breadth per core/62, evidence per verdict, fix-or-handoff, loop-until-dry (two
+consecutive dry discovery sweeps). Persists scenarios as rerunnable ui-verify/Maestro suites.
+
 ### Added — in-code AI dispatch ladder codified in ai/00 (2026-07-26)
 
 Binding selection order for AI steps wired inside project code: `claude -p` haiku → opus →

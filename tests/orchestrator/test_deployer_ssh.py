@@ -841,6 +841,55 @@ class TestBuildEnvContent:
         parsed = _parse_env(result)
         assert parsed["PORT"] == "8000"
 
+    _PLACEHOLDER_DSN = "postgresql+asyncpg://placeholder:placeholder@postgres-main:5432/placeholder"
+
+    def test_spec_placeholder_does_not_clobber_injected_real_value(self):
+        """Regression (site-provisioner outage, 2026-08-02): a re-apply must NOT
+        overwrite the registrar-injected real DATABASE_URL with the spec's
+        placeholder — that breaks `compose up --wait` before the registrar can
+        re-inject."""
+        existing_env = (
+            "DATABASE_URL=postgresql+asyncpg://real:s3cret@postgres-main:5432/real_db\n"
+            "LOG_LEVEL=DEBUG\n"
+        )
+        ctx = _ctx({"name": "my-app", "env": {"DATABASE_URL": self._PLACEHOLDER_DSN, "LOG_LEVEL": "INFO"}})
+        ctx.secrets = {}
+
+        with patch("fabrik.drivers.ssh.ssh", return_value=existing_env):
+            deployer = SSHDeployer()
+            result = deployer._build_env_content(
+                ctx, "my-app",
+                existing={"name": "my-app", "status": "", "path": "/opt/my-app"},
+            )
+
+        parsed = _parse_env(result)
+        # the injected real DSN is preserved; the placeholder does NOT win
+        assert parsed["DATABASE_URL"] == "postgresql+asyncpg://real:s3cret@postgres-main:5432/real_db"
+        assert "placeholder:placeholder" not in result
+        # a non-placeholder spec var still overrides existing (unchanged behavior)
+        assert parsed["LOG_LEVEL"] == "INFO"
+
+    def test_first_deploy_applies_placeholder_when_no_real_value(self):
+        """First deploy (no existing real value) still gets the placeholder — the
+        registrar fills it in post-deploy."""
+        ctx = _ctx({"name": "my-app", "env": {"DATABASE_URL": self._PLACEHOLDER_DSN}})
+        ctx.secrets = {}
+
+        deployer = SSHDeployer()
+        result = deployer._build_env_content(ctx, "my-app", existing=None)
+
+        assert "placeholder:placeholder" in result
+
+    def test_secret_still_overrides_placeholder(self):
+        """A real value provided as a secret keeps highest precedence."""
+        ctx = _ctx({"name": "my-app", "env": {"DATABASE_URL": self._PLACEHOLDER_DSN}})
+        ctx.secrets = {"DATABASE_URL": "postgresql+asyncpg://from_secret:pw@postgres-main:5432/db"}
+
+        deployer = SSHDeployer()
+        result = deployer._build_env_content(ctx, "my-app", existing=None)
+
+        assert "from_secret:pw" in result
+
 
 # ======================================================================
 # _destroy_compose (in destroyer.py)

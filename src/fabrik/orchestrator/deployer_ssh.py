@@ -561,9 +561,22 @@ class SSHDeployer:
             except RuntimeError:
                 pass
 
-        # Layer spec env vars
+        # Layer spec env vars — but NEVER clobber a real, already-present value
+        # with a spec PLACEHOLDER. Registrar-managed vars (DATABASE_URL,
+        # REDIS_URL, …) live in the spec as literal `…placeholder…` strings and
+        # are filled in post-deploy by the infra registrars via inject_env().
+        # On a re-apply, `merged` already holds the injected real value; letting
+        # the spec placeholder overwrite it breaks `docker compose up --wait`
+        # (the app can't reach its DB on the placeholder DSN) BEFORE the
+        # registrar re-injects — a self-inflicted outage (site-provisioner,
+        # 2026-08-02). First deploys are unaffected: there is no real value to
+        # preserve, so the placeholder applies and the registrar fills it later.
         for key, value in ctx.spec.get("env", {}).items():
-            merged[key] = str(value)
+            value = str(value)
+            existing_val = merged.get(key)
+            if _is_placeholder(value) and existing_val and not _is_placeholder(existing_val):
+                continue  # keep the registrar-injected real value
+            merged[key] = value
 
         # Layer secrets (highest precedence)
         for key, value in ctx.secrets.items():
@@ -575,6 +588,18 @@ class SSHDeployer:
 # ======================================================================
 # Module-level helpers
 # ======================================================================
+
+
+def _is_placeholder(value: str) -> bool:
+    """True if *value* is a spec stand-in for a registrar-injected real value.
+
+    Fabrik specs carry registrar-managed vars (DATABASE_URL, REDIS_URL, …) as
+    literal ``…placeholder…`` strings; the infra registrars overwrite them
+    post-deploy via ``inject_env()``. ``_build_env_content`` uses this to avoid
+    letting such a placeholder clobber an already-injected real value on a
+    re-apply (which would break ``docker compose up --wait``).
+    """
+    return "placeholder" in value.lower()
 
 
 def _parse_env(content: str) -> dict[str, str]:
