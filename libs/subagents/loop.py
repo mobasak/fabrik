@@ -22,7 +22,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 import httpx
 
@@ -36,7 +36,7 @@ from .web_tools import WEB_TOOL_NAMES, WEB_TOOL_SCHEMAS, execute_web_tool
 RunFn = Callable[..., _transport.Result]
 
 
-def _apply_max_price(merged: dict, model: str) -> None:
+def _apply_max_price(merged: dict[str, object], model: str) -> None:
     """U1 — merge the model's `provider.max_price` (same-price ceiling) into the outgoing body,
     IN PLACE, unless the caller already set one. Writes a NEW provider dict (never mutates the
     caller's nested `provider` object — `merged` is only a shallow copy of `extra_body`). NEVER
@@ -82,7 +82,7 @@ def _apply_max_price(merged: dict, model: str) -> None:
     merged["provider"] = prov
 
 
-def _apply_latency_prefs(merged: dict) -> None:
+def _apply_latency_prefs(merged: dict[str, object]) -> None:
     """L2 (plan-2 stall-resilience) — opt-in, env-driven provider LATENCY preferences merged into the
     outgoing body IN PLACE. ``SUBAGENT_PREFERRED_MAX_LATENCY_S`` → ``provider.preferred_max_latency`` and
     ``SUBAGENT_PREFERRED_MIN_THROUGHPUT`` → ``provider.preferred_min_throughput`` — each added ONLY when its
@@ -105,7 +105,9 @@ def _apply_latency_prefs(merged: dict) -> None:
     merged["provider"] = prov
 
 
-def _with_ignore(body: dict | None, excluded: list[str]) -> dict | None:
+def _with_ignore(
+    body: dict[str, object] | None, excluded: list[str]
+) -> dict[str, object] | None:
     """A COPY of ``body`` with ``provider.ignore`` extended to skip the stalled ``excluded`` providers
     (merged with any caller-supplied ignore). Never mutates the caller's body / provider dict. This is
     how U2 tells OpenRouter's health-aware routing to route AROUND a provider that content-stalled."""
@@ -158,7 +160,7 @@ class LoopOutcome:
     status: LoopStatus
     turns: int
     cost_usd: float | None
-    transcript: list[dict]
+    transcript: list[dict[str, object]]
     error: str | None = None
     provider: str | None = None
     tool_calls: dict[str, int] = field(
@@ -169,7 +171,7 @@ class LoopOutcome:
     )
 
 
-def _normalize_tool_calls(result: _transport.Result) -> list[dict]:
+def _normalize_tool_calls(result: _transport.Result) -> list[dict[str, object]]:
     """The result's tool calls as a list (never None), each guaranteed a non-empty,
     UNIQUE ``id``. Some providers stream a function name without an id; without one
     the resent assistant message + tool results would carry mismatched/None ids and
@@ -178,7 +180,7 @@ def _normalize_tool_calls(result: _transport.Result) -> list[dict]:
     real ordinal id (e.g. a provider's own ``call_1``)."""
     calls = result.tool_calls or []
     seen_ids = {tc.get("id") for tc in calls if isinstance(tc, dict) and tc.get("id")}
-    out: list[dict] = []
+    out: list[dict[str, object]] = []
     for tc in calls:
         if not isinstance(tc, dict):
             continue  # skip a malformed non-dict tool_call entry — never crash the loop
@@ -194,7 +196,7 @@ def _normalize_tool_calls(result: _transport.Result) -> list[dict]:
 
 
 def _execute_one_tool_call(
-    tc: dict,
+    tc: dict[str, object],
     workdir: str,
     *,
     tools_enabled: bool,
@@ -204,7 +206,7 @@ def _execute_one_tool_call(
     mcp_provider: McpProvider | None = None,
     counts: dict[str, int] | None = None,
     sandbox_on: bool = True,
-) -> dict:
+) -> dict[str, object]:
     """Run a single tool call and return the `role:"tool"` message to append.
 
     Bad/malformed calls never raise — the error is fed back to the model so it can
@@ -218,7 +220,7 @@ def _execute_one_tool_call(
     error), is NOT counted — so the ledger records tools the agent actually used to
     effect, not mere attempts.
     """
-    fn = tc.get("function") or {}
+    fn = cast("dict[str, object]", tc.get("function") or {})
     name = str(fn.get("name", ""))
     raw_args = fn.get("arguments") or "{}"
     call_id = tc.get("id", "")
@@ -310,10 +312,10 @@ def run_loop(
     web_client: httpx.Client | None = None,
     run_fn: RunFn | None = None,
     sandbox: bool = True,
-    extra_body: dict | None = None,
-    on_progress: Callable[[dict], None] | None = None,
+    extra_body: dict[str, object] | None = None,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
     mcp_servers: frozenset[str] | None = None,
-    mcp_config: dict | str | None = None,
+    mcp_config: dict[str, dict[str, object]] | str | None = None,
     mcp_allow_unlisted: bool = False,
     mcp_provider: McpProvider | None = None,
 ) -> LoopOutcome:
@@ -341,7 +343,7 @@ def run_loop(
     call = run_fn if run_fn is not None else _transport.run
     _defaults = _transport.Liveness()
 
-    messages: list[dict] = []
+    messages: list[dict[str, object]] = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": task})
@@ -353,7 +355,7 @@ def run_loop(
     # HERE (the transport's ``_client._body`` would too, but AFTER we set tools — so a
     # nested ``extra_body.tools`` would otherwise survive). We do this BEFORE building the
     # MCP provider, so a malformed ``extra_body`` (a raise here) can't leak an open provider.
-    merged: dict = dict(extra_body or {})
+    merged: dict[str, object] = dict(extra_body or {})
     # Flatten nested OpenAI-SDK-style ``extra_body`` to a FIXED POINT (bounded, so a
     # self-referential dict can't loop) — one level isn't enough: the transport flattens
     # one level too, so a leftover nested ``extra_body.tools`` would survive our guard and
@@ -381,7 +383,11 @@ def run_loop(
             return LoopOutcome("", "error", 0, None, messages, error=str(exc))
     advertised = (
         (list(TOOL_SCHEMAS) if tools_enabled else [])
-        + [s for s in WEB_TOOL_SCHEMAS if s["function"]["name"] in enabled_web]
+        + [
+            s
+            for s in WEB_TOOL_SCHEMAS
+            if cast("dict[str, object]", s["function"])["name"] in enabled_web
+        ]
         + (mcp_prov.tool_schemas() if mcp_prov is not None else [])
     )
     if advertised:
@@ -394,7 +400,7 @@ def run_loop(
     _apply_latency_prefs(
         merged
     )  # L2: opt-in latency-aware routing (deprioritize-safe, no `sort`)
-    body: dict | None = merged or None
+    body: dict[str, object] | None = merged or None
     total_cost = 0.0
     cost_known = False
     total_out_tokens = 0
@@ -502,7 +508,10 @@ def run_loop(
             # never crashes on a missing/oddly-shaped usage dict.
             try:
                 total_out_tokens += int(
-                    (result.usage or {}).get("completion_tokens") or 0
+                    cast(
+                        "str | int | float",
+                        (result.usage or {}).get("completion_tokens") or 0,
+                    )
                 )
             except (TypeError, ValueError, AttributeError):
                 pass
@@ -522,7 +531,9 @@ def run_loop(
                             "cost_usd": total_cost if cost_known else None,
                             "provider": provider,
                             "tools": [
-                                (tc.get("function") or {}).get("name", "")
+                                cast(
+                                    "dict[str, object]", tc.get("function") or {}
+                                ).get("name", "")
                                 for tc in tool_calls
                             ],
                         }

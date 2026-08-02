@@ -58,10 +58,10 @@ class Result:
     success. `raw` is the underlying RawResult (None on an errored slot)."""
 
     text: str
-    tool_calls: list[dict] | None
+    tool_calls: list[dict[str, object]] | None
     model: str
     provider: str | None
-    usage: dict
+    usage: dict[str, object]
     cost_usd: float | None
     cost_unknown: bool
     finish_reason: str | None
@@ -77,8 +77,8 @@ class Call:
     """One member of a batch — same args as `run`."""
 
     model: str
-    messages: list[dict]
-    body: dict | None = None
+    messages: list[dict[str, object]]
+    body: dict[str, object] | None = None
     liveness: Liveness | None = None
     tags: list[str] | None = None
 
@@ -86,7 +86,9 @@ class Call:
 _DEFAULT_LIVENESS = Liveness()
 
 
-def make_run_id(model: str, messages: list[dict], body: dict | None) -> str:
+def make_run_id(
+    model: str, messages: list[dict[str, object]], body: dict[str, object] | None
+) -> str:
     """sha1(model + messages + body)[:12] + random suffix, so re-running the SAME
     raw call logs a NEW replayable entry rather than colliding."""
     payload = (
@@ -127,9 +129,9 @@ def _lv(liveness: Liveness | None) -> Liveness:
 
 def _run_raw(
     model: str,
-    messages: list[dict],
+    messages: list[dict[str, object]],
     *,
-    body: dict | None,
+    body: dict[str, object] | None,
     liveness: Liveness | None,
     client: OpenRouterClient,
     on_token: TokenCb | None = None,
@@ -152,9 +154,9 @@ def _run_raw(
 
 async def _arun_raw(
     model: str,
-    messages: list[dict],
+    messages: list[dict[str, object]],
     *,
-    body: dict | None,
+    body: dict[str, object] | None,
     liveness: Liveness | None,
     client: OpenRouterClient,
     on_token: TokenCb | None = None,
@@ -230,9 +232,9 @@ def _over_cap(cost_usd: float | None, max_cost_usd: float | None) -> bool:
 
 def run(
     model: str,
-    messages: list[dict],
+    messages: list[dict[str, object]],
     *,
-    body: dict | None = None,
+    body: dict[str, object] | None = None,
     liveness: Liveness | None = None,
     client: OpenRouterClient | None = None,
     max_cost_usd: float | None = None,
@@ -261,9 +263,9 @@ def run(
 
 async def arun(
     model: str,
-    messages: list[dict],
+    messages: list[dict[str, object]],
     *,
-    body: dict | None = None,
+    body: dict[str, object] | None = None,
     liveness: Liveness | None = None,
     client: OpenRouterClient | None = None,
     max_cost_usd: float | None = None,

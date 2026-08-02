@@ -56,7 +56,7 @@ class ConsultError(Exception):
         *,
         partial: str = "",
         status: int | None = None,
-        attempts: list[dict] | None = None,
+        attempts: list[dict[str, object]] | None = None,
         retry_after: float | None = None,
     ) -> None:
         super().__init__(message)
@@ -110,7 +110,7 @@ class RawResult:
     text: str
     reasoning: str
     finish_reason: str | None
-    usage: dict
+    usage: dict[str, object]
     cost_usd: float | None
     cost_unknown: bool
     gen_id: str | None
@@ -123,7 +123,7 @@ class RawResult:
     # layer WILL surface `served_model or model` as its provenance (not wired at this layer).
     # `provider` is the SERVED upstream
     # provider (e.g. "Anthropic"). `tool_calls` None unless the model requested tools.
-    tool_calls: list[dict] | None = None
+    tool_calls: list[dict[str, object]] | None = None
     provider: str | None = None
     served_model: str | None = None
 
@@ -133,10 +133,12 @@ class _Acc:
     text: str = ""
     reasoning: str = ""
     finish_reason: str | None = None
-    usage: dict = field(default_factory=dict)
+    usage: dict[str, object] = field(default_factory=dict)
     gen_id: str | None = None
     saw_done: bool = False
-    tool_calls: dict[int, dict] = field(default_factory=dict)  # keyed by delta index
+    tool_calls: dict[int, dict[str, object]] = field(
+        default_factory=dict
+    )  # keyed by delta index
     provider: str | None = None  # served upstream provider (top-level chunk field)
     served_model: str | None = None  # resolved model id (top-level chunk field)
     # monotonic count of OUTPUT frames — any data chunk whose `delta` carries a non-`role` value
@@ -256,23 +258,26 @@ def _accumulate_tool_calls(deltas: object, acc: _Acc) -> None:
             slot["type"] = tc["type"]
         fn = tc.get("function")
         if isinstance(fn, dict):
+            slot_fn = slot["function"]
+            assert isinstance(slot_fn, dict)
             if fn.get("name"):
-                slot["function"]["name"] = fn["name"]
+                slot_fn["name"] = fn["name"]
             arg = fn.get("arguments")
             if isinstance(arg, str):
-                slot["function"]["arguments"] += arg
+                slot_fn["arguments"] += arg
 
 
-def _finalize_tool_calls(acc: _Acc) -> list[dict] | None:
+def _finalize_tool_calls(acc: _Acc) -> list[dict[str, object]] | None:
     """The accumulated tool_calls as an ordered list (by index), or None. A fully-empty stub
     (no id, no function name, no arguments — e.g. a stray index-only delta) is dropped so it
     cannot masquerade as a real tool call and mask an empty-content / reasoning-only response."""
     if not acc.tool_calls:
         return None
-    out: list[dict] = []
+    out: list[dict[str, object]] = []
     for idx in sorted(acc.tool_calls):
         tc = acc.tool_calls[idx]
         fn = tc["function"]
+        assert isinstance(fn, dict)
         if tc["id"] is None and fn["name"] is None and not fn["arguments"]:
             continue
         out.append(tc)
@@ -316,14 +321,14 @@ class OpenRouterClient:
 
     def _body(
         self,
-        messages: list[dict],
+        messages: list[dict[str, object]],
         model: str,
         *,
-        response_format: dict | None = None,
+        response_format: dict[str, object] | None = None,
         max_tokens: int | None = None,
-        plugins: list[dict] | None = None,
-        body: dict | None = None,
-    ) -> dict:
+        plugins: list[dict[str, object]] | None = None,
+        body: dict[str, object] | None = None,
+    ) -> dict[str, object]:
         """Build the request body. `body` is a purpose-neutral OpenRouter passthrough — the
         caller may carry provider/models/reasoning/transforms/tools/tool_choice/usage/
         response_format/parallel_tool_calls/etc. A nested `extra_body` dict is flattened to
@@ -332,7 +337,7 @@ class OpenRouterClient:
         win — a caller cannot override the transport invariants. (Usage/cost ships automatically
         on every OpenRouter response, so `stream_options:{include_usage}` is no longer sent — it
         is a deprecated no-op; see ai-consult/UPSTREAM_FEEDBACK.md.)"""
-        merged: dict = dict(body or {})
+        merged: dict[str, object] = dict(body or {})
         extra = merged.get("extra_body")
         if isinstance(extra, dict):
             merged.pop("extra_body")
@@ -432,13 +437,13 @@ class OpenRouterClient:
     # ── sync stream ───────────────────────────────────────────────────────
     def stream_chat(
         self,
-        messages: list[dict],
+        messages: list[dict[str, object]],
         model: str,
         *,
-        response_format: dict | None = None,
+        response_format: dict[str, object] | None = None,
         max_tokens: int | None = None,
-        plugins: list[dict] | None = None,
-        body: dict | None = None,
+        plugins: list[dict[str, object]] | None = None,
+        body: dict[str, object] | None = None,
         idle_timeout_s: float = 120.0,
         hard_timeout_s: float = 1800.0,
         connect_timeout_s: float = 30.0,
@@ -536,13 +541,13 @@ class OpenRouterClient:
     # ── async stream ──────────────────────────────────────────────────────
     async def astream_chat(
         self,
-        messages: list[dict],
+        messages: list[dict[str, object]],
         model: str,
         *,
-        response_format: dict | None = None,
+        response_format: dict[str, object] | None = None,
         max_tokens: int | None = None,
-        plugins: list[dict] | None = None,
-        body: dict | None = None,
+        plugins: list[dict[str, object]] | None = None,
+        body: dict[str, object] | None = None,
         idle_timeout_s: float = 120.0,
         hard_timeout_s: float = 1800.0,
         connect_timeout_s: float = 30.0,
@@ -680,7 +685,7 @@ class OpenRouterClient:
 
     def call_model(
         self,
-        messages: list[dict],
+        messages: list[dict[str, object]],
         model: str,
         *,
         restart_max: int = 2,
@@ -692,14 +697,14 @@ class OpenRouterClient:
         """stream_chat with restart-on-stuck (up to restart_max) + a one-shot
         empty-content max_tokens bump. Raises with the attempt chain when exhausted.
         """
-        attempts: list[dict] = []
+        attempts: list[dict[str, object]] = []
         bumped = False
         restarts = 0
         while True:
             try:
                 return self.stream_chat(
                     messages, model, max_tokens=max_tokens, on_state=on_state, **kw
-                )  # type: ignore[arg-type]
+                )
             except EmptyContentError as exc:
                 attempts.append(
                     {"model": model, "error": "EmptyContentError", "restart": restarts}
@@ -746,7 +751,7 @@ class OpenRouterClient:
 
     async def acall_model(
         self,
-        messages: list[dict],
+        messages: list[dict[str, object]],
         model: str,
         *,
         restart_max: int = 2,
@@ -756,7 +761,7 @@ class OpenRouterClient:
     ) -> RawResult:
         import asyncio
 
-        attempts: list[dict] = []
+        attempts: list[dict[str, object]] = []
         bumped = False
         restarts = 0
         while True:
@@ -766,7 +771,7 @@ class OpenRouterClient:
                     model,
                     max_tokens=max_tokens,
                     on_state=on_state,
-                    **kw,  # type: ignore[arg-type]
+                    **kw,
                 )
             except EmptyContentError as exc:
                 attempts.append(

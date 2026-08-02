@@ -406,7 +406,7 @@ def _price_or_inf(model: str, live: bool | None) -> float:
     return price if price is not None else float("inf")
 
 
-def provider_max_price(model: str) -> dict | None:
+def provider_max_price(model: str) -> dict[str, float] | None:
     """The OpenRouter ``provider.max_price`` for this model — the native "same-price fallback"
     ceiling, so a provider (including an automatic fallback) is never routed to above the model's
     normal OUTPUT rate. Returns ``{"completion": <price $/Mtok>}`` or ``None`` when the price is

@@ -20,8 +20,10 @@ from __future__ import annotations
 import json
 import re
 import threading
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 try:
     import fcntl  # POSIX advisory file locking (Linux/WSL — the fleet target)
@@ -60,7 +62,7 @@ class Ledger:
         self.path = Path(path)
         self._lock = threading.Lock()
 
-    def append(self, record: dict) -> None:
+    def append(self, record: dict[str, object]) -> None:
         """Append one record as a single JSON line (line-atomic under the lock).
 
         ``default=str`` keeps a non-JSON-native value (e.g. a datetime) from
@@ -92,7 +94,7 @@ class Ledger:
                 fh.write(line)
                 fh.flush()
 
-    def read_all(self) -> list[dict]:
+    def read_all(self) -> list[dict[str, object]]:
         """Every well-formed record, in append order. Missing file → empty list.
 
         A corrupt/partial line (e.g. a crash-truncated tail) is **skipped**, not
@@ -100,7 +102,7 @@ class Ledger:
         """
         if not self.path.exists():
             return []
-        records: list[dict] = []
+        records: list[dict[str, object]] = []
         for line in self.path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -132,21 +134,21 @@ _RESULT_FIELDS = (
 _MAX_DIFF_CHARS = 100_000
 
 
-def agent_record(spec: object, result: object) -> dict:
+def agent_record(spec: object, result: object) -> dict[str, object]:
     """Build the canonical provenance record for one agent run (secret-free).
 
     Reads only whitelisted attributes off ``spec``/``result`` via ``getattr`` —
     a secret attribute (e.g. ``api_key``) or an excluded one (``system``, ``text``)
     is never serialized. The ``diff`` is truncated (see ``_MAX_DIFF_CHARS``).
     """
-    record: dict = {"ts": datetime.now(UTC).isoformat()}
+    record: dict[str, object] = {"ts": datetime.now(UTC).isoformat()}
     for field in _SPEC_FIELDS:
         record[field] = getattr(spec, field, None)
     for field in _RESULT_FIELDS:
         record[field] = getattr(result, field, None)
     # normalize owned_paths to a plain list (it may be a tuple/other iterable)
     owned = record.get("owned_paths")
-    record["owned_paths"] = list(owned) if owned else []
+    record["owned_paths"] = list(cast("Iterable[Any]", owned)) if owned else []
     # bound the model-controlled diff so it can't blow up a single JSONL line
     diff = record.get("diff")
     if isinstance(diff, str) and len(diff) > _MAX_DIFF_CHARS:
@@ -199,7 +201,9 @@ def write_receipt(
         return False
 
 
-def audit_unrecorded(ledger_path: str, receipts_path: str | None = None) -> list[dict]:
+def audit_unrecorded(
+    ledger_path: str, receipts_path: str | None = None
+) -> list[dict[str, object]]:
     """Ledger entries whose ``agent_id`` has NO matching receipt — pool runs that ran but were never
     scored+recorded. ``receipts_path`` defaults co-located with the ledger. Never raises; a missing
     ledger (no pool use) → ``[]``."""

@@ -119,12 +119,12 @@ def _read_text_bounded(target: Path) -> str:
     return target.read_text(encoding="utf-8", errors="replace")
 
 
-def _read_file(arguments: dict, workdir: str) -> ToolResult:
+def _read_file(arguments: dict[str, object], workdir: str) -> ToolResult:
     target = Path(_resolve_in_workdir(str(arguments["path"]), workdir))
     return ToolResult(ok=True, output=_truncate(_read_text_bounded(target)))
 
 
-def _list_dir(arguments: dict, workdir: str) -> ToolResult:
+def _list_dir(arguments: dict[str, object], workdir: str) -> ToolResult:
     target = _resolve_in_workdir(str(arguments.get("path", ".")), workdir)
     entries = sorted(
         p.name + ("/" if p.is_dir() else "") for p in Path(target).iterdir()
@@ -151,7 +151,7 @@ def _grep_candidates(root: Path) -> tuple[list[Path], bool]:
     return out, False
 
 
-def _grep(arguments: dict, workdir: str) -> ToolResult:
+def _grep(arguments: dict[str, object], workdir: str) -> ToolResult:
     pattern = re.compile(str(arguments["pattern"]))
     root = Path(_resolve_in_workdir(str(arguments.get("path", ".")), workdir))
     matches: list[str] = []
@@ -178,7 +178,7 @@ def _grep(arguments: dict, workdir: str) -> ToolResult:
     return ToolResult(ok=True, output=output)
 
 
-def _write_file(arguments: dict, workdir: str) -> ToolResult:
+def _write_file(arguments: dict[str, object], workdir: str) -> ToolResult:
     target = _resolve_in_workdir(str(arguments["path"]), workdir)
     Path(target).parent.mkdir(parents=True, exist_ok=True)
     Path(target).write_text(str(arguments["content"]), encoding="utf-8")
@@ -204,7 +204,7 @@ def _patch_targets_escape(patch: str) -> bool:
     return False
 
 
-def _apply_patch(arguments: dict, workdir: str, timeout_s: float) -> ToolResult:
+def _apply_patch(arguments: dict[str, object], workdir: str, timeout_s: float) -> ToolResult:
     patch_text = str(arguments["patch"])
     if _patch_targets_escape(patch_text):
         return ToolResult(
@@ -233,7 +233,7 @@ def _apply_patch(arguments: dict, workdir: str, timeout_s: float) -> ToolResult:
 
 
 def _run_command(
-    arguments: dict,
+    arguments: dict[str, object],
     workdir: str,
     timeout_s: float,
     allowed: frozenset[str],
@@ -286,7 +286,7 @@ def _run_command(
 
 def execute_tool(
     name: str,
-    arguments: dict,
+    arguments: dict[str, object],
     *,
     workdir: str,
     timeout_s: float = 30.0,
@@ -332,7 +332,9 @@ def execute_tool(
         return ToolResult(ok=False, output="", error=str(exc))
 
 
-def _fn(name: str, description: str, properties: dict, required: list[str]) -> dict:
+def _fn(
+    name: str, description: str, properties: dict[str, object], required: list[str]
+) -> dict[str, object]:
     return {
         "type": "function",
         "function": {
@@ -353,7 +355,7 @@ _STR = {"type": "string"}
 # OpenRouter function-tool schemas the model is shown. The model returns each
 # call's `arguments` as a JSON *string* (per openrouter-api.md); loop.py parses
 # it with json.loads before handing the dict to execute_tool.
-TOOL_SCHEMAS: list[dict] = [
+TOOL_SCHEMAS: list[dict[str, object]] = [
     _fn(
         "read_file",
         "Read a UTF-8 text file inside the workspace.",

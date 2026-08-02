@@ -26,6 +26,7 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 # Ownership sidecar: `<base>/.owner-<agent_id>` records the PID that created a worktree, so the GC can
@@ -59,7 +60,7 @@ def _run_git(args: list[str], *, cwd: str) -> str:
 
 
 @contextlib.contextmanager
-def _repo_worktree_lock(repo: str):
+def _repo_worktree_lock(repo: str) -> Iterator[None]:
     """CROSS-PROCESS advisory lock serializing git worktree admin (add/remove/prune) on ONE
     repo's shared ``.git`` registry.
 

@@ -34,7 +34,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from . import sandbox, workspace
 from ._dotenv import load_env
@@ -93,12 +93,12 @@ def _worktree_max_age_s() -> float:
         return 7200.0
 
 
-def _settle_result(fut: asyncio.Future, value: Any) -> None:  # noqa: ANN401
+def _settle_result(fut: asyncio.Future[Any], value: Any) -> None:  # noqa: ANN401
     if not fut.done():
         fut.set_result(value)
 
 
-def _settle_exc(fut: asyncio.Future, exc: BaseException) -> None:
+def _settle_exc(fut: asyncio.Future[Any], exc: BaseException) -> None:
     if not fut.done():
         fut.set_exception(exc)
 
@@ -118,7 +118,7 @@ async def _await_loop_with_backstop(
     executor shutdown nor interpreter exit, so the batch truly returns. ``deadline_s`` None/``<=0`` =
     await unbounded (backstop disabled)."""
     loop = asyncio.get_running_loop()
-    fut: asyncio.Future = loop.create_future()
+    fut: asyncio.Future[LoopOutcome] = loop.create_future()
 
     def _worker() -> None:
         # If the backstop already abandoned this thread, the batch's event loop is closed by the
@@ -175,7 +175,7 @@ class AgentSpec:
     # (minimax provider pin), `{"reasoning": {"exclude": True}}` (deepseek). `None` =
     # the loop's default body (tools only). See CODING_SUBAGENT_SELECTION.md for the
     # per-model hints; `pick_models` does NOT auto-populate this — the caller sets it.
-    body: dict | None = None
+    body: dict[str, object] | None = None
     max_turns: int = 8
     max_cost_usd: float | None = None
     wall_clock_s: float = 1800.0
@@ -193,7 +193,7 @@ class AgentSpec:
     # (`{"mcpServers": {…}}`, e.g. `/opt/fabrik/mcp.json`) OR the **bare** `{name: def}`
     # dict. None (or an absent `mcp` SDK / unreadable config) ⇒ MCP disabled; the agent
     # then runs with whatever `web_tools` were enabled (or no tools).
-    mcp_config: dict | str | None = None
+    mcp_config: dict[str, dict[str, object]] | str | None = None
     # conscious opt-out to enable a server NOT in SAFE_RESEARCH_SERVERS — an FS/shell/exec
     # MCP would hand an untrusted pool model unsandboxed I/O, so the default REFUSES it
     # (like sandbox=False for the OS sandbox). Leave False unless you trust the server.
@@ -272,7 +272,7 @@ def _invoke_loop(
     loop_fn: LoopFn,
     spec: AgentSpec,
     workdir: str,
-    on_progress: Callable[[dict], None] | None = None,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
 ) -> LoopOutcome:
     return loop_fn(
         model=spec.model,
@@ -303,7 +303,7 @@ async def _run_one(
     loop_fn: LoopFn,
     sem: asyncio.Semaphore,
     git_lock: asyncio.Lock,
-    on_progress: Callable[[dict], None] | None = None,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
 ) -> AgentResult:
     agent_id = f"agent-{idx:03d}-{uuid.uuid4().hex[:6]}"
     t0 = time.monotonic()
@@ -549,7 +549,9 @@ def _default_ledger_path(repo: str) -> str:
     return str(Path(repo) / ".tmp" / "subagents" / "ledger.jsonl")
 
 
-def _warn_unrecorded_backlog(ledger_path: str, current_ids: set) -> None:
+def _warn_unrecorded_backlog(
+    ledger_path: str, current_ids: set[str | None]
+) -> None:
     """Loud one-line WARNING iff EARLIER pool runs were ledgered but never scored+recorded — the
     point-of-use signal that makes a forgotten `record_agent_run` visible instead of silent. Excludes
     ``current_ids`` (this batch, which the caller scores after adjudication). Best-effort: ANY failure
@@ -582,7 +584,7 @@ async def arun_agents(
     ledger_path: str | None = None,
     max_concurrency: int = 4,
     loop_fn: LoopFn | None = None,
-    on_progress: Callable[[dict], None] | None = None,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
     load_dotenv: bool = True,
 ) -> list[AgentResult]:
     """Async core: run all ``specs`` with owned_paths-aware concurrency.
@@ -669,7 +671,7 @@ def run_agents(
     ledger_path: str | None = None,
     max_concurrency: int = 4,
     loop_fn: LoopFn | None = None,
-    on_progress: Callable[[dict], None] | None = None,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
     load_dotenv: bool = True,
 ) -> list[AgentResult]:
     """Synchronous wrapper around :func:`arun_agents`.
@@ -700,7 +702,7 @@ def run_agents(
     )
 
 
-def results_table(entries: list[dict]) -> str:
+def results_table(entries: list[dict[str, object]]) -> str:
     """Render the STANDARD post-run report table an orchestrator emits after a pool run.
 
     One row per unit; each ``entry`` is a dict:
@@ -734,7 +736,7 @@ def results_table(entries: list[dict]) -> str:
 
 def fanout(
     task_type: str,
-    units: list[str | dict],
+    units: list[str | dict[str, object]],
     *,
     repo: str,
     project: str | None = None,
@@ -874,7 +876,7 @@ def fanout(
             if isinstance(unit, str):
                 task = unit
             elif isinstance(unit, dict) and "task" in unit:
-                task = unit["task"]
+                task = cast(str, unit["task"])
             else:
                 raise ValueError(
                     f"fanout: read_only unit {i} must be a str or a dict with a 'task' key, "
@@ -922,7 +924,7 @@ def fanout(
                     f"got {op!r}"
                 )
             owned_lists.append(list(op))
-            tasks.append(unit["task"])
+            tasks.append(cast(str, unit["task"]))
         # Auto-tune the turn budget for tool work (see _WRITE_DEFAULT_TURNS) — only when the caller
         # didn't set one; a caller-supplied max_turns always wins.
         spec_kwargs.setdefault("max_turns", _WRITE_DEFAULT_TURNS)

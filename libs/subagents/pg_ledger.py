@@ -98,7 +98,7 @@ def _outbox_path(outbox_dir: str | None) -> Path:
     return base / "pg_outbox.jsonl"
 
 
-def _append_outbox(row: tuple, outbox_dir: str | None) -> None:
+def _append_outbox(row: tuple[object, ...], outbox_dir: str | None) -> None:
     """Best-effort append of one scored row (as a name→value dict) to the outbox. Same durability
     envelope as the JSONL :class:`ledger.Ledger` — ``flush``ed, not ``fsync``ed, so a power-loss can
     still lose the last write (acceptable for a flywheel; the objective metrics are also in the
@@ -127,7 +127,7 @@ def _connect(dsn: str) -> Any:
 
 
 def record_run(
-    record: dict,
+    record: dict[str, object],
     *,
     dsn: str | None = None,
     project: str | None = None,
@@ -454,7 +454,7 @@ def _flush_locked(
         lines = flushing.read_text(encoding="utf-8").splitlines()
     except Exception:  # noqa: BLE001
         return 0
-    good: list[dict] = []
+    good: list[dict[str, object]] = []
     bad: list[str] = []
     for ln in lines:
         if not ln.strip():
@@ -498,8 +498,11 @@ def _flush_locked(
 
         for r in good:
             with contextlib.suppress(Exception):
+                proj_val = r.get("project")
                 write_receipt(
-                    r.get("agent_id"), r.get("project"), receipt_dir=receipt_dir
+                    r.get("agent_id"),
+                    str(proj_val) if proj_val is not None else None,
+                    receipt_dir=receipt_dir,
                 )
     with contextlib.suppress(Exception):
         flushing.unlink()

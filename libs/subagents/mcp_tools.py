@@ -51,7 +51,7 @@ import re
 import threading
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
-from typing import Any
+from typing import Any, cast
 
 from .tools import ToolResult, _truncate
 
@@ -153,7 +153,9 @@ def _tool_name(tool: Any) -> str:
     return tool if isinstance(tool, str) else (getattr(tool, "name", "") or "")
 
 
-def _force_github_readonly(name: str, server_def: dict) -> dict:
+def _force_github_readonly(
+    name: str, server_def: dict[str, object]
+) -> dict[str, object]:
     """Return a COPY of ``server_def`` with GitHub's native read-only forced when this is a
     github server (``name.lower() == "github"``); any other server is returned unchanged.
     stdio → ``env["GITHUB_READ_ONLY"]="1"``; http → ``headers["X-MCP-Readonly"]="true"``.
@@ -205,7 +207,16 @@ _CLOSE_TIMEOUT_S = 30.0  # bound session teardown
 
 # a connector opens ALL sessions on the given stack and returns
 # (name_map {fn_name -> (session, real_tool)}, schemas, usable_tool_count)
-Connector = Callable[[AsyncExitStack], Awaitable[tuple[dict, list[dict], int]]]
+Connector = Callable[
+    [AsyncExitStack],
+    Awaitable[tuple[dict[str, tuple[Any, str]], list[dict[str, object]], int]],
+]
+
+# One serve-task queue item: (session, real_tool_name, call arguments, result future),
+# or the ``None`` sentinel that tells the serve task to close its sessions and exit.
+_QueueItem = (
+    tuple[Any, str, dict[str, object], "concurrent.futures.Future[Any]"] | None
+)
 
 
 def sanitize_fn_name(server: str, tool: str) -> str:
@@ -216,7 +227,9 @@ def sanitize_fn_name(server: str, tool: str) -> str:
     return _FN_NAME_RE.sub("_", f"{server}__{tool}")[:_FN_NAME_MAX]
 
 
-def load_mcp_config(mcp_config: dict | str) -> dict[str, dict]:
+def load_mcp_config(
+    mcp_config: dict[str, dict[str, object]] | str,
+) -> dict[str, dict[str, object]]:
     """Return the ``{server_name: server_def}`` map.
 
     * a **path (str)** → the standard Claude Code file with a top-level ``mcpServers``
@@ -294,7 +307,9 @@ def _extract_text(result: Any) -> str:
     return text
 
 
-def _mcp_tool_schema(name: str, description: str, input_schema: Any) -> dict:
+def _mcp_tool_schema(
+    name: str, description: str, input_schema: Any
+) -> dict[str, object]:
     """Wrap an MCP tool as an OpenRouter function schema. An MCP ``inputSchema`` IS a
     JSON Schema, so it is passed through **verbatim** as ``function.parameters`` —
     reprojecting via the module's flat ``_fn`` helper would drop root-level keywords
@@ -331,12 +346,12 @@ class McpProvider:
         self._thread = threading.Thread(
             target=self._thread_main, name="mcp-provider", daemon=True
         )
-        self._req_q: asyncio.Queue | None = None  # created inside the serve task
+        self._req_q: asyncio.Queue[_QueueItem] | None = None  # created inside the serve task
         self._name_map: dict[
             str, tuple[Any, str]
         ] = {}  # fn_name -> (session, real_tool)
-        self._schemas: list[dict] = []
-        self._serve_future: concurrent.futures.Future | None = None
+        self._schemas: list[dict[str, object]] = []
+        self._serve_future: concurrent.futures.Future[None] | None = None
         self._started = False
         self._closed = False
 
@@ -350,7 +365,7 @@ class McpProvider:
         closes + falls back). Raises if the connector itself raised (caller turns into ``None``)."""
         self._thread.start()
         self._started = True
-        build_fut: concurrent.futures.Future = concurrent.futures.Future()
+        build_fut: concurrent.futures.Future[int] = concurrent.futures.Future()
         self._serve_future = asyncio.run_coroutine_threadsafe(
             self._serve(connect, build_fut), self._loop
         )
@@ -359,7 +374,7 @@ class McpProvider:
         return build_fut.result(timeout=_BUILD_TIMEOUT_S + 10)
 
     async def _serve(
-        self, connect: Connector, build_fut: concurrent.futures.Future
+        self, connect: Connector, build_fut: concurrent.futures.Future[int]
     ) -> None:
         """The one task that owns the sessions. Opens them, signals ``build_fut``, then
         services ``(session, tool, args, result_fut)`` requests until a ``None`` sentinel,
@@ -416,7 +431,7 @@ class McpProvider:
             except Exception:  # noqa: BLE001 — best-effort; a truly-hung child is abandoned
                 pass
 
-    def tool_schemas(self) -> list[dict]:
+    def tool_schemas(self) -> list[dict[str, object]]:
         """The advertised OpenRouter function schemas (a copy)."""
         return list(self._schemas)
 
@@ -424,7 +439,7 @@ class McpProvider:
         """The advertised (sanitized) function names — the loop's routing gate."""
         return frozenset(self._name_map)
 
-    def call(self, fn_name: str, arguments: dict) -> ToolResult:
+    def call(self, fn_name: str, arguments: dict[str, object]) -> ToolResult:
         """Proxy one model tool-call to its owning MCP server (marshalled onto the serve
         task). TOTAL — every failure returns ``ToolResult(ok=False, …)``."""
         if self._closed or self._req_q is None:
@@ -435,7 +450,7 @@ class McpProvider:
                 ok=False, output="", error=f"unknown mcp tool {fn_name!r}"
             )
         session, real_tool = entry
-        fut: concurrent.futures.Future = concurrent.futures.Future()
+        fut: concurrent.futures.Future[Any] = concurrent.futures.Future()
         try:
             self._loop.call_soon_threadsafe(
                 self._req_q.put_nowait, (session, real_tool, arguments, fut)
@@ -482,7 +497,9 @@ class McpProvider:
                 pass
 
 
-async def _open_session(server_def: dict, stack: AsyncExitStack, sdk: dict) -> Any:
+async def _open_session(
+    server_def: dict[str, object], stack: AsyncExitStack, sdk: dict[str, Callable[..., Any]]
+) -> Any:
     """Open one MCP session on ``stack``. ``url``-shaped def → Streamable HTTP;
     ``command``-shaped def → stdio via ``npx``. Returns an initialized ``ClientSession``."""
     if "url" in server_def:
@@ -497,7 +514,7 @@ async def _open_session(server_def: dict, stack: AsyncExitStack, sdk: dict) -> A
     else:
         params = sdk["StdioServerParameters"](
             command=server_def["command"],
-            args=list(server_def.get("args", []) or []),
+            args=list(cast("list[Any] | str", server_def.get("args", []) or [])),
             env=_resolve_env(server_def.get("env")),
         )
         read, write = await stack.enter_async_context(sdk["stdio_client"](params))
@@ -508,7 +525,7 @@ async def _open_session(server_def: dict, stack: AsyncExitStack, sdk: dict) -> A
 
 def build_mcp_provider(
     mcp_servers: frozenset[str] | None,
-    mcp_config: dict | str | None,
+    mcp_config: dict[str, dict[str, object]] | str | None,
     *,
     allow_unlisted: bool = False,
     _connect: Any = None,
@@ -535,7 +552,7 @@ def build_mcp_provider(
                 "server would bypass containment for an untrusted pool model."
             )
 
-    sdk: dict = {}
+    sdk: dict[str, Callable[..., Any]] = {}
     if _connect is None:
         try:  # optional dependency — absent ⇒ web_tools fallback
             from mcp import ClientSession, StdioServerParameters
@@ -562,9 +579,11 @@ def build_mcp_provider(
         logger.warning("mcp_config unreadable (%s); MCP tools disabled.", exc)
         return None
 
-    async def _connect_all(stack: AsyncExitStack) -> tuple[dict, list[dict], int]:
+    async def _connect_all(
+        stack: AsyncExitStack,
+    ) -> tuple[dict[str, tuple[Any, str]], list[dict[str, object]], int]:
         name_map: dict[str, tuple[Any, str]] = {}
-        schemas: list[dict] = []
+        schemas: list[dict[str, object]] = []
         for name in sorted(mcp_servers):
             server_def = config.get(name)
             if not isinstance(server_def, dict):

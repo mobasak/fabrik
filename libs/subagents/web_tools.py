@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -84,10 +84,10 @@ def _fetch(
     method: str,
     url: str,
     *,
-    headers: dict,
+    headers: dict[str, str],
     timeout_s: float,
-    json_body: dict | None = None,
-    params: dict | None = None,
+    json_body: dict[str, object] | None = None,
+    params: dict[str, str | int] | None = None,
 ) -> bytes:
     """Stream the response body, aborting past ``_MAX_RESP_BYTES`` (true memory
     bound — httpx would otherwise buffer the whole body before we could check).
@@ -106,20 +106,20 @@ def _fetch(
         return bytes(buf)
 
 
-def _obj(body: bytes) -> dict:
+def _obj(body: bytes) -> dict[str, object]:
     data = json.loads(body or b"{}")
     if not isinstance(data, dict):
         raise ValueError("expected a JSON object")
     return data
 
 
-def _dicts(seq: Any) -> list[dict]:
+def _dicts(seq: Any) -> list[dict[str, object]]:
     """The dict elements of a sequence (non-dicts skipped — defensive against an
     unexpected response shape, so a stray string can't crash an executor)."""
     return [x for x in seq if isinstance(x, dict)] if isinstance(seq, list) else []
 
 
-def _hits_json(hits: list[dict]) -> str:
+def _hits_json(hits: list[dict[str, object]]) -> str:
     """Serialize search hits as a JSON array of ``{title, url, snippet}`` — an UNAMBIGUOUS structured
     form. The prior newline-joined ``title\\nurl\\nsnippet`` blob (joined by ``\\n\\n``) let a snippet
     containing a blank line fake a result boundary, so a consumer could drop a URL-only hit or
@@ -128,9 +128,9 @@ def _hits_json(hits: list[dict]) -> str:
     return json.dumps(hits, ensure_ascii=False)
 
 
-def _exa_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
+def _exa_search(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
     key = _need("EXA_API_KEY")
-    n = int(args.get("num_results", 10))
+    n = int(cast("str | int | float", args.get("num_results", 10)))
     body = _fetch(
         client,
         "POST",
@@ -147,18 +147,18 @@ def _exa_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolResul
         {
             "title": r.get("title", ""),
             "url": r.get("url", ""),
-            "snippet": (r.get("text") or "")[:_SNIPPET],
+            "snippet": cast(str, r.get("text") or "")[:_SNIPPET],
         }
         for r in _dicts(_obj(body).get("results", []))
     ]
     return ToolResult(ok=True, output=_truncate(_hits_json(hits)))
 
 
-def _brave_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
+def _brave_search(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
     # Brave Web Search API: GET …/web/search?q=&count=  header X-Subscription-Token.
     # Response: {"web": {"results": [{title, url, description}]}}. Count max 20.
     key = _need("BRAVE_API_KEY")
-    n = int(args.get("num_results", 10))
+    n = int(cast("str | int | float", args.get("num_results", 10)))
     body = _fetch(
         client,
         "GET",
@@ -173,16 +173,16 @@ def _brave_search(args: dict, client: httpx.Client, timeout_s: float) -> ToolRes
         {
             "title": r.get("title", ""),
             "url": r.get("url", ""),
-            "snippet": (r.get("description") or "")[:_SNIPPET],
+            "snippet": cast(str, r.get("description") or "")[:_SNIPPET],
         }
         for r in results
     ]
     return ToolResult(ok=True, output=_truncate(_hits_json(hits)))
 
 
-def _firecrawl_scrape(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
+def _firecrawl_scrape(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
     key = _need("FIRECRAWL_API_KEY")
-    payload: dict = {"url": str(args["url"]), "formats": ["markdown"]}
+    payload: dict[str, object] = {"url": str(args["url"]), "formats": ["markdown"]}
     if args.get("actions"):
         payload["actions"] = args["actions"]
     body = _fetch(
@@ -198,10 +198,13 @@ def _firecrawl_scrape(args: dict, client: httpx.Client, timeout_s: float) -> Too
     return ToolResult(ok=True, output=_truncate(md or "(empty)"))
 
 
-def _firecrawl_crawl(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
+def _firecrawl_crawl(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
     key = _need("FIRECRAWL_API_KEY")
     hdr = {"Authorization": f"Bearer {key}"}
-    limit = min(max(int(args.get("limit", _CRAWL_MAX_PAGES)), 1), _CRAWL_MAX_PAGES)
+    limit = min(
+        max(int(cast("str | int | float", args.get("limit", _CRAWL_MAX_PAGES))), 1),
+        _CRAWL_MAX_PAGES,
+    )
     start = _fetch(
         client,
         "POST",
@@ -228,7 +231,8 @@ def _firecrawl_crawl(args: dict, client: httpx.Client, timeout_s: float) -> Tool
         if state == "completed":
             pages = _dicts(sd.get("data", []))[:limit]
             out = "\n\n".join(
-                f"{(p.get('metadata') or {}).get('sourceURL', '')}\n{(p.get('markdown') or '')[:_SNIPPET]}"
+                f"{cast('dict[str, object]', p.get('metadata') or {}).get('sourceURL', '')}\n"
+                f"{cast(str, p.get('markdown') or '')[:_SNIPPET]}"
                 for p in pages
             )
             return ToolResult(ok=True, output=_truncate(out or "(no pages)"))
@@ -240,7 +244,7 @@ def _firecrawl_crawl(args: dict, client: httpx.Client, timeout_s: float) -> Tool
     )
 
 
-def _context7_docs(args: dict, client: httpx.Client, timeout_s: float) -> ToolResult:
+def _context7_docs(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
     key = _need("CONTEXT7_API_KEY")
     hdr = {"Authorization": f"Bearer {key}"}
     query = str(args.get("query", ""))
@@ -268,7 +272,7 @@ def _context7_docs(args: dict, client: httpx.Client, timeout_s: float) -> ToolRe
         f"{_C7_BASE}/context",
         headers=hdr,
         timeout_s=timeout_s,
-        params={"libraryId": results[0].get("id"), "query": query, "type": "txt"},
+        params={"libraryId": str(results[0].get("id", "")), "query": query, "type": "txt"},
     )
     return ToolResult(
         ok=True, output=_truncate(body.decode("utf-8", errors="replace") or "(no docs)")
@@ -277,7 +281,7 @@ def _context7_docs(args: dict, client: httpx.Client, timeout_s: float) -> ToolRe
 
 def execute_web_tool(
     name: str,
-    arguments: dict,
+    arguments: dict[str, object],
     *,
     timeout_s: float = _DEFAULT_TIMEOUT,
     client: httpx.Client | None = None,
@@ -328,7 +332,7 @@ def execute_web_tool(
 _STR = {"type": "string"}
 _INT = {"type": "integer"}
 
-WEB_TOOL_SCHEMAS: list[dict] = [
+WEB_TOOL_SCHEMAS: list[dict[str, object]] = [
     _fn(
         "web_search",
         "Search the web (Exa) for current information; returns ranked title/url/snippet.",
