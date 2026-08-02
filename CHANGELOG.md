@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — every command is now also a skill, with a next-pipeline pointer (2026-08-02)
+
+assemble_commands.py now emits a thin SKILL.md wrapper per command into ~/.claude/skills/<name>/
+(triggering via description; body redirects to the canonical ~/.claude/commands/<name>.md — single
+source of truth) so all 18 fabrik commands are model-invokable skills, not just user-typed slash
+commands. Each carries its NEXT pipeline step (new NEXT map) in both the skill description and body,
+so an agent chains without re-deriving the flow. --check now guards skill drift AND orphans (a renamed/deleted source's stale
+skill+command are pruned on render and flagged by --check — banner-guarded so hand-authored skills
+are never touched); YAML-safe frontmatter (escaped desc+next). command-corpus pre-commit hook enforces it.
+
+### Added — /fabrik-service-test: end-to-end certification for headless systems (2026-08-02)
+
+Headless twin of /fabrik-user-test for python-api · python-api-gpu · node-api · file-api ·
+file-worker · wordpress. Integration & reliability QC-engineer mandate: four-mode contract
+inventory (spec/code/config/runtime) + consumer journeys (first-integration, production-client,
+failure-and-recovery, abusive-client, operator, offboarding) as coverage denominators; per-type
+mandatory journeys (job lifecycle + SIGTERM requeue for workers, round-trip + traversal defenses
+for file-api, OOM/cold-start for GPU); RESPONSE-vs-SYSTEM truth checks at every milestone;
+mandatory parallel subagents (pool CAN drive here — no browser) + native for auth/tenant/data
+legs; loop-until-dry (two consecutive dry sweeps); persists an api-smoke-test/pytest suite.
+
 ### Changed — convergence/coverage checks skip untracked in-flight drafts (2026-08-02)
 
 check_convergence.py + check_review_coverage.py no longer fail on '??' (untracked AND unstaged)

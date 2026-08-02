@@ -129,7 +129,7 @@ unclear. Never claim no previous conversation exists without searching first.
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
 
-**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review).
+**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release**.
 
 Every `/fabrik-*` command, at the end of its run, applies these three (lean — one line, not a section):
 1. **Name the NEXT command** in the flow (+ the one-line why) so the operator chains without re-deriving it.
