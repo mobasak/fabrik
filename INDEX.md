@@ -271,8 +271,6 @@ docs/
 ├── STRATEGIC_BACKLOG.md
 ├── TROUBLESHOOTING.md              # Common issues & solutions
 ├── archive                         # Archived and completed documentation
-├── claudeck
-│   └── claudeck-integration-reference.md # Claudeck integration: patches, adoption kit, update-survival model
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
 │   ├── capability-defects.md
@@ -419,7 +417,6 @@ docs/
 │   │   ├── runpod-hf-models.md
 │   │   └── vast-api.md
 │   ├── architecture.md             # System architecture overview
-│   ├── claudeck-architecture.md    # Claudeck GUI ↔ WSL claude architecture (Client-Server Inversion)
 │   ├── convergence-prompts.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-vultr.md
@@ -548,7 +545,6 @@ docs/
 | [drivers.md](docs/reference/modules/drivers.md) | Fabrik driver API (DNS, GPU providers, registrars) |
 | [templates.md](docs/reference/modules/templates.md) | Available deployment templates |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
-| [claudeck-architecture.md](docs/reference/claudeck-architecture.md) | Claudeck GUI architecture — runs entirely inside WSL, browser is the only boundary crossing; state paths, model-resolution trap (stale picker → Fable patcher), ops commands, known limits; verified 2026-07-23 |
 | [ai-media-generation-provider-map.md](docs/reference/ai-media-generation-provider-map.md) | Every generative-media provider (video/image/audio/3D/editing/assembly) + whether we can automate it (API/SDK/CLI/MCP) without a GUI; per-provider reach verdict, how-to-reach, AND real-world monetization use cases; ranked gaps (Photoroom, Runway, HeyGen/Tavus…) + highest-ROI business plays; compiled 2026-07-25, monetization pass 2026-07-26 |
 | [mobile-gui-research.md](docs/reference/research/mobile-gui-research.md) | Full RN/Expo mobile verify-stack research (Maestro MCP, Mobile Next MCP, RN a11y, visual regression, CI reality); defers to `mobile-app/80-mobile.md`; verified 2026-07-06 |
 | [chrome-ext-gui-research.md](docs/reference/research/chrome-ext-gui-research.md) | Full MV3 chrome-extension verify-stack research (reuse web loop + Playwright load-extension fixture, axe `bypassCSP`, `size-limit` bundle gate); defers to `chrome-ext/70-chrome-ext.md`; verified 2026-07-07 |

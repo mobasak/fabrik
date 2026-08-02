@@ -97,6 +97,21 @@ _BARE_RE = re.compile(
 )
 
 
+def _is_template_source(rel: str) -> bool:
+    """Scaffold templates carry INTENTIONAL placeholder refs — to a project's OWN
+    future files (`src/app/...`, `docs/DATA_MODEL.md`) that don't exist until the
+    template is filled in. They are not broken links; they are the whole point of a
+    template. In the hub these live under ``templates/`` (not scanned) or
+    ``docs/archive/`` (already skipped), but in a scaffolded PROJECT they land under
+    ``docs/`` (e.g. ``docs/reference/scaffold-templates/FEATURES_TEMPLATE.md``) and
+    would false-flag every project — and the check is synced, so it can't be fixed
+    locally. Excluded as SOURCES by the ``*_TEMPLATE.md`` naming and the
+    ``scaffold-templates/`` dir. (Reported by the /opt/seo AI: 21 of 28 "broken"
+    refs were template artifacts.)"""
+    name = rel.rsplit("/", 1)[-1]
+    return name.endswith("_TEMPLATE.md") or "scaffold-templates/" in rel
+
+
 def _tracked_md_sources() -> list[Path]:
     out = subprocess.run(
         ["git", "ls-files", "docs/**/*.md", "docs/*.md"],
@@ -107,15 +122,22 @@ def _tracked_md_sources() -> list[Path]:
     ).stdout.splitlines()
     # Scope = the live KNOWLEDGE tree. Excluded as sources: all archives (frozen
     # history), the plan/epic/review/spec pipeline artifacts (they cite future
-    # deliverables and pre-migration paths by design), and LESSONS_LEARNT.md
-    # (a dated ledger — entries cite files as they were on the entry date).
+    # deliverables and pre-migration paths by design), LESSONS_LEARNT.md (a dated
+    # ledger — entries cite files as they were on the entry date), and scaffold
+    # TEMPLATES (intentional placeholder refs — see _is_template_source).
     skip_prefixes = (
         "docs/archive/",
         "docs/infrastructure/archive/",
         "docs/development/",
         "docs/superpowers/",
     )
-    srcs = [p for p in out if not p.startswith(skip_prefixes) and p != "docs/LESSONS_LEARNT.md"]
+    srcs = [
+        p
+        for p in out
+        if not p.startswith(skip_prefixes)
+        and p != "docs/LESSONS_LEARNT.md"
+        and not _is_template_source(p)
+    ]
     srcs += [p for p in ROOT_SOURCES if (REPO / p).exists()]
     # In a PROJECT, Fabrik-synced docs (gitignored, centrally distributed) are hub
     # CONTEXT, never a link-check target: their hub-relative refs cannot resolve

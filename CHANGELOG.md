@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_doc_links skips scaffold templates; claudeck docs retired (2026-08-03)
+
+`check_doc_links.py` now excludes scaffold templates (`*_TEMPLATE.md` naming +
+`scaffold-templates/` dir) as link SOURCES — their refs are intentional placeholders
+to a project's own future files, not broken links. In the hub these live under
+`templates/`/`docs/archive/` (unscanned), but in a scaffolded PROJECT they land under
+`docs/` and false-flagged every project (reported by the /opt/seo AI: 21 of 28 "broken"
+refs were template artifacts; the check is synced so it couldn't be fixed locally).
+Separately, retired the claudeck integration: removed
+`docs/claudeck/claudeck-integration-reference.md` (which referenced never-committed
+`scripts/claudeck_*.py`) + `docs/reference/claudeck-architecture.md`, and their INDEX.md
+nav entries — clearing the live-tree Doc Link failure they caused.
+
+### Added — vision bake-off: the OpenRouter stand-in for `describe`'s `claude -p haiku` primary (2026-08-03)
+
+`scripts/kilo-benchmarks/microbench_vision_describe.py` — measures cheap OpenRouter vision models on the
+four axes that decide a `describe` fallback (image → `{alt_text, seo_slug}` JSON): json_schema validity,
+judge-scored accuracy + specificity ("not generic") against the same image, latency, and real per-call USD
+read from the API (never a price table). Runs the `claude -p haiku` primary as the baseline bar.
+
+**Result (10 subject-diverse product images, 8 models):** `google/gemini-3.1-flash-lite` wins — acc 4.80,
+spec 4.80, 10/10 JSON, **1.58s p50, $0.00040/img** — vs the haiku primary at **acc 3.70, 26.1s**. The
+fallback is an *upgrade*, not a degraded stand-in: haiku placed last on accuracy, misidentifying subjects
+(called a candle jar a "perfume bottle", a seashell vessel a "hand-shaped holder").
+
+Two harness-fairness fixes found by grounding, not by the judge: a 400-token cap starved reasoning models
+into `finish_reason=length` with empty content (looks identical to "can't do JSON"), and `qwen3.5-flash`
+returns its JSON in `message.reasoning` with `content=None` — reading only `content` scored a working
+model 0/10.
+
 ### Added — EXECUTED plans must cite a coverage-adjudicated whole-plan review (2026-08-03)
 
 `check_convergence.py` now fails the gate on any plan claiming `Status: EXECUTED` (in `plans/` OR

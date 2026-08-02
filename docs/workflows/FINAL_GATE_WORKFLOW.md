@@ -248,7 +248,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 - **Dependencies Sync** - `check_deps_sync.py`
   - Ensures dependencies are properly documented
 - **Documentation Sprawl** - `check_doc_sprawl.py` (2026-07-20: new-file detection is HEAD-or-staged-rename — a merely-staged new .md no longer bypasses the allowlist)
-- **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger exempt; blocking)
+- **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; blocking)
 - **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking)
 - **Retired-Tech Tripwire** - `check_retired_terms.py` (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing)
   - Detects documentation sprawl and duplication

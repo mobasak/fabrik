@@ -58,3 +58,17 @@ def test_archive_sources_are_excluded():
     assert not any(s.startswith("docs/archive/") for s in srcs)
     assert not any(s.startswith("docs/infrastructure/archive/") for s in srcs)
     assert "docs/LESSONS_LEARNT.md" not in srcs  # dated ledger exempt
+
+
+def test_scaffold_templates_are_excluded_as_sources():
+    # Templates carry intentional placeholder refs (a project's own future files).
+    # They must never be link-checked — in a project they land under docs/ and would
+    # false-flag every scaffolded copy (the /opt/seo AI's 21-of-28 template artifacts).
+    assert cdl._is_template_source("docs/reference/scaffold-templates/FEATURES_TEMPLATE.md")
+    assert cdl._is_template_source("docs/QUICKSTART_TEMPLATE.md")
+    assert cdl._is_template_source("docs/reference/scaffold-templates/whatever.md")
+    assert not cdl._is_template_source("docs/QUICKSTART.md")
+    assert not cdl._is_template_source("docs/reference/a-real-doc.md")
+    # and none survive into the real source list
+    srcs = {str(p.relative_to(REPO)) for p in cdl._tracked_md_sources()}
+    assert not any(s.endswith("_TEMPLATE.md") or "scaffold-templates/" in s for s in srcs)
