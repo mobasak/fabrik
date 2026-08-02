@@ -105,6 +105,13 @@ PARAMS = {
                         "NEVER_FOR": "a screen name, a route string, an icon choice, or a component selection the design system already dictates",
                         "DO_RAISE": "a genuine flow with two defensible IA structures, a primary task with no clear entry point, or a screen that needs a field the data contract doesn't have"},
     },
+    "fabrik-user-test": {
+        "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the HANDED-OFF list (backend/schema/logic defects routed to a named owner WITH a committed red repro spec) — never an in-scope UI finding left unfixed, never a silent skip.", },
+        "questionbar": {"CHANGES_WHAT": "the gauntlet's authority (a real scope, test-environment, or destructive-action decision)",
+                        "RESOLVE_FROM": "the frozen ui-design/data contracts, the surface pack, `docs/QUICKSTART.md`, or the running app itself",
+                        "NEVER_FOR": "which selector to use, scenario ordering, screenshot naming, or a boundary value the data contract already dictates — derive and move on",
+                        "DO_RAISE": "no seedable test environment exists, a flow's destructive action could reach real data, or a contract↔app mismatch with two defensible readings"},
+    },
     "fabrik-ui-design-review": {
         "term-edit": {"ARTIFACT": "contract", "DONE_ACT": "attest the contract independently REVIEWED", "DONE_WORD": "REVIEWED",
                       "AXES": "design-system · data · coverage · flows · surface/a11y · consistency", "EXEMPT_NOTE": ""},

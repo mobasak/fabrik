@@ -330,6 +330,13 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         elif parts[0] == "ops":
             pass  # ops/<package>/README.md allowed (operational unit docs)
 
+        # commands/ is the hub's command corpus (hub-only dir; absent in
+        # projects): _sources/*.md + _fragments/*.md are the canonical inputs
+        # assemble_commands.py renders to ~/.claude/commands. They are command
+        # source code, not misplaced docs.
+        elif parts[0] == "commands":
+            pass  # command-corpus sources/fragments allowed
+
         # Other locations
         else:
             violations.append(
