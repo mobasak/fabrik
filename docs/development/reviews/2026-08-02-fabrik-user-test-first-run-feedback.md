@@ -94,6 +94,33 @@ needs its own line in the command.)
 
 ---
 
+## 2c. `fabrik-gui` subagents reliably STALL by backgrounding their own test runs (observed 3x)
+
+**Added after the run continued — the most disruptive practical failure, and it hit three of four gauntlet agents.**
+
+**What happens:** a `fabrik-gui` subagent starts a Playwright run in the background (or arms a Monitor), then
+ends its turn with something like *"I'll pause here and resume once the Monitor notification for the
+login-probe test arrives."* **Monitor/background notifications do not deliver to a subagent**, so it waits
+forever. From the orchestrator's side the agent reports `completed` carrying a non-result, having burned its
+budget (one: 122 tool calls / 40 min; another: 52 calls / 11.5 min) and produced spec files but zero verdicts.
+Each had to be individually resumed by `SendMessage` with an explicit "run synchronously, never wait on a
+Monitor" instruction — after which each worked correctly and returned full results.
+
+Why GUI agents are especially prone: browser suites are slow (a menu-inventory sweep here legitimately took
+9.4 minutes), so the agent's instinct is to background the run and await a signal — precisely the mechanism
+unavailable to it.
+
+**Suggested fix** — an explicit execution rule in Phase 3, beside the subagent mandate:
+> "Subagents must run test suites **synchronously** (a plain shell call with a generous timeout) and read the
+> exit output. Never background a run or wait on a Monitor/notification — those do not deliver to a subagent,
+> and it will stall until its budget is exhausted. If a suite is too slow for one call, **split its scope**
+> and run each slice synchronously."
+
+Worth stating in the **`fabrik-gui` agent definition** too, since it binds every consumer of that agent type,
+not just this command.
+
+---
+
 ## 3. The mandated pool layer has no documented behaviour when the pool is unavailable
 
 **What it says:** Subagents — "**≥1 pool `fanout` dispatch** for the gradeable non-browser breadth
@@ -156,6 +183,12 @@ not exist.
   part that must be delegated.")
 
 ---
+
+### Update (same run, later) — item 3 confirmed as a standing blocker
+The pool 402 was re-tested after the operator lifted a *Claude* session limit: still
+`HTTP 402 Insufficient credits` from OpenRouter. The two limits are independent, which is exactly why the
+command needs the documented "pool unavailable" path — the run completed its GUI legs fine while the
+mandated flywheel layer was structurally impossible, and there is currently no sanctioned way to record that.
 
 *Filed per the operator's instruction to report issues via the upstream-feedback path. No `/opt/fabrik`
 command source was modified — this is a sibling feedback note only.*
