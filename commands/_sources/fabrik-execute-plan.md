@@ -113,6 +113,12 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    the gate — the gate finds no logic bugs), and **iterate find → fix → re-review until one full round
    returns zero CONFIRMED OR PLAUSIBLE findings and every finding sits at FIXED/REFUTED.** Re-run the phase
    gate after each fix too. The next phase begins **only** after that clean round — a single pass is never enough.
+   Fixes are the least-reviewed code in any loop, so `/fabrik-review`'s proof standard binds here too:
+   **a test that passes because the environment cannot express the failure has proven nothing** — "it
+   passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role
+   for an RLS bug, one tenant for an isolation bug). Reach for the missing constraint in a
+   throwaway instance you own; **never** degrade shared or paid infrastructure to manufacture a red.
+   This changes what counts as proof — it adds no disposition and no halt.
 3b. **GUI phases also run the Build Verification Loop (per `/fabrik-ui-design`) — a BLOCKING per-screen gate,
    looped to a no-op, alongside `/fabrik-review`.** **A GUI-phase build+verify subagent runs as
    `subagent_type: fabrik-gui`** (web/extension surfaces — browser MCPs Playwright/shadcn/chrome-devtools to

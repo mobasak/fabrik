@@ -16,10 +16,17 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
 
 ## Phase 0 — Ground truth, or refuse
 
-1. **Surface check:** `project.yaml::type` must be UI-bearing ({`saas-skeleton`, `chrome-extension`,
-   `mobile-app`, `desktop-app`, `static-site`, `docusaurus`}). A headless type ({`python-api`,
-   `python-api-gpu`, `node-api`, `file-api`, `file-worker`, `wordpress`}) → STOP and route to
-   **`/fabrik-service-test`** (the headless twin of this command).
+1. **Surface check — EVIDENCE-based, `type` is a hint not the verdict.** `project.yaml::type` records
+   which scaffold *generated* the project, not what surfaces it *has today*. **Proceed if ANY hold:**
+   `type` ∈ UI-bearing set ({`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`,
+   `static-site`, `docusaurus`}) · `docs/ui-design.md` exists · the project serves an HTML client
+   (a `sao-overlay/`-style overlay, a `static/`/`www/` bundle, a templates dir, a vendored third-party
+   client like Tryton `sao`/Grafana/Django-admin). **A headless `type` with GUI evidence → proceed AND
+   emit a finding that `project.yaml::type` is stale (or the project is a hybrid)** — the mismatch is
+   itself worth reporting. **If BOTH a GUI and a headless API surface exist (a hybrid), certify the GUI
+   here AND recommend `/fabrik-service-test` for the API half — never route away from the surface the
+   operator asked for.** Only a project with **no UI evidence at all** → STOP and route to
+   **`/fabrik-service-test`**.
 2. **The contracts are the oracle — read ALL before any browser opens:**
    - `docs/ui-design.md` (FROZEN) — screens, flows, click budgets, states, component map.
    - `docs/data-contract.md` (FROZEN) — every field: type, required, validation bounds, enums,
@@ -31,17 +38,28 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
    - The surface pack is BINDING: web `saas/60-saas-ui.md` · mobile `mobile-app/80-mobile.md` ·
      extension `chrome-ext/70-chrome-ext.md` · docs-site `core/42-docusaurus.md` (if present).
 3. **App must be RUNNING against a TEST dataset:** probe the dev URL (`docs/QUICKSTART.md` to start
-   it); seed auth + fixtures via the vendored `ui-verify` `seedAuth`/seeder — **NEVER run the
-   gauntlet against production or shared-VPS data** (HARD STOP). For authed apps,
-   `fabrik-lib/api-smoke-test` runs first as the backend preflight — a dead API fails fast here,
-   not 40 screenshots later.
+   it); seed auth + fixtures via the vendored `ui-verify` seam — **NEVER run the gauntlet against
+   production or shared-VPS data** (HARD STOP). For authed apps, `fabrik-lib/api-smoke-test` runs
+   first as the backend preflight — but preflight **the backend the GUI *actually calls*** (a vendored
+   client like sao talks to its own JSON-RPC, not necessarily the repo's own FastAPI), a dead one
+   fails fast here, not 40 screenshots later.
+   - **A bounded orchestrator feasibility probe is EXPECTED here** — before the Phase-0 obligations
+     (anchor → rubric → persist the review file) and before delegating, YOU may drive the surface once
+     to confirm it is reachable and how login works. That probe is not a violation of "the orchestrator
+     does not drive" (Phase 3) — the *gauntlet rounds* are the part that must be delegated; scoping a
+     checklist for a surface you have not confirmed you can reach is not possible.
 4. **Vendor the harnesses, don't hand-roll** (enhancements upstream, never fork):
-   - `fabrik-lib/ui-verify` — the backbone: `makeAuthedTest`, `expectNoA11yViolations`
-     (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects` (375/768/1440), `walkWizard`,
-     perf via `playwright-lighthouse`. Missing → vendor via the `create-ui-verify` seeder.
+   - `fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs),
+     **`makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer
+     token** (JSON-RPC / cookie / multi-step-modal auth like Tryton `sao` — use this, not a hand-rolled
+     login), `expectNoA11yViolations` (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects`
+     (375/768/1440), `walkWizard`, perf via `playwright-lighthouse`. Missing → vendor via the
+     `create-ui-verify` seeder (exclude `.tmp/`/`test-results/`/`node_modules` on copy).
    - `fabrik-lib/doc-crawl` (+`web-scrape`) — exhaustive page/link discovery for website and
      doc-site surfaces (sitemap + scoped BFS): the crawler builds the page inventory a human
-     clicker would miss.
+     clicker would miss. **App surfaces with a server-driven nav (an authed SPA whose menu tree
+     comes from the backend, like sao): walk the NAV TREE, don't crawl links** — doc-crawl is for
+     link-based sites, not menu-driven apps.
 
 ## Phase 1 — The INVENTORY: the denominator nothing may hide from
 
@@ -91,6 +109,19 @@ flows + `FEATURES.md` + the product's purpose, minimum:
 - Docs/website surfaces: the **evaluation journey** — land from a search result → find a named
   topic via nav AND via search → follow cross-links to an answer → reach the CTA/next step.
 
+**B2B / internal-tool variant (admin-provisioned products — ERPs, back-offices):** when the product
+has **no self-serve signup, no paywall, no self-service deletion** (users are provisioned by an
+operator), do NOT report a bogus "SKIPPED ×3" and do NOT invent flows that don't exist — run the
+same three arcs with the actor changed from *the user* to *an operator*:
+- *first-day* → **operator provisions a user; that user logs in for the first time (set-password /
+  invite link) and reaches the product's core value once.**
+- *paying-customer* → **entitlement/role change: operator grants a role or module; verify the UI
+  unlocks it end-to-end, and that revoking it re-locks.**
+- *leaving-user* → **operator deactivates the user; verify access is revoked AND their records
+  survive** (an ERP must never lose a departed user's data).
+Pick the SaaS arcs or these B2B arcs by what the product's own runbook (`docs/OPERATIONS.md`) says
+about how users are created — not by assumption.
+
 Each journey: chained in ONE narrative per persona where it makes sense (the hostile user runs
 the first-day journey too), with **session boundaries made real** (new context, cookie
 expiry, second device where the surface supports it). Every feature in `FEATURES.md` must be
@@ -128,6 +159,18 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
 - **Browser/device work = native `fabrik-gui` subagents, in PARALLEL** — one per flow-bundle,
   disjoint scenario ownership (no two agents mutate the same seeded account). The pool CANNOT do
   this leg (no browser tools) — the native-mandate case per `core/62`.
+- **⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — this is a correctness
+  rule, not a preference.** The Playwright MCP is **one browser instance per session**; two agents
+  calling `browser_navigate`/`browser_click` concurrently stomp each other's tabs and interleave
+  screenshots. So each parallel agent **authors and runs its OWN Playwright spec**
+  (`npx playwright test <its-spec>` — via `ui-verify`'s `makeAuthedTest`/`makeUiAuthedTest`), which
+  spawns an isolated browser per run AND satisfies "persist as you go" for free (the artifact IS the
+  suite). Reserve the MCP browser for a **single** interactive/exploratory agent, or a serial round.
+- **⚠️ Each parallel agent writes artifacts to its OWN output dir** — run with
+  `--output=test-results/<agent-prefix>` and screenshot to `test-results/<agent-prefix>/…`. The test
+  runner **wipes its output directory at the start of every run**, so concurrent agents sharing one
+  dir silently erase each other's evidence (observed live: screenshot count went 3→0 mid-run). Same
+  root cause as the browser collision — a different shared resource, so it needs its own guard.
 - **Surface tooling (defer to the packs):** web/SaaS/website/docs → Playwright MCP (+ `ui-verify`
   specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to
   use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a
@@ -160,7 +203,12 @@ Every survivor terminates in exactly one of:
 - **FIXED** — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display,
   broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix — with its
   Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected
-  flows re-run), surface gate green after each fix.
+  flows re-run), surface gate green after each fix. **A spec that passes because the environment
+  cannot express the failure has proven nothing** — "it passed locally" is not evidence when local
+  is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session
+  for a permissions bug, a fast network for a loading-state bug). Reach for the missing constraint
+  in a throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure to
+  manufacture a red.
 - **HANDED-OFF** — backend/schema/logic defects: NOT yours to rewrite mid-test. Each gets a named
   owner-route (`/fabrik-review` the module, or a plan ticket) + the repro spec committed so the
   fix inherits a red test. Handoff is explicit and listed — never a quiet TODO.
@@ -197,10 +245,15 @@ independent-eyes recall this command exists for. Floors, enforced:
   `data-contract.md`, extracted-string i18n/copy audit, crawler-output triage, finding-triage
   second opinions. All-native here = zero flywheel rows (advisory-WARN'd by
   `check_subagent_flywheel.py`).
+  - **Pool unavailable (missing key, 402/quota exhausted mid-run, network) = a BLOCKED-env finding
+    to REPORT, not a silent skip** (same treatment as a missing mail-catcher): record it in the
+    report, do the gradeable breadth INLINE so coverage doesn't suffer, and note that the flywheel
+    gets zero rows for this run and why. The obligation degrades honestly; it never just vanishes.
 - **≥1 `design-review` agent** for the rendered critique pass on final screenshots.
-- **YOU dispatch and judge — you do not drive.** The orchestrator owns inventory, refute/merge,
-  fix decisions, and convergence; a round where the orchestrator personally clicked through
-  screens instead of dispatching is a defective round — redo it with subagents.
+- **YOU dispatch and judge — you do not drive** (except the bounded Phase-0 feasibility probe, which
+  is expected). The orchestrator owns inventory, refute/merge, fix decisions, and convergence; a
+  round where the orchestrator personally clicked through screens instead of dispatching is a
+  defective round — redo it with subagents.
 
 {{include:questionbar}}
 

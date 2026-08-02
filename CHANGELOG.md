@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — proof standard for fixes, applied across every code-fixing review command (2026-08-02)
+
+From a live brand-identity-creator review where an RLS migration fix "passed" only because the local
+migration role was a superuser — the one environment where that failure is unreachable — and would have
+rolled back every migration on a real deploy. ONE rule, adding no state, trigger, or disposition: a test
+that passes because the environment cannot express the failure has proven nothing; reach for the missing
+constraint in a throwaway instance you own, and NEVER degrade shared (postgres-main/redis-main, the VPS
+fleet) or paid infrastructure to manufacture a red. Applied to the six commands that fix code and prove it
+with tests — /fabrik-review, /fabrik-execute-plan, /fabrik-repo-review, /fabrik-user-test,
+/fabrik-service-test, /fabrik-generate-tests — and deliberately NOT to the spec/plan/docs/rules/UI-design/
+workflow reviews, which converge documents and have no red-test step. Dispositions (FIXED/REFUTED), the
+found:0/fixed:0 exit law, and the 3-failed-attempts BLOCKED escalation are unchanged. Converged by
+subtraction: four adversarial passes rejected larger versions (an invented OPEN state was gate-illegal; a
+blast-radius block left unanswerable questions and made auth fixes the most expensive class).
+
+### Changed — /fabrik-user-test + /fabrik-service-test hardened from tryton-crm first-run feedback (2026-08-02)
+
+Folded the first real consumer run's findings back into both command sources: surface gate is now
+EVIDENCE-based (ui-design.md / served HTML client / hybrid — not type-literal; a stale type is itself
+a finding); parallel fabrik-gui agents author+run their OWN Playwright specs with per-agent
+--output dirs (the shared MCP browser + shared test-results/ collide — proven live, 3→0 screenshots);
+pool-unavailable (402/quota) is a BLOCKED-env finding not a silent skip; a B2B/internal-tool journey
+variant (operator-provisioned) alongside the self-serve SaaS one; makeUiAuthedTest for token-less
+auth; doc-crawl nav-tree note; bounded Phase-0 feasibility probe carve-out. Lib-side items were
+already closed by fabrik-lib (78681a5: profile cleanup + UI-driven login).
+
 ### Added — every command is now also a skill, with a next-pipeline pointer (2026-08-02)
 
 assemble_commands.py now emits a thin SKILL.md wrapper per command into ~/.claude/skills/<name>/

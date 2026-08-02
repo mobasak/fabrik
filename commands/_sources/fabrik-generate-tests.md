@@ -86,7 +86,9 @@ results, table = fanout("code", units=units, repo=REPO, project="test-gen", mode
 ### 5. Review test-quality (YOU) → score the flywheel → apply the survivors
 For each captured `result.diff`: **would the test FAIL if the behavior broke?** Real assertions, no mock-theater,
 no test that passes if the feature is reverted (`45-testing-strategy.md` + `/fabrik-review`'s test-quality
-checklist). Then **`git apply`** each surviving diff into the tree; fix any weak test yourself. Finally
+checklist). **And: could it fail in THIS environment at all?** A test whose environment cannot express the
+failure (a superuser role for an RLS behavior, one tenant for an isolation behavior) is green for the wrong
+reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable. Then **`git apply`** each surviving diff into the tree; fix any weak test yourself. Finally
 `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill
 mutants (advisory).
 

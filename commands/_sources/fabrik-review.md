@@ -182,6 +182,15 @@ NOT accept an unfixed CONFIRMED or PLAUSIBLE finding.**
 - **FIXED** — reproduce it with a runnable test/execution FIRST, fix it, keep the test as a regression guard
   (verify red→green). A deliberate design decision that resolves it (e.g. choosing fail-open with a logged
   warning) counts as FIXED **only if you actually made the change and recorded why**.
+  - **A test that passes because the environment cannot express the failure has proven nothing** —
+    "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser
+    role for an RLS bug, no concurrency for a race, one tenant for an isolation bug). Reach for the
+    missing constraint **in a throwaway/ephemeral instance you own** — a scratch DB, a local container,
+    a disposable account. **NEVER** degrade shared or paid infrastructure to manufacture a red
+    (`postgres-main`/`redis-main` and the VPS fleet are shared; real vendor quota is the operator's
+    money) — if the only way to see the failure is to break something shared, say so in the finding
+    instead. This changes what counts as proof; dispositions below are unchanged.
+
 - **REFUTED** — you did the work to PROVE it cannot happen: quote the guard / type / invariant that makes it
   impossible, or the exact line that makes it factually wrong. Promoting a finding to REFUTED requires
   proof, not a shrug.

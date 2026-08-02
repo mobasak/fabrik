@@ -106,7 +106,13 @@ when that isolation is explicitly set up — never two agents on one file at onc
 risk order, honoring the fix budget from Phase 2 — fix the top tier now; fold the
 remainder into a tracked backlog rather than rushing unsafe fixes. For each confirmed bug:
 write the failing test FIRST (red), then fix it, keep the test as a regression guard
-(verify red→green). Stay in scope.
+(verify red→green). **A test that passes because the environment cannot express the
+failure has proven nothing** — "it passed locally" is not evidence when local is the one
+place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation
+bug). Reach for the missing constraint in a throwaway/ephemeral instance you own; **never**
+degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real
+vendor quota) to manufacture a red — if that is the only way to see it, say so in the
+finding instead. Stay in scope.
 
 CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes' files; do
 NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is

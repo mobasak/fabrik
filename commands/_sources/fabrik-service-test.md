@@ -17,9 +17,14 @@ fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 
 ## Phase 0 — Ground truth, or refuse
 
-1. **Surface check:** `project.yaml::type` must be headless ({`python-api`, `python-api-gpu`,
-   `node-api`, `file-api`, `file-worker`, `wordpress`}). A UI-bearing type → STOP and route to
-   **`/fabrik-user-test`** (that's the GUI twin of this command).
+1. **Surface check — EVIDENCE-based, `type` is a hint not the verdict.** `project.yaml::type` records
+   which scaffold *generated* the project, not what surfaces it *has today*. Certify the service side
+   here when the project exposes an API / worker / job / webhook surface — even a UI-typed project
+   often ships a headless API the GUI (or a third party) calls, and **that API deserves this gauntlet;
+   if so, run it here AND note the GUI half belongs to `/fabrik-user-test`.** Only a project that is
+   **purely a GUI with no service surface at all** → STOP and route to **`/fabrik-user-test`**. A
+   `type`↔surface mismatch (headless type, no service found — or a UI type hiding a real API) is
+   itself a finding worth reporting.
 2. **The contracts are the oracle — read ALL before the first call:**
    - `specs/services/<id>.yaml` `shape:` — CANONICAL. Every flag (`needs_database`, `needs_cache`,
      `exposes_metrics`, `has_search_feature`, `has_bearer_api`, `is_admin_dashboard`,
@@ -148,7 +153,13 @@ is a contract-change proposal; say which). Every survivor terminates in exactly 
 - **FIXED** — in-scope service defects (validation, status codes, error shape, auth boundary,
   idempotency, retry/backoff, health/metrics, doc-drift incl. a corrected `FEATURES.md`/
   `CONFIGURATION.md` row): prove-before-fix (failing test first → fix → green → affected journeys
-  re-run), gate green after each fix.
+  re-run), gate green after each fix. **A test that passes because the environment cannot express
+  the failure has proven nothing** — "it passed locally" is not evidence when local is the one place
+  the bug is unreachable (a superuser role for an RLS bug, one tenant for isolation, an un-exhausted
+  quota for a limit, a healthy dependency for a fallback). Reach for the missing constraint in a
+  throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure
+  (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — this
+  command's own HARD STOP already bars touching prod/shared data.
 - **HANDED-OFF** — defects outside this service (an upstream vendor, a sibling service, infra):
   named owner-route + the repro test committed so the fix inherits a red test. Never a quiet TODO.
 - **REFUTED** — with the contract line or evidence that disproves it.
@@ -178,6 +189,10 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
   matrix-hole critique, boundary/invalid-value derivation from `data-contract.md`, error-catalog
   and status-code conformance audit, log/metric triage, finding-triage second opinions. All-native
   = zero flywheel rows (advisory-WARN'd by `check_subagent_flywheel.py`).
+  - **Pool unavailable (missing key, 402/quota exhausted mid-run, network) = a BLOCKED-env finding
+    to REPORT, not a silent skip** (same as a missing sandbox key): record it, do the gradeable
+    breadth INLINE so coverage doesn't suffer, and note the flywheel gets zero rows for this run and
+    why. The obligation degrades honestly; it never just vanishes.
 - **≥1 native agent on the authoritative pass** — auth boundary, tenant isolation, and the
   data-integrity legs where a missed defect is expensive.
 - **YOU dispatch and judge — you do not drive.** A round where the orchestrator personally ran the
