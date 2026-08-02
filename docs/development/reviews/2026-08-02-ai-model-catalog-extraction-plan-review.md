@@ -39,7 +39,11 @@ Pass 4 — native Opus confirming        | found: 3  (#9/#10/#11)     | fixed: 3
 Pass 5 — native Opus confirming        | found: 3  (#12/#13/#14)    | fixed: 3  | → not done
 Pass 6 — native Opus excise sweep      | found: 4C+2P (#15/#16 + tests_kilo_benchmarks/alerting/run_kilo_workflow/doc-residue) | fixed: 6 | → not done
 Pass 7 — native Opus CONVERGENCE check | found: 3C+3P (kilo_auto_route live break; grep-incompleteness; gate false-fail/pass; rule gap; count) | fixed: 6 | → NOT converged → BLOCKED-escalate the meta
+Pass 8 — pool + native (Opus 5)        | found: 10 (pool: flywheel psql shellout G2, DELIVERY-TRANSPORT gap G3, rule-6 vendoring-only G5, unrunnable audit; native: kilo_model_sync cron entry N1, claude_p_cost DATA-FILE dep N2, shadow-dir/--target-root N3, orphaned behavior-6 N4, engine dead-copy N5, citation N6) | fixed: 10 | → not done
+Pass 9 — pool (native pending)         | found: 10 (block→host manifest gap, hybrid-parity assert, D.1 gate unexecutable, no fleet smoke, 12F tee hedge ×2, pyproject build-system, loose A.1 assert, weak rollback gate) | fixed: 10 | → not done
 ```
+
+**Convergence is NOT being reached.** Rounds 2-9 each surfaced 3-10 genuine, grounded defects; the rate is not decaying. Two findings in rounds 8-9 were *architectural* (the delivery transport was undefined for the deployed state; a fleet-synced consumer's data files were being deleted), i.e. new CLASSES, not tail noise. Notably the **cheap pool caught the single biggest architectural gap (G3 delivery transport) that 7 native-Opus rounds missed** — inverting the usual pool/native asymmetry and vindicating the never-either/or floor.
 
 **24 findings → 24 FIXED + 0 REFUTED.** The loop did NOT reach a clean `found:0` round — every round surfaced real excise-boundary defects, and Pass 7 (the convergence check) found a live-consumer break (`kilo_auto_route.py`) plus proved the grep-discovery mechanism was necessary-but-not-sufficient. Per the termination contract, the stuck meta-finding is BLOCKED-escalated rather than spun further.
 
