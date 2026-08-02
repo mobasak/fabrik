@@ -39,14 +39,15 @@ test-isolation precondition, so you can no longer safely certify. This is the on
 may leave checklist rows `UNCHECKED` (safety outranks coverage); resume only once a safe, isolated
 environment is restored. "Never pause" never authorizes writing to real data — safety outranks autonomy, always.
 
-**Otherwise, stop ONLY on an absolute-must**, in the format
-`BLOCKED: <what> — searched: <sources checked> — missing: <need>`. There are exactly two, on different axes —
-do not conflate them, and note that a mid-run *finding* is never one of them:
+**Otherwise** (absent the safety HARD STOP above, which is the only thing that halts the whole run mid-loop),
+**stop ONLY on an absolute-must**, in the format `BLOCKED: <what> — searched: <sources checked> — missing:
+<need>`. There are exactly two, and **neither halts the whole run on a single finding** — one pauses a lone
+finding, the other refuses before the loop begins:
 
-*In-loop, mid-run* (governed by the Termination contract **below**): the loop's ONLY non-quiet stop is a
-specific finding that survived **3 consecutive fix attempts** (the same test failing three times) — you
-**pause THAT finding and keep looping on everything else**, never the whole run. Any ordinary finding you hit
-mid-run — a contract↔code contradiction on one field/flow, a degradable gap — is **routed, not halted:**
+*In-loop, mid-run* (governed by the Termination contract **below**): the loop's only non-quiet stop is a
+specific finding that survived **3 consecutive fix attempts** (the same test failing three times) — and even
+that only **pauses THAT finding while you keep looping on everything else**, never the whole run. Any other
+finding — a contract↔code contradiction on one field/flow, a degradable gap — is **routed, not halted:**
 refute it, or terminate it FIXED / HANDED-OFF per Phase 4, and keep going. (A FROZEN-contract conflict is a
 re-freeze handoff to the owning contract command, not a run-stop.)
 
@@ -55,13 +56,14 @@ re-freeze handoff to the owning contract command, not a run-stop.)
 dataset/seam and you cannot seed one, OR a required backing service is truly absent. This is the one refusal
 that predates the loop — never a stop within it.
 
-**Degradable gaps are NEITHER stop:** the pool 402/quota or a missing mail-catcher is a BLOCKED-**env
-FINDING** you record and route around INLINE so coverage doesn't suffer; a paid external with no sandbox is a
-recorded BLOCKED-**env FINDING you SKIP** — **never spend real operator money to manufacture a red.**
+**Degradable gaps are NEITHER stop:** the pool 402/quota, or a test-only dependency you can't seed (a
+mail-catcher, a sandbox key), is a BLOCKED-**env FINDING** you record and route around INLINE so coverage
+doesn't suffer; a paid external with no sandbox is a recorded BLOCKED-**env FINDING you SKIP** — **never spend
+real operator money to manufacture a red.**
 
-**Dispatched subagents run their suites SYNCHRONOUSLY.** A subagent that backgrounds a test run (Playwright /
-Maestro / pytest) or arms a Monitor and then waits for a notification **stalls until its budget is
-exhausted** — background/Monitor signals do NOT deliver to a subagent. Every gauntlet subagent runs its
+**Dispatched subagents run their suites SYNCHRONOUSLY.** A subagent that backgrounds a test/suite run or arms
+a Monitor and then waits for a notification **stalls until its budget is exhausted** — background/Monitor
+signals do NOT deliver to a subagent. Every gauntlet subagent runs its
 suite as a plain synchronous shell call with a generous timeout and reads the exit output; if a suite is too
 slow for one call, it **splits its scope** and runs each slice synchronously. Dispatch each agent with an
 explicit "run synchronously; never background a run or wait on a Monitor/notification" instruction.
