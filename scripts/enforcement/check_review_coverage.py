@@ -40,7 +40,9 @@ RECURRENCE = {
     "fail-open/fail-closed": re.compile(r"fail[- ]open", re.I),
     "cost/quota accounting": re.compile(r"\b(cost|quota|limit)\b", re.I),
     "boundary/sentinel/prefix": re.compile(r"\b(boundary|sentinel|prefix)\b", re.I),
-    "behavior-without-a-test": re.compile(r"behavior[- ]without[- ]a[- ]test|untested behavior", re.I),
+    "behavior-without-a-test": re.compile(
+        r"behavior[- ]without[- ]a[- ]test|untested behavior", re.I
+    ),
 }
 
 
@@ -49,15 +51,25 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
     try:
         out = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=all", "--", prefix],
-            cwd=root, capture_output=True, text=True, check=True,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
     paths = []
     for line in out.splitlines():
         rel = line[3:].split(" -> ")[-1].strip().strip('"')
-        if rel.endswith(".md") and "archived/" not in rel and (root / rel).is_file():
-            paths.append(root / rel)
+        if not (rel.endswith(".md") and "archived/" not in rel and (root / rel).is_file()):
+            continue
+        # Shared-master: '??' = untracked AND unstaged — a sibling session's (or a
+        # not-yet-staged) in-flight draft. The checklist is enforced at the
+        # staging/commit moment, never against another agent's mid-write scratch.
+        if line[:2] == "??":
+            print(f"NOTE: skip untracked in-flight draft (checked at staging): {rel}")
+            continue
+        paths.append(root / rel)
     return paths
 
 
@@ -73,7 +85,7 @@ def _table_rows(section: str) -> list[str]:
             in_table = True
         elif in_table:
             break
-    return [r for r in rows[2:]] if len(rows) >= 3 else []
+    return list(rows[2:]) if len(rows) >= 3 else []
 
 
 def _checklist_section(text: str) -> str | None:
@@ -87,8 +99,8 @@ def _checklist_section(text: str) -> str | None:
         # table that follows the phrase "Coverage Checklist" anywhere.
         i = text.lower().find("coverage checklist")
         return text[i:] if i != -1 else None
-    nxt = re.search(r"^#{2,4} ", text[m.end():], re.M)
-    return text[m.start(): m.end() + (nxt.start() if nxt else len(text))]
+    nxt = re.search(r"^#{2,4} ", text[m.end() :], re.M)
+    return text[m.start() : m.end() + (nxt.start() if nxt else len(text))]
 
 
 SURFACE = re.compile(r"^Surface:\s*\S+", re.M)
@@ -103,33 +115,54 @@ def check_file(p: Path) -> list[str]:
     section = _checklist_section(text)
     if section is None:
         if COMMAND_MARK.search(text):
-            errs.append("names /fabrik-review or /fabrik-repo-review but emits NO Coverage Checklist")
+            errs.append(
+                "names /fabrik-review or /fabrik-repo-review but emits NO Coverage Checklist"
+            )
         return errs
     # contract obligations recorded in the artifact itself
     if not SURFACE.search(text):
-        errs.append("no `Surface:` hash line (cross-run anchor) — record `git rev-parse HEAD` + diff md5")
+        errs.append(
+            "no `Surface:` hash line (cross-run anchor) — record `git rev-parse HEAD` + diff md5"
+        )
     if not RUBRIC_RUN.search(text):
-        errs.append("no review_rubric.py invocation recorded — checklist classes must derive from the rubric, not memory")
+        errs.append(
+            "no review_rubric.py invocation recorded — checklist classes must derive from the rubric, not memory"
+        )
     if not PASS2.search(text):
-        errs.append("no `Pass 2` in the ledger — minimum two rounds ALWAYS (a clean pass 1 still needs its confirming round)")
+        errs.append(
+            "no `Pass 2` in the ledger — minimum two rounds ALWAYS (a clean pass 1 still needs its confirming round)"
+        )
     rows = _table_rows(section)
     if not rows:
         errs.append("Coverage Checklist has no table rows")
         return errs
-    blocked_ok = bool(BLOCKED_HEAD.search(text)) and bool(re.search(r"3\b.{0,40}attempt|attempt.{0,40}\b3\b|three (?:consecutive|failed)", text, re.I))
+    blocked_ok = bool(BLOCKED_HEAD.search(text)) and bool(
+        re.search(r"3\b.{0,40}attempt|attempt.{0,40}\b3\b|three (?:consecutive|failed)", text, re.I)
+    )
     unchecked = [r.strip() for r in rows if UNCHECKED.search(r)]
     noverdict = [r.strip() for r in rows if not UNCHECKED.search(r) and not VERDICT.search(r)]
     if unchecked and not blocked_ok:
-        errs.append(f"{len(unchecked)} UNCHECKED row(s) with no ## BLOCKED escalation (finding + 3 failed attempts): {unchecked[:3]}")
+        errs.append(
+            f"{len(unchecked)} UNCHECKED row(s) with no ## BLOCKED escalation (finding + 3 failed attempts): {unchecked[:3]}"
+        )
     if noverdict:
-        errs.append(f"{len(noverdict)} row(s) without a CLEAN/FIXED/REFUTED verdict: {noverdict[:3]}")
-    bare = [r.strip() for r in rows
-            if re.search(r"\bCLEAN\b", r) and not _PATHISH.search(r) and len(r.strip()) < 70]
+        errs.append(
+            f"{len(noverdict)} row(s) without a CLEAN/FIXED/REFUTED verdict: {noverdict[:3]}"
+        )
+    bare = [
+        r.strip()
+        for r in rows
+        if re.search(r"\bCLEAN\b", r) and not _PATHISH.search(r) and len(r.strip()) < 70
+    ]
     if bare:
-        errs.append(f"{len(bare)} CLEAN row(s) without evidence (name the files/paths hunted): {bare[:3]}")
+        errs.append(
+            f"{len(bare)} CLEAN row(s) without evidence (name the files/paths hunted): {bare[:3]}"
+        )
     founds = re.findall(r"found:\s*(\d+)", text)
     if founds and int(founds[-1]) != 0 and not blocked_ok:
-        errs.append(f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts)")
+        errs.append(
+            f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts)"
+        )
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
     if missing:
@@ -150,8 +183,10 @@ def main() -> int:
         print("Coverage-checklist gate FAILED:")
         for f in failures:
             print(f"  - {f}")
-        print("A coverage-adjudicated review exits only on a fully-adjudicated checklist "
-              "(or a cap-stop with a Declared residual section naming the leftovers).")
+        print(
+            "A coverage-adjudicated review exits only on a fully-adjudicated checklist "
+            "(or a cap-stop with a Declared residual section naming the leftovers)."
+        )
         return 1
     print("check_review_coverage: OK (no unproven coverage claims in changed review artifacts)")
     return 0

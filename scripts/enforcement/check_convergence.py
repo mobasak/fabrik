@@ -67,6 +67,16 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
         return []
     paths: list[Path] = []
     for line in out.splitlines():
+        # Shared-master: '??' = untracked AND unstaged — another agent's (or a
+        # not-yet-staged) in-flight draft. Convergence proof is enforced at the
+        # staging/commit moment (the gate stages your files; the doc rides the
+        # phase commit) — never against a sibling session's mid-write scratch.
+        # Precedent family: specs/*.yaml.draft; check_synced_unmodified→HEAD.
+        if line[:2] == "??":
+            p = line[3:].strip()
+            if p.startswith(prefix) and p.endswith(".md") and "archived/" not in p:
+                print(f"NOTE: skip untracked in-flight draft (checked at staging): {p}")
+            continue
         p = line[3:].strip()
         if " -> " in p:  # renamed: "old -> new"
             p = p.split(" -> ", 1)[1]

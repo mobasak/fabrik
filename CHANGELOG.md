@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — convergence/coverage checks skip untracked in-flight drafts (2026-08-02)
+
+check_convergence.py + check_review_coverage.py no longer fail on '??' (untracked AND unstaged)
+plan/review docs — those are a sibling session's mid-write scratch on shared master; proof is
+enforced at the staging/commit moment (visible NOTE per skip, never silent). Third instance of the
+shared-master false-positive family (precedents: specs/*.yaml.draft, check_synced_unmodified→HEAD).
+
 ### Fixed — deployer: spec placeholder no longer clobbers a registrar-injected real value (2026-08-02)
 
 `_build_env_content` (`orchestrator/deployer_ssh.py`) now preserves an existing real `.env` value when the
