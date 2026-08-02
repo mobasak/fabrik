@@ -607,7 +607,10 @@ are part of the phase commits (explicit path: the plan file) and carry the same 
   in the plan — append `— ✅ EXECUTED <YYYY-MM-DD> (<short-commit>)` to the phase's heading (or tick its
   DoD checklist). A resumed run skips phases already marked done.
 - **On completion** (all phases done, final gate green): flip `**Status:** IN-PROGRESS` →
-  `**Status:** EXECUTED <YYYY-MM-DD>` and add a one-line completion stamp (final commit + gate result).
+  `**Status:** EXECUTED <YYYY-MM-DD>`, add a one-line completion stamp (final commit + gate result), **and
+  cite the whole-plan review artifact** — `Whole-plan review: docs/development/reviews/<plan>-review.md`.
+  Gate-enforced: `check_convergence.py` fails an `EXECUTED` plan that cites no existing, coverage-adjudicated
+  review (the backstop for a run that skipped the step-1 whole-plan `/fabrik-review`).
 - **On a HARD STOP / BLOCKED**: set `**Status:** BLOCKED — <what> (Phase N)` so the halt reason lives in
   the plan, not just the chat.
 
@@ -655,7 +658,13 @@ to merge back. "Finishing" is:
    created — never a harness-owned or a sibling's tree. (The Merge Protocol already deletes the *subagent*
    branches; this is the *orchestrator's own* worktree.)
 5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
-   `final_commit`), flip the plan `Status: EXECUTED <date>`, output the completion block above.
+   `final_commit`), flip the plan `Status: EXECUTED <date>`, **and cite the step-1 whole-plan review artifact
+   in the completion stamp** — a `Whole-plan review: docs/development/reviews/<the step-1 review>.md` line.
+   This is not bookkeeping: **`check_convergence.py` FAILS the gate on any plan that claims `EXECUTED` (in
+   `plans/` OR `plans/archived/`) unless it cites a review artifact that EXISTS on disk and shows a
+   coverage-adjudicated exit** (a `Coverage Checklist` + a final `found: 0` pass). The citation is the proof
+   the step-1 loop actually ran to a no-op; without it the status flip is unproven and the archive in step 6
+   is blocked. Then output the completion block above.
 6. **Archive the plan — ONLY when 100% verified done.** The plan is finished only when ALL of: the
    whole-plan review (step 1) came back clean, the final gate (step 2) is green THIS turn, and requirements
    coverage (step 3) accounts for every agreed item. Then `git mv docs/development/plans/<plan>.md

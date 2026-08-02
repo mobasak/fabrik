@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — EXECUTED plans must cite a coverage-adjudicated whole-plan review (2026-08-03)
+
+`check_convergence.py` now fails the gate on any plan claiming `Status: EXECUTED` (in `plans/` OR
+`plans/archived/` — the archive move is part of the transition and not an escape hatch) unless it cites a
+persisted whole-plan review artifact (`docs/development/reviews/*.md`) that EXISTS on disk and shows a
+coverage-adjudicated exit (a `Coverage Checklist` + a final `found: 0` pass). Closes the hole a live
+brand-identity / seo run fell through: an agent substituted its own inline pass for the mandated whole-plan
+`/fabrik-review`, produced no artifact, and self-flipped `EXECUTED` + archived — and `check_review_coverage.py`
+is INERT when no review file exists, so nothing stopped it. `/fabrik-execute-plan`'s Finish now writes the
+`Whole-plan review:` citation into the plan at the status flip. Six new tests in `test_check_convergence.py`.
+
+### Changed — /fabrik-user-test + /fabrik-service-test run fully autonomously (2026-08-03)
+
+New shared `autonomy-run` fragment (replacing the `questionbar` include in both): the gauntlet runs
+start→finish in one invocation, self-services every uncertainty (plan/spec → `.windsurf/rules` → docs →
+codebase → research online), fixes-or-hands-off every finding non-blockingly, and stops ONLY on an
+absolute-must — an in-loop finding that survived 3 fix attempts, or a pre-start ground-truth refusal (can't
+establish the test oracle at all). A HARD STOP (production/shared-VPS data, a destructive action against real
+data) always overrides "never pause" — safety outranks autonomy. Dispatched subagents run their suites
+SYNCHRONOUSLY (the `fabrik-gui` agent def now states the same) — backgrounding a run and awaiting a Monitor
+notification stalls a subagent forever. Fixes the operator-reported "keeps pausing" behavior.
+
 ### Changed — proof standard for fixes, applied across every code-fixing review command (2026-08-02)
 
 From a live brand-identity-creator review where an RLS migration fix "passed" only because the local

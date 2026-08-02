@@ -12,6 +12,7 @@ orchestrator: subagents drive the service; you own the inventory, the journeys, 
 fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 **Coverage is a reconciled number against discovered denominators — never a feeling.**
 
+{{include:autonomy-run}}
 {{include:term-coverage}}
 {{include:injection}}
 
@@ -197,8 +198,6 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
   data-integrity legs where a missed defect is expensive.
 - **YOU dispatch and judge — you do not drive.** A round where the orchestrator personally ran the
   calls instead of dispatching is a defective round; redo it with subagents.
-
-{{include:questionbar}}
 
 ## Report + chain
 

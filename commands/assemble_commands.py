@@ -173,17 +173,15 @@ PARAMS = {
     },
     "fabrik-service-test": {
         "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the HANDED-OFF list (defects outside this service — an upstream vendor, a sibling service, infra — routed to a named owner WITH a committed red repro test) — never an in-scope service finding left unfixed, never a silent skip.", },
-        "questionbar": {"CHANGES_WHAT": "the gauntlet's authority (a real scope, test-environment, or destructive/cost-bearing-action decision)",
-                        "RESOLVE_FROM": "the spec `shape:`, the frozen data contract, `docs/QUICKSTART.md`/`CONFIGURATION.md`, the surface pack, or the running service itself",
-                        "NEVER_FOR": "which HTTP client to use, scenario ordering, fixture naming, or a boundary value the data contract already dictates — derive and move on",
-                        "DO_RAISE": "no isolated test environment exists (prod/shared-VPS data would be touched), a scenario would spend real money on a paid vendor with no sandbox, or a contract↔service mismatch with two defensible readings"},
+        "autonomy-run": {"SELF_SERVICE": "the spec `shape:` + the frozen `docs/data-contract.md` + the service's own API contract (OpenAPI / route table)",
+                         "OWN_FIX": "test-harness/fixture defects, response-contract/doc-drift, a `FEATURES.md`/`CONFIGURATION.md` row added or corrected",
+                         "HANDOFF": "backend/schema/logic defects inside a sibling service or an upstream vendor — not this gauntlet's to rewrite mid-run"},
     },
     "fabrik-user-test": {
         "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the HANDED-OFF list (backend/schema/logic defects routed to a named owner WITH a committed red repro spec) — never an in-scope UI finding left unfixed, never a silent skip.", },
-        "questionbar": {"CHANGES_WHAT": "the gauntlet's authority (a real scope, test-environment, or destructive-action decision)",
-                        "RESOLVE_FROM": "the frozen ui-design/data contracts, the surface pack, `docs/QUICKSTART.md`, or the running app itself",
-                        "NEVER_FOR": "which selector to use, scenario ordering, screenshot naming, or a boundary value the data contract already dictates — derive and move on",
-                        "DO_RAISE": "no seedable test environment exists, a flow's destructive action could reach real data, or a contract↔app mismatch with two defensible readings"},
+        "autonomy-run": {"SELF_SERVICE": "the plan + spec this build came from, and the FROZEN contracts (`docs/ui-design.md` / `docs/data-contract.md`)",
+                         "OWN_FIX": "UI-layer defects — copy, aria, focus, CSS, state wiring, validation display, broken links — and doc-drift (a `FEATURES.md` row added or corrected)",
+                         "HANDOFF": "backend / schema / logic defects — not this gauntlet's to rewrite mid-run, and rewriting app logic inside a UI run is how a fix breaks something else"},
     },
     "fabrik-ui-design-review": {
         "term-edit": {"ARTIFACT": "contract", "DONE_ACT": "attest the contract independently REVIEWED", "DONE_WORD": "REVIEWED",
