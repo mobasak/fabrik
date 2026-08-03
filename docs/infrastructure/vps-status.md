@@ -34,6 +34,27 @@
      a 401 also fires a debounced Telegram alert).
   Verified live: all 3 `claude -p` auth OK (vps/vps2 active `can`, vps3 active `mob` — each rotates
   independently). The containerized watchdog uses its own mounted creds (separate path).
+- **Sysadmin config audit — 5 defects fixed fleet-wide (2026-08-03, live-verified).**
+  1. **Rotation blind spot:** the CLI's expired-OAuth render ("OAuth session expired and could not be
+     refreshed") carries no "401", so `claude_rotate.py` never rotated on it — the keepalive stayed stuck
+     FAIL (live-hit when the `can` re-login revoked the fleet's copied refresh token). `is_auth_401` now
+     treats it as dead-creds → rotate + alert; fixed in BOTH copies (sysadmin + aro-wake twin) + the
+     keepalive classifier; +regression tests; deployed to all 3 hosts, bot/aro-wake restarted.
+  2. **Spoke false-alarm storm (~7 300 log errors/host over weeks):** `proactive-check.sh` is hub-centric
+     but was cron'd unmodified on the spokes — `prometheus_unreachable` (no prometheus container there;
+     the hub's PromQL battery already covers the fleet via host labels → now hub-gated) and
+     `backup_missing[hub:*]` (spoke queried the HUB's restic repo with the SPOKE's password → now
+     host-aware: own repo `/spokes/<host>/`, own plan set). Spokes now run silent-clean (rc=0).
+  3. **Silent alert delivery on spokes:** `APPRISE_SEND` targets the hub-only `apprise` container → every
+     spoke alert failed for weeks. Added a direct-Telegram fallback (same `TELEGRAM_*` vars as
+     `claude_rotate`). **⚠ OPERATOR ACTION REQUIRED:** the spoke bots @SysAdminVPS2/@SysAdminVPS3 were
+     never `/start`-ed — Telegram returns "chat not found", so even the fallback (and `bot.py`'s proactive
+     sends) can't deliver from spokes until the operator opens each bot and presses Start. vps1 verified
+     delivering (test message sent). Residual: morning-report/daily-digest/weekly-*/monthly-* still use
+     apprise-only send — add the same fallback once the spoke bots are started.
+  4. **vps1 `.env.sysadmin` was 0664** (world-readable bot token/keys) → 0600.
+  5. **vps1 was missing the `daily-digest` cron** (template drift; spokes had it) → added at the canonical
+     hash-slot minute (`17 9 * * *`); vps1 now matches the 8-job template.
 - **Fleet size settled at 3** (vps1+vps2+vps3) — no 4th permanent spoke planned.
 - **`fabrik vultr` hardening:** PR1 (provision/destroy symmetry), PR2 (G6 SAFE-RERUN-TRAP auto-retry + G3 wg0-peer removal that persists to `wg0.conf`), and **PR3 — `provision` auto-installs a new spoke's AI sysadmin** (token pool + enable + verify; 5 manual steps → 1). PR3 reviewed GREEN (5-axis) and **merged** (`0dc92e3`).
 - **LIVE DR drill validated (2026-06-13/14):** `fabrik vultr drill spoke --g0-smoke` against a real Vultr droplet → `bootstrap_rc=0`, `verify_rc=0`, **0 orphans**, 528s, ~$0.015. Live-proved G5's `iptables-docker-user.service` on a fresh bootstrap. **G0 copied-creds result:** copying the hub's Claude OAuth creds to a fresh host authenticates *immediately* (`immediate_auth_ok=True`, no rotation on first use) — single-session rejection ruled out; copied-creds zero-touch is viable pending only the ~4-day refresh-token race.

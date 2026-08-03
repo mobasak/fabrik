@@ -30,7 +30,10 @@ _limit_re='usage limit reached|hit your (weekly|session|opus|[0-9]+-hour) limit|
 # "401" (e.g. a port number) is NOT a failure. A real 401 needs the auth wording; a usage
 # limit needs a limit phrase. Only then does a non-zero exit count as a generic failure.
 reason=""
-if grep -qiE '\b401\b' <<<"$OUT" && grep -qiE 'authentication|credential' <<<"$OUT"; then
+# Dead-creds class (mirrors claude_rotate.py::is_auth_401): a real 401 with auth wording, OR the
+# CLI's expired-OAuth render ("OAuth session expired and could not be refreshed") which carries
+# no "401" at all — live-hit 2026-08-03 when a manager-box re-login revoked the fleet's refresh token.
+if grep -qiE 'oauth session expired' <<<"$OUT" || { grep -qiE '\b401\b' <<<"$OUT" && grep -qiE 'authentication|credential' <<<"$OUT"; }; then
     reason="401_auth"
 elif grep -qiE "$_limit_re" <<<"$OUT"; then
     reason="usage_limit"

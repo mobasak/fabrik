@@ -75,6 +75,18 @@ def test_is_auth_401_matches_only_the_401():
     )  # bare '401' is not an auth error
 
 
+def test_is_auth_401_matches_expired_oauth_render():
+    """Regression (live-hit 2026-08-03): the CLI's expired-OAuth render carries NO '401',
+    so the old detector never rotated and the keepalive stayed stuck on FAIL. It is a
+    dead-creds failure — same class as a 401 — and must trigger rotation."""
+    assert claude_rotate.is_auth_401(
+        "Failed to authenticate: OAuth session expired and could not be refreshed"
+    )
+    assert claude_rotate.is_auth_401("OAUTH SESSION EXPIRED")  # case-insensitive
+    assert not claude_rotate.is_auth_401("we discussed oauth sessions in general")
+    assert not claude_rotate.is_auth_401("")  # empty output is not an auth failure
+
+
 def test_run_claude_rotates_once_on_limit_then_ok(monkeypatch):
     outputs = [
         _cp(stdout="You've hit your session limit · resets 3:45pm", rc=1),

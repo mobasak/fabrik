@@ -32,7 +32,22 @@ APPRISE_SEND() {
     "http://apprise:8000/notify/alerts" \
     -H "Content-Type: application/json" \
     -d "{\"title\":\"$title\",\"body\":${escaped_body}}" 2>/dev/null; then
-    echo "$(date -Is) APPRISE_SEND FAILED to deliver via fabrik network: ${title}" >&2
+    # Fallback: direct Telegram (same vars/file claude_rotate.py::_notify_telegram uses).
+    # Apprise is a HUB-ONLY container — on spokes the fabrik-network send above ALWAYS
+    # fails (no `apprise` DNS name), which left spoke alerts silently undelivered for
+    # weeks (live-found 2026-08-03). Also covers hub-apprise-down. Token never echoed.
+    local tok chat
+    tok=$(sudo grep -E '^TELEGRAM_BOT_TOKEN=' /opt/fabrik/.env.sysadmin 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')  # noqa — grep PATTERN for the env file, not a hardcoded credential
+    chat=$(sudo grep -E '^TELEGRAM_OWNER_ID=' /opt/fabrik/.env.sysadmin 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')
+    if [ -n "$tok" ] && [ -n "$chat" ]; then
+      local text
+      text=$(printf '%s\n\n%s' "$title" "$body" | head -c 4000)
+      if curl -sf -o /dev/null -m 15 -X POST "https://api.telegram.org/bot${tok}/sendMessage" \
+        --data-urlencode "chat_id=${chat}" --data-urlencode "text=${text}" 2>/dev/null; then
+        return 0
+      fi
+    fi
+    echo "$(date -Is) APPRISE_SEND FAILED to deliver via fabrik network AND telegram fallback: ${title}" >&2
     return 1
   fi
 }
@@ -69,6 +84,17 @@ prom_hosts() {
 
 ANOMALIES=""
 PROM_REACHABLE=true
+
+# The whole PromQL battery is HUB-ONLY by design: Prometheus runs only on vps1 and
+# scrapes the spokes (host-labelled series), so these checks cover the entire fleet
+# from the hub. On a spoke there is no `prometheus` container — running the stage
+# there fired a false `prometheus_unreachable` every 15 min for weeks (live-found
+# 2026-08-03). Hostname gate (not container-presence): the hub must still flag
+# prometheus_unreachable when its own container dies.
+IS_HUB=0
+[ "$(hostname -s)" = "vps1" ] && IS_HUB=1
+
+if [ "$IS_HUB" = "1" ]; then
 
 # Quick connectivity check — if Prometheus is down, flag it immediately
 PROM_TEST=$(prom_query 'up' 2>/dev/null)
@@ -120,6 +146,8 @@ prom_check 'rate(loki_distributor_lines_received_total[10m])==0' \
 
 fi  # PROM_REACHABLE
 
+fi  # IS_HUB — end of the hub-only PromQL battery
+
 # ── TLS certificate expiry check (no Prometheus needed) ──────────────────
 #
 # Stale subdomains removed 2026-06-01 W10: coolify.vps1 was deleted in
@@ -162,24 +190,37 @@ if command -v docker >/dev/null 2>&1 && sudo docker ps --format '{{.Names}}' 2>/
         RESTIC_PW=$(sudo python3 -c "import json; print(json.load(open('/opt/backrest/config/config.json'))['repos'][0]['password'])" 2>/dev/null)
     fi
     if [ -n "$RESTIC_PW" ]; then
+        # HOST-AWARE repo + plan set. Each host's Backrest writes to ITS OWN repo with
+        # ITS OWN password: hub at the bucket root (4 plans), spokes at /spokes/<host>/
+        # (2 plans). The old hardcoded hub-root+hub-plans loop, run on a spoke with the
+        # SPOKE's password, could never see a snapshot → four false
+        # `backup_missing[hub:*]` every 15 min for weeks (live-found 2026-08-03).
+        HOST_TAG=$(hostname -s)
+        if [ "$HOST_TAG" = "vps1" ]; then
+            RESTIC_REPO="s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups"
+            BACKUP_PLANS="postgres-dumps docker-volumes opt-configs host-state"
+        else
+            RESTIC_REPO="s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups/spokes/${HOST_TAG}"
+            BACKUP_PLANS="host-state opt-configs"
+        fi
         # 36h = 129600s
         STALE_THRESHOLD=$((36 * 3600))
         NOW_EPOCH=$(date +%s)
-        for plan in postgres-dumps docker-volumes opt-configs host-state; do
+        for plan in $BACKUP_PLANS; do
             LATEST=$(sudo docker exec -e RESTIC_PASSWORD="$RESTIC_PW" backrest /bin/restic \
-                -r s3:https://s3.us-west-004.backblazeb2.com/vps1-ocoron-backups \
+                -r "$RESTIC_REPO" \
                 snapshots --tag plan:${plan} --last --json 2>/dev/null \
                 | python3 -c "import json,sys
 d=json.load(sys.stdin)
 print(d[-1]['time'] if d else '')" 2>/dev/null)
             if [ -z "$LATEST" ]; then
-                ANOMALIES+="backup_missing[hub:${plan}] "
+                ANOMALIES+="backup_missing[${HOST_TAG}:${plan}] "
             else
                 LATEST_EPOCH=$(date -d "$LATEST" +%s 2>/dev/null || echo 0)
                 AGE=$((NOW_EPOCH - LATEST_EPOCH))
                 if [ "$AGE" -gt "$STALE_THRESHOLD" ]; then
                     HOURS=$((AGE / 3600))
-                    ANOMALIES+="backup_stale[hub:${plan}:${HOURS}h] "
+                    ANOMALIES+="backup_stale[${HOST_TAG}:${plan}:${HOURS}h] "
                 fi
             fi
         done

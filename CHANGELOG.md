@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — sysadmin fleet audit: rotation blind spot + spoke false-alarm storm + silent alerts (2026-08-03)
+
+Five live-verified fixes, deployed to all 3 hosts: (1) `claude_rotate.py` (`is_auth_401`, BOTH copies —
+sysadmin + aro-wake twin) + the keepalive classifier now treat the CLI's expired-OAuth render ("OAuth session
+expired and could not be refreshed" — carries no "401") as dead-creds → rotate + alert; it previously left the
+keepalive stuck FAIL with no rotation (+regression tests). (2) `proactive-check.sh`: the PromQL battery is
+hub-gated (hub's Prometheus already covers the fleet via host labels; on spokes it fired a false
+`prometheus_unreachable` every 15 min for weeks). (3) Backrest check is host-aware (own repo
+`/spokes/<host>/`, own plan set — spokes were querying the HUB repo with the SPOKE password → constant false
+`backup_missing[hub:*]`). (4) `APPRISE_SEND` gained a direct-Telegram fallback (apprise is hub-only; spoke
+alerts silently failed — NOTE: spoke bots must be `/start`-ed by the operator before any spoke delivery works).
+(5) vps1: `.env.sysadmin` 0664→0600 + the missing `daily-digest` cron added (template hash-slot minute 17).
+
 ### Changed — workstation/WSL docs reconciled against the live machine (2026-08-03)
 
 One-pass claim-by-claim verification of docs/workstation/* + docs/operations/wsl-environment.md

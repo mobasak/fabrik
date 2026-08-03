@@ -76,14 +76,23 @@ def is_usage_limit(text: str) -> bool:
 
 
 def is_auth_401(text: str) -> bool:
-    """True iff *text* is a Claude auth (401) failure (→ alert, NEVER rotate).
+    """True iff *text* is a dead-creds auth failure (→ rotate to a standby + alert).
 
-    Requires the auth wording alongside a standalone ``401`` so neither a bare
-    ``line 401`` nor a ``401`` buried inside a larger number (``14012``) matches.
+    Two renders qualify:
+    (a) a standalone ``401`` alongside auth wording — neither a bare ``line 401``
+        nor a ``401`` buried inside a larger number (``14012``) matches;
+    (b) the CLI's expired-OAuth render ("OAuth session expired and could not be
+        refreshed") — it carries NO "401", which left the keepalive stuck on FAIL
+        with no rotation (live-hit 2026-08-03: a re-login on the manager box
+        revoked the fleet's copied refresh token mid-window).
+    Both mean the ACTIVE account's creds are dead; rotating to a valid standby
+    recovers either.
     """
+    low = text.lower()
+    if "oauth session expired" in low:
+        return True
     if not re.search(r"\b401\b", text):
         return False
-    low = text.lower()
     return "authentication" in low or "credential" in low
 
 
