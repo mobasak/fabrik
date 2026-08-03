@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 51 -->
+<!-- Total projects: 50 -->
 
 ### Production Services (4 projects)
 

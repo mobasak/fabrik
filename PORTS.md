@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-08-03 23:41:22 -->
+<!-- Last synced: 2026-08-04 00:17:29 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -128,7 +128,6 @@ If you encounter a port conflict:
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18013 | **proxy** | python-api | /opt/proxy |
 | 18014 | **site-provisioner** | python-api | /opt/site-provisioner |
-| 18016 | **image-broker** | python-api | /opt/image-broker |
 | 18018 | **email-reader** | python-api | /opt/email-reader |
 
 <!-- AUTO-GENERATED:PORTS:END -->
