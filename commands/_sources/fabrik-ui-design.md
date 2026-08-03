@@ -3,20 +3,23 @@ description: Freeze a GUI project's UI/UX design — a lean, frozen screen + flo
 argument-hint: "[spec path — omit to use the spec/data-contract of the CURRENT project (the command always operates on cwd)]"
 ---
 
-Produce (or backfill) this GUI project's **UI/UX design** — one frozen file, `docs/ui-design.md`, that is the
-**single source of truth for what screens exist and how a user moves through them**: the product's screens,
-their minimal-click flows, the navigation/IA, and each screen's design-system components, states, and the
+Produce (or backfill) this GUI project's **UI/UX design** — one frozen file, `docs/ui-design.md`, the **single
+source of truth for what screens exist and how a user moves through them**: the product's screens, their
+minimal-click flows, the navigation/IA, and each screen's design-system components, states, and the
 `data-contract.md` fields it renders. Traycer reads it when planning; a coding agent (Kilo, Claude Code)
-implements against it; **no agent invents a screen, flow, or component not in this contract.** This is the
-design-first layer between the design *system* (how things look) and the build:
+implements against it; **no agent invents a screen, flow, or component not in this contract.** It is the
+design-first layer between the design *system* (how things look) and the build — the gate order:
 
 ```
-/fabrik-spec → /fabrik-data-contract → /fabrik-ui-design (FREEZE) → /fabrik-ui-design-review (independent converge) → planning (Traycer OR /fabrik-plan-after-chat) → build
+/fabrik-spec → /fabrik-data-contract → /fabrik-ui-design (FREEZE, self-converge)
+   → /fabrik-ui-design-review (independent converge → attest)
+   → planning (Traycer OR /fabrik-plan-after-chat)
+   → build: per screen → Build Verification Loop + /design-review → no-op
 ```
 
 **HARD GATES:**
-1. **Design system FIRST.** No screen or flow may be designed until a design system is *established* (Phase 1).
-   You cannot lay out a screen without the visual language (tokens, type, components, states).
+1. **Design system FIRST.** No screen or flow may be designed until a design system is *established* (Phase 1) —
+   you cannot lay out a screen without the visual language (tokens, type, components, states).
 2. **No planning against a `DRAFT`.** The contract must reach `FROZEN` (an edit-free convergence round) — and
    then pass **`/fabrik-ui-design-review`** (an independent adversarial no-op round) — before any plan —
    Traycer or `/fabrik-plan-after-chat` — consumes it.
@@ -28,8 +31,8 @@ design-first layer between the design *system* (how things look) and the build:
 
 Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec path. State:
 - **Surface(s):** web (Next.js/React), mobile (React Native), desktop, or extension — each has its own screen
-  conventions (`saas/60-saas-ui.md` page inventory · `mobile-app/80-mobile.md` screen inventory ·
-  `desktop-app/72-desktop.md` · `chrome-ext/70-chrome-ext.md`). Read the pack for your surface.
+  conventions; read your surface's pack (`saas/60-saas-ui.md` page inventory · `mobile-app/80-mobile.md`
+  screen inventory · `desktop-app/72-desktop.md` · `chrome-ext/70-chrome-ext.md`).
 - **Inputs:** the `/fabrik-spec` design doc (goal, chosen approach, the product's core workflow) and
   `docs/data-contract.md` (the frozen fields — screens render these). Link both by path.
 - **Mode:** **new** (spec-driven, design from the product) · **backfill** (reverse-map an existing GUI's real
@@ -46,13 +49,13 @@ You may not design a single screen until this is done. Establish it one of two w
   motion — which copy-and-own sources it draws on (e.g. reactbits.dev), per `ocoron-design-system.md`
   § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here). Nothing more.
 - **CREATE (a new brand / no fitting system).** Author a **lean** project design system — enough to design and
-  build against, NOT a 1,850-line clone. Ground its *structure* in `ocoron-design-system.md` (use it as the
-  template), but keep it minimal: **color/surface/text tokens · typography (heading/body/mono) · spacing scale
-  · motion tokens · the core component list (Button, Input, Card, Table, Modal, Toast, …) · the enriched states
-  every component handles (loading/empty/error/permission-denied/success/partial/disabled) · WCAG 2.2 AA
-  baseline · dark+light mandatory.** Write it where design systems live (a project `docs/design-system.md`, or
-  propose a new `.windsurf/rules/**` pack if it's a reusable brand). Live-ground any external choice (a font's
-  license, a color-contrast ratio) — repo-first, then `mcp__exa__web_search_exa` → `WebSearch` →
+  build against, NOT a 1,850-line clone. Ground its *structure* in `ocoron-design-system.md` (the template),
+  but keep it minimal: **color/surface/text tokens · typography (heading/body/mono) · spacing scale · motion
+  tokens · the core component list (Button, Input, Card, Table, Modal, Toast, …) · the enriched states every
+  component handles (loading/empty/error/permission-denied/success/partial/disabled) · WCAG 2.2 AA baseline ·
+  dark+light mandatory.** Write it to a project `docs/design-system.md` (or propose a new `.windsurf/rules/**`
+  pack if it's a reusable brand). Live-ground any external choice (a font's license, a color-contrast ratio) —
+  repo-first, then `mcp__exa__web_search_exa` → `WebSearch` →
   `mcp__brave-search__brave_web_search`; for a **component library's real API** (Radix, NativeWind, Tamagui)
   use `mcp__context7` — cite it. For the **component set itself**, drive the connected **shadcn MCP**
   (`mcp__shadcn__search_items_in_registries` to find the real component, `mcp__shadcn__view_items_in_registries`
@@ -71,8 +74,8 @@ exists; grandfather deviations with a `⚠` note.
 ## Phase 3 — User flows (minimal-click — the lean/logical core)
 
 For **each key task** the product exists to do (from the spec), design the flow as an ordered path and give it a
-**click budget** — this is where "lean, minimal-clicks, not confusing, logical" is actually decided, once, up
-front, instead of improvised per ticket:
+**click budget** — "lean, minimal-clicks, not confusing, logical" is decided HERE, once, up front, instead of
+improvised per ticket:
 
 ```
 Flow: <task>   (budget: ≤ N clicks)
@@ -117,9 +120,9 @@ Repeat until one demonstrably-thorough pass makes **zero edits**. Each pass chec
 
 - Set the header: **`Status: FROZEN` · `Version: v<N>` · `Date: <YYYY-MM-DD>` · `Surface: …` · `Design system: <adopted/created>`**. Add the freeze rule verbatim: *"Frozen — no agent adds a screen, flow, component, or field not listed here. Any change = bump Version + re-freeze via `/fabrik-ui-design`."*
 - **Seed the build-verification gate into the project (this is where the per-project CODE deps wire — so non-GUI
-  projects never carry them).** The global *agent* tooling is already fleet-wide and needs nothing here —
-  Playwright + shadcn MCP, the `frontend-design` skill, and the `/design-review` command are user-level. Now that
-  a GUI exists, seed only the per-project deps + config: `npm i -D @axe-core/playwright eslint-plugin-jsx-a11y
+  projects never carry them).** The global *agent* tooling (Playwright + shadcn MCP, the `frontend-design`
+  skill, the `/design-review` command) is already fleet-wide, user-level, and needs nothing here. Seed
+  only the per-project deps + config: `npm i -D @axe-core/playwright eslint-plugin-jsx-a11y
   eslint-plugin-better-tailwindcss` (RN: the NativeWind/Tamagui lint equivalent), the ESLint flat-config entries
   (a11y + no-off-token/design-token enforcement), and a starter Playwright test under `tests/ui/` that renders
   each frozen screen and asserts `@axe-core/playwright` `violations == []` + `toHaveScreenshot` (run in the
@@ -135,12 +138,11 @@ Repeat until one demonstrably-thorough pass makes **zero edits**. Each pass chec
 ## Build Verification Loop (mandated per screen — iterate to a NO-OP)
 
 The frozen contract is only *realised* when the built UI matches it. Every phase that builds a screen (Traycer,
-or `/fabrik-plan-after-chat` → `/fabrik-execute-plan`) MUST run this loop. It is to the UI what `/fabrik-review`
-is to code, and it terminates the SAME way — this is not a checklist you run once.
-
-**This is a SECOND, build-time loop — do not conflate it with the design-convergence contract at the top of
-this command.** That one froze `docs/ui-design.md` (it produced the *truth*, at design time); THIS one proves the
-*built* UI matches that truth (at build time), and runs once per screen with its own Pass Ledger.
+or `/fabrik-plan-after-chat` → `/fabrik-execute-plan`) MUST run this loop — it is to the UI what
+`/fabrik-review` is to code, terminates the SAME way, and is not a checklist you run once. **It is a SECOND,
+build-time loop — do not conflate it with the design-convergence contract at the top of this command:** that
+one froze `docs/ui-design.md` (the *truth*, at design time); THIS one proves the *built* UI matches that truth
+(at build time), once per screen, with its own Pass Ledger.
 
 ### ⚠️ Termination contract — READ FIRST (the rule agents skip)
 A built screen is done **only when a fresh, demonstrably-thorough verification pass finds NOTHING and changes
@@ -161,11 +163,11 @@ headless, no device; gate on the Android emulator in Linux CI, iOS is a macOS-on
 extension; `channel:'chromium'` bundled Chromium — stable Chrome ≥137 can't sideload; pin `@playwright/test` ≥1.59)
 + `@axe-core/playwright` with **`bypassCSP: true`** + `toHaveScreenshot` at the **pinned 400px popup viewport** +
 a **`size-limit`** per-surface bundle gate.
-1. **See it** — drive the running screen via the surface's MCP (web: **Playwright MCP**; mobile: **Maestro MCP** /
-   **mobile-mcp**; extension: the **Playwright load-extension fixture**, `goto('chrome-extension://<id>/…')` with
-   the ID read from the MV3 service worker): open it, read the accessibility tree, run the frozen flow end-to-end,
-   screenshot (web: at **375 / 768 / 1440**; mobile: on the emulator/simulator; extension: popup at 400px + each
-   options/side-panel/overlay surface). The agent verifies against reality, not hope.
+1. **See it** — drive the running screen via the surface's MCP driver (web: **Playwright MCP**; mobile: **Maestro MCP** / **mobile-mcp**; extension: the **Playwright load-extension fixture**'s
+   `goto('chrome-extension://<id>/…')`, the ID read from the MV3 service worker): open it, read the
+   accessibility tree, run the frozen flow end-to-end, screenshot (web: at **375 / 768 / 1440**; mobile: on the
+   emulator/simulator; extension: popup at 400px + each options/side-panel/overlay surface). The agent verifies
+   against reality, not hope.
 2. **Match the contract** — every screen present; every flow within its **click budget**; every enriched state
    rendered (loading/empty/error/permission-denied/success/partial/disabled); **no invented field or component**
    (checked against `docs/ui-design.md` + `docs/data-contract.md`); design-system tokens only.
@@ -203,7 +205,7 @@ a **`size-limit`** per-surface bundle gate.
 
 ## Subagents — design-time fans out to the POOL; build-time is NATIVE (parallel per screen)
 
-This command has two subagent regimes — keep them distinct:
+Two subagent regimes — keep them distinct:
 
 - **Design-time (Phases 2 + 5 — pool-default, records the flywheel).** The **per-screen contract** (map each
   screen's regions → design-system components → the `docs/data-contract.md` fields it renders) and the
@@ -233,16 +235,9 @@ Freezing here is the AUTHOR's convergence — it cannot catch its own blind spot
 or `/fabrik-plan-after-chat`) consumes the contract, run **`/fabrik-ui-design-review`** on it: the independent,
 adversarial second pass that re-grounds every screen/flow/field against the spec, `docs/data-contract.md`, the
 design system, and the surface pack, and converges to its own edit-free md5 no-op (the design-time analogue of
-`/fabrik-spec-review`). It is distinct from the two build-time layers already defined above — the **Build
-Verification Loop** (built screen vs contract) and **`/design-review`** (rendered-UI craft) — those run later,
-per screen, during the build. The gate order is:
-
-```
-/fabrik-ui-design (FREEZE, self-converge)
-   → /fabrik-ui-design-review (independent converge → attest)
-   → planning (Traycer OR /fabrik-plan-after-chat)
-   → build: per screen → Build Verification Loop + /design-review → no-op
-```
+`/fabrik-spec-review`). It is distinct from the two build-time layers above — the **Build Verification Loop**
+(built screen vs contract) and **`/design-review`** (rendered-UI craft) — which run later, per screen, during
+the build; the gate order is the pipeline at the top of this command.
 
 Do NOT begin planning until `/fabrik-ui-design-review` attests the contract (a clean no-op round, or a
 re-frozen bumped `Version` after its fixes). If it surfaces a blocker it can't reconcile, it routes back here

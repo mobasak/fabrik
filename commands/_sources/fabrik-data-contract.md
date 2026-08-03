@@ -3,7 +3,7 @@ description: Freeze the project's data contract — the single frozen truth mapp
 argument-hint: "[spec path — omit to use the spec/schema of the CURRENT project (the command always operates on cwd)]"
 ---
 
-Produce (or backfill) this project's **data contract** — one frozen file, `docs/data-contract.md`, that is the
+Produce (or backfill) this project's **data contract** — one frozen file, `docs/data-contract.md`, the
 **single source of truth for field naming across the whole stack**: every GUI/form field ↔ its exact DB column,
 with type, required, validation, PII class, FK references, enum registry, and entity build-order. Traycer reads
 it when planning; Kilo/frontend/backend agents implement against it; **no agent invents a field or value not
@@ -23,34 +23,34 @@ half-agreed field list is the exact drift this command exists to prevent.
 Detect the mode and **state which one you took and why**:
 
 - **Mode A — spec-driven (new work).** A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope
-  (`docs/superpowers/specs/…`). The entities/fields come **from the design**. This is the normal
+  (`docs/superpowers/specs/…`). The entities/fields come **from the design** — the normal
   `spec → contract → plan` path.
-- **Mode B — reverse-generate (existing-project backfill).** No spec, but the project already has a real
-  `db/schema.sql` (or ORM models / migrations). The contract is **reverse-engineered from what already exists**,
-  and existing standard-violations are **grandfathered** (flagged advisory, never auto-migrated). This is how the
+- **Mode B — reverse-generate (existing-project backfill).** No spec, but a real `db/schema.sql` (or ORM
+  models / migrations) already exists. The contract is **reverse-engineered from what already exists**, and
+  existing standard-violations are **grandfathered** (flagged advisory, never auto-migrated). This is how the
   ~35 existing projects get a contract — run this command in each.
 - **Mode C — fresh (no design, no schema).** Neither exists → fill the seeded stub minimally (house rules +
   empty entity scaffold) so the project has the frozen skeleton to grow into.
 
 The modes name the **primary field source**, not mutually-exclusive states — Phase 1 reconciles against the live
-schema in **every** mode. A project with BOTH a new spec AND a real existing schema (an incremental feature on an
-established project) is **Mode A** (the spec is the source) *with* full Mode-B reconciliation against the schema —
-declare `Mode A` and note the reconciliation. This keeps the frozen header (`Mode: A|B|C`) and the Phase-5
-hand-off unambiguous while still doing both jobs.
+schema in **every** mode. BOTH a new spec AND a real existing schema (an incremental feature on an established
+project) = **Mode A** (the spec is the source) *with* full Mode-B reconciliation against the schema: declare
+`Mode A` and note the reconciliation, so the frozen header (`Mode: A|B|C`) and the Phase-5 hand-off stay
+unambiguous while still doing both jobs.
 
 Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec path; to backfill a specific
 project, run the command from inside it. Scope = every **entity**, every **GUI/form field**, every **API
-request field**, and every **DB column** the project has or the design implies. Locate and name the concrete
-sources you will reconcile: the spec (Mode A); `db/schema.sql`, `db/migrations/`, `**/models.py`/`entities.py`,
-Pydantic request models, and the frontend form/validation code (Zod schemas, form components) (Mode B).
+request field**, and every **DB column** the project has or the design implies. Locate and name the concrete sources you
+will reconcile: the spec (Mode A); `db/schema.sql`, `db/migrations/`, `**/models.py`/`entities.py`, Pydantic
+request models, and the frontend form/validation code (Zod schemas, form components) (Mode B).
 
 **Starting state (near-universal) + check-before-create:** the scaffolder seeds a **DRAFT stub**
 `docs/data-contract.md` (with `<entity_name>` placeholders) into every DB-backed project, so the file normally
 already exists as an unfrozen skeleton. **A DRAFT stub is meant to be edited through — its existence is NOT a
-STOP** (this is the explicit exception to CLAUDE.md's "file exists = STOP": that rule guards against clobbering
-*real* content, and a placeholder stub has none). Modes A/B rewrite its body from the design/schema; Mode C
-fills it. **Only if the file is already `FROZEN`** do you STOP and ask; on the user's confirmation, proceed as a
-**re-freeze** — bump `Version`, never a silent overwrite.
+STOP** (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a
+placeholder stub has none). Modes A/B rewrite its body from the design/schema; Mode C fills it. **Only if the
+file is already `FROZEN`** do you STOP and ask; on the user's confirmation, proceed as a **re-freeze** — bump
+`Version`, never a silent overwrite.
 
 ## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)
 
@@ -62,7 +62,7 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
   if the design introduces one** (repo-first `grep docs/`, `docs/reference/`; then
   `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →
   `mcp__firecrawl__firecrawl_search` → `mcp__context7`) — e.g. a country code (ISO 3166), a currency
-  (ISO 4217), a phone format (E.164). Cite the URL + date. Do not invent a validation rule from memory.
+  (ISO 4217), a phone format (E.164). Cite the URL + date; never invent a validation rule from memory.
   (These are ISO/RFC standards, not academic papers — the `fabrik-citation-verifier` MCP does not apply here.)
 - **Reality → fields (Mode B / reconcile always):** parse the live sources at `path:line` —
   `CREATE TABLE`s in `db/schema.sql`, ORM models, Pydantic request models, and the frontend form/Zod fields —
@@ -84,12 +84,12 @@ does not count.
 
 ## Phase 2 — Emit the contract (the frozen shape)
 
-Write `docs/data-contract.md` to **exactly the shape of the seeded template** — the project's stub was
-scaffolded from `templates/scaffold/docs/data-contract-template.md`, which **is the canonical shape**.
-Fill/rewrite its sections, in order: **house rules · entities · GUI↔DB reconciliation notes · enum registry ·
-retention · FREEZE CHECKLIST**. Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field*
+Write `docs/data-contract.md` to **exactly the shape of the seeded template** — the stub was scaffolded from
+`templates/scaffold/docs/data-contract-template.md`, which **is the canonical shape**. Fill/rewrite its
+sections, in order: **house rules · entities · GUI↔DB reconciliation notes · enum registry · retention ·
+FREEZE CHECKLIST**. Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field*
 retention/lawful-basis apparatus, or distribution machinery (out of scope; the retention section below is
-project-level and light). The bullets below summarize each section:
+project-level and light). Per section:
 
 - **House rules header** (every field inherits these; never repeated per row): IDs = **UUIDv7, app-generated**
   (never sequential ints; DB-side `uuidv7()`/`pg_uuidv7` where the PG version allows, else app-side) ·
@@ -143,14 +143,14 @@ Termination contract). Each pass checks ALL of:
    field; FK/`depends on` order has no cycle.
 3. **Standards** — house rules applied to new fields. **Grandfather** existing violations (integer PK, missing
    `updated_at`, float money, non-standard enum) — **flag, do not migrate** (a migration is a separate, planned
-   change). Placement follows Phase 2: a violation shared by **every** entity (all serial-int PKs, all singular
-   names) is stated **ONCE** in the house-rules "Fleet-wide grandfather" line — never repeated per row; only an
-   **entity-specific** deviation gets a per-row `⚠ non-standard: <what>` note.
+   change). Placement follows Phase 2: a violation shared by **every** entity is stated **ONCE** in the
+   house-rules "Fleet-wide grandfather" line, never per row; only an **entity-specific** deviation gets a
+   per-row `⚠ non-standard: <what>` note.
 4. **Completeness** — every field has type + req + PII class; every enum registered; the retention table covers
    every `personal`/`sensitive` category.
 
-After each pass, list what you reconciled (which `path:line` / spec sections you re-read) and what you changed;
-then run one MORE pass. The loop terminates ONLY on an edit-free, md5-verified no-op round.
+After each pass, list what you reconciled (which `path:line` / spec sections you re-read) and what you changed,
+then run one MORE pass — the loop terminates ONLY on an edit-free, md5-verified no-op round.
 
 ## Phase 4 — Freeze + wire the truth
 
@@ -158,8 +158,8 @@ then run one MORE pass. The loop terminates ONLY on an edit-free, md5-verified n
   rule verbatim: *"Frozen — no agent adds a field, column, or enum value not listed here. Any change = bump
   Version + re-freeze via `/fabrik-data-contract`."* **This status/header write is a post-convergence action,
   exempt from the no-op rule** — the md5 anti-cheat is measured on the reconciliation *body* during the final
-  reconciliation pass (which must be edit-free); flipping `DRAFT → FROZEN` happens *after* that verified no-op,
-  so it does not re-open the loop.
+  reconciliation pass (which must be edit-free), so flipping `DRAFT → FROZEN` *after* that verified no-op does
+  not re-open the loop.
 - **Do not commit** unless the user says so this turn (`git add` is fine). `docs/data-contract.md` is a
   **committed, project-owned** file (not a gitignored synced doc) — the plan and every agent reference it by
   that path.
