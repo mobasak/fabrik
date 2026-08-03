@@ -171,7 +171,7 @@ is a contract-change proposal; say which). Every survivor terminates in exactly 
     that is **NEW WORK**: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` →
     `/fabrik-execute-plan`. **Never decide a product question inside a test run.**
   Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
-  **`/fabrik-release` is BLOCKED while any row is open** — that gate stops a handoff from rotting.
+  **Routes are EXECUTED in Phase 6 of this same run** — a handoff defers sequencing (discovery first), it never exports the work. **`/fabrik-release` stays BLOCKED while any row is open.**
 - **REFUTED** — with the contract line or evidence that disproves it.
 
 ## Phase 5 — ITERATE until discovery runs dry (the no-miss engine)
@@ -185,6 +185,26 @@ is a contract-change proposal; say which). Every survivor terminates in exactly 
 **Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` —
 TWO consecutive dry discovery sweeps.** A matrix cell deliberately skipped is listed SKIPPED with
 a reason; silent shrinkage of the inventory or matrix is the exact failure this command prevents.
+
+## Phase 6 — EXECUTE the routed fixes (same run — a handoff is deferred sequencing, not exported work)
+
+Discovery first, fixes second — **but the fixes DO happen, in this run.** Once Phase 5 reports two dry
+sweeps, work the HANDED-OFF list in depth order:
+
+1. **Code-wrong rows** (routed to `/fabrik-review`): **invoke `/fabrik-review` yourself** (Skill tool) on
+   each owning module, seeded with the committed red repro — it runs the full fix loop (finders → refute →
+   prove-before-fix → regression guard → clean round). When it exits clean, **re-run the affected journeys**
+   (Phase 5 machinery) to confirm RESPONSE truth + SYSTEM truth now prove the fix end-to-end, then close the row.
+2. **Doc-stale rows**: run the re-freeze (`/fabrik-data-contract` (or the spec `shape:`)) now, close the row.
+3. **Design-wrong/missing rows**: **start the pipeline now** — run `/fabrik-spec` for the missing/changed
+   capability and carry it to `/fabrik-spec-review`'s CONVERGED state, then **STOP at the design-approval
+   gate: that decision is the operator's** (a missing endpoint/job is a product call, never a test run's). Report
+   the row as `PIPELINE-STARTED (awaiting spec approval)` — the release gate keeps it visible.
+
+**Context budget is real:** if executing the routes would exhaust this session, finish the certification
+report FIRST (durable artifacts per the resume contract), then execute routes until the budget genuinely
+runs out — a re-invocation resumes from the report and continues the remaining rows. Never skip a route
+silently; never mark a row closed without its re-run proof.
 
 ## Subagents — MANDATORY, both layers, per `core/62`
 

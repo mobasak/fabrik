@@ -241,6 +241,26 @@ TWO consecutive dry discovery sweeps** (the loop-until-dry rule: one clean round
 A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the
 inventory or matrix is the exact failure this command exists to prevent.
 
+## Phase 6 — EXECUTE the routed fixes (same run — a handoff is deferred sequencing, not exported work)
+
+Discovery first, fixes second — **but the fixes DO happen, in this run.** Once Phase 5 reports two dry
+sweeps, work the HANDED-OFF list in depth order:
+
+1. **Code-wrong rows** (routed to `/fabrik-review`): **invoke `/fabrik-review` yourself** (Skill tool) on
+   each owning module, seeded with the committed red repro — it runs the full fix loop (finders → refute →
+   prove-before-fix → regression guard → clean round). When it exits clean, **re-run the affected journeys**
+   (Phase 5 machinery) to confirm the UI now proves the fix end-to-end, then close the row.
+2. **Doc-stale rows**: run the re-freeze (`/fabrik-data-contract` / `/fabrik-ui-design`) now, close the row.
+3. **Design-wrong/missing rows**: **start the pipeline now** — run `/fabrik-spec` for the missing/changed
+   capability and carry it to `/fabrik-spec-review`'s CONVERGED state, then **STOP at the design-approval
+   gate: that decision is the operator's** (a missing screen is a product call, never a test run's). Report
+   the row as `PIPELINE-STARTED (awaiting spec approval)` — the release gate keeps it visible.
+
+**Context budget is real:** if executing the routes would exhaust this session, finish the certification
+report FIRST (durable artifacts per the resume contract), then execute routes until the budget genuinely
+runs out — a re-invocation resumes from the report and continues the remaining rows. Never skip a route
+silently; never mark a row closed without its re-run proof.
+
 ## Subagents — MANDATORY, both layers, per `core/62`
 
 **Solo-testing is a contract violation, not a style choice.** The orchestrator that drives the

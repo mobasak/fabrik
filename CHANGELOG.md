@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — gauntlet findings are now FIXED in the same run, depth-ordered (2026-08-03)
+
+/fabrik-user-test + /fabrik-service-test gain Phase 6 — EXECUTE the routed fixes: a handoff defers
+sequencing (discovery completes first, per the one-batch doctrine), it never exports the work. After two
+dry sweeps the gauntlet itself works the HANDED-OFF list: code-wrong rows -> it INVOKES /fabrik-review on
+the owning module (the fix-properly-and-review-the-fix loop) then re-runs the affected journeys to prove
+the fix end-to-end; doc-stale rows -> re-freeze now; design-wrong/missing rows -> it STARTS the pipeline
+(/fabrik-spec -> spec-review CONVERGED) and stops only at the design-approval gate, which is the
+operator's product call. Context-budget honesty: report first (durable, resumable), then execute routes;
+a re-invocation resumes remaining rows. The /fabrik-release block on open rows stands.
+
 ### Changed — certification findings are ROUTED, and handoffs now gate the release (2026-08-03)
 
 `/fabrik-user-test` + `/fabrik-service-test` replace the vague "named owner-route" handoff with an
