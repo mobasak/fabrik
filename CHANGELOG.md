@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-execute-plan: crash/quota/disconnect-safe resume (2026-08-03)
+
+Plan runs are now recoverable and resumable, fail-closed: a same-plan `active` lock
+permits resume (the operator's re-invocation is the authorization); a CLEAN-BOUNDARY
+resume (owned paths clean, no unaccounted commits — the normal case, per-phase commits
+make it so) continues autonomously from the last EXECUTED phase; a MESSY resume (died
+mid-phase) is a BLOCKED operator ruling — on a shared tree no prose heuristic can tell a
+crashed run's residue from an unlocked sibling's, so a resume never resets/adopts/guesses.
+A different plan's lock always BLOCKs (freeing a dead sibling's lock is an operator
+action — three adversarial review rounds proved every staleness/heartbeat heuristic
+eventually stomps a live run). Locks record baseline_commit + baseline_gate after step 8
+so a resume and the Finish cumulative ranges never drop pre-crash phases or mis-attribute
+the run's own pre-crash reds. Re-invoking a released/EXECUTED plan reports done, never
+overwrites the completion record.
+
 ### Added — shape.uses_claude_cli: rotation-aware `claude -p` in deployed containers (2026-08-02)
 
 New `shape.uses_claude_cli` (+ `claude_cli_home`, default `/root`) shape flag (`spec_loader.py`). When set,

@@ -15,11 +15,43 @@ You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan 
 4. Read the design spec the plan references (usually linked at the top or in `docs/superpowers/specs/`).
 5. Read `AFCL.md` if it exists — known friction points.
 6. Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec).
-7. **Acquire the scope lock (this is what lets several scoped runs share one project).** Read the plan's
-   `## File Scope (owned paths)`. Scan `.fabrik/plan-locks/*.json` for any lock with `status:"active"`
-   whose paths overlap yours. **Overlap → `BLOCKED: scope overlap with <plan-id> on <path>` and STOP**
-   (the other run owns that file). No overlap → create `.fabrik/plan-locks/<plan-id>.json` =
-   `{plan, owned_paths, branch, started_at, status:"active"}`.
+7. **Acquire the scope lock (this is what lets several scoped runs share one project, AND what makes a run
+   resumable after a crash / disconnect / quota-hit).** Read the plan's `## File Scope (owned paths)`. Scan
+   `.fabrik/plan-locks/*.json` for any lock with `status:"active"` whose paths overlap yours, and resolve:
+   - **Your OWN plan's lock (same plan-id) left `active` by an interrupted / crashed / quota-killed prior
+     run → RESUME is permitted** (check `.fabrik/plan-locks/<plan-id>.json` directly by id, not only via the
+     overlap scan). The operator's re-invocation IS the authorization that the prior session is dead — running
+     two sessions of one plan at once is the operator's to avoid, exactly like freeing a sibling's lock.
+     Keep the lock. Then split by what the tree actually shows:
+     - **CLEAN-BOUNDARY resume (the normal case — per-phase commits make it so):** owned paths clean AND the
+       first unmarked phase has no landed commits → continue from the last `✅ EXECUTED` phase per §Plan
+       Status Tracking. Fully autonomous.
+     - **MESSY resume (died mid-phase):** owned paths dirty, or the first unmarked phase already has commits
+       the plan file doesn't account for →
+       `BLOCKED: resume needs operator ruling — found: <the files/commits> — missing: which are the crashed
+       run's to continue vs. a sibling's to leave`. **Never guess:** on this shared tree, uncommitted residue
+       on "your" paths can be an unlocked sibling's or the daily pipeline's (CHANGELOG/INDEX especially), and
+       no prose heuristic can tell — resetting destroys a sibling's work, adopting publishes it. The operator
+       rules once; the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or
+       reverts anything.
+   - **Same-plan lock `status:"released"`, or the plan already `EXECUTED`/archived → do NOT re-create the
+     lock or re-run** — report it as already finished (the lock's `completed_at`/`final_commit` is the
+     completion record; overwriting it destroys provenance).
+   - **A DIFFERENT plan's overlapping `active` lock → `BLOCKED: scope overlap with <plan-id> on <path>` and
+     STOP — always, even if it looks dead.** There is NO auto-reclaim of another plan's lock: with no atomic
+     lock primitive and no liveness signal a blocked-on-a-long-call agent can emit, any staleness heuristic
+     WILL eventually stomp a live sibling mid-slice (two runs committing the same paths to shared `master` =
+     data loss — the critical failure). Instead REPORT it: name the lock file, its `started_at`, and the
+     one-line operator remedy — *"if that run is confirmed dead, delete `.fabrik/plan-locks/<plan-id>.json`
+     and re-invoke"*. Freeing a dead sibling's lock is an OPERATOR action, never an agent judgment call.
+   - **No overlapping lock** → create `.fabrik/plan-locks/<plan-id>.json` =
+     `{plan, owned_paths, branch, started_at, status:"active"}`. After step 8's baseline capture, append
+     `baseline_commit` (HEAD then) + `baseline_gate` (the red-check set + owners) to the lock — a resume and
+     the Finish whole-plan review / doc-receipt ranges reuse THOSE recorded values, never a re-captured
+     mid-plan baseline (else pre-crash phases drop out of the cumulative diff and the run's own pre-crash
+     reds get mis-attributed to siblings; a legacy lock without these fields → the messy-resume BLOCKED path).
+     (A lock left `active` by an orderly `BLOCKED` halt is INTENTIONAL — the plan still owns its scope until
+     resolved; the BLOCKED report should say so.)
 8. **Isolate + verify clean + capture the baseline.**
    - **Don't nest a worktree:** if you're already in a linked worktree (`GIT_DIR != GIT_COMMON` and
      `git rev-parse --show-superproject-working-tree` is empty, so it's not a submodule), work in place —
@@ -27,7 +59,9 @@ You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan 
    - **Isolate concurrent runs:** if any *other* plan-lock is `active`, run this plan in its **own git
      worktree** (`isolation:"worktree"`) so two runs never share a working tree (ensure its `.venv`/deps
      exist before any gate runs there); if yours is the only active run, the main worktree is fine.
-   - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not → STOP.
+   - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not →
+     STOP — for a step-7 same-plan RESUME this is the MESSY case: `BLOCKED: resume needs operator ruling`
+     per step 7 (never adopt, reset, or revert residue on shared paths — the operator rules first).
    - **Capture the baseline (shared-master attribution — do this BEFORE Phase A).** Record the starting gate
      state: `python scripts/final_gate.py --lean --json` → note its `status` and **every already-red check +
      which file owns it** (yours vs. a sibling's / an untracked file). This is your attribution reference: a
@@ -243,8 +277,8 @@ git log --format='%h %s' --grep='Agent-Role: review-fix'
 
 ```
 read plan → read spec → read active rule packs → read AGENTS.md
-acquire scope lock (.fabrik/plan-locks/<id>.json) — BLOCK on overlap; isolate in a worktree if another run is active
-verify OWNED paths clean
+acquire scope lock (.fabrik/plan-locks/<id>.json) — RESUME your own plan's stale lock (reconcile real state from git); a DIFFERENT plan's overlap = BLOCK always (freeing a dead sibling's lock is an OPERATOR action); isolate in a worktree if another run is active
+verify OWNED paths clean (same-plan RESUME: dirty = the step-7 MESSY case -> BLOCKED for operator ruling; never adopt/reset)
 
 for each PHASE in dependency order:
 
@@ -618,7 +652,7 @@ are part of the phase commits (explicit path: the plan file) and carry the same 
   `CONVERGED`/`zero unknowns` — so the Evidence stays as the design record with no re-validation.
 - **At each phase boundary** (after the phase commit AND a clean `/fabrik-review`): mark that phase done
   in the plan — append `— ✅ EXECUTED <YYYY-MM-DD> (<short-commit>)` to the phase's heading (or tick its
-  DoD checklist). A resumed run skips phases already marked done.
+  DoD checklist). A resumed run skips phases already marked done; a first UNMARKED phase with landed-but-unaccounted commits or dirty owned paths is step 7's MESSY case -> BLOCKED for the operator (never blind-redo, never mark on partial evidence, never guess residue ownership).
 - **On completion** (all phases done, final gate green): flip `**Status:** IN-PROGRESS` →
   `**Status:** EXECUTED <YYYY-MM-DD>`, add a one-line completion stamp (final commit + gate result), **and
   cite the whole-plan review artifact** — `Whole-plan review: docs/development/reviews/<plan>-review.md`.
