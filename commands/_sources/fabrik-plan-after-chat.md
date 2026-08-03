@@ -72,7 +72,7 @@ justified against these sources, not made blind. Consult each that applies and c
   AVAILABLE pack whose description matches the work. These are **binding** on *how* the code is written
   (workers, security-auth, api-contracts, data-postgres, ops, testing…). The plan's steps must conform;
   a step that violates an active pack is a defect.
-- **`AGENTS.md`** — the canonical infra + codebase map: service topology, the deploy model, DB schemas,
+- **`agents-fabrik.md`** — the canonical infra + codebase map (`AGENTS.md` is a stub): service topology, the deploy model, DB schemas,
   and the hard invariants (shared `postgres-main` not `localhost`, the external `fabrik` network,
   per-service `deploy.resources.limits.memory`, no host `ports:`, Traefik routing, stable container
   DNS, port allocations). Any infra/compose step must match this.
@@ -116,7 +116,7 @@ source, so a fresh executor inherits the full infra/fabrik/fabrik-lib/rules awar
 |---|---|---|
 | `.windsurf/rules` pack (ACTIVE, per `select_rules.py`) | the discipline it imposes on *how* the code is written | `path` + one-line rule |
 | `fabrik-lib` module (vendored) | the capability it supplies — **vendor, don't build** | module + its real API (read from source), OR why building fresh |
-| `AGENTS.md` infra invariant touched | network/DB/limits/ports/DNS/Traefik constraint | `AGENTS.md:line` |
+| `agents-fabrik.md` infra invariant touched | network/DB/limits/ports/DNS/Traefik constraint | `AGENTS.md:line` |
 | `specs/services/<id>.yaml` `shape.*` flag | which flag must flip (DB/cache/metrics/search/admin) | `spec:line` — read the `shape:` block (inspection, not `fabrik plan`, which is hub-side only) |
 | `docs/data-contract.md` (FROZEN, if present) | the exact GUI↔DB field/enum/FK names every phase must use — no invented fields | the entity/field rows the phase touches |
 | `docs/ui-design.md` (FROZEN, GUI projects) | the screens, minimal-click flows + budgets, per-screen components/states, and screen↔field mapping every UI phase builds against | the screen block(s) the phase builds |

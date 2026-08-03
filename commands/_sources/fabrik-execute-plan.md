@@ -10,7 +10,7 @@ You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan 
 ## Before You Start
 
 1. Read the plan file fully.
-2. Read `AGENTS.md` — the canonical infra + codebase map.
+2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
 4. Read the design spec the plan references (usually linked at the top or in `docs/superpowers/specs/`).
 5. Read `AFCL.md` if it exists — known friction points.
@@ -99,7 +99,7 @@ When you encounter uncertainty, resolve it yourself in this order — do NOT ask
 | 1 | The plan file itself | What to build, exact code, exact commands |
 | 2 | The design spec | Why decisions were made, grounded references |
 | 3 | `.windsurf/rules/` packs (match by glob) | How to write code for this domain (workers, security, ops, etc.) |
-| 4 | `AGENTS.md` | Infra map, service topology, DB schemas |
+| 4 | `agents-fabrik.md` (the canonical map; `AGENTS.md` is a stub) | Infra map, service topology, DB schemas |
 | 5 | `docs/` + `AFCL.md` | Configuration, troubleshooting, known friction |
 | 6 | `grep` / `Read` the codebase | Existing patterns, function signatures, imports |
 | 7 | `mcp__context7` (library docs) → `mcp__exa__web_search_exa` / `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
@@ -179,7 +179,6 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    that shipped a feature / route / service / schema / config change**, run `/fabrik-docs-review` to
    converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness.
 6. **LESSONS_LEARNT** — at the end, either add an entry to `docs/LESSONS_LEARNT.md` or confirm `none` in the completion block. This is a Completion Contract requirement.
-7. **Keep the plan's `Status:` current** — flip it `CONVERGED → IN-PROGRESS` on start, mark each phase done at its boundary, and `→ EXECUTED` (or `BLOCKED — <reason>`) at the end. See **Plan Status Tracking**. The plan file is the durable state a resumed run relies on.
 
 ## Commit Provenance Trailers
 
@@ -276,7 +275,7 @@ git log --format='%h %s' --grep='Agent-Role: review-fix'
 ## Execution Loop
 
 ```
-read plan → read spec → read active rule packs → read AGENTS.md
+read plan → read spec → read active rule packs → read agents-fabrik.md
 acquire scope lock (.fabrik/plan-locks/<id>.json) — RESUME your own plan's stale lock (reconcile real state from git); a DIFFERENT plan's overlap = BLOCK always (freeing a dead sibling's lock is an OPERATOR action); isolate in a worktree if another run is active
 verify OWNED paths clean (same-plan RESUME: dirty = the step-7 MESSY case -> BLOCKED for operator ruling; never adopt/reset)
 
@@ -385,7 +384,7 @@ Test: {list}
 
 ## Before you start
 
-1. Read `AGENTS.md` — infra map.
+1. Read `agents-fabrik.md` — infra map.
 2. Run `python scripts/select_rules.py` and read every ACTIVE pack.
 3. Read the design spec at {path} — sections {X, Y} for context on why.
 4. Read `AFCL.md` if it exists.
@@ -396,13 +395,7 @@ Test: {list}
 
 ## Vendoring protocol (if this task vendors a module)
 
-1. Copy files as specified in the steps below.
-2. Fix internal imports: `from module_name import X` → `from libs.module_name import X`
-3. Add `__init__.py` if the source module lacks one.
-4. Verify: `python -c "from libs.X import Y"` — must exit 0.
-5. If you FIX a bug in the vendored copy, append a dated note to
-   `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md` (symptom + fix) so fabrik-lib upstreams it. This is the
-   only write allowed outside the project tree.
+{Copy steps 1–6 of this command's § When Vendoring (Copying fabrik-lib Modules) verbatim.}
 
 ## Self-Service Knowledge Hierarchy
 
@@ -536,8 +529,7 @@ verdict in both the returned `results_table` and the DB row.
 **Pool-default (per `62` § Dispatch policy):** implementers `fanout` to the pool **by default** — the plumbing
 is proven (`from libs.subagents import fanout, set_quality` resolve + rows land in `subagent_runs`;
 `check_subagent_flywheel.py` WARNs on a pool run left unscored). Reserve **native** implementers for high-risk
-units (auth/schema/migrations/concurrency) + the decide/merge — a native Task subagent produces no
-`AgentResult`, so it records nothing.
+units (auth/schema/migrations/concurrency) + the decide/merge.
 
 The module captures cost / turns / latency automatically; **YOU supply the `set_quality` score** (0 = wrong/
 unusable, 5 = fully correct, high-signal). `fanout`'s auto-record and `set_quality` connect via the module's

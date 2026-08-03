@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-corpus lean review: 6 batches, 18 commands + 9 fragments, ~20 latent bugs fixed (2026-08-03)
+
+Full lean/clarity/enforceability review of every command source under commands/_sources/ +
+all shared fragments, zero functionality change, via per-batch loops: read-only Opus
+proposal with a per-cut justification ledger -> independent token-parity verification ->
+apply -> render + corpus check -> adversarial functionality-preservation review -> restore
+anything flagged -> commit. Yield: modest prose reduction (the corpus is ~90% binding rule
+text; fragments and the recently-converged commands adjudicated NO-CHANGE, md5-proven) and
+~20 real latent defects fixed, all grounded against the live registry: fictional scaffold
+types replaced with the real 12 SCAFFOLD_TYPES; a wrong deploy-axis skip list that would
+have disabled compose review for static-site/docusaurus; nonexistent commands/scripts
+(fabrik sync, a de-registered check_docs.py) unreferenced; two one-unit fanout examples
+that silently dispatched ONE agent instead of three; an unguarded worktree rm -rf that
+could delete a live sibling's work; mobile UI contracts reviewed against the web design
+system; freeze checks missing Date; stale hardcoded pack/check counts made live-counted;
+AGENTS.md-as-canonical-map corrected to agents-fabrik.md (it is a stub) across 4 commands;
+a mega-epic trigger filename that pointed at a nonexistent file; an axes-count mismatch;
+--lean/--systemic gate labels aligned with final_gate.py reality.
+
 ### Fixed — /fabrik-review of uses_claude_cli + llm-dispatch: 5 findings (2026-08-03)
 
 Adversarial self-review of the 3-layer claude-p+OpenRouter design found + fixed: (A) `_assert_claude_cli_mounts`
