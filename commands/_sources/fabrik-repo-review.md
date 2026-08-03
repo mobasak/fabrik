@@ -74,9 +74,9 @@ classes:
   `deploy.resources.limits.memory` (OOM guard); on the `fabrik` network, no host-bound
   ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`)
   NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service
-  name / registered alias), never per-redeploy UUIDs; health checks hit real deps. SKIP
-  this axis only for the types with no compose.yaml (chrome-extension / mobile-app /
-  desktop-app); static-site + docusaurus DO deploy via compose — review their deploy axis.
+  name / registered alias), never per-redeploy UUIDs; health checks hit real deps. apply
+  this axis wherever a compose.yaml EXISTS (Phase 0's surface detection governs — chrome-extension,
+  mobile-app, static-site and docusaurus all scaffold one; only desktop-app has none).
 - SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a
   DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒
   `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`. If

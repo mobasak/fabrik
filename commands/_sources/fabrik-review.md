@@ -22,8 +22,8 @@ first and then DEPTH.
 # The lock records exactly what was distributed to THIS project (~190 paths). PORTS.md is
 # SEEDED_NOT_ENFORCED — projects may edit it, so it stays a normal review target.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vx 'PORTS.md'
-# Covers: AGENTS.md · CLAUDE.md · .windsurfrules · AGENTS-compact.md · .windsurf/rules/** (55 packs)
-#         scripts/enforcement/** (46 checks) · final_gate.py · select_rules.py · review_rubric.py · hooks · reference docs
+# Covers: AGENTS.md · CLAUDE.md · .windsurfrules · AGENTS-compact.md · .windsurf/rules/** (all packs)
+#         scripts/enforcement/** (all checks — counts drift, list is computed) · final_gate.py · select_rules.py · review_rubric.py · hooks · reference docs
 ```
 
 - **ARM the finders — run `python scripts/review_rubric.py --changed <the diff's paths>` and INJECT its
@@ -46,7 +46,7 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
   exactly why the list is **computed, not written by hand**.
 
 **HUB (`/opt/fabrik`)** — these files **ARE the product**, and they carry the **widest blast radius in the
-system**: 55 rule packs + 46 enforcement checks propagate to every project on the next sync. **Review them
+system**: every rule pack + enforcement check propagates to every project on the next sync. **Review them
 HARDER, not less**, through a fleet lens:
 
 - Does this break a project that does **not** have feature X? Is it backward-compatible?

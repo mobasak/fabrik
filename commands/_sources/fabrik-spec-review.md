@@ -122,7 +122,7 @@ convergence you own.
 
 After each pass, list what you re-verified (which URLs you fetched, which modules you read) and what you
 found, then fix the spec. **The loop terminates ONLY when a full, demonstrably-thorough pass makes ZERO
-edits** — the pass in which you fixed anything is never the last; run one more.
+edits** — a no-op round is the only proof of convergence; the pass in which you fixed anything is never the last; run one more.
 
 ## Phase 2 — Handoff-readiness (so `/fabrik-plan-after-chat` can INHERIT, not re-derive)
 

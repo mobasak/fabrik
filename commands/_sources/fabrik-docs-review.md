@@ -141,7 +141,7 @@ round.** (Invoked as the final step of `/fabrik-execute-plan`, the whole loop co
 finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this
 kills — run the next pass instead.
 
-## Phase 3 — Fix in one batch, routed to the right doc
+## Phase 3 — Fix per pass, in one batch, routed to the right doc
 
 Within each pass: complete the pass's DISCOVERY first, then apply that pass's fixes in one batch — do not interleave
 discovery and editing. Route each fact to the document type it belongs to and respect

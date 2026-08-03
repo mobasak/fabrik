@@ -34,7 +34,7 @@ items. Treat every claim as unproven until verified against the actual code and 
 Also verify the plan's **structural pillars** are present and sound (add/fix any that are missing):
 
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real
-  API), every touched `AGENTS.md` invariant + `shape.*` flag is listed and grounded.
+  API), every touched `agents-fabrik.md` invariant (`AGENTS.md` is a stub) + `shape.*` flag is listed and grounded.
 - **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing) and **disjoint** (declared
   non-overlapping so concurrent scoped runs don't collide); any shared file is flagged as a serialization point.
 - **Documentation steps** — every Doc Sync Matrix trigger in the plan's changes has an explicit doc-update step in

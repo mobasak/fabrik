@@ -44,7 +44,8 @@ the finding upstream to `/opt/fabrik` instead.
 3. **Read the project's ADR / architecture-decisions doc FIRST** (e.g.
    `docs/reference/architecture-decisions.md`). The packs assume a particular stack (language, framework,
    DB, migration tool, id scheme); wherever the ADR records this project deliberately differs, that
-   mismatch is an ADR-accepted deliberate decision, NOT a gap. Capture the accepted-deviation list before
+   mismatch is an ADR-accepted deliberate decision, NOT a gap — and the same holds for ANY deviation the ADR
+   accepts (stack-shaped or not: a decided no-audit-log, no-/metrics, single-tenant). Capture the accepted-deviation list before
    auditing anything.
 4. If an argument was given, scope the audit to it: `$ARGUMENTS` (a specific pack or rules subdir).
    Otherwise audit all applicable packs.
