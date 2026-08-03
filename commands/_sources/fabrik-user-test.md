@@ -32,7 +32,7 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
    - `docs/ui-design.md` (FROZEN) — screens, flows, click budgets, states, component map.
    - `docs/data-contract.md` (FROZEN) — every field: type, required, validation bounds, enums,
      PII class. **Boundary values for form tests come FROM here, never invented.**
-   - `docs/FEATURES.md` + the route/nav inventory (grep the router / sidebar config / manifest) —
+   - `docs/FEATURES.md` (thin/stale? run **`/fabrik-features`** first — it converges the denominator this gauntlet tests against) + the route/nav inventory (grep the router / sidebar config / manifest) —
      anything shipped but absent from `ui-design.md` is STILL in scope (and is itself a doc-drift
      finding). No frozen contracts (e.g. a plain website/doc site)? The inventory (Phase 1) IS the
      oracle — build it first, test against it.

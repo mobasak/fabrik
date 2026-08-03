@@ -41,6 +41,7 @@ NEXT = {
     "fabrik-plan-after-chat": "/fabrik-plan-review (auto-invoked) — converge the plan to a fixed point, then /fabrik-execute-plan.",
     "fabrik-plan-review": "/fabrik-execute-plan — build it, phase by phase.",
     "fabrik-execute-plan": "end-to-end certification: /fabrik-user-test (UI-bearing types) · /fabrik-service-test (headless types).",
+    "fabrik-features": "/fabrik-user-test (UI-bearing) · /fabrik-service-test (headless) — certify against the now-complete denominator.",
     "fabrik-user-test": "/fabrik-release once green — but hand off any backend/logic defects to the owning /fabrik-review or plan first.",
     "fabrik-service-test": "/fabrik-release once green — but hand off any out-of-service defects to the owning /fabrik-review or plan first.",
     "fabrik-release": "Gate 2 — human approval. Terminal: no agent deploys, submits, or publishes past here.",
@@ -170,6 +171,14 @@ PARAMS = {
                         "RESOLVE_FROM": "the spec, the data contract, the surface pack, the design system, or an obvious convention",
                         "NEVER_FOR": "a screen name, a route string, an icon choice, or a component selection the design system already dictates",
                         "DO_RAISE": "a genuine flow with two defensible IA structures, a primary task with no clear entry point, or a screen that needs a field the data contract doesn't have"},
+    },
+    "fabrik-features": {
+        "term-edit": {"ARTIFACT": "feature inventory", "DONE_ACT": "declare the inventory CONVERGED (bump `Last Updated:`)", "DONE_WORD": "CONVERGED",
+                      "AXES": "coverage · grounding · exercisability · consistency", "EXEMPT_NOTE": " (The final `Last Updated:` date bump is a post-convergence action, exempt — it does not re-open the loop.)"},
+        "grounding-artifact": {"SUBJECT": "feature row", "EXAMPLES": 'a row citing an endpoint that was deleted, a "feature" no code implements, a live route with no row, a README claim with no backing'},
+        "subagents-core": {"HEADLINE": "pool-default for the gradeable sweep (records to the flywheel)", "TASK_TYPE": '"docs"', "PROJECT": "features",
+                           "FLOOR": _floor("sweep", "`fabrik-reviewer`"),
+                           "EXTRA": " One pool grounder per discovery surface (routes · jobs · CLI · screens · integrations · README claims), mode=\"read_only\" with the surface's code inlined; YOU merge, refute, and write the rows."},
     },
     "fabrik-service-test": {
         "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the HANDED-OFF list (defects outside this service — an upstream vendor, a sibling service, infra — routed to a named owner WITH a committed red repro test) — never an in-scope service finding left unfixed, never a silent skip.", },

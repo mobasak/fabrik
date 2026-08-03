@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-features: converge FEATURES.md into the gauntlets' complete testing denominator (2026-08-04)
+
+New command + skill. The certification gauntlets treat every docs/FEATURES.md row as test inventory
+(bidirectional reconciliation) — so a missing row is a feature that never gets tested and a stale row a
+test that can never pass. /fabrik-features makes that denominator complete BEFORE certification: a
+multi-modal discovery sweep over the CODE (routes, jobs/Beat, CLI entrypoints, UI screens, integrations,
+README/QUICKSTART claims — one pool grounder per surface, native verify), bidirectional reconciliation
+(no capability without a row, no row without living code — every citation opened, not remembered), every
+row made EXERCISABLE (Endpoint/Module cell + user-observable behavior a test can assert; beta/deprecated
+flags honest), converging via the shared term-edit loop to an md5-verified no-op. Template shape preserved
+(FEATURES_TEMPLATE.md is canonical). Wired: NEXT -> the gauntlets; both gauntlets point back when the
+denominator is thin; CLAUDE.md pipeline gains the denominator-refresh step before certification.
+
 ### Fixed — the three checkpoint-stall causes a live agent confessed to (2026-08-04)
 
 A tryton-crm execute-plan run stopped mid-plan and accurately self-diagnosed three causes; all three were
