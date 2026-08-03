@@ -33,7 +33,7 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
   Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling.
 - **A synced doc in the diff is ITSELF the finding:** revert + propose upstream in `/opt/fabrik`.
 - **`PORTS.md` is the exception** (`SEEDED_NOT_ENFORCED`) — projects may edit it → reconcile it normally.
-- A stale claim in a synced doc → fix it **upstream in `/opt/fabrik`**, so all 39 projects get the fix. Never
+- A stale claim in a synced doc → fix it **upstream in `/opt/fabrik`**, so every synced project gets the fix. Never
   patch the local copy.
 
 **HUB (`/opt/fabrik`)** — the synced docs ARE the product; a stale claim propagates to every project. Reconcile

@@ -36,7 +36,7 @@ authoring). Scope = every screen, every flow, every IA node, every per-screen co
 checked against its four binding sources, all read THIS session:
 - the **`/fabrik-spec` design doc** (the product's goal + core workflow — the tasks the UI must serve),
 - **`docs/data-contract.md`** (the FROZEN field dictionary — screens may render only these),
-- the **established design system** (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md`; mobile surface → the RN variants (`.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` / `tojlo-mobile-design-system.md`) / the project's
+- the **established design system** (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md` — for a mobile surface their RN variants `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` / `tojlo-mobile-design-system.md`) / (CREATE, any surface) the project's own
   `docs/design-system.md` — the only components/tokens/states a screen may use),
 - the **surface pack** for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) ·
   `mobile-app/80-mobile.md` (RN screen inventory + a11y) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) ·

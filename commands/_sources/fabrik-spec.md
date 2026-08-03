@@ -62,7 +62,7 @@ the ladder — **stop at the first that fits**, biased toward reuse-and-improve 
 So the design is a **composition** — vendored modules + minimal glue + the truly-novel core (like
 `doc-translate` orchestrating `xlsx-io`/`pdf-extract`/`ocr` + `mt-router`).
 
-**Infra: shape-level ONLY.** Determine what changes *what you build*: which scaffold type (of the 12 in `SCAFFOLD_TYPES`); does
+**Infra: shape-level ONLY.** Determine what changes *what you build*: which scaffold type (of the 12 in `SCAFFOLD_TYPES`; 11 scaffoldable — `wordpress` ships from `/opt/wpf`); does
 it need **DB / cache / metrics / search / auth / admin** (the `shape:` flags); is it a deployed Docker
 service. **Do NOT** re-ground the detailed invariants (`postgres-main` not localhost, memory limits, Traefik,
 container DNS, ports) or the how-code-is-written `.windsurf/rules` packs here — that is `/fabrik-plan-after-chat`

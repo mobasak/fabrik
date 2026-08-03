@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — lean-review confirming rounds: cross-batch reconciliation (2026-08-03)
+
+Two confirming rounds over the cumulative 6-batch lean diff found and fixed cross-batch
+inconsistencies the per-batch reviews could not see (9 in round 1 + 6 in round 2): the
+deploy-axis guidance now defers to real compose.yaml presence (chrome-extension and
+mobile-app DO scaffold one — only desktop-app has none); the AGENTS.md->agents-fabrik.md
+sweep completed everywhere including citation columns; scaffold-type counts state 12 in
+SCAFFOLD_TYPES / 11 scaffoldable (wordpress ships from /opt/wpf); stale hardcoded counts
+made live-computed in fabrik-review AND agents-fabrik.md; two batch-4 restores that had
+silently no-op'd were re-applied; a duplicate clause my own round-1 fix introduced was
+removed. NOTE: the prior "6 batches" entry described several of these fixes as already
+delivered — they landed only in these confirming rounds; this entry is the correction.
+
 ### Changed — command-corpus lean review: 6 batches, 18 commands + 9 fragments, ~20 latent bugs fixed (2026-08-03)
 
 Full lean/clarity/enforceability review of every command source under commands/_sources/ +

@@ -529,8 +529,7 @@ verdict in both the returned `results_table` and the DB row.
 **Pool-default (per `62` § Dispatch policy):** implementers `fanout` to the pool **by default** — the plumbing
 is proven (`from libs.subagents import fanout, set_quality` resolve + rows land in `subagent_runs`;
 `check_subagent_flywheel.py` WARNs on a pool run left unscored). Reserve **native** implementers for high-risk
-units (auth/schema/migrations/concurrency) + the decide/merge — native produces no `AgentResult`, so it
-records nothing.
+units (auth/schema/migrations/concurrency) + the decide/merge.
 
 The module captures cost / turns / latency automatically; **YOU supply the `set_quality` score** (0 = wrong/
 unusable, 5 = fully correct, high-signal). `fanout`'s auto-record and `set_quality` connect via the module's
