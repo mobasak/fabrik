@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Claude config DR backup + restore (2026-08-03)
+
+`scripts/dr_claude_backup.sh` mirrors this box's Claude configuration to the private GitHub DR store
+(`/opt/fabrik-dr-store/claude-config/`) — sibling of `dr_env_backup.sh`, same store and discipline.
+Git IS the versioning: every change is a commit, nothing overwrites its predecessor, and any prior
+state is restorable (`--restore [--from <sha>]`, which stashes live state to
+`~/.claude-restore-backup-<UTC>/` before touching anything). Covers the non-regenerable set: the 4
+custom agents (which exist nowhere else), settings, MCP config, OAuth credentials, the 3 rotated
+accounts, the headless profile's config, and the Windows Desktop MCP roster; excludes ~9 GB of session
+state and everything rendered from `commands/_sources`. `.claude.json` is normalized on mirror (sorted
+keys, volatile counters dropped) so diffs show only real config change and repeated runs are true
+no-ops. Scheduled daily 03:45 + `@reboot` catch-up. B2/Backrest was evaluated and rejected for this
+data class (sub-MB text where point-in-time revert is the goal); it remains correct for VPS blobs.
+Round-trip restore verified byte-identical. Runbook:
+`docs/workstation/claude-config-backup-restore.md`.
+
 ### Added — full Claude configuration inventory for this workstation (2026-08-03)
 
 `docs/workstation/claude-configuration-inventory.md` — every Claude config path on this WSL box with its
