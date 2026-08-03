@@ -117,7 +117,8 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    ships in THIS run**, or you halt with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
 >    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction). *"I judged X
 >    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
->    wait"* are **contract violations, not decisions.** A step you believe is genuinely wrong is a `BLOCKED`
+>    wait"*, *"I'd rather do this carefully than fast"* (deferral dressed as judgment — live observed) are
+>    **contract violations, not decisions.** A step you believe is genuinely wrong is a `BLOCKED`
 >    for the **user** to rule on — never a silent skip or a quiet descope.
 > 2. **The plan file is updated every phase, INSIDE that phase's commit — not optional, not "at the end".** A
 >    phase is **not complete** until the plan file records it: mark the phase `✅ EXECUTED <YYYY-MM-DD>

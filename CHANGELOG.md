@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the three checkpoint-stall causes a live agent confessed to (2026-08-04)
+
+A tryton-crm execute-plan run stopped mid-plan and accurately self-diagnosed three causes; all three were
+governance traps, now defused at the root: (1) CLAUDE.md's 4-line FINAL OUTPUT block is declared a TASK
+terminator, never a phase/loop terminator — emitting it at a green phase gate and handing back control is
+the named checkpoint-stall defect; (2) the plan-execution override now names the re-ask trap verbatim —
+re-applying present-before-execute to a "risky" step is requesting permission you already have (a wrong
+step is a BLOCKED spec-contradiction, never a mid-run ask); (3) "I'd rather do this carefully than fast"
+joins execute-plan's non-negotiable-#1 violation list as deferral dressed as judgment (live observed).
+
 ### Added — certification disposition gate: HANDOFF rows are now machine-checked (2026-08-03)
 
 check_review_coverage.py gains a disposition gate for certification reports (*-user-test-* /
