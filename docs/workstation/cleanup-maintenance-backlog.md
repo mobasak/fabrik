@@ -41,31 +41,25 @@
 
 ## B. Confirm-first personal files (owner decision)
 
-- **B1.** `~/traycer-report-panel` (51 MB, Mar 2026) — old, superseded?
-- **B2.** `~/m365-venv` (37 MB, Dec 2025) — stale venv; keep only if the M365 script is still used.
-- **B3.** `~/financian_claims.jsonl` (1 MB) — data dump; check before removing.
-- **B4.** `~/youtube_downloader.py` + `~/setup_youtube_downloader.sh` (18 KB, Nov 2025) — orphan scripts.
-- **B5.** Old dotfile `*.backup` files still loose in `~` (`.bashrc.backup.20260705-135013`,
-  `.claude.json.backup` + `.claude.json.backup.20260603-214445`, `start-mcp-shell.sh.backup×2`,
-  `.gitconfig.backup`, `.npmrc.backup`, `.crontab.backup.20260630-105542Z`) plus the stale dirs
-  `~/.claude-fab-shim-backup-20260721/` and `~/fabrik-traycer-backups/` — consolidate into `~/backups/`.
+- **B1.** ✅ DONE (2026-08-03) — `~/traycer-report-panel` removed (Traycer retired).
+- **B2.** ✅ DONE (2026-08-03) — `~/m365-venv` removed (M365 runs via the claude.ai connector).
+- **B3.** ✅ DONE (2026-08-03) — archived to `~/old-residue-20260803/` (reversible).
+- **B4.** ✅ DONE (2026-08-03) — archived to `~/old-residue-20260803/`.
+- **B5.** ✅ DONE (2026-08-03) — loose `~` backups archived to `~/old-residue-20260803/`; `~/.claude-fab-shim-backup-20260721/` + `~/fabrik-traycer-backups/` removed.
 - **B6.** Windows `Downloads` — 2020-onward installers left for review (only pre-2020 + the Adobe zip were removed).
-- **B7.** Windows Devin CLI remnants (~750 KB): `AppData\Local\devin` + `AppData\Roaming\devin` — remove if Devin CLI unused.
+- **B7.** ✅ DONE (2026-08-03) — no `devin` dirs remain under `/mnt/c` (already removed).
 
 ---
 
 ## C. Follow-ups tied to your own fixes
 
-- **C1. calendar-orchestration cron + dead `FACTORY_API_KEY`.** You're keeping the weekly cron (Sun 02:00) to
-  swap Factory for another provider. Until then it fails (Factory dropped → key invalid). When you fix it,
-  **remove the hardcoded `FACTORY_API_KEY` from the crontab line** (secret in plaintext in `crontab -l`).
-
+- **C1.** ✅ DONE (2026-08-03) — Factory is retired: the weekly cron line (Sun 02:00, plaintext `FACTORY_API_KEY`) was removed (crontab backed up to `~/backups/`). NOTE for the calendar-orchestration-engine owner: its `enrichWithAI/classifyWithAI/curateEvents` scripts still reference `FACTORY_API_KEY` — the pipeline needs an OpenRouter migration before it can run again.
 - **C2. grafana-MCP orphan reaper.** The `mcp/grafana` containers leak on MCP reconnect churn (config already
   has `--rm`; orphans stay "Up" after ungraceful disconnects, so `--rm` never fires). 10 are up right now, the
   oldest ~18h. Harmless (~0 disk). Optional: add a reaper line to `~/.local/bin/cache-prune.sh` to remove idle
   `mcp/grafana` containers — note `docker container prune` never touches them because they never stop.
 
-- **C3. Grafana service-account token** sits in plaintext in `~/.claude.json` (grafana MCP `env` block). Normal for
+- **C3.** ACCEPTED (2026-08-03) — the Grafana token in `~/.claude.json` is required by the grafana MCP; per the single-operator threat model this is accepted, not a to-do.
   MCP configs; noted for awareness.
 
 ---
