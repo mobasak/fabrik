@@ -1,6 +1,6 @@
 # WSL Startup Inventory — what runs when WSL starts
 
-**Date:** 2026-07-25
+**Date:** 2026-08-03
 **Status:** ✅ CURRENT
 **Affects:** Local WSL2 dev box (`Ubuntu-24.04`). NOT the VPS fleet.
 
@@ -17,11 +17,13 @@
 | `openvpn.service` | VPN tunnel |
 | `fabrik-mcp-http` · `fabrik-citation-verifier-mcp` · `fabrik-citation-verifier` · `citation-verifier` | Fabrik MCP + citation services |
 | `fabrik-dr-watcher` · `env-watcher` | Fabrik watchers |
-| `emailgateway` · `namecheap-api` · `image-broker` · `captcha` · `seo` | Project microservices |
+| `emailgateway` · `namecheap-api` · `image-broker` · `captcha` · `seo` · `webscraper-ui` | Project microservices |
+| `spamd` | SpamAssassin daemon (Ubuntu package unit, enabled) |
 
 **Does NOT auto-start (manual):**
 
-- `ollama.service` — local LLM server (the 72 GB models). Start when needed: `sudo systemctl start ollama`
+- `ollama.service` — local LLM server (71 GB of models under `/usr/share/ollama/.ollama/models`; unit is
+  `disabled` + `inactive`). Start when needed: `sudo systemctl start ollama`
 
 **Stock Ubuntu (ignore):** `apparmor`, `landscape-client`, `ubuntu-advantage`, `snap.cups.*`, `ssl-cert`, `unbound-resolvconf`, etc.
 
@@ -31,14 +33,22 @@
 
 - `/opt/youtube/scripts/start_all.sh` — starts the YouTube RAG pipeline
 - `/opt/youtube/scripts/b2_socks_tunnel.sh` — B2 storage SOCKS tunnel
+- `/opt/youtube/scripts/rag_backfill_supervisor.sh` — headless-Claude RAG backfill supervisor
+- `sleep 60 && /opt/fabrik/scripts/dr_env_backup.sh` — catch-up DR credential mirror
 
 ---
 
 ## C. Scheduled (cron + systemd timers, while running)
 
-- **cron:** youtube `recovery_sweep` (every 5 min), fabrik audits (hourly + weekly), `kilo_model_sync` (daily),
-  calendar-orchestration (weekly), site-provisioner watchlist/drop-feed (daily), youtube financials (weekly)
-- **timers:** `proxy_sync`, `ip_authorization`, `episodic-index`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
+- **cron:** youtube `recovery_sweep` + `start_all.sh ensure` (every 5 min), youtube RAG indexing
+  (`rag_claim_index` hourly, `rag_claim_embed_index` hourly, `rag_daily_index` daily) + logrotate/job-prune
+  (daily 04:00/04:05) + financials (weekly), fabrik audits (`audit_all_registrars` hourly,
+  `audit_authelia_gates` Mon 06:00), `ci_fix_dispatcher` (hourly :40), `sync-claude-accounts-to-fleet`
+  (every 6 h), `daily_refresh.sh` (06:00) + `kilo_model_sync` (11:59), DR (`dr_env_backup` 03:30 + Sun 04:00
+  recovery test), `cache-prune.sh` (Sun 03:00), calendar-orchestration (Sun 02:00), site-provisioner
+  watchlist/drop-feed/dns-recheck, trade-intelligence GTIP refresh (05:30), headless-Claude session prune (05:17)
+- **timers:** `proxy_sync`, `ip_authorization`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
+  (+ stock `apt-daily*`, `man-db`, `motd-news`, `systemd-tmpfiles-clean`, `e2scrub_all`)
 
 ---
 
@@ -49,6 +59,8 @@
 
 **`~/.bashrc` (113 active lines) does:**
 
+- **fabrik startup hook** (line 212, interactive shells only): `source /opt/fabrik/scripts/wsl_startup_hook.sh`
+  — env watcher + the lockfile-gated daily pipeline (detail: [../operations/wsl-environment.md](../operations/wsl-environment.md))
 - **nvm load** (lines 214–216 → Node 24 in interactive shells; non-interactive shells return early before this)
 - **ssh aliases:** `vps` / `vprod` → `ssh ozgur@172.93.160.197`
 - **git aliases:** `g`, `gs`, `gp`, `gpu`, plus `opt`, `tools`, `ll`, `env-check`

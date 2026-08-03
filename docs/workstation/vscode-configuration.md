@@ -1,6 +1,6 @@
 # VS Code Configuration — Workstation Reference
 
-**Date:** 2026-07-26
+**Date:** 2026-08-03
 **Status:** ✅ CURRENT
 **Affects:** Local Windows host + WSL Remote (`Ubuntu-24.04`). NOT the VPS fleet.
 **Settings file:** `C:\Users\user\AppData\Roaming\Code\User\settings.json` (user scope — applies to all windows, incl. WSL Remote). Every edit is backed up first to `~/backups/vscode-settings.json.backup.*`.
@@ -17,7 +17,8 @@ commits, and hosting the AI extensions. Anything that exists to help a *human ty
 
 | Role | Extensions | Why |
 |---|---|---|
-| AI agents | `anthropic.claude-code` · `traycer.traycer-vscode` · `kilocode.kilo-code` · `vishalguptax.claude-manager` | The actual coders |
+| AI agents | `anthropic.claude-code` · `vishalguptax.claude-manager` | Claude Code is the coder; claude-manager wraps session/account management |
+| Retired stack, still installed | `traycer.traycer-vscode` · `kilocode.kilo-code` | Kilo CLI and Windsurf/Cascade were retired 2026-07-19 (LLM access = Claude Max OAuth + OpenRouter). The extensions and their `settings.json` keys are still on disk — prune candidates, not active surfaces |
 | Agent auditing | `eamodio.gitlens` | Inline blame + Commit Graph = "which agent changed this line and why" (reads the `Agent-Role`/`Agent-Context` commit trailers) |
 | CI visibility | `github.vscode-github-actions` | CI genuinely runs on GitHub; failures surface here |
 | Viewing | `cweijan.vscode-office` · `vscode-infra.image-viewer` · `vstirbu.vscode-mermaid-preview` | xlsx/docx, generated images (image pipelines), mermaid in 11+ fabrik docs |
@@ -47,8 +48,8 @@ underlines in Python files opened for reading. Currently KEPT, scoped down (see 
 "chat.disableAIFeatures": true
 ```
 
-Disables VS Code's built-in Copilot/AI chat surface. Claude Code, Traycer, and Kilo are the AI
-surfaces on this machine; the built-in one is redundant UI + background service.
+Disables VS Code's built-in Copilot/AI chat surface. Claude Code is the AI surface on this machine;
+the built-in one is redundant UI + background service.
 
 ---
 

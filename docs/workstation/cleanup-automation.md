@@ -1,6 +1,6 @@
 # Cleanup Automation — WSL + Windows
 
-**Date:** 2026-07-25
+**Date:** 2026-08-03
 **Status:** ✅ CURRENT
 **Affects:** Local dev box (WSL2 `Ubuntu-24.04`) + its Windows host. NOT the VPS fleet.
 
@@ -10,8 +10,8 @@ compaction tool**.
 | Piece | Where | Schedule | Owns |
 |---|---|---|---|
 | `cache-prune.sh` | `~/.local/bin/` (WSL) | cron **Sun 03:00** | WSL caches, Docker, logs, journal |
-| `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup` | Windows Temp, crash dumps, WU downloads |
-| `compact-wsl.bat` | OneDrive Desktop | manual | WSL vhdx compaction |
+| `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup`, **Sun 04:00** | Windows Temp, crash dumps, WU downloads |
+| `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
 
 ---
 
@@ -41,7 +41,7 @@ infra, not a place for personal-box cleanup.
 
 ## B. Windows cleaner — `C:\Users\user\scripts\cleanup-weekly.ps1`
 
-- **Schedule:** Windows Task Scheduler task **`Fabrik-WeeklyCleanup`** (weekly), logs to `…\scripts\cleanup-weekly.log`.
+- **Schedule:** Windows Task Scheduler task **`Fabrik-WeeklyCleanup`** (weekly, Sun 04:00), logs to `…\scripts\cleanup-weekly.log`.
 - **Preview (deletes nothing):** `powershell -File cleanup-weekly.ps1 -DryRun`
 - **Design:** age-gated deletion — never removes anything a running process might still reach for.
 

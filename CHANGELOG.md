@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — workstation/WSL docs reconciled against the live machine (2026-08-03)
+
+One-pass claim-by-claim verification of docs/workstation/* + docs/operations/wsl-environment.md
+with live probes (~30 fixes): backlog A2 (stopped containers) marked DONE; vhdx sizes corrected
+(358 GB / 277 GB in-guest); the cleanup script is cache-prune.sh (no wsl-cleanup.sh exists);
+episodic-memory MCP removed from the Node-22 rationale; startup inventory rebuilt from live
+systemd/crontab (episodic-index timer never existed; webscraper-ui + spamd added; all 4 @reboot
+entries); Traycer/Kilo marked retired-but-still-installed in the VS Code doc (probe-accurate);
+WSL2-DNS doc's self-contradicting options block removed; MCP_HTTP doc corrects stdio-still-used-
+by-Claude-Desktop + warns about the two port-race look-alike units; wsl-environment gains the 6
+missing crontab rows, the real daily-pipeline outputs, 10 registrars, and an accurate
+systemd-vs-cron split. Unverifiable items stated plainly (D: not mounted in WSL).
+
 ### Fixed — lean-review confirming rounds: cross-batch reconciliation (2026-08-03)
 
 Two confirming rounds over the cumulative 6-batch lean diff found and fixed cross-batch

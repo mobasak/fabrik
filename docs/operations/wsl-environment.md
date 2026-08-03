@@ -1,6 +1,6 @@
 # WSL environment — operations runbook
 
-Owner: ozgur · Last reviewed: 2026-07-19 (crontab inventory reconciled vs live `crontab -l` — 6 entries added since the prior review)
+Owner: ozgur · Last reviewed: 2026-08-03 (crontab inventory reconciled vs live `crontab -l`; bashrc hook line + daily-pipeline outputs re-grounded against `wsl_startup_hook.sh` and `sync_projects.py`)
 
 This is the WSL-side counterpart to [deployment.md](deployment.md) (VPS) and [fabrik-lifecycle.md](fabrik-lifecycle.md) (runtime behavior). It documents everything that runs on your local Windows-WSL2 development host — crontab, bashrc-sourced startup chain, lockfile and PID conventions, project-cron lifecycle policy, recovery.
 
@@ -13,7 +13,12 @@ WSL2 doesn't ship with a traditional init system. Fabrik operates on the local h
 - Some workloads (Backblaze proxy tunnel, daily catalog refresh) are inherently WSL-local
 - DR-mirror of credentials must originate from the WSL canonical source
 
-Cron is preferred over systemd on WSL2 because systemd support requires `systemd=true` in `/etc/wsl.conf` + WSL 0.67.6+ and is occasionally flaky after Windows updates. On the VPS, systemd is fine and is used (e.g. `fabrik-dr-watcher.service`).
+Both schedulers are live here. `/etc/wsl.conf` carries `[boot] systemd=true`, so systemd runs and owns the
+long-lived daemons (`fabrik-mcp-http`, `citation-verifier`, `fabrik-dr-watcher`, `env-watcher`, the project
+microservices — inventory in [../workstation/wsl-startup-inventory.md](../workstation/wsl-startup-inventory.md)).
+Cron owns the *scheduled* work below, because plain cron survives WSL's occasional post-Windows-update systemd
+flakiness and needs no unit files. Caveat: cron has **no catch-up** — a job whose window passes while WSL is
+shut down is simply skipped (a systemd timer with `Persistent=true` would not be).
 
 ## Crontab inventory
 
@@ -24,7 +29,7 @@ Run `crontab -l` to view. Every entry is documented below. **Schedule cell shows
 | Schedule | Target | Purpose |
 |---|---|---|
 | `0 6 * * *` (06:00 local = 03:00 UTC) | `/opt/fabrik/scripts/kilo-benchmarks/daily_refresh.sh` | AI catalog refresh + browser regen. ~30 steps, instrumented with per-step `[timing]` lines + `[timing] TOTAL: Ns` at end. See [AI_MODELS_BROWSER_OPS.md](AI_MODELS_BROWSER_OPS.md). |
-| `0 * * * *` | `/opt/fabrik/scripts/audit_all_registrars.py` | Hourly drift audit: walks every spec under `specs/services/*.yaml`, runs 9 registrars × N specs, emits Prometheus text metrics → pushgateway → Alertmanager → Telegram on drift. T4-04 G-G5. |
+| `0 * * * *` | `/opt/fabrik/scripts/audit_all_registrars.py` | Hourly drift audit: walks every spec under `specs/services/*.yaml`, runs 10 registrars × N specs, emits Prometheus text metrics → pushgateway → Alertmanager → Telegram on drift. T4-04 G-G5. |
 | `0 6 * * 1` (Mon 06:00) | `/opt/fabrik/scripts/audit_authelia_gates.py` | Weekly Authelia drift audit. Detects when Traefik isn't applying `authelia-forward@docker` middleware to admin-dashboard routers (2FA-bypass detection). Driven by Lesson 32 incident. |
 | `30 3 * * *` (03:30 daily) | `/opt/fabrik/scripts/dr_env_backup.sh` | DR mirror of credentials (`/opt/fabrik/.env`, `vps:.env.sysadmin`, `vps2/vps3:.env` + `.restic-password`) to private GitHub repo at `/opt/fabrik-dr-store`. W9 of fleet-hardening. Also triggered change-driven by `fabrik-dr-watcher.service`. |
 | `@reboot` (+60s sleep) | `/opt/fabrik/scripts/dr_env_backup.sh` | Catch-up DR backup after WSL boots. |
@@ -32,6 +37,8 @@ Run `crontab -l` to view. Every entry is documented below. **Schedule cell shows
 | `59 11 * * *` (11:59 daily) | `cd /opt/fabrik && python3 scripts/kilo_model_sync.py --sync` | Daily Kilo model sync (added 2026-03-09). |
 | `0 3 * * 0` (Sun 03:00) | `/home/ozgur/.local/bin/cache-prune.sh` | Weekly cache cap — clears regenerable download/build caches only when they exceed a threshold; never touches `~/.local` or source/data. |
 | `17 5 * * *` | `find ~/.claude-youtube-headless/projects -type f -mtime +1 -delete` | Prunes headless-Claude session files older than 1 day. |
+| `40 * * * *` | `/opt/fabrik/scripts/ci_fix_dispatcher.py` | Hourly CI auto-fix net: polls GitHub for failed runs and dispatches a local coder-AI fix. Logs to `~/.local/state/ci-fix/cron.log`. |
+| `0 */6 * * *` | `/opt/fabrik/scripts/sysadmin/sync-claude-accounts-to-fleet.sh` | Keeps the VPS standby Claude-account snapshots fresh — the source of truth for quota rotation. Logs to `~/.cache/claude-fleet-sync.log`. |
 
 ### Project-owned (will move to project's VPS deployment when deployed)
 
@@ -51,6 +58,10 @@ These run on WSL today because the projects are pre-deploy. **Lifecycle policy: 
 | `0 * * * *` | `/opt/site-provisioner/scripts/dns_recheck.py` | site-provisioner | Hourly DNS availability recheck. Move to VPS when deployed. |
 | `30 3 * * *` | `/opt/youtube/scripts/rag_daily_index.py --limit 2500 --source-type transcripts` | youtube | Daily RAG transcript indexing. Will move to VPS when youtube deploys. |
 | `0 * * * *` | `/opt/youtube/scripts/rag_claim_index.py --limit 42` | youtube | Hourly RAG claim indexing. Will move to VPS when youtube deploys. |
+| `20 * * * *` | `/opt/youtube/scripts/rag_claim_embed_index.py --limit 2000 --loop 5` | youtube | Hourly claim-embedding pass. Will move to VPS when youtube deploys. |
+| `@reboot` | `/opt/youtube/scripts/rag_backfill_supervisor.sh` | youtube | RAG backfill supervisor (headless Claude, `CLAUDE_CONFIG_DIR=~/.claude-youtube-headless`, concurrency 5). Will move to VPS when youtube deploys. |
+| `0 4 * * *` | `/usr/sbin/logrotate -s /opt/youtube/.tmp/logrotate.state /opt/youtube/scripts/logrotate.conf` | youtube | Daily log rotation, keeps 3 rotations. |
+| `5 4 * * *` | `find /opt/youtube/.tmp/jobs -type f -mtime +3 -delete` | youtube | Prunes stale `rund` job wrappers older than 3 days. |
 | `*/5 * * * *` | `/opt/youtube/scripts/start_all.sh ensure` | youtube | Keeps the 7 youtube services up (restart-if-dead sweep). Will move to VPS when youtube deploys. |
 | `30 5 * * *` | `/opt/trade-intelligence/scripts/gtip/run_refresh_once.sh` | trade-intelligence | Daily single-pass GTIP tax refresh against the self-hosted `trade_intelligence` Postgres. Move to VPS when deployed. |
 
@@ -70,11 +81,11 @@ Backup of pre-cleanup crontab: `~/.crontab.backup.20260630-105542Z`.
 
 ## Bashrc-sourced startup chain
 
-`~/.bashrc:214` sources `/opt/fabrik/scripts/wsl_startup_hook.sh` on every interactive shell open. The hook runs:
+`~/.bashrc:212` sources `/opt/fabrik/scripts/wsl_startup_hook.sh` on every interactive shell open (`[ -t 1 ] &&` guard — non-interactive shells skip it). The hook runs:
 
 1. **Env watcher** (persistent process; not daily): starts `watch_env_changes.sh` if not already running. Monitors `/opt/*/.env` for changes and logs violations.
 2. **Daily pipeline** (lockfile-gated; once per UTC day):
-   - Project registry sync: `project.yaml` from every `/opt/*/project.yaml` → merged into `data/projects.yaml` + updates `BUSINESS_MODEL.md` + `PORTS.md`
+   - Project registry sync (`scripts/sync_projects.py`): `project.yaml` from every `/opt/*/project.yaml` → merged into `data/projects.yaml` + the `AUTO-GENERATED:PROJECTS` block of `docs/PROJECT_CATALOG.md`
    - Cascade backup freshness check
    - Health summary
    - **Kilo agent workflow** (also now in cron daily_refresh.sh): kilo_agents_db.py, update_kilo_benchmarks.py, scrape_artificial_analysis.py, role_mapper.py, export_traycer_registry.py, generate_kilo_agents.py

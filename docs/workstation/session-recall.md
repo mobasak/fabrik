@@ -1,6 +1,6 @@
 # session-recall — workstation session history & recall
 
-**Last Updated:** 2026-07-26
+**Last Updated:** 2026-08-03 (verified live — PostgreSQL 16.14 cluster online, index at 3 878 sessions / 138 971 turns fresh to the minute, `session-recall` MCP registered in `~/.claude.json`, the `SessionStart` hook installed in `~/.claude/settings.json` alongside the pre-existing claude-manager tap)
 
 > **What this is:** the workstation-level overview of **session-recall** — the local index of every Claude
 > Code session on this box, exposed to every agent as MCP tools + an auto-injected session-start digest.

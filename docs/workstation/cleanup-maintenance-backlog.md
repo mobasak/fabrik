@@ -1,6 +1,6 @@
 # Workstation Cleanup & Maintenance Backlog
 
-**Date:** 2026-07-25
+**Date:** 2026-08-03
 **Status:** 🟡 OPEN ITEMS — the big cleanup is done (~90 GB reclaimed); this tracks what's left.
 **Affects:** Local WSL2 dev box (Ubuntu-24.04) + its Windows host. NOT the VPS fleet.
 
@@ -18,22 +18,24 @@
 
 ## A. Disk reclaim — optional / deferred
 
-- **A1. WSL `ext4.vhdx` compaction (~65 GB dead air).** File is 316 GB; real usage ~250 GB.
+- **A1. WSL `ext4.vhdx` compaction (~81 GB dead air).** File is 358 GB
+  (`C:\Users\user\AppData\Local\wsl\{4719c2ec-…}\ext4.vhdx`); real in-guest usage 277 GB.
   `diskpart compact` and `Optimize-VHD -Mode Full` **both confirmed ineffective** — WSL2 does not
   propagate `fstrim` discard down to deallocate vhdx blocks, so nothing to reclaim. The **only** reliable
-  method is a full **`wsl --export` → `--unregister` → `--import`** rebuild (tar → `D:\`, 704 GB free).
-  Heavy op (~250 GB moved twice); resets default user (restore via `/etc/wsl.conf` `[user] default=ozgur`
+  method is a full **`wsl --export` → `--unregister` → `--import`** rebuild (tar → `D:\`).
+  Heavy op (~277 GB moved twice); resets default user (restore via `/etc/wsl.conf` `[user] default=ozgur`
   or `wsl --manage --set-default-user`). C: currently has ample free space, so this is optional.
   *Note:* a full export tar contains everything — all `/opt` projects, crontab (incl. secrets), `.bashrc`, services.
 
-- **A2. ~10 GB Docker images behind 8 stopped test containers.** Removing the stacks unlocks the images:
-  `wpf-test-{nginx,wp,mariadb}`, `tojlo-{rag,rls,phase0}`, `crm-dev-postgres`, `ti-dev-pg` (all `Exited 255`).
-  Then `docker image prune -a` reclaims. ⚠️ `crm-dev-postgres` / `ti-dev-pg` / `wpf-test-*` exited only
-  ~10h ago — may be active dev stacks. Confirm before removing.
+- **A2. Stopped test containers — ✅ DONE (2026-08-03).** No stopped containers remain: `wpf-test-*` and
+  `tojlo-*` are gone; `crm-dev-postgres` and `ti-dev-pg` turned out to be live dev stacks and are running.
+  Residual image slack is now 6.4 GB reclaimable of 17.1 GB (43 images, 7 active) — `docker image prune -f`
+  runs weekly inside `cache-prune.sh`, so no manual action.
 
-- **A3. nvm `v22.22.2` (~412 MB).** Kept because it currently hosts **7 live MCP servers**
-  (episodic-memory, chrome-devtools-mcp, etc.). After the **next Claude Desktop / VS Code restart**, those
-  relaunch under Node 24.18 (the new default) → then remove with `nvm uninstall 22.22.2`. Verify MCPs work first.
+- **A3. nvm `v22.22.2` (412 MB).** No longer hosts any MCP server — every MCP in `~/.claude.json` and in
+  Claude Desktop's config runs under `/usr/bin/node`, `npx`, or a venv. The one remaining consumer is the
+  youtube docs-site job, which pins `PATH=…/v22.22.2/bin` in its `npm start` wrapper. Repoint that wrapper
+  at Node 24.18, then remove with `nvm uninstall 22.22.2`.
 
 ---
 
@@ -43,8 +45,10 @@
 - **B2.** `~/m365-venv` (37 MB, Dec 2025) — stale venv; keep only if the M365 script is still used.
 - **B3.** `~/financian_claims.jsonl` (1 MB) — data dump; check before removing.
 - **B4.** `~/youtube_downloader.py` + `~/setup_youtube_downloader.sh` (18 KB, Nov 2025) — orphan scripts.
-- **B5.** Old dotfile `*.backup` files (`.bashrc.backup`, `.claude.json.backup*`, `start-mcp-shell.sh.backup×2`,
-  `.gitconfig.backup`, `.npmrc.backup`) — consolidate into `~/backups/`.
+- **B5.** Old dotfile `*.backup` files still loose in `~` (`.bashrc.backup.20260705-135013`,
+  `.claude.json.backup` + `.claude.json.backup.20260603-214445`, `start-mcp-shell.sh.backup×2`,
+  `.gitconfig.backup`, `.npmrc.backup`, `.crontab.backup.20260630-105542Z`) plus the stale dirs
+  `~/.claude-fab-shim-backup-20260721/` and `~/fabrik-traycer-backups/` — consolidate into `~/backups/`.
 - **B6.** Windows `Downloads` — 2020-onward installers left for review (only pre-2020 + the Adobe zip were removed).
 - **B7.** Windows Devin CLI remnants (~750 KB): `AppData\Local\devin` + `AppData\Roaming\devin` — remove if Devin CLI unused.
 
@@ -57,8 +61,9 @@
   **remove the hardcoded `FACTORY_API_KEY` from the crontab line** (secret in plaintext in `crontab -l`).
 
 - **C2. grafana-MCP orphan reaper.** The `mcp/grafana` containers leak on MCP reconnect churn (config already
-  has `--rm`; orphans stay "Up" after ungraceful disconnects, so `--rm` never fires). Harmless (~0 disk). Optional:
-  add a reaper line to `wsl-cleanup.sh` to remove idle `mcp/grafana` containers.
+  has `--rm`; orphans stay "Up" after ungraceful disconnects, so `--rm` never fires). 10 are up right now, the
+  oldest ~18h. Harmless (~0 disk). Optional: add a reaper line to `~/.local/bin/cache-prune.sh` to remove idle
+  `mcp/grafana` containers — note `docker container prune` never touches them because they never stop.
 
 - **C3. Grafana service-account token** sits in plaintext in `~/.claude.json` (grafana MCP `env` block). Normal for
   MCP configs; noted for awareness.
@@ -68,7 +73,7 @@
 ## D. Separate governance task (`/opt/fabrik` — NOT workstation cleanup)
 
 - **D1. `.windsurfrules` + Cascade-executor references.** `.windsurfrules` is in `fabrik_synced_manifest.py` →
-  propagates to all 41 projects; `select_rules.py` + rule-pack docs still name **Cascade** as an executor though it's
+  propagates to all 42 `/opt/*` projects; `select_rules.py` + rule-pack docs still name **Cascade** as an executor though it's
   retired. ⚠️ **The `.windsurf/rules/` FOLDER content is LIVE governance — keep it.** Only the single legacy
   `.windsurfrules` file + stale Cascade-executor prose are candidates. This is a deliberate fleet-wide change →
   its own focused task through the fabrik pipeline (upstream edit + gate + review), not a workstation chore.

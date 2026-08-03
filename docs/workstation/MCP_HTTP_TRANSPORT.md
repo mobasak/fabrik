@@ -1,8 +1,8 @@
 # Fabrik Citation Verifier — MCP HTTP Transport
 
-Status: **PRIMARY** (2026-05-09 onward). The stdio entrypoint remains in the codebase as fallback but is no longer used.
+Status: **PRIMARY for Claude Code** (2026-05-09 onward). Claude Desktop still spawns the **stdio** entrypoint via `wsl.exe` (see its `claude_desktop_config.json` entry below) — stdio is not dead, it is the Desktop path.
 
-**Last Updated:** 2026-06-16 (verified accurate — fabrik-mcp-http + citation-verifier services active locally; 5 MCP tools; streamable-http transport)
+**Last Updated:** 2026-08-03 (verified live — `fabrik-mcp-http` + `citation-verifier` both `active`, `127.0.0.1:8033` and `0.0.0.0:8032` bound, `.claude.json` entry is the HTTP shape, 5 MCP tools)
 
 ## Why HTTP, not stdio
 
@@ -34,14 +34,19 @@ PostgreSQL + 12 resolver backends
 
 Two services. `fabrik-mcp-http` `Requires=citation-verifier`, so they start/stop together. Both are managed by systemd with `Restart=on-failure RestartSec=5`.
 
+**Two look-alike units are also `enabled` and always lose the port race — ignore them, don't "fix" them by starting them:**
+`fabrik-citation-verifier.service` (a second API on `127.0.0.1:8032`, ends `failed` because `citation-verifier` already owns 8032) and
+`fabrik-citation-verifier-mcp.service` (a second `server_http`, stays `inactive` because `fabrik-mcp-http` owns 8033).
+The live pair is `citation-verifier` + `fabrik-mcp-http`.
+
 ## Files
 
 | Path | Role |
 |---|---|
-| `/opt/fabrik-citation-verifier/mcp_server/server.py` | Original stdio entrypoint (still works, kept as fallback) |
-| `/opt/fabrik-citation-verifier/mcp_server/server_http.py` | NEW. HTTP entrypoint. Imports `mcp` from `server.py`, calls `mcp.run(transport="streamable-http")` |
-| `/etc/systemd/system/fabrik-mcp-http.service` | NEW. systemd unit. Listens on `127.0.0.1:8033/mcp`, logs to `/var/log/fabrik/mcp-http.log` |
-| `/etc/systemd/system/citation-verifier.service` | UNCHANGED. Backend on port `8032` (binds `0.0.0.0`, reachable via `127.0.0.1`; only fabrik-mcp-http on 8033 is loopback-bound). |
+| `/opt/fabrik-citation-verifier/mcp_server/server.py` | stdio entrypoint — the path Claude **Desktop** uses |
+| `/opt/fabrik-citation-verifier/mcp_server/server_http.py` | HTTP entrypoint. Imports `mcp` from `server.py`, calls `mcp.run(transport="streamable-http")` |
+| `/etc/systemd/system/fabrik-mcp-http.service` | systemd unit. Listens on `127.0.0.1:8033/mcp`, logs to `/var/log/fabrik/mcp-http.log` |
+| `/etc/systemd/system/citation-verifier.service` | Backend on port `8032` (binds `0.0.0.0`, reachable via `127.0.0.1`; only fabrik-mcp-http on 8033 is loopback-bound). |
 
 ## Claude Code config
 

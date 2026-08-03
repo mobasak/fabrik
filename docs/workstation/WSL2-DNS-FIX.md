@@ -1,7 +1,7 @@
 # WSL2 DNS Resolution Fix
 
 **Date:** 2026-03-16
-**Status:** ✅ APPLIED — re-confirmed in effect 2026-06-06 (no change to mechanism; dev-WSL DNS still resolves cleanly. This fix is orthogonal to the VPS fleet — applies only to the local development environment, doesn't affect aro-wake / loop guards / SLI metrics / spoke routing work shipped today.)
+**Status:** ✅ APPLIED — re-confirmed in effect 2026-08-03 (`/etc/wsl.conf` still carries `generateResolvConf = false`; `/etc/resolv.conf` still holds the two static nameservers and is still immutable — `lsattr` shows `----i---------e------`). This fix is orthogonal to the VPS fleet — it applies only to the local development environment.
 **Affects:** All WSL2 environments running Fabrik
 
 ---
@@ -33,20 +33,24 @@ Disabled WSL2's automatic `/etc/resolv.conf` generation and created a static con
 
 ### Step 1: Disable Auto-Generation
 
-Created `/etc/wsl.conf`:
+`/etc/wsl.conf` carries the `[network]` block this fix owns:
 ```ini
 [network]
 generateResolvConf = false
 ```
 
+(The live file also carries `[boot] systemd=true` and an `[automount]` options line — unrelated to DNS, do not
+remove them when editing.)
+
 ### Step 2: Create Static DNS Configuration
 
-Created `/etc/resolv.conf`:
+`/etc/resolv.conf` — the live file, verbatim:
 ```
+# Static public DNS — WSL forwarder 10.255.255.254 hangs on A-record lookups (2026-05-31). Locked with chattr +i.
 nameserver 1.1.1.1
 nameserver 8.8.8.8
-# (re-verified 2026-07-20: the live file carries the two nameserver lines + a 2026-05-31 diagnosis comment; the earlier `options timeout:1 attempts:2` line is no longer present)
 ```
+There is no `options` line; resolver timeout/attempts run at glibc defaults.
 
 ### Step 3: Make Immutable
 
@@ -58,6 +62,14 @@ sudo chattr +i /etc/resolv.conf
 ---
 
 ## Verification
+
+Current check (Kilo CLI is retired — use any `getaddrinfo()`-based client):
+
+```bash
+ping -c1 api.anthropic.com && node -e "require('dns').lookup('openrouter.ai',console.log)"
+```
+
+The original 2026-03-16 evidence, kept because it names the exact failure signature:
 
 ### Before Fix
 ```bash
@@ -90,10 +102,6 @@ kilo/aion-labs/aion-1.0-mini
 |--------|----------|---------|
 | 1.1.1.1 | Cloudflare | Primary DNS (fast, privacy-focused) |
 | 8.8.8.8 | Google | Secondary DNS (reliable fallback) |
-
-**Options:**
-- `timeout:1` - 1 second timeout per query
-- `attempts:2` - Retry failed queries once
 
 ---
 
