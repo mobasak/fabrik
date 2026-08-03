@@ -14,8 +14,9 @@ subsystem, dir, or risk-tier); otherwise review the ENTIRE repo.
 {{include:grounding-code}}
 ## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)
 
-Read `project.yaml::type` (python-api / saas / worker / cli / library / chrome-ext /
-desktop-app / mobile-app / …). Run `python scripts/select_rules.py` (if present) and READ
+Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES`: python-api / python-api-gpu /
+saas-skeleton / node-api / file-api / file-worker / wordpress / docusaurus /
+chrome-extension / mobile-app / desktop-app / static-site; the hub and fabrik-lib have NO project.yaml — there, skip this step and detect surfaces directly). Run `python scripts/select_rules.py` (if present) and READ
 every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are
 AUTHORITATIVE on *how* code must be written (conflict order: rule pack > ticket). Detect
 which surfaces EXIST, hence which review axes apply: `compose.yaml` (deployable VPS
@@ -36,22 +37,22 @@ and say so.
 ## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)
 
 One reviewer per unit, READ-ONLY — no edits, so parallel workers can't collide. **Scale the
-fan-out to the repo — a big repo is 20+ workers, not 2–3.** This is now cost-viable via the
-**pool** (the **default worker** for gradeable fan-out — native reviewers reserved for the highest-blast-radius units; see
-§ Subagents): dispatch the bulk of units as **cheap flywheel-ranked pool workers** via
-**`fanout("review", units=[<unit code inlined> …], mode="read_only", max_concurrency=…)`** — it picks
-family-diverse, flywheel-ranked models (no default price cap; `max_cost_per_mtok=` opt-in) and sets
-`tools_enabled=False`+`allow_ungrounded=True` for the single-shot reviewers — and
-**reserve native Claude finders for the highest-blast-radius units** (money / auth / data-integrity —
-the authoritative pass). `fanout` **auto-records each worker UNSCORED** and returns `(results, results_table)`
-→ **back-fill** `set_quality(r.agent_id, <0–5>, project="repo-review", task_type="review", model=r.model)`
-per worker (⚠️ never `record_run` — it silently no-ops; the mass pool fan-out is the **default worker**
-per `62-using-subagents.md` § Dispatch policy — reserve native reviewers for the highest-blast-radius
-units). **Batch the
-fan-out in WAVES by risk tier (cap concurrency via `max_concurrency`; don't spawn all 20+ at
-literally once)** — highest-blast-radius units first. Each reviewer applies the `/fabrik-review`
-adversarial methodology to its unit PLUS everything it calls / is called by, hunting these
-failure classes:
+fan-out to the repo — a big repo is 20+ workers, not 2–3.** Dispatch the bulk of units as
+**cheap flywheel-ranked pool workers** via
+**`fanout("review", units=[<unit code inlined> …], mode="read_only", max_concurrency=…)`** —
+it picks family-diverse, flywheel-ranked models (no default price cap; `max_cost_per_mtok=`
+opt-in) and sets `tools_enabled=False`+`allow_ungrounded=True` for the single-shot
+reviewers. The mass pool fan-out is the **default worker** for gradeable fan-out (per
+`62-using-subagents.md` § Dispatch policy; see § Subagents) — **reserve native Claude
+finders for the highest-blast-radius units** (money / auth / data-integrity — the
+authoritative pass). `fanout` **auto-records each worker UNSCORED** and returns
+`(results, results_table)` → **back-fill**
+`set_quality(r.agent_id, <0–5>, project="repo-review", task_type="review", model=r.model)`
+per worker (⚠️ never `record_run` — it silently no-ops). **Batch the fan-out in WAVES by
+risk tier (cap concurrency via `max_concurrency`; don't spawn all 20+ at literally once)** —
+highest-blast-radius units first. Each reviewer applies the `/fabrik-review` adversarial
+methodology to its unit PLUS everything it calls / is called by, hunting these failure
+classes:
 
 - CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering,
   error/edge paths, concurrency & transaction atomicity, resource cleanup,
@@ -74,7 +75,8 @@ failure classes:
   ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`)
   NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service
   name / registered alias), never per-redeploy UUIDs; health checks hit real deps. SKIP
-  this axis entirely for cli/library/desktop/mobile/extension scaffolds.
+  this axis only for the types with no compose.yaml (chrome-extension / mobile-app /
+  desktop-app); static-site + docusaurus DO deploy via compose — review their deploy axis.
 - SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a
   DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒
   `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`. If
@@ -82,7 +84,7 @@ failure classes:
 - SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against
   intent).
 
-**Prove before you flag, WITHOUT breaking read-only:** reproduce each suspected bug with
+**Prove before you flag, WITHOUT breaking read-only** (this obligation falls on the NATIVE finders and on YOUR triage — a single-shot `read_only` pool worker has no shell, so its findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with
 a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and
 NOT an edit to any repo file (the kept regression test is written later, in Phase 3).
 Return STRUCTURED findings only: `{file:line, failure_class, severity:
@@ -103,10 +105,10 @@ backlog (Phase 4 output), not force-fixed in one exhausting turn.
 
 **Serialized in the working tree by DEFAULT** (parallel worktree-isolated subagents ONLY
 when that isolation is explicitly set up — never two agents on one file at once). Fix in
-risk order, honoring the fix budget from Phase 2 — fix the top tier now; fold the
-remainder into a tracked backlog rather than rushing unsafe fixes. For each confirmed bug:
-write the failing test FIRST (red), then fix it, keep the test as a regression guard
-(verify red→green). **A test that passes because the environment cannot express the
+risk order, honoring the Phase-2 fix budget — top tier now; fold the remainder into the
+tracked backlog rather than rushing unsafe fixes. For each confirmed bug: write the failing
+test FIRST (red), then fix it, keep the test as a regression guard (verify red→green).
+**A test that passes because the environment cannot express the
 failure has proven nothing** — "it passed locally" is not evidence when local is the one
 place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation
 bug). Reach for the missing constraint in a throwaway/ephemeral instance you own; **never**
@@ -116,12 +118,12 @@ finding instead. Stay in scope.
 
 CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes' files; do
 NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is
-overwritten on the next `fabrik sync`, gate-enforced) — if a synced file has a real bug,
+overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the pre-commit hook — gate-enforced) — if a synced file has a real bug,
 fix it in `/opt/fabrik/<path>` (if correct for ALL projects) or propose it upstream, and
 note that in findings; never fork it here. Schema changes = a NEW tracked migration
 applied by the project's migration runner (idempotent), never hand-DDL. Commit ONLY by
 explicit pathspec, never `git add -A`. Re-run `final_gate.py` after each fix cluster
-(`--lean` standard · `--json` milestone/schema/auth · `--systemic` epic) — fixes regress;
+(`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress;
 a green gate is necessary but NOT proof of correctness (it doesn't test logic), and
 known-environmental reds (e.g. Traefik/templates checks on a repo with no templates dir)
 don't count as new failures.

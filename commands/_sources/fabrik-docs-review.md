@@ -143,7 +143,7 @@ kills — run the next pass instead.
 
 ## Phase 3 — Fix in one batch, routed to the right doc
 
-After all passes converge, apply all fixes in a single batch — do not interleave
+Within each pass: complete the pass's DISCOVERY first, then apply that pass's fixes in one batch — do not interleave
 discovery and editing. Route each fact to the document type it belongs to and respect
 that type's contract — API reference, architecture, quickstart/README, runbook/ops,
 CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API
@@ -152,7 +152,7 @@ polishing them. Bump `Last Updated:` dates where present.
 
 ## Phase 4 — Gate + embedded proof
 
-Run the doc-sync gate (`docs_updater.py --check` / `check_docs.py`, plus the project's
+Run the doc-sync gate (`docs_updater.py --check`, plus the project's
 Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step,
 but treat it as necessary, NOT sufficient — it verifies presence/format, not truth.
 
