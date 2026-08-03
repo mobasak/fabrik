@@ -29,11 +29,8 @@ DIFF CONTENT:
 !`git diff --merge-base origin/HEAD`
 ```
 
-Review the complete diff above. This contains all code changes in the PR.
-
-
 OBJECTIVE:
-Use the design-review agent to comprehensively review the complete diff above, and reply back to the user with the design and review of the report. Your final reply must contain the markdown report and nothing else.
+Use the design-review agent to comprehensively review the complete diff above, and reply back to the user with the design review report. Your final reply must contain the markdown report and nothing else.
 
 ⚠️ MODEL FLOOR — dispatch the `design-review` agent on **Opus** (`model: "opus"`): the visual/UX/a11y judgment is high-stakes and this native browser-driven pass is the review's authoritative Opus eyes. (The OpenRouter **pool** floor that the code/text review commands carry does **not** apply here — driving a running screen needs the Playwright/browser MCPs, which have **no pool equivalent**; this is the same native-only carve-out as `/fabrik-ui-design`'s Build Verification Loop.)
 

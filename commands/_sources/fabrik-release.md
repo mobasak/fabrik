@@ -5,8 +5,7 @@ argument-hint: "[optional: override surface — vps | mobile | extension | deskt
 
 Run this project's **release path** — the bridge from "gate-green code" to the human Gate 2 (R14: deploy/submit
 approval is the operator's, always). This command **verifies and prepares; it never ships**: no `fabrik apply`,
-no `eas submit --auto`, no Web Store "Submit for Review" click, no store credential use. It ends by handing the
-operator a ready-to-approve release with every gate proven.
+no `eas submit --auto`, no Web Store "Submit for Review" click, no store credential use.
 
 ## ⚠️ Termination contract
 
