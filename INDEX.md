@@ -509,6 +509,7 @@ docs/
 ├── workstation
 │   ├── MCP_HTTP_TRANSPORT.md
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
+│   ├── claude-configuration-inventory.md # Every Claude config path on this box: function + current state + sizes
 │   ├── cleanup-automation.md       # WSL+Windows cleanup system reference (one cleaner per OS + manual compaction)
 │   ├── cleanup-maintenance-backlog.md # Remaining dev-box cleanup items after the 2026-07-25 sweep
 │   ├── session-recall.md           # session-recall tool: what it does, feature list, file map (code in /opt/session-recall)

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — full Claude configuration inventory for this workstation (2026-08-03)
+
+`docs/workstation/claude-configuration-inventory.md` — every Claude config path on this WSL box with its
+function and probe-verified current state: the primary CLI profile (~/.claude, 9.7 GB — 98% session data),
+authored config (4 agents / 18 commands / 57 skills / plugins), account-rotation state, the CLI binary +
+caches (3.4 GB node cache), the ACTIVE second headless profile (~/.claude-youtube-headless, 2.0 GB, driven
+by two crontab entries for the youtube RAG pipeline), the ACTIVE Traycer host (2 running systemd units,
+cli-agents regenerated daily at 06:00), 52 per-project configs, the Windows-side surfaces (Claude Desktop's
+8 MCPs + AppData state), both MCP rosters, and a size/prune table. Corrects two earlier mislabels: the
+youtube headless profile and ~/.traycer are live infrastructure, not retired residue.
+
 ### Fixed — sysadmin cron reports: fleet-wide delivery fallback + dead coolify-network send (2026-08-03)
 
 The 4 remaining cron reports (morning-report, weekly-security, weekly-maintenance, monthly-backup-verify)
