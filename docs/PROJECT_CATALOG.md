@@ -7,12 +7,11 @@
 <!-- AUTO-GENERATED:PROJECTS:START -->
 <!-- Total projects: 51 -->
 
-### Production Services (5 projects)
+### Production Services (4 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCA... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ✅ Current |
-| **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | ✅ Production | https://images.vps1.ocoron.com | ✅ Current |
 | **proxy** | **Status:** Production Ready - Proxy Management API ✅ | Python | ✅ Production | Multi-service proxy broker | ✅ Current |
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
