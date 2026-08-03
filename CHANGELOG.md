@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review of uses_claude_cli + llm-dispatch: 5 findings (2026-08-03)
+
+Adversarial self-review of the 3-layer claude-p+OpenRouter design found + fixed: (A) `_assert_claude_cli_mounts`
+validated only `~/.claude:ro`, not the also-required `~/.claude.json:ro` — a compose with one mount passed but
+`claude -p` dies "config file not found" at runtime; now requires BOTH. (B) `llm_dispatch.call_claude_cli`
+omitted `--output-format text` (relied on the CLI default); pinned it. (C/H) test-quality: the passing test
+asserted only one mount + no test proved the validator was wired into a deploy path — added a both-mounts test,
+a one-mount-fails regression, and a `_deploy_local` wiring test. (security) the `uses_claude_cli` flag
+description now carries the operator-OAuth-exposure caution (fleet lens). 108 deployer + 8 module tests pass,
+mypy clean. Review-of-record: docs/development/reviews/2026-08-03-uses-claude-cli-dispatch-review.md.
+
 ### Changed — /fabrik-user-test + /fabrik-service-test: interruption-resume contract (2026-08-03)
 
 The shared autonomy-run fragment now states the gauntlets' resume semantics explicitly: progress is durable

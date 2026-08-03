@@ -347,7 +347,11 @@ class Shape(BaseModel):
             "(~/.claude + ~/.claude.json, read-only) into the container so `claude -p` "
             "follows the fleet account rotation — never a static CLAUDE_CODE_OAUTH_TOKEN. "
             "The image must still install the CLI (in its Dockerfile). Generalizes the "
-            "watchdog sidecar pattern (drivers/watchdog.py). Pair with claude_cli_home."
+            "watchdog sidecar pattern (drivers/watchdog.py). Pair with claude_cli_home. "
+            "SECURITY: this mounts the operator's ACTIVE Claude OAuth (read-only) into the "
+            "container — a compromise (e.g. RCE) of the service can read it. Fine for a trusted "
+            "internal service under the single-operator threat model (creds rotate + are "
+            "revocable); weigh it before enabling on an untrusted/public-facing surface."
         ),
     )
     claude_cli_home: str = Field(

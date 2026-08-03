@@ -625,14 +625,19 @@ def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:
     if not shape.get("uses_claude_cli"):
         return
     home = (shape.get("claude_cli_home") or "/root").rstrip("/") or "/root"
-    if f"{home}/.claude:ro" in compose_content:
+    # BOTH mounts are required: `claude -p` reads creds from ~/.claude/ AND its session config
+    # from ~/.claude.json — the watchdog learned (drivers/watchdog.py:818) that a missing
+    # .claude.json makes `claude -p` exit "Claude configuration file not found". Checking only
+    # the first mount would pass a compose that dies at runtime — the failure we exist to prevent.
+    targets = (f"{home}/.claude:ro", f"{home}/.claude.json:ro")
+    if all(t in compose_content for t in targets):
         return
     snippet = "\n".join(f"      - {m}" for m in claude_cli_mount_lines(home))
     raise DeployError(
-        "shape.uses_claude_cli is set but the compose does not mount the host's rotated "
-        "~/.claude into the container (claude -p would have no auth). Add to the service's "
-        f"volumes:\n{snippet}\nDo NOT use a static CLAUDE_CODE_OAUTH_TOKEN — it pins one "
-        "account and ignores the fleet rotation."
+        "shape.uses_claude_cli is set but the compose does not mount BOTH of the host's rotated "
+        "~/.claude and ~/.claude.json (read-only) into the container (claude -p would have no auth "
+        f"/ no config). Add to the service's volumes:\n{snippet}\nDo NOT use a static "
+        "CLAUDE_CODE_OAUTH_TOKEN — it pins one account and ignores the fleet rotation."
     )
 
 

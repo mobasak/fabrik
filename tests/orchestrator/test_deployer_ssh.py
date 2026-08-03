@@ -747,6 +747,24 @@ class TestDeployLocal:
             with pytest.raises(DeployError, match="no compose.yaml found"):
                 deployer._deploy_local(ctx, "my-app", ctx.spec["source"], None)
 
+    def test_uses_claude_cli_requires_mount_in_compose(self):
+        """Wiring: _deploy_local enforces the claude mount for a uses_claude_cli service — a
+        compose without it aborts the deploy (proves the validator is actually wired in, and
+        that the extra compose read only happens when the flag is on)."""
+        ctx = _ctx({
+            "name": "seo",
+            "source": {"type": "local", "path": "/opt/seo"},
+            "shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"},
+        })
+        with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
+            mock_ssh.side_effect = [
+                "exists",  # test -f compose.yaml
+                "services:\n  seo:\n    volumes: []\n",  # cat compose.yaml — NO claude mount
+            ]
+            deployer = SSHDeployer()
+            with pytest.raises(DeployError, match="does not mount BOTH"):
+                deployer._deploy_local(ctx, "seo", ctx.spec["source"], None)
+
     def test_default_path_from_name(self):
         ctx = _ctx({
             "name": "my-app",
@@ -787,17 +805,29 @@ class TestClaudeCliMounts:
         _assert_claude_cli_mounts("services:\n  x: {}\n", {"shape": {}})
         _assert_claude_cli_mounts("anything", {})  # no shape at all
 
-    def test_passes_when_mount_present(self):
+    def test_passes_when_both_mounts_present(self):
         compose = (
             "services:\n  seo:\n    volumes:\n"
             "      - /home/ozgur/.claude:/home/appuser/.claude:ro\n"
+            "      - /home/ozgur/.claude.json:/home/appuser/.claude.json:ro\n"
         )
         spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"}}
         _assert_claude_cli_mounts(compose, spec)  # must not raise
 
+    def test_requires_both_mounts_not_just_the_first(self):
+        """Regression: a compose with only ~/.claude:ro (missing ~/.claude.json:ro) must FAIL —
+        `claude -p` exits 'config file not found' without the .json mount (watchdog.py:818)."""
+        compose = (
+            "services:\n  seo:\n    volumes:\n"
+            "      - /home/ozgur/.claude:/home/appuser/.claude:ro\n"  # only the first mount
+        )
+        spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"}}
+        with pytest.raises(DeployError, match="BOTH"):
+            _assert_claude_cli_mounts(compose, spec)
+
     def test_raises_with_snippet_when_mount_missing(self):
         spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"}}
-        with pytest.raises(DeployError, match="does not mount the host's rotated"):
+        with pytest.raises(DeployError, match="does not mount BOTH"):
             _assert_claude_cli_mounts("services:\n  seo:\n    volumes: []\n", spec)
 
     def test_static_token_without_mount_still_fails(self):
