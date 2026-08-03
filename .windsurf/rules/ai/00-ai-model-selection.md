@@ -162,9 +162,11 @@ transcript classification, fix dispatch, content triage), select the model by th
 
 **First choice — vendor the `fabrik-lib/llm-dispatch` module, don't hand-roll.** Implement this ladder by
 vendoring **`llm-dispatch`** (vendor-don't-build, CLAUDE.md § Pointers) rather than a bespoke `claude -p`
-subprocess per project — it IS this ladder (claude -p haiku→opus→fable primary, OpenRouter fallback),
-composing your vendored `ai-consult` (OpenRouter leg) + `cost-budget` (paid-leg guard) by injection, with an
-optional `quality_gate` for measured escalation. **Infra prerequisite:** a *deployed* service that shells to
+subprocess per project — it IS this ladder as a generic client (`complete()`/`complete_json()`/
+`get_last_usage()`): **claude -p subscription primary** (`--output-format json` → the usage envelope) with
+an **OpenRouter HTTP fallback**; env-driven `LLMConfig`; **INJECT** your vendored `cost-budget` via the
+`budget_check`/`budget_record` hooks (and, if you want it, `ai-consult` as the `http_post`); never raises.
+**Infra prerequisite:** a *deployed* service that shells to
 `claude -p` MUST declare **`shape.uses_claude_cli: true`** (+ `claude_cli_home`) so the deployer mounts the
 host's **rotated** `~/.claude` read-only into the container — auth follows the fleet account rotation;
 **never** bake a static `CLAUDE_CODE_OAUTH_TOKEN` (it pins one account and dies at its weekly quota). Then
