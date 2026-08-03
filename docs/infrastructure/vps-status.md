@@ -9,6 +9,20 @@
 
 ## Tooling/code changes since this 2026-06-07 health probe (not yet re-probed live)
 
+- **Full fleet infra audit — 2026-08-03 (live probe: [`infra-probe-2026-08-03T18-37Z.yaml`](probe-reports/infra-probe-2026-08-03T18-37Z.yaml)).**
+  **Verdict: fleet healthy.** Containers 31/5/5 all Up, **zero unhealthy**; UFW + fail2ban active ×3; wg mesh
+  alive (hub 2 peers, spokes 1); `fabrik` docker net ×3; disk 38/14/14 %; Prometheus **0 targets down**;
+  Traefik 20/20 routers enabled; Loki ingesting (~5.8 lines/s); Backrest snapshots fresh (host-aware
+  proactive-check passes on all 3); postgres-main/redis-main healthy; watchdog-test dogfood + ocoron-com WP
+  stack healthy; aro-wake :8201 ×3; OpenVPN on vps1 confirmed documented. **Two Gatus reds found + fixed →
+  34/34 green:** (1) `site-provisioner` — its `provision.vps1.ocoron.com` **A record had been deleted at
+  Cloudflare** (authoritative-NS-verified; cause unknown, deleted within ~2 days) → restored via
+  `CloudflareClient.ensure_record` (DNS-only, `172.93.160.197`); the Gatus path returns 200 (hairpinned hub
+  IP is allowlisted). (2) `spoke-canary` — stale endpoint for a long-removed vps2 canary app (external 404,
+  no container) → removed from `configs/gatus/apps/` + vps1 (the sync script never deletes — removed on both
+  sides by hand). **Notes:** spokes' `*:45191`/`*:33755` public listeners = promtail's ephemeral gRPC port
+  (UFW default-deny blocks them; harmless — pin `grpc_listen_address: 127.0.0.1` if it ever matters).
+
 - **claude-code fleet update → Node 22 + 2.1.220 everywhere + lean auto-update (2026-08-03, LIVE-verified).**
   All 3 hosts now run **Node.js 22 + Claude Code `2.1.220`** (npm-global at `/usr/bin/claude`, unified `/usr`
   prefix). **vps1 was migrated Node 18 → 22** (NodeSource): its ONLY host-level Node consumer was claude

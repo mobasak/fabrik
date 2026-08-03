@@ -1,7 +1,7 @@
 # VPS Fleet — Complete Service Inventory
 
 **Last Updated:** 2026-08-03
-**Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
+**Last probe report:** [`probe-reports/infra-probe-2026-08-03T18-37Z.yaml`](probe-reports/infra-probe-2026-08-03T18-37Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke). **The fleet is settled at 3 permanent hosts.** Any `vps4` you see in drill logs/reports is the **disposable drill identity** — a throwaway Vultr instance the `fabrik vultr drill` subsystem spins up and auto-destroys; it is NOT a permanent fleet member. (`fabrik vultr provision` can add a real 4th spoke, but none is currently provisioned.)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
 **Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`)
