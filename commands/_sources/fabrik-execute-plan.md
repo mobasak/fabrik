@@ -296,6 +296,19 @@ Check the plan's design spec for a **Subagent Mandates** table. It specifies per
 
 Phases marked "inline" or with 1 subagent → execute directly, no dispatch.
 
+### ⚠️ Dispatched subagents run their work SYNCHRONOUSLY — never background, never wait on a Monitor
+
+**The #1 way a phase silently burns its whole budget without writing a line.** A dispatched implementer /
+reviewer subagent that starts a long job (a build, a test suite, a provisioning routine, `pytest`, a
+migration) **in the background — or arms a Monitor and ends its turn to "wait for the result" — STALLS
+FOREVER: background and Monitor notifications do NOT deliver to a subagent.** From the orchestrator's side it
+looks alive, then reports `completed` with nothing done. Every dispatched subagent MUST run each command as a
+plain **synchronous** shell call (a generous `timeout`) and read its exit output in the SAME turn. **If a
+step is too slow for one synchronous call, SPLIT its scope** (e.g. a big provisioning phase → seed-countries,
+then chart-of-accounts, then fiscal-year, each run and verified synchronously) — never defer a slice to a
+signal that will not arrive. Dispatch every subagent with an explicit *"run synchronously; never background a
+run or wait on a Monitor/notification; split scope if a call is too slow"* instruction in its brief.
+
 ### Isolation model: worktrees
 
 Every parallel subagent MUST use `isolation: "worktree"` in the Agent tool call. This gives each subagent its own git worktree — a separate working directory with its own branch. They cannot clobber each other.

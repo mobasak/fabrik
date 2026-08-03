@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-execute-plan mandates SYNCHRONOUS subagent runs (2026-08-03)
+
+Dispatched implementer/reviewer subagents now MUST run long jobs (builds, test suites,
+provisioning routines, pytest, migrations) as plain synchronous shell calls and read the
+exit output in the same turn — never background a run or arm a Monitor and wait for a
+notification (which does NOT deliver to a subagent → the agent stalls forever, burning its
+whole budget writing nothing). Split scope if a call is too slow. The synchronous rule
+already lived in the fabrik-gui agent + the autonomy-run fragment (user-test/service-test)
+but was MISSING from execute-plan — the command that dispatches the longest jobs. Live cost:
+a tryton-crm Phase-C ERP-provisioning subagent sat 75 min writing nothing; five agents in
+one session burned full budgets the same way.
+
+
 ### Fixed — check_doc_links skips scaffold templates; claudeck docs retired (2026-08-03)
 
 `check_doc_links.py` now excludes scaffold templates (`*_TEMPLATE.md` naming +
