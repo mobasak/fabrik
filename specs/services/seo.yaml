@@ -34,10 +34,12 @@ env:
   # Kilo proxy retired — direct OpenRouter (legacy KILO_* names kept)
   KILO_API_URL: https://openrouter.ai/api/v1/chat/completions
   LLM_DEFAULT_MODEL: deepseek/deepseek-v3.2
-  # claude CLI is now baked into the seo image (Dockerfile: @anthropic-ai/claude-code on Node 22),
-  # so use the subscription path per the ai/00 ladder — claude -p primary, OpenRouter fallback in-code
-  # (KILO_API_URL/LLM_DEFAULT_MODEL above stay for that fallback). Requires CLAUDE_CODE_OAUTH_TOKEN
-  # (secrets, from `claude setup-token`) in /opt/fabrik/.env before the first `fabrik apply seo`.
+  # claude CLI baked into the seo image (Dockerfile: @anthropic-ai/claude-code on Node 22); use the
+  # subscription path per the ai/00 ladder — claude -p primary, OpenRouter fallback in-code
+  # (KILO_API_URL/LLM_DEFAULT_MODEL above stay for that fallback). AUTH = the host's ROTATED OAuth
+  # mounted read-only into the container (~/.claude:ro + ~/.claude.json:ro, the watchdog pattern in
+  # drivers/watchdog.py:814-825) — NOT a static CLAUDE_CODE_OAUTH_TOKEN, so seo follows the fleet
+  # account rotation instead of pinning to one account's weekly quota. Mount must be in seo's compose.
   LLM_BACKEND: claude-cli
   LLM_DAILY_USD_CAP: "5.0"
   COST_WAL_PATH: .tmp/cost_wal.sqlite
@@ -53,8 +55,8 @@ secrets:
     - DNS_MANAGER_TOKEN   # X-API-Key for site-provisioner GSC endpoints
     - COST_LEDGER_DSN     # point at fabrik_analytics for the PORTFOLIO-wide cost ledger;
                           # empty = project-local fallback table (per-project view only)
-    - CLAUDE_CODE_OAUTH_TOKEN  # headless `claude -p` auth (from `claude setup-token`); operator adds
-                               # to /opt/fabrik/.env before the first `fabrik apply seo`
+  # NOTE: claude -p auth is NOT a secret here — it is the host's rotated ~/.claude mounted read-only
+  # into the container (see the LLM_BACKEND note above + drivers/watchdog.py). No static OAuth token.
 
 depends:
   postgres: seo
