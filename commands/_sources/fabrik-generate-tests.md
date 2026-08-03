@@ -13,11 +13,10 @@ models author the tests; you own WHAT gets tested and the final quality.** Targe
 
 ## Import the VENDORED pool (`from libs.subagents import …`)
 
-`fanout` / `pick_models` / `set_quality` come from the **vendored** `libs/subagents` (copied from
-canonical `/opt/fabrik-lib/subagents` per `.windsurf/workflows/subagent-runs-flywheel.md`), same as every
-other `/fabrik-*` command. `fanout` auto-records each run (so you don't call `record_agent_run` yourself),
-but it records them **UNSCORED** — `set_quality` is how you back-fill the verdict (step 5). If the project
-hasn't vendored it yet, vendor first, then import:
+`fanout` / `pick_models` / `set_quality` come from the **vendored** `libs/subagents` (copied from canonical
+`/opt/fabrik-lib/subagents` per `.windsurf/workflows/subagent-runs-flywheel.md`). `fanout` auto-records each run
+(so you never call `record_agent_run` yourself), but records them **UNSCORED** — `set_quality` back-fills the
+verdict (step 5). If the project hasn't vendored it yet, vendor first, then import:
 
 ```bash
 # vendor once (if libs/subagents/ is absent) — see .windsurf/workflows/subagent-runs-flywheel.md
@@ -35,20 +34,21 @@ except ImportError:  # not vendored here → this command's pool test-authoring 
 
 ### 1. Suggest (pool, multi-model — diversity is the whole point)
 Dispatch **2–3 diverse cheap models** to each propose the distinct user-observable behaviors of the target, then
-**union** them (a single suggester is the blind spot — different families catch what one misses, for cents):
+**union** them (a single suggester is the blind spot — different families catch what one misses):
 
 ```python
-results, table = fanout("review", units=[SUGGEST_PROMPT], repo=REPO, project="test-gen",
-                        k=3, mode="read_only")   # read_only → inline the target's code into SUGGEST_PROMPT
+results, table = fanout("review", units=[SUGGEST_PROMPT] * 3, repo=REPO, project="test-gen",
+                        mode="read_only")   # 3 UNITS -> 3 agents (draw defaults to len(units); if the ranking is thin, duplicates share a model) on 3 diverse models (k alone only sizes the model DRAW; one unit = ONE agent). read_only -> inline the target's code into SUGGEST_PROMPT
 ```
 
 ### 2. Curate (YOU — the anti-bloat + anti-gap gate)
-Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER. **You own WHAT gets tested** — this is
-where bloat and gaps are stopped, before any authoring spend. Emit a curated list: one behavior per line, each a
+Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER. **You own WHAT gets tested** — bloat
+and gaps are stopped here, before any authoring spend. Emit a curated list: one behavior per line, each a
 `Given / When / Then`, mapped to the test file it belongs in.
 
 Curating IS your verdict on the suggesters, so **score them back to the flywheel** (the suggest `fanout` recorded
-them UNSCORED too — same trap as the authors):
+them UNSCORED too — same trap as the authors); this sharpens `pick_models("review")` for behavior-suggesting —
+the same record-then-score discipline the authors get:
 
 ```python
 for r in results:                        # the SUGGEST results from step 1 (before step 4 reuses the name)
@@ -56,10 +56,8 @@ for r in results:                        # the SUGGEST results from step 1 (befo
                 project="test-gen", task_type="review", model=r.model)
 ```
 
-This sharpens `pick_models("review")` for behavior-suggesting — the same record-then-score discipline the authors get.
-
 ### 3. Commit the code-under-test FIRST (mandatory)
-Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`). So the code the
+Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`), so the code the
 tests target MUST be committed (or fully inlined into the author task). Commit it now if it isn't — else the
 authors test stale/absent code.
 
@@ -88,13 +86,14 @@ For each captured `result.diff`: **would the test FAIL if the behavior broke?** 
 no test that passes if the feature is reverted (`45-testing-strategy.md` + `/fabrik-review`'s test-quality
 checklist). **And: could it fail in THIS environment at all?** A test whose environment cannot express the
 failure (a superuser role for an RLS behavior, one tenant for an isolation behavior) is green for the wrong
-reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable. Then **`git apply`** each surviving diff into the tree; fix any weak test yourself. Finally
+reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable. Then
+**`git apply`** each surviving diff into the tree; fix any weak test yourself. Finally
 `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill
 mutants (advisory).
 
-**Back-fill the verdict — this is the step `fanout` cannot do for you.** `fanout` recorded every author at
-DISPATCH with a `NULL` `quality_score`; your review above IS the ground-truth verdict, so feed it back or the
-flywheel learns nothing about which code models author good tests:
+**Back-fill the verdict — the step `fanout` cannot do for you.** `fanout` recorded every author at DISPATCH with
+a `NULL` `quality_score`; your review above IS the ground-truth verdict, so feed it back or the flywheel learns
+nothing about which code models author good tests:
 
 ```python
 for r in results:                        # the AgentResults fanout returned (each carries .agent_id + .model)
@@ -111,7 +110,10 @@ bad model). Skipping this leaves every row `NULL` and `pick_models("code")` neve
 A killed author process leaks its `.tmp/subagents/<id>` worktree (`git worktree prune` alone won't remove the
 dir). Sweep them first:
 ```bash
-git worktree prune; find .tmp/subagents -maxdepth 1 -type d -name 'agent-*' -exec rm -rf {} + 2>/dev/null || true
+# PREFER the library's own startup sweep (arun_agents runs sweep_stale_worktrees: PID-aware + age-guarded).
+# Manual sweep ONLY when NO sibling agents are running anywhere on this repo — age (-mmin +120) is a WEAK
+# guard (a live agent's worktree ROOT mtime can be old; only the PID sidecar proves liveness):
+git worktree prune; find .tmp/subagents -maxdepth 1 -type d -name 'agent-*' -mmin +120 -exec rm -rf {} + 2>/dev/null || true
 ```
 
 ## Where this auto-fires (3 call sites — the same loop, different trigger)
@@ -127,6 +129,6 @@ at dispatch), so you never call `record_agent_run` by hand (⚠️ and NOT `reco
 `AgentResult`). Record and score are **two steps**: `fanout` records at dispatch; YOU back-fill the verdict via
 `set_quality` for **every** run it dispatched — the suggesters at curate (step 2, `task_type="review"`) AND the
 authors at review (step 5, `task_type="code"`). Skip the score and rows stay `NULL` and `pick_models` never
-sharpens for either role. Note: `scripts/enforcement/check_subagent_flywheel.py` BLOCKS the gate
-on a substantial code change with ZERO pool runs (pool-or-declare) — running THIS command on a phase's Behavior
-Contract is exactly how you satisfy it for test-shaped work.
+sharpens for either role. `scripts/enforcement/check_subagent_flywheel.py` BLOCKS the gate on a substantial code
+change with ZERO pool runs (pool-or-declare) — running THIS command on a phase's Behavior Contract is exactly how
+you satisfy it for test-shaped work.
