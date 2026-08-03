@@ -34,8 +34,11 @@ env:
   # Kilo proxy retired — direct OpenRouter (legacy KILO_* names kept)
   KILO_API_URL: https://openrouter.ai/api/v1/chat/completions
   LLM_DEFAULT_MODEL: deepseek/deepseek-v3.2
-  # VPS containers have no claude CLI — force the HTTP chain (WSL dev uses claude-cli)
-  LLM_BACKEND: openrouter
+  # claude CLI is now baked into the seo image (Dockerfile: @anthropic-ai/claude-code on Node 22),
+  # so use the subscription path per the ai/00 ladder — claude -p primary, OpenRouter fallback in-code
+  # (KILO_API_URL/LLM_DEFAULT_MODEL above stay for that fallback). Requires CLAUDE_CODE_OAUTH_TOKEN
+  # (secrets, from `claude setup-token`) in /opt/fabrik/.env before the first `fabrik apply seo`.
+  LLM_BACKEND: claude-cli
   LLM_DAILY_USD_CAP: "5.0"
   COST_WAL_PATH: .tmp/cost_wal.sqlite
   MENTION_PROBE_RUNS: "3"
@@ -50,6 +53,8 @@ secrets:
     - DNS_MANAGER_TOKEN   # X-API-Key for site-provisioner GSC endpoints
     - COST_LEDGER_DSN     # point at fabrik_analytics for the PORTFOLIO-wide cost ledger;
                           # empty = project-local fallback table (per-project view only)
+    - CLAUDE_CODE_OAUTH_TOKEN  # headless `claude -p` auth (from `claude setup-token`); operator adds
+                               # to /opt/fabrik/.env before the first `fabrik apply seo`
 
 depends:
   postgres: seo
