@@ -22,7 +22,9 @@ operator can override, and keep going.**
 - a defect you own ({{OWN_FIX}}) → prove-before-fix (red→green), keep going.
 - a defect you do not own ({{HANDOFF}}) → write the failing repro test, **commit it red**, route it to the
   owning `/fabrik-review` / plan, and **keep going.** A handoff is a logged routing action, never a halt —
-  the run does not wait for the other owner, and the gauntlet continues on everything else.
+  the run does not wait for the other owner mid-sweep, and the gauntlet continues on everything else.
+  **Where a Phase 6 exists (the certification gauntlets), the routes are EXECUTED there in this same run,
+  in fresh dispatched contexts** — deferred sequencing, never exported work.
 
 Classify by ownership **honestly** — a defect you own (the {{OWN_FIX}} list) terminates FIXED; never re-label
 it a handoff to dodge the fix loop.

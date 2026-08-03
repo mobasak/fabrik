@@ -204,7 +204,9 @@ Every survivor terminates in exactly one of:
 - **FIXED** — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display,
   broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix — with its
   Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected
-  flows re-run), surface gate green after each fix. **A spec that passes because the environment
+  flows re-run), surface gate green after each fix. **Mechanical path-gate:** if the fix's diff touches ANY
+  file outside the presentation layer (backend handlers, models, migrations, schema), the row is
+  AUTO-RECLASSIFIED to the code-wrong route — no judgment call, the diff decides. **A spec that passes because the environment
   cannot express the failure has proven nothing** — "it passed locally" is not evidence when local
   is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session
   for a permissions bug, a fast network for a loading-state bug). Reach for the missing constraint
@@ -220,7 +222,8 @@ Every survivor terminates in exactly one of:
     doesn't exist, or the frozen contract itself is wrong → that is **NEW WORK**: `/fabrik-spec` →
     contract re-freeze → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`. **Never decide a product
     question inside a test run.**
-  Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
+  Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect +
+  why it is not fixable in the presentation layer). Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
   + a HANDED-OFF row naming the route and the owner. **`/fabrik-release` is BLOCKED while any row is
   open** — that gate is what stops a handoff from rotting.
 - **REFUTED** — with the contract line or evidence that disproves it.
@@ -241,25 +244,39 @@ TWO consecutive dry discovery sweeps** (the loop-until-dry rule: one clean round
 A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the
 inventory or matrix is the exact failure this command exists to prevent.
 
-## Phase 6 — EXECUTE the routed fixes (same run — a handoff is deferred sequencing, not exported work)
+## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)
 
-Discovery first, fixes second — **but the fixes DO happen, in this run.** Once Phase 5 reports two dry
-sweeps, work the HANDED-OFF list in depth order:
+Discovery first, fixes second — **and the fixes DO happen in this run, but never in this context.** The
+gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the
+orchestrator ("you dispatch and judge — you do not drive"). Work the HANDED-OFF list on a **hard schedule**
+(no budget-feel exits): **T3 doc re-freezes first** (cheap, bounded) → **T1 leftovers** → **T2 risk-ordered**.
 
-1. **Code-wrong rows** (routed to `/fabrik-review`): **invoke `/fabrik-review` yourself** (Skill tool) on
-   each owning module, seeded with the committed red repro — it runs the full fix loop (finders → refute →
-   prove-before-fix → regression guard → clean round). When it exits clean, **re-run the affected journeys**
-   (Phase 5 machinery) to confirm the UI now proves the fix end-to-end, then close the row.
-2. **Doc-stale rows**: run the re-freeze (`/fabrik-data-contract` / `/fabrik-ui-design`) now, close the row.
-3. **Design-wrong/missing rows**: **start the pipeline now** — run `/fabrik-spec` for the missing/changed
-   capability and carry it to `/fabrik-spec-review`'s CONVERGED state, then **STOP at the design-approval
-   gate: that decision is the operator's** (a missing screen is a product call, never a test run's). Report
-   the row as `PIPELINE-STARTED (awaiting spec approval)` — the release gate keeps it visible.
+1. **Code-wrong rows (T2)** — for each row, **dispatch a FRESH native subagent** (clean context; seeded with
+   exactly: the committed red repro path, the owning module path, the rubric output) that invokes
+   `/fabrik-review` with `repro: <path>` — the review may not exit until that repro is GREEN (its contract).
+   When it returns, **verify yourself before closing** (a subagent's success is a claim): re-run the repro AND
+   the affected journeys end-to-end. **T2 batch cap:** more than 3 distinct owning modules on the list is a
+   SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a
+   plan instead of serial review loops.
+2. **Doc-stale rows (T3)**: run the re-freeze now, close the row.
+3. **Design-wrong/missing rows (T4)** — **write a DESIGN-GAP BRIEF, do not run the pipeline**: persist
+   `docs/development/reviews/YYYY-MM-DD-design-gap-<slug>.md` carrying the blocked journey, the missing
+   screen/field/endpoint, the contract line that should exist, the evidence, and the exact `/fabrik-spec`
+   invocation to start it — then stop that row at `DESIGN-GAP (operator decision)`, surfaced in the report's
+   TOP section. `/fabrik-spec` is built around collaborative Q&A + per-section human approval; an autonomous
+   run driving it must either stall or self-approve the product question — both forbidden. The operator
+   decides whether a spec is warranted; the brief makes that a 2-minute decision.
 
-**Context budget is real:** if executing the routes would exhaust this session, finish the certification
-report FIRST (durable artifacts per the resume contract), then execute routes until the budget genuinely
-runs out — a re-invocation resumes from the report and continues the remaining rows. Never skip a route
-silently; never mark a row closed without its re-run proof.
+**No unfalsifiable exits:** if rows remain when this session genuinely cannot continue, the report's final
+ledger row is marked **`NOT-QUIET (routes outstanding)`** and a `## RESUME` block names every open row, its
+repro path, and the verbatim re-invocation command. A truncated run may NEVER present itself as quiet.
+
+## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)
+
+After the last code-changing row closes, run **one full Phase-5 round** (fresh discovery sweep + full
+reconcile — not just affected journeys): Phase 6's fixes are the deepest changes in the run and get the
+deepest re-verification. **The report's final ledger row must be THIS round's** `new inventory: 0 · new
+findings: 0 · fixes applied: 0` — a quiet exit recorded before Phase 6 ran is void.
 
 ## Subagents — MANDATORY, both layers, per `core/62`
 

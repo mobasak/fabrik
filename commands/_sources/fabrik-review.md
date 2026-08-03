@@ -56,6 +56,12 @@ HARDER, not less**, through a fleet lens:
 - Proven live: review is what caught a **hallucinated Kubernetes section** and a **fleet-breaking SQLite ban**
   before they reached 39 projects. Excluding these files from review would have shipped both.
 
+**Seeded-repro contract:** if invoked with a committed red repro (a `repro: <path>` seed from a
+certification gauntlet or any caller), that failing test is the review's PRIMARY target: it anchors the
+diff scope (the committed repro is IN the diff, pulling the buggy module into scope via callers/callees),
+and **this review MAY NOT exit until that repro is GREEN** — paste its green run output verbatim in the
+review file. Adjudicating every checklist class while the seeded repro stays red is NOT a valid exit.
+
 If an argument was given, treat it as the review target: `$ARGUMENTS`
 (a path, a PR number, or a git range). Otherwise get the diff under review with
 `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then

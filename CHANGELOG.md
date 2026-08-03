@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — gauntlet fix policy hardened by a 3-model panel (Opus 5 · Sonnet 5 · Fable 5) (2026-08-03)
+
+All three independently upheld the tiered fix-or-route design over both alternatives (full-pipeline-per-
+finding; fix-everything-inline) and independently converged on the same two corrections, now implemented:
+(1) deep fixes execute in FRESH dispatched contexts, not the gauntlet's depleted one — Phase 6 dispatches a
+clean native subagent per code-wrong row, seeded with the red repro + owning module + rubric, and the
+orchestrator re-verifies (repro + affected journeys) before closing; (2) tier classification is mechanically
+guarded — a fix whose diff touches non-presentation files is AUTO-reclassified to the code-wrong route (the
+diff decides, not the agent), each code-wrong row carries an ownership justification, and >3 owning modules
+is a systemic signal routed to a plan. Opus 5's decisive catches: T4 in-run /fabrik-spec was a live contract
+collision (spec's per-section human gates vs never-pause -> the agent would self-approve the product
+question) — replaced with a DESIGN-GAP BRIEF surfaced top-of-report for the operator; new Phase 7 confirming
+round (a full sweep after the last code-changing row — the quiet exit recorded before Phase 6 is void);
+the unfalsifiable budget-excuse replaced by a hard schedule + NOT-QUIET ledger marker + ## RESUME block;
+/fabrik-review gains a seeded-repro contract (may not exit until the seeded repro is green, output pasted).
+Sonnet 5's severity fix: /fabrik-release blocks on open P0/P1 rows; P2/P3 print as a WARN list for explicit
+operator accept. Remaining mechanization (flagged, not built): extend check_review_coverage.py to parse
+disposition rows and run cited repros — turns the release precondition from prose into a gate.
+
 ### Changed — gauntlet findings are now FIXED in the same run, depth-ordered (2026-08-03)
 
 /fabrik-user-test + /fabrik-service-test gain Phase 6 — EXECUTE the routed fixes: a handoff defers

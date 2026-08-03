@@ -17,9 +17,10 @@ root cause, stop early and report that cause.
 
 ## ⚠️ Precondition — no open certification handoffs
 
-Read the newest `docs/development/reviews/*-{user,service}-test-*.md` for this project. **Any HANDED-OFF
-row still open is a BLOCKED release** — report it as `BLOCKED: certification handoff open — <finding> →
-<route>` and stop. A handoff is closed when its route ran and its committed red repro is now green.
+Read the newest `docs/development/reviews/*-{user,service}-test-*.md` for this project. Every open row carries a severity (P0–P3). **An open P0/P1 row (or any `NOT-QUIET` ledger, or any
+`DESIGN-GAP` row untouched by the operator) is a BLOCKED release** — report it as
+`BLOCKED: certification handoff open — <finding> → <route>` and stop. Open P2/P3 rows are printed as a
+⚠ WARN list in the Gate-2 handoff block — visible for the operator's explicit accept, never silently passed. A handoff is closed when its route ran and its committed red repro is now green.
 This is the gate that makes `/fabrik-user-test` / `/fabrik-service-test` handoffs real work rather than a
 list nobody reads. No certification report at all for a UI/service surface = **BLOCKED** (run the
 gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one.
