@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — sysadmin cron reports: fleet-wide delivery fallback + dead coolify-network send (2026-08-03)
+
+The 4 remaining cron reports (morning-report, weekly-security, weekly-maintenance, monthly-backup-verify)
+sent via the hub-only `apprise` container — silently undeliverable from spokes; weekly-maintenance was worse:
+still `--network coolify` (renamed 2026-05-31) with a discarded exit status, so it failed on ALL hosts for
+months while logging "sent". All four now use the daily-digest pattern: apprise-gated (container presence) →
+`send-telegram.sh` direct fallback → error only when BOTH legs fail. Deployed fleet-wide; spoke delivery
+live-verified after the operator /start-ed @SysAdminVPS2_ob_bot + @SysAdminVPS3_ob_bot (bots can never
+message first — "chat not found" until then).
+
 ### Fixed — sysadmin fleet audit: rotation blind spot + spoke false-alarm storm + silent alerts (2026-08-03)
 
 Five live-verified fixes, deployed to all 3 hosts: (1) `claude_rotate.py` (`is_auth_401`, BOTH copies —

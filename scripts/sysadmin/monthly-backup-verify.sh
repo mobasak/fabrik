@@ -68,12 +68,18 @@ ESCAPED=$(printf '%s' "$RESULT" | python3 -c "import sys,json; print(json.dumps(
 # unreachable Apprise (or a wrong docker network) would silently drop the report while the log
 # claimed "sent" — worst here, since a dropped backup-verification alert hides backup failure.
 # Check the exit and surface a real failure (matches proactive-check's APPRISE_SEND).
-if sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
+if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^apprise$' && \
+   sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
   -H "Content-Type: application/json" \
   -d "{\"title\":\"💾 Monthly Backup Verify\",\"body\":${ESCAPED}}" \
   >/dev/null 2>&1; then
   echo "$(date -Iseconds) Monthly backup verification sent"
+elif bash /opt/fabrik/scripts/sysadmin/send-telegram.sh "💾 Monthly Backup Verify
+$RESULT" >/dev/null 2>&1; then
+  # Apprise is HUB-ONLY — direct Telegram (send-telegram.sh) is the fleet-wide path.
+  # A dropped backup-verification alert hides backup failure — both legs must fail before we do.
+  echo "$(date -Iseconds) Monthly backup verification sent via direct Telegram fallback"
 else
-  echo "$(date -Iseconds) Monthly backup verification FAILED to deliver via fabrik network" >&2
+  echo "$(date -Iseconds) Monthly backup verification FAILED via BOTH Apprise and Telegram fallback" >&2
   exit 1
 fi

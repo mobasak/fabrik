@@ -107,9 +107,19 @@ done 2>/dev/null
 
 ESCAPED=$(echo "$REPORT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
 
-sudo docker run --rm --network coolify curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
+# NOTE: this send was DEAD fleet-wide for months — it still said `--network coolify`
+# (renamed `fabrik` 2026-05-31) and discarded the exit status, so it always failed AND
+# always logged "sent" (found in the 2026-08-03 sysadmin audit). Now: correct network,
+# delivery-gated, with the fleet-wide direct-Telegram fallback (send-telegram.sh).
+if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^apprise$' && \
+   sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
   -H "Content-Type: application/json" \
   -d "{\"title\":\"🔧 Weekly Maintenance\",\"body\":${ESCAPED}}" \
-  >/dev/null 2>&1
-
-echo "$(date -Iseconds) Weekly maintenance report sent"
+  >/dev/null 2>&1; then
+  echo "$(date -Iseconds) Weekly maintenance report sent"
+elif bash /opt/fabrik/scripts/sysadmin/send-telegram.sh "🔧 Weekly Maintenance
+$REPORT" >/dev/null 2>&1; then
+  echo "$(date -Iseconds) Weekly maintenance report sent via direct Telegram fallback"
+else
+  echo "$(date -Iseconds) Weekly maintenance report FAILED via BOTH Apprise and Telegram fallback" >&2
+fi

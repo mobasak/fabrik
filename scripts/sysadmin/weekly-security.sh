@@ -58,12 +58,17 @@ ESCAPED=$(printf '%s' "$RESULT" | python3 -c "import sys,json; print(json.dumps(
 # Gate on delivery: `docker run -sf … >/dev/null 2>&1` discards its exit status, so a down/
 # unreachable Apprise (or a wrong docker network) would silently drop the report while the log
 # claimed "sent". Check the exit and surface a real failure (matches proactive-check's APPRISE_SEND).
-if sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
+if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^apprise$' && \
+   sudo docker run --rm --network fabrik curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
   -H "Content-Type: application/json" \
   -d "{\"title\":\"🔒 Weekly Security\",\"body\":${ESCAPED}}" \
   >/dev/null 2>&1; then
   echo "$(date -Iseconds) Weekly security patrol sent"
+elif bash /opt/fabrik/scripts/sysadmin/send-telegram.sh "🔒 Weekly Security
+$RESULT" >/dev/null 2>&1; then
+  # Apprise is HUB-ONLY — direct Telegram (send-telegram.sh) is the fleet-wide path.
+  echo "$(date -Iseconds) Weekly security patrol sent via direct Telegram fallback"
 else
-  echo "$(date -Iseconds) Weekly security patrol FAILED to deliver via fabrik network" >&2
+  echo "$(date -Iseconds) Weekly security patrol FAILED via BOTH Apprise and Telegram fallback" >&2
   exit 1
 fi
