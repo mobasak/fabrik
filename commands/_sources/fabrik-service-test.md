@@ -161,8 +161,17 @@ is a contract-change proposal; say which). Every survivor terminates in exactly 
   throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure
   (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — this
   command's own HARD STOP already bars touching prod/shared data.
-- **HANDED-OFF** — defects outside this service (an upstream vendor, a sibling service, infra):
-  named owner-route + the repro test committed so the fix inherits a red test. Never a quiet TODO.
+- **HANDED-OFF (ROUTED — never a TODO)** — anything you don't own. **Route by what the finding proves
+  is wrong**, and never do the deep work inline: a certification that detours into a plan abandons its
+  own coverage loop and burns the context the gauntlet needs to finish.
+  - contract right, **code wrong** in a sibling service / upstream vendor → **`/fabrik-review` the
+    owning module** (that command IS the fix loop: finders → refute → prove-before-fix → guard);
+  - **doc stale, service right** → re-freeze via **`/fabrik-data-contract`** (or the spec `shape:`);
+  - the **contract is wrong or an endpoint/job is MISSING** — a consumer journey cannot complete →
+    that is **NEW WORK**: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` →
+    `/fabrik-execute-plan`. **Never decide a product question inside a test run.**
+  Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
+  **`/fabrik-release` is BLOCKED while any row is open** — that gate stops a handoff from rotting.
 - **REFUTED** — with the contract line or evidence that disproves it.
 
 ## Phase 5 — ITERATE until discovery runs dry (the no-miss engine)

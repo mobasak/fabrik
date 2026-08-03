@@ -15,6 +15,15 @@ printed the Gate-2 handoff block. A checklist item without evidence is not PASS.
 action yourself; ending at the handoff IS success, not an incomplete run. If >3 items are BLOCKED on the same
 root cause, stop early and report that cause.
 
+## ⚠️ Precondition — no open certification handoffs
+
+Read the newest `docs/development/reviews/*-{user,service}-test-*.md` for this project. **Any HANDED-OFF
+row still open is a BLOCKED release** — report it as `BLOCKED: certification handoff open — <finding> →
+<route>` and stop. A handoff is closed when its route ran and its committed red repro is now green.
+This is the gate that makes `/fabrik-user-test` / `/fabrik-service-test` handoffs real work rather than a
+list nobody reads. No certification report at all for a UI/service surface = **BLOCKED** (run the
+gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one.
+
 ## Phase 0 — Resolve the surface
 
 1. Read `project.yaml::type`. Map: `saas-skeleton | python-api | python-api-gpu | node-api | file-api |

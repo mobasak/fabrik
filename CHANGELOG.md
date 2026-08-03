@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — certification findings are ROUTED, and handoffs now gate the release (2026-08-03)
+
+`/fabrik-user-test` + `/fabrik-service-test` replace the vague "named owner-route" handoff with an
+explicit 4-route ladder keyed on what the finding proves is wrong: implementation-deviates-from-a-correct
+-contract -> fix inline (prove-before-fix + kept regression spec); code-wrong-contract-right ->
+`/fabrik-review` the owning module; doc-stale-app-right -> re-freeze via `/fabrik-data-contract` /
+`/fabrik-ui-design`; design-wrong-or-MISSING (a journey cannot complete because a screen/field/endpoint
+doesn't exist) -> NEW WORK through `/fabrik-spec` -> contract freeze -> plan -> execute. The gauntlet
+never does the deep work inline — a certification that detours into a plan abandons its own coverage
+loop. Every handoff now ships a committed RED repro the fix inherits as its proof, and
+`/fabrik-release` gained a precondition that BLOCKS while any HANDED-OFF row is open (no certification
+report for a UI/service surface is itself BLOCKED; only the operator may waive a row). That gate is
+what turns handoffs into real work instead of a list nobody reads.
+
 ### Added — Claude config DR backup + restore (2026-08-03)
 
 `scripts/dr_claude_backup.sh` mirrors this box's Claude configuration to the private GitHub DR store

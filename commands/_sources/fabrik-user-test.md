@@ -210,9 +210,19 @@ Every survivor terminates in exactly one of:
   for a permissions bug, a fast network for a loading-state bug). Reach for the missing constraint
   in a throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure to
   manufacture a red.
-- **HANDED-OFF** — backend/schema/logic defects: NOT yours to rewrite mid-test. Each gets a named
-  owner-route (`/fabrik-review` the module, or a plan ticket) + the repro spec committed so the
-  fix inherits a red test. Handoff is explicit and listed — never a quiet TODO.
+- **HANDED-OFF (ROUTED — never a TODO)** — anything you don't own. **Route by what the finding proves
+  is wrong**, and never do the deep work inline: a certification that detours into a plan abandons its
+  own coverage loop and burns the context the gauntlet needs to finish.
+  - contract right, **code wrong** (backend / schema / logic) → **`/fabrik-review` the owning module**
+    (that command IS the fix loop: finders → refute → prove-before-fix → regression guard);
+  - **doc stale, app right** → re-freeze via **`/fabrik-data-contract`** / **`/fabrik-ui-design`**;
+  - the **design is wrong or MISSING** — a journey cannot complete because a screen/field/endpoint
+    doesn't exist, or the frozen contract itself is wrong → that is **NEW WORK**: `/fabrik-spec` →
+    contract re-freeze → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`. **Never decide a product
+    question inside a test run.**
+  Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
+  + a HANDED-OFF row naming the route and the owner. **`/fabrik-release` is BLOCKED while any row is
+  open** — that gate is what stops a handoff from rotting.
 - **REFUTED** — with the contract line or evidence that disproves it.
 
 ## Phase 5 — ITERATE until discovery runs dry (the no-miss engine)
