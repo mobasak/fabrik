@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-08-02 07:18 UTC
+**Last Updated:** 2026-08-03
 **Snapshot taken:** 2026-06-07 20:20 UTC (live probe via `scripts/audit_infra_vs_docs.py --hosts vps,vps2,vps3` + `ssh` + `docker ps` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics` + Vultr API `/v2/instances` for drill-instance cleanup). **Current-state sections (Fleet at a glance + health table) re-verified live 2026-06-15** (vps1 31 ctr, RAM 4.1/11 Gi, disk 32/108 GB 30 %, uptime ~2 w 1 d, UFW 16, Authelia 8; vps2/vps3 5 ctr each, UFW 11; mesh RTT ~135–136 ms; Prometheus 12 active/14 targets/14 up; Gatus 31 endpoints (was 33 until `coolify`/`coolify-public` removed 2026-06-17); DR drills green).
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
@@ -9,6 +9,22 @@
 
 ## Tooling/code changes since this 2026-06-07 health probe (not yet re-probed live)
 
+- **claude-code fleet update → Node 22 + 2.1.220 everywhere + lean auto-update (2026-08-03, LIVE-verified).**
+  All 3 hosts now run **Node.js 22 + Claude Code `2.1.220`** (npm-global at `/usr/bin/claude`, unified `/usr`
+  prefix). **vps1 was migrated Node 18 → 22** (NodeSource): its ONLY host-level Node consumer was claude
+  itself — `n8n` is containerized (`n8nio/n8n:latest`, own Node) and `node-exporter` is a Go binary — so the
+  bump had zero blast radius (n8n container stayed `Up`). The Node-22 wall for claude is at **2.1.200**
+  (`engines.node >=22`); before this, the fleet was drifted (vps1 `2.1.144`/Node 18; spokes `2.1.165`→`2.1.199`),
+  and vps1 also carried a stale `/usr/local` install shadowing the `/usr` one — both consolidated.
+  **Lean auto-update:** one root cron per host, staggered for a rollout window —
+  `0 {4,5,6} * * 0 /usr/bin/npm i -g @anthropic-ai/claude-code@latest >/var/log/claude-code-update.log 2>&1`
+  (Sun 04:00/05:00/06:00 UTC on vps1/vps2/vps3). Now that all hosts are Node 22 the cron is uncapped `@latest`;
+  a Node-18 host would instead need a `<2.1.200` *range* (npm range installs are engine-aware).
+  **⚠ Separate pre-existing issue:** host `claude -p` currently FAILS auth (vps1 "not logged in"; vps2/vps3
+  HTTP 401) — `~/.claude/.credentials.json` is ~10 days stale (mtime `2026-07-24`), i.e. the host-level
+  rotation/keepalive that refreshes it isn't running. This is NOT from the version update (the old `2.1.165`
+  401s on the same creds too); the containerized watchdog uses its own mounted creds. **Track + fix the host
+  claude rotation separately.**
 - **Fleet size settled at 3** (vps1+vps2+vps3) — no 4th permanent spoke planned.
 - **`fabrik vultr` hardening:** PR1 (provision/destroy symmetry), PR2 (G6 SAFE-RERUN-TRAP auto-retry + G3 wg0-peer removal that persists to `wg0.conf`), and **PR3 — `provision` auto-installs a new spoke's AI sysadmin** (token pool + enable + verify; 5 manual steps → 1). PR3 reviewed GREEN (5-axis) and **merged** (`0dc92e3`).
 - **LIVE DR drill validated (2026-06-13/14):** `fabrik vultr drill spoke --g0-smoke` against a real Vultr droplet → `bootstrap_rc=0`, `verify_rc=0`, **0 orphans**, 528s, ~$0.015. Live-proved G5's `iptables-docker-user.service` on a fresh bootstrap. **G0 copied-creds result:** copying the hub's Claude OAuth creds to a fresh host authenticates *immediately* (`immediate_auth_ok=True`, no rotation on first use) — single-session rejection ruled out; copied-creds zero-touch is viable pending only the ~4-day refresh-token race.

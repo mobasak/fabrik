@@ -1,10 +1,15 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-08-02 07:18 UTC
+**Last Updated:** 2026-08-03
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke). **The fleet is settled at 3 permanent hosts.** Any `vps4` you see in drill logs/reports is the **disposable drill identity** — a throwaway Vultr instance the `fabrik vultr drill` subsystem spins up and auto-destroys; it is NOT a permanent fleet member. (`fabrik vultr provision` can add a real 4th spoke, but none is currently provisioned.)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
 **Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`)
+**Host software baseline (2026-08-03):** all 3 hosts on **Node.js 22 + Claude Code `2.1.220`** (npm-global,
+`/usr/bin/claude`; vps1 migrated Node 18→22 — its only host Node consumer was claude, `n8n` is containerized).
+Weekly self-update via a per-host root cron (`npm i -g @anthropic-ai/claude-code@latest`, Sun 04/05/06 UTC).
+⚠ Host `claude -p` auth is currently stale (401 / not-logged-in; creds ~10 days old) — a host-rotation gap,
+pre-existing and unrelated to the version bump. Full detail: [`vps-status.md`](vps-status.md) § Tooling/code changes.
 
 ## Quick state (current — container counts re-verified live 2026-07-12: vps1=31, vps2=5, vps3=5; 16 compose stacks on vps1, 3 on each spoke)
 
