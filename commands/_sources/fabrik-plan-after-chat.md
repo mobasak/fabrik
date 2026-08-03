@@ -22,8 +22,8 @@ First capture the **source of truth** — do NOT invent scope:
   frozen screen+flow contract from `/fabrik-ui-design`). The plan MUST build against them verbatim — **no phase
   invents a field, screen, flow, or component not in these files**; a step that contradicts a frozen contract is
   a defect (reconcile by re-freezing the contract, never by diverging in the plan). If the work is GUI and no
-  `docs/ui-design.md` exists yet, the plan's first move is to run `/fabrik-ui-design` (design-system-first), not
-  to improvise screens.
+  `docs/ui-design.md` exists yet, the plan's first move is to run `/fabrik-ui-design` (design-system-first) —
+  never improvise screens.
 - Write a bullet list, "**What we already agreed**", extracted from the `/fabrik-spec` doc (if any) + this
   conversation + `$ARGUMENTS`: the goal, the chosen approach, explicitly rejected alternatives, named
   external dependencies, and any constraints/decisions the user stated. Quote the user where a decision is theirs.
@@ -36,8 +36,6 @@ First capture the **source of truth** — do NOT invent scope:
     and approach are unambiguous (a written+approved spec is the ideal input). Never guess a requirement the
     user can answer in one line.
 
-A plan built on unstated assumptions is the failure mode this gate exists to prevent.
-
 **⚠️ Question bar — do NOT stop the plan for trivia.** Ask the user ONLY when a question clears BOTH: (1) the
 answer **materially changes the plan or outcome** (not cosmetic/reversible), AND (2) you **cannot resolve it**
 from a convention, `CLAUDE.md`, the spec, the codebase, or an obvious default. Otherwise **decide it, apply
@@ -45,17 +43,17 @@ the convention/default, and note it in one line** the user can override. **Never
 / variable / table / endpoint names, field ordering, test-file placement, formatting, obvious version pins, or
 any Fabrik-conventioned choice (naming = kebab-case; auth = Pattern A; DB host = `postgres-main`). **Do** raise
 ambiguous scope, product/behaviour decisions with no default, data-model/security tradeoffs, conflicting
-requirements, or irreversible actions — batch several real questions rather than dripping one at a time. A
-plan run that halts to ask "what should I name this folder?" is the exact defect this bar prevents.
+requirements, or irreversible actions — batch several real questions rather than dripping one at a time. A plan run
+that halts to ask "what should I name this folder?" is the exact defect this bar prevents.
 
 **Ask the execution-blocking questions HERE, not at execution.** The mirror-image defect: a real
 cross-AI / infra / credential / product-behaviour question that clears the bar but you *defer* into the plan
-as an `[OPEN → resolve at Phase N start]` residual. That is not planning — it is a landmine that halts
-`/fabrik-execute-plan` mid-run. Every such question must leave this command **either answered** (you asked the
-user — batch them — and baked the answer into the plan) **or self-service** (the plan carries the exact
-probe/default the executor applies without stopping). A cross-AI dependency the executor can't satisfy alone
-is a named BLOCKING unknown to resolve with its owner before the plan is trusted — never an "open" residual
-that rides into execution. `/fabrik-plan-review` enforces this at convergence; don't hand it a deferred question.
+as an `[OPEN → resolve at Phase N start]` residual — a landmine that halts `/fabrik-execute-plan` mid-run.
+Every such question must leave this command **either answered** (you asked the user — batch them — and baked
+the answer into the plan) **or self-service** (the plan carries the exact probe/default the executor applies
+without stopping). A cross-AI dependency the executor can't satisfy alone is a named BLOCKING unknown to
+resolve with its owner before the plan is trusted — never an "open" residual that rides into execution.
+`/fabrik-plan-review` enforces this at convergence; don't hand it a deferred question.
 
 ## Phase 0.5 — Binding context intake (read BEFORE you select an approach)
 
@@ -65,9 +63,7 @@ Carry those **straight into the Context Ledger** as-is. Phase 1's job then narro
 re-derivation**: (a) confirm the chosen module's *real API* at `path:line` (the spec grounded *which* module
 to vendor/enhance, not its exact signatures — that still needs grounding); (b) re-check each cited external
 source is **still fresh** (re-research only if the spec is stale or the dependency changed since its date).
-Do NOT re-run the whole intake from zero against a spec that already did it — that duplication is exactly
-what the `fabrik-spec → plan-after-chat` split exists to avoid. Only when there is **no** spec do you do the
-full intake below from scratch.
+Only when there is **no** spec do you run the full intake below from scratch.
 
 Every design selection — what to build, what to vendor, how to deploy, which invariants bind — MUST be
 justified against these sources, not made blind. Consult each that applies and cite it in the plan:
@@ -82,9 +78,9 @@ justified against these sources, not made blind. Consult each that applies and c
   DNS, port allocations). Any infra/compose step must match this.
 - **`fabrik-lib/README.md`** (`/opt/fabrik-lib/`) — the reusable-module table. **Vendor, don't build:**
   before planning ANY new capability (alerting, health probes, job queues, HTTP resilience, auth,
-  storage, webhooks, cost/quota, …) check whether a fabrik-lib module already does it and plan to
-  **vendor (copy) + adapt** it, not write from scratch. Note the module's real API in Phase 1
-  (it drifts upstream — ground it).
+  storage, webhooks, cost/quota, retries…) check whether a fabrik-lib module already does it and plan to
+  **vendor (copy) + adapt** it, not write from scratch. Ground the module's real API in Phase 1 — it
+  drifts upstream.
 - **`docs/operations/fabrik-lifecycle.md`** — the deploy lifecycle (`fabrik apply`/`redeploy`,
   trigger-don't-execute, what the registrars provision). **Mandatory** if the plan touches deploy,
   `compose.yaml`, secrets, DB provisioning, or any hub-side infra — so deploy steps are correct and
@@ -92,13 +88,12 @@ justified against these sources, not made blind. Consult each that applies and c
 - **`specs/services/<id>.yaml` `shape:`** — canonical. If the plan adds/removes a database call, cache,
   `/metrics`, search index, or admin UI, the corresponding `shape.*` flag MUST change too. **Ground this by
   reading the spec's `shape:` block directly** (the shape→registrars mapping is documented in the spec
-  contract) — do NOT depend on `fabrik plan <spec>`: `fabrik` is a **hub-side CLI (`/opt/fabrik` only)**,
-  not on PATH in a project's WSL dev, so any `fabrik …` step is unrunnable from a project and must be an
-  inspection-based assert instead. A plan whose code contradicts the spec ships a silently-broken deploy.
+  contract) — do NOT depend on `fabrik plan <spec>`: `fabrik` is a **hub-side CLI (`/opt/fabrik` only)**, not
+  on a project's PATH, so any `fabrik …` step is unrunnable from a project and must be an inspection-based
+  assert instead. A plan whose code contradicts the spec ships a silently-broken deploy.
 - **12-Factor (all twelve) — BINDING on what the plan is allowed to STEP.** The plan is exactly where a
-  12-Factor violation gets *written as a task* ("add rotating file logs", "run migrations on startup",
-  "use SQLite for the test fixture", "enable sticky sessions"). **A plan step that mandates a violation is a
-  defect — do not emit it.** Enforced in `.windsurf/rules/core/{10-python,12-node,25-data-postgres,30-ops,
+  12-Factor violation gets *written as a task*. **A plan step that mandates a violation is a defect — do
+  not emit it.** Enforced in `.windsurf/rules/core/{10-python,12-node,25-data-postgres,30-ops,
   45-testing-strategy,55-observability,75-workers-jobs,76-gpu-workers}.md`. **NEVER plan a step that:**
   - **XI** adds a `FileHandler`/`RotatingFileHandler`/loguru file sink/`winston.transports.File`/any `*.log`
     write or in-app log rotation → the app logs unbuffered JSON to **stdout only**; Promtail→Loki routes.
@@ -126,10 +121,9 @@ source, so a fresh executor inherits the full infra/fabrik/fabrik-lib/rules awar
 | `docs/data-contract.md` (FROZEN, if present) | the exact GUI↔DB field/enum/FK names every phase must use — no invented fields | the entity/field rows the phase touches |
 | `docs/ui-design.md` (FROZEN, GUI projects) | the screens, minimal-click flows + budgets, per-screen components/states, and screen↔field mapping every UI phase builds against | the screen block(s) the phase builds |
 
-**fabrik-lib consult is mandatory, not optional:** before planning ANY capability (alerting, health probes,
-job queues, HTTP resilience, auth, storage, webhooks, cost/quota, retries…), the ledger MUST show you
-checked `fabrik-lib/README.md` and either vendored the module (citing its real API, read from the module
-source — it drifts upstream) or justified building fresh. "Didn't check fabrik-lib" is a plan defect.
+**The fabrik-lib consult is mandatory, not optional:** for EVERY new capability the plan introduces, the ledger MUST show you checked `fabrik-lib/README.md`
+and either vendored the module (citing its real API, read from the module source — it drifts upstream) or
+justified building fresh. "Didn't check fabrik-lib" is a plan defect.
 If a phase is likely to **fix a bug in a vendored module**, add a step to append that fix to
 `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md` so fabrik-lib upstreams it for future projects.
 **When a capability is justified as a fresh BUILD, run the new-module-candidate check** (generic · reused by
@@ -160,16 +154,15 @@ Treat every intended step as unproven until verified against the real code/schem
   external tool a phase will shell out to (`docker`, `pytest`, `alembic`, `playwright`, `eas`, `npx expo
   run:android`, `gradle`, `size-limit`, a compiler/SDK, a linter), verify **the tool actually exists in the
   environment that phase runs in** — WSL dev, CI, or the VPS — with a concrete probe (`which <tool>` / a
-  `--version` / an SDK-root check), and write that probe into the phase as its first step. A **package**
-  dependency lives in a manifest (`requirements.txt`/`package.json`, and per CLAUDE.md editing it needs
-  authorization) — but a **system toolchain** (JDK + Android SDK, an Expo login/`EXPO_TOKEN`, a macOS host for
-  iOS, a headless-Chromium image) is declared by **no manifest** and is the class that stops execution
-  mid-plan. If a required tool is absent, the plan MUST either (a) carry an explicit **provisioning step** in an
+  `--version` / an SDK-root check), and write that probe into the phase as its first step. **Packages** live in
+  a manifest (`requirements.txt`/`package.json` — editing it needs authorization per CLAUDE.md); a **system
+  toolchain** (JDK + Android SDK, an Expo login/`EXPO_TOKEN`, a macOS host for iOS, a headless-Chromium image)
+  is declared by **no manifest** and is the class that stops execution mid-plan. If a required tool is absent,
+  the plan MUST either (a) carry an explicit **provisioning step** in an
   earlier phase, or (b) **choose the environment-compatible path** (e.g. **cloud EAS build** `eas build -p
   android --profile preview` needs no local Android SDK — the canonical mobile path per `mobile-app/80-mobile.md`;
   a local `--local`/`expo run:android` build does), or (c) record it as a **named BLOCKING unknown with a
-  resolution step**. Never a step that will discover the gap at runtime and ask the user — that is the exact
-  mid-execution stall this preflight exists to prevent.
+  resolution step**. Never a step that will discover the gap at runtime and ask the user — that is the exact mid-execution stall this preflight exists to prevent.
 - Hunt, before they reach the plan: unstated assumptions, missing edge cases/failure modes, and any step
   whose validation would be vague or unrunnable.
 
@@ -213,14 +206,13 @@ proof is the Evidence (Phase 4).
   (III) · shelled-out binaries **installed + pinned in the Dockerfile** (II).
 - **Per-phase `Interfaces` block — mandatory when the plan is parallelized.** **Consumes:** what this phase
   uses from earlier phases (exact signatures / paths). **Produces:** what later phases rely on — exact
-  function/class names, parameter + return types, file paths, env vars, DB columns. A subagent dispatched
-  for phase N sees ONLY phase N; this block is how it learns the names/types its neighbors expose. No
-  `Interfaces` = the plan cannot be safely parallelized (a defect for any phase with a downstream consumer).
+  function/class names, parameter + return types, file paths, env vars, DB columns. No `Interfaces` = the
+  plan cannot be safely parallelized (a defect for any phase with a downstream consumer).
 - **Decomposition as design (decide before you list steps):** name the files each phase creates/modifies and
   the ONE responsibility of each. Files that change together live together; split by responsibility, not by
-  technical layer; keep files focused (you reason best about code you can hold in context at once). In
-  existing code, follow established patterns — don't unilaterally restructure a large file unless you're
-  already editing it and it has grown unwieldy (then plan the split as an explicit step).
+  technical layer; keep files focused (you reason best about code you can hold in context at once). In existing code, follow established patterns — don't unilaterally
+  restructure a large file unless you're already editing it and it has grown unwieldy (then plan the split
+  as an explicit step).
 - **Phase right-sizing:** a phase is the smallest unit that carries its own test cycle and is worth a fresh
   `/fabrik-review` gate. Fold setup / config / scaffolding / doc steps into the phase whose deliverable needs
   them; split only where a reviewer could meaningfully reject one phase while approving its neighbor. If the
@@ -228,8 +220,8 @@ proof is the Evidence (Phase 4).
   one mega-plan.
 - **Highest-risk test goes FIRST (TDD for the risky path):** for the phase's highest-risk behavior, order the
   steps test-first — write the failing test, **run it and confirm it FAILS (red) for the right reason**,
-  implement the minimum to pass, **run it green**, then the phase gate. (CLAUDE.md's Behavior Contract —
-  "risk-ordered, TDD for the risky ones"; author the risky behavior's test first, don't retrofit it after the code.)
+  implement the minimum to pass, **run it green**, then the phase gate (per CLAUDE.md's Behavior Contract —
+  risk-ordered, TDD for the risky ones).
 - **Every phase ENDS with the SAME closing sequence — emit it as literal written steps IN the phase, never
   defer it to a meta-section.** The last steps of *every* phase, in order:
   1. run the phase's validation gate → fix to green;
@@ -253,8 +245,7 @@ proof is the Evidence (Phase 4).
   4. commit the phase (explicit paths + provenance trailers).
 
   **A phase that does not literally contain step 3 is an incomplete phase, and a plan whose phases don't each
-  show the `/fabrik-review` step is a defective plan.** The review is a written step *inside* every phase —
-  not a rule stated once elsewhere and assumed. Emit it for Phase A, Phase B, … every one, no exceptions.
+  show the `/fabrik-review` step is a defective plan.** Emit it for Phase A, Phase B, … every one, no exceptions.
 
 **No placeholders — these are plan failures, never write them:** `TBD` / `TODO` / "implement later"; "add
 appropriate error handling / validation / handle edge cases" (name the exact cases); "write tests for the
@@ -271,7 +262,7 @@ resilience pattern → `docs/RESILIENCE.md`; schema → `db/schema.sql` + `docs/
 port → `PORTS.md`; file added/removed → `INDEX.md`; always `CHANGELOG.md`. **Annotate each trigger→doc
 step as pool-reconciled + native-verified** (`scripts/doc_reconcile.py` — cheap `pick_models("docs")`
 author → verify-before-apply → converge; `/fabrik-execute-plan` runs it per phase), not hand-authored
-from scratch — the coder curates the applied patch, they don't draft every doc by hand. The plan's
+from scratch — the coder curates the applied patch. The plan's
 **last phase** must run `/fabrik-docs-review` to converge the docs to a truthful fixed point
 (touch-on-change gates prove presence, not correctness — this pass proves correctness).
 
@@ -284,8 +275,8 @@ The emitted plan MUST contain all three as written steps, not suggestions:
    surface *plus everything it calls/is called by* — independent finder subagents (parallel) for recall
    → refute false positives → **prove-before-fix** with a kept regression test → classify
    correctness/security vs style → **re-run the gate after each fix**. Phase N+1 does not begin until a
-   demonstrably-thorough pass yields **zero new correctness/security findings**. Not a one-line "review
-   here" — the full methodology, and progression is gated on it.
+   demonstrably-thorough pass yields **zero new correctness/security findings**. Not a one-line "review here" — the full
+   methodology, and progression is gated on it.
 2. **Subagents mandated where the work is independently decomposable** — implementation, research,
    grounding, and review are dispatched to subagents, stated in each phase's steps. **The plan must specify
    POOL-DEFAULT** (per `62-using-subagents.md` § Dispatch policy — the OpenRouter pool via `fanout(task_type,
@@ -308,8 +299,8 @@ Append, so the downstream converge/execute commands have what they need:
   serialization point (those phases cannot run in parallel with the other plan).
 - **`## Evidence`** — per phase, ≥1 real `path:line` you read AND ≥1 fenced command-output block you
   captured in Phase 1 (including the **external-research URLs** that grounded any 3rd-party dependency).
-  This is the grounded design rationale that makes the plan self-contained (so `/fabrik-execute-plan`'s
-  "design spec" need is met by the plan itself).
+  This grounded design rationale is what makes the plan self-contained, so `/fabrik-execute-plan`'s
+  "design spec" need is met by the plan itself.
 - **`## Self-audit`** — the grounding passes you ran and what each found, PLUS two completeness checks run
   with fresh eyes over the finished plan: **(a) coverage** — walk each item in "What we already agreed"
   (Phase 0) and point to the phase that delivers it; list any gap and add the missing phase. **(b) cross-phase
@@ -331,11 +322,11 @@ Append, so the downstream converge/execute commands have what they need:
   `scripts/enforcement/check_plans.py` (`\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+\.md`). **Check before create:**
   if the computed path exists, STOP and ask (never overwrite). This is the allowlisted location for new
   plan `.md` files.
-- **The file is NOT renamed or moved afterward.** Its name is stable for the whole
-  `fabrik-plan-after-chat → fabrik-plan-review → fabrik-execute-plan` pipeline; every downstream command references it
-  by that path. What changes is the internal **`Status:` field** — this command writes `Status: DRAFT`,
-  and the enforced `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not create a second
-  file or rename on convergence.
+- **The file is NOT renamed or moved afterward** — its name is stable for the whole
+  `fabrik-plan-after-chat → fabrik-plan-review → fabrik-execute-plan` pipeline; every downstream command
+  references it by that path. What changes is the internal **`Status:` field** — this command writes
+  `Status: DRAFT`, and the enforced `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not
+  create a second file or rename on convergence.
 - Do **not** commit unless the user says so this turn (`git add` is fine).
 - **MANDATORY final step — run `/fabrik-plan-review` now, do not skip it.** Immediately invoke
   `/fabrik-plan-review <file>` (via the Skill tool) on the plan you just wrote and run it **to a fixed
