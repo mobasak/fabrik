@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-user-test + /fabrik-service-test: interruption-resume contract (2026-08-03)
+
+The shared autonomy-run fragment now states the gauntlets' resume semantics explicitly: progress is durable
+as it lands (persisted review file, committed specs, fix commits, per-agent output dirs); re-invocation
+after a crash/quota-hit/disconnect re-adjudicates from the newest review file — banked rows spot-verified,
+UNCHECKED rows and un-run matrix cells are the remaining work; artifacts update per-round so a crash never
+destroys the resume state. Completes the recoverability work shipped for /fabrik-execute-plan.
+
 ### Added — /fabrik-execute-plan: crash/quota/disconnect-safe resume (2026-08-03)
 
 Plan runs are now recoverable and resumable, fail-closed: a same-plan `active` lock

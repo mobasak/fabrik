@@ -61,6 +61,16 @@ mail-catcher, a sandbox key), is a BLOCKED-**env FINDING** you record and route 
 doesn't suffer; a paid external with no sandbox is a recorded BLOCKED-**env FINDING you SKIP** — **never spend
 real operator money to manufacture a red.**
 
+**Interruption is recoverable — the gauntlet RESUMES, it never restarts from scratch.** Every unit of
+progress is durable the moment it lands: the persisted review file (the adjudicated checklist + ledgers),
+the committed specs under `tests/` (the rerunnable suite), each fix's commit, and per-agent output dirs.
+On re-invocation after a crash / quota-hit / disconnect / kill, the Termination contract's Anchor step reads
+the newest review file for this scope and **re-adjudicates from where it stands**: rows already CLEAN /
+FIXED / REFUTED with evidence are banked (spot-verify, don't redo); `UNCHECKED` rows and un-run matrix cells
+are the remaining work; committed specs re-run cheaply as regression proof. Update artifacts **as you go**
+(after each round, not only at the end) — an artifact written only at the end is the resume state a crash
+destroys. Dead subagents' partial output dirs are evidence to harvest, not to re-earn.
+
 **Dispatched subagents run their suites SYNCHRONOUSLY.** A subagent that backgrounds a test/suite run or arms
 a Monitor and then waits for a notification **stalls until its budget is exhausted** — background/Monitor
 signals do NOT deliver to a subagent. Every gauntlet subagent runs its
