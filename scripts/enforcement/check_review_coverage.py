@@ -193,7 +193,7 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     errs: list[str] = []
     rows = HANDOFF_ROW.findall(text)
     open_rows = [r for r in rows if r[1] == "OPEN"]
-    for sev, state, rest in rows:
+    for _sev, state, rest in rows:
         m = REPRO_IN_ROW.search(rest)
         if state == "CLOSED":
             if not m:

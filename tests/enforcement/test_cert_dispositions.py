@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 CHECK = Path("/opt/fabrik/scripts/enforcement/check_review_coverage.py")
 
 
@@ -19,9 +21,6 @@ def _run(repo: Path, name: str, content: str, repro: str | None = None) -> int:
         [sys.executable, str(CHECK), "--root", str(repo)],
         capture_output=True, text=True, timeout=30,
     ).returncode
-
-
-import pytest
 
 
 @pytest.fixture
