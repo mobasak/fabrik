@@ -8,8 +8,11 @@
 **Host software baseline (2026-08-03):** all 3 hosts on **Node.js 22 + Claude Code `2.1.220`** (npm-global,
 `/usr/bin/claude`; vps1 migrated Node 18→22 — its only host Node consumer was claude, `n8n` is containerized).
 Weekly self-update via a per-host root cron (`npm i -g @anthropic-ai/claude-code@latest`, Sun 04/05/06 UTC).
-⚠ Host `claude -p` auth is currently stale (401 / not-logged-in; creds ~10 days old) — a host-rotation gap,
-pre-existing and unrelated to the version bump. Full detail: [`vps-status.md`](vps-status.md) § Tooling/code changes.
+**Claude credential rotation (fixed 2026-08-03):** WSL `claude-manager` holds 3 accounts (mob/ob/can); a WSL
+cron (`0 */6 * * * sync-claude-accounts-to-fleet.sh`, snapshots-only) keeps every host's
+`~/.claude/manager-accounts/` fresh; a per-host hourly keepalive (`/etc/cron.d/vps-sysadmin` →
+`claude-keepalive-rotate.sh` → `claude_rotate.py`) auto-rotates the active on a quota-limit or 401. The
+missing WSL sync was the cause of the earlier fleet-wide 401. Full detail: [`vps-status.md`](vps-status.md).
 
 ## Quick state (current — container counts re-verified live 2026-07-12: vps1=31, vps2=5, vps3=5; 16 compose stacks on vps1, 3 on each spoke)
 

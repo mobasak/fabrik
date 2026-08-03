@@ -20,11 +20,20 @@
   `0 {4,5,6} * * 0 /usr/bin/npm i -g @anthropic-ai/claude-code@latest >/var/log/claude-code-update.log 2>&1`
   (Sun 04:00/05:00/06:00 UTC on vps1/vps2/vps3). Now that all hosts are Node 22 the cron is uncapped `@latest`;
   a Node-18 host would instead need a `<2.1.200` *range* (npm range installs are engine-aware).
-  **⚠ Separate pre-existing issue:** host `claude -p` currently FAILS auth (vps1 "not logged in"; vps2/vps3
-  HTTP 401) — `~/.claude/.credentials.json` is ~10 days stale (mtime `2026-07-24`), i.e. the host-level
-  rotation/keepalive that refreshes it isn't running. This is NOT from the version update (the old `2.1.165`
-  401s on the same creds too); the containerized watchdog uses its own mounted creds. **Track + fix the host
-  claude rotation separately.**
+- **Claude fleet credential rotation — the loop is now CLOSED (2026-08-03).** Symptom found during the
+  version update: host `claude -p` was 401-ing fleet-wide, creds ~10 days stale. Root cause was a **missing
+  schedule**, not the version. The full mechanism now:
+  1. **WSL `claude-manager`** keeps the 3 accounts fresh (`{mob,ob,can}-ocoron-com-s-organization`).
+  2. **WSL cron (NEW — the missing piece):** `0 */6 * * * scripts/sysadmin/sync-claude-accounts-to-fleet.sh`
+     (snapshots-only) pushes the fresh account snapshots to every host's `~/.claude/manager-accounts/`.
+     Agent-free SSH (cron-safe). Without this, host standby snapshots went stale, so rotation landed on dead
+     accounts → the 401 storm.
+  3. **Per-host keepalive cron (already deployed, all 3):** `/etc/cron.d/vps-sysadmin` runs
+     `claude-keepalive-rotate.sh` hourly (staggered :27/:11/:44) → pings claude through `claude_rotate.py`,
+     which **auto-rotates the active to a fresh standby on a quota-limit OR a 401** (bounded by account count;
+     a 401 also fires a debounced Telegram alert).
+  Verified live: all 3 `claude -p` auth OK (vps/vps2 active `can`, vps3 active `mob` — each rotates
+  independently). The containerized watchdog uses its own mounted creds (separate path).
 - **Fleet size settled at 3** (vps1+vps2+vps3) — no 4th permanent spoke planned.
 - **`fabrik vultr` hardening:** PR1 (provision/destroy symmetry), PR2 (G6 SAFE-RERUN-TRAP auto-retry + G3 wg0-peer removal that persists to `wg0.conf`), and **PR3 — `provision` auto-installs a new spoke's AI sysadmin** (token pool + enable + verify; 5 manual steps → 1). PR3 reviewed GREEN (5-axis) and **merged** (`0dc92e3`).
 - **LIVE DR drill validated (2026-06-13/14):** `fabrik vultr drill spoke --g0-smoke` against a real Vultr droplet → `bootstrap_rc=0`, `verify_rc=0`, **0 orphans**, 528s, ~$0.015. Live-proved G5's `iptables-docker-user.service` on a fresh bootstrap. **G0 copied-creds result:** copying the hub's Claude OAuth creds to a fresh host authenticates *immediately* (`immediate_auth_ok=True`, no rotation on first use) — single-session rejection ruled out; copied-creds zero-touch is viable pending only the ~4-day refresh-token race.
