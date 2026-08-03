@@ -339,6 +339,26 @@ class Shape(BaseModel):
             "DEPLOYMENT.md §9.9 G5."
         ),
     )
+    uses_claude_cli: bool = Field(
+        default=False,
+        description=(
+            "True if the service shells out to `claude -p` (the subscription CLI) for "
+            "in-code AI dispatch. Gates the deployer to mount the host's ROTATED OAuth "
+            "(~/.claude + ~/.claude.json, read-only) into the container so `claude -p` "
+            "follows the fleet account rotation — never a static CLAUDE_CODE_OAUTH_TOKEN. "
+            "The image must still install the CLI (in its Dockerfile). Generalizes the "
+            "watchdog sidecar pattern (drivers/watchdog.py). Pair with claude_cli_home."
+        ),
+    )
+    claude_cli_home: str = Field(
+        default="/root",
+        description=(
+            "The in-container HOME whose .claude the deployer mounts when "
+            "uses_claude_cli=true — `claude` resolves ~/.claude from $HOME. Default "
+            "'/root' (root container); set '/home/<user>' for a non-root USER "
+            "(e.g. '/home/appuser')."
+        ),
+    )
 
 
 class WordPressPlugin(BaseModel):

@@ -375,6 +375,7 @@ class SSHDeployer:
             raise DeployError(
                 f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
             )
+        _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Build .env from spec env + secrets (read-merge to preserve registrar-injected vars)
         env_content = self._build_env_content(ctx, name, existing)
@@ -456,6 +457,7 @@ class SSHDeployer:
             raise DeployError(
                 f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
             )
+        _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Write .env (read-merge to preserve registrar-injected vars)
         env_content = self._build_env_content(ctx, name, existing)
@@ -495,6 +497,7 @@ class SSHDeployer:
             raise DeployError(
                 f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
             )
+        _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         env_content = self._build_env_content(ctx, name, existing)
 
@@ -525,6 +528,11 @@ class SSHDeployer:
             raise DeployError(
                 f"Local source for {name}: no compose.yaml found at {path}/compose.yaml"
             )
+
+        # shape.uses_claude_cli → the project compose must mount the host's rotated ~/.claude
+        # (guard the extra read behind the flag — the common case does no extra SSH round-trip)
+        if (ctx.spec.get("shape") or {}).get("uses_claude_cli"):
+            _assert_claude_cli_mounts(_ssh(f"sudo cat {path}/compose.yaml", timeout=10), ctx.spec)
 
         # Write/merge .env
         env_content = self._build_env_content(ctx, name, existing, app_path=path)
@@ -588,6 +596,44 @@ class SSHDeployer:
 # ======================================================================
 # Module-level helpers
 # ======================================================================
+
+
+VPS_CLAUDE_HOME = os.environ.get("FABRIK_VPS_CLAUDE_HOME", "/home/ozgur/.claude")
+
+
+def claude_cli_mount_lines(container_home: str) -> list[str]:
+    """The two read-only bind mounts that give a container `claude -p` on the host's
+    ROTATED OAuth. The fleet rotation swaps ``~/.claude/.credentials.json`` in place
+    (``scripts/sysadmin/claude_rotate.py``), so a read-only mount follows the active
+    account automatically — never a static ``CLAUDE_CODE_OAUTH_TOKEN``. Mirrors the
+    watchdog sidecar (``drivers/watchdog.py``). ``container_home`` = the in-container
+    ``$HOME`` whose ``~/.claude`` the CLI resolves (spec ``shape.claude_cli_home``)."""
+    home = container_home.rstrip("/") or "/root"
+    return [
+        f"{VPS_CLAUDE_HOME}:{home}/.claude:ro",
+        f"{VPS_CLAUDE_HOME}.json:{home}/.claude.json:ro",
+    ]
+
+
+def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:
+    """When ``shape.uses_claude_cli`` is set, the deployed compose MUST mount the host's
+    rotated ``~/.claude`` (read-only) into the service, or ``claude -p`` has no auth in
+    the container. We VALIDATE (not inject): a git/local project owns its compose, so
+    injecting would re-drift it on the next pull (the coolify-network incident). No-op
+    when the flag is off; raises ``DeployError`` with the exact snippet when missing."""
+    shape = spec.get("shape") or {}
+    if not shape.get("uses_claude_cli"):
+        return
+    home = (shape.get("claude_cli_home") or "/root").rstrip("/") or "/root"
+    if f"{home}/.claude:ro" in compose_content:
+        return
+    snippet = "\n".join(f"      - {m}" for m in claude_cli_mount_lines(home))
+    raise DeployError(
+        "shape.uses_claude_cli is set but the compose does not mount the host's rotated "
+        "~/.claude into the container (claude -p would have no auth). Add to the service's "
+        f"volumes:\n{snippet}\nDo NOT use a static CLAUDE_CODE_OAUTH_TOKEN — it pins one "
+        "account and ignores the fleet rotation."
+    )
 
 
 def _is_placeholder(value: str) -> bool:

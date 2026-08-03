@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — shape.uses_claude_cli: rotation-aware `claude -p` in deployed containers (2026-08-02)
+
+New `shape.uses_claude_cli` (+ `claude_cli_home`, default `/root`) shape flag (`spec_loader.py`). When set,
+the SSH deployer REQUIRES the service compose to mount the host's ROTATED `~/.claude` + `~/.claude.json`
+read-only (`_assert_claude_cli_mounts` in all four deploy paths), so `claude -p` inside the container follows
+the fleet account rotation (`claude_rotate.py` swaps `~/.claude/.credentials.json` in place) instead of pinning
+to a static `CLAUDE_CODE_OAUTH_TOKEN` (which dies when that one account hits weekly quota). Generalizes the
+watchdog sidecar's hardcoded mount (`drivers/watchdog.py`) to any service. Validate-not-inject (a git/local
+project owns its compose; injecting would re-drift it) — raises `DeployError` with the exact mount snippet.
+Shared `claude_cli_mount_lines()` helper. +6 tests (167 pass), mypy clean. Layer 1 of the claude-p+OpenRouter
+in-code dispatch design; Layer 2 = fabrik-lib `llm-dispatch`, Layer 3 = ai/00.
+
 ### Fixed — /fabrik-execute-plan mandates SYNCHRONOUS subagent runs (2026-08-03)
 
 Dispatched implementer/reviewer subagents now MUST run long jobs (builds, test suites,

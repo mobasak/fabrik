@@ -16,11 +16,13 @@ import pytest
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import (
     SSHDeployer,
+    _assert_claude_cli_mounts,
     _format_env,
     _generate_docker_compose,
     _parse_env,
     _validate_compose,
     _validate_name,
+    claude_cli_mount_lines,
 )
 from fabrik.orchestrator.exceptions import DeployError
 
@@ -764,6 +766,47 @@ class TestDeployLocal:
 # ======================================================================
 # _build_env_content — read-merge strategy
 # ======================================================================
+
+
+class TestClaudeCliMounts:
+    """shape.uses_claude_cli → the deployer REQUIRES the host's rotated ~/.claude mounted
+    read-only (rotation-aware; never a static CLAUDE_CODE_OAUTH_TOKEN)."""
+
+    def test_mount_lines_target_the_container_home(self):
+        assert claude_cli_mount_lines("/home/appuser") == [
+            "/home/ozgur/.claude:/home/appuser/.claude:ro",
+            "/home/ozgur/.claude.json:/home/appuser/.claude.json:ro",
+        ]
+
+    def test_mount_lines_default_root(self):
+        lines = claude_cli_mount_lines("/root")
+        assert lines[0].endswith("/root/.claude:ro")
+        assert lines[1].endswith("/root/.claude.json:ro")
+
+    def test_noop_when_flag_off(self):
+        _assert_claude_cli_mounts("services:\n  x: {}\n", {"shape": {}})
+        _assert_claude_cli_mounts("anything", {})  # no shape at all
+
+    def test_passes_when_mount_present(self):
+        compose = (
+            "services:\n  seo:\n    volumes:\n"
+            "      - /home/ozgur/.claude:/home/appuser/.claude:ro\n"
+        )
+        spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"}}
+        _assert_claude_cli_mounts(compose, spec)  # must not raise
+
+    def test_raises_with_snippet_when_mount_missing(self):
+        spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"}}
+        with pytest.raises(DeployError, match="does not mount the host's rotated"):
+            _assert_claude_cli_mounts("services:\n  seo:\n    volumes: []\n", spec)
+
+    def test_static_token_without_mount_still_fails(self):
+        """A CLAUDE_CODE_OAUTH_TOKEN env (no mount) does NOT satisfy the flag — it pins
+        one account and ignores rotation."""
+        compose = "services:\n  seo:\n    environment:\n      - CLAUDE_CODE_OAUTH_TOKEN=x\n"
+        spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/root"}}
+        with pytest.raises(DeployError):
+            _assert_claude_cli_mounts(compose, spec)
 
 
 class TestBuildEnvContent:
