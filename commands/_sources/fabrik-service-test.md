@@ -247,6 +247,15 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
 
 ## Report + chain
 
+**Machine-readable disposition rows (gate-parsed by `check_review_coverage.py` — exact grammar):** every
+routed finding appears as one line in the report:
+`HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command>` ·
+`HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` ·
+`DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open).
+A CLOSED row without an existing repro path + proof fails the gate; any OPEN HANDOFF row requires the final
+ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`.
+
+
 `docs/development/reviews/YYYY-MM-DD-service-test-<slug>.md`: the Inventory Ledger + coverage
 fractions (**journeys completed / journey set · endpoints+jobs exercised / inventory · FEATURES
 rows verified / total · dependencies degraded-tested / RESILIENCE §2 — each with the scenario IDs

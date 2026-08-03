@@ -170,6 +170,51 @@ def check_file(p: Path) -> list[str]:
     return errs
 
 
+# --- Certification disposition gate (user-test / service-test reports) ---------
+# Grammar (defined in the gauntlets' "Report + chain" sections):
+#   HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command>
+#   HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>
+#   DESIGN-GAP <desc> — brief: <path>            (operator decision; may stay open)
+# Rules (zero-false-positive by design — only rows using the grammar are parsed):
+#   CLOSED without an existing repro path or without proof:  FAIL
+#   any OPEN row  -> report must carry NOT-QUIET marker AND a ## RESUME section
+#   NOT-QUIET marker -> ## RESUME required
+CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
+HANDOFF_ROW = re.compile(r"^\s*[-*]?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M)
+REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
+PROOF_IN_ROW = re.compile(r"proof:\s*\S")
+NOT_QUIET = re.compile(r"NOT-QUIET")
+RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)
+
+
+def check_cert_dispositions(path: Path, root: Path) -> list[str]:
+    """Disposition rows in a certification report must be provable, not prose."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    errs: list[str] = []
+    rows = HANDOFF_ROW.findall(text)
+    open_rows = [r for r in rows if r[1] == "OPEN"]
+    for sev, state, rest in rows:
+        m = REPRO_IN_ROW.search(rest)
+        if state == "CLOSED":
+            if not m:
+                errs.append(f"CLOSED HANDOFF row lacks a repro: path — {rest.strip()[:60]}")
+            elif not (root / m.group(1)).is_file():
+                errs.append(f"CLOSED HANDOFF cites a repro that does not exist: {m.group(1)}")
+            if not PROOF_IN_ROW.search(rest):
+                errs.append(f"CLOSED HANDOFF row lacks proof: — {rest.strip()[:60]}")
+    if open_rows:
+        if not NOT_QUIET.search(text):
+            errs.append(
+                f"{len(open_rows)} OPEN HANDOFF row(s) but the ledger is not marked "
+                "NOT-QUIET (routes outstanding) — a truncated run may never present itself as quiet"
+            )
+        if not RESUME_HEAD.search(text):
+            errs.append(f"{len(open_rows)} OPEN HANDOFF row(s) but no ## RESUME section")
+    if NOT_QUIET.search(text) and not RESUME_HEAD.search(text):
+        errs.append("ledger marked NOT-QUIET but no ## RESUME section names the outstanding rows")
+    return errs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
@@ -177,6 +222,10 @@ def main() -> int:
     root = Path(args.root).resolve()
     failures: list[str] = []
     for p in _changed_md(root, REVIEWS_DIR):
+        if CERT_REPORT.search(p.name):
+            for e in check_cert_dispositions(p, root):
+                failures.append(f"{p.relative_to(root)}: {e}")
+            continue  # a certification report is disposition-gated, not checklist-gated
         for e in check_file(p):
             failures.append(f"{p.relative_to(root)}: {e}")
     if failures:

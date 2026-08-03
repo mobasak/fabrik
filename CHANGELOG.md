@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — certification disposition gate: HANDOFF rows are now machine-checked (2026-08-03)
+
+check_review_coverage.py gains a disposition gate for certification reports (*-user-test-* /
+*-service-test-*): the gauntlets' Report sections define a machine-readable row grammar
+(HANDOFF P<0-3> OPEN/CLOSED with repro:/route:/proof:; DESIGN-GAP with brief:), and the gate fails a
+CLOSED row whose repro path doesn't exist or that lacks proof, any OPEN row without the NOT-QUIET ledger
+marker + ## RESUME section, and NOT-QUIET without RESUME. DESIGN-GAP rows may stay open (operator
+decision); prose-only reports are untouched (zero-false-positive by design). This turns the
+/fabrik-release precondition from prose an LLM reads into a gate a truncated run cannot pass. 9 tests.
+
 ### Changed — gauntlet fix policy hardened by a 3-model panel (Opus 5 · Sonnet 5 · Fable 5) (2026-08-03)
 
 All three independently upheld the tiered fix-or-route design over both alternatives (full-pipeline-per-
