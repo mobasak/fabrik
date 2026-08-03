@@ -121,7 +121,7 @@
 - [scripts/docs_updater.py](INDEX.md): Fabrik Documentation Updater
 - [scripts/enforcement/check_android_env.py](INDEX.md): Verify WSL-to-Windows Android SDK communication.
 - [scripts/enforcement/check_configuration_md.py](INDEX.md): Enforce configuration documentation pattern.
-- [scripts/enforcement/check_convergence.py](INDEX.md): Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
+- [scripts/enforcement/check_convergence.py](INDEX.md): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md | none
 - [scripts/enforcement/check_doc_index.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_doc_stubs.py](INDEX.md): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_sync.py](INDEX.md): AFTER-EDIT: none
@@ -198,6 +198,7 @@
 - [api-smoke-test](/opt/fabrik-lib/api-smoke-test/README.md): api-smoke-test
 - [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md): app-audit-log
 - [async-http-client](/opt/fabrik-lib/async-http-client/README.md): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
+- [authored-list](/opt/fabrik-lib/authored-list/README.md): authored-list
 - [captcha-solve](/opt/fabrik-lib/captcha-solve/README.md): captcha-solve — provider-pluggable captcha solving (reCAPTCHA / hCaptcha / Turnstile / image)
 - [chrome-ext-billing-kit](/opt/fabrik-lib/chrome-ext-billing-kit/README.md): chrome-ext-billing-kit
 - [claude-evaluator](/opt/fabrik-lib/claude-evaluator/README.md): claude-evaluator/

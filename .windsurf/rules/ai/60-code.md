@@ -11,7 +11,7 @@ trigger: glob
 
 # 6. Code & Developer AI
 
-Last content verification: 2026-08-02
+Last content verification: 2026-08-03
 
 **Purpose:** Generate or explain code.
 
@@ -25,8 +25,8 @@ Claude Code, GitHub Copilot, Amazon Q Developer, Cursor IDE, Windsurf Cascade.
 
 The code frontier (qwen3.7-max, glm-5.2, grok-4.3, claude-code-tier Sonnet/Opus, gpt-oss-120b) is on both Kilo and OpenRouter, often at different per-token costs. Pick the cheaper gateway per model from the bake-off browser (Coding tab — sorts by Best Code descending). For *embedded* product code-gen, default Claude per the table above; for *dev tooling*, the Fabrik stack already uses Claude Code + Windsurf Cascade + Kilo CLI in parallel.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-02 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-02 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-03 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-03 UTC; auto-refreshed from `kilo_agents.db`):*
 
 code-tagged across all gateways: **59**
 
@@ -35,8 +35,8 @@ See the Coding tab in the bake-off browser; sort by Best Code descending to comp
 
 **Use cases:** code completion, refactoring, debugging assistance.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-02 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-02 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-03 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-03 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
