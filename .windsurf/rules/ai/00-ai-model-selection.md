@@ -160,10 +160,15 @@ Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subs
 When project/pipeline code needs an **AI step wired into the code** (mechanical code can't do the job —
 transcript classification, fix dispatch, content triage), select the model by this ladder.
 
-**First choice — vendor a fabrik-lib dispatch template, don't hand-roll.** Implement this ladder via a
-shared **fabrik-lib** AI-dispatch template/module (vendor-don't-build, CLAUDE.md § Pointers) rather than a
-bespoke `claude -p` subprocess per project — so the ladder itself, the `58-resilience` wrap, and the
-cost-budget guard live in one audited place every project reuses. Then select the rung:
+**First choice — vendor the `fabrik-lib/llm-dispatch` module, don't hand-roll.** Implement this ladder by
+vendoring **`llm-dispatch`** (vendor-don't-build, CLAUDE.md § Pointers) rather than a bespoke `claude -p`
+subprocess per project — it IS this ladder (claude -p haiku→opus→fable primary, OpenRouter fallback),
+composing your vendored `ai-consult` (OpenRouter leg) + `cost-budget` (paid-leg guard) by injection, with an
+optional `quality_gate` for measured escalation. **Infra prerequisite:** a *deployed* service that shells to
+`claude -p` MUST declare **`shape.uses_claude_cli: true`** (+ `claude_cli_home`) so the deployer mounts the
+host's **rotated** `~/.claude` read-only into the container — auth follows the fleet account rotation;
+**never** bake a static `CLAUDE_CODE_OAUTH_TOKEN` (it pins one account and dies at its weekly quota). Then
+select the rung:
 
 1. **`claude -p --model haiku`** — the default first rung (subscription; cheapest capability tier).
 2. **`claude -p --model opus`** — only when haiku is measurably not enough (task fails its quality
