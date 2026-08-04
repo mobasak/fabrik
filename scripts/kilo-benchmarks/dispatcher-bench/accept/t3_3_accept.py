@@ -2,7 +2,6 @@ import pathlib
 import warnings
 
 import pytest
-
 from app import settings, worker
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]

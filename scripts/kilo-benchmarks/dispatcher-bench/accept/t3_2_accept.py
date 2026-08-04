@@ -1,6 +1,5 @@
 import pytest
-
-from app import notify, orders, status, store
+from app import orders, status, store
 
 
 def test_refunded_in_statuses():

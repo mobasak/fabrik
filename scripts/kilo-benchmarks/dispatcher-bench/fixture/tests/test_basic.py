@@ -1,6 +1,6 @@
 """Baseline behaviours (green on main)."""
-import pytest
 
+import pytest
 from app import auth, billing, orders, status, store
 
 
