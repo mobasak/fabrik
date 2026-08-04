@@ -9,6 +9,20 @@
 
 ## Tooling/code changes since this 2026-06-07 health probe (not yet re-probed live)
 
+- **2026-08-04 morning: fleet-wide OAuth exhaustion — rotation worked as designed, the WINDOW was the bug.**
+  All 3 hosts' keepalives went `KEEPALIVE_FAIL:401_auth` (~06:00–08:37 UTC+1): rotation correctly walked
+  every account (actives ended ob/mob/mob) but **every VPS-side copy was dead**, so it exhausted + alerted
+  (the operator's "🔍 Proactive Check / OAuth session expired" Telegram messages). **Root cause:** OAuth
+  refresh tokens are SINGLE-USE and 4 boxes (WSL + 3 VPS) refresh the SAME 3 accounts — any refresh on one
+  box invalidates the others' copies (vps2+vps3 were even both active on `mob`, killing each other hourly).
+  A 6-hour snapshot-sync window cannot outrun that churn. **Mitigations landed:** WSL sync cron bumped
+  **6h → hourly** (`5 * * * *` — bounds any dead-standby window to ≤1h, matching the keepalive cadence);
+  recovery = `SYNC_ACTIVE=1` re-sync (all 3 `KEEPALIVE_OK` 08:37 UTC+1). **Proactive alerts now host-tagged**
+  (`🔍 Proactive Check [vpsN]`) — the incident alerts were anonymous, deployed fleet-wide. **Honest residual:**
+  hourly sync is a mitigation, not a cure — the multi-writer refresh-token conflict is architectural; the cure
+  would be per-box dedicated accounts or routing all VPS claude calls through one credential owner. Revisit if
+  exhaustion recurs at the hourly cadence.
+
 - **Full fleet infra audit — 2026-08-03 (live probe: [`infra-probe-2026-08-03T18-37Z.yaml`](probe-reports/infra-probe-2026-08-03T18-37Z.yaml)).**
   **Verdict: fleet healthy.** Containers 31/5/5 all Up, **zero unhealthy**; UFW + fail2ban active ×3; wg mesh
   alive (hub 2 peers, spokes 1); `fabrik` docker net ×3; disk 38/14/14 %; Prometheus **0 targets down**;

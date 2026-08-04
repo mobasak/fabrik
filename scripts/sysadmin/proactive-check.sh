@@ -494,7 +494,7 @@ if [ -z "$RESULT" ]; then
   # Empty result = Claude FAILED to analyze (auth/quota/timeout/crash), NOT a benign verdict.
   # Fail CLOSED: do not treat unreviewed anomalies as all-clear — escalate so a real problem
   # isn't silently swallowed behind a claude failure.
-  if APPRISE_SEND "⚠️ Proactive Check — Claude analysis FAILED" "Anomalies were detected but Claude returned NO analysis (auth/quota/timeout?). Review manually. Anomalies: ${ANOMALIES:-unknown}"; then
+  if APPRISE_SEND "⚠️ Proactive Check [$(hostname -s)] — Claude analysis FAILED" "Anomalies were detected but Claude returned NO analysis (auth/quota/timeout?). Review manually. Anomalies: ${ANOMALIES:-unknown}"; then
     echo "Claude analysis failed (empty result) — escalated unreviewed anomalies."
   else
     echo "Claude analysis failed AND the escalation alert could NOT be delivered — check Apprise/fabrik network."
@@ -509,7 +509,7 @@ fi
 # Send to Telegram via Apprise (inside Docker network). Gate the success line on actual
 # delivery — an unconditional "Sent" after a failed APPRISE_SEND is a self-contradictory log
 # and hides a dropped alert (Claude found a real issue but the operator never heard).
-if APPRISE_SEND "🔍 Proactive Check" "$RESULT"; then
+if APPRISE_SEND "🔍 Proactive Check [$(hostname -s)]" "$RESULT"; then
   echo "Sent proactive alert to Telegram."
 else
   echo "Proactive alert FAILED to send (see APPRISE_SEND FAILED above)."
