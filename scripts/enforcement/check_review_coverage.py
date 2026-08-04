@@ -8,8 +8,11 @@ files under docs/development/reviews/ (git status + regex; safe every tier).
 
 A changed reviews/*.md containing a "Coverage Checklist" table:
   -> every checklist row must carry a verdict: CLEAN / FIXED / REFUTED.
-  -> zero UNCHECKED rows — unless a "Declared residual" section names each
-     leftover class (the honest cap-stop the Termination contract allows).
+  -> zero UNCHECKED rows. (There is NO cap-stop / "Declared residual" bypass —
+     the Termination contract has no round ceiling; the only pause is a
+     per-finding 3-attempts BLOCKED escalation. A prior docstring advertised a
+     cap-stop the contract never allowed — a live run cited it to close a loop
+     on a spot-verify round.)
   -> the standing recurrence classes must appear as rows (fail-open,
      cost/quota accounting, boundary/sentinel, behavior-without-a-test).
 A changed reviews/*.md that names /fabrik-review or /fabrik-repo-review as its
@@ -234,7 +237,7 @@ def main() -> int:
             print(f"  - {f}")
         print(
             "A coverage-adjudicated review exits only on a fully-adjudicated checklist "
-            "(or a cap-stop with a Declared residual section naming the leftovers)."
+            "— there is no cap-stop; a spot-verify of fixes is the re-check step, never the closing round."
         )
         return 1
     print("check_review_coverage: OK (no unproven coverage claims in changed review artifacts)")

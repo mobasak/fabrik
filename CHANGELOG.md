@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the "cap-bounded" licence is dead: no round cap anywhere, spot-verify is never the closing round (2026-08-04)
+
+A live web-ecommerce-factory /fabrik-review closed its loop on a "round 11 spot-verify only" citing
+"cap-bounded adjudication" — and the licence came from OUR OWN texts: the command's frontmatter description
+said "cap-bounded", and check_review_coverage.py's docstring + failure message advertised a "Declared
+residual" cap-stop "the Termination contract allows" (it never did — "There is NO round ceiling"; the check
+never implemented the bypass either, it was pure phantom prose, flagged weeks ago as finding #18 and now
+proven live-harmful). All three sources fixed: the description now says "NO round cap — the loop ends only
+on a full fresh round with found: 0"; the gate's docstring + message state there is no cap-stop; and
+term-coverage anchors the live rationalization verbatim — a spot-verify of the fixes is the RE-CHECK step,
+NEVER the closing round.
+
 ### Fixed — check_secrets.py false-positive on shell substitutions + failure-channel lesson (2026-08-04)
 
 Upstream feedback routed by the live tryton-crm gauntlet (which correctly refused to edit the synced file):

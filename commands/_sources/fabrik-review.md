@@ -1,5 +1,5 @@
 ---
-description: Adversarial code review — independent finders (recall) → refute false positives → prove & fix with regression guards → LOOP until the Coverage Checklist is fully adjudicated (every class CLEAN/FIXED/REFUTED, fixes re-checked, cap-bounded)
+description: Adversarial code review — independent finders (recall) → refute false positives → prove & fix with regression guards → LOOP until the Coverage Checklist is fully adjudicated (every class CLEAN/FIXED/REFUTED, fixes re-checked; NO round cap — the loop ends only on a full fresh round with found: 0)
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 

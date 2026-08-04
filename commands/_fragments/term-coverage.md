@@ -12,7 +12,7 @@ The Coverage Checklist: one row per failure class from the rubric output (FLOOR 
 Loop passes as specified (finders → refute → prove & fix → regression-guard), updating rows as you go. **You are DONE only when ALL of these hold:**
 - **The final round raised NOTHING — `found: 0, fixed: 0`**, where `found` counts every candidate any finder RAISED, **including ones you refute in triage** (a round that raised 3 and refuted all 3 is NOT quiet — run the next full round). Keep hunting while anything is still turning up; the loop, not the checklist, decides when the hunting stops.
 - **Every row is adjudicated** — `CLEAN` (hunted this run, with what/where evidence), `FIXED(n)`, or `REFUTED(n, proof)`. No `UNCHECKED` rows. An in-scope CONFIRMED or PLAUSIBLE finding terminates FIXED or REFUTED — never silently passed.{{RESIDUAL}}
-- **The last code-changing pass was followed by a confirming re-check** of every class its fixes touched (fixes introduce defects — the pass that changed code is never the last look at those classes).
+- **The last code-changing pass was followed by a confirming re-check** of every class its fixes touched (fixes introduce defects — the pass that changed code is never the last look at those classes). **A spot-verify of the fixes is that re-check step — it is NEVER the closing round** (live defect: a loop closed on "round 11 spot-verify only" after a class-level fix, leaving the post-fix surface without its full fresh sweep).
 - **Mechanical gates are green** (`final_gate`) — lint/type/test classes are the gates' job; do not spend finder passes re-discovering what a gate catches.
 - **Ledger reproduced** — numbered passes with `found:` (counting every raised candidate, INCLUDING later-refuted ones) and `fixed:` per pass.
 
