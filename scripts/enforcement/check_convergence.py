@@ -45,13 +45,83 @@ from pathlib import Path
 PLANS_DIR = "docs/development/plans/"
 REVIEWS_DIR = "docs/development/reviews/"
 
-CONVERGED = re.compile(r"^\s*\*\*Status:\*\*.*\b(converged|zero unknowns)\b", re.I | re.M)
+# CONVERGED on the Status line — bold-or-plain, colon inside OR outside the bold
+# (`Status:`, `**Status:**`, `**Status**:`), and — matching the PRE-tolerance
+# behavior exactly — "converged"/"zero unknowns" ANYWHERE on the Status line (a
+# `Status: COMPLETE — converged after 3 passes` claim is a convergence claim).
+# Enforcement is NEW-TRANSITION-ONLY via _converged_targets (the _executed_targets
+# precedent): a file already CONVERGED at HEAD is settled — pre-existing
+# CONVERGED plans fleet-wide keep passing unchanged when merely re-touched.
+# A convergence CLAIM = a Status line (colon mandatory) whose remainder contains
+# "converged" or "zero unknowns" — UNLESS the status VALUE itself is a
+# pre-convergence state (DRAFT/PLANNED/IN-PROGRESS): "Status: DRAFT — will be
+# converged after review" is not a claim, while "Status: CLEAN-CONVERGED",
+# "Status: IMPLEMENTATION-CONVERGED", "Status: 🟢 CONVERGED" and
+# "Status: COMPLETE — converged after 3 passes" all are (live operator
+# vocabulary). The two-step (line regex + _claims_converged) is what regex alone
+# cannot express.
+CONVERGED_LINE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*(?P<val>[^\n]*)$",
+    re.I | re.M,
+)
+# Pre-convergence status VALUES (EXACT token match — a prefix test swallowed
+# UNBLOCKED/UNIFIED-CONVERGED/NOTED as non-claims, fail-open) + a NEGATION regex
+# for disclaimers anywhere on the line ("NOT CONVERGED", "COMPLETE — not
+# converged", "never converged", "un-converged").
+_NON_CLAIM_TOKENS = frozenset(
+    ("draft", "planned", "in-progress", "in_progress", "blocked", "reverted")
+)
+_NEGATED_CONVERGED = re.compile(
+    r"\b(?:not|never|isn'?t|un)\W{0,2}(?:converged|zero unknowns)", re.I
+)
+
+
+def _claims_converged(text: str) -> bool:
+    for m in CONVERGED_LINE.finditer(text):
+        val = m.group("val").strip().strip("*").strip()
+        low = val.lower()
+        if not low:
+            continue
+        stripped = low.lstrip("✅🟢⚠️❌ ")
+        first = stripped.split()[0].rstrip(":*—–-") if stripped.split() else ""
+        # PRECEDENCE (review round 10): a leading affirmative VALUE wins —
+        # `CONVERGED (2 items not converged, deferred)` IS a claim; later-prose
+        # negations must not disarm it (fail-open). Then the pre-convergence
+        # value tokens, then disclaimers anywhere ("COMPLETE — not converged"),
+        # and the SAME guards cover "zero unknowns" (a DRAFT aiming for zero
+        # unknowns is not a claim).
+        if "converged" in first and not _NEGATED_CONVERGED.search(first):
+            return True
+        if first in _NON_CLAIM_TOKENS:
+            continue
+        if _NEGATED_CONVERGED.search(low):
+            continue
+        if "converged" in low or "zero unknowns" in low:
+            return True
+    return False
+
+
+class _ConvergedSearch:
+    """CONVERGED.search(text) facade so existing call sites/tests keep working.
+    Fence-stripped: a DRAFT plan QUOTING `Status: CONVERGED` in an example block
+    is not claiming convergence."""
+
+    @staticmethod
+    def search(text: str):
+        return _claims_converged(FENCE_STRIP.sub("", text)) or None
+
+
+CONVERGED = _ConvergedSearch()
 # EXECUTED must be the status VALUE (right after `Status:`), not the word
 # "executed" appearing in prose — else a `Status: CLOSED … never executed
 # directly` / `Status: Done … was executed unauthorized` line false-positives.
 # An optional leading list/quote marker tolerates `- **Status:** EXECUTED`.
+# Colon MANDATORY + same-line whitespace only — consistent with every sibling
+# status regex in this wave ("Status executed manually" prose must not claim).
 EXECUTED = re.compile(
-    r"^\s*(?:[-*>]\s+)?\*{0,2}Status:?\*{0,2}\s*(?:✅\s*)?\*{0,2}\s*EXECUTED\b", re.I | re.M
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(?:✅[^\S\n]*)?"
+    r"\*{0,2}[^\S\n]*EXECUTED\b",
+    re.I | re.M,
 )
 REVIEW_CITE = re.compile(r"docs/development/reviews/[\w./-]+\.md")
 # The /fabrik-review termination signature (term-coverage): a quiet round
@@ -71,9 +141,85 @@ PROOF = re.compile(r"[\w./-]+\.(?:py|ts|tsx|js|sql|md|csv|ya?ml|sh|json):\d+")
 EVIDENCE = re.compile(r"^#{2,}\s*Evidence\b", re.I | re.M)
 AUDIT = re.compile(r"self[- ]?audit|convergence floor", re.I)
 GATE_OK = re.compile(r'"status"\s*:\s*"success"')
+# PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
+# fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
+# plus inline single-line ```…``` quotes. Out of contract (documented, not
+# chased): tilde fences, over-long closers, and unpaired line-start fence
+# PAIRS — the emitting commands write balanced 3-backtick fences and quote
+# templates with 4-backtick outers, both in-contract; no live fleet file
+# violates this (verified 2026-08-05).
+# Strip-purpose fence regex — newline NOT required (a single-line ```Status: X```
+# is still a quote). FENCE_BLOCK below stays as-is for _nontrivial_fences COUNTING.
+FENCE_STRIP = re.compile(
+    # Line-anchored blocks + inline single-line fences (never bare ```.*?``` —
+    # an unpaired backtick in prose swallows real body; see check_plan_tickets).
+    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
+    re.M | re.S,
+)
 # Fenced code blocks — capture inner content so we can demand non-trivial output
 # (an empty ``` ``` pair must not satisfy the "show the command output" rule).
 FENCE_BLOCK = re.compile(r"```[^\n]*\n(.*?)```", re.S)
+# Spine+ticket plan-set shape (canonical grammar — single definitions live in the
+# 2026-08-04 spine-ticket plan; keep these byte-identical with check_plan_tickets).
+PLAN_DIR_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
+# Bold-tolerant ID cell (| **T01** | …) — keep in lockstep with check_plan_tickets.
+BOARD_ROW = re.compile(r"^\|\s*\**\s*(T\d{2}[a-z]?)\b", re.M)
+BOARD_SECTION = re.compile(r"^##\s+Ticket Board\b(.*?)(?=^##\s|\Z)", re.I | re.M | re.S)
+TICKET_FILE = re.compile(r"^T\d{2}[a-z]?-[a-z0-9-]+\.md$")
+# Colon mandatory + same-line value — prose about statuses (and a bare "Status:"
+# label above an indented list) must not trip the ticket Status ban.
+ANY_STATUS_LINE = re.compile(r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\S", re.M)
+
+
+def _is_spine(path: Path) -> bool:
+    """A spine = same-stem .md inside a dated plan directory."""
+    return bool(PLAN_DIR_NAME.match(path.parent.name)) and path.stem == path.parent.name
+
+
+def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
+    """Spine-CONVERGED plan-set checks: Board rows ↔ ticket files (orphans), no
+    ticket carries a Status: line, and the full spine↔ticket contract via an
+    in-process check_plan_tickets run at FULL severity (a hand-flipped Status must
+    fail here, before dispatch). Fail-safe: the in-process import degrades to the
+    native checks alone."""
+    rel = spine.relative_to(root)
+    if "archived" in rel.parts:
+        return []  # settled history — never re-enforced
+    fails: list[str] = []
+    text = FENCE_STRIP.sub("", text)  # fences are quotes — same policy as check_plan_dir
+    section = BOARD_SECTION.search(text)
+    rows = BOARD_ROW.findall(section.group(1)) if section else []
+    ticket_ids_on_disk = {
+        f.name.split("-", 1)[0] for f in spine.parent.glob("*.md") if TICKET_FILE.match(f.name)
+    }
+    for row_id in rows:
+        if row_id not in ticket_ids_on_disk:
+            fails.append(f"{rel}: Board row {row_id} has no ticket file on disk (orphan row)")
+    for f in sorted(spine.parent.glob("*.md")):
+        if not TICKET_FILE.match(f.name):
+            continue
+        if ANY_STATUS_LINE.search(
+            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))
+        ):
+            fails.append(
+                f"{rel}: ticket {f.name} carries a Status: line — ticket state lives ONLY "
+                "in the spine Board"
+            )
+    try:
+        try:
+            from .check_plan_tickets import check_plan_dir  # package context
+        except ImportError:
+            import sys as _sys
+
+            _sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+            from scripts.enforcement.check_plan_tickets import check_plan_dir
+        for r in check_plan_dir(spine.parent, context="flip"):
+            if r.severity.value == "error" and "orphan row" not in r.message:
+                # (orphan rows already reported by the native loop above — no dupes)
+                fails.append(f"{rel}: plan-set contract: {r.message}")
+    except Exception as e:  # noqa: BLE001 — fail-safe, but observable
+        print(f"NOTE: in-process check_plan_tickets skipped at the flip ({e!r})")
+    return fails
 
 
 def _nontrivial_fences(text: str) -> int:
@@ -128,16 +274,29 @@ def _check_plan(root: Path, path: Path) -> list[str]:
         return []  # only artifacts that CLAIM convergence are held to proof
     rel = path.relative_to(root)
     fails: list[str] = []
-    if not EVIDENCE.search(text):
+    scan = FENCE_STRIP.sub("", text)  # heading PRESENCE must not be satisfied from quotes
+    if not EVIDENCE.search(scan):
         fails.append("claims CONVERGED but has no '## Evidence' section")
-    if not AUDIT.search(text):
+    if not AUDIT.search(scan):
         fails.append("no self-audit / convergence-floor block")
-    phases = len(PHASE.findall(text)) or 1
+    phases = len(PHASE.findall(scan)) or 1  # headings, not evidence — quoted templates don't count
     if len(set(PROOF.findall(text))) < phases:
         fails.append(f"fewer than 1 `file:line` citation per phase (need >= {phases})")
     if _nontrivial_fences(text) < 1:
         fails.append("no non-trivial fenced command-output block (a column name != its values)")
-    return [f"{rel}: {x}" for x in fails]
+    out = [f"{rel}: {x}" for x in fails]
+    if _is_spine(path):
+        # Runs on BOTH claim paths (a dual CONVERGED+EXECUTED claim would double
+        # up, but a skip-if-EXECUTED here opened a hole: an already-EXECUTED-at-
+        # HEAD spine gaining a NEW CONVERGED claim ran the contract on NEITHER
+        # path). main() dedupes identical finding lines instead. When EXECUTED
+        # ALSO claims, its semantics win for the READ budget (end-of-run growth
+        # is SIZING-DEFECT calibration data, not a flip blocker — BC 9).
+        spine_fails = _check_spine_set(root, path, text)
+        if EXECUTED.search(FENCE_STRIP.sub("", text)):
+            spine_fails = [f for f in spine_fails if "READ budget" not in f]
+        out += spine_fails
+    return out
 
 
 def _head_text(root: Path, relpath: str) -> str:
@@ -194,14 +353,64 @@ def _executed_targets(root: Path) -> list[Path]:
         p = root / dst
         if not p.is_file():
             continue
-        if not EXECUTED.search(p.read_text(encoding="utf-8", errors="replace")):
+        if not EXECUTED.search(
+            FENCE_STRIP.sub("", p.read_text(encoding="utf-8", errors="replace"))
+        ):
             continue  # not an EXECUTED claim now → nothing to enforce
         # SETTLED (skip) if the plan was ALREADY EXECUTED at HEAD — at the new path
         # (in-place re-touch) OR at the rename SOURCE (a relocation / dir reorg). Only
         # a genuinely NEW EXECUTED transition is enforced, so a bulk archive reorg that
         # *moves* pre-citation EXECUTED plans doesn't re-fail every one of them.
-        if EXECUTED.search(_head_text(root, dst)) or EXECUTED.search(_head_text(root, src)):
+        if EXECUTED.search(FENCE_STRIP.sub("", _head_text(root, dst))) or EXECUTED.search(
+            FENCE_STRIP.sub("", _head_text(root, src))
+        ):
             continue
+        targets.append(p)
+    return targets
+
+
+def _converged_targets(root: Path) -> list[Path]:
+    """Plans whose CONVERGED claim is NEW this commit — only those enter _check_plan.
+
+    Mirrors _executed_targets: a file already CONVERGED at HEAD (in-place re-touch OR
+    at the rename source of a reorg/archive move) is settled and skipped — this is
+    what keeps pre-existing CONVERGED plans fleet-wide passing unchanged after the
+    tolerant CONVERGED regex (a bold-only regex previously never matched them)."""
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all", "--", PLANS_DIR],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
+    except Exception:
+        return []
+    seen: set[str] = set()
+    targets: list[Path] = []
+    for line in out.splitlines():
+        if line[:2] == "??":
+            continue  # untracked in-flight draft — checked at staging
+        rest = line[3:].strip()
+        if " -> " in rest:
+            src, dst = (s.strip().strip('"') for s in rest.split(" -> ", 1))
+        else:
+            src = dst = rest.strip().strip('"')
+        if dst in seen or not (dst.startswith(PLANS_DIR) and dst.endswith(".md")):
+            continue
+        if dst.startswith(PLANS_DIR + "archived/"):
+            # An archive landing (rename OR delete+add body-rewrite) is settled
+            # history — matching _changed_md's exclusion; a genuinely-new claim
+            # is enforced at its pre-archive location.
+            continue
+        seen.add(dst)
+        p = root / dst
+        if not p.is_file():
+            continue
+        if not CONVERGED.search(p.read_text(encoding="utf-8", errors="replace")):
+            continue
+        if CONVERGED.search(_head_text(root, dst)) or CONVERGED.search(_head_text(root, src)):
+            continue  # settled — already CONVERGED at HEAD
         targets.append(p)
     return targets
 
@@ -220,12 +429,20 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
     text = path.read_text(encoding="utf-8", errors="replace")
-    if not EXECUTED.search(text):
-        return []  # only plans that CLAIM EXECUTED are held to the review proof
+    if not EXECUTED.search(FENCE_STRIP.sub("", text)):
+        return []  # only plans that CLAIM EXECUTED are held to the review proof (fences = quotes)
     rel = path.relative_to(root)
+    fails: list[str] = []
+    if _is_spine(path):
+        # The plan-set contract enforces at BOTH flips (CONVERGED and EXECUTED) —
+        # a DRAFT→EXECUTED jump must not skip it. APPEND (never early-return: the
+        # review-citation findings below must surface in the SAME round, not a
+        # second one). READ-budget findings are dropped here — end-of-execution
+        # growth is SIZING-DEFECT calibration data, not a flip blocker (BC 9).
+        fails += [f for f in _check_spine_set(root, path, text) if "READ budget" not in f]
     cited = REVIEW_CITE.findall(text)
     if not cited:
-        return [
+        return fails + [
             f"{rel}: claims EXECUTED but cites no whole-plan review artifact "
             "(docs/development/reviews/*.md) — run /fabrik-review over the whole-plan diff "
             "to its coverage-adjudicated exit, cite it here, or revert Status"
@@ -239,8 +456,8 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         # ran the loop to (at least one) quiet pass. Zero-false-positive by design
         # (see QUIET_PASS); DEPTH is check_review_coverage.py's at staging time.
         if QUIET_PASS.search(rtext):
-            return []  # a real whole-plan review with a quiet round exists → satisfied
-    return [
+            return fails  # citation satisfied; spine-set findings (if any) still surface
+    return fails + [
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
         "coverage-adjudicated (needs a quiet final pass — a 'found: 0, fixed: 0' round) — "
         "finish the /fabrik-review loop to a quiet round, or revert Status"
@@ -269,13 +486,14 @@ def main() -> int:
     root = args.project_root.resolve()
 
     fails: list[str] = []
-    for p in _changed_md(root, PLANS_DIR):
+    for p in _converged_targets(root):
         fails += _check_plan(root, p)
     for p in _executed_targets(root):
         fails += _check_executed_plan(root, p)
     for p in _changed_md(root, REVIEWS_DIR):
         fails += _check_review(root, p)
 
+    fails = list(dict.fromkeys(fails))  # dual-claim paths may repeat a finding — dedupe
     if fails:
         print("Convergence gate FAILED — a convergence claim lacks its proof:")
         for x in fails:

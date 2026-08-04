@@ -267,6 +267,16 @@ def _check(repo: Path) -> int:
     ).returncode
 
 
+def _check_out(repo: Path) -> tuple[int, str]:
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return proc.returncode, proc.stdout
+
+
 def test_compliant_plan_passes(repo: Path) -> None:
     assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", COMPLIANT_PLAN) == 0
 
@@ -307,7 +317,9 @@ def test_executed_plan_without_review_fails(repo: Path) -> None:
 
 def test_executed_plan_citing_missing_review_fails(repo: Path) -> None:
     # Cites a review path that does not exist on disk.
-    assert _run(repo, "docs/development/plans/2026-08-03-plan-x.md", EXECUTED_PLAN_CITES_MISSING) == 1
+    assert (
+        _run(repo, "docs/development/plans/2026-08-03-plan-x.md", EXECUTED_PLAN_CITES_MISSING) == 1
+    )
 
 
 def test_executed_plan_citing_unadjudicated_review_fails(repo: Path) -> None:
@@ -387,8 +399,13 @@ def test_modified_already_archived_plan_is_skipped(repo: Path) -> None:
 
 def test_executed_word_in_status_prose_is_not_an_executed_claim(repo: Path) -> None:
     # CLOSED / Done / DRAFT status with "executed" in the prose must NOT trip the gate.
-    assert _run(repo, "docs/development/plans/2026-06-02-plan-x.md", PLAN_EXECUTED_IN_PROSE_ONLY) == 0
-    assert _run(repo, "docs/development/plans/2026-06-01-plan-y.md", PLAN_DONE_WITH_EXECUTED_PROSE) == 0
+    assert (
+        _run(repo, "docs/development/plans/2026-06-02-plan-x.md", PLAN_EXECUTED_IN_PROSE_ONLY) == 0
+    )
+    assert (
+        _run(repo, "docs/development/plans/2026-06-01-plan-y.md", PLAN_DONE_WITH_EXECUTED_PROSE)
+        == 0
+    )
     assert _run(repo, "docs/development/plans/2026-06-03-plan-z.md", PLAN_NOT_EXECUTED) == 0
 
 
@@ -429,7 +446,7 @@ def test_review_with_a_trailing_summary_pair_is_still_accepted(repo: Path) -> No
         "# Whole-plan review\n\n## Pass Ledger\nPass 1 — found: 2, fixed: 2\n"
         "Pass 2 — found: 0, fixed: 0\n\n## Per-phase summary\n"
         "Phase A found: 3, fixed: 3\nPhase B found: 1, fixed: 1\n\n"
-        "## Phase A verdict\nclean.\n\nreviewed — sign-off.\n\n```\n{\"status\": \"success\", \"passed\": 9}\n```\n"
+        '## Phase A verdict\nclean.\n\nreviewed — sign-off.\n\n```\n{"status": "success", "passed": 9}\n```\n'
     )
     assert (
         _run_files(
@@ -456,3 +473,174 @@ def test_reorg_move_of_settled_archived_plan_is_skipped(repo: Path) -> None:
     _git(repo, "mv", str(old), str(new))  # relocate during a reorg
     _git(repo, "add", "-A")
     assert _check(repo) == 0
+
+
+# --- Spine+ticket shape: tolerant CONVERGED + new-transition-only (BC 6) --------
+
+SPINE_DIR = "docs/development/plans/2026-08-05-plan-1-widget"
+
+CONVERGED_SPINE_ORPHAN_ROW = """# Plan: widget
+
+Status: CONVERGED
+
+## Ticket Board
+
+| Ticket | Title | Depends | Parallel | State | Commit |
+|---|---|---|---|---|---|
+| T01 | schema | — | ⚡ | ⬜ | — |
+| T02 | api | T01 | ⛓️ | ⬜ | — |
+
+## Merge Order
+
+1. T01
+2. T02
+
+## Evidence
+
+Grounded in src/app/handler.py:42.
+
+```
+$ python scripts/final_gate.py --lean
+{"status": "success", "passed": 15, "failed": 0}
+```
+
+## Self-audit
+Traced.
+"""
+
+TICKET_T01 = """# T01 — schema
+
+Depends: none
+Parallel: ⚡
+Complexity: simple
+Docs: none
+Gate: pytest -q
+
+## Scope
+Schema. DO-NOT touch api.
+
+## Touches
+- src/app/schema.py
+
+## Behavior Contract
+- **Given** x, **When** y, **Then** z (src/app/schema.py:1).
+
+## Context Files
+- .windsurf/rules/core/10-python.md
+"""
+
+
+def test_bc6_new_plain_converged_spine_with_orphan_row_fails(repo: Path) -> None:
+    # T02 row has no ticket file on disk → orphan → fail (also proves the
+    # tolerant CONVERGED regex: the Status line is PLAIN, not **Status:**).
+    rc = _run_files(
+        repo,
+        {
+            f"{SPINE_DIR}/2026-08-05-plan-1-widget.md": CONVERGED_SPINE_ORPHAN_ROW,
+            f"{SPINE_DIR}/T01-schema.md": TICKET_T01,
+        },
+    )
+    rc2, out = _check_out(repo)
+    # Message-level: the ORPHAN-ROW mechanism specifically (the fixture also has
+    # other contract gaps; rc alone would pass with the orphan loop deleted).
+    assert rc == 1 and rc2 == 1
+    assert "orphan row" in out
+
+
+def test_bc6_ticket_with_status_line_fails_spine_convergence(repo: Path) -> None:
+    complete = CONVERGED_SPINE_ORPHAN_ROW.replace("| T02 | api | T01 | ⛓️ | ⬜ | — |\n", "").replace(
+        "2. T02\n", ""
+    )
+    rc = _run_files(
+        repo,
+        {
+            f"{SPINE_DIR}/2026-08-05-plan-1-widget.md": complete,
+            f"{SPINE_DIR}/T01-schema.md": TICKET_T01 + "\nStatus: DRAFT\n",
+        },
+    )
+    rc2, out = _check_out(repo)
+    assert rc == 1 and rc2 == 1
+    assert "carries a Status: line" in out  # the BAN mechanism, not a side effect
+
+
+def test_bc6_already_converged_at_head_is_settled(repo: Path) -> None:
+    # A plain-CONVERGED monolith WITHOUT evidence, committed at HEAD, then
+    # re-touched: the tolerant regex now matches it, but new-transition-only
+    # enforcement must skip it (fleet backcompat — /opt/seo live instance).
+    p = repo / "docs/development/plans/2026-08-02-plan-1-legacy.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("# Old plan\n\n**Status: CONVERGED** (4 passes)\n\nNo evidence sections at all.\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed settled converged plan")
+    p.write_text(p.read_text() + "\nA later touch.\n")
+    _git(repo, "add", "-A")
+    assert _check(repo) == 0
+
+
+def test_bc6_new_plain_converged_monolith_without_evidence_fails(repo: Path) -> None:
+    # The tolerant regex must catch a NEW plain-Status monolith (was invisible
+    # to the bold-only token regex).
+    assert (
+        _run(
+            repo,
+            "docs/development/plans/2026-08-05-plan-2-mono.md",
+            "# Plan\n\nStatus: CONVERGED\n\n## Phase 1\nNo evidence.\n",
+        )
+        == 1
+    )
+
+
+def test_fenced_converged_quote_is_not_a_claim(repo: Path) -> None:
+    # A DRAFT plan QUOTING the flip in an example block must not be enforced.
+    body = (
+        "# Plan\n\nStatus: DRAFT\n\nExample of the final flip:\n\n"
+        "```markdown\nStatus: CONVERGED\n```\n\nNo evidence sections at all.\n"
+    )
+    assert _run(repo, "docs/development/plans/2026-08-06-plan-1-fq.md", body) == 0
+
+
+def test_fenced_executed_at_head_does_not_settle_a_real_flip(repo: Path) -> None:
+    # HEAD has a DRAFT plan quoting `Status: EXECUTED` in a fence; a later REAL
+    # EXECUTED flip must still be enforced (the citation gate must fire).
+    p = repo / "docs/development/plans/2026-08-06-plan-2-fx.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "# Plan\n\nStatus: DRAFT\n\n```markdown\nStatus: EXECUTED\n```\n", encoding="utf-8"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed draft with fenced example")
+    p.write_text("# Plan\n\nStatus: EXECUTED\n\nDone.\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    assert _check(repo) == 1  # claims EXECUTED, cites no review → enforced
+
+
+def test_dual_claim_executed_at_head_plus_new_converged_still_enforced(repo: Path) -> None:
+    # Round-9 #1: an already-EXECUTED-at-HEAD spine gaining a NEW CONVERGED claim
+    # must still run the plan-set contract (the skip-if-EXECUTED dedupe opened
+    # this hole; dedupe now happens on finding lines, not by skipping a path).
+    d = repo / "docs/development/plans/2026-08-06-plan-3-dual"
+    d.mkdir(parents=True)
+    spine = d / "2026-08-06-plan-3-dual.md"
+    spine.write_text(
+        "# Plan\n\nStatus: EXECUTED\n\n## Ticket Board\n\n"
+        "| Ticket | Title | Depends | Parallel | State | Commit |\n|---|---|---|---|---|---|\n"
+        "| T99 | ghost | — | ⚡ | ⬜ | — |\n\nWhole-plan review: docs/development/reviews/x-review.md\n",
+        encoding="utf-8",
+    )
+    (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
+    (repo / "docs/development/reviews/x-review.md").write_text(
+        '# R\n\nreviewed\n\n```\n"status": "success" and more content here\n```\n\n'
+        "## Phase 1 verdict\nok\n\nfound: 0, fixed: 0\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed executed spine (settled)")
+    spine.write_text(
+        spine.read_text(encoding="utf-8").replace(
+            "Status: EXECUTED", "Status: EXECUTED — CLEAN-CONVERGED"
+        ),
+        encoding="utf-8",
+    )
+    _git(repo, "add", "-A")
+    rc, out = _check_out(repo)
+    assert rc == 1 and "orphan row" in out

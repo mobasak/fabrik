@@ -56,11 +56,27 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
     }
 )
 
+# ⚠️ KNOWN-INERT in the two ENFORCEMENT call paths (pre-existing, verified
+# 2026-08-04) — the script has no __main__ (final_gate's Tier-2 invocation
+# always exits 0) and check_file() feeds a RELATIVE path into relative_to(abs)
+# (ValueError → []) in the validate_conventions path. Activating it is a
+# fleet-behavior change (every project with stray .md files would newly red) and
+# needs its own plan — flagged to the operator; do not silently "fix" it here.
 # Allowed patterns for new files - STRICT matchers
 ALLOWED_PATTERNS = [
-    # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md
-    # New dated plan files are allowed as part of the planning workflow
-    re.compile(r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-.+\.md$"),
+    # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md —
+    # FLAT only ([^/]+): nested paths are governed by the spine+ticket pattern
+    # below, so junk like <plan-dir>/notes/scratch.md is no longer admitted by
+    # `.` crossing `/` (the accidental-admission hole).
+    re.compile(r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-[^/]+\.md$"),
+    # Spine+ticket plan sets: docs/development/plans/YYYY-MM-DD-plan-<slug>/ holding
+    # the same-stem spine + T##[a-z]?-<slug>.md tickets. The pattern above already
+    # admits these paths accidentally (`.` matches `/`); this matcher makes the
+    # nested admission INTENTIONAL (stem-identity itself is check_plan_tickets' job).
+    re.compile(
+        r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+/"
+        r"(T\d{2}[a-z]?-[a-z0-9-]+|\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+)\.md$"
+    ),
     # Review artifacts: docs/development/reviews/<name>-review.md
     # Paired with the convergence-evidence gate (check_convergence.py) — a code
     # review embeds its final_gate proof here as part of the review workflow.
@@ -184,9 +200,16 @@ def path_is_existing(rel_path: Path, repo_root: Path) -> bool:
 def get_suggestion(path_str: str) -> str:
     """Provide helpful suggestion based on blocked path."""
     if path_str.startswith("docs/development/plans/"):
-        if not re.match(r"\d{4}-\d{2}-\d{2}", path_str.split("/")[-1]):
-            return "Use format: docs/development/plans/YYYY-MM-DD-plan-<name>.md (zero-padded date)"
-        return "Plan filename must start with YYYY-MM-DD-plan-"
+        if not re.match(r"\d{4}-\d{2}-\d{2}|T\d{2}[a-z]?-", path_str.split("/")[-1]):
+            return (
+                "Use format: docs/development/plans/YYYY-MM-DD-plan-<name>.md, or a "
+                "spine+ticket set: YYYY-MM-DD-plan-<slug>/ holding the same-stem spine "
+                "+ T##-<slug>.md tickets"
+            )
+        return (
+            "Plan filename must start with YYYY-MM-DD-plan- (tickets T##-<slug>.md are "
+            "valid only inside a dated plan directory)"
+        )
 
     if path_str.startswith("docs/traycer/"):
         return "UPDATE existing docs/traycer/*.md files instead. New files blocked."

@@ -197,9 +197,9 @@ trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped 
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
 no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
 
-**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block, `final_gate.py:674-834`), **plus 14 Tier-2-only checks** (`final_gate.py:841-919` — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **32 checks total**.
+**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block, `final_gate.py:731-897`), **plus 15 Tier-2-only checks** (`final_gate.py:898-981` — incl. the 3 docs-truth durability gates — Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory] — plus the Plan-Set Contract), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **33 checks total**.
 
-**The 11 Tier-2-only checks:**
+**The Tier-2-only checks:**
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
 - **Rule File Size** - `check_rule_size.py`
@@ -208,6 +208,7 @@ no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (
   - Validates Kilo-safe rules configuration
 - **Behavior Contract Proposal** - `check_test_proposal.py`
   - Verifies test justification is documented
+- **Plan-Set Contract (Spine+Tickets)** - `check_plan_tickets.py` — the spine↔ticket contract for the spine+ticket plan shape (Board↔files, Depends DAG + Merge Order, exclusive Touches, never-route routing cross-check, READ budget, Board staleness; sibling/DRAFT findings are advisory)
 - **README.md (Primary Entry Point)** - `check_readme_md.py`
   - Validates primary entry point documentation
 - **.env Updates (Secrets)** - `check_env_updates.py`
@@ -365,6 +366,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_rule_size.py` — Ensures rule files < 50KB
 - `check_opencode_json.py` — Validates Kilo-safe instruction list
 - `check_test_proposal.py` — Enforces Behavior Contract / One-Test Rule documentation
+- `check_plan_tickets.py` — Spine↔ticket plan-set contract (see Tier-2 list)
 - `check_readme_md.py` — Validates README.md structure
 - `check_env_updates.py` — Prevents secret commits
 - `check_env_vars.py` — Validates .env doesn't contain actual secrets

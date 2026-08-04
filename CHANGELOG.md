@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Spine+ticket gate layer: 7-round adversarial hardening (2026-08-05)
+
+Phase A of `2026-08-04-plan-1-spine-ticket-plans.md` — the code for the entry above (which a
+sibling commit bundled early; this commit carries the actual implementation) plus seven
+review rounds (36→25→18→18→16→13→18 findings, all fixed or refuted-with-proof): fence
+stripping is line-anchored (an unpaired ``` in prose no longer swallows document body — live
+fleet regression on calendar-orchestration-engine's 2026-07-25 plan), sibling isolation
+covers the adapter/upstream/lock paths (a sibling's in-flight or committed-unpushed plan set
+never hard-reds another session's gate), plan identity for Board staleness = plan-dir OR
+Touches, `_tracked_at_head` uses HEAD-not-index semantics, status regexes are colon-mandatory
+value-anchored with `**Status**:`-form tolerance, severity matrix per plan BC 9/18/20/21
+(rows 20-21 amended in-plan, review round 6), duplicate ticket IDs / unknown Depends /
+unrecognized Complexity-or-Status fail loud, directory Touches count subtree bytes,
+`--strict` exempts the three plan checks' designed advisories, and the EXECUTED flip runs
+the plan-set contract without suppressing the review-citation check.
+
+
 ### Fixed — OAuth exhaustion CURE: single-refresh-owner active-sync (SYNC_ACTIVE=auto) (2026-08-04)
 
 The hourly snapshot-sync mitigation still exhausted (same evening): the manager-account snapshots

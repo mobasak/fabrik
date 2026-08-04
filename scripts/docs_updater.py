@@ -600,6 +600,8 @@ def update_single_file(file_path: str) -> None:
 # =============================================================================
 
 PLANS_DIR = PROJECT_ROOT / "docs" / "development" / "plans"
+# Spine+ticket plan sets: a dated plan directory is one plan unit (its spine).
+_PLAN_DIR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
 PLANS_INDEX = PROJECT_ROOT / "docs" / "development" / "PLANS.md"
 README_PATH = PROJECT_ROOT / "INDEX.md"
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
@@ -807,21 +809,53 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     except Exception:
         return "Unknown", 0, 0
 
-    # Extract status line (handles emojis like ✅, ⚠️, ❌)
+    # Extract status line — bold OR plain, colon MANDATORY and allowed inside or
+    # outside the bold (`Status:`, `**Status:**`, `**Status**:`). The colon
+    # requirement keeps prose bullets like `- Status page` from matching (a real
+    # in-repo false positive), and the leading-* strip below never leaks a `: `.
     status = "Active"
-    status_match = re.search(r"\*\*Status:\*\*\s*(.+?)(?:\n|$)", content)
+    # Fences are quotes for the STATUS search only — checkbox counting stays on
+    # RAW content (DONE-WHEN lists inside fences are live house style in this
+    # repo's archived plans; uncounting them would fail-open the COMPLETE check).
+    status_scan = re.sub(
+        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
+        "",
+        content,
+        flags=re.M | re.S,
+    )  # line-anchored + inline — never bare ```.*?``` (unpaired-backtick swallowing)
+    status_match = re.search(
+        r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
+        status_scan,
+        re.I | re.M,
+    )
     if status_match:
-        raw_status = status_match.group(1).strip()
-        # Normalize status
+        raw_status = status_match.group(1).strip().lstrip("*:").strip()
         lower = raw_status.lower()
-        if "complete" in lower:
+        first = lower.split()[0].rstrip(":*—–-") if lower.split() else ""
+        # Exact-value-first (modern pipeline vocabulary, incl. BLOCKED): the status
+        # VALUE is the first token. Substring fallbacks run LEGACY-first so a
+        # free-text `COMPLETE — converged with baseline` stays COMPLETE (the
+        # validate_plan_consistency check depends on it).
+        if first in ("converged", "draft", "planned", "executed", "blocked"):
+            status = first.upper()
+        elif first in ("in-progress", "in_progress"):
+            status = "IN_PROGRESS"
+        elif "complete" in lower:
             status = "COMPLETE"
         elif "partial" in lower:
             status = "PARTIAL"
         elif "not done" in lower or "not_done" in lower:
             status = "NOT_DONE"
-        elif "in progress" in lower or "in_progress" in lower:
+        elif "in progress" in lower or "in_progress" in lower or "in-progress" in lower:
             status = "IN_PROGRESS"
+        elif "converged" in lower:
+            status = "CONVERGED"
+        elif "blocked" in lower:
+            status = "BLOCKED"
+        elif "executed" in lower:
+            status = "EXECUTED"
+        elif "draft" in lower:
+            status = "DRAFT"
         else:
             status = raw_status[:20]  # Truncate if weird
 
@@ -834,7 +868,11 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
 
 
 def generate_plans_table() -> str:
-    """Generate markdown table of all plan files with real status."""
+    """Generate markdown table of all plan files with real status.
+
+    NOTE: no live caller today (sync_plans_index is Traycer-skipped) — kept as a
+    tested utility for a PLANS.md revival; the LIVE consumer of parse_plan_status
+    is validate_plan_consistency (the --check path)."""
     if not PLANS_DIR.exists():
         return (
             "| Plan | Date | Status | Progress |"
@@ -842,8 +880,16 @@ def generate_plans_table() -> str:
             "\n| (none) | - | - | - |"
         )
 
-    # Use glob for top-level only (subfolders are for grouped incomplete work)
-    plans = sorted(PLANS_DIR.glob("*.md"))
+    # Top-level monolith plans + spine+ticket plan SETS (a dated plan directory is
+    # one plan unit, represented by its same-stem spine; ticket files are never
+    # listed). Directories are filtered to the dated prefix BEFORE any date parse —
+    # `archived/` (or any non-dated dir) must never reach `name[:10]`.
+    plans = [(p.name, f"plans/{p.name}", p) for p in sorted(PLANS_DIR.glob("*.md"))]
+    plans += [
+        (f"{d.name}.md", f"plans/{d.name}/{d.name}.md", d / f"{d.name}.md")
+        for d in sorted(PLANS_DIR.iterdir())
+        if d.is_dir() and _PLAN_DIR_NAME_RE.match(d.name) and (d / f"{d.name}.md").is_file()
+    ]
     if not plans:
         return (
             "| Plan | Date | Status | Progress |"
@@ -852,11 +898,11 @@ def generate_plans_table() -> str:
         )
 
     lines = ["| Plan | Date | Status | Progress |", "|------|------|--------|----------|"]
-    for p in plans:
-        date = p.name[:10] if len(p.name) > 10 else "-"
+    for name, rel, p in sorted(plans):
+        date = name[:10] if len(name) > 10 else "-"
         status, checked, total = parse_plan_status(p)
         progress = f"{checked}/{total}" if total > 0 else "-"
-        lines.append(f"| [{p.name}](plans/{p.name}) | {date} | {status} | {progress} |")
+        lines.append(f"| [{name}]({rel}) | {date} | {status} | {progress} |")
     return "\n".join(lines)
 
 
@@ -882,7 +928,12 @@ def validate_plan_consistency() -> list[str]:
 
     from datetime import timedelta
 
-    for p in PLANS_DIR.glob("*.md"):
+    targets = list(PLANS_DIR.glob("*.md")) + [
+        d / f"{d.name}.md"
+        for d in PLANS_DIR.iterdir()
+        if d.is_dir() and _PLAN_DIR_NAME_RE.match(d.name) and (d / f"{d.name}.md").is_file()
+    ]
+    for p in targets:
         status, checked, total = parse_plan_status(p)
 
         # ERROR: COMPLETE with unchecked boxes

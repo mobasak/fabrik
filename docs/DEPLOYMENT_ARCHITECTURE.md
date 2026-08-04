@@ -317,7 +317,7 @@ Pre-deploy invariant checks. Called by `scripts/final_gate.py` as part of the qu
 | `check_duplicates.py` | No duplicated files across projects (shared helpers should live in `src/utils/`). |
 | `check_doc_sprawl.py` | No orphaned `.md` files; all docs reachable from `INDEX.md`. |
 | `check_index_md.py`, `check_readme_md.py`, `check_changelog.py`, `check_configuration_md.py`, `check_docs.py`, `check_user_guide.py` | Doc currency — every deploy-affecting change updates the matching doc. |
-| `check_plans.py`, `check_plan_quality.py` | Plans include Invariants, Failure Modes, Acceptance Criteria. |
+| `check_plans.py`, `check_plan_quality.py`, `check_plan_tickets.py` | Plan naming (monolith + spine+ticket dirs), shape-classified required sections (modern pillars / ticket field contract / legacy grandfather), and the spine↔ticket plan-set contract. |
 | `check_test_coverage.py`, `check_test_proposal.py` | Every non-trivial change proposes at least one test (One-Test Rule). |
 | `check_reusable_modules.py` | Modules in `src/utils/` / `src/lib/` have zero project-specific imports. |
 

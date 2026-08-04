@@ -939,6 +939,11 @@ def run_consistency_checks(
         )
         results.append(
             run_optional_check(
+                "scripts/enforcement/check_plan_tickets.py", "Plan-Set Contract (Spine+Tickets)"
+            )
+        )
+        results.append(
+            run_optional_check(
                 "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
             )
         )

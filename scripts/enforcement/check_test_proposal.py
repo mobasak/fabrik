@@ -20,6 +20,8 @@ import sys
 from pathlib import Path
 
 _HEADING = re.compile(r"^#{1,6}\s", re.MULTILINE)
+# Spine+ticket plan sets: a dated plan directory is one plan unit (its spine).
+_PLAN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
 
 
 def _section(content: str, title_substr: str) -> str | None:
@@ -83,11 +85,16 @@ def evaluate_plan(content: str) -> tuple[bool, str]:
 def _baseline_ref() -> str | None:
     """The ref to diff against: the pushed upstream if configured, else HEAD. None if not a git repo."""
     up = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "@{upstream}"], capture_output=True, text=True, check=False
+        ["git", "rev-parse", "--abbrev-ref", "@{upstream}"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if up.returncode == 0 and up.stdout.strip():
         return up.stdout.strip()
-    head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], capture_output=True, text=True, check=False)
+    head = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"], capture_output=True, text=True, check=False
+    )
     return "HEAD" if head.returncode == 0 else None
 
 
@@ -105,14 +112,31 @@ def _new_plans(plans_dir: Path) -> set[str] | None:
         return None
     r = subprocess.run(
         ["git", "ls-tree", "-r", "--name-only", ref, "docs/development/plans/"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if r.returncode != 0:
         return None
+    # Keys are PLANS-DIR-RELATIVE paths (never bare basenames): a monolith→plan-set
+    # migration (plans/X.md → plans/X/X.md) must read as a NEW plan, and a spine
+    # whose basename collides with some other pre-existing file must not vanish.
+    prefix = "docs/development/plans/"
     baseline = {
-        Path(p).name for p in r.stdout.split() if p.endswith(".md") and "/archived/" not in p
+        p[len(prefix) :]
+        for p in (line.strip().strip('"') for line in r.stdout.splitlines())
+        if p.endswith(".md") and p.startswith(prefix) and "/archived/" not in p
     }
     current = {p.name for p in plans_dir.glob("*.md")}  # glob("*.md") excludes archived/ subdir
+    # Spine+ticket plan sets: a plan DIRECTORY is one plan unit, represented by its
+    # same-stem SPINE (tickets never enter the set — the spine's roll-up section is
+    # what carries the Behavior Contract this gate demands). Without this, a plan
+    # that is a directory is invisible to the flat glob and the gate goes inert.
+    current |= {
+        f"{d.name}/{d.name}.md"
+        for d in plans_dir.iterdir()
+        if d.is_dir() and _PLAN_DIR_RE.match(d.name) and (d / f"{d.name}.md").is_file()
+    }
     return current - baseline
 
 
@@ -122,6 +146,14 @@ def check_proposal() -> bool:
         print("INFO: No plans directory found - skipping Behavior Contract check")
         return True
     plans = list(plans_dir.glob("*.md"))
+    # Spine+ticket plan sets: the same-stem spine inside a dated plan dir is a plan
+    # (without this, a dir-shaped plan set makes the presence check exit early and
+    # the whole gate goes inert).
+    plans += [
+        d / f"{d.name}.md"
+        for d in plans_dir.iterdir()
+        if d.is_dir() and _PLAN_DIR_RE.match(d.name) and (d / f"{d.name}.md").is_file()
+    ]
     if not plans:
         print("INFO: No plan files found - skipping Behavior Contract check")
         return True
@@ -136,7 +168,7 @@ def check_proposal() -> bool:
             return True
         all_ok = True
         for name in sorted(new_plans):
-            path = plans_dir / name
+            path = plans_dir / name  # relpath keys resolve directly (flat AND nested)
             if not path.exists():
                 continue
             ok, msg = evaluate_plan(path.read_text())
@@ -146,7 +178,9 @@ def check_proposal() -> bool:
         if not all_ok:
             print("\nBehavior Contract format:")
             print("  ## Behavior Contract")
-            print("  - **Given** <state>, **When** <action>, **Then** <result>.   # one per behavior")
+            print(
+                "  - **Given** <state>, **When** <action>, **Then** <result>.   # one per behavior"
+            )
             print("  - **Mocked:** [what is mocked vs. real]")
         return all_ok
 

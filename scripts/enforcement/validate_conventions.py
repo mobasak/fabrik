@@ -107,6 +107,13 @@ def run_check_plan_quality(file_path: Path) -> list[CheckResult]:
     return check_file(file_path)
 
 
+def run_check_plan_tickets(file_path: Path) -> list[CheckResult]:
+    """Check the spine+ticket plan-set contract (dir-level, deduped per run)."""
+    from .check_plan_tickets import check_file
+
+    return check_file(file_path)
+
+
 def run_check_doc_sprawl(file_path: Path) -> list[CheckResult]:
     """Check documentation anti-sprawl (prevent new files in protected dirs)."""
     from .check_doc_sprawl import check_file
@@ -167,6 +174,7 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     if suffix == ".md":
         results.extend(run_check_plans(file_path))
         results.extend(run_check_plan_quality(file_path))
+        results.extend(run_check_plan_tickets(file_path))  # Spine+ticket plan-set contract
         results.extend(run_check_doc_sprawl(file_path))  # Anti-sprawl enforcement
         # Check if tasks.md needs update when phase docs change
         if "phase" in name:
@@ -251,9 +259,20 @@ def main() -> int:
     # comparison silently reported has_errors=False — the validator exited 0
     # despite real violations. .value ("error"/"warn") is instance-agnostic.
     has_errors = any(r.severity.value == Severity.ERROR.value for r in all_results)
-    has_warnings = any(r.severity.value == Severity.WARN.value for r in all_results)
 
-    if args.strict and has_warnings:
+    # Plan-shape WARNs are DESIGNED advisories (the legacy-plan grandfather, the
+    # DRAFT-spine sibling-session downgrade, the IN-PROGRESS sizing downgrade,
+    # File-Scope orphan notes). Promoting them under --strict would turn every
+    # deliberate downgrade back into a hard failure — exactly the sibling-session
+    # red the downgrades exist to prevent — so --strict exempts these three checks.
+    # (Round-10 disposition: this also keeps legacy-NAME WARNs advisory under
+    # --strict — accepted: the pre-change gate was INERT on these paths (the
+    # relative-path bug), so no functioning guard was removed.)
+    _strict_exempt = ("plan_naming", "plan_quality", "plan_tickets")
+    if args.strict and any(
+        r.severity.value == Severity.WARN.value and r.check_name not in _strict_exempt
+        for r in all_results
+    ):
         has_errors = True
 
     # Output results
