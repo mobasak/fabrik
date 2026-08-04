@@ -332,7 +332,7 @@ Append, so the downstream converge/execute commands have what they need:
   `/fabrik-plan-review <file>` (via the Skill tool) on the plan you just wrote and run it **to a fixed
   point** in this same turn. The create pass only produced a grounded DRAFT + first grounding; the
   deliverable is a plan that has been through **one full convergence round** (grounders → refute/merge →
-  runnable gates → `check_convergence.py`). Do **not** end the turn on an unconverged DRAFT. The only
+  runnable gates → `check_convergence.py`). Do **not** end the turn on an unconverged DRAFT — context is never the reason (the harness auto-compacts and the run continues). The only
   reasons to stop before convergence are an unanswered **Phase-0 THIN** question or a **Phase-1 BLOCKING**
   unknown — surface those and stop; otherwise converge.
 - After convergence, hand off: **`/fabrik-execute-plan <file>`** is the next step and is left to the **user** —

@@ -11,7 +11,7 @@ no `eas submit --auto`, no Web Store "Submit for Review" click, no store credent
 
 You are done when EVERY item of the surface's checklist below has a verdict — **PASS (with evidence: a
 `path:line` or a fenced command output) or BLOCKED (what's missing, where you searched)** — and you have
-printed the Gate-2 handoff block. A checklist item without evidence is not PASS. You never perform the Gate-2
+printed the Gate-2 handoff block. A checklist item without evidence is not PASS. You never perform the Gate-2 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
 action yourself; ending at the handoff IS success, not an incomplete run. If >3 items are BLOCKED on the same
 root cause, stop early and report that cause.
 

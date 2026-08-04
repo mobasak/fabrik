@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the auto-compaction fact is now corpus-wide: NO command stops for low context (2026-08-04)
+
+The canonical clause ("the harness AUTO-COMPACTS long conversations and the run continues — keep durable
+artifacts current and keep going; low-context filed as BLOCKED is still the named violation; a heavy
+remainder is dispatched to fresh subagents, never deferred") now reaches all 19 commands: via the shared
+term-edit fragment (spec-review, plan-review, ui-design, ui-design-review, data-contract, workflow-review,
+features), the shared term-coverage fragment (review, repo-review, user-test, service-test), the
+autonomy-run fragment + execute-plan non-negotiable #1 (already landed), and direct one-line additions to
+docs-review, spec, plan-after-chat, release, rules-review, design-review, generate-tests. Verified: 0 of 19
+rendered commands missing the clause.
+
 ### Fixed — "context budget" is not a BLOCKED case: agents now know the harness auto-compacts (2026-08-04)
 
 A live seo execute-plan run stopped after 3 of 7 phases with "BLOCKED: context budget" — the named

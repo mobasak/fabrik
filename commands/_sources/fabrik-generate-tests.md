@@ -32,6 +32,8 @@ except ImportError:  # not vendored here → this command's pool test-authoring 
 
 ## The loop — suggest → curate → author → review → apply
 
+**Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
+
 ### 1. Suggest (pool, multi-model — diversity is the whole point)
 Dispatch **2–3 diverse cheap models** to each propose the distinct user-observable behaviors of the target, then
 **union** them (a single suggester is the blind spot — different families catch what one misses):

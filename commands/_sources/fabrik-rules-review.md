@@ -6,7 +6,7 @@ argument-hint: "[a specific pack or rules subdir to scope — omit to audit all 
 Run a `.windsurf/rules` COMPLIANCE GAP AUDIT for this project. **READ-ONLY — do NOT modify code,
 config, docs, or the rules; produce an audit only.** And do NOT stop after one pass: **iterate the
 audit until it converges** (Phase 4) — a pass whose gap list is identical to the prior pass (a no-op
-on the finding set) is the only proof the audit is complete. Propose nothing as fixed/done until I
+on the finding set) is the only proof the audit is complete. Propose nothing as fixed/done until I **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
 say so.
 
 ### ⚠️ Scope note — this command is the HUB exception

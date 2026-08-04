@@ -133,7 +133,7 @@ Pass 1 — reconcilers: <doc types> | discrepancies: 4 | edits: 4 | → not done
 Pass 2 — reconcilers: <doc types> | discrepancies: 0 | edits: 0 | → CONVERGED (no-op, md5 stable)
 ```
 
-**⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** When a pass
+**⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass
 makes any doc edit, do **not** stop, do **not** print "Pass 1 done" and hand back, do **not** wait for the
 caller to re-invoke `/fabrik-docs-review`. Go **straight into the next reconciliation pass** in the SAME turn
 and keep chaining until the zero-discrepancy, zero-edit no-op. **You return control EXACTLY ONCE: at the no-op
