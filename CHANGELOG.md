@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — OAuth exhaustion incident: hourly credential sync + host-tagged proactive alerts (2026-08-04)
+
+All 3 hosts' keepalives 401'd — rotation worked (walked every account) but every VPS credential copy was
+dead: OAuth refresh tokens are single-use and 4 boxes (WSL + 3 VPS) share 3 accounts, so the 6h sync window
+couldn't outrun the mutual-invalidation churn. WSL sync cron bumped 6h→hourly (window ≤1h); actives
+re-synced (all KEEPALIVE_OK). `proactive-check.sh` alert titles now carry the sending host
+(`🔍 Proactive Check [vpsN]` — the incident alerts were anonymous). Residual: hourly is mitigation, not
+cure — the multi-writer refresh conflict is architectural (per-box accounts or a single credential owner
+would be the cure).
+
 ### Changed — /fabrik-service-test gains the three headless twins of user-test's depth (2026-08-04)
 
 Structural parity pass: (1) PAYLOADS ARE READ, NOT JUST SCHEMA-CHECKED — judge actual response VALUES
