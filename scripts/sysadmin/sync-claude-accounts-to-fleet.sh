@@ -65,6 +65,44 @@ if [ ${#snapshots[@]} -eq 0 ]; then
     log "ERROR: no valid account snapshots under $ACCOUNTS_DIR — capture accounts via claude-manager first"
     exit 1
 fi
+
+# SYNC_ACTIVE=auto — GUARDED active-sync (the cure for the 2026-08-04 OAuth-exhaustion incidents).
+# OAuth refresh tokens are single-use; when 4 boxes refresh the same 3 accounts they invalidate each
+# other's copies, and the manager-account SNAPSHOTS this script pushes go stale within hours (they
+# only update on a WSL account switch) — so snapshot-sync alone kept distributing dead creds. The
+# durable shape is a SINGLE REFRESH OWNER: push the WSL *active* (in constant use → always fresh) to
+# every host hourly, so VPS copies always hold a <1h-old token and never need to self-refresh.
+# `auto` enables that ONLY when the WSL active verifiably IS a fleet account (its organizationUuid
+# matches one of the snapshots) — a non-fleet / org-less account the operator happened to switch to
+# is never propagated (the footgun the SYNC_ACTIVE=1 warning below describes).
+if [ "${SYNC_ACTIVE:-0}" = "auto" ]; then
+    # Posture: ALLOW unless PROVABLY foreign. Real fleet .credentials.json files often carry NO
+    # organizationUuid (claude_rotate.py's own identity docstring: never rely on it), so requiring a
+    # positive org match would block the cure on exactly the creds the fleet runs. Only the 3 fleet
+    # accounts ever log in on this box; the guard's job is just to stop a PROVABLY different org.
+    SYNC_ACTIVE=0
+    if [ -f "$CLAUDE_DIR/.credentials.json" ]; then
+        SYNC_ACTIVE=1
+        active_org=$(CREDS_PATH="$CLAUDE_DIR/.credentials.json" python3 -c \
+            "import json,os;print(json.load(open(os.environ['CREDS_PATH'])).get('organizationUuid') or '')" 2>/dev/null)
+        if [ -n "$active_org" ]; then
+            any_snap_org=0
+            org_matched=0
+            for name in "${snapshots[@]}"; do
+                snap_org=$(CREDS_PATH="$ACCOUNTS_DIR/$name/.credentials.json" python3 -c \
+                    "import json,os;print(json.load(open(os.environ['CREDS_PATH'])).get('organizationUuid') or '')" 2>/dev/null)
+                [ -n "$snap_org" ] && any_snap_org=1
+                if [ "$snap_org" = "$active_org" ]; then org_matched=1; break; fi
+            done
+            # Refuse ONLY on positive evidence of a foreign org: active has an org, at least one
+            # snapshot has an org, and none of them match.
+            if [ "$any_snap_org" = "1" ] && [ "$org_matched" = "0" ]; then
+                SYNC_ACTIVE=0
+            fi
+        fi
+    fi
+    log "SYNC_ACTIVE=auto → ${SYNC_ACTIVE} (refuse only a PROVABLY-foreign active org)"
+fi
 log "syncing ${#snapshots[@]} account(s) [${snapshots[*]}] to ${#host_arr[@]} host(s): ${host_arr[*]}"
 
 rc=0

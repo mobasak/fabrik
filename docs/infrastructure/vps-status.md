@@ -21,7 +21,14 @@
   (`🔍 Proactive Check [vpsN]`) — the incident alerts were anonymous, deployed fleet-wide. **Honest residual:**
   hourly sync is a mitigation, not a cure — the multi-writer refresh-token conflict is architectural; the cure
   would be per-box dedicated accounts or routing all VPS claude calls through one credential owner. Revisit if
-  exhaustion recurs at the hourly cadence.
+  exhaustion recurs at the hourly cadence. **UPDATE (same day, ~22:50): it DID recur — hourly snapshot-sync
+  still failed because the manager-account SNAPSHOTS themselves go stale within hours (they only update on a
+  WSL account switch; mob/ob snapshots were 31h old — the sync was faithfully distributing corpses). CURE
+  IMPLEMENTED: the single-refresh-owner model — the WSL cron now runs `SYNC_ACTIVE=auto` hourly, pushing the
+  WSL ACTIVE creds (in constant use → always fresh) to every host's active; VPS boxes hold a <1h-old token and
+  never self-refresh, so nothing mutually invalidates. `auto` is org-guarded with an allow-unless-PROVABLY-
+  foreign posture (real fleet creds often lack organizationUuid — a require-match guard blocked the cure,
+  live-hit). Verified: recovery ran THROUGH the auto path, all 3 KEEPALIVE_OK 22:52. +2 tests (17 pass).**
 
 - **Full fleet infra audit — 2026-08-03 (live probe: [`infra-probe-2026-08-03T18-37Z.yaml`](probe-reports/infra-probe-2026-08-03T18-37Z.yaml)).**
   **Verdict: fleet healthy.** Containers 31/5/5 all Up, **zero unhealthy**; UFW + fail2ban active ×3; wg mesh

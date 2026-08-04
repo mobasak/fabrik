@@ -206,3 +206,60 @@ def test_script_never_reads_cred_content_into_output():
         if s.startswith("#") or "credentials.json" not in s:
             continue
         assert not any(c in s for c in reader_cmds), f"creds content must never be read into output: {s}"
+
+
+def test_sync_active_auto_enables_when_wsl_active_is_a_fleet_account(tmp_path):
+    """auto + active org matches a snapshot org → the active IS pushed (single-refresh-owner cure
+    for the 2026-08-04 OAuth exhaustion: snapshots go stale; only the WSL active is always fresh)."""
+    claude_dir = _make_claude_dir(tmp_path)  # active org == org-mob-dir (matches snapshot)
+    env = {
+        **os.environ,
+        "DRY_RUN": "1",
+        "CLAUDE_DIR": str(claude_dir),
+        "CLAUDE_FLEET_HOSTS": "vps",
+        "CLAUDE_FLEET_SYNC_LOG": str(tmp_path / "sync.log"),
+        "SYNC_ACTIVE": "auto",
+    }
+    r = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    assert r.returncode == 0
+    assert "SYNC_ACTIVE=auto → 1" in r.stderr  # guard resolved to ON
+    assert ".claude/.credentials.json" in r.stdout  # the active scp line is present
+
+
+def test_sync_active_auto_allows_an_org_less_active(tmp_path):
+    """Real fleet creds often carry NO organizationUuid — auto must still enable (allow unless
+    PROVABLY foreign), or the cure is blocked on exactly the creds the fleet runs (live-hit
+    2026-08-04: auto→0 while all 3 hosts were 401-exhausted)."""
+    claude_dir = _make_claude_dir(tmp_path)
+    (claude_dir / ".credentials.json").write_text('{"claudeAiOauth": {"accessToken": "x"}}')
+    env = {
+        **os.environ,
+        "DRY_RUN": "1",
+        "CLAUDE_DIR": str(claude_dir),
+        "CLAUDE_FLEET_HOSTS": "vps",
+        "CLAUDE_FLEET_SYNC_LOG": str(tmp_path / "sync.log"),
+        "SYNC_ACTIVE": "auto",
+    }
+    r = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    assert r.returncode == 0
+    assert "SYNC_ACTIVE=auto → 1" in r.stderr
+
+
+def test_sync_active_auto_refuses_a_non_fleet_active(tmp_path):
+    """auto + active org matches NO snapshot → active-sync stays OFF (the footgun guard)."""
+    claude_dir = _make_claude_dir(tmp_path)
+    (claude_dir / ".credentials.json").write_text('{"organizationUuid":"org-SOMETHING-ELSE"}')
+    env = {
+        **os.environ,
+        "DRY_RUN": "1",
+        "CLAUDE_DIR": str(claude_dir),
+        "CLAUDE_FLEET_HOSTS": "vps",
+        "CLAUDE_FLEET_SYNC_LOG": str(tmp_path / "sync.log"),
+        "SYNC_ACTIVE": "auto",
+    }
+    r = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    assert r.returncode == 0
+    assert "SYNC_ACTIVE=auto → 0" in r.stderr  # guard resolved to OFF
+    # snapshots still pushed, but the ACTIVE scp (bare .claude/.credentials.json dest) is absent
+    assert ".claude/.credentials.json\n" not in r.stdout.replace("sync-bak", "")
+    assert "manager-accounts" in r.stdout

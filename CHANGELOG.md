@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — OAuth exhaustion CURE: single-refresh-owner active-sync (SYNC_ACTIVE=auto) (2026-08-04)
+
+The hourly snapshot-sync mitigation still exhausted (same evening): the manager-account snapshots
+themselves go stale within hours (they only update on a WSL account switch — mob/ob were 31h old), so the
+sync distributed dead creds. Cure: `sync-claude-accounts-to-fleet.sh` gains `SYNC_ACTIVE=auto` — hourly
+push of the WSL ACTIVE creds (always fresh, in constant use) to every host's active, making WSL the single
+refresh owner; VPS boxes hold a <1h token and never self-refresh, ending the single-use-refresh-token
+mutual invalidation. Guard posture: allow unless PROVABLY foreign org (real fleet creds often lack
+organizationUuid — a require-match guard blocked the cure, live-hit). WSL cron flipped to
+`SYNC_ACTIVE=auto`; recovery verified through the auto path (all 3 KEEPALIVE_OK). +2 tests (17 pass).
+
+### Added — Spine+ticket plan shape: gate compatibility layer (Phase A) (2026-08-04)
+
+The enforcement gates now accept the spine+ticket plan shape
+(`docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` = same-stem spine + `T##[a-z]?-<slug>.md`
+tickets) BEFORE the first such plan exists — per `2026-08-04-plan-1-spine-ticket-plans.md` Phase A:
+`check_plans.py` admits tickets only inside dated plan dirs; `check_plan_quality.py` rewritten
+(shape classification: ticket field contract + Status-line ban + DRAFT-spine WARN downgrade; modern
+monolith/spine pillars; content-based legacy grandfather — kills the stale
+NOT_STARTED/DONE-WHEN/Steps contract that ERRORed every modern plan); `check_convergence.py`
+CONVERGED regex now bold-or-plain but enforced on NEW transitions only (HEAD-comparison, the
+`_executed_targets` precedent — pre-existing CONVERGED plans fleet-wide stay settled) + spine
+plan-set checks (orphan Board rows, ticket Status ban, in-process `check_plan_tickets` at the flip);
+NEW `check_plan_tickets.py` (spine↔ticket contract: Board↔files 1:1, Depends DAG + Merge Order,
+exclusive Touches + Serialized barriers, governance-file ban, never-route routing cross-check,
+per-ticket grounding floor, READ-budget sizing with context-dependent severity, Behavior-Contract
+roll-up equality, execution-window Board staleness; registered in `validate_conventions` +
+`final_gate` Tier-2); `check_test_proposal.py` + `docs_updater.py` made plan-directory-aware
+(+ `BLOCKED` status vocabulary); `check_doc_sprawl.py` nested pattern made intentional; CLAUDE.md
+allowlist row extended. Tests: `tests/enforcement/test_plan_shape_gates.py`,
+`tests/enforcement/test_check_plan_tickets.py`, `tests/test_check_convergence.py` (60 green).
+
 ### Added — Dispatcher-coder benchmark: 4 claude -p tiers × 18 tasks, plus claude -p harness fixes (2026-08-04)
 
 `scripts/kilo-benchmarks/dispatcher_bench.py` + `dispatcher-bench/` (fixture repo, 15 ticket YAMLs,
