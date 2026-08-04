@@ -124,7 +124,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    them current and KEEP GOING. Filing the context excuse as `BLOCKED: context budget` does not legitimize
 >    it (live observed) — a resource limit is not missing infra, and the harness removes the limit. If a
 >    remaining phase genuinely deserves fresher eyes than you have, the contract-legal move is to DISPATCH
->    that phase's work to fresh subagents per §Subagent Strategy — decompose, don't abort. A step you believe is genuinely wrong is a `BLOCKED`
+>    that phase's work to fresh subagents per §Subagent Strategy — decompose, don't abort. Post-compact, the SessionStart hook auto-injects a recent-context recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing. A step you believe is genuinely wrong is a `BLOCKED`
 >    for the **user** to rule on — never a silent skip or a quiet descope.
 > 2. **The plan file is updated every phase, INSIDE that phase's commit — not optional, not "at the end".** A
 >    phase is **not complete** until the plan file records it: mark the phase `✅ EXECUTED <YYYY-MM-DD>

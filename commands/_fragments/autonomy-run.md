@@ -33,7 +33,7 @@ There is **no** "noted / I'll ask about this / defer to the operator / good enou
 the exact stall this kills. "I judged this worth asking," "running low on context, I'll finish later," "the
 core is covered, the rest can wait," "substantial enough to deserve a fresh context" are contract violations, not decisions. (Context is not a reason: the
 harness AUTO-COMPACTS long conversations and the run continues — your durable-as-you-go artifacts are what
-make that seamless. Dressing the context excuse as a BLOCKED report does not legitimize it.)
+make that seamless. Dressing the context excuse as a BLOCKED report does not legitimize it. Post-compact, the SessionStart hook auto-injects a recent-context recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing.)
 
 **A HARD STOP always overrides — this contract AND the Termination contract below; it is never a "routable
 finding," and it is the one thing that outranks "never pause."** If you discover mid-run that a seam actually

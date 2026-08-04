@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — post-compact recovery wired into the compaction clause: session-recall named (2026-08-04)
+
+The corpus-wide auto-compaction clause now tells agents WHAT recovers lost detail: the SessionStart hook
+(matcher "", fires on start/resume/compact — verified live) auto-injects a recent-context recap, and the
+session-recall MCP (search_chats/get_chat, index current-to-the-minute: 3.8k sessions / 139k turns) recovers
+anything the summary dropped — use it instead of re-deriving or guessing. /compact stays a user-only CLI
+command by design: agents cannot and need not trigger it; auto-compact + durable artifacts + recall is the
+contract.
+
 ### Fixed — fabricated ledger rows outlawed: every pass names its finders, VERIFY is never a pass (2026-08-04)
 
 A live seo review exited "not converged but honestly recorded" AND wrote a "Pass 3 — found: 0, fixed: 0"
