@@ -1,0 +1,25 @@
+id: t3_2
+category: 3
+host: fixture
+title: New "refunded" status across the status seam
+accept: t3_2_accept.py
+touches: ["app/status.py", "tests/*"]
+revert_red: true
+prompt: |
+  TICKET t3-2 — Add a "refunded" order status
+
+  Scope: introduce "refunded" consistently across the status model in
+  app/status.py:
+  - STATUSES includes "refunded".
+  - Transitions: paid -> refunded and shipped -> refunded are legal; refunded is
+    terminal (no outgoing transitions); nothing else changes.
+  - Display label: "Refunded".
+  The existing seams (orders.set_status validation, notify.format_status_update)
+  must work with the new status unmodified. Tests under tests/ must cover the
+  transition matrix changes, the label, and a full pending->paid->refunded flow
+  through orders.set_status including the notification text.
+
+  Touches: app/status.py, tests/.
+
+  Acceptance criteria: matrix + label as specified; end-to-end set_status flow
+  green; `pytest tests/ -q` green.

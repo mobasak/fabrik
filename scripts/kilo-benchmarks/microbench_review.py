@@ -1455,6 +1455,13 @@ def main(argv: list[str] | None = None) -> int:
     def _models_or_pool(n: int) -> list[str]:
         return args.models if args.models is not None else pick_models("review", n=n)
 
+    if args.hard and not args.direct:
+        # fail loud at parse time, not 20/20 errored calls later: the pool path cannot run
+        # claude-code/* (the claude -p shim exists only on the direct path), and --hard's whole
+        # purpose is separating the frontier tiers that include them. A silent misroute here
+        # errored an entire 20-call smoke live on 2026-08-04.
+        p.error("--hard requires --direct: claude-code/* cannot run via the pool")
+
     if args.hard:
         if args.smoke:
             # fail loud, not expensive: silently ignoring --smoke here would dispatch the FULL
@@ -1476,6 +1483,14 @@ def main(argv: list[str] | None = None) -> int:
             "[review-bench] --models given with no values — nothing to dispatch.", file=sys.stderr
         )
         return 0
+
+    # same trap on the STANDARD corpus: a claude-code/* model routed via the pool errors every
+    # call — refuse before dispatch, whatever corpus was picked.
+    _cc_pooled = [m for m in models if m.startswith("claude-code/") and not args.direct]
+    if _cc_pooled:
+        p.error(
+            f"claude-code/* requires --direct (the pool cannot run it): {', '.join(_cc_pooled)}"
+        )
 
     metrics_table = HARD_TABLE if args.hard else "model_review_metrics"
     if not args.fresh:

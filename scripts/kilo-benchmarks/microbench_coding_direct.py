@@ -287,7 +287,10 @@ def generate(
                 import claude_p
                 import derive_cost
 
-                text, usage = claude_p.claude_p_call(model, prompt, system="", timeout=150.0)
+                # 600s, not 150: the slowest tier measured ~15 tok/s (fable, review bench
+                # 2026-08-04) — a full hard-problem solution at that rate exceeds 150s, and a
+                # too-tight timeout fakes "model errored" for exactly the models under test.
+                text, usage = claude_p.claude_p_call(model, prompt, system="", timeout=600.0)
                 dt = time.time() - t0
                 return (
                     model,

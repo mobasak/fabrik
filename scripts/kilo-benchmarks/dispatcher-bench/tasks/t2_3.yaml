@@ -1,0 +1,31 @@
+id: t2_3
+category: 2
+host: fixture
+title: Cancellation policy — 6 contracted behaviors, test per behavior
+accept: t2_3_accept.py
+touches: ["app/orders.py", "app/status.py", "tests/*"]
+revert_red: true
+min_new_tests: 6
+prompt: |
+  TICKET t2-3 — Order cancellation policy
+
+  Implement `cancel_order(order_id)` in app/orders.py. The policy is a CONTRACT:
+  every numbered behavior below must hold and every one must be covered by its
+  own test under tests/ (at least 6 new test functions, one per behavior).
+
+  - B1 Given a pending order, When cancelled, Then status becomes "cancelled"
+    and the returned dict has fee == 0.0.
+  - B2 Given a paid order, When cancelled, Then it cancels with a restocking fee
+    of 10% of the order amount, rounded to 2 decimals (returned as fee).
+  - B3 Given a shipped order, When cancelled, Then ValueError is raised and
+    status is unchanged.
+  - B4 Given an already-cancelled order, When cancelled again, Then it is a no-op
+    returning fee 0.0 and NO duplicate notification is sent.
+  - B5 Given an unknown order id, When cancelled, Then KeyError is raised.
+  - B6 Every successful (state-changing) cancel sends EXACTLY ONE notification
+    whose message contains "order <id> cancelled".
+
+  Touches: app/orders.py, app/status.py (if needed for transitions), tests/.
+
+  Acceptance criteria: all 6 behaviors hold; >= 6 new tests, one per behavior;
+  `pytest tests/ -q` green.

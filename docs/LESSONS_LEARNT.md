@@ -4878,3 +4878,18 @@ termination contract's "the round that fixed something is never the last look" r
 took a full 5 rounds (not 1) to reach a real fixed point here (confirmed only when round 10 came back
 clean on both the native and pool layer). A single "fix the bug and move on" pass would have shipped 4
 more of the same defect.
+
+## Lesson 83 — A benchmark's model ALIAS is part of the measurement; "opus" measured opus-4.8 for weeks
+
+**Context:** the 2026-08-04 hard-review benchmark reported `claude-code/opus` at 4.44 (8/10 recall),
+last of the four tiers — and the operator's decision question was about **opus-5**. `claude_p.py`'s
+ALIASES table still pinned `claude-code/opus` → `claude-opus-4-8`, so the row (and every earlier
+claude-code/opus row) measured the previous-generation model under the current model's name. The tier
+alias ("opus") reads as "latest opus" but is a frozen snapshot of whatever id was grounded when the
+table was written; model generations rotate under the alias without any code change signaling it.
+
+**How to apply:** (1) before ANY per-model claim, print/verify the RESOLVED model id from the harness's
+own mapping (a live probe returning `canonicalModel` is ground truth), not the tier name; (2) when a new
+model generation ships, greps for the old id across benchmark harnesses are part of the upgrade; (3) a
+benchmark row's `model_id` column should store the resolved id, not the alias, so stale mappings are
+visible in the data itself.

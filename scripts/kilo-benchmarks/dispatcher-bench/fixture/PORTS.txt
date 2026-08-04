@@ -1,0 +1,3 @@
+# host port registry
+8016 api
+9101 metrics

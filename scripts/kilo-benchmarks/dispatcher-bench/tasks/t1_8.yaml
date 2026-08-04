@@ -1,0 +1,24 @@
+id: t1_8
+category: 1
+host: fixture
+title: Idempotent charges
+accept: t1_8_accept.py
+touches: ["app/billing.py", "tests/*"]
+revert_red: true
+prompt: |
+  TICKET t1-8 — Retried charges double-bill
+
+  Payment webhooks retry. billing.charge() appends a NEW charge on every call, so
+  a retry with the same idempotency_key bills the customer twice.
+
+  Scope: make charge() idempotent: when idempotency_key is provided and a charge
+  with that key already exists, return the ORIGINAL charge entry and do not create
+  a new one. Calls without a key keep today's behavior. Cover the new behavior
+  with tests under tests/.
+
+  Touches: app/billing.py, tests/.
+
+  Acceptance criteria:
+  - Same key twice -> one entry in store.CHARGES, same charge_id returned.
+  - Distinct keys / no key -> separate charges.
+  - `pytest tests/ -q` green.

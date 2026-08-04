@@ -1,0 +1,27 @@
+id: t1_1
+category: 1
+host: fixture
+title: check_ports flags registered ports (red CI test)
+setup:
+  - src: setup/t1_1_red_test.py
+    dst: tests/test_check_ports_ci.py
+accept: t1_1_accept.py
+touches: ["scripts/check_ports.py", "tests/*"]
+immutable: ["tests/test_check_ports_ci.py"]
+revert_red: false
+prompt: |
+  TICKET t1-1 — scripts/check_ports.py rejects a fully-registered compose file
+
+  CI added tests/test_check_ports_ci.py and it is RED: check_ports.py exits 1 on a
+  compose.yaml whose every host port IS registered in PORTS.txt.
+
+  Scope: find and fix the defect in scripts/check_ports.py so the CI test passes.
+  Do not modify tests/test_check_ports_ci.py (CI-owned). Add one regression test of
+  your own under tests/ covering the case the defect broke.
+
+  Touches: scripts/check_ports.py, tests/ (new file only).
+
+  Acceptance criteria:
+  - `pytest tests/ -q` is green.
+  - A registered port is never reported as unregistered, quoted or unquoted form.
+  - Genuinely unregistered ports are still flagged.

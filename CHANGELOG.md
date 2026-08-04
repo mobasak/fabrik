@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Dispatcher-coder benchmark: 4 claude -p tiers × 18 tasks, plus claude -p harness fixes (2026-08-04)
+
+`scripts/kilo-benchmarks/dispatcher_bench.py` + `dispatcher-bench/` (fixture repo, 15 ticket YAMLs,
+kill-proven hidden acceptance tests): the decision-bearing default-coder test — fresh `claude -p` agentic
+session per (model, task) in a throwaway clone, one attempt, identical prompts, mechanical graders
+(hidden accept tests, diff-scope vs Touches, stub-grep, revert-red, BLOCKED trap) + tokens/wall capture;
+diagnostic, non-routing. Category 4 rides `microbench_coding_direct.py --difficulty hard` off the new
+`build_lcb_difficulty_manifest.py` (whole-release cache warmer + `question_id → difficulty` manifest, 880
+problems / 270 hard). Harness fixes: `microbench_review.py` now fails loud at parse time when `--hard` or
+any `claude-code/*` model lacks `--direct` (a silent pool misroute errored 20/20 calls); `claude_p.py`
+maps `claude-code/opus` to **claude-opus-5** (was claude-opus-4-8 — every earlier "opus" benchmark row
+measured 4.8); the coding harness's claude shim timeout rose 150s→600s so ~15 tok/s tiers aren't faked
+into error slots on hard problems.
+
 ### Added — LiveCodeBench difficulty filter, so the coding bench can separate frontier models (2026-08-04)
 
 `microbench_coding_direct.py` gains `--difficulty hard|medium,hard`. Without it the bench cannot rank

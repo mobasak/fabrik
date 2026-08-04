@@ -1,0 +1,27 @@
+id: t1_4
+category: 1
+host: fixture
+title: Refresh-token rotation + reuse detection
+accept: t1_4_accept.py
+touches: ["app/auth.py", "tests/*"]
+revert_red: true
+prompt: |
+  TICKET t1-4 — Refresh tokens must rotate on use (reuse = family revocation)
+
+  Security review finding: app/auth.py returns the SAME refresh token from
+  refresh(), so a stolen refresh token works forever.
+
+  Scope: implement refresh-token rotation in app/auth.py:
+  - Every successful refresh() invalidates the presented refresh token and returns
+    a NEW refresh token (same token family).
+  - Presenting a previously-rotated (already-used) refresh token is a reuse attack:
+    revoke the ENTIRE token family (every refresh token descended from that issue())
+    and raise AuthError.
+  - issue() behavior is unchanged. Cover the new behavior with tests under tests/.
+
+  Touches: app/auth.py, tests/.
+
+  Acceptance criteria:
+  - refresh() returns a different refresh token each time.
+  - Reusing an old refresh token raises AuthError AND kills the newest token of that family.
+  - `pytest tests/ -q` green.

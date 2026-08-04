@@ -1,0 +1,25 @@
+id: t1_7
+category: 1
+host: fixture
+title: Pagination drops the last row of every page (red CI test)
+setup:
+  - src: setup/t1_7_red_test.py
+    dst: tests/test_pagination_ci.py
+accept: t1_7_accept.py
+touches: ["app/orders.py", "tests/*"]
+immutable: ["tests/test_pagination_ci.py"]
+revert_red: false
+prompt: |
+  TICKET t1-7 — list_orders pagination loses one row per page
+
+  CI added tests/test_pagination_ci.py and it is RED: with 25 orders and
+  per_page=10 the pages come back 9/9/5 and rows go missing.
+
+  Scope: fix the defect in app/orders.list_orders so pages are complete and
+  non-overlapping. Do not modify tests/test_pagination_ci.py (CI-owned). Add one
+  boundary regression test of your own under tests/ (e.g. an exact-multiple page).
+
+  Touches: app/orders.py, tests/ (new file only).
+
+  Acceptance criteria: `pytest tests/ -q` green; page N returns rows
+  (N-1)*per_page .. N*per_page-1 in creation order.

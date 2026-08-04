@@ -16,9 +16,12 @@ from __future__ import annotations
 import json
 import subprocess
 
-# claude-code/<tier> -> the live model id (grounded on-disk byModel keys + `claude --help`).
+# claude-code/<tier> -> the live model id (grounded 2026-08-04: live --print probe of claude-opus-5
+# returned canonicalModel=claude-opus-5, provider=firstParty).
+# ⚠️ History: until 2026-08-04 this mapped opus -> claude-opus-4-8, so every earlier "claude-code/opus"
+# benchmark row (incl. model_review_hard_metrics 2026-08-04) measured OPUS 4.8, not opus-5.
 ALIASES = {
-    "claude-code/opus": "claude-opus-4-8",
+    "claude-code/opus": "claude-opus-5",
     "claude-code/sonnet": "claude-sonnet-5",
     "claude-code/haiku": "claude-haiku-4-5-20251001",
     "claude-code/fable": "claude-fable-5",
