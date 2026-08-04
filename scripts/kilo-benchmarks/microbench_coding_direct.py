@@ -112,8 +112,18 @@ _TASK_SUFFIX = (
 _CORPUS_SRC = r"""
 import json, sys
 release, limit, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+difficulty = sys.argv[4] if len(sys.argv) > 4 else ""   # "", or easy|medium|hard (comma-separated)
 from lcb_runner.benchmarks.code_generation import CodeGenerationProblem
-if limit > 0:
+want = {d.strip().lower() for d in difficulty.split(",") if d.strip()}
+
+def _diff(p):
+    d = getattr(p, "difficulty", None)
+    return str(getattr(d, "value", d) or "").lower()
+
+# A difficulty filter must SELECT from the whole release, never from the first N: `.take(N)` reads
+# the head of the shard, so streaming-then-filtering would sample the first N and usually return
+# far fewer than `limit` hard problems (silently shrinking the denominator).
+if limit > 0 and not want:
     # STREAM only the first `limit` problems — the LiveCodeBench release is multi-GB sharded parquet;
     # a bounded run (probe or --limit N) must NOT download it all. .take(N) reads only the first chunk.
     from datasets import load_dataset
@@ -121,14 +131,21 @@ if limit > 0:
                       trust_remote_code=True, streaming=True)
     probs = [CodeGenerationProblem(**r) for r in ds.take(limit)]
 else:
-    # whole release (limit<=0) needs every problem -> the full (cached-once) download
+    # whole release (limit<=0, or any difficulty filter) -> the full (cached-once) download
     from lcb_runner.benchmarks.code_generation import load_code_generation_dataset
     probs = load_code_generation_dataset(release_version=release)
+    if want:
+        probs = [p for p in probs if _diff(p) in want]
+    if limit > 0:
+        probs = probs[:limit]
 rows = [{"question_id": str(p.question_id), "prompt": p.question_content,
-         "starter_code": p.starter_code or "", "sample": p.get_evaluation_sample()} for p in probs]
+         "starter_code": p.starter_code or "", "sample": p.get_evaluation_sample(),
+         "difficulty": _diff(p)} for p in probs]
 json.dump(rows, open(out, "w"))
-print(f"loaded {len(rows)} problems from {release} (streamed)" if limit > 0 else
-      f"loaded {len(rows)} problems from {release} (full)", file=sys.stderr)
+from collections import Counter
+print(f"loaded {len(rows)} problems from {release}"
+      f"{' [' + difficulty + ']' if want else ''} — mix: {dict(Counter(r['difficulty'] for r in rows))}",
+      file=sys.stderr)
 """
 
 _GRADE_SRC = r"""
@@ -173,18 +190,33 @@ class Problem:
     prompt: str
     starter_code: str
     sample: dict  # get_evaluation_sample() -> {"input_output": ...}
+    difficulty: str = ""  # easy|medium|hard (from LiveCodeBench); "" when the release omits it
 
 
-def load_corpus(release_version: str, limit: int | None) -> list[Problem]:
-    """Load the fixed LiveCodeBench window (via .lcb-venv). limit<=0 / None = whole release."""
+def load_corpus(release_version: str, limit: int | None, difficulty: str = "") -> list[Problem]:
+    """Load the LiveCodeBench window (via .lcb-venv). limit<=0 / None = whole release.
+
+    `difficulty` ("hard", or "medium,hard") is what makes the bench DISCRIMINATE at the frontier:
+    on the default first-50 window 3 models already sit at pass@1 = 1.00 and 7 more at 0.98, so
+    the top is saturated and strong models tie regardless of capability (the same ceiling that
+    makes the operator-flip review corpus tie — see microbench_review.py:241)."""
     with tempfile.NamedTemporaryFile("r", suffix=".json", delete=False) as f:
         out = f.name
     try:
-        _run_lcb(_CORPUS_SRC, [release_version, str(limit or 0), out], timeout=_CORPUS_TIMEOUT_S)
+        _run_lcb(
+            _CORPUS_SRC,
+            [release_version, str(limit or 0), out, difficulty],
+            timeout=_CORPUS_TIMEOUT_S,
+        )
         rows = json.loads(Path(out).read_text())
     finally:
         Path(out).unlink(missing_ok=True)
-    return [Problem(r["question_id"], r["prompt"], r["starter_code"], r["sample"]) for r in rows]
+    return [
+        Problem(
+            r["question_id"], r["prompt"], r["starter_code"], r["sample"], r.get("difficulty", "")
+        )
+        for r in rows
+    ]
 
 
 def extract_code(text: str) -> str:
@@ -646,6 +678,13 @@ def main(argv: list[str] | None = None) -> int:
         "--limit", type=int, default=50, help="problems from the window (default 50; <=0 = all)"
     )
     p.add_argument(
+        "--difficulty",
+        default="",
+        help="LiveCodeBench difficulty filter: hard | medium,hard (default: unfiltered). REQUIRED to "
+        "separate frontier models — the unfiltered head-of-window saturates (3 models at "
+        "pass@1=1.00, 7 more at 0.98), so strong models tie regardless of capability.",
+    )
+    p.add_argument(
         "--cost-cap", type=float, default=20.0, help="running billed-$ dispatch gate (default 20)"
     )
     p.add_argument(
@@ -698,7 +737,7 @@ def main(argv: list[str] | None = None) -> int:
 
     limit = 2 if args.probe else args.limit
     window = args.release_version
-    corpus = load_corpus(window, limit)
+    corpus = load_corpus(window, limit, args.difficulty)
     print(f"[coding-bench] corpus: {len(corpus)} problems from {window}", file=sys.stderr)
 
     # ── COST SAFETY (real money): never let the run's cap exceed the LIVE OpenRouter balance ──
@@ -798,7 +837,9 @@ def main(argv: list[str] | None = None) -> int:
             batch = [m for m in batch if m.startswith("claude-code/")]
             if not batch:
                 continue
-            rem = float("inf")  # irrelevant: generate() never counts claude-code/* spend against cost_cap
+            rem = float(
+                "inf"
+            )  # irrelevant: generate() never counts claude-code/* spend against cost_cap
         gens = generate(
             batch,
             corpus,
@@ -813,7 +854,10 @@ def main(argv: list[str] | None = None) -> int:
             # against the cap now (bypassing the CodingScore aggregation grade() never got to build), else
             # a repeat grader failure would let real spend silently exceed eff_cap across later batches.
             spent += sum(
-                g.cost_usd for m, glist in gens.items() if not m.startswith("claude-code/") for g in glist
+                g.cost_usd
+                for m, glist in gens.items()
+                if not m.startswith("claude-code/")
+                for g in glist
             )
             print(
                 f"[coding-bench] batch {bi // BATCH_SIZE + 1} grading FAILED ({e!r}) — its generation "

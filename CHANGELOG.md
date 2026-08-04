@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — LiveCodeBench difficulty filter, so the coding bench can separate frontier models (2026-08-04)
+
+`microbench_coding_direct.py` gains `--difficulty hard|medium,hard`. Without it the bench cannot rank
+strong models: the default window is saturated — **3 models sit at pass@1 = 1.000 and 7 more at 0.98** —
+so frontier tiers tie regardless of capability (the same ceiling documented for the review corpus at
+`microbench_review.py:241`). Two fixes in one: the loader now also captures each problem's `difficulty`,
+and a filtered run selects from the **whole release** instead of `ds.take(N)`, which silently sampled only
+the *head* of the shard (so the stored 50-problem scores are "the first 50", not a representative window).
+
 ### Changed — post-compact recovery wired into the compaction clause: session-recall named (2026-08-04)
 
 The corpus-wide auto-compaction clause now tells agents WHAT recovers lost detail: the SessionStart hook
