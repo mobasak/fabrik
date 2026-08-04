@@ -11,7 +11,7 @@ trigger: glob
 
 # 16. Long-Context AI
 
-Last content verification: 2026-08-03
+Last content verification: 2026-08-04
 
 **Purpose:** Process extremely long documents, codebases, or conversations.
 
@@ -23,8 +23,8 @@ Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), GPT-4o (128K).
 
 **Use cases:** codebase analysis, book summarization, long-document QA, multi-file reasoning.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-03 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-03 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-04 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-04 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

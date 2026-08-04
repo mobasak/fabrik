@@ -224,6 +224,7 @@
 - [info-tooltip](/opt/fabrik-lib/info-tooltip/README.md): info-tooltip
 - [job-queue](/opt/fabrik-lib/job-queue/README.md): job-queue
 - [legal-pages](/opt/fabrik-lib/legal-pages/README.md): legal-pages
+- [llm-dispatch](/opt/fabrik-lib/llm-dispatch/README.md): llm-dispatch
 - [llm-visibility-probe](/opt/fabrik-lib/llm-visibility-probe/README.md): llm-visibility-probe
 - [mobile-config](/opt/fabrik-lib/mobile-config/README.md): mobile-config
 - [mt-router](/opt/fabrik-lib/mt-router/README.md): mt-router — Context-First Translation Router
