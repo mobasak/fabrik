@@ -36,7 +36,6 @@ import time
 from pathlib import Path
 
 import yaml
-
 from claude_p import ALIASES
 
 HERE = Path(__file__).resolve().parent
@@ -49,9 +48,7 @@ ARTIFACTS = HERE / "cache" / "dispatcher-bench-artifacts"
 
 SITE_PROVISIONER = Path("/opt/site-provisioner")
 FABRIK_VENV_BIN = Path("/opt/fabrik/.venv/bin")
-WORK_ROOT = Path(
-    os.environ.get("DISPATCH_BENCH_WORK", "/tmp/claude-1000/dispatcher-bench-work")
-)
+WORK_ROOT = Path(os.environ.get("DISPATCH_BENCH_WORK", "/tmp/claude-1000/dispatcher-bench-work"))
 
 MODELS = ["claude-code/sonnet", "claude-code/opus", "claude-code/haiku", "claude-code/fable"]
 PROBE_TASK = "t1_5"
@@ -108,14 +105,17 @@ def make_workdir(task: dict, model: str) -> tuple[Path, str]:
         shutil.copytree(FIXTURE, wd)
         _git(wd, "init", "-q")
         _git(wd, "add", "-A")
-        _git(wd, "-c", "user.email=bench@local", "-c", "user.name=bench",
-             "commit", "-qm", "baseline")
+        _git(
+            wd, "-c", "user.email=bench@local", "-c", "user.name=bench", "commit", "-qm", "baseline"
+        )
     elif task["host"] == "site-provisioner":
         # local clone = isolated COPY; the host repo is never written (bench invariant:
         # nothing is ever committed to a sibling project's tree).
         subprocess.run(  # noqa: S603
             ["git", "clone", "--local", "-q", str(SITE_PROVISIONER), str(wd)],
-            check=True, capture_output=True, timeout=300,
+            check=True,
+            capture_output=True,
+            timeout=300,
         )
     else:
         raise ValueError(f"unknown host {task['host']!r}")
@@ -126,8 +126,16 @@ def make_workdir(task: dict, model: str) -> tuple[Path, str]:
         shutil.copy(src, dst)
     if task.get("setup"):
         _git(wd, "add", "-A")
-        _git(wd, "-c", "user.email=bench@local", "-c", "user.name=bench",
-             "commit", "-qm", "plant CI files")
+        _git(
+            wd,
+            "-c",
+            "user.email=bench@local",
+            "-c",
+            "user.name=bench",
+            "commit",
+            "-qm",
+            "plant CI files",
+        )
     base = _git(wd, "rev-parse", "HEAD").strip()
     return wd, base
 
@@ -137,23 +145,31 @@ def run_session(model: str, task: dict, wd: Path) -> dict:
     env = dict(os.environ)
     env["PATH"] = f"{FABRIK_VENV_BIN}:{env.get('PATH', '')}"
     cmd = [
-        "npx", "@anthropic-ai/claude-code",
-        "--print", "--output-format", "json",
-        "--model", ALIASES[model],
+        "npx",
+        "@anthropic-ai/claude-code",
+        "--print",
+        "--output-format",
+        "json",
+        "--model",
+        ALIASES[model],
         "--dangerously-skip-permissions",
     ]
     t0 = time.time()
     try:
         p = subprocess.run(  # noqa: S603 — fixed argv; prompt via stdin
-            cmd, input=PREAMBLE + task["prompt"], capture_output=True, text=True,
-            cwd=str(wd), env=env, timeout=SESSION_TIMEOUT_S,
+            cmd,
+            input=PREAMBLE + task["prompt"],
+            capture_output=True,
+            text=True,
+            cwd=str(wd),
+            env=env,
+            timeout=SESSION_TIMEOUT_S,
         )
         wall = time.time() - t0
     except subprocess.TimeoutExpired:
         return {"status": "timeout", "wall_s": round(time.time() - t0, 1)}
     if p.returncode != 0:
-        return {"status": "error", "wall_s": round(wall, 1),
-                "stderr": (p.stderr or "")[-500:]}
+        return {"status": "error", "wall_s": round(wall, 1), "stderr": (p.stderr or "")[-500:]}
     try:
         data = json.loads(p.stdout)
     except ValueError:
@@ -165,9 +181,15 @@ def run_session(model: str, task: dict, wd: Path) -> dict:
         "num_turns": data.get("num_turns"),
         "duration_ms": data.get("duration_ms"),
         "result_text": (data.get("result") or "")[-2000:],
-        "usage": {k: usage.get(k, 0) for k in (
-            "input_tokens", "output_tokens",
-            "cache_read_input_tokens", "cache_creation_input_tokens")},
+        "usage": {
+            k: usage.get(k, 0)
+            for k in (
+                "input_tokens",
+                "output_tokens",
+                "cache_read_input_tokens",
+                "cache_creation_input_tokens",
+            )
+        },
         "api_equiv_cost_usd": data.get("total_cost_usd"),
     }
 
@@ -202,7 +224,10 @@ def added_lines(wd: Path, base: str) -> str:
 def _pytest(wd: Path, *targets: str) -> tuple[bool, str]:
     p = subprocess.run(  # noqa: S603
         [str(FABRIK_VENV_BIN / "pytest"), *targets, "-q", "-p", "no:cacheprovider"],
-        capture_output=True, text=True, cwd=str(wd), timeout=300,
+        capture_output=True,
+        text=True,
+        cwd=str(wd),
+        timeout=300,
     )
     return p.returncode == 0, (p.stdout + p.stderr)[-1500:]
 
@@ -235,7 +260,8 @@ def grade(task: dict, wd: Path, base: str, session: dict) -> dict:
     add = added_lines(wd, base)
     stub_hits = re.findall(
         r"^.*(TODO|FIXME|XXX\b|NotImplementedError|pass\s+#\s*(stub|placeholder)).*$",
-        add, re.M,
+        add,
+        re.M,
     )
     g["stub_ok"] = not stub_hits
     g["stub_hits"] = len(stub_hits)
@@ -260,7 +286,8 @@ def grade(task: dict, wd: Path, base: str, session: dict) -> dict:
         g["accept_tail"] = out if not ok else ""
 
     model_tests = [
-        p for p in changed
+        p
+        for p in changed
         if p.startswith("tests/")
         and p not in {s["dst"] for s in task.get("setup", [])}
         and p not in set(task.get("immutable", []))
@@ -286,10 +313,18 @@ def grade(task: dict, wd: Path, base: str, session: dict) -> dict:
                 (wd / p).unlink(missing_ok=True)
             ok_reverted, _ = _pytest(wd, *model_tests)
             g["revert_red_ok"] = not ok_reverted  # tests MUST fail on reverted src
-            _git(wd, "checkout", "--", ".")  # leave nothing half-reverted (workdir kept for adjudication)
+            _git(
+                wd, "checkout", "--", "."
+            )  # leave nothing half-reverted (workdir kept for adjudication)
 
-    core = [g.get("accept_ok", False), g["diff_scope_ok"], g["forbidden_ok"],
-            g["immutable_ok"], g["stub_ok"], g["no_commits"]]
+    core = [
+        g.get("accept_ok", False),
+        g["diff_scope_ok"],
+        g["forbidden_ok"],
+        g["immutable_ok"],
+        g["stub_ok"],
+        g["no_commits"],
+    ]
     if "min_new_tests_ok" in g:
         core.append(g["min_new_tests_ok"])
     if "revert_red_ok" in g:
@@ -301,8 +336,14 @@ def grade(task: dict, wd: Path, base: str, session: dict) -> dict:
 def run_one(model: str, task: dict) -> dict:
     wd, base = make_workdir(task, model)
     session = run_session(model, task, wd)
-    row = {"model": model, "task": task["id"], "category": task["category"],
-           "host": task["host"], "session": session, "ts": time.strftime("%F %T")}
+    row = {
+        "model": model,
+        "task": task["id"],
+        "category": task["category"],
+        "host": task["host"],
+        "session": session,
+        "ts": time.strftime("%F %T"),
+    }
     # persist adjudication artifacts BEFORE grading: revert-red grading reverts the source
     # tree, so a patch captured after grade() would destroy the model's diff evidence.
     art = ARTIFACTS / f"{model.split('/')[-1]}__{task['id']}"
@@ -323,8 +364,11 @@ def run_one(model: str, task: dict) -> dict:
         with RESULTS.open("a") as f:
             f.write(json.dumps(row) + "\n")
     mp = row["graders"].get("mechanical_pass")
-    print(f"[bench] {model} {task['id']}: session={session['status']} "
-          f"wall={session.get('wall_s')}s mech={'PASS' if mp else 'FAIL'}", flush=True)
+    print(
+        f"[bench] {model} {task['id']}: session={session['status']} "
+        f"wall={session.get('wall_s')}s mech={'PASS' if mp else 'FAIL'}",
+        flush=True,
+    )
     return row
 
 
@@ -348,8 +392,18 @@ def report() -> None:
         latest[(r["model"], r["task"])] = r
     by_model: dict[str, dict] = {}
     for (m, _t), r in latest.items():
-        s = by_model.setdefault(m, {"runs": 0, "mech": 0, "cat": {}, "tok_out": 0,
-                                    "tok_total": 0, "wall": 0.0, "veto_fails": []})
+        s = by_model.setdefault(
+            m,
+            {
+                "runs": 0,
+                "mech": 0,
+                "cat": {},
+                "tok_out": 0,
+                "tok_total": 0,
+                "wall": 0.0,
+                "veto_fails": [],
+            },
+        )
         s["runs"] += 1
         mech = bool(r["graders"].get("mechanical_pass"))
         s["mech"] += mech
@@ -363,14 +417,20 @@ def report() -> None:
         s["wall"] += r["session"].get("wall_s") or 0
         if r["category"] == 2 and not mech:
             s["veto_fails"].append(r["task"])
-    print(f"{'model':<22} {'mech':>6} {'cat1':>6} {'cat2*':>6} {'cat3':>6} "
-          f"{'out-tok':>9} {'all-tok':>10} {'wall':>7}  veto-drops")
+    print(
+        f"{'model':<22} {'mech':>6} {'cat1':>6} {'cat2*':>6} {'cat3':>6} "
+        f"{'out-tok':>9} {'all-tok':>10} {'wall':>7}  veto-drops"
+    )
     for m, s in sorted(by_model.items(), key=lambda kv: -kv[1]["mech"]):
         cats = {c: f"{v[0]}/{v[1]}" for c, v in s["cat"].items()}
-        print(f"{m:<22} {s['mech']}/{s['runs']:<4} {cats.get('1', '-'):>6} "
-              f"{cats.get('2', '-'):>6} {cats.get('3', '-'):>6} {s['tok_out']:>9,} "
-              f"{s['tok_total']:>10,} {s['wall']:>6.0f}s  {','.join(s['veto_fails']) or '-'}")
-    print("\n* cat2 = instruction-adherence, the VETO category (>1 drop = no seat, regardless of totals)")
+        print(
+            f"{m:<22} {s['mech']}/{s['runs']:<4} {cats.get('1', '-'):>6} "
+            f"{cats.get('2', '-'):>6} {cats.get('3', '-'):>6} {s['tok_out']:>9,} "
+            f"{s['tok_total']:>10,} {s['wall']:>6.0f}s  {','.join(s['veto_fails']) or '-'}"
+        )
+    print(
+        "\n* cat2 = instruction-adherence, the VETO category (>1 drop = no seat, regardless of totals)"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

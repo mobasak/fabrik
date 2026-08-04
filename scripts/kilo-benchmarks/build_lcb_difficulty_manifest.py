@@ -20,7 +20,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -40,15 +40,21 @@ def main() -> int:
     last_err: Exception | None = None
     for attempt in range(1, ATTEMPTS + 1):
         try:
-            print(f"[manifest] attempt {attempt}/{ATTEMPTS}: loading {RELEASE} "
-                  f"(HF_HOME={os.environ['HF_HOME']})", flush=True)
+            print(
+                f"[manifest] attempt {attempt}/{ATTEMPTS}: loading {RELEASE} "
+                f"(HF_HOME={os.environ['HF_HOME']})",
+                flush=True,
+            )
             probs = load_code_generation_dataset(release_version=RELEASE)
             break
         except Exception as e:  # noqa: BLE001 — transport errors vary (httpx/urllib3/OSError)
             last_err = e
             wait = min(60, 5 * attempt)
-            print(f"[manifest] attempt {attempt} failed: {type(e).__name__}: {e} "
-                  f"— retrying in {wait}s (hub resumes partial shards)", flush=True)
+            print(
+                f"[manifest] attempt {attempt} failed: {type(e).__name__}: {e} "
+                f"— retrying in {wait}s (hub resumes partial shards)",
+                flush=True,
+            )
             time.sleep(wait)
     else:
         print(f"[manifest] FAILED after {ATTEMPTS} attempts: {last_err}", flush=True)
@@ -62,12 +68,17 @@ def main() -> int:
     for v in diff_of.values():
         counts[v] = counts.get(v, 0) + 1
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps({
-        "release": RELEASE,
-        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "counts": counts,
-        "difficulty": diff_of,
-    }, indent=1))
+    OUT.write_text(
+        json.dumps(
+            {
+                "release": RELEASE,
+                "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "counts": counts,
+                "difficulty": diff_of,
+            },
+            indent=1,
+        )
+    )
     print(f"[manifest] OK: {len(diff_of)} problems, counts={counts} -> {OUT}", flush=True)
     return 0
 
