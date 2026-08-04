@@ -165,7 +165,7 @@ extension; `channel:'chromium'` bundled Chromium — stable Chrome ≥137 can't 
 a **`size-limit`** per-surface bundle gate.
 1. **See it** — drive the running screen via the surface's MCP driver (web: **Playwright MCP**; mobile: **Maestro MCP** / **mobile-mcp**; extension: the **Playwright load-extension fixture**'s
    `goto('chrome-extension://<id>/…')`, the ID read from the MV3 service worker): open it, read the
-   accessibility tree, run the frozen flow end-to-end, screenshot (web: at **375 / 768 / 1440**; mobile: on the
+   accessibility tree, run the frozen flow end-to-end, screenshot AND **READ each screenshot with vision — capturing without looking is not "seeing it", and a `toHaveScreenshot` baseline set from an unviewed render guards an unjudged screen forever** (web: at **375 / 768 / 1440**; mobile: on the
    emulator/simulator; extension: popup at 400px + each options/side-panel/overlay surface). The agent verifies
    against reality, not hope.
 2. **Match the contract** — every screen present; every flow within its **click budget**; every enriched state

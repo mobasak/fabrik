@@ -192,6 +192,14 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
   integrity/clipping, palette fidelity, typography actually rendering as the specified face (not a
   fallback), layout defects, contrast on every surface. A deliverable nobody looked at is an UNCHECKED row,
   not a PASS.
+- **SCREENSHOTS ARE READ, NOT JUST TAKEN.** A captured screenshot nobody viewed is write-only evidence.
+  Every **NEW or CHANGED surface** — a screen, window, mobile menu, extension popup, modal, empty/error
+  state appearing for the first time in this run, or re-rendered after a fix — gets **at least one VISION
+  inspection** (the agent Reads the image and judges it): layout sanity, clipping/overlap, both themes,
+  real fonts vs fallback, obvious visual breakage. The tools cannot do this for you: `axe` reads the a11y
+  tree, not pixels; `toHaveScreenshot` only diffs against a baseline — **a baseline established without a
+  vision look enshrines an unjudged render forever** (first-run baselines are self-fulfilling). Steady-state
+  re-runs may lean on the visual-diff; first appearances may not.
 - **Evidence per verdict, no exceptions:** every PASS = screenshot (or Maestro `assertScreenshot`);
   every FAIL = repro steps + screenshot + console/network capture, **reproduced ×2** before it
   may be CONFIRMED. "Looked fine" and "should work" are void verdicts. App-rendered content and

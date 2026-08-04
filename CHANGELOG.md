@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — screenshots are READ, not just taken: vision inspection of new/changed GUI surfaces (2026-08-04)
+
+Companion to the visual-deliverable QA: the gauntlet captured screenshots as evidence but nothing forced
+anyone to VIEW them — and a toHaveScreenshot baseline established from an unviewed render guards an
+unjudged screen forever (first-run baselines are self-fulfilling; axe reads the a11y tree, not pixels).
+/fabrik-user-test now mandates at least one VISION inspection of every NEW or CHANGED surface (screen,
+window, mobile menu, extension popup, modal, empty/error state — first appearance in the run or
+re-rendered after a fix): layout sanity, clipping/overlap, both themes, real fonts vs fallback. Steady-
+state re-runs may lean on the visual diff; first appearances may not. /fabrik-ui-design's Build
+Verification Loop step 1 states the same: capturing without looking is not "seeing it".
+
 ### Changed — visual deliverables must be LOOKED AT: eyes-on-pixels QA in both gauntlets (2026-08-04)
 
 Live gap from brand-identity-creator: every structural check green (files exist, format headers, seeded
