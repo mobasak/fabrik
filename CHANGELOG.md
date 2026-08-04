@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — visual deliverables must be LOOKED AT: eyes-on-pixels QA in both gauntlets (2026-08-04)
+
+Live gap from brand-identity-creator: every structural check green (files exist, format headers, seeded
+hexes present, source SVG bytes inside the composed output) while nobody ever rendered the deliverables —
+a logo could be clipped, card text overflowing the bleed, fonts silently falling back. "Content-verified
+is NOT visually QA'd." Both gauntlets now mandate: when a journey's deliverable IS a visual artifact
+(image/PDF/SVG/favicon/video-frame), the milestone proof is EYES ON THE RENDERED PIXELS — rasterize
+PDFs/SVGs, fan vision-capable fabrik-gui subagents across artifact classes, adjudicate against the
+contract/brand (logo integrity, palette fidelity, real typography vs fallback, layout, contrast). A
+deliverable nobody looked at is an UNCHECKED row, not a PASS.
+
 ### Fixed — command substitution + execute-from-memory: the tryton stall's real mechanism (2026-08-04)
 
 A /fabrik-user-test invocation produced 7 commits of plan execution and another fresh-context deferral —
