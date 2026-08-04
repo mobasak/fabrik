@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — "context budget" is not a BLOCKED case: agents now know the harness auto-compacts (2026-08-04)
+
+A live seo execute-plan run stopped after 3 of 7 phases with "BLOCKED: context budget" — the named
+running-low-on-context violation wearing a BLOCKED costume. Root cause was a false belief, not defiance:
+agents think context exhaustion is fatal. Governance now states the fact (execute-plan non-negotiable #1 +
+the autonomy-run fragment): the harness AUTO-COMPACTS long conversations and the run CONTINUES in the same
+invocation; per-phase commits + plan markers are what make the post-compact continuation seamless — keep
+them current and keep going. Filing the context excuse as BLOCKED does not legitimize it (a resource limit
+is not missing infra). If a remaining phase genuinely deserves fresher eyes, the contract-legal move is
+dispatching that phase's work to fresh subagents per §Subagent Strategy — decompose, don't abort.
+
 ### Added — /fabrik-features: converge FEATURES.md into the gauntlets' complete testing denominator (2026-08-04)
 
 New command + skill. The certification gauntlets treat every docs/FEATURES.md row as test inventory

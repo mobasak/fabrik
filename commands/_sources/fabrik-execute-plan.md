@@ -118,7 +118,13 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction). *"I judged X
 >    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
 >    wait"*, *"I'd rather do this carefully than fast"* (deferral dressed as judgment — live observed) are
->    **contract violations, not decisions.** A step you believe is genuinely wrong is a `BLOCKED`
+>    **contract violations, not decisions.** **Context is NOT a reason to stop — the harness AUTO-COMPACTS:**
+>    when the conversation grows long it is summarized and the run CONTINUES in the same invocation; your
+>    per-phase commits + plan markers are exactly what make the post-compact continuation seamless, so keep
+>    them current and KEEP GOING. Filing the context excuse as `BLOCKED: context budget` does not legitimize
+>    it (live observed) — a resource limit is not missing infra, and the harness removes the limit. If a
+>    remaining phase genuinely deserves fresher eyes than you have, the contract-legal move is to DISPATCH
+>    that phase's work to fresh subagents per §Subagent Strategy — decompose, don't abort. A step you believe is genuinely wrong is a `BLOCKED`
 >    for the **user** to rule on — never a silent skip or a quiet descope.
 > 2. **The plan file is updated every phase, INSIDE that phase's commit — not optional, not "at the end".** A
 >    phase is **not complete** until the plan file records it: mark the phase `✅ EXECUTED <YYYY-MM-DD>
