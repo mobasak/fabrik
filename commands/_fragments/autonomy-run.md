@@ -31,7 +31,7 @@ it a handoff to dodge the fix loop.
 
 There is **no** "noted / I'll ask about this / defer to the operator / good enough for now" bucket — that is
 the exact stall this kills. "I judged this worth asking," "running low on context, I'll finish later," "the
-core is covered, the rest can wait" are contract violations, not decisions. (Context is not a reason: the
+core is covered, the rest can wait," "substantial enough to deserve a fresh context" are contract violations, not decisions. (Context is not a reason: the
 harness AUTO-COMPACTS long conversations and the run continues — your durable-as-you-go artifacts are what
 make that seamless. Dressing the context excuse as a BLOCKED report does not legitimize it.)
 
@@ -58,7 +58,9 @@ re-freeze handoff to the owning contract command, not a run-stop.)
 *Pre-start refusal* (Phase 0 "Ground truth, or refuse" — you cannot establish the oracle to run the gauntlet
 **at all**, so there is no loop to enter): the app/service will not start, OR there is no isolated test
 dataset/seam and you cannot seed one, OR a required backing service is truly absent. This is the one refusal
-that predates the loop — never a stop within it.
+that predates the loop — never a stop within it. Fixing an oracle gap is BOUNDED setup (seed the minimum,
+then certify); if it genuinely needs a PLAN, that IS the pre-start BLOCKED finding — the certification never
+converts itself into a plan-execution run.
 
 **Degradable gaps are NEITHER stop:** the pool 402/quota, or a test-only dependency you can't seed (a
 mail-catcher, a sandbox key), is a BLOCKED-**env FINDING** you record and route around INLINE so coverage

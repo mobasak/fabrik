@@ -117,7 +117,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    ships in THIS run**, or you halt with `BLOCKED: <what> — searched: <…> — missing: <…>` (only the defined
 >    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction). *"I judged X
 >    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
->    wait"*, *"I'd rather do this carefully than fast"* (deferral dressed as judgment — live observed) are
+>    wait"*, *"I'd rather do this carefully than fast"*, *"substantial enough to deserve a fresh context"* (deferral dressed as judgment — both live observed) are
 >    **contract violations, not decisions.** **Context is NOT a reason to stop — the harness AUTO-COMPACTS:**
 >    when the conversation grows long it is summarized and the run CONTINUES in the same invocation; your
 >    per-phase commits + plan markers are exactly what make the post-compact continuation seamless, so keep

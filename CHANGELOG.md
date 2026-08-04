@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command substitution + execute-from-memory: the tryton stall's real mechanism (2026-08-04)
+
+A /fabrik-user-test invocation produced 7 commits of plan execution and another fresh-context deferral —
+because the agent NEVER INVOKED THE SKILL ("I worked from memory of what it involves"), so none of the
+week's contracts (autonomy, Phase 6, loop-until-dry, compaction) were in its context to bind it. Governance
+now closes all three defects: CLAUDE.md § Behavior gains "Invoked command = loaded command" (never execute
+from memory of a command; a mid-run prerequisite is fixed minimally or BLOCKED, and you RETURN to the
+invoked command — delivering a different command's output is answering the wrong question); the autonomy-run
+pre-start refusal states that fixing an oracle gap is BOUNDED setup and a certification never converts
+itself into a plan-execution run; and "substantial enough to deserve a fresh context" joins the violation
+lists verbatim (fourth live costume of the same deferral this week).
+
 ### Changed — the auto-compaction fact is now corpus-wide: NO command stops for low context (2026-08-04)
 
 The canonical clause ("the harness AUTO-COMPACTS long conversations and the run continues — keep durable
