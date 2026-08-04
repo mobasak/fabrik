@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-service-test gains the three headless twins of user-test's depth (2026-08-04)
+
+Structural parity pass: (1) PAYLOADS ARE READ, NOT JUST SCHEMA-CHECKED — judge actual response VALUES
+against the request (a 200 carrying an error body, schema-valid-but-wrong computed fields, empty-but-valid
+lists, placeholder content in generated documents all pass automated checks); (2) encoding/locale
+round-trip fidelity — Turkish İ/ı/ş/ğ + emoji + RTL survive store→retrieve→generate byte-identically
+(mojibake is invisible to schemas), UTC-storage/Istanbul-rendering across DST; (3) a latency budget as the
+CWV analogue — p50/p95 per exercised endpoint against a purpose-declared budget: a schema-perfect 10s
+endpoint fails "easy to integrate" as a slow screen fails "easy to use".
+
 ### Changed — screenshots are READ, not just taken: vision inspection of new/changed GUI surfaces (2026-08-04)
 
 Companion to the visual-deliverable QA: the gauntlet captured screenshots as evidence but nothing forced

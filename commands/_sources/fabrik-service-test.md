@@ -90,7 +90,15 @@ concurrent writes, a job retried into a duplicate charge, a webhook replayed). D
   an API product; every ambiguity is a defect.*
 - **Production-client journey** — sustained realistic load: pagination to the last page, bulk
   writes, concurrent clients, long-running jobs, resume-after-restart, and **idempotency**
-  (the same request twice ⇒ one effect, per `15-api-contracts`).
+  (the same request twice ⇒ one effect, per `15-api-contracts`); plus **encoding/locale round-trip
+  fidelity**: Turkish `İ/ı/ş/ğ`, emoji, and RTL survive store → retrieve → generate byte-identically
+  (mojibake in a DB row, PDF, or email is invisible to every schema check), and timestamps honor the
+  UTC-storage/`Europe/Istanbul`-rendering contract across DST edges.
+- **Latency budget (the "easy to integrate" gate — the CWV analogue):** during the production-client
+  journey capture p50/p95 per exercised endpoint; DECLARE a budget from each endpoint's purpose
+  (interactive read vs batch/report) before measuring, then flag every endpoint over its budget or wildly
+  out of family as a finding — a schema-perfect endpoint that takes 10s fails "easy to integrate" exactly
+  as a slow screen fails "easy to use".
 - **Failure-and-recovery journey** (the one nobody tests) — every dependency in `RESILIENCE.md` §2
   taken down in turn (DB, cache, queue, upstream vendor, storage): the service must **fail closed,
   respond with a typed error, pause/backoff per its contract, and RECOVER when the dependency
@@ -145,6 +153,12 @@ Pool-check the matrix for holes (see Subagents) before dispatch.
   integrity/clipping, palette fidelity, typography actually rendering as the specified face (not a
   fallback), layout defects, contrast on every surface. A deliverable nobody looked at is an UNCHECKED row,
   not a PASS.
+- **PAYLOADS ARE READ, NOT JUST SCHEMA-CHECKED** (the headless twin of "screenshots are read"): a
+  response can be schema-valid and still wrong — a 200 carrying `{"status":"error"}` in the body, a
+  computed field whose VALUE contradicts the inputs, an empty-but-valid list where seeded data must
+  appear, placeholder/lorem content inside a generated document. For every journey milestone, JUDGE the
+  actual values against what the request implies (your seeded inputs echoed back, computations correct,
+  generated content real) — schema conformance proves shape, never truth.
 - **Evidence per verdict, no exceptions:** every PASS = the request/response pair (or job record)
   captured; every FAIL = exact repro (curl/CLI line or test), the response body/status, the
   relevant log/metric excerpt, **reproduced ×2** before it may be CONFIRMED. "Should work" is a
