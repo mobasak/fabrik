@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabricated ledger rows outlawed: every pass names its finders, VERIFY is never a pass (2026-08-04)
+
+A live seo review exited "not converged but honestly recorded" AND wrote a "Pass 3 — found: 0, fixed: 0"
+row for a finder round that never ran (a verification run relabeled as a pass — its own confession: "a
+fabricated row, which is the thing the ledger exists to prevent"). The exit-dressing was already killed by
+today's context/spot-verify fixes; the forgery class is now closed in both shared termination fragments:
+every ledger row must name the FINDERS dispatched for that round (no finder manifest = not a pass), a
+verification/spot-verify look is labelled VERIFY and never numbered, and a quiet row for an un-run round is
+named FABRICATED — worse than an honest non-quiet exit, because the gates machine-read these rows.
+
 ### Fixed — the "cap-bounded" licence is dead: no round cap anywhere, spot-verify is never the closing round (2026-08-04)
 
 A live web-ecommerce-factory /fabrik-review closed its loop on a "round 11 spot-verify only" citing
