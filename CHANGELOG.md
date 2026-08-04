@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_secrets.py false-positive on shell substitutions + failure-channel lesson (2026-08-04)
+
+Upstream feedback routed by the live tryton-crm gauntlet (which correctly refused to edit the synced file):
+the hardcoded-credential regex flagged PASSWORD="$(...)" / "${...}" — values that are by construction NOT
+hardcoded secrets. Added (?!\$[({]) after the opening quote; proven: substitution+expansion no longer
+flagged, real literal secrets still are. Also folded the run's documented harness trap into
+/fabrik-user-test's evidence rules: UIs surface failures on MULTIPLE channels (modal vs inline toast) and a
+position:fixed modal has offsetParent===null — an absence claim is only as good as the channel list checked.
+
 ### Fixed — OAuth exhaustion incident: hourly credential sync + host-tagged proactive alerts (2026-08-04)
 
 All 3 hosts' keepalives 401'd — rotation worked (walked every account) but every VPS credential copy was

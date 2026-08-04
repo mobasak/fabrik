@@ -200,6 +200,11 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
   tree, not pixels; `toHaveScreenshot` only diffs against a baseline — **a baseline established without a
   vision look enshrines an unjudged render forever** (first-run baselines are self-fulfilling). Steady-state
   re-runs may lean on the visual-diff; first appearances may not.
+- **Know your surface's FAILURE CHANNELS before asserting silence.** Many UIs surface failures on
+  MULTIPLE channels (a modal for server faults, an inline toast/infobar for client-side checks) — a
+  checker that knows only one reports the other as "silent failure" (live false-CONFIRMED: a
+  `position:fixed` modal has `offsetParent === null`, which read as "no dialog"). Enumerate the surface's
+  real channels first; an absence claim is only as good as the channel list it checked.
 - **Evidence per verdict, no exceptions:** every PASS = screenshot (or Maestro `assertScreenshot`);
   every FAIL = repro steps + screenshot + console/network capture, **reproduced ×2** before it
   may be CONFIRMED. "Looked fine" and "should work" are void verdicts. App-rendered content and
