@@ -349,7 +349,7 @@ Closing sequence: render + `--check` → doc sync + CHANGELOG → `/fabrik-revie
 diff (source + the gate-file hardening, per the scope expansion) [AMENDED, exec-B] →
 `bash scripts/dr_claude_backup.sh` → commit.
 
-## Phase C — `/fabrik-plan-review` converges spine + every ticket
+## Phase C — `/fabrik-plan-review` converges spine + every ticket — ✅ EXECUTED 2026-08-05 (4-round review to found:0, 10 findings fixed)
 
 File: `commands/_sources/fabrik-plan-review.md`.
 

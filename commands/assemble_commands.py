@@ -157,7 +157,9 @@ PARAMS = {
     },
     "fabrik-plan-review": {
         "term-edit": {"ARTIFACT": "plan", "DONE_ACT": "flip `Status: DRAFT → CONVERGED`", "DONE_WORD": "CONVERGED",
-                      "AXES": "claims · gates · interfaces · completeness", "EXEMPT_NOTE": ""},
+                      "AXES": "claims · gates · interfaces · completeness",
+                      "EXEMPT_NOTE": " For a spine+ticket plan SET, \"the plan\" here means the WHOLE set and the"
+                                     " hash is the combined directory hash — § Phase 0's Plan-SET block defines it."},
         "grounding-artifact": {"SUBJECT": "plan step", "EXAMPLES": _EX_ITEM},
         "subagents-core": {"HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)", "TASK_TYPE": '"review"', "PROJECT": "plan-review",
                            "FLOOR": _floor("review", "`fabrik-researcher`"),

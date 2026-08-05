@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review converges spine+ticket plan sets (Phase C) (2026-08-05)
+
+`commands/_sources/fabrik-plan-review.md` gains the plan-SET target block (a dated plan directory —
+or ANY file inside one, spine and single ticket alike — makes the review unit the WHOLE set: spine +
+every ticket; the authoring
+session's re-read never counts as the independent pass), set-wide anti-cheat (the per-pass combined
+hash `find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum`; a mid-loop ticket
+add/split is the next pass, standard ledger semantics), the mechanical convergence precondition
+(`check_plan_tickets.py --plan-dir <dir>` exit 0 before the flip, backed in-process at the flip),
+the six per-ticket review axes (Scope/DO-NOT concrete · Touches grammar-conformant · Context Files
+complete per the read-set rule · Behavior Contract ≤8 + citation floor · Interfaces
+signature-consistent with consumer-owned seam tests · ask-before-not-during over ticket bodies),
+and the whole-directory archive rule for EXECUTED plan sets (never the single-file `git mv`). Per
+`2026-08-04-plan-1-spine-ticket-plans.md` Phase C.
+
 ### Changed — /fabrik-plan-after-chat emits spine+ticket plan sets (Phase B) (2026-08-05)
 
 `commands/_sources/fabrik-plan-after-chat.md` Phase 2 gains the shape decision (>3 phases /

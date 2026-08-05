@@ -1,6 +1,6 @@
 ---
 description: Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagent/parallelism
-argument-hint: "[path to the plan file — omit to use the plan under discussion]"
+argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — omit to use the plan under discussion]"
 ---
 
 Converge this plan to a fixed point — do not stop after one pass. **Fixed point = one full, demonstrably-thorough review pass that changes nothing;** the pass in which you *made* edits is never the last one.
@@ -14,6 +14,30 @@ Converge this plan to a fixed point — do not stop after one pass. **Fixed poin
 The plan under review is: `$ARGUMENTS` (if empty, the plan file currently under discussion — locate it and state
 which file you are grounding). Scope is every phase, step, and external dependency the plan names. Strictly obey
 all guidelines in the `.windsurf/rules` folder throughout (read the packs whose globs match the work).
+
+**Plan-SET target (spine + tickets).** When the target is a dated plan DIRECTORY
+(`docs/development/plans/YYYY-MM-DD-plan-<slug>/`), or ANY file inside one — the same-stem spine
+(`## Ticket Board` present) or a single `T##` ticket alike, resolve to the parent directory — the review
+unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass that read only the spine
+(or only one ticket) reviewed nothing. Set-wide adaptations, binding for the rest of this command:
+
+- **"The plan" in the termination contract = the SET.** The anti-cheat hash is the COMBINED hash —
+  `find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum` — recorded per pass. A
+  mid-loop artifact change (a ticket added, split, or renamed) changes the combined hash and is simply
+  the next pass, standard ledger semantics — never a reason to restart the ledger.
+- **Fresh grounders per ticket** (§ Parallelism below): one independent grounding unit per TICKET
+  (pool-default, read-only inline) plus ≥1 native Opus authoritative pass over the whole set. The
+  AUTHORING session's own re-read NEVER counts as the independent pass — author-blindness is the point
+  of this command.
+- **Convergence precondition (mechanical):** `python -m scripts.enforcement.check_plan_tickets
+  --plan-dir <dir>` (**from the repo root** — same gotcha the sibling command flags for this script)
+  must exit 0 before the `CONVERGED` flip (`<dir>` is the plan DIRECTORY — when the
+  target you were handed is the spine file, pass its PARENT directory; the CLI rejects a file path) —
+  and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft:
+  if that in-process run itself crashes, the flip degrades to the native convergence checks alone — so
+  the precondition command above is the guarantee YOU own; never lean on the flip re-run to catch what
+  you skipped). Findings the checker raises are review findings: fix them in the set,
+  don't route around the gate.
 
 ## Phase 1 — Grounding passes (adversarial, to a fixed point)
 
@@ -60,15 +84,36 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note
   the cheap **pool** authors these via `/fabrik-generate-tests`). A plan light on test coverage must NOT converge.
 
+**Per-ticket axes (plan-set target — verified for EVERY ticket, not just the spine):**
+
+- **Scope / DO-NOT concrete** — a coder who reads only this ticket cannot wander; vague scope is a defect.
+- **Touches real + grammar-conformant** — the grammar half (no globs, in-repo, no governance files, no
+  plan-set/lock metadata territory) is gate-ERRORed — fix findings at review time, never leave them for
+  dispatch to trip on. The EXISTENCE half is YOURS: the gate never ENFORCES existence (a ticket may
+  create paths — a missing one just contributes 0 bytes to the sizing walk and raises no finding), so
+  verify each Touches entry either exists today or is explicitly created by the ticket — a typo'd path
+  (`scr/foo.py`) passes the gate and strands the coder.
+- **Context Files complete (the read-set rule)** — the cold coder reads ONLY Scope + Touches + Context
+  Files; anything it must know that isn't reachable from those three is a defect HERE, not the coder's
+  problem later.
+- **Behavior Contract ≤8 G/W/T rows**, each grounded — and the per-ticket grounding floor holds (≥1 real
+  `path:line` citation per non-Integration ticket).
+- **Interfaces signature-consistent CROSS-ticket** — the producer's emitted signature matches every
+  consumer's assumption; every seam test is NAMED and its file sits in the CONSUMER's Touches.
+- **Ask-before-not-during sweeps ticket BODIES too** — a deferred question inside a ticket stalls the
+  dispatched coder exactly like one inside a monolith phase; force it RESOLVED or SELF-SERVICE
+  (§ Convergence & residuals) before the flip.
+
 Also hunt: plan↔reality drift, unstated assumptions, missing edge cases and failure modes, and steps whose
 validation gate is vague or unrunnable.
 
-**Parallelism — the DEFAULT for a multi-phase plan.** With **2+ phases or external dependencies to ground**,
-`fanout` one INDEPENDENT grounder per phase/dependency — **pool-default** (`fanout("research", …, mode="read_only",
-web_tools=["exa","brave","firecrawl","context7"])` for live search; recipe in § Subagents), native
-`fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their findings
-(refute any that are provably wrong — quote the line/schema that disproves them — before acting) before the next
-pass. Only a single-phase plan loops solo.
+**Parallelism — the DEFAULT for a multi-phase plan.** With **2+ phases, external dependencies, or TICKETS to
+ground**, `fanout` one INDEPENDENT grounder per phase/dependency/ticket — **pool-default** (`fanout("research",
+…, mode="read_only", web_tools=["exa","brave","firecrawl","context7"])` for live search; recipe in § Subagents),
+native `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
+findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
+the next pass. Only a single-phase MONOLITH plan loops solo — a plan SET always fans out per ticket (the
+Phase-0 per-ticket mandate), regardless of how few tickets it has.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you
 found, then fix the plan. **The loop terminates ONLY when a full, demonstrably-thorough pass makes ZERO edits to
@@ -152,7 +197,11 @@ to ask — when the answer was self-service all along. Ask before, or make it se
 A plan file has one durable name and moves through statuses in place: `DRAFT` (written by
 `/fabrik-plan-after-chat`) → **`CONVERGED`** (this command) → `IN-PROGRESS` → **`EXECUTED`** (by
 `/fabrik-execute-plan`). **A fully-finished plan — `Status: EXECUTED`, 100% verified — MUST be archived:**
-`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md` (name preserved). A finished
+`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md` (name preserved). A
+spine+ticket plan SET archives as a **whole-directory move** —
+`git mv docs/development/plans/<dir> docs/development/plans/archived/<dir>` (spine, tickets, and Board
+travel together) — **never** the single-file `git mv`: a spine archived without its tickets strands them
+in the active dir as orphans the gate then flags. A finished
 plan left in the active `docs/development/plans/` directory is clutter that misleads the next agent into treating
 it as still-open work — the exact confusion this rule prevents.
 
