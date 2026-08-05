@@ -124,6 +124,13 @@ EXECUTED = re.compile(
     re.I | re.M,
 )
 REVIEW_CITE = re.compile(r"docs/development/reviews/[\w./-]+\.md")
+# D4 per-ticket review files (<plan>-T##[a-z]?-review.md): cited by spines
+# routinely, but they prove one ticket — never the whole-plan D7 validation.
+# Naming-convention-scoped BY DESIGN (this module's ceiling: evidence presence,
+# never truth): a MISNAMED per-ticket review evades it, and no false-skip is
+# possible — _is_spine requires a lowercase-only dir name ([a-z0-9-]+), so a
+# whole-plan review's stem can never contain the uppercase -T## this demands.
+_TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
 # The /fabrik-review termination signature (term-coverage): a quiet round
 # ``found: 0 … fixed: 0``. We require this PAIR to appear *somewhere* — a
 # deliberately ZERO-FALSE-POSITIVE signal: a genuinely-converged review ALWAYS
@@ -433,7 +440,8 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         return []  # only plans that CLAIM EXECUTED are held to the review proof (fences = quotes)
     rel = path.relative_to(root)
     fails: list[str] = []
-    if _is_spine(path):
+    spine = _is_spine(path)
+    if spine:
         # The plan-set contract enforces at BOTH flips (CONVERGED and EXECUTED) —
         # a DRAFT→EXECUTED jump must not skip it. APPEND (never early-return: the
         # review-citation findings below must surface in the SAME round, not a
@@ -448,6 +456,11 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
             "to its coverage-adjudicated exit, cite it here, or revert Status"
         ]
     for c in dict.fromkeys(cited):  # dedupe, preserve order
+        # A spine cites its D4 per-ticket reviews (<plan>-T##-review.md) routinely —
+        # those prove single tickets, never the WHOLE-plan validation; letting one
+        # satisfy this check would let a set flip EXECUTED without D7 ever running.
+        if spine and _TICKET_REVIEW_RE.search(c):
+            continue
         rp = root / c
         if not rp.is_file():
             continue
@@ -461,6 +474,12 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
         "coverage-adjudicated (needs a quiet final pass — a 'found: 0, fixed: 0' round) — "
         "finish the /fabrik-review loop to a quiet round, or revert Status"
+        + (
+            " (for a plan SET the citation must be the WHOLE-PLAN validation review — "
+            "per-ticket -T##-review.md files never satisfy it)"
+            if spine
+            else ""
+        )
     ]
 
 

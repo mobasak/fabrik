@@ -375,7 +375,7 @@ Gates: render + `--check`; grep-asserts: plan-set scope + per-pass combined hash
 Closing sequence: render + `--check` → doc sync + CHANGELOG → `/fabrik-review` on the source diff →
 `bash scripts/dr_claude_backup.sh` → commit.
 
-## Phase D — `/fabrik-execute-plan` dispatcher mode
+## Phase D — `/fabrik-execute-plan` dispatcher mode — ✅ EXECUTED 2026-08-05 (5-round review to found:0, 15 findings terminated)
 
 File: `commands/_sources/fabrik-execute-plan.md`.
 
@@ -483,6 +483,21 @@ Steps:
    CLEARED (so it never blocks future overlapping plans); stop for operator ruling. **Blocked-resume:**
    the ruling, recorded in spine Evidence, authorizes 🔴→🔵 re-dispatch of named tickets (never new
    rows); execution re-enters at D2.
+
+[AMENDED, exec-D — recorded per the transparency rule: the Phase-D review's pass 1 found
+`check_convergence.py`'s EXECUTED-citation check satisfiable by a D4 per-ticket review (any quiet-pass
+`reviews/*.md` counted), letting a set flip EXECUTED without D7 ever running; hardened in-scope
+(the file + its tests are File Scope): a spine's citation now skips `-T##-review.md` candidates,
+message names the rule, +1 red-on-revert-verified test (convergence suite 26→27). Also folded into
+the D-text beyond the spec's letter, from the same review round: the four-value Complexity routing
+(the spec's D2 named only pool-vs-never-route; the gate vocabulary has `native` too), the
+Integration-ticket duties restated in D7 (Phase B §4 owns them; D7 was silent), the D-loop
+pseudocode replacing the phase-mode Execution Loop, shape-detection corroboration, Agent-Phase
+omitted on dispatcher commits, the Plan-Status dispatcher bullet, the Merge-Order dispatch
+tie-break at the 3-coder cap, and the MESSY-resume sweep additionally probing the five governance
+surfaces for a crashed run's half-applied Deltas (the lock's `tickets` map names the in-flight
+merge — the one case where governance residue is the run's own; spec D6 had only the 🔵-entry
+sweep).]
 
 Gates: render + `--check`; grep-asserts: shape detection + IN-PROGRESS flip; one-exception +
 mechanical-no-new-logic + fixup routing/payload + eligibility + timeout; pool/native split + gate

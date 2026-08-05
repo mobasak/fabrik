@@ -568,6 +568,41 @@ def test_flip_runs_full_ticket_contract_in_process(repo: Path) -> None:
     assert "plan-set contract" in out and "no parseable Complexity" in out
 
 
+def test_spine_executed_per_ticket_review_never_proves_the_whole_plan(tmp_path: Path) -> None:
+    # D7 discrimination (exec-D hardening): a spine flipping EXECUTED must cite
+    # the WHOLE-PLAN validation review; an adjudicated D4 per-ticket review
+    # (-T##-review.md) cannot satisfy the citation — else a set flips EXECUTED
+    # without the D7 validation ever running.
+    import scripts.enforcement.check_convergence as cc
+
+    d = tmp_path / "docs" / "development" / "plans" / "2026-08-05-plan-1-widget"
+    d.mkdir(parents=True)
+    spine = d / "2026-08-05-plan-1-widget.md"
+    rev_dir = tmp_path / "docs" / "development" / "reviews"
+    rev_dir.mkdir(parents=True)
+    (rev_dir / "2026-08-05-plan-1-widget-T01-review.md").write_text(
+        ADJUDICATED_REVIEW, encoding="utf-8"
+    )
+    spine.write_text(
+        "# Plan\n\nStatus: EXECUTED 2026-08-05\n\nWhole-plan review: "
+        "docs/development/reviews/2026-08-05-plan-1-widget-T01-review.md\n",
+        encoding="utf-8",
+    )
+    fails = cc._check_executed_plan(tmp_path, spine)
+    assert any("per-ticket -T##-review.md files never satisfy it" in f for f in fails)
+
+    # The SAME adjudicated content, cited as the whole-plan review, satisfies it.
+    (rev_dir / "2026-08-05-plan-1-widget-review.md").write_text(
+        ADJUDICATED_REVIEW, encoding="utf-8"
+    )
+    spine.write_text(
+        spine.read_text(encoding="utf-8").replace("-T01-review.md", "-review.md"),
+        encoding="utf-8",
+    )
+    fails2 = cc._check_executed_plan(tmp_path, spine)
+    assert not any("cited whole-plan review" in f for f in fails2)
+
+
 def test_bc6_ticket_with_status_line_fails_spine_convergence(repo: Path) -> None:
     complete = CONVERGED_SPINE_ORPHAN_ROW.replace("| T02 | api | T01 | ⛓️ | ⬜ | — |\n", "").replace(
         "2. T02\n", ""

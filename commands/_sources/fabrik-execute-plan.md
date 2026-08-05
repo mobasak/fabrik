@@ -9,6 +9,15 @@ You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan 
 
 ## Before You Start
 
+0. **Shape detection — which mode runs.** If `$ARGUMENTS` is a dated plan DIRECTORY
+   (`docs/development/plans/YYYY-MM-DD-plan-<slug>/`), or a spine (`## Ticket Board` present), or any
+   file inside a plan-set directory (resolve to the parent), this run executes in **DISPATCHER MODE**
+   (§ Dispatcher Mode below): the plan unit is the WHOLE SET — read the spine + every
+   `T##[a-z]?-<slug>.md` ticket, and the dispatcher contract overrides the sections it names.
+   **Corroborate before committing to the mode:** a real set has the dated directory + a same-stem
+   spine + ≥1 `T##` ticket file — a lone `## Ticket Board` string in a monolith's prose with no
+   ticket files is NOT a set (run phase mode and report the anomaly). A
+   monolith plan file runs the phase mode below verbatim.
 1. Read the plan file fully.
 2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
@@ -30,10 +39,12 @@ You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan 
        the plan file doesn't account for →
        `BLOCKED: resume needs operator ruling — found: <the files/commits> — missing: which are the crashed
        run's to continue vs. a sibling's to leave`. **Never guess:** on this shared tree, uncommitted residue
-       on "your" paths can be an unlocked sibling's or the daily pipeline's (CHANGELOG/INDEX especially), and
+       on "your" paths can be an unlocked sibling's or the daily pipeline's, and
        no prose heuristic can tell — resetting destroys a sibling's work, adopting publishes it. The operator
        rules once; the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or
-       reverts anything.
+       reverts anything. (The five governance surfaces — CHANGELOG/INDEX/docs README/FEATURES/
+       LESSONS_LEARNT — are OUTSIDE every plan's lock by grammar; residue there is never resolved by this
+       rule alone — see the dispatcher MESSY-resume sweep for the one case where it can be yours.)
    - **Same-plan lock `status:"released"`, or the plan already `EXECUTED`/archived → do NOT re-create the
      lock or re-run** — report it as already finished (the lock's `completed_at`/`final_commit` is the
      completion record; overwriting it destroys provenance).
@@ -196,8 +207,8 @@ Every commit made during plan execution MUST include git trailers that identify 
 | Trailer | Values | Required |
 |---|---|---|
 | `Agent-Role` | `orchestrator`, `subagent`, `review-fix` | Always |
-| `Agent-Phase` | `A`, `B`, `C`, ... | Always (during plan execution) |
-| `Agent-Task` | Task number (`4`, `5`, ...) | Subagent commits only |
+| `Agent-Phase` | `A`, `B`, `C`, ... | Always in phase mode; OMITTED in dispatcher mode (`Agent-Task: T##` identifies the unit — tickets have no phase letter) |
+| `Agent-Task` | Task number (`4`, `5`, ...) in phase mode; the FULL ticket ID (`T04`, `T07a`) in dispatcher mode | Subagent commits + dispatcher acceptance commits |
 | `Agent-Context` | Short description of what this agent did | Always |
 | `Merged-From` | Comma-separated branch list | Orchestrator squash commits only |
 | `Conflicts-Resolved` | Count of merge conflicts resolved | Orchestrator squash commits only |
@@ -281,6 +292,9 @@ git log --format='%h %s' --grep='Agent-Role: review-fix'
 
 ## Execution Loop
 
+**PHASE MODE ONLY** — in dispatcher mode this entire loop is REPLACED by the Board loop in
+§ Dispatcher Mode (its D-loop pseudocode); do not follow the block below there.
+
 ```
 read plan → read spec → read active rule packs → read agents-fabrik.md
 acquire scope lock (.fabrik/plan-locks/<id>.json) — RESUME your own plan's stale lock (reconcile real state from git); a DIFFERENT plan's overlap = BLOCK always (freeing a dead sibling's lock is an OPERATOR action); isolate in a worktree if another run is active
@@ -324,6 +338,187 @@ run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+band
 fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours)
 run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → offer push/hold/deploy
 ```
+
+## Dispatcher Mode — spine+ticket plan sets
+
+Detected per Before-You-Start step 0. The spine's `## Ticket Board` is the work queue; tickets are the
+dispatch units. Everything below OVERRIDES the phase-mode sections it names — including the whole
+`## Execution Loop` (replaced by the D-loop here) — and everything it doesn't name (HARD STOPS,
+provenance trailers, doc discipline, the Execution Contract's non-negotiables) binds unchanged.
+
+```
+read spine + EVERY ticket → rules/spec/AFCL per Before You Start
+acquire lock (owned_paths = spine File Scope MINUS stem-scoped metadata) → baseline capture
+FIRST dispatch commit flips spine Status: CONVERGED → IN-PROGRESS
+
+while the Board has non-terminal tickets:
+    eligible = ⬜ tickets with every Depends: row ✅ and no pending Serialized: barrier
+    dispatch up to 3 coders, Merge-Order position order, runtime per Complexity (D2)
+    on each coder return: per-ticket review loop to coverage-adjudicated exit (D4)
+    merge in Merge Order: squash-apply code + Board flip + applied Deltas in ONE commit (D5)
+    timeout / dead coder → salvage procedure (D6); 3 same-test strikes → 🔴, CONTINUE the Board
+
+all non-🔴 terminal → D7 final validation (found: 0, fixed: 0) → Finish (whole-directory archive)
+any 🔴 remaining and nothing in flight → blocked-end (D7): spine BLOCKED, lock retained/paths cleared
+```
+
+(Board glyph vocabulary — per the plan grammar: ⬜ queued · 🔵 dispatched/in-work · 🟡 in review ·
+✅ merged · 🔴 blocked. The gate keys on ⬜ mechanically — a merge commit whose Board row is still ⬜
+is an ERROR — and treats the sanctioned back-flips ✅→🔵/🔴 as compliant states.)
+
+### D1 — Entry + the IN-PROGRESS flip
+
+Lock acquisition is per Before You Start, with the set adaptations: the lock's `owned_paths` = the spine's
+`## File Scope` **minus the stem-scoped metadata** (the plan set's own directory, its lock file, its
+review files — orchestrator territory, never lockable work surface). **The FIRST dispatch commit flips the
+spine `Status: CONVERGED → IN-PROGRESS`** — the budget WARN keying and resume logic depend on that flip
+landing before any ticket work is visible. **The lock and the spine Board are ORCHESTRATOR territory:
+tickets never write either** — a coder that edits the spine, the lock, or another ticket's files has left
+its Touches (contract violation → its diff is rejected at acceptance).
+
+### D2 — Dispatcher contract (who codes, who is dispatched, when)
+
+- **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
+  **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
+  change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the
+  ticket's acceptance commit under its `Agent-Task:` trailer**, and gets a pool finder pass before final
+  validation trusts it.
+- **Fixup ROUTING (a rule, not an exception):** fixups go to the ticket's coder — SAME coder if its
+  session is alive; a FRESH coder/unit otherwise, whose task payload = the standard cold-coder
+  briefing frame (the § Briefing template's "Before you start" reads — rules/infra/spec) + the ticket
+  file + the branch history (`git log <base_commit>..HEAD`) + the specific findings — and NO session
+  history, prior-phase summaries, or other tickets (the exclusion targets context bloat, never the
+  standard briefing).
+- **Dispatch eligibility:** every `Depends:` row ✅ AND no `Serialized:` barrier pending (a Serialized row
+  is a dispatch barrier: later-listed waits for earlier ✅).
+- **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate
+  stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2
+  consecutive timeouts on one ticket → 🔴.
+- **Coder runtime per `Complexity:` (all FOUR values):** **`simple`** →
+  `pick_models("code", prefer="value")` pool unit · **`complex`** → mid pool coder — both via
+  `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")` · **`never-route`** →
+  native worktree coder (**gate cross-check:** the gate independently ERRORs a pool-tier ticket
+  touching never-route paths — trust it, don't re-derive) · **`native`** → native worktree coder by
+  AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always
+  carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). An all-native cycle
+  → a **`NO-POOL:`** declaration naming the reason per ticket (the never-route class, or
+  author-chosen `native`). Native coder tier: Sonnet default; Opus for design-heavy (auth
+  flow/schema/migration design, concurrency); Haiku never codes. Concurrency: **3 coders**; when more
+  tickets are eligible than free slots, dispatch in `## Merge Order` position order (deterministic
+  across runs, and it frees downstream `Depends:` earliest); **acceptance reviews serialize** (one at
+  a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
+- **Dispatch economics (budgeted rules, not vibes):**
+  - **Two currencies:** native Claude = subscription **quota** (binding; accounts exhaust in ~2–3 days);
+    pool = metered dollars at cents-scale. Never burn an Opus call to avoid a cents-scale pool unit;
+    never dispatch pool units the floor doesn't need.
+  - **Native tier map (four rungs):** **Fable** = orchestrator/adjudication + the final validation's
+    authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
+    finder, never a coder. **Opus** = the per-round per-ticket authoritative finder + design-heavy
+    never-route coding. **Sonnet** = default never-route coder; as a native finder ONLY via a named
+    trigger (breadth is trigger-funded, not routine). **Haiku** = trivial-mechanical checks; never codes.
+  - **Count discipline — the floor IS the default, per review ROUND:** each per-ticket review round =
+    **2–3 diverse pool finders + exactly 1 native Opus finder**; every material re-review round re-runs
+    the floor; scale up by at most +2 finders (pool-tier unless never-route) ONLY on a named trigger
+    (diff >~400 net LOC · never-route surface · a repeat-failed round). Grounding fan-outs: one unit per
+    independent dependency, never per file.
+  - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
+    plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
+    reset/rotation. **The Opus floor is never substitutable downward** — quota pressure pauses the plan,
+    it never thins the review.
+
+### D3 — Shared governance files: orchestrator-applied Deltas
+
+The five governance surfaces (CHANGELOG.md · INDEX.md · docs/README.md · docs/FEATURES.md ·
+docs/LESSONS_LEARNT.md) are never in Touches (gate-enforced). Every coder report ends with a
+**`## Deltas` block** in fixed format: `### CHANGELOG` (entry text verbatim) · `### INDEX` (rows) ·
+`### LESSONS` (entry-or-none) · matching headings for any other fired governance surface. The
+orchestrator applies deltas at merge in Merge-Order order, **dedupes on normalized full entry text —
+same-title-different-body pairs are surfaced to the acceptance review, never silently dropped** — and the
+applied diff is part of the acceptance-review surface, landing in the acceptance commit (where
+`check_changelog.py` demands the entry). Integration-ticket command outputs flow through the same
+mechanism.
+
+### D4 — Per-ticket receive + review: the ettw-07 floor, per round
+
+("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT
+is the text below, self-contained.) Each returned ticket converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE merge — pool
+breadth (counts per D2) **AND exactly 1 native Opus finder per round, UNCONDITIONAL**. **Secrets
+carve-out:** a diff touching secret-material paths (`.env`-prefix, `secrets/`, key files) is reviewed
+**native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
+The orchestrator refutes/merges/adjudicates; fixups route per D2. Each ticket's review is persisted as
+`docs/development/reviews/<plan>-T<id>-review.md` (full ID; **one file per ticket, round sections
+APPENDED**, each round carrying a machine-readable roster line — `Finders: pool <model×n> + native
+<model×n> — round N` — so the floor is attestable, not asserted). `/fabrik-generate-tests` runs at
+acceptance for non-TDD'd behaviors. Consumer seam tests are blocking at the CONSUMER's review. **Fixups
+reuse the ticket row/file — Board back to 🔵; new rows post-CONVERGED forbidden.** 3 consecutive
+same-test failures → 🔴 + `BLOCKED` for that ticket, **continue the Board** (3-strikes-continue: one
+red ticket never halts the others).
+
+### D5 — Merge protocol (overrides § Merge Protocol for ticket merges)
+
+Merge in `## Merge Order`. Merges are **squash-applied**: code + spine Board flip + applied Deltas staged
+in ONE ordinary commit with the full-ID `Agent-Task:` trailer — same-commit atomicity is what makes the
+Board trustworthy. Touches are exclusively owned → a same-file collision between coders is a **contract
+violation → ERROR + re-dispatch**, never a merge-rule pick. Cross-ticket semantic incompatibility is
+caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the
+consumer's seam tests on the integrated tree — red → fixup routed to the **CONSUMER's coder** with both
+contracts in scope. **Salvaged/stale branches are rebased onto current master before acceptance review**
+(conflicts → a fixup, never a silent resolution).
+
+### D6 — Lock registry: per-ticket resume
+
+The lock gains `tickets: {<full ID>: {state, worktree_path, branch, base_commit, started_at}}` per
+dispatch — pool tickets record `worktree_path/branch: null` (fanout captures diffs, never auto-applies: a
+crashed pool unit leaves no partial writes; recovery = re-dispatch the unit). **Dead-coder procedure
+(native):** recorded path missing/erroring, or dirty with state ≠ merged → **salvage check first**
+(`git -C <wt> log <base_commit>..HEAD --oneline` non-empty → returned work → rebase → acceptance review;
+fixups → fresh coder per D2); otherwise log the dirty file list to spine Evidence, then
+`git worktree remove --force` + re-dispatch fresh — fully autonomous; coder worktrees are disposable,
+never resumed. Orchestrator partial-diff assessment is capped (`git diff --stat` + ≤3 files/500 lines;
+larger → straight to a fresh coder's salvage review — the orchestrator does not read big diffs at its
+tail). **MESSY-resume sweep:** on ANY resume, run this procedure over every 🔵 lock entry BEFORE new
+dispatches, and ALSO probe the five governance surfaces for uncommitted residue — a crashed run's
+half-applied Deltas are the ONE case where governance residue can be yours (the lock's `tickets` map
+says which merge was in flight); operator ruling remains only for the orchestrator's OWN tree. **SIZING
+DEFECT signals (orchestrator-logged to spine Evidence):** a re-dispatch, a partial diff vs Touches, a
+dispatch timeout, or a coder-report context marker.
+
+### D7 — Final validation + terminal states
+
+**The Integration ticket runs BEFORE validation — it is a Board unit (the LAST one), not part of
+validation.** The set's
+exactly-one `Integration: true` ticket (`Complexity: native`, last in Merge Order — both
+gate-enforced) owns the monolith's mandatory closing work: the whole-plan doc receipts
+(`check_doc_sync.py --range <baseline>..HEAD` + `check_doc_stubs.py --range`), `/fabrik-docs-review`,
+`/fabrik-features` when features shipped, the cross-ticket seam-test run, and the whole-plan
+`final_gate.py --check --json` + `check_convergence.py` run; its command outputs and doc-drift fixes
+flow through `## Deltas` (D3), and it merges like any ticket. D7's validation is the adversarial
+layer ON TOP of those receipts — never a substitute for them.
+
+Validation runs only when every non-🔴 ticket is terminal (✅ — no ⬜ dispatchable, no 🔵/🟡 in
+flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct:
+spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a full run of **every ticket's
+Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 pool
+finders + the native authoritative seat (**Fable substitutes for Opus here**), adding ~1 pool finder per
+2 tickets; NO round cap; closes only on `found: 0, fixed: 0`. A flaky test is itself a finding (fix or
+quarantine-with-recorded-ruling — never an excuse to loop). Validation findings are FIXED by fresh
+coders/units bound to the owning ticket's Touches through the per-ticket review loop (cross-cutting
+findings split along Touches); a producer-originated defect surfacing here (or at the Integration seam
+run) flips the producer's row ✅→🔵 and re-dispatches — the **sanctioned back-flip**. The validation MAY
+run in a fresh orchestrator context (spine + lock are the durable handoff). Then Finish: receipt, gate,
+spine `Status: EXECUTED` citing the WHOLE-PLAN validation review
+(`docs/development/reviews/<plan>-review.md` — `check_convergence` enforces the citation exists with a
+quiet `found: 0` pass, and for a plan set it rejects a per-ticket `-T##-review.md` as that proof), lock
+release, **archive = whole-directory move** (§ Finish step 6).
+
+**Blocked-end rule:** when no dispatchable tickets remain, no 🔵/🟡 in flight, and any row is 🔴 — no
+final validation; flip spine `Status: BLOCKED` + commit; clean 🔴 tickets' worktrees/branches; the lock
+is RETAINED with `status: "blocked"` + the full `tickets` map for operator inspection but its
+`owned_paths` is CLEARED (so it never blocks future overlapping plans); stop for operator ruling.
+**Blocked-resume:** the ruling, recorded in spine Evidence, authorizes 🔴→🔵 re-dispatch of named
+tickets (never new rows); flip the spine `BLOCKED → IN-PROGRESS` (committed with the ruling), restore
+the lock (`status: "active"`, re-derive `owned_paths` per the D1 rule — File Scope MINUS the
+stem-scoped metadata), and execution re-enters at D2.
 
 ## Subagent Strategy
 
@@ -659,6 +854,13 @@ are part of the phase commits (explicit path: the plan file) and carry the same 
   review (the backstop for a run that skipped the step-1 whole-plan `/fabrik-review`).
 - **On a HARD STOP / BLOCKED**: set `**Status:** BLOCKED — <what> (Phase N)` so the halt reason lives in
   the plan, not just the chat.
+- **Dispatcher mode:** the "at each phase boundary" bullet does NOT apply — the Board row flip inside
+  each acceptance commit (D5) IS the durable per-unit record. **Never write a completion marker or
+  `Status:` line into a ticket file** (the gate rejects any ticket Status — state lives ONLY in the
+  spine Board). The spine's own `Status:` moves only on D1/D7 events: `CONVERGED → IN-PROGRESS` at
+  the first dispatch commit (D1); `→ EXECUTED` only at D7's close; `→ BLOCKED` at blocked-end, and
+  on blocked-resume `BLOCKED → IN-PROGRESS` (committed with the ruling) before any 🔴→🔵 re-dispatch —
+  never any other value, never mid-run.
 
 ## Progress Reporting
 
@@ -713,8 +915,12 @@ to merge back. "Finishing" is:
    is blocked. Then output the completion block above.
 6. **Archive the plan — ONLY when 100% verified done.** The plan is finished only when ALL of: the
    whole-plan review (step 1) came back clean, the final gate (step 2) is green THIS turn, and requirements
-   coverage (step 3) accounts for every agreed item. Then `git mv docs/development/plans/<plan>.md
-   docs/development/plans/archived/<plan>.md` (explicit paths) and repoint the lock's `plan` field to the
+   coverage (step 3) accounts for every agreed item. Then archive: a monolith plan moves as
+   `git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`; a spine+ticket
+   plan SET moves as a **whole-directory** `git mv docs/development/plans/<dir>
+   docs/development/plans/archived/<dir>` (spine, tickets, and Board travel together — never the
+   single-file move, which strands the tickets as gate-flagged orphans). Explicit paths either way;
+   repoint the lock's `plan` field to the
    archived path. **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
    review finding** — archiving IS the "I am 100% sure this is done" act, and a plan in `archived/` is a
    claim that nothing is left. Commit the move with the plan-status commit (explicit paths).

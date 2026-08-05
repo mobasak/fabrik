@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan dispatcher mode for spine+ticket plan sets (Phase D) (2026-08-05)
+
+`commands/_sources/fabrik-execute-plan.md` gains shape detection (a plan directory/spine/any set file →
+DISPATCHER MODE; monoliths keep phase mode verbatim) and the D1–D7 dispatcher contract: the first
+dispatch commit flips the spine CONVERGED→IN-PROGRESS and the lock/Board are orchestrator territory
+(lock `owned_paths` = File Scope minus stem-scoped metadata); the orchestrator writes no ticket code
+except ≤1-file/≤50-LOC strictly-mechanical no-new-logic edits, with fixup routing (same coder if alive,
+else fresh with ticket+branch-history+findings payload), Depends/Serialized dispatch eligibility, 2×
+timeout → salvage, the four-value Complexity routing (simple/complex → pool; never-route → native,
+gate cross-checked; native = author-chosen native incl. the Integration ticket; all-native →
+NO-POOL declaration), 3-coder concurrency with Merge-Order dispatch tie-break and serialized
+acceptance reviews, and the dispatch-economics
+block (two currencies, the four-rung Fable/Opus/Sonnet/Haiku map with Fable substituting for the Opus
+seat at final validation, per-round 2–3 pool + exactly-1-Opus floor with trigger-funded scaling,
+quota-pause terminal); coder-reported `## Deltas` blocks orchestrator-applied in Merge Order with
+normalized-entry-text dedupe (conflicting pairs surfaced, never dropped); the per-ticket ettw-07 review
+floor (unconditional per-round Opus finder, secrets carve-out native-only, appended round sections with
+machine-readable roster lines, fixups reuse the row — Board back to 🔵, 3-strikes-continue); the
+squash-apply merge protocol (code+Board flip+Deltas in one commit under the full-ID `Agent-Task:`
+trailer, exclusive-Touches collisions = ERROR + re-dispatch, consumer-routed seam fixups,
+rebase-before-acceptance); the per-ticket lock registry (`tickets` map, pool null-worktree,
+salvage-then-discard dead-coder procedure, capped partial-diff reads, MESSY-resume sweep incl. the five
+governance surfaces); and D7 final validation (finder counts scale with surface, fresh-coder fixups,
+the sanctioned ✅→🔵 back-flip, found:0 exit) + blocked-end/blocked-resume terminal states and the
+whole-directory archive in Finish; a Dispatcher-Mode D-loop pseudocode replaces the phase-mode
+Execution Loop there, with shape-detection corroboration (a lone `## Ticket Board` string in prose is
+not a set), the Integration ticket's closing duties reconciled against D7, Agent-Phase omitted on
+dispatcher commits, and a dispatcher bullet in Plan Status Tracking. `check_convergence.py` hardened
+(exec-D): a spine's EXECUTED citation is satisfied only by the WHOLE-PLAN validation review — a D4
+per-ticket `-T##-review.md` never proves it (+1 test, red-on-revert verified). Per
+`2026-08-04-plan-1-spine-ticket-plans.md` Phase D.
+
 ### Changed — /fabrik-plan-review converges spine+ticket plan sets (Phase C) (2026-08-05)
 
 `commands/_sources/fabrik-plan-review.md` gains the plan-SET target block (a dated plan directory —
