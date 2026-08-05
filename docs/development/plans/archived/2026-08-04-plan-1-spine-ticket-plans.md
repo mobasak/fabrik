@@ -1,6 +1,11 @@
 # Plan: Spine + Ticket Plan Architecture (ticket-based plan redesign)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-06
+
+Completion: Phases A-E committed (876b7288 · 16e9e173 · ae6776a8 · 361c99d9 · e346f96e) + the
+Finish-round fixes in the closing commit; final_gate --check --json "status":"success" (43/0,
+fresh at close); whole-plan review 5 rounds / 14 findings → found:0, fixed:0.
+Whole-plan review: docs/development/reviews/2026-08-04-plan-1-spine-ticket-plans-review.md
 
 Goal: replace monolithic 557–1,133-line plans with a **thin coordination spine + per-ticket files sized
 to one fresh coder context**, executed dispatcher-style — so phases never exceed a context, orchestrators
@@ -83,19 +88,19 @@ New plans only; existing monolith plans keep working unchanged.
 | `core/40-documentation.md` (ACTIVE) | Doc Sync Matrix; new-`.md` allowlist | pack §matrix |
 | `core/10-python.md` (ACTIVE) | enforcement-script style | pack §patterns |
 | ettw ticket machinery | field contract; auto-split; isolation simulation; Complexity→tier; per-ticket review to coverage-adjudicated exit (UNCONDITIONAL, `07:56`); 3-strikes → pause ticket, continue batch | `06-ticket-breakdown-fabrik.md:30,44,135-143,166` · `07-execute-fabrik.md:24,29,53-56` |
-| `check_plans.py` | filename gate — ERRORs `T##-*.md` under `plans/**` (via `validate_conventions`, Tier 3) | `scripts/enforcement/check_plans.py:19,32,37,50-61` |
-| `check_plan_quality.py` | STALE sections/vocabulary — ERRORs every modern plan | `scripts/enforcement/check_plan_quality.py:22-28` |
-| `check_convergence.py` | `CONVERGED` regex requires the literal `**Status:**` token (`:48`) — variants never enter `_check_plan` (`:128`); `EXECUTED` (`:53-55`) tolerant; `_executed_targets` HEAD-comparison enforces only NEW transitions (`:158-206`) — A3's precedent | `scripts/enforcement/check_convergence.py:48,53-56,69,128,135-136,158-206` |
-| `check_test_proposal.py` | **Tier-2 BLOCKING** (`final_gate.py:935-939`) — flat `glob("*.md")` (`:115`) vs recursive baseline (`:107`) → plan DIRECTORY invisible (`:135`); demands a G/W/T `## Behavior Contract` from the detected plan → the SPINE carries the roll-up | `scripts/enforcement/check_test_proposal.py:107,115,124,135` |
-| `docs_updater.py` | Documentation Drift gate (`final_gate.py:1034`) — flat globs (`:846,:885`), flat links (`:859`), `p.name[:10]` date parse (`:856,:898`); naive `*/` glob would date-parse `archived/`; status vocabulary needs `BLOCKED` | `scripts/docs_updater.py:845-846,856,859,885,898` |
-| `final_gate.py` | Tier-2 completion gate — plan-shape checks register beside `check_test_proposal` (`:935-939`); `validate_conventions` is Tier-3-only (`:1043-1052`) | `scripts/final_gate.py:935-939,1034,1043-1052` |
-| `check_doc_sprawl.py` | `:63` admits nested paths (`.` matches `/`); `:67` allowlists review artifacts; `get_suggestion()` flat-only | `scripts/enforcement/check_doc_sprawl.py:61-63,67,186-189` |
+| `check_plans.py` | filename gate — ERRORs `T##-*.md` under `plans/**` (via `validate_conventions`, Tier 3) | `scripts/enforcement/check_plans.py:29-30,84` |
+| `check_plan_quality.py` | STALE sections/vocabulary — ERRORs every modern plan | `scripts/enforcement/check_plan_quality.py:53-82` |
+| `check_convergence.py` | [pre-plan state this plan replaced] `CONVERGED` regex required the literal `**Status:**` token — variants never entered `_check_plan`; successor content: tolerant `CONVERGED_LINE`+non-claim tokens (`:63-100`), tolerant `EXECUTED` (`:121-126`), `_check_plan` (`:276`), `_executed_targets` NEW-transitions-only (`:324`) — A3's precedent | `scripts/enforcement/check_convergence.py:63-100,121-126,276,324` |
+| `check_test_proposal.py` | **Tier-2 BLOCKING** (`final_gate.py:935-939`) — flat `glob("*.md")` (`:151`) vs recursive baseline (`:135`) → plan DIRECTORY invisible (`:155`, fixed by the dir-glob unions); demands a G/W/T `## Behavior Contract` from the detected plan → the SPINE carries the roll-up | `scripts/enforcement/check_test_proposal.py:135,151,155` |
+| `docs_updater.py` | Documentation Drift gate (`final_gate.py:1039`) — flat globs + `plans/{p.name}` links (`:893,:937`), `p.name[:10]` date parse (`:955`) with the `archived/` never-date-parsed guard (`:892`); status vocabulary carries `BLOCKED` (`:845-846`) | `scripts/docs_updater.py:845-846,892-893,937,955` |
+| `final_gate.py` | Tier-2 completion gate — plan-shape checks register beside `check_test_proposal` (`:935-939`, plan-set contract at `:941-943`); `validate_conventions` is Tier-3-only (`:1048-1056`) | `scripts/final_gate.py:935-939,941-943,1039,1048-1056` |
+| `check_doc_sprawl.py` | plans pattern FLAT-only with the spine+ticket nested admission intentional (`:68,:75`); `get_suggestion()` flat-only (`:200`) | `scripts/enforcement/check_doc_sprawl.py:68,75,200` |
 | `check_changelog.py` | `MIN_LINES_THRESHOLD = 0` = the STRICTEST setting (any significant staged change requires an entry, `:17`) — the acceptance commit carries the orchestrator-applied entry | `scripts/enforcement/check_changelog.py:17,35` |
 | `check_subagent_flywheel.py` | BLOCKING at >8 changed code files with zero pool runs; `NO-POOL:`/env escapes; per-commit-cycle counting | `scripts/enforcement/check_subagent_flywheel.py:46-48,194-225,243` |
-| plan-lock schema (real files) | flat `{plan, owned_paths, branch, started_at, status}`; execute-plan appends `baseline_commit` post-step-8 (staleness anchor); readers must tolerate the new optional `tickets:` key (additive) | `.fabrik/plan-locks/2026-07-03-plan-1-full-speed-coverage-close.json` · `commands/_sources/fabrik-execute-plan.md:48-49` |
-| `commands/_sources/fabrik-plan-after-chat.md` | the promise this plan enforces (`:418`); emit (`:176-494`) + naming (`:550-601`) sections extended | `commands/_sources/fabrik-plan-after-chat.md:418,176-494,550-601` |
-| `commands/_sources/fabrik-execute-plan.md` | Merge Protocol is SQUASH-style (subagent branches squash-merged with `Merged-From` trailers — dispatcher mode inherits this, making the same-commit Board flip trivially atomic); "higher task number wins" replaced; MESSY-resume; whole-plan receipt + review; flat archive | `commands/_sources/fabrik-execute-plan.md:26-29,48-49,63,316-317,550-588,684,716-717` |
-| `commands/_sources/fabrik-plan-review.md` | archive paragraph does a single-file `git mv` — orphans tickets unless updated (Phase C) | `commands/_sources/fabrik-plan-review.md:155` |
+| plan-lock schema (real files) | flat `{plan, owned_paths, branch, started_at, status}`; execute-plan appends `baseline_commit` post-step-8 (staleness anchor); readers must tolerate the new optional `tickets:` key (additive) | `.fabrik/plan-locks/2026-07-03-plan-1-full-speed-coverage-close.json` · `commands/_sources/fabrik-execute-plan.md:60` |
+| `commands/_sources/fabrik-plan-after-chat.md` | the promise this plan enforces (`:419`); emit (`:176-495`) + naming (`:551-602`) sections extended | `commands/_sources/fabrik-plan-after-chat.md:419,176-495,551-602` |
+| `commands/_sources/fabrik-execute-plan.md` | Merge Protocol is SQUASH-style (subagent branches squash-merged with `Merged-From` trailers — dispatcher mode inherits this, making the same-commit Board flip trivially atomic); "higher task number wins" replaced; MESSY-resume (`:35-45`); lock baseline append (`:60`); worktree isolation (`:70,:551`); whole-plan receipt (`:329`); merge (`:751`); archive now shape-aware (`:918-921`) | `commands/_sources/fabrik-execute-plan.md:35-45,60,70,329,551,751,918-921` |
+| `commands/_sources/fabrik-plan-review.md` | archive paragraph does a single-file `git mv` — orphans tickets unless updated (Phase C) | `commands/_sources/fabrik-plan-review.md:203-206` |
 | `commands/_fragments/term-edit.md` | md5 anti-cheat — hash recorded per pass (an artifact edit mid-loop = the next pass, by design) | `commands/_fragments/term-edit.md:5-9` |
 | `CLAUDE.md` new-`.md` allowlist | must gain the plan-directory row; reviews need no new row | `CLAUDE.md:64` |
 | fabrik-lib | no module applies; pool dispatch = vendored `libs/subagents` (`fanout` mode="write" raises on `owned_paths` overlap — `agent.py:737` docstring; diffs are captured-never-auto-applied, so a crashed pool unit leaves NO partial writes) | fabrik-lib checked — no match |
@@ -552,7 +557,7 @@ One Given/When/Then per gate behavior (numbered per Phase A; test-mapped there):
 - **Given** an in-window commit touching a ticket's Touches without that ticket's trailer, **When** the staleness check runs, **Then** WARN (21) [AMENDED, round 6].
 - **Given** two `Integration: true` tickets or one not last in Merge Order, **When** the structure check runs, **Then** ERROR (22).
 - **Given** an over-budget `Integration: true` ticket, **When** the sizing check runs, **Then** no budget finding (23).
-- **Given** a spine roll-up missing a ticket's G/W/T row, **When** the roll-up equality check runs, **Then** ERROR (24).
+- **Given** a spine roll-up missing a ticket's G/W/T row, **When** the roll-up equality check runs, **Then** ERROR (24) [recorded residual, exec-Finish: rows are matched in BULLETED form (`GIVEN_ROW_RE`); a set whose spine AND tickets both number every G/W/T row passes vacuously (empty-set equality) — disclosed in the emitting command's prose ("a contract numbered on BOTH sides passes silently"); the emitted grammar is bulleted, so the loophole needs deliberate off-grammar authoring on both sides].
 - **Given** a spine at `Status: BLOCKED`, **When** `docs_updater` validates, **Then** accepted (25).
 - **Given** only implementation files changed under an active lock, **When** the no-arg CLI runs, **Then** that plan dir is selected (26).
 - **Given** an Integration ticket with a bare-token pool tier (`Complexity: simple|complex`), **When** the routing check runs, **Then** ERROR "receipts run native" (27) [AMENDED, exec-B].
@@ -640,8 +645,8 @@ Phase B–D (design sources read this session):
 07-…:56 "BOTH … fanout(\"review\", …) AND ≥1 native fabrik-reviewer on Opus" — UNCONDITIONAL, adopted per round
 62-…:118-120 NEVER-route list (incl. "security controls (RLS, rate-limits, final_gate)")
 fabrik-execute-plan.md:584 "Higher task number wins" ← replaced; :550-577 squash-merge protocol inherited
-fabrik-plan-after-chat.md:418 "cold subagent can execute ONE phase without seeing the others" [re-measured after the pass-47 doctrine edit]
-fabrik-plan-review.md:155 single-file archive git mv ← directory move in Phase C [line moved by the Phase-B insert]
+fabrik-plan-after-chat.md:419 "cold subagent can execute ONE phase without seeing the others" [re-measured after the Finish-round Serialized-direction edit]
+fabrik-plan-review.md:203-206 single-file archive git mv ← directory move in Phase C [re-measured at the Finish round; Phase C landed the directory-move rule at these lines]
 ```
 
 - Lock schema (flat) + `baseline_commit` append: real lock files + `fabrik-execute-plan.md:48-49`.

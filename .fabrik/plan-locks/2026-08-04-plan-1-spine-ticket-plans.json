@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-08-04-plan-1-spine-ticket-plans.md",
+  "plan": "docs/development/plans/archived/2026-08-04-plan-1-spine-ticket-plans.md",
   "owned_paths": [
     "scripts/enforcement/check_plans.py",
     "scripts/enforcement/check_plan_quality.py",
@@ -21,6 +21,8 @@
   ],
   "branch": "master",
   "started_at": "2026-08-04T18:10:09Z",
-  "status": "active",
-  "baseline_commit": "d723c66b6cb2dab1c8d8135ea57952a08bb51d04"
+  "status": "released",
+  "baseline_commit": "d723c66b6cb2dab1c8d8135ea57952a08bb51d04",
+  "completed_at": "2026-08-06T00:00:00Z",
+  "final_commit": "e346f96e (last phase commit; the close commit carries this lock and cannot self-reference)"
 }

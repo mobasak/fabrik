@@ -390,7 +390,9 @@ its Touches (contract violation → its diff is rejected at acceptance).
   history, prior-phase summaries, or other tickets (the exclusion targets context bloat, never the
   standard briefing).
 - **Dispatch eligibility:** every `Depends:` row ✅ AND no `Serialized:` barrier pending (a Serialized row
-  is a dispatch barrier: later-listed waits for earlier ✅).
+  is a dispatch barrier: later waits for earlier ✅ — **direction per `## Merge Order` position, the
+  canonical order signal**; the row's own ID listing order is not load-bearing, and a row listed against
+  Merge Order is an authoring defect `/fabrik-plan-review` should have caught).
 - **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate
   stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2
   consecutive timeouts on one ticket → 🔴.

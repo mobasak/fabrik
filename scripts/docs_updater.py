@@ -823,6 +823,12 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
         content,
         flags=re.M | re.S,
     )  # line-anchored + inline — never bare ```.*?``` (unpaired-backtick swallowing)
+    # Blockquoted lines are quoted content for status DETERMINATION too — a
+    # `> Status: DRAFT` grammar example above the real line must not win
+    # first-match (fail-open: misreported status + a defeated COMPLETE check).
+    # Same consumer-side strip as check_plan_tickets/check_plan_quality; the
+    # regex below keeps `>` for cross-module byte-parity (Lesson 103).
+    status_scan = re.sub(r"^[ \t]*>.*$", "", status_scan, flags=re.M)
     status_match = re.search(
         r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
         status_scan,

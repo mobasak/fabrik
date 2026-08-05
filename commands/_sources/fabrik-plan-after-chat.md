@@ -238,7 +238,8 @@ while `Never-Route:` DOES parse quoted forms (a quoted line ADDS coverage — fa
 content — fenced OR blockquoted — is INVISIBLE to the spine's own status (a `> Status: DRAFT`
 example can never downgrade the contract; the spine's real Status must be an unquoted line); each
 row is ONE covering-aware licence, so the exact pair must share a single row) — a
-Serialized row is a DISPATCH BARRIER: later-listed waits for earlier ✅) · `## Interfaces` (each cross-ticket interface names its **seam
+Serialized row is a DISPATCH BARRIER: later waits for earlier ✅, direction per `## Merge Order`
+position — the canonical order signal; list the row's IDs in Merge-Order order) · `## Interfaces` (each cross-ticket interface names its **seam
 test**, owned by the CONSUMER ticket — the file in the consumer's Touches, the producer's Behavior
 Contract in the consumer's Context Files) · `## Behavior Contract` (the ROLL-UP: every ticket's G/W/T
 rows **verbatim — NO ticket-ID prefix, no rewording** (a `T01 — ` prefix produces two mismatch

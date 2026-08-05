@@ -504,6 +504,22 @@ def test_fenced_status_is_ignored_by_docs_updater(plans_env: Path) -> None:
     assert status == "COMPLETE"
 
 
+def test_blockquoted_status_is_ignored_by_docs_updater(plans_env: Path) -> None:
+    # Whole-plan-review regression (Lesson 103's class, fourth consumer): a
+    # `> Status: DRAFT` grammar example above the real line must not win
+    # first-match — it misreports the status and defeats the COMPLETE-with-
+    # unchecked-items check.
+    import scripts.docs_updater as du
+
+    p = _write(
+        plans_env,
+        "status-quote.md",
+        "# P\n\nGrammar example:\n> Status: DRAFT\n\n**Status:** COMPLETE\n",
+    )
+    status, _, _ = du.parse_plan_status(p)
+    assert status == "COMPLETE"
+
+
 # --- Wave-7 regressions (review round 7) ---------------------------------------------
 
 

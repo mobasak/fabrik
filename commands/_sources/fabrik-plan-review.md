@@ -100,6 +100,9 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   `path:line` citation per non-Integration ticket).
 - **Interfaces signature-consistent CROSS-ticket** — the producer's emitted signature matches every
   consumer's assumption; every seam test is NAMED and its file sits in the CONSUMER's Touches.
+- **Serialized rows agree with Merge Order** — the dispatcher takes barrier DIRECTION from
+  `## Merge Order` position (canonical); a `Serialized:` row listing its IDs against Merge Order is an
+  authoring defect to fix here, not an ambiguity to leave the dispatcher.
 - **Ask-before-not-during sweeps ticket BODIES too** — a deferred question inside a ticket stalls the
   dispatched coder exactly like one inside a monolith phase; force it RESOLVED or SELF-SERVICE
   (§ Convergence & residuals) before the flip.

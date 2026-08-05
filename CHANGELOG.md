@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — blockquoted-Status fail-open in docs_updater + Serialized barrier direction canonicalized (2026-08-05)
+
+The whole-plan review of the spine+ticket wave found the FOURTH Status-regex consumer un-hardened:
+`docs_updater.parse_plan_status` took a blockquoted `> Status: DRAFT` grammar example as the plan's
+real status (first-match fail-open — misreported status and a defeated COMPLETE-with-unchecked-items
+check in the Tier-2 drift gate). Same consumer-side fix as its siblings: strip blockquoted lines from
+the status scan (regex untouched — byte-parity preserved), +1 red-on-revert-verified test (plan-shape
+suite 40→41). Also canonicalized the `Serialized:` dispatch-barrier DIRECTION across all three
+pipeline commands: `## Merge Order` position is the order signal (the row's own ID listing order is
+not load-bearing; a row listed against Merge Order is an authoring defect `/fabrik-plan-review` now
+checks). The numbered-both-sides G/W/T roll-up caveat is recorded in the plan's BC row 24 as a
+disclosed residual. Per `2026-08-04-plan-1-spine-ticket-plans.md` Finish review.
+
 ### Changed — /fabrik-execute-plan dispatcher mode for spine+ticket plan sets (Phase D) (2026-08-05)
 
 `commands/_sources/fabrik-execute-plan.md` gains shape detection (a plan directory/spine/any set file →
