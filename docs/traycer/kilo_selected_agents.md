@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-04T06:00:24.418226
+**Last Updated:** 2026-08-05T06:00:24.059041
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -53,7 +53,7 @@
 | 44 | **mistral-large-2512** | mistralai | 1450 | ~ | $0.50 | $1.50 | 262K | ✓ | ✓ |  | 2 | 1160 | ✅ |
 | 45 | **kimi-k2-thinking** | moonshotai | 1450 | 35.7 | $0.60 | $2.50 | 262K |  | ✓ | ✓ | 2 | 716 | ✅ |
 | 46 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
-| 47 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.25 | $1.00 | 204K |  | ✓ | ✓ | 2 | 1782 | ✅ |
+| 47 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.27 | $1.08 | 204K |  | ✓ | ✓ | 2 | 1650 | ✅ |
 | 48 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
 | 49 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.23 | $2.30 | 262K |  | ✓ | ✓ | 2 | 809 | ✅ |
 | 50 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-08-04:** Auto-updated from benchmarks
+- **2026-08-05:** Auto-updated from benchmarks

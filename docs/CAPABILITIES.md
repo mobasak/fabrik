@@ -132,7 +132,8 @@
 - [scripts/enforcement/check_mutation.py](INDEX.md): AFTER-EDIT: docs/CONFIGURATION.md
 - [scripts/enforcement/check_no_host_ports.py](INDEX.md): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
 - [scripts/enforcement/check_opencode_json.py](INDEX.md): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
-- [scripts/enforcement/check_plans.py](INDEX.md): Check plan document conventions.
+- [scripts/enforcement/check_plan_tickets.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_check_plan_tickets.py, commands/_sources/fabrik-plan-after-chat.md, commands/_sources/fabrik-plan-review.md, commands/_source
+- [scripts/enforcement/check_plans.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
 - [scripts/enforcement/check_readme_md.py](INDEX.md): Enforce README.md updates when structure changes.
 - [scripts/enforcement/check_retired_terms.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_reusable_modules.py](INDEX.md): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
