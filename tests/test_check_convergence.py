@@ -547,6 +547,27 @@ def test_bc6_new_plain_converged_spine_with_orphan_row_fails(repo: Path) -> None
     assert "orphan row" in out
 
 
+def test_flip_runs_full_ticket_contract_in_process(repo: Path) -> None:
+    # BC 33's flip half: the in-process check_plan_dir(context="flip") call must
+    # surface plan-set contract ERRORs (here: missing Complexity) at the
+    # CONVERGED flip — if the import or the call regresses, the whole contract
+    # would silently degrade to orphan-rows + the Status ban.
+    complete = CONVERGED_SPINE_ORPHAN_ROW.replace("| T02 | api | T01 | ⛓️ | ⬜ | — |\n", "").replace(
+        "2. T02\n", ""
+    )
+    no_cx = TICKET_T01.replace("Complexity: simple\n", "")
+    rc = _run_files(
+        repo,
+        {
+            f"{SPINE_DIR}/2026-08-05-plan-1-widget.md": complete,
+            f"{SPINE_DIR}/T01-schema.md": no_cx,
+        },
+    )
+    rc2, out = _check_out(repo)
+    assert rc == 1 and rc2 == 1
+    assert "plan-set contract" in out and "no parseable Complexity" in out
+
+
 def test_bc6_ticket_with_status_line_fails_spine_convergence(repo: Path) -> None:
     complete = CONVERGED_SPINE_ORPHAN_ROW.replace("| T02 | api | T01 | ⛓️ | ⬜ | — |\n", "").replace(
         "2. T02\n", ""

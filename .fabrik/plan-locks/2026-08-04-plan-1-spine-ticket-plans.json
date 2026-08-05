@@ -1,0 +1,26 @@
+{
+  "plan": "docs/development/plans/2026-08-04-plan-1-spine-ticket-plans.md",
+  "owned_paths": [
+    "scripts/enforcement/check_plans.py",
+    "scripts/enforcement/check_plan_quality.py",
+    "scripts/enforcement/check_convergence.py",
+    "scripts/enforcement/check_doc_sprawl.py",
+    "scripts/enforcement/check_test_proposal.py",
+    "scripts/enforcement/check_plan_tickets.py",
+    "scripts/enforcement/validate_conventions.py",
+    "scripts/final_gate.py",
+    "scripts/docs_updater.py",
+    "tests/enforcement/test_check_plan_tickets.py",
+    "tests/test_check_convergence.py",
+    "tests/enforcement/test_plan_shape_gates.py",
+    "commands/_sources/fabrik-plan-after-chat.md",
+    "commands/_sources/fabrik-plan-review.md",
+    "commands/_sources/fabrik-execute-plan.md",
+    "CLAUDE.md",
+    "docs/development/plans/2026-08-04-plan-1-spine-ticket-plans.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-04T18:10:09Z",
+  "status": "active",
+  "baseline_commit": "d723c66b6cb2dab1c8d8135ea57952a08bb51d04"
+}

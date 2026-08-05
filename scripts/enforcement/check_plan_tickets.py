@@ -16,24 +16,38 @@ Checks (per the 2026-08-04 spine-ticket plan, the canonical grammar):
   token, Board-section-scoped); every ``Depends:`` target exists; the graph is
   acyclic; ``## Merge Order`` is a topological sort of Depends; exactly one
   ``Integration: true`` ticket, last in Merge Order; the spine
-  ``## Behavior Contract`` roll-up equals the union of ticket G/W/T rows.
+  ``## Behavior Contract`` roll-up equals the union of ticket G/W/T rows; a
+  duplicate Board row for one ID is an ERROR (the last row would silently mask
+  the real state).
 - **Ownership:** Touches are the WRITE set — two tickets whose Touches entries
   OVERLAP (same path, or a directory entry covering another ticket's path) is an
   ERROR unless a Depends path connects them or a ``Serialized:`` row names the
-  path; union(Touches) ⊆ spine File Scope; governance files never in Touches.
+  path; union(Touches) ⊆ spine File Scope. Per-plan territory: own-stem REVIEW
+  receipts are the only metadata Touches a ticket may own — the whole
+  ``docs/development/plans/`` tree (own spine/tickets included) and the plan
+  lock are the ORCHESTRATOR's write surface (dedicated ERRORs); governance
+  surfaces (five files + the legacy lowercase lessons alias) never in Touches
+  AND never in File Scope (dedicated ERROR — File Scope builds the lock); glob,
+  out-of-repo (absolute/~/..), repo-root ``.`` and RESIDUE tokens (quote/
+  backtick/separator/colon leftovers; ``path:NN`` citations collapse to the
+  path first) are ERRORs on both surfaces; a ticket with no parseable
+  ``Complexity:`` is an ERROR at cli/flip.
 - **Routing cross-check:** a pool-tier ticket (Complexity simple/complex) whose
   Touches match the never-route set is an ERROR (``.env.example`` is exempt — a
-  routine Doc-Sync file, not a secret).
+  routine Doc-Sync file, not a secret); an Integration ticket on a bare-token
+  pool tier is an ERROR (receipts run native).
 - **Grounding floor:** every non-Integration ticket carries ≥1 ``path:line``.
-- **Sizing:** READ budget ≤ READ_BUDGET_BYTES; ≤8 behaviors (WARN); ≤3 Gate lines
-  (WARN). Severity by invocation context: cli/flip = ERROR; the gate path = WARN
+- **Sizing:** READ budget ≤ READ_BUDGET_BYTES; ≤8 behaviors and ≤3 Gate lines are
+  ALWAYS WARN; ``Integration: true`` exempt from all three. Only the READ budget
+  takes the invocation-context severity: cli/flip = ERROR; the gate path = WARN
   while the spine is DRAFT or IN-PROGRESS. (validate_conventions exempts this
   check's WARNs from --strict promotion — they are designed advisories.)
 - **Board-staleness:** only when this plan's lock carries ``baseline_commit``.
   One bulk ``git log --first-parent -m --name-only`` over the window (merge
   commits diffed vs their first parent — orchestrator squash/merge commits are
   exactly the ones that must not escape): a commit touching a ticket's Touches
-  without that ticket's own ``Agent-Task: T<id>`` trailer is an ERROR; a trailer
+  without that ticket's own ``Agent-Task: T<id>`` trailer is a WARN
+  (sibling-tolerant — the acceptance review enforces it); a trailer
   commit whose Board row is still ⬜ (never flipped) is an ERROR. Sanctioned
   back-flips (✅→🔵/🔴) are compliant states. Any git error → NOTE + skip.
 
@@ -84,7 +98,16 @@ MERGE_ORDER_SECTION_RE = re.compile(r"^##\s+Merge Order\b(.*?)(?=^##\s|\Z)", re.
 # disables the topological + Integration-last checks with zero signal).
 ORDER_LINE_RE = re.compile(r"^\s*(?:\d+[.)]|[-*])\s+\**\s*(T\d{2}[a-z]?)\**\s*$", re.M)
 # Path — IDs separator tolerates em-dash, en-dash, or 1-2 hyphens; indentable.
-SERIALIZED_LINE_RE = re.compile(r"^\s*Serialized:\s*(\S+)\s*[—–-]{1,2}\s*(.+)$", re.M)
+# Bold-, bullet- AND number-tolerant like ORDER_LINE_RE — a `**Serialized:**`
+# label, a `- ` bullet or a `3. ` numbered prefix must not silently void the
+# licence row. NO `>` blockquote tolerance (family doctrine — quoted examples
+# never parse; here a quoted parse would DISABLE the collision guard), and
+# case-insensitive like every sibling.
+SERIALIZED_LINE_RE = re.compile(
+    r"^\s*(?:(?:\d+[.)]|[-*])\s+)?\*{0,2}Serialized\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*"
+    r"(\S+)\s*[—–-]{1,2}\s*(.+)$",
+    re.I | re.M,
+)
 # Status token: colon MANDATORY + same-line value ([^\S\n], never \s — \s crosses
 # the newline). Bold-or-plain, colon inside or outside the bold.
 STATUS_RE = re.compile(
@@ -99,15 +122,56 @@ _DRAFT_LIKE = ("DRAFT", "PLANNED", "")
 # callers — a Given quoted in ## Scope must not become a phantom roll-up row.
 GIVEN_ROW_RE = re.compile(r"^\s*[-*]\s+(.*\*{0,2}Given\*{0,2}\b.*)$", re.I | re.M)
 AGENT_TASK_RE = re.compile(r"^Agent-Task:\s*(T\d{2}[a-z]?)\b", re.I | re.M)
-# Field lines tolerate a bullet prefix (bulleted metadata is natural markdown —
-# same tolerance as the Board/Order/Serialized/Given regexes).
-_F = r"^\s*(?:[-*>]\s+)?"
-GATE_LINE_RE = re.compile(_F + r"Gate:", re.I | re.M)
-INTEGRATION_RE = re.compile(_F + r"Integration:\s*true\b", re.I | re.M)
-COMPLEXITY_RE = re.compile(_F + r"Complexity:\s*(\S+)", re.I | re.M)
-DEPENDS_RE = re.compile(_F + r"Depends:\s*(.+)$", re.I | re.M)
-PARALLEL_RE = re.compile(_F + r"Parallel:\s*(\S+)", re.I | re.M)
+# Field lines tolerate a bullet prefix (bulleted metadata is natural markdown).
+# Blockquote (`>`) tolerance follows FAIL DIRECTION, deliberately split (this
+# note covers the NAMED members only — regexes outside it, e.g. ORDER_LINE_RE /
+# GIVEN_ROW_RE / BOARD_ROW_RE / _list_paths bullets, simply never took `>`):
+# - this _F family + SERIALIZED_LINE_RE never parse a quoted line — a quoted
+#   `Depends:`/`Integration:`/`Serialized:` example parsing live would silently
+#   license overlaps or mint a phantom Integration ticket (a non-parse of
+#   Complexity is NOT silent — it fails loud via the missing-Complexity
+#   finding; Parallel is Phase-D dispatch metadata, parsed but unchecked here);
+# - STATUS_RE keeps `>` for byte-parity with check_convergence /
+#   check_plan_quality / docs_updater, where a quoted Status draws the
+#   ticket-Status ban / claim checks (fail-closed). The one fail-OPEN consumer
+#   — spine-status determination, where parsing more downgrades severity —
+#   strips blockquoted lines from its scan instead (see _BLOCKQUOTE_RE);
+# - the Never-Route label DOES parse quoted forms — a quoted Never-Route line
+#   ADDS coverage (silence was the hazard), and its hygiene WARN arms
+#   (multi-token / void / residue) follow the parse by design.
+# Numbered field lines (`1. Complexity:`) don't parse — fails loud via the
+# missing-field/missing-Complexity findings.
+_F = r"^\s*(?:[-*]\s+)?"
+GATE_LINE_RE = re.compile(_F + r"\*{0,2}Gate\*{0,2}[^\S\n]*:", re.I | re.M)
+INTEGRATION_RE = re.compile(
+    _F + r"\*{0,2}Integration\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*true\b", re.I | re.M
+)
+# Bold-tolerant like STATUS_RE — a `**Complexity:** simple` label must not
+# silently disable the whole routing layer.
+COMPLEXITY_RE = re.compile(
+    _F + r"\*{0,2}Complexity\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(\S+)", re.I | re.M
+)
+# Bold-tolerant like COMPLEXITY_RE — a `**Depends:** T01` label must not
+# silently drop a graph edge (false-red overlap + a fail-open topological
+# check); the whole field family shares the STATUS_RE label shape.
+DEPENDS_RE = re.compile(
+    _F + r"\*{0,2}Depends\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+)$", re.I | re.M
+)
+PARALLEL_RE = re.compile(
+    _F + r"\*{0,2}Parallel\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(\S+)", re.I | re.M
+)
 TICKET_ID_RE = re.compile(r"T\d{2}[a-z]?")
+# Characters never legal in a repo path token: emphasis/quote/backtick residue,
+# list separators, and colons (a `path:NN` citation suffix is stripped by the
+# fixpoint first — anything colon-like that remains is opaque). A token carrying
+# one after fixpoint normalization is invisible to every prefix/exact
+# predicate — fail CLOSED, not silent.
+_RESIDUE_RE = re.compile(r"[`\"',;:]")
+# Blockquoted lines (`> …`) are QUOTED content for spine-status DETERMINATION
+# (stripped alongside fences at that one consumer — see the doctrine note above
+# _F). Applied nowhere else: the ticket-Status ban and Never-Route label parse
+# quoted forms on purpose (both fail closed).
+_BLOCKQUOTE_RE = re.compile(r"^[ \t]*>.*$", re.M)
 # Fenced blocks are QUOTED content — never counted (a `Gate:`/`Status:` inside an
 # example must not trip the field counters).
 _FENCE_RE = re.compile(
@@ -131,7 +195,20 @@ def _strip_fences(text: str) -> str:
     return _FENCE_RE.sub("", text)
 
 
-GOVERNANCE_FILES = ("CHANGELOG.md", "INDEX.md", "docs/README.md", "docs/FEATURES.md")
+# CLAUDE.md's four orchestrator-applied governance files, plus LESSONS_LEARNT —
+# the fifth shared-append surface (Completion Contract §4: every run either
+# appends it or records `none`, so any run MAY append — the same
+# BLOCK-on-overlap collision class as CHANGELOG if a lock owned it).
+GOVERNANCE_FILES = (
+    "CHANGELOG.md",
+    "INDEX.md",
+    "docs/README.md",
+    "docs/FEATURES.md",
+    "docs/LESSONS_LEARNT.md",
+)
+# The legacy-tolerated lowercase alias (CLAUDE.md Doc Sync Matrix) is the same
+# surface — ban/tolerate it identically or the carve-out is bypassable.
+_GOV_SURFACES = GOVERNANCE_FILES + ("docs/lessons-learnt.md",)
 NEVER_ROUTE_PREFIXES = (
     "scripts/enforcement/",
     "scripts/final_gate.py",
@@ -142,8 +219,38 @@ NEVER_ROUTE_PREFIXES = (
 # `.env` and `.env.*` are secret material — EXCEPT `.env.example` (a routine
 # Doc-Sync-Matrix file every env-var change touches).
 _ENV_EXEMPT = ".env.example"
-# File-Scope orphan-WARN exemptions (spine-metadata paths).
-_SCOPE_WARN_EXEMPT = ("docs/development/reviews/", ".fabrik/plan-locks/", "~/")
+# The spine-metadata territory: per-plan review/lock artifacts. Used by the
+# Touches ownership ERROR (foreign-stem = ERROR), the containment skip, and the
+# File-Scope orphan exemption (own-stem only). `~/` is deliberately NOT here —
+# rendered ~/.claude outputs are the orchestrator's render step, never ownable.
+# Governance surfaces are handled separately — a listed/covering entry is a
+# DEDICATED ERROR (File Scope builds the lock; locking a shared-append surface
+# would make every pair of concurrent plans BLOCK on scope overlap).
+_SPINE_METADATA_PREFIXES = (
+    "docs/development/reviews/",
+    ".fabrik/plan-locks/",
+    # The dir holding every OTHER plan set — sibling spines/tickets are never
+    # another plan's write territory.
+    "docs/development/plans/",
+)
+
+
+def _stem_scoped(token: str, plan_dir: Path) -> bool:
+    # Component-bounded stem test for the plan's OWN metadata artifacts: the
+    # dir itself, its lock (`<stem>.json`), or a review doc
+    # (`<stem>[-T##…]-review….md`). A generic `<stem>-anything` is NOT accepted
+    # (a sibling lock `<stem>-v2.json` must never ride this exemption).
+    # Residual, recorded: a sibling plan literally NAMED `<stem>-v2` could
+    # alias this plan's review shape — but same-day plans must take the next
+    # unused <n> (naming rule), so such a sibling is already out of contract.
+    stem = plan_dir.name
+    for seg in token.split("/"):
+        if seg == stem or seg == stem + ".json":
+            return True
+        if seg.startswith(stem + "-") and seg.endswith(".md") and "-review" in seg[len(stem) :]:
+            return True
+    return False
+
 
 # Adapter dedupe: one dir-level validation per process run, attached to the FIRST
 # file seen from that dir (spine-only attachment would silently drop everything
@@ -160,10 +267,48 @@ def _section(text: str, title: str) -> str:
 
 
 def _norm_path(p: str) -> str:
-    p = p.strip().strip("`").strip("*").strip()
-    if p.startswith("./"):
-        p = p[2:]
-    return p
+    # FIXPOINT normalization (one contract for Touches / File Scope /
+    # Never-Route): strips edge backticks, SYMMETRIC emphasis wraps, balanced
+    # QUOTE wraps (never parens — legal path chars), a trailing `:NN` citation
+    # suffix and trailing colons, a RUN of trailing sentence dots (whole-dot
+    # segments survive for the repo-root/out-of-repo arms; `dir/.` collapses),
+    # interior `/./` self-references, and a `./` prefix. Iterated so mixed
+    # forms (`` `vendor/`. ``) resolve fully. Commas/semicolons are NOT
+    # stripped — they reach the LOUD residue arms. A lone edge star is a GLOB
+    # (`docs/*`) and must survive so the glob ERROR catches it.
+    while True:
+        before = p
+        p = p.strip().strip("`")
+        while len(p) >= 4 and p.startswith("**") and p.endswith("**"):
+            p = p[2:-2].strip()
+        while len(p) >= 2 and p.startswith("*") and p.endswith("*"):
+            p = p[1:-1].strip()
+        # Balanced QUOTE wraps only — quotes are never legal in repo paths.
+        # Parens are NOT stripped: they are legal path chars (Next.js/Expo
+        # route groups like `app/(marketing)` / a literal `(build)/`), and an
+        # edge-anchored strip would destroy a bare `(marketing)` token.
+        for quote in ('"', "'"):
+            if len(p) >= 2 and p.startswith(quote) and p.endswith(quote):
+                p = p[1:-1].strip()
+        # A `path:NN` citation suffix collapses to the path (author intent —
+        # the file is what's owned/protected); bare trailing colons strip too.
+        p = re.sub(r":\d+$", "", p).rstrip(":")
+        # Interior `/./` self-references collapse (POSIX identity).
+        while "/./" in p:
+            p = p.replace("/./", "/")
+        # A RUN of trailing sentence dots — segment-aware: a final segment that
+        # is ENTIRELY dots must survive for the repo-root/out-of-repo arms —
+        # except the POSIX self-reference `dir/.`, which IS the dir.
+        if p.endswith("/.") and not p.endswith("/.."):
+            p = p[:-1]
+        core = p.rstrip(".")
+        if core and core != p and not core.endswith("/"):
+            if p.rsplit("/", 1)[-1].strip("."):
+                p = core
+        if p.startswith("./"):
+            p = p[2:]
+        if p == before:
+            return p
 
 
 def _list_paths(section_body: str) -> list[str]:
@@ -257,7 +402,7 @@ def _parse_ticket(path: Path) -> Ticket:
         context_files=_list_paths(_section(scan, "Context Files")),
         depends=depends,
         parallel=par_m.group(1) if par_m else "",
-        complexity=(cpx_m.group(1).lower() if cpx_m else ""),
+        complexity=(cpx_m.group(1).strip("*").lower() if cpx_m else ""),
         integration=bool(INTEGRATION_RE.search(scan)),
         # Section-scoped — a Given-row quoted elsewhere in the ticket must not
         # become a phantom entry in the roll-up equality check.
@@ -329,6 +474,14 @@ def _repo_root(plan_dir: Path) -> Path | None:
     return plan_dir.resolve().parents[3]
 
 
+def _norm_cell(c: str) -> str:
+    """Board-cell normalization: edge backticks then `.strip("*")` (asymmetric and
+    multi-layer bold collapse — DIFFERENT from `_norm_path`, which keeps
+    asymmetric stars so globs survive to the glob ERROR); only the
+    bold-outside-backtick double-wrap survives, as documented."""
+    return c.strip().strip("`").strip("*").strip()
+
+
 def _board_states(spine_text: str) -> dict[str, str]:
     """Board-row ID → state cell, header-aware (a reordered/extra column must not
     silently read the wrong cell; falls back to index 5 when no header names State)."""
@@ -338,14 +491,36 @@ def _board_states(spine_text: str) -> dict[str, str]:
     state_idx = 5
     lines = board.group(1).splitlines()
     for line in lines:
-        if line.strip().startswith("|") and "State" in line:
-            cells = [c.strip() for c in line.split("|")]
-            if "State" in cells:
-                state_idx = cells.index("State")
-                break
+        # Header recognition: a |-line with a `State` cell, ≥3 content cells,
+        # and no T## ID cell (IDs tested on fully-stripped cells so a
+        # double-wrapped `**`T01`**` still vetoes). The LAST candidate before
+        # the first data row wins — so a wide legend ABOVE the board loses to
+        # the real header, a narrow `| State | Meaning |` legend is too narrow,
+        # a `| Ticket | Owner |` roster has no State, and a data row (T## cell)
+        # can never hijack the index. Cells are normalized like paths
+        # (backticks, then bold) so a decorated header keeps header-awareness;
+        # an unrecognizable header (bold-outside-backtick double-wrap) →
+        # documented fallback 5.
+        if BOARD_ROW_RE.match(line):
+            break  # first data row — the header scan is over
+        if line.strip().startswith("|"):
+            cells = [_norm_cell(c) for c in line.split("|")]
+            content = [c for c in cells if c]
+            state_cols = [i for i, c in enumerate(cells) if c.lower() == "state"]
+            if (
+                state_cols
+                and len(content) >= 3  # rejects a 2-cell `| State | Meaning |` legend;
+                # a 3-column `| Ticket | State | Commit |` board stays parseable
+                and not any(
+                    TICKET_ID_RE.search(c.replace("`", "").replace("*", "")) for c in content
+                )
+            ):
+                state_idx = state_cols[0]
     states: dict[str, str] = {}
     for m in BOARD_ROW_RE.finditer(board.group(1)):
-        cells = [c.strip() for c in m.string[m.start() :].split("\n", 1)[0].split("|")]
+        # Data cells get the same normalization — a `**⬜**` state cell must not
+        # silently disable the ⬜-never-flipped check.
+        cells = [_norm_cell(c) for c in m.string[m.start() :].split("\n", 1)[0].split("|")]
         # Strip the emoji variation selector (U+FE0F) — editors emit ⬜️ freely,
         # and exact-glyph equality would silently disable the never-flipped check.
         states[m.group(1).upper()] = (
@@ -473,13 +648,23 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
     # ticket template must not read the template's `Status: DRAFT` as its own —
     # that would silently downgrade the whole contract to advisory).
     spine_scan = _strip_fences(spine_text)
-    status_m = STATUS_RE.search(spine_scan)
+    # Spine-status DETERMINATION reads a blockquote-stripped scan on top of the
+    # fence strip: quoted content — fenced OR `>`-blockquoted — must never be
+    # the spine's own status. STATUS_RE itself keeps `>` (byte-parity with
+    # check_convergence/check_plan_quality/docs_updater, where parsing a quoted
+    # Status fails CLOSED); but HERE parsing more Status lines produces FEWER
+    # findings (the DRAFT/PLANNED downgrade), so a blockquoted `> Status: DRAFT`
+    # example above the real line would silently make the whole contract
+    # advisory — the strip closes that fail-open direction at the consumer,
+    # not the regex.
+    status_scan = _BLOCKQUOTE_RE.sub("", spine_scan)
+    status_m = STATUS_RE.search(status_scan)
     spine_status = status_m.group(1).upper() if status_m else ""
     # A PRESENT-but-unrecognized Status (`Status: COMPLETE`, `Status: Done ✅`, a
     # typo) must FAIL CLOSED — inheriting the absent-status DRAFT protection
     # would let one bad token silence the whole contract at the gate.
     _any_status = re.search(
-        r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\S", spine_scan, re.M
+        r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\S", status_scan, re.M
     )
     if _any_status and not status_m:
         spine_status = "UNRECOGNIZED"  # not in any downgrade set → full severity
@@ -511,7 +696,17 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
     # --- Structure: Board rows ↔ ticket files 1:1 (Board-section-scoped) -------
     board = BOARD_SECTION_RE.search(spine_scan)
     row_ids = [m.group(1) for m in BOARD_ROW_RE.finditer(board.group(1))] if board else []
-    for rid in row_ids:
+    if len(row_ids) != len(set(row_ids)):
+        dupes = sorted({r for r in row_ids if row_ids.count(r) > 1})
+        results.append(
+            _err(
+                f"duplicate Ticket Board row(s): {', '.join(dupes)}",
+                spine,
+                hint="The LAST row wins in the state map — a stale duplicate silently "
+                "masks the real state and disables the never-flipped staleness check",
+            )
+        )
+    for rid in dict.fromkeys(row_ids):
         if rid not in tickets:
             results.append(_err(f"Board row {rid} has no ticket file on disk (orphan row)", spine))
     for tid in tickets:
@@ -533,7 +728,20 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
         results.append(_err("Depends: graph has a cycle", spine))
     mo_match = MERGE_ORDER_SECTION_RE.search(spine_scan)
     order = ORDER_LINE_RE.findall(mo_match.group(1)) if mo_match else []
-    pos = {tid: i for i, tid in enumerate(order)}
+    if len(order) != len(set(order)):
+        dupes = sorted({o for o in order if order.count(o) > 1})
+        results.append(
+            _err(
+                f"duplicate Merge Order entry(ies): {', '.join(dupes)}",
+                spine,
+                hint="Last-wins positions would silently defeat the topological "
+                "and Integration-last checks (same class as a duplicate Board row)",
+            )
+        )
+    # FIRST occurrence wins — a stale duplicate must not shift positions.
+    pos: dict[str, int] = {}
+    for i, tid in enumerate(order):
+        pos.setdefault(tid, i)
     if set(order) != set(tickets):
         results.append(
             _err(
@@ -565,10 +773,29 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
         )
 
     # --- Ownership (OVERLAP-aware: dir-vs-file covered, not just exact match) ----
-    serialized: dict[str, set[str]] = {}
+    # Each row is ONE licence (list of sets) — unioning rows would silently
+    # license cross pairs the author never serialized together.
+    serialized: dict[str, list[set[str]]] = {}
     if mo_match:
         for pm in SERIALIZED_LINE_RE.finditer(mo_match.group(1)):
-            serialized[_norm_path(pm.group(1))] = set(TICKET_ID_RE.findall(pm.group(2)))
+            ser_key = _norm_path(pm.group(1).strip("*"))
+            if (
+                _RESIDUE_RE.search(ser_key)
+                or any(ch in ser_key for ch in "*?")
+                or ser_key.rstrip("/") == "."
+            ):
+                results.append(
+                    _err(
+                        f"Serialized row path '{ser_key}' carries residue — the row is "
+                        "VOID (it can never match a Touches path)",
+                        spine,
+                        severity=Severity.WARN,
+                    )
+                )
+                continue
+            # Each row appended as its OWN licence — never unioned (that would
+            # license cross pairs) and never last-wins-dropped.
+            serialized.setdefault(ser_key, []).append(set(TICKET_ID_RE.findall(pm.group(2))))
     ticket_list = sorted(tickets.values(), key=lambda t: t.tid)
     for i, ta in enumerate(ticket_list):
         for tb in ticket_list[i + 1 :]:
@@ -579,10 +806,21 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                 for pb in tb.touches:
                     if not _path_covers(pa, pb):
                         continue
-                    # Serialized licence: the UNION of both entries' rows (a
-                    # short-circuit `get(pa) or get(pb)` would ignore pb's row).
-                    lic = (serialized.get(pa) or set()) | (serialized.get(pb) or set())
-                    if {ta.tid, tb.tid} <= lic:
+                    # Serialized licence: the PAIR must sit inside ONE row whose
+                    # path covers (or is covered by) either overlap side —
+                    # covering-aware like every other path predicate here, and
+                    # never a union across rows (that would license cross pairs
+                    # the author never serialized together).
+                    # DIRECTIONAL: the row's path must COVER an overlap side —
+                    # symmetric matching would let a single-file row disable
+                    # the collision guard for a whole dir Touches entry.
+                    lic_rows = [
+                        s
+                        for key, rows in serialized.items()
+                        for s in rows
+                        if _covered_by(key, pa) or _covered_by(key, pb)
+                    ]
+                    if any({ta.tid, tb.tid} <= s for s in lic_rows):
                         continue
                     pair_overlaps.append(pa if pa == pb else f"{pa} ~ {pb}")
             if pair_overlaps:
@@ -601,14 +839,115 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                 )
     for t in tickets.values():
         for p in t.touches:
-            if any(_covered_by(p, g) for g in GOVERNANCE_FILES):
+            if p.rstrip("/") == ".":
+                results.append(
+                    _err(
+                        f"{t.tid}: repo-root token '{p}' in Touches — not a literal "
+                        "ownership path (it covers nothing in the ownership predicates)",
+                        t.path,
+                    )
+                )
+                continue
+            # Opaque tokens (glob metachars, incl. asymmetric-emphasis residue
+            # like `**secrets/x` — _norm_path strips symmetric wraps only) are
+            # invisible to the never-route, governance and overlap predicates.
+            # That makes them an ERROR, not advice: a WARN here would let a
+            # secrets path ride to the pool on an ignorable line. `[` is NOT a
+            # metachar: Next.js/Expo dynamic-route dirs (`[id]`) are literal.
+            if any(ch in p for ch in "*?"):
+                results.append(
+                    _err(
+                        f"{t.tid}: glob '{p}' in Touches — literal paths / dir/ entries only",
+                        t.path,
+                        hint="An opaque token disables the never-route, governance and "
+                        "overlap checks for that path — spell it literally",
+                    )
+                )
+                continue
+            if _RESIDUE_RE.search(p):
+                results.append(
+                    _err(
+                        f"{t.tid}: unparseable token '{p}' in Touches — quote/backtick/"
+                        "separator residue survives normalization and matches nothing "
+                        "in the ownership predicates",
+                        t.path,
+                        hint="One bare path per bullet — a comma list drops every path "
+                        "after the first from ALL checks",
+                    )
+                )
+                continue
+            # A recursive glob like `**/secrets/**` is SYMMETRIC bold to the
+            # normalizer and collapses to the absolute `/secrets/` — absolute
+            # tokens are an ERROR (they also evade never-route's relative
+            # prefixes and would let the sizing walker escape the repo root).
+            # `~` and `..` tokens are the same class: a ticket's WRITE set can
+            # never legitimately leave the repo.
+            if p.startswith("/") or p.startswith("~") or ".." in Path(p).parts:
+                results.append(
+                    _err(
+                        f"{t.tid}: out-of-repo path '{p}' in Touches — repo-relative only "
+                        "(absolute/~/.. tokens escape every ownership predicate; a "
+                        "`**/x/**` recursive glob normalizes to the absolute shape)",
+                        t.path,
+                    )
+                )
+                continue
+            if any(_covered_by(p, g) for g in _GOV_SURFACES):
                 results.append(
                     _err(
                         f"{t.tid}: governance file '{p}' in Touches — it is "
                         "orchestrator-applied via the Deltas block",
                         t.path,
-                        hint="List it in Context Files (reads are unrestricted); the "
-                        "orchestrator applies the entry at merge",
+                        hint="A file: list it in Context Files (reads are unrestricted) — "
+                        "the orchestrator applies the entry at merge. A directory entry "
+                        "covering a governance file: enumerate the doc paths instead",
+                    )
+                )
+                continue
+            # The whole plan-set territory is the ORCHESTRATOR's write surface —
+            # the spine/Board is flipped by the orchestrator (same-commit
+            # discipline) and sibling tickets are never a coder's to edit.
+            # Own-stem included, deliberately.
+            if _covered_by("docs/development/plans/", p) or _covered_by(
+                p, "docs/development/plans/"
+            ):
+                results.append(
+                    _err(
+                        f"{t.tid}: plan-set territory '{p}' in Touches — the spine, Board "
+                        "and ticket files are the orchestrator's write surface, never a "
+                        "ticket's",
+                        t.path,
+                    )
+                )
+                continue
+            # The plan's OWN lock is the ORCHESTRATOR's write surface — a ticket
+            # racing the lock writer is never legal, own-stem or not.
+            if p.startswith(".fabrik/plan-locks/") and p.rstrip("/").endswith(
+                "/" + plan_dir.name + ".json"
+            ):
+                results.append(
+                    _err(
+                        f"{t.tid}: the plan lock '{p}' in Touches — the lock is "
+                        "orchestrator-owned, never a ticket's write set",
+                        t.path,
+                    )
+                )
+                continue
+            # Metadata prefixes are per-plan territory: a ticket may own ONLY
+            # its own plan's artifacts there (else it writes every sibling's
+            # lock or another plan's review). Bidirectional _covered_by — a
+            # slash-less `.fabrik/plan-locks` or an ancestor `docs/development/`
+            # must not slip past a raw startswith.
+            if not _stem_scoped(p, plan_dir) and any(
+                _covered_by(p, x) or _covered_by(x, p) for x in _SPINE_METADATA_PREFIXES
+            ):
+                results.append(
+                    _err(
+                        f"{t.tid}: metadata path '{p}' outside this plan's stem — a ticket "
+                        "owns only its OWN plan's review/lock artifacts",
+                        t.path,
+                        hint="An ancestor dir (docs/development/) COVERS the metadata "
+                        "territory — name the specific non-metadata subpaths instead",
                     )
                 )
 
@@ -626,6 +965,22 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
     if scope_paths:
         for t in tickets.values():
             for p in t.touches:
+                # A governance-banned, glob, absolute or metadata-prefixed path
+                # already got its dedicated ERROR above (or its stem-scoped
+                # skip) — a containment ERROR on top would prescribe a fix that
+                # is itself an ERROR ("add it to File Scope").
+                if any(_covered_by(p, g) for g in _GOV_SURFACES):
+                    continue
+                if any(_covered_by(p, x) or _covered_by(x, p) for x in _SPINE_METADATA_PREFIXES):
+                    continue
+                if (
+                    any(ch in p for ch in "*?")
+                    or p.startswith(("/", "~"))
+                    or ".." in Path(p).parts
+                    or p.rstrip("/") == "."
+                    or _RESIDUE_RE.search(p)
+                ):
+                    continue
                 # DIRECTIONAL: a scope entry must cover the Touches path. The
                 # symmetric test would let `Touches: src/` pass against a
                 # one-file scope (the subset invariant inverted).
@@ -635,10 +990,81 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                     )
         all_touches = [p for t in tickets.values() for p in t.touches]
         for s in scope_paths:
-            if any(s.startswith(x) or x in s for x in _SCOPE_WARN_EXEMPT):
+            if s.rstrip("/") == ".":
+                results.append(
+                    _err(f"repo-root token '{s}' in File Scope — not a literal path", spine)
+                )
                 continue
-            if plan_dir.name in s:
-                continue  # spine-metadata (the plan set itself / its lock / reviews)
+            if any(ch in s for ch in "*?"):
+                results.append(
+                    _err(
+                        f"glob '{s}' in File Scope — literal paths / dir/ entries only "
+                        "(a glob is opaque to containment, the lock, and this check)",
+                        spine,
+                    )
+                )
+                continue
+            if _RESIDUE_RE.search(s):
+                results.append(
+                    _err(
+                        f"unparseable token '{s}' in File Scope — quote/backtick/"
+                        "separator residue matches nothing in containment or the lock",
+                        spine,
+                    )
+                )
+                continue
+            if s.startswith(("/", "~")) or ".." in Path(s).parts:
+                results.append(
+                    _err(
+                        f"out-of-repo path '{s}' in File Scope — repo-relative only "
+                        "(absolute/~/.. tokens cannot feed the lock; a `**/x/**` "
+                        "recursive glob normalizes to the absolute shape)",
+                        spine,
+                    )
+                )
+                continue
+            # Governance surfaces are dir-aware here too: `docs/` covers the
+            # three docs/ surfaces (four tuple members incl. the lowercase
+            # alias); next() names only the FIRST hit. A DEDICATED ERROR (not
+            # silence, not the misleading orphan message) — these stay OUT of
+            # File Scope, or the lock re-creates the BLOCK-on-overlap the
+            # carve-out prevents. `projects/foo/CHANGELOG.md` is ownable.
+            # ERROR, not WARN: File Scope is what BUILDS the lock's owned_paths —
+            # a governance surface here re-creates the exact BLOCK-on-overlap
+            # collision the carve-out prevents, and the emit gate is the only
+            # place it surfaces (Tier-2 discards non-error stdout).
+            gov_hit = next((g for g in _GOV_SURFACES if _covered_by(s, g)), None)
+            if gov_hit:
+                results.append(
+                    _err(
+                        f"governance surface '{gov_hit}' inside File Scope entry '{s}' — "
+                        "governance files stay OUT of File Scope (outside the lock by design)",
+                        spine,
+                        hint="An exact entry: delete the line. A directory entry "
+                        "covering a governance file: enumerate the non-governance "
+                        "doc paths instead",
+                    )
+                )
+                continue
+            # Same lock-feeding rationale as governance: metadata territory in
+            # File Scope (foreign-stem or over-broad) would put every sibling's
+            # plan/review/lock into owned_paths.
+            if not _stem_scoped(s, plan_dir) and any(
+                _covered_by(s, x) or _covered_by(x, s) for x in _SPINE_METADATA_PREFIXES
+            ):
+                results.append(
+                    _err(
+                        f"metadata territory '{s}' in File Scope — only this plan's OWN "
+                        "stem-named artifacts belong here (the lock would own every "
+                        "sibling plan)",
+                        spine,
+                    )
+                )
+                continue
+            if any(_covered_by(x, s) for x in _SPINE_METADATA_PREFIXES) and _stem_scoped(
+                s, plan_dir
+            ):
+                continue  # the plan's OWN metadata artifacts, stem-bounded
             if not any(_path_covers(s, p) or _path_covers(p, s) for p in all_touches):
                 results.append(
                     _err(
@@ -651,15 +1077,101 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
     # --- Routing cross-check ------------------------------------------------------
     # The spine's Global Constraints may EXTEND the never-route set:
     # `Never-Route: <path>` lines (concrete prefixes only).
-    extra_never_route = tuple(
-        _norm_path(m)
-        for m in re.findall(
-            r"^\s*(?:[-*>]\s+)?Never-Route:\s*(\S+)",
-            _section(spine_scan, "Global Constraints"),
-            re.I | re.M,
-        )
-    )
+    # Never-Route lines: whole-remainder capture, ONE coherent parse. A line
+    # yields a usable prefix ONLY when it holds exactly one clean repo-relative
+    # token; every rejected line draws its dedicated WARN (never silence — this
+    # is the routing layer's user extension).
+    extra_never_route_list: list[str] = []
+    for rest in re.findall(
+        r"^\s*(?:[-*>]\s+)?\*{0,2}Never-Route\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.*)$",
+        _section(spine_scan, "Global Constraints"),
+        re.I | re.M,
+    ):
+        parts = [x for x in re.split(r"[,\s;]+", rest.strip()) if x]
+        if not parts:
+            results.append(
+                _err(
+                    "Never-Route line has no path after the label — the line is void",
+                    spine,
+                    severity=Severity.WARN,
+                )
+            )
+            continue
+        if len(parts) != 1:
+            results.append(
+                _err(
+                    f"Never-Route line '{rest.strip()}' is not a single token — one "
+                    "concrete prefix per line (the ENTIRE line was dropped; a prose "
+                    "sentence after the label counts as multiple tokens)",
+                    spine,
+                    severity=Severity.WARN,
+                )
+            )
+            continue
+        # .strip("*") BEFORE _norm_path: the bold-tolerant label regex can eat a
+        # bolded value's LEADING stars; a lone edge-star glob degenerates to its
+        # dir prefix here (coverage EXTENDS — fail-closed).
+        nr = _norm_path(parts[0].strip("*"))
+        if not nr or nr.rstrip("/") == ".":
+            results.append(
+                _err(
+                    "Never-Route line has no usable path after the label — the line is "
+                    "void (a repo-root `.` token covers nothing in the matcher)",
+                    spine,
+                    severity=Severity.WARN,
+                )
+            )
+            continue
+        if nr.startswith(("/", "~")) or ".." in Path(nr).parts:
+            results.append(
+                _err(
+                    f"out-of-repo Never-Route token '{nr}' — matches nothing "
+                    "(repo-relative prefixes only; `**/x/**` degenerates to this shape)",
+                    spine,
+                    severity=Severity.WARN,
+                )
+            )
+            continue
+        # (Sentence punctuation, balanced quote wraps and backtick residue are
+        # resolved by _norm_path's fixpoint above — the arms below see the
+        # final token. Paren-WRAPPED single tokens are the recorded residual:
+        # parens are legal path chars, so `(vendor/)` is indistinguishable
+        # from a literal and silently matches nothing.)
+        if _RESIDUE_RE.search(nr):
+            results.append(
+                _err(
+                    f"unparseable Never-Route token '{nr}' — residue survives "
+                    "normalization and matches nothing",
+                    spine,
+                    severity=Severity.WARN,
+                )
+            )
+            continue
+        if any(ch in nr for ch in "*?"):
+            results.append(
+                _err(
+                    f"Never-Route entry '{nr}' contains an interior glob — files UNDER "
+                    "it are NOT covered (only the exact token, tokens under it, or an "
+                    "ancestor-prefix token still match); use the concrete prefix",
+                    spine,
+                    severity=Severity.WARN,
+                )
+            )
+        extra_never_route_list.append(nr)
+    extra_never_route = tuple(extra_never_route_list)
     for t in tickets.values():
+        if not t.complexity:
+            results.append(
+                _err(
+                    f"{t.tid}: no parseable Complexity: line — the routing cross-check "
+                    "is OFF for this ticket",
+                    t.path,
+                    # The routing layer's own fail-closed floor: hard at the
+                    # emit gate and the flip, advisory on the shared gate path.
+                    severity=(Severity.ERROR if context in ("cli", "flip") else Severity.WARN),
+                    hint="Write the field bare: `Complexity: simple|complex|native|never-route`",
+                )
+            )
         if t.complexity and t.complexity not in ("simple", "complex", "native", "never-route"):
             results.append(
                 _err(
@@ -667,6 +1179,16 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                     "(simple|complex|native|never-route)",
                     t.path,
                     hint="An unknown tier would silently skip the never-route routing check",
+                )
+            )
+        if t.integration and t.complexity in ("simple", "complex"):
+            results.append(
+                _err(
+                    f"{t.tid}: Integration ticket routed to a pool tier "
+                    f"(Complexity: {t.complexity}) — receipts run native",
+                    t.path,
+                    hint="The Integration ticket owns whole-plan gates and reviews; "
+                    "set Complexity: native",
                 )
             )
         if t.complexity in ("simple", "complex"):
@@ -695,11 +1217,47 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
     root = _repo_root(plan_dir)
     sev = _sizing_severity(context, spine_status)
     for t in tickets.values():
+        # Context-Files glob WARN binds EVERY ticket (Integration included —
+        # its exemption covers budget/citation/caps, not token hygiene).
+        for cf in t.context_files:
+            if any(ch in cf for ch in "*?"):
+                results.append(
+                    _err(
+                        f"{t.tid}: glob '{cf}' in Context Files — counts 0 bytes toward "
+                        "the READ budget (list the real files)",
+                        t.path,
+                        severity=Severity.WARN,
+                    )
+                )
+            elif _RESIDUE_RE.search(cf):
+                results.append(
+                    _err(
+                        f"{t.tid}: unparseable token '{cf}' in Context Files — counts 0 "
+                        "bytes toward the READ budget (a comma list drops EVERY path in "
+                        "the bullet)",
+                        t.path,
+                        severity=Severity.WARN,
+                    )
+                )
+            elif cf.startswith(("/", "~")) or ".." in Path(cf).parts:
+                results.append(
+                    _err(
+                        f"{t.tid}: out-of-repo path '{cf}' in Context Files — counts 0 "
+                        "bytes toward the READ budget (use a repo-relative path)",
+                        t.path,
+                        severity=Severity.WARN,
+                    )
+                )
         if t.integration:
             continue
         read_bytes = 0
         if root is not None:
             for p in dict.fromkeys(t.touches + t.context_files):
+                # Out-of-repo tokens already ERRORed — and `root / "/etc"` would
+                # REPLACE root (pathlib absolute-RHS) while `../` climbs out;
+                # never walk either.
+                if p.startswith(("/", "~")) or ".." in Path(p).parts:
+                    continue
                 fp = root / p.rstrip("/")
                 if fp.is_file():
                     read_bytes += fp.stat().st_size
@@ -901,7 +1459,16 @@ def main() -> int:
     root = args.project_root.resolve()
     if args.plan_dir:
         target = args.plan_dir.resolve()
-        if not target.is_dir() or not PLAN_DIR_NAME_RE.match(target.name):
+        if target.is_file():
+            print(
+                f"✗ --plan-dir {args.plan_dir} is a FILE — pass the plan set's DIRECTORY "
+                "(monolith .md plans are not checked by this gate)"
+            )
+            return 1
+        if not target.is_dir():
+            print(f"✗ --plan-dir {args.plan_dir} does not exist")
+            return 1
+        if not PLAN_DIR_NAME_RE.match(target.name):
             print(
                 f"✗ --plan-dir {args.plan_dir} is not a dated plan directory "
                 "(YYYY-MM-DD-plan-<slug>/)"

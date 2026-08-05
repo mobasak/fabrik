@@ -93,9 +93,9 @@ New plans only; existing monolith plans keep working unchanged.
 | `check_changelog.py` | `MIN_LINES_THRESHOLD = 0` = the STRICTEST setting (any significant staged change requires an entry, `:17`) — the acceptance commit carries the orchestrator-applied entry | `scripts/enforcement/check_changelog.py:17,35` |
 | `check_subagent_flywheel.py` | BLOCKING at >8 changed code files with zero pool runs; `NO-POOL:`/env escapes; per-commit-cycle counting | `scripts/enforcement/check_subagent_flywheel.py:46-48,194-225,243` |
 | plan-lock schema (real files) | flat `{plan, owned_paths, branch, started_at, status}`; execute-plan appends `baseline_commit` post-step-8 (staleness anchor); readers must tolerate the new optional `tickets:` key (additive) | `.fabrik/plan-locks/2026-07-03-plan-1-full-speed-coverage-close.json` · `commands/_sources/fabrik-execute-plan.md:48-49` |
-| `commands/_sources/fabrik-plan-after-chat.md` | the promise this plan enforces (`:192`); emit + naming sections to extend | `commands/_sources/fabrik-plan-after-chat.md:192,300-320` |
+| `commands/_sources/fabrik-plan-after-chat.md` | the promise this plan enforces (`:418`); emit (`:176-494`) + naming (`:550-601`) sections extended | `commands/_sources/fabrik-plan-after-chat.md:418,176-494,550-601` |
 | `commands/_sources/fabrik-execute-plan.md` | Merge Protocol is SQUASH-style (subagent branches squash-merged with `Merged-From` trailers — dispatcher mode inherits this, making the same-commit Board flip trivially atomic); "higher task number wins" replaced; MESSY-resume; whole-plan receipt + review; flat archive | `commands/_sources/fabrik-execute-plan.md:26-29,48-49,63,316-317,550-588,684,716-717` |
-| `commands/_sources/fabrik-plan-review.md` | archive paragraph does a single-file `git mv` — orphans tickets unless updated (Phase C) | `commands/_sources/fabrik-plan-review.md:150` |
+| `commands/_sources/fabrik-plan-review.md` | archive paragraph does a single-file `git mv` — orphans tickets unless updated (Phase C) | `commands/_sources/fabrik-plan-review.md:155` |
 | `commands/_fragments/term-edit.md` | md5 anti-cheat — hash recorded per pass (an artifact edit mid-loop = the next pass, by design) | `commands/_fragments/term-edit.md:5-9` |
 | `CLAUDE.md` new-`.md` allowlist | must gain the plan-directory row; reviews need no new row | `CLAUDE.md:64` |
 | fabrik-lib | no module applies; pool dispatch = vendored `libs/subagents` (`fanout` mode="write" raises on `owned_paths` overlap — `agent.py:737` docstring; diffs are captured-never-auto-applied, so a crashed pool unit leaves NO partial writes) | fabrik-lib checked — no match |
@@ -110,7 +110,7 @@ Files: `scripts/enforcement/check_plans.py` · `check_plan_quality.py` · `check
 **Canonical new shape (defined here, consumed by every later phase):**
 `docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` containing the spine `YYYY-MM-DD-plan-<n>-<slug>.md`
 (**same stem as the directory — gate-enforced**) + tickets matching the canonical ticket filename regex.
-Spine carries `Status:` (DRAFT|CONVERGED|IN-PROGRESS|EXECUTED|BLOCKED), `## Ticket Board` (TABLE:
+Spine carries `Status:` (DRAFT|PLANNED|CONVERGED|IN-PROGRESS|EXECUTED|BLOCKED), `## Ticket Board` (TABLE:
 `Ticket | Title | Depends | Parallel | State | Commit`; states ⬜ todo · 🔵 dispatched · 🟡 in review ·
 ✅ merged · 🔴 blocked), `## Merge Order` (ordered list `1. T01` — a topological sort of Depends —
 followed by zero-or-more `Serialized: <path> — <ticket IDs>` lines), `## Interfaces`,
@@ -173,11 +173,18 @@ Steps:
      `## Behavior Contract` roll-up EQUALS the union of ticket G/W/T rows (normalized text — drift =
      ERROR).
    - **Ownership:** union(Touches) ⊆ spine File Scope; a File-Scope path in no ticket = WARN
-     (spine-metadata paths — the spine itself, `reviews/`, the lock file — exempt from this WARN);
+     (the plan's OWN stem-named metadata artifacts — set dir, `<stem>.json` lock, `<stem>…-review….md`
+     docs — exempt from this WARN, STEM-scoped [AMENDED, exec-B: bare/foreign-stem metadata paths in
+     Touches are a dedicated ERROR]; governance surfaces draw a DEDICATED ERROR instead
+     [AMENDED, exec-B]);
      a shared path between two tickets = ERROR **unless** a Depends path connects them OR a
      `Serialized:` row names it; ⚡-vs-⚡ shared paths always need the `Serialized:` row (barrier
-     semantics per the grammar); the four governance files (`CHANGELOG.md`, `INDEX.md`,
-     `docs/README.md`, `docs/FEATURES.md`) in ANY ticket's Touches = ERROR (orchestrator-applied, D3 —
+     semantics per the grammar) [AMENDED, exec-B: AUTHORIAL — the gate's overlap licence is
+     Depends-or-Serialized regardless of tier; `Parallel:` is dispatch metadata the Phase-D
+     orchestrator consumes, not gate machinery]; the governance surfaces (`CHANGELOG.md`, `INDEX.md`,
+     `docs/README.md`, `docs/FEATURES.md`, `docs/LESSONS_LEARNT.md` + its legacy lowercase alias
+     [AMENDED, exec-B: five members + alias — the fifth is the same shared-append collision class])
+     in ANY ticket's Touches = ERROR (orchestrator-applied, D3 —
      they may appear in Context Files as reads).
    - **Routing cross-check:** a pool-tier ticket (`Complexity:` simple/complex) whose Touches match
      the never-route prefix tuple — `scripts/enforcement/`, `scripts/final_gate.py`, `alembic/`,
@@ -185,7 +192,9 @@ Steps:
      list in its spine Global Constraints — concrete prefixes only, no categories) = ERROR.
    - **Per-ticket grounding floor:** every non-Integration ticket carries ≥1 `path:line` citation
      (`PROOF` regex imported from `check_convergence`); `Integration: true` exempt. Integration
-     cardinality enforced: exactly one, last in Merge Order, Touches = receipt artifacts only.
+     cardinality enforced: exactly one, last in Merge Order. (Touches = receipt artifacts only is
+     the AUTHORIAL rule — no gate verifies the Touches ARE receipt artifacts; they are still
+     overlap-checked, governance-banned and File-Scope-contained like any ticket's.)
    - **Sizing:** READ budget = Σ bytes(existing Touches files) + Σ bytes(Context Files) ≤
      `READ_BUDGET_BYTES = 262144`; `Integration: true` exempt. **Severity by invocation context:**
      the CLI (emit gate) and the A3 CONVERGED-flip in-process run = ERROR; the
@@ -212,9 +221,9 @@ Steps:
      plan dir with an ACTIVE lock whose ticket Touches intersect the changed set** (an implementation
      commit that skipped the Board flip must not escape by not touching the plan dir); none → exit 0.
      `# AFTER-EDIT:` header lists the three command sources + `final_gate.py`.
-   Gate: `tests/enforcement/test_check_plan_tickets.py` (Behavior Contract 7–12, 16–17, 19–24, 26),
+   Gate: `tests/enforcement/test_check_plan_tickets.py` (Behavior Contract 7–12, 16–17, 19–24, 26–30, 32–34),
    red→green.
-6. `check_test_proposal.py` — directory-aware: `current` (`:115`) includes dated plan dirs (one plan
+6. `check_test_proposal.py` — directory-aware: `current` (`:151`) includes dated plan dirs (one plan
    unit each, keyed by dir name); dedupe keys on the unit. The proposal is demanded from the SPINE's
    roll-up section. Gate: pytest (Behavior Contract 13).
 7. `scripts/docs_updater.py` — directory-aware: `:846`/`:885` glob dirs **filtered to the dated-prefix
@@ -244,7 +253,17 @@ WITHOUT that ticket's trailer WARNs [AMENDED, round 6 — sibling/daily-pipeline
 indistinguishable; the acceptance review enforces the discipline]; (22) two Integration tickets (or one not last in Merge Order) ERRORs; (23) an
 `Integration: true` ticket over the READ budget passes the budget check; (24) a spine roll-up missing
 a ticket's G/W/T row ERRORs; (25) `docs_updater` accepts `Status: BLOCKED`; (26) no-arg CLI selects an
-active-lock plan dir when only implementation files changed.
+active-lock plan dir when only implementation files changed; (27) an Integration ticket with a bare-token
+pool tier (`Complexity: simple|complex`) ERRORs "receipts run native" [AMENDED, exec-B]; (28) a duplicate
+Ticket Board row ERRORs (the last row would silently mask the real state) [AMENDED, exec-B]; (29)
+governance surfaces (five + legacy alias) ERROR in Touches AND File Scope;
+(30) glob tokens ERROR in Touches/File Scope; interior-glob/multi-token/out-of-repo/empty/residue
+Never-Route lines and glob/out-of-repo/residue Context Files WARN (edge-star Never-Route globs degenerate to
+coverage); (31)
+check_test_proposal strips quoted content before counting; (32) out-of-repo tokens (absolute/~/..) ERROR; (33)
+plan-set territory in Touches + missing-Complexity ERROR at cli/flip; (34) residue tokens ERROR
+on the ownership surfaces, WARN in Never-Route
+[AMENDED, exec-B].
 
 Interfaces — Produces: the shape grammar + regexes + trailer/join-key/Touches grammar + Serialized
 semantics (Global Constraints + this phase); `check_plan_tickets.py` CLI + adapter + in-process API;
@@ -254,24 +273,51 @@ Closing sequence: gate green → `python scripts/enforcement/check_doc_sync.py` 
 **`/fabrik-review` on Phase A's changed surface to its coverage-adjudicated exit** → commit (explicit
 paths incl. THIS plan file, trailers, the `NO-POOL:` line).
 
-## Phase B — `/fabrik-plan-after-chat` emits spine + tickets
+## Phase B — `/fabrik-plan-after-chat` emits spine + tickets — ✅ EXECUTED 2026-08-05 (49-round review to found:0)
 
 File: `commands/_sources/fabrik-plan-after-chat.md` (Phase 2 emit + Phase 5 naming).
+
+[AMENDED, exec-B — scope expansion, recorded per the transparency rule: the Phase-B 49-round
+review loop also HARDENED Phase A's gate files (`check_plan_tickets.py` + its tests: Board
+header-scan rework to last-candidate-before-data-rows with cell normalization, the
+Integration-pool-tier ERROR (BC 27), the duplicate-Board-row ERROR (BC 28), the split
+--plan-dir CLI messages, the governance-surface File-Scope handling (dir-aware dedicated ERROR),
++83 tests (and a strip-before-extract symmetric fence fix + tests in check_test_proposal) — re-reviewed to found:0 inside THIS phase's loop, superseding Phase A's found:0 for
+those files) and added the governance carve-out line to `commands/_sources/fabrik-plan-review.md`
+§ File Scope pillar so the mandatory next command cannot re-add governance files (Phase C's
+rewrite of that file still pending); and extended the governance carve-out to MONOLITH File
+Scope too (Phase 4 bullet, "in both shapes") — monolith locks deliberately lose
+governance-path coverage, because locking `CHANGELOG.md` makes any two concurrent plans BLOCK on scope overlap
+(the shared-tree append rules, not the lock, govern those files); and tightened MONOLITH File Scope
+to literal paths / `dir/` entries — no globs (the lock's prefix matcher cannot match a glob,
+so a glob silently weakens collision detection; authorial-only for monoliths, no gate reads
+their File Scope shape); ALSO: `docs/LESSONS_LEARNT.md` joins the carve-out as the fifth
+shared-append surface (same BLOCK-on-overlap collision — GOVERNANCE_FILES now has five
+members); and Phase 5 gains the set-shape staging precondition (`git add` the SPINE before
+the review flips CONVERGED — `check_convergence` skips untracked `??`) plus the pass-the-
+DIRECTORY hand-off rule for `/fabrik-plan-review` and `/fabrik-execute-plan` (the set is the
+plan unit).]
 
 Steps:
 
 1. **Shape decision:** spine+ticket shape when ANY of: >3 phases · projected monolith >~300 lines ·
    any single phase's computed READ set exceeds `READ_BUDGET_BYTES` (pre-emit recipe:
-   `wc -c <phase files + context files> | tail -1` — no plan dir needed yet). Smaller work keeps
+   `find <paths> -type f -exec cat {} + | wc -c` [AMENDED, exec-B: was `wc -c … | tail -1` — it errors on `dir/`
+   entries, and the natural `find | xargs wc -c` workaround emits multiple `total` lines; the
+   emitted command is canonical] — no plan dir needed yet). Smaller work keeps
    today's single file; both shapes first-class.
 2. Ticket contract (ettw-06 `:44` adapted): Title · `## Scope`+DO-NOT · `Depends:` · `Parallel:` ⚡/⛓️ ·
    `## Touches` (WRITE set, grammar per Global Constraints; PRIMARY PATH marked) · `Gate:` tier ·
    `Complexity:` → dispatch tier (**simple → `pick_models("code", prefer="value")` · complex → mid pool
    coder · never-route → native worktree coder** — pool is the only route for gradeable tickets;
-   premium pool models only via a named trigger) · `## Behavior Contract` (≤8) · `## Context Files`
+   premium pool models only via a named trigger) [AMENDED, exec-B: the gate vocabulary (Phase A,
+   `check_plan_tickets.py`) also accepts **native** = author-CHOSEN native for non-never-route work
+   the pool must not code; the Integration ticket carries `Complexity: native`, and a bare-token
+   pool-tier Integration ticket is a gate ERROR — hardening from the Phase B review rounds] · `## Behavior Contract` (≤8) · `## Context Files`
    (rule packs + refs + **every existing file the coder must read**, incl. the producer's Behavior
-   Contract for seam work) · `Docs:` · ≥1 `path:line` citation (non-Integration) · optional
-   `Integration: true` · **no `Status:`**. Native coder tier: **`claude -p sonnet` default;
+   Contract for seam work) · `Docs:` · ≥1 `path:line` citation (non-Integration) · exactly-one
+   `Integration: true` per plan [AMENDED, exec-B: was "optional" — contradicted the grammar (:125)
+   and the shipped gate's exactly-one cardinality; the gate is canonical] · **no `Status:`**. Native coder tier: **`claude -p sonnet` default;
    `claude -p opus` for design-heavy** (auth flow/schema/migration design, concurrency); Haiku never
    codes.
 3. Sizing — mechanical + authorial, split: run `check_plan_tickets --plan-dir <dir>` (budgets,
@@ -284,18 +330,23 @@ Steps:
    format + Serialized semantics + seam-test ownership + the Integration ticket rules). The
    Integration ticket owns: whole-plan `check_doc_sync.py --range` + `check_doc_stubs.py --range`
    receipt, `/fabrik-docs-review`, `/fabrik-features` (when features shipped), the cross-ticket
-   seam-test run; doc-drift fixes and command outputs flow through `## Deltas` (D3), never written
+   seam-test run, and the whole-plan `final_gate.py --check --json` + `check_convergence.py` run
+   [AMENDED, exec-B: added in review round 3 — the monolith's mandatory final step had no set-shape
+   owner]; doc-drift fixes and command outputs flow through `## Deltas` (D3), never written
    directly.
-5. Nothing else changes — monolith path, Context Ledger, Evidence, question bar, pool-default
+5. Nothing else changes beyond the recorded exec-B expansions above — monolith path, Context Ledger, Evidence, question bar, pool-default
    grounding all stand.
 
 Gates: `python commands/assemble_commands.py` (render) + `--check` green; grep-asserts: shape decision
 (incl. byte test + recipe); full field contract; `Status:` ban; author-splits + simulation-authoritative
-rule; `check_plan_tickets` as emit gate; Integration rules; native tier lines.
+rule; `check_plan_tickets` as emit gate; Integration rules; native tier lines; AND (per the scope
+expansion above) `python -m pytest tests/enforcement/test_check_plan_tickets.py -q` green
+[AMENDED, exec-B].
 
 Interfaces — Consumes: Phase A grammar + CLI. Produces: the emitted shape C and D consume.
 
-Closing sequence: render + `--check` → doc sync + CHANGELOG → `/fabrik-review` on the source diff →
+Closing sequence: render + `--check` → doc sync + CHANGELOG → `/fabrik-review` on the full Phase-B
+diff (source + the gate-file hardening, per the scope expansion) [AMENDED, exec-B] →
 `bash scripts/dr_claude_backup.sh` → commit.
 
 ## Phase C — `/fabrik-plan-review` converges spine + every ticket
@@ -315,7 +366,7 @@ Steps:
 4. Per-ticket axes: Scope/DO-NOT concrete; Touches real + grammar-conformant; Context Files complete
    (the read-set rule); Behavior Contract ≤8; Interfaces signature-consistent cross-ticket; every seam
    test named + in the consumer's Touches. Ask-before-not-during sweep over ticket bodies too.
-5. **Archive paragraph** (`:150`): an EXECUTED plan set is archived as a **whole-directory move**;
+5. **Archive paragraph** (`:155`): an EXECUTED plan set is archived as a **whole-directory move**;
    never the single-file `git mv`.
 
 Gates: render + `--check`; grep-asserts: plan-set scope + per-pass combined hash +
@@ -367,9 +418,11 @@ Steps:
      the plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on
      quota reset/rotation. **The Opus floor is never substitutable downward** — quota pressure pauses
      the plan, it never thins the review.
-3. **Shared governance files — orchestrator-applied:** the four files are never in Touches
-   (gate-enforced). Coder reports end with a **`## Deltas` block** (fixed format: `### CHANGELOG`
-   entry text verbatim, `### INDEX` rows, etc.); the orchestrator applies deltas at merge in
+3. **Shared governance files — orchestrator-applied:** the five surfaces are never in Touches
+   (gate-enforced) [AMENDED, exec-B: five, incl. LESSONS_LEARNT]. Coder reports end with a
+   **`## Deltas` block** (fixed format: `### CHANGELOG`
+   entry text verbatim, `### INDEX` rows, `### LESSONS` entry-or-none [AMENDED, exec-B: the fifth
+   surface needs its channel], etc.); the orchestrator applies deltas at merge in
    Merge-Order order, **dedupes on normalized full entry text — same-title-different-body pairs are
    surfaced to the acceptance review, never silently dropped** — and the applied diff is part of the
    acceptance-review surface, landing in the acceptance commit (where `check_changelog.py` demands
@@ -487,6 +540,14 @@ One Given/When/Then per gate behavior (numbered per Phase A; test-mapped there):
 - **Given** a spine roll-up missing a ticket's G/W/T row, **When** the roll-up equality check runs, **Then** ERROR (24).
 - **Given** a spine at `Status: BLOCKED`, **When** `docs_updater` validates, **Then** accepted (25).
 - **Given** only implementation files changed under an active lock, **When** the no-arg CLI runs, **Then** that plan dir is selected (26).
+- **Given** an Integration ticket with a bare-token pool tier (`Complexity: simple|complex`), **When** the routing check runs, **Then** ERROR "receipts run native" (27) [AMENDED, exec-B].
+- **Given** a Ticket Board with two rows for one ID or a duplicated Merge Order entry, **When** the structure checks run, **Then** ERROR (last-wins would mask state/order; Merge Order positions resolve FIRST-occurrence; Serialized rows are per-row licences, covering-aware, never unioned; the field family parses bold/bullet/numbered forms, is case-insensitive, and NEVER parses blockquoted lines) (28) [AMENDED, exec-B ×2].
+- **Given** a ticket touching any governance surface (incl. the legacy lowercase lessons alias) or a spine File Scope entry covering one, **When** the ownership checks run, **Then** ERROR on both surfaces — File Scope builds the lock (29) [AMENDED, exec-B].
+- **Given** a `*`/`?` token in Touches or File Scope, **When** the ownership checks run, **Then** ERROR (opaque tokens disable the safety predicates); an INTERIOR-glob Never-Route or globbed Context Files entry draws a WARN — an edge-star Never-Route glob degenerates to its dir prefix (coverage EXTENDS, fail-closed), and multi-token / out-of-repo / empty Never-Route lines each draw their own WARN (30) [AMENDED, exec-B ×2].
+- **Given** a fenced example row or heading in a plan's Behavior Contract / Success criteria, **When** `check_test_proposal` counts, **Then** quoted content is stripped BEFORE section extraction — no hijack, no inflation (31) [AMENDED, exec-B].
+- **Given** an out-of-repo Touches/File-Scope token — absolute, `~`, or `..` (a `**/x/**` recursive glob normalizes to the absolute shape) — or a foreign-stem metadata path in Touches, **When** the ownership checks run, **Then** ERROR (32) [AMENDED, exec-B].
+- **Given** any `docs/development/plans/` path in Touches (own-stem included — the Board is the orchestrator's write surface) or a ticket with no parseable `Complexity:` line, **When** the routing/ownership checks run, **Then** ERROR at cli/flip (the missing-Complexity finding softens to WARN on the shared gate path) (33) [AMENDED, exec-B].
+- **Given** a token with quote/backtick/separator/colon residue after fixpoint normalization (a `path:NN` citation collapses to the path first), **When** the ownership checks run, **Then** ERROR in Touches/File Scope, WARN in Never-Route, Context Files (0-byte class) and a VOID-row WARN in Serialized — never silent (34) [AMENDED, exec-B; recorded residuals: paren-wrapped NR tokens, all-dot `...` placeholder segments, and colon-only tokens collapsing to empty (the `./`→empty class) match nothing silently; a residue File Scope entry additionally leaves the true containment ERROR standing — both resolve on the same one-line fix].
 - **Mocked:** nothing — real check functions on real fixtures under `tmp_path`; git-dependent checks use a scratch repo fixture.
 
 ## File Scope (owned paths)
@@ -502,20 +563,27 @@ One Given/When/Then per gate behavior (numbered per Phase A; test-mapped there):
   downgrade re-promotes to a hard failure])
 - `scripts/final_gate.py` (one Tier-2 registration append only)
 - `scripts/docs_updater.py` (plans-table + validation dir-awareness + BLOCKED vocab only)
-- `tests/enforcement/test_check_plan_tickets.py` (new — Behavior Contract 7–12, 16–17, 19–24, 26)
-- `tests/test_check_convergence.py` (extend — Behavior Contract 6; 18 existing tests stay green)
-- `tests/enforcement/test_plan_shape_gates.py` (new — Behavior Contract 1–5, 13–15, 18, 25)
+- `tests/enforcement/test_check_plan_tickets.py` (new — Behavior Contract 7–12, 16–17, 19–24, 26–30, 32–34; 31 in test_plan_shape_gates)
+- `tests/test_check_convergence.py` (extend — Behavior Contract 6 + BC 33's flip half; existing tests stay green)
+- `tests/enforcement/test_plan_shape_gates.py` (new — Behavior Contract 1–5, 13–15, 18, 25, 31)
 - `commands/_sources/fabrik-plan-after-chat.md`
 - `commands/_sources/fabrik-plan-review.md`
 - `commands/_sources/fabrik-execute-plan.md`
 - `CLAUDE.md` (allowlist row — serialization point, shared)
-- `CHANGELOG.md` (serialization point, shared)
-- `INDEX.md` (serialization point, shared)
-- `docs/LESSONS_LEARNT.md` (serialization point, shared)
 - `docs/development/plans/2026-08-04-plan-1-spine-ticket-plans.md` (this plan — staged in Phase A's commit)
-- `docs/development/reviews/2026-08-04-plan-1-spine-ticket-plans*-review.md` (review artifacts)
+- `docs/development/reviews/2026-08-04-plan-1-spine-ticket-plans-review.md` (the review artifact,
+  literal per the no-globs rule this plan ships)
+
+[AMENDED, exec-B — prose, deliberately NOT a list bullet so no path scanner re-ingests it: the three
+governance surfaces (CHANGELOG, INDEX, LESSONS_LEARNT) were REMOVED from the File Scope list above
+and from the live lock's `owned_paths` (20→17) — the carve-out this very plan shipped applies to its
+own artifacts, else the active lock would BLOCK every concurrent sibling on the changelog. The two
+spine-metadata entries (reviews receipt, lock file) are in File Scope but intentionally
+lock-less — metadata, not contested write surfaces; the former `~/.claude/**` bullet is DELETED —
+rendered outputs are the orchestrator's render step, never ownable paths. Lock rule: owned_paths =
+File Scope MINUS the stem-scoped metadata entries — nothing else may be dropped at lock time, which
+is exactly why a governance surface in File Scope is a gate ERROR.]
 - `.fabrik/plan-locks/2026-08-04-plan-1-spine-ticket-plans.json` (at execution)
-- rendered outputs under `~/.claude/**` via assemble (not git-tracked here)
 
 ## Evidence
 
@@ -557,8 +625,8 @@ Phase B–D (design sources read this session):
 07-…:56 "BOTH … fanout(\"review\", …) AND ≥1 native fabrik-reviewer on Opus" — UNCONDITIONAL, adopted per round
 62-…:118-120 NEVER-route list (incl. "security controls (RLS, rate-limits, final_gate)")
 fabrik-execute-plan.md:584 "Higher task number wins" ← replaced; :550-577 squash-merge protocol inherited
-fabrik-plan-after-chat.md:192 "cold subagent can execute ONE phase without seeing the others"
-fabrik-plan-review.md:150 single-file archive git mv ← directory move in Phase C
+fabrik-plan-after-chat.md:418 "cold subagent can execute ONE phase without seeing the others" [re-measured after the pass-47 doctrine edit]
+fabrik-plan-review.md:155 single-file archive git mv ← directory move in Phase C [line moved by the Phase-B insert]
 ```
 
 - Lock schema (flat) + `baseline_commit` append: real lock files + `fabrik-execute-plan.md:48-49`.
@@ -577,7 +645,7 @@ fabrik-plan-review.md:150 single-file archive git mv ← directory move in Phase
   (GPT/Gemini/Kimi, $1.39): 41 raised → 28 folded. P7: no-op. P8–10: dispatch economics + four-rung
   tier map (operator-raised; bench-confirmed). P11: no-op. **P12: FINAL frontier panel
   (GPT-5.6-terra-pro $0.20 · Gemini-3.1-pro $0.31 · Kimi-K3 $0.70 · minimax-m3 $0.02 — $1.23; ~89
-  raised → ~35 confirmed folded**: blocked-end in-flight guard; A2/A5 DRAFT-severity reconciliation
+  raised → ~35 confirmed folded)**: blocked-end in-flight guard; A2/A5 DRAFT-severity reconciliation
   (severity by invocation context); Integration-vs-exclusive-Touches resolution (receipts-only +
   consumer-owned seam tests + Touches=WRITE-set clarification); staleness redesign (first-parent,
   never-✅ semantics, per-ticket trailer match, active-lock no-arg selection); quota-pause terminal +

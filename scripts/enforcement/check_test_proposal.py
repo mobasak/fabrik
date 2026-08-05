@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: none
+# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py, tests/test_check_test_proposal.py | none
 """
 Check that the latest plan carries a Behavior Contract (the STRUCTURE gate).
 
@@ -38,19 +38,40 @@ def _section(content: str, title_substr: str) -> str | None:
     return rest[: nxt.start()] if nxt else rest
 
 
+# Balanced line-anchored fences + inline single-line quotes — the shared parsing
+# contract (keep in step with check_plan_tickets._FENCE_RE): a fenced example
+# `Given` row must not count as a behavior.
+_FENCE_RE = re.compile(r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)", re.M | re.S)
+
+
 def _count_behaviors(content: str) -> int:
     """Behaviors = Given/When/Then triples in the Behavior Contract section (proxy: `Given` markers,
-    scoped to the section so prose 'given' elsewhere can't inflate the count)."""
-    section = _section(content, "behavior contract") or ""
+    section extracted AFTER fence-stripping, so quoted content can't hijack or inflate)."""
+    stripped = _FENCE_RE.sub("", content)
+    section = _section(stripped, "behavior contract") or ""
     return len(re.findall(r"\bgiven\b", section, re.IGNORECASE))
+
+
+# NOTE: BOTH counters strip fences from the whole text FIRST, then extract —
+# the same order as check_plan_tickets (quoted-content semantics: a fenced
+# `## Heading` is not a heading, a fenced row is not a row). Symmetric, or a
+# one-sided strip fails healthy plans; extract-then-strip would let a fenced
+# `## Behavior Contract` template hijack _section's first-heading match and a
+# fenced `#` comment truncate a section. (The two PRESENCE gates in
+# evaluate_plan stay RAW by design — an all-fenced contract then fails at
+# behaviors<1, which is fail-closed.)
 
 
 def _count_criteria(content: str) -> int:
     """Acceptance criteria = top-level list items under a Success/Acceptance-criteria heading. 0 if
     there is no such section (→ the count comparison is skipped; structure-only)."""
-    section = _section(content, "success criteria") or _section(content, "acceptance criteria")
+    stripped = _FENCE_RE.sub("", content)
+    section = _section(stripped, "success criteria") or _section(stripped, "acceptance criteria")
     if not section:
         return 0
+    # Quoted content is NEVER a denominator: an all-fenced criteria section
+    # counts 0 and the comparison is skipped (structure-only) — a raw fallback
+    # would re-open both the inflation and the fenced-template hijack.
     return len(re.findall(r"^\s*(?:\d+\.|[-*])\s+\S", section, re.MULTILINE))
 
 

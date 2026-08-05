@@ -1,4 +1,4 @@
-"""Tests for scripts/enforcement/check_plan_tickets.py (Behavior Contract 7-12, 16-17, 19-24, 26).
+"""Tests for scripts/enforcement/check_plan_tickets.py (Behavior Contract 7-12, 16-17, 19-24, 26-30, 32-34).
 
 Builds throwaway plan sets under tmp_path (<root>/docs/development/plans/<dated-dir>/)
 and drives check_plan_dir / the check_file adapter / the CLI directly.
@@ -68,7 +68,7 @@ T99 = """# T99 — integration
 
 Depends: T02
 Parallel: ⛓️
-Complexity: simple
+Complexity: native
 Docs: whole-plan receipt
 Gate: python scripts/enforcement/check_doc_sync.py
 Integration: true
@@ -98,9 +98,9 @@ Status: DRAFT
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | schema | — | ⚡ | ⬜ | — |
-| T02 | api | T01 | ⛓️ | ⬜ | — |
-| T99 | integration | T02 | ⛓️ | ⬜ | — |
+| T01 | schema | — | ⚡ | ⬜ | |
+| T02 | api | T01 | ⛓️ | ⬜ | |
+| T99 | integration | T02 | ⛓️ | ⬜ | |
 
 ## Merge Order
 
@@ -426,7 +426,7 @@ def test_bc10_21_staleness_window(tmp_path: Path) -> None:
     spine_p = plan_dir / f"{DIRNAME}.md"
     spine_p.write_text(
         spine_p.read_text(encoding="utf-8").replace(
-            "| T01 | schema | — | ⚡ | ⬜ | — |", "| T01 | schema | — | ⚡ | ✅ | abc123 |"
+            "| T01 | schema | — | ⚡ | ⬜ | |", "| T01 | schema | — | ⚡ | ✅ | abc123 |"
         ),
         encoding="utf-8",
     )
@@ -531,8 +531,8 @@ def test_serialized_accepts_plain_hyphen(tmp_path: Path) -> None:
 def test_bc12_dedupe_is_real_not_vacuous(tmp_path: Path) -> None:
     # O24: prove the dedupe on a plan set that HAS a finding (orphan Board row).
     spine = SPINE.replace(
-        "| T02 | api | T01 | ⛓️ | ⬜ | — |",
-        "| T02 | api | T01 | ⛓️ | ⬜ | — |\n| T77 | ghost | — | ⚡ | ⬜ | — |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |\n| T77 | ghost | — | ⚡ | ⬜ | — |",
     )
     plan_dir = _build(tmp_path, spine=spine)
     cpt._SEEN_DIRS.clear()
@@ -598,8 +598,8 @@ def test_fenced_citation_still_satisfies_grounding_floor(tmp_path: Path) -> None
 
 def test_unrecognized_spine_status_fails_closed(tmp_path: Path) -> None:
     spine = SPINE.replace("Status: DRAFT", "Status: COMPLETE").replace(
-        "| T02 | api | T01 | ⛓️ | ⬜ | — |",
-        "| T02 | api | T01 | ⛓️ | ⬜ | — |\n| T88 | ghost | — | ⚡ | ⬜ | — |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |\n| T88 | ghost | — | ⚡ | ⬜ | — |",
     )
     plan_dir = _build(tmp_path, spine=spine)
     res = cpt.check_plan_dir(plan_dir, context="gate")
@@ -608,12 +608,59 @@ def test_unrecognized_spine_status_fails_closed(tmp_path: Path) -> None:
     assert any("not a pipeline value" in m for m in _errors(res))
 
 
+def test_blockquoted_status_example_never_downgrades_the_gate(tmp_path: Path) -> None:
+    # Pass-47 regression: a `> Status: DRAFT` example above the real line must
+    # not win first-match as the spine's own status (that would silently make
+    # the whole contract advisory at the gate). The real EXECUTED wins.
+    spine = SPINE.replace("Status: DRAFT", "> Status: DRAFT\n\nStatus: EXECUTED").replace(
+        "| T02 | api | T01 | ⛓️ | ⬜ | |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |\n| T88 | ghost | — | ⚡ | ⬜ | — |",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    assert any("orphan row" in m for m in _errors(cpt.check_plan_dir(plan_dir, context="gate")))
+
+
+def test_blockquoted_only_status_is_absent_not_parsed(tmp_path: Path) -> None:
+    # Quoted content — fenced OR blockquoted — is invisible to spine-status
+    # determination: a spine whose ONLY Status line is quoted behaves as
+    # absent (draft-like sibling protection), never as the quoted value.
+    spine = SPINE.replace("Status: DRAFT", "> Status: EXECUTED").replace(
+        "| T02 | api | T01 | ⛓️ | ⬜ | |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |\n| T88 | ghost | — | ⚡ | ⬜ | — |",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    res = cpt.check_plan_dir(plan_dir, context="gate")
+    assert not any("orphan row" in m for m in _errors(res))
+    assert any("orphan row" in m for m in _warns(res))
+
+
+def test_blockquoted_example_does_not_mask_unrecognized_status(tmp_path: Path) -> None:
+    # A quoted DRAFT example must not make a typo'd REAL status (COMPLETE)
+    # look recognized — the unrecognized branch still fails closed.
+    spine = SPINE.replace("Status: DRAFT", "> Status: DRAFT\n\nStatus: COMPLETE")
+    plan_dir = _build(tmp_path, spine=spine)
+    assert any(
+        "not a pipeline value" in m for m in _errors(cpt.check_plan_dir(plan_dir, context="gate"))
+    )
+
+
+def test_blockquoted_never_route_adds_coverage(tmp_path: Path) -> None:
+    # Pass-47 mutation kill: the `>` on the Never-Route label is load-bearing —
+    # a quoted Never-Route line ADDS coverage (fail-closed direction).
+    spine = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n> Never-Route: src/app/",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    assert any("route it native" in m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli")))
+
+
 def test_adapter_path_is_always_advisory(tmp_path: Path) -> None:
     # A CONVERGED sibling set with structural breaks must not hard-red the
     # per-file validate_conventions path (it cannot know whose plan this is).
     spine = SPINE.replace("Status: DRAFT", "Status: CONVERGED").replace(
-        "| T02 | api | T01 | ⛓️ | ⬜ | — |",
-        "| T02 | api | T01 | ⛓️ | ⬜ | — |\n| T88 | ghost | — | ⚡ | ⬜ | — |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |",
+        "| T02 | api | T01 | ⛓️ | ⬜ | |\n| T88 | ghost | — | ⚡ | ⬜ | — |",
     )
     plan_dir = _build(tmp_path, spine=spine)
     cpt._SEEN_DIRS.clear()
@@ -705,3 +752,1091 @@ def test_spine_never_route_extension(tmp_path: Path) -> None:
     )
     plan_dir = _build(tmp_path, spine=spine)
     assert any("route it native" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+def test_board_state_header_scan_ignores_data_rows() -> None:
+    # A decorated header IS header-aware post-normalization (State resolves to
+    # index 5 here); the DATA row titled "State" is excluded by the break live
+    # (and by the T##-veto under a break-less mutant — the break's isolation
+    # lives in test_board_state_break_isolates_aux_table_after_data_rows).
+    spine = SPINE.replace(
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+        "| **Ticket** | **Title** | **Depends** | **Parallel** | **State** | **Commit** |",
+    ).replace("| T01 | schema |", "| T01 | State |")
+    states = cpt._board_states(spine)
+    assert states == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_header_awareness_reads_reordered_column() -> None:
+    # Characterization: a bare header with an extra column BEFORE State must
+    # be read via the header index (6), never the fallback (5). Guards against
+    # deleting header-awareness wholesale (green before and after pass-10).
+    spine = (
+        SPINE.replace(
+            "| Ticket | Title | Depends | Parallel | State | Commit |",
+            "| Ticket | Title | Owner | Depends | Parallel | State | Commit |",
+        )
+        .replace("| T01 | schema | — |", "| T01 | schema | me | — |")
+        .replace("| T02 | api | T01 |", "| T02 | api | me | T01 |")
+        .replace("| T99 | integration | T02 |", "| T99 | integration | me | T02 |")
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_header_scan_skips_legend_table() -> None:
+    # A legend table ABOVE the board must not be mistaken for the header —
+    # last-candidate-wins makes the real header authoritative. (The width guard
+    # itself is isolated by test_board_state_narrow_legend_below_separator.)
+    spine = SPINE.replace(
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+        "| State | Meaning |\n|---|---|\n| ⬜ | todo |\n\n"
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_decorated_header_keeps_header_awareness() -> None:
+    # Cell normalization: a fully-decorated header with an extra column before
+    # State must still be header-aware (State read at index 6, not fallback 5).
+    spine = (
+        SPINE.replace(
+            "| Ticket | Title | Depends | Parallel | State | Commit |",
+            "| **Ticket** | **Title** | **Owner** | **Depends** | **Parallel** | **State** | **Commit** |",
+        )
+        .replace("| T01 | schema | — |", "| T01 | schema | me | — |")
+        .replace("| T02 | api | T01 |", "| T02 | api | me | T01 |")
+        .replace("| T99 | integration | T02 |", "| T99 | integration | me | T02 |")
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_roster_table_does_not_hijack_header_scan() -> None:
+    # A `| Ticket | Owner |` roster above the real board has a Ticket cell but
+    # no State cell — it must be skipped, not break the scan. (T##-bearing rows
+    # inside the Board section are BANNED by the doc: they parse as Board rows.)
+    spine = (
+        SPINE.replace(
+            "| Ticket | Title | Depends | Parallel | State | Commit |",
+            "| Ticket | Owner |\n|---|---|\n| all | me |\n\n"
+            "| Ticket | Title | Owner | Depends | Parallel | State | Commit |",
+        )
+        .replace("| T01 | schema | — |", "| T01 | schema | me | — |")
+        .replace("| T02 | api | T01 |", "| T02 | api | me | T01 |")
+        .replace("| T99 | integration | T02 |", "| T99 | integration | me | T02 |")
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_data_row_state_cell_is_normalized() -> None:
+    # A bold-wrapped state cell must not disable the ⬜-never-flipped check.
+    spine = SPINE.replace("| T01 | schema | — | ⚡ | ⬜ |", "| T01 | schema | — | ⚡ | **⬜** |")
+    assert cpt._board_states(spine)["T01"] == "⬜"
+
+
+def test_governance_files_in_file_scope_error(tmp_path: Path) -> None:
+    # Governance files belong in NEITHER Touches nor File Scope (outside the
+    # lock by design) — File Scope BUILDS the lock, so a listed surface is an
+    # ERROR (never the misleading orphan message).
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- CHANGELOG.md\n- INDEX.md\n- docs/README.md\n- docs/FEATURES.md\n",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("owned by no ticket" in m for m in _warns(results))
+    # Not silence either: each listed surface draws the DEDICATED error.
+    assert sum("governance surface" in m for m in _errors(results)) == 4
+
+
+def test_integration_ticket_pool_tier_errors(tmp_path: Path) -> None:
+    # The Integration ticket owns whole-plan gates/reviews — a pool tier ERRORs.
+    t99 = T99.replace("Complexity: native", "Complexity: simple")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99}
+    )
+    assert any("receipts run native" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+def test_board_state_renamed_header_keeps_header_awareness() -> None:
+    # A renamed first cell (`ID`) must not lose header-awareness: the header is
+    # recognized by State + width + no-T##-cell, not by the literal `Ticket`.
+    spine = (
+        SPINE.replace(
+            "| Ticket | Title | Depends | Parallel | State | Commit |",
+            "| ID | Title | Owner | Depends | Parallel | State | Commit |",
+        )
+        .replace("| T01 | schema | — |", "| T01 | schema | me | — |")
+        .replace("| T02 | api | T01 |", "| T02 | api | me | T01 |")
+        .replace("| T99 | integration | T02 |", "| T99 | integration | me | T02 |")
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_data_row_titled_state_never_sets_index() -> None:
+    # With an unrecognizable header (bold-outside-backtick double-wrap), a data
+    # row whose Title cell is "State" is excluded by the break live (T##-veto
+    # would catch it under a break-less mutant) — fallback 5 reads the true
+    # state column.
+    spine = SPINE.replace(
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+        "| **`Ticket`** | **`Title`** | **`Depends`** | **`Parallel`** | **`State`** | **`Commit`** |",
+    ).replace("| T01 | schema |", "| T01 | State |")
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_path_qualified_changelog_is_ownable(tmp_path: Path) -> None:
+    # A path-qualified CHANGELOG.md is an ownable file — the governance
+    # predicate must NOT hit it (it still draws the normal orphan WARN).
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- projects/foo/CHANGELOG.md\n",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    warns = _warns(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("projects/foo/CHANGELOG.md' is owned by no ticket" in m for m in warns)
+
+
+def test_board_state_wide_legend_loses_to_real_header() -> None:
+    # A WIDE legend (>=4 cells, has State, no T## IDs) above the board must not
+    # hijack the index: the LAST candidate header before the first data row wins.
+    spine = SPINE.replace(
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+        "| State | Glyph | Meaning | Set by |\n|---|---|---|---|\n\n"
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_integration_ticket_never_route_tier_does_not_fire_pool_error(tmp_path: Path) -> None:
+    # never-route must not fire "receipts run native"; a BOLDED pool-tier label
+    # now PARSES (tolerant regex) and correctly fires it — the old
+    # bolded-label-means-no-Complexity fail-open is closed.
+    t99a = T99.replace("Complexity: native", "Complexity: never-route")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99a}
+    )
+    assert not any("receipts run native" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+    t99b = T99.replace("Complexity: native", "**Complexity:** simple")
+    plan_dir2 = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99b}
+    )
+    assert any("receipts run native" in m for m in _errors(cpt.check_plan_dir(plan_dir2)))
+
+
+def test_duplicate_board_row_errors(tmp_path: Path) -> None:
+    # A copy-pasted Board row silently masks the real state (last row wins) —
+    # the gate must flag it loudly.
+    spine = SPINE.replace(
+        "| T99 | integration | T02 | ⛓️ | ⬜ | |",
+        "| T99 | integration | T02 | ⛓️ | ⬜ | |\n| T01 | schema (dup) | — | ⚡ | ✅ | abc |",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    assert any("duplicate Ticket Board row" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+def test_board_state_header_scan_vetoes_id_bearing_wide_line() -> None:
+    # The T##-veto in ISOLATION: a wide aux |-line with a State cell and T##
+    # tokens placed BELOW the separator (after the real header, before the data
+    # rows) is the LAST candidate — only the veto stops it hijacking the index.
+    # Red-on-revert against a veto-less scan.
+    spine = SPINE.replace(
+        "|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|\n| State | T01, T02 | example | note |",
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_break_isolates_aux_table_after_data_rows() -> None:
+    # The break in isolation: a recognizable wide aux table (State cell, >=4
+    # cells, NO T## token) placed AFTER the data rows would be the last
+    # candidate without the first-data-row break. Red-on-revert against a
+    # break-less scan.
+    spine = SPINE.replace(
+        "| T99 | integration | T02 | ⛓️ | ⬜ | |",
+        "| T99 | integration | T02 | ⛓️ | ⬜ | |\n\n| State | Glyph | Meaning | Note |\n|---|---|---|---|",
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_three_column_board_stays_parseable() -> None:
+    # Removed-behavior guard: a minimal 3-column board parsed at HEAD and must
+    # keep parsing (width guard is >=3, not >=4) — else the staleness check
+    # silently dies on narrow boards.
+    spine = SPINE.replace(
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+        "| Ticket | State | Commit |",
+    ).replace("|---|---|---|---|---|---|", "|---|---|---|")
+    spine = (
+        spine.replace("| T01 | schema | — | ⚡ | ⬜ | |", "| T01 | ⬜ | |")
+        .replace("| T02 | api | T01 | ⛓️ | ⬜ | |", "| T02 | ⬜ | |")
+        .replace("| T99 | integration | T02 | ⛓️ | ⬜ | |", "| T99 | ⬜ | |")
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_narrow_legend_below_separator_rejected() -> None:
+    # The width guard in ISOLATION: a 2-cell `| State | Meaning |` legend below
+    # the separator is the LAST candidate — only the width guard stops it
+    # setting state_idx=1. Red-on-revert against a width-guard-less scan.
+    spine = SPINE.replace(
+        "|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|\n| State | Meaning |",
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_board_state_lowercase_state_header_is_recognized() -> None:
+    # The State cell match is case-insensitive: a `state` header cell with an
+    # extra column before it must still be header-aware (index 6).
+    spine = (
+        SPINE.replace(
+            "| Ticket | Title | Depends | Parallel | State | Commit |",
+            "| Ticket | Title | Owner | Depends | Parallel | state | Commit |",
+        )
+        .replace("| T01 | schema | — |", "| T01 | schema | me | — |")
+        .replace("| T02 | api | T01 |", "| T02 | api | me | T01 |")
+        .replace("| T99 | integration | T02 |", "| T99 | integration | me | T02 |")
+    )
+    assert cpt._board_states(spine) == {"T01": "⬜", "T02": "⬜", "T99": "⬜"}
+
+
+def test_cli_plan_dir_validation_messages(tmp_path: Path) -> None:
+    # The four --plan-dir rejection branches each name their real cause.
+    root = Path(__file__).resolve().parents[2]
+    import sys as _sys
+
+    cmd = [_sys.executable, "-m", "scripts.enforcement.check_plan_tickets", "--plan-dir"]
+    r1 = subprocess.run(
+        cmd + ["docs/development/plans/2026-01-01-plan-9-nope"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert r1.returncode == 1 and "does not exist" in r1.stdout
+    bad = tmp_path / "docs" / "development" / "plans" / "not-a-plan-name"
+    bad.mkdir(parents=True)
+    r2 = subprocess.run(cmd + [str(bad)], cwd=root, capture_output=True, text=True)
+    assert r2.returncode == 1 and "not a dated plan directory" in r2.stdout
+    outside = tmp_path / "elsewhere" / "2026-01-01-plan-9-x"
+    outside.mkdir(parents=True)
+    r3 = subprocess.run(cmd + [str(outside)], cwd=root, capture_output=True, text=True)
+    assert r3.returncode == 1 and "not under docs/development/plans/" in r3.stdout
+    monolith = tmp_path / "2026-01-01-plan-9-mono.md"
+    monolith.write_text("# plan\n", encoding="utf-8")
+    r4 = subprocess.run(cmd + [str(monolith)], cwd=root, capture_output=True, text=True)
+    assert r4.returncode == 1 and "is a FILE" in r4.stdout
+
+
+def test_board_state_three_cell_aux_below_separator_hijacks() -> None:
+    # CHARACTERIZATION of the accepted cost of the >=3 width guard (which keeps
+    # 3-column boards parseable): a 3-content-cell T##-free aux line with a
+    # State cell, below the separator, IS a recognizable last candidate and
+    # hijacks the index. The doc bans aux tables in the Board section for
+    # exactly this reason. If this test ever fails, the width boundary moved —
+    # update the doc's ">=3 content cells" claim in the same change.
+    spine = SPINE.replace(
+        "|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|\n| State | Glyph | Meaning |",
+    )
+    states = cpt._board_states(spine)
+    assert states["T01"] != "⬜"  # hijacked — reads the ID column
+
+
+def test_board_state_two_column_board_is_not_recognized() -> None:
+    # CHARACTERIZATION of the accepted cost of the >=3 width guard: a 2-column
+    # board is below the recognition floor AND below fallback reach — states
+    # read empty, the staleness check is off. Documented ("keep the canonical
+    # six"); if this test fails, the width boundary moved — update the doc.
+    spine = SPINE.replace(
+        "| Ticket | Title | Depends | Parallel | State | Commit |",
+        "| Ticket | State |",
+    ).replace("|---|---|---|---|---|---|", "|---|---|")
+    spine = (
+        spine.replace("| T01 | schema | — | ⚡ | ⬜ | |", "| T01 | ⬜ |")
+        .replace("| T02 | api | T01 | ⛓️ | ⬜ | |", "| T02 | ⬜ |")
+        .replace("| T99 | integration | T02 | ⛓️ | ⬜ | |", "| T99 | ⬜ |")
+    )
+    assert cpt._board_states(spine) == {"T01": "", "T02": "", "T99": ""}
+
+
+def test_board_state_five_cell_aux_below_separator_hijacks_plausibly() -> None:
+    # CHARACTERIZATION (companion to the 3-cell case): a WIDE T##-free aux line
+    # below the separator hijacks via pure last-candidate-wins — and the nastier
+    # symptom is a plausible-looking non-⬜ value (the Depends column), not an
+    # obvious ticket ID. Doc-banned; if this fails, the recognition rule moved.
+    spine = SPINE.replace(
+        "|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|\n| State | Glyph | Meaning | Set by | Note |",
+    )
+    states = cpt._board_states(spine)
+    assert states["T01"] != "⬜"  # hijacked
+
+
+def test_lessons_learnt_is_governance_class(tmp_path: Path) -> None:
+    # docs/LESSONS_LEARNT.md is the fifth shared-append surface: banned from
+    # Touches like the other governance files; a File Scope listing draws the
+    # dedicated ERROR, never the orphan message.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- docs/LESSONS_LEARNT.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    assert any(
+        "governance file" in m and "LESSONS_LEARNT" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir))
+    )
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- docs/LESSONS_LEARNT.md\n",
+    )
+    plan_dir2 = _build(tmp_path / "b", spine=spine)
+    results2 = cpt.check_plan_dir(plan_dir2, context="cli")
+    assert not any("owned by no ticket" in m for m in _warns(results2))
+    assert any("governance surface" in m and "LESSONS_LEARNT" in m for m in _errors(results2))
+
+
+def test_legacy_lessons_alias_is_governance_class(tmp_path: Path) -> None:
+    # The legacy-tolerated lowercase name is the SAME surface — the ban must
+    # not be bypassable by the alias.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- docs/lessons-learnt.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    assert any(
+        "governance file 'docs/lessons-learnt.md'" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir))
+    )
+
+
+def test_docs_dir_in_file_scope_draws_governance_error(tmp_path: Path) -> None:
+    # Dir-aware: a `docs/` File Scope entry covers three governance surfaces —
+    # the dedicated ERROR must fire (the lock would own them all).
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- docs/\n",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("governance surface" in m and "'docs/'" in m for m in errors)
+
+
+def test_governance_touches_reports_exactly_one_finding(tmp_path: Path) -> None:
+    # The containment ERROR is suppressed for governance-banned paths — one
+    # cause, one finding (the ban), even when File Scope doesn't cover it.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- docs/LESSONS_LEARNT.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    findings = [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "LESSONS_LEARNT" in m]
+    assert len(findings) == 1 and "governance file" in findings[0]
+
+
+def test_glob_in_touches_and_file_scope_errors(tmp_path: Path) -> None:
+    # Opaque tokens disable ownership/never-route/governance predicates — both
+    # surfaces ERROR (a WARN would let a secrets path ride to the pool).
+    # Edge stars survive too (_norm_path strips symmetric emphasis wraps only).
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- src/legacy/*.py")
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- tools/gen-?.py\n",
+    )
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("glob 'src/legacy/*.py' in Touches" in m for m in errors)
+    assert any("glob 'tools/gen-?.py' in File Scope" in m for m in errors)
+
+
+def test_edge_glob_survives_normalization_and_errors(tmp_path: Path) -> None:
+    # `CHANGELOG.*` must not degenerate to the prefix `CHANGELOG.` (which would
+    # evade the governance ban AND let the lock prefix-match the real file) —
+    # it survives normalization and draws the glob ERROR.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- CHANGELOG.*")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("glob 'CHANGELOG.*' in Touches" in m for m in errors)
+
+
+def test_dynamic_route_brackets_are_not_globs(tmp_path: Path) -> None:
+    # Next.js/Expo dynamic-route dirs are LITERAL names — no glob WARN.
+    t1 = T01.replace("- src/app/schema.py", "- app/(app)/items/[id]/page.tsx")
+    spine = SPINE.replace("- src/app/schema.py", "- app/(app)/items/[id]/page.tsx")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("glob" in m for m in _warns(results) + _errors(results))
+
+
+def test_asymmetric_bold_secrets_path_fails_closed(tmp_path: Path) -> None:
+    # THE pass-25 fail-open: an unclosed `**secrets/x` token must ERROR (glob
+    # check on the surviving `*`s), never ride to the pool on a WARN.
+    t1 = T01.replace("- src/app/schema.py", "- **secrets/keys.json")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("glob '**secrets/keys.json' in Touches" in m for m in errors)
+
+
+def test_never_route_glob_entries(tmp_path: Path) -> None:
+    # An EDGE-star glob degenerates to the dir prefix (fail-closed: coverage
+    # extends); an INTERIOR glob stays inert and must draw the WARN.
+    spine = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: src/app/*",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert any("route it native" in m for m in _errors(results))  # src/app/ coverage
+    spine2 = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: vendor/*.py",
+    )
+    plan_dir2 = _build(tmp_path / "b", spine=spine2)
+    warns = _warns(cpt.check_plan_dir(plan_dir2, context="cli"))
+    assert any("Never-Route entry 'vendor/*.py' contains an interior glob" in m for m in warns)
+
+
+def test_context_files_glob_warns_budget_opacity(tmp_path: Path) -> None:
+    # A glob in Context Files counts 0 bytes — the budget under-counts silently
+    # without this WARN.
+    t1 = T01.replace("## Context Files", "## Context Files\n\n- src/**/*.py")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    warns = _warns(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("glob 'src/**/*.py' in Context Files" in m for m in warns)
+
+
+def test_recursive_glob_normalizes_to_absolute_and_errors(tmp_path: Path) -> None:
+    # `**/secrets/**` is SYMMETRIC to the emphasis-strip and collapses to the
+    # absolute `/secrets/` — the absolute-path ERROR must catch it (fail-closed;
+    # it would otherwise evade both the glob check and never-route, and the
+    # sizing walker would escape the repo root).
+    t1 = T01.replace("- src/app/schema.py", "- **/secrets/**")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("out-of-repo path '/secrets/' in Touches" in m for m in errors)
+
+
+def test_absolute_path_in_file_scope_errors(tmp_path: Path) -> None:
+    # BC 32's File Scope half: an absolute scope entry is an ERROR.
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- /opt/fabrik/scripts/x.py\n",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("out-of-repo path '/opt/fabrik/scripts/x.py' in File Scope" in m for m in errors)
+
+
+def test_dotdot_touches_errors(tmp_path: Path) -> None:
+    # `..` traversal is the same out-of-repo class — ERROR (and the sizing
+    # walker skips it, never climbing out of the repo root).
+    t1 = T01.replace("- src/app/schema.py", "- ../../../etc/")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("out-of-repo path '../../../etc/' in Touches" in m for m in errors)
+
+
+def test_sibling_plan_lock_dir_in_touches_errors(tmp_path: Path) -> None:
+    # Metadata prefixes are per-plan territory: a ticket owning the whole lock
+    # dir (every sibling's lock) draws the dedicated foreign-stem ERROR — and
+    # exactly one finding (containment is suppressed for the same cause).
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- .fabrik/plan-locks/")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    findings = [
+        m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli")) if "plan-locks" in m
+    ]
+    assert len(findings) == 1 and "outside this plan's stem" in findings[0]
+
+
+def test_foreign_stem_metadata_touches_errors(tmp_path: Path) -> None:
+    # Metadata prefixes are per-plan territory: another plan's review or the
+    # bare lock dir in Touches is an ERROR even when File Scope lists it.
+    t1 = T01.replace(
+        "- src/app/schema.py",
+        "- src/app/schema.py\n- docs/development/reviews/2026-01-01-plan-9-other-review.md",
+    )
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- docs/development/reviews/\n",
+    )
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("outside this plan's stem" in m for m in errors)
+
+
+def test_own_stem_receipt_touches_pass(tmp_path: Path) -> None:
+    # The plan's OWN receipt (stem-bounded via DIRNAME) needs no File Scope
+    # coverage and draws no finding.
+    t1 = T01.replace(
+        "- src/app/schema.py",
+        "- src/app/schema.py\n- docs/development/reviews/" + DIRNAME + "-review.md",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("review.md" in m for m in _errors(results) + _warns(results))
+
+
+def test_sibling_stem_extension_lock_in_touches_errors(tmp_path: Path) -> None:
+    # A sibling lock whose name EXTENDS this stem (`<stem>-v2.json`) must not
+    # ride the stem exemption — only `<stem>.json` and `<stem>…-review….md`
+    # shapes are the plan's own artifacts.
+    t1 = T01.replace(
+        "- src/app/schema.py",
+        "- src/app/schema.py\n- .fabrik/plan-locks/" + DIRNAME + "-v2.json",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("outside this plan's stem" in m for m in errors)
+
+
+def test_integration_real_receipt_touches_pass_end_to_end(tmp_path: Path) -> None:
+    # The canonical Integration receipt (this plan's review doc, stem-named)
+    # passes every ownership check with zero findings about it.
+    t99 = T99.replace(
+        "- docs/receipt-notes.md",
+        "- docs/development/reviews/" + DIRNAME + "-review.md",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99}
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("review.md" in m for m in _errors(results) + _warns(results))
+
+
+def test_repo_root_token_errors_both_surfaces(tmp_path: Path) -> None:
+    # `- .` claims the whole repo while covering NOTHING in the ownership
+    # predicates (a pool ticket could ride it past never-route) — ERROR on
+    # both surfaces.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- .")
+    spine = SPINE.replace("## File Scope (owned paths)\n", "## File Scope (owned paths)\n\n- .\n")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("repo-root token '.' in Touches" in m for m in errors)
+    assert any("repo-root token" in m and "File Scope" in m for m in errors)
+
+
+def test_slashless_and_ancestor_metadata_touches_error(tmp_path: Path) -> None:
+    # The metadata ownership ERROR is bidirectional: a slash-less
+    # `.fabrik/plan-locks` and an ancestor `docs/development/` must both hit.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- .fabrik/plan-locks")
+    t2 = T02.replace("- src/app/api.py", "- src/app/api.py\n- docs/development/")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("metadata path '.fabrik/plan-locks' outside this plan's stem" in m for m in errors)
+    # The ancestor covers the plan-set territory too — the dedicated
+    # plan-set ERROR fires (it precedes the generic metadata check).
+    assert any("plan-set territory 'docs/development/'" in m for m in errors)
+
+
+def test_own_lock_in_file_scope_is_orphan_exempt(tmp_path: Path) -> None:
+    # The plan's OWN lock (`<stem>.json`, _stem_scoped arm 2) listed in File
+    # Scope draws no orphan WARN and no other finding — the exemption is live.
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- .fabrik/plan-locks/" + DIRNAME + ".json\n",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("plan-locks" in m for m in _errors(results) + _warns(results))
+
+
+def test_reviews_subdir_receipt_passes(tmp_path: Path) -> None:
+    # _stem_scoped arm 1: a receipt under `reviews/<stem>/` (the stem as a DIR
+    # segment) is the plan's own artifact — no findings.
+    t99 = T99.replace(
+        "- docs/receipt-notes.md",
+        "- docs/development/reviews/" + DIRNAME + "/T01-review.md",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99}
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("T01-review" in m for m in _errors(results) + _warns(results))
+
+
+def test_bolded_complexity_label_routing_stays_live(tmp_path: Path) -> None:
+    # THE pass-31 fail-open: `**Complexity:** simple` + secrets Touches must
+    # still fire the never-route routing ERROR (tolerant label regex).
+    t1 = T01.replace("Complexity: simple", "**Complexity:** simple").replace(
+        "- src/app/schema.py", "- secrets/keys.json"
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("route it native" in m for m in errors)
+
+
+def test_missing_complexity_line_errors_at_emit_gate(tmp_path: Path) -> None:
+    # No parseable Complexity at all -> the routing check is OFF; the gate must
+    # say so instead of staying silent.
+    t1 = T01.replace("Complexity: simple\n", "")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    # ERROR at the emit gate (fail-closed floor for the routing layer);
+    # advisory on the shared gate path.
+    assert any(
+        "no parseable Complexity" in m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    )
+    assert any(
+        "no parseable Complexity" in m for m in _warns(cpt.check_plan_dir(plan_dir, context="gate"))
+    )
+
+
+def test_docs_dev_plans_dir_is_metadata_territory(tmp_path: Path) -> None:
+    # docs/development/plans/ holds every sibling plan set — owning it (either
+    # surface) is an ERROR.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- docs/development/plans/")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("plan-set territory 'docs/development/plans/'" in m for m in errors)
+
+
+def test_metadata_territory_in_file_scope_errors(tmp_path: Path) -> None:
+    # The FS surface gets the same ownership hardening: docs/development/ in
+    # File Scope would put every sibling plan into the lock.
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- docs/development/\n",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("metadata territory 'docs/development/' in File Scope" in m for m in errors)
+
+
+def test_own_lock_in_touches_errors(tmp_path: Path) -> None:
+    # Even the plan's OWN lock is orchestrator territory — never a write set.
+    t1 = T01.replace(
+        "- src/app/schema.py",
+        "- src/app/schema.py\n- .fabrik/plan-locks/" + DIRNAME + ".json",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("orchestrator-owned, never a ticket's write set" in m for m in errors)
+
+
+def test_integration_missing_complexity_also_flagged(tmp_path: Path) -> None:
+    # BC 33 has no Integration carve-out: the receipts ticket's tier is
+    # enforced like every other ticket's.
+    t99 = T99.replace("Complexity: native\n", "")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("T99: no parseable Complexity" in m for m in errors)
+
+
+def test_bolded_never_route_line_still_extends(tmp_path: Path) -> None:
+    # A `**Never-Route:**` label must not silently disable the spine's
+    # never-route extension (same fail-open class as the Complexity label).
+    spine = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- **Never-Route:** src/app/schema.py",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    assert any("route it native" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+    # The VALUE half of the same class: a bolded path must normalize clean,
+    # not survive as a phantom glob (the pass-34 regression).
+    spine2 = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: **src/app/schema.py**",
+    )
+    plan_dir2 = _build(tmp_path / "b", spine=spine2)
+    assert any("route it native" in m for m in _errors(cpt.check_plan_dir(plan_dir2)))
+
+
+def test_never_route_multi_token_lines_drop_with_warn(tmp_path: Path) -> None:
+    # A comma list and a prose sentence are both multi-token lines: the ENTIRE
+    # line is dropped with the truthful WARN — including the FIRST token (use
+    # non-built-in prefixes so the routing outcome discriminates).
+    spine = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: vendor/, third_party/\n"
+        "- **Never-Route:** lines are optional here",
+    )
+    t1 = T01.replace("- src/app/schema.py", "- vendor/lib.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine.replace("- src/app/schema.py", "- vendor/lib.py"),
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    warns = _warns(results)
+    assert sum("is not a single token" in m for m in warns) == 2
+    # The message is truthful: vendor/ is NOT enforced (whole line dropped).
+    assert not any("route it native" in m for m in _errors(results))
+    # Out-of-repo + empty tokens draw their own WARNs.
+    spine3 = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: **/secrets2/**\n- Never-Route: **",
+    )
+    plan_dir3 = _build(tmp_path / "c", spine=spine3)
+    warns3 = _warns(cpt.check_plan_dir(plan_dir3, context="cli"))
+    assert any("out-of-repo Never-Route token '/secrets2/'" in m for m in warns3)
+    assert any("no path after the label" in m for m in warns3)
+
+
+def test_never_route_punctuation_and_bare_label(tmp_path: Path) -> None:
+    # Sentence punctuation is stripped (the prefix still works); a bare label
+    # and a repo-root token each draw the void WARN — never silence.
+    spine = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: vendor/.\n- Never-Route:\n- Never-Route: .",
+    )
+    t1 = T01.replace("- src/app/schema.py", "- vendor/lib.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine.replace("- src/app/schema.py", "- vendor/lib.py"),
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert any("route it native" in m for m in _errors(results))  # vendor/ enforced
+    voids = [m for m in _warns(results) if "void" in m]
+    assert len(voids) == 2  # bare label + repo-root token
+
+
+def test_norm_path_fixpoint_closes_pass37_matrix(tmp_path: Path) -> None:
+    # The four pass-37 fail-opens, end-to-end: code-span+period NR still
+    # enforces; wrapped out-of-repo tokens WARN; route-group literals survive;
+    # a trailing sentence period cannot evade the governance ERROR.
+    spine = SPINE.replace(
+        "## Global Constraints\n\n- None.",
+        '## Global Constraints\n\n- Never-Route: `vendor/`.\n- Never-Route: "../vendor"',
+    )
+    t1 = T01.replace("- src/app/schema.py", "- vendor/lib.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine.replace("- src/app/schema.py", "- vendor/lib.py"),
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert any("route it native" in m for m in _errors(results))  # `vendor/`. enforced
+    assert any("out-of-repo Never-Route token '../vendor'" in m for m in _warns(results))
+    # Route-group literal survives normalization (unbalanced edge paren).
+    assert cpt._norm_path("app/(marketing)") == "app/(marketing)"
+    # Governance ERROR is period-proof.
+    t1b = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- CHANGELOG.md.")
+    plan_dir2 = _build(
+        tmp_path / "b", tickets={"T01-schema.md": t1b, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    assert any(
+        "governance file 'CHANGELOG.md'" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir2, context="cli"))
+    )
+
+
+def test_residue_tokens_fail_closed_everywhere(tmp_path: Path) -> None:
+    # Comma lists, ellipses and quote residue must be LOUD, never silent:
+    # (1) a comma-list Touches bullet ERRORs (nothing silently dropped);
+    # (2) an ellipsis cannot evade the governance ban;
+    # (3) a mismatched quote is residue, not a strip candidate;
+    # (4) a bare route-group token stays literal.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py, secrets/keys.json")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("unparseable token 'src/app/schema.py," in m for m in errors)
+    t1b = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- CHANGELOG.md...")
+    plan_dir2 = _build(
+        tmp_path / "b", tickets={"T01-schema.md": t1b, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors2 = _errors(cpt.check_plan_dir(plan_dir2, context="cli"))
+    assert any("governance file 'CHANGELOG.md'" in m for m in errors2)
+    assert cpt._norm_path("\"x'") == "\"x'"  # mismatched quotes never strip
+    assert cpt._norm_path("(marketing)") == "(marketing)"  # route group literal
+    assert cpt._norm_path("vendor/.") == "vendor/"  # POSIX self-reference
+
+
+def test_residue_arms_on_file_scope_and_never_route(tmp_path: Path) -> None:
+    # The other two residue arms: File Scope residue ERRORs; a backtick-residue
+    # Never-Route token WARNs; and a path:NN citation collapses to the path so
+    # never-route/governance stay closed.
+    spine = SPINE.replace(
+        "## File Scope (owned paths)\n",
+        "## File Scope (owned paths)\n\n- src/extra.py, src/other.py\n",
+    ).replace(
+        "## Global Constraints\n\n- None.",
+        "## Global Constraints\n\n- Never-Route: `a`b",
+    )
+    plan_dir = _build(tmp_path, spine=spine)
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert any(
+        "unparseable token 'src/extra.py," in m and "File Scope" in m for m in _errors(results)
+    )
+    assert any("unparseable Never-Route token" in m for m in _warns(results))
+    # path:NN collapses — the never-route ERROR fires on the underlying file.
+    t1 = T01.replace("- src/app/schema.py", "- scripts/final_gate.py:20")
+    plan_dir2 = _build(
+        tmp_path / "b", tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errors2 = _errors(cpt.check_plan_dir(plan_dir2, context="cli"))
+    assert any("never-route path 'scripts/final_gate.py'" in m for m in errors2)
+
+
+def test_merge_order_duplicate_entry_errors(tmp_path: Path) -> None:
+    # A duplicated Merge Order entry must ERROR — last-wins positions would
+    # silently defeat the topological and Integration-last checks (BC 28 class).
+    spine = SPINE.replace("1. T01\n2. T02\n3. T99", "1. T02\n2. T01\n3. T02\n4. T99")
+    plan_dir = _build(tmp_path, spine=spine)
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("duplicate Merge Order entry" in m and "T02" in m for m in errors)
+
+
+def test_context_files_residue_warns_budget_opacity(tmp_path: Path) -> None:
+    # A comma-listed Context Files bullet counts 0 bytes — the third
+    # zero-byte class gets the same WARN as globs and out-of-repo tokens.
+    t1 = T01.replace("## Context Files", "## Context Files\n\n- docs/big-a.md, docs/big-b.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    warns = _warns(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("unparseable token 'docs/big-a.md," in m and "Context Files" in m for m in warns)
+
+
+def test_serialized_residue_row_warns_void(tmp_path: Path) -> None:
+    # A residue-bearing Serialized path voids the row: the WARN names the
+    # cause AND the real overlap ERROR still stands (no licence granted).
+    t1 = T01.replace("- src/app/schema.py", "- src/shared.py")
+    t2 = T02.replace("- src/app/api.py", "- src/shared.py").replace("Depends: T01", "Depends: none")
+    spine = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\nSerialized: src/shared.py, — T01 T02"
+    ).replace("- src/app/schema.py", "- src/shared.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert any("Serialized row path 'src/shared.py,'" in m and "VOID" in m for m in _warns(results))
+    assert any("Touches overlap between T01 and T02" in m for m in _errors(results))
+
+
+def test_serialized_licence_is_pair_scoped_and_covering(tmp_path: Path) -> None:
+    # (1) Two rows with DISJOINT pairs never license a cross pair; (2) a
+    # dir-level row covers file-level overlaps; (3) slash-insensitive.
+    base_t1 = T01.replace("- src/app/schema.py", "- src/shared/a.py")
+    base_t2 = T02.replace("- src/app/api.py", "- src/shared/a.py").replace(
+        "Depends: T01", "Depends: none"
+    )
+    # Disjoint rows: T01+T99 and T02+T99 — the T01/T02 pair stays unlicensed.
+    spine = SPINE.replace(
+        "## Merge Order",
+        "## Merge Order\n\nSerialized: src/shared/a.py — T01 T99\n"
+        "Serialized: src/shared/a.py — T02 T99",
+    ).replace("- src/app/schema.py", "- src/shared/a.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": base_t1, "T02-api.md": base_t2, "T99-integration.md": T99},
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("Touches overlap between T01 and T02" in m for m in errors)
+    # One row naming the pair, at DIR level with a trailing slash, licenses it.
+    spine2 = SPINE.replace(
+        "## Merge Order",
+        "## Merge Order\n\nSerialized: src/shared/ — T01, T02",
+    ).replace("- src/app/schema.py", "- src/shared/a.py")
+    plan_dir2 = _build(
+        tmp_path / "b",
+        spine=spine2,
+        tickets={"T01-schema.md": base_t1, "T02-api.md": base_t2, "T99-integration.md": T99},
+    )
+    errors2 = _errors(cpt.check_plan_dir(plan_dir2, context="cli"))
+    assert not any("Touches overlap between T01 and T02" in m for m in errors2)
+
+
+def test_context_files_out_of_repo_warns(tmp_path: Path) -> None:
+    # The middle arm of the Context-Files chain: an absolute read counts 0
+    # bytes and must say so.
+    t1 = T01.replace("## Context Files", "## Context Files\n\n- /opt/fabrik/agents-fabrik.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    warns = _warns(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any(
+        "out-of-repo path '/opt/fabrik/agents-fabrik.md' in Context Files" in m for m in warns
+    )
+
+
+def test_bolded_depends_label_keeps_graph_edge(tmp_path: Path) -> None:
+    # `**Depends:** T01` must parse — proven on a SHARED path where the edge is
+    # the only thing suppressing the overlap ERROR, plus a positive parse assert.
+    t2 = T02.replace("Depends: T01", "**Depends:** T01").replace(
+        "- src/app/api.py", "- src/app/schema.py"
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": T01, "T02-api.md": t2, "T99-integration.md": T99}
+    )
+    results = cpt.check_plan_dir(plan_dir, context="cli")
+    assert not any("Touches overlap" in m for m in _errors(results))
+    parsed = cpt._parse_ticket(plan_dir / "T02-api.md")
+    assert parsed.depends == ["T01"]
+
+
+def test_bolded_serialized_label_still_licenses(tmp_path: Path) -> None:
+    # `**Serialized:**` must parse like the rest of the field family — a
+    # silently-voided licence row demands the row the author already wrote.
+    t1 = T01.replace("- src/app/schema.py", "- src/shared.py")
+    t2 = T02.replace("- src/app/api.py", "- src/shared.py").replace("Depends: T01", "Depends: none")
+    spine = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\n**Serialized:** src/shared.py — T01, T02"
+    ).replace("- src/app/schema.py", "- src/shared.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    assert not any(
+        "Touches overlap between T01 and T02" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    )
+
+
+def test_serialized_file_row_does_not_license_dir_overlap(tmp_path: Path) -> None:
+    # DIRECTIONAL licence: a row keyed on ONE file must not disable the
+    # collision guard for a whole-dir Touches overlap on OTHER files.
+    t1 = T01.replace("- src/app/schema.py", "- src/app/")
+    t2 = T02.replace("- src/app/api.py", "- src/app/api.py").replace(
+        "Depends: T01", "Depends: none"
+    )
+    spine = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\nSerialized: src/app/schema.py — T01, T02"
+    ).replace("- src/app/schema.py", "- src/app/")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    assert any(
+        "Touches overlap between T01 and T02" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    )
+
+
+def test_bulleted_serialized_row_still_licenses(tmp_path: Path) -> None:
+    # A `- Serialized: …` bullet parses like the rest of the field family —
+    # the old silent void demanded the row the author already wrote.
+    t1 = T01.replace("- src/app/schema.py", "- src/shared.py")
+    t2 = T02.replace("- src/app/api.py", "- src/shared.py").replace("Depends: T01", "Depends: none")
+    spine = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\n- Serialized: src/shared.py — T01, T02"
+    ).replace("- src/app/schema.py", "- src/shared.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    assert not any(
+        "Touches overlap between T01 and T02" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    )
+
+
+def test_numbered_serialized_row_licenses_blockquote_stays_void(tmp_path: Path) -> None:
+    # A numbered `3. Serialized: ...` row parses (the natural Merge Order form);
+    # a blockquoted example row deliberately does NOT (its parse would disable
+    # the collision guard).
+    t1 = T01.replace("- src/app/schema.py", "- src/shared.py")
+    t2 = T02.replace("- src/app/api.py", "- src/shared.py").replace("Depends: T01", "Depends: none")
+    spine = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\n4. Serialized: src/shared.py — T01, T02"
+    ).replace("- src/app/schema.py", "- src/shared.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    assert not any(
+        "Touches overlap between T01 and T02" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    )
+    spine2 = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\n> Serialized: src/shared.py — T01, T02"
+    ).replace("- src/app/schema.py", "- src/shared.py")
+    plan_dir2 = _build(
+        tmp_path / "b",
+        spine=spine2,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    assert any(
+        "Touches overlap between T01 and T02" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir2, context="cli"))
+    )
+
+
+def test_blockquoted_field_examples_never_parse(tmp_path: Path) -> None:
+    # Blockquotes are quoted content: a quoted `> Depends: T01` must not
+    # license an overlap, and a quoted `> Integration: true` must not mint a
+    # phantom Integration ticket.
+    t1 = T01.replace("- src/app/schema.py", "- src/shared.py")
+    t2 = (
+        T02.replace("- src/app/api.py", "- src/shared.py")
+        .replace("Depends: T01", "Depends: none")
+        .replace("## Scope", "> Depends: T01\n\n## Scope")
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99}
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    assert any("Touches overlap between T01 and T02" in m for m in errors)
+    # Quoted Integration is not counted: removing the real line leaves zero.
+    t99 = T99.replace("Integration: true", "> Integration: true")
+    plan_dir2 = _build(
+        tmp_path / "b", tickets={"T01-schema.md": T01, "T02-api.md": T02, "T99-integration.md": t99}
+    )
+    errors2 = _errors(cpt.check_plan_dir(plan_dir2, context="cli"))
+    assert any("exactly one 'Integration: true' ticket required (found 0)" in m for m in errors2)
+
+
+def test_lowercase_serialized_label_parses(tmp_path: Path) -> None:
+    # re.I parity with the rest of the family.
+    t1 = T01.replace("- src/app/schema.py", "- src/shared.py")
+    t2 = T02.replace("- src/app/api.py", "- src/shared.py").replace("Depends: T01", "Depends: none")
+    spine = SPINE.replace(
+        "## Merge Order", "## Merge Order\n\nserialized: src/shared.py — T01, T02"
+    ).replace("- src/app/schema.py", "- src/shared.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    assert not any(
+        "Touches overlap between T01 and T02" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
+    )

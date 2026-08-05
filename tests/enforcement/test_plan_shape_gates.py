@@ -1,4 +1,4 @@
-"""Tests for the spine+ticket plan-shape gates (Behavior Contract 1-5, 13-15, 18, 25).
+"""Tests for the spine+ticket plan-shape gates (Behavior Contract 1-5, 13-15, 18, 25, 31).
 
 Drives the patched per-file checks (check_plans, check_plan_quality) directly over
 throwaway plan trees. The modules compute PLAN_DIR from Path.cwd() at import time,
@@ -244,6 +244,44 @@ def test_bc5_ticket_with_status_line_errors(plans_env: Path) -> None:
     p = _write(plans_env, f"{DIR}/T01-widget-schema.md", TICKET_OK + "\nStatus: DRAFT\n")
     results = cpq_mod.check_file(p)
     assert any(r.severity.value == "error" and "Status" in r.message for r in results)
+
+
+def test_bc5_blockquoted_ticket_status_still_draws_the_ban(plans_env: Path) -> None:
+    # Pass-47 mutation kill: the `>` in ANY_STATUS_RE is load-bearing — a
+    # quoted ticket Status is still ticket state (fail-closed direction).
+    _write(plans_env, SPINE, SPINE_OK.replace("Status: DRAFT", "Status: CONVERGED"))
+    p = _write(plans_env, f"{DIR}/T01-widget-schema.md", TICKET_OK + "\n> Status: DRAFT\n")
+    results = cpq_mod.check_file(p)
+    assert any(r.severity.value == "error" and "Status" in r.message for r in results)
+
+
+def test_blockquoted_spine_status_never_downgrades_ticket_findings(plans_env: Path) -> None:
+    # Pass-47 regression: a `> Status: DRAFT` example in a CONVERGED spine must
+    # not re-enable the draft downgrade for sibling-ticket findings.
+    _write(
+        plans_env,
+        SPINE,
+        SPINE_OK.replace("Status: DRAFT", "> Status: DRAFT\n\nStatus: CONVERGED"),
+    )
+    broken = TICKET_OK.replace("Complexity: simple\n", "")
+    p = _write(plans_env, f"{DIR}/T01-widget-schema.md", broken)
+    results = cpq_mod.check_file(p)
+    assert any(r.severity.value == "error" and "Complexity" in r.message for r in results)
+
+
+def test_status_regex_byte_parity_across_modules() -> None:
+    # The parity doctrine, enforced mechanically: the modern Status regex is
+    # byte-identical across the two plan gates, the any-Status ban regex is
+    # byte-identical with check_convergence, and every sibling shares the same
+    # label prefix — a one-sided "harmonization" (e.g. dropping `>`) fails here.
+    from scripts.enforcement import check_convergence as cc
+    from scripts.enforcement import check_plan_tickets as cpt
+
+    assert cpt.STATUS_RE.pattern == cpq_mod.MODERN_STATUS_RE.pattern
+    assert cpq_mod.ANY_STATUS_RE.pattern == cc.ANY_STATUS_LINE.pattern
+    label_prefix = r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*"
+    for pat in (cpt.STATUS_RE, cpq_mod.ANY_STATUS_RE, cc.CONVERGED_LINE, cc.EXECUTED):
+        assert pat.pattern.startswith(label_prefix)
 
 
 def test_loose_ticket_is_not_reclassified_by_quality(plans_env: Path) -> None:
@@ -533,3 +571,85 @@ def test_docs_updater_counts_fenced_checkboxes_raw(plans_env: Path) -> None:
     status, checked, total = du.parse_plan_status(p)
     assert status == "COMPLETE"
     assert (checked, total) == (1, 2)  # fenced box still counted — counters stay RAW
+
+
+def test_count_behaviors_ignores_fenced_examples() -> None:
+    # A fenced example row inside ## Behavior Contract must not count — the
+    # Tier-2 gate would otherwise pass an under-enumerated plan (fail-open).
+    import scripts.enforcement.check_test_proposal as ctp
+
+    content = (
+        "# Plan\n\n## Behavior Contract\n\n"
+        "- **Given** real, **When** run, **Then** works.\n\n"
+        "```markdown\n"
+        "- **Given** example one, **When** copied, **Then** must not count.\n"
+        "- **Given** example two, **When** copied, **Then** must not count.\n"
+        "```\n"
+    )
+    assert ctp._count_behaviors(content) == 1
+
+
+def test_count_criteria_ignores_fenced_examples() -> None:
+    # Symmetric strip: fenced example criteria must not inflate the denominator
+    # (one-sided stripping failed healthy plans at Tier-2).
+    import scripts.enforcement.check_test_proposal as ctp
+
+    content = (
+        "# Plan\n\n## Success criteria\n\n- real one\n\n"
+        "```markdown\n- fenced example criterion\n- another\n```\n"
+    )
+    assert ctp._count_criteria(content) == 1
+
+
+def test_fenced_heading_does_not_hijack_section() -> None:
+    # A fenced `## Behavior Contract` template (the emitted worked skeleton)
+    # must not hijack _section's first-heading match — strip precedes extract.
+    import scripts.enforcement.check_test_proposal as ctp
+
+    content = (
+        "# Plan\n\n```markdown\n## Behavior Contract\n- **Given** template row.\n```\n\n"
+        "## Behavior Contract\n\n"
+        "- **Given** a, **When** b, **Then** c.\n"
+        "- **Given** d, **When** e, **Then** f.\n"
+    )
+    assert ctp._count_behaviors(content) == 2
+
+
+def test_fenced_hash_comment_does_not_truncate_section() -> None:
+    # A fenced `# comment` line must not act as a section terminator — the
+    # strip-first order removes it before _section scans for headings.
+    import scripts.enforcement.check_test_proposal as ctp
+
+    content = (
+        "# Plan\n\n## Behavior Contract\n\n"
+        "- **Given** a, **When** b, **Then** c.\n\n"
+        "```bash\n# a shell comment\necho hi\n```\n\n"
+        "- **Given** d, **When** e, **Then** f.\n"
+        "- **Given** g, **When** h, **Then** i.\n"
+    )
+    assert ctp._count_behaviors(content) == 3
+
+
+def test_all_fenced_criteria_section_is_structure_only() -> None:
+    # Quoted content is never a denominator: an all-fenced criteria section
+    # counts 0 (the comparison is skipped) — a raw fallback would re-open the
+    # inflation and fenced-template-hijack holes.
+    import scripts.enforcement.check_test_proposal as ctp
+
+    content = (
+        "# Plan\n\n## Success criteria\n\n```markdown\n- fenced only one\n- fenced only two\n```\n"
+    )
+    assert ctp._count_criteria(content) == 0
+
+
+def test_quality_field_presence_accepts_bolded_complexity() -> None:
+    # The two gates must agree on `**Complexity:**` — quality's presence regex
+    # is bold-tolerant like check_plan_tickets' parser.
+    import scripts.enforcement.check_plan_quality as cpq
+
+    fields = dict(cpq.TICKET_FIELDS)
+    for name in ("Complexity", "Depends", "Parallel", "Docs", "Gate"):
+        assert fields[name].search(f"**{name}:** value"), name
+        assert fields[name].search(f"{name}: value"), name
+        # Blockquoted examples must NOT count as field presence (quoted content).
+        assert not fields[name].search(f"> {name}: value"), name

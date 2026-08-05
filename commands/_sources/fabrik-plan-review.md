@@ -35,8 +35,13 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real
   API), every touched `agents-fabrik.md` invariant (`AGENTS.md` is a stub) + `shape.*` flag is listed and grounded.
-- **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing) and **disjoint** (declared
-  non-overlapping so concurrent scoped runs don't collide); any shared file is flagged as a serialization point.
+- **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing — **except the
+  governance files** CHANGELOG/INDEX/docs README/FEATURES + docs/LESSONS_LEARNT.md, which stay OUT of
+  File Scope in BOTH plan shapes (monolith and spine+ticket):
+  shared-append surfaces outside the plan lock, since locking `CHANGELOG.md` would make any two concurrent
+  plans BLOCK on scope overlap; per `/fabrik-plan-after-chat`'s grammar — never re-add them for
+  "completeness") and **disjoint** (declared non-overlapping so concurrent scoped runs don't collide); any
+  shared file is flagged as a serialization point.
 - **Documentation steps** — every Doc Sync Matrix trigger in the plan's changes has an explicit doc-update step in
   its owning phase, and the plan's last phase runs `/fabrik-docs-review`.
 - **Environment & toolchain preflight** — every phase that shells out to a build/deploy/test/package tool

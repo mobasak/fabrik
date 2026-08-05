@@ -66,18 +66,25 @@ SPINE_SECTIONS = [
 # Ticket field contract (the ettw-06 fields, per the spine+ticket plan grammar).
 # Field lines tolerate a bullet prefix (the same tolerance the Board/Order/
 # Serialized/Given regexes carry — bulleted metadata is natural markdown).
-_F = r"^\s*(?:[-*>]\s+)?"
+# NO `>` tolerance — blockquotes are quoted content (parity with check_plan_tickets._F).
+_F = r"^\s*(?:[-*]\s+)?"
+# Blockquoted lines are QUOTED content for spine-status DETERMINATION only:
+# there, parsing more Status lines produces FEWER findings (the DRAFT/PLANNED
+# downgrade — fail-open), so a `> Status: DRAFT` example must be invisible.
+# The ticket-Status BAN keeps the full scan — a quoted ticket Status still
+# draws the ban (fail-closed). Parity with check_plan_tickets._BLOCKQUOTE_RE.
+_BLOCKQUOTE_RE = re.compile(r"^[ \t]*>.*$", re.M)
 TICKET_FIELDS = [
     ("Scope", re.compile(r"^##\s+Scope\b", re.I | re.M)),
     ("Scope DO-NOT", re.compile(r"\bDO[- ]?NOT\b", re.I)),
-    ("Depends", re.compile(_F + r"Depends:", re.I | re.M)),
-    ("Parallel", re.compile(_F + r"Parallel:", re.I | re.M)),
-    ("Complexity", re.compile(_F + r"Complexity:", re.I | re.M)),
-    ("Docs", re.compile(_F + r"Docs:", re.I | re.M)),
+    ("Depends", re.compile(_F + r"\*{0,2}Depends\*{0,2}[^\S\n]*:", re.I | re.M)),
+    ("Parallel", re.compile(_F + r"\*{0,2}Parallel\*{0,2}[^\S\n]*:", re.I | re.M)),
+    ("Complexity", re.compile(_F + r"\*{0,2}Complexity\*{0,2}[^\S\n]*:", re.I | re.M)),
+    ("Docs", re.compile(_F + r"\*{0,2}Docs\*{0,2}[^\S\n]*:", re.I | re.M)),
     ("Touches", re.compile(r"^##\s+Touches\b", re.I | re.M)),
     ("Behavior Contract", re.compile(r"^##\s+Behavior Contract\b", re.I | re.M)),
     ("Context Files", re.compile(r"^##\s+Context Files\b", re.I | re.M)),
-    ("Gate", re.compile(_F + r"Gate:", re.I | re.M)),
+    ("Gate", re.compile(_F + r"\*{0,2}Gate\*{0,2}[^\S\n]*:", re.I | re.M)),
 ]
 
 # Fenced code blocks are QUOTED content — a ticket citing `Status: 200 OK` in an
@@ -121,6 +128,7 @@ def _sibling_spine_is_draft(file_path: Path) -> bool:
         scan = _strip_fences(spine.read_text(encoding="utf-8", errors="replace"))
     except OSError:
         return True
+    scan = _BLOCKQUOTE_RE.sub("", scan)  # quoted Status examples never downgrade
     m = MODERN_STATUS_RE.search(scan)
     if m:
         return m.group(1).upper() in ("DRAFT", "PLANNED")
@@ -167,7 +175,7 @@ def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
     # A DRAFT/PLANNED plan is mid-authoring on shared master — missing sections
     # are WARN (sibling-session protection, matching every other downgrade path);
     # full ERROR from CONVERGED onward (the convergence flip enforces regardless).
-    m = MODERN_STATUS_RE.search(scan)
+    m = MODERN_STATUS_RE.search(_BLOCKQUOTE_RE.sub("", scan))  # quoted → never own status
     severity = (
         Severity.WARN if (m and m.group(1).upper() in ("DRAFT", "PLANNED")) else Severity.ERROR
     )
@@ -235,6 +243,10 @@ def check_file(file_path: Path) -> list[CheckResult]:
     scan = _strip_fences(content)  # a fenced Status/section example is quoted, not claimed
     pipeline_pillars = [pat for name, pat in PILLAR_SECTIONS if name != "Evidence"]
     is_spine_shape = bool(SPINE_MARKER_RE.search(scan)) or file_path.stem == file_path.parent.name
+    # Deliberately NOT blockquote-stripped: classification is fail-CLOSED — a
+    # quoted Status pulls the file INTO the modern contract (more checking);
+    # stripping here would let a monolith escape it. Only the severity read
+    # inside _check_modern strips (there, parsing more downgrades — fail-open).
     if MODERN_STATUS_RE.search(scan) and (
         any(pat.search(scan) for pat in pipeline_pillars) or is_spine_shape
     ):

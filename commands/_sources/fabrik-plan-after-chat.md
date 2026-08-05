@@ -175,6 +175,232 @@ single-unit ground loops solo. Enumerate what you actually read (an empty check 
 
 ## Phase 2 — Emit the plan (phases, dependency order, runnable gates)
 
+**⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
+of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** · any
+single phase's computed READ set (its files + Context Files:
+`find <paths> -type f -exec cat {} + | wc -c` — one exact number, but CHECK STDERR: a typo'd or
+not-yet-created path under-counts silently, and `find` reports it only there; `xargs wc -c` batches
+into multiple misleading `total` lines and plain `wc -c` errors on `dir/` entries) exceeds
+`READ_BUDGET_BYTES` (262144 — the gate's PER-TICKET budget in
+`scripts/enforcement/check_plan_tickets.py`, reused here as the shape trigger; the byte test keeps a
+compact-but-heavy plan out of the monolith path). Smaller work keeps the single-file monolith below —
+both shapes are first-class, no forced migration of old plans.
+
+**The spine+ticket shape** (gate-enforced grammar — `check_plan_tickets.py` + `check_plan_quality.py`):
+`docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` holding the **same-stem spine**
+`YYYY-MM-DD-plan-<n>-<slug>.md` + ticket files matching `T\d{2}[a-z]?-[a-z0-9-]+\.md` (kebab slug
+mandatory — a non-matching name is NOT a ticket: the orphan Board row is the RELIABLE signal, while
+`check_plans` ERRORs only names matching neither plan-name shape, and only while NEW — committed
+strays downgrade to WARN, see the cascade note (a legacy-shaped stray always WARNs; a
+dated-plan-shaped stray like `2026-01-02-plan-1-extra.md` passes it clean); the `[a-z]?` letter is for author-splits
+`T05a-`/`T05b-`). ⚠️ A mis-named file is
+**invisible to the ENTIRE contract** — its Touches are never ownership-checked or budgeted and its
+G/W/T rows never roll up; the symptom is a CASCADE, not one finding (orphan Board row +
+Merge-Order set mismatch + ONE roll-up-mismatch ERROR PER orphaned G/W/T row + unknown-Depends when
+something depends on it — easily 6–13 findings from one filename;
+`check_plans` ERRORs a NEW bad name at Tier-3 but downgrades to WARN once it's committed). The spine
+carries: `Status:`
+(DRAFT|PLANNED|CONVERGED|IN-PROGRESS|EXECUTED|BLOCKED) · `## Ticket Board` (a GFM TABLE whose header
+and **EVERY row start with a leading `|`** — `| Ticket | Title | Depends | Parallel | State | Commit |`
+then e.g. `| T01 | Alpha | — | ⚡ | ⬜ | |`; a pipe-less table reports
+`ticket file T## has no Ticket Board row` against the SPINE for every ticket and kills the
+⬜-never-flipped staleness ERROR; **the `T##` ID must be the FIRST DATA cell of every row** — any
+cell placed before it unparses that row (the header cell's NAME is free — recognition keys on
+`State`, not on the literal `Ticket`, so an `| ID | …` header parses fine); states ⬜ todo
+· 🔵 dispatched · 🟡 in review · ✅ merged · 🔴 blocked; emit every row ⬜ with an **empty Commit
+cell** — the orchestrator fills it at merge (a convention: no gate reads the Commit cell); the parser recognizes the header as the LAST
+recognizable `|`-line BEFORE the first data row (recognizable = a `State` cell — case-insensitive —
+≥3 content cells, and **no cell containing a `T##` token anywhere**, substring match: even
+`Ticket (T01)` vetoes the line; one layer of bold OR backticks per cell is normalized away — the
+bold-outside-backtick double-wrap and `__bold__` are not) — an
+unrecognizable header silently degrades to fallback column 5, which reads the WRONG cell the moment
+a column is reordered or added/removed BEFORE the State column, or NO cell on a board narrower than
+five columns (below
+three content columns no header is recognized at all — keep the canonical six); ID cells bare or
+BOLD only — a
+backticked `T01` cell unparses its row entirely, reporting `ticket file T01 has no Ticket Board row`
+(the same symptom as the pipe-less table, one per unparsed row — NOT the mis-named-file cascade);
+and NO auxiliary tables inside the Board section AT ALL — a row with a `T##` FIRST cell
+parses as a Board row (orphan ERROR for an unknown ID, duplicate-row ERROR for a known one), and any
+other aux row is silent: one carrying any `T##` token is vetoed as a header candidate and parses as
+nothing, while a wide T##-free one WITH a `State` cell hijacks the State column when it sits between
+the header and the first data row) ·
+`## Merge Order` (a topological sort of Depends, one **bare ID per numbered line** — a title/comment
+on the line voids that row's parse and the gate then reports `Merge Order does not list exactly the
+ticket set`: the cause is usually the trailing text, though the same message fires when a ticket
+file is genuinely mis-named (the cascade above); plus `Serialized: <path> — <ids>`
+lines for shared paths between Depends-unconnected tickets (bullet/numbered prefixes and bold
+labels all parse — the field family is format-tolerant; BLOCKQUOTED example lines never parse in the
+Depends/Integration/Complexity/Docs/Gate/Parallel/Serialized field family (a live quoted example
+would license overlaps or mint a phantom Integration ticket; a missing Complexity still fails loud),
+while `Never-Route:` DOES parse quoted forms (a quoted line ADDS coverage — fail-closed) and
+`Status:` splits by consumer: a quoted ticket Status still draws the ban (fail-closed), but quoted
+content — fenced OR blockquoted — is INVISIBLE to the spine's own status (a `> Status: DRAFT`
+example can never downgrade the contract; the spine's real Status must be an unquoted line); each
+row is ONE covering-aware licence, so the exact pair must share a single row) — a
+Serialized row is a DISPATCH BARRIER: later-listed waits for earlier ✅) · `## Interfaces` (each cross-ticket interface names its **seam
+test**, owned by the CONSUMER ticket — the file in the consumer's Touches, the producer's Behavior
+Contract in the consumer's Context Files) · `## Behavior Contract` (the ROLL-UP: every ticket's G/W/T
+rows **verbatim — NO ticket-ID prefix, no rewording** (a `T01 — ` prefix produces two mismatch
+ERRORs per row with no hint at the cause; normalization forgives bold, bullet chars, case,
+whitespace runs, a trailing `(N)` and a trailing period — nothing else), **one bulleted
+`- **Given** … **When** … **Then** …` row per behavior — the gate
+reads ONLY bulleted Given rows**: a numbered spine roll-up against bulleted tickets ERRORs loudly as
+a roll-up mismatch, but a contract numbered on BOTH sides passes silently with set-equality disabled
+— `check_plan_tickets` enforces set-equality; `check_test_proposal` reads it) ·
+`## Global Constraints` (may carry `Never-Route: <path>` lines — **one concrete path prefix per
+line**, never a comma list or a category, extending the built-in never-route set
+`scripts/enforcement/` · `scripts/final_gate.py` · `alembic/` · `db/migrations/` · `secrets/` ·
+`.env` + `.env.*` except `.env.example` — `.envrc` is NOT covered) · `## Context Ledger` · `## File Scope (owned paths)` (**a literal-path
+superset of every ticket's Touches, receipt artifacts included** — but the four governance files + `docs/LESSONS_LEARNT.md`
+(the fifth shared-append surface — any run may append it: entry or `none`) go
+in NEITHER Touches NOR File Scope: they are orchestrator-applied shared-append surfaces governed by
+the shared-tree rules, deliberately OUTSIDE the plan lock (locking `CHANGELOG.md` would make every
+pair of concurrent plans BLOCK on scope overlap; a listed or covering entry is a DEDICATED gate ERROR — File Scope builds the lock) —
+no globs — the gate ERRORs them on BOTH surfaces; the plan's OWN
+stem-named entries under `docs/development/reviews/` / `.fabrik/plan-locks/` are exempt only from
+the owned-by-no-ticket WARN (in Touches the own LOCK is still a dedicated ERROR — orchestrator
+territory); `docs/development/plans/` is plan-set TERRITORY — foreign-stem
+entries ERROR on both surfaces, and in Touches even the plan's OWN dir/spine/tickets ERROR (the
+Board is the orchestrator's write surface; plan-doc migrations/archives are orchestrator or
+monolith work, never a set ticket's) (`~/` is never ownable — rendered outputs are the orchestrator's
+render step);
+`dir/` entries own
+subtrees; **written as a bullet/numbered list, one bare path as the FIRST token per line** — a
+table/prose section fails OPEN: the gate WARNs "containment checks are OFF" and exits 0 absent
+other errors, with every Touches-⊆-File-Scope check disabled; worse, a MISSING or retitled section (`## Owned paths`)
+disables containment with **NO output at all** — the heading must start with `## File Scope`) · `## Evidence` · `## Self-audit` · `## Residual unknowns` (the
+last two per Phase 4 — the spine, not the tickets, carries them).
+
+**Each ticket** (the ettw-06 field contract; **field PRESENCE is `check_plan_quality`'s — which NO
+routinely-run gate reaches** (Tier-3 `--systemic` only, never the Tier-2 completion gate), so
+**self-verify the fields as you write** — the emit gate will not catch a missing `Docs:`; the
+`Status:` ban is caught only LATER — `check_convergence` enforces it at the CONVERGED flip and
+again at the EXECUTED flip, **those two transitions only** (spine tracked; a settled claim is never
+re-checked); during the whole DRAFT window nothing routinely run catches it either, so self-verify
+both; `check_plan_tickets --plan-dir` enforces
+structure/ownership/sizing): Title · `## Scope` + DO-NOT · `Depends:`
+· `Parallel:` ⚡/⛓️ · `## Touches` — the ticket's **WRITE set** (repo-relative **literal paths only —
+no globs** — the gate ERRORs any `*`/`?` token AND any out-of-repo token (absolute, `~`, `..`)
+in Touches or File Scope: an opaque token defeats exclusive ownership and can evade never-route,
+and it counts 0
+bytes toward the READ budget; a `dir/` entry owns its subtree; one bullet per path, **bare path
+first, markers after** — `- src/a.py — PRIMARY PATH`; normalization runs to a FIXPOINT — backticks, bold,
+balanced QUOTES and trailing sentence punctuation resolve (even `` **`path`** `` and
+`` `path/`. ``), and any surviving quote/backtick/comma/semicolon/colon residue is a LOUD finding (a comma list
+drops nothing silently — it ERRORs; a `path:NN` citation collapses to the path first); parens are never stripped (route groups are literal); the
+Board's CELL parser uses different — not stricter — single-pass rules; **exclusively owned** — a path in two
+tickets needs a Depends edge or a Serialized row; the governance files CHANGELOG/INDEX/docs
+README/FEATURES + docs/LESSONS_LEARNT.md — and its legacy lowercase alias `docs/lessons-learnt.md`,
+still live in older projects (the scaffolder now emits the uppercase name) — are NEVER in Touches, they are orchestrator-applied — and never own a directory that
+CONTAINS one: a `docs/` entry covers `docs/README.md` + `docs/FEATURES.md` +
+`docs/LESSONS_LEARNT.md` and ERRORs; enumerate the doc paths instead) · `Gate:` tier (≤3 `Gate:` lines — WARN above) · `Complexity:` ∈
+**`simple|complex|native|never-route`** (exact token — the gate ERRORs on anything else, e.g.
+`medium`; write label and value BARE — `Complexity: simple` — a backticked value ERRORs; a bolded
+label/value is now parsed; the LABEL forms neither gate parses — `__Complexity__:`, a backticked
+label, `***Complexity***:`, a wrapped-to-next-line value — each still draw the routing-off
+finding: ERROR at the emit gate (a `***triple***`/`__bold__` VALUE parses or draws the
+unrecognized-value ERROR — fail-closed either way) → dispatch tier (**simple** →
+`pick_models("code", prefer="value")` · **complex** → mid pool coder, premium pool models only via a
+named trigger · **never-route** → MANDATORY native, use it whenever Touches intersect the
+never-route set (the gate cross-checks simple/complex Touches against those paths) · **native** →
+author-CHOSEN native for work the pool must not code — design-heavy surfaces, and the
+Integration/receipt ticket — whose Touches are NOT never-route paths (the gate does not cross-check
+`native` Touches; self-verify the tier choice); both native
+tiers dispatch to the native worktree coder, `claude -p sonnet` default / `claude -p opus` for
+design-heavy auth/schema/migration/concurrency work; **Haiku never codes**; the pool is the ONLY
+route for gradeable tickets) · `## Behavior Contract` (≤8 G/W/T rows, **bulleted `- **Given** …`
+form only** — the gate reads ONLY bulleted Given rows, so numbered/table rows silently escape both
+the ≤8 cap and roll-up equality) · `## Context Files` (rule packs + refs + **every existing file the
+coder must READ** — the byte budget counts them; new-file-heavy tickets list their reference/seam
+files here or the budget under-counts) · `Docs:` (the Doc Sync Matrix rows this ticket owns) · ≥1
+`path:line` citation (non-Integration tickets; the gate's `PROOF` regex recognizes only
+`.py .ts .tsx .js .sql .md .csv .yaml .yml .sh .json` — a ticket grounded solely in `Dockerfile:7`
+or `.jsx`/`.toml`/`.css`/`.rs` cites fails the floor, pair them with a `.md`/`.py` cite) · **NO `Status:` line**
+(ticket state lives ONLY in the spine Board) · **exactly ONE ticket per plan carries
+`Integration: true`** (mandatory — the gate ERRORs on zero or two; by CONVENTION single-ticket work
+stays a monolith — the gate does not enforce a minimum set size), LAST in Merge Order: a **FULL
+ticket** (every required field — `Complexity: native`, never a pool tier: the gate ERRORs a
+pool-tier Integration ticket (bolded labels now parse; only a MISSING line escapes this one check —
+self-verify); its G/W/T rows roll up
+into the spine like any other's) whose
+Touches = receipt artifacts only — exempt from the READ budget, the citation floor and the
+behavior/gate caps, but **still listed in the spine File Scope** (containment binds every ticket — except the
+plan's OWN receipt/metadata artifacts: spine-metadata-prefixed paths carrying the plan's stem are
+exempt, so spell receipt Touches literally, stem included — canonically
+`docs/development/reviews/<stem>-review.md` — the SET shape's review artifact is STEM-named, a
+deliberate divergence from the generic date-first `/fabrik-review` naming, which stays for ad-hoc
+reviews; the LOCK file is the ORCHESTRATOR's, never in
+Touches) —
+owns the whole-plan
+`check_doc_sync.py --range` + `check_doc_stubs.py --range` receipt, the whole-plan
+`python scripts/final_gate.py --check --json` + `check_convergence.py` run (the set-shape owner of
+the monolith's mandatory final step), `/fabrik-docs-review`,
+`/fabrik-features` (when features shipped) and the cross-ticket seam-test run; its doc-drift fixes
+and command outputs flow through the orchestrator's Deltas mechanism, never written directly.
+
+**Sizing — mechanical + authorial, both binding.** Run
+`python -m scripts.enforcement.check_plan_tickets --plan-dir <dir>` **from the repo root** (`-m`
+imports `scripts.` — it fails from any other cwd) as the emit gate (budgets,
+disjointness, DAG, roll-up equality, grounding — NOT field presence, see above) AND perform the **isolation simulation as authorial
+judgment** (read ONLY the ticket + its Context Files — could a cold agent code it with zero
+questions?). **The simulation is authoritative**: a ticket that passes the byte budget but fails the
+simulation is split anyway. Splits are by YOU the author (the script validates, never splits): divide
+Touches along responsibility seams, re-derive Depends from Interfaces (b depends on a iff b consumes
+a's Produces), rename to the `T05a-`/`T05b-` shape, update Board + Merge Order, re-run the gate to
+**exit 0 with zero WARN lines** (the exit code alone ignores the advisory caps — and the emit gate
+is the only place they surface on any GATE path, per Phase 5). A single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
+operator — the only non-self-service sizing case.
+
+**Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;
+`docs_updater`'s checkbox counters stay RAW, so never fence a DONE-WHEN checklist; copy the
+shape, don't invent):
+
+```markdown
+# T01 — <title>
+
+## Scope
+<one paragraph of the WHAT>. DO-NOT: <the adjacent surface this ticket must not touch>.
+
+Depends: —
+Parallel: ⚡
+Complexity: simple
+Gate: python -m pytest tests/<area> -q
+Docs: <the Doc Sync Matrix rows this ticket owns>
+
+## Touches
+- src/app/x.py — PRIMARY PATH
+
+## Behavior Contract
+- **Given** <state>, **When** <action>, **Then** <observable> (src/app/x.py:12)
+
+## Context Files
+- .windsurf/rules/core/10-python.md
+- src/app/y.py
+```
+
+Plus the MANDATORY Integration ticket (same shape: `Complexity: native`, `Integration: true`,
+`Depends:` on the last work ticket; its `## Touches` is literally
+`- docs/development/reviews/<stem>-review.md` — the gate ERRORs a set without exactly one
+Integration ticket, and ERRORs dir-form or foreign-stem receipt paths). The spine is the same-stem `.md` beside the tickets: `Status: DRAFT` + the
+section list above, one Board row per ticket, e.g. `| T01 | <title> | — | ⚡ | ⬜ | |`.
+
+**The MONOLITH shape:** the per-phase emission mechanics below — including the per-phase-boundary
+`/fabrik-review` step — are the monolith path for smaller work. **Phases 4–5 bind BOTH shapes** (for
+a plan set, the SPINE carries the Phase-4 scaffolding — File Scope, Evidence, Self-audit (item (a)
+points to the TICKET that delivers each agreement — a gap means adding a ticket: file + Board row +
+Merge Order + roll-up; item (b) walks cross-TICKET `## Interfaces`, not cross-phase — a spine has no
+phases), Residual
+unknowns, `Status: DRAFT` — and Phase 5's mandatory `/fabrik-plan-review` hand-off;
+`check_convergence` holds the spine to the Evidence/Self-audit/fenced-proof floor at the CONVERGED
+flip — but a spine has no `## Phase` headings, so the MECHANICAL citation floor collapses to ONE:
+the AUTHORIAL rule is spine Evidence cites every ticket's primary path). **Phase 3 maps differently
+onto a set:** its subagent/parallelism mandates inform
+the tickets' `Complexity:`/`Parallel:` fields, and the per-phase-boundary `/fabrik-review` is
+replaced by the per-ticket review floor that `/fabrik-execute-plan`'s dispatcher owns — tickets do
+NOT embed the closing sequence (that would blow the ≤3 `Gate:` cap; the Integration ticket owns the
+whole-plan gate). The monolith path resumes here:
+
 Write phases in dependency order. Each phase names the exact files/changes and, for **every** step,
 embeds a **runnable validation gate: the exact command + the expected result** (not "verify it works").
 **Every gate command MUST be runnable from the project's WSL dev** — synced `scripts/*.py`, `pytest`,
@@ -291,8 +517,15 @@ The emitted plan MUST contain all three as written steps, not suggestions:
 
 Append, so the downstream converge/execute commands have what they need:
 
-- **`## File Scope (owned paths)`** — the explicit list of files/globs this plan **creates or modifies**
-  (be exhaustive — grounded from Phase 1). This is the contract that lets **multiple plans run
+- **`## File Scope (owned paths)`** — the explicit list of files this plan **creates or modifies**
+  (literal paths / `dir/` entries only — no globs on either surface (the plan's OWN stem-named
+  receipt/lock entries are exempt only from the owned-by-no-ticket WARN; `~/` is never ownable);
+  for a plan
+  SET it is a superset of every ticket's
+  Touches, receipt artifacts included; be exhaustive — grounded from Phase 1 — **except the
+  governance files** CHANGELOG/INDEX/docs README/FEATURES + docs/LESSONS_LEARNT.md, which stay OUT
+  of File Scope in both
+  shapes: they are shared-append surfaces outside the plan lock, per the spine grammar). This is the contract that lets **multiple plans run
   concurrently in one project without collisions**: `/fabrik-execute-plan` locks on it and refuses to
   start if any owned path overlaps another in-flight run. Keep the scope **disjoint** from any sibling
   plan you know is active; if the work genuinely must share a file, name it here and flag it as a
@@ -316,26 +549,51 @@ Append, so the downstream converge/execute commands have what they need:
 
 - **Location + naming (datetime-first, numbered + meaningful, fixed at creation, never renamed):** write
   to `docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>.md` — the **date always leads**, `<n>` = the
-  **next unused integer for today** (`ls docs/development/plans/` first; if `…-plan-1-*.md` exists, use
+  **next unused integer for today** (`ls docs/development/plans/` first — count ANY entry, file OR
+  directory, matching `…-plan-<n>-*`; if `…-plan-1-*` exists in either form, use
   `-plan-2-`, etc.), and `<slug>` = a short **kebab-case description of the work** (`[a-z0-9-]+`) derived
   from the plan's goal (the `# H1`). Example: `2026-07-02-plan-1-resilience-alerting.md`. This passes
   `scripts/enforcement/check_plans.py` (`\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+\.md`). **Check before create:**
-  if the computed path exists, STOP and ask (never overwrite). This is the allowlisted location for new
-  plan `.md` files.
+  check BOTH forms — `<stem>.md` AND `<stem>/` — and if either exists, STOP and ask (never overwrite;
+  the tooling treats `X.md` and `X/X.md` as two different plans with the same displayed name). This is
+  the allowlisted location for new plan `.md` files. **Spine+ticket shape:** the same name becomes a
+  DIRECTORY — `docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` holding the same-stem spine +
+  `T##[a-z]?-<slug>.md` tickets (both allowlisted; the whole SET is the plan unit, referenced by its
+  directory).
 - **The file is NOT renamed or moved afterward** — its name is stable for the whole
   `fabrik-plan-after-chat → fabrik-plan-review → fabrik-execute-plan` pipeline; every downstream command
-  references it by that path. What changes is the internal **`Status:` field** — this command writes
-  `Status: DRAFT`, and the enforced `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not
-  create a second file or rename on convergence.
+  references it by that path. What changes is the internal **`Status:` field** (the SPINE's, for a plan
+  set — tickets never carry one) — this command writes `Status: DRAFT`, and the enforced
+  `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not create a second file or rename
+  on convergence.
 - Do **not** commit unless the user says so this turn (`git add` is fine).
+- **Plan set only — BEFORE invoking the review: fix emit-gate findings (WARNs included) and
+  `git add` the SPINE.** The `--plan-dir` run is the only place the advisory set (≤8-behavior,
+  ≤3-`Gate:`, File-Scope-unparseable, File-Scope-orphan,
+  the Never-Route line WARNs — interior-glob/multi-token/out-of-repo/empty/residue —
+  Context-Files-glob/out-of-repo/residue, and the Serialized VOID-row WARN) surfaces on any GATE
+path (missing-Complexity
+is stronger: ERROR at the emit gate and the flip, advisory only on the shared path) (Tier-2 discards
+  this check's stdout unless something ERRORs, and Tier-3's adapter route both downgrades and
+  discards them; a hand-run bare `check_plan_tickets` also prints them): those WARNs are
+  DROPPED at the CONVERGED flip, and on
+  the shared Tier-2 gate path every finding softens to WARN while the spine is DRAFT/PLANNED. (One more
+  advisory finding, missing-trailer, belongs to the EXECUTION window — it needs a plan lock
+  with a `baseline_commit`, so re-run `--plan-dir` there to see it.) And the `git add` matters
+  because `check_convergence` skips untracked `??` files by design — on a never-added spine the
+  flip contract silently never runs (a tracked-but-modified spine is checked without re-staging;
+  tickets are globbed off disk, so only the spine's tracking matters).
 - **MANDATORY final step — run `/fabrik-plan-review` now, do not skip it.** Immediately invoke
-  `/fabrik-plan-review <file>` (via the Skill tool) on the plan you just wrote and run it **to a fixed
-  point** in this same turn. The create pass only produced a grounded DRAFT + first grounding; the
-  deliverable is a plan that has been through **one full convergence round** (grounders → refute/merge →
-  runnable gates → `check_convergence.py`). Do **not** end the turn on an unconverged DRAFT — context is never the reason (the harness auto-compacts and the run continues). The only
-  reasons to stop before convergence are an unanswered **Phase-0 THIN** question or a **Phase-1 BLOCKING**
-  unknown — surface those and stop; otherwise converge.
-- After convergence, hand off: **`/fabrik-execute-plan <file>`** is the next step and is left to the **user** —
+  `/fabrik-plan-review <file>` (via the Skill tool) on the plan you just wrote — **for a plan set,
+  pass the DIRECTORY** (the set is the plan unit; the reviewer must read spine AND tickets) — and
+  run it **to a fixed point** in this same turn. The create pass only produced a grounded DRAFT +
+  first grounding; the deliverable is a plan that has been through **one full convergence round**
+  (grounders → refute/merge → runnable gates → `check_convergence.py`). Do **not** end the turn on
+  an unconverged DRAFT — context is never the reason (the harness auto-compacts and the run
+  continues). The only reasons to stop before convergence are an unanswered **Phase-0 THIN**
+  question or a **Phase-1 BLOCKING** unknown — surface those and stop; otherwise converge.
+- After convergence, hand off: **`/fabrik-execute-plan <file>`** (for a plan set: the DIRECTORY,
+  same rule as the review hand-off above) is the next step and is left to the **user** —
   it mutates code, so it stays user-triggered/approved. State it, plus any residual open items from the
   review as the gate before execution.
 

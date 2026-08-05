@@ -4,11 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — Spine+ticket gate layer: 7-round adversarial hardening (2026-08-05)
+### Changed — /fabrik-plan-after-chat emits spine+ticket plan sets (Phase B) (2026-08-05)
 
-Phase A of `2026-08-04-plan-1-spine-ticket-plans.md` — the code for the entry above (which a
-sibling commit bundled early; this commit carries the actual implementation) plus seven
-review rounds (36→25→18→18→16→13→18 findings, all fixed or refuted-with-proof): fence
+`commands/_sources/fabrik-plan-after-chat.md` Phase 2 gains the shape decision (>3 phases /
+>~300 lines / any phase's READ set over `READ_BUDGET_BYTES` → spine+ticket set; smaller work keeps
+the monolith), the gate-enforced spine grammar (Board/Merge Order+Serialized barriers/Interfaces
+with consumer-owned seam tests/Behavior-Contract roll-up/Never-Route extension), the full ettw-06
+ticket field contract (WRITE-set Touches, pool/native Complexity tiers — the dispatcher bench
+(n=15, diagnostic) confirmed the Sonnet-default seat and denied Haiku promotion (14/15 vs 15/15); Opus-for-design-heavy is the panel
+consensus — read-set Context Files, no Status lines, one Integration ticket last), and the
+mechanical+authorial sizing split (`check_plan_tickets --plan-dir` emit gate + the authoritative
+isolation simulation with author-performed T##a/T##b splits). Phase 5 naming covers the directory
+shape. The phase's 49-round review loop (436 findings raised, all fixed or refuted-with-proof, terminating at a found:0 round) also hardened `check_plan_tickets.py` + tests: Board
+header recognition is last-candidate-before-data-rows with cell normalization (legends ABOVE
+the board and decorated headers — except the bold-outside-backtick double-wrap, which still
+falls back to column 5 — can no longer silently disable the ⬜-staleness check; the
+below-separator placement becomes the accepted, doc-banned cost; rosters never could and still
+cannot), a bare-token
+pool-tier Integration ticket is a new ERROR ("receipts run native", plan BC 27), a duplicate
+Ticket Board row is a new ERROR (plan BC 28 — the last row would silently mask the real
+state), globs/opaque tokens in Touches or File Scope are new ERRORs (BC 30 — an opaque token
+disables the never-route/governance/overlap predicates; the Never-Route line's failure modes — interior glob,
+multi-token, out-of-repo, empty, residue — and Context-Files glob/out-of-repo/residue draw
+WARNs, while an edge-star Never-Route glob degenerates to its dir prefix, extending coverage), out-of-repo tokens (absolute/~/.., BC 32), foreign-stem metadata Touches, the whole
+plan-set territory in Touches (own-stem included — the Board is the orchestrator's write surface),
+the plan lock in Touches, repo-root `.` tokens, a missing `Complexity:` line (ERROR at
+emit/flip — BC 33), residue tokens — quote/backtick/separator/colon leftovers, with `path:NN`
+citations collapsing to their path first (BC 34) — and duplicate Merge Order entries are new
+ERRORs (Serialized rows: per-row covering-aware licences — residue rows VOID with a WARN, rows
+are never unioned), the `--plan-dir` CLI names its rejection cause, the four
+governance surfaces — now five plus the legacy lowercase lessons alias: `docs/LESSONS_LEARNT.md`
+joins as the fifth shared-append surface — ERROR in any Touches AND in File Scope (which builds the
+lock; dir-aware — a `docs/` entry covers the three docs/ surfaces) (they live OUTSIDE
+Touches, File Scope and the plan lock in both shapes — gate-enforced for plan SETS, authorial for
+monoliths — so every future plan's lock stops covering
+CHANGELOG/INDEX/docs README/FEATURES/docs LESSONS_LEARNT, because locking `CHANGELOG.md` would
+force every pair of concurrent plans to BLOCK on scope overlap; the shared-tree append rules govern
+those files instead),
++83 tests, plus a strip-before-extract symmetric fence fix in `check_test_proposal` (fenced example rows no
+longer inflate the Tier-2 behavior OR criteria counts) with tests; `fabrik-plan-review.md`'s File Scope pillar carries the matching carve-out. Per
+`2026-08-04-plan-1-spine-ticket-plans.md` Phase B.
+
+### Changed — Spine+ticket gate layer: 12-round adversarial hardening (2026-08-05)
+
+Phase A of `2026-08-04-plan-1-spine-ticket-plans.md` — the code for the "Spine+ticket plan shape:
+gate compatibility layer" entry below (a sibling commit bundled that entry early; this commit
+carries the actual implementation) plus twelve
+review rounds (167 findings raised → found:0, all fixed or refuted-with-proof): fence
 stripping is line-anchored (an unpaired ``` in prose no longer swallows document body — live
 fleet regression on calendar-orchestration-engine's 2026-07-25 plan), sibling isolation
 covers the adapter/upstream/lock paths (a sibling's in-flight or committed-unpushed plan set
@@ -51,7 +93,8 @@ roll-up equality, execution-window Board staleness; registered in `validate_conv
 `final_gate` Tier-2); `check_test_proposal.py` + `docs_updater.py` made plan-directory-aware
 (+ `BLOCKED` status vocabulary); `check_doc_sprawl.py` nested pattern made intentional; CLAUDE.md
 allowlist row extended. Tests: `tests/enforcement/test_plan_shape_gates.py`,
-`tests/enforcement/test_check_plan_tickets.py`, `tests/test_check_convergence.py` (60 green).
+`tests/enforcement/test_check_plan_tickets.py`, `tests/test_check_convergence.py` (95 green at
+that commit; 178 with Phase B's additions).
 
 ### Added — Dispatcher-coder benchmark: 4 claude -p tiers × 18 tasks, plus claude -p harness fixes (2026-08-04)
 
