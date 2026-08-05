@@ -1,11 +1,35 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-08-02 (Lesson 102 — `fabrik apply` REBUILDS the .env and will overwrite a registrar-injected real value (DATABASE_URL) with the spec's PLACEHOLDER → `compose up --wait` fails on the placeholder DSN before the registrar re-injects = self-inflicted outage; `redeploy` never re-syncs env at all. Fix: `_build_env_content` is now placeholder-aware. And: the deployer agent HAS the keys/tools — recover in place, don't defer to the operator) (Lesson 101 — a re-triage/re-bill dedup test must assert the CONSUMER's real bucketing invariant, not a proxy function in isolation; and "exempt on error" must split transient-transport from completed-but-unusable) (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-08-05 (Lesson 103 — a byte-identical shared regex can still be fail-open at ONE consumer: the four-module Status regex's `>` tolerance was fail-closed at the ban/claim consumers but fail-OPEN at spine-status determination (a quoted `> Status: DRAFT` example downgraded the whole gate to advisory); fix the FAIL DIRECTION at the consumer — strip quoted lines from that one scan — never by forking the regex, so parity survives; and prove each `>` with a mutation-killing test, or the next "harmonizer" reverts it green) (Lesson 102 — `fabrik apply` REBUILDS the .env and will overwrite a registrar-injected real value (DATABASE_URL) with the spec's PLACEHOLDER → `compose up --wait` fails on the placeholder DSN before the registrar re-injects = self-inflicted outage; `redeploy` never re-syncs env at all. Fix: `_build_env_content` is now placeholder-aware. And: the deployer agent HAS the keys/tools — recover in place, don't defer to the operator) (Lesson 101 — a re-triage/re-bill dedup test must assert the CONSUMER's real bucketing invariant, not a proxy function in isolation; and "exempt on error" must split transient-transport from completed-but-unusable) (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
 ---
+
+# Lesson 103: shared-regex byte-parity can hide a per-consumer fail-direction bug — fix the consumer's INPUT, never fork the regex
+
+**Date:** 2026-08-05 · **Context:** `2026-08-04-plan-1-spine-ticket-plans` Phase B — the 47th review round of the spine+ticket gate layer.
+
+The Status-line regex is deliberately byte-identical across four modules (`check_plan_tickets` /
+`check_plan_quality` / `check_convergence` / `docs_updater`), including `>` blockquote tolerance. At
+three consumer classes that tolerance fails CLOSED (a quoted ticket `Status:` still draws the ban; a
+quoted convergence claim still gets checked). At the fourth — **spine-status determination** — parsing
+MORE Status lines produces FEWER findings: first-match let a documentation example (`> Status: DRAFT`)
+above the real `Status: EXECUTED` become the spine's own status and silently downgrade the entire
+ticket contract to advisory on the gate path. Forty-six review rounds (including ones that examined this
+exact regex for parity) missed it because parity LOOKED like the invariant; the fail direction is a
+property of each *consumer*, not of the pattern.
+
+**Durable rules.**
+1. When a shared pattern must behave differently per consumer, shape the consumer's INPUT (here:
+   strip blockquoted lines from the spine-status scan, exactly like fences) — never fork the regex;
+   parity survives and each consumer keeps its fail-closed direction.
+2. Audit tolerance flags (`>`-prefixes, case-insensitivity, bold-tolerance) per CONSUMER by asking
+   "does parsing MORE here produce FEWER findings?" — any yes is a fail-open needing its own guard.
+3. Every deliberate tolerance character needs a mutation-killing test (we proved each `>` red-on-revert
+   and added a mechanical pattern-equality parity test) — otherwise the next well-meaning "harmonizer"
+   deletes it green.
 
 # Lesson 102: `fabrik apply` clobbers a registrar-injected real .env value with the spec placeholder; `redeploy` never syncs env — and the deployer agent must recover in place, not defer
 
