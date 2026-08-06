@@ -55,8 +55,12 @@ def main() -> int:
             problems.append(f"INDEX.md names missing path: {t}")
 
     # (b) live docs are indexed (path or basename)
+    # quotePath=false: git escapes non-ASCII paths by default ("\342\200\223" for
+    # an en dash) and wraps them in quotes — the escaped form never matches
+    # INDEX.md's real text, false-flagging an indexed doc as missing
+    # (trade-intelligence upstream, 2026-08-05).
     tracked = subprocess.run(
-        ["git", "ls-files", "docs/**/*.md", "docs/*.md"],
+        ["git", "-c", "core.quotePath=false", "ls-files", "docs/**/*.md", "docs/*.md"],
         cwd=REPO,
         capture_output=True,
         text=True,

@@ -149,7 +149,21 @@ def _gitignored_files(root: Path) -> set[str]:
     """
     try:
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "--others", "--ignored", "--exclude-standard"],
+            # quotePath=false: git escapes non-ASCII paths by default ("\342\200\223"
+            # for an en dash), which would never match real filesystem paths — the
+            # ignore-set silently loses those entries and gates the very artifacts
+            # this function exists to skip (trade-intelligence upstream, 2026-08-05).
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "-C",
+                str(root),
+                "ls-files",
+                "--others",
+                "--ignored",
+                "--exclude-standard",
+            ],
             capture_output=True,
             text=True,
             timeout=15,
@@ -222,22 +236,19 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         if len(parts) >= 2 and parts[0] == "scripts" and parts[1] == "sysadmin":
             continue
 
-        # libs/<module>/ holds VENDORED fabrik-lib modules — each owns its docs
-        # (README already allowed above, plus VENDORING.md / API notes shipped with
-        # the copy). These are the module's own reference material that travels with
-        # the vendored code, not stray project docs. (2026-07-08)
-        if parts and parts[0] == "libs":
+        # A directory literally named libs/ at ANY depth holds VENDORED fabrik-lib
+        # modules — each owns its docs (README, VENDORING.md, CUSTOMIZATION.md,
+        # UPSTREAM_FEEDBACK.md, examples/) that travel with the vendored code, not
+        # stray project docs. Was root-libs/ + src/**/libs/ only; generalized
+        # 2026-08-06 (trade-intelligence upstream): projects legitimately vendor
+        # into web/libs/, app/libs/, etc. — the dir NAME is the contract.
+        if "libs" in parts:
             continue
 
-        # src/<pkg>/prompts/ and src/<pkg>/libs/ are code-adjacent RUNTIME ASSETS, not stray docs:
-        #   • prompts/ holds prompt TEMPLATES the app loads at runtime (e.g. services/bible.py reads
-        #     prompts/bible/*.md; prompts/generate_name.md, enhance_field.md).
-        #   • libs/ (nested) holds VENDORED fabrik-lib modules — same as the root libs/ carve-out
-        #     above, for projects that vendor into src/<pkg>/libs/ (each with its own README /
-        #     VENDORING.md / UPSTREAM_FEEDBACK.md).
-        # Same rationale as the scripts/sysadmin/ + root libs/ carve-outs. Scoped to under src/ so a
-        # stray top-level doc is still caught. (2026-07-16)
-        if parts and parts[0] == "src" and ("prompts" in parts or "libs" in parts):
+        # src/<pkg>/prompts/ holds prompt TEMPLATES the app loads at runtime
+        # (e.g. services/bible.py reads prompts/bible/*.md). Scoped to under src/
+        # so a stray top-level doc is still caught. (2026-07-16)
+        if parts and parts[0] == "src" and "prompts" in parts:
             continue
 
         # Flag forbidden directories as errors (not skip!)
@@ -336,6 +347,13 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         # source code, not misplaced docs.
         elif parts[0] == "commands":
             pass  # command-corpus sources/fragments allowed
+
+        # docs-site/ is a Docusaurus site — `docusaurus` is a first-class
+        # SCAFFOLD_TYPE and the scaffolder itself produces this layout; its
+        # markdown MUST live under docs-site/ by Docusaurus's own contract
+        # (trade-intelligence upstream, 2026-08-05).
+        elif parts[0] == "docs-site":
+            pass  # Docusaurus site content allowed
 
         # Other locations
         else:

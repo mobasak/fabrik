@@ -37,7 +37,7 @@ def test_would_fail_on_unindexed_doc(monkeypatch):
     real_run = subprocess.run
 
     def fake_run(cmd, **kw):
-        if cmd[:2] == ["git", "ls-files"]:
+        if "ls-files" in cmd:
 
             class R:  # minimal stand-in
                 stdout = "docs/operations/definitely-not-indexed-xyz.md\n"
@@ -48,3 +48,25 @@ def test_would_fail_on_unindexed_doc(monkeypatch):
     monkeypatch.setattr(cdi.subprocess, "run", fake_run)
     rc = cdi.main()
     assert rc == 1
+
+
+def test_ls_files_disables_quotepath(monkeypatch):
+    """quotePath regression (trade-intelligence upstream 2026-08-05): the ls-files
+    call must pass -c core.quotePath=false or non-ASCII doc names come back
+    escaped and false-flag as missing from INDEX.md."""
+    captured = {}
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kw):
+        if "ls-files" in cmd:
+            captured["cmd"] = cmd
+
+            class R:
+                stdout = ""
+
+            return R()
+        return real_run(cmd, **kw)
+
+    monkeypatch.setattr(cdi.subprocess, "run", fake_run)
+    cdi.main()
+    assert "core.quotePath=false" in captured["cmd"], captured

@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — ocoron design-system contrast table + two enforcement false-positive classes (trade-intelligence upstream) (2026-08-06)
+
+Applied both verified upstream proposals from trade-intelligence
+(`/opt/trade-intelligence/docs/reference/upstream-proposals/2026-08-05-*`). (1)
+`ocoron-design-system.md` § Color Contrast published 9 wrong ratios out of 11 — three INVERTED
+(dark-on-accent claimed 5.41 AA, really 4.04 FAIL; white-on-accent claimed forbidden at 4.06,
+really 4.90 PASS) — every value independently recomputed (WCAG 2.x) and corrected; the accent
+split into roles (fill `#5B5BF7` unchanged, hover now DARKENS `#7676FF`→`#5151E8` since white on
+the lighter hover was 3.62 FAIL, new mode-aware `--color-accent-text` `#8A8AFF` dark/`#4A4AE0`
+light) because one mode-invariant accent provably cannot be AA body text on both dark and white
+surfaces (L ≥ 0.18866 vs ≤ 0.18333 — disjoint); duplicate table, button/tag prose, and the
+"stays `#5B5BF7` in both modes" premise corrected; standing rule added (a dual-role color token
+needs two values — verify every semantic color with the formula, never from memory). Fleet note:
+projects that shipped dark-text-on-accent per the old table will now correctly red their a11y
+gates — the fix is the one-line white-foreground swap. (2) `check_structure.py`: `docs-site/`
+carve-out (docusaurus is a SCAFFOLD_TYPE; the scaffolder produces that layout), the vendored-libs
+carve-out generalized to a `libs/` dir at ANY depth (was root + `src/**` only — `web/libs/` was
+gated), and `-c core.quotePath=false` on the ignore-set git call (escaped non-ASCII paths never
+matched, gating ignored artifacts). (3) `check_doc_index.py`: same quotePath fix (an indexed
+en-dash doc false-flagged as missing). +4 regression tests (red-on-revert verified), doc-index
+suite matcher updated.
+
 ### Fixed — blockquoted-Status fail-open in docs_updater + Serialized barrier direction canonicalized (2026-08-05)
 
 The whole-plan review of the spine+ticket wave found the FOURTH Status-regex consumer un-hardened:

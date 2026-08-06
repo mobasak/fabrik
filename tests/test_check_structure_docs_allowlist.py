@@ -134,3 +134,39 @@ def test_stray_src_md_outside_prompts_libs_still_flagged():
     # scoped carve-out: a genuinely stray .md under src/ (not prompts/ or libs/) STILL errors
     errs = _src_errors(["src/brand_identity/notes.md", "src/pkg/services/TODO.md"])
     assert "src/brand_identity/notes.md" in errs and "src/pkg/services/TODO.md" in errs
+
+
+# --- upstream fixes (trade-intelligence proposals, applied 2026-08-06) ------------
+def test_docs_site_docusaurus_md_exempt():
+    # docusaurus is a first-class SCAFFOLD_TYPE; its markdown MUST live under
+    # docs-site/ by Docusaurus's own contract — the scaffolder produces this layout.
+    paths = [
+        "docs-site/docs/intro.md",
+        "docs-site/docs/guides/setup.md",
+        "docs-site/blog/2026-08-01-launch.md",
+    ]
+    assert not _src_errors(paths), "Docusaurus markdown under docs-site/ must not be flagged"
+
+
+def test_any_depth_libs_md_exempt_vendored():
+    # vendor-don't-import: a dir literally named libs/ at ANY depth carries its
+    # module's own docs (web/libs/, app/libs/ — not just root or src/**/libs/).
+    paths = [
+        "web/libs/ui-verify/examples/stack-up.md",
+        "app/libs/rag/CUSTOMIZATION.md",
+    ]
+    assert not _src_errors(paths), "vendored-module docs under any */libs/ must not be flagged"
+
+
+def test_gitignored_set_returns_unquoted_nonascii_paths(tmp_path):
+    # quotePath regression: git escapes non-ASCII by default; the ignore-set must
+    # carry REAL paths or en-dash-named artifacts get gated despite being ignored.
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q"], cwd=tmp_path, check=True, timeout=15)
+    (tmp_path / ".gitignore").write_text("artifacts/\n", encoding="utf-8")
+    (tmp_path / "artifacts").mkdir()
+    name = "run – result.md"  # en dash in filename
+    (tmp_path / "artifacts" / name).write_text("x", encoding="utf-8")
+    got = cs._gitignored_files(tmp_path)
+    assert f"artifacts/{name}" in got, got

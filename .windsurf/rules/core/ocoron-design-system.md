@@ -248,8 +248,9 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 
 | Token | Hex | Role |
 |---|---|---|
-| `--color-accent` | `#5B5BF7` | Primary accent — CTAs, active states, links, primary buttons, progress bars |
-| `--color-accent-hover` | `#7676FF` | Accent hover state |
+| `--color-accent` | `#5B5BF7` | Brand accent as FILL/BORDER/FOCUS-RING only (buttons, progress bars, focus rings — non-text; 3.25–4.90:1 vs every surface clears WCAG 1.4.11's 3:1) |
+| `--color-accent-hover` | `#5151E8` | Accent fill hover — DARKENS (white-on = 5.69:1; a lighten-on-hover is unsatisfiable with a white foreground) |
+| `--color-accent-text` | `#8A8AFF` dark mode / `#4A4AE0` light mode | Accent used AS TEXT (links, accent labels) — MODE-AWARE by necessity: no single hex can be AA body text on both a dark and a white surface (see § Color Contrast) |
 | `--color-accent-muted` | `rgba(91,91,247,0.12)` | Accent backgrounds (tags, badges, subtle highlights) |
 | `--color-secondary` | `#F5A623` | Warnings, highlights, premium/upgrade nudges |
 | `--color-danger` | `#FF4444` | Errors, destructive actions, critical alerts |
@@ -291,24 +292,33 @@ Verified contrast ratios for the canonical token pairings:
 
 | Foreground | Background | Ratio | Level | Use |
 |---|---|---|---|---|
-| `--text-primary` `#FFFFFF` | `--surface-0` `#0A0A0A` | 19.83:1 | AAA | Body text on page |
-| `--text-primary` `#FFFFFF` | `--surface-1` `#141414` | 18.13:1 | AAA | Body text on cards |
-| `--text-body` `#E0E0E0` | `--surface-0` `#0A0A0A` | 16.04:1 | AAA | Default body |
-| `--text-muted` `#888888` | `--surface-0` `#0A0A0A` | 5.74:1 | AA | Meta, timestamps |
-| `--text-muted` `#888888` | `--surface-1` `#141414` | 5.25:1 | AA | Meta on cards |
-| `--color-accent` `#5B5BF7` | `--surface-0` `#0A0A0A` | 5.41:1 | AA | Links, accent text |
-| `#0A0A0A` (dark text) | `--color-accent` `#5B5BF7` | 5.41:1 | AA | Primary button text |
-| `#FFFFFF` | `--color-accent` `#5B5BF7` | 4.06:1 | AA Large | White on indigo — only for text >= 18px or bold >= 14px |
-| `--color-success` `#27AE60` | `--surface-0` `#0A0A0A` | 4.84:1 | AA | Success text |
-| `--color-danger` `#FF4444` | `--surface-0` `#0A0A0A` | 5.21:1 | AA | Error text |
-| `--color-secondary` `#F5A623` | `--surface-0` `#0A0A0A` | 9.31:1 | AAA | Warning text |
+| `--text-primary` `#FFFFFF` | `--surface-0` `#0A0A0A` | 19.80:1 | AAA | Body text on page |
+| `--text-primary` `#FFFFFF` | `--surface-1` `#141414` | 18.42:1 | AAA | Body text on cards |
+| `--text-body` `#E0E0E0` | `--surface-0` `#0A0A0A` | 15.00:1 | AAA | Default body |
+| `--text-muted` `#888888` | `--surface-0` `#0A0A0A` | 5.58:1 | AA | Meta, timestamps |
+| `--text-muted` `#888888` | `--surface-1` `#141414` | 5.20:1 | AA | Meta on cards |
+| `--color-accent-text` `#8A8AFF` | `--surface-0` `#0A0A0A` | 6.75:1 | AA | Links, accent text (dark mode; `#4A4AE0` on white = 6.27:1 for light mode) |
+| `#FFFFFF` | `--color-accent` `#5B5BF7` | 4.90:1 | AA | Primary button text — white, at body size |
+| `#FFFFFF` | `--color-accent-hover` `#5151E8` | 5.69:1 | AA | Primary button text on hover |
+| `--color-success` `#27AE60` | `--surface-0` `#0A0A0A` | 6.89:1 | AA | Success text |
+| `--color-danger` `#FF4444` | `--surface-0` `#0A0A0A` | 5.81:1 | AA | Error text |
+| `--color-secondary` `#F5A623` | `--surface-0` `#0A0A0A` | 9.77:1 | AAA | Warning text |
 
 **Light mode pairs** must be re-validated per project; track in an accessibility audit file.
 
 **Forbidden pairs (do not use):**
-- `--text-muted` on `--surface-3` (3.94:1 AA Large only — too risky for body text)
+- `--text-muted` on `--surface-3` (4.49:1 — passes AA numerically but too risky for body text; forbidden stands)
 - `--color-accent` `#5B5BF7` text on `--color-accent-muted` background (insufficient)
-- `#FFFFFF` text on `--color-accent` `#5B5BF7` background at body size (4.06:1 — passes AA Large only; use `#0A0A0A` dark text for body-size buttons)
+- `#0A0A0A` dark text on `--color-accent` `#5B5BF7` (4.04:1 — FAILS AA; use `#FFFFFF`, 4.90:1)
+- `--color-accent` `#5B5BF7` as TEXT on any surface (4.04:1 on `--surface-0`, 3.76:1 on `--surface-1` — FAILS AA; accent-as-text is what `--color-accent-text` exists for)
+
+**Standing rule — dual-role color tokens need TWO values.** A color used both as a fill-background
+and as foreground text has two independent constraints: the fill needs a foreground clearing 4.5:1
+against IT, and the text needs 4.5:1 against the surfaces it sits on. On a dark-and-light product
+those constraints are frequently disjoint, so the text value must be mode-aware. This applies to
+EVERY semantic color (success/info/warning/destructive), not just the accent — verify each with the
+WCAG formula, never from memory (this pack shipped 9 wrong ratios in 11 rows, 3 inverted, before
+the 2026-08-06 audit).
 
 ---
 
@@ -520,7 +530,7 @@ Font: Inter 500, 9px, uppercase, letter-spacing 1.5px
 Padding: 3px 8px
 Border-radius: 3px
 Background: color-specific muted variant (e.g., rgba(91,91,247,0.12) for accent)
-Text: full-saturation color (e.g., #5B5BF7)
+Text: the color's TEXT variant (e.g., var(--color-accent-text) — never the raw fill hex as text)
 ```
 
 ### Pills
@@ -539,7 +549,7 @@ Hover: background var(--surface-3)
 ```
 Primary:
   Background: var(--color-accent)
-  Text: #FFFFFF (white on indigo — AA Large at 4.06:1; use #0A0A0A for body-size text)
+  Text: #FFFFFF (4.90:1 — AA at body size)
   Font: Inter 500, 13px
   Padding: 8px 16px
   Border-radius: 6px
@@ -1414,9 +1424,9 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 |---|---|---|
 | `--text-primary` (#FFF) on `--surface-0` (#0A0A0A) | 19.83:1 | AAA |
 | `--text-body` (#E0E0E0) on `--surface-0` (#0A0A0A) | 16.04:1 | AAA |
-| `--text-muted` (#888) on `--surface-0` (#0A0A0A) | 5.74:1 | AA |
-| `--color-accent` (#5B5BF7) on `--surface-0` (#0A0A0A) | 5.41:1 | AA |
-| `--color-accent` (#5B5BF7) on `--surface-1` (#141414) | 4.95:1 | AA |
+| `--text-muted` (#888) on `--surface-0` (#0A0A0A) | 5.58:1 | AA |
+| `--color-accent-text` (#8A8AFF) on `--surface-0` (#0A0A0A) | 6.75:1 | AA |
+| `--color-accent-text` (#8A8AFF) on `--surface-1` (#141414) | 6.27:1 | AA |
 
 Light mode pairs must be re-validated per project. See § Color Contrast (Verified Pairs) for the full table including forbidden pairs.
 
@@ -1654,7 +1664,10 @@ For the full testing process (Playwright automation, screenshot workflow, diagno
 - Same dark background, accent system.
 - Hero sections, feature cards follow the card pattern.
 - **Light variant required** for public-facing marketing pages — use light surface tokens.
-- Accent color stays `#5B5BF7` in both modes.
+- Accent FILL stays `#5B5BF7` in both modes; accent TEXT is mode-aware (`--color-accent-text`:
+  `#8A8AFF` dark / `#4A4AE0` light) — provably necessary: AA body text needs relative luminance
+  ≥ 0.18866 on `#0A0A0A` but ≤ 0.18333 on white, a disjoint range no single hex satisfies
+  (`#5B5BF7` sits at 0.16422).
 
 ### chrome-extension (Manifest V3)
 
@@ -1706,7 +1719,7 @@ For the full testing process (Playwright automation, screenshot workflow, diagno
 // tailwind.config.ts — extend section
 {
   colors: {
-    accent: { DEFAULT: '#5B5BF7', hover: '#7676FF', muted: 'rgba(91,91,247,0.12)' },
+    accent: { DEFAULT: '#5B5BF7', hover: '#5151E8', muted: 'rgba(91,91,247,0.12)', text: 'var(--color-accent-text)' },
     secondary: '#F5A623',
     danger: '#FF4444',
     success: '#27AE60',
@@ -1760,7 +1773,8 @@ For the full testing process (Playwright automation, screenshot workflow, diagno
 /* globals.css or :root */
 :root {
   --color-accent: #5B5BF7;
-  --color-accent-hover: #7676FF;
+  --color-accent-hover: #5151E8;
+  --color-accent-text: #8A8AFF; /* dark mode; light mode overrides to #4A4AE0 */
   --color-accent-muted: rgba(91, 91, 247, 0.12);
   --color-secondary: #F5A623;
   --color-danger: #FF4444;
