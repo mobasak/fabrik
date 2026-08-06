@@ -22,8 +22,10 @@ from fabrik.drivers import backrest, postgres
 # ---------------------------------------------------------------------------
 class TestRegisterPostgresPlan:
     def test_register_calls_add_backup_plan_with_per_db_id_and_path(self) -> None:
-        with patch("fabrik.drivers.backrest.add_backup_plan") as mock_add, \
-             patch("fabrik.drivers.backrest._append_tracked_db") as mock_track:
+        with (
+            patch("fabrik.drivers.backrest.add_backup_plan") as mock_add,
+            patch("fabrik.drivers.backrest._append_tracked_db") as mock_track,
+        ):
             mock_add.return_value = {"status": "created", "plan": "postgres-calendar_engine"}
             result = backrest.register_postgres_plan("calendar_engine")
 
@@ -37,8 +39,10 @@ class TestRegisterPostgresPlan:
         mock_track.assert_called_once_with("calendar_engine")
 
     def test_register_idempotent_when_plan_exists(self) -> None:
-        with patch("fabrik.drivers.backrest.add_backup_plan") as mock_add, \
-             patch("fabrik.drivers.backrest._append_tracked_db"):
+        with (
+            patch("fabrik.drivers.backrest.add_backup_plan") as mock_add,
+            patch("fabrik.drivers.backrest._append_tracked_db"),
+        ):
             mock_add.return_value = {"status": "exists", "plan": "postgres-foo"}
             result = backrest.register_postgres_plan("foo")
         assert result["status"] == "exists"
@@ -51,8 +55,10 @@ class TestRegisterPostgresPlan:
                 backrest.register_postgres_plan(bad)
 
     def test_register_accepts_valid_db_name(self) -> None:
-        with patch("fabrik.drivers.backrest.add_backup_plan") as mock_add, \
-             patch("fabrik.drivers.backrest._append_tracked_db"):
+        with (
+            patch("fabrik.drivers.backrest.add_backup_plan") as mock_add,
+            patch("fabrik.drivers.backrest._append_tracked_db"),
+        ):
             mock_add.return_value = {"status": "created", "plan": "postgres-foo_bar123"}
             backrest.register_postgres_plan("foo_bar123")  # alnum + underscore OK
 
@@ -62,8 +68,10 @@ class TestRegisterPostgresPlan:
 # ---------------------------------------------------------------------------
 class TestUnregisterPostgresPlan:
     def test_unregister_calls_remove_and_removes_from_tracked_file(self) -> None:
-        with patch("fabrik.drivers.backrest.remove_backup_plan") as mock_remove, \
-             patch("fabrik.drivers.backrest._remove_tracked_db") as mock_untrack:
+        with (
+            patch("fabrik.drivers.backrest.remove_backup_plan") as mock_remove,
+            patch("fabrik.drivers.backrest._remove_tracked_db") as mock_untrack,
+        ):
             mock_remove.return_value = True
             result = backrest.unregister_postgres_plan("calendar_engine")
         assert result is True
@@ -74,8 +82,10 @@ class TestUnregisterPostgresPlan:
         """remove_backup_plan returns False on lock/script failure. The
         tracked-DBs file scrub must still run so the next register attempt
         for the same name doesn't double-append."""
-        with patch("fabrik.drivers.backrest.remove_backup_plan") as mock_remove, \
-             patch("fabrik.drivers.backrest._remove_tracked_db") as mock_untrack:
+        with (
+            patch("fabrik.drivers.backrest.remove_backup_plan") as mock_remove,
+            patch("fabrik.drivers.backrest._remove_tracked_db") as mock_untrack,
+        ):
             mock_remove.return_value = False
             result = backrest.unregister_postgres_plan("calendar_engine")
         assert result is False
@@ -124,10 +134,12 @@ class TestPostgresIntegration:
     def test_create_database_calls_register_postgres_plan(self) -> None:
         """After role+grant succeed in create_database(), the new per-DB
         backup plan must be registered."""
-        with patch("fabrik.drivers.postgres._run_sql"), \
-             patch("fabrik.drivers.postgres.database_exists", return_value=False), \
-             patch("fabrik.drivers.postgres.register_allocation"), \
-             patch("fabrik.drivers.postgres.register_postgres_plan") as mock_register:
+        with (
+            patch("fabrik.drivers.postgres._run_sql"),
+            patch("fabrik.drivers.postgres.database_exists", return_value=False),
+            patch("fabrik.drivers.postgres.register_allocation"),
+            patch("fabrik.drivers.postgres.register_postgres_plan") as mock_register,
+        ):
             postgres.create_database("calendar_engine", db_user="calendar_user")
         mock_register.assert_called_once_with("calendar_engine")
 
@@ -141,8 +153,10 @@ class TestPostgresIntegration:
         returns early with status='exists' and does NOT touch the per-DB plan.
         Re-registering on every re-apply would just churn SSH calls."""
         # Inline check uses _run_sql with `SELECT 1 FROM pg_database`; return "1"
-        with patch("fabrik.drivers.postgres._run_sql", return_value="1\n"), \
-             patch("fabrik.drivers.postgres.register_postgres_plan") as mock_register:
+        with (
+            patch("fabrik.drivers.postgres._run_sql", return_value="1\n"),
+            patch("fabrik.drivers.postgres.register_postgres_plan") as mock_register,
+        ):
             result = postgres.create_database("calendar_engine", db_user=None)
         assert result["status"] == "exists"
         mock_register.assert_not_called()
@@ -151,13 +165,15 @@ class TestPostgresIntegration:
         """register_postgres_plan failure must not crash create_database —
         the DB+role exist, the per-DB plan is a nice-to-have that the
         operator can register manually."""
-        with patch("fabrik.drivers.postgres._run_sql"), \
-             patch("fabrik.drivers.postgres.database_exists", return_value=False), \
-             patch("fabrik.drivers.postgres.register_allocation"), \
-             patch(
-                 "fabrik.drivers.postgres.register_postgres_plan",
-                 side_effect=RuntimeError("backrest down"),
-             ):
+        with (
+            patch("fabrik.drivers.postgres._run_sql"),
+            patch("fabrik.drivers.postgres.database_exists", return_value=False),
+            patch("fabrik.drivers.postgres.register_allocation"),
+            patch(
+                "fabrik.drivers.postgres.register_postgres_plan",
+                side_effect=RuntimeError("backrest down"),
+            ),
+        ):
             # Should NOT raise
             result = postgres.create_database("calendar_engine", db_user="calendar_user")
         assert result["status"] == "created"
@@ -165,8 +181,10 @@ class TestPostgresIntegration:
     def test_drop_database_calls_unregister(self) -> None:
         # drop_database does its own inline SELECT 1 via _run_sql; return "1" to
         # signal DB exists so the drop path proceeds (not the not-found branch).
-        with patch("fabrik.drivers.postgres._run_sql", return_value="1\n"), \
-             patch("fabrik.drivers.postgres.unregister_allocation"), \
-             patch("fabrik.drivers.postgres.unregister_postgres_plan") as mock_unreg:
+        with (
+            patch("fabrik.drivers.postgres._run_sql", return_value="1\n"),
+            patch("fabrik.drivers.postgres.unregister_allocation"),
+            patch("fabrik.drivers.postgres.unregister_postgres_plan") as mock_unreg,
+        ):
             postgres.drop_database("calendar_engine")
         mock_unreg.assert_called_once_with("calendar_engine")

@@ -27,15 +27,15 @@ def test_validate_db_name_accepts_real_fabrik_ids():
     "bad",
     [
         'x"; DROP DATABASE y; --',  # classic injection
-        "a; SELECT 1",              # statement break
-        "a b",                      # space
-        "calendar-engine",          # dash (kebab, not snake)
-        "'quoted'",                 # quotes
-        "",                         # empty
-        "Uppercase",                # wrong case
-        "1leading",                 # leading digit
-        "a" * 64,                   # over 63 chars
-        "public;",                  # trailing semicolon
+        "a; SELECT 1",  # statement break
+        "a b",  # space
+        "calendar-engine",  # dash (kebab, not snake)
+        "'quoted'",  # quotes
+        "",  # empty
+        "Uppercase",  # wrong case
+        "1leading",  # leading digit
+        "a" * 64,  # over 63 chars
+        "public;",  # trailing semicolon
     ],
 )
 def test_validate_db_name_rejects_unsafe(bad):

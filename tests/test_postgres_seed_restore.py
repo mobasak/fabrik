@@ -122,10 +122,12 @@ class TestRestoreSeed:
 
     def test_skip_when_db_already_has_user_tables(self, fake_seed: tuple[Path, Path]) -> None:
         spec_dir, _ = fake_seed
-        with patch("fabrik.drivers.postgres._count_user_tables", return_value=3), \
-             patch("fabrik.drivers.postgres.scp_to_vps") as mock_scp, \
-             patch("fabrik.drivers.postgres._run_sql") as mock_run, \
-             patch("fabrik.drivers.postgres.ssh") as mock_ssh:
+        with (
+            patch("fabrik.drivers.postgres._count_user_tables", return_value=3),
+            patch("fabrik.drivers.postgres.scp_to_vps") as mock_scp,
+            patch("fabrik.drivers.postgres._run_sql") as mock_run,
+            patch("fabrik.drivers.postgres.ssh") as mock_ssh,
+        ):
             result = postgres._restore_seed(
                 spec_dir=spec_dir,
                 seed_relpath="backups/calendar_engine_seed.sql.gz",
@@ -140,9 +142,11 @@ class TestRestoreSeed:
 
     def test_restore_when_db_empty(self, fake_seed: tuple[Path, Path]) -> None:
         spec_dir, seed = fake_seed
-        with patch("fabrik.drivers.postgres._count_user_tables", return_value=0), \
-             patch("fabrik.drivers.postgres.scp_to_vps") as mock_scp, \
-             patch("fabrik.drivers.postgres.ssh") as mock_ssh:
+        with (
+            patch("fabrik.drivers.postgres._count_user_tables", return_value=0),
+            patch("fabrik.drivers.postgres.scp_to_vps") as mock_scp,
+            patch("fabrik.drivers.postgres.ssh") as mock_ssh,
+        ):
             mock_ssh.return_value = ""  # quiet docker exec
             result = postgres._restore_seed(
                 spec_dir=spec_dir,
@@ -171,14 +175,17 @@ class TestRestoreSeed:
         """If `docker exec ... psql` fails, the temp dump on VPS must still
         be deleted (no sensitive data left behind)."""
         spec_dir, _ = fake_seed
-        with patch("fabrik.drivers.postgres._count_user_tables", return_value=0), \
-             patch("fabrik.drivers.postgres.scp_to_vps"), \
-             patch("fabrik.drivers.postgres.ssh") as mock_ssh:
+        with (
+            patch("fabrik.drivers.postgres._count_user_tables", return_value=0),
+            patch("fabrik.drivers.postgres.scp_to_vps"),
+            patch("fabrik.drivers.postgres.ssh") as mock_ssh,
+        ):
             # First ssh call (the gunzip|psql one) raises; cleanup should still run
             def side(*args, **kw):
                 if "docker exec" in args[0] and "psql" in args[0]:
                     raise RuntimeError("psql died mid-restore")
                 return ""
+
             mock_ssh.side_effect = side
 
             with pytest.raises(RuntimeError, match="psql died"):
@@ -201,11 +208,13 @@ class TestRestoreSeed:
 class TestSpecDependsPostgresSeed:
     def test_depends_accepts_postgres_seed(self) -> None:
         from fabrik.spec_loader import Depends
+
         d = Depends(postgres="calendar_engine", postgres_seed="backups/seed.sql.gz")
         assert d.postgres == "calendar_engine"
         assert d.postgres_seed == "backups/seed.sql.gz"
 
     def test_depends_postgres_seed_optional(self) -> None:
         from fabrik.spec_loader import Depends
+
         d = Depends(postgres="x")
         assert d.postgres_seed is None

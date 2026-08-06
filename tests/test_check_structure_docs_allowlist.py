@@ -37,14 +37,22 @@ def _docs_violations(names):
 # --- (a) registry docs that USED to WARN are now allowed (defect-1 class gone)
 def test_registry_docs_no_longer_warn():
     flagged = _docs_violations(
-        ["RESILIENCE.md", "data-contract.md", "ui-design.md", "STRATEGIC_BACKLOG.md", "LESSONS_LEARNT.md"]
+        [
+            "RESILIENCE.md",
+            "data-contract.md",
+            "ui-design.md",
+            "STRATEGIC_BACKLOG.md",
+            "LESSONS_LEARNT.md",
+        ]
     )
     assert not flagged, f"registry docs wrongly WARNed: {sorted(flagged)}"
 
 
 # --- (b) a recognized-standard legacy doc older projects carry is tolerated
 def test_legacy_docs_tolerated():
-    flagged = _docs_violations(["HANDOVER.md", "lessons-learnt.md", "API_REFERENCE.md", "FINANCIALS.md"])
+    flagged = _docs_violations(
+        ["HANDOVER.md", "lessons-learnt.md", "API_REFERENCE.md", "FINANCIALS.md"]
+    )
     assert not flagged, f"legacy docs wrongly WARNed: {sorted(flagged)}"
 
 
@@ -67,7 +75,9 @@ def test_allowlist_is_registry_derived_permissive_union():
 
 # --- (d) grandfather: derived ⊇ old hard-coded set (no currently-clean project regresses)
 def test_grandfather_derived_superset_of_old_set():
-    assert cs._FALLBACK_DOCS_ALLOWLIST <= cs.DOCS_ALLOWLIST, "a currently-clean doc would newly WARN"
+    assert cs._FALLBACK_DOCS_ALLOWLIST <= cs.DOCS_ALLOWLIST, (
+        "a currently-clean doc would newly WARN"
+    )
     # in the NORMAL (registry-imported) state the derived set is strictly richer than the old
     # literal — proving this is not the trivially-reflexive reverted state
     assert cs._FALLBACK_DOCS_ALLOWLIST < cs.DOCS_ALLOWLIST
@@ -83,7 +93,9 @@ def test_fallback_fires_when_registry_unimportable(monkeypatch):
             raise RuntimeError("registry sabotaged")
 
     monkeypatch.setitem(sys.modules, "_doc_registry", _Boom())
-    spec = importlib.util.spec_from_file_location("check_structure_fb", ENFORCE / "check_structure.py")
+    spec = importlib.util.spec_from_file_location(
+        "check_structure_fb", ENFORCE / "check_structure.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # module-level try/except runs against the sabotaged import
     # degraded to the fallback (the exact pre-change literal), no crash
@@ -105,11 +117,16 @@ def _src_errors(paths):
 
 def test_src_prompts_md_exempt_runtime_asset():
     paths = ["src/brand_identity/prompts/generate_name.md", "src/app/prompts/bible/tone.md"]
-    assert not _src_errors(paths), "runtime prompt templates under src/**/prompts/ must not be flagged"
+    assert not _src_errors(paths), (
+        "runtime prompt templates under src/**/prompts/ must not be flagged"
+    )
 
 
 def test_src_nested_libs_md_exempt_vendored():
-    paths = ["src/brand_identity/libs/mt_router/UPSTREAM_FEEDBACK.md", "src/pkg/libs/foo/VENDORING.md"]
+    paths = [
+        "src/brand_identity/libs/mt_router/UPSTREAM_FEEDBACK.md",
+        "src/pkg/libs/foo/VENDORING.md",
+    ]
     assert not _src_errors(paths), "vendored-module docs under src/**/libs/ must not be flagged"
 
 

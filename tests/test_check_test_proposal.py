@@ -75,7 +75,9 @@ def test_no_criteria_section_structure_only_passes():
 
 def test_no_plans_dir_skips(tmp_path):
     # run the script from a dir with no docs/development/plans/ → skip (exit 0)
-    r = subprocess.run([sys.executable, str(CHECK)], capture_output=True, text=True, cwd=str(tmp_path))
+    r = subprocess.run(
+        [sys.executable, str(CHECK)], capture_output=True, text=True, cwd=str(tmp_path)
+    )
     assert r.returncode == 0, r.stderr
 
 
@@ -88,18 +90,26 @@ _OK_BC = "# Plan\n## Behavior Contract\n- **Given** X, **When** Y, **Then** Z.\n
 def _repo(tmp_path):
     def g(*a):
         subprocess.run(["git", "-C", str(tmp_path), *a], check=True, capture_output=True)
+
     g("init", "-q")
     g("config", "user.email", "t@t")
     g("config", "user.name", "t")
     (tmp_path / "scripts" / "enforcement").mkdir(parents=True)
-    (tmp_path / "scripts" / "enforcement" / "check_test_proposal.py").write_text(CHECK_FILE.read_text())
+    (tmp_path / "scripts" / "enforcement" / "check_test_proposal.py").write_text(
+        CHECK_FILE.read_text()
+    )
     (tmp_path / "docs" / "development" / "plans").mkdir(parents=True)
     return tmp_path, g
 
 
 def _run(repo):
-    p = subprocess.run([sys.executable, "scripts/enforcement/check_test_proposal.py"],
-                       cwd=repo, capture_output=True, text=True, env={**os.environ})
+    p = subprocess.run(
+        [sys.executable, "scripts/enforcement/check_test_proposal.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={**os.environ},
+    )
     return p.returncode, p.stdout + p.stderr
 
 
@@ -145,8 +155,11 @@ def test_archiving_exposes_sibling_draft_still_passes(tmp_path):
     g("commit", "-qm", "baseline")
     # archive plan-12 (git mv into archived/)
     (repo / "docs/development/plans/archived").mkdir()
-    g("mv", "docs/development/plans/2026-07-12-plan-12-mine.md",
-      "docs/development/plans/archived/2026-07-12-plan-12-mine.md")
+    g(
+        "mv",
+        "docs/development/plans/2026-07-12-plan-12-mine.md",
+        "docs/development/plans/archived/2026-07-12-plan-12-mine.md",
+    )
     rc, out = _run(repo)
     assert rc == 0, out  # must NOT fail on the exposed sibling draft
     assert "No new plan proposed" in out

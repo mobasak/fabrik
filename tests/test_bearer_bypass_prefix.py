@@ -53,7 +53,9 @@ def test_verifier_default_prefix_unchanged():
 
 
 def test_verifier_raises_when_authelia_intercepts_configured_prefix():
-    redirect = _resp(302, "https://auth.vps1.ocoron.com/?rd=https://calendar.vps1.ocoron.com/api/v1")
+    redirect = _resp(
+        302, "https://auth.vps1.ocoron.com/?rd=https://calendar.vps1.ocoron.com/api/v1"
+    )
     with mock.patch.object(verifier, "urlopen", return_value=redirect):
         with pytest.raises(VerificationError) as exc:
             verifier.check_api_bypass("calendar.vps1.ocoron.com", prefix="^/api/v1", timeout=1)

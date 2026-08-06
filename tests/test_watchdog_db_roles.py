@@ -39,7 +39,9 @@ RW = f"{DB}_wd_rw"
 _WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
 
 
-def _capture(db: str = DB, *, owner: str | None = None, ro_exists: bool = False, rw_exists: bool = False):
+def _capture(
+    db: str = DB, *, owner: str | None = None, ro_exists: bool = False, rw_exists: bool = False
+):
     """Run create_watchdog_roles with _run_sql/_role_exists/_generate_password
     mocked; return (result, batch_sql). ``owner`` is what the datdba lookup
     returns (default: db_name); ``ro_exists``/``rw_exists`` drive the fresh-vs-
@@ -95,7 +97,14 @@ def test_rw_is_dml_only():
 
 def test_no_table_ddl_or_ownership_anywhere():
     _, sql = _capture()
-    for forbidden in ("CREATE TABLE", "DROP ", "ALTER TABLE", "GRANT ALL", "OWNER TO", "CREATE DATABASE"):
+    for forbidden in (
+        "CREATE TABLE",
+        "DROP ",
+        "ALTER TABLE",
+        "GRANT ALL",
+        "OWNER TO",
+        "CREATE DATABASE",
+    ):
         assert forbidden not in sql, f"unexpected DDL/ownership token: {forbidden!r}"
 
 
@@ -109,7 +118,9 @@ def test_grant_connect_and_usage_present_for_both_roles():
 def test_fresh_roles_created_least_privilege():
     result, sql = _capture()  # both roles fresh
     for role in (RO, RW):
-        assert f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD' in sql
+        assert (
+            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD' in sql
+        )
     assert result["ro"]["status"] == "created"
     assert result["rw"]["status"] == "created"
 
@@ -185,7 +196,9 @@ def test_unresolvable_owner_omits_default_privileges_never_guesses(owner):
     _, sql = _capture(owner=owner)
     assert "ALTER DEFAULT PRIVILEGES" not in sql
     assert "DROP DATABASE" not in sql
-    assert f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{RO}";' in sql  # existing tables covered
+    assert (
+        f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{RO}";' in sql
+    )  # existing tables covered
 
 
 def test_role_exists_parses_pg_roles_row():
@@ -297,7 +310,11 @@ def _provision(
                 "rw": {"user": f"{db_name}_wd_rw", "password": None, "status": "dry_run"},
             }
         return {
-            "ro": {"user": f"{db_name}_wd_ro", "password": ro_password, "status": "created" if ro_password else "exists"},
+            "ro": {
+                "user": f"{db_name}_wd_ro",
+                "password": ro_password,
+                "status": "created" if ro_password else "exists",
+            },
             "rw": {"user": f"{db_name}_wd_rw", "password": "RW_PW", "status": "created"},
         }
 
@@ -310,10 +327,15 @@ def _provision(
     with (
         mock.patch("fabrik.drivers.postgres.create_database", side_effect=fake_create),
         mock.patch("fabrik.drivers.postgres.database_exists", side_effect=fake_exists),
-        mock.patch("fabrik.drivers.postgres.create_watchdog_roles", side_effect=fake_roles) as m_roles,
+        mock.patch(
+            "fabrik.drivers.postgres.create_watchdog_roles", side_effect=fake_roles
+        ) as m_roles,
     ):
         prov._provision_postgres(
-            "calendar-engine", spec, ctx, dry_run=dry_run,
+            "calendar-engine",
+            spec,
+            ctx,
+            dry_run=dry_run,
             provision_watchdog_roles=provision_watchdog_roles,
         )
     return prov.deployer, m_roles
@@ -330,8 +352,14 @@ def test_registrar_injects_both_dsns_when_watchdog_on():
     deployer, m_roles = _provision(provision_watchdog_roles=True)
     m_roles.assert_called_once()
     env = _injected(deployer)
-    assert env["WATCHDOG_DB_URL_RO"] == "postgresql://calendar_engine_wd_ro:RO_PW@postgres-main:5432/calendar_engine"
-    assert env["WATCHDOG_DB_URL_RW"] == "postgresql://calendar_engine_wd_rw:RW_PW@postgres-main:5432/calendar_engine"
+    assert (
+        env["WATCHDOG_DB_URL_RO"]
+        == "postgresql://calendar_engine_wd_ro:RO_PW@postgres-main:5432/calendar_engine"
+    )
+    assert (
+        env["WATCHDOG_DB_URL_RW"]
+        == "postgresql://calendar_engine_wd_rw:RW_PW@postgres-main:5432/calendar_engine"
+    )
 
 
 def test_registrar_omits_ro_dsn_when_role_preexisting():
@@ -347,7 +375,10 @@ def test_registrar_fresh_db_injects_database_url_and_watchdog_dsns():
     # A fresh create must inject DATABASE_URL AND the watchdog DSNs (no key clash).
     deployer, _ = _provision(provision_watchdog_roles=True, fresh_db=True)
     env = _injected(deployer)
-    assert env["DATABASE_URL"] == "postgresql://calendar_engine:APP_PW@postgres-main:5432/calendar_engine"
+    assert (
+        env["DATABASE_URL"]
+        == "postgresql://calendar_engine:APP_PW@postgres-main:5432/calendar_engine"
+    )
     assert "WATCHDOG_DB_URL_RO" in env and "WATCHDOG_DB_URL_RW" in env
 
 

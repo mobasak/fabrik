@@ -22,15 +22,33 @@ from fabrik.cli import cli
 # ---------------------------------------------------------------------------
 
 
-def _make_project(tmp_path: Path, *, with_spec: bool = False, with_preplan: bool = False,
-                  with_compose_dev: bool = False) -> Path:
+def _make_project(
+    tmp_path: Path,
+    *,
+    with_spec: bool = False,
+    with_preplan: bool = False,
+    with_compose_dev: bool = False,
+) -> Path:
     proj = tmp_path / "test-svc"
     proj.mkdir()
     # always a git repo so `git diff` doesn't fatal
     subprocess.run(["git", "init", "-q"], cwd=str(proj), check=True)
-    subprocess.run(["git", "-c", "user.email=t@t.t", "-c", "user.name=t",
-                    "commit", "--allow-empty", "-q", "-m", "init"],
-                   cwd=str(proj), check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=t@t.t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "--allow-empty",
+            "-q",
+            "-m",
+            "init",
+        ],
+        cwd=str(proj),
+        check=True,
+    )
     if with_spec:
         spec_dir = proj / "specs" / "services"
         spec_dir.mkdir(parents=True)
@@ -91,9 +109,7 @@ class TestReviewBundle:
     def test_build_bundle_includes_all_sections(self, tmp_path):
         proj = _make_project(tmp_path, with_spec=True, with_preplan=True)
         spec_path = dev_tools.find_spec(proj)
-        content, stats = dev_tools.build_review_bundle(
-            proj, since="HEAD", spec_path=spec_path
-        )
+        content, stats = dev_tools.build_review_bundle(proj, since="HEAD", spec_path=spec_path)
         assert "# Review bundle" in content
         assert "## Diff" in content
         assert "## Spec" in content
@@ -105,17 +121,13 @@ class TestReviewBundle:
     def test_build_bundle_without_preplan_omits_section(self, tmp_path):
         proj = _make_project(tmp_path, with_spec=True)
         spec_path = dev_tools.find_spec(proj)
-        content, stats = dev_tools.build_review_bundle(
-            proj, since="HEAD", spec_path=spec_path
-        )
+        content, stats = dev_tools.build_review_bundle(proj, since="HEAD", spec_path=spec_path)
         assert "## Preplan" not in content
         assert stats.preplan_lines == 0
 
     def test_build_bundle_without_spec_omits_spec_and_resolved(self, tmp_path):
         proj = _make_project(tmp_path)
-        content, stats = dev_tools.build_review_bundle(
-            proj, since="HEAD", spec_path=None
-        )
+        content, stats = dev_tools.build_review_bundle(proj, since="HEAD", spec_path=None)
         assert "## Spec" not in content
         assert "## Resolved registrars" not in content
         assert stats.spec_lines == 0
@@ -239,11 +251,14 @@ class TestLocalLogs:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("cmd", [
-    ["review", "--help"],
-    ["dev", "--help"],
-    ["logs", "--help"],
-])
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        ["review", "--help"],
+        ["dev", "--help"],
+        ["logs", "--help"],
+    ],
+)
 def test_help_exits_zero(cmd):
     runner = CliRunner()
     result = runner.invoke(cli, cmd)

@@ -23,14 +23,10 @@ def _isolate_state_dir(tmp_path, monkeypatch):
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"], cwd=str(fake_root), check=True
     )
-    subprocess.run(
-        ["git", "config", "user.name", "test"], cwd=str(fake_root), check=True
-    )
+    subprocess.run(["git", "config", "user.name", "test"], cwd=str(fake_root), check=True)
     (fake_root / "README.md").write_text("test")
     subprocess.run(["git", "add", "."], cwd=str(fake_root), check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "init"], cwd=str(fake_root), check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=str(fake_root), check=True)
 
     monkeypatch.setenv("FABRIK_ROOT", str(fake_root))
     monkeypatch.setenv("FABRIK_LOCK_DIR", str(tmp_path / "locks"))
@@ -229,9 +225,7 @@ def test_apply_persist_destroy_archive_roundtrip():
     # 2. Read back (mid-deploy audit step would do this).
     payload = state.load("lifecycle")
     assert payload["spec_hash"] == "hash-1"
-    data_bearing_types = {
-        r["type"] for r in payload["registrars_applied"] if r["data_bearing"]
-    }
+    data_bearing_types = {r["type"] for r in payload["registrars_applied"] if r["data_bearing"]}
     assert data_bearing_types == {"postgres", "redis"}
     # 3. Destroy phase archives the file.
     archived = state.archive_destroyed("lifecycle")

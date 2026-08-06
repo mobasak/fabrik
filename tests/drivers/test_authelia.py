@@ -94,9 +94,7 @@ class TestValidators:
     def test_resources_none_ok(self):
         _validate_resources(None)
 
-    @pytest.mark.parametrize(
-        "r", [["^/api/"], ["^/public/", "^/webhook/"], ["^/a.*$"]]
-    )
+    @pytest.mark.parametrize("r", [["^/api/"], ["^/public/", "^/webhook/"], ["^/a.*$"]])
     def test_valid_resources(self, r):
         _validate_resources(r)
 
@@ -166,7 +164,7 @@ class TestBuildAddScript:
         assert 'sys.stdout.write("IDEMPOTENT_NOOP\\n")' in s
         # The file-existence test that gates the restart
         assert '[ ! -f "/tmp/authelia.new.$TS.yml" ]' in s
-        assert "echo \"idempotent-noop\"" in s
+        assert 'echo "idempotent-noop"' in s
 
     def test_docker_restart_happens_on_change_only(self):
         """docker restart MUST appear AFTER the idempotent-noop exit —
@@ -174,9 +172,7 @@ class TestBuildAddScript:
         s = self._make()
         noop_exit_idx = s.index('echo "idempotent-noop"')
         restart_idx = s.index("sudo docker restart")
-        assert restart_idx > noop_exit_idx, (
-            "docker restart must only run in the non-noop branch"
-        )
+        assert restart_idx > noop_exit_idx, "docker restart must only run in the non-noop branch"
 
     def test_timestamp_used_for_backup(self):
         s = self._make()
@@ -198,10 +194,7 @@ class TestBuildAddScript:
         s = self._make()
         # Direct staging-file cleanup lines (not the backup-rotation line,
         # which uses `sudo bash -c '... | xargs rm -f'` at the wrapper level).
-        cleanup_lines = [
-            line for line in s.splitlines()
-            if "rm -f \"/tmp/authelia." in line
-        ]
+        cleanup_lines = [line for line in s.splitlines() if 'rm -f "/tmp/authelia.' in line]
         assert cleanup_lines, "no cleanup lines found"
         for ln in cleanup_lines:
             assert ln.lstrip().startswith("sudo rm -f"), (
@@ -257,61 +250,53 @@ class TestAddAccessRule:
     def _patch_infra(self, locked_returns="ok\n"):
         """Return a context manager that patches ssh + run_locked."""
         return (
-            patch.object(
-                authelia, "ssh", return_value="authelia-abc\n"
-            ),  # _resolve_container
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),  # _resolve_container
             patch.object(authelia, "run_locked", return_value=locked_returns),
         )
 
     def test_dry_run_no_network(self):
-        with patch.object(authelia, "ssh") as s, patch.object(
-            authelia, "run_locked"
-        ) as rl:
+        with patch.object(authelia, "ssh") as s, patch.object(authelia, "run_locked") as rl:
             r = add_access_rule("my.example.com", dry_run=True)
         assert r == {"status": "dry_run", "domain": "my.example.com"}
         s.assert_not_called()
         rl.assert_not_called()
 
     def test_invalid_domain_raises_before_any_ssh(self):
-        with patch.object(authelia, "ssh") as s, patch.object(
-            authelia, "run_locked"
-        ) as rl:
+        with patch.object(authelia, "ssh") as s, patch.object(authelia, "run_locked") as rl:
             with pytest.raises(ValueError):
                 add_access_rule("not a domain")
             s.assert_not_called()
             rl.assert_not_called()
 
     def test_invalid_policy_raises_before_any_ssh(self):
-        with patch.object(authelia, "ssh") as s, patch.object(
-            authelia, "run_locked"
-        ) as rl:
+        with patch.object(authelia, "ssh") as s, patch.object(authelia, "run_locked") as rl:
             with pytest.raises(ValueError):
                 add_access_rule("my.example.com", policy="admin")
             s.assert_not_called()
             rl.assert_not_called()
 
     def test_invalid_resources_raises_before_any_ssh(self):
-        with patch.object(authelia, "ssh") as s, patch.object(
-            authelia, "run_locked"
-        ) as rl:
+        with patch.object(authelia, "ssh") as s, patch.object(authelia, "run_locked") as rl:
             with pytest.raises(ValueError):
                 add_access_rule("my.example.com", resources=["line1\nline2"])
             s.assert_not_called()
             rl.assert_not_called()
 
     def test_success_returns_added(self):
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(authelia, "run_locked", return_value="ok\n") as rl:
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", return_value="ok\n") as rl,
+        ):
             r = add_access_rule("my.example.com")
         assert r == {"status": "added", "domain": "my.example.com"}
         rl.assert_called_once()
 
     def test_idempotent_returns_exists(self):
         """run_locked's stdout contains 'idempotent-noop' on a no-op run."""
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(authelia, "run_locked", return_value="idempotent-noop\n"):
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", return_value="idempotent-noop\n"),
+        ):
             r = add_access_rule("my.example.com")
         assert r == {"status": "exists", "domain": "my.example.com"}
 
@@ -331,12 +316,11 @@ class TestAddAccessRule:
             captured["timeout"] = timeout
             return "ok"
 
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(authelia, "run_locked", side_effect=fake_run_locked):
-            add_access_rule(
-                "my.example.com", policy="two_factor", resources=["^/api/"]
-            )
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", side_effect=fake_run_locked),
+        ):
+            add_access_rule("my.example.com", policy="two_factor", resources=["^/api/"])
 
         script = captured["script"]
         assert "RULE_B64=" in script
@@ -367,9 +351,10 @@ class TestAddAccessRule:
             captured["resource"] = resource
             return "ok"
 
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(authelia, "run_locked", side_effect=fake_run_locked):
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", side_effect=fake_run_locked),
+        ):
             add_access_rule("my.example.com")
         assert captured["resource"] == "authelia-config"
 
@@ -380,9 +365,10 @@ class TestAddAccessRule:
             captured["script"] = script
             return "ok"
 
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(authelia, "run_locked", side_effect=fake_run_locked):
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", side_effect=fake_run_locked),
+        ):
             add_access_rule(
                 "my.example.com",
                 policy="bypass",
@@ -400,30 +386,26 @@ class TestAddAccessRule:
 
 class TestRemoveAccessRule:
     def test_dry_run_no_network(self):
-        with patch.object(authelia, "ssh") as s, patch.object(
-            authelia, "run_locked"
-        ) as rl:
+        with patch.object(authelia, "ssh") as s, patch.object(authelia, "run_locked") as rl:
             assert remove_access_rule("my.example.com", dry_run=True) is True
             s.assert_not_called()
             rl.assert_not_called()
 
     def test_success_returns_true(self):
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(authelia, "run_locked", return_value="ok"):
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", return_value="ok"),
+        ):
             assert remove_access_rule("my.example.com") is True
 
     def test_ssh_failure_returns_false_never_raises(self):
-        with patch.object(
-            authelia, "ssh", side_effect=RuntimeError("ssh dead")
-        ):
+        with patch.object(authelia, "ssh", side_effect=RuntimeError("ssh dead")):
             assert remove_access_rule("my.example.com") is False
 
     def test_run_locked_failure_returns_false(self):
-        with patch.object(
-            authelia, "ssh", return_value="authelia-abc\n"
-        ), patch.object(
-            authelia, "run_locked", side_effect=RuntimeError("lock timeout")
+        with (
+            patch.object(authelia, "ssh", return_value="authelia-abc\n"),
+            patch.object(authelia, "run_locked", side_effect=RuntimeError("lock timeout")),
         ):
             assert remove_access_rule("my.example.com") is False
 
@@ -480,12 +462,10 @@ class TestComputeInsertIndex:
         # The canonical T1-04 scenario.
         rules = [
             {"domain": "ocoron.com", "policy": "bypass"},
-            {"domain": "*.vps1.ocoron.com", "policy": "bypass",
-             "resources": ["^/health$"]},
+            {"domain": "*.vps1.ocoron.com", "policy": "bypass", "resources": ["^/health$"]},
             {"domain": "*.vps1.ocoron.com", "policy": "two_factor"},
         ]
-        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
-                    "resources": ["^/api/"]}
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass", "resources": ["^/api/"]}
         assert _compute_insert_index(rules, new_rule, "before_twofactor") == 2
 
     def test_exact_match_two_factor_still_works(self):
@@ -493,8 +473,7 @@ class TestComputeInsertIndex:
         rules = [
             {"domain": "images.vps1.ocoron.com", "policy": "two_factor"},
         ]
-        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
-                    "resources": ["^/api/"]}
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass", "resources": ["^/api/"]}
         assert _compute_insert_index(rules, new_rule, "before_twofactor") == 0
 
     def test_no_shadowing_rule_appends(self):
@@ -503,8 +482,7 @@ class TestComputeInsertIndex:
             {"domain": "ocoron.com", "policy": "bypass"},
             {"domain": "pdf.vps1.ocoron.com", "policy": "bypass"},
         ]
-        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
-                    "resources": ["^/api/"]}
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass", "resources": ["^/api/"]}
         assert _compute_insert_index(rules, new_rule, "before_twofactor") is None
 
     def test_unknown_mode_appends(self):
@@ -523,8 +501,7 @@ class TestComputeInsertIndex:
             {"domain": "*.vps1.ocoron.com", "policy": "two_factor"},
             {"domain": "images.vps1.ocoron.com", "policy": "two_factor"},
         ]
-        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
-                    "resources": ["^/api/"]}
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass", "resources": ["^/api/"]}
         assert _compute_insert_index(rules, new_rule, "before_twofactor") == 0
 
 
@@ -535,8 +512,9 @@ class TestHeredocMirrorsHelper:
     def test_heredoc_inlines_domain_shadows(self):
         # Build a fresh add script and assert the heredoc body defines an
         # inline _domain_shadows function (mirror of the helper).
-        script = _build_add_script("authelia-test", "ZHVtbXk=",
-                                   "images.vps1.ocoron.com", "before_twofactor")
+        script = _build_add_script(
+            "authelia-test", "ZHVtbXk=", "images.vps1.ocoron.com", "before_twofactor"
+        )
         assert "def _domain_shadows" in script
         assert "rd.startswith('*.')" in script
         assert "insert_mode == 'before_twofactor'" in script

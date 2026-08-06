@@ -219,9 +219,7 @@ def main():
     body_lines_v = [l for l in src.splitlines() if not l.lstrip().startswith("#")]
     body_v = "\n".join(body_lines_v)
     ok = "/workergroups/" in body_v and "/autogroups/" not in body_v
-    if not check(
-        "vast_provider.py uses /workergroups/ NOT /autogroups/ (B4 regression guard)", ok
-    ):
+    if not check("vast_provider.py uses /workergroups/ NOT /autogroups/ (B4 regression guard)", ok):
         fails.append("S8")
 
     # ========================================================================
@@ -231,9 +229,7 @@ def main():
 
     src_m = inspect.getsource(mp)
     # Strip comments
-    lines_non_comment = [
-        line for line in src_m.splitlines() if not line.lstrip().startswith("#")
-    ]
+    lines_non_comment = [line for line in src_m.splitlines() if not line.lstrip().startswith("#")]
     body = "\n".join(lines_non_comment)
     ok = "_app.stop(" not in body and ".stop()" not in body
     if not check("modal_provider.py has NO _app.stop() / .stop() calls", ok):

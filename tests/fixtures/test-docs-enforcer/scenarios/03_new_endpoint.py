@@ -1,6 +1,5 @@
 """Scenario 03: New FastAPI endpoint."""
 
-
 from fastapi import FastAPI
 
 app = FastAPI()

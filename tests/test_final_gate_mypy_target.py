@@ -1,6 +1,7 @@
 """Regression: detect_src_package() must never target a nonexistent src/ for flat-layout
 projects (the bug that silently disabled mypy for every flat repo — youtube, captcha, …).
 See final_gate.py detect_src_package / run_mypy_with_recovery."""
+
 from __future__ import annotations
 
 import importlib
@@ -57,7 +58,11 @@ def test_run_mypy_argv_shape(fg, monkeypatch):
         raise subprocess.TimeoutExpired("mypy", 1)  # bail before real mypy; inspect argv only
 
     monkeypatch.setattr(subprocess, "run", cap)
-    for target, want_exclude, want_target in [(".", True, True), ("src/foo", False, True), ("", False, False)]:
+    for target, want_exclude, want_target in [
+        (".", True, True),
+        ("src/foo", False, True),
+        ("", False, False),
+    ]:
         seen.clear()
         mod.run_mypy_with_recovery(target, timeout=1)
         cmd = seen["cmd"]

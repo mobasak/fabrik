@@ -83,9 +83,7 @@ class TestPostDeploymentAnnotation:
         p.assert_not_called()
 
     def test_success_returns_annotation_id(self, fake_token):
-        with patch.object(
-            grafana.requests, "post", return_value=_resp(200, {"id": 42})
-        ):
+        with patch.object(grafana.requests, "post", return_value=_resp(200, {"id": 42})):
             result = post_deployment_annotation("my-proj")
         assert result == {
             "status": "created",
@@ -95,9 +93,7 @@ class TestPostDeploymentAnnotation:
 
     def test_5xx_returns_failed_never_raises(self, fake_token):
         """Core non-fatal invariant: Grafana outages must NEVER break a deploy."""
-        with patch.object(
-            grafana.requests, "post", return_value=_resp(503, text="unavailable")
-        ):
+        with patch.object(grafana.requests, "post", return_value=_resp(503, text="unavailable")):
             result = post_deployment_annotation("my-proj")
         assert result["status"] == "failed"
         assert result["annotation_id"] is None
@@ -120,9 +116,7 @@ class TestPostDeploymentAnnotation:
         NOT return status=created with annotation_id=None — downstream
         delete_annotation would choke on a None id. Better to flag
         failure explicitly."""
-        with patch.object(
-            grafana.requests, "post", return_value=_resp(200, {"message": "ok"})
-        ):
+        with patch.object(grafana.requests, "post", return_value=_resp(200, {"message": "ok"})):
             result = post_deployment_annotation("my-proj")
         assert result["status"] == "failed"
         assert result["error"] == "no_id_in_response"
@@ -136,8 +130,9 @@ class TestPostDeploymentAnnotation:
             captured["body"] = kw.get("json")
             return _resp(200, {"id": 1})
 
-        with patch.object(grafana.requests, "post", side_effect=fake_post), patch.object(
-            grafana.time, "time", return_value=1700000000.123
+        with (
+            patch.object(grafana.requests, "post", side_effect=fake_post),
+            patch.object(grafana.time, "time", return_value=1700000000.123),
         ):
             post_deployment_annotation("my-proj")
         # 1700000000 seconds → 1_700_000_000_123 ms
@@ -182,9 +177,7 @@ class TestPostDeploymentAnnotation:
             return _resp(200, {"id": 1})
 
         with patch.object(grafana.requests, "post", side_effect=fake_post):
-            post_deployment_annotation(
-                "my-proj", domain="my.example.com", git_sha="abc1234567"
-            )
+            post_deployment_annotation("my-proj", domain="my.example.com", git_sha="abc1234567")
         txt = captured["body"]["text"]
         assert "Deployed my-proj" in txt
         assert "(abc1234)" in txt  # first 7 chars

@@ -47,8 +47,16 @@ reg = _load_registry()
 # ---------------------------------------------------------------------------------------
 def test_headless_python_api_skips_product_docs_keeps_deployed_and_universal():
     for dest in ("docs/BUSINESS_MODEL.md", "docs/STRATEGIC_BACKLOG.md"):
-        assert not scaffold._type_seeds_doc(reg, "python-api", dest), f"python-api should skip {dest}"
-    for dest in ("docs/SERVICES.md", "docs/OPERATIONS.md", "docs/RESILIENCE.md", "README.md", "docs/QUICKSTART.md"):
+        assert not scaffold._type_seeds_doc(reg, "python-api", dest), (
+            f"python-api should skip {dest}"
+        )
+    for dest in (
+        "docs/SERVICES.md",
+        "docs/OPERATIONS.md",
+        "docs/RESILIENCE.md",
+        "README.md",
+        "docs/QUICKSTART.md",
+    ):
         assert scaffold._type_seeds_doc(reg, "python-api", dest), f"python-api should seed {dest}"
 
 
@@ -60,7 +68,12 @@ def test_saas_seeds_product_docs():
 def test_client_app_skips_deployed_docs():
     # chrome-extension / mobile-app / desktop-app ship no backend service
     for t in ("chrome-extension", "mobile-app", "desktop-app"):
-        for dest in ("docs/SERVICES.md", "docs/OPERATIONS.md", "docs/RESILIENCE.md", "docs/BUSINESS_MODEL.md"):
+        for dest in (
+            "docs/SERVICES.md",
+            "docs/OPERATIONS.md",
+            "docs/RESILIENCE.md",
+            "docs/BUSINESS_MODEL.md",
+        ):
             assert not scaffold._type_seeds_doc(reg, t, dest), f"{t} should skip {dest}"
         # but universal docs still seed
         assert scaffold._type_seeds_doc(reg, t, "README.md")

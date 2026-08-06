@@ -82,8 +82,12 @@ def test_default_staged_unchanged(tmp_path, monkeypatch):
 def test_stubs_range_advisory(tmp_path, monkeypatch, capsys):
     repo = _mk_repo(tmp_path)
     (repo / "docs").mkdir()
-    (repo / "docs" / "QUICKSTART.md").write_text("[Project Name] still a stub\n")  # a NAME placeholder
-    (repo / "app.py").write_text("@app.get('/x')\ndef h():\n    return 1\n")  # route → QUICKSTART trigger
+    (repo / "docs" / "QUICKSTART.md").write_text(
+        "[Project Name] still a stub\n"
+    )  # a NAME placeholder
+    (repo / "app.py").write_text(
+        "@app.get('/x')\ndef h():\n    return 1\n"
+    )  # route → QUICKSTART trigger
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "route + stub doc")
     monkeypatch.chdir(repo)
@@ -136,10 +140,14 @@ def test_schema_error_trigger_case_insensitive(tmp_path, monkeypatch):
 
 # ── _schema_doc_for resolves the dump case-insensitively too (no half-applied fix) ──
 def test_schema_doc_for_case_insensitive():
-    assert cds_sync._schema_doc_for("Db/Migrations/x.sql") == "Db/schema.sql"  # preserves original case
+    assert (
+        cds_sync._schema_doc_for("Db/Migrations/x.sql") == "Db/schema.sql"
+    )  # preserves original case
     assert cds_sync._schema_doc_for("web/DB/migrations/y.sql") == "web/DB/schema.sql"
     assert cds_sync._schema_doc_for("db/models.py") == "db/schema.sql"
-    assert cds_sync._schema_doc_for("src/app.py") == "db/schema.sql"  # no db component → root fallback
+    assert (
+        cds_sync._schema_doc_for("src/app.py") == "db/schema.sql"
+    )  # no db component → root fallback
 
 
 # ── _git degrades to [] on a real subprocess error (git missing / timeout) — no gate crash ──
@@ -149,7 +157,9 @@ def test_git_failsafe_on_subprocess_error(monkeypatch):
 
     monkeypatch.setattr(cds_sync.subprocess, "run", _boom)
     assert cds_sync._git(["diff", "--cached", "--name-only"]) == []  # error swallowed → empty
-    assert cds_sync.main([]) == 0  # the default (staged) path degrades safely, doesn't crash the gate
+    assert (
+        cds_sync.main([]) == 0
+    )  # the default (staged) path degrades safely, doesn't crash the gate
 
 
 # ── the .sql schema trigger is case-insensitive (P4-8 fix) ──

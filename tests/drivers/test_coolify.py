@@ -38,9 +38,7 @@ class TestBulkUpdateEnvVarsUpsert:
             return {}
 
         with patch.object(client, "_request", side_effect=fake_request):
-            result = client.bulk_update_env_vars(
-                "app-uuid", {"EXISTING": "new", "BRAND_NEW": "v"}
-            )
+            result = client.bulk_update_env_vars("app-uuid", {"EXISTING": "new", "BRAND_NEW": "v"})
 
         assert result == {"created": 1, "updated": 1}
         methods = [c[0] for c in calls]

@@ -69,7 +69,7 @@ class TestBuildAddScript:
         assert "jq --argjson" in script
         assert "python3 -m json.tool" in script
         assert "CORRUPT_RESTORED" in script
-        assert "mv \"$CFG.tmp\" \"$CFG\"" in script
+        assert 'mv "$CFG.tmp" "$CFG"' in script
         assert "docker restart" in script
 
     def test_backrest_container_matched_by_prefix(self):

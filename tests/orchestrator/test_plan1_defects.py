@@ -22,7 +22,7 @@ _BAD_GIT_COMPOSE = (
     "    image: python:3.12\n"
     "    container_name: my-app\n"
     "    platform: linux/amd64\n"
-    "    restart: unless-stopped\n"          # NOTE: no deploy.resources.limits.memory
+    "    restart: unless-stopped\n"  # NOTE: no deploy.resources.limits.memory
     "    networks:\n"
     "      - fabrik\n"
     "networks:\n"
@@ -38,14 +38,16 @@ def test_d1_deploy_git_validates_compose_and_aborts_on_violation():
 
     def _fake_ssh(cmd, *a, **k):
         if ".git && echo exists" in cmd:
-            return "exists"                      # already cloned → git pull path
+            return "exists"  # already cloned → git pull path
         if "cat /opt/" in cmd and "compose" in cmd:
-            return _BAD_GIT_COMPOSE              # the compose fetched back from the VPS
-        return ""                                # keyscan / pull / anything else
+            return _BAD_GIT_COMPOSE  # the compose fetched back from the VPS
+        return ""  # keyscan / pull / anything else
 
     ctx = _ctx({"id": "git-app", "source": {"repository": "git@github.com:x/y.git"}})
-    with patch("fabrik.drivers.ssh.ssh", side_effect=_fake_ssh), \
-         patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"):
+    with (
+        patch("fabrik.drivers.ssh.ssh", side_effect=_fake_ssh),
+        patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"),
+    ):
         with pytest.raises(DeployError, match="[Vv]alidation|memory"):
             deployer._deploy_git(
                 ctx, "git-app", {"repository": "git@github.com:x/y.git", "branch": "main"}, None
@@ -73,6 +75,7 @@ def test_d1_missing_networks_block_is_a_deliberate_error():
 
 # ── D2: uncapped watchdog rejected on apply + driver/model default agree ──────────────────
 
+
 def test_d2_uncapped_watchdog_rejected_on_apply():
     """A watchdog with both caps zeroed is an uncapped LLM cost path → apply must reject it
     (D2). Currently resolve_applicability returns (True, 'enabled=true')."""
@@ -93,12 +96,15 @@ def test_d2_driver_budget_default_matches_model_default():
     from fabrik.drivers.watchdog import WatchdogDriver
     from fabrik.spec_loader import WatchdogConfig
 
-    rctx = WatchdogDriver()._build_render_context({"id": "wd-app", "watchdog": {"enabled": True}}, ctx=None)
+    rctx = WatchdogDriver()._build_render_context(
+        {"id": "wd-app", "watchdog": {"enabled": True}}, ctx=None
+    )
     assert rctx is not None
     assert rctx.daily_budget_usd == WatchdogConfig().daily_budget_usd
 
 
 # ── D3: audit-registrars has a watchdog audit function ────────────────────────────────────
+
 
 def test_d3_watchdog_has_an_audit_function():
     """`_AUDIT_FUNCS` must cover the watchdog registrar so audit-registrars can report
@@ -112,6 +118,7 @@ def test_d3_watchdog_has_an_audit_function():
 
 # ── D4: destroy --use-state removes the watchdog governance dir ────────────────────────────
 
+
 def test_d4_destroy_from_state_removes_governance_dir():
     """`destroy_from_state` (the --use-state path) must call `_destroy_watchdog_governance`,
     same as the spec-driven destroy — else /var/lib/watchdog-governance/<id> leaks (D4)."""
@@ -120,7 +127,9 @@ def test_d4_destroy_from_state_removes_governance_dir():
 
     spec = _maximal_service_spec("wd-app")
     state_data = {"registrars_applied": []}
-    with patch.object(destroyer, "_destroy_watchdog_governance", wraps=destroyer._destroy_watchdog_governance) as spy:
+    with patch.object(
+        destroyer, "_destroy_watchdog_governance", wraps=destroyer._destroy_watchdog_governance
+    ) as spy:
         destroyer.destroy_from_state(state_data, spec, dry_run=True, keep_dns=True, keep_files=True)
     assert spy.called, "destroy_from_state never called _destroy_watchdog_governance"
 

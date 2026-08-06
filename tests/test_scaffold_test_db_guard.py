@@ -26,7 +26,9 @@ def _emitted_guard(tmp_path: Path):
     """Write the conftest exactly as scaffold does, import it, return the module."""
     (tmp_path / "tests").mkdir()
     scaffold._write_test_conftest(tmp_path)
-    spec = importlib.util.spec_from_file_location("emitted_conftest", tmp_path / "tests" / "conftest.py")
+    spec = importlib.util.spec_from_file_location(
+        "emitted_conftest", tmp_path / "tests" / "conftest.py"
+    )
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules["emitted_conftest"] = mod
@@ -111,7 +113,9 @@ def test_guard_refuses_dbname_query_override(tmp_path, monkeypatch):
     monkeypatch.delenv("CI", raising=False)
     guard = _emitted_guard(tmp_path)
     with pytest.raises(RuntimeError, match="REFUSING"):
-        guard.require_throwaway("postgresql://u:p@127.0.0.1:5432/anything_test?dbname=session_recall")
+        guard.require_throwaway(
+            "postgresql://u:p@127.0.0.1:5432/anything_test?dbname=session_recall"
+        )
 
 
 def test_guard_refuses_keyword_dsn_remote_prod(tmp_path, monkeypatch):

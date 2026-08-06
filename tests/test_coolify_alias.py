@@ -38,9 +38,7 @@ class TestAddAlias:
         assert "cat" in call_cmd
 
     def test_adds_new_alias_with_atomic_write_and_restart(self):
-        existing = self._stub_remote(
-            {"version": 1, "aliases": {"existing-uuid": "existing-alias"}}
-        )
+        existing = self._stub_remote({"version": 1, "aliases": {"existing-uuid": "existing-alias"}})
         calls: list[str] = []
 
         def fake_ssh(cmd, *, dry_run=False, **kw):
@@ -60,9 +58,7 @@ class TestAddAlias:
         assert "systemctl restart coolify-alias-watcher.service" in joined
 
     def test_updates_existing_alias_when_value_differs(self):
-        existing = self._stub_remote(
-            {"version": 1, "aliases": {"abc123": "OLD-alias"}}
-        )
+        existing = self._stub_remote({"version": 1, "aliases": {"abc123": "OLD-alias"}})
 
         def fake_ssh(cmd, *, dry_run=False, **kw):
             if "cat " in cmd:

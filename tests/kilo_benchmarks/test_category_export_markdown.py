@@ -104,9 +104,7 @@ def test_stamp_inserted_when_absent():
 
 
 def test_stamp_replaced_when_stale():
-    pack = _pack(
-        "# Test Pack\nLast content verification: 2020-01-01\n\nBody\n"
-    )
+    pack = _pack("# Test Pack\nLast content verification: 2020-01-01\n\nBody\n")
     export.inject_pack(pack, "language", _entry([_route("x/y")]))
     text = pack.read_text()
     assert "2020-01-01" not in text
@@ -114,9 +112,7 @@ def test_stamp_replaced_when_stale():
 
 
 def test_stamp_unchanged_when_today():
-    pack = _pack(
-        f"# Test Pack\nLast content verification: {TODAY}\n\nBody\n"
-    )
+    pack = _pack(f"# Test Pack\nLast content verification: {TODAY}\n\nBody\n")
     # First run seeds markers (so file IS modified), but the stamp itself
     # already matches today → stamp_action should be 'unchanged'.
     text_before_run = pack.read_text()
@@ -133,9 +129,7 @@ def test_stamp_replaced_when_malformed():
     `date.fromisoformat()`. The marker writer treats them as stale and
     replaces with today — surface invalid dates downstream via
     `check_ai_pack_freshness.py`, not in this writer."""
-    pack = _pack(
-        "# Test Pack\nLast content verification: 2026-99-99\n\nBody\n"
-    )
+    pack = _pack("# Test Pack\nLast content verification: 2026-99-99\n\nBody\n")
     res = export.inject_pack(pack, "language", _entry([_route("x/y")]))
     assert res["stamp"] == "replaced"
     text = pack.read_text()
@@ -199,18 +193,26 @@ def test_run_e2e_with_fake_packs(tmp_path):
     cat_pack.write_text("# Language\n\nbody\n")
 
     cfg_path = tmp_path / "cfg.yaml"
-    cfg_path.write_text(yaml.safe_dump({
-        "categories": {
-            "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
-        }
-    }))
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "categories": {
+                    "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
+                }
+            }
+        )
+    )
 
     routes_path = tmp_path / "routes.json"
-    routes_path.write_text(json.dumps({
-        "categories": {
-            "language": {"routes": [_route("p/q")], "reason": ""},
-        }
-    }))
+    routes_path.write_text(
+        json.dumps(
+            {
+                "categories": {
+                    "language": {"routes": [_route("p/q")], "reason": ""},
+                }
+            }
+        )
+    )
 
     results = export.run(
         config_path=cfg_path,
@@ -227,17 +229,12 @@ def test_pass_a_f1_stamp_skips_yaml_frontmatter():
     """Pass A F1: H1-finder used to land inside YAML frontmatter when a
     description contained '# ' (e.g. `description: A # B`). Verify the
     stamp lands AFTER the frontmatter, not inside it."""
-    pack = _pack(
-        "---\nactivation: glob\ndescription: A # B # C\n---\n"
-        "# Real H1\n\nbody\n"
-    )
+    pack = _pack("---\nactivation: glob\ndescription: A # B # C\n---\n# Real H1\n\nbody\n")
     export.inject_pack(pack, "language", _entry([_route("x/y")]))
     text = pack.read_text()
     fm_end = text.find("\n---\n", 4) + 5
     stamp_pos = text.find("Last content verification:")
-    assert stamp_pos > fm_end, (
-        f"stamp at {stamp_pos} landed inside frontmatter (ends {fm_end})"
-    )
+    assert stamp_pos > fm_end, f"stamp at {stamp_pos} landed inside frontmatter (ends {fm_end})"
     # Frontmatter itself is intact: still exactly TWO `---` lines at top.
     assert text.count("\n---\n") == 1
     assert text.startswith("---\n")
@@ -246,12 +243,11 @@ def test_pass_a_f1_stamp_skips_yaml_frontmatter():
 def test_pass_a_f2_canonicalizes_lowercase_stamp():
     """Pass A F2: writer regex was case-sensitive while consumer is
     case-insensitive — a lowercase stamp was being duplicated."""
-    pack = _pack(
-        "# X\nlast content verification: 2020-01-01\n\nbody\n"
-    )
+    pack = _pack("# X\nlast content verification: 2020-01-01\n\nbody\n")
     export.inject_pack(pack, "language", _entry([_route("x/y")]))
     text = pack.read_text()
     import re
+
     all_stamps = re.findall(r"(?i)last content verification:[^\n]*", text)
     assert len(all_stamps) == 1, f"expected 1 stamp, got {len(all_stamps)}: {all_stamps}"
     assert f"Last content verification: {TODAY}" in text
@@ -260,12 +256,11 @@ def test_pass_a_f2_canonicalizes_lowercase_stamp():
 def test_pass_a_f2_canonicalizes_trailing_text_stamp():
     """Pass A F2: a stamp with trailing text (`(manual)`) used to be
     invisible to the writer, causing duplication."""
-    pack = _pack(
-        "# X\nLast content verification: 2020-01-01 (manual)\n\nbody\n"
-    )
+    pack = _pack("# X\nLast content verification: 2020-01-01 (manual)\n\nbody\n")
     export.inject_pack(pack, "language", _entry([_route("x/y")]))
     text = pack.read_text()
     import re
+
     all_stamps = re.findall(r"(?i)last content verification:[^\n]*", text)
     assert len(all_stamps) == 1
     assert f"Last content verification: {TODAY}" in text
@@ -276,9 +271,7 @@ def test_pass_a_f3_orphan_end_marker_does_not_accumulate():
     """Pass A F3: a single orphan END marker was being preserved across
     runs, with each run appending a fresh block. Two runs should still
     converge to exactly 1 START + 1 END."""
-    pack = _pack(
-        "# X\n\n<!-- OPENROUTER_ROUTES:END -->\nbody\n"
-    )
+    pack = _pack("# X\n\n<!-- OPENROUTER_ROUTES:END -->\nbody\n")
     for _ in range(2):
         export.inject_pack(pack, "language", _entry([_route("a/m")]))
     text = pack.read_text()
@@ -287,9 +280,7 @@ def test_pass_a_f3_orphan_end_marker_does_not_accumulate():
 
 
 def test_pass_a_f3_orphan_start_marker_does_not_accumulate():
-    pack = _pack(
-        "# X\n\n<!-- OPENROUTER_ROUTES:START — orphaned -->\nbody\n"
-    )
+    pack = _pack("# X\n\n<!-- OPENROUTER_ROUTES:START — orphaned -->\nbody\n")
     for _ in range(2):
         export.inject_pack(pack, "language", _entry([_route("a/m")]))
     text = pack.read_text()
@@ -326,8 +317,7 @@ def test_pass_c_stamp_skips_marker_block_region():
     assert canonical_stamp_pos != -1
     # Canonical stamp must land BEFORE the marker block — not inside it.
     assert canonical_stamp_pos < start, (
-        f"stamp at {canonical_stamp_pos} landed inside or after marker block "
-        f"[{start}, {end}]"
+        f"stamp at {canonical_stamp_pos} landed inside or after marker block [{start}, {end}]"
     )
 
 
@@ -342,6 +332,7 @@ def test_pass_b_f1_multi_stamp_collapses_to_one():
     export.inject_pack(pack, "language", _entry([_route("x/y")]))
     text = pack.read_text()
     import re
+
     stamps = re.findall(r"(?i)last content verification:[^\n]*", text)
     assert len(stamps) == 1
     assert stamps[0] == f"Last content verification: {TODAY}"
@@ -350,9 +341,7 @@ def test_pass_b_f1_multi_stamp_collapses_to_one():
 def test_pass_a_f6_malformed_date_emits_warn(capsys):
     """Pass A F6: plan §10.3(d) promised a WARN when a malformed date
     is normalized — must surface in the daily log."""
-    pack = _pack(
-        "# X\nLast content verification: 2026-99-99\n\nbody\n"
-    )
+    pack = _pack("# X\nLast content verification: 2026-99-99\n\nbody\n")
     export.inject_pack(pack, "language", _entry([_route("x/y")]))
     out = capsys.readouterr().out
     assert "WARN" in out and "2026-99-99" in out
@@ -363,11 +352,15 @@ def test_run_warns_on_missing_pack(tmp_path, capsys):
     no crash, no other packs affected."""
     fake_root = tmp_path
     cfg_path = tmp_path / "cfg.yaml"
-    cfg_path.write_text(yaml.safe_dump({
-        "categories": {
-            "language": {"pack_file": ".windsurf/rules/ai/missing.md"},
-        }
-    }))
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "categories": {
+                    "language": {"pack_file": ".windsurf/rules/ai/missing.md"},
+                }
+            }
+        )
+    )
     routes_path = tmp_path / "routes.json"
     routes_path.write_text(json.dumps({"categories": {"language": _entry()}}))
 
@@ -394,11 +387,15 @@ def test_full_surface_pass2_ff_rejects_path_traversal(tmp_path, capsys):
     victim_mtime = victim.stat().st_mtime
 
     cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(yaml.safe_dump({
-        "categories": {
-            "evil": {"pack_file": "../precious.md"},
-        }
-    }))
+    cfg.write_text(
+        yaml.safe_dump(
+            {
+                "categories": {
+                    "evil": {"pack_file": "../precious.md"},
+                }
+            }
+        )
+    )
     routes = tmp_path / "routes.json"
     routes.write_text(json.dumps({"categories": {"evil": {"routes": [], "reason": ""}}}))
 
@@ -420,11 +417,15 @@ def test_full_surface_pass2_ff_allows_canonical_pack_path(tmp_path):
     pack.write_text("# Language\n\nbody\n")
 
     cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(yaml.safe_dump({
-        "categories": {
-            "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
-        }
-    }))
+    cfg.write_text(
+        yaml.safe_dump(
+            {
+                "categories": {
+                    "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
+                }
+            }
+        )
+    )
     routes = tmp_path / "routes.json"
     routes.write_text(json.dumps({"categories": {"language": _entry([_route("x/y")])}}))
 
@@ -460,6 +461,7 @@ def test_full_surface_pass3_f5_single_digit_date_canonicalized(capsys):
     p.write_text("# X\nLast content verification: 2026-6-27\n\nbody\n")
     export.inject_pack(p, "language", _entry([_route("x/y")]))
     import re
+
     stamps = re.findall(r"(?i)last content verification:[^\n]*", p.read_text())
     assert len(stamps) == 1
     assert stamps[0] == f"Last content verification: {TODAY}"
@@ -515,17 +517,30 @@ def test_full_surface_pass5_f2_per_pack_exception_does_not_halt_loop(tmp_path, c
     bad.write_bytes(b"# C\n\nbody\n\x80\x80\xfe\n")  # invalid utf-8
 
     cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(yaml.safe_dump({"categories": {
-        "vision":   {"pack_file": ".windsurf/rules/ai/20-vision.md"},
-        "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
-        "code":     {"pack_file": ".windsurf/rules/ai/60-code.md"},
-    }}, sort_keys=False))
+    cfg.write_text(
+        yaml.safe_dump(
+            {
+                "categories": {
+                    "vision": {"pack_file": ".windsurf/rules/ai/20-vision.md"},
+                    "language": {"pack_file": ".windsurf/rules/ai/30-language.md"},
+                    "code": {"pack_file": ".windsurf/rules/ai/60-code.md"},
+                }
+            },
+            sort_keys=False,
+        )
+    )
     routes = tmp_path / "routes.json"
-    routes.write_text(json.dumps({"categories": {
-        "vision":   _entry([_route("x/y")]),
-        "language": _entry([_route("x/y")]),
-        "code":     _entry([_route("x/y")]),
-    }}))
+    routes.write_text(
+        json.dumps(
+            {
+                "categories": {
+                    "vision": _entry([_route("x/y")]),
+                    "language": _entry([_route("x/y")]),
+                    "code": _entry([_route("x/y")]),
+                }
+            }
+        )
+    )
 
     results = export.run(config_path=cfg, routes_json_path=routes, fabrik_root=fake_root)
     assert results["vision"]["status"] == "failed"
@@ -574,12 +589,11 @@ def test_full_surface_pass11_marker_block_range_skips_prose_end():
         f"stamp at {canonical} but real marker block starts at "
         f"{real_start_m.start()}"
     )
-    block = text[real_start_m.start():real_end_m.end()]
+    block = text[real_start_m.start() : real_end_m.end()]
     import re
+
     in_block_stamps = re.findall(r"(?i)last content verification:[^\n]*", block)
-    assert in_block_stamps == [], (
-        f"in-block stamps not cleared: {in_block_stamps}"
-    )
+    assert in_block_stamps == [], f"in-block stamps not cleared: {in_block_stamps}"
     # Pass 12: prose mention preserved as documentation; only ONE REAL
     # marker pair (line-anchored).
     assert len(export.REAL_START_RE.findall(text)) == 1

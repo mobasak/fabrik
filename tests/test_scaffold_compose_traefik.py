@@ -200,8 +200,7 @@ def test_traefik_labels_have_no_unexpanded_vars(tmp_path, project_type):
 
     assert not offending, (
         f"{project_type} compose.yaml has unexpanded shell variables "
-        f"inside Traefik labels (Coolify will not expand them):\n"
-        + "\n".join(offending)
+        f"inside Traefik labels (Coolify will not expand them):\n" + "\n".join(offending)
     )
 
 
@@ -222,9 +221,7 @@ def test_traefik_host_uses_real_domain(tmp_path, project_type):
         r"traefik\.http\.routers\.[\w-]+\.rule=Host\(`([^`]+)`\)",
         content,
     )
-    assert host_match, (
-        f"{project_type} compose.yaml has no parseable Host(`...`) rule"
-    )
+    assert host_match, f"{project_type} compose.yaml has no parseable Host(`...`) rule"
     host = host_match.group(1)
     assert "${" not in host, (
         f"{project_type} compose.yaml Host(...) rule still contains an "
@@ -261,6 +258,5 @@ def test_worker_compose_has_no_traefik(tmp_path):
     ]
     assert not label_hits, (
         "file-worker should not declare Traefik labels — it is a "
-        "background worker with no HTTP surface. Offending lines:\n"
-        + "\n".join(label_hits)
+        "background worker with no HTTP surface. Offending lines:\n" + "\n".join(label_hits)
     )

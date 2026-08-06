@@ -55,9 +55,12 @@ def _seed():
         pytest.skip("kilo_agents.db missing")
     conn = sqlite3.connect(DB_PATH)
     try:
-        if conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='embedding_roles'"
-        ).fetchone() is None:
+        if (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='embedding_roles'"
+            ).fetchone()
+            is None
+        ):
             pytest.skip("embedding_roles missing — run embedding_role_mapper first")
     finally:
         conn.close()
@@ -87,8 +90,13 @@ def test_chat_roster_section_preserved():
 
 def test_embedding_roster_contains_all_role_sections():
     import yaml as _yaml
+
     cfg = _yaml.safe_load((SCRIPT_DIR / "embedding_role_configs.yaml").read_text())["roles"]
-    body = _between(SELECTION_GUIDE_PATH.read_text(), "<!-- EMBEDDING_ROSTER:START", "<!-- EMBEDDING_ROSTER:END -->")
+    body = _between(
+        SELECTION_GUIDE_PATH.read_text(),
+        "<!-- EMBEDDING_ROSTER:START",
+        "<!-- EMBEDDING_ROSTER:END -->",
+    )
     for role in cfg:
         assert f"### {role}" in body, f"missing role: {role}"
 
@@ -96,11 +104,17 @@ def test_embedding_roster_contains_all_role_sections():
 def test_embedding_roster_contains_db_winners():
     conn = sqlite3.connect(DB_PATH)
     try:
-        winners = [r[0] for r in conn.execute("SELECT DISTINCT model_id FROM embedding_roles").fetchall()]
+        winners = [
+            r[0] for r in conn.execute("SELECT DISTINCT model_id FROM embedding_roles").fetchall()
+        ]
     finally:
         conn.close()
     assert winners
-    body = _between(SELECTION_GUIDE_PATH.read_text(), "<!-- EMBEDDING_ROSTER:START", "<!-- EMBEDDING_ROSTER:END -->")
+    body = _between(
+        SELECTION_GUIDE_PATH.read_text(),
+        "<!-- EMBEDDING_ROSTER:START",
+        "<!-- EMBEDDING_ROSTER:END -->",
+    )
     for mid in winners:
         assert mid in body, f"missing winner {mid!r} in roster"
 
@@ -111,7 +125,11 @@ def test_embedding_catalog_contains_every_model():
         ids = [r[0] for r in conn.execute("SELECT id FROM embedding_models").fetchall()]
     finally:
         conn.close()
-    body = _between(CAPABILITIES_PATH.read_text(), "<!-- EMBEDDING_CATALOG:START", "<!-- EMBEDDING_CATALOG:END -->")
+    body = _between(
+        CAPABILITIES_PATH.read_text(),
+        "<!-- EMBEDDING_CATALOG:START",
+        "<!-- EMBEDDING_CATALOG:END -->",
+    )
     missing = [i for i in ids if i not in body]
     assert not missing, f"missing model ids in catalog: {missing[:5]}"
 
@@ -122,7 +140,11 @@ def test_embedding_catalog_total_count_correct():
         n = conn.execute("SELECT COUNT(*) FROM embedding_models").fetchone()[0]
     finally:
         conn.close()
-    body = _between(CAPABILITIES_PATH.read_text(), "<!-- EMBEDDING_CATALOG:START", "<!-- EMBEDDING_CATALOG:END -->")
+    body = _between(
+        CAPABILITIES_PATH.read_text(),
+        "<!-- EMBEDDING_CATALOG:START",
+        "<!-- EMBEDDING_CATALOG:END -->",
+    )
     assert f"Total: {n} models" in body
 
 
@@ -136,7 +158,11 @@ def test_run_is_idempotent():
 
 
 def test_qwen3_p1_in_multilingual_primary_section():
-    body = _between(SELECTION_GUIDE_PATH.read_text(), "<!-- EMBEDDING_ROSTER:START", "<!-- EMBEDDING_ROSTER:END -->")
+    body = _between(
+        SELECTION_GUIDE_PATH.read_text(),
+        "<!-- EMBEDDING_ROSTER:START",
+        "<!-- EMBEDDING_ROSTER:END -->",
+    )
     multi_idx = body.index("### multilingual_primary")
     next_idx = body.find("\n### ", multi_idx + 1)
     if next_idx == -1:

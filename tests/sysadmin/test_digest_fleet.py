@@ -50,7 +50,9 @@ def test_missed_detector_warns_on_unmatched_attempts(tmp_path):
 
     result = subprocess.run(
         ["python3", "-c", _missed_detector_py(jsonl)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert "MISSED DIGESTS" in result.stdout
 
@@ -68,7 +70,9 @@ def test_missed_detector_silent_when_sent_row_present(tmp_path):
 
     result = subprocess.run(
         ["python3", "-c", _missed_detector_py(jsonl)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert "MISSED DIGESTS" not in result.stdout
 
@@ -85,7 +89,9 @@ def test_missed_detector_exempts_today(tmp_path):
 
     result = subprocess.run(
         ["python3", "-c", _missed_detector_py(jsonl)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert "MISSED DIGESTS" not in result.stdout
 
@@ -119,15 +125,19 @@ def test_bullet_extractor_truncates_180(tmp_path):
     long_excerpt = "x" * 250  # 250 chars
     rows = [
         {
-            "ts": time.time() - 3600, "host": "vps1",
-            "source": "alertmanager", "result_excerpt": long_excerpt,
+            "ts": time.time() - 3600,
+            "host": "vps1",
+            "source": "alertmanager",
+            "result_excerpt": long_excerpt,
         },
     ]
     jsonl.write_text("\n".join(json.dumps(r) for r in rows))
 
     result = subprocess.run(
         ["python3", "-c", _bullet_extractor_py(jsonl)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     # Output must contain exactly 180 x's (not 250)
     bullet_line = result.stdout.strip()
@@ -141,8 +151,10 @@ def test_bullet_extractor_caps_at_5_rows(tmp_path):
     now = time.time()
     rows = [
         {
-            "ts": now - 60 * (i + 1), "host": "vps1",
-            "source": "alertmanager", "result_excerpt": f"excerpt-{i}",
+            "ts": now - 60 * (i + 1),
+            "host": "vps1",
+            "source": "alertmanager",
+            "result_excerpt": f"excerpt-{i}",
         }
         for i in range(10)
     ]
@@ -150,7 +162,9 @@ def test_bullet_extractor_caps_at_5_rows(tmp_path):
 
     result = subprocess.run(
         ["python3", "-c", _bullet_extractor_py(jsonl)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     bullets = [ln for ln in result.stdout.splitlines() if ln.strip().startswith("•")]
     assert len(bullets) == 5, f"expected ≤5 bullets, got {len(bullets)}"
@@ -162,12 +176,14 @@ def test_bullet_extractor_skips_old_rows(tmp_path):
     rows = [
         {
             "ts": time.time() - 48 * 3600,  # 48h ago, outside window
-            "host": "vps1", "source": "alertmanager",
+            "host": "vps1",
+            "source": "alertmanager",
             "result_excerpt": "should-be-skipped",
         },
         {
             "ts": time.time() - 3600,  # 1h ago, in window
-            "host": "vps1", "source": "alertmanager",
+            "host": "vps1",
+            "source": "alertmanager",
             "result_excerpt": "should-appear",
         },
     ]
@@ -175,7 +191,9 @@ def test_bullet_extractor_skips_old_rows(tmp_path):
 
     result = subprocess.run(
         ["python3", "-c", _bullet_extractor_py(jsonl)],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert "should-appear" in result.stdout
     assert "should-be-skipped" not in result.stdout
@@ -203,6 +221,7 @@ def test_send_telegram_sh_dry_run():
     assert sender.exists() and os.access(sender, os.X_OK)
     # Use a tmp env file
     import tempfile
+
     with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as f:
         f.write("TELEGRAM_BOT_TOKEN=stub\nTELEGRAM_OWNER_ID=42\n")
         env_path = f.name
@@ -217,7 +236,8 @@ def test_send_telegram_sh_dry_run():
         result = subprocess.run(
             ["bash", test_script, "smoke message"],
             env={**os.environ, "DRY_RUN": "1"},
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert "[dry-run]" in result.stdout
@@ -232,20 +252,22 @@ def test_combiner_handles_json_with_nested_double_quotes(tmp_path):
     block passed INBOX_JSON via triple-quoted heredoc, which fails when
     the JSON contains nested double-quotes. Fix: pass via env vars."""
     # Real-shaped inbox: text contains both " and \n + nested JSON
-    inbox_json = json.dumps([
-        {
-            "ts": 1234567890.5,
-            "source_host": "vps2",
-            "text": "[vps2] digest with \"quotes\" and metrics={'a': 1}",
-            "metrics": {"tier_a_count": 3},
-        },
-        {
-            "ts": 1234567891.5,
-            "source_host": "vps3",
-            "text": "[vps3] another digest",
-            "metrics": {},
-        },
-    ])
+    inbox_json = json.dumps(
+        [
+            {
+                "ts": 1234567890.5,
+                "source_host": "vps2",
+                "text": "[vps2] digest with \"quotes\" and metrics={'a': 1}",
+                "metrics": {"tier_a_count": 3},
+            },
+            {
+                "ts": 1234567891.5,
+                "source_host": "vps3",
+                "text": "[vps3] another digest",
+                "metrics": {},
+            },
+        ]
+    )
     own = "[vps1] Daily digest 2026-06-17 09:00 UTC\n  Actions: 0 Tier A"
     # Run the exact embedded Python from daily-digest.sh's hub branch
     script = """
@@ -266,10 +288,12 @@ print(combined)
 """
     result = subprocess.run(
         ["python3", "-c", script],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
         env={**os.environ, "DIGEST_OWN": own, "INBOX_RAW": inbox_json},
     )
     assert "[vps1]" in result.stdout
     assert "[vps2]" in result.stdout
     assert "[vps3]" in result.stdout
-    assert "with \"quotes\"" in result.stdout  # nested quotes preserved
+    assert 'with "quotes"' in result.stdout  # nested quotes preserved

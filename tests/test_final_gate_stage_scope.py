@@ -26,9 +26,7 @@ def repo(tmp_path, monkeypatch):
     """
 
     def git(*args):
-        subprocess.run(
-            ["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True
-        )
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True)
 
     git("init", "-q")
     git("config", "user.email", "t@t.t")

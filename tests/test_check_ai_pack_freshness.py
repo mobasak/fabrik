@@ -108,8 +108,7 @@ class TestCheckPack:
         """Residual-risk R2 closed: newest of multiple stamps wins, not first-in-file."""
         p = tmp_path / "multi.md"
         p.write_text(
-            "Last content verification: 2020-01-01\n"
-            "Last content verification: 2026-06-20\n",
+            "Last content verification: 2020-01-01\nLast content verification: 2026-06-20\n",
             encoding="utf-8",
         )
         status, age, _msg = mod.check_pack(p, date(2026, 6, 29))

@@ -222,9 +222,7 @@ class TestServiceDeployer:
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
         mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
-        mock_client.list_projects.return_value = [
-            {"name": "fabrik", "uuid": "project-uuid"}
-        ]
+        mock_client.list_projects.return_value = [{"name": "fabrik", "uuid": "project-uuid"}]
         mock_client.get_project.return_value = {
             "environments": [{"name": "production", "uuid": "env-uuid"}]
         }
@@ -279,9 +277,7 @@ class TestServiceDeployer:
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
         mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
-        mock_client.list_projects.return_value = [
-            {"name": "fabrik", "uuid": "project-uuid"}
-        ]
+        mock_client.list_projects.return_value = [{"name": "fabrik", "uuid": "project-uuid"}]
         mock_client.get_project.return_value = {
             "environments": [{"name": "production", "uuid": "env-uuid"}]
         }
@@ -315,9 +311,7 @@ class TestServiceDeployer:
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
         mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
-        mock_client.list_projects.return_value = [
-            {"name": "fabrik", "uuid": "project-uuid"}
-        ]
+        mock_client.list_projects.return_value = [{"name": "fabrik", "uuid": "project-uuid"}]
         mock_client.get_project.return_value = {
             "environments": [{"name": "production", "uuid": "env-uuid"}]
         }
@@ -375,15 +369,12 @@ class TestServiceDeployer:
         with patch.dict(os.environ, {"COOLIFY_PRIVATE_KEY_UUID": "  # auto-detect"}):
             assert deployer._resolve_private_key_uuid({}) == "key-auto"
 
-
     def test_deploy_git_sourced_missing_repository_raises(self):
         """Git-sourced spec without repository raises DeployError."""
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
         mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
-        mock_client.list_projects.return_value = [
-            {"name": "fabrik", "uuid": "project-uuid"}
-        ]
+        mock_client.list_projects.return_value = [{"name": "fabrik", "uuid": "project-uuid"}]
 
         deployer = ServiceDeployer(coolify_client=mock_client)
 
@@ -457,4 +448,3 @@ class TestServiceDeployer:
         assert project_uuid == "right-uuid"
         # Must not auto-create when the named project already exists
         mock_client.create_project.assert_not_called()
-

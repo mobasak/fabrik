@@ -99,19 +99,27 @@ def test_empty_file_treated_as_first_run(tmp_path: Path) -> None:
 
 def test_maybe_alert_no_op_when_fresh() -> None:
     mod = _load()
-    fired = mod.maybe_alert({
-        "status": "fresh", "age_hours": 5.0,
-        "timestamp": "2026-06-30T07:00:00+00:00", "threshold_hours": 36,
-    })
+    fired = mod.maybe_alert(
+        {
+            "status": "fresh",
+            "age_hours": 5.0,
+            "timestamp": "2026-06-30T07:00:00+00:00",
+            "threshold_hours": 36,
+        }
+    )
     assert fired is False
 
 
 def test_maybe_alert_no_op_when_first_run() -> None:
     mod = _load()
-    fired = mod.maybe_alert({
-        "status": "first_run", "age_hours": None,
-        "timestamp": None, "threshold_hours": 36,
-    })
+    fired = mod.maybe_alert(
+        {
+            "status": "first_run",
+            "age_hours": None,
+            "timestamp": None,
+            "threshold_hours": 36,
+        }
+    )
     assert fired is False
 
 
@@ -125,16 +133,23 @@ def test_maybe_alert_swallows_send_alert_exception(capsys) -> None:
     mod = _load()
     # Inject a fake `alerting` module that raises on send_alert
     import types
+
     fake = types.ModuleType("alerting")
+
     def _boom(**kw):
         raise RuntimeError("simulated alerting failure")
+
     fake.send_alert = _boom  # type: ignore[attr-defined]
     sys.modules["alerting"] = fake
     try:
-        fired = mod.maybe_alert({
-            "status": "stale", "age_hours": 48.0,
-            "timestamp": "2026-06-28T00:00:00+00:00", "threshold_hours": 36,
-        })
+        fired = mod.maybe_alert(
+            {
+                "status": "stale",
+                "age_hours": 48.0,
+                "timestamp": "2026-06-28T00:00:00+00:00",
+                "threshold_hours": 36,
+            }
+        )
         assert fired is False
         # The error should be logged to stderr
         captured = capsys.readouterr()

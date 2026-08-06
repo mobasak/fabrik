@@ -104,7 +104,9 @@ class TestEnvHandling:
         # The token lives in the auth header
         assert "SUPER-SECRET-TOKEN-XYZ" in h["Authorization"]
         # But no other fields leak it
-        assert "SUPER-SECRET-TOKEN-XYZ" not in repr({k: v for k, v in h.items() if k != "Authorization"})
+        assert "SUPER-SECRET-TOKEN-XYZ" not in repr(
+            {k: v for k, v in h.items() if k != "Authorization"}
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -132,9 +134,10 @@ def _resp(status_code: int, json_body=None, text: str = ""):
 
 class TestCreateProject:
     def test_dry_run_makes_no_network_calls(self, fake_env):
-        with patch.object(glitchtip.requests, "get") as g, patch.object(
-            glitchtip.requests, "post"
-        ) as p:
+        with (
+            patch.object(glitchtip.requests, "get") as g,
+            patch.object(glitchtip.requests, "post") as p,
+        ):
             result = create_project("my-proj", dry_run=True)
         assert result == {"status": "dry_run", "project": "my-proj", "dsn": None}
         g.assert_not_called()
@@ -152,9 +155,10 @@ class TestCreateProject:
                 return _resp(200, [{"dsn": {"public": "http://abc@host/1"}}])
             return _resp(404)
 
-        with patch.object(glitchtip.requests, "get", side_effect=fake_get), patch.object(
-            glitchtip.requests, "post"
-        ) as post:
+        with (
+            patch.object(glitchtip.requests, "get", side_effect=fake_get),
+            patch.object(glitchtip.requests, "post") as post,
+        ):
             result = create_project("my-proj")
         assert result == {
             "status": "exists",
@@ -177,8 +181,9 @@ class TestCreateProject:
             assert "teams/ocoron/vps1/projects" in url
             return _resp(201, {"slug": "new-proj"})
 
-        with patch.object(glitchtip.requests, "get", side_effect=fake_get), patch.object(
-            glitchtip.requests, "post", side_effect=fake_post
+        with (
+            patch.object(glitchtip.requests, "get", side_effect=fake_get),
+            patch.object(glitchtip.requests, "post", side_effect=fake_post),
         ):
             result = create_project("new-proj")
         assert result == {
@@ -194,8 +199,9 @@ class TestCreateProject:
         def fake_post(url, **_kw):
             return _resp(500, text="server error")
 
-        with patch.object(glitchtip.requests, "get", side_effect=fake_get), patch.object(
-            glitchtip.requests, "post", side_effect=fake_post
+        with (
+            patch.object(glitchtip.requests, "get", side_effect=fake_get),
+            patch.object(glitchtip.requests, "post", side_effect=fake_post),
         ):
             with pytest.raises(Exception, match="HTTP 500"):
                 create_project("bad-proj")
@@ -225,9 +231,10 @@ class TestCreateProject:
                 create_project("p")
 
     def test_invalid_name_raises_before_any_http(self, fake_env):
-        with patch.object(glitchtip.requests, "get") as g, patch.object(
-            glitchtip.requests, "post"
-        ) as p:
+        with (
+            patch.object(glitchtip.requests, "get") as g,
+            patch.object(glitchtip.requests, "post") as p,
+        ):
             with pytest.raises(ValueError):
                 create_project("bad name")
             g.assert_not_called()
@@ -267,9 +274,7 @@ class TestDeleteProject:
             assert delete_project("p") is False
 
     def test_network_exception_returns_false(self, fake_env):
-        with patch.object(
-            glitchtip.requests, "delete", side_effect=ConnectionError("boom")
-        ):
+        with patch.object(glitchtip.requests, "delete", side_effect=ConnectionError("boom")):
             assert delete_project("p") is False
 
     def test_dry_run_skips_http(self, fake_env):
@@ -348,12 +353,11 @@ class TestVerifyDsnInjection:
                 return "http://NEW@host/2"
             return ""
 
-        with patch.object(glitchtip, "ssh", side_effect=fake_ssh), patch.object(
-            glitchtip.time, "sleep"
+        with (
+            patch.object(glitchtip, "ssh", side_effect=fake_ssh),
+            patch.object(glitchtip.time, "sleep"),
         ):
-            ok = verify_dsn_injection(
-                "myapp", "http://NEW@host/2", max_wait=60, poll_interval=0.01
-            )
+            ok = verify_dsn_injection("myapp", "http://NEW@host/2", max_wait=60, poll_interval=0.01)
         assert ok is True
 
     def test_container_not_yet_running_retries(self):
@@ -368,25 +372,23 @@ class TestVerifyDsnInjection:
                 return "http://abc@host/1"
             return ""
 
-        with patch.object(glitchtip, "ssh", side_effect=fake_ssh), patch.object(
-            glitchtip.time, "sleep"
+        with (
+            patch.object(glitchtip, "ssh", side_effect=fake_ssh),
+            patch.object(glitchtip.time, "sleep"),
         ):
-            ok = verify_dsn_injection(
-                "myapp", "http://abc@host/1", max_wait=60, poll_interval=0.01
-            )
+            ok = verify_dsn_injection("myapp", "http://abc@host/1", max_wait=60, poll_interval=0.01)
         assert ok is True
 
     def test_timeout_returns_false_never_raises(self):
         def fake_ssh(cmd, **_kw):
             return ""  # nothing ever comes up
 
-        with patch.object(glitchtip, "ssh", side_effect=fake_ssh), patch.object(
-            glitchtip.time, "sleep"
+        with (
+            patch.object(glitchtip, "ssh", side_effect=fake_ssh),
+            patch.object(glitchtip.time, "sleep"),
         ):
             # Use real time.time() — but very short max_wait
-            ok = verify_dsn_injection(
-                "myapp", "http://x", max_wait=0.1, poll_interval=0.01
-            )
+            ok = verify_dsn_injection("myapp", "http://x", max_wait=0.1, poll_interval=0.01)
         assert ok is False
 
     def test_prefix_match_prevents_wrong_container(self):
@@ -401,12 +403,11 @@ class TestVerifyDsnInjection:
                 return ""  # force at least one prefix-match call
             return ""
 
-        with patch.object(glitchtip, "ssh", side_effect=fake_ssh), patch.object(
-            glitchtip.time, "sleep"
+        with (
+            patch.object(glitchtip, "ssh", side_effect=fake_ssh),
+            patch.object(glitchtip.time, "sleep"),
         ):
-            verify_dsn_injection(
-                "myapp", "http://x", max_wait=0.05, poll_interval=0.01
-            )
+            verify_dsn_injection("myapp", "http://x", max_wait=0.05, poll_interval=0.01)
         ps_calls = [c for c in captured if "docker ps" in c]
         for c in ps_calls:
             # Allow both Coolify auto-name (``myapp-<uuid>``) and explicit
@@ -436,8 +437,9 @@ class TestWireShape:
             captured.append((url, kw.get("json")))
             return _resp(201)
 
-        with patch.object(glitchtip.requests, "get", side_effect=fake_get), patch.object(
-            glitchtip.requests, "post", side_effect=fake_post
+        with (
+            patch.object(glitchtip.requests, "get", side_effect=fake_get),
+            patch.object(glitchtip.requests, "post", side_effect=fake_post),
         ):
             create_project("p", platform="python")
         assert captured, "POST not made"

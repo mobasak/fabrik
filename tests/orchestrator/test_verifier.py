@@ -60,8 +60,10 @@ class TestDeploymentVerifier:
 
         # Force the stdlib-urlopen branch (no IP returned from DNS wait)
         # so the test's ``urlopen`` mock is the one that's exercised.
-        with patch.object(verifier, "_wait_for_dns", return_value=None), \
-             patch("fabrik.orchestrator.verifier.urlopen") as mock_urlopen:
+        with (
+            patch.object(verifier, "_wait_for_dns", return_value=None),
+            patch("fabrik.orchestrator.verifier.urlopen") as mock_urlopen,
+        ):
             mock_response = MagicMock()
             mock_response.getcode.return_value = 200
             mock_urlopen.return_value = mock_response

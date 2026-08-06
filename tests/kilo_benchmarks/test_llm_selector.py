@@ -25,9 +25,7 @@ DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 
 # Hyphen in dir name → can't use a normal package import; load the module by
 # filesystem path. Same trick used by the role_mapper smoke harnesses.
-_spec = importlib.util.spec_from_file_location(
-    "llm_selector", SCRIPT_DIR / "llm_selector.py"
-)
+_spec = importlib.util.spec_from_file_location("llm_selector", SCRIPT_DIR / "llm_selector.py")
 assert _spec and _spec.loader
 llm_selector = importlib.util.module_from_spec(_spec)
 sys.modules["llm_selector"] = llm_selector
@@ -200,8 +198,7 @@ def test_preview_models_excluded_when_stability_required(db_conn):
         except NoEligibleAgentError:
             continue
         assert picked["is_ga"] == 1, (
-            f"profile {profile_name!r} (stability_required) returned is_ga=0 id "
-            f"{picked['id']!r}"
+            f"profile {profile_name!r} (stability_required) returned is_ga=0 id {picked['id']!r}"
         )
 
 

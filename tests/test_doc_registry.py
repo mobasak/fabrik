@@ -35,7 +35,13 @@ reg = _load_registry()
 # --- (a) a headless python-api excludes product/data/gui docs, includes universal+deployed
 def test_python_api_allowlist_excludes_product_and_gui_docs():
     allow = reg.docs_allowlist("python-api")
-    for excluded in ("BUSINESS_MODEL.md", "data-contract.md", "ui-design.md", "design-system.md", "STRATEGIC_BACKLOG.md"):
+    for excluded in (
+        "BUSINESS_MODEL.md",
+        "data-contract.md",
+        "ui-design.md",
+        "design-system.md",
+        "STRATEGIC_BACKLOG.md",
+    ):
         assert excluded not in allow, f"python-api should not allow {excluded}"
     for included in ("README.md", "QUICKSTART.md", "SERVICES.md", "OPERATIONS.md", "RESILIENCE.md"):
         assert included in allow, f"python-api should allow {included}"
@@ -45,7 +51,12 @@ def test_python_api_allowlist_excludes_product_and_gui_docs():
 #         they live only in the permissive None-union, not any per-type allowlist).
 def test_saas_allowlist_includes_business_model_and_gui():
     allow = reg.docs_allowlist("saas-skeleton")
-    for included in ("BUSINESS_MODEL.md", "STRATEGIC_BACKLOG.md", "ui-design.md", "design-system.md"):
+    for included in (
+        "BUSINESS_MODEL.md",
+        "STRATEGIC_BACKLOG.md",
+        "ui-design.md",
+        "design-system.md",
+    ):
         assert included in allow, f"saas-skeleton should allow {included}"
     # data docs are NOT type-guaranteed (db-driven) — absent from the per-type allowlist
     assert "data-contract.md" not in allow
@@ -79,9 +90,18 @@ def test_none_allowlist_is_union_of_all_buckets():
 def test_grandfather_covers_todays_hardcoded_allowlist():
     # The literal set check_structure.py carried BEFORE this change (Phase B replaces it).
     todays_hardcoded = {
-        "README.md", "QUICKSTART.md", "CONFIGURATION.md", "TROUBLESHOOTING.md",
-        "BUSINESS_MODEL.md", "SERVICES.md", "OPERATIONS.md", "DEPLOYMENT.md",
-        "EXTERNAL_SYSTEMS.md", "FAQ.md", "FEATURES.md", "TESTING.md",
+        "README.md",
+        "QUICKSTART.md",
+        "CONFIGURATION.md",
+        "TROUBLESHOOTING.md",
+        "BUSINESS_MODEL.md",
+        "SERVICES.md",
+        "OPERATIONS.md",
+        "DEPLOYMENT.md",
+        "EXTERNAL_SYSTEMS.md",
+        "FAQ.md",
+        "FEATURES.md",
+        "TESTING.md",
         "owner_ozgur_basak.md",
     }
     tolerated = reg.docs_allowlist(None) | reg.LEGACY_TOLERATED

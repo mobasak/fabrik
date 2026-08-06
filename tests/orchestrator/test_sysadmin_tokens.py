@@ -31,10 +31,12 @@ def test_empty_pool_returns_none_not_placeholder():
 
 
 def test_claim_assigns_first_free_and_stamps():
-    _seed_pool([
-        {"token": "111:tok-A", "label": "VPS4", "assigned_to": None, "assigned_at": None},
-        {"token": "222:tok-B", "label": "VPS5", "assigned_to": None, "assigned_at": None},
-    ])
+    _seed_pool(
+        [
+            {"token": "111:tok-A", "label": "VPS4", "assigned_to": None, "assigned_at": None},
+            {"token": "222:tok-B", "label": "VPS5", "assigned_to": None, "assigned_at": None},
+        ]
+    )
     assert st.claim_bot_token("vps4") == "111:tok-A"
     pool = json.loads(st.pool_path().read_text())["pool"]
     assert pool[0]["assigned_to"] == "vps4" and pool[0]["assigned_at"] is not None
@@ -43,10 +45,12 @@ def test_claim_assigns_first_free_and_stamps():
 
 
 def test_no_double_assign_across_hosts():
-    _seed_pool([
-        {"token": "111:tok-A", "label": "VPS4", "assigned_to": None, "assigned_at": None},
-        {"token": "222:tok-B", "label": "VPS5", "assigned_to": None, "assigned_at": None},
-    ])
+    _seed_pool(
+        [
+            {"token": "111:tok-A", "label": "VPS4", "assigned_to": None, "assigned_at": None},
+            {"token": "222:tok-B", "label": "VPS5", "assigned_to": None, "assigned_at": None},
+        ]
+    )
     assert st.claim_bot_token("vps4") == "111:tok-A"
     assert st.claim_bot_token("vps5") == "222:tok-B"  # gets the NEXT free, never T1
 
@@ -80,10 +84,12 @@ def test_release_noop_when_not_assigned():
 def test_malformed_token_skipped_never_assigned():
     """PR3-review hardening: a malformed/typo'd token must never be assigned (it
     would be interpolated into the .env.sysadmin sed). Skip it, take the next valid."""
-    _seed_pool([
-        {"token": "not-a-real-token", "label": "BAD", "assigned_to": None, "assigned_at": None},
-        {"token": "333:tok-C", "label": "VPS6", "assigned_to": None, "assigned_at": None},
-    ])
+    _seed_pool(
+        [
+            {"token": "not-a-real-token", "label": "BAD", "assigned_to": None, "assigned_at": None},
+            {"token": "333:tok-C", "label": "VPS6", "assigned_to": None, "assigned_at": None},
+        ]
+    )
     assert st.claim_bot_token("vps6") == "333:tok-C"  # skipped the malformed entry
     pool = json.loads(st.pool_path().read_text())["pool"]
     assert pool[0]["assigned_to"] is None  # malformed entry left untouched

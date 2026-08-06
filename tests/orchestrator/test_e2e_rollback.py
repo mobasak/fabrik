@@ -96,10 +96,9 @@ def _bypass_dns_and_external_clients():
     """Block DNS / Coolify / Cloudflare network calls across all tests."""
     mock_dns = MagicMock()
     mock_dns.add_subdomain.return_value = {"success": True}
-    with patch(
-        "fabrik.orchestrator.validator.is_private_ip", return_value=False
-    ), patch(
-        "fabrik.orchestrator.DNSClient", return_value=mock_dns
+    with (
+        patch("fabrik.orchestrator.validator.is_private_ip", return_value=False),
+        patch("fabrik.orchestrator.DNSClient", return_value=mock_dns),
     ):
         yield
 
@@ -208,50 +207,56 @@ class TestPhase4jEndToEndRollback:
 
             return _fn
 
-        with patch(
-            "fabrik.drivers.postgres.create_database",
-            return_value={"status": "created", "db_name": "e2e_rollback_smoke"},
-        ) as m_pg_create, patch(
-            "fabrik.drivers.gatus.add_endpoint",
-            return_value={"status": "created"},
-        ) as m_gatus_add, patch(
-            "fabrik.drivers.gatus.remove_endpoint", side_effect=rec("gatus")
-        ), patch(
-            "fabrik.drivers.backrest.add_backup_plan",
-            return_value={"status": "created", "plan_id": "e2e-rollback-smoke-data"},
-        ) as m_br_add, patch(
-            "fabrik.drivers.backrest.remove_backup_plan", side_effect=rec("backrest")
-        ), patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value={
-                "status": "created",
-                "dsn": "https://deadbeef@glitchtip.test/1",
-            },
-        ) as m_gt_create, patch(
-            # ↓ THE INJECTION POINT — DSN verification fails ↓
-            "fabrik.drivers.glitchtip.verify_dsn_injection",
-            return_value=False,
-        ) as m_gt_verify, patch(
-            "fabrik.drivers.glitchtip.delete_project", side_effect=rec("glitchtip")
-        ), patch(
-            # Grafana / authelia / meilisearch must NOT be called — but
-            # patch them so if they were, we'd detect it.
-            "fabrik.drivers.grafana.post_deployment_annotation"
-        ) as m_grafana_post, patch(
-            "fabrik.drivers.grafana.delete_annotation", side_effect=rec("grafana")
-        ) as m_grafana_del, patch(
-            "fabrik.drivers.authelia.add_access_rule"
-        ) as m_authelia_add, patch(
-            "fabrik.drivers.authelia.remove_access_rule", side_effect=rec("authelia")
-        ) as m_authelia_rm, patch(
-            "fabrik.drivers.meilisearch.create_index"
-        ) as m_meili_create, patch(
-            "fabrik.drivers.meilisearch.delete_index", side_effect=rec("meilisearch")
-        ) as m_meili_del, patch(  # noqa: F841 — asserted below
-            # Coolify needed by _provision_glitchtip for DSN injection
-            # and by RollbackManager for app delete.
-            "fabrik.drivers.coolify.CoolifyClient"
-        ) as m_coolify_cls:
+        with (
+            patch(
+                "fabrik.drivers.postgres.create_database",
+                return_value={"status": "created", "db_name": "e2e_rollback_smoke"},
+            ) as m_pg_create,
+            patch(
+                "fabrik.drivers.gatus.add_endpoint",
+                return_value={"status": "created"},
+            ) as m_gatus_add,
+            patch("fabrik.drivers.gatus.remove_endpoint", side_effect=rec("gatus")),
+            patch(
+                "fabrik.drivers.backrest.add_backup_plan",
+                return_value={"status": "created", "plan_id": "e2e-rollback-smoke-data"},
+            ) as m_br_add,
+            patch("fabrik.drivers.backrest.remove_backup_plan", side_effect=rec("backrest")),
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value={
+                    "status": "created",
+                    "dsn": "https://deadbeef@glitchtip.test/1",
+                },
+            ) as m_gt_create,
+            patch(
+                # ↓ THE INJECTION POINT — DSN verification fails ↓
+                "fabrik.drivers.glitchtip.verify_dsn_injection",
+                return_value=False,
+            ) as m_gt_verify,
+            patch("fabrik.drivers.glitchtip.delete_project", side_effect=rec("glitchtip")),
+            patch(
+                # Grafana / authelia / meilisearch must NOT be called — but
+                # patch them so if they were, we'd detect it.
+                "fabrik.drivers.grafana.post_deployment_annotation"
+            ) as m_grafana_post,
+            patch(
+                "fabrik.drivers.grafana.delete_annotation", side_effect=rec("grafana")
+            ) as m_grafana_del,
+            patch("fabrik.drivers.authelia.add_access_rule") as m_authelia_add,
+            patch(
+                "fabrik.drivers.authelia.remove_access_rule", side_effect=rec("authelia")
+            ) as m_authelia_rm,
+            patch("fabrik.drivers.meilisearch.create_index") as m_meili_create,
+            patch(
+                "fabrik.drivers.meilisearch.delete_index", side_effect=rec("meilisearch")
+            ) as m_meili_del,
+            patch(  # noqa: F841 — asserted below
+                # Coolify needed by _provision_glitchtip for DSN injection
+                # and by RollbackManager for app delete.
+                "fabrik.drivers.coolify.CoolifyClient"
+            ) as m_coolify_cls,
+        ):
             mock_coolify = MagicMock()
             m_coolify_cls.return_value = mock_coolify
 
@@ -307,8 +312,7 @@ class TestPhase4jEndToEndRollback:
             ("glitchtip", "e2e-rollback-smoke"),
         ]
         assert registered == expected_prefix, (
-            f"Resource ledger drifted:\n  got:      {registered}\n"
-            f"  expected: {expected_prefix}"
+            f"Resource ledger drifted:\n  got:      {registered}\n  expected: {expected_prefix}"
         )
 
         # (6) Rollback walk — reverse of registration, minus destructive
@@ -378,25 +382,25 @@ class TestPhase4jEndToEndRollback:
 
         caplog.set_level(logging.WARNING)
 
-        with patch(
-            "fabrik.drivers.postgres.create_database",
-            return_value={"status": "created", "db_name": "e2e_rollback_smoke"},
-        ), patch(
-            "fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}
-        ), patch("fabrik.drivers.gatus.remove_endpoint", return_value=True), patch(
-            "fabrik.drivers.backrest.add_backup_plan",
-            return_value={"status": "created"},
-        ), patch(
-            "fabrik.drivers.backrest.remove_backup_plan", return_value=True
-        ), patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value={"status": "created", "dsn": "https://x@gt/1"},
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False
-        ), patch(
-            "fabrik.drivers.glitchtip.delete_project", return_value=True
-        ), patch(
-            "fabrik.drivers.coolify.CoolifyClient"
+        with (
+            patch(
+                "fabrik.drivers.postgres.create_database",
+                return_value={"status": "created", "db_name": "e2e_rollback_smoke"},
+            ),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
+            patch("fabrik.drivers.gatus.remove_endpoint", return_value=True),
+            patch(
+                "fabrik.drivers.backrest.add_backup_plan",
+                return_value={"status": "created"},
+            ),
+            patch("fabrik.drivers.backrest.remove_backup_plan", return_value=True),
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value={"status": "created", "dsn": "https://x@gt/1"},
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False),
+            patch("fabrik.drivers.glitchtip.delete_project", return_value=True),
+            patch("fabrik.drivers.coolify.CoolifyClient"),
         ):
             rb_manager, _, _, _ = _rollback_manager_with_mocks()
             validator = SpecValidator(templates_dir=templates_dir)
@@ -411,13 +415,11 @@ class TestPhase4jEndToEndRollback:
         assert ctx.state == DeploymentState.ROLLED_BACK
         # The destructive-no-op WARNING is the operator's only signal
         # that a DB was created and survives the rollback.
-        assert any(
-            "fabrik db drop" in rec.message for rec in caplog.records
-        ), "Expected 'fabrik db drop' manual-command WARNING in logs after e2e rollback"
+        assert any("fabrik db drop" in rec.message for rec in caplog.records), (
+            "Expected 'fabrik db drop' manual-command WARNING in logs after e2e rollback"
+        )
 
-    def test_infra_override_skips_registrar_entirely(
-        self, tmp_path, templates_dir
-    ):
+    def test_infra_override_skips_registrar_entirely(self, tmp_path, templates_dir):
         """A spec that sets ``infra.glitchtip: false`` on an otherwise
         shape-applicable service skips the registrar — and therefore
         the injection point — and the deploy SUCCEEDS.
@@ -441,19 +443,20 @@ class TestPhase4jEndToEndRollback:
             "  - API_KEY\n"
         )
 
-        with patch(
-            "fabrik.drivers.postgres.create_database",
-            return_value={"status": "created"},
-        ), patch(
-            "fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}
-        ), patch(
-            "fabrik.drivers.glitchtip.create_project"
-        ) as m_gt_create, patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection"
-        ) as m_gt_verify, patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value={"annotation_id": 99, "status": "created"},
-        ), patch("fabrik.drivers.coolify.CoolifyClient"):
+        with (
+            patch(
+                "fabrik.drivers.postgres.create_database",
+                return_value={"status": "created"},
+            ),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
+            patch("fabrik.drivers.glitchtip.create_project") as m_gt_create,
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection") as m_gt_verify,
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value={"annotation_id": 99, "status": "created"},
+            ),
+            patch("fabrik.drivers.coolify.CoolifyClient"),
+        ):
             validator = SpecValidator(templates_dir=templates_dir)
             orchestrator = DeploymentOrchestrator(
                 validator=validator,

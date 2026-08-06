@@ -21,6 +21,7 @@ from scripts.kilo_code_review import (
 # validate_review_schema() Tests
 # =============================================================================
 
+
 def test_validate_review_schema_valid_minimal():
     """Valid minimal JSON passes schema validation."""
     data = {
@@ -28,14 +29,10 @@ def test_validate_review_schema_valid_minimal():
         "summary": "All checks passed successfully",
         "issues": [],
         "plan_coverage": [
-            {
-                "requirement": "Test requirement",
-                "status": "satisfied",
-                "evidence": "Test evidence"
-            }
+            {"requirement": "Test requirement", "status": "satisfied", "evidence": "Test evidence"}
         ],
         "notes": [],
-        "stats": {}
+        "stats": {},
     }
     is_valid, errors = validate_review_schema(data)
     assert is_valid, f"Schema validation failed: {errors}"
@@ -56,21 +53,18 @@ def test_validate_review_schema_valid_with_issue():
                 "snippet": "password = input()",
                 "why": "Hardcoded credentials detected",
                 "fix_hint": "Use environment variables",
-                "evidence": {
-                    "type": "file_line",
-                    "ref": "src/auth.py:L10-L20"
-                }
+                "evidence": {"type": "file_line", "ref": "src/auth.py:L10-L20"},
             }
         ],
         "plan_coverage": [
             {
                 "requirement": "Security review",
                 "status": "satisfied",
-                "evidence": "Found security issue"
+                "evidence": "Found security issue",
             }
         ],
         "notes": ["Additional context"],
-        "stats": {"files_reviewed": 1}
+        "stats": {"files_reviewed": 1},
     }
     is_valid, errors = validate_review_schema(data)
     assert is_valid, f"Schema validation failed: {errors}"
@@ -82,7 +76,7 @@ def test_validate_review_schema_missing_required_field():
     data = {
         "verdict": "PASS",
         "summary": "All good",
-        "issues": []
+        "issues": [],
         # Missing plan_coverage (required)
     }
     is_valid, errors = validate_review_schema(data)
@@ -98,7 +92,7 @@ def test_validate_review_schema_additional_properties():
         "summary": "All checks passed",
         "issues": [],
         "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}],
-        "extra_field": "not allowed"  # INVALID
+        "extra_field": "not allowed",  # INVALID
     }
     is_valid, errors = validate_review_schema(data)
     assert not is_valid
@@ -111,7 +105,7 @@ def test_validate_review_schema_invalid_verdict():
         "verdict": "MAYBE",  # Only PASS/FAIL allowed
         "summary": "Uncertain result",
         "issues": [],
-        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}]
+        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}],
     }
     is_valid, errors = validate_review_schema(data)
     assert not is_valid
@@ -130,11 +124,11 @@ def test_validate_review_schema_missing_issue_evidence():
                 "file": "src/test.py",
                 "lines": "L5",
                 "why": "Something wrong",
-                "fix_hint": "Fix it"
+                "fix_hint": "Fix it",
                 # Missing evidence (required)
             }
         ],
-        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}]
+        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}],
     }
     is_valid, errors = validate_review_schema(data)
     assert not is_valid
@@ -147,7 +141,7 @@ def test_validate_review_schema_empty_plan_coverage():
         "verdict": "PASS",
         "summary": "All good",
         "issues": [],
-        "plan_coverage": []  # Empty array violates minItems: 1
+        "plan_coverage": [],  # Empty array violates minItems: 1
     }
     is_valid, errors = validate_review_schema(data)
     assert not is_valid
@@ -157,6 +151,7 @@ def test_validate_review_schema_empty_plan_coverage():
 # =============================================================================
 # validate_evidence() Tests
 # =============================================================================
+
 
 def test_validate_evidence_all_valid():
     """All issues with valid evidence pass validation."""
@@ -168,7 +163,7 @@ def test_validate_evidence_all_valid():
             lines="L10",
             why="Security issue",
             fix_hint="Fix it",
-            evidence={"type": "file_line", "ref": "src/auth.py:L10"}
+            evidence={"type": "file_line", "ref": "src/auth.py:L10"},
         ),
         ReviewIssue(
             severity="MAJOR",
@@ -177,7 +172,7 @@ def test_validate_evidence_all_valid():
             lines="L20-L30",
             why="Spec violation",
             fix_hint="Update code",
-            evidence={"type": "diff", "ref": "src/main.py:L20-L30", "explanation": "Details"}
+            evidence={"type": "diff", "ref": "src/main.py:L20-L30", "explanation": "Details"},
         ),
         ReviewIssue(
             severity="MINOR",
@@ -186,8 +181,8 @@ def test_validate_evidence_all_valid():
             lines="L5",
             why="Typo",
             fix_hint="Fix typo",
-            evidence=None  # MINOR doesn't require evidence
-        )
+            evidence=None,  # MINOR doesn't require evidence
+        ),
     ]
     is_valid, violations = validate_evidence(issues)
     assert is_valid, f"Validation failed: {violations}"
@@ -204,7 +199,7 @@ def test_validate_evidence_blocker_missing_evidence():
             lines="L10",
             why="Critical security issue",
             fix_hint="Fix immediately",
-            evidence=None  # BLOCKER requires evidence
+            evidence=None,  # BLOCKER requires evidence
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -223,7 +218,7 @@ def test_validate_evidence_major_missing_evidence():
             lines="L20",
             why="Important issue",
             fix_hint="Fix it",
-            evidence=None  # MAJOR requires evidence
+            evidence=None,  # MAJOR requires evidence
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -241,7 +236,7 @@ def test_validate_evidence_minor_no_evidence_ok():
             lines="L5",
             why="Small typo",
             fix_hint="Fix it",
-            evidence=None  # MINOR can omit evidence
+            evidence=None,  # MINOR can omit evidence
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -259,7 +254,7 @@ def test_validate_evidence_empty_evidence_object():
             lines="L10",
             why="Critical issue",
             fix_hint="Fix it",
-            evidence={}  # Empty dict not sufficient
+            evidence={},  # Empty dict not sufficient
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -277,7 +272,7 @@ def test_validate_evidence_missing_type():
             lines="L10",
             why="Critical issue",
             fix_hint="Fix it",
-            evidence={"ref": "src/auth.py:L10"}  # Missing type
+            evidence={"ref": "src/auth.py:L10"},  # Missing type
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -295,7 +290,7 @@ def test_validate_evidence_file_line_without_ref():
             lines="L10",
             why="Critical issue",
             fix_hint="Fix it",
-            evidence={"type": "file_line"}  # Missing ref
+            evidence={"type": "file_line"},  # Missing ref
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -313,7 +308,7 @@ def test_validate_evidence_missing_without_explanation():
             lines="L10",
             why="Issue not in diff",
             fix_hint="Fix it",
-            evidence={"type": "missing"}  # Missing explanation
+            evidence={"type": "missing"},  # Missing explanation
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -331,7 +326,7 @@ def test_validate_evidence_mixed_valid_invalid():
             lines="L10",
             why="Good issue",
             fix_hint="Fix it",
-            evidence={"type": "file_line", "ref": "src/good.py:L10"}  # Valid
+            evidence={"type": "file_line", "ref": "src/good.py:L10"},  # Valid
         ),
         ReviewIssue(
             severity="MAJOR",
@@ -340,8 +335,8 @@ def test_validate_evidence_mixed_valid_invalid():
             lines="L20",
             why="Bad issue",
             fix_hint="Fix it",
-            evidence=None  # Invalid for MAJOR
-        )
+            evidence=None,  # Invalid for MAJOR
+        ),
     ]
     is_valid, violations = validate_evidence(issues)
     assert not is_valid
@@ -353,23 +348,20 @@ def test_validate_evidence_mixed_valid_invalid():
 # validate_plan_coverage() Tests
 # =============================================================================
 
+
 def test_validate_plan_coverage_all_satisfied():
     """All requirements covered with satisfied status pass validation."""
     requirements = [
         {"id": "REQ-1", "text": "Implement authentication"},
-        {"id": "REQ-2", "text": "Add logging"}
+        {"id": "REQ-2", "text": "Add logging"},
     ]
     coverage = [
         {
             "requirement": "Implement authentication",
             "status": "satisfied",
-            "evidence": "src/auth.py:L10-L50"
+            "evidence": "src/auth.py:L10-L50",
         },
-        {
-            "requirement": "Add logging",
-            "status": "satisfied",
-            "evidence": "src/logger.py:L5-L20"
-        }
+        {"requirement": "Add logging", "status": "satisfied", "evidence": "src/logger.py:L5-L20"},
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
     assert is_valid, f"Validation failed: {violations}"
@@ -380,13 +372,13 @@ def test_validate_plan_coverage_missing_requirement():
     """Missing requirement in coverage fails validation."""
     requirements = [
         {"id": "REQ-1", "text": "Implement authentication"},
-        {"id": "REQ-2", "text": "Add logging"}
+        {"id": "REQ-2", "text": "Add logging"},
     ]
     coverage = [
         {
             "requirement": "Implement authentication",
             "status": "satisfied",
-            "evidence": "src/auth.py:L10-L50"
+            "evidence": "src/auth.py:L10-L50",
         }
         # REQ-2 missing
     ]
@@ -398,14 +390,12 @@ def test_validate_plan_coverage_missing_requirement():
 
 def test_validate_plan_coverage_case_insensitive():
     """Coverage matching is case-insensitive."""
-    requirements = [
-        {"id": "REQ-1", "text": "Implement Authentication"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Implement Authentication"}]
     coverage = [
         {
             "requirement": "implement authentication",  # Different case
             "status": "satisfied",
-            "evidence": "src/auth.py"
+            "evidence": "src/auth.py",
         }
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
@@ -414,14 +404,12 @@ def test_validate_plan_coverage_case_insensitive():
 
 def test_validate_plan_coverage_id_prefix_normalization():
     """Coverage with REQ-1: prefix matches extracted requirement."""
-    requirements = [
-        {"id": "REQ-1", "text": "Implement authentication"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Implement authentication"}]
     coverage = [
         {
             "requirement": "REQ-1: Implement authentication",  # With prefix
             "status": "satisfied",
-            "evidence": "src/auth.py"
+            "evidence": "src/auth.py",
         }
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
@@ -430,14 +418,12 @@ def test_validate_plan_coverage_id_prefix_normalization():
 
 def test_validate_plan_coverage_numbered_prefix_normalization():
     """Coverage with R1: or B1: prefix matches extracted requirement."""
-    requirements = [
-        {"id": "R1", "text": "Add feature X"}
-    ]
+    requirements = [{"id": "R1", "text": "Add feature X"}]
     coverage = [
         {
             "requirement": "R1: Add feature X",  # With R prefix
             "status": "satisfied",
-            "evidence": "implemented"
+            "evidence": "implemented",
         }
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
@@ -446,14 +432,12 @@ def test_validate_plan_coverage_numbered_prefix_normalization():
 
 def test_validate_plan_coverage_missing_status_weak_evidence():
     """Missing/partial status without detailed evidence generates warning."""
-    requirements = [
-        {"id": "REQ-1", "text": "Implement feature"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Implement feature"}]
     coverage = [
         {
             "requirement": "Implement feature",
             "status": "missing",
-            "evidence": "N/A"  # Weak evidence for missing status
+            "evidence": "N/A",  # Weak evidence for missing status
         }
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
@@ -463,14 +447,12 @@ def test_validate_plan_coverage_missing_status_weak_evidence():
 
 def test_validate_plan_coverage_partial_with_good_evidence():
     """Partial status with detailed evidence passes validation."""
-    requirements = [
-        {"id": "REQ-1", "text": "Full test coverage"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Full test coverage"}]
     coverage = [
         {
             "requirement": "Full test coverage",
             "status": "partial",
-            "evidence": "Unit tests added (src/test_auth.py), integration tests pending"
+            "evidence": "Unit tests added (src/test_auth.py), integration tests pending",
         }
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
@@ -493,7 +475,7 @@ def test_validate_plan_coverage_no_requirements_with_coverage():
         {
             "requirement": "General code review",
             "status": "satisfied",
-            "evidence": "Reviewed all changed files"
+            "evidence": "Reviewed all changed files",
         }
     ]
     is_valid, violations = validate_plan_coverage(requirements, coverage)
@@ -503,6 +485,7 @@ def test_validate_plan_coverage_no_requirements_with_coverage():
 # =============================================================================
 # extract_plan_requirements() Tests
 # =============================================================================
+
 
 def test_extract_plan_requirements_explicit_ids():
     """Extract requirements with explicit REQ-# IDs."""
@@ -592,12 +575,10 @@ def test_extract_plan_requirements_filters_short_lines():
 # format_requirements_for_prompt() Tests
 # =============================================================================
 
+
 def test_format_requirements_for_prompt_with_requirements():
     """Format requirements into prompt-ready string."""
-    requirements = [
-        {"id": "REQ-1", "text": "Add auth"},
-        {"id": "REQ-2", "text": "Add logging"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Add auth"}, {"id": "REQ-2", "text": "Add logging"}]
     formatted = format_requirements_for_prompt(requirements)
     assert "REQ-1: Add auth" in formatted
     assert "REQ-2: Add logging" in formatted
@@ -652,9 +633,7 @@ def test_import_silent_no_stderr_with_env_var(monkeypatch):
         kcr._high_risk_paths_initialized = original_flag
 
     # Verify no stderr output on import
-    assert stderr_output == "", (
-        f"Import should be silent but got stderr: {stderr_output!r}"
-    )
+    assert stderr_output == "", f"Import should be silent but got stderr: {stderr_output!r}"
 
 
 def test_cli_main_emits_routing_message_with_env_var(monkeypatch):

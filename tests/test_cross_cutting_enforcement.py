@@ -248,7 +248,9 @@ class TestCheckReusableModules:
         utils_dir = tmp_path / "src" / "utils"
         utils_dir.mkdir(parents=True)
         (utils_dir / "helpers.py").write_text("def helper(): pass\n")
-        (tmp_path / "INDEX.md").write_text("- `src/utils/helpers.py` — Utility helpers [reusable]\n")
+        (tmp_path / "INDEX.md").write_text(
+            "- `src/utils/helpers.py` — Utility helpers [reusable]\n"
+        )
         with patch.dict(os.environ, {"FABRIK_ROOT": str(tmp_path)}):
             assert reusable_main() == 0
 
@@ -295,9 +297,7 @@ class TestFinalGateAdvisory:
         from scripts.final_gate import run_optional_check
 
         with patch("scripts.final_gate.PROJECT_ROOT", tmp_path):
-            name, passed, msg = run_optional_check(
-                str(script.name), "Test Advisory", advisory=True
-            )
+            name, passed, msg = run_optional_check(str(script.name), "Test Advisory", advisory=True)
         assert passed is True
         assert "WARNING" in msg
 
@@ -309,9 +309,7 @@ class TestFinalGateAdvisory:
         from scripts.final_gate import run_optional_check
 
         with patch("scripts.final_gate.PROJECT_ROOT", tmp_path):
-            name, passed, msg = run_optional_check(
-                str(script.name), "Test Non-Advisory"
-            )
+            name, passed, msg = run_optional_check(str(script.name), "Test Non-Advisory")
         assert passed is True
         assert msg == ""
 

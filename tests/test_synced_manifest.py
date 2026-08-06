@@ -70,9 +70,7 @@ def fake_fabrik(tmp_path: Path) -> Path:
 
 def test_iter_synced_pairs_covers_each_category(fake_fabrik: Path, tmp_path: Path) -> None:
     proj = tmp_path / "proj"
-    dests = {
-        d.relative_to(proj).as_posix() for _src, d in m.iter_synced_pairs(proj, fake_fabrik)
-    }
+    dests = {d.relative_to(proj).as_posix() for _src, d in m.iter_synced_pairs(proj, fake_fabrik)}
     assert "scripts/final_gate.py" in dests  # core script
     assert "scripts/rund" in dests  # run script (sourced from templates/)
     assert "scripts/enforcement/check_x.py" in dests  # enforcement dir (recursive)
@@ -112,7 +110,9 @@ def test_gitignore_block_collapses_windsurf_and_groups() -> None:
     assert "scripts/enforcement/" in groups["Synced scripts"]
 
 
-def test_vendored_subagents_gitignored_and_pycache_excluded(fake_fabrik: Path, tmp_path: Path) -> None:
+def test_vendored_subagents_gitignored_and_pycache_excluded(
+    fake_fabrik: Path, tmp_path: Path
+) -> None:
     # the vendored pool must be gitignored in projects (synced dir) AND its bytecode never synced.
     assert "libs/subagents/" in m.gitignore_block_text()
     proj = tmp_path / "proj"

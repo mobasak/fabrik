@@ -26,6 +26,7 @@ REPO = Path(__file__).resolve().parent.parent
 
 # --- Behavior 1: a probe that errors → broken, generator does NOT crash (fail-soft) -------------------
 
+
 def test_broken_probe_flagged_not_crashing() -> None:
     """A --help that exits non-zero → False (→ broken), and probing never raises."""
     # a real python invoking a non-existent module exits non-zero, not raises → broken
@@ -47,6 +48,7 @@ def test_build_catalog_completes_over_real_repo_with_broken_entries_isolated() -
 
 # --- Behavior 7: whole-surface-broken → raise (not a silently-all-broken catalog) --------------------
 
+
 def test_whole_surface_broken_raises(monkeypatch) -> None:
     # Force EVERY surface healthy except driver, so the raise can ONLY come from the driver surface
     # (else `cli` — which runs first — could preempt and the test would pass for the wrong reason).
@@ -54,7 +56,9 @@ def test_whole_surface_broken_raises(monkeypatch) -> None:
         healthy = [gci._rec(f"{kind}-ok", kind, "", f"use {kind}", "ok")]
         monkeypatch.setitem(gci._ENUMERATORS, kind, (lambda h: lambda _root: h)(healthy))
     monkeypatch.setitem(
-        gci._ENUMERATORS, "driver", lambda _root: [gci._rec("x", "driver", "", "import x", "broken")]
+        gci._ENUMERATORS,
+        "driver",
+        lambda _root: [gci._rec("x", "driver", "", "import x", "broken")],
     )
     with pytest.raises(RuntimeError, match=r"whole-surface-broken.*driver"):
         gci.build_catalog(REPO)
@@ -62,9 +66,13 @@ def test_whole_surface_broken_raises(monkeypatch) -> None:
 
 def test_partial_broken_does_not_raise(monkeypatch) -> None:
     """A broken entry ALONGSIDE a healthy one (not 100% broken) → no raise, both recorded."""
+
     def mixed(_root):
-        return [gci._rec("bad", "driver", "", "import bad", "broken"),
-                gci._rec("good", "driver", "", "import good", "ok")]
+        return [
+            gci._rec("bad", "driver", "", "import bad", "broken"),
+            gci._rec("good", "driver", "", "import good", "ok"),
+        ]
+
     monkeypatch.setitem(gci._ENUMERATORS, "driver", mixed)
     cat = gci.build_catalog(REPO)
     drivers = [c for c in cat if c["kind"] == "driver"]
@@ -72,6 +80,7 @@ def test_partial_broken_does_not_raise(monkeypatch) -> None:
 
 
 # --- Behavior 2/3: retired + manual detection (header markers) ---------------------------------------
+
 
 def test_retired_marker_detected(tmp_path) -> None:
     f = tmp_path / "old_tool.py"
@@ -97,6 +106,7 @@ def test_script_with_no_safe_probe_is_manual_not_broken(tmp_path) -> None:
 
 # --- Behavior 6: capabilities.json is valid against the 8-key schema ---------------------------------
 
+
 def test_json_schema_8_keys(tmp_path) -> None:
     gci.main(REPO, out_dir=tmp_path)
     payload = json.loads((tmp_path / "capabilities.json").read_text())
@@ -112,6 +122,7 @@ def test_json_schema_8_keys(tmp_path) -> None:
 
 
 # --- Behavior 4/5: covers all 7 kinds + docs/CAPABILITIES.md is valid llms.txt -----------------------
+
 
 def test_all_seven_kinds_present(tmp_path) -> None:
     catalog = gci.build_catalog(REPO)
@@ -132,13 +143,17 @@ def test_capabilities_md_is_valid_llms_txt(tmp_path) -> None:
 
 # --- Regression: summaries + marker classification (defects caught in the Phase-A review) -------------
 
+
 def test_first_docline_skips_shebang(tmp_path) -> None:
     """A shebang line must NOT become the summary — the real doc/comment line does.
 
     Regression: `_first_docline` stripped the leading `#` before the `#!/` guard, so every shebanged
     script got `!/bin/bash` as its summary (most scripts), defeating the catalog's discovery goal.
     """
-    assert gci._first_docline("#!/usr/bin/env bash\n# Does the real thing.\necho hi") == "Does the real thing."
+    assert (
+        gci._first_docline("#!/usr/bin/env bash\n# Does the real thing.\necho hi")
+        == "Does the real thing."
+    )
     py = gci._first_docline('#!/usr/bin/env python3\n"""Real docstring."""\nimport os')
     assert py == "Real docstring."
     assert not py.startswith("!"), "a shebang leaked into the summary"
@@ -153,11 +168,16 @@ def test_first_docline_skips_frontmatter_fence(tmp_path) -> None:
     # description: with a colon in its value splits correctly
     assert gci._first_docline("---\ndescription: use foo: bar\n---\n# H\n") == "use foo: bar"
     # empty / block-scalar description falls THROUGH to the heading (not '')
-    assert gci._first_docline("---\ndescription:\nglobs: x\n---\n# Real Heading\n") == "Real Heading"
-    assert gci._first_docline("---\ndescription: |\n  multi\n---\n# Real Heading\n") == "Real Heading"
+    assert (
+        gci._first_docline("---\ndescription:\nglobs: x\n---\n# Real Heading\n") == "Real Heading"
+    )
+    assert (
+        gci._first_docline("---\ndescription: |\n  multi\n---\n# Real Heading\n") == "Real Heading"
+    )
     # a lone leading `---` HR with NO closing fence is not front-matter → body is still parsed
     assert gci._first_docline("---\nSome real intro text.\nmore\n") == "Some real intro text."
     import glob
+
     rp = sorted(glob.glob(str(REPO / ".windsurf" / "rules" / "**" / "*.md"), recursive=True))
     assert rp, "expected rules-packs in the repo"
     s = gci._first_docline(gci._read_head(Path(rp[0])))

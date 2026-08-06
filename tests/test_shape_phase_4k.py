@@ -91,20 +91,20 @@ class TestShapeModel:
 
 # (kind, is_public, is_admin, has_bearer, has_persistent, needs_db, has_search)
 SHAPE_MATRIX: dict[str, tuple[str, bool, bool, bool, bool, bool, bool]] = {
-    "python-api":       ("service",   True,  False, False, False, False, False),
-    "python-api-gpu":   ("service",   True,  False, False, False, False, False),
-    "node-api":         ("service",   True,  False, False, False, False, False),
-    "saas-skeleton":    ("service",   True,  False, False, True,  True,  False),
-    "file-api":         ("service",   True,  False, False, True,  False, False),
-    "static-site":      ("static",    True,  False, False, False, False, False),
-    "docusaurus":       ("static",    True,  False, False, False, False, False),
-    "wordpress":        ("wordpress", True,  False, False, True,  True,  False),
-    "file-worker":      ("worker",    False, False, False, True,  False, False),
+    "python-api": ("service", True, False, False, False, False, False),
+    "python-api-gpu": ("service", True, False, False, False, False, False),
+    "node-api": ("service", True, False, False, False, False, False),
+    "saas-skeleton": ("service", True, False, False, True, True, False),
+    "file-api": ("service", True, False, False, True, False, False),
+    "static-site": ("static", True, False, False, False, False, False),
+    "docusaurus": ("static", True, False, False, False, False, False),
+    "wordpress": ("wordpress", True, False, False, True, True, False),
+    "file-worker": ("worker", False, False, False, True, False, False),
     # chrome/desktop/mobile companion backends are kind=service (T1 fix 2026-05-06)
     # so GlitchTip fires for the scaffolded backend (was wrongly kind=static).
-    "chrome-extension": ("service",   False, False, False, False, False, False),
-    "mobile-app":       ("service",   False, False, False, False, False, False),
-    "desktop-app":      ("service",   False, False, False, False, False, False),
+    "chrome-extension": ("service", False, False, False, False, False, False),
+    "mobile-app": ("service", False, False, False, False, False, False),
+    "desktop-app": ("service", False, False, False, False, False, False),
 }
 
 # Recognised types with NO scaffold template of their own (creation lives
@@ -138,7 +138,9 @@ class TestDefaultsYamlShape:
         """Every type's shape values match the plan's CLI Entry Points matrix exactly."""
         if project_type in _NO_TEMPLATE_TYPES:
             pytest.skip(f"{project_type}: no scaffold template (deploy-only type)")
-        kind, is_pub, is_admin, has_bearer, has_pers, needs_db, has_search = SHAPE_MATRIX[project_type]
+        kind, is_pub, is_admin, has_bearer, has_pers, needs_db, has_search = SHAPE_MATRIX[
+            project_type
+        ]
         shape = _build_shape_for_type(project_type)
         assert shape is not None  # already asserted above, guard for type-checker
         assert shape.kind.value == kind

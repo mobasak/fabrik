@@ -57,9 +57,7 @@ def _run(
 
 
 def _blocked(ctx: DeploymentContext) -> bool:
-    return any(
-        r.metadata.get("status") == "rename_guard_blocked" for r in ctx.created_resources
-    )
+    return any(r.metadata.get("status") == "rename_guard_blocked" for r in ctx.created_resources)
 
 
 def test_uses_configured_depends_postgres(monkeypatch):

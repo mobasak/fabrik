@@ -27,7 +27,7 @@ def _mock_client(monthly=10.0):
         {"id": "vc2-1c-0.5gb-v6", "monthly_cost": 2.5, "locations": ["lax"]},  # v6 — skipped
         {"id": "vc2-1c-2gb", "monthly_cost": monthly, "locations": ["lax"]},
         {"id": "vc2-2c-4gb", "monthly_cost": monthly + 10.0, "locations": ["lax"]},
-        {"id": "vc2-1c-1gb", "monthly_cost": 6.0, "locations": ["ord"]},        # wrong region
+        {"id": "vc2-1c-1gb", "monthly_cost": 6.0, "locations": ["ord"]},  # wrong region
     ]
     c.create_instance.return_value = ("instance", {"id": "i-123"})
     c.wait_for_active.return_value = {"main_ip": "1.2.3.4", "status": "active"}
@@ -35,8 +35,8 @@ def _mock_client(monthly=10.0):
 
 
 def test_estimate_cost_rounds_up_to_hour():
-    assert vultr_drill.estimate_cost(672.0, 60) == 1.0       # $1/hr, min 1h
-    assert vultr_drill.estimate_cost(672.0, 3601) == 2.0     # 2h
+    assert vultr_drill.estimate_cost(672.0, 60) == 1.0  # $1/hr, min 1h
+    assert vultr_drill.estimate_cost(672.0, 3601) == 2.0  # 2h
 
 
 def test_cheapest_ipv4_plan_skips_v6_and_wrong_region():
@@ -68,7 +68,7 @@ def test_failure_still_destroys_no_orphan():
     rep = vultr_drill.drill("bare", sshkey_ids=["k"], client=c)
     assert rep["success"] is False
     assert "never came up" in rep["error"]
-    c.destroy.assert_called_once_with("instance", "i-123")   # destroyed despite failure
+    c.destroy.assert_called_once_with("instance", "i-123")  # destroyed despite failure
     assert rep["checks"]["destroyed"] is True
 
 
@@ -77,7 +77,7 @@ def test_keep_on_failure_leaves_instance():
     c.wait_for_active.side_effect = VultrError("boom")
     rep = vultr_drill.drill("bare", sshkey_ids=["k"], keep_on_failure=True, client=c)
     assert rep["success"] is False
-    c.destroy.assert_not_called()                            # left for operator
+    c.destroy.assert_not_called()  # left for operator
     assert rep["checks"]["kept_for_debug"] is True
 
 
@@ -104,7 +104,7 @@ def test_spoke_dispatch_runs_validate_then_destroys(monkeypatch):
     monkeypatch.setattr(vultr_drill, "_validate_spoke", fake_validate)
     rep = vultr_drill.drill("spoke", sshkey_ids=["k"], client=c)
     assert rep["success"] is True
-    assert rep["plan"] == "vc2-1c-2gb"            # fixed spoke plan
+    assert rep["plan"] == "vc2-1c-2gb"  # fixed spoke plan
     assert captured["ip"] == "1.2.3.4"
     c.destroy.assert_called_once_with("instance", "i-123")  # always destroyed
 
@@ -189,12 +189,13 @@ def test_validate_spoke_restore_passes_safety_flags(monkeypatch):
 def test_spoke_failed_verify_still_destroys(monkeypatch):
     c = _mock_client()
     monkeypatch.setattr(
-        vultr_drill, "_validate_spoke",
+        vultr_drill,
+        "_validate_spoke",
         lambda ip, name: {"bootstrap": True, "verify": False, "success": False},
     )
     rep = vultr_drill.drill("spoke", sshkey_ids=["k"], client=c)
     assert rep["success"] is False
-    c.destroy.assert_called_once()                # no orphan even when verify fails
+    c.destroy.assert_called_once()  # no orphan even when verify fails
 
 
 # ── PR3: partial-G0 creds-copy smoke (opt-in) ──────────────────────────────

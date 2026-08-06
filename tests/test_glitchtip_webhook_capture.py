@@ -13,7 +13,9 @@ from pathlib import Path
 
 import pytest
 
-TOOL = Path(__file__).resolve().parent.parent / "scripts" / "probes" / "glitchtip_webhook_capture.py"
+TOOL = (
+    Path(__file__).resolve().parent.parent / "scripts" / "probes" / "glitchtip_webhook_capture.py"
+)
 
 
 @pytest.fixture

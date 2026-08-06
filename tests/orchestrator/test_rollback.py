@@ -304,9 +304,10 @@ class TestPhase4iSoftFailures:
         ctx.add_resource("gatus", "my-project")
         ctx.add_resource("backrest", "my-project-data")  # registered AFTER gatus
 
-        with patch(
-            "fabrik.drivers.gatus.remove_endpoint", side_effect=RuntimeError("boom")
-        ), patch("fabrik.drivers.backrest.remove_backup_plan") as backrest_rm:
+        with (
+            patch("fabrik.drivers.gatus.remove_endpoint", side_effect=RuntimeError("boom")),
+            patch("fabrik.drivers.backrest.remove_backup_plan") as backrest_rm,
+        ):
             errors = manager.rollback(ctx)
 
         # gatus swallowed → no errors bubble to the outer rollback loop
@@ -355,9 +356,7 @@ class TestPhase4iReverseOrderWalk:
     """
 
     def test_full_deploy_rollback_reverse_order(self):
-        manager = RollbackManager(
-            coolify_client=MagicMock(), dns_client=MagicMock()
-        )
+        manager = RollbackManager(coolify_client=MagicMock(), dns_client=MagicMock())
         ctx = DeploymentContext(spec_path=Path("t.yaml"), spec={"name": "my-app"})
 
         # Simulate a full deploy's resource registrations in PROVISIONING order
@@ -381,16 +380,13 @@ class TestPhase4iReverseOrderWalk:
 
             return _fn
 
-        with patch("fabrik.drivers.meilisearch.delete_index"), patch(
-            "fabrik.drivers.authelia.remove_access_rule", side_effect=record("authelia")
-        ), patch(
-            "fabrik.drivers.grafana.delete_annotation", side_effect=record("grafana")
-        ), patch(
-            "fabrik.drivers.glitchtip.delete_project", side_effect=record("glitchtip")
-        ), patch(
-            "fabrik.drivers.backrest.remove_backup_plan", side_effect=record("backrest")
-        ), patch(
-            "fabrik.drivers.gatus.remove_endpoint", side_effect=record("gatus")
+        with (
+            patch("fabrik.drivers.meilisearch.delete_index"),
+            patch("fabrik.drivers.authelia.remove_access_rule", side_effect=record("authelia")),
+            patch("fabrik.drivers.grafana.delete_annotation", side_effect=record("grafana")),
+            patch("fabrik.drivers.glitchtip.delete_project", side_effect=record("glitchtip")),
+            patch("fabrik.drivers.backrest.remove_backup_plan", side_effect=record("backrest")),
+            patch("fabrik.drivers.gatus.remove_endpoint", side_effect=record("gatus")),
         ):
             errors = manager.rollback(ctx)
 

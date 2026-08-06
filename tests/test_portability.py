@@ -275,11 +275,15 @@ class TestCollectLocal:
         (tmp_path / "specs" / "services" / "a.yaml").write_text("id: a\n")
         (tmp_path / "specs" / "services" / "b.yaml").write_text("id: b\n")
         (tmp_path / ".fabrik" / "state").mkdir(parents=True)
-        (tmp_path / ".fabrik" / "state" / "a.json").write_text(json.dumps({
-            "applied_at": "2026-05-16T00:00:00+00:00",
-            "coolify_uuid": "abc" * 8,  # must be stripped
-            "registrars_applied": [{"type": "postgres", "id": "a", "data_bearing": True}],
-        }))
+        (tmp_path / ".fabrik" / "state" / "a.json").write_text(
+            json.dumps(
+                {
+                    "applied_at": "2026-05-16T00:00:00+00:00",
+                    "coolify_uuid": "abc" * 8,  # must be stripped
+                    "registrars_applied": [{"type": "postgres", "id": "a", "data_bearing": True}],
+                }
+            )
+        )
         return tmp_path
 
     def test_collect_specs(self, tmp_path):
@@ -330,11 +334,15 @@ class TestExportBundle:
             "id: demo\ndomain: demo.vps1.ocoron.com\n"
         )
         (tmp_path / ".fabrik" / "state").mkdir(parents=True)
-        (tmp_path / ".fabrik" / "state" / "demo.json").write_text(json.dumps({
-            "applied_at": "2026-05-16T00:00:00+00:00",
-            "coolify_uuid": "abc" * 8,
-            "registrars_applied": [],
-        }))
+        (tmp_path / ".fabrik" / "state" / "demo.json").write_text(
+            json.dumps(
+                {
+                    "applied_at": "2026-05-16T00:00:00+00:00",
+                    "coolify_uuid": "abc" * 8,
+                    "registrars_applied": [],
+                }
+            )
+        )
         (tmp_path / "configs" / "grafana" / "dashboards").mkdir(parents=True)
         (tmp_path / "configs" / "grafana" / "dashboards" / "d.json").write_text("{}")
         (tmp_path / ".env").write_text(
@@ -471,7 +479,9 @@ class TestImportBundle:
         bundle = self._make_bundle(tmp_path)
         plan = portability.import_bundle(bundle, dry_run=False)
         assert plan["dry_run"] is False
-        assert any(a.get("phase") == "real_run" and a.get("status") == "stub" for a in plan["actions"])
+        assert any(
+            a.get("phase") == "real_run" and a.get("status") == "stub" for a in plan["actions"]
+        )
 
     def test_missing_bundle_raises_clear_error(self, tmp_path):
         with pytest.raises(FileNotFoundError):

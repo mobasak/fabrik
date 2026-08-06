@@ -466,9 +466,7 @@ class TestGenerateSpec:
         - resources match _TYPE_DEFAULTS
         - source.type detected (git source if .git exists, else template)
         """
-        spec = generate_spec(
-            "my-ext", "chrome-extension", "my-ext.vps1.ocoron.com"
-        )
+        spec = generate_spec("my-ext", "chrome-extension", "my-ext.vps1.ocoron.com")
         assert spec.kind == Kind.SERVICE
         assert spec.shape is not None
         assert spec.shape.kind == "service"
@@ -602,6 +600,7 @@ class TestB7DetectGitSource:
 
     def _make_repo(self, tmp_path: Path, remote: str | None = "https://github.com/x/y.git") -> Path:
         import subprocess
+
         project = tmp_path / "p"
         project.mkdir()
         subprocess.run(["git", "-C", str(project), "init", "-q", "-b", "main"], check=True)
@@ -609,27 +608,44 @@ class TestB7DetectGitSource:
         (project / "README.md").write_text("x")
         subprocess.run(["git", "-C", str(project), "add", "-A"], check=True)
         subprocess.run(
-            ["git", "-C", str(project), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "i"],
+            [
+                "git",
+                "-C",
+                str(project),
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "-m",
+                "i",
+            ],
             check=True,
         )
         if remote:
-            subprocess.run(["git", "-C", str(project), "remote", "add", "origin", remote], check=True)
+            subprocess.run(
+                ["git", "-C", str(project), "remote", "add", "origin", remote], check=True
+            )
         return project
 
     def test_returns_none_when_no_git(self, tmp_path: Path):
         from fabrik.spec_generator import detect_git_source
+
         project = tmp_path / "no-git"
         project.mkdir()
         assert detect_git_source(project) is None
 
     def test_returns_none_when_git_but_no_remote(self, tmp_path: Path):
         from fabrik.spec_generator import detect_git_source
+
         project = self._make_repo(tmp_path, remote=None)
         assert detect_git_source(project) is None
 
     def test_returns_source_with_git_type_and_remote_url(self, tmp_path: Path):
         from fabrik.spec_generator import detect_git_source
         from fabrik.spec_loader import SourceType
+
         project = self._make_repo(tmp_path, remote="https://github.com/mobasak/foo.git")
         src = detect_git_source(project)
         assert src is not None
@@ -640,6 +656,7 @@ class TestB7DetectGitSource:
     def test_generate_spec_emits_git_source_when_project_path_has_remote(self, tmp_path: Path):
         from fabrik.spec_generator import generate_spec
         from fabrik.spec_loader import SourceType
+
         project = self._make_repo(tmp_path, remote="git@github.com:mobasak/bar.git")
         spec = generate_spec(
             name="bar",
@@ -653,10 +670,10 @@ class TestB7DetectGitSource:
     def test_generate_spec_falls_back_to_template_without_path(self):
         from fabrik.spec_generator import generate_spec
         from fabrik.spec_loader import SourceType
+
         spec = generate_spec(
             name="x",
             project_type="python-api",
             domain="x.vps1.ocoron.com",
         )
         assert spec.source.type == SourceType.TEMPLATE
-

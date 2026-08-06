@@ -19,8 +19,10 @@ class TestDeploymentOrchestrator:
         """Bypass DNS resolution and DNS API calls for test domains."""
         mock_dns = MagicMock()
         mock_dns.add_subdomain.return_value = {"success": True}
-        with patch("fabrik.orchestrator.validator.is_private_ip", return_value=False), \
-             patch("fabrik.orchestrator.DNSClient", return_value=mock_dns):
+        with (
+            patch("fabrik.orchestrator.validator.is_private_ip", return_value=False),
+            patch("fabrik.orchestrator.DNSClient", return_value=mock_dns),
+        ):
             yield
 
     @pytest.fixture
@@ -202,8 +204,10 @@ class TestDeploymentOrchestrator:
         # by default). The VPS_IP env var is now a fallback used only when
         # target_vps is not a known fleet alias — kept here for documentation
         # but no longer the primary signal.
-        with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
-             patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
+        with (
+            patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client),
+            patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}),
+        ):
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
                 deployer=mock_deployer,
@@ -224,11 +228,7 @@ class TestDeploymentOrchestrator:
     def test_deploy_skips_dns_when_no_domain(self, tmp_path, mock_deployer, mock_verifier):
         """When spec has no domain, no DNS calls are made."""
         spec_file = tmp_path / "no-domain.yaml"
-        spec_file.write_text(
-            "name: no-domain-test\n"
-            "template: python-api\n"
-            "domain: \"\"\n"
-        )
+        spec_file.write_text('name: no-domain-test\ntemplate: python-api\ndomain: ""\n')
 
         validator = SpecValidator(templates_dir=tmp_path)
         (tmp_path / "python-api").mkdir()
@@ -244,9 +244,7 @@ class TestDeploymentOrchestrator:
         mock_dns_cls.assert_not_called()
         assert ctx.get_resources_by_type("dns") == []
 
-    def test_deploy_rollback_includes_dns(
-        self, test_spec_path, tmp_path
-    ):
+    def test_deploy_rollback_includes_dns(self, test_spec_path, tmp_path):
         """When deploy fails after DNS creation, DNS is in the rollback list."""
         validator = SpecValidator(templates_dir=tmp_path)
         (tmp_path / "python-api").mkdir()
@@ -261,8 +259,10 @@ class TestDeploymentOrchestrator:
         mock_rollback = MagicMock(spec=RollbackManager)
         mock_rollback.rollback.return_value = []
 
-        with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
-             patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
+        with (
+            patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client),
+            patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}),
+        ):
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
                 deployer=failing_deployer,

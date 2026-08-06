@@ -42,7 +42,8 @@ def _spec_dict(
         "domain": domain,
         "kind": "service",
         "template": "python-api",
-        "shape": shape or {
+        "shape": shape
+        or {
             "needs_database": True,
             "needs_cache": False,
             "has_search_feature": False,
@@ -139,23 +140,20 @@ class TestAuditPostgres:
 class TestAuditRedis:
     def test_present_when_slot_assigned(self):
         spec = _spec_dict(shape={"needs_cache": True})
-        with patch.object(audit, "_ssh_check",
-                          return_value=(True, '{"test-svc": 5, "other": 3}')):
+        with patch.object(audit, "_ssh_check", return_value=(True, '{"test-svc": 5, "other": 3}')):
             r = audit_redis(spec)
         assert r.status == "present"
         assert r.actual["db_index"] == 5
 
     def test_missing_when_no_slot(self):
         spec = _spec_dict(shape={"needs_cache": True})
-        with patch.object(audit, "_ssh_check",
-                          return_value=(True, '{"other": 3}')):
+        with patch.object(audit, "_ssh_check", return_value=(True, '{"other": 3}')):
             r = audit_redis(spec)
         assert r.status == "missing"
 
     def test_unknown_on_invalid_json(self):
         spec = _spec_dict(shape={"needs_cache": True})
-        with patch.object(audit, "_ssh_check",
-                          return_value=(True, "not json")):
+        with patch.object(audit, "_ssh_check", return_value=(True, "not json")):
             r = audit_redis(spec)
         assert r.status == "unknown"
         assert "invalid" in r.detail.lower()
@@ -288,15 +286,17 @@ class TestAuditMeilisearch:
     def test_present_on_http_200(self):
         spec = _spec_dict(shape={"has_search_feature": True})
         # First _ssh_check returns container name, second returns http status
-        with patch.object(audit, "_ssh_check",
-                          side_effect=[(True, "meilisearch-xyz"), (True, "200")]):
+        with patch.object(
+            audit, "_ssh_check", side_effect=[(True, "meilisearch-xyz"), (True, "200")]
+        ):
             r = audit_meilisearch(spec)
         assert r.status == "present"
 
     def test_missing_on_http_404(self):
         spec = _spec_dict(shape={"has_search_feature": True})
-        with patch.object(audit, "_ssh_check",
-                          side_effect=[(True, "meilisearch-xyz"), (True, "404")]):
+        with patch.object(
+            audit, "_ssh_check", side_effect=[(True, "meilisearch-xyz"), (True, "404")]
+        ):
             r = audit_meilisearch(spec)
         assert r.status == "missing"
 
@@ -460,7 +460,9 @@ class TestAuditReconcileRoundtrip:
                     return (True, "authelia-test")
                 if "backrest" in cmd:
                     return (True, "backrest-test")
-                if "watchdog" in cmd:  # D3: watchdog sidecar now audited — report present post-reconcile
+                if (
+                    "watchdog" in cmd
+                ):  # D3: watchdog sidecar now audited — report present post-reconcile
                     return (True, "present")
             if "pg_database" in cmd:
                 return (True, "1")

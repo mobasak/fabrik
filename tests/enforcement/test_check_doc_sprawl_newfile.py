@@ -19,9 +19,7 @@ sys.path.insert(0, str(REPO / "scripts" / "enforcement"))
 
 
 def _git(tmp_repo, *args):
-    return subprocess.run(
-        ["git", *args], cwd=tmp_repo, capture_output=True, text=True, check=False
-    )
+    return subprocess.run(["git", *args], cwd=tmp_repo, capture_output=True, text=True, check=False)
 
 
 @pytest.fixture()

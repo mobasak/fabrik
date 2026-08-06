@@ -38,8 +38,10 @@ def test_would_fail_on_unindexed_doc(monkeypatch):
 
     def fake_run(cmd, **kw):
         if cmd[:2] == ["git", "ls-files"]:
+
             class R:  # minimal stand-in
                 stdout = "docs/operations/definitely-not-indexed-xyz.md\n"
+
             return R()
         return real_run(cmd, **kw)
 

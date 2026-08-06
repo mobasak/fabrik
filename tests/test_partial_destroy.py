@@ -16,6 +16,7 @@ def test_module_level_import_succeeds():
     or AttributeError. The test runs at module collection time.
     """
     from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS
+
     assert isinstance(HANDLER_ARGS, dict)
     assert isinstance(HANDLER_FUNCS, dict)
 
@@ -23,9 +24,16 @@ def test_module_level_import_succeeds():
 def test_handler_keys_exactly_8_destroy_handlers():
     """The 8 destroy-handler registrars; grafana intentionally excluded."""
     from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS
+
     expected = {
-        "postgres", "redis", "gatus", "backrest", "glitchtip",
-        "authelia", "meilisearch", "prometheus",
+        "postgres",
+        "redis",
+        "gatus",
+        "backrest",
+        "glitchtip",
+        "authelia",
+        "meilisearch",
+        "prometheus",
     }
     assert set(HANDLER_ARGS) == expected
     assert set(HANDLER_FUNCS) == expected
@@ -34,12 +42,14 @@ def test_handler_keys_exactly_8_destroy_handlers():
 def test_grafana_intentionally_excluded():
     """Grafana annotations are decorative; not destroyable."""
     from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS
+
     assert "grafana" not in HANDLER_ARGS
     assert "grafana" not in HANDLER_FUNCS
 
 
 def test_handler_args_keys_equal_handler_funcs_keys():
     from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS
+
     assert set(HANDLER_ARGS) == set(HANDLER_FUNCS)
 
 
@@ -57,7 +67,8 @@ def test_handler_args_signatures_match_destroy_functions():
         fn = HANDLER_FUNCS[name]
         sig = inspect.signature(fn)
         required_params = [
-            p for p in sig.parameters.values()
+            p
+            for p in sig.parameters.values()
             if p.default is inspect.Parameter.empty
             and p.kind != inspect.Parameter.VAR_POSITIONAL
             and p.kind != inspect.Parameter.VAR_KEYWORD
@@ -143,6 +154,7 @@ class TestPartialDestroyCLI:
             def fn(*args, **kwargs):
                 calls.append(name)
                 return ActionResult(name, "dry_run", detail=f"mocked {name}")
+
             return fn
 
         monkeypatch.setitem(HANDLER_FUNCS, "gatus", make_mock("gatus"))
@@ -150,8 +162,7 @@ class TestPartialDestroyCLI:
 
         result = self._runner().invoke(
             cli,
-            ["destroy", str(spec_path), "--partial", "gatus",
-             "--partial", "backrest", "--dry-run"],
+            ["destroy", str(spec_path), "--partial", "gatus", "--partial", "backrest", "--dry-run"],
         )
 
         assert result.exit_code == 0, result.output
@@ -165,8 +176,7 @@ class TestPartialDestroyCLI:
 
         result = self._runner().invoke(
             cli,
-            ["destroy", str(spec_path), "--partial", "nonexistent",
-             "--dry-run"],
+            ["destroy", str(spec_path), "--partial", "nonexistent", "--dry-run"],
         )
         assert result.exit_code == 1
         assert "unknown registrar" in result.output
@@ -182,9 +192,15 @@ class TestPartialDestroyCLI:
 
         result = self._runner().invoke(
             cli,
-            ["destroy", str(spec_path),
-             "--partial", "gatus", "--partial", "nonexistent",
-             "--dry-run"],
+            [
+                "destroy",
+                str(spec_path),
+                "--partial",
+                "gatus",
+                "--partial",
+                "nonexistent",
+                "--dry-run",
+            ],
         )
         # gatus succeeded but nonexistent failed → exit 1
         assert result.exit_code == 1
@@ -195,4 +211,5 @@ class TestPartialDestroyCLI:
         """Sanity: after monkeypatch teardown, HANDLER_FUNCS["gatus"] is
         the real `_destroy_gatus` again — proves F1 fix works."""
         from fabrik.orchestrator.destroyer import HANDLER_FUNCS, _destroy_gatus
+
         assert HANDLER_FUNCS["gatus"] is _destroy_gatus

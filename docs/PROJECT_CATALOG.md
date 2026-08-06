@@ -45,7 +45,7 @@
 | **transdoc** | Structure-preserving document-translation SaaS — vendors fabrik-lib doc modules + mt-router + s... | Node.js | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 | **tryton-crm** | FastAPI bridge to Tryton CRM via proteus RPC - shared CRM system-of-record for trade-intelligen... | FastAPI | 🔨 Development | - | ✅ Current |
-| **web-ecommerce-factory** | AI web-agency control plane: multi-tenant chat SaaS (login to chat to agent scoped to a custome... | Node.js | 🔨 Development | - | ✅ Current |
+| **web-ecommerce-factory** | AI web-agency control plane: multi-tenant chat SaaS (login to chat to agent scoped to a custome... | Python | 🔨 Development | - | ✅ Current |
 | **whatsapp-agent** | WhatsApp channel agent for the tryton-crm bridge: FastAPI middleware (M2M to the CRM hub) + sel... | FastAPI | 🔨 Development | - | ✅ Current |
 | **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 

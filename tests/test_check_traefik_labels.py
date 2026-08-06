@@ -52,12 +52,8 @@ SCRIPT_PATH = REPO_ROOT / "scripts" / "enforcement" / "check_traefik_labels.py"
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location(
-        "check_traefik_labels", SCRIPT_PATH
-    )
-    assert spec is not None and spec.loader is not None, (
-        f"cannot load {SCRIPT_PATH}"
-    )
+    spec = importlib.util.spec_from_file_location("check_traefik_labels", SCRIPT_PATH)
+    assert spec is not None and spec.loader is not None, f"cannot load {SCRIPT_PATH}"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -218,9 +214,7 @@ class TestScanTemplateNegatives:
         f.write_text(NO_TRAEFIK_ENABLE)
         assert check_module.scan_template(f) == []
 
-    def test_explicit_traefik_disabled_is_not_flagged(
-        self, check_module, tmp_path: Path
-    ) -> None:
+    def test_explicit_traefik_disabled_is_not_flagged(self, check_module, tmp_path: Path) -> None:
         """``traefik.enable=false`` is an explicit opt-out (some internal
         services keep labels around for documentation / tooling). The
         check must respect the opt-out and not require the rest of the set."""
@@ -228,16 +222,12 @@ class TestScanTemplateNegatives:
         f.write_text(EXPLICIT_TRAEFIK_DISABLED)
         assert check_module.scan_template(f) == []
 
-    def test_multi_router_wordpress_style_passes(
-        self, check_module, tmp_path: Path
-    ) -> None:
+    def test_multi_router_wordpress_style_passes(self, check_module, tmp_path: Path) -> None:
         f = tmp_path / "wp.yaml.j2"
         f.write_text(WORDPRESS_STYLE_MULTIPLE_ROUTERS)
         assert check_module.scan_template(f) == []
 
-    def test_jinja_templated_router_names_pass(
-        self, check_module, tmp_path: Path
-    ) -> None:
+    def test_jinja_templated_router_names_pass(self, check_module, tmp_path: Path) -> None:
         """Opaque jinja tokens (``{{ spec.id }}``) count as valid router-
         name stand-ins; the check must be insensitive to the exact name."""
         f = tmp_path / "jinja.yaml.j2"
@@ -321,9 +311,7 @@ class TestAgainstRealTemplates:
             cwd=str(REPO_ROOT),
             timeout=10,
         )
-        assert result.returncode == 0, (
-            f"stdout={result.stdout}\nstderr={result.stderr}"
-        )
+        assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
     def test_cli_exits_nonzero_on_injected_violation(self, tmp_path: Path) -> None:
         synthetic = tmp_path / "templates" / "bad-template"

@@ -131,12 +131,12 @@ class TestFixProjectReferenceDocsRefresh:
 
         added = fix_project(project_dir, dry_run=False)
 
-        canonical = (FABRIK_ROOT / "docs" / "reference" / "technology-stack-decision-guide.md").read_text()
+        canonical = (
+            FABRIK_ROOT / "docs" / "reference" / "technology-stack-decision-guide.md"
+        ).read_text()
         assert target.read_text() == canonical, "Reference doc was not refreshed from master"
         assert target.read_text() != stale_marker
-        assert any(
-            "technology-stack-decision-guide.md (refreshed from master)" in e for e in added
-        )
+        assert any("technology-stack-decision-guide.md (refreshed from master)" in e for e in added)
 
     def test_prebuilt_containers_is_overwritten_when_target_exists(self, tmp_path):
         """prebuilt-app-containers.md is refreshed even if target exists."""
@@ -164,7 +164,7 @@ class TestFixProjectReferenceDocsRefresh:
         scripts_dir = project_dir / "scripts"
         scripts_dir.mkdir()
         target = scripts_dir / "kilo_47_agents_final.json"
-        target.write_text("{\"stale\": true}\n")
+        target.write_text('{"stale": true}\n')
 
         added = fix_project(project_dir, dry_run=False)
 

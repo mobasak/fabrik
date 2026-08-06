@@ -1,5 +1,6 @@
 """Regression: doc placeholders (your-key-here, <token>, changeme…) are not real secrets and must
 not trip check_secrets — while real credentials still are flagged."""
+
 import sys
 from pathlib import Path
 

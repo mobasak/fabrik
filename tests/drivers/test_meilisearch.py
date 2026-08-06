@@ -52,9 +52,7 @@ class TestAppliesTo:
 
 
 class TestValidateUid:
-    @pytest.mark.parametrize(
-        "uid", ["my_project", "Proj-2026", "a", "x" * 128, "A1_b-2"]
-    )
+    @pytest.mark.parametrize("uid", ["my_project", "Proj-2026", "a", "x" * 128, "A1_b-2"])
     def test_valid(self, uid):
         _validate_uid(uid)
 

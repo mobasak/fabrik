@@ -30,9 +30,7 @@ class TestValidators:
     def test_valid_project_names_accepted(self, name):
         _validate_project_name(name)
 
-    @pytest.mark.parametrize(
-        "name", ["", "-lead", "has space", "has/slash", "has.dot", "has;semi"]
-    )
+    @pytest.mark.parametrize("name", ["", "-lead", "has space", "has/slash", "has.dot", "has;semi"])
     def test_invalid_project_names_rejected(self, name):
         with pytest.raises(ValueError):
             _validate_project_name(name)
@@ -56,9 +54,7 @@ class TestValidators:
     def test_valid_health_paths_accepted(self, path):
         _validate_health_path(path)
 
-    @pytest.mark.parametrize(
-        "path", ["health", "", "/has'quote", '/has"quote']
-    )
+    @pytest.mark.parametrize("path", ["health", "", "/has'quote", '/has"quote'])
     def test_invalid_health_paths_rejected(self, path):
         with pytest.raises(ValueError):
             _validate_health_path(path)
@@ -71,9 +67,7 @@ class TestValidators:
 
 class TestBuildEndpointYaml:
     def test_renders_parseable_yaml(self):
-        body = _build_endpoint_yaml(
-            "my-proj", "my-proj.vps1.ocoron.com", "/health", "60s", 3
-        )
+        body = _build_endpoint_yaml("my-proj", "my-proj.vps1.ocoron.com", "/health", "60s", 3)
         parsed = yaml_lib.safe_load(body)
         assert parsed["endpoints"][0]["url"] == "https://my-proj.vps1.ocoron.com/health"
         assert parsed["endpoints"][0]["interval"] == "60s"
@@ -243,10 +237,7 @@ class TestAddEndpoint:
             add_endpoint("my-proj", "my.ocoron.com")
 
         parsed = yaml_lib.safe_load(captured[0])
-        assert (
-            parsed["endpoints"][0]["alerts"][0]["failure-threshold"]
-            == DEFAULT_FAILURE_THRESHOLD
-        )
+        assert parsed["endpoints"][0]["alerts"][0]["failure-threshold"] == DEFAULT_FAILURE_THRESHOLD
 
 
 # --------------------------------------------------------------------------- #

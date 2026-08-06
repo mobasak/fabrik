@@ -47,18 +47,14 @@ def test_classify_url_broken_sentinel_takes_precedence() -> None:
 
 def test_classify_scraped_when_within_max_age() -> None:
     mod = _load()
-    status, age = mod.classify(
-        "2026-06-29", None, today=date(2026, 6, 30), max_age_days=3
-    )
+    status, age = mod.classify("2026-06-29", None, today=date(2026, 6, 30), max_age_days=3)
     assert status == "scraped"
     assert age == 1
 
 
 def test_classify_stale_when_older_than_max_age() -> None:
     mod = _load()
-    status, age = mod.classify(
-        "2026-06-20", None, today=date(2026, 6, 30), max_age_days=3
-    )
+    status, age = mod.classify("2026-06-20", None, today=date(2026, 6, 30), max_age_days=3)
     assert status == "stale"
     assert age == 10
 
@@ -66,9 +62,7 @@ def test_classify_stale_when_older_than_max_age() -> None:
 def test_classify_boundary_at_max_age_is_scraped() -> None:
     """Off-by-one guard: exactly at max_age_days = scraped, not stale."""
     mod = _load()
-    status, age = mod.classify(
-        "2026-06-27", None, today=date(2026, 6, 30), max_age_days=3
-    )
+    status, age = mod.classify("2026-06-27", None, today=date(2026, 6, 30), max_age_days=3)
     assert status == "scraped"
     assert age == 3
 

@@ -57,23 +57,29 @@ def test_companion_rejects_bad_id():
 
 # --- render -----------------------------------------------------------------
 def test_render_emits_two_services():
-    doc, _ = _render([{"id": "demo-svc-scheduler", "command": ["node", "dist/scheduler.js"], "memory": "256M"}])
+    doc, _ = _render(
+        [{"id": "demo-svc-scheduler", "command": ["node", "dist/scheduler.js"], "memory": "256M"}]
+    )
     assert set(doc["services"]) == {"demo-svc", "demo-svc-scheduler"}
 
 
 def test_multiple_companions_all_render():
     # Regression: jinja strips each partial's trailing newline, so without an
     # explicit separator consecutive companions concatenated ('- fabrik  next:').
-    doc, compose = _render([
-        {"id": "demo-svc-scheduler", "command": ["node", "sched.js"], "memory": "256M"},
-        {"id": "demo-svc-worker", "command": ["node", "worker.js"], "memory": "512M"},
-    ])
+    doc, compose = _render(
+        [
+            {"id": "demo-svc-scheduler", "command": ["node", "sched.js"], "memory": "256M"},
+            {"id": "demo-svc-worker", "command": ["node", "worker.js"], "memory": "512M"},
+        ]
+    )
     assert set(doc["services"]) == {"demo-svc", "demo-svc-scheduler", "demo-svc-worker"}
     assert _validate_compose(compose) == []
 
 
 def test_companion_overrides_command_and_memory():
-    doc, _ = _render([{"id": "demo-svc-scheduler", "command": ["node", "dist/scheduler.js"], "memory": "256M"}])
+    doc, _ = _render(
+        [{"id": "demo-svc-scheduler", "command": ["node", "dist/scheduler.js"], "memory": "256M"}]
+    )
     sch = doc["services"]["demo-svc-scheduler"]
     assert sch["command"] == ["node", "dist/scheduler.js"]
     assert sch["deploy"]["resources"]["limits"]["memory"] == "256M"
@@ -81,10 +87,16 @@ def test_companion_overrides_command_and_memory():
 
 
 def test_companion_inherits_db_and_applies_env_override():
-    doc, _ = _render([
-        {"id": "demo-svc-scheduler", "command": ["node", "s.js"], "memory": "256M",
-         "env_overrides": {"ROLE": "scheduler"}},
-    ])
+    doc, _ = _render(
+        [
+            {
+                "id": "demo-svc-scheduler",
+                "command": ["node", "s.js"],
+                "memory": "256M",
+                "env_overrides": {"ROLE": "scheduler"},
+            },
+        ]
+    )
     env = doc["services"]["demo-svc-scheduler"]["environment"]
     assert any("DATABASE_URL" in e for e in env)
     assert any(e == "ROLE=scheduler" for e in env)
@@ -98,7 +110,9 @@ def test_companion_has_no_traefik_labels():
 
 # --- _validate_compose (deployer gate) --------------------------------------
 def test_companion_compose_passes_validate():
-    _, compose = _render([{"id": "demo-svc-scheduler", "command": ["node", "s.js"], "memory": "256M"}])
+    _, compose = _render(
+        [{"id": "demo-svc-scheduler", "command": ["node", "s.js"], "memory": "256M"}]
+    )
     assert _validate_compose(compose) == []
 
 

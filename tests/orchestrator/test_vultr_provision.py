@@ -41,16 +41,16 @@ def test_spoke_number_and_mesh_ip():
     assert prov.spoke_number("vps4") == 4
     assert prov.mesh_ip_for("vps4") == "10.99.0.4"
     with pytest.raises(VultrError):
-        prov.spoke_number("vps-drill")     # bad format
+        prov.spoke_number("vps-drill")  # bad format
     with pytest.raises(VultrError):
-        prov.spoke_number("vps1")          # hub reserved (n<2)
+        prov.spoke_number("vps1")  # hub reserved (n<2)
 
 
 def test_next_free_spoke_skips_used():
     vultr_state.upsert_instance("vps2", {"spoke_name": "vps2", "mode": "permanent"})
     c = _client()
     c.list_instances.return_value = [{"label": "vps3"}]
-    assert prov.next_free_spoke(c) == "vps4"   # 2 (state) + 3 (live) used -> 4
+    assert prov.next_free_spoke(c) == "vps4"  # 2 (state) + 3 (live) used -> 4
 
 
 def test_next_free_spoke_consults_wg0(monkeypatch):
@@ -175,7 +175,7 @@ def test_provision_bootstrap_failure_leaves_instance(monkeypatch):
     c = _client()
     rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=c)
     assert rep["success"] is False
-    c.destroy.assert_not_called()                       # permanent: left for inspection
+    c.destroy.assert_not_called()  # permanent: left for inspection
     assert vultr_state.get_instance("vps4")["bootstrap_completed_at"] is None
 
 
@@ -232,9 +232,9 @@ def test_provision_g6_no_retry_when_root_path_succeeds(monkeypatch):
 
     rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=_client())
     assert rep["success"] is True
-    assert rep.get("bootstrap_retry_as_ozgur") is None     # absent, not False
+    assert rep.get("bootstrap_retry_as_ozgur") is None  # absent, not False
     assert len(invocations) == 1
-    assert probed == []                                     # never asked
+    assert probed == []  # never asked
 
 
 def test_provision_g6_no_retry_when_ozgur_probe_fails(monkeypatch):
@@ -253,7 +253,7 @@ def test_provision_g6_no_retry_when_ozgur_probe_fails(monkeypatch):
     rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=_client())
     assert rep["success"] is False
     assert rep.get("bootstrap_retry_as_ozgur") is None
-    assert len(invocations) == 1                            # one pass only
+    assert len(invocations) == 1  # one pass only
     assert "bootstrap failed (rc=1)" in (rep.get("error") or "")
 
 
@@ -275,12 +275,14 @@ def test_provision_ssh_never_comes_up_leaves_instance(monkeypatch):
     rep = prov.provision("vps4", sshkey_ids=["k"], region="lhr", confirm=True, client=c)
     assert rep["success"] is False
     assert "sshd never came up" in (rep.get("error") or "")
-    assert bootstrap_called == []                         # bootstrap MUST NOT run
-    c.destroy.assert_not_called()                         # permanent: left for inspection
+    assert bootstrap_called == []  # bootstrap MUST NOT run
+    c.destroy.assert_not_called()  # permanent: left for inspection
 
 
 def test_reverse_fleet_destroy_dry_run_lists_steps():
-    vultr_state.upsert_instance("vps4", {"mode": "permanent", "mesh_ip": "10.99.0.4", "vultr_id": "i-9"})
+    vultr_state.upsert_instance(
+        "vps4", {"mode": "permanent", "mesh_ip": "10.99.0.4", "vultr_id": "i-9"}
+    )
     rep = prov.reverse_fleet_destroy("vps4", dry_run=True, client=_client())
     assert rep["dry_run"]
     joined = " ".join(rep["steps"]).lower()
@@ -401,7 +403,7 @@ def test_reverse_fleet_destroy_calls_aro_wake_remover_not_generic_scrape(monkeyp
 
     prov.reverse_fleet_destroy("vps4", client=_client())
     assert aro_wake_calls == ["vps4"]
-    assert generic_calls == []                              # NEVER call the generic remover
+    assert generic_calls == []  # NEVER call the generic remover
 
 
 # ── PR3: _provision_sysadmin stage ─────────────────────────────────────────
@@ -414,8 +416,9 @@ class _Rc:
         self.stderr = ""
 
 
-def _stub_sysadmin_env(monkeypatch, *, owner="123456", orkey="sk-or-x", ssh_rc=0,
-                       health="200", token_valid="valid"):
+def _stub_sysadmin_env(
+    monkeypatch, *, owner="123456", orkey="sk-or-x", ssh_rc=0, health="200", token_valid="valid"
+):
     """Wire up the _provision_sysadmin collaborators; returns recorded ssh cmds."""
     calls = []
 
@@ -424,8 +427,11 @@ def _stub_sysadmin_env(monkeypatch, *, owner="123456", orkey="sk-or-x", ssh_rc=0
         return _Rc(ssh_rc)
 
     monkeypatch.setattr(prov, "_ssh_ozgur", fake_ssh)
-    monkeypatch.setattr(prov, "_local_env_sysadmin",
-                        lambda: {"TELEGRAM_OWNER_ID": owner, "WATCHDOG_OPENROUTER_KEY": orkey})
+    monkeypatch.setattr(
+        prov,
+        "_local_env_sysadmin",
+        lambda: {"TELEGRAM_OWNER_ID": owner, "WATCHDOG_OPENROUTER_KEY": orkey},
+    )
     monkeypatch.setattr(prov, "_check_aro_wake_health", lambda mesh_ip, **k: health)
     monkeypatch.setattr(prov, "_check_bot_token", lambda tok, **k: token_valid)
     return calls
@@ -433,6 +439,7 @@ def _stub_sysadmin_env(monkeypatch, *, owner="123456", orkey="sk-or-x", ssh_rc=0
 
 def test_provision_sysadmin_happy_path(monkeypatch):
     from fabrik.orchestrator import sysadmin_tokens
+
     monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK123:abc")
     calls = _stub_sysadmin_env(monkeypatch)
 
@@ -450,6 +457,7 @@ def test_provision_sysadmin_happy_path(monkeypatch):
 
 def test_provision_sysadmin_empty_pool_skips_bot_no_placeholder(monkeypatch):
     from fabrik.orchestrator import sysadmin_tokens
+
     monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: None)  # exhausted
     calls = _stub_sysadmin_env(monkeypatch)
 
@@ -457,7 +465,7 @@ def test_provision_sysadmin_empty_pool_skips_bot_no_placeholder(monkeypatch):
     prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)
     s = report["sysadmin"]
     assert s["env_sysadmin"] == "skipped: token pool empty/exhausted"
-    assert s["units_enabled"] == "aro-wake.service"            # bot NOT enabled
+    assert s["units_enabled"] == "aro-wake.service"  # bot NOT enabled
     assert "vps-sysadmin-bot.service" not in s["units_enabled"]
     assert "NOT enabled" in s["bot"]
     # CRITICAL: no sed/placeholder ever written to .env.sysadmin
@@ -471,6 +479,7 @@ def test_provision_sysadmin_env_write_failure_attributes_correctly(monkeypatch):
     and the bot must not be enabled (the token stays claimed for an idempotent re-run).
     """
     from fabrik.orchestrator import sysadmin_tokens
+
     monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK")
     _stub_sysadmin_env(monkeypatch, ssh_rc=1)  # every ssh (incl. the sed) fails
 
@@ -479,12 +488,13 @@ def test_provision_sysadmin_env_write_failure_attributes_correctly(monkeypatch):
     s = report["sysadmin"]
     assert s["env_sysadmin"] == "error (rc=1)"
     assert "vps-sysadmin-bot.service" not in s["units_enabled"]
-    assert "write failed (rc=1)" in s["bot"]        # accurate cause, not "no token/owner"
+    assert "write failed (rc=1)" in s["bot"]  # accurate cause, not "no token/owner"
     assert "no valid token/owner" not in s["bot"]
 
 
 def test_provision_sysadmin_missing_owner_skips_bot(monkeypatch):
     from fabrik.orchestrator import sysadmin_tokens
+
     monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK")
     # owner still the template placeholder -> unresolved
     _stub_sysadmin_env(monkeypatch, owner="__OPERATOR_TO_FILL__")
@@ -498,8 +508,11 @@ def test_provision_sysadmin_missing_owner_skips_bot(monkeypatch):
 
 def test_provision_sysadmin_health_unverified_does_not_raise(monkeypatch):
     from fabrik.orchestrator import sysadmin_tokens
+
     monkeypatch.setattr(sysadmin_tokens, "claim_bot_token", lambda name: "TOK")
-    _stub_sysadmin_env(monkeypatch, health="unverified (timeout) — verify from a mesh host: curl ...")
+    _stub_sysadmin_env(
+        monkeypatch, health="unverified (timeout) — verify from a mesh host: curl ..."
+    )
 
     report = {}
     prov._provision_sysadmin("vps4", "1.2.3.4", "10.99.0.4", report)  # must not raise

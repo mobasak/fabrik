@@ -81,8 +81,15 @@ def role_configs():
 def test_schema_has_required_columns(db_conn):
     cols = {r[1] for r in db_conn.execute("PRAGMA table_info(embedding_models)").fetchall()}
     required = {
-        "id", "input_cost_per_m", "context_window_k", "is_multilingual",
-        "is_code_tuned", "is_ga", "quality_tier", "status", "blocked",
+        "id",
+        "input_cost_per_m",
+        "context_window_k",
+        "is_multilingual",
+        "is_code_tuned",
+        "is_ga",
+        "quality_tier",
+        "status",
+        "blocked",
     }
     missing = required - cols
     assert not missing, f"missing columns: {missing}"
@@ -91,9 +98,7 @@ def test_schema_has_required_columns(db_conn):
 def test_schema_has_role_tables(db_conn):
     tables = {
         r[0]
-        for r in db_conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        for r in db_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
     assert {"embedding_roles", "embedding_roles_history"}.issubset(tables)
 
@@ -154,9 +159,7 @@ def test_selector_ordering_cheapest_first(db_conn, role_configs):
         except NoEligibleEmbeddingError:
             continue
         costs = [r["input_cost_per_m"] for r in rows]
-        assert costs == sorted(costs), (
-            f"{role_name} not sorted ASC: {costs}"
-        )
+        assert costs == sorted(costs), f"{role_name} not sorted ASC: {costs}"
 
 
 def test_unsatisfiable_floors_raise():
@@ -177,9 +180,13 @@ def test_unsatisfiable_floors_raise():
 
 def test_invalid_cost_axis_raises():
     bad = {
-        "slots": 1, "min_quality_tier": 1, "min_context_window_k": 1,
-        "require_multilingual": False, "require_code_tuned": False,
-        "allow_free": False, "stability_required": True,
+        "slots": 1,
+        "min_quality_tier": 1,
+        "min_context_window_k": 1,
+        "require_multilingual": False,
+        "require_code_tuned": False,
+        "allow_free": False,
+        "stability_required": True,
         "cost_axis": "output",
     }
     with pytest.raises(ValueError):
@@ -223,8 +230,7 @@ def test_role_mapper_writes_db_and_json(role_configs):
 
         # 3. History got today's snapshot.
         today_count = c.execute(
-            "SELECT COUNT(*) FROM embedding_roles_history "
-            "WHERE snapshot_date = DATE('now')"
+            "SELECT COUNT(*) FROM embedding_roles_history WHERE snapshot_date = DATE('now')"
         ).fetchone()[0]
         assert today_count == len(expected_pairs), (
             "embedding_roles_history must contain one row per (role, priority) for today"
@@ -233,9 +239,7 @@ def test_role_mapper_writes_db_and_json(role_configs):
         c.close()
 
     # 4. JSON files written and valid.
-    assignments_json = json.loads(
-        embedding_role_mapper.ASSIGNMENTS_PATH.read_text()
-    )
+    assignments_json = json.loads(embedding_role_mapper.ASSIGNMENTS_PATH.read_text())
     assert set(assignments_json["roles"]) == set(role_configs.keys())
     traycer_json = json.loads(embedding_role_mapper.TRAYCER_EXPORT_PATH.read_text())
     assert set(traycer_json["roles"]) == set(role_configs.keys())
@@ -261,8 +265,7 @@ def test_role_mapper_is_idempotent_on_rerun():
         # History snapshot for today should also remain exactly at count_first
         # (UNIQUE(role, priority, snapshot_date) → INSERT OR REPLACE upserts).
         today_count = c2.execute(
-            "SELECT COUNT(*) FROM embedding_roles_history "
-            "WHERE snapshot_date = DATE('now')"
+            "SELECT COUNT(*) FROM embedding_roles_history WHERE snapshot_date = DATE('now')"
         ).fetchone()[0]
         assert today_count == count_first
     finally:

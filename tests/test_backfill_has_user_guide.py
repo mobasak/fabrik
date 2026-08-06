@@ -97,9 +97,7 @@ class TestDryRun:
         # static-site is guide-enabled per GUIDE_ENABLED_TYPES
         # (mobile-app was removed in commit f557c35, 2026-04-15)
         project_dir = tmp_path / "dry-run-test"
-        yaml_path = _make_project_yaml(
-            project_dir, {"name": "dry-run-test", "type": "static-site"}
-        )
+        yaml_path = _make_project_yaml(project_dir, {"name": "dry-run-test", "type": "static-site"})
         original = yaml_path.read_text()
 
         added = fix_project(project_dir, dry_run=True)

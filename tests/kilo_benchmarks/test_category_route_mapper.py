@@ -154,11 +154,13 @@ def _make_yaml(tmp_dir: Path) -> Path:
 
 
 def test_full_run_writes_all_outputs(tmp_path, monkeypatch):
-    db = _build_db([
-        ("p/lang-1", "language"),
-        ("p/lang-2", "language"),
-        ("p/lang-3", "language"),
-    ])
+    db = _build_db(
+        [
+            ("p/lang-1", "language"),
+            ("p/lang-2", "language"),
+            ("p/lang-3", "language"),
+        ]
+    )
     cfg = _make_yaml(tmp_path)
     monkeypatch.setattr(mapper, "ROUTES_JSON_PATH", tmp_path / "routes.json")
     monkeypatch.setattr(mapper, "TRAYCER_EXPORT_PATH", tmp_path / "compact.json")
@@ -284,8 +286,15 @@ def test_transaction_rollback_on_persist_failure(tmp_path, monkeypatch):
                     "INSERT INTO agent_roles "
                     "(role, agent_id, priority, reason, score_used, score_type, assigned_by) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (f"openrouter:{category}", w["id"], 1, "", w["score_used"],
-                     w["score_type"], "category_route_mapper"),
+                    (
+                        f"openrouter:{category}",
+                        w["id"],
+                        1,
+                        "",
+                        w["score_used"],
+                        w["score_type"],
+                        "category_route_mapper",
+                    ),
                 )
                 break
         raise RuntimeError("simulated mid-loop failure")
@@ -333,12 +342,10 @@ def test_idempotent(tmp_path, monkeypatch):
     payload1 = json.loads((tmp_path / "routes.json").read_text())
     conn = sqlite3.connect(db)
     hist1 = conn.execute(
-        "SELECT count(*) FROM agent_roles_history "
-        "WHERE assigned_by='category_route_mapper'"
+        "SELECT count(*) FROM agent_roles_history WHERE assigned_by='category_route_mapper'"
     ).fetchone()[0]
     pins1 = conn.execute(
-        "SELECT count(*) FROM agent_roles "
-        "WHERE assigned_by='category_route_mapper'"
+        "SELECT count(*) FROM agent_roles WHERE assigned_by='category_route_mapper'"
     ).fetchone()[0]
     conn.close()
 
@@ -346,12 +353,10 @@ def test_idempotent(tmp_path, monkeypatch):
     payload2 = json.loads((tmp_path / "routes.json").read_text())
     conn = sqlite3.connect(db)
     hist2 = conn.execute(
-        "SELECT count(*) FROM agent_roles_history "
-        "WHERE assigned_by='category_route_mapper'"
+        "SELECT count(*) FROM agent_roles_history WHERE assigned_by='category_route_mapper'"
     ).fetchone()[0]
     pins2 = conn.execute(
-        "SELECT count(*) FROM agent_roles "
-        "WHERE assigned_by='category_route_mapper'"
+        "SELECT count(*) FROM agent_roles WHERE assigned_by='category_route_mapper'"
     ).fetchone()[0]
     conn.close()
 
@@ -393,15 +398,15 @@ def test_full_surface_pass1_f1_does_not_clobber_production_paths(tmp_path, monke
     monkeypatch.setattr(type(routes_dst), "write_text", tracking_write)
 
     mapper.run(
-        db_path=db, config_path=cfg,
-        routes_json_path=routes_dst, traycer_export_path=traycer_dst,
+        db_path=db,
+        config_path=cfg,
+        routes_json_path=routes_dst,
+        traycer_export_path=traycer_dst,
     )
 
     assert routes_dst.exists(), "explicit routes_json_path was not written"
     assert traycer_dst.exists(), "explicit traycer_export_path was not written"
-    assert prod_writes == [], (
-        f"production paths clobbered despite explicit override: {prod_writes}"
-    )
+    assert prod_writes == [], f"production paths clobbered despite explicit override: {prod_writes}"
 
 
 def test_full_surface_pass1_f3_today_bound_once(tmp_path, monkeypatch):
@@ -422,8 +427,10 @@ def test_full_surface_pass1_f3_today_bound_once(tmp_path, monkeypatch):
     monkeypatch.setattr(mapper, "_utc_today_iso", lambda: FROZEN)
 
     mapper.run(
-        db_path=db, config_path=cfg,
-        routes_json_path=routes_dst, traycer_export_path=traycer_dst,
+        db_path=db,
+        config_path=cfg,
+        routes_json_path=routes_dst,
+        traycer_export_path=traycer_dst,
     )
 
     conn = sqlite3.connect(db)
@@ -454,18 +461,22 @@ def test_full_surface_pass5_f1_pragma_failure_closes_connection(tmp_path, monkey
         def __init__(self, real):
             self.real = real
             self.fail_pragma = True
+
         def execute(self, *a, **k):
             if self.fail_pragma and isinstance(a[0], str) and "PRAGMA" in a[0]:
                 self.fail_pragma = False
                 raise sqlite3.OperationalError("simulated PRAGMA failure")
             return self.real.execute(*a, **k)
+
         def close(self):
             closed_calls.append(True)
             return self.real.close()
+
         def __getattr__(self, n):
             return getattr(self.real, n)
 
     target_db = str(db)
+
     def tracing_connect(path, *a, **k):
         real = real_connect(path, *a, **k)
         if str(path) == target_db:
@@ -476,13 +487,12 @@ def test_full_surface_pass5_f1_pragma_failure_closes_connection(tmp_path, monkey
 
     with pytest.raises(sqlite3.OperationalError, match="simulated"):
         mapper.run(
-            db_path=db, config_path=cfg,
+            db_path=db,
+            config_path=cfg,
             routes_json_path=tmp_path / "r.json",
             traycer_export_path=tmp_path / "t.json",
         )
-    assert closed_calls == [True], (
-        "PRAGMA failure leaked the connection — close() was not called"
-    )
+    assert closed_calls == [True], "PRAGMA failure leaked the connection — close() was not called"
 
 
 def test_full_surface_pass5_f3_atomic_json_write(tmp_path):
@@ -493,6 +503,7 @@ def test_full_surface_pass5_f3_atomic_json_write(tmp_path):
     DB transaction commits, and only then os.replace() promotes them —
     OR the whole thing rolls back atomically."""
     import os as _os
+
     db = _build_db([("p/x", "language")])
     cfg = _make_yaml(tmp_path)
     routes_json = tmp_path / "routes.json"
@@ -506,7 +517,8 @@ def test_full_surface_pass5_f3_atomic_json_write(tmp_path):
     try:
         with pytest.raises(PermissionError):
             mapper.run(
-                db_path=db, config_path=cfg,
+                db_path=db,
+                config_path=cfg,
                 routes_json_path=routes_json,
                 traycer_export_path=traycer,
             )
@@ -520,7 +532,9 @@ def test_full_surface_pass5_f3_atomic_json_write(tmp_path):
         conn.close()
         # DB must NOT have today's pins (transaction rolled back on JSON failure).
         assert pin_count == 0, f"split-brain: DB has {pin_count} pins but traycer JSON write failed"
-        assert hist_count == 0, f"split-brain: DB has {hist_count} history rows but traycer JSON write failed"
+        assert hist_count == 0, (
+            f"split-brain: DB has {hist_count} history rows but traycer JSON write failed"
+        )
         # routes.json must NOT have been promoted to its final position.
         assert not routes_json.exists(), (
             "split-brain: routes.json landed at final path despite traycer-write failure"
@@ -553,11 +567,13 @@ def test_full_surface_pass6_fb_atomic_promote_or_restore(tmp_path, monkeypatch):
     # traycer.json). It must be the same module that the mapper imports.
     real_replace = mapper.os.replace
     seen = {"n": 0}
+
     def failing_replace(src, dst):
         seen["n"] += 1
         if seen["n"] == 3:  # the 2 snapshot replaces succeed; the FIRST promote ok, SECOND fails
             raise OSError("simulated promote failure")
         return real_replace(src, dst)
+
     # snapshot #1: routes_final → routes_final.bak  (seen=1)
     # snapshot #2: traycer_final → traycer_final.bak (seen=2)
     # promote  #1: routes_tmp → routes_final         (seen=3) ← FAILS
@@ -565,7 +581,8 @@ def test_full_surface_pass6_fb_atomic_promote_or_restore(tmp_path, monkeypatch):
 
     with pytest.raises(OSError, match="simulated promote failure"):
         mapper.run(
-            db_path=db, config_path=cfg,
+            db_path=db,
+            config_path=cfg,
             routes_json_path=routes_final,
             traycer_export_path=traycer_final,
         )
@@ -577,9 +594,7 @@ def test_full_surface_pass6_fb_atomic_promote_or_restore(tmp_path, monkeypatch):
     assert routes_day == traycer_day, (
         f"split-brain: routes={routes_day!r} traycer={traycer_day!r} — Pass 6 F-B regression"
     )
-    assert routes_day == "yesterday", (
-        f"snapshots did not restore — routes shows {routes_day!r}"
-    )
+    assert routes_day == "yesterday", f"snapshots did not restore — routes shows {routes_day!r}"
     # No tmp / bak files left lying around.
     leftovers = [p.name for p in tmp_path.iterdir() if p.suffix in (".tmp", ".bak")]
     assert leftovers == [], f"orphan tmp/bak files: {leftovers}"
@@ -611,16 +626,19 @@ def test_full_surface_pass7_f1_promote_failure_rolls_back_db(tmp_path, monkeypat
 
     real_replace = mapper.os.replace
     seen = {"n": 0}
+
     def failing_replace(src, dst):
         seen["n"] += 1
         if seen["n"] == 3:  # snapshot1 ok, snapshot2 ok, promote#1 FAILS
             raise OSError("simulated promote failure")
         return real_replace(src, dst)
+
     monkeypatch.setattr(mapper.os, "replace", failing_replace)
 
     with pytest.raises(OSError, match="simulated promote failure"):
         mapper.run(
-            db_path=db, config_path=cfg,
+            db_path=db,
+            config_path=cfg,
             routes_json_path=routes_final,
             traycer_export_path=traycer_final,
         )
@@ -638,8 +656,7 @@ def test_full_surface_pass7_f1_promote_failure_rolls_back_db(tmp_path, monkeypat
     ).fetchall()
     conn.close()
     assert rows == [("YESTERDAY/M",)], (
-        f"DB↔JSON split-brain: JSON shows yesterday but DB shows {rows} "
-        f"— Pass 7 F1 regression"
+        f"DB↔JSON split-brain: JSON shows yesterday but DB shows {rows} — Pass 7 F1 regression"
     )
 
 
@@ -672,10 +689,14 @@ def test_full_surface_pass8_f1_commit_failure_restores_json(tmp_path, monkeypatc
     write_conn_box: dict[str, object] = {}
 
     class FailingCommitConn:
-        def __init__(self, r): self.r = r
+        def __init__(self, r):
+            self.r = r
+
         def commit(self):
             raise sqlite3.OperationalError("simulated commit failure")
-        def __getattr__(self, n): return getattr(self.r, n)
+
+        def __getattr__(self, n):
+            return getattr(self.r, n)
 
     target = str(db)
     seen_writes = {"n": 0}
@@ -689,11 +710,13 @@ def test_full_surface_pass8_f1_commit_failure_restores_json(tmp_path, monkeypatc
                 write_conn_box["c"] = wrap
                 return wrap
         return c
+
     monkeypatch.setattr(mapper.sqlite3, "connect", trace)
 
     with pytest.raises(sqlite3.OperationalError, match="simulated commit failure"):
         mapper.run(
-            db_path=db, config_path=cfg,
+            db_path=db,
+            config_path=cfg,
             routes_json_path=routes_final,
             traycer_export_path=traycer_final,
         )
@@ -712,9 +735,7 @@ def test_full_surface_pass8_f1_commit_failure_restores_json(tmp_path, monkeypatc
         "SELECT agent_id FROM agent_roles WHERE role='openrouter:language'"
     ).fetchall()
     conn.close()
-    assert rows == [("YESTERDAY/M",)], (
-        f"DB↔JSON split-brain: expected yesterday in DB, got {rows}"
-    )
+    assert rows == [("YESTERDAY/M",)], f"DB↔JSON split-brain: expected yesterday in DB, got {rows}"
     # No orphan .tmp or .bak files.
     leftovers = sorted(p.name for p in tmp_path.iterdir() if p.suffix in (".tmp", ".bak"))
     assert leftovers == [], f"orphans: {leftovers}"
@@ -735,6 +756,7 @@ def test_full_surface_pass9_snapshot_failure_restores_first(tmp_path, monkeypatc
 
     real_replace = mapper.os.replace
     seen = {"n": 0}
+
     def failing_replace(src, dst):
         seen["n"] += 1
         # n=1 routes_final → routes_bak (OK)
@@ -742,11 +764,13 @@ def test_full_surface_pass9_snapshot_failure_restores_first(tmp_path, monkeypatc
         if seen["n"] == 2:
             raise OSError("simulated snapshot #2 failure")
         return real_replace(src, dst)
+
     monkeypatch.setattr(mapper.os, "replace", failing_replace)
 
     with pytest.raises(OSError, match="simulated snapshot #2"):
         mapper.run(
-            db_path=db, config_path=cfg,
+            db_path=db,
+            config_path=cfg,
             routes_json_path=routes_final,
             traycer_export_path=traycer_final,
         )

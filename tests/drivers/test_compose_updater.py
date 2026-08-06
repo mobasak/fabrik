@@ -82,12 +82,7 @@ def coolify_service() -> dict:
 
 @pytest.fixture
 def new_compose() -> str:
-    return (
-        "services:\n"
-        "  app:\n"
-        "    image: myapp:v2\n"
-        "    platform: linux/amd64\n"
-    )
+    return "services:\n  app:\n    image: myapp:v2\n    platform: linux/amd64\n"
 
 
 def _mk_updater(
@@ -114,9 +109,7 @@ def _http_404() -> httpx.HTTPStatusError:
 
 
 class TestClassify:
-    def test_application_with_git_repository_classified_as_git_application(
-        self, git_app
-    ) -> None:
+    def test_application_with_git_repository_classified_as_git_application(self, git_app) -> None:
         updater, coolify = _mk_updater()
         coolify.get_application = MagicMock(return_value=git_app)
         kind, data = updater._classify("app-git-001")
@@ -124,9 +117,7 @@ class TestClassify:
         assert data == git_app
         coolify.get_service.assert_not_called()
 
-    def test_application_with_null_git_repository_classified_as_inline(
-        self, inline_app
-    ) -> None:
+    def test_application_with_null_git_repository_classified_as_inline(self, inline_app) -> None:
         updater, coolify = _mk_updater()
         coolify.get_application = MagicMock(return_value=inline_app)
         kind, _ = updater._classify("app-inline-001")
@@ -138,9 +129,7 @@ class TestClassify:
         """Coolify sometimes returns ``""`` instead of ``null`` — must be
         treated as "no git" (empty string is falsy, same as None)."""
         updater, coolify = _mk_updater()
-        coolify.get_application = MagicMock(
-            return_value={"uuid": "x", "git_repository": ""}
-        )
+        coolify.get_application = MagicMock(return_value={"uuid": "x", "git_repository": ""})
         kind, _ = updater._classify("x")
         assert kind == "inline_application"
 
@@ -175,9 +164,7 @@ class TestGitApplicationPath:
         updater, coolify = _mk_updater()
         coolify.get_application = MagicMock(return_value=git_app)
 
-        with patch(
-            "fabrik.drivers.compose_updater.subprocess.run"
-        ) as mock_run:
+        with patch("fabrik.drivers.compose_updater.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="abcdef123456\n", stderr=""
             )
@@ -206,9 +193,7 @@ class TestGitApplicationPath:
             f"verb order drifted: {verbs_seen}"
         )
 
-    def test_clone_uses_repo_and_branch_from_app_metadata(
-        self, git_app, new_compose
-    ) -> None:
+    def test_clone_uses_repo_and_branch_from_app_metadata(self, git_app, new_compose) -> None:
         updater, coolify = _mk_updater()
         coolify.get_application = MagicMock(return_value=git_app)
 
@@ -240,9 +225,7 @@ class TestGitApplicationPath:
         argv = push_call.args[0]
         assert argv[-3:] == ["push", "origin", "deploy"]
 
-    def test_raises_runtime_error_on_git_subprocess_failure(
-        self, git_app, new_compose
-    ) -> None:
+    def test_raises_runtime_error_on_git_subprocess_failure(self, git_app, new_compose) -> None:
         updater, coolify = _mk_updater()
         coolify.get_application = MagicMock(return_value=git_app)
 
@@ -264,9 +247,7 @@ class TestGitApplicationPath:
         rather than silently doing something wrong."""
         updater, _ = _mk_updater()
         with pytest.raises(AssertionError, match="non-git app"):
-            updater._update_via_git(
-                "app-inline-001", new_compose, inline_app, commit_message="x"
-            )
+            updater._update_via_git("app-inline-001", new_compose, inline_app, commit_message="x")
 
 
 # --------------------------------------------------------------------------- #
@@ -288,9 +269,7 @@ class TestInlineApplicationPath:
         coolify.deploy.assert_called_once_with("app-inline-001")
         mock_run.assert_not_called()  # no git
 
-    def test_patch_body_carries_base64_encoded_compose(
-        self, inline_app, new_compose
-    ) -> None:
+    def test_patch_body_carries_base64_encoded_compose(self, inline_app, new_compose) -> None:
         """LESSONS_LEARNT §1 — Coolify rejects plain YAML with HTTP 422.
         The compose_raw field must be base64-encoded at the boundary."""
         updater, coolify = _mk_updater()
@@ -312,9 +291,7 @@ class TestInlineApplicationPath:
         """Contract lock: wrong-path regression guard for the other direction."""
         updater, _ = _mk_updater()
         with pytest.raises(AssertionError, match="git-sourced app"):
-            updater._patch_application_compose(
-                "app-git-001", new_compose, git_app
-            )
+            updater._patch_application_compose("app-git-001", new_compose, git_app)
 
 
 # --------------------------------------------------------------------------- #
@@ -361,9 +338,7 @@ class TestServicePath:
 
 
 class TestDryRun:
-    def test_dry_run_git_path_never_runs_git_or_deploys(
-        self, git_app, new_compose
-    ) -> None:
+    def test_dry_run_git_path_never_runs_git_or_deploys(self, git_app, new_compose) -> None:
         updater, coolify = _mk_updater(dry_run=True)
         coolify.get_application = MagicMock(return_value=git_app)
 
@@ -375,9 +350,7 @@ class TestDryRun:
         mock_run.assert_not_called()
         coolify.deploy.assert_not_called()
 
-    def test_dry_run_inline_path_never_patches_or_deploys(
-        self, inline_app, new_compose
-    ) -> None:
+    def test_dry_run_inline_path_never_patches_or_deploys(self, inline_app, new_compose) -> None:
         updater, coolify = _mk_updater(dry_run=True)
         coolify.get_application = MagicMock(return_value=inline_app)
 
@@ -419,13 +392,9 @@ class TestWrongPathRaisesAssertionError:
     def test_git_method_rejects_inline_app(self, inline_app, new_compose) -> None:
         updater, _ = _mk_updater()
         with pytest.raises(AssertionError):
-            updater._update_via_git(
-                "app-inline-001", new_compose, inline_app, commit_message="x"
-            )
+            updater._update_via_git("app-inline-001", new_compose, inline_app, commit_message="x")
 
     def test_inline_method_rejects_git_app(self, git_app, new_compose) -> None:
         updater, _ = _mk_updater()
         with pytest.raises(AssertionError):
-            updater._patch_application_compose(
-                "app-git-001", new_compose, git_app
-            )
+            updater._patch_application_compose("app-git-001", new_compose, git_app)

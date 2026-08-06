@@ -26,9 +26,12 @@ def _isolate(tmp_path, monkeypatch):
     # Redirect the AI UsageTracker SQLite DB to tmp_path so we don't pollute
     # the operator's real ~/.fabrik/ai_usage.db during tests.
     from fabrik.ai import tracker as tracker_mod
+
     original_init = tracker_mod.UsageTracker.__init__
+
     def patched_init(self, database_path=None):
         original_init(self, database_path or str(tmp_path / "ai_usage.db"))
+
     monkeypatch.setattr(tracker_mod.UsageTracker, "__init__", patched_init)
     # Remove MAX_DAILY_GPU_COST so tests get the $50 default unless they override.
     monkeypatch.delenv("MAX_DAILY_GPU_COST", raising=False)
@@ -38,14 +41,26 @@ def _isolate(tmp_path, monkeypatch):
 def _mock_client(*, pod_id: str = "pod-abc", endpoint_id: str = "ep-xyz") -> MagicMock:
     """Build a RunPodClient mock with sensible defaults."""
     c = MagicMock()
-    c.create_pod.return_value = {"id": pod_id, "desiredStatus": "RUNNING",
-                                  "publicIp": "1.2.3.4", "costPerHr": 0.69}
-    c.wait_for_running.return_value = {"id": pod_id, "desiredStatus": "RUNNING",
-                                        "publicIp": "1.2.3.4", "costPerHr": 0.69}
+    c.create_pod.return_value = {
+        "id": pod_id,
+        "desiredStatus": "RUNNING",
+        "publicIp": "1.2.3.4",
+        "costPerHr": 0.69,
+    }
+    c.wait_for_running.return_value = {
+        "id": pod_id,
+        "desiredStatus": "RUNNING",
+        "publicIp": "1.2.3.4",
+        "costPerHr": 0.69,
+    }
     c.get_pod.return_value = {"id": pod_id, "desiredStatus": "RUNNING"}
     c.list_pods.return_value = []
-    c.create_endpoint.return_value = {"id": endpoint_id, "templateId": "tpl",
-                                       "workersMin": 0, "flashboot": True}
+    c.create_endpoint.return_value = {
+        "id": endpoint_id,
+        "templateId": "tpl",
+        "workersMin": 0,
+        "flashboot": True,
+    }
     c.get_endpoint.return_value = {"id": endpoint_id, "workersMin": 0, "flashboot": True}
     c.list_endpoints.return_value = []
     return c
@@ -89,8 +104,9 @@ def test_selection_advice_low_utilization_picks_modal():
 
 
 def test_selection_advice_with_checkpointing_picks_vast():
-    r = gpu_rent.selection_advice("pod-h100", hours=4, utilization_rate=1.0,
-                                    needs_checkpointing=True)
+    r = gpu_rent.selection_advice(
+        "pod-h100", hours=4, utilization_rate=1.0, needs_checkpointing=True
+    )
     assert r["recommendation"]["provider"] == "vast"
 
 
@@ -135,11 +151,12 @@ def test_dry_run_creates_nothing():
 def test_happy_path_creates_then_destroys():
     c = _mock_client()
     workfn_called = {"count": 0}
+
     def wf(pod):
         workfn_called["count"] += 1
         assert pod["id"] == "pod-abc"
-    r = gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf,
-                       client=c, max_cost_usd=5.0)
+
+    r = gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf, client=c, max_cost_usd=5.0)
     assert r["success"] is True
     assert r["checks"]["created"] is True
     assert r["checks"]["work_fn"] == "ok"
@@ -159,15 +176,17 @@ def test_happy_path_creates_then_destroys():
 def test_work_fn_runs_between_create_and_destroy():
     c = _mock_client()
     events = []
-    c.create_pod.side_effect = lambda **kw: (events.append("create"),
-                                             {"id": "pod-abc", "desiredStatus": "RUNNING"})[1]
-    c.wait_for_running.side_effect = lambda *a, **kw: (events.append("wait"),
-                                                        {"id": "pod-abc"})[1]
+    c.create_pod.side_effect = lambda **kw: (
+        events.append("create"),
+        {"id": "pod-abc", "desiredStatus": "RUNNING"},
+    )[1]
+    c.wait_for_running.side_effect = lambda *a, **kw: (events.append("wait"), {"id": "pod-abc"})[1]
     c.destroy_pod.side_effect = lambda pid: events.append(f"destroy:{pid}")
+
     def wf(pod):
         events.append("work")
-    gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf,
-                   client=c, max_cost_usd=5.0)
+
+    gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf, client=c, max_cost_usd=5.0)
     assert events == ["create", "wait", "work", "destroy:pod-abc"]
 
 
@@ -176,10 +195,11 @@ def test_work_fn_runs_between_create_and_destroy():
 # ============================================================================
 def test_failure_in_work_fn_still_destroys():
     c = _mock_client()
+
     def wf(pod):
         raise RuntimeError("boom")
-    r = gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf,
-                       client=c, max_cost_usd=5.0)
+
+    r = gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf, client=c, max_cost_usd=5.0)
     assert r["success"] is False
     assert "boom" in r["error"]
     assert r["checks"]["destroyed"] is True
@@ -191,10 +211,18 @@ def test_failure_in_work_fn_still_destroys():
 # ============================================================================
 def test_keep_on_failure_leaves_pod():
     c = _mock_client()
+
     def wf(pod):
         raise RuntimeError("boom")
-    r = gpu_rent.rent("pod-rtx-4090", workload="smoke", work_fn=wf,
-                       keep_on_failure=True, client=c, max_cost_usd=5.0)
+
+    r = gpu_rent.rent(
+        "pod-rtx-4090",
+        workload="smoke",
+        work_fn=wf,
+        keep_on_failure=True,
+        client=c,
+        max_cost_usd=5.0,
+    )
     assert r["success"] is False
     c.destroy_pod.assert_not_called()
     assert r["checks"]["kept_for_inspection"] is True
@@ -205,8 +233,9 @@ def test_keep_on_failure_leaves_pod():
 # ============================================================================
 def test_keep_warm_after_use_leaves_pod_on_success():
     c = _mock_client()
-    r = gpu_rent.rent("pod-rtx-4090", workload="smoke",
-                       keep_warm_after_use=True, client=c, max_cost_usd=5.0)
+    r = gpu_rent.rent(
+        "pod-rtx-4090", workload="smoke", keep_warm_after_use=True, client=c, max_cost_usd=5.0
+    )
     assert r["success"] is True
     c.destroy_pod.assert_not_called()
     assert r["checks"]["kept_for_inspection"] is True
@@ -218,8 +247,9 @@ def test_keep_warm_after_use_leaves_pod_on_success():
 def test_max_cost_guard_refuses_before_create():
     c = _mock_client()
     with pytest.raises(gpu_rent.GPUBudgetExceededError, match="exceeds --max-cost"):
-        gpu_rent.rent("pod-h100", workload="smoke",
-                       max_cost_usd=0.01, client=c, max_lifetime_hours=1)
+        gpu_rent.rent(
+            "pod-h100", workload="smoke", max_cost_usd=0.01, client=c, max_lifetime_hours=1
+        )
     c.create_pod.assert_not_called()
     c.create_endpoint.assert_not_called()
 
@@ -231,8 +261,7 @@ def test_daily_budget_guard_refuses_before_create(monkeypatch):
     monkeypatch.setenv("MAX_DAILY_GPU_COST", "0.01")
     c = _mock_client()
     with pytest.raises(gpu_rent.GPUBudgetExceededError, match="MAX_DAILY_GPU_COST"):
-        gpu_rent.rent("pod-h100", workload="smoke",
-                       max_cost_usd=50, client=c, max_lifetime_hours=1)
+        gpu_rent.rent("pod-h100", workload="smoke", max_cost_usd=50, client=c, max_lifetime_hours=1)
     c.create_pod.assert_not_called()
 
 
@@ -249,8 +278,7 @@ def test_unknown_kind_raises():
 # ============================================================================
 def test_unknown_provider_raises():
     with pytest.raises(NotImplementedError, match="unknown gpu provider"):
-        gpu_rent.rent("pod-rtx-4090", workload="smoke", provider="fakecloud",
-                       client=_mock_client())
+        gpu_rent.rent("pod-rtx-4090", workload="smoke", provider="fakecloud", client=_mock_client())
 
 
 # ============================================================================
@@ -260,7 +288,7 @@ def test_state_marks_destroy_pending_when_destroy_fails():
     c = _mock_client()
     c.destroy_pod.side_effect = RunPodError("transient 500", status=500)
     r = gpu_rent.rent("pod-rtx-4090", workload="smoke", client=c, max_cost_usd=5.0)
-    assert r["success"] is True            # work_fn succeeded
+    assert r["success"] is True  # work_fn succeeded
     assert r["checks"]["destroyed"] is False
     assert "destroy_error" in r["checks"]
     sess = gpu_state.get_session(r["session_id"])
@@ -273,6 +301,7 @@ def test_state_marks_destroy_pending_when_destroy_fails():
 # ============================================================================
 def test_runpod_api_key_missing_raises_at_client_init(monkeypatch, tmp_path):
     from fabrik.drivers import runpod as runpod_mod
+
     monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
     monkeypatch.setattr(runpod_mod, "SYSADMIN_ENV", tmp_path / "nonexistent")
     with pytest.raises(RunPodError, match="RUNPOD_API_KEY is required"):
@@ -289,8 +318,18 @@ def test_report_appended_to_history_log_as_jsonl():
     lines = gpu_rent.GPU_RENT_LOG.read_text().strip().split("\n")
     assert len(lines) == 1
     rec = json.loads(lines[0])
-    for field in ("ts", "ts_iso", "session_id", "kind", "workload", "provider",
-                   "success", "cost_estimate_usd", "wall_clock_seconds", "checks"):
+    for field in (
+        "ts",
+        "ts_iso",
+        "session_id",
+        "kind",
+        "workload",
+        "provider",
+        "success",
+        "cost_estimate_usd",
+        "wall_clock_seconds",
+        "checks",
+    ):
         assert field in rec, f"missing audit field: {field}"
 
 
@@ -307,7 +346,7 @@ def test_reconcile_detects_orphan_pods():
     report = gpu_reaper.reap(c, auto_destroy=False)
     assert len(report["orphan_pods"]) == 1
     assert report["orphan_pods"][0]["resource_id"] == "pod-orphan"
-    assert report["foreign_count"] == 1   # the untagged one
+    assert report["foreign_count"] == 1  # the untagged one
     # Critical safety: reaper did NOT destroy anything in report mode
     c.destroy_pod.assert_not_called()
 
@@ -468,6 +507,7 @@ def test_client_for_provider_runpod_returns_runpod_client(monkeypatch):
     monkeypatch.setenv("RUNPOD_API_KEY", "rpa_test")
     c = gpu_rent.client_for_provider("runpod")
     from fabrik.drivers.runpod import RunPodClient
+
     assert isinstance(c, RunPodClient)
 
 
@@ -594,9 +634,16 @@ def test_create_serverless_endpoint_dispatches_runpod(monkeypatch):
     c = MagicMock()
     c.create_endpoint.return_value = {"id": "ep-rp-1", "_provider": "runpod"}
     ep = gpu_rent._create_serverless_endpoint(
-        c, session_id="sess-001", workload="t1", max_lifetime_hours=1,
-        template_id="rp-template", workers_min=0, workers_max=1,
-        idle_timeout=60, flashboot=True, provider="runpod",
+        c,
+        session_id="sess-001",
+        workload="t1",
+        max_lifetime_hours=1,
+        template_id="rp-template",
+        workers_min=0,
+        workers_max=1,
+        idle_timeout=60,
+        flashboot=True,
+        provider="runpod",
     )
     assert ep["id"] == "ep-rp-1"
     assert c.create_endpoint.called
@@ -612,9 +659,16 @@ def test_create_serverless_endpoint_runpod_reuses_pinned(monkeypatch):
     c = MagicMock()
     c.get_endpoint.return_value = {"id": "ep-pinned-xyz", "workersMin": 0}
     ep = gpu_rent._create_serverless_endpoint(
-        c, session_id="sess-r1", workload="reuse", max_lifetime_hours=1,
-        template_id=None, workers_min=0, workers_max=1,
-        idle_timeout=60, flashboot=True, provider="runpod",
+        c,
+        session_id="sess-r1",
+        workload="reuse",
+        max_lifetime_hours=1,
+        template_id=None,
+        workers_min=0,
+        workers_max=1,
+        idle_timeout=60,
+        flashboot=True,
+        provider="runpod",
     )
     assert ep["_fabrik_reuse"] is True
     assert ep["id"] == "ep-pinned-xyz"
@@ -626,9 +680,17 @@ def test_create_serverless_endpoint_dispatches_modal():
     c = MagicMock()
     c.create_endpoint.return_value = {"id": "fabrik-gpu-t2-abc", "_provider": "modal"}
     ep = gpu_rent._create_serverless_endpoint(
-        c, session_id="sess-002", workload="t2", max_lifetime_hours=1,
-        template_id="echo-handler", workers_min=0, workers_max=1,
-        idle_timeout=60, flashboot=True, provider="modal", model=None,
+        c,
+        session_id="sess-002",
+        workload="t2",
+        max_lifetime_hours=1,
+        template_id="echo-handler",
+        workers_min=0,
+        workers_max=1,
+        idle_timeout=60,
+        flashboot=True,
+        provider="modal",
+        model=None,
     )
     assert ep["_fabrik_session_id"] == "sess-002"
     call_kwargs = c.create_endpoint.call_args.kwargs
@@ -641,9 +703,16 @@ def test_create_serverless_endpoint_dispatches_vast():
     c = MagicMock()
     c.create_endpoint.return_value = {"id": "12345", "_provider": "vast"}
     ep = gpu_rent._create_serverless_endpoint(
-        c, session_id="sess-003", workload="t3", max_lifetime_hours=1,
-        template_id="vllm-openai", workers_min=0, workers_max=1,
-        idle_timeout=60, flashboot=True, provider="vast",
+        c,
+        session_id="sess-003",
+        workload="t3",
+        max_lifetime_hours=1,
+        template_id="vllm-openai",
+        workers_min=0,
+        workers_max=1,
+        idle_timeout=60,
+        flashboot=True,
+        provider="vast",
         model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     )
     assert ep["id"] == "12345"
@@ -657,9 +726,16 @@ def test_create_serverless_endpoint_modal_requires_template():
     c = MagicMock()
     with pytest.raises(NotImplementedError, match="--template"):
         gpu_rent._create_serverless_endpoint(
-            c, session_id="sess-004", workload="t4", max_lifetime_hours=1,
-            template_id=None, workers_min=0, workers_max=1,
-            idle_timeout=60, flashboot=True, provider="modal",
+            c,
+            session_id="sess-004",
+            workload="t4",
+            max_lifetime_hours=1,
+            template_id=None,
+            workers_min=0,
+            workers_max=1,
+            idle_timeout=60,
+            flashboot=True,
+            provider="modal",
         )
 
 
@@ -668,9 +744,16 @@ def test_create_serverless_endpoint_vast_requires_template():
     c = MagicMock()
     with pytest.raises(NotImplementedError, match="--template"):
         gpu_rent._create_serverless_endpoint(
-            c, session_id="sess-005", workload="t5", max_lifetime_hours=1,
-            template_id=None, workers_min=0, workers_max=1,
-            idle_timeout=60, flashboot=True, provider="vast",
+            c,
+            session_id="sess-005",
+            workload="t5",
+            max_lifetime_hours=1,
+            template_id=None,
+            workers_min=0,
+            workers_max=1,
+            idle_timeout=60,
+            flashboot=True,
+            provider="vast",
         )
 
 
@@ -678,9 +761,16 @@ def test_create_serverless_endpoint_unknown_provider_raises():
     c = MagicMock()
     with pytest.raises(NotImplementedError, match="not implemented for provider"):
         gpu_rent._create_serverless_endpoint(
-            c, session_id="sess-006", workload="t6", max_lifetime_hours=1,
-            template_id="x", workers_min=0, workers_max=1,
-            idle_timeout=60, flashboot=True, provider="azure",
+            c,
+            session_id="sess-006",
+            workload="t6",
+            max_lifetime_hours=1,
+            template_id="x",
+            workers_min=0,
+            workers_max=1,
+            idle_timeout=60,
+            flashboot=True,
+            provider="azure",
         )
 
 
@@ -795,7 +885,10 @@ def test_vast_create_endpoint_uses_workergroups_not_autogroups(monkeypatch):
         template_id="vllm-openai",
         name="fabrik-gpu-test-vast-001",
         gpu_type_ids=["RTX 4090"],
-        workers_min=0, workers_max=1, idle_timeout=300, flashboot=True,
+        workers_min=0,
+        workers_max=1,
+        idle_timeout=300,
+        flashboot=True,
     )
 
     paths = [r["path"] for r in requests_made]
@@ -827,6 +920,7 @@ def test_vast_resolve_template_hash_pinned():
     import unittest.mock
 
     from fabrik.drivers.vast_provider import VastClient
+
     with unittest.mock.patch.object(VastClient, "__init__", lambda self, *a, **kw: None):
         c = VastClient()
         c.api_key = "test"
@@ -839,6 +933,7 @@ def test_vast_resolve_template_hash_accepts_raw_hash():
     import unittest.mock
 
     from fabrik.drivers.vast_provider import VastClient
+
     with unittest.mock.patch.object(VastClient, "__init__", lambda self, *a, **kw: None):
         c = VastClient()
         c.api_key = "test"
@@ -853,10 +948,12 @@ def test_vast_list_endpoints_tags_fabrik_prefixed(monkeypatch):
     monkeypatch.setenv("VAST_API_KEY", "test-key-vast")
 
     def fake_request(self, method, path, *, json=None, params=None):
-        return {"results": [
-            {"endpoint_id": 100, "endpoint_name": "fabrik-gpu-test-aaa111"},
-            {"endpoint_id": 101, "endpoint_name": "user-endpoint"},
-        ]}
+        return {
+            "results": [
+                {"endpoint_id": 100, "endpoint_name": "fabrik-gpu-test-aaa111"},
+                {"endpoint_id": 101, "endpoint_name": "user-endpoint"},
+            ]
+        }
 
     monkeypatch.setattr(VastClient, "_request", fake_request)
     c = VastClient()
@@ -897,9 +994,7 @@ def test_modal_destroy_endpoint_idempotent_on_already_stopped(monkeypatch):
         r.stderr = "App is already stopped. (Stopped at 2026-06-17 by 'mobasak')."
         return r
 
-    monkeypatch.setattr(
-        "fabrik.drivers.modal_provider.subprocess.run", fake_run_already_stopped
-    )
+    monkeypatch.setattr("fabrik.drivers.modal_provider.subprocess.run", fake_run_already_stopped)
     # Must NOT raise
     c.destroy_endpoint("ap-already-stopped")
 
@@ -911,9 +1006,7 @@ def test_modal_destroy_endpoint_idempotent_on_already_stopped(monkeypatch):
         r.stderr = "Error: App not found"
         return r
 
-    monkeypatch.setattr(
-        "fabrik.drivers.modal_provider.subprocess.run", fake_run_not_found
-    )
+    monkeypatch.setattr("fabrik.drivers.modal_provider.subprocess.run", fake_run_not_found)
     c.destroy_endpoint("ap-missing")  # Must NOT raise
 
 
@@ -940,10 +1033,9 @@ def test_modal_destroy_endpoint_raises_on_real_error(monkeypatch):
         r.stderr = "Authentication failed: invalid token"
         return r
 
-    monkeypatch.setattr(
-        "fabrik.drivers.modal_provider.subprocess.run", fake_run_auth_fail
-    )
+    monkeypatch.setattr("fabrik.drivers.modal_provider.subprocess.run", fake_run_auth_fail)
     import pytest as _pytest
+
     with _pytest.raises(ModalError, match="Authentication failed"):
         c.destroy_endpoint("ap-x")
 
@@ -1021,11 +1113,13 @@ def test_modal_create_endpoint_cleans_rendered_template_on_failure(monkeypatch, 
 
     # Make Modal SDK module loadable but cause app.deploy to fail
     import pytest as _pytest
+
     with _pytest.raises(ModalError):
         c.create_endpoint(template_id="echo-handler", name="test-fail")
     # CRITICAL: tempfile must be cleaned up after the failure
-    assert not leaked_path.exists(), \
+    assert not leaked_path.exists(), (
         f"rendered template leaked at {leaked_path} after create_endpoint failure"
+    )
 
 
 def test_rented_context_manager_report_includes_model_and_template():
@@ -1036,12 +1130,13 @@ def test_rented_context_manager_report_includes_model_and_template():
     # state once it builds. Using dry-run isn't supported for rented(),
     # so we mock the work + verify by source inspection instead.
     import inspect
+
     src = inspect.getsource(gpu_rent.rented)
     # Both fields must be present in the report dict construction
-    assert '"template_id": template_id' in src, \
+    assert '"template_id": template_id' in src, (
         "rented() report dict missing template_id (iter-2 regression)"
-    assert '"model": model' in src, \
-        "rented() report dict missing model (iter-2 regression)"
+    )
+    assert '"model": model' in src, "rented() report dict missing model (iter-2 regression)"
 
 
 # ============================================================================
@@ -1050,11 +1145,14 @@ def test_rented_context_manager_report_includes_model_and_template():
 def test_runpod_pause_pod_posts_stop(monkeypatch):
     """RunPod pause MUST POST to /pods/{id}/stop (no body)."""
     from fabrik.drivers.runpod import RunPodClient
+
     monkeypatch.setenv("RUNPOD_API_KEY", "rpa_test")
     calls = []
+
     def fake_request(self, method, path, *args, **kwargs):
         calls.append({"method": method, "path": path})
         return {"id": "pod-x", "desiredStatus": "EXITED"}
+
     monkeypatch.setattr(RunPodClient, "_request", fake_request)
     c = RunPodClient()
     c.pause_pod("pod-x")
@@ -1064,11 +1162,14 @@ def test_runpod_pause_pod_posts_stop(monkeypatch):
 def test_runpod_resume_pod_posts_start(monkeypatch):
     """RunPod resume MUST POST to /pods/{id}/start (no body)."""
     from fabrik.drivers.runpod import RunPodClient
+
     monkeypatch.setenv("RUNPOD_API_KEY", "rpa_test")
     calls = []
+
     def fake_request(self, method, path, *args, **kwargs):
         calls.append({"method": method, "path": path})
         return {"id": "pod-x", "desiredStatus": "RUNNING"}
+
     monkeypatch.setattr(RunPodClient, "_request", fake_request)
     c = RunPodClient()
     c.resume_pod("pod-x")
@@ -1078,36 +1179,41 @@ def test_runpod_resume_pod_posts_start(monkeypatch):
 def test_vast_pause_pod_puts_stopped_state(monkeypatch):
     """Vast pause MUST PUT to /instances/{id}/ with {state: stopped}."""
     from fabrik.drivers.vast_provider import VastClient
+
     monkeypatch.setenv("VAST_API_KEY", "test")
     calls = []
+
     def fake_request(self, method, path, *args, **kwargs):
         calls.append({"method": method, "path": path, "json": kwargs.get("json")})
         return {"success": True}
+
     monkeypatch.setattr(VastClient, "_request", fake_request)
     c = VastClient()
     c.pause_pod("12345")
-    assert calls == [{"method": "PUT", "path": "/instances/12345/",
-                      "json": {"state": "stopped"}}]
+    assert calls == [{"method": "PUT", "path": "/instances/12345/", "json": {"state": "stopped"}}]
 
 
 def test_vast_resume_pod_puts_running_state(monkeypatch):
     """Vast resume MUST PUT to /instances/{id}/ with {state: running}."""
     from fabrik.drivers.vast_provider import VastClient
+
     monkeypatch.setenv("VAST_API_KEY", "test")
     calls = []
+
     def fake_request(self, method, path, *args, **kwargs):
         calls.append({"method": method, "path": path, "json": kwargs.get("json")})
         return {"success": True}
+
     monkeypatch.setattr(VastClient, "_request", fake_request)
     c = VastClient()
     c.resume_pod("12345")
-    assert calls == [{"method": "PUT", "path": "/instances/12345/",
-                      "json": {"state": "running"}}]
+    assert calls == [{"method": "PUT", "path": "/instances/12345/", "json": {"state": "running"}}]
 
 
 def test_modal_pause_pod_raises_not_implemented(monkeypatch):
     """Modal pause MUST raise NotImplementedError (FunctionCalls are stateless)."""
     from fabrik.drivers.modal_provider import ModalClient
+
     monkeypatch.setenv("MODAL_TOKEN_ID", "ak-test")
     monkeypatch.setenv("MODAL_TOKEN_SECRET", "as-test")
     fake_modal = MagicMock()
@@ -1119,6 +1225,7 @@ def test_modal_pause_pod_raises_not_implemented(monkeypatch):
     )
     c = ModalClient()
     import pytest as _pytest
+
     with _pytest.raises(NotImplementedError, match="Modal does not support pause"):
         c.pause_pod("fc-test")
     with _pytest.raises(NotImplementedError, match="Modal does not support pause"):
@@ -1128,9 +1235,15 @@ def test_modal_pause_pod_raises_not_implemented(monkeypatch):
 def test_gpu_state_mark_paused_and_resumed():
     """mark_paused adds paused_at; mark_resumed clears paused_at + adds resumed_at."""
     gpu_state.upsert(
-        session_id="paused-test", provider="runpod", kind="pod-rtx-4090",
-        workload="t", resource_type="pod", resource_id="pod-x",
-        gpu_type_id="rtx", max_lifetime_hours=1, cost_estimate_usd=0.69,
+        session_id="paused-test",
+        provider="runpod",
+        kind="pod-rtx-4090",
+        workload="t",
+        resource_type="pod",
+        resource_id="pod-x",
+        gpu_type_id="rtx",
+        max_lifetime_hours=1,
+        cost_estimate_usd=0.69,
     )
     gpu_state.mark_paused("paused-test")
     sess = gpu_state.get_session("paused-test")
@@ -1145,6 +1258,7 @@ def test_gpu_state_mark_paused_and_resumed():
 def test_runpod_community_fallback_to_secure_on_500(monkeypatch):
     """CONSTRAINT 2 FIX: If COMMUNITY returns 500, auto-retry on SECURE."""
     from fabrik.orchestrator.gpu_rent import _create_pod
+
     c = MagicMock()
     # First call (COMMUNITY) raises; second (SECURE) succeeds
     c.create_pod.side_effect = [
@@ -1154,9 +1268,16 @@ def test_runpod_community_fallback_to_secure_on_500(monkeypatch):
     c.wait_for_running.return_value = {"id": "pod-secure-1", "desiredStatus": "RUNNING"}
     report = {}
     result = _create_pod(
-        c, session_id="test", kind="pod-rtx-4090", workload="cf",
-        max_lifetime_hours=1, image_name="x", cloud_type="COMMUNITY",
-        interruptible=False, provider="runpod", report=report,
+        c,
+        session_id="test",
+        kind="pod-rtx-4090",
+        workload="cf",
+        max_lifetime_hours=1,
+        image_name="x",
+        cloud_type="COMMUNITY",
+        interruptible=False,
+        provider="runpod",
+        report=report,
     )
     # Second call's kwargs should have SECURE
     second_call_kwargs = c.create_pod.call_args_list[1].kwargs

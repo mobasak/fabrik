@@ -46,9 +46,7 @@ SCRIPT_PATH = REPO_ROOT / "scripts" / "enforcement" / "check_no_host_ports.py"
 
 def _load_module():
     """Load the enforcement script as an importable module for unit tests."""
-    spec = importlib.util.spec_from_file_location(
-        "check_no_host_ports", SCRIPT_PATH
-    )
+    spec = importlib.util.spec_from_file_location("check_no_host_ports", SCRIPT_PATH)
     assert spec is not None and spec.loader is not None, (
         f"cannot load {SCRIPT_PATH} — does the file exist?"
     )
@@ -233,7 +231,12 @@ class TestScanTemplatePositives:
         ],
     )
     def test_host_binding_patterns_are_flagged(
-        self, check_module, tmp_path: Path, fixture_name: str, fixture_text: str, expected_substring: str
+        self,
+        check_module,
+        tmp_path: Path,
+        fixture_name: str,
+        fixture_text: str,
+        expected_substring: str,
     ) -> None:
         """Each of the five host-binding patterns must produce exactly one violation
         and the offending line text must be carried through to the report so the
@@ -280,9 +283,7 @@ class TestAgainstRealTemplates:
             cwd=str(REPO_ROOT),
             timeout=10,
         )
-        assert result.returncode == 0, (
-            f"stdout={result.stdout}\nstderr={result.stderr}"
-        )
+        assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
     def test_cli_exits_nonzero_on_injected_violation(self, tmp_path: Path) -> None:
         """Copy the repo's python-api template into a tmpdir, inject a

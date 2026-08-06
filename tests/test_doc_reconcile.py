@@ -29,13 +29,24 @@ def _mk_repo(tmp_path: Path) -> Path:
 
 def _fake_result(diff: str = "", model: str = "stub/model") -> object:
     return types.SimpleNamespace(
-        diff=diff, status="done", model=model, cost_usd=0.0, turns=1,
-        agent_id="a1", error=None, latency_s=0.1, out_tokens=10, provider="stub", tool_calls=[],
+        diff=diff,
+        status="done",
+        model=model,
+        cost_usd=0.0,
+        turns=1,
+        agent_id="a1",
+        error=None,
+        latency_s=0.1,
+        out_tokens=10,
+        provider="stub",
+        tool_calls=[],
     )
 
 
 def _docrow(name: str = "docs/QUICKSTART.md") -> object:
-    return types.SimpleNamespace(name=name, template=None, applies_to=frozenset(), trigger="x", fills="agent")
+    return types.SimpleNamespace(
+        name=name, template=None, applies_to=frozenset(), trigger="x", fills="agent"
+    )
 
 
 def _diff_for(repo: Path, relpath: str, new_content: str) -> str:
@@ -235,8 +246,17 @@ def test_non_done_status_not_applied(tmp_path, monkeypatch):
     _git(repo, "commit", "-q", "-m", "i")
     diff = _diff_for(repo, "docs/QUICKSTART.md", "intro\ncall `real_symbol`\n")
     err = types.SimpleNamespace(
-        diff=diff, status="error", model="m", cost_usd=0.0, turns=1, agent_id="a",
-        error="boom", latency_s=0.1, out_tokens=1, provider="s", tool_calls=[],
+        diff=diff,
+        status="error",
+        model="m",
+        cost_usd=0.0,
+        turns=1,
+        agent_id="a",
+        error="boom",
+        latency_s=0.1,
+        out_tokens=1,
+        provider="s",
+        tool_calls=[],
     )
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
     monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [err])
@@ -258,8 +278,17 @@ def test_capped_status_is_applied(tmp_path, monkeypatch):
     _git(repo, "commit", "-q", "-m", "i")
     diff = _diff_for(repo, "docs/QUICKSTART.md", "intro\ncall `real_symbol`\n")
     capped = types.SimpleNamespace(
-        diff=diff, status="capped", model="m", cost_usd=0.2, turns=8, agent_id="a",
-        error=None, latency_s=0.1, out_tokens=50, provider="s", tool_calls=[],
+        diff=diff,
+        status="capped",
+        model="m",
+        cost_usd=0.2,
+        turns=8,
+        agent_id="a",
+        error=None,
+        latency_s=0.1,
+        out_tokens=50,
+        provider="s",
+        tool_calls=[],
     )
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
     monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [capped])
@@ -310,8 +339,17 @@ def test_empty_diff_error_status_degrades(tmp_path, monkeypatch):
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
     err = types.SimpleNamespace(
-        diff="", status="error", model="m", cost_usd=0.0, turns=1, agent_id="a",
-        error="rate limited", latency_s=0.1, out_tokens=0, provider="s", tool_calls=[],
+        diff="",
+        status="error",
+        model="m",
+        cost_usd=0.0,
+        turns=1,
+        agent_id="a",
+        error="rate limited",
+        latency_s=0.1,
+        out_tokens=0,
+        provider="s",
+        tool_calls=[],
     )
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
     monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [err])
@@ -361,7 +399,9 @@ def test_stale_patch_apply_failure_degrades_and_records(tmp_path, monkeypatch):
     recorded: dict = {}
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
     monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [_fake_result(diff=bad)])
-    monkeypatch.setattr(dr, "record_agent_run", lambda spec, result, **k: recorded.update(k) or True)
+    monkeypatch.setattr(
+        dr, "record_agent_run", lambda spec, result, **k: recorded.update(k) or True
+    )
 
     res = dr.reconcile_doc(_docrow(), "d", repo)
     assert res.applied is False
@@ -416,7 +456,9 @@ def test_main_cli_range(tmp_path, monkeypatch):
     monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
 
     assert dr.main(["--range", "HEAD~1..HEAD", "--root", str(repo)]) == 0
-    assert "docs/CONFIGURATION.md" in called  # proves the --range file-list wiring actually fired a doc
+    assert (
+        "docs/CONFIGURATION.md" in called
+    )  # proves the --range file-list wiring actually fired a doc
 
 
 # ── Behavior 17 (F1 regression): applied is STICKY across rounds ──────────────
@@ -442,7 +484,9 @@ def test_applied_is_sticky_across_rounds(tmp_path, monkeypatch):
 
     out = dr.reconcile_loop([_docrow()], "d", repo, max_rounds=3)
     assert out["status"] == "converged"
-    assert out["rounds"] == 2  # round 1 applied (md5 changed), round 2 saw no unresolved → converged
+    assert (
+        out["rounds"] == 2
+    )  # round 1 applied (md5 changed), round 2 saw no unresolved → converged
     assert calls["n"] == 1  # dispatched ONCE then frozen — "applied" persists via the freeze
     assert out["docs"]["docs/QUICKSTART.md"].applied is True  # STICKY (freeze) — not erased
 
@@ -455,7 +499,9 @@ def test_loop_reauthors_on_persistent_degraded(tmp_path, monkeypatch):
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
-    monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [])  # every round → degraded (no result)
+    monkeypatch.setattr(
+        dr, "run_agents", lambda specs, **k: []
+    )  # every round → degraded (no result)
     monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
 
     out = dr.reconcile_loop([_docrow()], "d", repo, max_rounds=3)
@@ -510,8 +556,17 @@ def test_capped_empty_diff_degrades(tmp_path, monkeypatch):
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
     capped_empty = types.SimpleNamespace(
-        diff="", status="capped", model="m", cost_usd=0.2, turns=8, agent_id="a",
-        error=None, latency_s=0.1, out_tokens=0, provider="s", tool_calls=[],
+        diff="",
+        status="capped",
+        model="m",
+        cost_usd=0.2,
+        turns=8,
+        agent_id="a",
+        error=None,
+        latency_s=0.1,
+        out_tokens=0,
+        provider="s",
+        tool_calls=[],
     )
     monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["m"])
     monkeypatch.setattr(dr, "run_agents", lambda specs, **k: [capped_empty])
@@ -546,7 +601,9 @@ def test_loop_multi_doc_skips_resolved(tmp_path, monkeypatch):
     (repo / "docs" / "SERVICES.md").write_text("svc\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "i")
-    diff_b = _diff_for(repo, "docs/SERVICES.md", "svc\nchange\n")  # B's patch (verify will reject it)
+    diff_b = _diff_for(
+        repo, "docs/SERVICES.md", "svc\nchange\n"
+    )  # B's patch (verify will reject it)
     dispatched = {"docs/CONFIGURATION.md": 0, "docs/SERVICES.md": 0}
 
     def _run(specs, **k):
@@ -562,7 +619,10 @@ def test_loop_multi_doc_skips_resolved(tmp_path, monkeypatch):
 
     out = dr.reconcile_loop(
         [_docrow("docs/CONFIGURATION.md"), _docrow("docs/SERVICES.md")],
-        "d", repo, verify_fn=lambda *a, **k: False, max_rounds=3,
+        "d",
+        repo,
+        verify_fn=lambda *a, **k: False,
+        max_rounds=3,
     )
     assert out["status"] == "max_rounds"  # B never resolves
     assert dispatched["docs/CONFIGURATION.md"] == 1  # A dispatched ONCE — frozen after it resolved
@@ -579,7 +639,9 @@ def test_main_root_route_detection(tmp_path, monkeypatch):
     (repo / "docs" / "QUICKSTART.md").write_text("qs\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "base")
-    (repo / "app" / "routes.py").write_text("@app.get('/new')\ndef h():\n    return 1\n")  # route added
+    (repo / "app" / "routes.py").write_text(
+        "@app.get('/new')\ndef h():\n    return 1\n"
+    )  # route added
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "route")
     called: list[str] = []
@@ -593,7 +655,9 @@ def test_main_root_route_detection(tmp_path, monkeypatch):
     monkeypatch.setattr(dr, "record_agent_run", lambda *a, **k: True)
 
     cwd_before = Path.cwd()
-    rc = dr.main(["--range", "HEAD~1..HEAD", "--root", str(repo)])  # run from THIS cwd, root elsewhere
+    rc = dr.main(
+        ["--range", "HEAD~1..HEAD", "--root", str(repo)]
+    )  # run from THIS cwd, root elsewhere
     assert rc == 0
     assert "docs/QUICKSTART.md" in called  # route change detected under --root → QUICKSTART fired
     assert Path.cwd() == cwd_before  # main restored the caller's cwd
@@ -667,7 +731,9 @@ def test_verify_ignores_other_doc_prose(tmp_path):
     _git(repo, "commit", "-q", "-m", "i")
     # a patch to QUICKSTART invents `zebra_widget`, which exists ONLY in OPERATIONS.md's prose (a .md)
     patch = _mini_patch("docs/QUICKSTART.md", "see `zebra_widget`")
-    assert dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False  # .md excluded → rejected
+    assert (
+        dr._default_verify(patch, _docrow("docs/QUICKSTART.md"), repo) is False
+    )  # .md excluded → rejected
     # sanity: a real code symbol still verifies
     ok = _mini_patch("docs/QUICKSTART.md", "call `genuine`")
     assert dr._default_verify(ok, _docrow("docs/QUICKSTART.md"), repo) is True
@@ -683,8 +749,12 @@ def test_added_lines_hunk_aware(tmp_path):
     # The Pass-7 bug: an added CONTENT line whose TEXT begins with "++" makes the raw hunk line
     # "+++…" — byte-identical to the "+++ b/path" header the old string-prefix filter matched, so
     # it was silently dropped and its invented token slipped verification.
-    trap = _mini_patch("docs/QUICKSTART.md", "++ see `made_up_trap` sym")  # raw hunk line: "+++ see …"
-    nospace = _mini_patch("docs/QUICKSTART.md", "++plus `made_up_nospace`")  # raw hunk line: "+++plus …"
+    trap = _mini_patch(
+        "docs/QUICKSTART.md", "++ see `made_up_trap` sym"
+    )  # raw hunk line: "+++ see …"
+    nospace = _mini_patch(
+        "docs/QUICKSTART.md", "++plus `made_up_nospace`"
+    )  # raw hunk line: "+++plus …"
     # the input MUST actually hit the trap, or the test proves nothing:
     assert "\n+++ see `made_up_trap` sym\n" in trap  # the added line IS header-prefix-colliding
     # the OLD fragile filter would DROP the trap line (regression proof); the new hunk-aware parser keeps it:
@@ -694,7 +764,9 @@ def test_added_lines_hunk_aware(tmp_path):
     assert "made_up_trap" not in old_added  # old logic → token missed (the bug)
     assert "made_up_trap" in dr._extract_tokens(dr._added_lines(trap))  # hunk-aware → token caught
     assert "made_up_nospace" in dr._extract_tokens(dr._added_lines(nospace))
-    assert dr._default_verify(trap, _docrow("docs/QUICKSTART.md"), repo) is False  # invented → rejected
+    assert (
+        dr._default_verify(trap, _docrow("docs/QUICKSTART.md"), repo) is False
+    )  # invented → rejected
     assert dr._default_verify(nospace, _docrow("docs/QUICKSTART.md"), repo) is False
     # the file header's `+++ b/…` path is NEVER mistaken for content (only the hunk body is scanned)
     plain = _mini_patch("docs/QUICKSTART.md", "call `made_up_plain`")

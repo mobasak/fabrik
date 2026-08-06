@@ -339,9 +339,7 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
         generate_spec=False,
     )
     ext = tmp_path / "cxbuildtest" / "extension"
-    inst = subprocess.run(
-        ["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600
-    )
+    inst = subprocess.run(["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600)
     assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
     build = subprocess.run(
         ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400

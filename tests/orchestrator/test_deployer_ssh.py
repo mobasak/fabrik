@@ -396,8 +396,10 @@ class TestSSHDeployerDelete:
 
 class TestSSHDeployerInjectEnv:
     def test_merges_and_restarts(self):
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh, \
-             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write:
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
             mock_ssh.return_value = "EXISTING=keep\nOLD_KEY=old\n"
 
             ctx = _ctx({"name": "my-app"})
@@ -522,15 +524,19 @@ class TestSSHDeployerDeployDispatch:
             deployer.deploy(ctx)
 
     def test_dispatch_template(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "template"},
-            "template": "python-api",
-            "domain": "my-app.example.com",
-        })
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": "python-api",
+                "domain": "my-app.example.com",
+            }
+        )
         deployer = SSHDeployer()
-        with patch.object(deployer, "find_existing", return_value=None), \
-             patch.object(deployer, "_deploy_template") as mock_tmpl:
+        with (
+            patch.object(deployer, "find_existing", return_value=None),
+            patch.object(deployer, "_deploy_template") as mock_tmpl,
+        ):
             deployer.deploy(ctx)
 
         mock_tmpl.assert_called_once()
@@ -541,38 +547,50 @@ class TestSSHDeployerDeployDispatch:
         assert compose_resources[0].resource_id == "my-app"
 
     def test_dispatch_git(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "git", "repository": "git@github.com:user/repo.git"},
-        })
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "git", "repository": "git@github.com:user/repo.git"},
+            }
+        )
         deployer = SSHDeployer()
-        with patch.object(deployer, "find_existing", return_value=None), \
-             patch.object(deployer, "_deploy_git") as mock_git:
+        with (
+            patch.object(deployer, "find_existing", return_value=None),
+            patch.object(deployer, "_deploy_git") as mock_git,
+        ):
             deployer.deploy(ctx)
 
         mock_git.assert_called_once()
 
     def test_dispatch_docker(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "docker", "image": "nginx:latest"},
-            "domain": "my-app.example.com",
-        })
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "docker", "image": "nginx:latest"},
+                "domain": "my-app.example.com",
+            }
+        )
         deployer = SSHDeployer()
-        with patch.object(deployer, "find_existing", return_value=None), \
-             patch.object(deployer, "_deploy_docker") as mock_docker:
+        with (
+            patch.object(deployer, "find_existing", return_value=None),
+            patch.object(deployer, "_deploy_docker") as mock_docker,
+        ):
             deployer.deploy(ctx)
 
         mock_docker.assert_called_once()
 
     def test_dispatch_local(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "local", "path": "/opt/my-app"},
-        })
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "local", "path": "/opt/my-app"},
+            }
+        )
         deployer = SSHDeployer()
-        with patch.object(deployer, "find_existing", return_value=None), \
-             patch.object(deployer, "_deploy_local") as mock_local:
+        with (
+            patch.object(deployer, "find_existing", return_value=None),
+            patch.object(deployer, "_deploy_local") as mock_local,
+        ):
             deployer.deploy(ctx)
 
         mock_local.assert_called_once()
@@ -582,8 +600,10 @@ class TestSSHDeployerDeployDispatch:
         ctx = _ctx({"name": "my-app", "source": {"type": "template"}})
         deployer = SSHDeployer()
         existing = {"name": "my-app", "status": "", "path": "/opt/my-app"}
-        with patch.object(deployer, "find_existing", return_value=existing), \
-             patch.object(deployer, "_deploy_template"):
+        with (
+            patch.object(deployer, "find_existing", return_value=existing),
+            patch.object(deployer, "_deploy_template"),
+        ):
             deployer.deploy(ctx)
 
         assert ctx.get_resources_by_type("compose") == []
@@ -595,8 +615,10 @@ class TestSSHDeployerDeployDispatch:
         source_obj = Source(type=SourceType.LOCAL, path="/opt/my-app")
         ctx = _ctx({"name": "my-app", "source": source_obj})
         deployer = SSHDeployer()
-        with patch.object(deployer, "find_existing", return_value=None), \
-             patch.object(deployer, "_deploy_local") as mock_local:
+        with (
+            patch.object(deployer, "find_existing", return_value=None),
+            patch.object(deployer, "_deploy_local") as mock_local,
+        ):
             deployer.deploy(ctx)
 
         mock_local.assert_called_once()
@@ -629,12 +651,20 @@ _VALID_GIT_COMPOSE = (
 
 class TestDeployGit:
     def test_new_clone(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "git", "repository": "git@github.com:user/repo.git", "branch": "main"},
-        })
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh, \
-             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {
+                    "type": "git",
+                    "repository": "git@github.com:user/repo.git",
+                    "branch": "main",
+                },
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"),
+        ):
             # test -d .git fails (not cloned yet)
             mock_ssh.side_effect = [
                 RuntimeError("not exists"),  # test -d .git
@@ -656,12 +686,16 @@ class TestDeployGit:
         assert "git@github.com:user/repo.git" in clone_cmd
 
     def test_existing_pull(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "git", "repository": "git@github.com:user/repo.git"},
-        })
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh, \
-             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "git", "repository": "git@github.com:user/repo.git"},
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps"),
+        ):
             mock_ssh.side_effect = [
                 "exists",  # test -d .git → exists
                 "",  # ssh-keyscan github.com → known_hosts
@@ -691,13 +725,17 @@ class TestDeployGit:
 
 class TestDeployDocker:
     def test_generates_compose_and_deploys(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "docker", "image": "nginx:latest", "image_port": 80},
-            "domain": "my-app.example.com",
-        })
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh, \
-             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write:
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "docker", "image": "nginx:latest", "image_port": 80},
+                "domain": "my-app.example.com",
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
             mock_ssh.return_value = ""
             deployer = SSHDeployer()
             deployer._deploy_docker(ctx, "my-app", ctx.spec["source"], None)
@@ -721,12 +759,16 @@ class TestDeployDocker:
 
 class TestDeployLocal:
     def test_writes_env_and_up(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "local", "path": "/opt/my-app"},
-        })
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh, \
-             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write:
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "local", "path": "/opt/my-app"},
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
             mock_ssh.side_effect = [
                 "exists",  # test -f compose.yaml
                 "",  # docker compose up -d
@@ -738,10 +780,12 @@ class TestDeployLocal:
         assert mock_write.call_args[0][0] == "/opt/my-app"
 
     def test_missing_compose_raises(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "local", "path": "/opt/my-app"},
-        })
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "local", "path": "/opt/my-app"},
+            }
+        )
         with patch("fabrik.drivers.ssh.ssh", side_effect=RuntimeError("no file")):
             deployer = SSHDeployer()
             with pytest.raises(DeployError, match="no compose.yaml found"):
@@ -751,11 +795,13 @@ class TestDeployLocal:
         """Wiring: _deploy_local enforces the claude mount for a uses_claude_cli service — a
         compose without it aborts the deploy (proves the validator is actually wired in, and
         that the extra compose read only happens when the flag is on)."""
-        ctx = _ctx({
-            "name": "seo",
-            "source": {"type": "local", "path": "/opt/seo"},
-            "shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"},
-        })
+        ctx = _ctx(
+            {
+                "name": "seo",
+                "source": {"type": "local", "path": "/opt/seo"},
+                "shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"},
+            }
+        )
         with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
             mock_ssh.side_effect = [
                 "exists",  # test -f compose.yaml
@@ -766,12 +812,16 @@ class TestDeployLocal:
                 deployer._deploy_local(ctx, "seo", ctx.spec["source"], None)
 
     def test_default_path_from_name(self):
-        ctx = _ctx({
-            "name": "my-app",
-            "source": {"type": "local"},
-        })
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh, \
-             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "local"},
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
+        ):
             mock_ssh.side_effect = ["exists", ""]
             deployer = SSHDeployer()
             deployer._deploy_local(ctx, "my-app", ctx.spec["source"], None)
@@ -860,7 +910,8 @@ class TestBuildEnvContent:
         with patch("fabrik.drivers.ssh.ssh", return_value=existing_env):
             deployer = SSHDeployer()
             result = deployer._build_env_content(
-                ctx, "my-app",
+                ctx,
+                "my-app",
                 existing={"name": "my-app", "status": "", "path": "/opt/my-app"},
             )
 
@@ -892,7 +943,8 @@ class TestBuildEnvContent:
         with patch("fabrik.drivers.ssh.ssh", return_value=existing_env):
             deployer = SSHDeployer()
             result = deployer._build_env_content(
-                ctx, "my-app",
+                ctx,
+                "my-app",
                 existing={"name": "my-app", "status": "", "path": "/opt/my-app"},
             )
 
@@ -907,7 +959,8 @@ class TestBuildEnvContent:
         with patch("fabrik.drivers.ssh.ssh", side_effect=RuntimeError("SSH timeout")):
             deployer = SSHDeployer()
             result = deployer._build_env_content(
-                ctx, "my-app",
+                ctx,
+                "my-app",
                 existing={"name": "my-app", "status": "", "path": "/opt/my-app"},
             )
 
@@ -925,19 +978,24 @@ class TestBuildEnvContent:
             "DATABASE_URL=postgresql+asyncpg://real:s3cret@postgres-main:5432/real_db\n"
             "LOG_LEVEL=DEBUG\n"
         )
-        ctx = _ctx({"name": "my-app", "env": {"DATABASE_URL": self._PLACEHOLDER_DSN, "LOG_LEVEL": "INFO"}})
+        ctx = _ctx(
+            {"name": "my-app", "env": {"DATABASE_URL": self._PLACEHOLDER_DSN, "LOG_LEVEL": "INFO"}}
+        )
         ctx.secrets = {}
 
         with patch("fabrik.drivers.ssh.ssh", return_value=existing_env):
             deployer = SSHDeployer()
             result = deployer._build_env_content(
-                ctx, "my-app",
+                ctx,
+                "my-app",
                 existing={"name": "my-app", "status": "", "path": "/opt/my-app"},
             )
 
         parsed = _parse_env(result)
         # the injected real DSN is preserved; the placeholder does NOT win
-        assert parsed["DATABASE_URL"] == "postgresql+asyncpg://real:s3cret@postgres-main:5432/real_db"
+        assert (
+            parsed["DATABASE_URL"] == "postgresql+asyncpg://real:s3cret@postgres-main:5432/real_db"
+        )
         assert "placeholder:placeholder" not in result
         # a non-placeholder spec var still overrides existing (unchanged behavior)
         assert parsed["LOG_LEVEL"] == "INFO"

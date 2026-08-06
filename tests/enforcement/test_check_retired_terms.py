@@ -18,9 +18,7 @@ import check_retired_terms as crt  # noqa: E402
 
 
 def test_always_exits_zero_even_with_warns():
-    r = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True, check=False
-    )
+    r = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True, check=False)
     assert r.returncode == 0
     assert "check_retired_terms:" in r.stdout  # OK line or WARN summary
 

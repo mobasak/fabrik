@@ -41,8 +41,14 @@ def _mk_tree(root: Path) -> None:
     """Minimal rules tree: the 3 floor packs + one glob pack, + both checklists."""
     for floor_rel, mandate in [
         ("core/35-security-auth.md", "- Auth MUST use Pattern A (`fastapi-user-auth`)."),
-        ("core/25-data-postgres.md", "- Never use `localhost` as a DB host — `postgres-main:5432`."),
-        ("core/30-ops.md", "- Every compose service MUST declare `deploy.resources.limits.memory`."),
+        (
+            "core/25-data-postgres.md",
+            "- Never use `localhost` as a DB host — `postgres-main:5432`.",
+        ),
+        (
+            "core/30-ops.md",
+            "- Every compose service MUST declare `deploy.resources.limits.memory`.",
+        ),
     ]:
         _mk_pack(root, floor_rel, ["**/nonexistent-floor-trigger-*.xyz"], [mandate])
     _mk_pack(
@@ -116,7 +122,7 @@ def test_frontmatter_never_scanned_for_mandates(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "97-fmtrap.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\n'
         "description: tokens MUST rotate every 90 days\n---\n\n# fmtrap\n\nBody with no mandates.\n",
         encoding="utf-8",
     )

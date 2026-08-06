@@ -86,7 +86,9 @@ class TestRefreshInfrastructure:
     def test_skips_dns_and_deploy(self, orchestrator, spec_path):
         """Refresh must not touch DNS, the deployer.deploy, or the verifier."""
         orchestrator.deployer.find_existing.return_value = {
-            "name": "refresh-test", "status": "", "path": "/opt/refresh-test"
+            "name": "refresh-test",
+            "status": "",
+            "path": "/opt/refresh-test",
         }
         orchestrator.verifier = MagicMock()
 
@@ -97,11 +99,11 @@ class TestRefreshInfrastructure:
         orchestrator.deployer.deploy.assert_not_called()
         orchestrator.verifier.verify.assert_not_called()
 
-    def test_provisioner_failure_wrapped_as_provisioning_error(
-        self, orchestrator, spec_path
-    ):
+    def test_provisioner_failure_wrapped_as_provisioning_error(self, orchestrator, spec_path):
         orchestrator.deployer.find_existing.return_value = {
-            "name": "refresh-test", "status": "", "path": "/opt/refresh-test"
+            "name": "refresh-test",
+            "status": "",
+            "path": "/opt/refresh-test",
         }
         orchestrator.infrastructure_provisioner.provision.side_effect = RuntimeError("boom")
 

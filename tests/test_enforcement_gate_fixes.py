@@ -46,7 +46,9 @@ def test_check_secrets_has_entry_point():
 # exemption MUST be file-scoped: real secrets in any other file are still caught.
 def test_secrets_pragma_skips_generator_file(tmp_path):
     gen = tmp_path / "gen.py"
-    gen.write_text('# noqa-file: template-generator\nDSN = "postgresql://u:realpass@localhost/db"\n')
+    gen.write_text(
+        '# noqa-file: template-generator\nDSN = "postgresql://u:realpass@localhost/db"\n'
+    )
     assert check_secrets.check_file(gen) == []
 
 

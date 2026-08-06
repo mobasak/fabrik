@@ -41,10 +41,18 @@ def test_local_active_branch_is_eligible(monkeypatch):
     that branch has a nonstandard name (real case: mobasak/trading-intelligence)."""
     now = datetime.now(UTC)
     runs = [
-        {"databaseId": 7, "workflowName": "CI",
-         "headBranch": "mobasak/trading-intelligence", "createdAt": _iso(now)},
-        {"databaseId": 8, "workflowName": "CI",
-         "headBranch": "some/other-branch", "createdAt": _iso(now)},
+        {
+            "databaseId": 7,
+            "workflowName": "CI",
+            "headBranch": "mobasak/trading-intelligence",
+            "createdAt": _iso(now),
+        },
+        {
+            "databaseId": 8,
+            "workflowName": "CI",
+            "headBranch": "some/other-branch",
+            "createdAt": _iso(now),
+        },
     ]
     monkeypatch.setattr(mod, "sh", lambda *a, **k: (0, json.dumps(runs)))
     picked = mod.recent_failures("o/r", 48, extra_branch="mobasak/trading-intelligence")
@@ -55,10 +63,18 @@ def test_age_gate_drops_old_failures(monkeypatch):
     """Failures older than the window are stale — never dispatched."""
     now = datetime.now(UTC)
     runs = [
-        {"databaseId": 1, "workflowName": "CI", "headBranch": "master",
-         "createdAt": _iso(now - timedelta(hours=72))},
-        {"databaseId": 2, "workflowName": "CI", "headBranch": "master",
-         "createdAt": _iso(now - timedelta(hours=1))},
+        {
+            "databaseId": 1,
+            "workflowName": "CI",
+            "headBranch": "master",
+            "createdAt": _iso(now - timedelta(hours=72)),
+        },
+        {
+            "databaseId": 2,
+            "workflowName": "CI",
+            "headBranch": "master",
+            "createdAt": _iso(now - timedelta(hours=1)),
+        },
     ]
     monkeypatch.setattr(mod, "sh", lambda *a, **k: (0, json.dumps(runs)))
     picked = mod.recent_failures("o/r", max_age_hours=48)

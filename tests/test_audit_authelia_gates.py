@@ -127,9 +127,7 @@ class TestClassify:
         adds authelia-forward, the user gets double-auth — app breaks.
         The audit must flag this as a GAP in the OTHER direction."""
         # Find the "errors" dashboard entry (authelia_expected=False).
-        errors_dash = next(
-            d for d in audit_module.ADMIN_DASHBOARDS if d.host == "errors"
-        )
+        errors_dash = next(d for d in audit_module.ADMIN_DASHBOARDS if d.host == "errors")
         assert errors_dash.authelia_expected is False
         router = _router(
             "glitchtip-web@docker",
@@ -143,9 +141,7 @@ class TestClassify:
     def test_app_layer_service_without_middleware_is_ok(self, audit_module) -> None:
         """The canonical state for errors/GlitchTip — no middleware, uses
         app-layer TOTP. Must report OK."""
-        errors_dash = next(
-            d for d in audit_module.ADMIN_DASHBOARDS if d.host == "errors"
-        )
+        errors_dash = next(d for d in audit_module.ADMIN_DASHBOARDS if d.host == "errors")
         router = _router("glitchtip-web@docker", "errors.vps1.ocoron.com", [])
         result = audit_module.classify_router(errors_dash, router)
         assert result.state == "OK"
@@ -165,9 +161,7 @@ class TestClassify:
         ]:
             router = _router("x", f"{dash.host}.vps1.ocoron.com", [variant])
             result = audit_module.classify_router(dash, router)
-            assert result.state == "OK", (
-                f"variant {variant!r} should satisfy the authelia check"
-            )
+            assert result.state == "OK", f"variant {variant!r} should satisfy the authelia check"
 
 
 # --- Auditing: audit_routers() against full payloads ----------------------- #
@@ -208,9 +202,7 @@ class TestAuditRouters:
         assert len(gaps) == 1
         assert gaps[0].host == "netdata"
 
-    def test_order_is_stable_and_alphabetical_by_canonical_inventory(
-        self, audit_module
-    ) -> None:
+    def test_order_is_stable_and_alphabetical_by_canonical_inventory(self, audit_module) -> None:
         """Cron output is grep-friendly when order is stable. The order
         is defined by the canonical ADMIN_DASHBOARDS list, independent
         of the Traefik API's response order."""
@@ -276,9 +268,7 @@ class TestCLI:
             f"{len(ok_lines)}. Full stdout:\n{out}"
         )
 
-    def test_cli_stdout_names_specific_host_on_gap(
-        self, audit_module, capsys
-    ) -> None:
+    def test_cli_stdout_names_specific_host_on_gap(self, audit_module, capsys) -> None:
         """A cron alert that fires into Telegram needs to name the
         specific dashboard at fault — an operator shouldn't have to SSH
         in to find out which one drifted."""

@@ -53,6 +53,7 @@ def test_assemblyai_empty_html() -> None:
 
 def test_assemblyai_rejects_dict_payload() -> None:
     import pytest
+
     with pytest.raises(TypeError):
         _load("assemblyai").extract({"foo": "bar"}, "https://www.assemblyai.com/pricing")
 
@@ -134,7 +135,9 @@ def test_cartesia_sonic2() -> None:
 # Speechmatics: 1 model, /hour
 # ---------------------------------------------------------------------------
 def test_speechmatics_enhanced() -> None:
-    rows = _load("speechmatics").extract(_html("speechmatics"), "https://www.speechmatics.com/pricing")
+    rows = _load("speechmatics").extract(
+        _html("speechmatics"), "https://www.speechmatics.com/pricing"
+    )
     assert len(rows) == 1
     (r,) = rows
     assert r.model_slug == "enhanced"
@@ -149,6 +152,7 @@ def test_speechmatics_enhanced() -> None:
 def test_helper_per_minute_matches_seed_per_min() -> None:
     """The seed's per_min(0.0036) returns 60.0; our parser helper must match."""
     from direct_vendor_parsers import per_minute_to_M_audio_min
+
     assert abs(per_minute_to_M_audio_min(0.0036) - 60.0) < 1e-6
 
 
@@ -156,6 +160,7 @@ def test_helper_per_hour_round_trip() -> None:
     """$0.30/hour normalized then re-displayed should round-trip via the
     browser's fmtCost formula (v/1_000_000*60)."""
     from direct_vendor_parsers import per_hour_to_M_audio_min
+
     v = per_hour_to_M_audio_min(0.30)
     # Browser displays as $/min; 0.30/hour = 0.005/min
     per_min_back = v / 1_000_000 * 60
@@ -165,6 +170,7 @@ def test_helper_per_hour_round_trip() -> None:
 # ============================================================
 # Adversarial Pass-1 regression tests (Phase 1 review)
 # ============================================================
+
 
 def test_cartesia_anchors_on_sonic_skips_voice_agents() -> None:
     """Adversarial Pass-1 finding #1: a previous version of the cartesia
@@ -194,8 +200,8 @@ def test_speechmatics_anchors_on_advanced_skips_standard() -> None:
     price."""
     html = (
         "<html>"
-        '<div>Standard tier: <span>$0.10 per hour</span></div>'
-        '<div>Advanced features for professional use ($0.24 per hour)</div>'
+        "<div>Standard tier: <span>$0.10 per hour</span></div>"
+        "<div>Advanced features for professional use ($0.24 per hour)</div>"
         "</html>"
     )
     rows = _load("speechmatics").extract(html, "https://www.speechmatics.com/pricing")
@@ -240,6 +246,7 @@ def test_cartesia_equidistant_prices_tie_breaker() -> None:
 # Anthropic parser (Phase-3 deliverable, added 2026-06-30)
 # ============================================================
 
+
 def test_anthropic_extracts_canonical_4x_models() -> None:
     """Anthropic docs page lists 4.x family in a standard
     [input, batch_w5, batch_w1h, cache_hit, output] table-row layout."""
@@ -266,8 +273,8 @@ def test_anthropic_rejects_output_lt_input_sanity() -> None:
     output > input (typically 5x). Construct a synthetic HTML with the
     "Mythos preview" non-standard layout and assert it's silently filtered."""
     html = (
-        r'\"children\":[\"Claude Mythos 5\"] '
-        r'$$7.50 / MTok $$37.50 / MTok $$1.50 / MTok $$7.50 / MTok $$1.50 / MTok'
+        r"\"children\":[\"Claude Mythos 5\"] "
+        r"$$7.50 / MTok $$37.50 / MTok $$1.50 / MTok $$7.50 / MTok $$1.50 / MTok"
     )
     rows = _load("anthropic").extract(html, "https://example.com/")
     # Output (1.50) < input (7.50) — sanity check rejects this row
@@ -279,8 +286,8 @@ def test_anthropic_rejects_unknown_claude_phrase() -> None:
     Phrases like 'Claude API pricing', 'Claude Console', 'Claude Platform'
     must NOT trigger the parser (they would grab random nearby prices)."""
     html = (
-        r'\"children\":[\"Claude API pricing\"] $$10 / MTok $$50 / MTok '
-        r'$$5 / MTok $$25 / MTok $$2.50 / MTok'
+        r"\"children\":[\"Claude API pricing\"] $$10 / MTok $$50 / MTok "
+        r"$$5 / MTok $$25 / MTok $$2.50 / MTok"
     )
     rows = _load("anthropic").extract(html, "https://example.com/")
     assert rows == []
@@ -293,6 +300,7 @@ def test_anthropic_empty_html_returns_empty() -> None:
 
 def test_anthropic_rejects_dict_payload() -> None:
     import pytest
+
     with pytest.raises(TypeError):
         _load("anthropic").extract({"foo": "bar"}, "https://example.com/")
 
@@ -300,6 +308,7 @@ def test_anthropic_rejects_dict_payload() -> None:
 # ============================================================
 # OpenAI parser (Phase-3 deliverable, added 2026-06-30)
 # ============================================================
+
 
 def test_openai_extracts_canonical_audio_models() -> None:
     """OpenAI's platform.openai.com/docs/pricing has HTML-encoded JSON
@@ -331,9 +340,7 @@ def test_openai_extracts_canonical_audio_models() -> None:
 def test_openai_normalize_per_minute_matches_seed() -> None:
     """$0.006/min → 100/M-audio-min. This is the same conversion the seed uses
     (per_min in seed_direct_vendors.py)."""
-    rows = _load("openai").extract(
-        _html("openai"), "https://platform.openai.com/docs/pricing"
-    )
+    rows = _load("openai").extract(_html("openai"), "https://platform.openai.com/docs/pricing")
     whisper = next(r for r in rows if r.model_slug == "Whisper")
     assert whisper.input_price_per_M == 100.0
     assert whisper.raw_price_text == "$0.006 / minute"
@@ -341,9 +348,7 @@ def test_openai_normalize_per_minute_matches_seed() -> None:
 
 def test_openai_normalize_per_1M_chars_matches_seed() -> None:
     """$15/1M chars → 15/M-chars. Same as seed's per_1k_chars(0.015)."""
-    rows = _load("openai").extract(
-        _html("openai"), "https://platform.openai.com/docs/pricing"
-    )
+    rows = _load("openai").extract(_html("openai"), "https://platform.openai.com/docs/pricing")
     tts1 = next(r for r in rows if r.model_slug == "tts-1")
     assert tts1.input_price_per_M == 15.0
 
@@ -355,6 +360,7 @@ def test_openai_empty_html_returns_empty() -> None:
 
 def test_openai_rejects_dict_payload() -> None:
     import pytest
+
     with pytest.raises(TypeError):
         _load("openai").extract({"foo": "bar"}, "https://example.com/")
 
@@ -379,8 +385,9 @@ def test_openai_window_size_handles_multi_row_models() -> None:
     the C5 allowlist filter doesn't drop the row before the window check."""
     filler = "x" * 1700
     html_fragment = (
-        '"model":[0,"Whisper"]' + filler +
-        '[0,"$0.999 / minute"],"model":[0,"tts-1"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.001 / minute"]]]]]}'
+        '"model":[0,"Whisper"]'
+        + filler
+        + '[0,"$0.999 / minute"],"model":[0,"tts-1"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.001 / minute"]]]]]}'
     )
     rows = _load("openai").extract(html_fragment, "https://example.com/")
     by_slug = {r.model_slug: r for r in rows}
@@ -398,7 +405,9 @@ def test_openai_per_second_skip_logs_to_stderr(capsys) -> None:
     Adversarial-review C5 update: uses an allowlisted slug ("Whisper") so
     the C5 allowlist filter doesn't drop the row BEFORE the per-second
     unit skip fires."""
-    html_fragment = '"model":[0,"Whisper"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
+    html_fragment = (
+        '"model":[0,"Whisper"],"rows":[1,[[1,[[0,"x"],[0,1],[0,2],[0,"$0.00028 / second"]]]]]}'
+    )
     _load("openai").extract(html_fragment, "https://example.com/")
     captured = capsys.readouterr()
     assert "Whisper" in captured.err
@@ -409,8 +418,8 @@ def test_anthropic_output_lt_input_filter_logs_to_stderr(capsys) -> None:
     """Pass-8 regression: sanity-check filter (output <= input) now emits
     a stderr WARN line."""
     html = (
-        r'\"children\":[\"Claude Mythos 5\"] '
-        r'$$7.50 / MTok $$37.50 / MTok $$1.50 / MTok $$7.50 / MTok $$1.50 / MTok'
+        r"\"children\":[\"Claude Mythos 5\"] "
+        r"$$7.50 / MTok $$37.50 / MTok $$1.50 / MTok $$7.50 / MTok $$1.50 / MTok"
     )
     _load("anthropic").extract(html, "https://example.com/")
     captured = capsys.readouterr()
@@ -422,10 +431,11 @@ def test_anthropic_output_lt_input_filter_logs_to_stderr(capsys) -> None:
 # subscription_monitor parser (Phase 3 deliverable, added 2026-06-30)
 # ============================================================
 
+
 def test_subscription_monitor_returns_empty_for_sub_only_html() -> None:
     """The canonical case: rendered HTML with only tier-card prices ($N/mo,
     $N/yr) returns an empty list = subscription-only confirmed."""
-    html = '<html><body>Free $0/mo · Pro $99/mo · Enterprise $999/yr</body></html>'
+    html = "<html><body>Free $0/mo · Pro $99/mo · Enterprise $999/yr</body></html>"
     rows = _load("subscription_monitor").extract(html, "https://example.com/pricing")
     assert rows == []
 
@@ -434,7 +444,7 @@ def test_subscription_monitor_emits_alert_when_per_call_pattern_appears() -> Non
     """If a vendor flips from subscription to per-call API pricing, the
     monitor must detect it and emit an alert row that the orchestrator's
     unit-validator catches as `missing` (no DB row matches the alert slug)."""
-    html = '<html><body>Pro $99/mo · NEW API: $5 / 1M tokens</body></html>'
+    html = "<html><body>Pro $99/mo · NEW API: $5 / 1M tokens</body></html>"
     rows = _load("subscription_monitor").extract(html, "https://elevenlabs.io/pricing")
     assert len(rows) == 1
     (r,) = rows
@@ -449,10 +459,10 @@ def test_subscription_monitor_ignores_nextjs_framework_artifacts() -> None:
     """Next.js renders strings like `$undefined`, `$L15` in the page source —
     these are NOT prices. Must not false-positive."""
     html = (
-        '<html><body>'
+        "<html><body>"
         '{"key":"$undefined","other":"$L15","x":"$3","y":"$1c"}'
-        ' bare $5 button with no per-unit qualifier'
-        '</body></html>'
+        " bare $5 button with no per-unit qualifier"
+        "</body></html>"
     )
     rows = _load("subscription_monitor").extract(html, "https://example.com/")
     assert rows == []
@@ -461,14 +471,14 @@ def test_subscription_monitor_ignores_nextjs_framework_artifacts() -> None:
 def test_subscription_monitor_detects_per_minute_pricing() -> None:
     """Audio TTS vendors quote per-minute rates. If a sub-only vendor flips
     to per-minute API pricing, alert must fire."""
-    html = '<html>Suno API: $0.05 / minute (new!)</html>'
+    html = "<html>Suno API: $0.05 / minute (new!)</html>"
     rows = _load("subscription_monitor").extract(html, "https://suno.com/pricing")
     assert len(rows) == 1
     assert "$0.05 / minute" in rows[0].raw_price_text
 
 
 def test_subscription_monitor_detects_per_image_pricing() -> None:
-    html = '<html>HeyGen API: $0.10 per image generated</html>'
+    html = "<html>HeyGen API: $0.10 per image generated</html>"
     rows = _load("subscription_monitor").extract(html, "https://www.heygen.com/pricing")
     assert len(rows) == 1
     assert "image" in rows[0].raw_price_text.lower()
@@ -476,6 +486,7 @@ def test_subscription_monitor_detects_per_image_pricing() -> None:
 
 def test_subscription_monitor_rejects_dict_payload() -> None:
     import pytest
+
     with pytest.raises(TypeError):
         _load("subscription_monitor").extract({}, "https://example.com/")
 
@@ -483,7 +494,7 @@ def test_subscription_monitor_rejects_dict_payload() -> None:
 def test_subscription_monitor_caps_at_3_hits_for_alert() -> None:
     """If 100 per-call patterns appear, we still emit only 1 alert row with
     the first 3 hits in raw_price_text. Bounded output."""
-    html = '<html>' + (' $1 / 1M tokens') * 100 + '</html>'
+    html = "<html>" + (" $1 / 1M tokens") * 100 + "</html>"
     rows = _load("subscription_monitor").extract(html, "https://example.com/")
     assert len(rows) == 1
     # Alert raw text should contain at most 3 hit samples
@@ -499,15 +510,16 @@ def test_subscription_monitor_caps_at_3_hits_for_alert() -> None:
 #     "first axis in window wins" picks $15/M-chars for unmapped slugs
 # ============================================================
 
+
 def test_H5_subscription_monitor_no_fp_on_per_credit() -> None:
     """REGRESSION (H5): pattern 7 (cent-fraction $0.NNN per X) must NOT
     match adversarial inputs like '$0.999 per credit balance' or '$0.025 / month'."""
     parser = _load("subscription_monitor")
     for noise in [
-        '$0.999 per credit balance',
-        '$0.025 / month',
-        '$0.500 / customer',
-        '$0.100 per agent',
+        "$0.999 per credit balance",
+        "$0.025 / month",
+        "$0.500 / customer",
+        "$0.100 per agent",
     ]:
         rows = parser.extract(f"<html>{noise}</html>", "https://example.com/")
         assert rows == [], f"H5 regression: false-positive on {noise!r}"
@@ -518,9 +530,9 @@ def test_H5_subscription_monitor_no_fp_on_hour_long_video() -> None:
     '$0.10 per hour-long video' or '$5 per hour-of-content'."""
     parser = _load("subscription_monitor")
     for noise in [
-        '$0.10 per hour-long video',
-        '$5 per hour-of-content',
-        '$0.50/hourly briefing',
+        "$0.10 per hour-long video",
+        "$5 per hour-of-content",
+        "$0.50/hourly briefing",
     ]:
         rows = parser.extract(f"<html>{noise}</html>", "https://example.com/")
         assert rows == [], f"H5 regression: false-positive on {noise!r}"
@@ -533,10 +545,10 @@ def test_H6_subscription_monitor_DETECTS_per_K_tokens() -> None:
     regression that drops per-K coverage fails LOUDLY."""
     parser = _load("subscription_monitor")
     for hit in [
-        '$0.005 / 1K tokens',
-        '$0.50 per 1k tokens',
-        '$5 / 1k chars',
-        '$0.010 per thousand tokens',
+        "$0.005 / 1K tokens",
+        "$0.50 per 1k tokens",
+        "$5 / 1k chars",
+        "$0.010 per thousand tokens",
     ]:
         rows = parser.extract(f"<html>{hit}</html>", "https://example.com/")
         assert len(rows) == 1, f"H6 regression: per-K not detected in {hit!r}"
@@ -597,6 +609,7 @@ def test_C5_openai_parser_filters_to_registry_allowlist() -> None:
 #     different tier's price (e.g., Enhanced's $0.99/hour).
 # ============================================================
 
+
 def test_C4_deepgram_nova2_anchor_must_be_tightly_scoped() -> None:
     """REGRESSION (C4): if the FAQ structure is reordered so Enhanced
     appears between Nova-2 mention and the price, the parser MUST NOT
@@ -609,16 +622,16 @@ def test_C4_deepgram_nova2_anchor_must_be_tightly_scoped() -> None:
     # Adversarial fixture: model heading anchor, then a long stretch of OTHER
     # vendors' prices, then the real Nova-2 price far away.
     adversarial_html = (
-        '<html><body>'
+        "<html><body>"
         # Anchor at offset ~10 — this is the only Nova-2 mention
-        '<span>Nova-2 family</span>'
+        "<span>Nova-2 family</span>"
         # The next "/hour" price in the page is Enhanced — pre-fix parser grabs this
-        '<table><tr><td>Enhanced</td><td>$0.99/hour</td></tr>'
-        '<tr><td>Base</td><td>$0.87/hour</td></tr>'
+        "<table><tr><td>Enhanced</td><td>$0.99/hour</td></tr>"
+        "<tr><td>Base</td><td>$0.87/hour</td></tr>"
         # Real Nova-2 price is FAR away (>4KB) so the parser wouldn't see it
-        + ('x' * 5000) +
-        '<tr><td>Nova-2 streaming</td><td>$0.35/hour</td></tr>'
-        '</table></body></html>'
+        + ("x" * 5000)
+        + "<tr><td>Nova-2 streaming</td><td>$0.35/hour</td></tr>"
+        "</table></body></html>"
     )
     parser = _load("deepgram")
     rows = parser.extract(adversarial_html, "https://deepgram.com/pricing")

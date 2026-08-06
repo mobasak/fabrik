@@ -28,6 +28,7 @@ def aro_wake_module():
 def test_digest_input_accepts_and_queues(aro_wake_module):
     """POST /digest-input must accept JSON body and grow the deque."""
     from fastapi.testclient import TestClient
+
     client = TestClient(aro_wake_module.app)
     aro_wake_module.DIGEST_INBOX.clear()  # isolate test
     resp = client.post(
@@ -49,6 +50,7 @@ def test_digest_input_accepts_and_queues(aro_wake_module):
 def test_digest_inbox_drains_and_clears(aro_wake_module):
     """GET /digest-inbox returns entries >= since AND removes them."""
     from fastapi.testclient import TestClient
+
     client = TestClient(aro_wake_module.app)
     aro_wake_module.DIGEST_INBOX.clear()
     # Inject 2 entries via /digest-input
@@ -70,15 +72,18 @@ def test_digest_inbox_drains_and_clears(aro_wake_module):
 def test_digest_inbox_24h_ttl_drops_stale(aro_wake_module):
     """Entries older than 24h must be GC'd on drain even if since is older."""
     from fastapi.testclient import TestClient
+
     client = TestClient(aro_wake_module.app)
     aro_wake_module.DIGEST_INBOX.clear()
     # Manually inject a 48h-old entry
-    aro_wake_module.DIGEST_INBOX["vps2"].append({
-        "ts": time.time() - 48 * 3600,
-        "source_host": "vps2",
-        "text": "ancient",
-        "metrics": {},
-    })
+    aro_wake_module.DIGEST_INBOX["vps2"].append(
+        {
+            "ts": time.time() - 48 * 3600,
+            "source_host": "vps2",
+            "text": "ancient",
+            "metrics": {},
+        }
+    )
     # Drain since=0
     drained = client.get("/digest-inbox?since=0").json()
     # Stale entry must NOT appear
@@ -94,6 +99,7 @@ def test_digest_input_increments_prometheus_counter(aro_wake_module):
     specific from_host label value.
     """
     from fastapi.testclient import TestClient
+
     client = TestClient(aro_wake_module.app)
     aro_wake_module.DIGEST_INBOX.clear()
 

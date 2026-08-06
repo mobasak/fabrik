@@ -375,7 +375,11 @@ class TestLoadProjectContext:
         big_rule = "\n".join([f"Rule line {i} for this pack." for i in range(1, 8)])
 
         # Write rule files for chrome-extension defaults (PY_CORE, TS_CORE, CHROME_MV3)
-        for relpath in ["core/10-python.md", "core/20-typescript.md", "chrome-ext/70-chrome-ext.md"]:
+        for relpath in [
+            "core/10-python.md",
+            "core/20-typescript.md",
+            "chrome-ext/70-chrome-ext.md",
+        ]:
             (rules_dir / relpath).write_text(f"# Rules\n\n{big_rule}\n")
 
         # Write TESTING overlay + extra overlay

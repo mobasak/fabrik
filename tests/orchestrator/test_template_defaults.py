@@ -48,26 +48,43 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates"
 # after this matrix was first written) — included across the board below.
 EXPECTED: dict[str, set[str]] = {
     # python-api / node-api gained `prometheus` in T1-01 W-4 (exposes_metrics: true).
-    "python-api":       {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
-    "python-api-gpu":   {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
-    "node-api":         {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
+    "python-api": {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
+    "python-api-gpu": {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
+    "node-api": {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"},
     # saas-skeleton's defaults.yaml shape sets needs_cache:true (→ redis) and
     # exposes_metrics:true (→ prometheus, with the domain the synthetic spec sets).
-    "saas-skeleton":    {"postgres", "redis", "gatus", "backrest", "glitchtip", "grafana", "prometheus", "watchdog"},
+    "saas-skeleton": {
+        "postgres",
+        "redis",
+        "gatus",
+        "backrest",
+        "glitchtip",
+        "grafana",
+        "prometheus",
+        "watchdog",
+    },
     # next-tailwind template removed in T1-01 G-B6 (zero specs consumed it).
-    "static-site":      {"gatus", "grafana", "watchdog"},  # kind=static → no glitchtip
-    "docusaurus":       {"gatus", "grafana", "watchdog"},  # kind=static → no glitchtip
-    "wordpress":        {"postgres", "gatus", "backrest", "glitchtip", "grafana", "watchdog"},
-    "file-api":         {"gatus", "backrest", "glitchtip", "grafana", "watchdog"},
-    "file-worker":      {"backrest", "glitchtip", "grafana", "watchdog"},  # not public → no gatus
+    "static-site": {"gatus", "grafana", "watchdog"},  # kind=static → no glitchtip
+    "docusaurus": {"gatus", "grafana", "watchdog"},  # kind=static → no glitchtip
+    "wordpress": {"postgres", "gatus", "backrest", "glitchtip", "grafana", "watchdog"},
+    "file-api": {"gatus", "backrest", "glitchtip", "grafana", "watchdog"},
+    "file-worker": {"backrest", "glitchtip", "grafana", "watchdog"},  # not public → no gatus
     "chrome-extension": {"glitchtip", "grafana", "watchdog"},  # is_public=false → no gatus
-    "desktop-app":      {"glitchtip", "grafana", "watchdog"},
-    "mobile-app":       {"glitchtip", "grafana", "watchdog"},
+    "desktop-app": {"glitchtip", "grafana", "watchdog"},
+    "mobile-app": {"glitchtip", "grafana", "watchdog"},
 }
 
 ALL_REGISTRARS = {
-    "postgres", "redis", "gatus", "backrest", "glitchtip",
-    "grafana", "authelia", "meilisearch", "prometheus", "watchdog",
+    "postgres",
+    "redis",
+    "gatus",
+    "backrest",
+    "glitchtip",
+    "grafana",
+    "authelia",
+    "meilisearch",
+    "prometheus",
+    "watchdog",
 }
 
 

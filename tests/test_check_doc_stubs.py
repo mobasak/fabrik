@@ -99,13 +99,23 @@ def _run_doc(monkeypatch, tmp_path, staged, doc_rel, body):
 
 
 def test_env_trigger_warns_configuration_stub(monkeypatch, tmp_path, capsys):
-    rc = _run_doc(monkeypatch, tmp_path, [".env.example"], "docs/CONFIGURATION.md", "# [Project Name] config\n")
+    rc = _run_doc(
+        monkeypatch,
+        tmp_path,
+        [".env.example"],
+        "docs/CONFIGURATION.md",
+        "# [Project Name] config\n",
+    )
     assert rc == 0 and "docs/CONFIGURATION.md" in capsys.readouterr().out
 
 
 def test_schema_trigger_warns_data_contract_stub(monkeypatch, tmp_path, capsys):
     rc = _run_doc(
-        monkeypatch, tmp_path, ["db/migrations/001_init.sql"], "docs/data-contract.md", "# [PROJECT_NAME]\n"
+        monkeypatch,
+        tmp_path,
+        ["db/migrations/001_init.sql"],
+        "docs/data-contract.md",
+        "# [PROJECT_NAME]\n",
     )
     assert rc == 0 and "docs/data-contract.md" in capsys.readouterr().out
 

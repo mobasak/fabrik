@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pytest
 
-CHECK = Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_imports_resolvable.py"
+CHECK = (
+    Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_imports_resolvable.py"
+)
 
 
 def _run_check(root: Path, extra_syspath: list[str] | None = None) -> tuple[int, str]:
@@ -86,7 +88,9 @@ def test_gitignored_absolute_import_is_an_error(repo: Path) -> None:
     (repo / "libs" / "__init__.py").write_text("")
     (repo / "libs" / "subagents" / "__init__.py").write_text("")
     (repo / "libs" / "subagents" / "web_tools.py").write_text("def execute_web_tool(): ...\n")
-    (repo / "src" / "pkg" / "app.py").write_text("from libs.subagents.web_tools import execute_web_tool\n")
+    (repo / "src" / "pkg" / "app.py").write_text(
+        "from libs.subagents.web_tools import execute_web_tool\n"
+    )
     _commit(repo, ".gitignore", "libs/__init__.py", "src/pkg/app.py", "src/pkg/__init__.py")
 
     rc, out = _run_check(repo)
@@ -101,7 +105,9 @@ def test_vendored_but_uncommitted_relative_import_is_an_error(repo: Path) -> Non
     A relative import to an untracked sibling breaks a clean checkout identically — and an earlier version of
     this check skipped relative imports entirely, so it would have blessed this.
     """
-    (repo / "src" / "pkg" / "vendored.py").write_text("def helper(): ...\n")  # deliberately NOT added
+    (repo / "src" / "pkg" / "vendored.py").write_text(
+        "def helper(): ...\n"
+    )  # deliberately NOT added
     (repo / "src" / "pkg" / "app.py").write_text("from .vendored import helper\n")
     _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
 
@@ -178,7 +184,9 @@ def test_stdlib_and_installed_deps_are_not_phantoms(repo: Path) -> None:
     """The cry-wolf guard. `.venv/` is itself gitignored, so a naive tracked-ness test flags every pip dep;
     and frozen stdlib modules report a pseudo-origin ('frozen') that is not a real path. Either bug makes the
     gate flag `import os` and get noqa'd into uselessness."""
-    (repo / "src" / "pkg" / "app.py").write_text("import os\nimport sys\nimport json\nimport pytest\n")
+    (repo / "src" / "pkg" / "app.py").write_text(
+        "import os\nimport sys\nimport json\nimport pytest\n"
+    )
     _commit(repo, "src/pkg/app.py", "src/pkg/__init__.py")
 
     rc, out = _run_check(repo)

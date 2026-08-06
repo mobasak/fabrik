@@ -28,6 +28,7 @@ def _write_catalog(tmp_path: Path, caps: list[dict]) -> Path:
 
 # --- Behavior 1 [RISK, TDD]: dry-run default; --apply deletes dead doc; a tool file is never touched ---
 
+
 def test_dead_doc_deleted_and_tool_never_removed(tmp_path) -> None:
     orphan = tmp_path / "docs" / "orphan.md"
     orphan.parent.mkdir(parents=True)
@@ -35,12 +36,31 @@ def test_dead_doc_deleted_and_tool_never_removed(tmp_path) -> None:
     tool = tmp_path / "scripts" / "retired_tool.py"
     tool.parent.mkdir(parents=True)
     tool.write_text("# code\n")
-    cj = _write_catalog(tmp_path, [
-        {"name": "orphan", "kind": "script", "summary": "", "invoke": "", "status": "ok",
-         "defects": ["dead_doc"], "doc_link": "docs/orphan.md", "verified_at": "x"},
-        {"name": "scripts/retired_tool.py", "kind": "script", "summary": "", "invoke": "python x",
-         "status": "retired", "defects": ["retired"], "doc_link": "INDEX.md", "verified_at": "x"},
-    ])
+    cj = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "orphan",
+                "kind": "script",
+                "summary": "",
+                "invoke": "",
+                "status": "ok",
+                "defects": ["dead_doc"],
+                "doc_link": "docs/orphan.md",
+                "verified_at": "x",
+            },
+            {
+                "name": "scripts/retired_tool.py",
+                "kind": "script",
+                "summary": "",
+                "invoke": "python x",
+                "status": "retired",
+                "defects": ["retired"],
+                "doc_link": "INDEX.md",
+                "verified_at": "x",
+            },
+        ],
+    )
     # (a) default = dry-run → lists the dead doc but does NOT delete
     rep = aud.run(cj, apply=False, root=tmp_path)
     assert orphan.exists(), "dry-run must not delete"
@@ -50,7 +70,9 @@ def test_dead_doc_deleted_and_tool_never_removed(tmp_path) -> None:
     assert not orphan.exists(), "apply must delete the dead doc"
     # (c) the retired tool is surfaced for the operator and its own file is untouched in BOTH modes
     assert tool.exists(), "a tool file must NEVER be unlinked"
-    assert any(o["defect"] == "retired" and "retired_tool" in o["name"] for o in rep2["operator_action"])
+    assert any(
+        o["defect"] == "retired" and "retired_tool" in o["name"] for o in rep2["operator_action"]
+    )
 
 
 def test_apply_never_unlinks_a_non_markdown_path(tmp_path) -> None:
@@ -58,10 +80,21 @@ def test_apply_never_unlinks_a_non_markdown_path(tmp_path) -> None:
     tool = tmp_path / "scripts" / "tool.py"
     tool.parent.mkdir(parents=True)
     tool.write_text("# code\n")
-    cj = _write_catalog(tmp_path, [
-        {"name": "x", "kind": "script", "summary": "", "invoke": "python x", "status": "ok",
-         "defects": ["dead_doc"], "doc_link": "scripts/tool.py", "verified_at": "x"},
-    ])
+    cj = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "x",
+                "kind": "script",
+                "summary": "",
+                "invoke": "python x",
+                "status": "ok",
+                "defects": ["dead_doc"],
+                "doc_link": "scripts/tool.py",
+                "verified_at": "x",
+            },
+        ],
+    )
     aud.run(cj, apply=True, root=tmp_path)
     assert tool.exists(), "a non-.md doc_link (a tool) must never be unlinked"
 
@@ -80,14 +113,41 @@ def test_apply_never_deletes_outside_repo_root(tmp_path) -> None:
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "link").symlink_to(outside_dir, target_is_directory=True)
     try:
-        cj = _write_catalog(tmp_path, [
-            {"name": "trav", "kind": "script", "summary": "", "invoke": "", "status": "ok",
-             "defects": ["dead_doc"], "doc_link": "../" + outside.name, "verified_at": "x"},
-            {"name": "abs", "kind": "script", "summary": "", "invoke": "", "status": "ok",
-             "defects": ["dead_doc"], "doc_link": str(abs_target), "verified_at": "x"},
-            {"name": "symlink", "kind": "script", "summary": "", "invoke": "", "status": "ok",
-             "defects": ["dead_doc"], "doc_link": "docs/link/x.md", "verified_at": "x"},
-        ])
+        cj = _write_catalog(
+            tmp_path,
+            [
+                {
+                    "name": "trav",
+                    "kind": "script",
+                    "summary": "",
+                    "invoke": "",
+                    "status": "ok",
+                    "defects": ["dead_doc"],
+                    "doc_link": "../" + outside.name,
+                    "verified_at": "x",
+                },
+                {
+                    "name": "abs",
+                    "kind": "script",
+                    "summary": "",
+                    "invoke": "",
+                    "status": "ok",
+                    "defects": ["dead_doc"],
+                    "doc_link": str(abs_target),
+                    "verified_at": "x",
+                },
+                {
+                    "name": "symlink",
+                    "kind": "script",
+                    "summary": "",
+                    "invoke": "",
+                    "status": "ok",
+                    "defects": ["dead_doc"],
+                    "doc_link": "docs/link/x.md",
+                    "verified_at": "x",
+                },
+            ],
+        )
         rep = aud.run(cj, apply=True, root=tmp_path)
         assert outside.exists(), "`../` traversal escaped root and deleted a file"
         assert abs_target.exists(), "absolute path escaped root and deleted a file"
@@ -117,18 +177,31 @@ def test_malformed_or_keyless_catalog_still_writes_report(tmp_path) -> None:
 def test_record_missing_or_nonstring_name_does_not_crash(tmp_path) -> None:
     """A record with a missing OR non-string `name` must not crash mid-loop (which could abort after a
     partial --apply and skip the report). Covers both `.get` default and a `str()` coercion of e.g. an int."""
-    cj = _write_catalog(tmp_path, [{"kind": "script", "defects": ["undocumented"], "doc_link": None}])
+    cj = _write_catalog(
+        tmp_path, [{"kind": "script", "defects": ["undocumented"], "doc_link": None}]
+    )
     rep = aud.run(cj, apply=True, root=tmp_path)
     assert any("unnamed" in f for f in rep["fixed"]), rep["fixed"]
     # a legit in-root dead_doc FIRST, then a non-string-name record — the run must complete + write the report
     dead = tmp_path / "docs" / "dead.md"
     dead.parent.mkdir(parents=True, exist_ok=True)
     dead.write_text("x\n")
-    cj2 = _write_catalog(tmp_path, [
-        {"name": "d", "kind": "script", "summary": "", "invoke": "", "status": "ok",
-         "defects": ["dead_doc"], "doc_link": "docs/dead.md", "verified_at": "x"},
-        {"name": 42, "kind": "script", "defects": ["undocumented"], "doc_link": None},
-    ])
+    cj2 = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "d",
+                "kind": "script",
+                "summary": "",
+                "invoke": "",
+                "status": "ok",
+                "defects": ["dead_doc"],
+                "doc_link": "docs/dead.md",
+                "verified_at": "x",
+            },
+            {"name": 42, "kind": "script", "defects": ["undocumented"], "doc_link": None},
+        ],
+    )
     rep2 = aud.run(cj2, apply=True, root=tmp_path)
     assert any("42" in f for f in rep2["fixed"]), rep2["fixed"]
     assert (tmp_path / "docs" / "development" / "capability-defects.md").exists()
@@ -136,11 +209,23 @@ def test_record_missing_or_nonstring_name_does_not_crash(tmp_path) -> None:
 
 # --- Behavior 2: undocumented → stub written + linked; doc_drift → flagged, not silently rewritten ------
 
+
 def test_undocumented_writes_stub_only_under_apply(tmp_path) -> None:
-    cj = _write_catalog(tmp_path, [
-        {"name": "fabrik foo", "kind": "cli", "summary": "does foo", "invoke": "python -m x", "status": "ok",
-         "defects": ["undocumented"], "doc_link": None, "verified_at": "x"},
-    ])
+    cj = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "fabrik foo",
+                "kind": "cli",
+                "summary": "does foo",
+                "invoke": "python -m x",
+                "status": "ok",
+                "defects": ["undocumented"],
+                "doc_link": None,
+                "verified_at": "x",
+            },
+        ],
+    )
     stub_dir = tmp_path / "docs" / "reference" / "capabilities"
     rep = aud.run(cj, apply=False, root=tmp_path)
     assert not stub_dir.exists() or not list(stub_dir.glob("*.md")), "dry-run must not write a stub"
@@ -155,23 +240,48 @@ def test_doc_drift_is_flagged_not_rewritten(tmp_path) -> None:
     doc = tmp_path / "docs" / "drifted.md"
     doc.parent.mkdir(parents=True)
     doc.write_text("original content\n")
-    cj = _write_catalog(tmp_path, [
-        {"name": "x", "kind": "script", "summary": "", "invoke": "python x", "status": "ok",
-         "defects": ["doc_drift"], "doc_link": "docs/drifted.md", "verified_at": "x"},
-    ])
+    cj = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "x",
+                "kind": "script",
+                "summary": "",
+                "invoke": "python x",
+                "status": "ok",
+                "defects": ["doc_drift"],
+                "doc_link": "docs/drifted.md",
+                "verified_at": "x",
+            },
+        ],
+    )
     aud.run(cj, apply=True, root=tmp_path)
-    assert doc.read_text() == "original content\n", "doc_drift must be flagged, never auto-rewritten"
+    assert doc.read_text() == "original content\n", (
+        "doc_drift must be flagged, never auto-rewritten"
+    )
     report = (tmp_path / "docs" / "development" / "capability-defects.md").read_text()
     assert "drift" in report.lower()
 
 
 # --- Behavior 3: idempotent — a clean catalog (no defects) → empty ledger + zero file changes -----------
 
+
 def test_idempotent_on_clean_catalog(tmp_path) -> None:
-    cj = _write_catalog(tmp_path, [
-        {"name": "x", "kind": "script", "summary": "ok", "invoke": "python x", "status": "ok",
-         "defects": [], "doc_link": "INDEX.md", "verified_at": "x"},
-    ])
+    cj = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "x",
+                "kind": "script",
+                "summary": "ok",
+                "invoke": "python x",
+                "status": "ok",
+                "defects": [],
+                "doc_link": "INDEX.md",
+                "verified_at": "x",
+            },
+        ],
+    )
     rep = aud.run(cj, apply=True, root=tmp_path)
     assert rep["fixed"] == [] and rep["operator_action"] == []
     # the report is still written (an empty ledger), but no other file is created/changed
@@ -182,10 +292,21 @@ def test_idempotent_on_clean_catalog(tmp_path) -> None:
 
 
 def test_report_always_written_with_full_dry_run_plan(tmp_path) -> None:
-    cj = _write_catalog(tmp_path, [
-        {"name": "brokentool", "kind": "cli", "summary": "", "invoke": "python x", "status": "broken",
-         "defects": ["broken"], "doc_link": "AGENTS.md", "verified_at": "x"},
-    ])
+    cj = _write_catalog(
+        tmp_path,
+        [
+            {
+                "name": "brokentool",
+                "kind": "cli",
+                "summary": "",
+                "invoke": "python x",
+                "status": "broken",
+                "defects": ["broken"],
+                "doc_link": "AGENTS.md",
+                "verified_at": "x",
+            },
+        ],
+    )
     aud.run(cj, apply=False, root=tmp_path)
     report = (tmp_path / "docs" / "development" / "capability-defects.md").read_text()
     assert "brokentool" in report and "broken" in report.lower()

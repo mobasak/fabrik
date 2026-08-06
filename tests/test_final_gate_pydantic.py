@@ -42,6 +42,7 @@ def _make_spec(path: Path, content: str) -> None:
 def test_load_spec_helper_importable():
     """Sanity check the import the gate now does is even possible."""
     from fabrik.spec_loader import load_spec
+
     assert callable(load_spec)
 
 
@@ -53,15 +54,19 @@ def test_valid_spec_passes_pydantic(tmp_path, monkeypatch):
     to keep the test hermetic.
     """
     spec_path = tmp_path / "specs" / "services" / "ok.yaml"
-    _make_spec(spec_path, """\
+    _make_spec(
+        spec_path,
+        """\
 id: ok-svc
 kind: service
 template: python-api
 domain: ok.example.com
 shape:
   is_public: true
-""")
+""",
+    )
     from fabrik.spec_loader import load_spec
+
     spec = load_spec(str(spec_path))
     assert spec.id == "ok-svc"
 
@@ -71,7 +76,9 @@ def test_invalid_enum_fails_pydantic(tmp_path):
     rejected — same failure mode T2-03 caught on
     fabrik-citation-verifier.yaml (pre-existing 'shared' value)."""
     spec_path = tmp_path / "specs" / "services" / "bad.yaml"
-    _make_spec(spec_path, """\
+    _make_spec(
+        spec_path,
+        """\
 id: bad-svc
 kind: service
 template: python-api
@@ -80,10 +87,12 @@ shape:
   is_public: true
 infrastructure:
   database: shared
-""")
+""",
+    )
     from pydantic import ValidationError
 
     from fabrik.spec_loader import load_spec
+
     with pytest.raises((ValidationError, Exception)) as exc_info:
         load_spec(str(spec_path))
     assert "database" in str(exc_info.value).lower() or "enum" in str(exc_info.value).lower()
@@ -94,7 +103,9 @@ def test_int_env_value_fails_pydantic(tmp_path):
     mode caught on docusaurus template's PORT: 3000 before T2-03 quoted
     it as PORT: '3000')."""
     spec_path = tmp_path / "specs" / "services" / "intenv.yaml"
-    _make_spec(spec_path, """\
+    _make_spec(
+        spec_path,
+        """\
 id: int-env-svc
 kind: service
 template: python-api
@@ -103,10 +114,12 @@ shape:
   is_public: true
 env:
   PORT: 3000
-""")
+""",
+    )
     from pydantic import ValidationError
 
     from fabrik.spec_loader import load_spec
+
     with pytest.raises((ValidationError, Exception)) as exc_info:
         load_spec(str(spec_path))
     assert "port" in str(exc_info.value).lower() or "string" in str(exc_info.value).lower()
@@ -115,12 +128,16 @@ env:
 def test_missing_required_field_fails_pydantic(tmp_path):
     """Spec without `id` is rejected."""
     spec_path = tmp_path / "specs" / "services" / "noid.yaml"
-    _make_spec(spec_path, """\
+    _make_spec(
+        spec_path,
+        """\
 kind: service
 template: python-api
 domain: noid.example.com
-""")
+""",
+    )
     from fabrik.spec_loader import load_spec
+
     with pytest.raises(Exception):
         load_spec(str(spec_path))
 
@@ -149,6 +166,7 @@ def test_non_spec_yaml_files_unaffected(tmp_path):
     # Verify by direct introspection rather than running the gate:
     # the gate's path-check is "specs/services/" in f.replace(...)
     import re
+
     pattern = re.compile(r"specs/services/")
     assert pattern.search("specs/services/foo.yaml")
     assert not pattern.search("specs/verification/registrars.yaml")

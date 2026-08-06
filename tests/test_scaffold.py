@@ -79,11 +79,7 @@ class TestPatchDroidBlock:
     def test_replace_contiguous_block(self):
         """Replace contiguous .droid/ entries."""
         content = (
-            ".env\n"
-            ".droid/kilo_usage.jsonl\n"
-            ".droid/reviews/\n"
-            ".droid/kilo_models_cache.json\n"
-            "*.log\n"
+            ".env\n.droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n*.log\n"
         )
         result = _patch_droid_block(content, _DROID_GITIGNORE_BLOCK)
         assert ".droid/docs_queue/" in result
@@ -257,10 +253,7 @@ class TestFixProjectRootGitignorePatch:
 
         # Write .gitignore with old .droid/ entries
         (project_dir / ".gitignore").write_text(
-            ".env\n"
-            ".droid/kilo_usage.jsonl\n"
-            ".droid/reviews/\n"
-            "*.log\n"
+            ".env\n.droid/kilo_usage.jsonl\n.droid/reviews/\n*.log\n"
         )
 
         added = fix_project(project_dir, dry_run=False)
@@ -293,9 +286,7 @@ class TestFixProjectRootGitignorePatch:
         (project_dir / ".git").mkdir()
 
         # Write .gitignore with current block
-        (project_dir / ".gitignore").write_text(
-            ".env\n" + _DROID_GITIGNORE_BLOCK + "*.log\n"
-        )
+        (project_dir / ".gitignore").write_text(".env\n" + _DROID_GITIGNORE_BLOCK + "*.log\n")
 
         added = fix_project(project_dir, dry_run=False)
 
@@ -528,6 +519,7 @@ class TestChromeExtensionScaffold:
 
         # Verify port is in Python range (8000-8099)
         import yaml
+
         data = yaml.safe_load(project_yaml)
         port = data["ports"][0]
         assert 8000 <= port <= 8099
@@ -683,7 +675,9 @@ class TestMobileAppScaffold:
             assert (project_dir / f).exists(), f"missing Expo config file: {f}"
 
         # Identity substituted (slug "test-mobile" -> "testmobile").
-        assert "slug: 'testmobile'" in (project_dir / "app.config.ts").read_text(), "app slug not substituted"
+        assert "slug: 'testmobile'" in (project_dir / "app.config.ts").read_text(), (
+            "app slug not substituted"
+        )
         env_ts = (project_dir / "env.ts").read_text()
         assert "com.testmobile" in env_ts, "bundle id not substituted"
         assert "com.obytes" not in env_ts, "Obytes bundle id leaked into the scaffold"
@@ -722,8 +716,12 @@ class TestMobileAppScaffold:
         )
 
         project_dir = tmp_path / "test-mobile"
-        assert (project_dir / "src" / "app" / "_layout.tsx").exists(), "src/app/_layout.tsx not created"
-        assert (project_dir / "src" / "app" / "(app)" / "_layout.tsx").exists(), "src/app/(app)/_layout.tsx not created"
+        assert (project_dir / "src" / "app" / "_layout.tsx").exists(), (
+            "src/app/_layout.tsx not created"
+        )
+        assert (project_dir / "src" / "app" / "(app)" / "_layout.tsx").exists(), (
+            "src/app/(app)/_layout.tsx not created"
+        )
 
     def test_creates_features_tree(self, tmp_path):
         """Verify src/features/ tree is copied from the Obytes template."""
@@ -736,7 +734,9 @@ class TestMobileAppScaffold:
 
         project_dir = tmp_path / "test-mobile"
         assert (project_dir / "src" / "features" / "auth").is_dir(), "src/features/auth missing"
-        assert (project_dir / "src" / "features" / "settings").is_dir(), "src/features/settings missing"
+        assert (project_dir / "src" / "features" / "settings").is_dir(), (
+            "src/features/settings missing"
+        )
 
     def test_ships_client_seams(self, tmp_path):
         """The Phase-A seams ship + JWTs use expo-secure-store, never MMKV."""
@@ -773,8 +773,12 @@ class TestMobileAppScaffold:
         assert "app.main:app" in df, "uvicorn entrypoint must be app.main:app"
 
         assert (project_dir / "compose.yaml").exists(), "missing compose.yaml"
-        assert (project_dir / "server" / "src" / "app" / "main.py").exists(), "backend code not shipped"
-        assert (project_dir / "server" / "src" / "mobile_config" / "__init__.py").exists(), "vendored mobile_config not shipped"
+        assert (project_dir / "server" / "src" / "app" / "main.py").exists(), (
+            "backend code not shipped"
+        )
+        assert (project_dir / "server" / "src" / "mobile_config" / "__init__.py").exists(), (
+            "vendored mobile_config not shipped"
+        )
         assert (project_dir / "requirements.txt").exists(), "backend requirements.txt not shipped"
 
         # .dockerignore excludes the RN client (root-anchored) so the image ships server/ only.

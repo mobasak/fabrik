@@ -23,7 +23,9 @@ def _pack(d: Path, rel: str, globs: str, desc: str) -> None:
 
 
 def test_parse_frontmatter() -> None:
-    globs, desc = sr._parse_frontmatter('---\nglobs: ["**/*.py", "**/*.sql"]\ndescription: Py\n---\nx')
+    globs, desc = sr._parse_frontmatter(
+        '---\nglobs: ["**/*.py", "**/*.sql"]\ndescription: Py\n---\nx'
+    )
     assert globs == ["**/*.py", "**/*.sql"] and desc == "Py"
 
 

@@ -114,9 +114,7 @@ class TestResolveApplicability:
         r_with = resolve_applicability(_spec(shape={"is_admin_dashboard": True}))
         assert r_with["authelia"][0] is True
 
-        r_no_domain = resolve_applicability(
-            _spec(shape={"is_admin_dashboard": True}, domain=None)
-        )
+        r_no_domain = resolve_applicability(_spec(shape={"is_admin_dashboard": True}, domain=None))
         assert r_no_domain["authelia"][0] is False
         assert "no domain" in r_no_domain["authelia"][1]
 
@@ -125,13 +123,8 @@ class TestResolveApplicability:
         assert r["meilisearch"][0] is True
 
     def test_gatus_requires_both_is_public_and_domain(self):
-        assert (
-            resolve_applicability(_spec(shape={"is_public": False}))["gatus"][0]
-            is False
-        )
-        assert (
-            resolve_applicability(_spec(domain=None))["gatus"][0] is False
-        )
+        assert resolve_applicability(_spec(shape={"is_public": False}))["gatus"][0] is False
+        assert resolve_applicability(_spec(domain=None))["gatus"][0] is False
 
     def test_glitchtip_kind_gate(self):
         for kind in ("service", "worker", "wordpress"):
@@ -205,9 +198,7 @@ class TestResolveApplicability:
         assumption the dispatcher documentation rests on."""
         # shape.is_public is the default (False); explicit infra.gatus=True
         # must NOT flip the result.
-        r = resolve_applicability(
-            _spec(shape={"is_public": False}, infra={"gatus": True})
-        )
+        r = resolve_applicability(_spec(shape={"is_public": False}, infra={"gatus": True}))
         assert r["gatus"][0] is False, (
             "infra.gatus=True must not opt-in gatus when shape.is_public=False. "
             "shape is authoritative; infra is override-OFF only."
@@ -283,11 +274,7 @@ class TestInfraSurvivesModelDump:
         from fabrik.spec_loader import load_spec, save_spec
 
         spec_file = tmp_path / "spec.yaml"
-        spec_file.write_text(
-            "id: demo\n"
-            "template: python-api\n"
-            "domain: demo.vps1.example.com\n"
-        )
+        spec_file.write_text("id: demo\ntemplate: python-api\ndomain: demo.vps1.example.com\n")
         spec = load_spec(spec_file)
         assert spec.infra is None
 
@@ -360,26 +347,23 @@ class TestProvisionDispatch:
         prov = InfrastructureProvisioner(deployer=MagicMock())
         ctx = _ctx(_spec())
 
-        with patch(
-            "fabrik.drivers.postgres.create_database"
-        ) as pg, patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()) as gatus, patch(
-            "fabrik.drivers.backrest.add_backup_plan"
-        ) as backrest, patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(dsn="http://x@host/1"),
-        ) as gt_create, patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True
-        ), patch(
-            "fabrik.drivers.glitchtip.delete_project"
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=42),
-        ) as grafana, patch(
-            "fabrik.drivers.authelia.add_access_rule"
-        ) as authelia, patch(
-            "fabrik.drivers.meilisearch.create_index"
-        ) as meili, patch(
-            "fabrik.drivers.coolify.CoolifyClient"
+        with (
+            patch("fabrik.drivers.postgres.create_database") as pg,
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()) as gatus,
+            patch("fabrik.drivers.backrest.add_backup_plan") as backrest,
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://x@host/1"),
+            ) as gt_create,
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
+            patch("fabrik.drivers.glitchtip.delete_project"),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=42),
+            ) as grafana,
+            patch("fabrik.drivers.authelia.add_access_rule") as authelia,
+            patch("fabrik.drivers.meilisearch.create_index") as meili,
+            patch("fabrik.drivers.coolify.CoolifyClient"),
         ):
             # coolify_uuid must be set for glitchtip to proceed past guard
             ctx.coolify_uuid = "test-uuid"
@@ -417,21 +401,18 @@ class TestProvisionDispatch:
 
             return _fn
 
-        with patch(
-            "fabrik.drivers.postgres.create_database", side_effect=record("pg")
-        ), patch("fabrik.drivers.gatus.add_endpoint", side_effect=record("gatus")), patch(
-            "fabrik.drivers.backrest.add_backup_plan", side_effect=record("backrest")
-        ), patch(
-            "fabrik.drivers.glitchtip.create_project", side_effect=record("gt")
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection"
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            side_effect=record("grafana"),
-        ), patch(
-            "fabrik.drivers.authelia.add_access_rule", side_effect=record("authelia")
-        ), patch(
-            "fabrik.drivers.meilisearch.create_index", side_effect=record("meili")
+        with (
+            patch("fabrik.drivers.postgres.create_database", side_effect=record("pg")),
+            patch("fabrik.drivers.gatus.add_endpoint", side_effect=record("gatus")),
+            patch("fabrik.drivers.backrest.add_backup_plan", side_effect=record("backrest")),
+            patch("fabrik.drivers.glitchtip.create_project", side_effect=record("gt")),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection"),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                side_effect=record("grafana"),
+            ),
+            patch("fabrik.drivers.authelia.add_access_rule", side_effect=record("authelia")),
+            patch("fabrik.drivers.meilisearch.create_index", side_effect=record("meili")),
         ):
             prov.provision(ctx)
 
@@ -446,13 +427,14 @@ class TestProvisionDispatch:
         )
         ctx = _ctx(spec)
 
-        with patch(
-            "fabrik.drivers.backrest.add_backup_plan"
-        ) as backrest, patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch("fabrik.drivers.backrest.add_backup_plan") as backrest,
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch("fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 
@@ -472,21 +454,24 @@ class TestProvisionDispatch:
         ctx = _ctx(spec)
         ctx.coolify_uuid = "test-uuid"
 
-        with patch(
-            "fabrik.drivers.postgres.create_database", return_value=_ok()
-        ), patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.backrest.add_backup_plan", return_value=_ok()
-        ), patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(dsn="http://x@host/1"),
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True
-        ), patch("fabrik.drivers.glitchtip.delete_project"), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=7),
-        ), patch("fabrik.drivers.authelia.add_access_rule", return_value=_ok(status="added")), patch(
-            "fabrik.drivers.meilisearch.create_index", return_value=_ok()
-        ), patch("fabrik.drivers.coolify.CoolifyClient"):
+        with (
+            patch("fabrik.drivers.postgres.create_database", return_value=_ok()),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch("fabrik.drivers.backrest.add_backup_plan", return_value=_ok()),
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://x@host/1"),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
+            patch("fabrik.drivers.glitchtip.delete_project"),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=7),
+            ),
+            patch("fabrik.drivers.authelia.add_access_rule", return_value=_ok(status="added")),
+            patch("fabrik.drivers.meilisearch.create_index", return_value=_ok()),
+            patch("fabrik.drivers.coolify.CoolifyClient"),
+        ):
             prov.provision(ctx)
 
         types = {r.resource_type for r in ctx.created_resources}
@@ -544,9 +529,7 @@ class TestSoftFailures:
             "fabrik.drivers.gatus.add_endpoint": _ok(),
             "fabrik.drivers.backrest.add_backup_plan": _ok(),
             "fabrik.drivers.glitchtip.create_project": _ok(dsn=None),
-            "fabrik.drivers.grafana.post_deployment_annotation": _ok(
-                annotation_id=None
-            ),
+            "fabrik.drivers.grafana.post_deployment_annotation": _ok(annotation_id=None),
             "fabrik.drivers.authelia.add_access_rule": _ok(status="added"),
             "fabrik.drivers.meilisearch.create_index": _ok(),
         }
@@ -580,16 +563,18 @@ class TestGlitchTipDsnInjection:
         ctx = _ctx(_spec())
         ctx.coolify_uuid = "uuid-1"
 
-        with patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(dsn="http://x@host/1"),
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True
-        ), patch("fabrik.drivers.glitchtip.delete_project") as del_proj, patch(
-            "fabrik.drivers.gatus.add_endpoint", return_value=_ok()
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://x@host/1"),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
+            patch("fabrik.drivers.glitchtip.delete_project") as del_proj,
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 
@@ -607,16 +592,19 @@ class TestGlitchTipDsnInjection:
         ctx = _ctx(_spec())
         ctx.coolify_uuid = "uuid-1"
 
-        with patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(dsn="http://x@host/1"),
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False
-        ), patch("fabrik.drivers.glitchtip.delete_project") as del_proj, patch(
-            "fabrik.drivers.coolify.CoolifyClient"
-        ), patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://x@host/1"),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False),
+            patch("fabrik.drivers.glitchtip.delete_project") as del_proj,
+            patch("fabrik.drivers.coolify.CoolifyClient"),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             with pytest.raises(RuntimeError, match="SENTRY_DSN not injected"):
                 prov.provision(ctx)
@@ -631,16 +619,18 @@ class TestGlitchTipDsnInjection:
         ctx = _ctx(_spec())
         ctx.coolify_uuid = None  # explicitly unset
 
-        with patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(dsn="http://x@host/1"),
-        ) as create, patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection"
-        ) as verify, patch("fabrik.drivers.glitchtip.delete_project") as del_proj, patch(
-            "fabrik.drivers.gatus.add_endpoint", return_value=_ok()
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://x@host/1"),
+            ) as create,
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection") as verify,
+            patch("fabrik.drivers.glitchtip.delete_project") as del_proj,
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 
@@ -655,16 +645,18 @@ class TestGlitchTipDsnInjection:
         ctx.coolify_uuid = "uuid-1"
         ctx.dry_run = True
 
-        with patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(status="dry_run", dsn=None),
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection"
-        ) as verify, patch(
-            "fabrik.drivers.coolify.CoolifyClient"
-        ) as coolify_cls, patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(status="dry_run", dsn=None),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection") as verify,
+            patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls,
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 
@@ -684,9 +676,7 @@ class TestAutheliaOrdering:
         two_factor catch-all, with insert_before_twofactor=True on the
         bypass call."""
         prov = InfrastructureProvisioner(deployer=MagicMock())
-        spec = _spec(
-            shape={"is_admin_dashboard": True, "has_bearer_api": True}
-        )
+        spec = _spec(shape={"is_admin_dashboard": True, "has_bearer_api": True})
         ctx = _ctx(spec)
 
         calls = []
@@ -695,13 +685,14 @@ class TestAutheliaOrdering:
             calls.append(kwargs)
             return _ok(status="added")
 
-        with patch(
-            "fabrik.drivers.authelia.add_access_rule", side_effect=record
-        ), patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch("fabrik.drivers.authelia.add_access_rule", side_effect=record),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch("fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 
@@ -724,13 +715,14 @@ class TestAutheliaOrdering:
             calls.append(kwargs)
             return _ok(status="added")
 
-        with patch(
-            "fabrik.drivers.authelia.add_access_rule", side_effect=record
-        ), patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch("fabrik.drivers.authelia.add_access_rule", side_effect=record),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch("fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 
@@ -764,13 +756,15 @@ class TestIdentifierNormalization:
             captured["mi"] = uid
             return _ok()
 
-        with patch("fabrik.drivers.postgres.create_database", side_effect=pg_fn), patch(
-            "fabrik.drivers.meilisearch.create_index", side_effect=mi_fn
-        ), patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
-            "fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)
-        ), patch(
-            "fabrik.drivers.grafana.post_deployment_annotation",
-            return_value=_ok(annotation_id=None),
+        with (
+            patch("fabrik.drivers.postgres.create_database", side_effect=pg_fn),
+            patch("fabrik.drivers.meilisearch.create_index", side_effect=mi_fn),
+            patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
+            patch("fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)),
+            patch(
+                "fabrik.drivers.grafana.post_deployment_annotation",
+                return_value=_ok(annotation_id=None),
+            ),
         ):
             prov.provision(ctx)
 

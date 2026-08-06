@@ -92,12 +92,24 @@ def _make_db(rows: list[dict]) -> Path:
 
 
 def test_basic_select():
-    db = _make_db([
-        {"id": "a/1", "provider": "a", "quality_tier": 2, "input_cost_per_m": 1.0,
-         "_category": "language"},
-        {"id": "a/2", "provider": "a", "quality_tier": 2, "input_cost_per_m": 0.5,
-         "_category": "language"},
-    ])
+    db = _make_db(
+        [
+            {
+                "id": "a/1",
+                "provider": "a",
+                "quality_tier": 2,
+                "input_cost_per_m": 1.0,
+                "_category": "language",
+            },
+            {
+                "id": "a/2",
+                "provider": "a",
+                "quality_tier": 2,
+                "input_cost_per_m": 0.5,
+                "_category": "language",
+            },
+        ]
+    )
     rows = sel.select_for_category(
         "language",
         {"slots": 2, "min_quality_tier": 2, "sort_key": "input_cost_per_m ASC"},
@@ -109,9 +121,11 @@ def test_basic_select():
 
 
 def test_no_eligible_raises():
-    db = _make_db([
-        {"id": "low/tier", "provider": "x", "quality_tier": 1, "_category": "code"},
-    ])
+    db = _make_db(
+        [
+            {"id": "low/tier", "provider": "x", "quality_tier": 1, "_category": "code"},
+        ]
+    )
     with pytest.raises(sel.NoEligibleCategoryError):
         sel.select_for_category(
             "code",
@@ -121,10 +135,12 @@ def test_no_eligible_raises():
 
 
 def test_require_vision_excludes():
-    db = _make_db([
-        {"id": "x/no-vision", "provider": "x", "has_vision": 0, "_category": "vision"},
-        {"id": "x/yes-vision", "provider": "x", "has_vision": 1, "_category": "vision"},
-    ])
+    db = _make_db(
+        [
+            {"id": "x/no-vision", "provider": "x", "has_vision": 0, "_category": "vision"},
+            {"id": "x/yes-vision", "provider": "x", "has_vision": 1, "_category": "vision"},
+        ]
+    )
     rows = sel.select_for_category(
         "vision",
         {"slots": 5, "require_vision": True},
@@ -134,10 +150,12 @@ def test_require_vision_excludes():
 
 
 def test_allow_free_false_excludes_free():
-    db = _make_db([
-        {"id": "p/paid", "provider": "p", "input_cost_per_m": 2.0, "_category": "vision"},
-        {"id": "p/model:free", "provider": "p", "input_cost_per_m": 0.0, "_category": "vision"},
-    ])
+    db = _make_db(
+        [
+            {"id": "p/paid", "provider": "p", "input_cost_per_m": 2.0, "_category": "vision"},
+            {"id": "p/model:free", "provider": "p", "input_cost_per_m": 0.0, "_category": "vision"},
+        ]
+    )
     rows = sel.select_for_category(
         "vision",
         {"slots": 5, "allow_free": False, "sort_key": "input_cost_per_m ASC"},
@@ -147,10 +165,17 @@ def test_allow_free_false_excludes_free():
 
 
 def test_allow_free_true_includes_free():
-    db = _make_db([
-        {"id": "p/paid", "provider": "p", "input_cost_per_m": 2.0, "_category": "language"},
-        {"id": "p/model:free", "provider": "p", "input_cost_per_m": 0.0, "_category": "language"},
-    ])
+    db = _make_db(
+        [
+            {"id": "p/paid", "provider": "p", "input_cost_per_m": 2.0, "_category": "language"},
+            {
+                "id": "p/model:free",
+                "provider": "p",
+                "input_cost_per_m": 0.0,
+                "_category": "language",
+            },
+        ]
+    )
     rows = sel.select_for_category(
         "language",
         {"slots": 5, "allow_free": True, "sort_key": "input_cost_per_m ASC"},
@@ -170,24 +195,36 @@ def test_sort_key_allowlist_rejects_injection():
 
 
 def test_blocked_rows_excluded():
-    db = _make_db([
-        {"id": "a/ok", "provider": "a", "blocked": 0, "_category": "language"},
-        {"id": "a/blocked", "provider": "a", "blocked": 1, "_category": "language"},
-    ])
+    db = _make_db(
+        [
+            {"id": "a/ok", "provider": "a", "blocked": 0, "_category": "language"},
+            {"id": "a/blocked", "provider": "a", "blocked": 1, "_category": "language"},
+        ]
+    )
     rows = sel.select_for_category(
-        "language", {"slots": 5}, db_path=db,
+        "language",
+        {"slots": 5},
+        db_path=db,
     )
     assert [r["id"] for r in rows] == ["a/ok"]
 
 
 def test_status_filter():
-    db = _make_db([
-        {"id": "a/active", "provider": "a", "status": "active", "_category": "language"},
-        {"id": "a/deprecated", "provider": "a", "status": "deprecated",
-         "_category": "language"},
-    ])
+    db = _make_db(
+        [
+            {"id": "a/active", "provider": "a", "status": "active", "_category": "language"},
+            {
+                "id": "a/deprecated",
+                "provider": "a",
+                "status": "deprecated",
+                "_category": "language",
+            },
+        ]
+    )
     rows = sel.select_for_category(
-        "language", {"slots": 5}, db_path=db,
+        "language",
+        {"slots": 5},
+        db_path=db,
     )
     assert [r["id"] for r in rows] == ["a/active"]
 
@@ -201,7 +238,9 @@ def test_slots_must_be_positive():
     for bad in (0, -1, -100):
         with pytest.raises(ValueError, match="slots must be >= 1"):
             sel.select_for_category(
-                "language", {"slots": bad}, db_path=db,
+                "language",
+                {"slots": bad},
+                db_path=db,
             )
 
 
@@ -214,5 +253,7 @@ def test_slots_must_be_int_not_float_or_bool():
     for bad in (3.5, 0.0, -1.5, True, False, "1", None):
         with pytest.raises(ValueError, match="slots must be an integer"):
             sel.select_for_category(
-                "language", {"slots": bad}, db_path=db,
+                "language",
+                {"slots": bad},
+                db_path=db,
             )

@@ -142,9 +142,7 @@ class TestRegisterAllocation:
             return ""
 
         with patch.object(pg_driver, "ssh", side_effect=fake_ssh):
-            pg_driver.register_allocation(
-                "ghost_db", spec_id="ghost", dry_run=True
-            )
+            pg_driver.register_allocation("ghost_db", spec_id="ghost", dry_run=True)
         # In dry-run, only the read call (cat) should have run; no tee/mv.
         assert any("cat " in c for c in seen)
         assert not any("tee " in c for c in seen)
@@ -305,9 +303,7 @@ class TestAuditPostgresDrift:
             patch.object(audit, "_ssh_check", side_effect=fake_ssh_check),
             patch.object(audit, "_resolve_container", return_value="postgres-main-x"),
             patch.object(audit, "_resolved_for", return_value={"postgres": (True, "shape")}),
-            patch.object(
-                pg_driver, "ssh", side_effect=RuntimeError("registry unreachable")
-            ),
+            patch.object(pg_driver, "ssh", side_effect=RuntimeError("registry unreachable")),
         ):
             result = audit_postgres(_spec("translator"))
         # With RuntimeError swallowed by list_allocations (returns empty),

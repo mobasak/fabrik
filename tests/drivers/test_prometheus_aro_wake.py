@@ -109,7 +109,7 @@ def test_remove_aro_wake_target_by_host_label(monkeypatch):
     assert prom.remove_aro_wake_target("vps4") is True
     job = next(j for j in written[0]["scrape_configs"] if j["job_name"] == "aro-wake")
     hosts = [(sc.get("labels") or {}).get("host") for sc in job["static_configs"]]
-    assert hosts == ["vps1", "vps2", "vps3"]                  # vps4 stripped
+    assert hosts == ["vps1", "vps2", "vps3"]  # vps4 stripped
 
 
 def test_remove_aro_wake_target_no_match_is_noop(monkeypatch):
@@ -137,7 +137,7 @@ def test_reload_prometheus_uses_bare_container_name_pattern():
     src = getsource(prom._reload_prometheus)
     assert "'^alertmanager(-|$)'" in src or '"^alertmanager(-|$)"' in src
     assert "'^prometheus(-|$)'" in src or '"^prometheus(-|$)"' in src
-    assert "'^alertmanager-'" not in src                   # no bare prefix-only
+    assert "'^alertmanager-'" not in src  # no bare prefix-only
     assert "'^prometheus-'" not in src
 
 
@@ -174,6 +174,7 @@ def test_write_config_mirrors_to_git_after_vps_write(monkeypatch, tmp_path):
     # Git mirror leg: file exists, contains the same YAML body
     assert fake_mirror.exists()
     import yaml as yaml_lib
+
     parsed = yaml_lib.safe_load(fake_mirror.read_text())
     assert parsed["scrape_configs"][0]["job_name"] == "demo"
 
@@ -183,7 +184,7 @@ def test_write_config_does_not_raise_when_mirror_write_fails(monkeypatch, tmp_pa
     break the runtime write — vps1 is the source of truth at runtime."""
     # Point mirror at a path whose parent CAN'T be created (file in the way)
     blocker = tmp_path / "configs"
-    blocker.write_text("not a directory")          # parent path is a file
+    blocker.write_text("not a directory")  # parent path is a file
     fake_mirror = blocker / "prometheus.yml"
     monkeypatch.setattr(prom, "_LOCAL_PROMETHEUS_CONFIG_PATH", fake_mirror)
     monkeypatch.setattr(prom, "scp_to_vps", lambda *a, **k: None)

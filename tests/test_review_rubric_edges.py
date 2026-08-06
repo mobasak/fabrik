@@ -40,8 +40,14 @@ def _mk_tree(root: Path) -> None:
     """Minimal rules tree: the 3 floor packs + one glob pack, + both checklists."""
     for floor_rel, mandate in [
         ("core/35-security-auth.md", "- Auth MUST use Pattern A (`fastapi-user-auth`)."),
-        ("core/25-data-postgres.md", "- Never use `localhost` as a DB host — `postgres-main:5432`."),
-        ("core/30-ops.md", "- Every compose service MUST declare `deploy.resources.limits.memory`."),
+        (
+            "core/25-data-postgres.md",
+            "- Never use `localhost` as a DB host — `postgres-main:5432`.",
+        ),
+        (
+            "core/30-ops.md",
+            "- Every compose service MUST declare `deploy.resources.limits.memory`.",
+        ),
     ]:
         _mk_pack(root, floor_rel, ["**/nonexistent-floor-trigger-*.xyz"], [mandate])
     _mk_pack(
@@ -220,7 +226,7 @@ def test_conditional_sections_excluded_from_mandates(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "96-dual.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: dual pack\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: dual pack\n---\n\n'
         "# dual\n\n## Default way\n\n- New code MUST use the default path.\n\n"
         "### Old way (legacy / migration-only)\n\n- Old code MUST use the retired path.\n\n"
         "## Another core section\n\n- Everything MUST be logged.\n",
@@ -236,8 +242,17 @@ def test_conditional_sections_excluded_from_mandates(tmp_path):
 def test_letter_suffixed_checklist_items_injected(tmp_path):
     """84a.-style sub-items are checklist items too (F2)."""
     _mk_tree(tmp_path)
-    f = tmp_path / "docs" / "orchestrator" / "mega-epic-breakdown" / "EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md"
-    f.write_text("# Mega checklist\n\n84. Does it persist?\n84a. Does the mirror persist too?\n", encoding="utf-8")
+    f = (
+        tmp_path
+        / "docs"
+        / "orchestrator"
+        / "mega-epic-breakdown"
+        / "EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md"
+    )
+    f.write_text(
+        "# Mega checklist\n\n84. Does it persist?\n84a. Does the mirror persist too?\n",
+        encoding="utf-8",
+    )
     rr = _load()
     out = rr.build_rubric(["src/thing.zzz"], workflow="mega", root=tmp_path)
     assert "84. Does it persist?" in out
@@ -250,7 +265,7 @@ def test_nested_conditional_heading_does_not_end_outer_skip(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "95-nested.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: nested\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: nested\n---\n\n'
         "# nested\n\n# Legacy Features (legacy)\n\n## Old Subsystem\n\n- Old MUST stay.\n\n"
         "### Deprecated API (deprecated)\n\n- Older MUST stay too.\n\n"
         "## Still Inside Legacy\n\n- Inner MUST never leak.\n\n"
@@ -271,7 +286,7 @@ def test_non_legacy_heading_not_skipped(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "94-nonlegacy.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: nonlegacy\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: nonlegacy\n---\n\n'
         "# nonlegacy\n\n## Non-legacy Features\n\n- Core MUST be armed.\n",
         encoding="utf-8",
     )
@@ -286,10 +301,10 @@ def test_fenced_code_never_parsed_as_headings_or_mandates(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "93-fenced.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: fenced\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: fenced\n---\n\n'
         "# fenced\n\n## Legacy example (legacy)\n\n```python\n# MUST never do this in new code\n"
         "old_call()\n```\n\n- Legacy MUST hide.\n\n## Real\n\n"
-        "```python\nSECRET = \"x\"  # BANNED example\n```\n\n- Real MUST show.\n",
+        '```python\nSECRET = "x"  # BANNED example\n```\n\n- Real MUST show.\n',
         encoding="utf-8",
     )
     rr = _load()
@@ -304,7 +319,7 @@ def test_tilde_fences_tracked_like_backticks(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "92-tilde.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: tilde\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: tilde\n---\n\n'
         "# tilde\n\n## Legacy example (legacy)\n\n~~~python\n# MUST never do this\nold()\n~~~\n\n"
         "- Legacy MUST hide.\n\n## Real\n\n- Real MUST show.\n",
         encoding="utf-8",
@@ -321,7 +336,7 @@ def test_unclosed_fence_surfaces_malformed_pack_warning(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "91-unclosed.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: unclosed\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: unclosed\n---\n\n'
         "# unclosed\n\n```python\nstray()\n\n## Real\n\n- Real MUST show.\n",
         encoding="utf-8",
     )
@@ -338,7 +353,7 @@ def test_literal_other_delimiter_inside_fence_is_content(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "90-mixed.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: mixed\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: mixed\n---\n\n'
         "# mixed\n\n## Legacy (legacy)\n\n```python\nold_call()\n~~~\n# MUST hide comment\n```\n\n"
         "- Legacy MUST hide.\n\n## Real\n\n- Real MUST show.\n",
         encoding="utf-8",
@@ -356,7 +371,7 @@ def test_longer_fence_nests_literal_shorter_fence(tmp_path):
     _mk_tree(tmp_path)
     p = tmp_path / ".windsurf" / "rules" / "core" / "89-quadfence.md"
     p.write_text(
-        "---\nactivation: glob\nglobs: [\"**/*.zzz\"]\ndescription: quad\n---\n\n"
+        '---\nactivation: glob\nglobs: ["**/*.zzz"]\ndescription: quad\n---\n\n'
         "# quad\n\n## Legacy (legacy)\n\n````markdown\nExample of a fence:\n```\n"
         "- SNEAKY MUST leak here?\n````\n\n- Legacy MUST hide.\n\n## Real\n\n- Real MUST show.\n",
         encoding="utf-8",

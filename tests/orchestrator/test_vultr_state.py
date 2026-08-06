@@ -85,7 +85,7 @@ def test_reconcile_detects_both_drift_directions():
     )
     rep = vultr_state.reconcile(client)
     assert rep["matched"] == ["vps4"]
-    assert rep["in_state_not_live"] == ["vps5"]      # stale local record
+    assert rep["in_state_not_live"] == ["vps5"]  # stale local record
     assert rep["in_live_not_state"] == ["orphan-1"]  # untracked live instance
     assert rep["live_count"] == 2
     # last_reconciled stamped
@@ -93,6 +93,8 @@ def test_reconcile_detects_both_drift_directions():
 
 
 def test_reconcile_ignores_destroyed_records():
-    vultr_state.upsert_instance("dead", {"vultr_id": "x", "destroyed_at": "2026-01-01T00:00:00+00:00"})
+    vultr_state.upsert_instance(
+        "dead", {"vultr_id": "x", "destroyed_at": "2026-01-01T00:00:00+00:00"}
+    )
     rep = vultr_state.reconcile(_FakeClient(instances=[], bare_metals=[]))
     assert rep["in_state_not_live"] == []  # destroyed records aren't "drift"

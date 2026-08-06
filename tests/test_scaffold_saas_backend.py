@@ -156,9 +156,9 @@ def test_compose_services(project: Path) -> None:
 # Phase 8 — shape flags drive the registrars + worker module ----------------
 @requires_fabrik_env
 def test_shape_drives_registrars(project: Path) -> None:
-    shape = yaml.safe_load(
-        (FABRIK_ROOT / "templates/saas-skeleton/defaults.yaml").read_text()
-    )["shape"]
+    shape = yaml.safe_load((FABRIK_ROOT / "templates/saas-skeleton/defaults.yaml").read_text())[
+        "shape"
+    ]
     assert shape["exposes_metrics"] is True  # gates prometheus
     assert shape["needs_cache"] is True  # gates redis
     assert shape["has_bearer_api"] is True

@@ -155,10 +155,10 @@ def test_ins_role_grants_use_public_schema_qualification():
     silently target the wrong object or fail. Fully-qualified names make the
     coupling explicit and survive a search_path drift."""
     _, sql = _capture()
-    assert 'GRANT INSERT ON public.subagent_runs TO' in sql, (
+    assert "GRANT INSERT ON public.subagent_runs TO" in sql, (
         f"INSERT grant must qualify table with public.: {sql}"
     )
-    assert 'GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO' in sql, (
+    assert "GRANT USAGE ON SEQUENCE public.subagent_runs_id_seq TO" in sql, (
         f"sequence USAGE grant must qualify with public.: {sql}"
     )
 

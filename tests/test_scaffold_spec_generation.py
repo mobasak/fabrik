@@ -293,7 +293,9 @@ class TestScaffoldSpecHookNewTypes:
         # if the type is not in SPEC_ENABLED_TYPES, so this also
         # implicitly verifies the wiring there.
         assert (
-            call_kwargs[1].get("project_type", call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None)
+            call_kwargs[1].get(
+                "project_type", call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None
+            )
             == "chrome-extension"
         )
 

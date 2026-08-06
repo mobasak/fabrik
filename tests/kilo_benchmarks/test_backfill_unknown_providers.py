@@ -77,7 +77,7 @@ def test_dry_run_does_not_write(tmp_path: Path) -> None:
     _seed(db)
     mod = _load()
     result = mod.run(db, apply=False)
-    assert result["matched"] == 3   # claude-opus-4-7, corethink:free, openai/gpt-4o
+    assert result["matched"] == 3  # claude-opus-4-7, corethink:free, openai/gpt-4o
     assert result["updated"] == 0
     assert result["unmappable"] == 1
     # DB unchanged
@@ -118,6 +118,7 @@ def test_idempotent_second_run(tmp_path: Path) -> None:
 # Phases 2-5 adversarial review additions (2026-06-30)
 # ============================================================
 
+
 def test_infer_provider_claude_prefix_takes_precedence_over_slash() -> None:
     """Adversarial Pass-1 finding: the claude-* startswith check runs BEFORE
     the slash split. Pin this so a refactor can't silently change precedence.
@@ -149,9 +150,10 @@ def test_dry_run_unmappable_count_is_returned() -> None:
     # Re-use the seed from above but inline-confirm the return shape
     import tempfile
     from pathlib import Path as _P
+
     with tempfile.TemporaryDirectory() as td:
         db = _P(td) / "k.db"
         _seed(db)
         result = mod.run(db, apply=False)
         assert set(result.keys()) >= {"matched", "updated", "unmappable"}
-        assert result["unmappable"] == 1   # `mystery-name` from _seed
+        assert result["unmappable"] == 1  # `mystery-name` from _seed

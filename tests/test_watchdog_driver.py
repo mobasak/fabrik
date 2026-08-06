@@ -251,7 +251,10 @@ class TestTriggerSources:
         d = WatchdogDriver()
         spec = {
             "id": "demo",
-            "watchdog": {"enabled": True, "trigger_sources": ["emitter", "health", "error_webhook"]},
+            "watchdog": {
+                "enabled": True,
+                "trigger_sources": ["emitter", "health", "error_webhook"],
+            },
         }
         env = d._render_env(d._build_render_context(spec, _ctx(spec)))
         assert env["WATCHDOG_TRIGGER_SOURCES"] == "emitter,health,error_webhook"

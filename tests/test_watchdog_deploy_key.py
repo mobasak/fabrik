@@ -96,11 +96,16 @@ class TestPushDeployKey:
     OTHER_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDifferentDifferentDiff watchdog-test@fabrik"
 
     def test_skip_when_repo_scope_missing(self, caplog: pytest.LogCaptureFixture) -> None:
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=False), \
-             patch("subprocess.run") as mock_run, \
-             caplog.at_level(logging.WARNING, logger="fabrik.drivers.watchdog"):
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=False),
+            patch("subprocess.run") as mock_run,
+            caplog.at_level(logging.WARNING, logger="fabrik.drivers.watchdog"),
+        ):
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "skipped"
         assert result["reason"] == "no_repo_scope"
@@ -109,13 +114,20 @@ class TestPushDeployKey:
 
     def test_idempotent_when_key_already_registered_matching(self) -> None:
         existing = [{"title": "fabrik-watchdog-deploy", "key": self.PUBKEY}]
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True), \
-             patch("subprocess.run") as mock_run:
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True),
+            patch("subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(
-                returncode=0, stdout=json.dumps(existing), stderr="",
+                returncode=0,
+                stdout=json.dumps(existing),
+                stderr="",
             )
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "idempotent"
         # Only the GET (single subprocess call), no POST
@@ -128,17 +140,25 @@ class TestPushDeployKey:
         assert "-X POST" not in joined
 
     def test_conflict_when_key_already_registered_different(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         existing = [{"title": "fabrik-watchdog-deploy", "key": self.OTHER_KEY}]
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True), \
-             patch("subprocess.run") as mock_run, \
-             caplog.at_level(logging.WARNING, logger="fabrik.drivers.watchdog"):
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True),
+            patch("subprocess.run") as mock_run,
+            caplog.at_level(logging.WARNING, logger="fabrik.drivers.watchdog"),
+        ):
             mock_run.return_value = MagicMock(
-                returncode=0, stdout=json.dumps(existing), stderr="",
+                returncode=0,
+                stdout=json.dumps(existing),
+                stderr="",
             )
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "conflict"
         # GET only; no POST
@@ -156,10 +176,15 @@ class TestPushDeployKey:
             # Second call: POST — succeeds with HTTP 201
             return MagicMock(returncode=0, stdout=json.dumps({"id": 42}), stderr="")
 
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True), \
-             patch("subprocess.run", side_effect=fake_run):
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True),
+            patch("subprocess.run", side_effect=fake_run),
+        ):
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "registered"
         # GET + POST = 2 subprocess calls
@@ -186,38 +211,57 @@ class TestPushDeployKey:
                 )
             return MagicMock(returncode=0, stdout="[]", stderr="")
 
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True), \
-             patch("subprocess.run", side_effect=fake_run):
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True),
+            patch("subprocess.run", side_effect=fake_run),
+        ):
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "idempotent"
         assert result.get("reason") == "key_already_in_use"
 
     def test_other_failure_falls_back_to_print(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """A 500 (or any non-422 error) must NOT raise — falls back to
         print-pubkey path so the deploy can still proceed."""
+
         def fake_run(args, **kw):
             if "-X" in args and "POST" in args:
                 return MagicMock(returncode=1, stdout="", stderr="500 Server Error")
             return MagicMock(returncode=0, stdout="[]", stderr="")
 
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True), \
-             patch("subprocess.run", side_effect=fake_run), \
-             caplog.at_level(logging.WARNING, logger="fabrik.drivers.watchdog"):
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True),
+            patch("subprocess.run", side_effect=fake_run),
+            caplog.at_level(logging.WARNING, logger="fabrik.drivers.watchdog"),
+        ):
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "failed"
-        assert any("fall" in r.message.lower() or "manual" in r.message.lower() for r in caplog.records)
+        assert any(
+            "fall" in r.message.lower() or "manual" in r.message.lower() for r in caplog.records
+        )
 
     def test_subprocess_filenotfounderror_falls_back(self) -> None:
         """gh CLI not installed → don't crash."""
-        with patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True), \
-             patch("subprocess.run", side_effect=FileNotFoundError):
+        with (
+            patch("fabrik.drivers.watchdog._has_repo_scope", return_value=True),
+            patch("subprocess.run", side_effect=FileNotFoundError),
+        ):
             result = watchdog._push_deploy_key_to_github(
-                owner="foo", repo="bar", title="fabrik-watchdog-deploy", pubkey=self.PUBKEY,
+                owner="foo",
+                repo="bar",
+                title="fabrik-watchdog-deploy",
+                pubkey=self.PUBKEY,
             )
         assert result["status"] == "failed"

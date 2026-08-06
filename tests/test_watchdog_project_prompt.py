@@ -108,9 +108,7 @@ def test_directory_target_soft(project, caplog):
 
 def test_oversized_soft(project, caplog):
     pid, pdir = project
-    (pdir / "docs" / "P.md").write_text(
-        "x" * (wd._MAX_PROMPT_BYTES + 1), encoding="utf-8"
-    )
+    (pdir / "docs" / "P.md").write_text("x" * (wd._MAX_PROMPT_BYTES + 1), encoding="utf-8")
     _assert_soft(project, "docs/P.md", caplog, "too large")
 
 

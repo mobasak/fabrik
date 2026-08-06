@@ -81,7 +81,10 @@ def _run_stop(project: Path, sid: str, fake_fails: str, *, baseline: list[str] |
     proc = subprocess.run(
         [sys.executable, str(_HOOK)],
         input=json.dumps({"session_id": sid, "cwd": str(project), "hook_event_name": "Stop"}),
-        capture_output=True, text=True, timeout=60, env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
     )
     bl.unlink(missing_ok=True)
     ctr.unlink(missing_ok=True)
@@ -122,7 +125,10 @@ def test_baseline_mode_writes_snapshot(fake_project: Path) -> None:
     subprocess.run(
         [sys.executable, str(_HOOK), "--baseline"],
         input=json.dumps({"session_id": sid, "cwd": str(fake_project)}),
-        capture_output=True, text=True, timeout=60, env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
     )
     assert bl.exists(), "baseline mode must write a snapshot"
     assert set(json.loads(bl.read_text())) == {"A", "C"}

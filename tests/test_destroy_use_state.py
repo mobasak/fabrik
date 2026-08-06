@@ -80,31 +80,76 @@ def patched_destroyers():
     }
     mocks = {}
     with (
-        patch("fabrik.orchestrator.destroyer._destroy_postgres", return_value=targets["_destroy_postgres"]) as m_pg,
-        patch("fabrik.orchestrator.destroyer._destroy_redis", return_value=targets["_destroy_redis"]) as m_redis,
-        patch("fabrik.orchestrator.destroyer._destroy_gatus", return_value=targets["_destroy_gatus"]) as m_gatus,
-        patch("fabrik.orchestrator.destroyer._destroy_backrest", return_value=targets["_destroy_backrest"]) as m_back,
-        patch("fabrik.orchestrator.destroyer._destroy_glitchtip", return_value=targets["_destroy_glitchtip"]) as m_glitch,
-        patch("fabrik.orchestrator.destroyer._destroy_authelia", return_value=targets["_destroy_authelia"]) as m_auth,
-        patch("fabrik.orchestrator.destroyer._destroy_meilisearch", return_value=targets["_destroy_meilisearch"]) as m_meili,
-        patch("fabrik.orchestrator.destroyer._destroy_prometheus", return_value=targets["_destroy_prometheus"]) as m_prom,
-        patch("fabrik.orchestrator.destroyer._destroy_app", return_value=targets["_destroy_app"]) as m_app,
-        patch("fabrik.orchestrator.destroyer._destroy_dns", return_value=targets["_destroy_dns"]) as m_dns,
-        patch("fabrik.orchestrator.destroyer._destroy_files", return_value=targets["_destroy_files"]) as m_files,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_postgres",
+            return_value=targets["_destroy_postgres"],
+        ) as m_pg,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_redis", return_value=targets["_destroy_redis"]
+        ) as m_redis,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_gatus", return_value=targets["_destroy_gatus"]
+        ) as m_gatus,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_backrest",
+            return_value=targets["_destroy_backrest"],
+        ) as m_back,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_glitchtip",
+            return_value=targets["_destroy_glitchtip"],
+        ) as m_glitch,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_authelia",
+            return_value=targets["_destroy_authelia"],
+        ) as m_auth,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_meilisearch",
+            return_value=targets["_destroy_meilisearch"],
+        ) as m_meili,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_prometheus",
+            return_value=targets["_destroy_prometheus"],
+        ) as m_prom,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_app", return_value=targets["_destroy_app"]
+        ) as m_app,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_dns", return_value=targets["_destroy_dns"]
+        ) as m_dns,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_files", return_value=targets["_destroy_files"]
+        ) as m_files,
     ):
-        mocks.update({
-            "postgres": m_pg, "redis": m_redis, "gatus": m_gatus,
-            "backrest": m_back, "glitchtip": m_glitch, "authelia": m_auth,
-            "meilisearch": m_meili, "prometheus": m_prom,
-            "compose": m_app, "dns": m_dns, "files": m_files,
-        })
+        mocks.update(
+            {
+                "postgres": m_pg,
+                "redis": m_redis,
+                "gatus": m_gatus,
+                "backrest": m_back,
+                "glitchtip": m_glitch,
+                "authelia": m_auth,
+                "meilisearch": m_meili,
+                "prometheus": m_prom,
+                "compose": m_app,
+                "dns": m_dns,
+                "files": m_files,
+            }
+        )
         # HANDLER_FUNCS references the unmocked module-level objects; need
         # to rebind so the test sees the mocks. Re-assemble the map in-test:
-        with patch.dict(HANDLER_FUNCS, {
-            "postgres": m_pg, "redis": m_redis, "gatus": m_gatus,
-            "backrest": m_back, "glitchtip": m_glitch, "authelia": m_auth,
-            "meilisearch": m_meili, "prometheus": m_prom,
-        }):
+        with patch.dict(
+            HANDLER_FUNCS,
+            {
+                "postgres": m_pg,
+                "redis": m_redis,
+                "gatus": m_gatus,
+                "backrest": m_back,
+                "glitchtip": m_glitch,
+                "authelia": m_auth,
+                "meilisearch": m_meili,
+                "prometheus": m_prom,
+            },
+        ):
             yield mocks
 
 
@@ -115,10 +160,12 @@ def patched_destroyers():
 
 class TestDataBearingGuard:
     def test_refuses_when_data_bearing_present_without_drop_data(self):
-        state = _state(registrars=[
-            {"type": "postgres", "status": "applied", "data_bearing": True},
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-        ])
+        state = _state(
+            registrars=[
+                {"type": "postgres", "status": "applied", "data_bearing": True},
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+            ]
+        )
         report = destroy_from_state(state, _spec(), drop_data=False, dry_run=True)
         assert report.had_errors
         assert any(a.step == "data-bearing-guard" for a in report.actions)
@@ -126,10 +173,12 @@ class TestDataBearingGuard:
         assert not any(a.step in ("gatus", "postgres", "compose") for a in report.actions)
 
     def test_proceeds_when_drop_data_set(self, patched_destroyers):
-        state = _state(registrars=[
-            {"type": "postgres", "status": "applied", "data_bearing": True},
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-        ])
+        state = _state(
+            registrars=[
+                {"type": "postgres", "status": "applied", "data_bearing": True},
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+            ]
+        )
         report = destroy_from_state(
             state, _spec(), drop_data=True, keep_dns=True, keep_files=True, dry_run=True
         )
@@ -143,10 +192,12 @@ class TestDataBearingGuard:
     def test_proceeds_when_no_data_bearing_present(self, patched_destroyers):
         # All entries have data_bearing=False → no guard refusal even
         # without --drop-data.
-        state = _state(registrars=[
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-            {"type": "backrest", "status": "applied", "data_bearing": False},
-        ])
+        state = _state(
+            registrars=[
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+                {"type": "backrest", "status": "applied", "data_bearing": False},
+            ]
+        )
         report = destroy_from_state(
             state, _spec(), drop_data=False, keep_dns=True, keep_files=True, dry_run=True
         )
@@ -164,12 +215,16 @@ class TestDataBearingGuard:
 class TestReverseOrderDispatch:
     def test_only_state_registered_handlers_invoked(self, patched_destroyers):
         # State has 3 registrars; only these 3 should be dispatched.
-        state = _state(registrars=[
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-            {"type": "glitchtip", "status": "applied", "data_bearing": False},
-            {"type": "prometheus", "status": "applied", "data_bearing": False},
-        ])
-        destroy_from_state(state, _spec(), drop_data=False, keep_dns=True, keep_files=True, dry_run=True)
+        state = _state(
+            registrars=[
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+                {"type": "glitchtip", "status": "applied", "data_bearing": False},
+                {"type": "prometheus", "status": "applied", "data_bearing": False},
+            ]
+        )
+        destroy_from_state(
+            state, _spec(), drop_data=False, keep_dns=True, keep_files=True, dry_run=True
+        )
         patched_destroyers["gatus"].assert_called_once()
         patched_destroyers["glitchtip"].assert_called_once()
         patched_destroyers["prometheus"].assert_called_once()
@@ -184,35 +239,73 @@ class TestReverseOrderDispatch:
         # State has all 8 destroyable + grafana. Capture call order via a
         # shared counter.
         call_order: list[str] = []
-        for name in ("postgres", "redis", "gatus", "backrest", "glitchtip",
-                     "authelia", "meilisearch", "prometheus", "compose", "dns", "files"):
+        for name in (
+            "postgres",
+            "redis",
+            "gatus",
+            "backrest",
+            "glitchtip",
+            "authelia",
+            "meilisearch",
+            "prometheus",
+            "compose",
+            "dns",
+            "files",
+        ):
             mock = patched_destroyers[name]
             mock.side_effect = lambda *a, _n=name, **kw: (
                 call_order.append(_n) or ActionResult(step=_n, status="removed")
             )
-        state = _state(registrars=[
-            {"type": reg, "status": "applied", "data_bearing": reg in {"postgres", "redis", "meilisearch"}}
-            for reg in ("postgres", "redis", "gatus", "backrest", "glitchtip",
-                        "grafana", "authelia", "meilisearch", "prometheus")
-        ])
+        state = _state(
+            registrars=[
+                {
+                    "type": reg,
+                    "status": "applied",
+                    "data_bearing": reg in {"postgres", "redis", "meilisearch"},
+                }
+                for reg in (
+                    "postgres",
+                    "redis",
+                    "gatus",
+                    "backrest",
+                    "glitchtip",
+                    "grafana",
+                    "authelia",
+                    "meilisearch",
+                    "prometheus",
+                )
+            ]
+        )
         destroy_from_state(
             state, _spec(), drop_data=True, keep_dns=False, keep_files=False, dry_run=True
         )
         # Per ticket string anchor: prometheus → meilisearch → authelia →
         # (grafana skipped) → glitchtip → backrest → gatus → redis → postgres
         # → compose → dns → files
-        expected = ["prometheus", "meilisearch", "authelia", "glitchtip",
-                    "backrest", "gatus", "redis", "postgres",
-                    "compose", "dns", "files"]
+        expected = [
+            "prometheus",
+            "meilisearch",
+            "authelia",
+            "glitchtip",
+            "backrest",
+            "gatus",
+            "redis",
+            "postgres",
+            "compose",
+            "dns",
+            "files",
+        ]
         assert call_order == expected, f"order drift: {call_order}"
 
     def test_grafana_explicitly_skipped(self, patched_destroyers):
         # State includes grafana — it should produce a "skipped" entry but
         # never reach a destroyer.
-        state = _state(registrars=[
-            {"type": "grafana", "status": "applied", "data_bearing": False},
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-        ])
+        state = _state(
+            registrars=[
+                {"type": "grafana", "status": "applied", "data_bearing": False},
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+            ]
+        )
         report = destroy_from_state(
             state, _spec(), drop_data=False, keep_dns=True, keep_files=True, dry_run=True
         )
@@ -223,10 +316,12 @@ class TestReverseOrderDispatch:
 
     def test_handler_exception_recorded_as_error_not_aborting(self, patched_destroyers):
         patched_destroyers["gatus"].side_effect = RuntimeError("boom")
-        state = _state(registrars=[
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-            {"type": "backrest", "status": "applied", "data_bearing": False},
-        ])
+        state = _state(
+            registrars=[
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+                {"type": "backrest", "status": "applied", "data_bearing": False},
+            ]
+        )
         report = destroy_from_state(
             state, _spec(), drop_data=False, keep_dns=True, keep_files=True, dry_run=True
         )
@@ -285,11 +380,13 @@ class TestPrimaryPathSpecDrift:
     def test_a_resources_destroyed_even_after_shape_b(self, patched_destroyers):
         # Shape A had meilisearch (has_search_feature=true at apply-time).
         # Shape B no longer needs it (current spec). State drives the destroy.
-        state_a = _state(registrars=[
-            {"type": "postgres", "status": "applied", "data_bearing": True},
-            {"type": "meilisearch", "status": "applied", "data_bearing": True},
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-        ])
+        state_a = _state(
+            registrars=[
+                {"type": "postgres", "status": "applied", "data_bearing": True},
+                {"type": "meilisearch", "status": "applied", "data_bearing": True},
+                {"type": "gatus", "status": "applied", "data_bearing": False},
+            ]
+        )
         spec_b_current = _spec()  # current spec wouldn't include meilisearch
         report = destroy_from_state(
             state_a,
@@ -319,9 +416,15 @@ class TestArchiveOnSuccess:
 
         monkeypatch.setattr(state_module, "STATE_DIR", tmp_path)
         target = tmp_path / "demo.json"
-        target.write_text(json.dumps(_state(registrars=[
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-        ])))
+        target.write_text(
+            json.dumps(
+                _state(
+                    registrars=[
+                        {"type": "gatus", "status": "applied", "data_bearing": False},
+                    ]
+                )
+            )
+        )
 
         state_data = state_module.load("demo")
         assert state_data is not None
@@ -343,9 +446,15 @@ class TestArchiveOnSuccess:
 
         monkeypatch.setattr(state_module, "STATE_DIR", tmp_path)
         target = tmp_path / "demo.json"
-        target.write_text(json.dumps(_state(registrars=[
-            {"type": "gatus", "status": "applied", "data_bearing": False},
-        ])))
+        target.write_text(
+            json.dumps(
+                _state(
+                    registrars=[
+                        {"type": "gatus", "status": "applied", "data_bearing": False},
+                    ]
+                )
+            )
+        )
 
         state_data = state_module.load("demo")
         destroy_from_state(
@@ -383,13 +492,23 @@ class TestCliUseState:
         assert result.exit_code == 1
         assert "No state file" in result.output
 
-    def test_use_state_with_partial_is_mutually_exclusive(self, tmp_path, monkeypatch, real_spec_path):
+    def test_use_state_with_partial_is_mutually_exclusive(
+        self, tmp_path, monkeypatch, real_spec_path
+    ):
         from fabrik import state as state_module
 
         monkeypatch.setattr(state_module, "STATE_DIR", tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "destroy", real_spec_path, "--use-state", "--partial", "gatus", "-y",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "destroy",
+                real_spec_path,
+                "--use-state",
+                "--partial",
+                "gatus",
+                "-y",
+            ],
+        )
         assert result.exit_code == 2
         assert "mutually exclusive" in result.output

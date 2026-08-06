@@ -393,27 +393,19 @@ class TestDataContractSeeding:
             patch.object(scaffold, "FABRIK_AGENTS_MD", mock_fabrik_root / "AGENTS.md"),
             patch("subprocess.run"),
         ):
-            scaffold._scaffold_shared(
-                project_dir, "svc", "Test", "2026-07-06", 8099, project_type
-            )
+            scaffold._scaffold_shared(project_dir, "svc", "Test", "2026-07-06", 8099, project_type)
         return project_dir
 
-    def test_python_api_seeds_contract(
-        self, mock_fabrik_root: Path, temp_dir: Path
-    ) -> None:
+    def test_python_api_seeds_contract(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         project_dir = self._scaffold(mock_fabrik_root, temp_dir, "python-api")
         assert (project_dir / "docs" / "data-contract.md").exists()
 
-    def test_static_site_seeds_contract(
-        self, mock_fabrik_root: Path, temp_dir: Path
-    ) -> None:
+    def test_static_site_seeds_contract(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         # static-site maps to the DB-backed saas-skeleton scaffolder — must NOT be excluded.
         project_dir = self._scaffold(mock_fabrik_root, temp_dir, "static-site")
         assert (project_dir / "docs" / "data-contract.md").exists()
 
-    def test_docusaurus_skips_contract(
-        self, mock_fabrik_root: Path, temp_dir: Path
-    ) -> None:
+    def test_docusaurus_skips_contract(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         # docusaurus publishes docs/ as a public site — the contract must NOT be seeded there.
         project_dir = self._scaffold(mock_fabrik_root, temp_dir, "docusaurus")
         assert not (project_dir / "docs" / "data-contract.md").exists()

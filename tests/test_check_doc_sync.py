@@ -98,9 +98,7 @@ def test_docs_only_change_passes(repo: Path) -> None:
 
 def test_changelog_bare_todo_flagged(repo: Path) -> None:
     """bare `todo` in an [Unreleased] entry body IS an unfinished-work marker."""
-    changelog = (
-        "# Changelog\n\n## [Unreleased]\n\n### Added\n- something bare todo needed\n"
-    )
+    changelog = "# Changelog\n\n## [Unreleased]\n\n### Added\n- something bare todo needed\n"
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _write(repo, "CHANGELOG.md", changelog)
     _stage(repo, "src/app/handler.py", "CHANGELOG.md")
@@ -143,9 +141,7 @@ def test_changelog_plural_placeholders_flagged(repo: Path) -> None:
     A letter-only boundary regex without `s?` would silently waive them
     (verified: `re.search(r"(?<![a-zA-Z])todo(?![a-zA-Z])", "todos")` = None).
     """
-    changelog = (
-        "# Changelog\n\n## [Unreleased]\n\n### Fixed\n- see TODOS list before shipping\n"
-    )
+    changelog = "# Changelog\n\n## [Unreleased]\n\n### Fixed\n- see TODOS list before shipping\n"
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _write(repo, "CHANGELOG.md", changelog)
     _stage(repo, "src/app/handler.py", "CHANGELOG.md")

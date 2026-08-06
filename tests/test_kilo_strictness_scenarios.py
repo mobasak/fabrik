@@ -32,6 +32,7 @@ from scripts.kilo_code_review import (
 # SCENARIO 1: Schema Validation Enforces All Required Fields
 # =============================================================================
 
+
 def test_scenario_1_schema_requires_plan_coverage():
     """
     REQ: requirements-final.md line 93-94
@@ -41,7 +42,7 @@ def test_scenario_1_schema_requires_plan_coverage():
     data = {
         "verdict": "PASS",
         "summary": "All checks passed",
-        "issues": []
+        "issues": [],
         # Missing plan_coverage
     }
     is_valid, errors = validate_review_schema(data)
@@ -64,11 +65,11 @@ def test_scenario_1_schema_requires_evidence_on_all_issues():
                 "file": "README.md",
                 "lines": "L5",
                 "why": "Typo found",
-                "fix_hint": "Fix it"
+                "fix_hint": "Fix it",
                 # Missing evidence - should fail even for MINOR
             }
         ],
-        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}]
+        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}],
     }
     is_valid, errors = validate_review_schema(data)
     assert not is_valid, "Schema should require evidence even for MINOR issues"
@@ -84,7 +85,7 @@ def test_scenario_1_schema_forbids_extra_fields():
         "summary": "All good",
         "issues": [],
         "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}],
-        "extra_field": "not allowed"  # Should fail
+        "extra_field": "not allowed",  # Should fail
     }
     is_valid, errors = validate_review_schema(data)
     assert not is_valid, "Schema should reject extra top-level fields"
@@ -93,6 +94,7 @@ def test_scenario_1_schema_forbids_extra_fields():
 # =============================================================================
 # SCENARIO 2: parse_review_output Must NOT Auto-Fill
 # =============================================================================
+
 
 def test_scenario_2_parse_no_json_returns_blocker():
     """
@@ -114,11 +116,13 @@ def test_scenario_2_parse_invalid_schema_returns_blocker():
     REQ: requirements-final.md line 212-233
     Invalid schema returns <reviewer> BLOCKER, NO auto-fill
     """
-    raw_output = json.dumps({
-        "verdict": "PASS",
-        "summary": "Missing required fields"
-        # Missing issues and plan_coverage
-    })
+    raw_output = json.dumps(
+        {
+            "verdict": "PASS",
+            "summary": "Missing required fields",
+            # Missing issues and plan_coverage
+        }
+    )
     result = parse_review_output(raw_output)
 
     assert result.verdict == "FAIL"
@@ -132,6 +136,7 @@ def test_scenario_2_parse_invalid_schema_returns_blocker():
 # SCENARIO 3: Evidence Policy Split (Schema vs Validator)
 # =============================================================================
 
+
 def test_scenario_3_schema_enforces_evidence_all_severities():
     """
     REQ: requirements-final.md line 266-269
@@ -141,16 +146,18 @@ def test_scenario_3_schema_enforces_evidence_all_severities():
     data_minor = {
         "verdict": "FAIL",
         "summary": "Minor issue",
-        "issues": [{
-            "severity": "MINOR",
-            "category": "DOCS",
-            "file": "README.md",
-            "lines": "L5",
-            "why": "Small typo",
-            "fix_hint": "Fix it"
-            # Missing evidence
-        }],
-        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}]
+        "issues": [
+            {
+                "severity": "MINOR",
+                "category": "DOCS",
+                "file": "README.md",
+                "lines": "L5",
+                "why": "Small typo",
+                "fix_hint": "Fix it",
+                # Missing evidence
+            }
+        ],
+        "plan_coverage": [{"requirement": "test", "status": "satisfied", "evidence": "ok"}],
     }
     is_valid, _ = validate_review_schema(data_minor)
     assert not is_valid, "Schema must require evidence even for MINOR"
@@ -170,7 +177,7 @@ def test_scenario_3_validator_checks_blocker_major_only():
             lines="L5",
             why="Typo",
             fix_hint="Fix it",
-            evidence={}  # Empty evidence OK for MINOR
+            evidence={},  # Empty evidence OK for MINOR
         )
     ]
     is_valid, _ = validate_evidence(issues_minor)
@@ -185,7 +192,7 @@ def test_scenario_3_validator_checks_blocker_major_only():
             lines="L10",
             why="Critical issue",
             fix_hint="Fix it",
-            evidence={}  # Empty evidence NOT OK for BLOCKER
+            evidence={},  # Empty evidence NOT OK for BLOCKER
         )
     ]
     is_valid, violations = validate_evidence(issues_blocker)
@@ -196,6 +203,7 @@ def test_scenario_3_validator_checks_blocker_major_only():
 # =============================================================================
 # SCENARIO 4: Plan Coverage Extraction and Validation
 # =============================================================================
+
 
 def test_scenario_4_extract_explicit_req_ids():
     """
@@ -221,10 +229,7 @@ def test_scenario_4_coverage_requires_all_requirements():
     REQ: requirements-final.md line 292-307
     All extracted requirements must be covered
     """
-    requirements = [
-        {"id": "REQ-1", "text": "Add auth"},
-        {"id": "REQ-2", "text": "Add logging"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Add auth"}, {"id": "REQ-2", "text": "Add logging"}]
     coverage_incomplete = [
         {"requirement": "Add auth", "status": "satisfied", "evidence": "done"}
         # REQ-2 missing
@@ -249,6 +254,7 @@ def test_scenario_4_freeform_plan_needs_one_entry():
 # =============================================================================
 # SCENARIO 5: Multi-Pass Review Risk Assessment
 # =============================================================================
+
 
 def test_scenario_5_security_path_triggers_multipass():
     """
@@ -293,13 +299,12 @@ def test_scenario_5_low_risk_no_multipass():
 # SCENARIO 6: Plan Coverage Normalization
 # =============================================================================
 
+
 def test_scenario_6_coverage_strips_req_prefix():
     """
     ADDITIONAL: Plan coverage matching should handle REQ- prefix
     """
-    requirements = [
-        {"id": "REQ-1", "text": "Add feature"}
-    ]
+    requirements = [{"id": "REQ-1", "text": "Add feature"}]
     coverage_with_prefix = [
         {"requirement": "REQ-1: Add feature", "status": "satisfied", "evidence": "done"}
     ]
@@ -311,9 +316,7 @@ def test_scenario_6_coverage_strips_numbered_prefix():
     """
     ADDITIONAL: Plan coverage matching should handle R/B prefixes
     """
-    requirements = [
-        {"id": "R1", "text": "First requirement"}
-    ]
+    requirements = [{"id": "R1", "text": "First requirement"}]
     coverage_with_prefix = [
         {"requirement": "R1: First requirement", "status": "satisfied", "evidence": "done"}
     ]
@@ -324,6 +327,7 @@ def test_scenario_6_coverage_strips_numbered_prefix():
 # =============================================================================
 # SCENARIO 7: Retry Logic Catches All Failures
 # =============================================================================
+
 
 def test_scenario_7_retry_detects_no_json():
     """
@@ -343,6 +347,7 @@ def test_scenario_7_retry_detects_no_json():
 # SCENARIO 8: Evidence Types and Validation
 # =============================================================================
 
+
 def test_scenario_8_evidence_file_line_requires_ref():
     """
     REQ: requirements-final.md line 111-118
@@ -356,7 +361,7 @@ def test_scenario_8_evidence_file_line_requires_ref():
             lines="L10",
             why="Issue found",
             fix_hint="Fix it",
-            evidence={"type": "file_line"}  # Missing ref
+            evidence={"type": "file_line"},  # Missing ref
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -376,7 +381,7 @@ def test_scenario_8_evidence_missing_requires_explanation():
             lines="L10",
             why="Issue not in diff",
             fix_hint="Fix it",
-            evidence={"type": "missing"}  # Missing explanation
+            evidence={"type": "missing"},  # Missing explanation
         )
     ]
     is_valid, violations = validate_evidence(issues)
@@ -386,6 +391,7 @@ def test_scenario_8_evidence_missing_requires_explanation():
 # =============================================================================
 # SCENARIO 9: Constants Match Documentation
 # =============================================================================
+
 
 def test_scenario_9_security_paths_defined():
     """

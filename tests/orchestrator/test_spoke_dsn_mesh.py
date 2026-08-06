@@ -66,9 +66,7 @@ def _injected(mock_deployer):
 
 class TestRewriteHelper:
     def test_spoke_rewrites_postgres_dsn_userinfo_form(self):
-        out = _rewrite_shared_infra_host(
-            "postgresql://u:p@postgres-main:5432/db", "vps2"
-        )
+        out = _rewrite_shared_infra_host("postgresql://u:p@postgres-main:5432/db", "vps2")
         assert out == f"postgresql://u:p@{_HUB_MESH_IP}:5432/db"
 
     def test_spoke_rewrites_redis_no_userinfo_form(self):
@@ -76,9 +74,7 @@ class TestRewriteHelper:
         assert out == f"redis://{_HUB_MESH_IP}:6379/3"
 
     def test_spoke_rewrites_glitchtip_dsn(self):
-        out = _rewrite_shared_infra_host(
-            "http://key@glitchtip-web:8000/7", "vps2"
-        )
+        out = _rewrite_shared_infra_host("http://key@glitchtip-web:8000/7", "vps2")
         assert out == f"http://key@{_HUB_MESH_IP}:8000/7"
 
     def test_hub_is_a_noop(self):
@@ -116,10 +112,13 @@ class TestPostgresSpokeWiring:
         mock_deployer = MagicMock()
         prov = InfrastructureProvisioner(deployer=mock_deployer)
         ctx = _ctx("vps2")
-        with patch(
-            "fabrik.drivers.postgres.create_database",
-            return_value=_ok(password="pw"),
-        ), patch("fabrik.drivers.postgres.database_exists", return_value=False):
+        with (
+            patch(
+                "fabrik.drivers.postgres.create_database",
+                return_value=_ok(password="pw"),
+            ),
+            patch("fabrik.drivers.postgres.database_exists", return_value=False),
+        ):
             prov._provision_postgres("spoke-app", ctx.spec, ctx, dry_run=False)
         dsn = _injected(mock_deployer)["DATABASE_URL"]
         assert f"@{_HUB_MESH_IP}:5432/" in dsn
@@ -130,10 +129,13 @@ class TestPostgresSpokeWiring:
         mock_deployer = MagicMock()
         prov = InfrastructureProvisioner(deployer=mock_deployer)
         ctx = _ctx("vps1")
-        with patch(
-            "fabrik.drivers.postgres.create_database",
-            return_value=_ok(password="pw"),
-        ), patch("fabrik.drivers.postgres.database_exists", return_value=False):
+        with (
+            patch(
+                "fabrik.drivers.postgres.create_database",
+                return_value=_ok(password="pw"),
+            ),
+            patch("fabrik.drivers.postgres.database_exists", return_value=False),
+        ):
             prov._provision_postgres("spoke-app", ctx.spec, ctx, dry_run=False)
         dsn = _injected(mock_deployer)["DATABASE_URL"]
         assert "@postgres-main:5432/" in dsn
@@ -143,18 +145,23 @@ class TestPostgresSpokeWiring:
         mock_deployer = MagicMock()
         prov = InfrastructureProvisioner(deployer=mock_deployer)
         ctx = _ctx("vps2")
-        with patch(
-            "fabrik.drivers.postgres.create_database",
-            return_value=_ok(password="pw"),
-        ), patch("fabrik.drivers.postgres.database_exists", return_value=False), patch(
-            "fabrik.drivers.postgres.create_watchdog_roles",
-            return_value={
-                "ro": {"user": "spoke_app_ro", "password": "ro"},
-                "rw": {"user": "spoke_app_rw", "password": "rw"},
-            },
-        ), patch(
-            "fabrik.drivers.postgres.create_subagent_ins_role",
-            return_value={"ins": {"user": "spoke_app_ins", "password": "ins"}},
+        with (
+            patch(
+                "fabrik.drivers.postgres.create_database",
+                return_value=_ok(password="pw"),
+            ),
+            patch("fabrik.drivers.postgres.database_exists", return_value=False),
+            patch(
+                "fabrik.drivers.postgres.create_watchdog_roles",
+                return_value={
+                    "ro": {"user": "spoke_app_ro", "password": "ro"},
+                    "rw": {"user": "spoke_app_rw", "password": "rw"},
+                },
+            ),
+            patch(
+                "fabrik.drivers.postgres.create_subagent_ins_role",
+                return_value={"ins": {"user": "spoke_app_ins", "password": "ins"}},
+            ),
         ):
             prov._provision_postgres(
                 "spoke-app", ctx.spec, ctx, dry_run=False, provision_watchdog_roles=True
@@ -184,12 +191,14 @@ class TestGlitchtipSpokeWiring:
         mock_deployer = MagicMock()
         prov = InfrastructureProvisioner(deployer=mock_deployer)
         ctx = _ctx("vps2")
-        with patch(
-            "fabrik.drivers.glitchtip.create_project",
-            return_value=_ok(dsn="http://key@glitchtip-web:8000/9"),
-        ), patch(
-            "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True
-        ), patch("fabrik.drivers.glitchtip.delete_project"):
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://key@glitchtip-web:8000/9"),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
+            patch("fabrik.drivers.glitchtip.delete_project"),
+        ):
             prov._provision_glitchtip("spoke-app", ctx, dry_run=False)
         env = _injected(mock_deployer)
         assert env["SENTRY_DSN"] == f"http://key@{_HUB_MESH_IP}:8000/9"

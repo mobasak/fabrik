@@ -220,9 +220,7 @@ class TestVerifyDnsBeforeDeployment:
             ),
             patch("time.sleep"),
         ):
-            verify_dns_before_deployment(
-                "example.vps1.ocoron.com", timeout=5, poll_interval=0.01
-            )
+            verify_dns_before_deployment("example.vps1.ocoron.com", timeout=5, poll_interval=0.01)
             assert calls["n"] >= 3
 
     def test_dig_timeout_is_treated_as_not_yet_resolving(self):
@@ -242,9 +240,7 @@ class TestVerifyDnsBeforeDeployment:
             patch("subprocess.run", side_effect=flaky_run),
             patch("time.sleep"),
         ):
-            verify_dns_before_deployment(
-                "example.vps1.ocoron.com", timeout=5, poll_interval=0.01
-            )
+            verify_dns_before_deployment("example.vps1.ocoron.com", timeout=5, poll_interval=0.01)
             assert calls["n"] >= 2
 
     def test_dig_nonzero_exit_is_treated_as_not_yet_resolving(self):

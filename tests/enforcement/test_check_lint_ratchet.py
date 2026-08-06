@@ -131,6 +131,10 @@ def test_ratchet_down_stages_the_baseline(repo: Path) -> None:
     _set_errors(repo, 1)
     _run(repo)  # ratchet down
     staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"], cwd=repo, capture_output=True, text=True, check=True
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     assert ".fabrik/lint-baseline.json" in staged

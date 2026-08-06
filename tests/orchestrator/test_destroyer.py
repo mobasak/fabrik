@@ -185,29 +185,20 @@ class TestDestroyMaximalShape:
         )
 
         assert isinstance(report, DestroyReport)
-        assert not report.had_errors, [
-            (a.step, a.error) for a in report.errors
-        ]
+        assert not report.had_errors, [(a.step, a.error) for a in report.errors]
         # Every shape-gated driver was called exactly once.
         mocks["meilisearch.delete_index"].assert_called_once()
         mocks["authelia.remove_access_rule"].assert_called_once_with(
             "svc-test.vps1.ocoron.com", dry_run=False
         )
-        mocks["glitchtip.delete_project"].assert_called_once_with(
-            "svc-test", dry_run=False
-        )
-        mocks["backrest.remove_backup_plan"].assert_called_once_with(
-            "svc-test-data", dry_run=False
-        )
-        mocks["gatus.remove_endpoint"].assert_called_once_with(
-            "svc-test", dry_run=False
-        )
+        mocks["glitchtip.delete_project"].assert_called_once_with("svc-test", dry_run=False)
+        mocks["backrest.remove_backup_plan"].assert_called_once_with("svc-test-data", dry_run=False)
+        mocks["gatus.remove_endpoint"].assert_called_once_with("svc-test", dry_run=False)
         mocks["postgres.drop_database"].assert_called_once()
         # App teardown ran `docker compose down` over SSH for /opt/svc-test.
         compose_cmds = [c.args[0] for c in mocks["ssh"].call_args_list if c.args]
         assert any(
-            "docker compose down" in cmd and "/opt/svc-test" in cmd
-            for cmd in compose_cmds
+            "docker compose down" in cmd and "/opt/svc-test" in cmd for cmd in compose_cmds
         ), compose_cmds
         # DNS got its hit.
         mocks["dns.client"].delete_record.assert_called_once_with(
@@ -240,9 +231,7 @@ class TestDestroyMinimalShape:
     """Static-site spec: Authelia/GlitchTip/Backrest/Postgres/MeiliSearch
     not applicable. Only Gatus + compose app + DNS + files run."""
 
-    def test_only_applicable_registrars_run(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ):
+    def test_only_applicable_registrars_run(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         mocks = _install_stub_drivers(monkeypatch)
         spec = _minimal_static_spec()
 
@@ -253,8 +242,7 @@ class TestDestroyMinimalShape:
         mocks["gatus.remove_endpoint"].assert_called_once()
         compose_cmds = [c.args[0] for c in mocks["ssh"].call_args_list if c.args]
         assert any(
-            "docker compose down" in cmd and "/opt/site-test" in cmd
-            for cmd in compose_cmds
+            "docker compose down" in cmd and "/opt/site-test" in cmd for cmd in compose_cmds
         ), compose_cmds
         mocks["dns.client"].delete_record.assert_called_once()
         # Not applicable per shape:
@@ -266,17 +254,13 @@ class TestDestroyMinimalShape:
 
 
 class TestDestroyFlags:
-    def test_dry_run_makes_no_mutations(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ):
+    def test_dry_run_makes_no_mutations(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         mocks = _install_stub_drivers(monkeypatch)
         spec = _maximal_service_spec()
         # Create the project tree so the files step has something to "see".
         (tmp_path / "svc-test").mkdir()
 
-        report = destroy_deployment(
-            spec, drop_data=True, dry_run=True, project_base=tmp_path
-        )
+        report = destroy_deployment(spec, drop_data=True, dry_run=True, project_base=tmp_path)
 
         # No driver was called with dry_run=False — every call should be
         # dry-run-tagged. Since the destroyer wires dry_run=True through,
@@ -289,15 +273,11 @@ class TestDestroyFlags:
         # Compose teardown over SSH must not have happened.
         mocks["ssh"].assert_not_called()
 
-    def test_keep_dns_skips_dns_step(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ):
+    def test_keep_dns_skips_dns_step(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         mocks = _install_stub_drivers(monkeypatch)
         spec = _maximal_service_spec()
 
-        report = destroy_deployment(
-            spec, keep_dns=True, project_base=tmp_path
-        )
+        report = destroy_deployment(spec, keep_dns=True, project_base=tmp_path)
 
         mocks["dns.client"].delete_record.assert_not_called()
         dns_actions = [a for a in report.actions if a.step == "dns"]
@@ -341,9 +321,7 @@ class TestDestroyErrorHandling:
         mocks["dns.client"].delete_record.assert_called_once()
         assert report.had_errors
 
-    def test_app_not_found_is_not_error(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ):
+    def test_app_not_found_is_not_error(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         """Re-running destroy on an already-destroyed app must succeed."""
         mocks = _install_stub_drivers(monkeypatch)
 
