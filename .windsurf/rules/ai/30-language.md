@@ -11,7 +11,7 @@ trigger: glob
 
 # 3. Language AI
 
-Last content verification: 2026-08-06
+Last content verification: 2026-08-07
 
 **Purpose:** Process and generate text.
 
@@ -30,10 +30,10 @@ Last content verification: 2026-08-06
 
 Pick the **cheaper gateway per model** — the bake-off browser shows the per-row markup. For translation specifically, prefer a dedicated MT model (DeepL, or `qwen-mt-turbo` via DashScope) over an LLM when the language is in scope.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-06 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-06 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-07 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-07 UTC; auto-refreshed from `kilo_agents.db`):*
 
-language-tagged (any gateway): **151**
+language-tagged (any gateway): **156**
 translation-scored (any gateway): **9**
 
 Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser).
@@ -43,14 +43,14 @@ Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR,
 
 **Anti-pattern:** standing up a dedicated vector DB when pgvector is already on the project's Postgres.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-06 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-06 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-07 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-07 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
 | P1 | `openrouter/fusion` | free | 1000k | free |
-| P2 | `openai/gpt-oss-20b` | $0.03 | 131k | GA |
-| P3 | `openai/gpt-oss-120b` | $0.04 | 131k | GA |
+| P2 | `inclusionai/ling-3.0-flash` | $0.02 | 262k | GA |
+| P3 | `openai/gpt-oss-20b` | $0.03 | 131k | GA |
 
 To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
 <!-- OPENROUTER_ROUTES:END -->
