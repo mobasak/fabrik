@@ -58,6 +58,7 @@ NEXT = {
     "fabrik-workflow-review": "the workflow artifact is converged — return to the ettw/mega step that produced it.",
     "fabrik-decommission": "none — a standalone hub-side runbook; operator runs `fabrik destroy` themselves when ready.",
     "fabrik-deploy-verify": "none — terminal; a FAIL's named route is the next action, never auto-chained.",
+    "fabrik-upstream": "PROJECT mode: relay proposal path(s) to the hub agent; HUB mode: none — a landed fix distributes on the next sync.",
 }
 
 
@@ -270,6 +271,9 @@ PARAMS = {
     },
     "fabrik-deploy-verify": {
         "grounding-artifact": {"SUBJECT": "deploy-verify finding", "EXAMPLES": "a DNS PASS claimed from the spec's `domain:` field or a `PORTS.md` row instead of a fresh `dig`/`getent hosts` run against two resolving sibling domains, a registrar 'exists' claim read from the `shape:` flag alone instead of the target VPS's actually-injected remote `.env` value or a live probe response, a `/health` 200 treated as proof without confirming the route asserts a real dependency, a Gatus 'green' assumed from a prior run instead of a fresh poll, a FEATURES.md row marked smoked without an actual request executed this run"},
+    },
+    "fabrik-upstream": {
+        "grounding-artifact": {"SUBJECT": "proposal claim", "EXAMPLES": "a computed number (a ratio, a count, a diff line) accepted from the proposal's own assertion instead of recomputed independently, a cited `path:line` read from the proposal's snapshot instead of the file's CURRENT state, a 'why filed not fixed' reason taken at face value instead of checked against the project's own `.fabrik/synced.lock`, a diff applied without re-confirming the target file hasn't drifted since the proposal was written"},
     },
 }
 

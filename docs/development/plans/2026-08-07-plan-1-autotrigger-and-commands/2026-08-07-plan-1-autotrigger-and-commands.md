@@ -17,7 +17,7 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 | T01 | fabrik-catchup command | — | ⚡ | ✅ | merged 60bb9e47 (4 review rounds) |
 | T02 | fabrik-decommission command | — | ⚡ | ✅ | merged fc629d79 (3 review rounds) |
 | T03 | fabrik-deploy-verify command | — | ⚡ | ✅ | merged 71ddb668 (3 rounds; hub-side ruling, wildcard-DNS probe) |
-| T04 | fabrik-upstream command | — | ⚡ | ⬜ | |
+| T04 | fabrik-upstream command | — | ⚡ | ✅ | merged 5073c45c (3 rounds; exemplar-true, repo-identity modes) |
 | T05 | UserPromptSubmit router hook | — | ⚡ | ⬜ | |
 | T06a | TRIGGER+Stage sweep (design/contract/plan skills) | — | ⚡ | ⬜ | |
 | T06b | TRIGGER+Stage sweep (build/certify/release/gate/utility skills) | — | ⚡ | ⬜ | |
