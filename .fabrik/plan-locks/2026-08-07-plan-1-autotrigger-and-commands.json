@@ -54,30 +54,40 @@
   ],
   "tickets": {
     "T01": {
-      "state": "re-review-round-2",
+      "state": "fixup-round-3",
       "review_round_1": "3 CONFIRMED (hub-only liveness, absolute audit path, single-file plans)",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a00b7bb3196bab9f7",
       "branch": "worktree-agent-a00b7bb3196bab9f7",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T13:23:09Z",
-      "fixup_commit": "cc1ccf5e"
+      "fixup_commit": "cc1ccf5e",
+      "review_round_2": "5 found: F1-residual assembler EXAMPLES, N1 report-only terminal, N2 dangling-lock flag, N3/N4 citation over-claims"
     },
     "T06a": {
-      "state": "re-review-round-2",
+      "state": "review-clean-awaiting-merge",
       "review_round_1": "5 found; 3 routed to fixup (1c leg, length bands, ui-design boundary); F2 assembler-quoting deferred to T02; F3 structural no-action",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aab4946f6213a3e5c",
       "branch": "worktree-agent-aab4946f6213a3e5c",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T13:23:09Z",
-      "fixup_commit": "9079f40e91986c550ed253f3ad08e57168bcd2d8"
+      "fixup_commit": "9079f40e91986c550ed253f3ad08e57168bcd2d8",
+      "review_round_2": "FINDINGS: 0 \u2014 all resolved, no regressions"
     },
     "T05": {
-      "state": "in-review",
+      "state": "fixup-round-2",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a51ac824c6138d5fe",
       "branch": "worktree-agent-a51ac824c6138d5fe",
       "coder_commit": "2472a1aa9e5ceb4f7ab858e54b774eb1cf134b73",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
-      "started_at": "2026-08-07T13:23:09Z"
+      "started_at": "2026-08-07T13:23:09Z",
+      "review_round_1": "8 found (5 CONFIRMED): Tier-2 child unisolated in project cwd, Haiku on regex-hit, bare-word precision, real-binary test, TR recall, unfiltered Tier-2 roster, no-op sentinel test, expansion-order unverified"
+    },
+    "T07": {
+      "state": "dispatched",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
+      "started_at": "2026-08-07T14:15:00Z"
     }
   }
 }
