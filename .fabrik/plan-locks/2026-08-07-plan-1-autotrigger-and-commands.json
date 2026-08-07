@@ -113,7 +113,7 @@
       "exit": "dispatcher-adjudicated on 3-line diff after 2 full Opus rounds"
     },
     "T08": {
-      "state": "fixup-round-3",
+      "state": "review-clean-awaiting-merge",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a366ef129fe590402",
       "branch": "worktree-agent-a366ef129fe590402",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
@@ -122,7 +122,10 @@
       "coder_commit": "6d02cdbc",
       "review_round_1": "12 CONFIRMED incl. CRITICAL scaffold-stub false-claim (fleet Tier-2 blast radius), 21/24 real-header false-positives, 2 guards not red-on-revert; overturn half-right (shape gated, existence not) but substitution stands",
       "fixup_commit": "23ad70f0",
-      "review_round_2": "F1/F3 resolved empirically; 5 NEW: freeze-rule wrongly header-scoped (6/24 fleet FPs), pipe-header gate evasion, frontmatter skip, unpinned guards, see-also rows"
+      "review_round_2": "F1/F3 resolved empirically; 5 NEW: freeze-rule wrongly header-scoped (6/24 fleet FPs), pipe-header gate evasion, frontmatter skip, unpinned guards, see-also rows",
+      "final_worktree_commit": "d0547117",
+      "review_rounds": 2,
+      "exit": "dispatcher-adjudicated after 2 full Opus rounds + 2 independent mutation verifications; 32 tests; fleet sweep 22 pass / 2 true positives (honest discrepancy accepted)"
     },
     "T02": {
       "state": "merged",
