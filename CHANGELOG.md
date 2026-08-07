@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fleet doc-freshness enforcement: weekly audit cron + dated-truth release gate (2026-08-07)
+
+The doc gates only fire inside working sessions — an untouched project had ZERO doc enforcement, and
+touch-on-change proves presence, never truth. Two closures: (1) `scripts/fleet_doc_audit.py` — weekly
+cron (Mon 06:30) running mechanical rot probes over every /opt project (code-vs-docs commit lag,
+per-key-doc staleness ≥14d behind code, key docs on disk but never committed, unfilled template
+sentinels, registry-obligated docs missing) → dated report in `docs/infrastructure/probe-reports/`.
+First run: **30 of 44 projects flagged** (key docs 49–201 days behind code; several SERVICES.md never
+committed) — confirming the operator's suspicion; the per-doc probe sees what plain commit-lag cannot.
+(2) `/fabrik-release` universal preconditions gain the dated-truth rule: every registry-obligated key
+doc's last commit must be no older than the last feature-bearing code commit AND
+`docs_updater.py --check` green this run — older = BLOCKED, run `/fabrik-doc-converge` first.
+
 ### Fixed — project-facing docs made fleet-topology-aware (spoke targets) (2026-08-07)
 
 The runtime was fleet-aware (the registrar rewrites `postgres-main`/`redis-main`/`glitchtip-web` to
