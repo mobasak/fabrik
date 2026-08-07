@@ -54,12 +54,13 @@
   ],
   "tickets": {
     "T01": {
-      "state": "fixup-round-2",
+      "state": "re-review-round-2",
       "review_round_1": "3 CONFIRMED (hub-only liveness, absolute audit path, single-file plans)",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a00b7bb3196bab9f7",
       "branch": "worktree-agent-a00b7bb3196bab9f7",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
-      "started_at": "2026-08-07T13:23:09Z"
+      "started_at": "2026-08-07T13:23:09Z",
+      "fixup_commit": "cc1ccf5e"
     },
     "T06a": {
       "state": "re-review-round-2",
