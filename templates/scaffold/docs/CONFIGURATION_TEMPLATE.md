@@ -180,7 +180,7 @@ cat PORTS.md
 # Debug commands
 psql $DATABASE_URL              # Test DB connection
 lsof -i :$PORT                  # Check port availability
-cat .env | grep -v '^#|^$'      # Show active env vars
+grep -vE '^#|^$' .env      # Show active env vars
 ```
 
 ## Configuration Checklist

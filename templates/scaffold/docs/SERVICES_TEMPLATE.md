@@ -43,7 +43,11 @@ cache use Docker DNS — `postgres-main:5432`, `redis-main:6379` — never `loca
 | Service | Env Var | Endpoints | Purpose |
 |---------|---------|-----------|---------|
 | **[Vendor]** | `VENDOR_API_KEY` | N endpoints | [What it does; why it's the primary choice] |
-<!-- e.g. Cloudflare · Resend · Supabase · OpenAI · Anthropic — one row each. -->
+<!-- e.g. Cloudflare · Resend · OpenRouter · Anthropic (claude -p subscription) — one row each.
+     AI dependencies belong here TOO: OpenRouter models (env key, $/Mtok, rate limits) and
+     `claude -p` CLI calls (no API key — subscription OAuth; cost = weekly quota, not dollars;
+     failure signature: weekly-limit exhaustion vs transient stream stall; fallback: account
+     rotation / pause-until-reset). If the project calls it to function, it gets a block. -->
 
 ### [Service Group] — [What this group of dependencies is for]
 

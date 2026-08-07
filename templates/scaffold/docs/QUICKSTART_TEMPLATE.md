@@ -4,7 +4,7 @@
 
 > **Purpose:** INTEGRATION CONTRACT — ENDPOINTS, SDKS, DOCKER WIRING. START HERE FOR INTEGRATION AND SETUP.
 > **One-liner:** {What this project does in one sentence — who it's for and what problem it solves.}
-> **Type:** {python-api | node-api | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site}
+> **Type:** {python-api | python-api-gpu | node-api | file-api | file-worker | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site | docusaurus | wordpress}
 > **Owner:** {Team or person responsible.}
 > **Last verified:** {YYYY-MM-DD}
 
@@ -418,7 +418,7 @@ def call_with_retry(fn, max_retries=3):
 
 ## Agent Context Block
 
-<!-- Copy-paste into Cascade / Kilo sessions that need to work WITH this project (not inside it).
+<!-- Copy-paste into any AI agent session that needs to work WITH this project (not inside it).
      Must be fully self-contained — an agent reading only this block can make correct calls.
      Delete this section for projects that are never called by other services or agents. -->
 
@@ -467,8 +467,9 @@ curl http://localhost:[PORT]/health
 
 | Document | Path |
 |----------|------|
-| Features | `./docs/FEATURES.md` |
-| Configuration | `./docs/CONFIGURATION.md` |
-| API reference | `./docs/reference/REST_API_REFERENCE.md` |
-| Troubleshooting | `./docs/TROUBLESHOOTING.md` |
-| Changelog | `./CHANGELOG.md` |
+| Features | `FEATURES.md` |
+| Configuration | `CONFIGURATION.md` |
+| API reference | `reference/REST_API_REFERENCE.md` |
+| Troubleshooting | `TROUBLESHOOTING.md` |
+| Changelog | `../CHANGELOG.md` |
+<!-- This file lives IN docs/ — sibling docs link bare, root files link ../ -->

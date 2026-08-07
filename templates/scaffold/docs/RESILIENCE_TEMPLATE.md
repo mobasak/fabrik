@@ -1,5 +1,15 @@
 # [Project Name] — Resilience & Autonomy Contract
 
+<!--
+  HOW TO FILL: this is the project's failure-mode contract — §2 external-API pause keys,
+  §6 depletion guards, and §7 the CANONICAL scheduled-jobs inventory (the ONLY place
+  Beat/cron jobs, intervals, and TTLs are listed — SERVICES.md carries the beat service
+  row only; OPERATIONS.md §3 links here). Every external API with a billable balance
+  MUST have a §7 monitoring row. Host-scheduled jobs (VPS crontab / systemd) are §7 rows
+  too, marked "VPS host-scheduled" — fabrik apply deploys compose services only, so
+  host-level units are operator-installed per OPERATIONS.md.
+-->
+
 > **Purpose**: This file is the **operational contract** for [Project Name]. It declares every external dependency, the failure modes that can break the service, and the autonomous detection + recovery posture that makes human intervention optional, not required.
 >
 > **Inherited from**: `fabrik/templates/scaffold/docs/RESILIENCE_TEMPLATE.md`. The canonical standard is the `fabrik/.windsurf/rules/core/58-resilience.md` rule pack — read it before rolling your own primitives.
@@ -13,13 +23,14 @@
 | Field                  | Value                |
 | ---------------------- | -------------------- |
 | Project                | <project>            |
-| Type                   | _(fill: python-api / node-api / file-api / file-worker / saas-skeleton / docusaurus / static-site / chrome-extension / mobile-app / desktop-app / wordpress)_ |
+| Type                   | _(fill: the ONE value from project.yaml::type — python-api / python-api-gpu / node-api / file-api / file-worker / saas-skeleton / docusaurus / static-site / chrome-extension / mobile-app / desktop-app / wordpress)_ |
 | Shape kind             | _(service / worker / static / wordpress)_ |
 | `is_public`            | _(true / false)_     |
 | `is_admin_dashboard`   | _(true / false)_     |
 | `has_bearer_api`       | _(true / false)_     |
 | `has_persistent_data`  | _(true / false)_     |
 | `needs_database`       | _(true / false)_     |
+| `needs_cache`          | _(true / false)_     |
 | `has_search_feature`   | _(true / false)_     |
 | `exposes_metrics`      | _(true / false)_     |
 | Pause-key namespace    | `<svc>` _(short slug)_ |
@@ -231,6 +242,18 @@ When pause + dispatch interact badly, queues balloon. These five mechanisms keep
 - Slow query alert: anything >2s logs + sends to GlitchTip.
 - Migrations: forward-only, idempotent, gated by `alembic` (py) / `node-pg-migrate` (node).
 - WAL disk: Beat task (15min) reads `pg_database_size` + `df`; pause `<svc>:pause:db_disk` at >85% used.
+
+### 5a-bis. `needs_cache: true` (Redis registrar)
+
+- Registrar assigns a unique DB index (1..15) on shared `redis-main` and injects `REDIS_URL` —
+  never hand-roll the connection or pick an index yourself.
+- Treat Redis as DISPOSABLE: cache + queues + pause-keys only; anything that must survive a
+  flush belongs in Postgres.
+- Connection: timeout + retry/backoff; on Redis-down, degrade (serve stale / skip cache),
+  never 500 the request path.
+- Memory watch: §7's `redis_memory_check` row is canonical (interval + threshold live THERE,
+  per §7's only-place rule; tunables per §7a). On its alert, act before maxmemory eviction
+  bites — Redis here is cache-tier, so eviction degrades performance, not correctness.
 
 ### 5b. `has_persistent_data: true` (Backrest registrar)
 
@@ -484,6 +507,7 @@ Auto-provisioned by `fabrik apply` based on the shape flags in §1. **Do not dup
 | Fabrik registrar | Handles                                       | Triggered by                                |
 | ---------------- | --------------------------------------------- | ------------------------------------------- |
 | `postgres`       | DB provisioning, conn string, migrations dir  | `needs_database: true`                      |
+| `redis`          | DB-index assignment + `REDIS_URL` injection    | `needs_cache: true`                         |
 | `gatus`          | Public uptime probe + alert routing            | `is_public: true` + `domain` set            |
 | `glitchtip`      | Error tracking DSN injection + project create  | `kind ∈ {service, worker, wordpress}`       |
 | `grafana`        | Deployment annotations on every deploy         | always                                      |
@@ -492,7 +516,7 @@ Auto-provisioned by `fabrik apply` based on the shape flags in §1. **Do not dup
 | `authelia`       | Auth layer + `^/api/` bypass if bearer-API    | `is_admin_dashboard: true` + `domain` set   |
 | `traefik`        | TLS, routing, HTTP→HTTPS                      | auto-discovered from compose labels         |
 | `promtail/loki`  | Log shipping                                   | auto-discovered                             |
-| `prometheus`     | Metrics scrape                                 | `exposes_metrics: true` + compose label     |
+| `prometheus`     | Metrics scrape                                 | `exposes_metrics: true` + `domain` set      |
 | `cadvisor`       | Container resource metrics                     | auto-discovered                             |
 
 **Application code is responsible for**: the §2 inventory, §6 primitives (pause state, error classifier, /healthz + /readyz, disk-space Beat, storage tiering), §7 proactive checks for vendor balances, and §7a env-var hygiene.
@@ -501,7 +525,7 @@ Auto-provisioned by `fabrik apply` based on the shape flags in §1. **Do not dup
 
 ## 11a. Key Files Map
 
-Where each resilience primitive lives in this project. Fill in on first refactor — the value is letting a new contributor (or Claude/Kilo agent) find the right file without spelunking.
+Where each resilience primitive lives in this project. Fill in on first refactor — the value is letting a new contributor (or any AI agent) find the right file without spelunking.
 
 | Role                                     | File                                  |
 | ---------------------------------------- | ------------------------------------- |

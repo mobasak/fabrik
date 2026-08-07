@@ -24,7 +24,7 @@
 - **Manual cost if unavailable?** [e.g. "without this, domain provisioning takes 2h/domain at $X/h, ~$Y/month at current volume"]
 - **Operational cost (running it monthly)?** [link to `docs/FINANCIALS.md` §4 if filled, else short estimate]
 - **Risk if it goes down?** [user-facing impact + how long the team can absorb manually]
-- **Owner / on-call:** [name / rotation / Slack channel]
+- **Owner / on-call:** [name / alert channel — fleet default: Telegram via Apprise]
 
 ---
 

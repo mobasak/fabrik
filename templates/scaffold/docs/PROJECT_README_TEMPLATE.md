@@ -15,8 +15,8 @@
 
 [One-line description]
 
-**Type:** {python-api | node-api | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site}
-**Port:** {PORT}
+**Type:** {python-api | python-api-gpu | node-api | file-api | file-worker | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site | docusaurus | wordpress}  <!-- copy the ONE value from project.yaml::type — the canonical 12 -->
+**Port:** [PORT]
 
 ---
 

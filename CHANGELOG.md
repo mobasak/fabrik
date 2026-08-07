@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — scaffold doc templates hardened to their consumer contracts (17 files, 6-round review) (2026-08-07)
+
+All 17 templates under `templates/scaffold/docs/` audited against what actually reads each seeded
+doc (the doc registry, Doc Sync Matrix, gates, and the `/fabrik-*` commands) and reviewed to a
+found:0 round (6 passes, 24 findings terminated). Highlights: retired-stack rot purged
+(Kilo/Cascade/Windsurf premises in 8 files — STRATEGIC_BACKLOG rewritten from its dead
+"Cascade-watches-Kilo" premise into a deferred-work ledger, PROJECT_INDEX's fictional
+Pre/Post-Kilo gate model replaced with the real one-gate/three-tier contract); banned vendors
+removed as options (DEPLOYMENT's Supabase rows and server-side SQLite row → explicit ban
+comments; OPERATIONS' Stripe example → Paddle); scaffold-type enums grounded to the canonical 12;
+FEATURES re-framed as the certification coverage DENOMINATOR with the Endpoint/Module column
+REQUIRED (was "optional", contradicting /fabrik-features and both gauntlets); SERVICES gains
+AI-dependency guidance (OpenRouter + `claude -p` blocks: quota-not-dollars cost, failure
+signatures, rotation fallback); RESILIENCE gains its missing how-to-fill header, the absent
+`needs_cache`/Redis registrar in §1/§5/§11, and a §11 registrar table verified row-by-row against
+`infrastructure.py` (prometheus row corrected to `+ domain set`); DOCS_INDEX rebuilt from a
+23-line stub into the registry-derived three-tier index; LESSONS_LEARNT's broken nested fences
+rebuilt (meta-sections were trapped inside the copy-paste block); CHANGELOG gains the shared-tree
+append rule; QUICKSTART's reference links fixed to resolve from docs/; enumerations
+(VALID_DOCS_SUBDIRS ×2 files) grounded to their source sets. Registry trigger + CLAUDE.md matrix
+row modernized ("Kilo-session findings" → "deferred-work / session findings"). Recorded follow-up:
+`scaffold.py`'s SHARED_TEMPLATE_MAP never seeds DEPLOYMENT_TEMPLATE.md despite the registry
+declaring it — needs its own small fix + scaffold test.
+
 ### Fixed — PROJECT_CATALOG renderer silently dropped non-standard categories (2026-08-07)
 
 `sync_projects.py::generate_catalog_markdown` bucketed rows into exactly four categories and

@@ -11,7 +11,7 @@
 
 Copy this template for each lesson learnt. Name entries with a descriptive title and date.
 
-```
+````
 # Lessons Learnt: [Feature/Bug Name]
 **Date:** YYYY-MM-DD
 **Status:** [Permanent Rule / Investigation / Deprecated]
@@ -22,7 +22,7 @@ Copy this template for each lesson learnt. Name entries with a descriptive title
 
 - **Project/Module:** (e.g., Fabrik PaaS, FastAPI backend, Next.js frontend)
 - **Environment:** (e.g., WSL Ubuntu, VPS, Docker)
-- **AI Agent Used:** (e.g., Windsurf Cascade, Kilo CLI)
+- **AI Agent Used:** (e.g., Claude Code (Opus/Sonnet), an OpenRouter pool model — name model + harness)
 
 ## 2. The Problem
 
@@ -57,6 +57,7 @@ What condition caused this to surface? (e.g., Alert storm, Deployment failure, C
 
 - **Trigger:** (e.g., Production alert, Local testing, CI failure)
 - **Detection Method:** (e.g., Monitoring alert, Manual inspection, User feedback)
+````
 
 ---
 
@@ -94,7 +95,7 @@ When a lesson learnt graduates to a permanent rule:
 
 ## Example Entry
 
-```markdown
+````markdown
 # Lessons Learnt: Async LLM Client for ARO Brain
 **Date:** 2026-04-14
 **Status:** Permanent Rule
@@ -105,7 +106,7 @@ When a lesson learnt graduates to a permanent rule:
 
 - **Project/Module:** ARO Brain (alert reasoning webhook)
 - **Environment:** Docker on VPS (Ubuntu 24.04)
-- **AI Agent Used:** Windsurf Cascade
+- **AI Agent Used:** Claude Code (Sonnet)
 
 ## 2. The Problem
 
@@ -137,4 +138,4 @@ async with httpx.AsyncClient(timeout=120) as client:
 
 - **Trigger:** Production alert storm
 - **Detection Method:** Monitoring alert (request timeout spike)
-```
+````

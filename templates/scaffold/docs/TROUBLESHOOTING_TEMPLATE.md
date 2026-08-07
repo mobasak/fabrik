@@ -16,7 +16,7 @@ curl http://localhost:$PORT/health
 docker compose logs -f --tail=50
 
 # Run tests
-/opt/<project>/.venv/bin/pytest tests/ -v
+/opt/[project]/.venv/bin/pytest tests/ -v
 ```
 
 ---
@@ -28,8 +28,8 @@ docker compose logs -f --tail=50
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Port already in use | Another service on same port | `lsof -i :$PORT` → kill or change port in `.env` |
-| Import errors | Missing dependencies or wrong venv | `/opt/<project>/.venv/bin/pip install -r requirements.txt` |
-| `externally-managed-environment` | Bare `pip install` on WSL/Debian | Always use `/opt/<project>/.venv/bin/pip`, never bare `pip` |
+| Import errors | Missing dependencies or wrong venv | `/opt/[project]/.venv/bin/pip install -r requirements.txt` |
+| `externally-managed-environment` | Bare `pip install` on WSL/Debian | Always use `/opt/[project]/.venv/bin/pip`, never bare `pip` |
 | Container won't start | Docker image issue | `docker compose build --no-cache && docker compose up -d` |
 
 ### Health check returns 503
@@ -77,7 +77,7 @@ from src.main import app
 | Error | Meaning | Fix |
 |-------|---------|-----|
 | `Address already in use` | Port conflict | `lsof -i :$PORT` → kill process or change port |
-| `No module named 'fastapi'` | Venv not activated or deps missing | `source /opt/<project>/.venv/bin/activate && pip install -r requirements.txt` |
+| `No module named 'fastapi'` | Venv not activated or deps missing | `source /opt/[project]/.venv/bin/activate && pip install -r requirements.txt` |
 | `Connection refused` to database | DB not running or wrong URL | Check `DATABASE_URL`, test with `psql` |
 | `ECONNREFUSED` in container | Using `localhost` in Docker | Use Docker service names, not `localhost` |
 
@@ -100,8 +100,8 @@ psql $DATABASE_URL -c "SELECT 1"
 lsof -i :$PORT
 
 # Python environment
-/opt/<project>/.venv/bin/python --version
-/opt/<project>/.venv/bin/pip list
+/opt/[project]/.venv/bin/python --version
+/opt/[project]/.venv/bin/pip list
 
 # Disk space (common VPS issue)
 df -h /

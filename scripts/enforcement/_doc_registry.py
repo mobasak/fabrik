@@ -259,7 +259,7 @@ PROJECT_DOCS: tuple[DocRow, ...] = (
         "docs/STRATEGIC_BACKLOG.md",
         "docs/STRATEGIC_BACKLOG_TEMPLATE.md",
         frozenset({"saas"}),
-        "Kilo-session findings",
+        "deferred-work / session findings",
         "agent",
     ),
 )

@@ -11,7 +11,7 @@
 | Component | Target | URL |
 |-----------|--------|-----|
 | **Application** | {VPS (Docker Compose via `fabrik apply`) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
-| **Database** | {VPS postgres-main / Supabase / SQLite} | {connection info in .env} |
+| **Database** | {VPS postgres-main (self-host default) / client-local SQLite for desktop-app+mobile-app ONLY} | {connection info in .env} |
 | **Cache** | {VPS redis-main / none} | {connection info in .env} |
 | **DNS** | Cloudflare (via site-provisioner) | Automatic |
 | **SSL** | {Let's Encrypt (Traefik) / Vercel / Cloudflare} | Automatic |
@@ -71,8 +71,10 @@ fabrik redeploy [project-name]
 |-------------|------------|-------|
 | Dev (WSL) | `postgresql://localhost:5432/[project]_dev` | Local PostgreSQL |
 | Prod (VPS) | `postgresql://[project]:$DB_PASSWORD@postgres-main:5432/[project]` | Shared `postgres-main` container |
-| Supabase | `postgresql://postgres.$REF:$PASSWORD@pooler.supabase.com:6543/postgres` | Connection pooler |
-| SQLite | `sqlite:///data/[project].db` | File-based, no server |
+<!-- Supabase retired org-wide (2026-07-03) — self-host on postgres-main; a legacy project still on it needs an ADR-recorded exception, not a template row. -->
+<!-- NO server-side SQLite row here — 12-Factor X CRITICAL ban (dev and prod use the same
+     backing service: Postgres in both). Client-local SQLite exists only in desktop-app /
+     mobile-app, which never carry this doc. -->
 
 <!-- Delete rows that don't apply. Connection strings are in .env, not hardcoded here. -->
 

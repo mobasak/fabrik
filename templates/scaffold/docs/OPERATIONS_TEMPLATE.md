@@ -102,7 +102,7 @@ In all of these the engine [over-collects / alarms / degrades safely] — **it n
   the vendor takes 4 days to respond, in the meantime you guess wrong and ship
   a billing surprise. Three states: ✅ Resolved, ⚠️ Open, ✅ Confirmed-by-testing.
   Skip this section if all your vendors are public APIs with no support
-  relationship (Cloudflare, Stripe, etc. where the docs are authoritative).
+  relationship (Cloudflare, Paddle, etc. where the docs are authoritative).
 
   BOUNDARY vs SERVICES.md: SERVICES is the *current snapshot* (rate limit,
   cost, failure signature, status). THIS section is the *temporal log* (what

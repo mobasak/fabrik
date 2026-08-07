@@ -2,8 +2,11 @@
 
 **Last Updated:** YYYY-MM-DD
 
-> **Purpose:** FEATURE DOCUMENTATION.
-> Complete feature reference for [Project Name]. Serves as both internal inventory and public-facing feature documentation.
+> **Purpose:** FEATURE INVENTORY — and the CERTIFICATION COVERAGE DENOMINATOR.
+> Complete feature reference for [Project Name]: internal inventory + public-facing feature docs.
+> ⚠️ `/fabrik-user-test` and `/fabrik-service-test` build their journey/contract coverage FROM this
+> file — a capability missing here is silently never tested, and a row nobody can exercise can't be
+> certified. `/fabrik-features` converges this file to the complete, testable truth of the codebase.
 
 ---
 
@@ -22,11 +25,11 @@
 | {Feature name} | {What it does — one sentence, benefit-oriented} | `POST /api/v1/{resource}` · `src/feature_x.py` |
 | {Feature name} | {What it does}                                  | `src/feature_y.py`                             |
 
-<!-- The "Endpoint / Module" column is optional but recommended — it ties the
-     user-visible feature to where it lives in code, so a new contributor or
-     AI agent can jump from "what does this do?" to the source without
-     spelunking. Delete the column for pure-marketing features that don't
-     map to a single endpoint/module. -->
+<!-- The "Endpoint / Module" column is REQUIRED on every row — it is what makes the row
+     EXERCISABLE: the endpoint/module + how to invoke it is the seed the certification
+     gauntlets test from, and it lets any agent jump from "what does this do?" to the
+     source without spelunking. A row with no exercisable target is either not shipped
+     (move to Planned) or not a feature (delete). -->
 
 ### {Feature Category 2 — e.g., "DNS Management"}
 

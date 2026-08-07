@@ -75,3 +75,8 @@ This project uses [Semantic Versioning](https://semver.org/):
 **Categories:** Added, Changed, Fixed, Removed, Security
 
 Agents write entries manually. Gate enforces presence but not content quality.
+
+**Shared-tree rules (multiple agents write this file):** append your entry ATOP `## [Unreleased]` —
+never reset or rewrite the section, never bundle another agent's pending entry into your commit, and
+stage this file with explicit paths only. AI-authored commits carry Agent Provenance Trailers
+(`Agent-Role` / `Agent-Context` — see the project's CLAUDE.md § Agent Provenance Trailers).

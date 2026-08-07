@@ -118,7 +118,7 @@ Fill this from production data. Until you have production data, estimate from AP
 | **Domain** | $X | Annual ÷ 12 |
 | **Third-party subscriptions** | $X | Any monthly API plans, proxy subscriptions |
 | **Prepaid pools** | $X | Amortized (total prepaid ÷ expected months of usage) |
-| **Development tooling (project share)** | $X | Claude/Windsurf/Traycer/Kilo ÷ active projects |
+| **Development tooling (project share)** | $X | Claude Max + OpenRouter pool + Traycer ÷ active projects |
 | **Total fixed** | **$X/mo** | |
 
 ---

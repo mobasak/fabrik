@@ -4,8 +4,8 @@
 >
 > The **single frozen truth for field naming across the whole stack** — every GUI/form field ↔ its exact DB
 > column. Produced/refreshed by **`/fabrik-data-contract`** (spec-driven for new work, reverse-generated from the
-> live schema when backfilling an existing project). Traycer reads it when planning; Kilo / frontend / backend
-> agents implement against it.
+> live schema when backfilling an existing project). Planning agents read it; frontend / backend
+> coding agents implement against it.
 >
 > **FROZEN — no agent adds a field, column, or enum value not listed here. Any change = bump Version + re-freeze
 > via `/fabrik-data-contract`.**
