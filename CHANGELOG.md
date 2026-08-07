@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_secrets: bare $VAR shell references are not hardcoded credentials (2026-08-07)
+
+The "Hardcoded credential" pattern exempted `$(cmd)` and `${VAR}` values but not the bare `"$VAR"`
+form — inconsistent with its own sibling DSN patterns, which already accept `\$[A-Za-z_]`. Live
+false-positive: a sibling session's `RESTIC_PASSWORD="$RESTIC_PW"` (sysadmin script, their
+uncommitted WIP) redded the shared lean gate; per the shared-tree rule the sibling's file was NOT
+touched — the checker class was fixed instead. +2 regression tests (bare-$VAR forms skipped; a
+literal secret containing `$` later still flagged); secrets suite 22 green.
+
 ### Changed — captcha project retired and archived; the deployed service stays live (2026-08-07)
 
 Operator decision after confirming `fabrik-lib/captcha-solve/` covers the capability: the captcha

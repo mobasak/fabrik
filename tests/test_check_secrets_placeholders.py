@@ -52,3 +52,21 @@ def test_real_dsn_password_still_flagged(tmp_path):
         "`mongodb://root:s3cr3tValue@host:27017/db`",
     ]:
         assert _scan(tmp_path, v), f"MISSED real DSN secret: {v}"
+
+
+def test_bare_shell_variable_reference_is_skipped(tmp_path):
+    # Live false-positive 2026-08-07: RESTIC_PASSWORD="$RESTIC_PW" (a sibling's
+    # sysadmin script) — a bare $VAR reference is an expansion, not a hardcoded
+    # secret, exactly like the ${VAR} and $(cmd) forms already exempted.
+    for v in [
+        'RESTIC_PASSWORD="$RESTIC_PW"',
+        'password="$PGPASS"',
+        'secret="${VAULT_TOKEN}"',
+        'token="$(cat /run/secret)"',
+    ]:
+        assert _scan(tmp_path, v) == [], v
+
+
+def test_dollar_prefixed_but_literal_password_still_flagged(tmp_path):
+    # A literal secret merely CONTAINING dollar signs later is still caught.
+    assert _scan(tmp_path, 'password="hunter2$altyValue"')

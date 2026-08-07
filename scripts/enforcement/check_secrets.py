@@ -41,10 +41,13 @@ SECRET_PATTERNS = [
     # on line N+1. Same-line constraint mirrors how real hardcoded credentials
     # actually appear (`password = "hunter2"` on one line).
     (
-        # (?!\$[({]) — a value that is a shell substitution "$(...)" or expansion "${...}" is by
-        # construction NOT a hardcoded secret (routed upstream from a live tryton-crm gauntlet
-        # false-positive: G3_PW captured via $(python3 -c ...) tripped the gate)
-        r"(?:password|secret|api_key|token)\s*[:=]\s*['\"](?!\$[({])[^'\"\n]{8,}['\"]",
+        # (?!\$[({A-Za-z_]) — a value that is a shell substitution "$(...)", expansion
+        # "${...}", or bare variable reference "$RESTIC_PW" is by construction NOT a
+        # hardcoded secret. The DSN patterns above already accept the bare-$VAR form
+        # (\$[A-Za-z_]); this member lacked it — live false-positive 2026-08-07:
+        # RESTIC_PASSWORD="$RESTIC_PW" in a sibling's sysadmin script tripped the gate.
+        # (Also routed upstream earlier from a tryton-crm gauntlet: G3_PW via $(python3 …).)
+        r"(?:password|secret|api_key|token)\s*[:=]\s*['\"](?!\$[({A-Za-z_])[^'\"\n]{8,}['\"]",
         "Hardcoded credential",
     ),
 ]
