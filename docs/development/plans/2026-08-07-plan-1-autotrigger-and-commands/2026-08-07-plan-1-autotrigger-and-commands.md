@@ -1,6 +1,7 @@
 # Plan: Auto-trigger stack + four missing commands
 
-Status: IN-PROGRESS (execution dispatched 2026-08-07; converged at b44bf3250438 — 3 passes, 13 findings)
+Status: EXECUTED (execution dispatched 2026-08-07; converged at b44bf3250438 — 3 passes, 13 findings)
+Whole-plan validation: `docs/development/reviews/2026-08-07-plan-1-autotrigger-and-commands-review.md` (D7 CLEAN, found: 0; Tier-2 gate success embedded).
 
 Skill auto-triggering (TRIGGER-sharpened descriptions, Stage taxonomy, Orient routing, a
 UserPromptSubmit router hook, stage-skip artifact gates) plus the four commands this week's work
