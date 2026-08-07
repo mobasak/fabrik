@@ -1,9 +1,45 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-08-05 (Lesson 103 — a byte-identical shared regex can still be fail-open at ONE consumer: the four-module Status regex's `>` tolerance was fail-closed at the ban/claim consumers but fail-OPEN at spine-status determination (a quoted `> Status: DRAFT` example downgraded the whole gate to advisory); fix the FAIL DIRECTION at the consumer — strip quoted lines from that one scan — never by forking the regex, so parity survives; and prove each `>` with a mutation-killing test, or the next "harmonizer" reverts it green) (Lesson 102 — `fabrik apply` REBUILDS the .env and will overwrite a registrar-injected real value (DATABASE_URL) with the spec's PLACEHOLDER → `compose up --wait` fails on the placeholder DSN before the registrar re-injects = self-inflicted outage; `redeploy` never re-syncs env at all. Fix: `_build_env_content` is now placeholder-aware. And: the deployer agent HAS the keys/tools — recover in place, don't defer to the operator) (Lesson 101 — a re-triage/re-bill dedup test must assert the CONSUMER's real bucketing invariant, not a proxy function in isolation; and "exempt on error" must split transient-transport from completed-but-unusable) (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
+**Last Updated:** 2026-08-07 (Lesson 104 — first live dispatcher run: (a) NEVER render a shared install target from a worktree — the renderer's prune deletes master-only artifacts box-wide; render only from merged master at each merge commit; (b) a Stop-hook that attributes gate failures by CHECK NAME pins a sibling's shared-tree dirt on the session and traps it against its own contract — attribute by FILE (failing-check outputs ∩ transcript-authored files); (c) description rewrites drop load-bearing semantic hooks reproducibly (T06a and T06b, same class, both caught only by exemplar-grounded review) — a description sweep needs a substance-preservation diff pass, not just style review; (d) a squash-apply onto a moved master can silently clobber merged content on 3-way fallback — hand-apply small deltas after checking the target region, and never run git file mutations without pinning cwd) (Lesson 103 — a byte-identical shared regex can still be fail-open at ONE consumer: the four-module Status regex's `>` tolerance was fail-closed at the ban/claim consumers but fail-OPEN at spine-status determination (a quoted `> Status: DRAFT` example downgraded the whole gate to advisory); fix the FAIL DIRECTION at the consumer — strip quoted lines from that one scan — never by forking the regex, so parity survives; and prove each `>` with a mutation-killing test, or the next "harmonizer" reverts it green) (Lesson 102 — `fabrik apply` REBUILDS the .env and will overwrite a registrar-injected real value (DATABASE_URL) with the spec's PLACEHOLDER → `compose up --wait` fails on the placeholder DSN before the registrar re-injects = self-inflicted outage; `redeploy` never re-syncs env at all. Fix: `_build_env_content` is now placeholder-aware. And: the deployer agent HAS the keys/tools — recover in place, don't defer to the operator) (Lesson 101 — a re-triage/re-bill dedup test must assert the CONSUMER's real bucketing invariant, not a proxy function in isolation; and "exempt on error" must split transient-transport from completed-but-unusable) (Lesson 100 — a gate check is not live until its PASS line appears in the target tier's output; a path pin is a one-line edit, not a placement argument) (Lesson 99 — vendor a heavy external eval tool GRADING-ONLY: its declared torch/vllm deps are for generation you don't do; `--no-deps` + call the eval function directly, don't shell the CLI wrapper that imports the GPU stack) (Lesson 98 — a twice-converged plan still carried a false premise only visible at the cross-phase seam; the confirming round exists for the FIXER too) (Lesson 97 — a production work-dispatcher is the wrong instrument to measure the models it dispatches; direct-dispatch a benchmark, and an errored call is a non-result not a wrong answer) (Lesson 96 — the gate counted a sibling's untracked WIP as this session's debt; "CI-parity" that includes untracked files isn't parity) (Lesson 95 — arithmetic cannot settle a domain question; assume your own fix is defective)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
+
+---
+
+# Lesson 104: the first live dispatcher run — render placement, hook attribution, and the description-substance trap
+
+**Date:** 2026-08-07 · **Context:** `2026-08-07-plan-1-autotrigger-and-commands` — the first spine+ticket plan set executed end-to-end in dispatcher mode (10 units, 6 worktrees, 29 review rounds, one quota wall, two transient agent deaths, zero lost work).
+
+Four lessons with teeth:
+
+1. **Render only from merged master.** `assemble_commands.py`'s bare render prunes installed commands
+   absent from the CURRENT tree's `_sources/`. A worktree based pre-merge is missing sibling tickets'
+   sources — rendering from it deletes their installed commands box-wide. The safe protocol proved out:
+   coders run `--check`/temp renders only; the dispatcher renders once per merge commit from master
+   (which also keeps the corpus pre-commit hook green at every merge).
+
+2. **Attribute gate failures by file, not check name.** `final_gate_stop.py` compared failing check
+   NAMES against the session baseline; a sibling agent's staged files flipped Doc Sync red mid-session
+   and the hook blocked THIS session — which could not fix it without violating the shared-tree
+   contract. Live 3/3-attempts trap. Fix (shipped `8136457b`): intersect the failing checks' output
+   text with the transcript-authored file set; disjoint → report as shared-tree cause, don't block.
+   Same class, same day: `check_secrets` flagged a sibling spec's documented placeholder DSN — fixed in
+   the checker (`_DSN_PLACEHOLDER_PW` + placeholder family, `804662d2`), never in the sibling's file.
+
+3. **Description sweeps drop substance reproducibly.** T06a's rewrite dropped the 1c research leg from
+   fabrik-spec; T06b independently dropped dispatcher mode from execute-plan, the doer-vs-artifact
+   contract from workflow-review, and the fix-or-handoff/rerunnable-suite hooks from both gauntlets.
+   Same defect class, different coders — style-focused rewriting treats description clauses as prose,
+   but they are ROUTING SURFACE. A sweep needs an explicit old-vs-new substance diff (every dropped
+   clause justified against the body) in its review contract, and got one only after the first catch.
+
+4. **Squash-apply mechanics on a moved master.** `git apply -3`'s "direct application" fallback can
+   half-apply and clobber merged content in the working tree when contexts collide (T04's assembler vs
+   T03's merged entries). For small deltas: restore from HEAD, read the target region, hand-apply.
+   And every git mutation in a multi-worktree session must pin its cwd (`cd /opt/fabrik &&` or
+   `git -C`) — the shell's persistent cwd sent three commands into the wrong tree this run (all
+   recovered because each was checked immediately after).
 
 ---
 

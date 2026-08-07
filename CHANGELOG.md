@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — autotrigger-and-commands plan set: EXECUTED, validated, archived (2026-08-07)
+First live dispatcher-mode execution of a spine+ticket plan set, run to Finish: 10 Board units merged through 29 native-Opus review rounds (every ticket to a clean exit), D7 whole-plan validation CLEAN with the Tier-2 gate embedded (44 passed / 0 failed), integration receipts filed, plan directory archived and lock released. Deliverables live: 4 new commands (/fabrik-catchup, /fabrik-decommission, /fabrik-deploy-verify, /fabrik-upstream), TRIGGER+Stage routing contract across all 24 commands/skills, the UserPromptSubmit skill-router hook (fleet-synced), CLAUDE.md Orient step-0, and the check_stage_artifacts Tier-2 gate. Lesson 104 filed.
+
 ### Added — Stage-skip artifact gates: plan-spec freshness + FROZEN header completeness (2026-08-07)
 `scripts/enforcement/check_stage_artifacts.py` (T08 of the autotrigger-and-commands plan set, new, Tier-2 in `final_gate.py`) closes the two audit-confirmed mechanical stage-skip holes: a plan flipping `CONVERGED` while its designated design spec is still `DRAFT`/missing (archived specs honored as settled), and `docs/data-contract.md`/`docs/ui-design.md` flipping `Status: FROZEN` without the header fields + freeze-rule sentence their freezing commands mandate — validated against all 24 real fleet frozen artifacts (22 pass, 2 true positives) and the untouched scaffold stub. The ticket's pre-analysis candidate (b) was overturned by the audit: certification-report SHAPE is already gated by `check_cert_dispositions()`; existence is not mechanizable. 32 red-on-revert tests with per-guard mutation pinning; full audit table recorded in the plan spine's Evidence.
 
