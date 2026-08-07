@@ -1,6 +1,6 @@
 # Plan: Auto-trigger stack + four missing commands
 
-Status: CONVERGED (2026-08-07 — /fabrik-plan-review: 3 passes, 13 findings fixed, pass-3 md5-verified no-op b44bf3250438)
+Status: IN-PROGRESS (execution dispatched 2026-08-07; converged at b44bf3250438 — 3 passes, 13 findings)
 
 Skill auto-triggering (TRIGGER-sharpened descriptions, Stage taxonomy, Orient routing, a
 UserPromptSubmit router hook, stage-skip artifact gates) plus the four commands this week's work
