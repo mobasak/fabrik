@@ -1,13 +1,17 @@
-### Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation
+## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation
 
-Run these once, up front (the failure class: a linked worktree or persistent shell cwd sending
-reads/writes into the wrong tree):
-
-- `TOP=$(git rev-parse --show-toplevel)` and `COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)`.
-- **Linked worktree** (`git-dir` ≠ `git-common-dir`): your repo IDENTITY is the COMMON checkout's
-  repo — a worktree of `/opt/fabrik` IS the hub; a worktree of a project IS that project.
-- **Submodule guard:** if `git rev-parse --show-superproject-working-tree` prints a path, you are in
-  a SUBMODULE, not a worktree — treat it as a normal repo of the superproject before concluding
-  anything from the dir layout.
-- **Pin every git mutation** — `git -C "$TOP" …` (or the common checkout's toplevel when acting on
-  the main tree) — never rely on the shell's current directory surviving between commands.
+- `TOP=$(git rev-parse --show-toplevel)` — **abort if empty** (`[ -n "$TOP" ] || stop`): `git -C ""`
+  is a documented no-op that silently runs in the CURRENT directory — the exact unpinned behavior
+  this guard exists to replace.
+- **Worktree test needs NORMALIZED paths** (raw `--git-dir` vs `--git-common-dir` false-positives in
+  every subdirectory): `GITDIR=$(git rev-parse --path-format=absolute --git-dir)` and
+  `COMMON=$(git rev-parse --path-format=absolute --git-common-dir)`; linked worktree ⇔ `GITDIR ≠ COMMON`.
+- **In a linked worktree your repo IDENTITY is the MAIN checkout**, derived as
+  `MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` (the first porcelain record is
+  always the main worktree; `$COMMON` itself is a `.git` DIRECTORY, never a checkout) — a worktree of
+  `/opt/fabrik` IS the hub; a worktree of a project IS that project.
+- **Submodule:** `git rev-parse --show-superproject-working-tree` printing a path means you are in a
+  SUBMODULE — its identity is the submodule's OWN repo (`$TOP`); the superproject is a DIFFERENT
+  repo — never edit upward into it (the cross-repo HARD STOP).
+- **Pin every git mutation** — `git -C "$TOP" …` (or `git -C "$MAIN"` when acting on the main
+  checkout) — never rely on the shell's cwd surviving between commands.

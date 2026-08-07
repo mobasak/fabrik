@@ -13,18 +13,17 @@ in a Fabrik-synced file, cannot edit it locally (CLAUDE.md HARD STOP), and the f
 instead. **This command is two commands wearing one name** — pick the mode by repo identity (never a bare cwd
 string, and never by asking):
 
-{{include:repo-identity}}
-
-- **PROJECT mode** (repo identity ≠ `/opt/fabrik` — see the identity test below) — files a proposal.
+- **PROJECT mode** (repo identity ≠ `/opt/fabrik` — identity per the preamble below) — files a proposal.
   **Where this runs:** any project, entirely with local project tooling — no hub shell-out, no SSH, no
   dependency on anything outside this project's own tree plus what CLAUDE.md already documents about the
   synced-file mechanism.
 - **HUB mode** (repo identity = `/opt/fabrik`, given the proposal path(s)) — independently re-verifies and
   applies. **Where this runs:** hub-side only — the hub is the only side holding the real synced source and
-  the commit path that redistributes a fix fleet-wide. **Identity test, not cwd string:** `git rev-parse
-  --show-toplevel` resolving to `/opt/fabrik`, or `scripts/fabrik_synced_manifest.py` present at that
-  toplevel — a `/opt/fabrik` **worktree** (e.g. `/opt/fabrik/.claude/worktrees/<id>`) resolves to the SAME
-  identity and is hub-repo too: edit the canonical source directly there, never file a proposal to yourself.
+  the commit path that redistributes a fix fleet-wide. Identity comes from the preamble's resolution
+  (`$TOP`, or `$MAIN` in a linked worktree) — a `/opt/fabrik` **worktree** IS hub-repo: edit the canonical
+  source directly there, never file a proposal to yourself.
+
+{{include:repo-identity}}
 
 ## ⚠️ Termination contract
 
