@@ -133,3 +133,63 @@ def test_baseline_mode_writes_snapshot(fake_project: Path) -> None:
     assert bl.exists(), "baseline mode must write a snapshot"
     assert set(json.loads(bl.read_text())) == {"A", "C"}
     bl.unlink(missing_ok=True)
+
+
+# --- commit-your-own-work enforcement (CLAUDE.md § EXIT flip, 2026-08-07) --------
+
+
+def test_own_uncommitted_blocks_with_commit_action() -> None:
+    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=0, own_uncommitted=True) == (
+        "block_commit",
+        1,
+    )
+
+
+def test_gate_failures_outrank_commit_block() -> None:
+    # Fix first, commit second — red gate takes the block slot.
+    action, _ = hook.decide(git_dirty=True, has_new_failures=True, attempts=0, own_uncommitted=True)
+    assert action == "block"
+
+
+def test_own_uncommitted_respects_cap() -> None:
+    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=3, own_uncommitted=True) == (
+        "allow_warn",
+        0,
+    )
+
+
+def test_committed_own_work_allows() -> None:
+    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=0, own_uncommitted=False) == (
+        "allow",
+        0,
+    )
+
+
+def test_session_files_parses_edit_tools_and_scopes_to_root(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    transcript = tmp_path / "t.jsonl"
+    lines = [
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": str(root / "src/a.py")}},
+                        {"type": "tool_use", "name": "Write", "input": {"file_path": str(root / "docs/b.md")}},
+                        {"type": "tool_use", "name": "Read", "input": {"file_path": str(root / "c.py")}},
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/elsewhere/outside.py"}},
+                    ]
+                },
+            }
+        ),
+        "not json at all",
+        json.dumps({"type": "user", "message": {"content": "prose"}}),
+    ]
+    transcript.write_text("\n".join(lines), encoding="utf-8")
+    got = hook._session_files(str(transcript), root.resolve())
+    assert got == {"src/a.py", "docs/b.md"}  # Read ignored; outside-root ignored
+
+
+def test_session_files_missing_transcript_fails_open() -> None:
+    assert hook._session_files("/nonexistent/t.jsonl", Path("/tmp")) == set()

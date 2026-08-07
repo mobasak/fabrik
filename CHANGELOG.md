@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — commit-at-task-end is now REQUIRED and stop-hook-enforced (2026-08-07)
+
+Agents were parking finished work staged-but-uncommitted by OBEDIENCE — CLAUDE.md's EXIT step said
+"STOP. No commit/push unless user said so." That default cost real incidents: the 119-file stranded-WIP
+sweep, the pre-commit-stash silent revert, sibling WIP redding every diff-scoped gate, converged docs
+invisible to gates. Flipped: **EXIT now requires committing YOUR OWN work** (explicit pathspecs +
+Agent Provenance Trailers; never bundle unauthored files) — push stays operator-gated (the HARD STOPS
+row reconciled to push-only + trailer/bundling prohibitions). Enforcement:
+`.claude/hooks/final_gate_stop.py` (fleet-synced) now parses the session transcript for
+Edit/Write-authored files and BLOCKS the stop while any remain uncommitted ("block_commit" — gate
+failures outrank it, same anti-trap CAP, fail-open on any parse gap; Bash-heredoc writes are
+under-detected by design). +6 hook tests (16 green).
+
 ### Fixed — review round on the retirement/secrets batch: 5 findings, incl. a false liveness claim (2026-08-07)
 
 /fabrik-review over e3432de0..HEAD raised 5, all terminated. The deepest: the previous captcha entry

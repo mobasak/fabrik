@@ -34,7 +34,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: **`--json` (std — the FULL Tier‑2 gate: mypy + bandit + semgrep + schema/plan/docs checks)** · `--lean --json` (quick Tier‑1 subset, for fast self-review DURING iteration only — not the completion gate) · `--systemic --json` (Tier‑3 repo-health only: docker/ports/docs-sprawl/deps — NARROWER than Tier‑2, never a completion gate). Add **`--check`** for a READ-ONLY run that never mutates the tree; a bare run auto-fixes + auto-stages **only the files your change touched** (never a whole-tree sweep — the gate scopes every fixer + `ruff` to the diff, incl. your committed-but-unpushed commits). Full tier/mode + per-check reference: `/opt/fabrik/docs/workflows/FINAL_GATE_WORKFLOW.md` (fabrik-upstream; not synced to projects).
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate auto-stages on success. STOP. No commit/push unless user said so this turn; `git add` OK.
+5. **EXIT** — Gate green → **COMMIT your own work NOW** (explicit pathspecs only — `git commit -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author). **An uncommitted task is an UNFINISHED task**: parked WIP is the only work that can be silently destroyed (pre-commit stash, resets) and it reds every sibling's diff-scoped gates. Stop-hook-enforced. **Push stays operator-authorized** (unless said this turn).
 
 ## External Knowledge — Search, Don't Guess
 When the ticket references a 3rd-party API or SDK:
@@ -47,7 +47,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 ## HARD STOPS — NEVER
 | Rule | Instead |
 |:--|:--|
-| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there; any AI commit MUST carry Agent Provenance Trailers (§ Agent Provenance Trailers) |
+| `git push` (unless user said so this turn) · a commit WITHOUT Agent Provenance Trailers · bundling files you didn't author into a commit | committing YOUR OWN work at task end is REQUIRED (§ EXIT — explicit pathspecs + trailers); push is the operator-gated publish step |
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
