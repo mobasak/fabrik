@@ -286,16 +286,144 @@ def _counter_path(sid: str) -> Path:
     return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
 
 
-def _read_counters(counter: Path) -> tuple[int, int]:
-    """(gate_attempts, commit_attempts) — tolerates the old single-int format."""
+def _read_counters(counter: Path) -> tuple[int, int, int]:
+    """(gate_attempts, commit_attempts, stall_attempts) — tolerates older formats."""
     try:
         raw = counter.read_text().strip()
-        if "," in raw:
-            a, b = raw.split(",", 1)
-            return int(a), int(b)
-        return int(raw), 0
+        parts = raw.split(",")
+        vals = [int(p) for p in parts[:3]]
+        while len(vals) < 3:
+            vals.append(0)
+        return vals[0], vals[1], vals[2]
     except Exception:
-        return 0, 0
+        return 0, 0, 0
+
+
+def decide_stall(stalled: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
+    """Pure promise-guard decision. Returns (action, attempts').
+
+    action ∈ {"allow", "block_stall", "allow_warn_stall"} — same anti-trap shape
+    as the other causes: counter resets when the cause resolves, warn-through at
+    the cap so a misfire can never trap the session.
+    """
+    if not stalled:
+        return "allow", 0
+    attempts += 1
+    if attempts > cap:
+        return "allow_warn_stall", 0
+    return "block_stall", attempts
+
+
+# Narrate-instead-of-act stall (live class, 2 incidents 2026-08-07): the final
+# message PROMISES an action it never dispatched, or ASKS permission an active
+# plan/review contract already grants. Precision over recall throughout —
+# indeterminate parses fail open, human-gate wording is exempt, a kept promise
+# (a dispatch in the same final turn) is exempt.
+_PROMISE_RE = re.compile(
+    r"\b(?:I(?:'|’)?ll|I will|let me)\s+(?:now\s+)?"
+    r"(?:run|start|dispatch|launch|kick\s+off|begin|continue|keep\s+(?:working|going|chaining)|work\s+through)\b"
+    r"|\b(?:starting|running|dispatching)\s+(?:it|that|this|the\s+[\w\- ]{1,40}?)\s+now\b",
+    re.I,
+)
+_PERMISSION_RE = re.compile(
+    r"\b(?:want me to|shall I|should I|would you like me to|do you want me to)\b[^?\n]{0,120}\?",
+    re.I,
+)
+# Legitimate stops: named human gates, BLOCKED escalations, operator-owned steps.
+_GATE_EXEMPT_RE = re.compile(
+    r"\bBLOCKED:|\bgate\s*2\b|\boperator decision\b|\bapproval\b|\bhuman gate\b"
+    r"|\byours to run\b|\bawait\w*\s+(?:your|the operator)\b|\boperator[- ]gated\b",
+    re.I,
+)
+# Tool names whose use in the final turn means a promise was KEPT (work dispatched).
+_DISPATCH_TOOLS = frozenset({"Task", "Agent", "Skill", "Workflow"})
+
+
+def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
+    """(last assistant text, tool_use inputs of the final turn) or None on any gap."""
+    try:
+        lines = Path(transcript_path).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    text = ""
+    tools: list[dict] = []
+    for line in reversed(lines):
+        if '"type"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
+        etype = entry.get("type")
+        content = (entry.get("message") or {}).get("content")
+        if etype == "user":
+            # tool_result blocks also arrive as type=user — only a REAL user
+            # message (text content) ends the turn walk.
+            if isinstance(content, list) and any(
+                isinstance(b, dict) and b.get("type") == "text" for b in content
+            ):
+                break
+            continue
+        if etype != "assistant" or not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                tools.append({"name": block.get("name", ""), "input": block.get("input") or {}})
+            elif block.get("type") == "text" and not text:
+                text = str(block.get("text") or "")
+    return text, tools
+
+
+def _midrun_marker(root: Path, authored: set[str]) -> bool:
+    """A SESSION-OWNED mid-run signal: an active plan lock this session edited, or a
+    session-authored review doc with UNCHECKED rows. Session-scoped deliberately —
+    an unrelated sibling session's active lock must not turn another session's
+    legitimate follow-up offer into a stall."""
+    for rel in authored:
+        p = root / rel
+        try:
+            if ".fabrik/plan-locks/" in rel and p.is_file():
+                if '"status": "active"' in p.read_text(encoding="utf-8", errors="replace"):
+                    return True
+            elif "docs/development/reviews/" in rel and p.is_file():
+                if "UNCHECKED" in p.read_text(encoding="utf-8", errors="replace"):
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple[str, str] | None:
+    """Return ("promise"|"permission", snippet) when the final message is a stall, else None."""
+    try:
+        turn = _final_turn(transcript_path)
+        if not turn:
+            return None
+        text, tools = turn
+        if not text:
+            return None
+        tail = text[-600:]
+        if _GATE_EXEMPT_RE.search(tail):
+            return None
+        m = _PROMISE_RE.search(tail)
+        if m:
+            # A promise is KEPT if the same final turn dispatched work (a subagent,
+            # a skill, or a background command).
+            dispatched = any(
+                t["name"] in _DISPATCH_TOOLS
+                or (t["name"] == "Bash" and t["input"].get("run_in_background"))
+                for t in tools
+            )
+            if not dispatched:
+                return "promise", m.group(0)
+        m = _PERMISSION_RE.search(tail)
+        if m and _midrun_marker(root, authored):
+            return "permission", m.group(0)
+        return None
+    except Exception:
+        return None  # fail open — the guard must never trap on its own bug
 
 
 def main(argv: list[str]) -> int:
@@ -317,15 +445,65 @@ def main(argv: list[str]) -> int:
                 pass
             return 0
 
-        # Stop: only enforce when there's actual uncommitted work.
-        if not _git_dirty(root):
+        # Promise-guard input (independent of tree state): the narrate-instead-of-act
+        # stall fires with a CLEAN tree just as often (a stalling agent has usually
+        # committed everything and then narrates instead of dispatching).
+        transcript_p = str(data.get("transcript_path") or "")
+        authored_for_stall: set[str] = set()
+        if transcript_p:
+            try:
+                authored_for_stall = set(_session_files(transcript_p, root))
+            except Exception:
+                authored_for_stall = set()
+        stall = _detect_stall(transcript_p, root, authored_for_stall) if transcript_p else None
+
+        def _stall_gate() -> int:
+            """Run the promise-guard counter flow. Returns the exit code."""
+            counter = _counter_path(sid)
+            g, c, s_att = _read_counters(counter)
+            s_action, s_att = decide_stall(bool(stall), s_att)
+            if s_action == "allow":
+                if g == 0 and c == 0:
+                    counter.unlink(missing_ok=True)
+                else:
+                    counter.write_text(f"{g},{c},0")
+                return 0
+            if s_action == "allow_warn_stall":
+                counter.write_text(f"{g},{c},0")
+                sys.stderr.write(
+                    f"Final message still ends in a stall after {CAP} blocked stops — "
+                    "stopping anyway.\n"
+                )
+                return 0
+            counter.write_text(f"{g},{c},{s_att}")
+            kind, snippet = stall  # type: ignore[misc]
+            what = (
+                f'promises an action ("{snippet}") that was never dispatched'
+                if kind == "promise"
+                else f'asks permission ("{snippet}") that the active plan/review contract already grants'
+            )
+            reason = (
+                f"STALL DETECTED (attempt {s_att}/{CAP}). Your final message {what}. "
+                "Do the work NOW — dispatch it or run it in this same turn — instead of "
+                "narrating or asking (CLAUDE.md: run every owed pass unprompted; the "
+                "checkpoint-stall is a named live defect). Legitimate stops must name "
+                "their human gate explicitly (design approval, Gate 2, operator "
+                "decision, or a formatted BLOCKED: escalation)."
+            )
+            sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
             return 0
+
+        # Stop: gate/commit causes only apply when there's actual uncommitted work;
+        # the promise-guard applies regardless.
+        if not _git_dirty(root):
+            return _stall_gate()
 
         baseline_file = _baseline_path(sid)
         if not baseline_file.exists():
             # No baseline (SessionStart didn't run / older session) → we can't tell
-            # inherited debt from new breakage, so fail-open rather than false-block.
-            return 0
+            # inherited debt from new breakage, so fail-open rather than false-block —
+            # but the promise-guard needs no baseline.
+            return _stall_gate()
         try:
             baseline = set(json.loads(baseline_file.read_text()))
         except Exception:
@@ -379,7 +557,7 @@ def main(argv: list[str]) -> int:
                 new_failures = set()
 
         counter = _counter_path(sid)
-        gate_attempts, commit_attempts = _read_counters(counter)
+        gate_attempts, commit_attempts, stall_attempts = _read_counters(counter)
 
         action, gate_attempts, commit_attempts = decide(
             True,
@@ -390,10 +568,6 @@ def main(argv: list[str]) -> int:
         )
 
         if action in ("allow", "allow_warn_gate", "allow_warn_commit"):
-            try:
-                counter.unlink()
-            except FileNotFoundError:
-                pass
             if action == "allow_warn_gate":
                 sys.stderr.write(
                     f"final_gate still RED after {CAP} attempts — stopping anyway. "
@@ -405,9 +579,12 @@ def main(argv: list[str]) -> int:
                     "stopping anyway. Commit your own work: git commit -- <your files> "
                     "(pathspecs + Agent Provenance Trailers).\n"
                 )
-            return 0
+            # gate/commit causes resolved (or capped) → reset their counters, then
+            # the promise-guard still has the last word on THIS stop.
+            counter.write_text(f"0,0,{stall_attempts}")
+            return _stall_gate()
 
-        counter.write_text(f"{gate_attempts},{commit_attempts}")
+        counter.write_text(f"{gate_attempts},{commit_attempts},{stall_attempts}")
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])
             more = len(own_uncommitted) - 8

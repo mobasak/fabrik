@@ -456,3 +456,90 @@ def test_warn_actions_name_their_cause() -> None:
     a_gate, _, _ = hook.decide(True, True, gate_attempts=3)
     a_commit, _, _ = hook.decide(True, False, gate_attempts=0, own_uncommitted=True, commit_attempts=3)
     assert a_gate == "allow_warn_gate" and a_commit == "allow_warn_commit"
+
+
+# --- promise-guard (stall detection) ------------------------------------------
+
+def _turn(transcript: Path, *entries: str) -> None:
+    transcript.write_text("\n".join(entries) + "\n", encoding="utf-8")
+
+
+def _user(text: str = "do the thing") -> str:
+    return json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": text}]}})
+
+
+def _asst_text(text: str) -> str:
+    return json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
+
+
+def _asst_tool(name: str, **inp) -> str:
+    return json.dumps({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "name": name, "input": inp}]}})
+
+
+def test_promise_without_dispatch_is_a_stall(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Pass 5 is owed. I'll run it and report at the quiet round."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_promise_with_background_dispatch_is_kept(tmp_path: Path) -> None:
+    # The promise was KEPT: a subagent dispatch happened in the same final turn.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_tool("Task", prompt="run pass 5"),
+          _asst_text("Starting it now — Pass 5 dispatched, will report."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_permission_question_with_session_owned_lock_is_a_stall(tmp_path: Path) -> None:
+    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    (locks / "x.json").write_text('{"status": "active"}')
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("The T2 cap says route to a plan. Want me to run /fabrik-plan-after-chat now?"))
+    # session-scoped: the lock counts only when THIS session authored it
+    kind = hook._detect_stall(str(tr), tmp_path, {".fabrik/plan-locks/x.json"})
+    assert kind and kind[0] == "permission"
+    # an unrelated sibling's active lock (not session-authored) must NOT fire
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_permission_question_without_midrun_marker_is_allowed(tmp_path: Path) -> None:
+    # A follow-up OFFER after completed work (no active plan/review) is legitimate.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("All done and committed. Want me to also fold these in?"))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_human_gate_wording_is_never_a_stall(tmp_path: Path) -> None:
+    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    (locks / "x.json").write_text('{"status": "active"}')
+    owned = {".fabrik/plan-locks/x.json"}
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Converged. Gate 2 is yours — awaiting your approval to deploy."))
+    assert hook._detect_stall(str(tr), tmp_path, owned) is None
+    _turn(tr, _user(), _asst_text("BLOCKED: vendor API — searched docs+web — missing auth scheme."))
+    assert hook._detect_stall(str(tr), tmp_path, owned) is None
+
+
+def test_unchecked_review_is_a_midrun_marker(tmp_path: Path) -> None:
+    rev = tmp_path / "docs/development/reviews"; rev.mkdir(parents=True)
+    (rev / "2026-01-01-x-review.md").write_text("| class | UNCHECKED | |\n")
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Round 2 is owed. Shall I continue with the next pass?"))
+    kind = hook._detect_stall(str(tr), tmp_path, {"docs/development/reviews/2026-01-01-x-review.md"})
+    assert kind and kind[0] == "permission"
+
+
+def test_garbage_transcript_fails_open(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("not json at all\n{broken", encoding="utf-8")
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_decide_stall_counter_and_cap() -> None:
+    a1 = hook.decide_stall(True, 0)
+    assert a1 == ("block_stall", 1)
+    a3 = hook.decide_stall(True, 3)
+    assert a3 == ("allow_warn_stall", 0)
+    assert hook.decide_stall(False, 2) == ("allow", 0)  # cause resolved -> counter resets
