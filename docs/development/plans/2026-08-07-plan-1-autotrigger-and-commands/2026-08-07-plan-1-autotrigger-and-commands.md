@@ -23,7 +23,7 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 | T06b | TRIGGER+Stage sweep (build/certify/release/gate/utility skills) | — | ⚡ | ✅ | merged 4344a502 (2 rounds + 1-line r3) |
 | T07 | Orient step-0 routing rule | — | ⚡ | ✅ | merged b1b5500c (2 Opus rounds + r3) |
 | T08 | Stage-skip artifact gates | — | ⚡ | ✅ | merged d0547117 (2 Opus rounds + mutation-verified r3, 32 tests) |
-| T99 | Integration: parity, receipts, whole-plan gates | T01, T02, T03, T04, T05, T06a, T06b, T07, T08 | ⛓️ | ⬜ | |
+| T99 | Integration: parity, receipts, whole-plan gates | T01, T02, T03, T04, T05, T06a, T06b, T07, T08 | ⛓️ | ✅ | integration complete: seams PASS, Tier-2 44/0, receipts filed |
 
 ## Merge Order
 

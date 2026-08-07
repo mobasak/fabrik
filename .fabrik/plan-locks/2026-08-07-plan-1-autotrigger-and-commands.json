@@ -185,6 +185,10 @@
       "final_worktree_commit": "4344a502",
       "review_rounds": 2,
       "exit": "dispatcher-adjudicated on 1-line r3 after 2 full Opus rounds"
+    },
+    "T99": {
+      "state": "merged",
+      "note": "integration run by dispatcher; seams PASS, Tier-2 success 44/0, receipts filed"
     }
   }
 }
