@@ -157,15 +157,22 @@
       "exit": "dispatcher-adjudicated on one-clause r3 after full Opus round + verified r2"
     },
     "T04": {
-      "state": "dispatched",
-      "base_commit": "291c4cea",
-      "started_at": "2026-08-07T19:20:00Z"
-    },
-    "T06b": {
-      "state": "dispatched",
+      "state": "in-review",
       "base_commit": "291c4cea",
       "started_at": "2026-08-07T19:20:00Z",
-      "note": "fabrik-release description-line only (body already T03-edited)"
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad862fd4e1f4c6a84",
+      "branch": "worktree-agent-ad862fd4e1f4c6a84",
+      "coder_commit": "1d366657",
+      "note": "worktree base 5943074a pre-T03; files disjoint from T03"
+    },
+    "T06b": {
+      "state": "in-review",
+      "base_commit": "291c4cea",
+      "started_at": "2026-08-07T19:20:00Z",
+      "note": "worktree base 5943074a pre-T03; fabrik-release edit is description-line only, line-disjoint from T03 body edit",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aa5eeadf4401a9582",
+      "branch": "worktree-agent-aa5eeadf4401a9582",
+      "coder_commit": "3a654b03"
     }
   }
 }
