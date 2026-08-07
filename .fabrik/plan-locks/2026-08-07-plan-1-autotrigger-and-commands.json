@@ -78,7 +78,7 @@
       "review_round_2": "FINDINGS: 0 \u2014 all resolved, no regressions"
     },
     "T05": {
-      "state": "fixup-round-4",
+      "state": "review-clean-awaiting-merge",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a51ac824c6138d5fe",
       "branch": "worktree-agent-a51ac824c6138d5fe",
       "coder_commit": "2472a1aa9e5ceb4f7ab858e54b774eb1cf134b73",
@@ -89,7 +89,10 @@
       "fixup_commit": "f62b2d2c",
       "review_round_2": "7/8 resolved; F3-residual hub-misroute skipped; N3-N7: test-anchor FPs, TR kaldir misroute, recall regressions, 10s Tier-2 tax; RULING: Tier 2 opt-in via FABRIK_ROUTER_HAIKU, timeout back to frozen 8s",
       "fixup_commit_r3": "13962907",
-      "review_round_3": "all resolved+live-verified; 3 NEW: TR bare-token parity (4), dormant upstream/retire stems arm on enrollment, bare e2e"
+      "review_round_3": "all resolved+live-verified; 3 NEW: TR bare-token parity (4), dormant upstream/retire stems arm on enrollment, bare e2e",
+      "final_worktree_commit": "9c29964e",
+      "review_rounds": 3,
+      "exit": "dispatcher-adjudicated on pattern-table-only r4 diff after 3 full Opus rounds; 123 tests"
     },
     "T07": {
       "state": "review-clean-awaiting-merge",
