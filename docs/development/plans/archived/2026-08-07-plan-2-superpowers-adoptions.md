@@ -1,9 +1,11 @@
 # Plan: Three superpowers-skill adoptions (watched-fail-first · repo-identity preamble · end-of-branch menu)
 
-Status: CONVERGED
+Status: EXECUTED
 Date: 2026-08-07
 Source: operator-approved comparison of the superpowers plugin skills vs the fabrik command corpus
 (this conversation; skills read from `~/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/`).
+
+Whole-plan validation: `docs/development/reviews/2026-08-07-plan-2-superpowers-adoptions-review.md` (3 Opus rounds, 23 findings all fixed; gate embedded).
 
 ## Context Ledger
 

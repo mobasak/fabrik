@@ -20,8 +20,10 @@ string, and never by asking):
 - **HUB mode** (repo identity = `/opt/fabrik`, given the proposal path(s)) — independently re-verifies and
   applies. **Where this runs:** hub-side only — the hub is the only side holding the real synced source and
   the commit path that redistributes a fix fleet-wide. Identity comes from the preamble's resolution
-  (`$TOP`, or `$MAIN` in a linked worktree) — a `/opt/fabrik` **worktree** IS hub-repo: edit the canonical
-  source directly there, never file a proposal to yourself.
+  (`$TOP`, or `$MAIN` in a linked worktree) **tested by CONTENT, never a bare path string**:
+  `scripts/fabrik_synced_manifest.py` present at that toplevel = HUB (a relocated/DR hub clone is still
+  the hub) — a `/opt/fabrik` **worktree** IS hub-repo: edit the canonical source directly there, never
+  file a proposal to yourself.
 
 {{include:repo-identity}}
 
@@ -201,10 +203,10 @@ proposal merely mentions in passing.
 ### Phase 1 — Apply what survives
 
 Open with `git status --short <target file(s)>` (the file(s) named in the proposal's addressing header). If
-HUB identity came from manifest-presence — i.e. you are running from a `/opt/fabrik` **worktree**, per Phase
-0's identity test — that check is worktree-blind: a worktree's own `git status` cannot see dirt sitting in the
-main checkout (live-proven), so ALSO run `git -C /opt/fabrik status --short <target file(s)>` against the main
-checkout, and note `git worktree list` to check whether another worktree is holding the same file dirty. Any
+you are running from a LINKED WORKTREE — the preamble's `GITDIR ≠ COMMON` test — that check is
+worktree-blind: a worktree's own `git status` cannot see dirt sitting in the main checkout (live-proven), so
+ALSO run `git -C "$MAIN" status --short <target file(s)>` against the main checkout (the preamble's `$MAIN`),
+and note `git worktree list` to check whether another worktree is holding the same file dirty. Any
 output, from ANY of these checks = uncommitted WIP on that exact file, somewhere in the fleet of checkouts →
 **stop and report, never apply on top of it** — the general risk this guards against (the HUB tree broadly
 carrying uncommitted work from a concurrent session, not this specific target file) is what produced the
