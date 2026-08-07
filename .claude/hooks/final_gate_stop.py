@@ -319,14 +319,28 @@ def decide_stall(stalled: bool, attempts: int, cap: int = CAP) -> tuple[str, int
 # plan/review contract already grants. Precision over recall throughout —
 # indeterminate parses fail open, human-gate wording is exempt, a kept promise
 # (a dispatch in the same final turn) is exempt.
-_PROMISE_RE = re.compile(
+# Two-stage promise match (precision-first; review finding: bare verbs blocked
+# read-only turns like "Let me run through the options"): a first-person future
+# verb must be followed, within 60 chars, by an ACTION OBJECT — a slash command,
+# a work artifact, or a direct object pronoun. "run through" (reviewing idiom)
+# and "start by" (conversational) are excluded at the verb.
+_PROMISE_VERB_RE = re.compile(
     r"\b(?:I(?:'|’)?ll|I will|let me)\s+(?:now\s+)?"
-    r"(?:run|start|dispatch|launch|kick\s+off|begin|continue|keep\s+(?:working|going|chaining)|work\s+through)\b"
+    r"(?:run(?!\s+through)|start(?!\s+by)|dispatch|launch|kick\s+off"
+    r"|keep\s+(?:working|going|chaining)|work\s+through)\b"
     r"|\b(?:starting|running|dispatching)\s+(?:it|that|this|the\s+[\w\- ]{1,40}?)\s+now\b",
     re.I,
 )
+_ACTION_OBJECT_RE = re.compile(
+    r"/[a-z][\w-]+|\bit\b|\bthem\b|\bpass(?:es)?\b|\bround\b|\bsuite\b|\bgate\b"
+    r"|\breviews?\b|\btests?\b|\bpytest\b|\bplans?\b|\btickets?\b|\bphases?\b"
+    r"|\bfinders?\b|\bsweep\b|\bfix(?:es|ups?)?\b|\bbatch\b|\bcommand\b|\bscript\b"
+    r"|\bsubagents?\b|\bcoders?\b|\bworkflow\b|\bnow\b",
+    re.I,
+)
 _PERMISSION_RE = re.compile(
-    r"\b(?:want me to|shall I|should I|would you like me to|do you want me to)\b[^?\n]{0,120}\?",
+    r"\b(?:want me to|shall I|should I(?!\s+have)|would you like me to|do you want me to)\b"
+    r"[^?\n]{0,120}\?",
     re.I,
 )
 # Legitimate stops: named human gates, BLOCKED escalations, operator-owned steps.
@@ -336,16 +350,49 @@ _GATE_EXEMPT_RE = re.compile(
     re.I,
 )
 # Tool names whose use in the final turn means a promise was KEPT (work dispatched).
-_DISPATCH_TOOLS = frozenset({"Task", "Agent", "Skill", "Workflow"})
+_DISPATCH_TOOLS = frozenset({"Task", "Agent", "Skill", "Workflow", "SlashCommand"})
+
+
+def _is_dispatch(tool: dict) -> bool:
+    if tool["name"] in _DISPATCH_TOOLS:
+        return True
+    if tool["name"] == "Bash":
+        if tool["input"].get("run_in_background"):
+            return True
+        # `rund -- <cmd>` is CLAUDE.md's sanctioned foreground-wrapper that
+        # backgrounds internally — a kept promise (review finding).
+        cmd = str(tool["input"].get("command") or "")
+        if re.match(r"\s*rund\b", cmd):
+            return True
+    return False
+
+
+# Bounded transcript read: the final TURN lives in the last slice of the file; a
+# full read_text() on a multi-hundred-MB transcript cost 2.5+ GB RSS per Stop
+# (measured live, review finding). 2 MB >> any single turn's tail.
+_TAIL_READ_BYTES = 2 * 1024 * 1024
 
 
 def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
-    """(last assistant text, tool_use inputs of the final turn) or None on any gap."""
+    """(final assistant text, tool_use list of the final turn) or None on any gap.
+
+    Text comes ONLY from the LAST assistant entry (an empty final message stays
+    empty — never inherit an older message's promise; review finding). Tools are
+    collected across the whole final turn, back to the last REAL user message.
+    """
     try:
-        lines = Path(transcript_path).read_text(encoding="utf-8", errors="replace").splitlines()
+        with open(transcript_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - _TAIL_READ_BYTES))
+            raw = f.read().decode("utf-8", errors="replace")
     except OSError:
         return None
+    lines = raw.splitlines()
+    if size > _TAIL_READ_BYTES and lines:
+        lines = lines[1:]  # first line of a mid-file slice is almost surely partial
     text = ""
+    seen_assistant_entry = False
     tools: list[dict] = []
     for line in reversed(lines):
         if '"type"' not in line:
@@ -371,8 +418,9 @@ def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
                 continue
             if block.get("type") == "tool_use":
                 tools.append({"name": block.get("name", ""), "input": block.get("input") or {}})
-            elif block.get("type") == "text" and not text:
+            elif block.get("type") == "text" and not seen_assistant_entry and not text:
                 text = str(block.get("text") or "")
+        seen_assistant_entry = True  # only the LAST assistant entry may supply text
     return text, tools
 
 
@@ -385,8 +433,14 @@ def _midrun_marker(root: Path, authored: set[str]) -> bool:
         p = root / rel
         try:
             if ".fabrik/plan-locks/" in rel and p.is_file():
-                if '"status": "active"' in p.read_text(encoding="utf-8", errors="replace"):
-                    return True
+                # Parse, don't substring-match: compact JSON must still arm it, and
+                # a history entry recording a PAST active status must not (review
+                # finding). Unparseable lock → not armed (fail toward allowing).
+                try:
+                    if json.loads(p.read_text(encoding="utf-8", errors="replace")).get("status") == "active":
+                        return True
+                except Exception:
+                    pass
             elif "docs/development/reviews/" in rel and p.is_file():
                 # Live checklist ROW form only — a closed review's prose mention of
                 # the word ("rows return to UNCHECKED") must not keep the marker on.
@@ -407,7 +461,9 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
         if not text:
             return None
         tail = text[-600:]
-        if _GATE_EXEMPT_RE.search(tail):
+        # Exemptions scan the FULL message: a long BLOCKED escalation's header must
+        # not be split away from its own detail by the tail cut (review finding).
+        if _GATE_EXEMPT_RE.search(text):
             return None
 
         def _quoted(match: re.Match[str]) -> bool:
@@ -418,25 +474,28 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
             before = tail[: match.start()].rstrip()
             return bool(before) and before[-1] in "\"'`“‘«"
 
-        m = _PROMISE_RE.search(tail)
-        if m and _quoted(m):
-            m = None
-        if m:
-            # A promise is KEPT if the same final turn dispatched work (a subagent,
-            # a skill, or a background command).
-            dispatched = any(
-                t["name"] in _DISPATCH_TOOLS
-                or (t["name"] == "Bash" and t["input"].get("run_in_background"))
-                for t in tools
-            )
-            if not dispatched:
+        # First UNQUOTED verb match with an action object in reach — a quoted
+        # example must not MASK a later genuine promise (review finding).
+        for m in _PROMISE_VERB_RE.finditer(tail):
+            if _quoted(m):
+                continue
+            if not _ACTION_OBJECT_RE.search(tail[m.end() : m.end() + 60]):
+                continue  # conversational verb with no work object — not a promise
+            if not any(_is_dispatch(t) for t in tools):
                 return "promise", m.group(0)
-        m = _PERMISSION_RE.search(tail)
-        if m and not _quoted(m) and _midrun_marker(root, authored):
-            return "permission", m.group(0)
+            break  # promise exists but was KEPT (work dispatched this turn)
+        for m in _PERMISSION_RE.finditer(tail):
+            if _quoted(m):
+                continue
+            if _midrun_marker(root, authored):
+                return "permission", m.group(0)
+            break
         return None
-    except Exception:
-        return None  # fail open — the guard must never trap on its own bug
+    except Exception as e:
+        # Fail open — but never SILENTLY (review finding: a MemoryError-disabled
+        # guard was indistinguishable from "no stall").
+        sys.stderr.write(f"[promise-guard] detection error, failing open: {e}\n")
+        return None
 
 
 def main(argv: list[str]) -> int:
@@ -462,13 +521,13 @@ def main(argv: list[str]) -> int:
         # stall fires with a CLEAN tree just as often (a stalling agent has usually
         # committed everything and then narrates instead of dispatching).
         transcript_p = str(data.get("transcript_path") or "")
-        authored_for_stall: set[str] = set()
+        authored_map: dict[str, int] = {}
         if transcript_p:
             try:
-                authored_for_stall = set(_session_files(transcript_p, root))
+                authored_map = _session_files(transcript_p, root)
             except Exception:
-                authored_for_stall = set()
-        stall = _detect_stall(transcript_p, root, authored_for_stall) if transcript_p else None
+                authored_map = {}
+        stall = _detect_stall(transcript_p, root, set(authored_map)) if transcript_p else None
 
         def _stall_gate() -> int:
             """Run the promise-guard counter flow. Returns the exit code."""
@@ -520,7 +579,9 @@ def main(argv: list[str]) -> int:
         try:
             baseline = set(json.loads(baseline_file.read_text()))
         except Exception:
-            return 0
+            # Corrupt baseline → gate/commit causes can't run, but the promise-guard
+            # must not be disabled for the rest of the session (review finding).
+            return _stall_gate()
 
         _passed, failing, gate_outputs = _run_gate(root)
         new_failures = failing - baseline
@@ -528,10 +589,11 @@ def main(argv: list[str]) -> int:
         # Session-authored files still uncommitted? (CLAUDE.md § EXIT: an
         # uncommitted task is an unfinished task.) Fail-open on any gap.
         own_uncommitted: set[str] = set()
-        authored: dict[str, int] = {}
+        # Reuse the stall path's parse — _session_files costs ~1s on a large
+        # transcript; three passes per Stop was a measured review finding.
+        authored: dict[str, int] = authored_map
         transcript = str(data.get("transcript_path") or "")
         if transcript:
-            authored = _session_files(transcript, root)
             dirty = _dirty_paths(root)
             for rel, edit_ts in authored.items():
                 if rel not in dirty:
@@ -597,7 +659,11 @@ def main(argv: list[str]) -> int:
             counter.write_text(f"0,0,{stall_attempts}")
             return _stall_gate()
 
-        counter.write_text(f"{gate_attempts},{commit_attempts},{stall_attempts}")
+        # Reset-when-cause-false applies to the stall slot here too: a gate/commit
+        # block must not STRAND a stale stall count that later waves a brand-new
+        # stall streak through on its first stop (review finding — the same
+        # regression class decide()'s own docstring documents, reintroduced).
+        counter.write_text(f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0}")
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])
             more = len(own_uncommitted) - 8

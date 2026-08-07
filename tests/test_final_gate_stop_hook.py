@@ -566,3 +566,114 @@ def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
         "The old stall was 'I did nothing'. Anyway: want me to run the next pass now?"))
     kind = hook._detect_stall(str(tr), tmp_path, owned)
     assert kind and kind[0] == "permission"
+
+
+def test_gate_exemption_suppresses_a_real_promise(tmp_path: Path) -> None:
+    """Mutation-killer: the exemption must be load-bearing — a REAL promise inside
+    human-gate wording is exempt; delete the exemption regex and this goes red."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Gate 2 is yours — after you approve, I'll run the deploy-verify suite."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_blocked_header_exempts_despite_long_detail(tmp_path: Path) -> None:
+    """The exemption scans the FULL message — a BLOCKED header must not be split
+    away from a trailing promise by the 600-char tail cut."""
+    detail = "search detail line\n" * 60
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "BLOCKED: vendor API — searched: docs, web — missing: auth scheme.\n" + detail +
+        "Once you supply the scheme I'll run the suite."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_prose_unchecked_mention_does_not_arm_marker(tmp_path: Path) -> None:
+    """Mutation-killer for the live-row form: a CLOSED review's prose mention of
+    UNCHECKED must not arm the permission marker."""
+    rev = tmp_path / "docs/development/reviews"; rev.mkdir(parents=True)
+    (rev / "r.md").write_text("fixed classes return to UNCHECKED until re-adjudicated\n")
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Shall I run the next pass now?"))
+    assert hook._detect_stall(str(tr), tmp_path, {"docs/development/reviews/r.md"}) is None
+
+
+def test_quoted_promise_does_not_mask_a_later_real_one(tmp_path: Path) -> None:
+    """Guard-defeat killer: a quoted example must not disarm a genuine promise
+    that follows it."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "The old stall was 'I'll run it'. Anyway, I'll run the next pass now."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_conversational_verbs_without_action_object_are_silent(tmp_path: Path) -> None:
+    """Read-only turns must never stall (the highest-volume FP class)."""
+    tr = tmp_path / "t.jsonl"
+    for msg in (
+        "Three options exist. Let me run through them before you pick one.",
+        "Let me start by confirming which VPS you mean.",
+        "Findings below. I'll begin with the CONFIRMED ones.",
+    ):
+        _turn(tr, _user(), _asst_text(msg))
+        assert hook._detect_stall(str(tr), tmp_path, set()) is None, msg
+
+
+def test_rund_and_slashcommand_count_as_dispatch(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_tool("Bash", command="rund -- pytest -q tests/"),
+          _asst_text("I'll run the suite and report as results land."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    _turn(tr, _user(), _asst_tool("SlashCommand", command="/fabrik-review"),
+          _asst_text("I'll run /fabrik-review now."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(tmp_path: Path) -> None:
+    """Turn-boundary killers: (a) a PRIOR turn's Task must not exempt this turn's
+    promise; (b) an empty final message must not inherit an older promise."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr,
+          _user("first ask"), _asst_tool("Task", prompt="old work"), _asst_text("done that."),
+          _user("second ask"), _asst_text("I'll run the confirming pass now."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise", "prior-turn dispatch must not exempt"
+    _turn(tr,
+          _user(), _asst_text("I'll run the suite now."), _asst_tool("Read", file_path="/x"),
+          _asst_text(""))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None, "empty final text must not inherit"
+
+
+def test_counter_format_round_trips(tmp_path: Path) -> None:
+    c = tmp_path / "ctr"
+    for raw, expect in [("3", (3, 0, 0)), ("3,1", (3, 1, 0)), ("3,1,2", (3, 1, 2)),
+                        ("", (0, 0, 0)), ("x,y", (0, 0, 0)), ("1,2,3,4", (1, 2, 3))]:
+        c.write_text(raw)
+        assert hook._read_counters(c) == expect, raw
+
+
+def test_e2e_stall_blocks_and_gate_block_does_not_strand_stall_counter(fake_project: Path) -> None:
+    """End-to-end through main(): a stall emits decision:block; an intervening
+    gate block must RESET the stall slot when the stall is absent (the stranded-
+    counter regression class)."""
+    sid = "s_stall_e2e"
+    tr = fake_project / "transcript.jsonl"
+    ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
+    ctr.unlink(missing_ok=True); bl.write_text(json.dumps([]))
+    def stop(fails: str, final_text: str) -> str:
+        tr.write_text("\n".join([_user(), _asst_text(final_text)]) + "\n")
+        env = {**os.environ, "FAKE_FAILS": fails}
+        proc = subprocess.run([sys.executable, str(_HOOK)],
+            input=json.dumps({"session_id": sid, "cwd": str(fake_project),
+                              "transcript_path": str(tr), "hook_event_name": "Stop"}),
+            capture_output=True, text=True, timeout=60, env=env)
+        return proc.stdout.strip()
+    out = stop("", "I'll run the confirming pass now.")
+    assert out and json.loads(out)["decision"] == "block" and "STALL" in json.loads(out)["reason"]
+    assert ctr.read_text().split(",")[2] == "1"
+    # now a GATE failure with NO stall in the final message → stall slot must reset to 0
+    out2 = stop("NEWCHECK", "Fixed some things; see the diff.")
+    assert out2, "gate failure should block"
+    assert ctr.read_text().split(",")[2] == "0", "stall slot must reset when the stall is absent"
+    ctr.unlink(missing_ok=True); bl.unlink(missing_ok=True)
