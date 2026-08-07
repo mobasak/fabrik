@@ -18,17 +18,17 @@ deterministically greppable" tail).
 
 | Class | Verdict | Evidence |
 |---|---|---|
-| Merge fidelity — merged master content ≡ reviewed worktree HEAD, per ticket (esp. T04 hand-applied assembler) | UNCHECKED | |
-| Fail-open vs fail-closed — every new guard/exemption (check_secrets placeholder family; final_gate_stop attribution downgrade) | UNCHECKED | |
-| Boundary/sentinel/prefix collisions (substring matching in attribution; regex anchoring in the DSN family) | UNCHECKED | |
-| Security — did the checker exemptions open a real-secret hole | UNCHECKED | |
-| Logic/null/empty/edge in the two hook/checker diffs | UNCHECKED | |
-| Test quality — revert-red, no mock theater, no trivially-green (the 4 new/changed test files) | UNCHECKED | |
-| Behavior-without-a-test on the changed surfaces | UNCHECKED | |
-| Cross-file contract breaks (assemble_commands hand-edit vs render pipeline; hook contract vs settings timeout) | UNCHECKED | |
-| Governance-truth — CHANGELOG/INDEX/receipts/review-doc/Evidence claims vs repo reality | UNCHECKED | |
-| 12-Factor axes on the changed surface (III config, XI logs — scripts/hooks) | UNCHECKED | |
-| Cost/quota/limit accounting edges (1024 assert; timeout margins) | UNCHECKED | |
+| Merge fidelity — merged master content ≡ reviewed worktree HEAD, per ticket (esp. T04 hand-applied assembler) | CLEAN | 14-file byte-identity battery (all OK); AST union check: NEXT=24 keys, PARAMS=20 keys, zero dupes; decommission delta = T99 fixup only; Opus class-4 independent verify ("No drops, no duplicates, render sane 24/24") |
+| Fail-open vs fail-closed — every new guard/exemption | FIXED(8) | Attribution v2: per-check outputs (Opus#4), path-token match (#1,#6), indeterminate-blocks for path-less (#2), count-independent (#3), session_floor (#5), mypy (#8), governance-self indeterminate (r2); direction table probed executed (r3-r5 re-checks clean) |
+| Boundary/sentinel/prefix collisions | FIXED(3) | Substring ban (t==rel / abs-suffix / basename triple; probes: data_app.py no-match, abs-path match); token normalization; 1000-char extraction bound (r2); r3-r5 re-swept clean |
+| Security — checker exemptions vs real secrets | FIXED(3) | Family narrowed (example/sample/dummy/todo/tbd dropped — Opus#9 table re-verified red); greedy-to-last-@ full-line capture (#10 probe green); DSN-pattern-only scoping (#11 suppression test) |
+| Logic/null/empty/edge in the hook/checker diffs | FIXED(2) | `f.get("output") or ""`; two-empty-outputs test; remaining candidates REFUTED with quoted lines (call sites 3-tuple; session_floor or-chain includes ts=0) |
+| Test quality — revert-red, no theater | FIXED(2)+proof | Mutation red-on-revert executed (reverted→1 failed / restored→16 passed); DRAFT-fixture class from T08 not repeated; 12 new tests each tied to a specific guard |
+| Behavior-without-a-test | FIXED | Every new behavior carries a test: 7 attribution edges + govself + pre-session floor + 4 secrets shapes (51 total green) |
+| Cross-file contract breaks | CLEAN | _run_gate 3-tuple at both call sites; render 24/24 + corpus --check OK post-merge; hook timeout 15 > HAIKU 8 margin re-verified in T05's review |
+| Governance-truth | FIXED(9) | Spine md5-vs-commit citation reworded + Board legend (worktree tips → master squash commits); review-doc D7 verdict AMENDED (finder-floor gap disclosed, 3 in-range fixes named, sibling seo failure disclosed); receipts 48/48; Lesson 104 (9 worktrees, attribution-v2); lock resolutions; worktrees pruned branches-kept |
+| 12-Factor axes on the changed surface | CLEAN | Scripts/hooks: stdout-only (XI), no config-in-code introduced (III); swept by 4 finder rounds, zero candidates raised |
+| Cost/quota/limit accounting edges | CLEAN | 1024 _emit_skill assert verified tripping (T02 r3); 1000-char DSN bound (hostile-line probe 0.00s); HAIKU_TIMEOUT at frozen 8 with measured rationale |
 
 ## Pass Ledger
 
@@ -45,6 +45,23 @@ Pass 1 fix batch (all landed this round):
 REFUTED with quoted/executed evidence (no code change): anchored-regex substring claim (probe: MyPassword123 no-match) · _PLACEHOLDER_VALUES missing-family (line 73) · abs-path wave-through (probe: substring matches) · stale 2-tuple call sites (both 3-tuple) · trivially-green test (mutation red-on-revert: 1 failed reverted / 16 passed restored) · U2-4 non-edit-tool transcripts (covered by existing _session_files tests) · U3-3 own_uncommitted-after-downgrade (correct by design — EXIT law is orthogonal) · U3-6 non-DSN URL exemption (now impossible: exemption scoped to DSN patterns) · Opus-#7 no-transcript fail-closed (RULING: deliberate — attribution without authored-set knowledge is indeterminate; CAP bounds it; documented in the docstring).
 Pre-existing, out of scope (residual (a)): U0-3 literal `secret` password token (in the original family pre-change) · U0-4/5 extraction-regex shapes predating this diff · Opus gate-crash silent fail-open (documented _run_gate philosophy, unchanged) · Opus #17 embedded-JSON-abridged (kept: the embed is verbatim-labeled for its run point; superseding run disclosed in prose).
 
+Pass 2 — finders: pool×3 (deepseek-v3.2-exp, gemini-3-flash, qwen3-max; scored 3/3/3) over the round-1 fix diff | found: 12 | fixed: 2 (governance-self indeterminate branch; 1000-char DSN extraction bound) | 10 REFUTED (session_floor or-chain misread ×2; charset excludes '(' and ':' from tokens ×2; multi-DSN greedy fails closed; docs-example FP = deliberate security ruling; docs/CHANGELOG.md not a convention; FAKE_FAIL_OUTPUTS is a test fixture; combinatorial case already covered; noise-token attribution needs a matching authored filename) | → not done (changed code)
+Pass 3 — finders: pool×2 (deepseek-v3.2-exp scored 2, gemini-3-flash scored 3) over the round-2 diff | found: 3 | fixed: 0 | 3 REFUTED (mixed governance+unauthored-cite has no realistic failing-check shape and lands on the never-trap default; 1000-char truncation of an over-long placeholder line fails CLOSED; abs-path governance cite same class) | → not quiet, next round owed
+Pass 4 — finders: pool×2 (deepseek-v3.2-exp scored 2, gemini-3-flash scored 4) + dispatcher confirming re-checks (51 tests, mypy×2 clean, lean gate: session classes green) | found: 2 (both deepseek, self-refuted: extensionless-token indeterminate = by-design; session-floor staleness = factually wrong, baseline rewrites per SessionStart) | fixed: 0 | → not quiet, next round owed
+Pass 5 — finders: pool×2 (deepseek-v3.2-exp, gemini-3-flash; scored 3/3), adjudicated design decisions fenced | found: 0 | fixed: 0 | → EXIT (checklist fully adjudicated; last code change was Pass 2, re-swept by Passes 3-5)
+
 ## Per-finding disposition ledger
 
-(every candidate raised by any finder, terminal FIXED or REFUTED)
+Totals: 56 candidates raised across 5 passes = 22 FIXED + 34 REFUTED (sums; zero parked).
+
+FIXED (22) — commits `aafc9b20` (r1 batch: attribution v2 ×8, secrets ×3, governance ×9 incl. worktree prune) and `665233ff` (r2: governance-self indeterminate, DSN bound) — every code fix carries a red-on-revert test; governance fixes carry corrected artifacts.
+REFUTED (34) — each with quoted/executed proof recorded in the Pass Ledger rows above and the round transcripts: 19 in Pass 1 (incl. mutation red-on-revert proof, anchored-regex probes, _PLACEHOLDER_VALUES:73 quote, 3-tuple call-site grep, U3-3 by-design EXIT-law orthogonality, Opus#7 deliberate fail-closed ruling documented in the docstring), 10 in Pass 2, 3 in Pass 3, 2 in Pass 4.
+
+Residual risks (pre-existing only, per the contract): U0-3 literal `secret` token was in the ORIGINAL family (pre-change); U0-4/5 extraction-regex shapes predate this diff; the gate-crash silent fail-open is `_run_gate`'s documented philosophy (unchanged). Sibling-owned (escalated, not mine): the live seo spec↔project DB-name drift (`specs/services/seo.yaml` staged by a concurrent session) — reported here and disclosed in the whole-plan review doc; the reworked hook attributes it as inherited (live-verified this session).
+
+## Exit
+
+Both exit proofs hold: the checklist above is fully adjudicated (no UNCHECKED) and Pass 5 is a genuine
+quiet round (found: 0, fixed: 0) following two all-refuted rounds after the last code change (Pass 2).
+Mechanical gates: suites 51/51, mypy clean ×2, corpus --check OK; the lean/full gate carries exactly one
+failure, owned by a concurrent sibling session's staged files (disclosed above, not this session's to fix).
