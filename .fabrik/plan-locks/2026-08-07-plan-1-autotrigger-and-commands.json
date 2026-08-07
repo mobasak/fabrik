@@ -82,7 +82,7 @@
       "review_round_2": "FINDINGS: 0 \u2014 all resolved, no regressions"
     },
     "T05": {
-      "state": "review-clean-awaiting-merge",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a51ac824c6138d5fe",
       "branch": "worktree-agent-a51ac824c6138d5fe",
       "coder_commit": "2472a1aa9e5ceb4f7ab858e54b774eb1cf134b73",

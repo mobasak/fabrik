@@ -18,7 +18,7 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 | T02 | fabrik-decommission command | — | ⚡ | ✅ | merged fc629d79 (3 review rounds) |
 | T03 | fabrik-deploy-verify command | — | ⚡ | ✅ | merged 71ddb668 (3 rounds; hub-side ruling, wildcard-DNS probe) |
 | T04 | fabrik-upstream command | — | ⚡ | ✅ | merged 5073c45c (3 rounds; exemplar-true, repo-identity modes) |
-| T05 | UserPromptSubmit router hook | — | ⚡ | ⬜ | |
+| T05 | UserPromptSubmit router hook | — | ⚡ | ✅ | merged 9c29964e (3 Opus rounds + r4, 123 tests) |
 | T06a | TRIGGER+Stage sweep (design/contract/plan skills) | — | ⚡ | ✅ | merged 9079f40e (2 rounds, r2 clean) |
 | T06b | TRIGGER+Stage sweep (build/certify/release/gate/utility skills) | — | ⚡ | ✅ | merged 4344a502 (2 rounds + 1-line r3) |
 | T07 | Orient step-0 routing rule | — | ⚡ | ⬜ | |

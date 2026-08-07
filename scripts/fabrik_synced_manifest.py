@@ -84,16 +84,18 @@ ENFORCEMENT_DIR = "scripts/enforcement"
 # byte-identical to canonical ``/opt/fabrik-lib/subagents`` by re-vendoring before a sync).
 VENDORED_DIRS = ["libs/subagents"]
 
-# Agent "definition of done" hooks → synced to project root verbatim (they are
-# cwd/path-agnostic: the Claude Code hook resolves its project via ${CLAUDE_PROJECT_DIR}
-# + stdin cwd; the Cascade hook commands self-locate via `git rev-parse`). This is
-# what makes every project — existing and future — enforce `final_gate` green as the
-# definition of done. (Kilo/opencode has no config-level hook surface — its schema
-# is strict — so Kilo stays instruction-only via AGENTS-compact.md, which rides
-# GOVERNANCE_FILES above.)
+# Agent "definition of done" + prompt-governance hooks → synced to project root
+# verbatim (they are cwd/path-agnostic: the Claude Code hooks resolve their
+# project via ${CLAUDE_PROJECT_DIR} + stdin cwd; the Cascade hook commands
+# self-locate via `git rev-parse`). This is what makes every project — existing
+# and future — enforce `final_gate` green as the definition of done, and route
+# bare-prose prompts to the matching /fabrik-* skill. (Kilo/opencode has no
+# config-level hook surface — its schema is strict — so Kilo stays
+# instruction-only via AGENTS-compact.md, which rides GOVERNANCE_FILES above.)
 AGENT_HOOK_FILES = [
     ".claude/settings.json",
     ".claude/hooks/final_gate_stop.py",
+    ".claude/hooks/skill_router.py",
     ".windsurf/hooks.json",
 ]
 

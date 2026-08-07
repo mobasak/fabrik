@@ -25,6 +25,19 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill_router.py\"",
+            "timeout": 15,
+            "statusMessage": "Routing to a /fabrik-* skill..."
+          }
+        ]
+      }
     ]
   }
 }
