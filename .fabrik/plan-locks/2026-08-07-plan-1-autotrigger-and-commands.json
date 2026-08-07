@@ -99,7 +99,7 @@
       "exit": "dispatcher-adjudicated on pattern-table-only r4 diff after 3 full Opus rounds; 123 tests"
     },
     "T07": {
-      "state": "review-clean-awaiting-merge",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a417e6253750f5373",
       "branch": "worktree-agent-a417e6253750f5373",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",

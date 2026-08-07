@@ -7,6 +7,20 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 `RULES ACTIVE: CLAUDE-CODE | <3 rules from this file you applied or will apply>`
 
 ## Orient (every task)
+0. **Task→skill routing:** step 0 applies to the operator request that STARTS a run — not to steps inside a command or plan already executing (the plan-execution override and invoked-command rule govern those). At that point, classify the request against the pipeline stages below and invoke the matching skill — a task that matches a stage and is executed without its skill is a defect, the sibling of "Invoked command = loaded command" (§ Behavior). Full command chain: § Pipeline (this table names stages only, it doesn't duplicate the chain).
+
+   | Stage | Covers |
+   |---|---|
+   | `1-design` | idea → grounded design spec |
+   | `2-contract` | freeze the data and/or UI contract before planning |
+   | `3-plan` | approved decisions → execution-ready plan |
+   | `4-build` | execute the plan — code, tests, docs, phase by phase |
+   | `5-certify` | FEATURES.md denominator refresh + end-to-end journey certification gauntlets (user-test/service-test) against the live build |
+   | `6-release` | release-readiness verification, hands to the human gate |
+   | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op |
+   | `utility` | support work invocable at any point, not a fixed position in the chain |
+
+   Fork rules: data-shaped work → `2-contract` (`/fabrik-data-contract`); GUI work also routes through `/fabrik-ui-design` + `/fabrik-ui-design-review` (`2-contract`); headless types (§ Pipeline item 2) skip GUI-only stages — their `5-certify` runs `/fabrik-service-test`, never `/fabrik-user-test`. Escape: a matched stage that genuinely doesn't fit — say so in one line and proceed without invoking it; no stage applies at all (pure conversation, a one-off read-only question) — no declaration owed, proceed silently.
 1. `project.yaml::type` tells you which of the 12 `SCAFFOLD_TYPES` this is (11 scaffoldable — `wordpress` ships from `/opt/wpf`). All projects use `.venv` for local WSL development and deploy as Docker containers via `fabrik apply` (SSH + Docker Compose to VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.

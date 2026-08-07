@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Orient step-0 task→skill routing rule (2026-08-07)
+T07 of the autotrigger-and-commands plan set: CLAUDE.md § Orient gains step 0 — at run start (never mid-plan/mid-command), classify the operator request against the frozen stage table (1-design … 6-release / gate / utility, semantics derived from the T06a/T06b stage assignments) and invoke the matching skill; escape available on a matched-but-ill-fitting stage (say so in one line, proceed) and silent on no-match/read-only turns. Mirrored as one self-contained line in AGENTS-compact.md § ORIENT (no CLAUDE.md pointers; non-Claude agents state the stage and follow its workflow).
+
 ### Added — UserPromptSubmit skill-router hook (2026-08-07)
 Added `.claude/hooks/skill_router.py` (T05 of the autotrigger-and-commands plan set), a fail-open bilingual (EN+TR) prompt router: an intent-anchored regex keyword→stem map resolved against the live `~/.claude/skills/fabrik-*` roster (a sibling's new command auto-enrolls at fire time), certification-intent-only test routing (headless types → service-test; no `project.yaml` → no test routing), and TR prefix matching with object anchors. On a match it injects the documented nested `hookSpecificOutput.additionalContext` directive-with-escape — never blocks, never rewrites. The Haiku fallback classifier is fully built and tested but OPT-IN via `FABRIK_ROUTER_HAIKU=1`: measured isolated cold-starts (8.6-10.7s) exceed the frozen ≤8s bound, and a synchronous ~10s tax per unmatched prompt is worse than the missed routings it recovers; the isolated child (temp cwd, `--setting-sources "" --strict-mcp-config --tools "" --no-session-persistence`, process-group kill) stays ready behind the flag. Wired as a `UserPromptSubmit` hook in `.claude/settings.json` and fleet-synced via `AGENT_HOOK_FILES`. 123 tests.
 
