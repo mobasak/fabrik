@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — project-facing docs made fleet-topology-aware (spoke targets) (2026-08-07)
+
+The runtime was fleet-aware (the registrar rewrites `postgres-main`/`redis-main`/`glitchtip-web` to
+the WireGuard mesh IP `10.99.0.1` for spoke-targeted apps — `infrastructure.py`), and
+`docs/infrastructure/` documents it, but that folder is hub-only and the doc layer projects actually
+see never mentioned `target_vps`, spokes, or the mesh: DEPLOYMENT_TEMPLATE taught `postgres-main:5432`
+as THE prod DSN (SERVFAILs on a spoke — WireGuard carries packets, not DNS) and every production URL
+hardcoded `vps1.ocoron.com`. Fixed across DEPLOYMENT (Target-VPS row, split hub/spoke Prod-connection
+rows with the never-"fix"-the-mesh-IP-back warning, networking rule), SERVICES (container-DNS spoke
+caveat), CONFIGURATION (prod env block + rules caveat), QUICKSTART (production URLs →
+`<target_vps>` subdomain placeholder), RESILIENCE (§1 card `target_vps` row), and
+`/fabrik-doc-converge`'s DEPLOYMENT contract row. Review: 2 rounds (2 findings + 1 self-caught GFM
+pipe-in-cell breaker from the first fix attempt — empirically verified against the GFM spec) →
+ROUND CLEAN.
+
 ### Added — /fabrik-doc-converge: per-doc deep convergence (the /fabrik-features loop generalized) (2026-08-07)
 
 New command `commands/_sources/fabrik-doc-converge.md`: converge ONE agent-filled project doc to the

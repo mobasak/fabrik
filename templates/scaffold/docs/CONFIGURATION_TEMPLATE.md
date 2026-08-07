@@ -144,10 +144,12 @@ PORT=${PORT}
 LOG_LEVEL=INFO
 DATABASE_URL=postgresql://[project]:${DB_PASSWORD}@postgres-main:5432/[project]
 REDIS_URL=redis://redis-main:6379/0
+# ^ hub (vps1) Docker-DNS hosts. On a spoke (spec target_vps: vps2/vps3) the
+#   registrar injects 10.99.0.1:<port> here instead — trust the injected value.
 ```
 
 **Production rules:**
-- No `localhost` or `127.0.0.1` — use Docker service names (`postgres-main`, `redis-main`)
+- No `localhost` or `127.0.0.1` — use Docker service names (`postgres-main`, `redis-main`) (hub Docker-DNS; on a spoke — spec `target_vps: vps2/vps3` — the registrar injects the mesh IP `10.99.0.1` instead; WireGuard carries packets, not DNS)
 - No hardcoded credentials — use `${VARIABLE}` references
 - Use `${VAR:?required}` in compose.yaml for critical vars to fail fast
 

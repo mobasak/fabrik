@@ -10,7 +10,8 @@
 
 | Component | Target | URL |
 |-----------|--------|-----|
-| **Application** | {VPS (Docker Compose via `fabrik apply`) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
+| **Application** | {VPS (Docker Compose via `fabrik apply`) / Vercel / Static host} | `https://{project}.<target_vps>.ocoron.com` — subdomain = the spec's `target_vps:` (vps1 default) |
+| **Target VPS** | {vps1 (hub — default) / vps2 / vps3 (spokes)} — the spec's `target_vps:` | shared infra lives on the HUB only |
 | **Database** | {VPS postgres-main (self-host default) / client-local SQLite for desktop-app+mobile-app ONLY} | {connection info in .env} |
 | **Cache** | {VPS redis-main / none} | {connection info in .env} |
 | **DNS** | Cloudflare (via site-provisioner) | Automatic |
@@ -70,7 +71,8 @@ fabrik redeploy [project-name]
 | Environment | Connection | Notes |
 |-------------|------------|-------|
 | Dev (WSL) | `postgresql://localhost:5432/[project]_dev` | Local PostgreSQL |
-| Prod (VPS) | `postgresql://[project]:$DB_PASSWORD@postgres-main:5432/[project]` | Shared `postgres-main` container |
+| Prod (hub, vps1) | `postgresql://[project]:$DB_PASSWORD@postgres-main:5432/[project]` | Shared `postgres-main` container (Docker DNS) |
+| Prod (spoke, vps2/vps3) | `postgresql://[project]:$DB_PASSWORD@10.99.0.1:5432/[project]` | REGISTRAR-INJECTED WireGuard mesh IP — Docker DNS does not cross the mesh; never "fix" this back to `postgres-main` |
 <!-- Supabase retired org-wide (2026-07-03) — self-host on postgres-main; a legacy project still on it needs an ADR-recorded exception, not a template row. -->
 <!-- NO server-side SQLite row here — 12-Factor X CRITICAL ban (dev and prod use the same
      backing service: Postgres in both). Client-local SQLite exists only in desktop-app /
@@ -84,7 +86,7 @@ fabrik redeploy [project-name]
 
 - **Base images:** `python:3.12-slim-bookworm` or `node:22-bookworm-slim` — never Alpine
 - **Architecture:** `linux/amd64` required — VPS is x86_64
-- **Networking:** Docker service names (`postgres-main`, `redis-main`), never `localhost` in production
+- **Networking:** on the HUB, Docker service names (`postgres-main`, `redis-main`) — never `localhost` in production. On a SPOKE (`target_vps: vps2/vps3`), the registrar injects the hub's mesh IP `10.99.0.1:<port>` into your `.env` (WireGuard carries packets, not DNS) — trust the injected value
 - **Health checks:** Every service must have `/health` that tests actual dependencies
 - **Ports:** Registered in `PORTS.md` — Traefik handles external 80/443 routing
 

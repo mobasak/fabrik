@@ -33,6 +33,7 @@
 | `needs_cache`          | _(true / false)_     |
 | `has_search_feature`   | _(true / false)_     |
 | `exposes_metrics`      | _(true / false)_     |
+| `target_vps`           | _(vps1 hub / vps2 / vps3 — spokes reach hub infra via mesh IP `10.99.0.1`)_ |
 | Pause-key namespace    | `<svc>` _(short slug)_ |
 | Owner                  | Ozgur Basak          |
 | Last drill             | YYYY-MM-DD           |

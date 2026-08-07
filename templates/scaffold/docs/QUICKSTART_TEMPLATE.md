@@ -16,7 +16,7 @@
 |-----|-------|
 | **Project** | `{project-name}` |
 | **Port** | `[PORT]` |
-| **Production URL** | `https://{project}.vps1.ocoron.com` |
+| **Production URL** | `https://{project}.<target_vps>.ocoron.com` — subdomain = the spec's `target_vps:` (vps1 default) |
 | **Local dev URL** | `http://localhost:[PORT]` |
 | **Health endpoint** | `GET /health` |
 | **Depends on** | `{postgres, redis, external-api-name, none}` |
@@ -424,7 +424,7 @@ def call_with_retry(fn, max_retries=3):
 
 ```text
 ## {PROJECT_NAME}
-- URL: http://{project-name}:[PORT] (Docker) | https://{project}.vps1.ocoron.com (external)
+- URL: http://{project-name}:[PORT] (Docker) | https://{project}.<target_vps>.ocoron.com (external — subdomain = the spec's target_vps, vps1 default)
 - Auth: {None / X-API-Key header}
 - Health: GET /health → 200 = ready, 503 = stop
 

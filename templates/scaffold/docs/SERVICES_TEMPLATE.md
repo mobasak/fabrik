@@ -28,7 +28,9 @@
 
 Deployed via **SSH + Docker Compose** direct to the VPS (no intermediary platform).
 Traefik handles external HTTPS; container ports are **not** exposed publicly. DB and
-cache use Docker DNS — `postgres-main:5432`, `redis-main:6379` — never `localhost`.
+cache use Docker DNS — `postgres-main:5432`, `redis-main:6379` — never `localhost`. (Spoke-deployed
+projects — spec `target_vps: vps2/vps3` — reach hub infra at the registrar-injected mesh IP
+`10.99.0.1:<port>` instead: Docker DNS does not cross the WireGuard mesh.)
 
 ## External Dependencies
 
