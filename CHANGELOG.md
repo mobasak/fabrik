@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — superpowers adoptions Phase A: watched-fail-first + end-of-branch menu (2026-08-07)
+CLAUDE.md Behavior Contract now mandates watched-fail-first (a non-trivial behavior's test is SEEN RED before the code makes it green; after-the-fact tests count only once proven red-on-revert) and § EXIT gains the ad-hoc end-of-branch integration menu (merge/PR/keep/discard, merge → verify on the MERGED result → then cleanup) for NON-plan work. `.windsurf/rules/core/45-testing-strategy.md` carries the matching Core Philosophy mandate + a Banned Patterns row (never-seen-red tests), citing the live T08 case mutation probing caught. Adopted from superpowers:test-driven-development / finishing-a-development-branch per the converged plan `2026-08-07-plan-2-superpowers-adoptions.md`.
+
 ### Changed — workstation docs: forced-vs-stopping hand-off map + dispatcher parallelism mechanics (2026-08-07)
 `agent-command-routing-and-gates.md` § 2 now carries the full auto-chain diagram (spec→spec-review and plan-after-chat→plan-review are FORCED same-run; spec-review's design approval and release's Gate 2 STOP for the operator) plus the review-weaving rule (per-phase / per-ticket-pre-merge, never end-loaded). `spine-ticket-plans-usage.md` dispatcher step 2 expanded with the computed eligibility rule (⬜ + Depends ✅ + no pending Serialized barrier), exclusive-Touches safety, deterministic Merge-Order tie-break, and the deliberately-serial acceptance/merge path.
 
