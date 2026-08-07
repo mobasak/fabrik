@@ -4,6 +4,12 @@ What the 2026-08-04 plan-architecture wave shipped, what it means for day-to-day
 run it. Shipped by `2026-08-04-plan-1-spine-ticket-plans` (archived; review artifact:
 `docs/development/reviews/2026-08-04-plan-1-spine-ticket-plans-review.md`).
 
+> **2026-08-07 — field-proven + auto-trigger.** Dispatcher mode below completed its first live
+> end-to-end run (`2026-08-07-plan-1-autotrigger-and-commands`, archived: 10 units, 29 review
+> rounds, a quota pause + salvage exercised for real). That run also shipped the auto-trigger
+> stack and four new commands — see § "You no longer have to remember the commands" and § "Four
+> new commands" below.
+
 ---
 
 ## The one-sentence version
@@ -83,6 +89,38 @@ cleared; your ruling re-dispatches (`BLOCKED → IN-PROGRESS`).
 - **"Done" is mechanical** — `EXECUTED` without an on-disk, coverage-adjudicated whole-plan review
   fails the gate.
 
+## You no longer have to remember the commands (2026-08-07)
+
+Four layers route bare prose to the right skill, so forgetting a slash command is no longer a gap:
+
+1. **Descriptions** — all 24 commands/skills carry `TRIGGER` phrasings (EN + TR) + one frozen
+   `Stage:` value, with negative boundaries between confusable siblings (review family, the two
+   ui-design commands, user-test vs service-test vs deploy-verify).
+2. **Orient step-0** — CLAUDE.md now tells every agent, at run start, to classify your request
+   against the stage table and invoke the matching skill (escape: it says in one line why none
+   applies; silent on pure conversation).
+3. **The router hook** — `UserPromptSubmit` fires on your bare prose in every project ("bu projeyi
+   emekliye ayır" → a `/fabrik-decommission` nudge). Inject-only, never blocks, never rewrites; the
+   Haiku fallback classifier is built but **opt-in** (`FABRIK_ROUTER_HAIKU=1`) because measured
+   cold-starts (~9–11s) would tax every unmatched prompt.
+4. **Artifact gates** — `check_stage_artifacts.py` (Tier-2) catches stage-skipping mechanically: a
+   plan flipping CONVERGED on a DRAFT spec, or a data-contract/ui-design claiming FROZEN without
+   its mandated header + freeze rule.
+
+## Four new commands (2026-08-07)
+
+| Command | When you use it |
+|---|---|
+| `/fabrik-catchup` | Resuming a neglected project ("catch this project up", "kaldığımız yerden devam"): measures plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; queues worst-first; routes each fix to its owning converge command. Replaces the hand-written paste-prompts; reads the hub's weekly `fleet_doc_audit` report as a head start. |
+| `/fabrik-decommission` | Retiring a project/service ("bu servisi kapat ve arşivle"): hub-side liveness probe vs verified-resolving siblings (never a catalog row), consumer sweep, three named outcomes, an operator-confirmation stop before ANY move, receipts. Encodes the wpf + captcha lessons. |
+| `/fabrik-deploy-verify` | After YOU run `fabrik apply` (release's Gate 2 now chains to it): hub-side DNS-vs-siblings (wildcard-DNS control probe on vps2/vps3), health/readyz, registrar outcomes from the remote injected `.env`, Gatus, bounded log scan, read-only FEATURES smoke. Verify-only; FAILs route to named next steps. |
+| `/fabrik-upstream` | A synced-file defect found inside a project: PROJECT mode files a verifiable proposal (evidence, diffs-or-ranked-options, why-filed, blast radius) without touching the synced copy; HUB mode re-verifies every claim independently before applying. Canonizes the trade-intelligence pattern. |
+
+**One operational rule from the first live run:** never run a bare
+`python commands/assemble_commands.py` from a worktree — the renderer prunes installed commands
+missing from that tree and would delete siblings' commands box-wide. Renders happen from merged
+master (the dispatcher does this at each merge; `--check` is always safe).
+
 ## Existing plans — what to do with them
 
 **Nothing retroactive is required.** Both shapes are first-class:
@@ -105,3 +143,4 @@ cleared; your ruling re-dispatches (`BLOCKED → IN-PROGRESS`).
 | Command sources | `commands/_sources/fabrik-{plan-after-chat,plan-review,execute-plan}.md` (render: `python commands/assemble_commands.py`) |
 | Allowlist | `CLAUDE.md` § HARD STOPS new-`.md` row (spine+ticket dir shape included) |
 | The shipped wave | CHANGELOG 2026-08-05 entries (Phases A–E + Finish) · Lesson 103 |
+| The autotrigger wave | `docs/reference/receipts-2026-08-07-autotrigger.md` · Lesson 104 · router hook `.claude/hooks/skill_router.py` (fleet-synced) |

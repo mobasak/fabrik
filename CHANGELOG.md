@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — workstation guide: auto-trigger stack + four new commands + first-live-run notes (2026-08-07)
+`docs/workstation/spine-ticket-plans-usage.md` now documents the 2026-08-07 wave for the operator: the four-layer auto-trigger stack (TRIGGER/Stage descriptions, Orient step-0, the UserPromptSubmit router with opt-in Haiku tier, stage-artifact gates), an operator table for /fabrik-catchup, /fabrik-decommission, /fabrik-deploy-verify and /fabrik-upstream, the release→deploy-verify chaining, the field-proven dispatcher note, and the never-render-from-a-worktree rule. `claude-configuration-inventory.md` inventory row updated for the two fleet-synced hooks.
+
 ### Fixed — review rounds 2-3: governance-self indeterminate branch + bounded DSN extraction (2026-08-07)
 Round-2/3 of the orchestrator-surface review: a session that broke a routine-governance file ITSELF (output citing only governance names it authored) is now INDETERMINATE (blocks up to cap) instead of waved through by the governance exclusion; the full-line greedy DSN credential extraction is bounded to 1000 chars (quadratic-backtracking guard on hostile many-@ lines — over-long placeholder lines fail closed). One new red-on-revert test each side; 51 green.
 
