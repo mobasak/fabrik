@@ -44,19 +44,33 @@ env:
   # shape.uses_claude_cli above (deployer requires the mount) — NOT a static CLAUDE_CODE_OAUTH_TOKEN.
   LLM_BACKEND: claude-cli
   LLM_DAILY_USD_CAP: "5.0"
+  # Placeholder ONLY — satisfies the first compose-up. shape.needs_database=true means the postgres
+  # registrar provisions postgres-main::seo and injects the REAL DSN post-deploy via inject_env().
+  # Never a secret here: pulling the hub's own DATABASE_URL would point seo at fabrik's database.
+  # (deployer_ssh._build_env_content is placeholder-aware, so a re-apply won't clobber the real one.)
+  DATABASE_URL: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"
   COST_WAL_PATH: .tmp/cost_wal.sqlite
+  # Portfolio-wide cost ledger. EMPTY = per-project fallback table (the documented default, and the
+  # right setting for the first deploy). Deliberately an env var, NOT secrets.required: the secrets
+  # loader AUTO-GENERATES a random value for any missing required key (orchestrator/secrets.py
+  # `get(generate_if_missing=True)`), which for a DSN means the app would connect to garbage instead
+  # of falling back. To go portfolio-wide later, set a real
+  # postgresql://<role>:<pw>@postgres-main:5432/fabrik_analytics DSN here (role needs INSERT on
+  # cost_ledger — mirror the per-project `<id>_subagent_ins` pattern in drivers/postgres.py).
+  COST_LEDGER_DSN: ""
   MENTION_PROBE_RUNS: "3"
 
 secrets:
-  required:
-    - DATABASE_URL
+  # from_env, NOT required: `fabrik apply` only AUTO-PULLS `from_env` keys out of /opt/fabrik/.env
+  # (cli.py "Auto-pull secrets from environment"). Keys under `required` must be passed as
+  # `-s KEY=VALUE` on the command line or apply exits 1 — which also leaks them into shell history.
+  # from_env is what every deployed spec on the fleet uses (site-provisioner, gate-saas, …).
+  from_env:
     - INTERNAL_API_TOKEN
     - DATAFORSEO_USERNAME
     - DATAFORSEO_PASSWORD
-    - KILO_API_KEY
+    - KILO_API_KEY        # legacy alias of the OpenRouter key (Kilo proxy retired) — OpenRouter fallback leg
     - DNS_MANAGER_TOKEN   # X-API-Key for site-provisioner GSC endpoints
-    - COST_LEDGER_DSN     # point at fabrik_analytics for the PORTFOLIO-wide cost ledger;
-                          # empty = project-local fallback table (per-project view only)
   # NOTE: claude -p auth is NOT a secret here — it is the host's rotated ~/.claude mounted read-only
   # into the container (see the LLM_BACKEND note above + drivers/watchdog.py). No static OAuth token.
 

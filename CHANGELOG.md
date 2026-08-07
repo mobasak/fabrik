@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — seo made deploy-ready: secrets convention, DSN placeholder, fabricated-secret warning (2026-08-07)
+
+Hub-side prep for the /opt/seo deploy (the parts its own agent can't reach). Three real blockers, all
+found by tracing the actual apply path rather than trusting the spec:
+1. **`fabrik apply` would have refused outright.** seo listed its secrets under `secrets.required`, but
+   apply only AUTO-PULLS `secrets.from_env` from `/opt/fabrik/.env` — `required` keys must be passed as
+   `-s KEY=VALUE` or it exits 1 (and that leaks them into shell history). Converted to `from_env`, the
+   convention every deployed spec on the fleet already uses.
+2. **Two secrets did not exist**: `KILO_API_KEY` (the OpenRouter key under its legacy alias — Kilo the
+   proxy is retired; remove after seo's KILO_* → OPENROUTER_* rename) and `DNS_MANAGER_TOKEN`
+   (site-provisioner's `API_KEY`, for the GSC endpoints). Both added to the hub `.env` (backed up first).
+3. **`COST_LEDGER_DSN` would have been fabricated.** The secrets loader auto-generates a random value for
+   any missing required key — fine for a self-defined password, catastrophic for a DSN/API key, which
+   yields a green deploy with a dead integration. Moved to `env: ""` (the documented per-project-fallback
+   default); `DATABASE_URL` likewise became a registrar-injected placeholder rather than a secret, so seo
+   can't inherit the hub's own database DSN.
+
+Generalized fix in `orchestrator/__init__.py`: `_warn_fabricated_secrets` now logs a loud, itemised
+WARNING for every required secret that is absent and about to be invented — non-fatal (a generated
+password is legitimate) but no longer silent. GlitchTip needs no manual DSN: its registrar provisions the
+project and injects `SENTRY_DSN` post-deploy (confirmed via `fabrik plan`: postgres/glitchtip/grafana/
+prometheus RUN; gatus/redis/backrest/authelia/meilisearch/watchdog correctly skipped by shape).
+
 ### Fixed — stop-hook gate attribution: sibling-caused red no longer traps the session (2026-08-07)
 `final_gate_stop.py` compared failing CHECK NAMES against the session baseline, so a sibling's staged shared-tree files flipping a check red mid-session pinned the failure on this session — which then could not go green without violating the shared-tree contract (never commit/document/revert a sibling's WIP; hit live 3/3 attempts on Doc Sync). The Stop path now attributes NEW failures by FILE: failing-check outputs are matched against the session's transcript-authored files; when none is cited, the failure is reported to stderr as shared-tree cause and does not block (attribution runs only when the transcript is available — otherwise prior behavior). Red-on-revert tests both directions.
 

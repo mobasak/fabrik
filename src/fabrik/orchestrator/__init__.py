@@ -243,6 +243,27 @@ class DeploymentOrchestrator:
 
         return ctx
 
+    def _warn_fabricated_secrets(self, keys: list) -> None:
+        """Warn for each REQUIRED secret that is absent and will be auto-generated.
+
+        Never raises and never blocks the deploy — a generated password is legitimate. It exists so
+        an absent API key/token/DSN cannot be replaced by a random string in silence (found while
+        making /opt/seo deploy-ready, 2026-08-07: KILO_API_KEY + DNS_MANAGER_TOKEN would each have
+        been fabricated, producing a green deploy with two dead integrations).
+        """
+        try:
+            missing = self.secrets_manager.get_missing([k for k in keys if isinstance(k, str)])
+        except Exception:  # noqa: BLE001 — a warning path must never break a deploy
+            return
+        for key in missing:
+            logger.warning(
+                "SECRET %s is required but absent from the environment and .env — a RANDOM value "
+                "will be generated. Correct for a self-defined password; WRONG for an API key, "
+                "token, or DSN that must match an external system (the deploy will look green "
+                "while that integration is dead). Add the real value to /opt/fabrik/.env.",
+                key,
+            )
+
     def _load_secrets(self, ctx: DeploymentContext, spec: dict) -> None:
         """Populate ``ctx.secrets`` from the spec's ``secrets`` block.
 
@@ -257,6 +278,7 @@ class DeploymentOrchestrator:
             return
 
         if isinstance(secrets_config, list):
+            self._warn_fabricated_secrets(secrets_config)
             ctx.secrets = self.secrets_manager.load_all(secrets_config)
             return
 
@@ -267,6 +289,13 @@ class DeploymentOrchestrator:
 
         required = secrets_config.get("required", [])
         if required:
+            # A REQUIRED secret that is absent gets a random value invented for it
+            # (`SecretsManager.get(generate_if_missing=True)`). That is correct for a password the
+            # service defines itself, and WRONG for anything that must match an external system —
+            # an API key, a token, a DSN — where the deploy then goes green while the integration
+            # is silently dead. Loud, itemised warning; still non-fatal (a generated password is a
+            # legitimate use), so the operator sees it instead of debugging a 401 later.
+            self._warn_fabricated_secrets(required)
             all_secrets.update(self.secrets_manager.load_all(required))
 
         generate = secrets_config.get("generate", [])
