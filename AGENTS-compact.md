@@ -127,7 +127,7 @@ Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you
 ## HARD STOPS — NEVER
 | Rule | Instead |
 |:--|:--|
-| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there; any AI commit MUST carry Agent Provenance Trailers (§ above) |
+| `git push` (unless user said so this turn) · a commit WITHOUT Agent Provenance Trailers · bundling files you didn't author into a commit | committing YOUR OWN work at task end is REQUIRED (§ EXIT — explicit pathspecs + trailers); push is the operator-gated publish step |
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |

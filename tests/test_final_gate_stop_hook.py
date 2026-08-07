@@ -43,7 +43,7 @@ def test_new_failures_block_up_to_cap() -> None:
 
 
 def test_over_cap_allows_with_warning() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=3) == ("allow_warn", 0, 0)
+    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=3) == ("allow_warn_gate", 0, 0)
 
 
 # --- integration: baseline diffing (the real bug) -----------------------------
@@ -155,7 +155,7 @@ def test_gate_failures_outrank_commit_block() -> None:
 def test_own_uncommitted_respects_cap() -> None:
     assert hook.decide(
         git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=True, commit_attempts=3
-    ) == ("allow_warn", 0, 0)
+    ) == ("allow_warn_commit", 0, 0)
 
 
 def test_committed_own_work_allows() -> None:
@@ -264,3 +264,11 @@ def test_commit_cap_exhaustion_does_not_mask_new_gate_failure() -> None:
     ga, ca = 0, 3
     action, ga, ca = hook.decide(True, True, ga, own_uncommitted=True, commit_attempts=ca)
     assert action == "block" and ga == 1
+
+
+def test_warn_actions_name_their_cause() -> None:
+    # Review finding: an unconditional "gate still RED" warn was false on
+    # commit-cap exhaustion — the two exhaustion paths must be distinguishable.
+    a_gate, _, _ = hook.decide(True, True, gate_attempts=3)
+    a_commit, _, _ = hook.decide(True, False, gate_attempts=0, own_uncommitted=True, commit_attempts=3)
+    assert a_gate == "allow_warn_gate" and a_commit == "allow_warn_commit"

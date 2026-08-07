@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — commit-enforcement pass 2: the missed HARD STOPS row + truthful cap warnings (2026-08-07)
+
+Confirming round raised 2: (1) AGENTS-compact.md's HARD STOPS table row still taught the retired
+"never commit" default (the canonical never-do checklist for non-Claude agents) — reconciled to
+push-only + trailer/bundling prohibitions, matching CLAUDE.md. (2) The anti-trap warning was
+unconditionally "final_gate still RED" even when triggered by COMMIT-cap exhaustion (gate green,
+work parked) — decide() now returns cause-named warn actions (allow_warn_gate / allow_warn_commit)
+and each prints its truthful message (+1 test; hook suite 21 green).
+
 ### Removed — captcha.vps1.ocoron.com torn down; two `fabrik destroy` defects fixed (2026-08-07)
 
 `fabrik destroy specs/services/captcha.yaml` removed every provisioned resource (GlitchTip project,

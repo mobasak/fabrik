@@ -45,7 +45,10 @@ def decide(
 ) -> tuple[str, int, int]:
     """Pure decision logic (unit-tested). Returns (action, gate_attempts', commit_attempts').
 
-    action ∈ {"allow", "block", "block_commit", "allow_warn"}. Priority:
+    action ∈ {"allow", "block", "block_commit", "allow_warn_gate",
+    "allow_warn_commit"} — the warn actions name their CAUSE so the caller's
+    warning can be truthful (an unconditional "gate still RED" message was
+    factually false on commit-cap exhaustion; review finding). Priority:
     1. new gate failures (dirty tree)  → "block"        (fix before anything)
     2. session-authored files uncommitted → "block_commit" (an uncommitted task
        is an UNFINISHED task — CLAUDE.md § EXIT)
@@ -58,12 +61,12 @@ def decide(
     if has_new_failures:
         gate_attempts += 1
         if gate_attempts > cap:
-            return "allow_warn", 0, commit_attempts
+            return "allow_warn_gate", 0, commit_attempts
         return "block", gate_attempts, commit_attempts
     if own_uncommitted:
         commit_attempts += 1
         if commit_attempts > cap:
-            return "allow_warn", gate_attempts, 0
+            return "allow_warn_commit", gate_attempts, 0
         return "block_commit", gate_attempts, commit_attempts
     return "allow", 0, 0  # green + own work committed (or none authored)
 
@@ -283,15 +286,21 @@ def main(argv: list[str]) -> int:
             commit_attempts=commit_attempts,
         )
 
-        if action in ("allow", "allow_warn"):
+        if action in ("allow", "allow_warn_gate", "allow_warn_commit"):
             try:
                 counter.unlink()
             except FileNotFoundError:
                 pass
-            if action == "allow_warn":
+            if action == "allow_warn_gate":
                 sys.stderr.write(
                     f"final_gate still RED after {CAP} attempts — stopping anyway. "
                     "Run: python scripts/final_gate.py --lean --json\n"
+                )
+            elif action == "allow_warn_commit":
+                sys.stderr.write(
+                    f"Session-authored files STILL UNCOMMITTED after {CAP} blocked stops — "
+                    "stopping anyway. Commit your own work: git commit -- <your files> "
+                    "(pathspecs + Agent Provenance Trailers).\n"
                 )
             return 0
 
