@@ -493,7 +493,8 @@ def test_promise_with_background_dispatch_is_kept(tmp_path: Path) -> None:
 
 
 def test_permission_question_with_session_owned_lock_is_a_stall(tmp_path: Path) -> None:
-    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    locks = tmp_path / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text("The T2 cap says route to a plan. Want me to run /fabrik-plan-after-chat now?"))
@@ -512,7 +513,8 @@ def test_permission_question_without_midrun_marker_is_allowed(tmp_path: Path) ->
 
 
 def test_human_gate_wording_is_never_a_stall(tmp_path: Path) -> None:
-    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    locks = tmp_path / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
     owned = {".fabrik/plan-locks/x.json"}
     tr = tmp_path / "t.jsonl"
@@ -523,7 +525,8 @@ def test_human_gate_wording_is_never_a_stall(tmp_path: Path) -> None:
 
 
 def test_unchecked_review_is_a_midrun_marker(tmp_path: Path) -> None:
-    rev = tmp_path / "docs/development/reviews"; rev.mkdir(parents=True)
+    rev = tmp_path / "docs/development/reviews"
+    rev.mkdir(parents=True)
     (rev / "2026-01-01-x-review.md").write_text("| class | UNCHECKED | |\n")
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text("Round 2 is owed. Shall I continue with the next pass?"))
@@ -548,7 +551,8 @@ def test_decide_stall_counter_and_cap() -> None:
 def test_quoted_stall_phrases_are_exempt(tmp_path: Path) -> None:
     """Discussing/quoting a stall phrase must not fire (live FP: the guard's own
     author quoted 'Want me to…?' as an example and got blocked)."""
-    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    locks = tmp_path / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
     owned = {".fabrik/plan-locks/x.json"}
     tr = tmp_path / "t.jsonl"
@@ -558,7 +562,8 @@ def test_quoted_stall_phrases_are_exempt(tmp_path: Path) -> None:
 
 
 def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
-    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    locks = tmp_path / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
     owned = {".fabrik/plan-locks/x.json"}
     tr = tmp_path / "t.jsonl"
@@ -590,7 +595,8 @@ def test_blocked_header_exempts_despite_long_detail(tmp_path: Path) -> None:
 def test_prose_unchecked_mention_does_not_arm_marker(tmp_path: Path) -> None:
     """Mutation-killer for the live-row form: a CLOSED review's prose mention of
     UNCHECKED must not arm the permission marker."""
-    rev = tmp_path / "docs/development/reviews"; rev.mkdir(parents=True)
+    rev = tmp_path / "docs/development/reviews"
+    rev.mkdir(parents=True)
     (rev / "r.md").write_text("fixed classes return to UNCHECKED until re-adjudicated\n")
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text("Shall I run the next pass now?"))
@@ -660,7 +666,8 @@ def test_e2e_stall_blocks_and_gate_block_does_not_strand_stall_counter(fake_proj
     tr = fake_project / "transcript.jsonl"
     ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
     bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
-    ctr.unlink(missing_ok=True); bl.write_text(json.dumps([]))
+    ctr.unlink(missing_ok=True)
+    bl.write_text(json.dumps([]))
     def stop(fails: str, final_text: str) -> str:
         tr.write_text("\n".join([_user(), _asst_text(final_text)]) + "\n")
         env = {**os.environ, "FAKE_FAILS": fails}
@@ -676,4 +683,5 @@ def test_e2e_stall_blocks_and_gate_block_does_not_strand_stall_counter(fake_proj
     out2 = stop("NEWCHECK", "Fixed some things; see the diff.")
     assert out2, "gate failure should block"
     assert ctr.read_text().split(",")[2] == "0", "stall slot must reset when the stall is absent"
-    ctr.unlink(missing_ok=True); bl.unlink(missing_ok=True)
+    ctr.unlink(missing_ok=True)
+    bl.unlink(missing_ok=True)

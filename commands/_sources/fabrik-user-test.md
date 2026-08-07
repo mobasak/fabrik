@@ -223,8 +223,9 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
 
 You (the orchestrator) dedupe + REFUTE candidates against the contracts (a "bug" that matches
 `ui-design.md`'s frozen intent is refuted — or is a contract-change proposal, say which). **A red
-test/spec is a SYMPTOM with at least two causes — the app is wrong, or the RIG is wrong — and an
-assertion message never distinguishes them**: refute the rig first (one schema/selector/contract
+test/spec is a SYMPTOM with at least two causes — the app is wrong, or the RIG is wrong (the spec's
+OWN assertions/selectors/fixtures/driver, as opposed to the app under test) — and an assertion
+message never distinguishes them**: refute the rig first (one schema/selector/contract
 lookup + the ACTUAL rendered state or response) before any row survives as an app finding — a rig
 reading a key/selector that doesn't exist produces failures identical to a real defect, and "fixing"
 correct code into agreeing with a broken rig is the most expensive outcome this phase exists to
@@ -234,13 +235,20 @@ prevent. Every survivor terminates in exactly one of:
   broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix — with its
   Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected
   flows re-run), surface gate green after each fix. **Mechanical path-gate:** if the fix's diff touches ANY
-  file outside the presentation layer (backend handlers, models, migrations, schema), the row is
+  file outside the presentation layer **or the test harness/spec layer** (i.e. it touches backend
+  handlers, models, migrations, schema), the row is
   AUTO-RECLASSIFIED to the code-wrong route — no judgment call, the diff decides. **A spec that passes because the environment
   cannot express the failure has proven nothing** — "it passed locally" is not evidence when local
   is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session
   for a permissions bug, a fast network for a loading-state bug). Reach for the missing constraint
   in a throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure to
   manufacture a red.
+- **RIG-FIXED** — the rig itself was wrong (assertion casing/alias, a selector for an element that
+  moved, a defective fixture or driver, a seeded repro asserting a contract that never existed):
+  repair the spec citing the contract/selector line — or delete one that can never be made
+  truthful — and re-run to prove the corrected rig is green against the app's real behavior. A
+  refuted rig may NOT be left as a permanently-red committed spec: Phase 5 re-runs treat every red
+  as a finding, so an unrepaired rig blocks the quiet exit forever.
 - **HANDED-OFF (ROUTED — never a TODO)** — anything you don't own. **Route by what the finding proves
   is wrong**, and never do the deep work inline: a certification that detours into a plan abandons its
   own coverage loop and burns the context the gauntlet needs to finish.
@@ -253,11 +261,16 @@ prevent. Every survivor terminates in exactly one of:
     question inside a test run.**
   Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect +
   why it is not fixable in the presentation layer) **and WIRE/STATE EVIDENCE — the actual response
-  body, key set, or rendered state proving the APP violated the contract, never the assertion text
+  body/key set, or the queried system state beneath the UI (the record `GET` back, the entitlement,
+  the mail-catcher capture), proving the APP violated the contract — never the assertion text
   alone** (the committed repro proves reproducibility; the evidence proves attribution — a red repro
-  can itself be rig-defective). **Ledger freshness before routing:** re-read every OPEN row against
-  `git log --oneline --since` of the owning paths — an already-fixed or closed-but-never-flipped row
-  becomes a ticket doing nothing. Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
+  can itself be rig-defective). **Ledger freshness before routing:** the ledger is the prior
+  report's `HANDOFF … OPEN` rows + its `## RESUME` block. Before routing any OPEN row:
+  (a) `git log --oneline --since=<row-timestamp> -- <owning paths>` plus
+  `git status --porcelain <owning paths>` to catch landed or still-uncommitted fixes, then
+  (b) **re-run the row's repro — its current color decides, not the ledger's** (a row owned by a
+  sibling repo can ONLY be freshness-checked this way). An already-fixed or
+  closed-but-never-flipped row becomes a ticket doing nothing. Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
   + a HANDED-OFF row naming the route and the owner. **`/fabrik-release` is BLOCKED while any row is
   open** — that gate is what stops a handoff from rotting.
 - **REFUTED** — with the contract line or evidence that disproves it.
@@ -341,10 +354,12 @@ independent-eyes recall this command exists for. Floors, enforced:
 
 **Machine-readable disposition rows (gate-parsed by `check_review_coverage.py` — exact grammar):** every
 routed finding appears as one line in the report:
-`HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command>` ·
+`HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` ·
 `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` ·
 `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open).
-A CLOSED row without an existing repro path + proof fails the gate; any OPEN HANDOFF row requires the final
+A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review`
+(the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence is what proves
+attribution — see Phase 4); any OPEN HANDOFF row requires the final
 ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`.
 
 

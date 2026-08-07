@@ -61,6 +61,13 @@ certification gauntlet or any caller), that failing test is the review's PRIMARY
 diff scope (the committed repro is IN the diff, pulling the buggy module into scope via callers/callees),
 and **this review MAY NOT exit until that repro is GREEN** — paste its green run output verbatim in the
 review file. Adjudicating every checklist class while the seeded repro stays red is NOT a valid exit.
+**Third exit — REPRO-DEFECTIVE:** a committed red repro is a claim, not proof; it can itself be
+rig-defective (asserting the wrong key casing, a field the contract never promised, a stale selector).
+If this review proves the repro's assertion contradicts the contract — cite the schema/contract line
+PLUS the actual wire/state evidence — the valid exit is to **fix the REPRO** (green against the
+service's real, contract-conforming behavior; paste that green run) and return the row to the caller
+as **REFUTED-RIG**. What is NEVER valid: "fixing" correct code into agreeing with a broken assertion
+to satisfy the green-repro contract.
 
 If an argument was given, treat it as the review target: `$ARGUMENTS`
 (a path, a PR number, or a git range). Otherwise get the diff under review with

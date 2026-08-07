@@ -180,12 +180,15 @@ def check_file(p: Path) -> list[str]:
 #   DESIGN-GAP <desc> — brief: <path>            (operator decision; may stay open)
 # Rules (zero-false-positive by design — only rows using the grammar are parsed):
 #   CLOSED without an existing repro path or without proof:  FAIL
+#   OPEN routed to /fabrik-review (code-wrong) without evidence:  FAIL
 #   any OPEN row  -> report must carry NOT-QUIET marker AND a ## RESUME section
 #   NOT-QUIET marker -> ## RESUME required
 CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
 HANDOFF_ROW = re.compile(r"^\s*[-*]?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M)
 REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
 PROOF_IN_ROW = re.compile(r"proof:\s*\S")
+CODE_WRONG_ROUTE = re.compile(r"route:\s*/fabrik-review\b")
+EVIDENCE_IN_ROW = re.compile(r"evidence:\s*\S")
 NOT_QUIET = re.compile(r"NOT-QUIET")
 RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)
 
@@ -205,6 +208,11 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
                 errs.append(f"CLOSED HANDOFF cites a repro that does not exist: {m.group(1)}")
             if not PROOF_IN_ROW.search(rest):
                 errs.append(f"CLOSED HANDOFF row lacks proof: — {rest.strip()[:60]}")
+        elif CODE_WRONG_ROUTE.search(rest) and not EVIDENCE_IN_ROW.search(rest):
+            errs.append(
+                "OPEN code-wrong HANDOFF row lacks evidence: (wire/state proof of attribution — "
+                f"a red repro alone can be rig-defective) — {rest.strip()[:60]}"
+            )
     if open_rows:
         if not NOT_QUIET.search(text):
             errs.append(

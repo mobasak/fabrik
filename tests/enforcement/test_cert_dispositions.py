@@ -81,9 +81,34 @@ def test_open_row_with_notquiet_and_resume_passes(repo: Path) -> None:
     rc = _run(
         repo,
         "2026-08-03-service-test-api.md",
-        "# cert\nHANDOFF P1 OPEN backend bug — repro: tests/t.py — route: /fabrik-review src/x\n"
+        "# cert\nHANDOFF P1 OPEN backend bug — repro: tests/t.py — route: /fabrik-review src/x"
+        " — evidence: 200 body lacks required key job_id (camelCase alias absent too)\n"
         "ledger: NOT-QUIET (routes outstanding)\n\n## RESUME\n- the row above; re-invoke /fabrik-service-test\n",
         repro="tests/t.py",
+    )
+    assert rc == 0
+
+
+def test_open_code_wrong_row_without_evidence_fails(repo: Path) -> None:
+    # the code-wrong route (/fabrik-review) must carry wire/state evidence proving attribution
+    rc = _run(
+        repo,
+        "2026-08-03-service-test-api.md",
+        "# cert\nHANDOFF P1 OPEN backend bug — repro: tests/t.py — route: /fabrik-review src/x\n"
+        "ledger: NOT-QUIET (routes outstanding)\n\n## RESUME\n- the row above\n",
+        repro="tests/t.py",
+    )
+    assert rc == 1
+
+
+def test_open_row_routed_elsewhere_needs_no_evidence(repo: Path) -> None:
+    # zero-false-positive: the evidence slot binds only the code-wrong route
+    rc = _run(
+        repo,
+        "2026-08-03-user-test-app.md",
+        "# cert\nHANDOFF P2 OPEN stale field doc — repro: tests/ui/t.py — route: /fabrik-data-contract\n"
+        "ledger: NOT-QUIET (routes outstanding)\n\n## RESUME\n- the row above\n",
+        repro="tests/ui/t.py",
     )
     assert rc == 0
 

@@ -84,16 +84,23 @@ proves is wrong**, never by how easy the fix looks (source:
 | Evidence | Disposition |
 |---|---|
 | Presentation/surface-layer defect, or doc drift (stale FEATURES row) | **FIXED in-run** — failing spec first → fix → green → affected flows re-run |
-| Contract right, code wrong (backend/schema/logic) | **ROUTED → `/fabrik-review`** on the owning module, in a FRESH context, seeded with a **committed RED repro** the review may not exit without turning green |
+| The RIG is wrong (the test's own assertion/selector/fixture — wrong casing, missing alias, a repro asserting a contract that never existed) | **RIG-FIXED in-run** — repair or delete the defective test citing the contract line; never "fix" correct code into agreeing with a broken test |
+| Contract right, code wrong (backend/schema/logic) | **ROUTED → `/fabrik-review`** on the owning module, in a FRESH context, seeded with a **committed RED repro + wire/state evidence**; the review turns the repro green — or proves the repro itself rig-defective and fixes the repro instead (its REPRO-DEFECTIVE exit) |
 | App right, doc stale (frozen contract lags reality) | **ROUTED → `/fabrik-data-contract` / `/fabrik-ui-design`** re-freeze |
 | Design wrong or MISSING (journey blocked by a nonexistent screen/field/endpoint) | **DESIGN-GAP BRIEF → you** — persisted with the exact `/fabrik-spec` invocation; the row stops at "operator decision" |
 
-Guards that make it mechanical: the **path-gate** (a "small fix" whose diff
-touches anything outside the owned layer is AUTO-reclassified to the code-wrong
-route — the diff decides); routed fixes execute **in the same run** in fresh
-contexts (a handoff is deferred sequencing, not exported work); and
-**`/fabrik-release` is blocked while any HANDED-OFF row is open**, so routed
-findings can't rot.
+Guards that make it mechanical: the **rig-refute floor** (a red test is a
+symptom, not proof — one schema/alias/selector lookup + the actual body or
+system state before any row survives as a service/app finding); the
+**path-gate** (a "small fix" whose diff touches anything outside the owned
+layer is AUTO-reclassified to the code-wrong route — the diff decides); **wire/
+state evidence** on every code-wrong route (gate-enforced: an OPEN row routed
+to `/fabrik-review` without an `evidence:` slot fails
+`check_review_coverage.py`); a **ledger-freshness pass** before routing
+(re-run the row's repro — its current color decides, not the ledger's); routed
+fixes execute **in the same run** in fresh contexts (a handoff is deferred
+sequencing, not exported work); and **`/fabrik-release` is blocked while any
+HANDED-OFF row is open**, so routed findings can't rot.
 
 ## 4. When the agent stops for you vs resolves it itself
 

@@ -175,12 +175,13 @@ Pool-check the matrix for holes (see Subagents) before dispatch.
 
 Dedupe + REFUTE against the contracts (behavior matching the frozen spec/`shape:` is refuted — or
 is a contract-change proposal; say which). **A red test is a SYMPTOM with at least two causes —
-the service is wrong, or the RIG is wrong — and an assertion message never distinguishes them**
-(live incident 2026-08-08: a rig reading snake_case keys off a camelCase wire produced
-`assert None in (...)` five times; four "service defects" were the rig's own `dict.get()` on keys
-that don't exist, and a coder was nearly dispatched to break correct code into agreeing with a
-broken test). Before ANY row survives as a service finding, refute the rig first: one schema/contract
-lookup (is the field required? what is its wire alias?) plus the ACTUAL response body. Every survivor
+the service is wrong, or the RIG is wrong (the test's OWN assertions/fixtures/client/seeded repro,
+as opposed to the service under test) — and an assertion message never distinguishes them**
+(live defect: a rig reading snake_case keys off a camelCase wire produced `assert None in (...)`
+repeatedly; the "service defects" were the rig's own `dict.get()` on keys that don't exist, and a
+coder was nearly dispatched to break correct code into agreeing with a broken test). Before ANY row
+survives as a service finding, refute the rig first: one schema/contract lookup (is the field
+required? what is its wire alias?) plus the ACTUAL response body or system state. Every survivor
 terminates in exactly one of:
 
 - **FIXED** — in-scope service defects (validation, status codes, error shape, auth boundary,
@@ -195,6 +196,12 @@ terminates in exactly one of:
   throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure
   (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — this
   command's own HARD STOP already bars touching prod/shared data.
+- **RIG-FIXED** — the rig itself was wrong (assertion casing/alias, defective fixture or client,
+  a seeded repro asserting a contract that never existed): repair the test citing the contract
+  line — or delete one that can never be made truthful — and re-run to prove the corrected rig is
+  green against the service's real behavior. A refuted rig may NOT be left as a permanently-red
+  committed test: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the
+  quiet exit forever.
 - **HANDED-OFF (ROUTED — never a TODO)** — anything you don't own. **Route by what the finding proves
   is wrong**, and never do the deep work inline: a certification that detours into a plan abandons its
   own coverage loop and burns the context the gauntlet needs to finish.
@@ -205,12 +212,17 @@ terminates in exactly one of:
     that is **NEW WORK**: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` →
     `/fabrik-execute-plan`. **Never decide a product question inside a test run.**
   Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect +
-  why it is not fixable in the presentation layer) **and WIRE EVIDENCE — the actual response body/key
-  set demonstrating the SERVICE violated the contract, never the assertion text alone** (a committed
-  red repro can itself be rig-defective; the repro proves reproducibility, the wire evidence proves
-  attribution). **Ledger freshness before routing:** re-read every OPEN row against
-  `git log --oneline --since` of the owning paths first — a row already fixed this session, or closed
-  but never flipped, becomes a ticket doing nothing (live incident: 2 of 9 routed rows were stale).
+  why it is not fixable in the presentation layer) **and WIRE/STATE EVIDENCE — the actual response
+  body/key set, or for fail-open rows the queried system state (the row `SELECT`ed back, the queue
+  depth, the stored artifact), demonstrating the SERVICE violated the contract — never the assertion
+  text alone** (a committed red repro can itself be rig-defective; the repro proves reproducibility,
+  the evidence proves attribution — cite the body/state Phase 3 already captured, don't re-derive it).
+  **Ledger freshness before routing:** the ledger is the prior report's `HANDOFF … OPEN` rows + its
+  `## RESUME` block. Before routing any OPEN row: (a) `git log --oneline --since=<row-timestamp>
+  -- <owning paths>` plus `git status --porcelain <owning paths>` to catch landed or
+  still-uncommitted fixes, then (b) **re-run the row's repro — its current color decides, not the
+  ledger's** (a row owned by a sibling repo can ONLY be freshness-checked this way; its log is out of
+  reach). A row already fixed, or closed but never flipped, becomes a ticket doing nothing.
   Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
   **Routes are EXECUTED in Phase 6 of this same run** — a handoff defers sequencing (discovery first), it never exports the work. **`/fabrik-release` stays BLOCKED while any row is open.**
 - **REFUTED** — with the contract line or evidence that disproves it.
@@ -287,10 +299,12 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
 
 **Machine-readable disposition rows (gate-parsed by `check_review_coverage.py` — exact grammar):** every
 routed finding appears as one line in the report:
-`HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command>` ·
+`HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` ·
 `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` ·
 `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open).
-A CLOSED row without an existing repro path + proof fails the gate; any OPEN HANDOFF row requires the final
+A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review`
+(the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence is what proves
+attribution — see Phase 4); any OPEN HANDOFF row requires the final
 ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`.
 
 
