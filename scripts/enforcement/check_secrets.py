@@ -152,7 +152,10 @@ def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[C
             if desc in _DSN_PATTERN_DESCS:
                 # The pattern match ends at the first `@`; extract from the full LINE
                 # so the credential runs greedily to the last `@` before the host.
+                # Bounded to 1000 chars: real placeholder DSN lines are short, and the
+                # greedy `(.+)@` backtracks quadratically on hostile many-@ lines.
                 line_text = lines[line_num - 1] if line_num <= len(lines) else secret
+                line_text = line_text[:1000]
                 dsn_pw = re.search(r"://[^:@\s]+:(.+)@[^@\s/]+", line_text)
                 if dsn_pw and _DSN_PLACEHOLDER_PW.match(dsn_pw.group(1).strip()):
                     continue

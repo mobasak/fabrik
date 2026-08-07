@@ -308,6 +308,18 @@ def test_abs_path_cite_still_attributes(fake_project: Path) -> None:
     assert out, "absolute-path cite of a session file must still block"
 
 
+def test_session_breaking_governance_file_itself_is_indeterminate(fake_project: Path) -> None:
+    # A failure citing ONLY CHANGELOG.md, with CHANGELOG.md session-authored and NO
+    # sibling trigger file in the output → the session may have broken it itself →
+    # indeterminate → block (never waved through by the governance exclusion).
+    out = _run_stop_with_transcript(
+        fake_project, "s_govself", "MarkdownLint",
+        "CHANGELOG.md: malformed heading at line 12",
+        "CHANGELOG.md", baseline=[],
+    )
+    assert out, "governance-only cite with the file session-authored must block (indeterminate)"
+
+
 def test_pre_session_edit_does_not_attribute() -> None:
     # A resumed transcript's weeks-old edit (ts far below the SessionStart baseline
     # floor) must not attribute today's failure to this session.

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review rounds 2-3: governance-self indeterminate branch + bounded DSN extraction (2026-08-07)
+Round-2/3 of the orchestrator-surface review: a session that broke a routine-governance file ITSELF (output citing only governance names it authored) is now INDETERMINATE (blocks up to cap) instead of waved through by the governance exclusion; the full-line greedy DSN credential extraction is bounded to 1000 chars (quadratic-backtracking guard on hostile many-@ lines — over-long placeholder lines fail closed). One new red-on-revert test each side; 51 green.
+
 ### Fixed — adversarial review of the dispatcher session's own surface: attribution v2 + secrets-exemption hardening (2026-08-07)
 `/fabrik-review` (pool×4 + native Opus, executed probes) over the orchestrator-authored work found the v1 stop-hook attribution defective in its own motivating incident (every session authors CHANGELOG.md and Doc Sync cites it → the downgrade never fired; path-less outputs waved session-caused reds through; baseline outputs contaminated the verdict) — reworked to per-check path-token attribution: NEW-failures-only outputs, normalized-path matching with a substring ban, routine-governance-name exclusion, a pre-session edit floor, and indeterminate→block. `check_secrets`' DSN exemption hardened: placeholder family narrowed (`example`/`sample`/`dummy`/`todo`/`tbd` are real shipped weak credentials and stay flagged), greedy-to-last-@ credential capture kills the prefix-truncation bypass, and the exemption is scoped to the two DSN patterns so it can never suppress another pattern's finding. Governance artifacts corrected (spine md5-vs-commit citation + Board legend, review-doc D7 disclosure, receipts count, Lesson 104, lock resolutions); 9 merged coder worktrees pruned (branches kept). 50 tests green (11 new red-on-revert).
 

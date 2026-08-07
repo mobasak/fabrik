@@ -175,6 +175,14 @@ def _failure_cites_session(new_outputs: list[str], authored: dict[str, int], ses
         for rel in candidates:
             if t == rel or t.endswith("/" + rel) or rel.endswith("/" + t):
                 return True
+    # No non-governance match. If the output cites ONLY routine-governance names and
+    # the session authored one of them, the session may have broken that file ITSELF
+    # (malformed CHANGELOG edit) — that is not attributable either way: indeterminate,
+    # keep blocking up to the cap. The sibling-obligation incident is different: its
+    # output also cites the sibling's trigger file, a non-governance token.
+    non_gov = {t for t in tokens if t not in _ROUTINE_GOVERNANCE}
+    if not non_gov and any(g in authored for g in tokens):
+        return None
     return False
 
 
