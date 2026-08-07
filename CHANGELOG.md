@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-catchup project-resume command (2026-08-07)
+Authored `commands/_sources/fabrik-catchup.md` (T01 of the autotrigger-and-commands plan set): a MEASURE → QUEUE → EXECUTE bounded run that detects plan-state/lock contradictions, stale key docs, stub sentinels, spec `shape:` drift, and dead consumer references (detect-only, hub-verified liveness), then routes each finding to its owning converge command (`/fabrik-doc-converge`, `/fabrik-features`, `/fabrik-data-contract`, `/fabrik-ui-design`) rather than re-implementing a converge loop. Wired into `commands/assemble_commands.py` (NEXT map + PARAMS). Hardened through 4 native-Opus review rounds (hub-only liveness, absolute fleet-audit path, both plan shapes + dangling/active-archived lock flags, report-only terminal disposition, Tier-2 terminal gate).
+
 ### Fixed — commit-enforcement pass 3: stale counter carryover (2026-08-07)
 
 A resolved cause's anti-trap counter persisted across stops where that cause wasn't firing, then

@@ -54,7 +54,7 @@
   ],
   "tickets": {
     "T01": {
-      "state": "fixup-round-4",
+      "state": "merged",
       "review_round_1": "3 CONFIRMED (hub-only liveness, absolute audit path, single-file plans)",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a00b7bb3196bab9f7",
       "branch": "worktree-agent-a00b7bb3196bab9f7",
@@ -63,7 +63,9 @@
       "fixup_commit": "cc1ccf5e",
       "review_round_2": "5 found: F1-residual assembler EXAMPLES, N1 report-only terminal, N2 dangling-lock flag, N3/N4 citation over-claims",
       "fixup_commit_r3": "1480bbd3",
-      "review_round_3": "5/5 resolved; 2 NEW confirmed pre-existing (lean-as-terminal-gate, active-lock-on-archived-plan); exit will be dispatcher-adjudicated on the 2-edit diff (Opus floor met 3x)"
+      "review_round_3": "5/5 resolved; 2 NEW confirmed pre-existing (lean-as-terminal-gate, active-lock-on-archived-plan); exit will be dispatcher-adjudicated on the 2-edit diff (Opus floor met 3x)",
+      "final_worktree_commit": "60bb9e47",
+      "review_rounds": 4
     },
     "T06a": {
       "state": "review-clean-awaiting-merge",

@@ -14,7 +14,7 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | fabrik-catchup command | — | ⚡ | ⬜ | |
+| T01 | fabrik-catchup command | — | ⚡ | ✅ | merged 60bb9e47 (4 review rounds) |
 | T02 | fabrik-decommission command | — | ⚡ | ⬜ | |
 | T03 | fabrik-deploy-verify command | — | ⚡ | ⬜ | |
 | T04 | fabrik-upstream command | — | ⚡ | ⬜ | |

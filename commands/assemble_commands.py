@@ -43,6 +43,7 @@ NEXT = {
     "fabrik-execute-plan": "end-to-end certification: /fabrik-user-test (UI-bearing types) · /fabrik-service-test (headless types).",
     "fabrik-features": "/fabrik-user-test (UI-bearing) · /fabrik-service-test (headless) — certify against the now-complete denominator.",
     "fabrik-doc-converge": "the workflow that called it, or /fabrik-docs-review for the whole-tree sweep (this was the single-doc deep converge).",
+    "fabrik-catchup": "the routed converge command(s) for each queued item (/fabrik-doc-converge · /fabrik-features · /fabrik-data-contract · /fabrik-ui-design), then resume whatever pipeline stage the project was actually in.",
     "fabrik-user-test": "/fabrik-release once green — but hand off any backend/logic defects to the owning /fabrik-review or plan first.",
     "fabrik-service-test": "/fabrik-release once green — but hand off any out-of-service defects to the owning /fabrik-review or plan first.",
     "fabrik-release": "Gate 2 — human approval. Terminal: no agent deploys, submits, or publishes past here.",
@@ -250,6 +251,9 @@ PARAMS = {
     },
     "fabrik-spec": {
         "subagents-core": {"HEADLINE": "`fanout` the grounding, `set_quality` the verdict", "TASK_TYPE": '"research"', "PROJECT": "spec-grounding", "FLOOR": "", "EXTRA": _SPEC_EXTRA},
+    },
+    "fabrik-catchup": {
+        "grounding-artifact": {"SUBJECT": "catchup finding", "EXAMPLES": "a stale-doc day-count read from memory instead of a fresh `git log`, a plan-lock contradiction assumed without opening the lock JSON, a consumer reference declared dead (or live) from a catalog/registry row alone instead of being reported for hub-side verification, a spec `shape:` flag checked against yesterday's diff instead of the current code"},
     },
 }
 
