@@ -168,14 +168,15 @@
       "fixup_commit": "7c6f58f6"
     },
     "T06b": {
-      "state": "fixup-round-2",
+      "state": "re-review-round-2",
       "base_commit": "291c4cea",
       "started_at": "2026-08-07T19:20:00Z",
       "note": "worktree base 5943074a pre-T03; fabrik-release edit is description-line only, line-disjoint from T03 body edit",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aa5eeadf4401a9582",
       "branch": "worktree-agent-aa5eeadf4401a9582",
       "coder_commit": "3a654b03",
-      "review_round_1": "11 found (5 CONFIRMED substance drops: docs-review whole-tree invention, workflow doer-vs-artifact, execute-plan dispatcher mode, user/service-test fix-mode+suite, plus 5 plausible + TR nits); gate finding = known merge-time-render protocol"
+      "review_round_1": "11 found (5 CONFIRMED substance drops: docs-review whole-tree invention, workflow doer-vs-artifact, execute-plan dispatcher mode, user/service-test fix-mode+suite, plus 5 plausible + TR nits); gate finding = known merge-time-render protocol",
+      "fixup_commit": "245bd564"
     }
   }
 }
