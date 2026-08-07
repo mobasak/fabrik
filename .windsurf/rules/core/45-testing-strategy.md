@@ -181,6 +181,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 | Testing implementation details (internal method calls) | Testing user-visible outcomes |
 | Targeting 100% line coverage | One high-value integration test per feature |
 | A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
+| Raw `dict.get()` / `body.get()` assertions against a wire response | Validate through the response schema (`Model.model_validate(body)`) — a missing/renamed key must RAISE, not silently return the `None` that impersonates a service defect |
 | Skipping tenant isolation tests in multi-tenant projects | Test both positive and negative per tenant-scoped endpoint |
 | Hardcoded test DB URL | `TEST_DATABASE_URL` from env — `localhost` in WSL dev, `postgres-main` in CI |
 | Destructive test (DROP SCHEMA/TABLE, TRUNCATE, migration re-apply) connecting unguarded | Call `require_throwaway(url)` (scaffold-emitted `tests/conftest.py`) FIRST — fail-closed: only DB names ending `_test`/`throwaway`/`scratch` (case-insensitive; CI uses `ci_test`), or `CI=true` **against a localhost DB**, may proceed; a mispointed URL errors instead of wiping a dev DB |

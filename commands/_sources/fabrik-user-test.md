@@ -222,8 +222,13 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
 ## Phase 4 — Refute, then fix-or-handoff (no silent bucket)
 
 You (the orchestrator) dedupe + REFUTE candidates against the contracts (a "bug" that matches
-`ui-design.md`'s frozen intent is refuted — or is a contract-change proposal, say which).
-Every survivor terminates in exactly one of:
+`ui-design.md`'s frozen intent is refuted — or is a contract-change proposal, say which). **A red
+test/spec is a SYMPTOM with at least two causes — the app is wrong, or the RIG is wrong — and an
+assertion message never distinguishes them**: refute the rig first (one schema/selector/contract
+lookup + the ACTUAL rendered state or response) before any row survives as an app finding — a rig
+reading a key/selector that doesn't exist produces failures identical to a real defect, and "fixing"
+correct code into agreeing with a broken rig is the most expensive outcome this phase exists to
+prevent. Every survivor terminates in exactly one of:
 
 - **FIXED** — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display,
   broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix — with its
@@ -247,7 +252,12 @@ Every survivor terminates in exactly one of:
     contract re-freeze → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`. **Never decide a product
     question inside a test run.**
   Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect +
-  why it is not fixable in the presentation layer). Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
+  why it is not fixable in the presentation layer) **and WIRE/STATE EVIDENCE — the actual response
+  body, key set, or rendered state proving the APP violated the contract, never the assertion text
+  alone** (the committed repro proves reproducibility; the evidence proves attribution — a red repro
+  can itself be rig-defective). **Ledger freshness before routing:** re-read every OPEN row against
+  `git log --oneline --since` of the owning paths — an already-fixed or closed-but-never-flipped row
+  becomes a ticket doing nothing. Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
   + a HANDED-OFF row naming the route and the owner. **`/fabrik-release` is BLOCKED while any row is
   open** — that gate is what stops a handoff from rotting.
 - **REFUTED** — with the contract line or evidence that disproves it.

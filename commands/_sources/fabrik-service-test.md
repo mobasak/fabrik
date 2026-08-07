@@ -174,7 +174,14 @@ Pool-check the matrix for holes (see Subagents) before dispatch.
 ## Phase 4 — Refute, then fix-or-handoff (no silent bucket)
 
 Dedupe + REFUTE against the contracts (behavior matching the frozen spec/`shape:` is refuted — or
-is a contract-change proposal; say which). Every survivor terminates in exactly one of:
+is a contract-change proposal; say which). **A red test is a SYMPTOM with at least two causes —
+the service is wrong, or the RIG is wrong — and an assertion message never distinguishes them**
+(live incident 2026-08-08: a rig reading snake_case keys off a camelCase wire produced
+`assert None in (...)` five times; four "service defects" were the rig's own `dict.get()` on keys
+that don't exist, and a coder was nearly dispatched to break correct code into agreeing with a
+broken test). Before ANY row survives as a service finding, refute the rig first: one schema/contract
+lookup (is the field required? what is its wire alias?) plus the ACTUAL response body. Every survivor
+terminates in exactly one of:
 
 - **FIXED** — in-scope service defects (validation, status codes, error shape, auth boundary,
   idempotency, retry/backoff, health/metrics, doc-drift incl. a corrected `FEATURES.md`/
@@ -198,7 +205,13 @@ is a contract-change proposal; say which). Every survivor terminates in exactly 
     that is **NEW WORK**: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` →
     `/fabrik-execute-plan`. **Never decide a product question inside a test run.**
   Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect +
-  why it is not fixable in the presentation layer). Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
+  why it is not fixable in the presentation layer) **and WIRE EVIDENCE — the actual response body/key
+  set demonstrating the SERVICE violated the contract, never the assertion text alone** (a committed
+  red repro can itself be rig-defective; the repro proves reproducibility, the wire evidence proves
+  attribution). **Ledger freshness before routing:** re-read every OPEN row against
+  `git log --oneline --since` of the owning paths first — a row already fixed this session, or closed
+  but never flipped, becomes a ticket doing nothing (live incident: 2 of 9 routed rows were stale).
+  Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
   **Routes are EXECUTED in Phase 6 of this same run** — a handoff defers sequencing (discovery first), it never exports the work. **`/fabrik-release` stays BLOCKED while any row is open.**
 - **REFUTED** — with the contract line or evidence that disproves it.
 
