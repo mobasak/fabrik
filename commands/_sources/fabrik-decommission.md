@@ -34,7 +34,10 @@ the Phase 1 outcome and WAIT; an outcome stated but not confirmed is not yet act
    consumer whether or not it currently calls the reference.
 2. **Liveness probe — DNS vs siblings, never registry rows.** Resolve the target's public domain
    (e.g. `dig +short <name>.vps1.ocoron.com` or `getent hosts`) in the SAME probe run as two KNOWN-LIVE
-   sibling domains on the same VPS (e.g. `gatus.<vps>.ocoron.com`, `grafana.<vps>.ocoron.com`). Three
+   sibling domains on the same VPS — VERIFY they resolve before trusting them as controls (e.g.
+   `status.vps1.ocoron.com` plus a live spec domain; `gatus.vps1`/`grafana.vps1` are NXDOMAIN — the
+   dead-sibling trap; on vps2/vps3 wildcard DNS makes bare resolution non-evidentiary, so the
+   discriminating evidence moves to the HTTPS layer, per `/fabrik-deploy-verify`'s control probe). Three
    outcomes only: target resolves → LIVE. Target fails AND both siblings resolve → DEAD (absence proven —
    this is the discriminator: a real retirement looks like THIS, not "everything timed out"). Target AND
    siblings ALL fail → inconclusive transient outage — re-probe later, this is not a verdict either way.
