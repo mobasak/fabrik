@@ -129,7 +129,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    HARD STOPS: 3 same-test failures, missing infra, unresolvable spec/scope contradiction). *"I judged X
 >    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
 >    wait"*, *"I'd rather do this carefully than fast"*, *"substantial enough to deserve a fresh context"*, *"I won't open work I can't
->    finish — stopping at a clean state preserves the value"* (deferral dressed as judgment/prudence — all live observed; a clean
+>    finish — stopping at a clean state preserves the value"* (deferral dressed as judgment/prudence — the pattern live-observed repeatedly, incl. the quoted context and clean-state forms; a clean
 >    boundary makes the RESUME cheap, it does not make the STOP legitimate — the next stage was still yours to run) are
 >    **contract violations, not decisions.** **Context is NOT a reason to stop — the harness AUTO-COMPACTS:**
 >    when the conversation grows long it is summarized and the run CONTINUES in the same invocation; your

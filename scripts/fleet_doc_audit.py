@@ -39,18 +39,20 @@ FABRIK_ROOT = Path(__file__).resolve().parents[1]
 OPT = Path("/opt")
 REPORT_DIR = FABRIK_ROOT / "docs" / "infrastructure" / "probe-reports"
 
-# Same non-project exclusions as sync_projects.py (kept in step by hand — tiny set).
-EXCLUDES = {
-    "fabrik",
-    "fabrik-lib",
-    "fabrik-libs",
-    "mt-router",
-    "archived",
-    "google",
-    "containerd",
-    "Traycer",
-    "Reference_Creator",
-}
+
+# Exclusions come from sync_projects.py ITSELF (imported, never hand-copied — a
+# hand-copied set drifted within hours of shipping and silently hid the real
+# project Reference_Creator from the first audit). The hub repo is added here:
+# its docs are governed by its own gates, not this fleet probe.
+def _excluded(name: str) -> bool:
+    sys.path.insert(0, str(FABRIK_ROOT / "scripts"))
+    try:
+        import sync_projects  # noqa: PLC0415
+
+        return name == "fabrik" or sync_projects._is_excluded(name)
+    except Exception:
+        return name in {"fabrik", "fabrik-lib", "archived", "google", "containerd"}
+
 
 CODE_PATHS = ("src", "app", "web", "lib", "scripts")
 KEY_DOCS = (
@@ -121,7 +123,9 @@ def _required_docs(project: Path) -> list[str]:
         if not ptype:
             return []
         allow = _doc_registry.docs_allowlist(ptype)
-        return [d for d in KEY_DOCS if d in allow]
+        # The allowlist carries BARE basenames; KEY_DOCS are docs/-prefixed paths —
+        # compare basenames or this probe is dead code (live defect, first ship).
+        return [d for d in KEY_DOCS if Path(d).name in allow]
     except Exception:
         return []
 
@@ -131,8 +135,18 @@ def audit_project(project: Path) -> Row | None:
         return None
     row = Row(project=project.name)
     code_ts = _git_ts(project, *CODE_PATHS)
+    if code_ts is None:
+        # Code outside the standard dirs (or none): fall back to HEAD so an
+        # active repo can never read as vacuously clean (fail-visible).
+        code_ts = _git_ts(project)
     docs_ts = _git_ts(project, "docs", "CHANGELOG.md")
-    row.lag = lag_days(code_ts, docs_ts)
+    if docs_ts is None and code_ts is not None:
+        # docs/ never committed at all — its own failure mode, not an
+        # epoch-sized lag number (mirrors the per-doc "(untracked)" branch).
+        row.stale.append("docs+CHANGELOG (never committed)")
+        row.lag = 0
+    else:
+        row.lag = lag_days(code_ts, docs_ts)
     required = _required_docs(project)
     for rel in KEY_DOCS:
         f = project / rel
@@ -158,10 +172,10 @@ def audit_project(project: Path) -> Row | None:
     return row
 
 
-def run(write_report: bool = True) -> int:
+def run(write_report: bool = True, commit: bool = False) -> int:
     rows: list[Row] = []
     for p in sorted(OPT.iterdir()):
-        if not p.is_dir() or p.name.startswith((".", "_")) or p.name in EXCLUDES:
+        if not p.is_dir() or p.name.startswith((".", "_")) or _excluded(p.name):
             continue
         r = audit_project(p)
         if r is not None:
@@ -193,17 +207,46 @@ def run(write_report: bool = True) -> int:
     print(report)
     if write_report:
         REPORT_DIR.mkdir(parents=True, exist_ok=True)
-        (REPORT_DIR / f"fleet-doc-audit-{today}.md").write_text(report, encoding="utf-8")
-        (REPORT_DIR / "fleet-doc-audit-latest.md").write_text(report, encoding="utf-8")
+        dated = REPORT_DIR / f"fleet-doc-audit-{today}.md"
+        latest = REPORT_DIR / "fleet-doc-audit-latest.md"
+        dated.write_text(report, encoding="utf-8")
+        latest.write_text(report, encoding="utf-8")
         print(f"report: docs/infrastructure/probe-reports/fleet-doc-audit-{today}.md")
-    return 1 if dirty else 0
+        if commit:
+            # Self-commit the report (daily_refresh precedent): a cron artifact
+            # left untracked pollutes the shared tree for every next agent.
+            # Pathspec-only — never touches anything else in the index.
+            subprocess.run(
+                ["git", "-C", str(FABRIK_ROOT), "add", "--", str(dated), str(latest)],
+                check=False,
+                timeout=30,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(FABRIK_ROOT),
+                    "commit",
+                    "-m",
+                    f"chore(fleet): weekly doc-freshness audit report ({today})\n\n"
+                    "Agent-Role: primary\n"
+                    "Agent-Context: fleet_doc_audit.py cron self-commit (mechanical report only)",
+                    "--",
+                    str(dated),
+                    str(latest),
+                ],
+                check=False,
+                timeout=30,
+            )
+    return 0  # advisory tool: the REPORT is the signal; non-zero = crash only
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--stdout", action="store_true", help="print only — no report file")
+    ap.add_argument("--commit", action="store_true", help="git-commit the report files (cron mode)")
     a = ap.parse_args()
-    return run(write_report=not a.stdout)
+    return run(write_report=not a.stdout, commit=a.commit)
 
 
 if __name__ == "__main__":

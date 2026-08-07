@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — day-review of 2026-08-07's work: 12 findings, fleet auditor hardened (2026-08-07)
+
+/fabrik-review over the day's six batches (12 findings, 2 rounds → found:0). The unreviewed last
+batch carried the weight: fleet_doc_audit's MISSING probe was DEAD code (basename-vs-prefixed-path
+membership never matched — the live report's column was silently all-dash), a docs-never-committed
+project would have topped the report with an epoch-sized (~20,672d) lag, and the hand-copied
+exclusion set had already drifted and hidden the real project Reference_Creator from the audit built
+to find invisible projects (exclusions now IMPORTED from sync_projects). Also: code_ts falls back to
+HEAD for non-standard layouts (no vacuous-clean), the release gate's code-path set aligned to the
+auditor's five, its remediation routes FEATURES→/fabrik-features (doc-converge refuses it — also
+caught independently as a cross-batch seam), doc-converge's QUICKSTART/RESILIENCE rows gained the
+target_vps ground truth their templates now demand, report self-commits pathspec-only from cron
+(--commit), advisory exit-0 semantics, catalog pluralization, and an honest observation claim in
+execute-plan. +2 mutant-killing tests (suite 7); regenerated report: 45 scanned / 39 flagged with
+the MISSING column alive.
+
 ### Added — fleet doc-freshness enforcement: weekly audit cron + dated-truth release gate (2026-08-07)
 
 The doc gates only fire inside working sessions — an untouched project had ZERO doc enforcement, and

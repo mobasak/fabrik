@@ -488,7 +488,7 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
     ]:
         if not group:
             continue
-        md += f"### {label} ({len(group)} projects)\n\n"
+        md += f"### {label} ({len(group)} project{'s' if len(group) != 1 else ''})\n\n"
         md += "| Project | Purpose | Stack | Status | URL | Scaffold |\n"
         md += "|---------|---------|-------|--------|-----|----------|\n"
         for p in sorted(group, key=lambda x: x.name):
