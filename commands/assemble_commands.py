@@ -20,6 +20,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent
 FRAG, SRC = ROOT / "_fragments", ROOT / "_sources"
 OUT = Path.home() / ".claude" / "commands"
@@ -54,6 +56,7 @@ NEXT = {
     "fabrik-generate-tests": "/fabrik-review — review the authored tests for quality before trusting them green.",
     "design-review": "back to the building phase's Build-Verification Loop until the screen renders clean.",
     "fabrik-workflow-review": "the workflow artifact is converged — return to the ettw/mega step that produced it.",
+    "fabrik-decommission": "none — a standalone hub-side runbook; operator runs `fabrik destroy` themselves when ready.",
 }
 
 
@@ -74,6 +77,12 @@ def _emit_skill(name: str, description: str, skills_dest: Path) -> None:
     # BOTH desc and nxt are interpolated into a YAML double-quoted scalar — escape both.
     desc_yaml = _yaml_dq(desc)
     nxt_yaml = _yaml_dq(nxt)
+    full_desc = f"{desc} Invoke for /{name}, or when a task matches this stage. NEXT: {nxt}"
+    if len(full_desc) > 1024:
+        raise SystemExit(
+            f"_emit_skill: {name}: composed skill description is {len(full_desc)} chars, "
+            f"exceeds the 1024-char limit — trim the source description or the NEXT entry"
+        )
     body = (
         f"---\n"
         f"name: {name}\n"
@@ -255,6 +264,9 @@ PARAMS = {
     "fabrik-catchup": {
         "grounding-artifact": {"SUBJECT": "catchup finding", "EXAMPLES": "a stale-doc day-count read from memory instead of a fresh `git log`, a plan-lock contradiction assumed without opening the lock JSON, a consumer reference declared dead (or live) from a catalog/registry row alone instead of being reported for hub-side verification, a spec `shape:` flag checked against yesterday's diff instead of the current code"},
     },
+    "fabrik-decommission": {
+        "grounding-artifact": {"SUBJECT": "decommission finding", "EXAMPLES": "a service declared dead (or live) from a catalog/PORTS/env row alone instead of a fresh DNS probe against resolving sibling domains, an uncommitted-file count read from memory instead of a `git status`/`find` diff taken before AND after the move, a consumer marked migrated without opening its `.env`/import site, a runtime-teardown step executed inline instead of named as the operator's own separately-gated action"},
+    },
 }
 
 def _sections(lines):
@@ -297,6 +309,50 @@ def _description_of(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+def _requote_command_description(text: str) -> str:
+    """Rewrite a rendered command's frontmatter `description:` scalar as a YAML
+    double-quoted scalar — the same `_yaml_dq` escaping `_emit_skill` already
+    applies to the skill wrapper — but ONLY when the plain (unquoted) scalar
+    doesn't actually parse. A hand-authored plain scalar containing a bare
+    `: ` (e.g. "Stage: utility", "found: 0", `TRIGGER — EN: "..."`) is invalid
+    YAML (ScannerError on `yaml.safe_load`) even though some renderers
+    silently tolerate it; quoting fixes that defect class. Gating on a real
+    `yaml.safe_load` probe (not a hand-rolled `": "` heuristic) keeps every
+    description that was already valid byte-identical — only the previously-
+    broken ones change. Only the `description:` line is touched — other
+    frontmatter keys pass through untouched.
+
+    A syntax-only `safe_load` probe isn't enough: several plain scalars PARSE
+    without error but silently change MEANING, not just spelling — a ` #` mid-line
+    starts a YAML comment and truncates the string (`... #1 priority ...`), a
+    leading `&name` is consumed as an anchor label instead of literal text
+    (`&anchor thing`), an ISO-shaped value resolves to a `date` object instead of
+    a string (`2026-08-07`), and `yes`/`no`/`on`/`off` resolve to `bool` under
+    PyYAML's default (YAML 1.1) resolver. All four still parse "successfully" —
+    the only way to catch them is to parse THEN compare the round-tripped value
+    back to the original string, not just catch exceptions."""
+    if not text.startswith("---"):
+        return text
+    end = text.index("\n---", 3)
+    fm = text[3:end]
+
+    def repl(m: re.Match) -> str:
+        val = m.group(1).strip()
+        if len(val) >= 2 and val.startswith('"') and val.endswith('"'):
+            return f"description: {val}"  # already a quoted scalar — leave it alone
+        try:
+            parsed = yaml.safe_load(f"description: {val}")
+            parsed_val = parsed.get("description") if isinstance(parsed, dict) else None
+            if isinstance(parsed_val, str) and parsed_val == val:
+                return f"description: {val}"  # already a valid plain scalar — untouched, byte-equal round-trip
+            return f'description: "{_yaml_dq(val)}"'  # parsed to a non-string, or a lossy round-trip
+        except yaml.YAMLError:
+            return f'description: "{_yaml_dq(val)}"'
+
+    fm2 = re.sub(r"^description:\s*(.+)$", repl, fm, count=1, flags=re.M)
+    return "---" + fm2 + text[end:]
+
+
 def render(dest: Path, skills_dest: Path | None = None):
     dest.mkdir(parents=True, exist_ok=True)
     frags = {p.stem: p.read_text().rstrip("\n") for p in FRAG.glob("*.md")}
@@ -315,6 +371,8 @@ def render(dest: Path, skills_dest: Path | None = None):
         text = re.sub(r"^\{\{include:([\w-]+)\}\}$", sub, text, flags=re.M)
         leftover = re.findall(r"\{\{(?:include:)?[A-Za-z_-]+\}\}", text)
         if leftover: errs.append(f"{name}: unresolved {sorted(set(leftover))}")
+        desc_raw = _description_of(text)  # captured BEFORE requoting — _emit_skill applies its own _yaml_dq
+        text = _requote_command_description(text)
         # banner after frontmatter
         if text.startswith("---"):
             end = text.index("\n---", 3) + 4
@@ -322,7 +380,7 @@ def render(dest: Path, skills_dest: Path | None = None):
         else:
             text = BANNER + text
         (dest / s.name).write_text(text)
-        emitted.append((name, _description_of(text)))
+        emitted.append((name, desc_raw))
     if errs:  # gate BEFORE touching the skills tree — a failed render never mutates skills
         print("RENDER ERRORS:"); [print(" -", e) for e in errs]; sys.exit(2)
     source_names = {n for n, _ in emitted}

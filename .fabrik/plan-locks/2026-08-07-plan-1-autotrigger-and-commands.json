@@ -117,7 +117,7 @@
       "fixup_commit": "23ad70f0"
     },
     "T02": {
-      "state": "fixup-round-3",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae7ce2dd07afe2aac",
       "branch": "worktree-agent-ae7ce2dd07afe2aac",
       "base_commit": "c629870e",
@@ -126,7 +126,10 @@
       "coder_commit": "68c13862",
       "review_round_1": "7 found (2 CONFIRMED): retracted captcha claim cited as precedent, no operator gate DECIDE->EXECUTE + question-TRIGGER, 1262>1024 description, lossy safe_load gate, mv collision, 7v8 surfaces, VPS wipe omission",
       "fixup_commit": "425be27c",
-      "review_round_2": "7/7 resolved; 3 NEW medium (retracted entry cited as fact in Phase 0, render-shifted line citation, no AWAITING state) + advisory length assert folded in"
+      "review_round_2": "7/7 resolved; 3 NEW medium (retracted entry cited as fact in Phase 0, render-shifted line citation, no AWAITING state) + advisory length assert folded in",
+      "final_worktree_commit": "fc629d79",
+      "review_rounds": 3,
+      "exit": "dispatcher-adjudicated on surgical r3 diff after 2 full Opus rounds"
     }
   }
 }
