@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — workstation doc: agent command routing, dispositions, and human gates (2026-08-07)
+`docs/workstation/agent-command-routing-and-gates.md` — operator reference answering how agents select commands from bare prose (the four-layer auto-trigger stack incl. the computed certification fork and the opt-in Haiku tier), how the certification gauntlets decide fix-on-the-fly vs route (evidence-based dispositions, path-gate, same-run routed execution, release blocked on open handoffs), assembler-enforced NEXT chaining, and the exact autonomous-vs-ask split (self-service-first + the six designed human gates).
+
 ### Changed — workstation guide: auto-trigger stack + four new commands + first-live-run notes (2026-08-07)
 `docs/workstation/spine-ticket-plans-usage.md` now documents the 2026-08-07 wave for the operator: the four-layer auto-trigger stack (TRIGGER/Stage descriptions, Orient step-0, the UserPromptSubmit router with opt-in Haiku tier, stage-artifact gates), an operator table for /fabrik-catchup, /fabrik-decommission, /fabrik-deploy-verify and /fabrik-upstream, the release→deploy-verify chaining, the field-proven dispatcher note, and the never-render-from-a-worktree rule. `claude-configuration-inventory.md` inventory row updated for the two fleet-synced hooks.
 

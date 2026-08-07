@@ -509,6 +509,7 @@ docs/
 ├── workstation
 │   ├── MCP_HTTP_TRANSPORT.md
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
+│   ├── agent-command-routing-and-gates.md # How agents pick commands from bare prose (4-layer stack), gauntlet fix-vs-route dispositions, and the autonomous-vs-ask human gates
 │   ├── claude-config-backup-restore.md # DR mirror of Claude config to the private git store + restore runbook
 │   ├── claude-configuration-inventory.md # Every Claude config path on this box: function + current state + sizes
 │   ├── cleanup-automation.md       # WSL+Windows cleanup system reference (one cleaner per OS + manual compaction)
