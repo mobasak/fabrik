@@ -54,14 +54,15 @@
   ],
   "tickets": {
     "T01": {
-      "state": "fixup-round-3",
+      "state": "re-review-round-3",
       "review_round_1": "3 CONFIRMED (hub-only liveness, absolute audit path, single-file plans)",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a00b7bb3196bab9f7",
       "branch": "worktree-agent-a00b7bb3196bab9f7",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T13:23:09Z",
       "fixup_commit": "cc1ccf5e",
-      "review_round_2": "5 found: F1-residual assembler EXAMPLES, N1 report-only terminal, N2 dangling-lock flag, N3/N4 citation over-claims"
+      "review_round_2": "5 found: F1-residual assembler EXAMPLES, N1 report-only terminal, N2 dangling-lock flag, N3/N4 citation over-claims",
+      "fixup_commit_r3": "1480bbd3"
     },
     "T06a": {
       "state": "review-clean-awaiting-merge",
