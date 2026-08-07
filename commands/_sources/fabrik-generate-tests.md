@@ -1,5 +1,5 @@
 ---
-description: Generate the Behavior-Contract tests for a target (a module / dir / file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse) → YOU curate → author in parallel (write-mode, sandboxed, self-verified) → YOU review test-quality → git apply the survivors. Runs standalone (backfill an existing suite) or is auto-called by /fabrik-execute-plan (per phase) and /fabrik-review (reactive, on an untested behavior).
+description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse) → YOU curate → author in parallel (write-mode, sandboxed, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase and /fabrik-review reactively. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
 argument-hint: "<module|dir|file to test — or a phase's Behavior Contract; omit to infer the behaviors from the current diff>"
 ---
 

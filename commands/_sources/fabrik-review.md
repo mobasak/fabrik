@@ -1,5 +1,5 @@
 ---
-description: Adversarial code review — independent finders (recall) → refute false positives → prove & fix with regression guards → LOOP until the Coverage Checklist is fully adjudicated (every class CLEAN/FIXED/REFUTED, fixes re-checked; NO round cap — the loop ends only on a full fresh round with found: 0)
+description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until every Coverage-Checklist class is CLEAN/FIXED/REFUTED and a full fresh round returns found: 0 (no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 

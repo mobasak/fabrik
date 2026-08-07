@@ -1,5 +1,5 @@
 ---
-description: Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENCE, CONFIGURATION, OPERATIONS, QUICKSTART, DEPLOYMENT, TROUBLESHOOTING, indexes, README, BUSINESS_MODEL, STRATEGIC_BACKLOG). Pick the doc's convergence contract from the table, discover ground truth from the code/infra, reconcile bidirectionally, iterate to an edit-free no-op. FEATURES, data-contract, and ui-design keep their dedicated commands.
+description: Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENCE, CONFIGURATION, OPERATIONS, QUICKSTART, DEPLOYMENT, TROUBLESHOOTING, indexes, README, BUSINESS_MODEL, STRATEGIC_BACKLOG) — pick its convergence contract, discover ground truth, reconcile bidirectionally, iterate to an edit-free no-op. TRIGGER — EN: "converge this doc", "update SERVICES.md to match the code"; TR: "bu dokümanı koda göre güncelle", "SERVICES.md'yi senkronize et" — fires for ONE named doc. SKIP: the whole-tree sweep (→ /fabrik-docs-review) or FEATURES/data-contract/ui-design (their own commands). Stage: utility.
 argument-hint: "<doc path or name, e.g. docs/SERVICES.md or SERVICES — one doc per run>"
 ---
 

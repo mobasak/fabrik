@@ -1,5 +1,5 @@
 ---
-description: Converge docs/FEATURES.md to the COMPLETE, testable truth of the codebase — discover every shipped capability from the code (routes, jobs, CLI, screens, integrations), reconcile bidirectionally (no capability without a row, no row without living code), make every row EXERCISABLE (Endpoint/Module + how-to-exercise seed), iterate to an edit-free no-op. The certification gauntlets (/fabrik-user-test, /fabrik-service-test) use FEATURES.md as a coverage DENOMINATOR — an incomplete file silently shrinks what gets tested.
+description: Converge docs/FEATURES.md to the COMPLETE, testable truth of the codebase — discover every shipped capability (routes, jobs, CLI, screens, integrations), reconcile bidirectionally (no capability w/o a row, no row w/o code), make every row EXERCISABLE (Endpoint/Module + how-to-exercise seed), iterate to an edit-free no-op. The certification gauntlets read this as their coverage DENOMINATOR. TRIGGER — EN: "refresh the features list", "is FEATURES.md complete"; TR: "özellik listesini güncelle", "FEATURES.md eksiksiz mi" — fires before certifying, after a feature ships. SKIP: running the certification itself (→ /fabrik-user-test, /fabrik-service-test). Stage: 5-certify.
 argument-hint: "[optional: a subsystem/dir to scope the sweep — omit to converge the WHOLE feature inventory]"
 ---
 

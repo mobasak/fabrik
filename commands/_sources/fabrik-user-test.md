@@ -1,5 +1,5 @@
 ---
-description: End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — act as the product's UI & workflow QC engineer. Build the element inventory + complete USER JOURNEYS as the coverage denominators, dispatch parallel fabrik-gui subagents across every journey × flow × persona × state, verify UI truth against SYSTEM truth (DB/API/email/entitlements) at every milestone, fix-or-handoff every finding, and LOOP discovery-until-dry so nothing is missed. Persists the gauntlet as a rerunnable suite.
+description: End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — the UI/workflow QC engineer. Builds the element inventory + USER JOURNEYS as denominators, dispatches fabrik-gui subagents across journey/flow/persona/state, verifies UI truth vs SYSTEM truth, fix-or-handoff every finding, LOOPs discovery-until-dry; persists as a RERUNNABLE suite. TRIGGER — EN: "certify this product end to end", "run the full UX test suite"; TR: "ürünü uçtan uca test et", "tam UX sertifikasyonunu çalıştır" — fires for a UI-bearing surface's gauntlet. SKIP: headless services (→ /fabrik-service-test) or one screen's visual/a11y pass (→ /design-review). Stage: 5-certify.
 argument-hint: "[journey, flow, or screen to scope to — omit to certify the ENTIRE product]"
 ---
 

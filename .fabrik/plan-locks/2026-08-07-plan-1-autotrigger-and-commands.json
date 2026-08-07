@@ -172,7 +172,7 @@
       "exit": "dispatcher-adjudicated on surgical r3 after 2 full Opus rounds"
     },
     "T06b": {
-      "state": "fixup-round-3",
+      "state": "merged",
       "base_commit": "291c4cea",
       "started_at": "2026-08-07T19:20:00Z",
       "note": "worktree base 5943074a pre-T03; fabrik-release edit is description-line only, line-disjoint from T03 body edit",
@@ -181,7 +181,10 @@
       "coder_commit": "3a654b03",
       "review_round_1": "11 found (5 CONFIRMED substance drops: docs-review whole-tree invention, workflow doer-vs-artifact, execute-plan dispatcher mode, user/service-test fix-mode+suite, plus 5 plausible + TR nits); gate finding = known merge-time-render protocol",
       "fixup_commit": "245bd564",
-      "review_round_2": "10/10 resolved; 1 NEW (workflow-review doer-set enumeration, 27-char insertion); exit adjudicated on r3 one-line diff"
+      "review_round_2": "10/10 resolved; 1 NEW (workflow-review doer-set enumeration, 27-char insertion); exit adjudicated on r3 one-line diff",
+      "final_worktree_commit": "4344a502",
+      "review_rounds": 2,
+      "exit": "dispatcher-adjudicated on 1-line r3 after 2 full Opus rounds"
     }
   }
 }

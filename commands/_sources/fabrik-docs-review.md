@@ -1,5 +1,5 @@
 ---
-description: Converge docs to a fixed point — bidirectional doc↔code reconciliation (parallel reconcilers) → route to doc type → doc-sync gate, with cited evidence
+description: Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconcilers) → route each doc to its type → doc-sync gate, with cited evidence. TRIGGER — EN: "review all the docs", "are the docs still accurate"; TR: "tüm dokümanları gözden geçir", "dokümanlar kodla uyumlu mu" — fires for the MULTI-doc reconciliation sweep. SKIP: one doc's deep single-file converge (→ /fabrik-doc-converge). Stage: utility.
 argument-hint: "[path, doc, or git range — omit to reconcile docs against the working-tree/branch diff]"
 ---
 

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — TRIGGER + Stage taxonomy for the build/certify/release/gate/utility command descriptions (2026-08-07)
+T06b of the autotrigger-and-commands plan set: the thirteen remaining command sources (execute-plan, review, repo-review, rules-review, generate-tests, docs-review, doc-converge, features, user-test, service-test, release, workflow-review, design-review) now carry bare-prose TRIGGER phrasings (EN+TR), reciprocal negative boundaries across the review family, and exactly one frozen `Stage:` value (4-build / 5-certify / 6-release / gate / utility) — description lines only, all ≤700 chars. Completes the sweep started by T06a: all 20 pre-existing commands + the 4 new ones now carry the routing contract.
+
 ### Changed — TRIGGER + Stage taxonomy for the design/contract/plan command descriptions (2026-08-07)
 T06a of the autotrigger-and-commands plan set: the seven design/contract/plan command sources (fabrik-spec, fabrik-spec-review, fabrik-data-contract, fabrik-ui-design, fabrik-ui-design-review, fabrik-plan-after-chat, fabrik-plan-review) now carry bare-prose TRIGGER phrasings (EN+TR), negative boundaries naming the confusable sibling, and exactly one frozen `Stage:` value (1-design / 2-contract / 3-plan) in their frontmatter descriptions — description lines only, bodies untouched, all within the ≤700-char band.
 

@@ -1,5 +1,5 @@
 ---
-description: Full-project adversarial code review + fix — discover units → parallel read-only review (waves) → triage → risk-ordered serial fixes with regression tests → incremental convergence, with a coverage ledger
+description: Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incremental convergence, with a coverage ledger. TRIGGER — EN: "audit the whole repo", "sweep the entire project for bugs"; TR: "tüm repoyu denetle", "projenin tamamını incele" — fires for a whole-repo sweep, not one diff. SKIP: a single diff/PR's changed-surface gate (→ /fabrik-review). Stage: gate.
 argument-hint: "[subsystem/dir/risk-tier to scope — omit for the whole repo]"
 ---
 

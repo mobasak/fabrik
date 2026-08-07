@@ -1,5 +1,5 @@
 ---
-description: Read-only .windsurf/rules compliance gap audit — establish real stack + spec flags + ADR, fan out one subagent per applicable pack (parallel), refute false gaps, iterate until a full pass surfaces nothing new (stable gap list), prioritized GAP table with path:line proof
+description: Read-only .windsurf/rules compliance gap audit — establish real stack + spec flags + ADR, fan out one subagent per applicable pack (parallel), refute false gaps, iterate to a stable gap list, prioritized GAP table with path:line proof. TRIGGER — EN: "check rules-pack compliance", "audit against the windsurf rule packs"; TR: "kural paketlerine uyumu denetle", "windsurf kurallarını kontrol et" — fires for a PACK-compliance gap audit, not a defect review. SKIP: code-defect finding (→ /fabrik-review, /fabrik-repo-review). Stage: gate.
 argument-hint: "[a specific pack or rules subdir to scope — omit to audit all applicable packs]"
 ---
 

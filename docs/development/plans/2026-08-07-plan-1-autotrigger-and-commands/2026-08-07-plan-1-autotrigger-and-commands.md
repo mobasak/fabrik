@@ -20,7 +20,7 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 | T04 | fabrik-upstream command | — | ⚡ | ✅ | merged 5073c45c (3 rounds; exemplar-true, repo-identity modes) |
 | T05 | UserPromptSubmit router hook | — | ⚡ | ⬜ | |
 | T06a | TRIGGER+Stage sweep (design/contract/plan skills) | — | ⚡ | ✅ | merged 9079f40e (2 rounds, r2 clean) |
-| T06b | TRIGGER+Stage sweep (build/certify/release/gate/utility skills) | — | ⚡ | ⬜ | |
+| T06b | TRIGGER+Stage sweep (build/certify/release/gate/utility skills) | — | ⚡ | ✅ | merged 4344a502 (2 rounds + 1-line r3) |
 | T07 | Orient step-0 routing rule | — | ⚡ | ⬜ | |
 | T08 | Stage-skip artifact gates | — | ⚡ | ⬜ | |
 | T99 | Integration: parity, receipts, whole-plan gates | T01, T02, T03, T04, T05, T06a, T06b, T07, T08 | ⛓️ | ⬜ | |

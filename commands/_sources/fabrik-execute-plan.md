@@ -1,5 +1,5 @@
 ---
-description: Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases
+description: Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) instead runs DISPATCHER mode over the whole Board. Supersedes superpowers:executing-plans + superpowers:subagent-driven-development. TRIGGER — EN: "execute this plan", "run the approved plan phase by phase"; TR: "bu planı uygula", "onaylı planı adım adım çalıştır" — fires once a plan is APPROVED and ready to build. SKIP: authoring/converging the plan (→ /fabrik-plan-after-chat, /fabrik-plan-review) or standalone test authoring (→ /fabrik-generate-tests). Stage: 4-build.
 argument-hint: "<path to plan file>"
 ---
 

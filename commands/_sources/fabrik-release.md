@@ -1,5 +1,5 @@
 ---
-description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching release path — VPS-deployed types → release-readiness verification then hand off to hub-side `fabrik apply`; mobile-app → the EAS build/submit checklist run; chrome-extension → the Web Store package/validate/submission-prep run. Every checklist verdict cites evidence (path:line or command output). ALWAYS STOPS at the human gate — no agent deploys, submits, or publishes.
+description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at the human gate — no agent deploys, submits, or publishes. TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before the human clicks go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
 argument-hint: "[optional: override surface — vps | mobile | extension | desktop; omit to read project.yaml::type]"
 ---
 
