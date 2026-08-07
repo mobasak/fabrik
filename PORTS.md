@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-08-07 13:15:10 -->
+<!-- Last synced: 2026-08-07 13:18:39 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -125,7 +125,6 @@ If you encounter a port conflict:
 | 8031 | **youtube** | file-worker | /opt/youtube |
 | 8032 | **fabrik-citation-verifier** | python-api | /opt/fabrik-citation-verifier |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
-| 18011 | **captcha** | python-api | /opt/captcha |
 | 18013 | **proxy** | python-api | /opt/proxy |
 | 18014 | **site-provisioner** | python-api | /opt/site-provisioner |
 | 18018 | **email-reader** | python-api | /opt/email-reader |

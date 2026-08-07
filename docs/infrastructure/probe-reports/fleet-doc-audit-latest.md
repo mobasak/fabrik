@@ -1,6 +1,6 @@
 # Fleet doc-freshness audit — 2026-08-07
 
-Projects scanned: 44 · flagged: 38 · clean: 6
+Projects scanned: 43 · flagged: 37 · clean: 6
 
 Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 `/fabrik-docs-review` or `/fabrik-doc-converge <doc>` run IN the flagged project.
@@ -8,7 +8,6 @@ Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 | Project | Code-vs-docs lag | Stale key docs (≥14d behind code) | Stub sentinels | Missing obligated |
 |---|---|---|---|---|
 | fabrik-claim-validator | 21d | SERVICES.md (untracked), CONFIGURATION.md (71d), FEATURES.md (71d) | — | docs/RESILIENCE.md, docs/DEPLOYMENT.md |
-| captcha | 20d | SERVICES.md (201d), CONFIGURATION.md (201d), DEPLOYMENT.md (73d), FEATURES.md (73d) | — | docs/RESILIENCE.md |
 | fabrik-lib-review | 10d | — | — | — |
 | fabrik-lib-account | 8d | — | — | — |
 | gmail-account-creator | 1d | — | — | docs/DEPLOYMENT.md |

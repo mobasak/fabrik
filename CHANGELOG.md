@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — captcha project retired and archived; the deployed service stays live (2026-08-07)
+
+Operator decision after confirming `fabrik-lib/captcha-solve/` covers the capability: the captcha
+SOURCE PROJECT moved `/opt/captcha` → `/opt/archived/captcha` (6 uncommitted files preserved,
+nothing unpushed). ⚠️ The deployed SERVICE keeps running at captcha.vps1.ocoron.com — the VPS pulls
+from its own remote, and it has a live consumer (fabrik-claim-validator's env references the API);
+decommissioning the runtime would be a separate, explicit hub-side action. Hub side: RETIRED set
+gains captcha, catalog 48 projects, audit 43 scanned / 37 flagged. Doc catch-up queue shrinks —
+captcha's Opus-tier session is no longer needed.
+
 ### Changed — wpf retired and archived (2026-08-07)
 
 Operator decision: the wpf (WordPress) project is retired — moved `/opt/wpf` → `/opt/archived/wpf`

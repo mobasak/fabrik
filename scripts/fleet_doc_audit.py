@@ -46,8 +46,10 @@ REPORT_DIR = FABRIK_ROOT / "docs" / "infrastructure" / "probe-reports"
 # its docs are governed by its own gates, not this fleet probe.
 # Operator-declared RETIRED projects: still on disk and still in the catalog,
 # but no longer maintained — auditing them generates noise nobody will act on.
-# (wpf retired 2026-08-07 — operator instruction: do not update its files.)
-RETIRED = {"wpf"}
+# (wpf + captcha retired 2026-08-07 — operator instruction; both moved to
+# /opt/archived/. The captcha SERVICE stays deployed on vps1 — only the
+# source project is archived.)
+RETIRED = {"wpf", "captcha"}
 
 
 def _excluded(name: str) -> bool:
