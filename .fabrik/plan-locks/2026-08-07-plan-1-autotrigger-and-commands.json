@@ -89,21 +89,23 @@
       "fixup_commit": "f62b2d2c"
     },
     "T07": {
-      "state": "fixup-round-2",
+      "state": "re-review-round-2",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a417e6253750f5373",
       "branch": "worktree-agent-a417e6253750f5373",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:15:00Z",
       "coder_commit": "039e8d9d",
-      "review_round_1": "10 found (5 CONFIRMED): gate/utility semantics from memory not frozen assignments, features mislabeled in mirror, escape narrower than router, unscoped recursion, pipeline duplication, mirror self-containment; F9 resolved-by-events, F10 no-action (Deltas flow is dispatcher-applied)"
+      "review_round_1": "10 found (5 CONFIRMED): gate/utility semantics from memory not frozen assignments, features mislabeled in mirror, escape narrower than router, unscoped recursion, pipeline duplication, mirror self-containment; F9 resolved-by-events, F10 no-action (Deltas flow is dispatcher-applied)",
+      "fixup_commit": "7b973b8c"
     },
     "T08": {
-      "state": "dispatched",
+      "state": "in-review",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a366ef129fe590402",
       "branch": "worktree-agent-a366ef129fe590402",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:32:00Z",
-      "note": "quota-killed mid-run 17:40; resumed 17:43 same worktree (partial script+final_gate WIP)"
+      "note": "audit overturned pre-analysis candidate (b): cert reports already gated by check_cert_dispositions; replaced with 2-contract FROZEN-header gap",
+      "coder_commit": "6d02cdbc"
     },
     "T02": {
       "state": "dispatched",
