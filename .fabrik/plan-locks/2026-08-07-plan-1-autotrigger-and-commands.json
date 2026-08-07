@@ -143,7 +143,7 @@
       "exit": "dispatcher-adjudicated on surgical r3 diff after 2 full Opus rounds"
     },
     "T03": {
-      "state": "fixup-round-3",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abe503890fc72d3c8",
       "branch": "worktree-agent-abe503890fc72d3c8",
       "base_commit": "6bf2c8cc",
@@ -151,7 +151,10 @@
       "coder_commit": "83c7846b",
       "note": "all 10 applied + coder surfaced live wildcard-DNS on vps2/vps3 -> one-edit round 3 (control-subdomain probe)",
       "review_round_1": "12 found (7 CONFIRMED): execution context unstated (root cause), Phase-3 .env not project-readable, meili evidence nonexistent, NXDOMAIN siblings void discriminator, /readyz unreal, liveness-contract contradiction, log-scan violates catchup ban; RULING: hub-side",
-      "fixup_commit_r2": "945f4eb4"
+      "fixup_commit_r2": "945f4eb4",
+      "final_worktree_commit": "71ddb668",
+      "review_rounds": 2,
+      "exit": "dispatcher-adjudicated on one-clause r3 after full Opus round + verified r2"
     }
   }
 }

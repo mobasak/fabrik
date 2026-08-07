@@ -100,4 +100,4 @@ ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
 GATE 2 → OPERATOR: <the one action only the human takes>
 ```
 
-Next command: none — this is the end of the pipeline; the operator's Gate-2 action closes the loop.
+Next command: Gate 2 — human approval; after the operator runs `fabrik apply`, verify with `/fabrik-deploy-verify`.

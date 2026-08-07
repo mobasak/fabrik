@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-deploy-verify post-apply certification command (2026-08-07)
+Authored `commands/_sources/fabrik-deploy-verify.md` (T03 of the autotrigger-and-commands plan set): hub-side post-`fabrik apply` certification closing the trigger→verify loop — DNS vs verified-resolving siblings with a wildcard-DNS control probe for spokes (vps2/vps3 wildcards make bare resolution non-evidentiary; discrimination moves to the HTTPS layer), spec-`health.path` dependency assertions split from static `/healthz` liveness, registrar outcomes read from the REMOTE injected `/opt/<app>/.env` + probe endpoints, Gatus, bounded `ssh <vps> docker logs` scan, and read-only top-3 FEATURES.md smoke — verify-only throughout with named FAIL routes. `/fabrik-release` now chains to it after the operator's `fabrik apply`.
+
 ### Fixed — seo made deploy-ready: secrets convention, DSN placeholder, fabricated-secret warning (2026-08-07)
 
 Hub-side prep for the /opt/seo deploy (the parts its own agent can't reach). Three real blockers, all

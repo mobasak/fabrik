@@ -48,7 +48,7 @@ NEXT = {
     "fabrik-catchup": "the routed converge command(s) for each queued item (/fabrik-doc-converge · /fabrik-features · /fabrik-data-contract · /fabrik-ui-design), then resume whatever pipeline stage the project was actually in.",
     "fabrik-user-test": "/fabrik-release once green — but hand off any backend/logic defects to the owning /fabrik-review or plan first.",
     "fabrik-service-test": "/fabrik-release once green — but hand off any out-of-service defects to the owning /fabrik-review or plan first.",
-    "fabrik-release": "Gate 2 — human approval. Terminal: no agent deploys, submits, or publishes past here.",
+    "fabrik-release": "Gate 2 — human approval; after the operator runs `fabrik apply`, verify with `/fabrik-deploy-verify`.",
     "fabrik-review": "resume the phase/plan that invoked it, only after the round is CLEAN (no linear successor — it is a gate, not a stage).",
     "fabrik-repo-review": "/fabrik-review on each risky fix as you make it, or route findings to a plan ticket.",
     "fabrik-rules-review": "feed the prioritized GAP table into the plan or a fix pass (advisory — no linear successor).",
@@ -57,6 +57,7 @@ NEXT = {
     "design-review": "back to the building phase's Build-Verification Loop until the screen renders clean.",
     "fabrik-workflow-review": "the workflow artifact is converged — return to the ettw/mega step that produced it.",
     "fabrik-decommission": "none — a standalone hub-side runbook; operator runs `fabrik destroy` themselves when ready.",
+    "fabrik-deploy-verify": "none — terminal; a FAIL's named route is the next action, never auto-chained.",
 }
 
 
@@ -266,6 +267,9 @@ PARAMS = {
     },
     "fabrik-decommission": {
         "grounding-artifact": {"SUBJECT": "decommission finding", "EXAMPLES": "a service declared dead (or live) from a catalog/PORTS/env row alone instead of a fresh DNS probe against resolving sibling domains, an uncommitted-file count read from memory instead of a `git status`/`find` diff taken before AND after the move, a consumer marked migrated without opening its `.env`/import site, a runtime-teardown step executed inline instead of named as the operator's own separately-gated action"},
+    },
+    "fabrik-deploy-verify": {
+        "grounding-artifact": {"SUBJECT": "deploy-verify finding", "EXAMPLES": "a DNS PASS claimed from the spec's `domain:` field or a `PORTS.md` row instead of a fresh `dig`/`getent hosts` run against two resolving sibling domains, a registrar 'exists' claim read from the `shape:` flag alone instead of the target VPS's actually-injected remote `.env` value or a live probe response, a `/health` 200 treated as proof without confirming the route asserts a real dependency, a Gatus 'green' assumed from a prior run instead of a fresh poll, a FEATURES.md row marked smoked without an actual request executed this run"},
     },
 }
 
