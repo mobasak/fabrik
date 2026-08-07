@@ -78,7 +78,7 @@
       "review_round_2": "FINDINGS: 0 \u2014 all resolved, no regressions"
     },
     "T05": {
-      "state": "re-review-round-3",
+      "state": "fixup-round-4",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a51ac824c6138d5fe",
       "branch": "worktree-agent-a51ac824c6138d5fe",
       "coder_commit": "2472a1aa9e5ceb4f7ab858e54b774eb1cf134b73",
@@ -88,7 +88,8 @@
       "note": "quota-killed mid-fixup 17:40; resumed 17:43 same worktree, WIP audited by successor",
       "fixup_commit": "f62b2d2c",
       "review_round_2": "7/8 resolved; F3-residual hub-misroute skipped; N3-N7: test-anchor FPs, TR kaldir misroute, recall regressions, 10s Tier-2 tax; RULING: Tier 2 opt-in via FABRIK_ROUTER_HAIKU, timeout back to frozen 8s",
-      "fixup_commit_r3": "13962907"
+      "fixup_commit_r3": "13962907",
+      "review_round_3": "all resolved+live-verified; 3 NEW: TR bare-token parity (4), dormant upstream/retire stems arm on enrollment, bare e2e"
     },
     "T07": {
       "state": "review-clean-awaiting-merge",
@@ -105,17 +106,18 @@
       "exit": "dispatcher-adjudicated on 3-line diff after 2 full Opus rounds"
     },
     "T08": {
-      "state": "fixup-round-2",
+      "state": "re-review-round-2",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a366ef129fe590402",
       "branch": "worktree-agent-a366ef129fe590402",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:32:00Z",
-      "note": "audit overturned pre-analysis candidate (b): cert reports already gated by check_cert_dispositions; replaced with 2-contract FROZEN-header gap",
+      "note": "25 tests, mutation protocol re-run, real fleet fixtures pass",
       "coder_commit": "6d02cdbc",
-      "review_round_1": "12 CONFIRMED incl. CRITICAL scaffold-stub false-claim (fleet Tier-2 blast radius), 21/24 real-header false-positives, 2 guards not red-on-revert; overturn half-right (shape gated, existence not) but substitution stands"
+      "review_round_1": "12 CONFIRMED incl. CRITICAL scaffold-stub false-claim (fleet Tier-2 blast radius), 21/24 real-header false-positives, 2 guards not red-on-revert; overturn half-right (shape gated, existence not) but substitution stands",
+      "fixup_commit": "23ad70f0"
     },
     "T02": {
-      "state": "re-review-round-2",
+      "state": "fixup-round-3",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae7ce2dd07afe2aac",
       "branch": "worktree-agent-ae7ce2dd07afe2aac",
       "base_commit": "c629870e",
@@ -123,7 +125,8 @@
       "note": "re-dispatched 17:43 after 17:40 quota wall killed first coder pre-worktree; includes _emit_command YAML fold-in",
       "coder_commit": "68c13862",
       "review_round_1": "7 found (2 CONFIRMED): retracted captcha claim cited as precedent, no operator gate DECIDE->EXECUTE + question-TRIGGER, 1262>1024 description, lossy safe_load gate, mv collision, 7v8 surfaces, VPS wipe omission",
-      "fixup_commit": "425be27c"
+      "fixup_commit": "425be27c",
+      "review_round_2": "7/7 resolved; 3 NEW medium (retracted entry cited as fact in Phase 0, render-shifted line citation, no AWAITING state) + advisory length assert folded in"
     }
   }
 }
