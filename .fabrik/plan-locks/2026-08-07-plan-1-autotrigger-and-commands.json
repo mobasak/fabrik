@@ -87,12 +87,13 @@
       "review_round_1": "8 found (5 CONFIRMED): Tier-2 child unisolated in project cwd, Haiku on regex-hit, bare-word precision, real-binary test, TR recall, unfiltered Tier-2 roster, no-op sentinel test, expansion-order unverified"
     },
     "T07": {
-      "state": "in-review",
+      "state": "fixup-queued",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a417e6253750f5373",
       "branch": "worktree-agent-a417e6253750f5373",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:15:00Z",
-      "coder_commit": "039e8d9d"
+      "coder_commit": "039e8d9d",
+      "review_round_1": "10 found (5 CONFIRMED): gate/utility semantics from memory not frozen assignments, features mislabeled in mirror, escape narrower than router, unscoped recursion, pipeline duplication, mirror self-containment; F9 resolved-by-events, F10 no-action (Deltas flow is dispatcher-applied)"
     },
     "T08": {
       "state": "dispatched",
@@ -100,6 +101,14 @@
       "branch": null,
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:32:00Z"
+    },
+    "T02": {
+      "state": "dispatched",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "c629870e",
+      "started_at": "2026-08-07T14:55:00Z",
+      "note": "includes deferred _emit_command YAML-quote fold-in"
     }
   }
 }
