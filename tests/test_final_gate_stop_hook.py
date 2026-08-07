@@ -166,6 +166,76 @@ def test_committed_own_work_allows() -> None:
     )
 
 
+_FAKE_GATE_WITH_OUTPUT = """#!/usr/bin/env python3
+import json, os, sys
+fails = [f for f in os.environ.get("FAKE_FAILS", "").split(",") if f]
+if not fails:
+    print(json.dumps({"status": "success", "failures": []})); sys.exit(0)
+out = os.environ.get("FAKE_FAIL_OUTPUT", "")
+print(json.dumps({"status": "failure", "failures": [{"check": c, "output": out} for c in fails]}))
+sys.exit(1)
+"""
+
+
+def _run_stop_with_transcript(
+    project: Path, sid: str, fake_fails: str, fail_output: str, authored_file: str, *, baseline: list[str]
+) -> str:
+    """Stop-hook run with a transcript naming one session-authored (committed) file."""
+    (project / "scripts" / "final_gate.py").write_text(_FAKE_GATE_WITH_OUTPUT)
+    authored_path = project / authored_file
+    authored_path.parent.mkdir(parents=True, exist_ok=True)
+    authored_path.write_text("session work")
+    subprocess.run(["git", "add", authored_file], cwd=project, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "session work"],
+        cwd=project, check=True, timeout=15,
+    )
+    transcript = project / "transcript.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": str(authored_path)}}
+        ]}}) + "\n",
+        encoding="utf-8",
+    )
+    bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
+    ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    ctr.unlink(missing_ok=True)
+    bl.write_text(json.dumps(baseline))
+    env = {**os.environ, "FAKE_FAILS": fake_fails, "FAKE_FAIL_OUTPUT": fail_output}
+    proc = subprocess.run(
+        [sys.executable, str(_HOOK)],
+        input=json.dumps({
+            "session_id": sid, "cwd": str(project),
+            "transcript_path": str(transcript), "hook_event_name": "Stop",
+        }),
+        capture_output=True, text=True, timeout=60, env=env,
+    )
+    bl.unlink(missing_ok=True)
+    ctr.unlink(missing_ok=True)
+    return proc.stdout.strip()
+
+
+def test_new_failure_citing_only_sibling_files_does_not_block(fake_project: Path) -> None:
+    # NEW failing check whose output cites ONLY a sibling's file → shared-tree cause → allow.
+    out = _run_stop_with_transcript(
+        fake_project, "s_sibling", "DocSync",
+        "CHANGELOG.md not updated for src/fabrik/orchestrator/__init__.py (sibling staged)",
+        "mine/session_file.py", baseline=[],
+    )
+    assert out == "", f"sibling-caused new failure must not block, got: {out}"
+
+
+def test_new_failure_citing_session_file_still_blocks(fake_project: Path) -> None:
+    # Same shape, but the failure output cites the session-authored file → still block.
+    out = _run_stop_with_transcript(
+        fake_project, "s_selfcause", "DocSync",
+        "CHANGELOG.md not updated for mine/session_file.py",
+        "mine/session_file.py", baseline=[],
+    )
+    assert out, "session-caused new failure must still block"
+    assert json.loads(out)["decision"] == "block"
+
+
 def test_session_files_parses_edit_tools_and_scopes_to_root(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     root.mkdir()

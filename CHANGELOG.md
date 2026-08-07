@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — stop-hook gate attribution: sibling-caused red no longer traps the session (2026-08-07)
+`final_gate_stop.py` compared failing CHECK NAMES against the session baseline, so a sibling's staged shared-tree files flipping a check red mid-session pinned the failure on this session — which then could not go green without violating the shared-tree contract (never commit/document/revert a sibling's WIP; hit live 3/3 attempts on Doc Sync). The Stop path now attributes NEW failures by FILE: failing-check outputs are matched against the session's transcript-authored files; when none is cited, the failure is reported to stderr as shared-tree cause and does not block (attribution runs only when the transcript is available — otherwise prior behavior). Red-on-revert tests both directions.
+
 ### Fixed — check_secrets DSN placeholder-credential false positive (2026-08-07)
 `_DSN_PLACEHOLDER_PW` now accepts the same literal placeholder family as the quoted-value filter (`placeholder`, `changeme`, `dummy`, `example`, …) — a spec's documented first-compose-up DSN (`postgresql://placeholder:placeholder@postgres-main:5432/placeholder`, real DSN injected post-deploy by the registrar) no longer fails the gate on a sibling's staged spec. Real passwords in the credential segment stay flagged (red-still-red test added).
 

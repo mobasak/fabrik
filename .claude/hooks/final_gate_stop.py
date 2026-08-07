@@ -91,11 +91,16 @@ def _git_dirty(root: Path) -> bool:
     return bool(out.strip())
 
 
-def _run_gate(root: Path) -> tuple[bool, set[str]]:
-    """Run final_gate --lean --check --json. Returns (passed, failing_check_names).
+def _run_gate(root: Path) -> tuple[bool, set[str], str]:
+    """Run final_gate --lean --check --json. Returns (passed, failing_check_names, failure_text).
+
+    failure_text is the concatenated output of the failing checks — used by the Stop
+    path to attribute a NEW failure to this session's files vs a sibling's shared-tree
+    dirt (a failing check that cites none of the session's files is not this session's
+    breakage to fix; blocking on it would force a shared-tree contract violation).
 
     Fail-open: a gate that can't run or whose output can't be parsed as a definitive
-    failure returns (True, empty) — we never block on an indeterminate result.
+    failure returns (True, empty, "") — we never block on an indeterminate result.
     """
     venv_py = root / ".venv" / "bin" / "python"
     py = str(venv_py) if venv_py.exists() else sys.executable
@@ -107,16 +112,19 @@ def _run_gate(root: Path) -> tuple[bool, set[str]]:
         timeout=110,
     )
     if proc.returncode == 0:
-        return True, set()
+        return True, set(), ""
     try:
         data = json.loads(proc.stdout)
         if data.get("status") == "failure":
-            return False, {f.get("check", "?") for f in data.get("failures", [])}
+            fails = data.get("failures", [])
+            names = {f.get("check", "?") for f in fails}
+            text = "\n".join(str(f.get("output", "")) for f in fails)
+            return False, names, text
     except Exception:
         pass
     # Non-zero but not a definitive parsed failure (crash, missing deps, etc.) →
     # fail-open: don't block on a gate we couldn't actually evaluate.
-    return True, set()
+    return True, set(), ""
 
 
 # Tools whose input.file_path marks a file THIS session authored/edited. Bash
@@ -243,7 +251,7 @@ def main(argv: list[str]) -> int:
 
         # SessionStart: record the inherited failing set, then always allow.
         if "--baseline" in argv:
-            _passed, failing = _run_gate(root)
+            _passed, failing, _ftext = _run_gate(root)
             try:
                 _baseline_path(sid).write_text(json.dumps(sorted(failing)))
             except Exception:
@@ -264,12 +272,13 @@ def main(argv: list[str]) -> int:
         except Exception:
             return 0
 
-        _passed, failing = _run_gate(root)
+        _passed, failing, failure_text = _run_gate(root)
         new_failures = failing - baseline
 
         # Session-authored files still uncommitted? (CLAUDE.md § EXIT: an
         # uncommitted task is an unfinished task.) Fail-open on any gap.
         own_uncommitted: set[str] = set()
+        authored: dict[str, float] = {}
         transcript = str(data.get("transcript_path") or "")
         if transcript:
             authored = _session_files(transcript, root)
@@ -283,6 +292,23 @@ def main(argv: list[str]) -> int:
                 if edit_ts and _last_commit_ts(root, rel) >= edit_ts:
                     continue
                 own_uncommitted.add(rel)
+
+        # Attribute NEW gate failures by FILE, not just check name: on shared master a
+        # sibling's staged/dirty files flip a check red mid-session, and check-name
+        # comparison alone pins it on this session — which then CANNOT fix it without
+        # violating the shared-tree contract (never commit/document/revert a sibling's
+        # WIP). If the failing checks' outputs cite NONE of this session's authored
+        # files, the breakage is not ours: report to stderr, don't block. Attribution
+        # runs only when we actually know the session's files (transcript present).
+        if new_failures and authored and failure_text:
+            if not any(rel in failure_text for rel in authored):
+                sys.stderr.write(
+                    "final_gate has NEW failing check(s) "
+                    f"({', '.join(sorted(new_failures))}) but none cite a file this "
+                    "session authored — shared-tree cause (a sibling's uncommitted "
+                    "work); not blocking this session on it.\n"
+                )
+                new_failures = set()
 
         counter = _counter_path(sid)
         gate_attempts, commit_attempts = _read_counters(counter)
