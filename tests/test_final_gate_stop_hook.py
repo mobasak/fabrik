@@ -543,3 +543,26 @@ def test_decide_stall_counter_and_cap() -> None:
     a3 = hook.decide_stall(True, 3)
     assert a3 == ("allow_warn_stall", 0)
     assert hook.decide_stall(False, 2) == ("allow", 0)  # cause resolved -> counter resets
+
+
+def test_quoted_stall_phrases_are_exempt(tmp_path: Path) -> None:
+    """Discussing/quoting a stall phrase must not fire (live FP: the guard's own
+    author quoted 'Want me to…?' as an example and got blocked)."""
+    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    (locks / "x.json").write_text('{"status": "active"}')
+    owned = {".fabrik/plan-locks/x.json"}
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "Agents get bounced when they end a turn on 'I'll run it' or \"Want me to…?\" — the guard is live."))
+    assert hook._detect_stall(str(tr), tmp_path, owned) is None
+
+
+def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
+    locks = tmp_path / ".fabrik" / "plan-locks"; locks.mkdir(parents=True)
+    (locks / "x.json").write_text('{"status": "active"}')
+    owned = {".fabrik/plan-locks/x.json"}
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "The old stall was 'I did nothing'. Anyway: want me to run the next pass now?"))
+    kind = hook._detect_stall(str(tr), tmp_path, owned)
+    assert kind and kind[0] == "permission"

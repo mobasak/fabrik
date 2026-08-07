@@ -388,7 +388,9 @@ def _midrun_marker(root: Path, authored: set[str]) -> bool:
                 if '"status": "active"' in p.read_text(encoding="utf-8", errors="replace"):
                     return True
             elif "docs/development/reviews/" in rel and p.is_file():
-                if "UNCHECKED" in p.read_text(encoding="utf-8", errors="replace"):
+                # Live checklist ROW form only — a closed review's prose mention of
+                # the word ("rows return to UNCHECKED") must not keep the marker on.
+                if "| UNCHECKED" in p.read_text(encoding="utf-8", errors="replace"):
                     return True
         except OSError:
             pass
@@ -407,7 +409,18 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
         tail = text[-600:]
         if _GATE_EXEMPT_RE.search(tail):
             return None
+
+        def _quoted(match: re.Match[str]) -> bool:
+            """A match directly preceded by a quote char is a QUOTATION (discussing
+            the phrase, not making it) — live FP: the guard's author quoting
+            'I'll run it' as an example. Conservative: only the immediately
+            preceding non-space character is inspected."""
+            before = tail[: match.start()].rstrip()
+            return bool(before) and before[-1] in "\"'`“‘«"
+
         m = _PROMISE_RE.search(tail)
+        if m and _quoted(m):
+            m = None
         if m:
             # A promise is KEPT if the same final turn dispatched work (a subagent,
             # a skill, or a background command).
@@ -419,7 +432,7 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
             if not dispatched:
                 return "promise", m.group(0)
         m = _PERMISSION_RE.search(tail)
-        if m and _midrun_marker(root, authored):
+        if m and not _quoted(m) and _midrun_marker(root, authored):
             return "permission", m.group(0)
         return None
     except Exception:
