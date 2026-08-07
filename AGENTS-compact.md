@@ -23,7 +23,7 @@ Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` 
 ## BEHAVIOR
 - **Check before create:** file exists = STOP, ask.
 - **Present before execute:** plan → approval → execute. Read-only ops exempt.
-- **Plan-execution override:** executing a pre-approved plan suspends *present-before-execute* + *no-commit-unless-said* **for the plan's scope** — the plan IS approval. Commit per phase (explicit paths only, never `git add -A`), run the code-review workflow at phase boundaries, fix autonomously, obey all other HARD STOPS. Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — `BLOCKED: <what> — searched: <sources> — missing: <need>`.
+- **Plan-execution override:** executing a pre-approved plan suspends *present-before-execute* **for the plan's scope** — the plan IS approval (task-end commits are ALWAYS required per § EXIT; the plan additionally mandates them per phase). Commit per phase (explicit paths only, never `git add -A`), run the code-review workflow at phase boundaries, fix autonomously, obey all other HARD STOPS. Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — `BLOCKED: <what> — searched: <sources> — missing: <need>`.
 - **Stay on task:** no unsolicited advice or process commentary.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
@@ -33,7 +33,7 @@ Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` 
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: **`--json` (std — FULL Tier 2: mypy+bandit+semgrep+schema/plan/docs)** · `--lean --json` (fast Tier‑1 subset for in-iteration self-review, NOT the completion gate) · `--systemic --json` (epic). Add **`--check`** for a read-only run (never mutates); a bare run auto-fixes + auto-stages **only your changed files** (the gate scopes every fixer + `ruff` to the diff, incl. committed-unpushed; Fabrik-synced files are excluded in projects). Full tier/mode ref: `docs/workflows/FINAL_GATE_WORKFLOW.md`.
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate auto-stages on success. STOP. No commit/push unless user said so this turn; `git add` OK. Traycer or user commits.
+5. **EXIT** — Gate green → COMMIT your own work NOW (explicit pathspecs — `git commit -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author). An uncommitted task is an UNFINISHED task. Push stays operator-authorized.
 
 ## DOC SYNC MATRIX (every task)
 Update matched docs in the SAME staged change. Skipping = task failure (gate-enforced).

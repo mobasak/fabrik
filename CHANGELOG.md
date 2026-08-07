@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — commit-enforcement review round: 5 findings (counter starvation, Kilo contradiction) (2026-08-07)
+
+/fabrik-review on the commit-at-task-end change raised 5, all terminated. (1) The shared anti-trap
+counter let 3 gate-failure blocks exhaust the CAP and walk straight past the commit check (and
+symmetrically) — each block reason now has its OWN counter (+2 starvation regression tests). (2)
+`AGENTS-compact.md` — fleet-synced and the SOLE instruction source for non-Claude agents — still
+taught the retired "STOP, no commit" EXIT verbatim, commanding Kilo-driven sessions into the exact
+trap the synced hook now punishes; flipped, and its plan-override echo reconciled. (3) CLAUDE.md's
+plan-execution override still named the retired *no-commit-unless-said* rule — reconciled. (4) The
+block_commit message claimed "the gate is green" even with inherited debt failing — now reads the
+real `_passed` ("No NEW gate failures (inherited debt remains)"). (5) The malformed-JSON parser test
+never reached json.loads (the tool_use pre-filter skipped it) — fixture now passes the pre-filter.
+Hook suite 20 green; session replay clean; lean gate success.
+
 ### Changed — commit-at-task-end is now REQUIRED and stop-hook-enforced (2026-08-07)
 
 Agents were parking finished work staged-but-uncommitted by OBEDIENCE — CLAUDE.md's EXIT step said

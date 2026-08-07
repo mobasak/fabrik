@@ -26,24 +26,24 @@ _spec.loader.exec_module(hook)
 
 
 def test_clean_tree_allows() -> None:
-    assert hook.decide(git_dirty=False, has_new_failures=True, attempts=5) == ("allow", 0)
+    assert hook.decide(git_dirty=False, has_new_failures=True, gate_attempts=5) == ("allow", 0, 0)
 
 
 def test_no_new_failures_allows() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=2) == ("allow", 0)
+    assert hook.decide(git_dirty=True, has_new_failures=False, gate_attempts=2) == ("allow", 0, 0)
 
 
 def test_new_failures_block_and_increment() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=True, attempts=0) == ("block", 1)
-    assert hook.decide(git_dirty=True, has_new_failures=True, attempts=1) == ("block", 2)
+    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=0) == ("block", 1, 0)
+    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=1) == ("block", 2, 0)
 
 
 def test_new_failures_block_up_to_cap() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=True, attempts=2) == ("block", 3)
+    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=2) == ("block", 3, 0)
 
 
 def test_over_cap_allows_with_warning() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=True, attempts=3) == ("allow_warn", 0)
+    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=3) == ("allow_warn", 0, 0)
 
 
 # --- integration: baseline diffing (the real bug) -----------------------------
@@ -139,28 +139,29 @@ def test_baseline_mode_writes_snapshot(fake_project: Path) -> None:
 
 
 def test_own_uncommitted_blocks_with_commit_action() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=0, own_uncommitted=True) == (
+    assert hook.decide(git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=True) == (
         "block_commit",
+        0,
         1,
     )
 
 
 def test_gate_failures_outrank_commit_block() -> None:
     # Fix first, commit second — red gate takes the block slot.
-    action, _ = hook.decide(git_dirty=True, has_new_failures=True, attempts=0, own_uncommitted=True)
+    action, _, _ = hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=0, own_uncommitted=True)
     assert action == "block"
 
 
 def test_own_uncommitted_respects_cap() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=3, own_uncommitted=True) == (
-        "allow_warn",
-        0,
-    )
+    assert hook.decide(
+        git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=True, commit_attempts=3
+    ) == ("allow_warn", 0, 0)
 
 
 def test_committed_own_work_allows() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=False, attempts=0, own_uncommitted=False) == (
+    assert hook.decide(git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=False) == (
         "allow",
+        0,
         0,
     )
 
@@ -183,7 +184,7 @@ def test_session_files_parses_edit_tools_and_scopes_to_root(tmp_path: Path) -> N
                 },
             }
         ),
-        "not json at all",
+        '{"broken": "tool_use" not-valid-json',  # passes the pre-filter → exercises the json.loads except
         json.dumps({"type": "user", "message": {"content": "prose"}}),
     ]
     transcript.write_text("\n".join(lines), encoding="utf-8")
@@ -244,3 +245,22 @@ def test_committed_session_edit_does_not_reattach_to_new_dirt(tmp_path: Path) ->
 
 def test_session_files_missing_transcript_fails_open() -> None:
     assert hook._session_files("/nonexistent/t.jsonl", Path("/tmp")) == {}
+
+
+def test_gate_cap_exhaustion_does_not_starve_commit_block() -> None:
+    # Review finding (2026-08-07): with a SHARED counter, 3 gate blocks exhausted
+    # the CAP and the next stop skipped the commit check entirely. Independent
+    # counters: after gate CAP is spent, an uncommitted-work stop still blocks.
+    ga, ca = 0, 0
+    for _ in range(3):
+        action, ga, ca = hook.decide(True, True, ga, own_uncommitted=True, commit_attempts=ca)
+        assert action == "block"
+    # gate now green; commit check must still get its own full CAP
+    action, ga, ca = hook.decide(True, False, ga, own_uncommitted=True, commit_attempts=ca)
+    assert action == "block_commit" and ca == 1
+
+
+def test_commit_cap_exhaustion_does_not_mask_new_gate_failure() -> None:
+    ga, ca = 0, 3
+    action, ga, ca = hook.decide(True, True, ga, own_uncommitted=True, commit_attempts=ca)
+    assert action == "block" and ga == 1

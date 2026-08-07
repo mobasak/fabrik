@@ -38,32 +38,34 @@ CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
 def decide(
     git_dirty: bool,
     has_new_failures: bool,
-    attempts: int,
+    gate_attempts: int,
     cap: int = CAP,
     own_uncommitted: bool = False,
-) -> tuple[str, int]:
-    """Pure decision logic (unit-tested). Returns (action, new_attempts).
+    commit_attempts: int = 0,
+) -> tuple[str, int, int]:
+    """Pure decision logic (unit-tested). Returns (action, gate_attempts', commit_attempts').
 
     action ∈ {"allow", "block", "block_commit", "allow_warn"}. Priority:
     1. new gate failures (dirty tree)  → "block"        (fix before anything)
     2. session-authored files uncommitted → "block_commit" (an uncommitted task
-       is an UNFINISHED task — CLAUDE.md § EXIT; parked WIP is the only work
-       that can be silently destroyed and it reds every sibling's diff gates)
-    Both share the anti-trap CAP.
+       is an UNFINISHED task — CLAUDE.md § EXIT)
+    Each reason has its OWN anti-trap counter: exhausting the gate CAP must not
+    starve the commit check (or vice versa) — with a shared counter, alternating
+    causes walked straight past enforcement (review finding, 2026-08-07).
     """
     if not git_dirty:
-        return "allow", 0  # nothing changed → nothing to gate
+        return "allow", 0, 0  # nothing changed → nothing to gate
     if has_new_failures:
-        attempts += 1
-        if attempts > cap:
-            return "allow_warn", 0  # don't trap the session; stop with a loud warning
-        return "block", attempts
+        gate_attempts += 1
+        if gate_attempts > cap:
+            return "allow_warn", 0, commit_attempts
+        return "block", gate_attempts, commit_attempts
     if own_uncommitted:
-        attempts += 1
-        if attempts > cap:
-            return "allow_warn", 0
-        return "block_commit", attempts
-    return "allow", 0  # green + own work committed (or none authored)
+        commit_attempts += 1
+        if commit_attempts > cap:
+            return "allow_warn", gate_attempts, 0
+        return "block_commit", gate_attempts, commit_attempts
+    return "allow", 0, 0  # green + own work committed (or none authored)
 
 
 def _git_dirty(root: Path) -> bool:
@@ -205,6 +207,18 @@ def _counter_path(sid: str) -> Path:
     return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
 
 
+def _read_counters(counter: Path) -> tuple[int, int]:
+    """(gate_attempts, commit_attempts) — tolerates the old single-int format."""
+    try:
+        raw = counter.read_text().strip()
+        if "," in raw:
+            a, b = raw.split(",", 1)
+            return int(a), int(b)
+        return int(raw), 0
+    except Exception:
+        return 0, 0
+
+
 def main(argv: list[str]) -> int:
     try:
         raw = sys.stdin.read()
@@ -259,13 +273,14 @@ def main(argv: list[str]) -> int:
                 own_uncommitted.add(rel)
 
         counter = _counter_path(sid)
-        try:
-            attempts = int(counter.read_text())
-        except Exception:
-            attempts = 0
+        gate_attempts, commit_attempts = _read_counters(counter)
 
-        action, new_attempts = decide(
-            True, bool(new_failures), attempts, own_uncommitted=bool(own_uncommitted)
+        action, gate_attempts, commit_attempts = decide(
+            True,
+            bool(new_failures),
+            gate_attempts,
+            own_uncommitted=bool(own_uncommitted),
+            commit_attempts=commit_attempts,
         )
 
         if action in ("allow", "allow_warn"):
@@ -280,13 +295,18 @@ def main(argv: list[str]) -> int:
                 )
             return 0
 
-        counter.write_text(str(new_attempts))
+        counter.write_text(f"{gate_attempts},{commit_attempts}")
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])
             more = len(own_uncommitted) - 8
+            gate_state = (
+                "The gate is green"
+                if _passed
+                else "No NEW gate failures (inherited debt remains)"
+            )
             reason = (
-                f"DEFINITION OF DONE NOT MET (attempt {new_attempts}/{CAP}). The gate is "
-                "green but files THIS session authored are still uncommitted — an "
+                f"DEFINITION OF DONE NOT MET (attempt {commit_attempts}/{CAP}). {gate_state} "
+                "but files THIS session authored are still uncommitted — an "
                 "uncommitted task is an UNFINISHED task (CLAUDE.md § EXIT): "
                 f"{listed}{f' (+{more} more)' if more > 0 else ''}. Commit YOUR OWN work "
                 "now with explicit pathspecs + Agent Provenance Trailers "
@@ -296,7 +316,7 @@ def main(argv: list[str]) -> int:
             sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
             return 0
         reason = (
-            f"DEFINITION OF DONE NOT MET (attempt {new_attempts}/{CAP}). This session "
+            f"DEFINITION OF DONE NOT MET (attempt {gate_attempts}/{CAP}). This session "
             "introduced gate failures that were not present at session start — the task "
             'is not complete until `final_gate.py --lean` shows "status":"success". '
             f"New failing checks: {', '.join(sorted(new_failures))}. "
