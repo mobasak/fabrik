@@ -113,7 +113,7 @@
       "exit": "dispatcher-adjudicated on 3-line diff after 2 full Opus rounds"
     },
     "T08": {
-      "state": "review-clean-awaiting-merge",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a366ef129fe590402",
       "branch": "worktree-agent-a366ef129fe590402",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",

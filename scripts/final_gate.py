@@ -942,6 +942,20 @@ def run_consistency_checks(
                 "scripts/enforcement/check_plan_tickets.py", "Plan-Set Contract (Spine+Tickets)"
             )
         )
+        # Stage-skip artifact gate (Tier-2 only, unlike check_convergence.py which runs
+        # every tier): a plan NEWLY claiming CONVERGED whose cited design spec is still
+        # DRAFT (stage 1->3 skip), and a docs/data-contract.md or docs/ui-design.md
+        # NEWLY claiming Status: FROZEN without the header fields + freeze-rule
+        # sentence its own freezing command mandates. See
+        # scripts/enforcement/check_stage_artifacts.py (module docstring records why
+        # this is NOT the plan ticket's certification-report pre-analysis candidate --
+        # that gap is already covered by check_review_coverage.py).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_stage_artifacts.py",
+                "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+            )
+        )
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"

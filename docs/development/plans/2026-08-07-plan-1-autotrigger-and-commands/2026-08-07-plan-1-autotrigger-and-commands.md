@@ -22,7 +22,7 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 | T06a | TRIGGER+Stage sweep (design/contract/plan skills) | — | ⚡ | ✅ | merged 9079f40e (2 rounds, r2 clean) |
 | T06b | TRIGGER+Stage sweep (build/certify/release/gate/utility skills) | — | ⚡ | ✅ | merged 4344a502 (2 rounds + 1-line r3) |
 | T07 | Orient step-0 routing rule | — | ⚡ | ✅ | merged b1b5500c (2 Opus rounds + r3) |
-| T08 | Stage-skip artifact gates | — | ⚡ | ⬜ | |
+| T08 | Stage-skip artifact gates | — | ⚡ | ✅ | merged d0547117 (2 Opus rounds + mutation-verified r3, 32 tests) |
 | T99 | Integration: parity, receipts, whole-plan gates | T01, T02, T03, T04, T05, T06a, T06b, T07, T08 | ⛓️ | ⬜ | |
 
 ## Merge Order
@@ -166,6 +166,18 @@ Serialized: commands/_sources/fabrik-release.md — T03, T06b
 - docs/reference/receipts-2026-08-07-autotrigger.md
 
 ## Evidence
+
+### T08 — stage→artifact→existing-gate audit table (applied at merge, per the ticket's Step 1)
+
+| Stage | Artifact | Existing gate | Gap? |
+|---|---|---|---|
+| 1-design | `docs/superpowers/specs/*.md` `Status: CONVERGED` | None (`check_convergence.py` watches `docs/development/plans/` only) | Real but not mechanically well-grounded (fleet specs cite evidence in inconsistent shapes) — documented ungated in the script docstring |
+| 2-contract | `docs/data-contract.md` / `docs/ui-design.md` `Status: FROZEN` | None | **IMPLEMENTED** — FROZEN-header completeness + whole-doc freeze-rule sentence (fleet-swept: 22 pass / 2 true positives) |
+| 3-plan | plans `Status: CONVERGED`/`EXECUTED` | `check_convergence.py` every tier | Cross-stage citation gap **IMPLEMENTED** — a plan flipping CONVERGED with its designated spec DRAFT/missing (archived fallback honored) |
+| 4-build | phase/ticket commits + review docs | `check_plan_tickets.py` + `check_convergence.py` EXECUTED citation | Covered — no new gap |
+| 5-certify | `docs/development/reviews/*-{user,service}-test-*.md` | `check_review_coverage.check_cert_dispositions()` every tier | Shape covered; EXISTENCE not mechanizable (release emits no persisted artifact) — pre-analysis candidate (b) overturned |
+| 6-release | release receipts | None | Not gateable (ephemeral console handoff, no committed artifact) |
+
 
 Command/skill parity verified at grounding time: assembler output "rendered 20 commands + 20
 skills", `--check` OK (the 19 count is the narrower `fabrik-*` glob — design-review is the 20th). Hook contract proven live twice this week

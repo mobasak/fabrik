@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Stage-skip artifact gates: plan-spec freshness + FROZEN header completeness (2026-08-07)
+`scripts/enforcement/check_stage_artifacts.py` (T08 of the autotrigger-and-commands plan set, new, Tier-2 in `final_gate.py`) closes the two audit-confirmed mechanical stage-skip holes: a plan flipping `CONVERGED` while its designated design spec is still `DRAFT`/missing (archived specs honored as settled), and `docs/data-contract.md`/`docs/ui-design.md` flipping `Status: FROZEN` without the header fields + freeze-rule sentence their freezing commands mandate — validated against all 24 real fleet frozen artifacts (22 pass, 2 true positives) and the untouched scaffold stub. The ticket's pre-analysis candidate (b) was overturned by the audit: certification-report SHAPE is already gated by `check_cert_dispositions()`; existence is not mechanizable. 32 red-on-revert tests with per-guard mutation pinning; full audit table recorded in the plan spine's Evidence.
+
 ### Added — Orient step-0 task→skill routing rule (2026-08-07)
 T07 of the autotrigger-and-commands plan set: CLAUDE.md § Orient gains step 0 — at run start (never mid-plan/mid-command), classify the operator request against the frozen stage table (1-design … 6-release / gate / utility, semantics derived from the T06a/T06b stage assignments) and invoke the matching skill; escape available on a matched-but-ill-fitting stage (say so in one line, proceed) and silent on no-match/read-only turns. Mirrored as one self-contained line in AGENTS-compact.md § ORIENT (no CLAUDE.md pointers; non-Claude agents state the stage and follow its workflow).
 
