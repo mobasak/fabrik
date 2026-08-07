@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — workstation docs: forced-vs-stopping hand-off map + dispatcher parallelism mechanics (2026-08-07)
+`agent-command-routing-and-gates.md` § 2 now carries the full auto-chain diagram (spec→spec-review and plan-after-chat→plan-review are FORCED same-run; spec-review's design approval and release's Gate 2 STOP for the operator) plus the review-weaving rule (per-phase / per-ticket-pre-merge, never end-loaded). `spine-ticket-plans-usage.md` dispatcher step 2 expanded with the computed eligibility rule (⬜ + Depends ✅ + no pending Serialized barrier), exclusive-Touches safety, deterministic Merge-Order tie-break, and the deliberately-serial acceptance/merge path.
+
 ### Added — workstation doc: agent command routing, dispositions, and human gates (2026-08-07)
 `docs/workstation/agent-command-routing-and-gates.md` — operator reference answering how agents select commands from bare prose (the four-layer auto-trigger stack incl. the computed certification fork and the opt-in Haiku tier), how the certification gauntlets decide fix-on-the-fly vs route (evidence-based dispositions, path-gate, same-run routed execution, release blocked on open handoffs), assembler-enforced NEXT chaining, and the exact autonomous-vs-ask split (self-service-first + the six designed human gates).
 

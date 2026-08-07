@@ -61,8 +61,16 @@ set. Anti-cheat is the combined directory hash per pass; convergence is precondi
 You invoke it once; the orchestrator then:
 
 1. flips the spine `CONVERGED → IN-PROGRESS` on the first dispatch commit;
-2. dispatches up to **3 coders** in parallel (Merge-Order tie-break) — pool units for
-   `simple`/`complex` tickets, native Claude for `native`/`never-route`;
+2. dispatches up to **3 coders** in parallel, each in its own isolated git worktree — pool units for
+   `simple`/`complex` tickets, native Claude for `native`/`never-route`. Eligibility is computed,
+   never judgment: a ticket dispatches when it is ⬜, every `Depends:` row is ✅, and no
+   `Serialized:` barrier is pending. Safety comes from exclusive `Touches` ownership
+   (overlaps are gate-ERRORed at plan review; a legitimately-shared file needs an explicit
+   `Serialized:` row, which forces those tickets sequential). Tie-break when more tickets are
+   eligible than slots: Merge-Order position order (deterministic across runs, frees downstream
+   `Depends:` earliest). Acceptance reviews and merges stay SERIAL by design — the orchestrator's
+   adjudication is one-at-a-time and merges land strictly in Merge Order regardless of which coder
+   finished first;
 3. reviews EVERY returned ticket to a clean round before merge (per-round floor: 2–3 pool finders +
    exactly 1 native Opus; secrets-touching diffs native-only);
 4. merges in Merge Order — code + Board flip + CHANGELOG/INDEX/LESSONS deltas in ONE commit per

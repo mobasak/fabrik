@@ -38,15 +38,39 @@ Selection details worth knowing:
 - **`/design-review` is deliberately un-routed** (non-`fabrik-` prefixed, outside
   the roster glob): it is a pipeline-invoked GUI sub-gate, never fired from prose.
 
-## 2. Every command names its successor
+## 2. Every command names its successor — and the hardening loops auto-chain
 
 The `NEXT` map in `commands/assemble_commands.py` renders a "Next command: …"
 terminal line into every command body and a "NEXT: …" clause into every skill
 description — chaining is assembler-enforced, not remembered. Terminal commands
-say "NEXT: none" explicitly. Current chain highlights: `/fabrik-release` → Gate 2
-(you run `fabrik apply`) → `/fabrik-deploy-verify` (terminal); `/fabrik-catchup`
-→ the routed converge command per queue item; `/fabrik-review` → back to the
-phase that invoked it (a gate, not a stage).
+say "NEXT: none" explicitly.
+
+**Which hand-offs are FORCED (same run, no return of control) vs which STOP for you:**
+
+```
+/fabrik-spec ──AUTO──▶ /fabrik-spec-review ──STOP: design approval──▶ (data-contract / ui-design / plan-after-chat)
+/fabrik-plan-after-chat ──AUTO──▶ /fabrik-plan-review ──▶ ready; YOU dispatch /fabrik-execute-plan
+/fabrik-execute-plan ──FORCED per phase (phase mode) / per ticket pre-merge (dispatcher)──▶ /fabrik-review
+                     ──then──▶ whole-plan review (§Finish) / D7 validation ──▶ certification gauntlet
+/fabrik-user-test | /fabrik-service-test ──▶ /fabrik-release ──STOP: Gate 2──▶ YOU run `fabrik apply` ──▶ /fabrik-deploy-verify (terminal)
+```
+
+- `/fabrik-spec`'s source makes it explicit: *"MANDATORY final step — immediately
+  invoke `/fabrik-spec-review <spec path>`"* — a spec is written `DRAFT` and only
+  the review's md5-verified no-op round flips it `CONVERGED`. Same for
+  plan-after-chat → plan-review.
+- The asymmetry is deliberate: **hardening loops auto-chain; decision points
+  stop.** Spec-review converges *then* halts for your sign-off (the design gate);
+  release halts at Gate 2 (the deploy gate). An agent that auto-chained past
+  either would be self-approving your decisions.
+- Reviews inside execution are never end-loaded: phase mode runs the full
+  `/fabrik-review` at EVERY phase boundary (next phase starts only after its
+  coverage-adjudicated exit) plus one over the whole-plan cumulative diff at
+  §Finish; dispatcher mode reviews EVERY ticket to a clean round as the merge
+  precondition (a Board row cannot reach ✅ un-reviewed — the flip lives in the
+  same commit as the reviewed code), plus D7's whole-plan validation to
+  `found: 0, fixed: 0` at the end. Cascade control: fast inner loop per unit,
+  slower outer loop over the integrated whole.
 
 ## 3. Fix on the fly vs route to a command (the gauntlets' disposition rule)
 
