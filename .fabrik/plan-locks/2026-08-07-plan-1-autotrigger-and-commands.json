@@ -78,7 +78,7 @@
       "review_round_2": "FINDINGS: 0 \u2014 all resolved, no regressions"
     },
     "T05": {
-      "state": "re-review-round-2",
+      "state": "fixup-round-3",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a51ac824c6138d5fe",
       "branch": "worktree-agent-a51ac824c6138d5fe",
       "coder_commit": "2472a1aa9e5ceb4f7ab858e54b774eb1cf134b73",
@@ -86,17 +86,19 @@
       "started_at": "2026-08-07T13:23:09Z",
       "review_round_1": "8 found (5 CONFIRMED): Tier-2 child unisolated in project cwd, Haiku on regex-hit, bare-word precision, real-binary test, TR recall, unfiltered Tier-2 roster, no-op sentinel test, expansion-order unverified",
       "note": "quota-killed mid-fixup 17:40; resumed 17:43 same worktree, WIP audited by successor",
-      "fixup_commit": "f62b2d2c"
+      "fixup_commit": "f62b2d2c",
+      "review_round_2": "7/8 resolved; F3-residual hub-misroute skipped; N3-N7: test-anchor FPs, TR kaldir misroute, recall regressions, 10s Tier-2 tax; RULING: Tier 2 opt-in via FABRIK_ROUTER_HAIKU, timeout back to frozen 8s"
     },
     "T07": {
-      "state": "re-review-round-2",
+      "state": "fixup-round-3",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a417e6253750f5373",
       "branch": "worktree-agent-a417e6253750f5373",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:15:00Z",
       "coder_commit": "039e8d9d",
       "review_round_1": "10 found (5 CONFIRMED): gate/utility semantics from memory not frozen assignments, features mislabeled in mirror, escape narrower than router, unscoped recursion, pipeline duplication, mirror self-containment; F9 resolved-by-events, F10 no-action (Deltas flow is dispatcher-applied)",
-      "fixup_commit": "7b973b8c"
+      "fixup_commit": "7b973b8c",
+      "review_round_2": "8/8 resolved (F5 partial); 3 NEW: 5-certify excludes features, GUI fork sweeps design-review into 2-contract, mirror gate descriptor collides with spec/plan reviewers"
     },
     "T08": {
       "state": "in-review",
@@ -108,12 +110,13 @@
       "coder_commit": "6d02cdbc"
     },
     "T02": {
-      "state": "dispatched",
-      "worktree_path": null,
-      "branch": null,
+      "state": "in-review",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae7ce2dd07afe2aac",
+      "branch": "worktree-agent-ae7ce2dd07afe2aac",
       "base_commit": "c629870e",
       "started_at": "2026-08-07T14:55:00Z",
-      "note": "re-dispatched 17:43 after 17:40 quota wall killed first coder pre-worktree; includes _emit_command YAML fold-in"
+      "note": "re-dispatched 17:43 after 17:40 quota wall killed first coder pre-worktree; includes _emit_command YAML fold-in",
+      "coder_commit": "68c13862"
     }
   }
 }
