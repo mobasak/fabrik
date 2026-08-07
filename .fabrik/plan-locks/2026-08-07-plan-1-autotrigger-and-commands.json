@@ -90,7 +90,7 @@
       "review_round_2": "7/8 resolved; F3-residual hub-misroute skipped; N3-N7: test-anchor FPs, TR kaldir misroute, recall regressions, 10s Tier-2 tax; RULING: Tier 2 opt-in via FABRIK_ROUTER_HAIKU, timeout back to frozen 8s"
     },
     "T07": {
-      "state": "fixup-round-3",
+      "state": "review-clean-awaiting-merge",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a417e6253750f5373",
       "branch": "worktree-agent-a417e6253750f5373",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
@@ -98,7 +98,10 @@
       "coder_commit": "039e8d9d",
       "review_round_1": "10 found (5 CONFIRMED): gate/utility semantics from memory not frozen assignments, features mislabeled in mirror, escape narrower than router, unscoped recursion, pipeline duplication, mirror self-containment; F9 resolved-by-events, F10 no-action (Deltas flow is dispatcher-applied)",
       "fixup_commit": "7b973b8c",
-      "review_round_2": "8/8 resolved (F5 partial); 3 NEW: 5-certify excludes features, GUI fork sweeps design-review into 2-contract, mirror gate descriptor collides with spec/plan reviewers"
+      "review_round_2": "8/8 resolved (F5 partial); 3 NEW: 5-certify excludes features, GUI fork sweeps design-review into 2-contract, mirror gate descriptor collides with spec/plan reviewers",
+      "fixup_commit_r3": "b1b5500c",
+      "review_rounds": 2,
+      "exit": "dispatcher-adjudicated on 3-line diff after 2 full Opus rounds"
     },
     "T08": {
       "state": "in-review",
