@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — superpowers adoptions Phase B: shared repo-identity preamble fragment (2026-08-07)
+`commands/_fragments/repo-identity.md` (from superpowers:using-git-worktrees Step 0): toplevel/common-dir resolution, worktree-identity-is-the-common-checkout rule, the submodule guard (`--show-superproject-working-tree`), and the pin-every-git-mutation (`git -C`) rule — included into `/fabrik-catchup` (Phase 0 head) and `/fabrik-upstream` (mode-selection region, centralizing the mechanics T04 added per-command). Corpus re-rendered from master, `--check` clean.
+
 ### Changed — superpowers adoptions Phase A: watched-fail-first + end-of-branch menu (2026-08-07)
 CLAUDE.md Behavior Contract now mandates watched-fail-first (a non-trivial behavior's test is SEEN RED before the code makes it green; after-the-fact tests count only once proven red-on-revert) and § EXIT gains the ad-hoc end-of-branch integration menu (merge/PR/keep/discard, merge → verify on the MERGED result → then cleanup) for NON-plan work. `.windsurf/rules/core/45-testing-strategy.md` carries the matching Core Philosophy mandate + a Banned Patterns row (never-seen-red tests), citing the live T08 case mutation probing caught. Adopted from superpowers:test-driven-development / finishing-a-development-branch per the converged plan `2026-08-07-plan-2-superpowers-adoptions.md`.
 

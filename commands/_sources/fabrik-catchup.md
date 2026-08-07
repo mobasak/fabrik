@@ -27,6 +27,7 @@ command coming back `BLOCKED` after 3 consecutive attempts on the same item — 
 the report, and keep working the rest of the queue.
 
 {{include:grounding-artifact}}
+{{include:repo-identity}}
 ## Phase 0 — MEASURE (read-only; no fixes yet)
 
 If `/opt/fabrik/docs/infrastructure/probe-reports/fleet-doc-audit-latest.md` exists (the hub's weekly

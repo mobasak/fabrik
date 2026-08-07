@@ -13,6 +13,8 @@ in a Fabrik-synced file, cannot edit it locally (CLAUDE.md HARD STOP), and the f
 instead. **This command is two commands wearing one name** — pick the mode by repo identity (never a bare cwd
 string, and never by asking):
 
+{{include:repo-identity}}
+
 - **PROJECT mode** (repo identity ≠ `/opt/fabrik` — see the identity test below) — files a proposal.
   **Where this runs:** any project, entirely with local project tooling — no hub shell-out, no SSH, no
   dependency on anything outside this project's own tree plus what CLAUDE.md already documents about the
