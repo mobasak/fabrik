@@ -110,13 +110,19 @@ def _run_gate(root: Path) -> tuple[bool, set[str]]:
 _EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 
-def _session_files(transcript_path: str, root: Path) -> set[str]:
-    """Root-relative paths this session's Edit/Write tool calls touched.
+def _session_files(transcript_path: str, root: Path) -> dict[str, int]:
+    """Root-relative path → unix ts of this session's LAST Edit/Write to it.
 
     Parsed from the session transcript (JSONL). Fail-open: any parse problem →
-    empty set (the commit check then never blocks). Only paths INSIDE root count
-    (memory/config edits outside the repo are not repo work)."""
-    files: set[str] = set()
+    empty dict (the commit check then never blocks). Only paths INSIDE root count
+    (memory/config edits outside the repo are not repo work). Timestamps matter:
+    a long-lived resumed session's transcript spans weeks — an edit that was
+    COMMITTED long ago must not re-attach to today's unrelated dirt (live
+    false-positive on first ship: a July edit + the daily pipeline's timestamp
+    bump today flagged the file as this session's unfinished work)."""
+    import datetime as _dt
+
+    files: dict[str, int] = {}
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -129,6 +135,15 @@ def _session_files(transcript_path: str, root: Path) -> set[str]:
                 content = (entry.get("message") or {}).get("content")
                 if not isinstance(content, list):
                     continue
+                ts = 0
+                raw_ts = entry.get("timestamp")
+                if isinstance(raw_ts, str):
+                    try:
+                        ts = int(
+                            _dt.datetime.fromisoformat(raw_ts.replace("Z", "+00:00")).timestamp()
+                        )
+                    except ValueError:
+                        ts = 0
                 for item in content:
                     if (
                         isinstance(item, dict)
@@ -142,10 +157,26 @@ def _session_files(transcript_path: str, root: Path) -> set[str]:
                             rel = Path(fp).resolve().relative_to(root)
                         except (ValueError, OSError):
                             continue  # outside the repo → not repo work
-                        files.add(str(rel))
+                        key = str(rel)
+                        files[key] = max(files.get(key, 0), ts)
     except Exception:
-        return set()
+        return {}
     return files
+
+
+def _last_commit_ts(root: Path, rel: str) -> int:
+    """Unix ts of the last commit touching ``rel`` (0 = never committed)."""
+    try:
+        out = subprocess.run(
+            ["git", "log", "-1", "--format=%ct", "--", rel],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout.strip()
+        return int(out) if out.isdigit() else 0
+    except Exception:
+        return 0
 
 
 def _dirty_paths(root: Path) -> set[str]:
@@ -215,7 +246,17 @@ def main(argv: list[str]) -> int:
         own_uncommitted: set[str] = set()
         transcript = str(data.get("transcript_path") or "")
         if transcript:
-            own_uncommitted = _session_files(transcript, root) & _dirty_paths(root)
+            authored = _session_files(transcript, root)
+            dirty = _dirty_paths(root)
+            for rel, edit_ts in authored.items():
+                if rel not in dirty:
+                    continue
+                # The session's last edit already COMMITTED → today's dirt on the
+                # same file belongs to someone else (pipeline/sibling), not this
+                # session. Only an edit NEWER than the file's last commit counts.
+                if edit_ts and _last_commit_ts(root, rel) >= edit_ts:
+                    continue
+                own_uncommitted.add(rel)
 
         counter = _counter_path(sid)
         try:

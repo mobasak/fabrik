@@ -188,8 +188,59 @@ def test_session_files_parses_edit_tools_and_scopes_to_root(tmp_path: Path) -> N
     ]
     transcript.write_text("\n".join(lines), encoding="utf-8")
     got = hook._session_files(str(transcript), root.resolve())
-    assert got == {"src/a.py", "docs/b.md"}  # Read ignored; outside-root ignored
+    assert set(got) == {"src/a.py", "docs/b.md"}  # Read ignored; outside-root ignored
+
+
+def test_session_files_returns_last_edit_timestamp(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    transcript = tmp_path / "t.jsonl"
+    def mk(ts: str) -> str:
+        return json.dumps(
+            {
+                "type": "assistant",
+                "timestamp": ts,
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Edit",
+                            "input": {"file_path": str(root / "a.py")},
+                        }
+                    ]
+                },
+            }
+        )
+    transcript.write_text(mk("2026-07-19T18:35:00.000Z") + "\n" + mk("2026-08-07T10:00:00.000Z"), encoding="utf-8")
+    got = hook._session_files(str(transcript), root.resolve())
+    assert got["a.py"] == 1786096800  # the LATER edit wins (2026-08-07T10:00Z)
+
+
+def test_committed_session_edit_does_not_reattach_to_new_dirt(tmp_path: Path) -> None:
+    # Live false-positive class (first ship): a resumed session's WEEKS-old edit
+    # was committed long ago; TODAY the pipeline dirties the same file — the
+    # commit-enforcement must NOT claim that dirt as this session's work.
+    import subprocess as sp
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    sp.run(["git", "init", "-q"], cwd=root, check=True, timeout=15)
+    sp.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True, timeout=15)
+    sp.run(["git", "-C", str(root), "config", "user.name", "t"], check=True, timeout=15)
+    f = root / "doc.md"
+    f.write_text("v1\n", encoding="utf-8")
+    sp.run(["git", "-C", str(root), "add", "doc.md"], check=True, timeout=15)
+    sp.run(["git", "-C", str(root), "commit", "-qm", "session work committed"], check=True, timeout=15)
+    f.write_text("v2 pipeline bump\n", encoding="utf-8")  # someone ELSE's new dirt
+    # Session's last edit timestamp: long BEFORE the commit above (weeks ago).
+    edit_ts = 1752950100  # 2026-07-19
+    assert hook._last_commit_ts(root, "doc.md") >= edit_ts  # commit is newer
+    # Wiring equivalent of the Stop-path filter:
+    authored = {"doc.md": edit_ts}
+    dirty = hook._dirty_paths(root)
+    own = {r for r, ts in authored.items() if r in dirty and not (ts and hook._last_commit_ts(root, r) >= ts)}
+    assert own == set()  # committed session work + foreign dirt → NOT flagged
 
 
 def test_session_files_missing_transcript_fails_open() -> None:
-    assert hook._session_files("/nonexistent/t.jsonl", Path("/tmp")) == set()
+    assert hook._session_files("/nonexistent/t.jsonl", Path("/tmp")) == {}

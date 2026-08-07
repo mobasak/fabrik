@@ -15,7 +15,12 @@ row reconciled to push-only + trailer/bundling prohibitions). Enforcement:
 `.claude/hooks/final_gate_stop.py` (fleet-synced) now parses the session transcript for
 Edit/Write-authored files and BLOCKS the stop while any remain uncommitted ("block_commit" — gate
 failures outrank it, same anti-trap CAP, fail-open on any parse gap; Bash-heredoc writes are
-under-detected by design). +6 hook tests (16 green).
+under-detected by design). +6 hook tests (16 green). Field-tested on its OWN shipping session
+within minutes: a resumed session's transcript spans WEEKS, so a July edit (long committed) plus
+the daily pipeline's fresh timestamp bump on the same file false-flagged as "this session's
+unfinished work" — temporal scoping added (a file counts only when the session's LAST edit is
+newer than the file's last commit; committed session work drops out, foreign dirt never attaches)
++2 regression tests (18 green), verified by replaying the session's real hook input.
 
 ### Fixed — review round on the retirement/secrets batch: 5 findings, incl. a false liveness claim (2026-08-07)
 
