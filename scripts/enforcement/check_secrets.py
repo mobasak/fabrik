@@ -81,7 +81,8 @@ _PLACEHOLDER_VALUES = re.compile(
 # the quote-anchored _PLACEHOLDER_VALUES check above never sees it (backticks ≠ quotes).
 # A real hardcoded password (`admin:Xk9d2@`) does NOT match — only literal placeholders do.
 _DSN_PLACEHOLDER_PW = re.compile(
-    r"^(?:pass|passwd|password|pwd|pw|secret|your[-_]?password)$",
+    r"^(?:pass|passwd|password|pwd|pw|secret|your[-_]?password"
+    r"|change[-_]?me|replace[-_]?me|placeholder|redacted|dummy|example|sample|todo|tbd)$",
     re.I,
 )
 

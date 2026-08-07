@@ -82,6 +82,22 @@ class TestCheckSecrets:
         results = check_file(bad_file)
         assert len(results) >= 1
 
+    def test_dsn_literal_placeholder_credentials_not_flagged(self, tmp_path: Path) -> None:
+        """A DSN whose credential segment is a literal placeholder token is a template, not a secret.
+
+        Live case: a spec's documented first-compose-up value
+        `postgresql://placeholder:placeholder@postgres-main:5432/placeholder` (the registrar
+        injects the real DSN post-deploy). A real password in the same position stays flagged.
+        """
+        from scripts.enforcement.check_secrets import check_file
+
+        f = tmp_path / "spec.yaml"
+        f.write_text('DATABASE_URL: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"\n')
+        assert check_file(f) == []
+
+        f.write_text('DATABASE_URL: "postgresql://seo:Xk9d2realpw@postgres-main:5432/seo"\n')
+        assert len(check_file(f)) >= 1
+
     def test_allowed_lines_scopes_to_changed_lines(self, tmp_path: Path) -> None:
         """A secret on an UNTOUCHED line is dropped when allowed_lines is scoped.
 

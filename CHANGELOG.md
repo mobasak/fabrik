@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_secrets DSN placeholder-credential false positive (2026-08-07)
+`_DSN_PLACEHOLDER_PW` now accepts the same literal placeholder family as the quoted-value filter (`placeholder`, `changeme`, `dummy`, `example`, …) — a spec's documented first-compose-up DSN (`postgresql://placeholder:placeholder@postgres-main:5432/placeholder`, real DSN injected post-deploy by the registrar) no longer fails the gate on a sibling's staged spec. Real passwords in the credential segment stay flagged (red-still-red test added).
+
 ### Added — /fabrik-decommission project-retirement command (2026-08-07)
 Authored `commands/_sources/fabrik-decommission.md` (T02 of the autotrigger-and-commands plan set): a hub-side GROUND TRUTH → DECIDE → OPERATOR-CONFIRM → EXECUTE retirement runbook encoding the wpf + captcha lessons — DNS-vs-resolving-sibling-domains liveness probe (never a catalog/PORTS/env row as evidence), fleet-wide consumer sweep before any move, three explicit DECIDE outcomes with a mandatory operator-confirmation stop before ANY mutation, collision-guarded `/opt/archived/<name>` move with an uncommitted-file-count proof, hub bookkeeping via the location-based exclusion mechanism, an 8-surface receipts table, and runtime teardown (`fabrik destroy`, incl. its VPS-side `rm -rf`) always a separately operator-gated action. Fold-in: `assemble_commands.py` now re-quotes any command frontmatter `description:` whose unquoted YAML form fails to round-trip to the identical string (fixes 4 pre-existing YAML-invalid rendered commands; lossy parses like `#`-truncation or `no`→False are caught), and `_emit_skill` hard-fails on a composed skill description over the 1024-char cap.
 
