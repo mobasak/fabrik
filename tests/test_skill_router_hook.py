@@ -917,3 +917,10 @@ def test_hook_never_exits_nonzero_even_on_internal_error(fake_project: Path, fak
     )
     assert proc.returncode == 0
     assert proc.stdout.strip() == ""
+
+
+def test_wordpress_type_never_test_routed() -> None:
+    """wordpress is deploy-only — the `test` stem must not route it to any gauntlet
+    (the code comment promised this; this test pins it)."""
+    roster = {"fabrik-user-test", "fabrik-service-test"}
+    assert hook.resolve_target("test", roster, "wordpress", True) is None

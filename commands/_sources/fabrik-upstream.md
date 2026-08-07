@@ -19,8 +19,8 @@ string, and never by asking):
   synced-file mechanism.
 - **HUB mode** (repo identity = `/opt/fabrik`, given the proposal path(s)) — independently re-verifies and
   applies. **Where this runs:** hub-side only — the hub is the only side holding the real synced source and
-  the commit path that redistributes a fix fleet-wide. Identity comes from the preamble's resolution
-  (`$TOP`, or `$MAIN` in a linked worktree) **tested by CONTENT, never a bare path string**:
+  the commit path that redistributes a fix fleet-wide. Identity comes from the preamble's resolution just below
+  (`$TOP`, or `$MAIN` in a linked worktree — both defined there) **tested by CONTENT, never a bare path string**:
   `scripts/fabrik_synced_manifest.py` present at that toplevel = HUB (a relocated/DR hub clone is still
   the hub) — a `/opt/fabrik` **worktree** IS hub-repo: edit the canonical source directly there, never
   file a proposal to yourself.

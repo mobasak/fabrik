@@ -375,6 +375,8 @@ def resolve_target(
     if stem == "test":
         if not project_yaml_exists:
             return None
+        if project_type == "wordpress":
+            return None  # deploy-only type: no gauntlet exists for it
         target = "fabrik-service-test" if project_type in _HEADLESS_TYPES else "fabrik-user-test"
     else:
         target = STEM_SKILLS.get(stem)

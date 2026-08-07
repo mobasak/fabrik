@@ -1,9 +1,9 @@
 # Whole-plan validation review — 2026-08-07-plan-2-superpowers-adoptions
 
 Validation of the two-phase monolith plan (executed in phase mode by the operator-carried session,
-2026-08-07). Baseline `6b935492` (CONVERGED flip) → validated HEAD (post review-fixes).
+2026-08-07). Baseline `6b935492` (the convergence-flip commit) → final HEAD (post fix rounds).
 
-## Per-phase verdicts
+## Phase verdicts (A · B · Finish)
 
 | Phase | Deliverable | Boundary review | Verdict |
 |---|---|---|---|
@@ -34,5 +34,9 @@ review-fix; recorded here as the declaration the plan lacked).
 ```
 
 The single failing check is the concurrent sibling session's seo spec↔project DB-name drift (their
-staged files — disclosed across this session's review artifacts; not this plan's surface). Every
-check touching this plan's files is green; corpus `--check` OK (24/24) after the final render.
+work — disclosed across this session's artifacts; not this plan's surface; operator decision filed:
+rename the spec to `.yaml.draft` per the established mid-migration convention, or repoint
+`/opt/seo/.env`). Every check touching this plan's files is green; corpus `--check` OK (24/24). The
+embedded artifact above will be refreshed to a fully green run once that sibling item closes — until
+then this document deliberately withholds the formal claim words the convergence checker keys on,
+because the repo contract binds them to a green gate.

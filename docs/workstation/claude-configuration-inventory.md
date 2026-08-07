@@ -110,8 +110,9 @@ carry their own MCP roster.
 | `~/scratch/inbox-zero/` | 1 | A 52nd project config outside `/opt` — its own `CLAUDE.md` + `.claude/{agents,skills}` |
 
 Example — `/opt/fabrik/.claude/`: `settings.json`, `hooks/final_gate_stop.py` (the Stop-hook that
-enforces the definition-of-done gate — since 2026-08-07 with per-file failure attribution so a
-sibling session's shared-tree dirt reports instead of blocking), `hooks/skill_router.py` (the
+enforces the definition-of-done gate — since 2026-08-07 with per-file failure attribution so a sibling session's
+ATTRIBUTED shared-tree dirt reports instead of blocking (a failure citing no
+attributable path stays indeterminate and can still block up to the 3-attempt cap)), `hooks/skill_router.py` (the
 UserPromptSubmit router, 2026-08-07: bare-prose EN/TR prompts get a "this matches /fabrik-X —
 invoke or say why not" nudge; Haiku fallback tier is opt-in via `FABRIK_ROUTER_HAIKU=1`),
 `worktrees/`. Both hooks + `settings.json` are fleet-synced via `AGENT_HOOK_FILES`

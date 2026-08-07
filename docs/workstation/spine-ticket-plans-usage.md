@@ -99,7 +99,7 @@ cleared; your ruling re-dispatches (`BLOCKED → IN-PROGRESS`).
 
 ## You no longer have to remember the commands (2026-08-07)
 
-Four layers route bare prose to the right skill, so forgetting a slash command is no longer a gap:
+Four layers route bare prose to the right skill — forgetting a slash command is now caught by at least one layer in almost every case (a genuinely novel phrasing can still need layer 2/3's model-side judgment):
 
 1. **Descriptions** — all 24 commands/skills carry `TRIGGER` phrasings (EN + TR) + one frozen
    `Stage:` value, with negative boundaries between confusable siblings (review family, the two
@@ -125,8 +125,8 @@ Four layers route bare prose to the right skill, so forgetting a slash command i
 | `/fabrik-upstream` | A synced-file defect found inside a project: PROJECT mode files a verifiable proposal (evidence, diffs-or-ranked-options, why-filed, blast radius) without touching the synced copy; HUB mode re-verifies every claim independently before applying. Canonizes the trade-intelligence pattern. |
 
 **One operational rule from the first live run:** never run a bare
-`python commands/assemble_commands.py` from a worktree — the renderer prunes installed commands
-missing from that tree and would delete siblings' commands box-wide. Renders happen from merged
+`python commands/assemble_commands.py` from a worktree — the renderer prunes installed commands AND their skill wrappers
+missing from that tree — deleting siblings' commands and skill dirs box-wide. Renders happen from merged
 master (the dispatcher does this at each merge; `--check` is always safe).
 
 ## Existing plans — what to do with them

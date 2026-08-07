@@ -455,11 +455,17 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
             "(docs/development/reviews/*.md) — run /fabrik-review over the whole-plan diff "
             "to its coverage-adjudicated exit, cite it here, or revert Status"
         ]
-    for c in dict.fromkeys(cited):  # dedupe, preserve order
+    eligible = [c for c in dict.fromkeys(cited) if not (spine and _TICKET_REVIEW_RE.search(c))]
+    plan_stem = Path(rel).stem  # e.g. 2026-01-01-plan-9-widget
+    for c in eligible:
         # A spine cites its D4 per-ticket reviews (<plan>-T##-review.md) routinely —
-        # those prove single tickets, never the WHOLE-plan validation; letting one
-        # satisfy this check would let a set flip EXECUTED without D7 ever running.
-        if spine and _TICKET_REVIEW_RE.search(c):
+        # those prove single tickets, never the WHOLE-plan validation (filtered above).
+        # ACCIDENTAL SATISFACTION guard: a plan often cites OTHER reviews as evidence
+        # (a sibling incident, a prior wave); a quiet round in an UNRELATED review must
+        # not certify THIS plan. The quiet pass counts only from a review whose
+        # filename references this plan's stem — unless the plan cites exactly one
+        # review, which is unambiguous.
+        if len(eligible) > 1 and plan_stem not in Path(c).name:
             continue
         rp = root / c
         if not rp.is_file():

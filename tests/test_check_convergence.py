@@ -700,3 +700,29 @@ def test_dual_claim_executed_at_head_plus_new_converged_still_enforced(repo: Pat
     _git(repo, "add", "-A")
     rc, out = _check_out(repo)
     assert rc == 1 and "orphan row" in out
+
+
+def test_executed_citation_must_be_plan_relevant_not_any_quiet_review(tmp_path):
+    """An EXECUTED plan citing an UNRELATED quiet review (name-drop) plus its own
+    non-quiet validation review must FAIL — the quiet round must come from a review
+    whose filename references this plan (the accidental-satisfaction loophole)."""
+    import scripts.enforcement.check_convergence as cc
+    root = tmp_path
+    (root / "docs/development/plans").mkdir(parents=True)
+    (root / "docs/development/reviews").mkdir(parents=True)
+    plan = root / "docs/development/plans/2026-01-01-plan-9-widget.md"
+    own = root / "docs/development/reviews/2026-01-01-plan-9-widget-review.md"
+    other = root / "docs/development/reviews/2026-01-01-unrelated-review.md"
+    own.write_text("# validation\nfound: 2, fixed: 2 — no quiet round recorded\n")
+    other.write_text("# some other surface\nPass 3 | found: 0 | fixed: 0 | EXIT\n")
+    plan.write_text(
+        "# Plan: widget\n\nStatus: EXECUTED\n\n"
+        "Whole-plan validation: `docs/development/reviews/2026-01-01-plan-9-widget-review.md`.\n"
+        "Unrelated evidence: `docs/development/reviews/2026-01-01-unrelated-review.md`.\n"
+    )
+    fails = cc._check_executed_plan(root, plan)
+    assert fails, "an unrelated quiet review must not satisfy the EXECUTED citation"
+
+    # positive control: the plan-relevant review carrying the quiet round satisfies it
+    own.write_text("# validation\n## Phase verdicts\nPass 4 | found: 0 | fixed: 0 | EXIT\n")
+    assert cc._check_executed_plan(root, plan) == []

@@ -904,9 +904,10 @@ to merge back. "Finishing" is:
    what actually shipped: point to the commit/file that delivers it. Report any gap explicitly — a passing
    gate does not prove the plan's intent was built (it proves format + the tests you wrote pass). Don't flip
    `Status: EXECUTED` with an un-delivered requirement unaccounted for.
-4. **Clean up your OWN worktree only** — if THIS run used its own worktree (step 8, concurrent run): `cd` to
-   the main repo root first (`git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`), then
-   `git worktree remove <path>` + `git worktree prune`. **Provenance guard:** remove only a worktree THIS run
+4. **Clean up your OWN worktree only** — if THIS run used its own worktree (step 8, concurrent run): resolve
+   the MAIN checkout first (`MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` — never
+   dirname-of-`--git-common-dir`, which is a `.git` DIRECTORY, not a checkout), then
+   `git -C "$MAIN" worktree remove <path>` + `git -C "$MAIN" worktree prune`. **Provenance guard:** remove only a worktree THIS run
    created — never a harness-owned or a sibling's tree. (The Merge Protocol already deletes the *subagent*
    branches; this is the *orchestrator's own* worktree.)
 5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
