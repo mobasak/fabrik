@@ -46,5 +46,35 @@
     "status": "success",
     "failed": []
   },
-  "tickets": {}
+  "deferred_fixups": [
+    {
+      "target": "T02",
+      "item": "assemble_commands.py _emit_command must quote the command-md frontmatter description (like _emit_skill's _yaml_dq) — TRIGGER/Stage colons make unquoted plain scalars YAML-invalid in 8 rendered ~/.claude/commands files (T06a review F2, pre-existing class)"
+    }
+  ],
+  "tickets": {
+    "T01": {
+      "state": "fixup-round-2",
+      "review_round_1": "3 CONFIRMED (hub-only liveness, absolute audit path, single-file plans)",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a00b7bb3196bab9f7",
+      "branch": "worktree-agent-a00b7bb3196bab9f7",
+      "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
+      "started_at": "2026-08-07T13:23:09Z"
+    },
+    "T06a": {
+      "state": "fixup-round-2",
+      "review_round_1": "5 found; 3 routed to fixup (1c leg, length bands, ui-design boundary); F2 assembler-quoting deferred to T02; F3 structural no-action",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aab4946f6213a3e5c",
+      "branch": "worktree-agent-aab4946f6213a3e5c",
+      "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
+      "started_at": "2026-08-07T13:23:09Z"
+    },
+    "T05": {
+      "state": "dispatched",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
+      "started_at": "2026-08-07T13:23:09Z"
+    }
+  }
 }
