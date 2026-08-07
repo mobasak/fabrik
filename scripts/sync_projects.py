@@ -462,6 +462,12 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
     active = [p for p in projects if p.category == "active"]
     planning = [p for p in projects if p.category == "planning"]
     shell = [p for p in projects if p.category == "shell"]
+    # Catch-all: a project.yaml with a category outside the four buckets
+    # (e.g. "services") must still RENDER — silently dropping it made the
+    # header total disagree with the row count and hid a live project from
+    # every coder AI reading the catalog (fabrik-citation-verifier, 2026-08-07).
+    known = {"production", "active", "planning", "shell"}
+    other = [p for p in projects if p.category not in known]
 
     total = len(projects)
 
@@ -478,6 +484,7 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
         ("Active Development", active),
         ("Planning/Research", planning),
         ("Shell Projects", shell),
+        ("Other (non-standard category — fix the project.yaml)", other),
     ]:
         if not group:
             continue

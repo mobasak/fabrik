@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — PROJECT_CATALOG renderer silently dropped non-standard categories (2026-08-07)
+
+`sync_projects.py::generate_catalog_markdown` bucketed rows into exactly four categories and
+silently dropped anything else while still counting it in the header total — the header said 50,
+the rows summed 49, and `fabrik-citation-verifier` (whose `project.yaml` declares
+`category: services`) was invisible to every coder AI reading the catalog. Added a rendered
+catch-all group ("Other — non-standard category, fix the project.yaml") so unknown categories
+fail VISIBLE, never silent; catalog regenerated (50/50 rows, the missing project restored with
+its live URL).
+
 ### Changed — execute-plan names the clean-boundary stop as a banned excuse (2026-08-07)
 
 `commands/_sources/fabrik-execute-plan.md` non-negotiable #1: added *"I won't open work I can't

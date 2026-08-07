@@ -76,4 +76,10 @@
 | **Traycer** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
 | **microsoft** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
 
+### Other (non-standard category — fix the project.yaml) (1 projects)
+
+| Project | Purpose | Stack | Status | URL | Scaffold |
+|---------|---------|-------|--------|-----|----------|
+| **fabrik-citation-verifier** | Citation verification microservice. Resolves citations against PubMed → Europe PMC → OpenAlex →... | FastAPI | 🔨 Development | https://citations.vps1.ocoron.com | ✅ Current |
+
 <!-- AUTO-GENERATED:PROJECTS:END -->
