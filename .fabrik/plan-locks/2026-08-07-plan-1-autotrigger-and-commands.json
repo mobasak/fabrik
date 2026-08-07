@@ -157,7 +157,7 @@
       "exit": "dispatcher-adjudicated on one-clause r3 after full Opus round + verified r2"
     },
     "T04": {
-      "state": "re-review-round-2",
+      "state": "fixup-round-3",
       "base_commit": "291c4cea",
       "started_at": "2026-08-07T19:20:00Z",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad862fd4e1f4c6a84",
@@ -165,7 +165,8 @@
       "coder_commit": "1d366657",
       "note": "worktree base 5943074a pre-T03; files disjoint from T03",
       "review_round_1": "13 found (12 CONFIRMED, exemplar-grounded): INDEX obligation, false 4-of-4 vs real exemplars, hub-only manifest path in project mode, cwd worktree mis-dispatch, dropped addressing header + round-trip mode, half untrusted-input, no sibling-WIP guard, mechanism conflation, PORTS carve-out, no HUB trigger, review boundary",
-      "fixup_commit": "7c6f58f6"
+      "fixup_commit": "7c6f58f6",
+      "review_round_2": "12/12 resolved; 5 NEW surgical (conjunctive-not-ranked, worktree-blind dirty guard, PARAMS synced.lock, stage-then-gate-then-commit, round-trip addressing); exit adjudicated on r3 diff"
     },
     "T06b": {
       "state": "re-review-round-2",
