@@ -726,3 +726,21 @@ def test_executed_citation_must_be_plan_relevant_not_any_quiet_review(tmp_path):
     # positive control: the plan-relevant review carrying the quiet round satisfies it
     own.write_text("# validation\n## Phase verdicts\nPass 4 | found: 0 | fixed: 0 | EXIT\n")
     assert cc._check_executed_plan(root, plan) == []
+
+
+def test_executed_single_unrelated_citation_also_fails(tmp_path):
+    """Round-2: even with exactly ONE citation, an unrelated quiet review must not
+    satisfy the EXECUTED flip — the stem rule is unconditional (retro-safe: all
+    archived EXECUTED plans stem-match their citations)."""
+    import scripts.enforcement.check_convergence as cc
+    root = tmp_path
+    (root / "docs/development/plans").mkdir(parents=True)
+    (root / "docs/development/reviews").mkdir(parents=True)
+    plan = root / "docs/development/plans/2026-01-01-plan-9-widget.md"
+    other = root / "docs/development/reviews/2026-01-01-unrelated-review.md"
+    other.write_text("# other\nPass 3 | found: 0 | fixed: 0 | EXIT\n")
+    plan.write_text(
+        "# Plan: widget\n\nStatus: EXECUTED\n\n"
+        "Whole-plan validation: `docs/development/reviews/2026-01-01-unrelated-review.md`.\n"
+    )
+    assert cc._check_executed_plan(root, plan), "single unrelated quiet citation must not satisfy"

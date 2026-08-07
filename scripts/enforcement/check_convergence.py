@@ -463,9 +463,10 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         # ACCIDENTAL SATISFACTION guard: a plan often cites OTHER reviews as evidence
         # (a sibling incident, a prior wave); a quiet round in an UNRELATED review must
         # not certify THIS plan. The quiet pass counts only from a review whose
-        # filename references this plan's stem — unless the plan cites exactly one
-        # review, which is unambiguous.
-        if len(eligible) > 1 and plan_stem not in Path(c).name:
+        # filename references this plan's stem — unconditionally (round-2: a single
+        # unrelated citation is the same hole; every archived EXECUTED plan
+        # stem-matches its citation, so this is retro-safe).
+        if plan_stem not in Path(c).name:
             continue
         rp = root / c
         if not rp.is_file():

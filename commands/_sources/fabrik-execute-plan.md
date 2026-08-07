@@ -906,7 +906,8 @@ to merge back. "Finishing" is:
    `Status: EXECUTED` with an un-delivered requirement unaccounted for.
 4. **Clean up your OWN worktree only** — if THIS run used its own worktree (step 8, concurrent run): resolve
    the MAIN checkout first (`MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` — never
-   dirname-of-`--git-common-dir`, which is a `.git` DIRECTORY, not a checkout), then
+   dirname-of-`--git-common-dir`, which is a `.git` DIRECTORY, not a checkout), **step your shell OUT of
+   the worktree being removed** (`cd "$MAIN"` — a shell sitting inside it makes the remove fail), then
    `git -C "$MAIN" worktree remove <path>` + `git -C "$MAIN" worktree prune`. **Provenance guard:** remove only a worktree THIS run
    created — never a harness-owned or a sibling's tree. (The Merge Protocol already deletes the *subagent*
    branches; this is the *orchestrator's own* worktree.)
