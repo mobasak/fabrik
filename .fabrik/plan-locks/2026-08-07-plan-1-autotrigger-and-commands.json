@@ -136,11 +136,13 @@
       "exit": "dispatcher-adjudicated on surgical r3 diff after 2 full Opus rounds"
     },
     "T03": {
-      "state": "dispatched",
-      "worktree_path": null,
-      "branch": null,
+      "state": "in-review",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abe503890fc72d3c8",
+      "branch": "worktree-agent-abe503890fc72d3c8",
       "base_commit": "6bf2c8cc",
-      "started_at": "2026-08-07T18:30:00Z"
+      "started_at": "2026-08-07T18:30:00Z",
+      "coder_commit": "83c7846b",
+      "note": "first coder died at commit (transient); salvage coder audited WIP, fixed 1007->862 description, committed"
     }
   }
 }
