@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — execute-plan names the clean-boundary stop as a banned excuse (2026-08-07)
+
+`commands/_sources/fabrik-execute-plan.md` non-negotiable #1: added *"I won't open work I can't
+finish — stopping at a clean state preserves the value"* to the named self-authorized-deferral
+excuses, with the rule that a clean boundary makes the RESUME cheap but never makes the STOP
+legitimate. Second live occurrence of a plausible-sounding context stop (a project executor ended
+its run before the certification stages, citing usable-context exhaustion at a green suite).
+
 ### Fixed — ocoron design-system contrast table + two enforcement false-positive classes (trade-intelligence upstream) (2026-08-06)
 
 Applied both verified upstream proposals from trade-intelligence
