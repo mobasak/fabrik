@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review round on the retirement/secrets batch: 5 findings, incl. a false liveness claim (2026-08-07)
+
+/fabrik-review over e3432de0..HEAD raised 5, all terminated. The deepest: the previous captcha entry
+claimed "the deployed service stays live" — WRONG. Verified: `captcha.vps1.ocoron.com` has no DNS
+record (sibling domains resolve) and PORTS.md's manual section had already documented the teardown
+("no live container/router; port 18011 free") — the claim came from a stale catalog row and
+claim-validator's stale `.env.example` reference (a follow-up for that project's catch-up session:
+migrate to `fabrik-lib/captcha-solve/` or delete the integration; `specs/services/captcha.yaml` is
+likewise a stale spec, operator's call). Also: the dead-code `RETIRED` name-set removed from
+`fleet_doc_audit.py` (the `/opt/archived/` location IS the retirement mechanism — a hardcoded list
+was a silent-exclusion trap on revival); the DSN secret patterns gained the `$(cmd)` exemption their
+credential sibling already had (the reciprocal half of yesterday's asymmetry); the
+non-discriminating `$`-boundary test replaced (`"$19.99…"` proves the digit boundary) + 2 DSN tests;
+the earlier "secrets suite 22 green" count corrected — the placeholder suite is 9 green after these
+additions.
+
 ### Fixed — proactive-check: two false-alarm sources (backup + target_down) (2026-08-07)
 
 Investigating the fleet's Telegram traffic surfaced two alerts that were crying wolf. (1)

@@ -68,5 +68,19 @@ def test_bare_shell_variable_reference_is_skipped(tmp_path):
 
 
 def test_dollar_prefixed_but_literal_password_still_flagged(tmp_path):
-    # A literal secret merely CONTAINING dollar signs later is still caught.
+    # Discriminates the exemption BOUNDARY: $ followed by a non-name char
+    # (digit) is NOT a shell reference — must still be flagged. Also a
+    # mid-string $ never engages the lookahead.
+    assert _scan(tmp_path, 'password="$19.99longvalue"')
     assert _scan(tmp_path, 'password="hunter2$altyValue"')
+
+
+def test_dsn_command_substitution_is_skipped(tmp_path):
+    # Reciprocal half of the $-reference stance: the DSN patterns must exempt
+    # $(cmd) exactly like the credential pattern does.
+    assert _scan(tmp_path, "postgresql://user:$(vault_read_pw)@host:5432/db") == []
+    assert _scan(tmp_path, "mongodb://user:$(op read pw)@host/db") == []
+
+
+def test_dsn_real_password_still_flagged(tmp_path):
+    assert _scan(tmp_path, "postgresql://user:Xk9realpw2@host:5432/db")

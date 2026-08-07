@@ -44,18 +44,14 @@ REPORT_DIR = FABRIK_ROOT / "docs" / "infrastructure" / "probe-reports"
 # hand-copied set drifted within hours of shipping and silently hid the real
 # project Reference_Creator from the first audit). The hub repo is added here:
 # its docs are governed by its own gates, not this fleet probe.
-# Operator-declared RETIRED projects: still on disk and still in the catalog,
-# but no longer maintained — auditing them generates noise nobody will act on.
-# (wpf + captcha retired 2026-08-07 — operator instruction; both moved to
-# /opt/archived/. The captcha SERVICE stays deployed on vps1 — only the
-# source project is archived.)
-RETIRED = {"wpf", "captcha"}
+# Retirement mechanism: a retired project is MOVED to /opt/archived/<name>
+# (wpf + captcha, 2026-08-07) — the location itself excludes it from this scan,
+# so there is deliberately NO name-list here: a hardcoded set would be dead
+# code today and a silent-exclusion trap if a project were ever un-archived.
 
 
 def _excluded(name: str) -> bool:
     sys.path.insert(0, str(FABRIK_ROOT / "scripts"))
-    if name in RETIRED:
-        return True
     try:
         import sync_projects  # noqa: PLC0415
 

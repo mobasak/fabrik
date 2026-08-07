@@ -27,8 +27,8 @@ SECRET_PATTERNS = [
     # <password>) in docstrings/READMEs — both are the correct way to REFERENCE
     # a secret, not hardcode one. A literal password (postgresql://u:realpass@)
     # is still caught.
-    (r"postgresql://[^:]+:(?!\$\{|\$[A-Za-z_]|<)[^@\s]+@", "DB URL with password"),
-    (r"mongodb(\+srv)?://[^:]+:(?!\$\{|\$[A-Za-z_]|<)[^@\s]+@", "MongoDB URL with password"),
+    (r"postgresql://[^:]+:(?!\$\{|\$\(|\$[A-Za-z_]|<)[^@\s]+@", "DB URL with password"),
+    (r"mongodb(\+srv)?://[^:]+:(?!\$\{|\$\(|\$[A-Za-z_]|<)[^@\s]+@", "MongoDB URL with password"),
     (r"-----BEGIN (?:RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----", "Private Key"),
     (r"Bearer\s+[a-zA-Z0-9\-_\.]{20,}", "Bearer Token"),
     # The (?![A-Z_]*=['"]?\s*$) trailing check rejects env-var NAME strings
