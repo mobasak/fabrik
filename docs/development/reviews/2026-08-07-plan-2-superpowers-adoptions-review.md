@@ -15,6 +15,14 @@ All four Behavior Contract rows verified on final text by the whole-plan reviewe
 Scope: 7 declared files + AGENTS-compact.md (justified synced-governance mirror, added by Phase A
 review-fix; recorded here as the declaration the plan lacked).
 
+## Confirming quiet round (recorded 2026-08-07, post-execution)
+
+`docs/development/reviews/2026-08-07-post-plan2-work-review.md` re-adjudicated this plan's final text
+as part of its 3-pass loop: the two Finish-era residuals it surfaced (the execute-plan cleanup
+mechanic; the citation-scoping loophole) were FIXED in `c4ad5996`/`65ebab6a`, and its Pass 3 returned
+found: 0, fixed: 0 over the updated surface — the confirming quiet round this document's own Finish
+table lacked.
+
 ## Embedded gate evidence (verbatim, this session, post-fix HEAD)
 
 ```json
