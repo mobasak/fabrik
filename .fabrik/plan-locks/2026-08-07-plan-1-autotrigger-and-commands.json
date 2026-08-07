@@ -72,7 +72,7 @@
       "review_rounds": 4
     },
     "T06a": {
-      "state": "review-clean-awaiting-merge",
+      "state": "merged",
       "review_round_1": "5 found; 3 routed to fixup (1c leg, length bands, ui-design boundary); F2 assembler-quoting deferred to T02; F3 structural no-action",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aab4946f6213a3e5c",
       "branch": "worktree-agent-aab4946f6213a3e5c",

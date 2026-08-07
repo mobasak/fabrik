@@ -1,5 +1,5 @@
 ---
-description: Freeze a GUI project's UI/UX design — a lean, frozen screen + flow contract (docs/ui-design.md) that establishes the DESIGN SYSTEM FIRST, then designs the product's screens, minimal-click user flows, information architecture, and per-screen component/state/field mapping, so parallel agents (Traycer OR /fabrik-plan-after-chat) build one coherent, lean, logical UI. Self-converges to an edit-free FROZEN file. Sits after /fabrik-data-contract, before planning.
+description: Freeze a GUI project's UI/UX design — a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and per-screen component/state/field mapping, so parallel agents build one coherent UI. Self-converges to FROZEN. Sits after /fabrik-data-contract, before planning. TRIGGER — EN: "design the screens/UI for this", "what should this flow look like", "let's design the app"; TR: "bu ekranları/UI'ı tasarla", "bu akış nasıl olmalı" — fires for a GUI project's screens/flows, never the rendered/built UI (→ /design-review) or the contract's own review (→ /fabrik-ui-design-review). Stage: 2-contract.
 argument-hint: "[spec path — omit to use the spec/data-contract of the CURRENT project (the command always operates on cwd)]"
 ---
 

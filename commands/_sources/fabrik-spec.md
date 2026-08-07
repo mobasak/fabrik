@@ -1,5 +1,5 @@
 ---
-description: Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never from training memory) + a BLOCKING best-practice/approach research gate (the leanest, pro-grade, lowest-maintenance way, cited) + a fabrik-lib vendor→enhance→build verdict for every internal capability, collaborative Q&A, 2–3 approaches, HARD gate before any implementation. Hands off to /fabrik-plan-after-chat.
+description: Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-practice/approach gate (leanest, pro-grade, low-maintenance, cited) + a fabrik-lib vendor→enhance→build verdict + 2–3 approaches + collaborative Q&A. TRIGGER — EN: "I have an idea for…", "let's design/spec/talk through this", "what's the best/leanest way to…"; TR: "yeni bir proje/özellik fikrim var", "bunu tasarlayalım/spec'leyelim", "bunun en sade yolu ne" — fires BEFORE any code/scaffold. SKIP: an existing spec's harden/re-verify (→ /fabrik-spec-review) or building an approved spec (→ /fabrik-plan-after-chat). Stage: 1-design.
 argument-hint: "[the idea / feature / problem — omit to spec the idea in the current conversation]"
 ---
 

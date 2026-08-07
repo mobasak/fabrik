@@ -1,5 +1,5 @@
 ---
-description: Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnable gates + mandated subagents/parallelism + a /fabrik-review gate at each boundary + Evidence/Self-audit/residuals. Brainstorms first only when the input is thin. Hands off to /fabrik-plan-review then /fabrik-execute-plan.
+description: Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnable gates + mandated subagents/parallelism + a /fabrik-review gate per boundary + Evidence/Self-audit/residuals. Brainstorms first only if the input is thin. Hands off to /fabrik-plan-review then /fabrik-execute-plan. TRIGGER — EN: "let's plan this", "turn this into a plan", "write up an implementation plan"; TR: "planlayalım", "bunu bir plana dökelim" — fires to CREATE a plan from settled discussion. SKIP when a plan already exists and the ask is to harden it (→ /fabrik-plan-review) or run it (→ /fabrik-execute-plan). Stage: 3-plan.
 argument-hint: "[optional: a ticket / feature description / focus — omit to distill the current conversation]"
 ---
 

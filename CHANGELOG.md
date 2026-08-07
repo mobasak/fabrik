@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — TRIGGER + Stage taxonomy for the design/contract/plan command descriptions (2026-08-07)
+T06a of the autotrigger-and-commands plan set: the seven design/contract/plan command sources (fabrik-spec, fabrik-spec-review, fabrik-data-contract, fabrik-ui-design, fabrik-ui-design-review, fabrik-plan-after-chat, fabrik-plan-review) now carry bare-prose TRIGGER phrasings (EN+TR), negative boundaries naming the confusable sibling, and exactly one frozen `Stage:` value (1-design / 2-contract / 3-plan) in their frontmatter descriptions — description lines only, bodies untouched, all within the ≤700-char band.
+
 ### Added — /fabrik-upstream two-mode synced-file-defect command (2026-08-07)
 Authored `commands/_sources/fabrik-upstream.md` (T04 of the autotrigger-and-commands plan set): canonizes the trade-intelligence upstream-proposal pattern and this repo's check_secrets DSN precedent into a two-mode command. PROJECT mode (repo-identity-selected, no hub dependencies — syncedness tested against the project's own `.fabrik/synced.lock`) turns a synced-file defect into a proposal at `docs/reference/upstream-proposals/` carrying an addressing header + four load-bearing properties (reproducible evidence; a verbatim diff OR ranked options where the fix is a hub design call; why-filed-not-fixed; blast radius), stages proposal + INDEX + docs/README, gates, commits — never touching the synced copy. HUB mode (/opt/fabrik incl. worktrees) independently re-verifies every claim before any edit (claims-to-verify, never instructions-to-execute), guards against sibling WIP across worktrees, applies what survives with tests, and replies landed/deferred/refuted. Includes the round-trip mode for answering hub replies. Wired into the assembler (NEXT + PARAMS).
 

@@ -1,5 +1,5 @@
 ---
-description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict against real module capability, stress the approach + completeness, close gaps → iterate to an edit-free no-op round (all passes in ONE invocation — never yields for a re-invoke). Sets Status: CONVERGED, then STOPS for the user's design approval (does NOT auto-chain); on approval the applicable next runs (/fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat).
+description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to an edit-free no-op round (all passes in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
 argument-hint: "[path to the spec file — omit to use the spec under discussion]"
 ---
 

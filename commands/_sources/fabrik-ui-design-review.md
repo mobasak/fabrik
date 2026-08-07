@@ -1,5 +1,5 @@
 ---
-description: Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review of the UI/UX design contract (design-system integrity, data-wiring vs docs/data-contract.md, screen/flow coverage, minimal-click flows, surface-pack + a11y conformance, consistency) → an edit-free no-op round. The design-time analogue of /fabrik-spec-review; distinct from /design-review (rendered UI) and the Build Verification Loop (built screens). Runs after /fabrik-ui-design, before planning.
+description: Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/flow coverage, click budgets, surface-pack + a11y) → edit-free no-op. Distinct from /fabrik-ui-design (author self-convergence; this is the INDEPENDENT author-blind pass AFTER it), /design-review (rendered UI), and the Build Verification Loop. TRIGGER — EN: "review/harden this UI design contract", "is this ui-design.md ready"; TR: "bu UI tasarım sözleşmesini gözden geçir", "bu ui-design.md hazır mı" — fires on a FROZEN contract, never a running app (→ /design-review) or a plan review (→ /fabrik-plan-review). Stage: 2-contract.
 argument-hint: "[path to docs/ui-design.md — omit to use the current project's frozen UI design contract]"
 ---
 

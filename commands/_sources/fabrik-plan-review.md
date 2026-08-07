@@ -1,5 +1,5 @@
 ---
-description: Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagent/parallelism
+description: Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagent/parallelism. TRIGGER — EN: "review/harden this plan", "is this plan ready to execute"; TR: "bu planı gözden geçir/sağlamlaştır", "bu plan uygulamaya hazır mı" — fires on an EXISTING draft plan, never a fresh planning request (→ /fabrik-plan-after-chat) or a spec review (→ /fabrik-spec-review). Stage: 3-plan.
 argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — omit to use the plan under discussion]"
 ---
 
