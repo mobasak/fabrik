@@ -46,7 +46,7 @@ Source: operator-approved comparison of the superpowers plugin skills vs the fab
 
 Gate A: `python scripts/final_gate.py --lean --check --json` (expect only pre-existing
 sibling-owned failures) + `grep -c "red-on-revert" CLAUDE.md .windsurf/rules/core/45-testing-strategy.md`
-each ≥1 + `grep -c "merge-verify" CLAUDE.md` OR the menu options greppable.
+each ≥1 + `grep -c "merge → verify" CLAUDE.md` ≥1 (the menu-ordering clause).
 Boundary: `/fabrik-review` over the Phase A diff (native-only — synced governance surface).
 
 ## Phase B — Repo-identity fragment (A2)

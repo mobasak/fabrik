@@ -29,12 +29,12 @@ Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` 
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
 ## COMPLETION CONTRACT (in order, every task)
-1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. 1 test for highest-risk path (skip docs-only).
+1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. 1 test for highest-risk path (skip docs-only); a test you add/modify must be SEEN RED once (fail-first, or neuter→red→restore→green).
 1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your diff for bugs, edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until green AND a fresh review finds nothing new.
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: **`--json` (std — FULL Tier 2: mypy+bandit+semgrep+schema/plan/docs)** · `--lean --json` (fast Tier‑1 subset for in-iteration self-review, NOT the completion gate) · `--systemic --json` (epic). Add **`--check`** for a read-only run (never mutates); a bare run auto-fixes + auto-stages **only your changed files** (the gate scopes every fixer + `ruff` to the diff, incl. committed-unpushed; Fabrik-synced files are excluded in projects). Full tier/mode ref: `docs/workflows/FINAL_GATE_WORKFLOW.md`.
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate green → COMMIT your own work NOW (explicit pathspecs — `git commit -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author). An uncommitted task is an UNFINISHED task. Push stays operator-authorized.
+5. **EXIT** — Gate green → COMMIT your own work NOW (explicit pathspecs — `git commit -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author). An uncommitted task is an UNFINISHED task. Push stays operator-authorized. Ad-hoc NON-plan branch work: PRESENT merge/push/keep/discard and STOP (execute only the operator's choice; merge → verify merged result → then cleanup).
 
 ## DOC SYNC MATRIX (every task)
 Update matched docs in the SAME staged change. Skipping = task failure (gate-enforced).

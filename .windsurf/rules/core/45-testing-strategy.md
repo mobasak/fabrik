@@ -18,7 +18,7 @@ Apply when writing, reviewing, or generating tests. Covers all scaffold types: F
 - **Testing Trophy model**: integration and E2E tests are the primary source of truth. Unit tests are reserved exclusively for complex pure algorithms or data transformations.
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
-- **Watched-fail-first**: a test proves something only if it has been SEEN RED — write it first and watch it fail, or (for an after-the-fact test) neuter the fix/feature and prove the test goes red before trusting it. A green test never seen red is unverified (live case 2026-08-07: two enforcement guards shipped with all-green suites whose tests survived reverting the guards — found only by mutation probing).
+- **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
 
 ## Test type by ticket type (one PER behavior, per the Behavior Contract)
 
@@ -180,7 +180,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 | Static JSON fixture files for test data | Programmatic factory functions |
 | Testing implementation details (internal method calls) | Testing user-visible outcomes |
 | Targeting 100% line coverage | One high-value integration test per feature |
-| A test never seen red (written after the code, no red-on-revert proof) | Watch it fail first, or neuter the change and prove the test goes red |
+| A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
 | Skipping tenant isolation tests in multi-tenant projects | Test both positive and negative per tenant-scoped endpoint |
 | Hardcoded test DB URL | `TEST_DATABASE_URL` from env — `localhost` in WSL dev, `postgres-main` in CI |
 | Destructive test (DROP SCHEMA/TABLE, TRUNCATE, migration re-apply) connecting unguarded | Call `require_throwaway(url)` (scaffold-emitted `tests/conftest.py`) FIRST — fail-closed: only DB names ending `_test`/`throwaway`/`scratch` (case-insensitive; CI uses `ci_test`), or `CI=true` **against a localhost DB**, may proceed; a mispointed URL errors instead of wiping a dev DB |
