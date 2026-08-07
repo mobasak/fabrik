@@ -94,9 +94,38 @@ class TestCheckSecrets:
         f = tmp_path / "spec.yaml"
         f.write_text('DATABASE_URL: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"\n')
         assert check_file(f) == []
+        f.write_text('DATABASE_URL: "postgresql://u:change-me@postgres-main:5432/db"\n')
+        assert check_file(f) == []
 
         f.write_text('DATABASE_URL: "postgresql://seo:Xk9d2realpw@postgres-main:5432/seo"\n')
         assert len(check_file(f)) >= 1
+
+    def test_dsn_real_world_weak_credentials_stay_flagged(self, tmp_path: Path) -> None:
+        """`example`/`dummy`/`todo` are REAL shipped credentials (POSTGRES_PASSWORD: example
+        is the canonical upstream compose default) — a credential-position match must flag."""
+        from scripts.enforcement.check_secrets import check_file
+
+        f = tmp_path / "spec.yaml"
+        for pw in ("example", "dummy", "TODO", "sample", "tbd"):
+            f.write_text(f'DATABASE_URL: "postgresql://seo:{pw}@postgres-main:5432/seo"\n')
+            assert len(check_file(f)) >= 1, f"real-world weak credential {pw!r} must stay flagged"
+
+    def test_dsn_at_sign_password_not_truncated(self, tmp_path: Path) -> None:
+        """A real password with `@` after a placeholder prefix must be judged in full."""
+        from scripts.enforcement.check_secrets import check_file
+
+        f = tmp_path / "spec.yaml"
+        f.write_text('DATABASE_URL: "postgresql://seo:placeholder@Xk9d2RealPw@postgres-main:5432/seo"\n')
+        assert len(check_file(f)) >= 1, "@-containing real password must not be exempted by its prefix"
+
+    def test_dsn_exemption_never_suppresses_other_patterns(self, tmp_path: Path) -> None:
+        """A placeholder DSN embedded in a longer secret-bearing literal must not suppress
+        the OTHER pattern's finding (the exemption is scoped to the DSN patterns only)."""
+        from scripts.enforcement.check_secrets import check_file
+
+        f = tmp_path / "settings.py"
+        f.write_text('password = "mysecretpassword123 (see postgresql://u:placeholder@h:5/db)"\n')
+        assert len(check_file(f)) >= 1, "hardcoded-credential finding must survive an embedded placeholder DSN"
 
     def test_allowed_lines_scopes_to_changed_lines(self, tmp_path: Path) -> None:
         """A secret on an UNTOUCHED line is dropped when allowed_lines is scoped.

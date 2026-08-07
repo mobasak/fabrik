@@ -9,7 +9,7 @@
 
 # Lesson 104: the first live dispatcher run — render placement, hook attribution, and the description-substance trap
 
-**Date:** 2026-08-07 · **Context:** `2026-08-07-plan-1-autotrigger-and-commands` — the first spine+ticket plan set executed end-to-end in dispatcher mode (10 units, 6 worktrees, 29 review rounds, one quota wall, two transient agent deaths, zero lost work).
+**Date:** 2026-08-07 · **Context:** `2026-08-07-plan-1-autotrigger-and-commands` — the first spine+ticket plan set executed end-to-end in dispatcher mode (10 units, 9 worktrees, 29 review rounds, one quota wall, two transient agent deaths, zero lost work).
 
 Four lessons with teeth:
 
@@ -19,11 +19,15 @@ Four lessons with teeth:
    coders run `--check`/temp renders only; the dispatcher renders once per merge commit from master
    (which also keeps the corpus pre-commit hook green at every merge).
 
-2. **Attribute gate failures by file, not check name.** `final_gate_stop.py` compared failing check
-   NAMES against the session baseline; a sibling agent's staged files flipped Doc Sync red mid-session
-   and the hook blocked THIS session — which could not fix it without violating the shared-tree
-   contract. Live 3/3-attempts trap. Fix (shipped `8136457b`): intersect the failing checks' output
-   text with the transcript-authored file set; disjoint → report as shared-tree cause, don't block.
+2. **Attribute gate failures by CITED PATH, not check name.** `final_gate_stop.py` compared failing
+   check NAMES against the session baseline; a sibling agent's staged files flipped Doc Sync red
+   mid-session and the hook blocked THIS session. The first fix (`8136457b`, whole-text substring
+   intersection) was itself defective — every session authors CHANGELOG.md and Doc Sync names it, so
+   the downgrade never fired in the very incident it was written for; and path-less outputs waved
+   through session-caused reds. The adversarial review caught both: attribution now extracts path
+   tokens from the NEW failures' own outputs only, compares normalized paths (substring ban), excludes
+   the routine governance names, filters pre-session transcript edits, and treats no-path evidence as
+   indeterminate (keep blocking to the cap).
    Same class, same day: `check_secrets` flagged a sibling spec's documented placeholder DSN — fixed in
    the checker (`_DSN_PLACEHOLDER_PW` + placeholder family, `804662d2`), never in the sibling's file.
 

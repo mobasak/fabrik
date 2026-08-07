@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -91,16 +92,17 @@ def _git_dirty(root: Path) -> bool:
     return bool(out.strip())
 
 
-def _run_gate(root: Path) -> tuple[bool, set[str], str]:
-    """Run final_gate --lean --check --json. Returns (passed, failing_check_names, failure_text).
+def _run_gate(root: Path) -> tuple[bool, set[str], dict[str, str]]:
+    """Run final_gate --lean --check --json. Returns (passed, failing_check_names, outputs).
 
-    failure_text is the concatenated output of the failing checks — used by the Stop
-    path to attribute a NEW failure to this session's files vs a sibling's shared-tree
-    dirt (a failing check that cites none of the session's files is not this session's
-    breakage to fix; blocking on it would force a shared-tree contract violation).
+    outputs maps each failing check name to its output text — used by the Stop path to
+    attribute a NEW failure to this session's files vs a sibling's shared-tree dirt.
+    Per-check (not concatenated) so attribution can scope to the NEW failures only:
+    an inherited baseline failure that happens to cite a session file must not
+    contaminate the verdict on an unrelated new one.
 
     Fail-open: a gate that can't run or whose output can't be parsed as a definitive
-    failure returns (True, empty, "") — we never block on an indeterminate result.
+    failure returns (True, empty, {}) — we never block on an indeterminate result.
     """
     venv_py = root / ".venv" / "bin" / "python"
     py = str(venv_py) if venv_py.exists() else sys.executable
@@ -112,19 +114,68 @@ def _run_gate(root: Path) -> tuple[bool, set[str], str]:
         timeout=110,
     )
     if proc.returncode == 0:
-        return True, set(), ""
+        return True, set(), {}
     try:
         data = json.loads(proc.stdout)
         if data.get("status") == "failure":
             fails = data.get("failures", [])
             names = {f.get("check", "?") for f in fails}
-            text = "\n".join(str(f.get("output", "")) for f in fails)
-            return False, names, text
+            outputs = {f.get("check", "?"): str(f.get("output") or "") for f in fails}
+            return False, names, outputs
     except Exception:
         pass
     # Non-zero but not a definitive parsed failure (crash, missing deps, etc.) →
     # fail-open: don't block on a gate we couldn't actually evaluate.
-    return True, set(), ""
+    return True, set(), {}
+
+
+# Path-shaped tokens in a failure output: something with a slash, or a dotted
+# filename. Attribution compares these as normalized relative paths — substring
+# matching is banned ('app.py' must never match inside 'data_app.py').
+_PATH_TOKEN = re.compile(r"[A-Za-z0-9_\-./]*/[A-Za-z0-9_\-./]+|[A-Za-z0-9_\-]+\.[A-Za-z0-9_]{1,8}")
+
+# Governance files EVERY session routinely writes (Completion Contract / Doc Sync
+# Matrix obligations). A failing check that cites ONLY these plus sibling files is
+# sibling-caused: the sibling's code change created the CHANGELOG/INDEX obligation,
+# and the session's own routine edits to these files must not claim the failure.
+_ROUTINE_GOVERNANCE = frozenset(
+    {"CHANGELOG.md", "INDEX.md", "PORTS.md", "docs/README.md", "docs/LESSONS_LEARNT.md"}
+)
+
+
+def _failure_cites_session(new_outputs: list[str], authored: dict[str, int], session_floor: float) -> bool | None:
+    """Attribute NEW gate failures to this session by cited path, or None if indeterminate.
+
+    Returns True (session-caused → block), False (sibling-caused → downgrade), or
+    None (no path-shaped evidence in any new failure's output → cannot attribute →
+    caller keeps the pre-attribution behavior, i.e. block up to the cap; the known
+    shared-tree false-positive checks all cite paths, so indeterminate is rare).
+
+    - Tokens are compared as normalized relative paths, never substrings: exact
+      match, cited-path suffix (`/opt/x/src/a.py` vs authored `src/a.py`), or
+      basename cite (`a.py` vs authored `src/a.py`).
+    - authored entries older than session_floor (the SessionStart baseline mtime)
+      are a resumed transcript's ancient edits, not this session's work (same
+      false-positive class the own_uncommitted timestamp guard kills).
+    - _ROUTINE_GOVERNANCE names never attribute on their own — every session
+      writes them, and Doc Sync failures cite the obligation doc by name even
+      when a SIBLING's code change created the obligation.
+    """
+    text = "\n".join(new_outputs)
+    tokens = {t.strip("./,:;)(\"'") for t in _PATH_TOKEN.findall(text)}
+    tokens = {t for t in tokens if t and ("." in t or "/" in t)}
+    if not tokens:
+        return None
+    candidates = {
+        rel
+        for rel, ts in authored.items()
+        if rel not in _ROUTINE_GOVERNANCE and (not ts or not session_floor or ts >= session_floor)
+    }
+    for t in tokens:
+        for rel in candidates:
+            if t == rel or t.endswith("/" + rel) or rel.endswith("/" + t):
+                return True
+    return False
 
 
 # Tools whose input.file_path marks a file THIS session authored/edited. Bash
@@ -272,13 +323,13 @@ def main(argv: list[str]) -> int:
         except Exception:
             return 0
 
-        _passed, failing, failure_text = _run_gate(root)
+        _passed, failing, gate_outputs = _run_gate(root)
         new_failures = failing - baseline
 
         # Session-authored files still uncommitted? (CLAUDE.md § EXIT: an
         # uncommitted task is an unfinished task.) Fail-open on any gap.
         own_uncommitted: set[str] = set()
-        authored: dict[str, float] = {}
+        authored: dict[str, int] = {}
         transcript = str(data.get("transcript_path") or "")
         if transcript:
             authored = _session_files(transcript, root)
@@ -293,20 +344,29 @@ def main(argv: list[str]) -> int:
                     continue
                 own_uncommitted.add(rel)
 
-        # Attribute NEW gate failures by FILE, not just check name: on shared master a
-        # sibling's staged/dirty files flip a check red mid-session, and check-name
-        # comparison alone pins it on this session — which then CANNOT fix it without
-        # violating the shared-tree contract (never commit/document/revert a sibling's
-        # WIP). If the failing checks' outputs cite NONE of this session's authored
-        # files, the breakage is not ours: report to stderr, don't block. Attribution
-        # runs only when we actually know the session's files (transcript present).
-        if new_failures and authored and failure_text:
-            if not any(rel in failure_text for rel in authored):
+        # Attribute NEW gate failures by CITED PATH, not just check name: on shared
+        # master a sibling's staged/dirty files flip a check red mid-session, and
+        # check-name comparison alone pins it on this session — which then CANNOT fix
+        # it without violating the shared-tree contract (never commit/document/revert
+        # a sibling's WIP). Attribution scopes to the NEW failures' own outputs only,
+        # compares normalized path tokens (never substrings), ignores the routine
+        # governance files every session writes, and treats a path-less output as
+        # INDETERMINATE (keep blocking up to the cap) rather than waving it through.
+        # Runs only when we actually know the session's files (transcript present).
+        if new_failures and authored:
+            session_floor = 0.0
+            try:
+                session_floor = baseline_file.stat().st_mtime
+            except OSError:
+                pass
+            new_outputs = [gate_outputs.get(n, "") for n in new_failures]
+            verdict = _failure_cites_session(new_outputs, authored, session_floor)
+            if verdict is False:
                 sys.stderr.write(
                     "final_gate has NEW failing check(s) "
-                    f"({', '.join(sorted(new_failures))}) but none cite a file this "
-                    "session authored — shared-tree cause (a sibling's uncommitted "
-                    "work); not blocking this session on it.\n"
+                    f"({', '.join(sorted(new_failures))}) whose cited paths include no "
+                    "file this session authored — shared-tree cause (a sibling's "
+                    "uncommitted work); not blocking this session on it.\n"
                 )
                 new_failures = set()
 

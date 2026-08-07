@@ -12,11 +12,13 @@
   "deferred_fixups": [
     {
       "target": "T02",
-      "item": "assemble_commands.py _emit_command must quote the command-md frontmatter description (like _emit_skill's _yaml_dq) \u2014 TRIGGER/Stage colons make unquoted plain scalars YAML-invalid in 8 rendered ~/.claude/commands files (T06a review F2, pre-existing class)"
+      "item": "assemble_commands.py _emit_command must quote the command-md frontmatter description (like _emit_skill's _yaml_dq) \u2014 TRIGGER/Stage colons make unquoted plain scalars YAML-invalid in 8 rendered ~/.claude/commands files (T06a review F2, pre-existing class)",
+      "resolution": "CLOSED at T02 merge 6bf2c8cc \u2014 _requote_command_description (strict str round-trip, T02 r2) + _emit_skill 1024 assert (T02 r3)"
     },
     {
       "target": "T99",
-      "item": "fabrik-decommission.md:37 sibling-domain example uses NXDOMAIN gatus/grafana.vps1 \u2014 replace with status.vps1 + verified-resolving pair (found by T03 review, file already merged)"
+      "item": "fabrik-decommission.md:37 sibling-domain example uses NXDOMAIN gatus/grafana.vps1 \u2014 replace with status.vps1 + verified-resolving pair (found by T03 review, file already merged)",
+      "resolution": "CLOSED post-merge at 3bffff89 \u2014 verified-resolving sibling controls + wildcard-DNS caveat"
     }
   ],
   "tickets": {

@@ -1,6 +1,6 @@
 # Plan: Auto-trigger stack + four missing commands
 
-Status: EXECUTED (execution dispatched 2026-08-07; converged at b44bf3250438 — 3 passes, 13 findings)
+Status: EXECUTED (execution dispatched 2026-08-07; plan-review convergence proven by md5 no-op b44bf3250438 (a FILE-CONTENT hash, not a commit) — 3 passes, 13 findings)
 Whole-plan validation: `docs/development/reviews/2026-08-07-plan-1-autotrigger-and-commands-review.md` (D7 CLEAN, found: 0; Tier-2 gate success embedded).
 
 Skill auto-triggering (TRIGGER-sharpened descriptions, Stage taxonomy, Orient routing, a
@@ -25,6 +25,12 @@ both from one source — verified 20/20 at HEAD incl. the non-prefixed `design-r
 | T07 | Orient step-0 routing rule | — | ⚡ | ✅ | merged b1b5500c (2 Opus rounds + r3) |
 | T08 | Stage-skip artifact gates | — | ⚡ | ✅ | merged d0547117 (2 Opus rounds + mutation-verified r3, 32 tests) |
 | T99 | Integration: parity, receipts, whole-plan gates | T01, T02, T03, T04, T05, T06a, T06b, T07, T08 | ⛓️ | ✅ | integration complete: seams PASS, Tier-2 44/0, receipts filed |
+
+
+> Board `merged <hash>` values are WORKTREE BRANCH TIPS (kept alive by their branches; not
+> reachable from master). The on-master squash commits are: T01 c629870e · T02 6bf2c8cc ·
+> T03 291c4cea · T04 4c5f1f61 · T05 8e11cc5a · T06a ac8226f4 · T06b 6ca63bad · T07 babd029d ·
+> T08 19235bc4 (also tabulated in docs/reference/receipts-2026-08-07-autotrigger.md).
 
 ## Merge Order
 

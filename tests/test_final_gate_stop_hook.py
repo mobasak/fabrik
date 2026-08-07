@@ -172,36 +172,40 @@ fails = [f for f in os.environ.get("FAKE_FAILS", "").split(",") if f]
 if not fails:
     print(json.dumps({"status": "success", "failures": []})); sys.exit(0)
 out = os.environ.get("FAKE_FAIL_OUTPUT", "")
-print(json.dumps({"status": "failure", "failures": [{"check": c, "output": out} for c in fails]}))
+per = json.loads(os.environ.get("FAKE_FAIL_OUTPUTS", "{}"))  # per-check override
+print(json.dumps({"status": "failure", "failures": [{"check": c, "output": per.get(c, out)} for c in fails]}))
 sys.exit(1)
 """
 
 
 def _run_stop_with_transcript(
-    project: Path, sid: str, fake_fails: str, fail_output: str, authored_file: str, *, baseline: list[str]
+    project: Path, sid: str, fake_fails: str, fail_output: str, authored_file: str, *, baseline: list[str],
+    extra_authored: list[str] | None = None, per_check_outputs: dict[str, str] | None = None,
 ) -> str:
-    """Stop-hook run with a transcript naming one session-authored (committed) file."""
+    """Stop-hook run with a transcript naming session-authored (committed) file(s)."""
     (project / "scripts" / "final_gate.py").write_text(_FAKE_GATE_WITH_OUTPUT)
-    authored_path = project / authored_file
-    authored_path.parent.mkdir(parents=True, exist_ok=True)
-    authored_path.write_text("session work")
-    subprocess.run(["git", "add", authored_file], cwd=project, check=True, timeout=15)
+    authored_all = [authored_file, *(extra_authored or [])]
+    lines = []
+    for af in authored_all:
+        ap = project / af
+        ap.parent.mkdir(parents=True, exist_ok=True)
+        ap.write_text("session work")
+        lines.append(json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": str(ap)}}
+        ]}}))
+    subprocess.run(["git", "add", *authored_all], cwd=project, check=True, timeout=15)
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "session work"],
         cwd=project, check=True, timeout=15,
     )
     transcript = project / "transcript.jsonl"
-    transcript.write_text(
-        json.dumps({"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "name": "Edit", "input": {"file_path": str(authored_path)}}
-        ]}}) + "\n",
-        encoding="utf-8",
-    )
+    transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
     bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
     ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
     ctr.unlink(missing_ok=True)
     bl.write_text(json.dumps(baseline))
-    env = {**os.environ, "FAKE_FAILS": fake_fails, "FAKE_FAIL_OUTPUT": fail_output}
+    env = {**os.environ, "FAKE_FAILS": fake_fails, "FAKE_FAIL_OUTPUT": fail_output,
+           "FAKE_FAIL_OUTPUTS": json.dumps(per_check_outputs or {})}
     proc = subprocess.run(
         [sys.executable, str(_HOOK)],
         input=json.dumps({
@@ -234,6 +238,89 @@ def test_new_failure_citing_session_file_still_blocks(fake_project: Path) -> Non
     )
     assert out, "session-caused new failure must still block"
     assert json.loads(out)["decision"] == "block"
+
+
+def test_routine_governance_cite_alone_does_not_attribute(fake_project: Path) -> None:
+    # THE live incident: every session authors CHANGELOG.md, and Doc Sync's output names
+    # it even when a SIBLING's code change created the obligation. A failure citing only
+    # CHANGELOG.md + sibling files must NOT attribute to a session that authored
+    # CHANGELOG.md (plus unrelated work).
+    out = _run_stop_with_transcript(
+        fake_project, "s_govonly", "DocSync",
+        "CHANGELOG.md not updated for 1 significant code/infra change(s) (e.g. src/sibling/thing.py).",
+        "mine/session_file.py", baseline=[], extra_authored=["CHANGELOG.md"],
+    )
+    assert out == "", f"governance-name cite alone must not attribute, got: {out}"
+
+
+def test_pathless_output_is_indeterminate_and_blocks(fake_project: Path) -> None:
+    # A NEW failure whose output cites no path at all cannot be attributed — the hook
+    # must NOT wave it through (the fail-open hole): keep blocking up to the cap.
+    out = _run_stop_with_transcript(
+        fake_project, "s_pathless", "shapeCheck",
+        "0 rows matched the expected shape",
+        "mine/session_file.py", baseline=[],
+    )
+    assert out, "path-less new failure is indeterminate and must block"
+
+
+def test_two_empty_outputs_still_block(fake_project: Path) -> None:
+    # Two failures with empty outputs used to make the joined text truthy ("\n") and
+    # skip the guard; count must not change the verdict — still indeterminate → block.
+    out = _run_stop_with_transcript(
+        fake_project, "s_twoempty", "checkA,checkB", "",
+        "mine/session_file.py", baseline=[],
+    )
+    assert out, "empty outputs are indeterminate regardless of failure count"
+
+
+def test_inherited_failure_output_does_not_contaminate_attribution(fake_project: Path) -> None:
+    # Baseline failure cites the session's file; the NEW failure cites only a sibling's.
+    # Attribution must scope to the NEW failure's output → downgrade (allow).
+    out = _run_stop_with_transcript(
+        fake_project, "s_contam", "inheritedCheck,newCheck", "",
+        "mine/session_file.py", baseline=["inheritedCheck"],
+        per_check_outputs={
+            "inheritedCheck": "old debt in mine/session_file.py",
+            "newCheck": "sibling broke src/sibling/x.py",
+        },
+    )
+    assert out == "", f"inherited output must not contaminate NEW-failure attribution, got: {out}"
+
+
+def test_substring_cite_does_not_attribute(fake_project: Path) -> None:
+    # Cited data_app.py must not match authored app.py (substring ban) → downgrade.
+    out = _run_stop_with_transcript(
+        fake_project, "s_substr", "lintCheck",
+        "syntax error in src/data_app.py line 3",
+        "app.py", baseline=[],
+    )
+    assert out == "", f"substring collision must not attribute, got: {out}"
+
+
+def test_abs_path_cite_still_attributes(fake_project: Path) -> None:
+    # A failure citing the session file by ABSOLUTE path still attributes (suffix match).
+    out = _run_stop_with_transcript(
+        fake_project, "s_abs", "lintCheck",
+        "error at /opt/whatever/checkout/mine/session_file.py:3",
+        "mine/session_file.py", baseline=[],
+    )
+    assert out, "absolute-path cite of a session file must still block"
+
+
+def test_pre_session_edit_does_not_attribute() -> None:
+    # A resumed transcript's weeks-old edit (ts far below the SessionStart baseline
+    # floor) must not attribute today's failure to this session.
+    old_edit = {"july/old_file.py": 1_700_000_000}  # far in the past
+    verdict = hook._failure_cites_session(
+        ["error in july/old_file.py"], old_edit, session_floor=1_786_000_000.0
+    )
+    assert verdict is False, "pre-session edits must not attribute"
+    fresh_edit = {"july/old_file.py": 1_786_000_500}
+    verdict2 = hook._failure_cites_session(
+        ["error in july/old_file.py"], fresh_edit, session_floor=1_786_000_000.0
+    )
+    assert verdict2 is True, "in-session edits must attribute"
 
 
 def test_session_files_parses_edit_tools_and_scopes_to_root(tmp_path: Path) -> None:

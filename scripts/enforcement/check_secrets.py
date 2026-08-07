@@ -80,11 +80,21 @@ _PLACEHOLDER_VALUES = re.compile(
 # A backtick-wrapped example DSN in a reference doc is the #1 secrets false positive;
 # the quote-anchored _PLACEHOLDER_VALUES check above never sees it (backticks ≠ quotes).
 # A real hardcoded password (`admin:Xk9d2@`) does NOT match — only literal placeholders do.
+# Deliberately NARROWER than _PLACEHOLDER_VALUES: `example`/`sample`/`dummy`/`todo`/
+# `tbd` are real shipped weak credentials (`POSTGRES_PASSWORD: example` is the
+# canonical upstream compose default) — exempting them in a CREDENTIAL position
+# would hide genuinely deployed secrets. Only tokens that virtually never appear
+# as real deployed passwords qualify here.
 _DSN_PLACEHOLDER_PW = re.compile(
     r"^(?:pass|passwd|password|pwd|pw|secret|your[-_]?password"
-    r"|change[-_]?me|replace[-_]?me|placeholder|redacted|dummy|example|sample|todo|tbd)$",
+    r"|change[-_]?me|replace[-_]?me|placeholder|redacted)$",
     re.I,
 )
+
+# Pattern descriptions the DSN-credential exemption may apply to. Applying it to
+# every SECRET_PATTERNS match lets a placeholder DSN embedded in a longer literal
+# suppress a REAL secret elsewhere in the same match.
+_DSN_PATTERN_DESCS = frozenset({"DB URL with password", "MongoDB URL with password"})
 
 
 def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[CheckResult]:
@@ -134,10 +144,18 @@ def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[C
             if value and _PLACEHOLDER_VALUES.match(value.group(1).strip()):
                 continue
             # DSN example with a placeholder credential (`://user:pass@`) — a doc
-            # connection-string template, not a hardcoded secret.
-            dsn_pw = re.search(r"://[^:@\s]+:([^@\s]+)@", secret)
-            if dsn_pw and _DSN_PLACEHOLDER_PW.match(dsn_pw.group(1).strip()):
-                continue
+            # connection-string template, not a hardcoded secret. Scoped to the DSN
+            # patterns ONLY (never suppresses another pattern's whole match), and the
+            # credential is captured GREEDILY to the last `@` before the host so a
+            # real password containing `@` after a placeholder prefix
+            # (`tbd@ReallySecret@host`) is judged in full, not truncated.
+            if desc in _DSN_PATTERN_DESCS:
+                # The pattern match ends at the first `@`; extract from the full LINE
+                # so the credential runs greedily to the last `@` before the host.
+                line_text = lines[line_num - 1] if line_num <= len(lines) else secret
+                dsn_pw = re.search(r"://[^:@\s]+:(.+)@[^@\s/]+", line_text)
+                if dsn_pw and _DSN_PLACEHOLDER_PW.match(dsn_pw.group(1).strip()):
+                    continue
             masked = secret[:4] + "..." + secret[-4:] if len(secret) > 8 else "***"
             results.append(
                 CheckResult(

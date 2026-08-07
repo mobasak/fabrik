@@ -38,8 +38,7 @@ python scripts/enforcement/check_doc_stubs.py --range 3c9e2fad..HEAD  → rc=0
   available ON a match in both surfaces.
 - Deferred fixups closed at integration: decommission's sibling-domain example now prescribes
   verified-resolving controls + the wildcard-DNS caveat (`3bffff89`); the assembler YAML-requote fix
-  (T02 fold-in) covers all 24 rendered frontmatters (44/44 parse to byte-equal strings, proven at T02
-  round 2).
+  (T02 fold-in) covers all rendered frontmatters — 24 commands + 24 skills, 48/48 parse with byte-equal string descriptions (proven at T02 round 2 and re-verified at this review).
 
 ## Gates (run at integration HEAD, this session)
 

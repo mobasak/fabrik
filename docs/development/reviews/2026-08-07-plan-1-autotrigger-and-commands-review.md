@@ -4,7 +4,25 @@ D7 final validation of the spine+ticket set `docs/development/plans/2026-08-07-p
 run by the dispatching session (Fable substituting the Opus decide seat per the plan's quota provision) after
 all 10 Board units merged. Baseline `3c9e2fad` → validated HEAD `63a1d2df`.
 
-## Verdict: CLEAN — found: 0, fixed: 0
+## Verdict (amended after adversarial post-validation): gates-clean; the post-hoc adversarial round found orchestrator-surface defects, all fixed
+
+The original D7 pass validated via GATES (Tier-2 44/0, check_convergence, seam battery, doc receipts)
+plus the dispatcher's own assertion — the dispatcher-contract's pool-finder floor for D7 did NOT run at
+validation time, and the original "found: 0, fixed: 0" framing overstated accordingly. The adversarial
+round ran post-hoc as `/fabrik-review` over the orchestrator's own surface
+(`docs/development/reviews/2026-08-07-orchestrator-work-review.md`: pool×4 + native Opus with executed
+probes) and found real defects in the ORCHESTRATOR-authored code (the stop-hook attribution fix and the
+check_secrets exemption — both reworked with red-on-revert tests) and in these governance docs
+(corrected in the same batch). The TICKET deliverables' own review rounds (29, per-ticket, native-Opus
+floor) stand as recorded; no ticket-deliverable defect was found by the post-validation round.
+
+Also in the validated range (not D7 findings, disclosed for completeness): three corrective commits
+landed between baseline and validated HEAD — `3bffff89` (decommission sibling-domain example),
+`804662d2` (check_secrets placeholder DSN, superseded by the rework), `8136457b` (stop-hook
+attribution, superseded by the rework). The embedded gate JSON below is the verbatim run at
+`63a1d2df`, accurate for that tree state; a re-run after the post-validation fix batch showed 43/1
+with the single failure being a concurrent sibling session's live seo spec↔project DB-name drift
+(sibling-owned staged files; per the shared-tree contract, reported, not fixed here).
 
 Every ticket exited its per-ticket review loop on a 0-findings native-Opus round or a
 dispatcher-adjudicated surgical diff after ≥2 full native-Opus rounds (per-round evidence in the lock
