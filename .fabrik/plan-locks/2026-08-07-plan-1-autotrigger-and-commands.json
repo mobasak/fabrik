@@ -155,6 +155,17 @@
       "final_worktree_commit": "71ddb668",
       "review_rounds": 2,
       "exit": "dispatcher-adjudicated on one-clause r3 after full Opus round + verified r2"
+    },
+    "T04": {
+      "state": "dispatched",
+      "base_commit": "291c4cea",
+      "started_at": "2026-08-07T19:20:00Z"
+    },
+    "T06b": {
+      "state": "dispatched",
+      "base_commit": "291c4cea",
+      "started_at": "2026-08-07T19:20:00Z",
+      "note": "fabrik-release description-line only (body already T03-edited)"
     }
   }
 }
