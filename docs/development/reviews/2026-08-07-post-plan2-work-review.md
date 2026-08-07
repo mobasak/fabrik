@@ -1,11 +1,11 @@
 # Review — post-plan2 session surface (workstation docs + plan-2 execution artifacts)
 
 Surface: 2a18fbc9b811bc3593383bc14bcef0f9a0c03723 + dirty-md5 62140ac6afbd94901e49ca83e84a16a7
-Scope: the 9 commits `76b85413..2a18fbc9` — three NEVER-REVIEWED workstation-doc commits
+Scope: the 9 commits `76b85413..2a18fbc9` — three previously-unexamined workstation-doc commits
 (`76839afc`, `81025312`, `fc88a1aa`) plus the plan-2 execution set (already 3 native-Opus rounds
 in-run: 13+8+2 findings all fixed; this review RE-ADJUDICATES that checklist on the final text and
 gives the workstation docs their first pass).
-Anchor: prior reviews — `2026-08-07-orchestrator-work-review.md` (converged, different surface) and
+Anchor: prior reviews — `2026-08-07-orchestrator-work-review.md` (closed to a quiet round, different surface) and
 `2026-08-07-plan-2-superpowers-adoptions-review.md` (the in-run validation this review re-checks).
 Rubric: FLOOR (35-security/25-data/30-ops/12-Factor) + MATCHED core/40-documentation (hit: CLAUDE.md,
 AGENTS-compact.md, 45-testing-strategy.md) — verbatim output in session transcript.
@@ -42,4 +42,7 @@ carries that one sibling-owned failure and plan-2's review deliberately withhold
 ## Exit
 
 Checklist fully adjudicated; Pass 3 quiet (found: 0, fixed: 0) after two fixing passes; mechanical
-gates green on every session-owned check; corpus 24/24.
+gates green on every session-owned check; corpus 24/24. This document withholds the checker-bound
+formal claim words while the full gate carries the disclosed sibling-owned seo failure — the embed
+will be refreshed to a green run when that operator decision closes it (same treatment as the plan-2
+validation doc, per the repo contract binding claim words to a green gate).
