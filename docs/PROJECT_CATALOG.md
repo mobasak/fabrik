@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 50 -->
+<!-- Total projects: 49 -->
 
 ### Production Services (4 projects)
 
@@ -16,7 +16,7 @@
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (28 projects)
+### Active Development (27 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -47,7 +47,6 @@
 | **tryton-crm** | FastAPI bridge to Tryton CRM via proteus RPC - shared CRM system-of-record for trade-intelligen... | FastAPI | 🔨 Development | - | ✅ Current |
 | **web-ecommerce-factory** | AI web-agency control plane: multi-tenant chat SaaS (login to chat to agent scoped to a custome... | Python | 🔨 Development | - | ✅ Current |
 | **whatsapp-agent** | WhatsApp channel agent for the tryton-crm bridge: FastAPI middleware (M2M to the CRM hub) + sel... | FastAPI | 🔨 Development | - | ✅ Current |
-| **wpf** | WordPress Factory — Python orchestrator (CLI now, FastAPI in Phase 3, Next.js wizard in Phase 4... | Python | 🔨 Development | - | ✅ Current |
 
 ### Planning/Research (15 projects)
 
@@ -76,7 +75,7 @@
 | **Traycer** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
 | **microsoft** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
 
-### Other (non-standard category — fix the project.yaml) (1 projects)
+### Other (non-standard category — fix the project.yaml) (1 project)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|

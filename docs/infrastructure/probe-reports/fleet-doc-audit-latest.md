@@ -1,6 +1,6 @@
 # Fleet doc-freshness audit — 2026-08-07
 
-Projects scanned: 45 · flagged: 39 · clean: 6
+Projects scanned: 44 · flagged: 38 · clean: 6
 
 Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 `/fabrik-docs-review` or `/fabrik-doc-converge <doc>` run IN the flagged project.
@@ -26,14 +26,13 @@ Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 | transdoc | 0d | SERVICES.md (17d), RESILIENCE.md (17d), CONFIGURATION.md (17d), FEATURES.md (17d) | — | docs/DEPLOYMENT.md |
 | triggered-content-orchestration | 0d | SERVICES.md (untracked), CONFIGURATION.md (71d), DEPLOYMENT.md (71d), FEATURES.md (25d) | — | docs/RESILIENCE.md |
 | web-scraper | 0d | SERVICES.md (untracked), CONFIGURATION.md (75d), DEPLOYMENT.md (75d), FEATURES.md (25d) | — | docs/RESILIENCE.md |
-| wpf | 0d | SERVICES.md (untracked), RESILIENCE.md (49d), CONFIGURATION.md (58d), DEPLOYMENT.md (58d), FEATURES.md (49d) | — | — |
 | fabrik-citation-verifier | 0d | CONFIGURATION.md (74d), DEPLOYMENT.md (74d), FEATURES.md (74d) | — | docs/RESILIENCE.md |
 | job-agent | 0d | CONFIGURATION.md (136d), FEATURES.md (73d) | — | docs/RESILIENCE.md, docs/DEPLOYMENT.md |
 | longephedia-vault | 0d | CONFIGURATION.md (79d), FEATURES.md (79d) | — | docs/RESILIENCE.md, docs/DEPLOYMENT.md |
 | site-provisioner | 0d | SERVICES.md (47d), DEPLOYMENT.md (109d) | — | docs/RESILIENCE.md |
 | trading-core | 0d | FEATURES.md (73d) | — | docs/RESILIENCE.md, docs/DEPLOYMENT.md |
 | calendar-orchestration-engine | 0d | DEPLOYMENT.md (24d), FEATURES.md (21d) | — | — |
-| iterative_image_editor | 0d | SERVICES.md (23d) | — | docs/DEPLOYMENT.md |
+| iterative_image_editor | 0d | SERVICES.md (26d) | — | docs/DEPLOYMENT.md |
 | test-saas-platform | 0d | SERVICES.md (untracked) | — | docs/DEPLOYMENT.md |
 | trade-intelligence | 0d | SERVICES.md (16d) | — | docs/DEPLOYMENT.md |
 | ai-model-catalog | 0d | — | — | docs/DEPLOYMENT.md |

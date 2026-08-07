@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-08-07 10:14:44 -->
+<!-- Last synced: 2026-08-07 13:15:10 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -117,7 +117,7 @@ If you encounter a port conflict:
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **session-recall** | python-api | /opt/session-recall |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
-| 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
+| 8022 | **trade-intelligence** | saas-skeleton | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |

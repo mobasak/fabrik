@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — wpf retired and archived (2026-08-07)
+
+Operator decision: the wpf (WordPress) project is retired — moved `/opt/wpf` → `/opt/archived/wpf`
+(8 uncommitted files preserved; its files are never to be updated). Hub side: `fleet_doc_audit.py`
+gains an operator-declared `RETIRED` exclusion set (wpf), the catalog regenerated without it
+(49 projects), audit re-run: 44 scanned / 38 flagged. The `wordpress`-type routing strings in
+`src/fabrik/` now point at a moved path — the whole wordpress surface is legacy pending an
+operator decision on the scaffold type.
+
 ### Fixed — day-review of 2026-08-07's work: 12 findings, fleet auditor hardened (2026-08-07)
 
 /fabrik-review over the day's six batches (12 findings, 2 rounds → found:0). The unreviewed last
