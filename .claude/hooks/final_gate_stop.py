@@ -58,6 +58,15 @@ def decide(
     """
     if not git_dirty:
         return "allow", 0, 0  # nothing changed → nothing to gate
+    # A cause's counter RESETS the moment that cause stops being true — a stale
+    # count must never carry into an unrelated future streak of the same cause
+    # (review finding: a resolved gate streak's persisted 3 waved a brand-new
+    # regression through on its FIRST stop). A still-true cause keeps its count
+    # across interleaves (the streak genuinely continues).
+    if not has_new_failures:
+        gate_attempts = 0
+    if not own_uncommitted:
+        commit_attempts = 0
     if has_new_failures:
         gate_attempts += 1
         if gate_attempts > cap:

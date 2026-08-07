@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — commit-enforcement pass 3: stale counter carryover (2026-08-07)
+
+A resolved cause's anti-trap counter persisted across stops where that cause wasn't firing, then
+reattached to the next unrelated streak — a brand-new gate regression could be waved through with
+only a warning on its FIRST stop (reproduced). Rule now: a cause's counter resets the moment that
+cause stops being true; a still-true cause keeps its count across interleaves. +1 repro test +
+strengthened starvation assert (hook suite 22 green).
+
 ### Fixed — commit-enforcement pass 2: the missed HARD STOPS row + truthful cap warnings (2026-08-07)
 
 Confirming round raised 2: (1) AGENTS-compact.md's HARD STOPS table row still taught the retired

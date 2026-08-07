@@ -255,9 +255,24 @@ def test_gate_cap_exhaustion_does_not_starve_commit_block() -> None:
     for _ in range(3):
         action, ga, ca = hook.decide(True, True, ga, own_uncommitted=True, commit_attempts=ca)
         assert action == "block"
-    # gate now green; commit check must still get its own full CAP
+    # gate now green; commit check must still get its own full CAP — AND the
+    # resolved gate streak's counter must RESET (stale carryover waved a new
+    # regression through on its first stop; pass-3 finding).
     action, ga, ca = hook.decide(True, False, ga, own_uncommitted=True, commit_attempts=ca)
-    assert action == "block_commit" and ca == 1
+    assert action == "block_commit" and ca == 1 and ga == 0
+
+
+def test_resolved_streak_counter_never_waves_a_new_streak_through() -> None:
+    # Pass-3 repro: failure A blocked 3x -> resolved -> commit-block interleave ->
+    # brand-new failure B must be BLOCKED on its first stop, not allow_warn'd.
+    ga, ca = 0, 0
+    for _ in range(3):
+        action, ga, ca = hook.decide(True, True, ga, commit_attempts=ca)
+        assert action == "block"
+    action, ga, ca = hook.decide(True, False, ga, own_uncommitted=True, commit_attempts=ca)
+    assert action == "block_commit" and ga == 0
+    action, ga, ca = hook.decide(True, True, ga, commit_attempts=ca)  # NEW streak B
+    assert action == "block" and ga == 1  # blocked, never waved through
 
 
 def test_commit_cap_exhaustion_does_not_mask_new_gate_failure() -> None:
