@@ -42,6 +42,7 @@ NEXT = {
     "fabrik-plan-review": "/fabrik-execute-plan — build it, phase by phase.",
     "fabrik-execute-plan": "end-to-end certification: /fabrik-user-test (UI-bearing types) · /fabrik-service-test (headless types).",
     "fabrik-features": "/fabrik-user-test (UI-bearing) · /fabrik-service-test (headless) — certify against the now-complete denominator.",
+    "fabrik-doc-converge": "the workflow that called it, or /fabrik-docs-review for the whole-tree sweep (this was the single-doc deep converge).",
     "fabrik-user-test": "/fabrik-release once green — but hand off any backend/logic defects to the owning /fabrik-review or plan first.",
     "fabrik-service-test": "/fabrik-release once green — but hand off any out-of-service defects to the owning /fabrik-review or plan first.",
     "fabrik-release": "Gate 2 — human approval. Terminal: no agent deploys, submits, or publishes past here.",
@@ -173,6 +174,15 @@ PARAMS = {
                         "RESOLVE_FROM": "the spec, the data contract, the surface pack, the design system, or an obvious convention",
                         "NEVER_FOR": "a screen name, a route string, an icon choice, or a component selection the design system already dictates",
                         "DO_RAISE": "a genuine flow with two defensible IA structures, a primary task with no clear entry point, or a screen that needs a field the data contract doesn't have"},
+    },
+    "fabrik-doc-converge": {
+        "term-edit": {"ARTIFACT": "doc", "DONE_ACT": "declare the doc CONVERGED (bump `Last Updated:`)", "DONE_WORD": "CONVERGED",
+                      "AXES": "ground-truth coverage · claim grounding · contract completeness · shape/ripples",
+                      "EXEMPT_NOTE": " (The final `Last Updated:` date bump is a post-convergence action, exempt — it does not re-open the loop.)"},
+        "grounding-artifact": {"SUBJECT": "doc claim", "EXAMPLES": "a SERVICES block citing a deleted call-site, a documented env var no code reads, a §7 job row whose scheduler entry is gone, a runbook command that errors on the current tree"},
+        "subagents-core": {"HEADLINE": "pool-default for the gradeable ground-truth sweep (records to the flywheel)", "TASK_TYPE": '"docs"', "PROJECT": "doc-converge",
+                           "FLOOR": _floor("sweep", "`fabrik-reviewer`"),
+                           "EXTRA": " One pool grounder per ground-truth surface from the doc's contract row (e.g. SERVICES: compose services · external call-sites · env keys), mode=\"read_only\" with the surface's code inlined; YOU merge, refute, and write the doc."},
     },
     "fabrik-features": {
         "term-edit": {"ARTIFACT": "feature inventory", "DONE_ACT": "declare the inventory CONVERGED (bump `Last Updated:`)", "DONE_WORD": "CONVERGED",

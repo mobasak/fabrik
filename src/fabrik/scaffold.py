@@ -268,6 +268,7 @@ SHARED_TEMPLATE_MAP = {
     "docs/SERVICES_TEMPLATE.md": "docs/SERVICES.md",
     "docs/RESILIENCE_TEMPLATE.md": "docs/RESILIENCE.md",
     "docs/OPERATIONS_TEMPLATE.md": "docs/OPERATIONS.md",
+    "docs/DEPLOYMENT_TEMPLATE.md": "docs/DEPLOYMENT.md",  # deployed bucket (registry-gated)
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
     "docs/FEATURES_TEMPLATE.md": "docs/FEATURES.md",
     "docs/STRATEGIC_BACKLOG_TEMPLATE.md": "docs/STRATEGIC_BACKLOG.md",

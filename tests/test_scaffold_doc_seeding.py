@@ -213,3 +213,12 @@ def test_data_leak_guard_generalizes_to_bucket():
     assert scaffold._should_seed_doc(fake_reg, "python-api", "docs/metrics-contract.md") is True
     # and the real registry's data-contract is guarded for docusaurus too
     assert scaffold._should_seed_doc(reg, "docusaurus", "docs/data-contract.md") is False
+
+
+def test_deployment_doc_is_in_the_template_map_and_gated_to_deployed():
+    # Template-wave regression (2026-08-07): the registry declared docs/DEPLOYMENT.md
+    # (deployed bucket) but SHARED_TEMPLATE_MAP never carried the template — seeding
+    # iterates the MAP, so the doc was silently never seeded for any type.
+    assert scaffold.SHARED_TEMPLATE_MAP.get("docs/DEPLOYMENT_TEMPLATE.md") == "docs/DEPLOYMENT.md"
+    assert scaffold._type_seeds_doc(reg, "python-api", "docs/DEPLOYMENT.md")
+    assert not scaffold._type_seeds_doc(reg, "chrome-extension", "docs/DEPLOYMENT.md")

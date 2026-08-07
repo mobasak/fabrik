@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-doc-converge: per-doc deep convergence (the /fabrik-features loop generalized) (2026-08-07)
+
+New command `commands/_sources/fabrik-doc-converge.md`: converge ONE agent-filled project doc to the
+verifiable truth of the codebase, driven by a 12-row Convergence Contract table (per doc: the
+ground-truth surfaces to sweep and the bidirectional "complete when" clause) — SERVICES (incl.
+AI/`claude -p` dependency blocks), RESILIENCE (§7 jobs vs scheduler code), CONFIGURATION (getenv ↔
+.env.example ↔ doc), OPERATIONS, QUICKSTART (execute the 5-minute path), DEPLOYMENT (spec-inspection
+only — never a hub-side `fabrik` shell-out from a project), TROUBLESHOOTING, INDEX.md, docs/README,
+README, BUSINESS_MODEL, STRATEGIC_BACKLOG. FEATURES/data-contract/ui-design keep their dedicated
+commands; CHANGELOG/LESSONS/AFCL (append ledgers) and PORTS.md (per-allocation registry) are
+excluded by design. Same termination contract as /fabrik-features (edit-free md5-verified no-op),
+pool-default sweep grounders + native adjudication. 2-round review to found:0 (3 findings fixed).
+Also fixed: `scaffold.py` SHARED_TEMPLATE_MAP never seeded `DEPLOYMENT_TEMPLATE.md` despite the
+registry's deployed-bucket row — the doc was silently never seeded for any type (+1 discriminating
+test, seeding suite 11 green).
+
 ### Changed — scaffold doc templates hardened to their consumer contracts (17 files, 6-round review) (2026-08-07)
 
 All 17 templates under `templates/scaffold/docs/` audited against what actually reads each seeded
