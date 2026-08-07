@@ -137,7 +137,14 @@ prom_check "$_q" && ANOMALIES+="oom_kill[$(prom_hosts "$_q")] "
 _q='predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h],7*86400)<0'
 prom_check "$_q" && ANOMALIES+="disk_prediction_7d[$(prom_hosts "$_q")] "
 
-_q='up==0'
+# SUSTAINED down, not an instantaneous blip. The spoke targets are scraped from LA across the
+# transatlantic WireGuard mesh (~133 ms base, measured scrape durations 0.15–2.7 s with congestion
+# spikes), so a bare `up==0` fires on a single slow scrape — 2026-08-07 saw target_down[vps2]/[vps3]
+# alerts while every target was actually up and TCP scrapes ran 6/6. `max_over_time(up[10m])==0`
+# means the target was NEVER up across 10 minutes = genuinely down, not mesh jitter. (NOT
+# min_over_time — that matches "down at least once", i.e. MORE flap-sensitive; empirically 7 hits
+# vs 0 for max_over_time on a healthy fleet.)
+_q='max_over_time(up[10m])==0'
 prom_check "$_q" && ANOMALIES+="target_down[$(prom_hosts "$_q")] "
 
 # Log pipeline dead (Loki receiving no lines = Promtail or pipeline broken)
@@ -207,13 +214,32 @@ if command -v docker >/dev/null 2>&1 && sudo docker ps --format '{{.Names}}' 2>/
         STALE_THRESHOLD=$((36 * 3600))
         NOW_EPOCH=$(date +%s)
         for plan in $BACKUP_PLANS; do
-            LATEST=$(sudo docker exec -e RESTIC_PASSWORD="$RESTIC_PW" backrest /bin/restic \
+            # Classify TRANSPORT failure apart from "genuinely no snapshots". The restic call can
+            # fail transiently (B2 blip, repo lock held by a running backup/prune, container busy)
+            # — the old code swallowed stderr and read an empty result as backup_missing, crying
+            # wolf about backups that were fine (live false-positive: backup_missing[vps2:host-state]
+            # 2026-08-07 03:00 while host-state had snapshotted at 02:00). A backup alert that
+            # cries wolf is worse than none: it trains the operator to ignore the real one.
+            RESTIC_OUT=$(sudo docker exec -e RESTIC_PASSWORD="$RESTIC_PW" backrest /bin/restic \
                 -r "$RESTIC_REPO" \
-                snapshots --tag plan:${plan} --last --json 2>/dev/null \
-                | python3 -c "import json,sys
-d=json.load(sys.stdin)
-print(d[-1]['time'] if d else '')" 2>/dev/null)
-            if [ -z "$LATEST" ]; then
+                snapshots --tag plan:${plan} --last --json 2>/dev/null)
+            RESTIC_RC=$?
+            if [ "$RESTIC_RC" -ne 0 ]; then
+                # Couldn't ask — say THAT, don't claim the backup is missing.
+                ANOMALIES+="backup_check_failed[${HOST_TAG}:${plan}:rc${RESTIC_RC}] "
+                continue
+            fi
+            LATEST=$(printf '%s' "$RESTIC_OUT" | python3 -c "import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    sys.exit(3)          # unparseable → transport/format problem, NOT 'no snapshots'
+print(d[-1]['time'] if d else '')")
+            PARSE_RC=$?
+            if [ "$PARSE_RC" -ne 0 ]; then
+                ANOMALIES+="backup_check_failed[${HOST_TAG}:${plan}:parse] "
+            elif [ -z "$LATEST" ]; then
+                # Valid, EMPTY snapshot list — the repo genuinely holds no snapshot for this plan.
                 ANOMALIES+="backup_missing[${HOST_TAG}:${plan}] "
             else
                 LATEST_EPOCH=$(date -d "$LATEST" +%s 2>/dev/null || echo 0)

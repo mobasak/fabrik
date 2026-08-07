@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — proactive-check: two false-alarm sources (backup + target_down) (2026-08-07)
+
+Investigating the fleet's Telegram traffic surfaced two alerts that were crying wolf. (1)
+`backup_missing[host:plan]` could not distinguish "the repo genuinely has no snapshot" from "the restic
+query FAILED" (B2 blip, repo lock held by a running backup/prune) — it swallowed stderr and read an empty
+result as missing. Live false positive: `backup_missing[vps2:host-state]` at 03:00 while host-state had
+snapshotted at 02:00. Now the restic exit code and a JSON-parse failure are classified separately as
+`backup_check_failed[host:plan:reason]`; only a valid EMPTY snapshot list reports `backup_missing`. (2)
+`target_down` used an instantaneous `up==0`, which fires on a single slow scrape — the spoke targets are
+scraped from LA over the transatlantic WireGuard mesh (~133 ms base, measured scrape durations 0.15–2.7 s),
+so mesh jitter produced `target_down[vps2]/[vps3]` while every target was up and TCP scrapes ran 6/6. Now
+`max_over_time(up[10m])==0` (never up across 10 min = genuinely down). NB: `min_over_time` is the WRONG
+operator here — it matches "down at least once" and is MORE flap-sensitive (empirically 7 hits vs 0 on a
+healthy fleet). Deployed fleet-wide; live-verified: both spokes now run CLEAN.
+
 ### Fixed — check_secrets: bare $VAR shell references are not hardcoded credentials (2026-08-07)
 
 The "Hardcoded credential" pattern exempted `$(cmd)` and `${VAR}` values but not the bare `"$VAR"`
