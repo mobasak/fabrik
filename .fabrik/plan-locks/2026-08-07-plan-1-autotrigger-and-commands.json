@@ -90,6 +90,13 @@
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:15:00Z",
       "coder_commit": "039e8d9d"
+    },
+    "T08": {
+      "state": "dispatched",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
+      "started_at": "2026-08-07T14:32:00Z"
     }
   }
 }
