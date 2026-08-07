@@ -36,7 +36,7 @@ access_control:
     - status.vps1.ocoron.com
     - wp-test.vps1.ocoron.com
     - "*.vps1.ocoron.com /health, /healthz, /metrics"
-    - "API services (pdf, browser, search, images, captcha, proxy, translator, files-api, emailgateway, dns)"
+    - "API services (pdf, browser, search, dns) — images/captcha/proxy/translator/files-api/emailgateway retired"
   two_factor:
     - "*.vps1.ocoron.com (everything else — admin dashboards)"
 

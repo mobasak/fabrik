@@ -113,6 +113,28 @@ def _post_deploy_sync() -> None:
             pass  # never block deploy/destroy
 
 
+def _warn_orphan_spec(spec_path: Path) -> None:
+    """After a destroy, tell the operator the SPEC file is still on disk.
+
+    ``destroy`` tears down every provisioned resource but deliberately never deletes files
+    (``keep_files=True`` — it must not touch project trees or git repos). The spec is the
+    DESIRED-state declaration, so a surviving one is a live trap: ``fabrik apply`` would
+    resurrect the service, and audits/gates keep counting it. Silent survival is exactly how
+    ``captcha.yaml`` sat orphaned for weeks after its service was gone (2026-08-07). Non-fatal
+    notice + the exact command; deleting it stays the operator's explicit call.
+    """
+    try:
+        if spec_path.exists():
+            click.echo()
+            click.echo(f"ℹ️  Spec still on disk: {spec_path}")
+            click.echo(
+                "    Destroy never deletes files. Remove it so `fabrik apply` can't resurrect "
+                f"the service:\n      git rm {spec_path}"
+            )
+    except Exception:  # noqa: BLE001 — a notice must never affect the destroy exit code
+        pass
+
+
 def _run_residue_verify() -> None:
     """Run ``vps_sync.py --verify`` after destroy to catch residue.
 
@@ -132,7 +154,11 @@ def _run_residue_verify() -> None:
             cwd=str(FABRIK_ROOT),
             capture_output=True,
             text=True,
-            timeout=60,
+            # 300s, not 60s: --verify SSHes to all 3 hosts and enumerates containers/ports/limits.
+            # Measured 85s on a healthy 3-host fleet (2026-08-07), so the old 60s cap meant the
+            # residue check ALWAYS timed out — destroy could never confirm a clean teardown, which
+            # is the one thing this step exists to do. Headroom for a slow/loaded spoke.
+            timeout=300,
         )
         if result.returncode == 0:
             click.echo("✅ VPS residue check: clean")
@@ -1102,6 +1128,7 @@ def destroy(
         _post_deploy_sync()
         if not dry_run:
             _run_residue_verify()
+        _warn_orphan_spec(Path(spec_path))
         raise SystemExit(0)
 
     # T2-02 G-F5 partial-destroy branch: surgical per-registrar teardown.
@@ -1217,6 +1244,7 @@ def destroy(
     _post_deploy_sync()
     if not dry_run:
         _run_residue_verify()
+    _warn_orphan_spec(Path(spec_path))
 
 
 @cli.command("vps-sync")

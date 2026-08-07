@@ -53,7 +53,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 
 | Host Port | Service | Project | URL |
 |-----------|---------|---------|-----|
-| ~~18011~~ | ~~Captcha Solver~~ | /opt/captcha | **retired — not currently deployed** (no live container/router; spec may persist in `specs/services/`. Port 18011 free) |
+| ~~18011~~ | ~~Captcha Solver~~ | /opt/captcha | **retired — fully removed 2026-08-07** (`fabrik destroy` ran: DNS + Gatus + GlitchTip + watchdog-governance torn down; spec deleted. Port 18011 free) |
 | ~~18012~~ | ~~Translator API~~ | /opt/translator | **retired — not currently deployed** (no live container/router; `specs/services/translator.yaml` persists but nothing deployed. Port 18012 free) |
 | ~~18013~~ | ~~Proxy Manager~~ | /opt/proxy | **retired — not currently deployed** (no live container/router. Port 18013 free) |
 | ~~18014~~ | ~~DNS Manager~~ | /opt/dns-manager | **retired — not currently deployed** (no live container/router). **Port 18014 reallocated to site-provisioner** — see auto-generated table below |
@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-08-07 13:18:39 -->
+<!-- Last synced: 2026-08-07 14:44:33 -->
 
 ### Project Port Allocations (from project.yaml)
 

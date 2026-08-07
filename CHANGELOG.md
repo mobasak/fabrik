@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — captcha.vps1.ocoron.com torn down; two `fabrik destroy` defects fixed (2026-08-07)
+
+`fabrik destroy specs/services/captcha.yaml` removed every provisioned resource (GlitchTip project,
+Gatus endpoint, watchdog-governance dir, DNS A record; compose app already absent — the service had not
+been running). Verified: 0 authoritative DNS records, Gatus 34 endpoints / 0 captcha. Spec deleted plus
+the two references that still implied it was live (`specs/infrastructure/authelia.yaml` bypass list,
+`PORTS.md` row); `tasks.md` rows are left as explicitly-caveated history and `capabilities.json`'s
+`captcha-solve` is the unrelated fabrik-lib module.
+
+Two real `fabrik destroy` defects surfaced and fixed in `cli.py`:
+1. **Residue verification always timed out** — `_run_residue_verify` capped `vps_sync.py --verify` at 60 s,
+   but it SSHes all 3 hosts and measures 85 s on a healthy fleet, so the one step that confirms a clean
+   teardown could never complete. Raised to 300 s (verified: completes in 85 s, reports its verdict).
+2. **Orphan specs died silently** — destroy deliberately never deletes files (`keep_files=True`), so the
+   spec survives; a surviving spec is a trap (`fabrik apply` resurrects the service, audits keep counting
+   it) and is exactly why `captcha.yaml` sat orphaned for weeks. Destroy now prints the surviving spec path
+   + the `git rm` command at both exits (non-fatal; deletion stays the operator's call).
+
 ### Fixed — commit-enforcement review round: 5 findings (counter starvation, Kilo contradiction) (2026-08-07)
 
 /fabrik-review on the commit-at-task-end change raised 5, all terminated. (1) The shared anti-trap
