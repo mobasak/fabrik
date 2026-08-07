@@ -104,13 +104,14 @@
       "exit": "dispatcher-adjudicated on 3-line diff after 2 full Opus rounds"
     },
     "T08": {
-      "state": "in-review",
+      "state": "fixup-round-2",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a366ef129fe590402",
       "branch": "worktree-agent-a366ef129fe590402",
       "base_commit": "3c9e2fad644dd35d98e0d9aa66aaa49fe2b08d4d",
       "started_at": "2026-08-07T14:32:00Z",
       "note": "audit overturned pre-analysis candidate (b): cert reports already gated by check_cert_dispositions; replaced with 2-contract FROZEN-header gap",
-      "coder_commit": "6d02cdbc"
+      "coder_commit": "6d02cdbc",
+      "review_round_1": "12 CONFIRMED incl. CRITICAL scaffold-stub false-claim (fleet Tier-2 blast radius), 21/24 real-header false-positives, 2 guards not red-on-revert; overturn half-right (shape gated, existence not) but substitution stands"
     },
     "T02": {
       "state": "in-review",
