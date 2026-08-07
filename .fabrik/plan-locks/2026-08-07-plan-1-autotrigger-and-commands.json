@@ -130,6 +130,13 @@
       "final_worktree_commit": "fc629d79",
       "review_rounds": 3,
       "exit": "dispatcher-adjudicated on surgical r3 diff after 2 full Opus rounds"
+    },
+    "T03": {
+      "state": "dispatched",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "6bf2c8cc",
+      "started_at": "2026-08-07T18:30:00Z"
     }
   }
 }
