@@ -50,6 +50,10 @@
     {
       "target": "T02",
       "item": "assemble_commands.py _emit_command must quote the command-md frontmatter description (like _emit_skill's _yaml_dq) \u2014 TRIGGER/Stage colons make unquoted plain scalars YAML-invalid in 8 rendered ~/.claude/commands files (T06a review F2, pre-existing class)"
+    },
+    {
+      "target": "T99",
+      "item": "fabrik-decommission.md:37 sibling-domain example uses NXDOMAIN gatus/grafana.vps1 \u2014 replace with status.vps1 + verified-resolving pair (found by T03 review, file already merged)"
     }
   ],
   "tickets": {
@@ -136,13 +140,14 @@
       "exit": "dispatcher-adjudicated on surgical r3 diff after 2 full Opus rounds"
     },
     "T03": {
-      "state": "in-review",
+      "state": "fixup-round-2",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abe503890fc72d3c8",
       "branch": "worktree-agent-abe503890fc72d3c8",
       "base_commit": "6bf2c8cc",
       "started_at": "2026-08-07T18:30:00Z",
       "coder_commit": "83c7846b",
-      "note": "first coder died at commit (transient); salvage coder audited WIP, fixed 1007->862 description, committed"
+      "note": "first coder died at commit (transient); salvage coder audited WIP, fixed 1007->862 description, committed",
+      "review_round_1": "12 found (7 CONFIRMED): execution context unstated (root cause), Phase-3 .env not project-readable, meili evidence nonexistent, NXDOMAIN siblings void discriminator, /readyz unreal, liveness-contract contradiction, log-scan violates catchup ban; RULING: hub-side"
     }
   }
 }
