@@ -343,6 +343,21 @@ _PERMISSION_RE = re.compile(
     r"[^?\n]{0,120}\?",
     re.I,
 )
+# PASSIVE obligation naming un-run work — the 2nd live stall shape ("Pass 7 is
+# owed", trade-intelligence): the corpus's own convergence contracts teach this
+# vocabulary ("you owe the next pass — dispatch it"), so no first-person future
+# verb ever appears. "due to" is causal and "owed to" is credit, not obligation;
+# a negated subject ("no further pass is owed") is a convergence CONCLUSION —
+# both excluded. The subject noun IS the action object, so no second stage.
+_OBLIGATION_RE = re.compile(
+    r"\b(?:pass(?:es)?|rounds?|reviews?|sweeps?|re-?runs?|phases?|audits?"
+    r"|fix(?:es)?|tickets?|gauntlets?)\b"
+    r"[^.!?\n]{0,40}?\b(?:is|are|remains?|stays?)\s+(?:still\s+)?"
+    r"(?:owed(?!\s+to)|due(?!\s+to))\b"
+    r"|\b(?:I|we)\s+(?:still\s+)?owe\s+(?:the|a|an|another|one|it)\b",
+    re.I,
+)
+_NEGATED_BEFORE_RE = re.compile(r"\b(?:no|none|nothing|zero)\b[\s\w]{0,12}$", re.I)
 # Legitimate stops: named human gates, BLOCKED escalations, operator-owned steps.
 _GATE_EXEMPT_RE = re.compile(
     r"\bBLOCKED:|\bgate\s*2\b|\boperator decision\b|\bapproval\b|\bhuman gate\b"
@@ -484,6 +499,14 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
             if not any(_is_dispatch(t) for t in tools):
                 return "promise", m.group(0)
             break  # promise exists but was KEPT (work dispatched this turn)
+        for m in _OBLIGATION_RE.finditer(tail):
+            if _quoted(m):
+                continue
+            if _NEGATED_BEFORE_RE.search(tail[max(0, m.start() - 24) : m.start()]):
+                continue  # "no further pass is owed" — a conclusion, not a stall
+            if not any(_is_dispatch(t) for t in tools):
+                return "promise", m.group(0)
+            break  # obligation named AND work dispatched this turn — kept
         for m in _PERMISSION_RE.finditer(tail):
             if _quoted(m):
                 continue

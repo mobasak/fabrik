@@ -492,6 +492,56 @@ def test_promise_with_background_dispatch_is_kept(tmp_path: Path) -> None:
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
+# Live incident (trade-intelligence, 2nd occurrence of the stall class): the agent
+# named the obligation in PASSIVE voice — no first-person future verb anywhere —
+# and ended the turn. The corpus's own convergence contracts teach this vocabulary
+# ("you owe the next pass — dispatch it"), so the guard must read it.
+_TRADE_INTEL_OWED_FINAL = (
+    "Committed f4724e2. 19 backend tests green, tree clean, nine commits this run.\n\n"
+    "Pass 7 is owed, and for the first time its scope is named work rather than "
+    "another adversarial sweep: the JS stripper is still fail-open through nested "
+    "template literals (one real file already desyncs), and the text assertions "
+    "should now be relaxed — the behavioural guard carries the weight."
+)
+
+
+def test_passive_obligation_without_dispatch_is_a_stall(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(_TRADE_INTEL_OWED_FINAL))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_passive_obligation_with_dispatch_is_kept(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_tool("Task", prompt="run pass 7"),
+          _asst_text("Pass 7 is owed — dispatched, reporting at the quiet round."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_first_person_owe_is_a_stall(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Gate is green. I still owe the confirming round."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_negated_obligation_is_allowed(tmp_path: Path) -> None:
+    # A convergence CONCLUSION uses the same nouns — "no further pass is owed".
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "Ledger row 3: edits 0, md5 identical — CONVERGED. No further pass is owed."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_due_to_causal_is_allowed(tmp_path: Path) -> None:
+    # "due to" is causal prose, not an obligation.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "The DataError on first run is due to the missing jsonb codec listener; fixed and green."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
 def test_permission_question_with_session_owned_lock_is_a_stall(tmp_path: Path) -> None:
     locks = tmp_path / ".fabrik" / "plan-locks"
     locks.mkdir(parents=True)
@@ -529,7 +579,9 @@ def test_unchecked_review_is_a_midrun_marker(tmp_path: Path) -> None:
     rev.mkdir(parents=True)
     (rev / "2026-01-01-x-review.md").write_text("| class | UNCHECKED | |\n")
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text("Round 2 is owed. Shall I continue with the next pass?"))
+    # No obligation clause here on purpose — this fixture isolates the PERMISSION
+    # path (the UNCHECKED review doc arming the mid-run marker).
+    _turn(tr, _user(), _asst_text("Round 2 finished clean. Shall I continue with the next pass?"))
     kind = hook._detect_stall(str(tr), tmp_path, {"docs/development/reviews/2026-01-01-x-review.md"})
     assert kind and kind[0] == "permission"
 
