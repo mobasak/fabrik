@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — governance-sync trigger: `.claude/hooks/` commits now propagate to the fleet (2026-08-08)
+The pre-commit `governance-sync` files-filter omitted `^\.claude/hooks/` while `fabrik_synced_manifest.py` lists both hook files — a hook-only commit (like the obligation-stall guard) never reached the projects; trade-intelligence was running a stale `final_gate_stop.py` when its second stall incident hit. Filter fixed; manual `sync_enforcement_to_projects.py --force` run (46 synced; Traycer/microsoft skip on write permission — non-fabrik root-owned dirs).
+
 ### Fixed — promise-guard: passive-obligation stalls now caught ("Pass 7 is owed" + turn end) (2026-08-08)
 Second live occurrence of the checkpoint-stall (trade-intelligence): the agent named the owed pass in PASSIVE voice — no first-person future verb — and ended the turn; the operator had to prod. The corpus's own convergence contracts teach exactly this vocabulary ("you owe the next pass — dispatch it"), so `_OBLIGATION_RE` in `final_gate_stop.py` (fleet-synced) now matches work-noun + is/are/remains owed/due and first-person "I/we owe the/another …", with precision guards: "due to" (causal) and "owed to" (credit) excluded, negated subjects ("no further pass is owed" — a convergence conclusion) excluded, quote exemption and the kept-promise dispatch exemption apply, same 3-attempt warn-through cap. Red-first tests from the real incident final (2 red → green, 56 total).
 
