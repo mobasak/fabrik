@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-07T06:00:27.890694
+**Last Updated:** 2026-08-08T06:00:26.694948
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -36,11 +36,11 @@
 | 27 | **gemini-2.5-pro** | google | 1465 | 32.6 | $1.25 | $10.00 | 1048K | ✓ | ✓ | ✓ | 3 | 188 | ✅ |
 | 28 | **gemini-2.5-pro-preview** | google | 1465 | 32.6 | $1.25 | $10.00 | 1048K | ✓ | ✓ | ✓ | 3 | 188 | ✅ |
 | 29 | **gpt-5.2** | openai | 1465 | 64.9 | $1.75 | $14.00 | 400K | ✓ | ✓ | ✓ | 3 | 134 | ✅ |
-| 30 | **claude-sonnet-4.5** | anthropic | 1464 | 46.5 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 122 | ✅ |
-| 31 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.39 | $2.34 | 262K | ✓ | ✓ | ✓ | 2 | 790 | ✅ |
-| 32 | **gemma-4-31b-it** | google | 1462 | ~ | $0.10 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5221 | ✅ |
-| 33 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
-| 34 | **deepseek-v4-flash** | deepseek | 1462 | ~ | $0.09 | $0.18 | 1048K |  | ✓ | ✓ | 1 | 9472 | ✅ |
+| 30 | **deepseek-v4-flash** | deepseek | 1465 | ~ | $0.14 | $0.28 | 1048K |  | ✓ | ✓ | 1 | 5980 | ✅ |
+| 31 | **claude-sonnet-4.5** | anthropic | 1464 | 46.5 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 122 | ✅ |
+| 32 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.39 | $2.34 | 262K | ✓ | ✓ | ✓ | 2 | 790 | ✅ |
+| 33 | **gemma-4-31b-it** | google | 1462 | ~ | $0.10 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5221 | ✅ |
+| 34 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
 | 35 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $2.55 | 204K |  | ✓ | ✓ | 2 | 680 | ✅ |
 | 36 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 204K |  | ✓ | ✓ | 2 | 1034 | ✅ |
 | 37 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.07 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5358 | ✅ |
@@ -62,7 +62,7 @@
 | 53 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.22 | $0.90 | 204K |  | ✓ | ✓ | 2 | 1967 | ✅ |
 | 54 | **step-3.5-flash** | stepfun | 1433 | ~ | $0.10 | $0.30 | 262K |  | ✓ | ✓ | 1 | 5732 | ✅ |
 | 55 | **qwen3-vl-235b-a22b-thinking** | qwen | 1432 | ~ | $0.40 | $4.00 | 131K | ✓ | ✓ | ✓ | 2 | 462 | ✅ |
-| 56 | **deepseek-v3.2** | deepseek | 1431 | 39.6 | $0.27 | $0.40 | 163K |  | ✓ | ✓ | 1 | 3897 | ✅ |
+| 56 | **deepseek-v3.2** | deepseek | 1431 | 39.6 | $0.26 | $0.38 | 163K |  | ✓ | ✓ | 1 | 4089 | ✅ |
 | 57 | **deepseek-v3.2-exp** | deepseek | 1431 | 39.6 | $0.27 | $0.41 | 163K |  | ✓ | ✓ | 1 | 3816 | ✅ |
 | 58 | **deepseek-chat-v3.1** | deepseek | 1430 | ~ | $0.25 | $0.95 | 163K |  | ✓ | ✓ | 2 | 1845 | ✅ |
 | 59 | **minimax-m2.1** | minimax | 1430 | 36.6 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1467 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-08-07:** Auto-updated from benchmarks
+- **2026-08-08:** Auto-updated from benchmarks

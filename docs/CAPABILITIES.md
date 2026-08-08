@@ -148,6 +148,7 @@
 - [scripts/enforcement/validate_conventions.py](INDEX.md): Fabrik Convention Validator - Orchestrates all convention checks.
 - [scripts/epic_order.py](INDEX.md): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](INDEX.md): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/fleet_doc_audit.py](INDEX.md): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
 - [scripts/gather_envs.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/generate_capability_index.py](INDEX.md): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/generate_kilo_agents.py](INDEX.md): Generate Kilo CLI Agent Scripts from kilo_agents.db

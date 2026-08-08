@@ -11,7 +11,7 @@ trigger: glob
 
 # 1. Speech & Audio AI
 
-Last content verification: 2026-08-07
+Last content verification: 2026-08-08
 
 **Purpose:** Convert or interpret sound.
 
@@ -31,8 +31,8 @@ Last content verification: 2026-08-07
 
 For STT/TTS, **prefer the direct vendor** (Soniox, Whisper API, gpt-4o-transcribe, Deepgram) over a gateway LLM — quality and price both favor the dedicated path. If you must route via a gateway, pick the cheaper of Kilo / OpenRouter per model.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-07 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-07 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-08 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-08 UTC; auto-refreshed from `kilo_agents.db`):*
 
 STT-capable across all gateways: **34**
 
@@ -43,8 +43,8 @@ Direct-vendor specialists (Soniox, Whisper API, gpt-4o-transcribe, Deepgram) are
 
 **Anti-pattern:** using a general LLM for transcription instead of Soniox/Whisper.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-07 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-07 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-08 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-08 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|
