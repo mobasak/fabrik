@@ -245,10 +245,13 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         if "libs" in parts:
             continue
 
-        # src/<pkg>/prompts/ holds prompt TEMPLATES the app loads at runtime
-        # (e.g. services/bible.py reads prompts/bible/*.md). Scoped to under src/
-        # so a stray top-level doc is still caught. (2026-07-16)
-        if parts and parts[0] == "src" and "prompts" in parts:
+        # A directory named prompts/ at ANY depth holds prompt TEMPLATES the app
+        # loads at runtime — markdown-as-DATA, not documentation (e.g.
+        # services/bible.py reads prompts/bible/*.md; generators keep briefs
+        # under data/prompts/). Same dir-name-is-the-contract decision as libs/;
+        # was src/**/prompts/ only, which told projects storing prompt data
+        # outside src/ to violate their own docs policy.
+        if "prompts" in parts:
             continue
 
         # Flag forbidden directories as errors (not skip!)

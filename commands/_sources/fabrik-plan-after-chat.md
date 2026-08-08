@@ -383,7 +383,14 @@ Docs: <the Doc Sync Matrix rows this ticket owns>
 Plus the MANDATORY Integration ticket (same shape: `Complexity: native`, `Integration: true`,
 `Depends:` on the last work ticket; its `## Touches` is literally
 `- docs/development/reviews/<stem>-review.md` — the gate ERRORs a set without exactly one
-Integration ticket, and ERRORs dir-form or foreign-stem receipt paths). The spine is the same-stem `.md` beside the tickets: `Status: DRAFT` + the
+Integration ticket, and ERRORs dir-form or foreign-stem receipt paths).
+
+**Wired-consumer rule (BOTH shapes):** every ticket/phase that produces a new module, artifact, or
+output field names the PRODUCTION caller that consumes it — `path:line`, either inside the plan's
+File Scope or already live in the repo. No consumer = add the terminal-consumer ticket/phase (the
+route, CLI entry, or job that invokes the new surface) at PLAN time, never as a mid-run rescue. A
+plan whose File Scope contains no consumer of its own output ships stored-and-never-read by
+construction — scope decides the outcome, not intent. The spine is the same-stem `.md` beside the tickets: `Status: DRAFT` + the
 section list above, one Board row per ticket, e.g. `| T01 | <title> | — | ⚡ | ⬜ | |`.
 
 **The MONOLITH shape:** the per-phase emission mechanics below — including the per-phase-boundary

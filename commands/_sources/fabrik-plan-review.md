@@ -83,6 +83,15 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships
   behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note
   the cheap **pool** authors these via `/fabrik-generate-tests`). A plan light on test coverage must NOT converge.
+- **Wired-consumer audit (anti stored-and-never-read)** — for EVERY new module, artifact, or output
+  field the plan produces, the plan names the PRODUCTION caller that consumes it (`path:line`) —
+  either inside File Scope or already live in the repo (OPEN it and confirm the call site). A
+  producer with no named consumer is a defect: add the terminal-consumer ticket/phase (the route,
+  CLI entry, or job that invokes the new surface) or strike the producer. Scope decides this
+  outcome, not intent (live defect: a plan whose authorized paths contained no route or caller on
+  the consumer side merged three libraries with zero production callers — reproducing the exact
+  stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run
+  as a rescue).
 
 **Per-ticket axes (plan-set target — verified for EVERY ticket, not just the spine):**
 

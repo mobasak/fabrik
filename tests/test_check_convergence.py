@@ -297,6 +297,55 @@ def test_review_without_embedded_success_fails(repo: Path) -> None:
     assert _run(repo, "docs/development/reviews/2026-06-18-plan-x-review.md", REVIEW_NO_GATE) == 1
 
 
+# --- review-branch escapes (parity with the plan branch; live: a de-claimed review
+# doc honestly WITHHOLDING sign-off false-failed, and a literal success JSON in
+# PROSE satisfied the evidence regex while the doc explained why faking it is wrong.
+
+
+def test_review_withholding_claims_is_not_a_claim(repo: Path) -> None:
+    # Directly-negated claim words are a DISCLOSURE, not a claim — no evidence owed.
+    doc = (
+        "# Session review notes\n\n"
+        "Formal sign-off is withheld pending the seo closure.\n"
+        "This surface is not yet reviewed to a no-op; not converged.\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-08-08-plan-y-review.md", doc) == 0
+
+
+def test_fenced_claim_words_are_quotes_not_claims(repo: Path) -> None:
+    # Claim words inside fences are quotations (template/example), not claims.
+    doc = (
+        "# Notes on the review grammar\n\n"
+        "The closing line looks like:\n\n"
+        "```\nreviewed — sign-off.\n```\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-08-08-plan-y-review.md", doc) == 0
+
+
+def test_unnegated_claim_wins_over_nearby_negations(repo: Path) -> None:
+    # Plan-branch precedence mirrored: ONE unnegated affirmative claims, even if
+    # other sentences carry negated forms — and it still owes the evidence.
+    doc = (
+        "# Review of plan Y\n\n"
+        "One residual is not converged (filed).\n\n"
+        "reviewed — sign-off.\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-08-08-plan-y-review.md", doc) == 1
+
+
+def test_gate_json_in_prose_does_not_satisfy_evidence(repo: Path) -> None:
+    # The embed must be a VERBATIM fenced block; the literal string in prose is
+    # exactly how a fake (or an explanation of one) passes.
+    doc = (
+        "# Review of plan Y\n\n"
+        "## Phase A verdict\nMirrors the plan.\n\n"
+        "reviewed — sign-off.\n\n"
+        'The gate would be satisfied by pasting "status": "success" in prose, '
+        "which would be fake — noting the loophole here.\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-08-08-plan-y-review.md", doc) == 1
+
+
 def test_no_artifacts_passes(repo: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(CHECK), "--project-root", str(repo)],

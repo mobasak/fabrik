@@ -490,16 +490,49 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
     ]
 
 
+# Review-branch claim escapes (parity with the plan branch's _NEGATED_CONVERGED /
+# FENCE_STRIP treatment — the raw REVIEWED regex false-failed an honest de-claimed
+# doc "sign-off is withheld / not yet reviewed"). Same precedence as the plan
+# branch: ONE unnegated affirmative anywhere claims (fail-open); only a claim word
+# ITSELF directly negated is a disclosure.
+_NEG_BEFORE_CLAIM = re.compile(
+    r"\b(?:not|never|no|isn'?t|cannot|can'?t|without|withhold\w*|withheld|awaiting|pending)"
+    r"(?:\W+(?:yet|been|fully|formally|properly))*\W*$",
+    re.I,
+)
+_NEG_AFTER_CLAIM = re.compile(
+    r"^[^.\n]{0,16}?\b(?:withheld|withhold|pending|deferred|denied)\b", re.I
+)
+
+
+def _claims_reviewed(stripped: str) -> bool:
+    for m in REVIEWED.finditer(stripped):
+        if _NEG_BEFORE_CLAIM.search(stripped[max(0, m.start() - 24) : m.start()]):
+            continue
+        if _NEG_AFTER_CLAIM.search(stripped[m.end() : m.end() + 24]):
+            continue
+        return True
+    return False
+
+
 def _check_review(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
     text = path.read_text(encoding="utf-8", errors="replace")
-    if not REVIEWED.search(text):
+    # Claims are read on fence-STRIPPED text — a fenced claim word is a quotation
+    # (grammar template, example), not a claim.
+    if not _claims_reviewed(FENCE_STRIP.sub("", text)):
         return []
     rel = path.relative_to(root)
     fails: list[str] = []
-    if not GATE_OK.search(text):
-        fails.append('no embedded final_gate run showing "status": "success"')
+    # The gate embed must sit INSIDE a fenced block (the verbatim-embed
+    # convention): a literal "status": "success" in prose satisfied this check
+    # live while the surrounding sentence explained why faking it would be wrong.
+    fenced = "\n".join(FENCE_BLOCK.findall(text))
+    if not GATE_OK.search(fenced):
+        fails.append(
+            'no embedded final_gate run showing "status": "success" inside a fenced block'
+        )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")
     return [f"{rel}: {x}" for x in fails]

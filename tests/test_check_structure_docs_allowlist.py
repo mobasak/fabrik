@@ -122,6 +122,17 @@ def test_src_prompts_md_exempt_runtime_asset():
     )
 
 
+def test_prompts_md_exempt_at_any_depth():
+    # Prompt templates are md-as-DATA wherever they live (the dir NAME is the
+    # contract, like libs/): data/prompts/, scripts/**/prompts/, config/prompts/.
+    paths = [
+        "data/prompts/seo/title.md",
+        "scripts/generators/prompts/outline.md",
+        "config/prompts/system.md",
+    ]
+    assert not _src_errors(paths), "prompt templates under any */prompts/ must not be flagged"
+
+
 def test_src_nested_libs_md_exempt_vendored():
     paths = [
         "src/brand_identity/libs/mt_router/UPSTREAM_FEEDBACK.md",
