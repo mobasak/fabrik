@@ -9,9 +9,14 @@ All notable changes to this project will be documented in this file.
 src/tryton_crm/main.py:53 — Prometheus registrar now runs at apply), `needs_cache` false→true
 (pause_state.py uses Redis; registrar assigns a proper index instead of colliding on shared db0),
 operative env block declared (deployer builds .env from the spec only — .env.example never rides),
-CONSUMER_TOKENS + TRYTOND_RPC_PASSWORD moved to secrets.from_env. Structural residuals reported to
-the project AI: trytond.yaml still declares the upstream image while the project compose builds its
-own Dockerfile.trytond; no gotenberg service exists for the offers→PDF path.
+CONSUMER_TOKENS + TRYTOND_RPC_PASSWORD moved to secrets.from_env. Then CONSOLIDATED as the STACK
+spec (multitenant-SaaS deploy imminent): the deployer runs the repo's 3-service compose as-is, so
+needs_database:true + depends.postgres:tryton + has_persistent_data:true (trytond-filestore volume →
+Backrest) + trytond/worker envs (TRYTOND_DATABASE_URI hard-required by compose — placeholder +
+key-mapping item flagged) + TRYTOND_ADMIN_PASSWORD minted; trytond.yaml → .superseded (Phase-A
+skeleton, upstream image, pre-compose). fabrik plan: 6 registrars RUN; DB-match gate green.
+Remaining project-side blockers reported: TRYTOND_DATABASE_URI derivation, gotenberg absence,
+CONSUMER_TOKENS provisioning, sao tenant-UI exposure decision.
 
 ### Fixed — versioning review round: 9 findings (first-cut corruption, marker case, trailer block, wiring, attribution truth) (2026-08-09)
 Native review over the pipeline-rescue + versioning commits. `release_cut.py`: the FIRST cut — the flagship use — corrupted every fleet-standard changelog lacking a numeric section (body/tail split at different boundaries duplicated entries and swallowed `## Versioning` template sections into the new version; probed on real project changelogs) — body now ends at the next H2 of ANY kind and the tail splits at the SAME boundary; the BREAKING marker is case-sensitive (prose "breaking" no longer majors); provenance trailers share one block so `%(trailers:key=Agent-Role)` parses; `--version X.Y.Z` override added for artifact-versioned surfaces (extension `manifest.json` / mobile app version — one identity per artifact, wired into the command text); gh-missing proven non-fatal. `/fabrik-release`: the Version-cut section was spliced INSIDE `## Output` (moved above it, heading restored); the frontmatter's blanket "no agent publishes" reconciled with the sanctioned version-cut act; `VERSION:` grammar gains the tag-only arm; the Aug-4 auto-compaction sentence's mid-sentence splice repaired. `daily_refresh.sh`: `LOCAL_LLM_INFRASTRUCTURE.md` removed from the cron's stage list (MIXED file — hand-authored prose above the auto-block; a cron `git add` would bundle agent edits). Attribution corrections to yesterday's rescue entry per the review's forensics (stash-artifact mtime; phantom 15:45 pass withdrawn). Red-first throughout (4 new tests seen red; 11 green).

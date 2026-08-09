@@ -2,13 +2,18 @@ id: tryton-crm
 kind: service
 template: python-api
 domain: tryton-crm.vps1.ocoron.com
+# ⚠ STACK SPEC (2026-08-09): the repo compose deploys THREE services — tryton-crm (bridge) +
+# trytond (local Dockerfile.trytond) + trytond-worker — and the deployer runs that compose as-is
+# (`docker compose up -d --wait` in /opt/tryton-crm). The shape below describes the STACK, so the
+# DB/backup triggers live HERE. specs/services/trytond.yaml.superseded is the old Phase-A skeleton
+# (upstream image, pre-compose) — kept for history, no longer applyable.
 shape:
   kind: service
-  is_public: false            # internal-only M2M bridge (X-Internal-Token); no public Traefik route
+  is_public: false            # internal-only M2M bridge (X-Internal-Token); no public Traefik route. sao tenant-UI exposure = project decision, flips this + is_admin_dashboard when made
   is_admin_dashboard: false
   has_bearer_api: false       # X-Internal-Token M2M, not a public bearer API
-  has_persistent_data: false
-  needs_database: false       # Decision F-DB: DB-free — reaches trytond via proteus RPC, never opens Postgres (re-verified 2026-08-09: no psycopg/sqlalchemy/asyncpg in src/)
+  has_persistent_data: true   # trytond-filestore volume + Tryton = multitenant CRM system-of-record → Backrest
+  needs_database: true        # the STACK needs postgres-main::tryton (trytond + worker); the bridge itself stays DB-free (Decision F-DB — no psycopg/sqlalchemy/asyncpg in src/, re-verified 2026-08-09)
   has_search_feature: false
   needs_cache: true           # pause_state.py uses Redis (default redis-main:6379/0 — registrar must assign a proper index; shared db0 = key-collision risk)
   exposes_metrics: true       # GET /metrics now live (src/tryton_crm/main.py:53, direct route) → Prometheus scrape job
@@ -19,7 +24,8 @@ source:
   type: git
   repository: git@github.com:mobasak/tryton-crm.git
   branch: mobasak/tryton-crm
-depends: {}
+depends:
+  postgres: tryton            # registrar creates the shared `tryton` DB + role, injects DATABASE_URL
 infrastructure:
   database: local
   storage: local
@@ -42,11 +48,24 @@ env:
   CONFIDENCE_DRAFT_GATE: "0.5"
   # NOT declared (project-side deploy decisions, optional features with fail-soft paths):
   # GOTENBERG_URL (offers→PDF — no gotenberg service exists in the stack or fleet yet),
-  # EFATURA_* (e-invoice provider — unconfigured), REDIS_URL (registrar-injected via needs_cache).
+  # EFATURA_* (e-invoice provider — unconfigured), REDIS_URL (registrar-injected via needs_cache),
+  # TRYTOND_EMAIL__URI (SMTP — unconfigured; Tryton mail features off until set).
+  # ── trytond + worker (same stack .env; compose env_file: .env on all three) ──
+  TRYTON_DB: tryton
+  TRYTOND_ADMIN_EMAIL: admin@ocoron.com
+  COMPANY_NAME: Ocoron
+  COMPANY_CURRENCY: EUR
+  # HARD-REQUIRED by compose (`${TRYTOND_DATABASE_URI:?}`). Placeholder satisfies the first
+  # `docker compose up`; the postgres registrar injects the real DATABASE_URL post-provision —
+  # ⚠ BUT under the DATABASE_URL key, not this one. REMAINING PROJECT-SIDE ITEM before first
+  # apply: the trytond entrypoint must derive TRYTOND_DATABASE_URI from DATABASE_URL (or ops
+  # sets it once post-apply). Placeholder-aware merge means a re-apply never clobbers the real value.
+  TRYTOND_DATABASE_URI: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"
 secrets:
   required: []
   generate:
   - X_INTERNAL_TOKEN          # fabrik mints the bridge M2M token (never hand-delivered)
+  - TRYTOND_ADMIN_PASSWORD    # Tryton admin bootstrap credential — minted, never hand-set
   from_env:
   - SERVICE_INTERNAL_SECRET_KEY   # bridge accepts TI's shared token too (X-Internal-Token == either)
   - CONSUMER_TOKENS               # per-consumer M2M token JSON (trade-intelligence, whatsapp-agent) — token material, never a plain env
