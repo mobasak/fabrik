@@ -515,6 +515,7 @@ docs/
 │   ├── cleanup-automation.md       # WSL+Windows cleanup system reference (one cleaner per OS + manual compaction)
 │   ├── cleanup-maintenance-backlog.md # Remaining dev-box cleanup items after the 2026-07-25 sweep
 │   ├── hooks-index.md              # Every hook on the box in one page (4 layers) — freshness gate-enforced by check_hooks_index.py
+│   ├── wip-backup-safety-net.md    # The */15 WIP snapshot cron: isolated-index tree snapshots to refs/wip + off-box push; recovery runbook
 │   ├── session-recall.md           # session-recall tool: what it does, feature list, file map (code in /opt/session-recall)
 │   ├── spine-ticket-plans-usage.md # Operator guide: the spine+ticket plan architecture — shape decision, set review, dispatcher execution, migration of old plans
 │   ├── vscode-configuration.md     # VS Code final config: extensions kept/removed, AI surface, perf settings
