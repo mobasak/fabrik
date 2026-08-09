@@ -1,5 +1,5 @@
 ---
-description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at the human gate — no agent deploys, submits, or publishes. TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before the human clicks go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
+description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at the human gate — no agent deploys, submits, or ships an artifact to users (the version CUT — tag + GitHub Release notes — is the one sanctioned publish-shaped act, per the versioning adoption). TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before the human clicks go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
 argument-hint: "[optional: override surface — vps | mobile | extension | desktop; omit to read project.yaml::type]"
 ---
 
@@ -11,8 +11,9 @@ no `eas submit --auto`, no Web Store "Submit for Review" click, no store credent
 
 You are done when EVERY item of the surface's checklist below has a verdict — **PASS (with evidence: a
 `path:line` or a fenced command output) or BLOCKED (what's missing, where you searched)** — and you have
-printed the Gate-2 handoff block. A checklist item without evidence is not PASS. You never perform the Gate-2 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
-action yourself; ending at the handoff IS success, not an incomplete run. If >3 items are BLOCKED on the same
+printed the Gate-2 handoff block. A checklist item without evidence is not PASS. You never perform the Gate-2
+action yourself; ending at the handoff IS success, not an incomplete run. **Context is never a reason to
+stop:** the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same
 root cause, stop early and report that cause.
 
 ## ⚠️ Precondition — no open certification handoffs
@@ -91,28 +92,34 @@ secrets; auto-update channel documented). Flag in the report: *"desktop-app has 
 gates here are minimal; propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships
 regularly."* Then the Gate-2 handoff (operator distributes the artifact).
 
-## Output (always, last thing)
-
 ## Version cut (at the READY verdict — before Gate 2)
 
 When every checklist item is PASS, **cut the release version** — this is what puts real versions next to
 the repo on GitHub:
 
 1. `python scripts/release_cut.py --dry-run` — show the plan (current tag → next semver, derived from
-   the `[Unreleased]` entry types: any BREAKING → major · any Added → minor · else patch; refuses on an
-   empty `[Unreleased]` — never cut a hollow version).
+   the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn't count) →
+   major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow
+   version).
 2. `python scripts/release_cut.py --execute` — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
    CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the
-   graduated entries as notes. Include the printed plan in the report.
-3. A BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict.
+   graduated entries as notes (`gh` missing is non-fatal: tag-only cut). Include the printed plan in
+   the report.
+3. **Surfaces with an artifact-embedded version reconcile, never fork:** extension (`manifest.json`
+   version) and mobile (app version / EAS) pass it explicitly — `--execute --version <that version>` —
+   so the tag, the Release, and the store artifact carry ONE identity; the checklist's own
+   "version bumped" item is the source. VPS surfaces derive from the changelog.
+4. A BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict.
 
 The cut is the version act; **deploy stays Gate 2** (the tag names what the operator's `fabrik apply`
 will ship — record `vX.Y.Z` in the handoff line).
 
+## Output (always, last thing)
+
 ```
 RELEASE SURFACE: <vps|mobile|extension|desktop>
 CHECKLIST: <n> PASS / <n> BLOCKED (each with evidence above)
-VERSION: v<X.Y.Z> cut (tag + GitHub Release) | not cut (<why>)
+VERSION: v<X.Y.Z> cut (tag + GitHub Release) | v<X.Y.Z> cut (tag only — gh unavailable) | not cut (<why>)
 ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
 GATE 2 → OPERATOR: <the one action only the human takes>
 ```

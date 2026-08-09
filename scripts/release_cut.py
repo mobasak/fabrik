@@ -30,6 +30,11 @@ from pathlib import Path
 
 UNRELEASED_RE = re.compile(r"^## \[Unreleased\]\s*$", re.M)
 SECTION_RE = re.compile(r"^## \[(\d+\.\d+\.\d+)\]", re.M)
+# [Unreleased]'s true extent ends at the NEXT `## ` heading of ANY kind — the
+# fleet-standard scaffold changelog has `## Versioning`/`## Version History`
+# template sections and NO numeric section; scoping only to numeric sections
+# swallowed and duplicated them on the first cut (live review finding).
+ANY_H2_RE = re.compile(r"^## ", re.M)
 ENTRY_RE = re.compile(r"^### (Added|Changed|Fixed|Removed|Deprecated|Security)\b(.*)$", re.M)
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 
@@ -58,12 +63,14 @@ def _unreleased_body(text: str) -> str | None:
     if not m:
         return None
     rest = text[m.end():]
-    nxt = SECTION_RE.search(rest)
+    nxt = ANY_H2_RE.search(rest)
     return rest[: nxt.start()] if nxt else rest
 
 
 def _bump(entries: list[tuple[str, str]]) -> str:
-    if any("BREAKING" in title.upper() for _kind, title in entries):
+    # The marker is the UPPERCASE word — 'breaking' as prose ("stop breaking
+    # long lines") must not major-bump (live review finding).
+    if any("BREAKING" in title for _kind, title in entries):
         return "major"
     if any(kind == "Added" for kind, _title in entries):
         return "minor"
@@ -77,6 +84,11 @@ def main() -> int:
     g.add_argument("--execute", action="store_true")
     ap.add_argument("--no-push", action="store_true", help="skip git push (tests/offline)")
     ap.add_argument("--no-gh-release", action="store_true", help="skip gh release create")
+    ap.add_argument(
+        "--version",
+        help="override the derived semver (extension/mobile: reconcile with the "
+        "artifact's embedded version — manifest.json / app version)",
+    )
     ap.add_argument("--repo", type=Path, default=Path.cwd())
     args = ap.parse_args()
     cwd = args.repo.resolve()
@@ -97,12 +109,19 @@ def main() -> int:
 
     cur = _current_version(cwd)
     bump = _bump(entries)
-    nxt = {
-        "major": (cur[0] + 1, 0, 0),
-        "minor": (cur[0], cur[1] + 1, 0),
-        "patch": (cur[0], cur[1], cur[2] + 1),
-    }[bump]
-    version = ".".join(map(str, nxt))
+    if args.version:
+        if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
+            print(f"--version must be X.Y.Z, got {args.version!r}")
+            return 1
+        version = args.version
+        bump = "override"
+    else:
+        nxt = {
+            "major": (cur[0] + 1, 0, 0),
+            "minor": (cur[0], cur[1] + 1, 0),
+            "patch": (cur[0], cur[1], cur[2] + 1),
+        }[bump]
+        version = ".".join(map(str, nxt))
     today = date.today().isoformat()
     print(
         f"release plan: v{'.'.join(map(str, cur))} -> v{version} ({bump}; "
@@ -113,22 +132,33 @@ def main() -> int:
     if args.dry_run:
         return 0
 
-    # Graduate: empty [Unreleased] stays atop; the moved body becomes the new section.
+    # Graduate: empty [Unreleased] stays atop; the moved body becomes the new
+    # section. Body and tail MUST split at the SAME boundary (next H2 of ANY
+    # kind) — splitting the tail at the next NUMERIC section while the body
+    # ends at any H2 duplicated the entries on template-shaped changelogs
+    # (review finding).
     new_section = f"## [{version}] — {today}\n{body.rstrip()}\n\n"
     m = UNRELEASED_RE.search(text)
     assert m is not None
     rest = text[m.end():]
-    nxt_m = SECTION_RE.search(rest)
-    tail = rest[nxt_m.start():] if nxt_m else rest.lstrip("\n")
-    cl_path.write_text(text[: m.end()] + "\n\n" + new_section + tail, encoding="utf-8")
+    tail = rest[len(body):].lstrip("\n")
+    cl_path.write_text(
+        text[: m.end()] + "\n\n" + new_section + tail, encoding="utf-8"
+    )
 
     _git("add", "--", "CHANGELOG.md", cwd=cwd)
+    # Trailers must share ONE paragraph — git parses only the final block as
+    # trailers; one -m per line made %(trailers:key=…) return empty (review
+    # finding, verified against the provenance query in CLAUDE.md).
+    trailers = (
+        "Agent-Role: primary\n"
+        f"Agent-Context: release cut — [Unreleased] graduated to v{version} by scripts/release_cut.py\n"
+        "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+    )
     _git(
         "commit", "-q",
         "-m", f"release: v{version}",
-        "-m", "Agent-Role: primary",
-        "-m", f"Agent-Context: release cut — [Unreleased] graduated to v{version} by scripts/release_cut.py",
-        "-m", "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+        "-m", trailers,
         "--", "CHANGELOG.md", cwd=cwd,
     )
     _git("tag", "-a", f"v{version}", "-m", f"v{version}", cwd=cwd)

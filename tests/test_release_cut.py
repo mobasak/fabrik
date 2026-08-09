@@ -116,3 +116,62 @@ def test_missing_gh_binary_is_nonfatal(tmp_path: Path) -> None:
 def test_no_tags_first_cut(tmp_path: Path) -> None:
     rc, out = _run(_repo(tmp_path, tag=None), "--dry-run")
     assert rc == 0 and "0.1.0" in out  # minor bump from 0.0.0
+
+
+TEMPLATE_CHANGELOG = """# Changelog
+
+## [Unreleased]
+
+### Added — first real feature (2026-08-09)
+It works.
+
+## Versioning
+
+This project uses semver.
+
+## Version History
+
+- template row
+"""
+
+
+def test_first_cut_on_template_changelog_no_duplication(tmp_path: Path) -> None:
+    # The fleet-standard scaffold changelog has NO numeric section — the first
+    # cut must graduate ONLY the [Unreleased] entries and keep the template
+    # sections exactly once (live finding: everything duplicated, sections
+    # swallowed into the new version).
+    r = _repo(tmp_path, changelog=TEMPLATE_CHANGELOG, tag=None)
+    rc, out = _run(r, "--execute", "--no-push", "--no-gh-release")
+    assert rc == 0, out
+    text = (r / "CHANGELOG.md").read_text()
+    assert text.count("## Versioning") == 1
+    assert text.count("## Version History") == 1
+    assert text.count("first real feature") == 1
+    v = text.split("## [0.1.0]")[1].split("## Versioning")[0]
+    assert "first real feature" in v
+    assert "semver" not in v  # template prose stays OUT of the version section
+
+
+def test_breaking_is_case_sensitive_marker(tmp_path: Path) -> None:
+    # 'breaking' as prose must NOT major-bump; the law is the uppercase marker.
+    cl = CHANGELOG.replace("### Fixed — off-by-one in pager (2026-08-08)",
+                           "### Fixed — stop breaking long lines in export (2026-08-08)")
+    rc, out = _run(_repo(tmp_path, changelog=cl), "--dry-run")
+    assert rc == 0 and "0.4.0" in out  # minor (Added), NOT 1.0.0
+
+
+def test_release_commit_trailers_parse(tmp_path: Path) -> None:
+    r = _repo(tmp_path)
+    rc, _ = _run(r, "--execute", "--no-push", "--no-gh-release")
+    assert rc == 0
+    got = subprocess.run(
+        ["git", "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)"],
+        cwd=r, capture_output=True, text=True,
+    ).stdout.strip()
+    assert got == "primary"  # trailers must live in ONE block git can parse
+
+
+def test_version_override_flag(tmp_path: Path) -> None:
+    # Extension/mobile surfaces reconcile with the artifact's embedded version.
+    rc, out = _run(_repo(tmp_path), "--dry-run", "--version", "2.7.0")
+    assert rc == 0 and "2.7.0" in out

@@ -560,9 +560,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
       docs/reference/kilo/CANDIDATE_SIGNUPS.md \
       docs/CAPABILITIES.md capabilities.json \
       docs/traycer/kilo_selected_agents.md \
-      docs/reference/LOCAL_LLM_INFRASTRUCTURE.md \
       scripts/kilo-benchmarks/embedding_models_dump.json \
       2>/dev/null || true
+    # LOCAL_LLM_INFRASTRUCTURE.md is deliberately NOT staged: the pipeline
+    # rewrites only its auto-generated block, but the file is MIXED (hand-
+    # authored prose above) — `git add` stages the whole file, so a cron add
+    # would bundle an agent's uncommitted manual edit (review finding).
     # NEVER add shared agent-edited files here (PORTS.md, plan-locks, enforcement
     # code): a cron staging those would bundle a live agent's WIP into its commit.
     # If the refresh churns such a file (format sweep), the churn is the defect —
