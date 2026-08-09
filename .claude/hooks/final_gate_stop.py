@@ -286,17 +286,35 @@ def _counter_path(sid: str) -> Path:
     return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
 
 
-def _read_counters(counter: Path) -> tuple[int, int, int]:
-    """(gate_attempts, commit_attempts, stall_attempts) — tolerates older formats."""
+def _read_counters(counter: Path) -> tuple[int, int, int, int]:
+    """(gate, commit, stall, push) attempts — tolerates older 3-slot files."""
     try:
         raw = counter.read_text().strip()
         parts = raw.split(",")
-        vals = [int(p) for p in parts[:3]]
-        while len(vals) < 3:
+        vals = [int(p) for p in parts[:4]]
+        while len(vals) < 4:
             vals.append(0)
-        return vals[0], vals[1], vals[2]
+        return vals[0], vals[1], vals[2], vals[3]
     except Exception:
-        return 0, 0, 0
+        return 0, 0, 0, 0
+
+
+def _ahead_of_upstream(root: Path) -> int | None:
+    """Commits on the current branch not on its upstream; None = indeterminate
+    (no upstream / detached HEAD / any git error — indeterminate never blocks:
+    throwaway repos and mid-plan worktree branches have no upstream by design).
+    Purely local (`rev-list --count @{upstream}..HEAD`) — never touches the
+    network, so an offline box counts correctly and pushes fail visibly later."""
+    try:
+        r = subprocess.run(
+            ["git", "rev-list", "--count", "@{upstream}..HEAD"],
+            cwd=root, capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode != 0:
+            return None
+        return int(r.stdout.strip())
+    except Exception:
+        return None
 
 
 def decide_stall(stalled: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
@@ -591,24 +609,45 @@ def main(argv: list[str]) -> int:
         stall = _detect_stall(transcript_p, root, set(authored_map)) if transcript_p else None
 
         def _stall_gate() -> int:
-            """Run the promise-guard counter flow. Returns the exit code."""
+            """Final causes on an otherwise-allowed stop: the PUSH law (committed
+            work must be off-box — routine-push directive) then the promise-guard.
+            Independent counter slots, same reset-when-false + warn-through shape."""
             counter = _counter_path(sid)
-            g, c, s_att = _read_counters(counter)
+            g, c, s_att, p_att = _read_counters(counter)
+            ahead = _ahead_of_upstream(root)
+            p_action, p_att = decide_stall(bool(ahead), p_att)
+            if p_action == "block_stall":
+                counter.write_text(f"{g},{c},{s_att if stall else 0},{p_att}")
+                reason = (
+                    f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
+                    "this branch are not on origin — an unpushed task is an "
+                    "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
+                    "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
+                    "tree → `git pull --rebase` then push · conflict → `git rebase --abort` "
+                    "+ report · NEVER --force."
+                )
+                sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
+                return 0
+            if p_action == "allow_warn_stall":
+                sys.stderr.write(
+                    f"Work still unpushed after {CAP} blocked stops — stopping anyway; "
+                    "refs/wip is the only off-box copy until someone pushes.\n"
+                )
             s_action, s_att = decide_stall(bool(stall), s_att)
             if s_action == "allow":
-                if g == 0 and c == 0:
+                if g == 0 and c == 0 and p_att == 0:
                     counter.unlink(missing_ok=True)
                 else:
-                    counter.write_text(f"{g},{c},0")
+                    counter.write_text(f"{g},{c},0,{p_att}")
                 return 0
             if s_action == "allow_warn_stall":
-                counter.write_text(f"{g},{c},0")
+                counter.write_text(f"{g},{c},0,{p_att}")
                 sys.stderr.write(
                     f"Final message still ends in a stall after {CAP} blocked stops — "
                     "stopping anyway.\n"
                 )
                 return 0
-            counter.write_text(f"{g},{c},{s_att}")
+            counter.write_text(f"{g},{c},{s_att},{p_att}")
             kind, snippet = stall  # type: ignore[misc]
             what = (
                 f'promises an action ("{snippet}") that was never dispatched'
@@ -693,7 +732,7 @@ def main(argv: list[str]) -> int:
                 new_failures = set()
 
         counter = _counter_path(sid)
-        gate_attempts, commit_attempts, stall_attempts = _read_counters(counter)
+        gate_attempts, commit_attempts, stall_attempts, push_attempts = _read_counters(counter)
 
         action, gate_attempts, commit_attempts = decide(
             True,
@@ -716,15 +755,17 @@ def main(argv: list[str]) -> int:
                     "(pathspecs + Agent Provenance Trailers).\n"
                 )
             # gate/commit causes resolved (or capped) → reset their counters, then
-            # the promise-guard still has the last word on THIS stop.
-            counter.write_text(f"0,0,{stall_attempts}")
+            # the push law + promise-guard still have the last word on THIS stop.
+            counter.write_text(f"0,0,{stall_attempts},{push_attempts}")
             return _stall_gate()
 
         # Reset-when-cause-false applies to the stall slot here too: a gate/commit
         # block must not STRAND a stale stall count that later waves a brand-new
         # stall streak through on its first stop (review finding — the same
         # regression class decide()'s own docstring documents, reintroduced).
-        counter.write_text(f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0}")
+        counter.write_text(
+            f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},{push_attempts}"
+        )
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])
             more = len(own_uncommitted) - 8
@@ -740,7 +781,7 @@ def main(argv: list[str]) -> int:
                 f"{listed}{f' (+{more} more)' if more > 0 else ''}. Commit YOUR OWN work "
                 "now with explicit pathspecs + Agent Provenance Trailers "
                 "(git commit -- <your files>); never bundle files you didn't author. "
-                "Push stays operator-authorized."
+                "Then PUSH it — commit-and-push is the task-end law (never --force)."
             )
             sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
             return 0

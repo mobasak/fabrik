@@ -178,6 +178,58 @@ sys.exit(1)
 """
 
 
+# --- routine-push law: committed-but-unpushed is an unfinished task ------------
+
+
+def _push_repo(tmp_path: Path, *, upstream: bool, push: bool) -> Path:
+    p = tmp_path / "pproj"
+    (p / "scripts").mkdir(parents=True)
+    (p / "scripts" / "final_gate.py").write_text(_FAKE_GATE)
+    subprocess.run(["git", "init", "-q", "-b", "master"], cwd=p, check=True, timeout=15)
+    (p / "a.txt").write_text("x")
+    subprocess.run(["git", "add", "-A"], cwd=p, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "w"],
+        cwd=p, check=True, timeout=15,
+    )
+    if upstream:
+        bare = tmp_path / "origin.git"
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(bare)], check=True, timeout=15)
+        subprocess.run(["git", "remote", "add", "origin", str(bare)], cwd=p, check=True, timeout=15)
+        subprocess.run(["git", "push", "-qu", "origin", "master"], cwd=p, check=True, timeout=15)
+        if not push:  # leave ONE commit ahead of the upstream
+            (p / "b.txt").write_text("y")
+            subprocess.run(["git", "add", "b.txt"], cwd=p, check=True, timeout=15)
+            subprocess.run(
+                ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "ahead"],
+                cwd=p, check=True, timeout=15,
+            )
+    return p
+
+
+def test_unpushed_committed_work_blocks(tmp_path: Path) -> None:
+    p = _push_repo(tmp_path, upstream=True, push=False)
+    out = _run_stop(p, "push1", "", baseline=[])
+    assert out and "UNPUSHED" in out, out
+
+
+def test_pushed_work_allows(tmp_path: Path) -> None:
+    p = _push_repo(tmp_path, upstream=True, push=False)
+    subprocess.run(["git", "push", "-q"], cwd=p, check=True, timeout=15)
+    assert _run_stop(p, "push2", "", baseline=[]) == ""
+
+
+def test_no_upstream_is_indeterminate_and_allows(tmp_path: Path) -> None:
+    p = _push_repo(tmp_path, upstream=False, push=False)
+    assert _run_stop(p, "push3", "", baseline=[]) == ""
+
+
+def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
+    ctr = tmp_path / "c.attempts"
+    ctr.write_text("1,2,0")
+    assert hook._read_counters(ctr) == (1, 2, 0, 0)
+
+
 def _run_stop_with_transcript(
     project: Path, sid: str, fake_fails: str, fail_output: str, authored_file: str, *, baseline: list[str],
     extra_authored: list[str] | None = None, per_check_outputs: dict[str, str] | None = None,
@@ -752,8 +804,8 @@ def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(tmp
 
 def test_counter_format_round_trips(tmp_path: Path) -> None:
     c = tmp_path / "ctr"
-    for raw, expect in [("3", (3, 0, 0)), ("3,1", (3, 1, 0)), ("3,1,2", (3, 1, 2)),
-                        ("", (0, 0, 0)), ("x,y", (0, 0, 0)), ("1,2,3,4", (1, 2, 3))]:
+    for raw, expect in [("3", (3, 0, 0, 0)), ("3,1", (3, 1, 0, 0)), ("3,1,2", (3, 1, 2, 0)),
+                        ("", (0, 0, 0, 0)), ("x,y", (0, 0, 0, 0)), ("1,2,3,4", (1, 2, 3, 4))]:
         c.write_text(raw)
         assert hook._read_counters(c) == expect, raw
 
