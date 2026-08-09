@@ -305,9 +305,7 @@ _VERSION_LINE = re.compile(r"[`*]{0,2}Version[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I
 _DATE_LINE = re.compile(
     r"[`*]{0,2}Date[`*]{0,2}[^\S\n]*:[^\S\n]*[`*]{0,2}[^\S\n]*\d{4}-\d{2}-\d{2}", re.I
 )
-_MODE_LINE = re.compile(
-    r"[`*]{0,2}Mode[`*]{0,2}[^\S\n]*:[^\S\n]*[`*]{0,2}[^\S\n]*[ABC]\b", re.I
-)
+_MODE_LINE = re.compile(r"[`*]{0,2}Mode[`*]{0,2}[^\S\n]*:[^\S\n]*[`*]{0,2}[^\S\n]*[ABC]\b", re.I)
 _SURFACE_LINE = re.compile(r"[`*]{0,2}Surface[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I)
 _DESIGN_SYSTEM_LINE = re.compile(r"[`*]{0,2}Design system[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I)
 
@@ -372,7 +370,9 @@ def _check_frozen_header(root: Path, rel: str, cfg: dict, path: Path) -> list[st
     if not _VERSION_LINE.search(block):
         fails.append(f"{rel}: claims Status: FROZEN but header is missing a 'Version: v<N>' line")
     if not _DATE_LINE.search(block):
-        fails.append(f"{rel}: claims Status: FROZEN but header is missing a 'Date: YYYY-MM-DD' line")
+        fails.append(
+            f"{rel}: claims Status: FROZEN but header is missing a 'Date: YYYY-MM-DD' line"
+        )
     for label, pat in cfg["extra"]:
         if not pat.search(block):
             fails.append(f"{rel}: claims Status: FROZEN but header is missing a '{label}' line")
@@ -432,7 +432,9 @@ def _frozen_targets(root: Path) -> list[tuple[str, dict, Path]]:
         p = root / rel
         if not p.is_file():
             continue
-        block = _header_block(cc.FENCE_STRIP.sub("", p.read_text(encoding="utf-8", errors="replace")))
+        block = _header_block(
+            cc.FENCE_STRIP.sub("", p.read_text(encoding="utf-8", errors="replace"))
+        )
         if not _claims_frozen(block):
             continue  # not a FROZEN claim now -> nothing to enforce
         head_block = _header_block(cc.FENCE_STRIP.sub("", cc._head_text(root, rel)))
@@ -443,7 +445,9 @@ def _frozen_targets(root: Path) -> list[tuple[str, dict, Path]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Stage-skip artifact gate (spec freshness + FROZEN header shape).")
+    parser = argparse.ArgumentParser(
+        description="Stage-skip artifact gate (spec freshness + FROZEN header shape)."
+    )
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
     root = args.project_root.resolve()

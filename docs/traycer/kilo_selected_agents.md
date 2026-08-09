@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-08T06:00:26.694948
+**Last Updated:** 2026-08-09T10:15:20.074574
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -54,7 +54,7 @@
 | 45 | **mistral-large-2512** | mistralai | 1450 | ~ | $0.50 | $1.50 | 262K | ✓ | ✓ |  | 2 | 1160 | ✅ |
 | 46 | **kimi-k2-thinking** | moonshotai | 1450 | 35.7 | $0.60 | $2.50 | 262K |  | ✓ | ✓ | 2 | 716 | ✅ |
 | 47 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
-| 48 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.27 | $1.08 | 204K |  | ✓ | ✓ | 2 | 1650 | ✅ |
+| 48 | **minimax-m2.7** | minimax | 1448 | 45.1 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1485 | ✅ |
 | 49 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
 | 50 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.23 | $2.30 | 262K |  | ✓ | ✓ | 2 | 809 | ✅ |
 | 51 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
@@ -62,7 +62,7 @@
 | 53 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.22 | $0.90 | 204K |  | ✓ | ✓ | 2 | 1967 | ✅ |
 | 54 | **step-3.5-flash** | stepfun | 1433 | ~ | $0.10 | $0.30 | 262K |  | ✓ | ✓ | 1 | 5732 | ✅ |
 | 55 | **qwen3-vl-235b-a22b-thinking** | qwen | 1432 | ~ | $0.40 | $4.00 | 131K | ✓ | ✓ | ✓ | 2 | 462 | ✅ |
-| 56 | **deepseek-v3.2** | deepseek | 1431 | 39.6 | $0.26 | $0.38 | 163K |  | ✓ | ✓ | 1 | 4089 | ✅ |
+| 56 | **deepseek-v3.2** | deepseek | 1431 | 39.6 | $0.27 | $0.40 | 163K |  | ✓ | ✓ | 1 | 3897 | ✅ |
 | 57 | **deepseek-v3.2-exp** | deepseek | 1431 | 39.6 | $0.27 | $0.41 | 163K |  | ✓ | ✓ | 1 | 3816 | ✅ |
 | 58 | **deepseek-chat-v3.1** | deepseek | 1430 | ~ | $0.25 | $0.95 | 163K |  | ✓ | ✓ | 2 | 1845 | ✅ |
 | 59 | **minimax-m2.1** | minimax | 1430 | 36.6 | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1467 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-08-08:** Auto-updated from benchmarks
+- **2026-08-09:** Auto-updated from benchmarks

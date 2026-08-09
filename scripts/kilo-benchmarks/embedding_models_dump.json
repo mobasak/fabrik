@@ -1324,6 +1324,61 @@
     }
   },
   {
+    "id": "openai/text-embedding-ada-002:batch",
+    "canonical_slug": "openai/text-embedding-ada-002",
+    "hugging_face_id": "",
+    "name": "OpenAI: Text Embedding Ada 002 (batch)",
+    "created": 1761865798,
+    "description": "text-embedding-ada-002 is OpenAI's legacy text embedding model.",
+    "context_length": 8192,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000005",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 8192,
+      "max_completion_tokens": null,
+      "is_moderated": true
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "logit_bias",
+      "logprobs",
+      "max_tokens",
+      "presence_penalty",
+      "response_format",
+      "seed",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "frequency_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/openai/text-embedding-ada-002/endpoints"
+    }
+  },
+  {
     "id": "mistralai/codestral-embed-2505",
     "canonical_slug": "mistralai/codestral-embed-2505",
     "hugging_face_id": "",
@@ -1409,6 +1464,61 @@
       "logit_bias",
       "logprobs",
       "max_completion_tokens",
+      "max_tokens",
+      "presence_penalty",
+      "response_format",
+      "seed",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "frequency_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/openai/text-embedding-3-large/endpoints"
+    }
+  },
+  {
+    "id": "openai/text-embedding-3-large:batch",
+    "canonical_slug": "openai/text-embedding-3-large",
+    "hugging_face_id": "",
+    "name": "OpenAI: Text Embedding 3 Large (batch)",
+    "created": 1761862866,
+    "description": "text-embedding-3-large is OpenAI's most capable embedding model for both english and non-english tasks. Embeddings are a numerical representation of text that can be used to measure the relatedness between two...",
+    "context_length": 8192,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.000000065",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 8192,
+      "max_completion_tokens": null,
+      "is_moderated": true
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "logit_bias",
+      "logprobs",
       "max_tokens",
       "presence_penalty",
       "response_format",
