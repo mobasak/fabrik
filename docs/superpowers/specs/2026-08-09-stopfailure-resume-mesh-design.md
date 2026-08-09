@@ -1,6 +1,6 @@
 # StopFailure Resume Mesh — design spec
 
-Status: APPROVED-DESIGN (operator, 2026-08-09) · Spec author: Fable · Scope: workstation (`~/.claude/bin` + docs); no fleet-synced surface changes
+Status: CONVERGED (spec-review 2026-08-09; operator-approved 2026-08-09) · Spec author: Fable · Scope: workstation (`~/.claude/bin` + docs); no fleet-synced surface changes
 
 ## Goal
 
@@ -115,7 +115,9 @@ bound → decider rings once AND the watch still revives — one informative rin
 Second-death rings are already built (waker-consumed logic). Addition: when a StopFailure park
 actually **rings** (truly dead — keyed on the ring, NOT on the `errparked` marker, which records
 every death including self-revived ones) for a session whose cwd is under `/opt/`, also fire the
-existing `APPRISE_SEND` Telegram path — dead long-runs reach the operator away from the desk.
+existing `APPRISE_SEND` Telegram path (lives in the sysadmin scripts — e.g.
+`/opt/fabrik/scripts/sysadmin/proactive-check.sh` — not in `claude-sound.sh`; vendor the call
+pattern from there) — dead long-runs reach the operator away from the desk.
 Rate-limited (one message per session per 30 min).
 
 ## What stays human-only (deliberate)
