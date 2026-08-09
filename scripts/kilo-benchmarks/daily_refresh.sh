@@ -560,7 +560,13 @@ mkdir -p "$(dirname "$LOG_FILE")"
       docs/reference/kilo/CANDIDATE_SIGNUPS.md \
       docs/CAPABILITIES.md capabilities.json \
       docs/traycer/kilo_selected_agents.md \
+      docs/reference/LOCAL_LLM_INFRASTRUCTURE.md \
+      scripts/kilo-benchmarks/embedding_models_dump.json \
       2>/dev/null || true
+    # NEVER add shared agent-edited files here (PORTS.md, plan-locks, enforcement
+    # code): a cron staging those would bundle a live agent's WIP into its commit.
+    # If the refresh churns such a file (format sweep), the churn is the defect —
+    # stop touching it, don't auto-commit it.
     if git diff --cached --quiet; then
       echo "[auto-commit] nothing regenerated changed — tree already clean"
     else
