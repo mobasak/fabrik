@@ -25,9 +25,9 @@ wired in the synced `.claude/settings.json`.
 |---|---|---|
 | SessionStart | `session-start-tap.js` | claude-manager session tap (account/quota rotation layer) |
 | SessionStart | `session_context.py` (/opt/session-recall) | Injects recent-context: last sessions for this project, closing context, recently-active sibling projects |
-| Stop | `claude-sound.sh done` | Task-finished sound |
+| Stop | `claude-sound.sh done` | Task-finished sound (state-based park decider — rings only at true final rest) |
 | Notification | `claude-sound.sh attention` | Attention/input-needed sound |
-| StopFailure | `claude-sound.sh failure` | Failure sound |
+| StopFailure | `claude-sound.sh failure` | Failure pipeline + the **resume mesh**: writes the `errparked` death record, triggers account rotation for auth/rate classes (10-min limiter), spawns the opt-in headless reviver (`claude-autoresume.sh`, `CLAUDE_SOUND_AUTORESUME=1`), and on a truly-dead `/opt` ring escalates to Telegram (`mesh-notify`, 30-min suppress). Pane runs arm `claude-selfwatch.sh` via a persistent Monitor — **long autonomous runs arm the self-watch** (run discipline). Fixture harness: `claude-mesh-test.sh` |
 
 ## 3. Cascade hooks — DORMANT
 
