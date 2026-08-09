@@ -32,12 +32,12 @@ Listing a pack = you read it. Pure-planning = `PACKS: none`.
 2. **GATE** — run ticket's `Final Gate Instruction` to `status:"success"`. Flags: **`--json` (std — FULL Tier 2: mypy+bandit+semgrep+schema/plan/docs)** · `--lean --json` (fast Tier‑1 subset for in-iteration self-review, NOT the completion gate) · `--systemic --json` (epic). Add **`--check`** for a read-only run (never mutates); a bare run auto-fixes + auto-stages **only your changed files** (the gate scopes every fixer + `ruff` to the diff, incl. committed-unpushed; Fabrik-synced files excluded in projects). Ref: `/opt/fabrik/docs/workflows/FINAL_GATE_WORKFLOW.md` (upstream-only).
 3. **CHANGELOG** — one entry under `## [Unreleased]` (gate-enforced).
 4. **LESSONS LEARNT** — ticket field `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — gate auto-stages. STOP. No `commit`/`push` unless user said so this turn; `git add` OK.
+5. **EXIT** — gate green → COMMIT your own work (explicit pathspecs + Agent Provenance Trailers; never bundle others' files), then PUSH it (`git push`; rejected → dirty tree: defer · clean: `git pull --rebase` then push · NEVER --force). Uncommitted or unpushed = unfinished.
 
 ## HARD STOPS — Cascade mechanics
 | Rule | Instead |
 |:--|:--|
-| `git commit`/`push` (unless user said so this turn) | gate auto-stages — task ends there |
+| `git push --force`/`-f` to a shared branch · commits without provenance trailers · bundling others' files | commit AND push YOUR OWN work at task end (pathspecs + trailers, then plain `git push`) |
 | `git add -A`/`.`/`commit -a` · overwrite `CHANGELOG.md` `[Unreleased]` | Shared `master`. Stage explicit paths (`git add <file>…`), `git diff --cached` first, never bundle others' files. Append atop `[Unreleased]` (don't reset). After auto-stage: `git reset`, re-add yours. |
 | `fabrik redeploy` git-sourced w/o `git push` first | `commit`→`push`→`redeploy`; VPS `git pull`s from GitHub, not `/opt/` |
 | `DB_HOST=localhost` / `@localhost:` in env | `postgres-main:5432` / `redis-main:6379` (`localhost` = the container) |

@@ -930,11 +930,9 @@ to merge back. "Finishing" is:
    archived path. **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
    review finding** — archiving IS the "I am 100% sure this is done" act, and a plan in `archived/` is a
    claim that nothing is left. Commit the move with the plan-status commit (explicit paths).
-7. **Present the only decisions left — structured, not open-ended.** The commits are already on `master`; what
-   remains is the user's call, so end by offering exactly three:
-   - **push** — `git push` to `origin/master` (HARD STOP: only if the user said so this turn),
-   - **hold** — leave the commits local/unpushed, or
-   - **trigger deploy** — `fabrik redeploy` / `fabrik apply` is **hub-side + user-run** (trigger-not-execute);
-     name it as the next step, don't run it.
-
-   Don't trail off with "what next?" — offer these three and stop.
+7. **Push, then name the one decision left.** The commits are on `master` — **PUSH them now** (`git push`;
+   the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
+   `git pull --rebase` then push · conflict: abort + report · NEVER `--force`). The only remaining
+   operator call is **deploy**: `fabrik redeploy` / `fabrik apply` is **hub-side + user-run**
+   (trigger-not-execute) — name it as the next step, don't run it. Don't trail off with "what next?" —
+   push, name the deploy decision, stop.

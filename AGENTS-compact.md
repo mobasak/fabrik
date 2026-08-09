@@ -34,7 +34,7 @@ Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` 
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: **`--json` (std — FULL Tier 2: mypy+bandit+semgrep+schema/plan/docs)** · `--lean --json` (fast Tier‑1 subset for in-iteration self-review, NOT the completion gate) · `--systemic --json` (epic). Add **`--check`** for a read-only run (never mutates); a bare run auto-fixes + auto-stages **only your changed files** (the gate scopes every fixer + `ruff` to the diff, incl. committed-unpushed; Fabrik-synced files are excluded in projects). Full tier/mode ref: `docs/workflows/FINAL_GATE_WORKFLOW.md`.
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate green → COMMIT your own work NOW (explicit pathspecs — `git commit -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author). An uncommitted task is an UNFINISHED task. Push stays operator-authorized. Ad-hoc NON-plan branch work: PRESENT merge/push/keep/discard and STOP (execute only the operator's choice; merge → verify merged result → then cleanup).
+5. **EXIT** — Gate green → COMMIT your own work NOW (explicit pathspecs — `git commit -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author), then PUSH it (`git push`; rejected → dirty tree: defer, wip-net protects · clean tree: `git pull --rebase` then push · conflict: abort + report · NEVER --force). An uncommitted or unpushed task is an UNFINISHED task. Ad-hoc NON-plan branch work: DEFAULT = merge to base then push base; present keep/discard only when genuinely arguable (merge → verify merged result → then cleanup).
 
 ## DOC SYNC MATRIX (every task)
 Update matched docs in the SAME staged change. Skipping = task failure (gate-enforced).
@@ -128,7 +128,7 @@ Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you
 ## HARD STOPS — NEVER
 | Rule | Instead |
 |:--|:--|
-| `git push` (unless user said so this turn) · a commit WITHOUT Agent Provenance Trailers · bundling files you didn't author into a commit | committing YOUR OWN work at task end is REQUIRED (§ EXIT — explicit pathspecs + trailers); push is the operator-gated publish step |
+| `git push --force`/`-f` to ANY shared branch · pushing a branch you don't own · a commit WITHOUT Agent Provenance Trailers · bundling files you didn't author into a commit | committing AND PUSHING your own work at task end is REQUIRED (§ EXIT); the only sanctioned force-push is `wip_backup.sh`'s `refs/wip/*` backup refs |
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
