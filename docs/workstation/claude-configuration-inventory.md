@@ -110,13 +110,19 @@ carry their own MCP roster.
 | `~/scratch/inbox-zero/` | 1 | A 52nd project config outside `/opt` — its own `CLAUDE.md` + `.claude/{agents,skills}` |
 
 Example — `/opt/fabrik/.claude/`: `settings.json`, `hooks/final_gate_stop.py` (the Stop-hook that
-enforces the definition-of-done gate — since 2026-08-07 with per-file failure attribution so a sibling session's
+enforces the definition-of-done gate — per-file failure attribution so a sibling session's
 ATTRIBUTED shared-tree dirt reports instead of blocking (a failure citing no
-attributable path stays indeterminate and can still block up to the 3-attempt cap)), `hooks/skill_router.py` (the
-UserPromptSubmit router, 2026-08-07: bare-prose EN/TR prompts get a "this matches /fabrik-X —
-invoke or say why not" nudge; Haiku fallback tier is opt-in via `FABRIK_ROUTER_HAIKU=1`),
-`worktrees/`. Both hooks + `settings.json` are fleet-synced via `AGENT_HOOK_FILES`
-(`scripts/fabrik_synced_manifest.py`).
+attributable path stays indeterminate and can still block up to the 3-attempt cap); its third cause
+catches checkpoint-stalls: first-person promises, permission questions a session-owned active plan
+already answers, and passive obligations ("Pass 7 is owed") with no same-turn dispatch),
+`hooks/skill_router.py` (the UserPromptSubmit router: bare-prose EN/TR prompts get a "this matches
+/fabrik-X — invoke or say why not" nudge; Haiku fallback tier is opt-in via `FABRIK_ROUTER_HAIKU=1`),
+`hooks/session_orient.py` (SessionStart ORIENT block: binds the synced CLAUDE.md, surfaces MEMORY.md
+state, names session-recall + the enforcement mesh; fail-open), `worktrees/`. All three hooks +
+`settings.json` are fleet-synced via `AGENT_HOOK_FILES` (`scripts/fabrik_synced_manifest.py`).
+Note the CLAUDE.md split: a PROJECT's `CLAUDE.md` is the synced copy of the hub's
+`templates/governance/CLAUDE.md`; the hub's own `/opt/fabrik/CLAUDE.md` is a distinct platform-repo
+contract (never distributed).
 
 ---
 

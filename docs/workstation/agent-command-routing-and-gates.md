@@ -128,3 +128,32 @@ contradiction, each reported in the `BLOCKED:` format, not asked).
 Control-loop framing: inner loops run closed and unattended; you are the outer
 controller — the system breaks the loop only at setpoint-changing (design,
 product) and irreversible-actuation (deploy, teardown, publish) points.
+
+## 5. The awareness + anti-stall mesh (what every session starts with and may not end without)
+
+**Session start — the ORIENT block.** A fleet-synced SessionStart hook
+(`.claude/hooks/session_orient.py`) opens every project session with a binding
+orientation: the synced `CLAUDE.md` is loaded and binding (never edited
+locally — projects receive it from the hub's `templates/governance/CLAUDE.md`;
+the hub's own `CLAUDE.md` is a separate platform-repo contract), the agent's
+`MEMORY.md` state (entry count, or a save-per-contract reminder), the
+session-recall tools (`search_chats` · `recent_chats` · `get_chat`) with their
+mandatory-use cases, and the enforcement mesh itself. Fail-open — a broken
+orientation never blocks a session. Running sessions are unaffected;
+the block binds at each NEW session start.
+
+**Session end — three Stop-hook causes.** A session may not end while (a) the
+gate is red on files IT authored (path-token attribution — a sibling's dirt on
+the shared tree never blocks you), (b) its own work sits uncommitted, or
+(c) the final message is a checkpoint-stall: a first-person promise ("I'll run
+it and report"), a permission question the session's own active plan already
+answers, or a **passive obligation** ("Pass 7 is owed", "I still owe the
+confirming round") with no dispatch in the same turn. Negations ("no further
+pass is owed"), causal "due to", credit "owed to", quotations, and named human
+gates are exempt; three blocked attempts warn through.
+
+**Every task-completing response** ends with the 6-line FINAL OUTPUT block —
+gate freshness, docs, changelog, lessons, plus `DONE:` (what actually landed)
+and `NEXT:` (the successor named precisely: exact command + args, the exact
+operator decision, or `none — terminal`; own-session work named in NEXT is
+dispatched, not narrated).
