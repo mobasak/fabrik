@@ -117,7 +117,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 | `.claude/hooks/final_gate_stop.py` | Claude Code stop-hook enforcing `final_gate` green as the definition of done |
 | `.claude/hooks/skill_router.py` | UserPromptSubmit router — suggests the owning `/fabrik-*` skill for bare-prose requests |
 | `.claude/hooks/session_orient.py` | SessionStart ORIENT block — binds the synced CLAUDE.md, surfaces MEMORY.md state, names session-recall + the enforcement mesh |
-| `.windsurf/hooks.json` | Cascade equivalent hook configuration |
+| `.windsurf/hooks.json` | Cascade hook configuration — **DORMANT**: no live runtime consumes it (Cascade retired); synced as a template for a future non-Claude tool, never counted as active enforcement |
 
 Synced verbatim to project root (`AGENT_HOOK_FILES`, `fabrik_synced_manifest.py`) — path/cwd-agnostic: the Claude Code hook resolves its project via `${CLAUDE_PROJECT_DIR}` + stdin cwd, the Cascade hook commands self-locate via `git rev-parse`. This is what makes every project — existing and future — enforce `final_gate` green as the definition of done. Kilo/opencode has no config-level hook surface (strict schema), so Kilo stays instruction-only via `AGENTS-compact.md` (rides the Governance Files sync instead).
 

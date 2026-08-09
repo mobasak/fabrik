@@ -899,6 +899,11 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_structure.py", "Project Structure")
         )
+        # Hooks-index freshness (hub-only; projects self-skip inside the check):
+        # every live hook must appear in docs/workstation/hooks-index.md.
+        results.append(
+            run_optional_check("scripts/enforcement/check_hooks_index.py", "Hooks Index Fresh")
+        )
         # Docs-truth durability gates (2026-07-20 convergence): links + index are
         # blocking (the tree was converged to zero drift and must stay there);
         # retired-terms is WARN-only — the SCRIPT always exits 0, advisory=True
