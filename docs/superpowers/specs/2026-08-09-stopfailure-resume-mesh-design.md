@@ -25,6 +25,7 @@ replace any of it.
 | A `persistent: true` Monitor costs zero while silent; each stdout line wakes the session | Monitor schema; /loop ScheduleWakeup revival observed live (brand) |
 | Turn-death ≠ agent-death: pending wakers (task/subagent/wakeup) revive and retry | built + E2E-proven in the decider's turn_dead work |
 | Display-layer connection drops are NOT deaths (turn persisted, normal Stop) | live specimen 16:22: "Connection closed mid-response" banner, transcript complete `end_turn`, no StopFailure fired |
+| `https://api.anthropic.com` answers any unauthenticated request with an HTTP status (connectivity probe: any response incl. 4xx = up; zero tokens/auth) | live probe 2026-08-09: bare GET → 404 in ~0.11s; `/v1/messages` → 405 |
 
 ## Rejected alternatives
 
@@ -87,8 +88,19 @@ default OFF so pipelines with their own retry logic are never double-retried).
 
 **Behavior:** per-class backoff (`server_error` 30s · `overloaded` 60s · `rate_limit` after the
 Layer-1 rotation completes · `max_output_tokens`/`invalid_request`/`unknown` immediate) →
-`claude -p --resume <session_id> "continue"` → attempt counter in the lock dir, **cap 2** → on
-final failure fall through to Layer 3. Human-only classes never enter the reviver.
+**connectivity gate** → `claude -p --resume <session_id> "continue"` → attempt counter in the lock
+dir, **cap 2 counted attempts** → on final failure fall through to Layer 3. Human-only classes
+never enter the reviver.
+
+**Connectivity gate (network-change hiccups — sustained outages wait, they don't burn):** before
+each resume attempt, probe `curl -s -o /dev/null --max-time 5 https://api.anthropic.com` — ANY
+HTTP response (4xx included) = network up (live-verified 2026-08-09: 404 in ~0.11s; zero tokens,
+zero auth; a DNS failure/timeout = down). While DOWN: poll every 30s WITHOUT consuming an attempt
+(TLS handshake only), up to a **30-min offline ceiling from death**; past the ceiling → Layer 3
+ring (a half-hour outage is human-worthy). This makes brief blips (Wi-Fi switch, VPN toggle, WSL
+DNS flip) self-healing and long outages patient-then-loud, instead of burning both attempts while
+offline. Note: Layer-1 rotation also needs network — if it failed offline, the gated resume simply
+fails once online, consumes an attempt, and the cap/ring path holds.
 
 **Proven path:** the ZEBRA-42 test is this flow end-to-end.
 
@@ -99,10 +111,15 @@ sentence in the workstation run-discipline docs: *long autonomous runs arm the s
 
 **Behavior:** the agent arms `Monitor(persistent: true, command: claude-selfwatch.sh <sid>)` at the
 start of a long run. The script loops silently watching this session's `errparked` marker; when it
-appears: wait the per-class remedy time (read from the marker) → print exactly one line —
+appears: wait the per-class remedy time (read from the marker), then for the network-shaped classes
+(`server_error`/`unknown`) ALSO wait for the same connectivity probe to pass (poll 30s, same
+30-min offline ceiling — waking an agent into a dead network just kills the next turn too) → print
+exactly one line —
 `RESUME: this session died on <error>; the cause has been healed; resume the interrupted task` —
 → exit. The printed line wakes the pane through the native notification queue; the agent resumes
 **in place, in the visible pane**. The consumed monitor means a second death has no waker → rings.
+Past the offline ceiling the watch exits WITHOUT printing — the decider's existing 60-min
+task-stale bound then rings exactly once (interlock, no new code).
 
 **Cost:** zero API tokens while silent; one sleep-loop shell process per armed run.
 
@@ -137,7 +154,9 @@ error-family sound, exactly as today.
 2. **Layer 2a:** repeat the ZEBRA-42 flow with the reviver instead of a manual resume: kill a
    headless session (`model_not_found` is NOT revivable — use a synthetic `server_error` via a
    crafted payload through the real script), assert `claude -p --resume` is invoked with backoff
-   and capped at 2. Watched-fail-first where practical.
+   and capped at 2. **Connectivity gate:** with the probe shimmed DOWN (PATH curl shim), assert no
+   attempt is consumed and the 30-min ceiling falls through to ring; shim UP mid-wait → assert the
+   resume fires and exactly one attempt is counted. Watched-fail-first where practical.
 3. **Layer 2b:** arm the self-watch on a scratch session, write its `errparked` marker by hand,
    assert exactly one RESUME line is printed and the process exits; live-arm in a real long run at
    the next opportunity (the delivery-after-error residual's confirmation).
@@ -160,8 +179,10 @@ error-family sound, exactly as today.
 - `claude-sound.sh` failure branch: +Layer-1 dispatch (~15 lines) + 2a spawn gate (~10 lines)
 - `claude-stop-decider.py`: clear `errparked` on successful Stop-path runs (~4 lines) — plus fixtures
   (the WRITE lives in the failure branch, per the marker semantics above)
-- `~/.claude/bin/claude-autoresume.sh` (new, ~30 lines): backoff + resume + cap — Layer 2a
-- `~/.claude/bin/claude-selfwatch.sh` (new, ~15 lines): marker watch template — Layer 2b
+- `~/.claude/bin/claude-autoresume.sh` (new, ~45 lines): backoff + connectivity gate (probe loop,
+  30-min ceiling) + resume + cap — Layer 2a
+- `~/.claude/bin/claude-selfwatch.sh` (new, ~25 lines): marker watch template + the same
+  connectivity gate for network-shaped classes — Layer 2b
 - Rotation rate-limit marker (~5 lines, in the Layer-1 dispatch)
 - Telegram escalation hook-in (~10 lines, reuses APPRISE_SEND)
 - Docs: workstation run-discipline sentence (arm the self-watch) + inventory rows; DR-backup list
