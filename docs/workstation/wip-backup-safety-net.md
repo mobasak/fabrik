@@ -24,3 +24,9 @@ git for-each-ref 'refs/wip/bak-*'                # point-in-time snapshots (7 da
 
 Backup refs are NEVER work commits: nothing merges them, the Stop-hook ignores them, and force-pushing
 the rolling ref is by design (it's a backup slot, not a branch).
+
+**Snapshot-era caveat:** snapshots taken before 2026-08-09 ~18:00 were built from an EMPTY temp index
+and record tracked-but-gitignored files as deletions — recovering from one of those via `cherry-pick`
+would DELETE such files. Current snapshots seed the index from HEAD (fixed); old dated refs age out
+in 7 days. If you must recover from a pre-fix ref, restore single files (`git checkout <ref> -- <path>`),
+never the whole snapshot.

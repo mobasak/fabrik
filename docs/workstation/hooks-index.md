@@ -1,8 +1,9 @@
 # Hooks Index — every hook on this box, in one place
 
-Freshness is GATE-ENFORCED: `scripts/enforcement/check_hooks_index.py` (hub-side, Tier 2) fails the
-gate when a hook exists in the live configs but is missing from this page — adding or removing a hook
-without updating this index is a red gate, not a doc-drift hope.
+Freshness is GATE-ENFORCED in the ADD direction: `scripts/enforcement/check_hooks_index.py`
+(hub-side, Tier 2) fails the gate when a hook script OR event registration exists in the live configs
+but is missing from this page. Removals are NOT mechanically caught — retiring a hook obliges you to
+delete its row here (honest limit, not a promise).
 
 ## 1. Claude Code — fleet-synced project hooks
 
@@ -26,7 +27,10 @@ wired in the synced `.claude/settings.json`.
 | SessionStart | `session-start-tap.js` | claude-manager session tap (account/quota rotation layer) |
 | SessionStart | `session_context.py` (/opt/session-recall) | Injects recent-context: last sessions for this project, closing context, recently-active sibling projects |
 | Stop | `claude-sound.sh done` | Task-finished sound (state-based park decider — rings only at true final rest) |
-| Notification | `claude-sound.sh attention` | Attention/input-needed sound |
+| Notification | `claude-sound.sh attention` | Attention/input-needed sound (matcher `permission_prompt`) |
+| PreToolUse | `claude-sound.sh attention` | Question-popup ring (matcher `AskUserQuestion` — that popup emits no other hook event) |
+| PreCompact | `claude-sound.sh compact-start` | Writes the `compacting` marker so the decider reads compaction as busy (transcript shows nothing mid-compact) |
+| PostCompact | `claude-sound.sh compact-end` | Clears the `compacting` marker |
 | StopFailure | `claude-sound.sh failure` | Failure pipeline + the **resume mesh**: writes the `errparked` death record, triggers account rotation for auth/rate classes (10-min limiter), spawns the opt-in headless reviver (`claude-autoresume.sh`, `CLAUDE_SOUND_AUTORESUME=1`), and on a truly-dead `/opt` ring escalates to Telegram (`mesh-notify`, 30-min suppress). Pane runs arm `claude-selfwatch.sh` via a persistent Monitor — **long autonomous runs arm the self-watch** (run discipline). Fixture harness: `claude-mesh-test.sh` |
 
 ## 3. Cascade hooks — DORMANT

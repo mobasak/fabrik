@@ -7,8 +7,9 @@ the box. This check makes its freshness MECHANICAL: every hook named in the live
 configs — the synced-manifest AGENT_HOOK_FILES, the project .claude/settings.json
 hook commands, the user-level ~/.claude/settings.json hook scripts (best-effort),
 the .windsurf/hooks.json events, and the repo pre-commit hook ids — must appear
-in the index by basename/id. Adding or removing a hook without updating the index
-fails the gate; a rotting index is a red gate, not a hope.
+in the index by basename/event/id. ADDING a hook (or a new event registration of
+an existing script) without updating the index fails the gate. Removals are not
+mechanically caught (a retired hook's row is its owner's obligation to delete).
 
 Hub-only: projects (no templates/governance/CLAUDE.md marker) skip — the index is
 a hub workstation doc, not a synced artifact.
@@ -40,12 +41,16 @@ def _manifest_hooks(root: Path) -> list[str]:
 
 
 def _settings_hooks(path: Path) -> list[str]:
+    """Required tokens from a settings file: script basenames AND event names —
+    a new EVENT registration of an already-listed script must still flag (live
+    finding: three sound-hook events were invisible to a basename-only check)."""
     try:
         cfg = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except Exception:
         return []
     names: list[str] = []
-    for groups in (cfg.get("hooks") or {}).values():
+    for event, groups in (cfg.get("hooks") or {}).items():
+        names.append(str(event))
         for grp in groups:
             for h in grp.get("hooks", []):
                 cmd = str(h.get("command") or "")

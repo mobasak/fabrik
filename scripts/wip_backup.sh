@@ -17,12 +17,25 @@ KEEP_DAYS=7
 LOG_PREFIX="[wip-backup]"
 ROOT="${WIP_BACKUP_ROOT:-/opt}"
 
+# Bound the cron log (append-only otherwise; review finding).
+_wlog="/tmp/wip-backup.log"
+if [ "$(stat -c %s "$_wlog" 2>/dev/null || echo 0)" -gt 1048576 ]; then
+    tail -c 262144 "$_wlog" > "$_wlog.tmp" 2>/dev/null && mv "$_wlog.tmp" "$_wlog" 2>/dev/null || true
+fi
+
 for repo in "$ROOT"/*/; do
     repo="${repo%/}"
-    [ -d "$repo/.git" ] || continue
+    [ -e "$repo/.git" ] || continue   # -e not -d: linked WORKTREES have a .git FILE (review finding)
     case "$repo" in */archived|*/archived/*) continue ;; esac
 
     cd "$repo" || continue
+    # Prune dated refs older than KEEP_DAYS — for EVERY visited repo (a repo
+    # that went clean must still expire its old snapshots; review finding).
+    cutoff="$(date -u -d "-${KEEP_DAYS} days" +%Y%m%dT%H%M%SZ)"
+    git for-each-ref --format='%(refname)' 'refs/wip/bak-*' 2>/dev/null | while read -r ref; do
+        t="${ref#refs/wip/bak-}"
+        [ "$t" \< "$cutoff" ] && git update-ref -d "$ref" 2>/dev/null
+    done
     # Anything to protect?
     [ -n "$(git status --porcelain 2>/dev/null)" ] || continue
 
@@ -30,9 +43,12 @@ for repo in "$ROOT"/*/; do
     tmp_index="$(mktemp "/tmp/wip-index-$(basename "$repo").XXXXXX")"
     rm -f "$tmp_index"   # git wants to create it
 
-    # Isolated index: capture the FULL tree incl. untracked, without touching
-    # the repo's real index (siblings' staging stays exactly as they left it).
-    if ! GIT_INDEX_FILE="$tmp_index" git add -A 2>/dev/null; then
+    # Isolated index SEEDED FROM HEAD, then add -A: tracked-but-gitignored
+    # files stay present (an empty index + add -A applied ignore rules to them
+    # and recorded DELETIONS — the documented recovery then deleted the files;
+    # review finding, /opt/proxy carries 1342 such files).
+    if ! GIT_INDEX_FILE="$tmp_index" git read-tree HEAD 2>/dev/null \
+       || ! GIT_INDEX_FILE="$tmp_index" git add -A 2>/dev/null; then
         rm -f "$tmp_index"; continue
     fi
     tree="$(GIT_INDEX_FILE="$tmp_index" git write-tree 2>/dev/null)"
@@ -56,12 +72,6 @@ for repo in "$ROOT"/*/; do
             || echo "$LOG_PREFIX push failed for $repo (offline/auth?) — local snapshot kept"
     fi
 
-    # Prune dated refs older than KEEP_DAYS.
-    cutoff="$(date -u -d "-${KEEP_DAYS} days" +%Y%m%dT%H%M%SZ)"
-    git for-each-ref --format='%(refname)' 'refs/wip/bak-*' | while read -r ref; do
-        t="${ref#refs/wip/bak-}"
-        [ "$t" \< "$cutoff" ] && git update-ref -d "$ref"
-    done
     echo "$LOG_PREFIX $repo snapshotted ($commit)"
 done
 exit 0

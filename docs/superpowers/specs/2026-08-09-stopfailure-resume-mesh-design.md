@@ -175,8 +175,8 @@ error-family sound, exactly as today.
    and capped at 2. **Connectivity gate:** with the probe shimmed DOWN (PATH curl shim), assert no
    attempt is consumed and the 30-min ceiling falls through to ring; shim UP mid-wait → assert the
    resume fires and exactly one attempt is counted. **Storm guard:** launch 5 revivers against a
-   shimmed-up probe → assert at most 2 hold slots concurrently and all 5 attempts are jitter-spread
-   (no two within the same second). Watched-fail-first where practical.
+   shimmed-up probe → assert all 5 resumes complete with serialized starts (no two attempt starts
+   share a second — the mutex-critical-section starts log is the deterministic witness). Watched-fail-first where practical.
 3. **Layer 2b:** arm the self-watch on a scratch session, write its `errparked` marker by hand,
    assert exactly one RESUME line is printed and the process exits; live-arm in a real long run at
    the next opportunity (the delivery-after-error residual's confirmation).
@@ -200,7 +200,7 @@ error-family sound, exactly as today.
 - `claude-stop-decider.py`: clear `errparked` on successful Stop-path runs (~4 lines) — plus fixtures
   (the WRITE lives in the failure branch, per the marker semantics above)
 - `~/.claude/bin/claude-autoresume.sh` (new, ~55 lines): backoff + connectivity gate (probe loop,
-  30-min ceiling) + jitter + K=2 revival-slot locks + resume + cap — Layer 2a
+  30-min ceiling) + jitter + serialized-start mutex (≥15s spacing) + resume + cap — Layer 2a
 - `~/.claude/bin/claude-selfwatch.sh` (new, ~30 lines): marker watch template + the same
   connectivity gate for network-shaped classes + wake jitter — Layer 2b
 - Rotation rate-limit marker (~5 lines, in the Layer-1 dispatch)
