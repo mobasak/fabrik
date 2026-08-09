@@ -56,14 +56,17 @@ Training is stale. 3rd-party API/SDK: (1) repo first — `grep_search` `docs/`, 
 ## Environment
 WSL Ubuntu, Linux paths. Same code runs unmodified in WSL dev (PG localhost, `.env`) and VPS Docker (`postgres-main`, `compose.yaml`). Self-host by default.
 
-## FINAL OUTPUT (last 4 lines, every response)
+## FINAL OUTPUT (last 6 lines, every task-completing response)
 ```
 GATE: <command run> → success|failure
 DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
+DONE: <one line — what this run delivered: commits/artifacts, not intentions>
+NEXT: <named successor — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
 ```
-Missing any line = failure. Run gate → success, then output the 4 lines.
+Missing any line = failure. Run gate → success, then output the 6 lines. NEXT: must be runnable
+without re-derivation; a vague NEXT ("continue") is a missing line.
 
 ## Spec contract awareness
 `specs/services/<id>.yaml::shape` drives registrars on `fabrik apply`. Code MUST match shape: DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Mismatch = registrar skipped = broken deploy. Preview `fabrik plan <spec>` is hub-side (not on a project's PATH); from a project, reason from the shape flags.

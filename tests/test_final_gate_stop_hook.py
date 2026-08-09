@@ -534,6 +534,42 @@ def test_negated_obligation_is_allowed(tmp_path: Path) -> None:
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
+def test_obligation_quoted_mid_sentence_is_exempt(tmp_path: Path) -> None:
+    # The quote span, not just the char before the noun: a report QUOTING a
+    # stall snippet is discussing it, not making it.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        'Finding 3: the final said "the confirming pass is owed" and stopped — classic stall, now fixed.'))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_negated_obligation_with_long_subject_is_allowed(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "No adversarial or confirming pass is owed. No whole-plan review pass is owed either."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_obligation_adverb_variants_are_stalls(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    for text in ("Pass 7 is now owed.", "The confirming round is already owed.",
+                 "Pass 7 is still outstanding.", "The sweep remains to be run."):
+        _turn(tr, _user(), _asst_text(text))
+        kind = hook._detect_stall(str(tr), tmp_path, set())
+        assert kind and kind[0] == "promise", f"missed: {text!r}"
+
+
+def test_deadline_and_gratitude_prose_are_allowed(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    for text in ("The quarterly review is due on Friday for the operator.",
+                 "Two fixes are due before release; both landed and are committed.",
+                 "Phase C is due once the operator approves.",
+                 "We owe a debt of gratitude to the pool finders.",
+                 "We owe it to future sessions to keep the ledger honest."):
+        _turn(tr, _user(), _asst_text(text))
+        assert hook._detect_stall(str(tr), tmp_path, set()) is None, f"false positive: {text!r}"
+
+
 def test_due_to_causal_is_allowed(tmp_path: Path) -> None:
     # "due to" is causal prose, not an obligation.
     tr = tmp_path / "t.jsonl"
@@ -623,6 +659,18 @@ def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
         "The old stall was 'I did nothing'. Anyway: want me to run the next pass now?"))
     kind = hook._detect_stall(str(tr), tmp_path, owned)
     assert kind and kind[0] == "permission"
+
+
+def test_next_operator_decision_line_does_not_blind_the_guard(tmp_path: Path) -> None:
+    # Mandated FINAL OUTPUT vocabulary ("NEXT: operator decision: …") on its own
+    # line must not disarm a genuine undispatched promise elsewhere in the
+    # message — exemption tokens are line-scoped (BLOCKED: stays global).
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "I'll run the confirming pass and report back.\n\n"
+        "GATE: success\nNEXT: operator decision: whether to push\n"))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
 
 
 def test_gate_exemption_suppresses_a_real_promise(tmp_path: Path) -> None:

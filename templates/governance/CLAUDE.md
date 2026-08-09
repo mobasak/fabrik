@@ -1,4 +1,4 @@
-<!-- Read by: Claude Code ≤6,000 chars. -->
+<!-- Read by: Claude Code (auto-loaded whole-file into every session). -->
 # Contract
 
 Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read fully before non-trivial work.
@@ -167,7 +167,7 @@ DONE: <one line — what this run delivered: the commits/artifacts, not intentio
 NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
 ```
 
-Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 6 lines. Pure-conversational / clarifying / read-only turns are exempt — no gate, no entry, no block. **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — a named-but-undispatched own-next is the checkpoint-stall class the Stop hook's promise-guard exists to catch.
+Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 6 lines. Pure-conversational / clarifying / read-only turns are exempt — no gate, no entry, no block. **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — the block is a TASK terminator, so emitting it while own-session work remains is itself the checkpoint-stall (the promise-guard catches the phrasing-level variants — "I'll run it", "the pass is owed" — but a bare undispatched `NEXT:` is caught by THIS rule, not by the hook).
 
 **⚠️ The block is a TASK terminator, never a phase/loop terminator.** Mid-`/fabrik-execute-plan` phase
 boundaries and mid-certification rounds are NOT task-completing responses — do NOT emit this block there,

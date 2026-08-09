@@ -166,6 +166,13 @@ FENCE_STRIP = re.compile(
 # Fenced code blocks — capture inner content so we can demand non-trivial output
 # (an empty ``` ``` pair must not satisfy the "show the command output" rule).
 FENCE_BLOCK = re.compile(r"```[^\n]*\n(.*?)```", re.S)
+# Fence-CONTENT extraction under the same contract as FENCE_STRIP: balanced
+# line-anchored blocks (equal-length backreferenced closer) + inline
+# single-line quotes. Group 2 = block body, group 3 = inline body.
+_FENCED_CONTENTS = re.compile(
+    r"^[ \t]*(`{3,})[^\n]*\n(.*?)^[ \t]*\1[ \t]*$|```([^`\n]+)```",
+    re.M | re.S,
+)
 # Spine+ticket plan-set shape (canonical grammar — single definitions live in the
 # 2026-08-04 spine-ticket plan; keep these byte-identical with check_plan_tickets).
 PLAN_DIR_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
@@ -496,12 +503,13 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
 # branch: ONE unnegated affirmative anywhere claims (fail-open); only a claim word
 # ITSELF directly negated is a disclosure.
 _NEG_BEFORE_CLAIM = re.compile(
-    r"\b(?:not|never|no|isn'?t|cannot|can'?t|without|withhold\w*|withheld|awaiting|pending)"
-    r"(?:\W+(?:yet|been|fully|formally|properly))*\W*$",
+    r"(?:\b(?:not|never|no|isn'?t|cannot|can'?t|without|withhold\w*|withheld|awaiting|pending"
+    r"|until|before|un)"
+    r"(?:\W+(?:yet|been|be|fully|formally|properly|merged|closed))*\W{0,2}$)",
     re.I,
 )
 _NEG_AFTER_CLAIM = re.compile(
-    r"^[^.\n]{0,16}?\b(?:withheld|withhold|pending|deferred|denied)\b", re.I
+    r"^[^.\n]{0,32}?\b(?:withheld|withhold|pending|deferred|denied)\b", re.I
 )
 
 
@@ -509,7 +517,7 @@ def _claims_reviewed(stripped: str) -> bool:
     for m in REVIEWED.finditer(stripped):
         if _NEG_BEFORE_CLAIM.search(stripped[max(0, m.start() - 24) : m.start()]):
             continue
-        if _NEG_AFTER_CLAIM.search(stripped[m.end() : m.end() + 24]):
+        if _NEG_AFTER_CLAIM.search(stripped[m.end() : m.end() + 40]):
             continue
         return True
     return False
@@ -528,7 +536,14 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # The gate embed must sit INSIDE a fenced block (the verbatim-embed
     # convention): a literal "status": "success" in prose satisfied this check
     # live while the surrounding sentence explained why faking it would be wrong.
-    fenced = "\n".join(FENCE_BLOCK.findall(text))
+    # Extraction uses the SAME fence contract as FENCE_STRIP (backreferenced
+    # closer + inline single-line quotes) — the naive FENCE_BLOCK mispairs when
+    # an in-contract inline ```…``` quote precedes the real embed, uncapturing a
+    # genuine success JSON (fail-closed false-failure, review finding).
+    fenced = "\n".join(
+        m.group(2) or m.group(3) or ""
+        for m in _FENCED_CONTENTS.finditer(text)
+    )
     if not GATE_OK.search(fenced):
         fails.append(
             'no embedded final_gate run showing "status": "success" inside a fenced block'

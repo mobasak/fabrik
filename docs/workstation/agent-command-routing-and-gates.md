@@ -143,8 +143,10 @@ orientation never blocks a session. Running sessions are unaffected;
 the block binds at each NEW session start.
 
 **Session end — three Stop-hook causes.** A session may not end while (a) the
-gate is red on files IT authored (path-token attribution — a sibling's dirt on
-the shared tree never blocks you), (b) its own work sits uncommitted, or
+gate is red on files IT authored (path-token attribution — a sibling's
+ATTRIBUTED dirt on the shared tree reports instead of blocking; a failure whose
+output names no path stays indeterminate and can still block up to the
+3-attempt cap), (b) its own work sits uncommitted, or
 (c) the final message is a checkpoint-stall: a first-person promise ("I'll run
 it and report"), a permission question the session's own active plan already
 answers, or a **passive obligation** ("Pass 7 is owed", "I still owe the

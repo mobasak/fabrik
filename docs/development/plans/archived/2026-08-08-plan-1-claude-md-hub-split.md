@@ -1,6 +1,6 @@
 # Plan 1 — CLAUDE.md hub/project split (2026-08-08)
 
-Status: EXECUTED 2026-08-08 (bee1eb31 → 29176126 → e46bd7c5 → 3427b25f)
+Status: EXECUTED 2026-08-09 (bee1eb31 → 29176126 → e46bd7c5 → 3427b25f)
 Whole-plan review: docs/development/reviews/2026-08-08-plan-1-claude-md-hub-split-review.md
 
 ## Goal

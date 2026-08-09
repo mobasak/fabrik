@@ -63,6 +63,52 @@ def test_fail_open_on_garbage_stdin(tmp_path: Path) -> None:
     assert rc == 0  # fail-open: never block a session
 
 
+def test_hub_repo_gets_hub_orientation(tmp_path: Path) -> None:
+    # In the HUB (identified by scripts/fabrik_synced_manifest.py at toplevel),
+    # CLAUDE.md is the hub contract — canonical and editable — NOT a synced copy.
+    hub = tmp_path / "opt" / "fabrikish"
+    (hub / "scripts").mkdir(parents=True)
+    (hub / "scripts/fabrik_synced_manifest.py").write_text("# marker\n", encoding="utf-8")
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}))
+    assert rc == 0
+    assert "HUB" in out and "canonical" in out.lower()
+    assert "never edit" not in out.lower(), "hub sessions must not be told CLAUDE.md is unedittable"
+
+
+def test_memory_key_sanitizes_dots_like_the_harness(tmp_path: Path) -> None:
+    # Claude Code's project key replaces '.' as well as '/' with '-'.
+    proj = tmp_path / "opt" / "app.v2"
+    proj.mkdir(parents=True)
+    key = str(proj).replace("/", "-").replace(".", "-")
+    memdir = tmp_path / ".claude/projects" / key / "memory"
+    memdir.mkdir(parents=True)
+    (memdir / "MEMORY.md").write_text("- [A](a.md) — x\n", encoding="utf-8")
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "1" in out and "MEMORY.md" in out
+
+
+def test_huge_memory_index_is_bounded_and_output_survives_c_locale(tmp_path: Path) -> None:
+    proj = tmp_path / "opt" / "big"
+    proj.mkdir(parents=True)
+    key = str(proj).replace("/", "-").replace(".", "-")
+    memdir = tmp_path / ".claude/projects" / key / "memory"
+    memdir.mkdir(parents=True)
+    (memdir / "MEMORY.md").write_text("- [E](e.md) — x\n" * 200_000, encoding="utf-8")  # ~3.4 MB
+    import subprocess as sp
+
+    proc = sp.run(
+        [sys.executable, str(HOOK)],
+        input=json.dumps({"cwd": str(proj)}),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0"},
+    )
+    assert proc.returncode == 0
+    assert len(proc.stdout) > 200, "C locale must not silently swallow the whole block"
+
+
 def test_hook_is_synced_and_wired() -> None:
     sys.path.insert(0, str(FABRIK / "scripts"))
     import fabrik_synced_manifest as m

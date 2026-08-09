@@ -352,15 +352,31 @@ _PERMISSION_RE = re.compile(
 _OBLIGATION_RE = re.compile(
     r"\b(?:pass(?:es)?|rounds?|reviews?|sweeps?|re-?runs?|phases?|audits?"
     r"|fix(?:es)?|tickets?|gauntlets?)\b"
-    r"[^.!?\n]{0,40}?\b(?:is|are|remains?|stays?)\s+(?:still\s+)?"
-    r"(?:owed(?!\s+to)|due(?!\s+to))\b"
-    r"|\b(?:I|we)\s+(?:still\s+)?owe\s+(?:the|a|an|another|one|it)\b",
+    r"[^.!?\n]{0,40}?\b(?:is|are|remains?|stays?)\s+(?:(?:still|now|already)\s+)?"
+    # "due to" causal · "owed to" credit · "due on/by/before/after/once/when" deadline prose
+    r"(?:owed(?!\s+to)|due(?!\s+(?:to|on|by|before|after|once|when)\b)|outstanding)\b"
+    # "the sweep remains to be run/done/executed"
+    r"|\b(?:pass(?:es)?|rounds?|reviews?|sweeps?|re-?runs?|phases?|audits?|fix(?:es)?)\b"
+    r"[^.!?\n]{0,30}?\bremains?\s+to\s+be\s+(?:run|done|executed)\b"
+    # first-person: only with a WORK object ("owe the next pass"), never credit
+    # ("owe a debt of gratitude") or idiom ("owe it to future sessions")
+    r"|\b(?:I|we)\s+(?:still\s+)?owe\s+(?:(?:the|a|an|another|one)\s+(?:next\s+)?"
+    r"(?:pass|round|review|sweep|re-?run|phase|audit|fix\w*|confirming\s+\w+)\b"
+    r"|it\b(?!\s+to))",
     re.I,
 )
-_NEGATED_BEFORE_RE = re.compile(r"\b(?:no|none|nothing|zero)\b[\s\w]{0,12}$", re.I)
-# Legitimate stops: named human gates, BLOCKED escalations, operator-owned steps.
-_GATE_EXEMPT_RE = re.compile(
-    r"\bBLOCKED:|\bgate\s*2\b|\boperator decision\b|\bapproval\b|\bhuman gate\b"
+_NEGATED_BEFORE_RE = re.compile(r"\b(?:no|none|nothing|zero)\b[\s\w-]{0,32}$", re.I)
+# Legitimate stops. Two scopes (review finding: the mandated FINAL OUTPUT
+# vocabulary "NEXT: operator decision: …" appears in nearly every operator-gated
+# task end — a FULL-message scan let that routine line disarm genuine promises
+# anywhere in the message):
+# - GLOBAL (whole message): only the BLOCKED escalation header — its detail
+#   legitimately runs past the 600-char tail cut.
+# - LOCAL (the line carrying the stall match): human-gate wording exempts the
+#   stall it actually describes, never the whole message.
+_GATE_EXEMPT_GLOBAL_RE = re.compile(r"\bBLOCKED:", re.I)
+_GATE_EXEMPT_LOCAL_RE = re.compile(
+    r"\bgate\s*2\b|\boperator decision\b|\bapproval\b|\bhuman gate\b"
     r"|\byours to run\b|\bawait\w*\s+(?:your|the operator)\b|\boperator[- ]gated\b",
     re.I,
 )
@@ -476,10 +492,18 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
         if not text:
             return None
         tail = text[-600:]
-        # Exemptions scan the FULL message: a long BLOCKED escalation's header must
-        # not be split away from its own detail by the tail cut (review finding).
-        if _GATE_EXEMPT_RE.search(text):
+        # The BLOCKED escalation exempts globally: its header must not be split
+        # away from its own detail by the tail cut (review finding).
+        if _GATE_EXEMPT_GLOBAL_RE.search(text):
             return None
+
+        def _line_exempt(match: re.Match[str]) -> bool:
+            """Human-gate wording exempts only the stall it sits WITH — the line
+            carrying the match (review finding: the mandated 'NEXT: operator
+            decision: …' line was disarming genuine promises message-wide)."""
+            ls = tail.rfind("\n", 0, match.start()) + 1
+            le = tail.find("\n", match.end())
+            return bool(_GATE_EXEMPT_LOCAL_RE.search(tail[ls : le if le != -1 else len(tail)]))
 
         def _quoted(match: re.Match[str]) -> bool:
             """A match directly preceded by a quote char is a QUOTATION (discussing
@@ -492,23 +516,37 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
         # First UNQUOTED verb match with an action object in reach — a quoted
         # example must not MASK a later genuine promise (review finding).
         for m in _PROMISE_VERB_RE.finditer(tail):
-            if _quoted(m):
+            if _quoted(m) or _line_exempt(m):
                 continue
             if not _ACTION_OBJECT_RE.search(tail[m.end() : m.end() + 60]):
                 continue  # conversational verb with no work object — not a promise
             if not any(_is_dispatch(t) for t in tools):
                 return "promise", m.group(0)
             break  # promise exists but was KEPT (work dispatched this turn)
+        def _in_quote(start: int) -> bool:
+            """Inside an open quote span: the nearest quote char in the preceding
+            80 chars has no closing mate before the match. Obligation matches
+            begin at the work-noun, rarely at the quote's first token, so the
+            preceding-char check alone misses mid-quote snippets (live FP: a
+            report QUOTING a stall snippet was itself stall-blocked). Straight
+            apostrophes are excluded (possessives)."""
+            window = tail[max(0, start - 80) : start]
+            for opener, closer in (('"', '"'), ("“", "”"), ("«", "»"), ("`", "`")):
+                i = window.rfind(opener)
+                if i != -1 and closer not in window[i + 1 :]:
+                    return True
+            return False
+
         for m in _OBLIGATION_RE.finditer(tail):
-            if _quoted(m):
+            if _quoted(m) or _in_quote(m.start()) or _line_exempt(m):
                 continue
-            if _NEGATED_BEFORE_RE.search(tail[max(0, m.start() - 24) : m.start()]):
-                continue  # "no further pass is owed" — a conclusion, not a stall
+            if _NEGATED_BEFORE_RE.search(tail[max(0, m.start() - 48) : m.start()]):
+                continue  # "no adversarial or confirming pass is owed" — a conclusion
             if not any(_is_dispatch(t) for t in tools):
                 return "promise", m.group(0)
             break  # obligation named AND work dispatched this turn — kept
         for m in _PERMISSION_RE.finditer(tail):
-            if _quoted(m):
+            if _quoted(m) or _line_exempt(m):
                 continue
             if _midrun_marker(root, authored):
                 return "permission", m.group(0)

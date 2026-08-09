@@ -333,6 +333,28 @@ def test_unnegated_claim_wins_over_nearby_negations(repo: Path) -> None:
     assert _run(repo, "docs/development/reviews/2026-08-08-plan-y-review.md", doc) == 1
 
 
+def test_inline_fence_quote_does_not_break_embed_pairing(repo: Path) -> None:
+    # An inline ```…``` quote (in-contract) before the real embed must not
+    # shift block pairing so the genuine success JSON goes uncaptured.
+    doc = (
+        "# Review of plan Y\n\n"
+        "## Phase A verdict\nMirrors the plan. Use ```json``` fences for embeds.\n\n"
+        "reviewed — sign-off.\n\n"
+        "```\n$ python scripts/final_gate.py --json\n"
+        '{"status": "success", "tier": 2, "passed": 20, "failed": 0}\n```\n'
+    )
+    assert _run(repo, "docs/development/reviews/2026-08-09-plan-z-review.md", doc) == 0
+
+
+def test_more_negated_claim_shapes_are_disclosures(repo: Path) -> None:
+    doc = (
+        "# Session notes\n\n"
+        "Sign-off for this whole plan remains withheld pending operator closure.\n"
+        "The branch cannot be merged until reviewed. Two docs stay un-reviewed.\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-08-09-plan-z-review.md", doc) == 0
+
+
 def test_gate_json_in_prose_does_not_satisfy_evidence(repo: Path) -> None:
     # The embed must be a VERBATIM fenced block; the literal string in prose is
     # exactly how a fake (or an explanation of one) passes.

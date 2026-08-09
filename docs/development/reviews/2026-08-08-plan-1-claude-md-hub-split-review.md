@@ -76,3 +76,15 @@ $ python scripts/final_gate.py --check --json
 The sole failure is the standing, disclosed, operator-owned seo spec↔env DB-name decision — pre-dating
 this plan and untouched by it; the plan's own gate definition (Phase C step 5: "the standing 43/1 with NO
 new failures") is met exactly. Formal claim vocabulary is withheld while that item stays open.
+
+## Addendum (2026-08-09) — withholding condition CLEARED
+
+The seo spec↔env DB-name item was closed on the operator side the same day. Fresh full gate:
+
+```
+$ python scripts/final_gate.py --check --json
+{"status": "success", "tier": 2, "passed": 44, "failed": 0}
+```
+
+With the condition cleared, the withheld vocabulary is now stated plainly: the plan's whole surface is
+**reviewed — sign-off**, per the checklist, the 7-finding adjudication, and the quiet round above.
