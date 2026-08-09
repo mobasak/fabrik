@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — tryton-crm SaaS launch readiness: public re-spec + wildcard TLS staging (2026-08-09)
+Deploy-readiness prep (operator: "make everything ready, don't deploy"). Spec: `is_public: true`
+(tenant self-service front door — NO Authelia, per project AI), single-worker guard note
+(project-measured: multi-worker breaks company-rule cache), gotenberg comment refreshed (the
+compose now carries it, 1G). Hub .env: CONSUMER_TOKENS + TRYTOND_RPC_USER/PASSWORD merged from the
+project AI's handoff (backup taken; SERVICE_INTERNAL_SECRET_KEY kept at the hub's canonical value).
+DNS: `*.tojlo.com → vps1` verified already present. Traefik: `cloudflare` DNS-01 resolver STAGED on
+vps1 (`traefik.yml.staged` + `compose.yaml.staged` + `acme-cloudflare.json` + backups) — activation
+is a 3-step operator runbook (cf.env one-liner, mv staged into place, compose up -d), withheld.
+
 ### Added — waker-loss timer bridge: the third silent-death shape is closed (2026-08-09)
 Operator-observed live: "API Error: Connection closed mid-response" ended a turn NORMALLY but stranded its pending subagent — the decider parked the session busy-SILENT, and being event-driven, never re-evaluated: permanent silence, no ring, no revival (StopFailure never fired, so the resume mesh correctly never engaged). The bridge: every busy-waker verdict (`busy-task`/`busy-subagent`/`busy-compacting`) arms a detached ZERO-API sleeper that re-pipes the same payload after the waker's staleness bound (+2 min, depth-capped, per-session deduped); a fired waker makes the re-run a no-op (dup-park guarded), a LOST waker parks → rings "(waker lost)" → writes a `waker_lost` death record so armed self-watches wake the pane in place, and `/opt` sessions Telegram. Proven end-to-end in the sandboxed harness (42/42: busy-silent → recheck-armed → stale → ring + marker); decider 34-fixture regression green. One implementation bug found mid-build by instrumenting the fail-open swallow (payload dict vs str into Popen env) — the breadcrumb stays.
 

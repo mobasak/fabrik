@@ -9,8 +9,11 @@ domain: tryton-crm.vps1.ocoron.com
 # (upstream image, pre-compose) — kept for history, no longer applyable.
 shape:
   kind: service
-  is_public: false            # internal-only M2M bridge (X-Internal-Token); no public Traefik route. sao tenant-UI exposure = project decision, flips this + is_admin_dashboard when made
-  is_admin_dashboard: false
+  is_public: true             # SaaS front door: trytond serves tenant subdomains via the compose's
+                              # HostRegexp(*.tojlo.com) router (certresolver=cloudflare, wildcard TLS).
+                              # Tenant self-service login = public by design (re-spec 2026-08-09,
+                              # requested by the project AI pre-launch).
+  is_admin_dashboard: false   # NO Authelia — it would block tenant self-service login entirely
   has_bearer_api: false       # X-Internal-Token M2M, not a public bearer API
   has_persistent_data: true   # trytond-filestore volume + Tryton = multitenant CRM system-of-record → Backrest
   needs_database: true        # the STACK needs postgres-main::tryton (trytond + worker); the bridge itself stays DB-free (Decision F-DB — no psycopg/sqlalchemy/asyncpg in src/, re-verified 2026-08-09)
@@ -47,9 +50,9 @@ env:
   EXPOSE_AMOUNTS_TO_CUSTOMER: "false"
   CONFIDENCE_DRAFT_GATE: "0.5"
   # NOT declared (project-side deploy decisions, optional features with fail-soft paths):
-  # GOTENBERG_URL (offers→PDF — no gotenberg service exists in the stack or fleet yet),
-  # EFATURA_* (e-invoice provider — unconfigured), REDIS_URL (registrar-injected via needs_cache),
-  # TRYTOND_EMAIL__URI (SMTP — unconfigured; Tryton mail features off until set).
+  # GOTENBERG_URL (compose now carries a gotenberg service — container DNS gotenberg:3000 matches
+  # the code default, nothing to declare), EFATURA_* (e-invoice provider — unconfigured),
+  # REDIS_URL (registrar-injected via needs_cache), TRYTOND_EMAIL__URI (SMTP — off until set).
   # ── trytond + worker (same stack .env; compose env_file: .env on all three) ──
   TRYTON_DB: tryton
   TRYTOND_ADMIN_EMAIL: admin@ocoron.com
@@ -74,6 +77,9 @@ secrets:
 resources:
   memory: 512M
   cpu: '0.5'
+  # ⚠ trytond MUST stay single-worker (project-measured 2026-08-09: 11 passed @ 1 worker,
+  # 4 failed @ 3 — per-process _get_companies_cache breaks company-rule coherence).
+  # NO capacity-tuning pass may add gunicorn workers to the trytond service.
 health:
   path: /health
   interval: 30s
