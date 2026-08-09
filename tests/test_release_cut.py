@@ -33,6 +33,8 @@ def _repo(tmp_path: Path, changelog: str = CHANGELOG, tag: str | None = "v0.3.1"
     r = tmp_path / "repo"
     r.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "master"], cwd=r, check=True, timeout=15)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=r, check=True, timeout=15)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=r, check=True, timeout=15)
     (r / "CHANGELOG.md").write_text(changelog)
     subprocess.run(["git", "add", "-A"], cwd=r, check=True, timeout=15)
     subprocess.run(
@@ -91,6 +93,24 @@ def test_execute_graduates_and_tags(tmp_path: Path) -> None:
     # the graduation is committed
     dirty = subprocess.run(["git", "status", "--porcelain"], cwd=r, capture_output=True, text=True).stdout
     assert dirty.strip() == ""
+
+
+def test_missing_gh_binary_is_nonfatal(tmp_path: Path) -> None:
+    # Projects may not have gh installed — the release itself (graduate+tag)
+    # must still succeed; only the GitHub Release step degrades.
+    r = _repo(tmp_path)
+    gitonly = tmp_path / "bin"
+    gitonly.mkdir()
+    import shutil
+
+    (gitonly / "git").symlink_to(shutil.which("git"))  # git available, gh NOT
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--execute", "--no-push"],
+        cwd=r, capture_output=True, text=True, timeout=30,
+        env={"PATH": str(gitonly), "HOME": str(tmp_path)},
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "cut v0.4.0" in proc.stdout
 
 
 def test_no_tags_first_cut(tmp_path: Path) -> None:

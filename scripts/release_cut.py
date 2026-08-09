@@ -139,13 +139,17 @@ def main() -> int:
         _git("push", "origin", f"v{version}", cwd=cwd)
         print("pushed branch + tag")
     if not args.no_gh_release:
-        r = subprocess.run(
-            ["gh", "release", "create", f"v{version}", "--title", f"v{version}",
-             "--notes", body.strip()],
-            cwd=cwd, capture_output=True, text=True, timeout=120,
-        )
-        print("GitHub Release created" if r.returncode == 0
-              else f"gh release failed (non-fatal): {r.stderr.strip()[:120]}")
+        try:
+            r = subprocess.run(
+                ["gh", "release", "create", f"v{version}", "--title", f"v{version}",
+                 "--notes", body.strip()],
+                cwd=cwd, capture_output=True, text=True, timeout=120,
+            )
+            print("GitHub Release created" if r.returncode == 0
+                  else f"gh release failed (non-fatal): {r.stderr.strip()[:120]}")
+        except (OSError, subprocess.SubprocessError) as e:
+            # gh not installed (projects) — the cut itself already succeeded.
+            print(f"gh unavailable (non-fatal): {e}")
     return 0
 
 
