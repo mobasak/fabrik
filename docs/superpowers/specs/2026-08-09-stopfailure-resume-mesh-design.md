@@ -104,10 +104,14 @@ fails once online, consumes an attempt, and the cap/ring path holds.
 
 **Revival-storm guard (the operator's real pattern: MANY full-throttle sessions dying together on a
 VPN/Wi-Fi/tether switch, then the network returning for all of them at once):** after the gate
-passes, each reviver sleeps a random **0–45s jitter**, then acquires one of **K=2 box-wide revival
-slots** (mkdir locks in the shared lock dir, 5-min stale timeout) before running its resume — so N
-simultaneous deaths revive as a staggered trickle, never as an N-wide burst that itself triggers a
-`rate_limit` cascade. The 2b self-watch applies the same jitter before printing its RESUME line.
+passes, each reviver sleeps a random **0–45s jitter**, then passes a box-wide **serialized-start
+mutex: resume starts are ≥15s apart** (mkdir mutex with 60s stale steal). *(Implementation
+amendment, review-adjudicated: the originally-specified K=2 held-slot design was disproven — a slot
+held across a full resumed run collides with any stale-steal timeout and dismantles the guard under
+the very storm it exists for; serialized starts deliver the same staggered-trickle guarantee without
+held state.)* N simultaneous deaths revive as a staggered trickle, never as an N-wide burst that
+itself triggers a `rate_limit` cascade. The 2b self-watch applies the same jitter before printing
+its RESUME line.
 Sibling guard: the rotation-storm limiter (Layer 1) already serializes the account side; this
 serializes the turn side.
 

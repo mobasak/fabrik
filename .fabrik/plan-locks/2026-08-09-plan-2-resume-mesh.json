@@ -1,0 +1,17 @@
+{
+  "plan": "docs/development/plans/archived/2026-08-09-plan-2-resume-mesh.md",
+  "status": "executed",
+  "mode": "monolith",
+  "phase": "A",
+  "owned_paths": [
+    "~/.claude/bin/claude-sound.sh",
+    "~/.claude/bin/claude-stop-decider.py",
+    "~/.claude/bin/claude-autoresume.sh",
+    "~/.claude/bin/claude-selfwatch.sh",
+    "~/.claude/bin/claude-mesh-test.sh",
+    "docs/workstation/claude-configuration-inventory.md",
+    "docs/workstation/hooks-index.md"
+  ],
+  "started_at": "2026-08-09T18:40:00+03:00",
+  "finished_at": "2026-08-09T19:55:00+03:00"
+}

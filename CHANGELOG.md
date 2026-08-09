@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — StopFailure resume mesh: sessions heal and resume themselves; rings mean "human needed" (2026-08-09)
+Executed plan `2026-08-09-plan-2-resume-mesh` (workstation scope, `~/.claude/bin`, DR-backed). Layer 1 (every session): each API turn-death writes an `errparked` death record and account-class deaths (`rate_limit`/`authentication_failed`) trigger `claude_rotate --next` behind a box-wide 10-min limiter. Layer 2a (opt-in `CLAUDE_SOUND_AUTORESUME=1`): a detached reviver waits per-class backoff, passes a live-verified connectivity gate (any HTTP response from api.anthropic.com = up; offline polls consume no attempts; 30-min ceiling → ring), takes storm-jitter + a box-wide serialized-start mutex (resume starts ≥15s apart — the review disproved the held-slot design) (the full-throttle VPN/Wi-Fi/tether-switch herd), then `claude -p --resume` (cap 2; final failure re-fires the pipeline with `CLAUDE_SOUND_NO_REVIVE=1` so the existing waker-consumed logic rings — no new ring code). Layer 2b: `claude-selfwatch.sh` armed per long run via persistent Monitor wakes the pane in place (armed live on the build session itself). Layer 3: a truly-dead `/opt` ring escalates to Telegram (`mesh-notify`, vendored sysadmin pattern, 30-min suppress). All red-first via the sandboxed `claude-mesh-test.sh` (28 fixtures — incl. a mid-build fix after the harness rang REAL sounds through the absolute-path media/Pulse: both now point at dead paths); decider 34-fixture self-test stays green.
+
+
 ### Changed — tryton-crm deploy spec re-grounded against the live bridge code (2026-08-09)
 `specs/services/tryton-crm.yaml`: `exposes_metrics` false→true (GET /metrics live at
 src/tryton_crm/main.py:53 — Prometheus registrar now runs at apply), `needs_cache` false→true

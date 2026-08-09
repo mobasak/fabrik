@@ -1,6 +1,7 @@
 # Plan 2 — StopFailure Resume Mesh (2026-08-09)
 
-Status: CONVERGED
+Status: EXECUTED 2026-08-09 (workstation build; repo artifacts d1199b7f + this commit)
+Whole-plan review: docs/development/reviews/2026-08-09-plan-2-resume-mesh-review.md
 
 ## Pass Ledger (plan-review convergence)
 
@@ -137,8 +138,12 @@ hooks + workstation shell), declared at commit.
 
 ## Evidence
 
-(execution appends: mesh-test red→green per phase · decider fixture count · regression battery ·
-gate line.)
+**Execution evidence:** Phase A: 13 red → 15 green · Phase B: 25 green (+ mid-build real-sound
+incident fixed: sandbox now dead-paths media/Pulse) · Phase C: 28 green · review round: 11 findings
+→ 35/35 twice + decider self-test green · deviations: decider clear/keep fixtures live in the
+harness (they exercise main()'s side effect, unreachable from the embedded fixture suite); held-slot
+storm guard replaced by serialized starts (spec-amended, review-adjudicated). Self-watch armed live
+on the build session. Gate: 44/0.
 
 ## Self-audit
 
