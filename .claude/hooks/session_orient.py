@@ -98,9 +98,10 @@ def main() -> int:
         " `get_chat` (read one). MANDATORY before answering when resuming work, when the user"
         " references a prior decision not in this conversation, or after compaction — never claim no"
         " previous conversation exists without searching first.\n"
-        "- **Enforcement mesh wired to this session:** the Stop hook blocks unfinished exits (gate"
-        " red on YOUR files · your work uncommitted · promise/permission stalls); the prompt router"
-        " suggests the owning /fabrik-* skill; `python scripts/final_gate.py --json` is the"
+        "- **Enforcement mesh wired to this session:** the Stop hook blocks unfinished exits — FOUR"
+        " causes: gate red on YOUR files · your work uncommitted · committed-but-UNPUSHED (the"
+        " task-end law: push your own work; never --force) · promise/permission stalls; the prompt"
+        " router suggests the owning /fabrik-* skill; `python scripts/final_gate.py --json` is the"
         " completion gate. Work WITH them — they are the definition of done, not obstacles."
     )
     return 0

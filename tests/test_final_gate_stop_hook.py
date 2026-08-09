@@ -266,6 +266,29 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
         bl.unlink(missing_ok=True)
 
 
+def test_baseline_survives_resume_but_not_fresh_start(fake_project: Path) -> None:
+    # Mesh interplay: a revived session (source=resume/compact) must KEEP its
+    # original baseline — re-baselining would swallow the session's own gate
+    # breakage into "inherited" and disarm the gate cause (review finding).
+    sid = "blres"
+    bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
+    try:
+        bl.write_text(json.dumps(["Original"]))
+        env = {**os.environ, "FAKE_FAILS": "NewCheck"}
+        for source, expect in (("resume", ["Original"]), ("compact", ["Original"]),
+                               ("startup", ["NewCheck"])):
+            proc = subprocess.run(
+                [sys.executable, str(_HOOK), "--baseline"],
+                input=json.dumps({"session_id": sid, "cwd": str(fake_project),
+                                  "hook_event_name": "SessionStart", "source": source}),
+                capture_output=True, text=True, timeout=60, env=env,
+            )
+            assert proc.returncode == 0
+            assert json.loads(bl.read_text()) == expect, f"source={source}"
+    finally:
+        bl.unlink(missing_ok=True)
+
+
 def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
     ctr.write_text("1,2,0")

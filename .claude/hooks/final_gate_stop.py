@@ -591,7 +591,15 @@ def main(argv: list[str]) -> int:
             return 0  # not a fabrik-style project → nothing to enforce
 
         # SessionStart: record the inherited failing set, then always allow.
+        # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the
+        # resume mesh's claude -p --resume, or a compaction) re-baselining
+        # would swallow its OWN gate breakage into "inherited" and disarm the
+        # gate cause for exactly the debt the revival exists to finish
+        # (review finding). Only a fresh start measures inheritance.
         if "--baseline" in argv:
+            source = str(data.get("source") or "")
+            if source in ("resume", "compact") and _baseline_path(sid).exists():
+                return 0
             _passed, failing, _ftext = _run_gate(root)
             try:
                 _baseline_path(sid).write_text(json.dumps(sorted(failing)))

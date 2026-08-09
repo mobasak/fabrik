@@ -12,10 +12,10 @@ wired in the synced `.claude/settings.json`.
 
 | Event | Hook | What it does |
 |---|---|---|
-| SessionStart | `final_gate_stop.py --baseline` | Snapshots the failing gate-check set at session open (runs the FULL gate — the cost buys end-of-session attribution: the same check set must produce the baseline and the verdict) |
+| SessionStart | `final_gate_stop.py --baseline` | Snapshots the failing gate-check set at session open (runs the LEAN gate `--lean --check` — the same Tier-1 check set the Stop verdict uses, so attribution compares like with like) |
 | SessionStart | `session_orient.py` | The binding ORIENT block: governing CLAUDE.md (hub-contract vs synced-template text branches on content-based repo identity), MEMORY.md state (bounded 256KB read), session-recall tools + mandatory-use cases, the enforcement mesh. Fail-open |
 | UserPromptSubmit | `skill_router.py` | Bare-prose EN/TR routing to the owning `/fabrik-*` skill ("invoke it, or say in one line why not"); regex tier always, Haiku tier opt-in (`FABRIK_ROUTER_HAIKU=1`); never blocks or rewrites |
-| Stop | `final_gate_stop.py` | Definition-of-done enforcer, three blocking causes: gate red on session-authored files (path-token attribution) · session's own work uncommitted · checkpoint-stall (promises, plan-answered permission questions, passive obligations). Quote-span/negation/deadline exemptions; `BLOCKED:` exempts globally, human-gate wording line-scoped; 3-attempt warn-through |
+| Stop | `final_gate_stop.py` | Definition-of-done enforcer, four blocking causes: gate red on session-authored files (path-token attribution) · session's own work uncommitted · committed-but-UNPUSHED (branch ahead of upstream; the task-end push law — indeterminate/no-upstream never blocks) · checkpoint-stall (promises, plan-answered permission questions, passive obligations). Quote-span/negation/deadline exemptions; `BLOCKED:` exempts globally, human-gate wording line-scoped; 3-attempt warn-through per cause |
 
 ## 2. Claude Code — user-level hooks (box-wide)
 
