@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — waker-loss timer bridge: the third silent-death shape is closed (2026-08-09)
+Operator-observed live: "API Error: Connection closed mid-response" ended a turn NORMALLY but stranded its pending subagent — the decider parked the session busy-SILENT, and being event-driven, never re-evaluated: permanent silence, no ring, no revival (StopFailure never fired, so the resume mesh correctly never engaged). The bridge: every busy-waker verdict (`busy-task`/`busy-subagent`/`busy-compacting`) arms a detached ZERO-API sleeper that re-pipes the same payload after the waker's staleness bound (+2 min, depth-capped, per-session deduped); a fired waker makes the re-run a no-op (dup-park guarded), a LOST waker parks → rings "(waker lost)" → writes a `waker_lost` death record so armed self-watches wake the pane in place, and `/opt` sessions Telegram. Proven end-to-end in the sandboxed harness (42/42: busy-silent → recheck-armed → stale → ring + marker); decider 34-fixture regression green. One implementation bug found mid-build by instrumenting the fail-open swallow (payload dict vs str into Popen env) — the breadcrumb stays.
+
+
 ### Changed — mesh auto-rotation is opt-in OFF pending health-aware design (operator adjudication) (2026-08-09)
 First live firing exposed the design gap: the Layer-1 rotation is blind to per-account wall state and limit TYPE — it rotated while two of three accounts were weekly-walled and the active one only needed its known 5-hour window reset waited out, invalidating every open interactive window for nothing. Rotation now requires `CLAUDE_SOUND_AUTOROTATE=1` (default OFF; skip is logged); the death record, revival layers, and Telegram escalation are unchanged. Queued next session: health-aware rotation (wall state + limit type; a knowable reset time means WAIT) and rotate-store token re-capture after manual logins (the stale-snapshot re-login churn). Harness 37/37 with default-off + skip-logged fixtures.
 
