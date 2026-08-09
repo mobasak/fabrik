@@ -80,6 +80,13 @@ every healable class.
 **Rotation-storm guard:** rotation trigger is rate-limited (marker: at most one triggered rotation
 per N minutes box-wide, N≈10) so a burst of dying sessions can't thrash accounts.
 
+**Amendment (operator adjudication, first live firing):** the rotation trigger is **OPT-IN
+(`CLAUDE_SOUND_AUTOROTATE=1`), default OFF**. The blind version rotated while two of three accounts
+were weekly-walled and the active one only needed its known 5-hour window reset waited out — every
+open interactive window got invalidated for nothing. It stays off until the health-aware design
+ships: consult per-account wall state AND limit TYPE before switching; a knowable reset time means
+WAIT, never rotate.
+
 ### Layer 2a — headless auto-reviver (opt-in)
 
 **Component:** small detached helper spawned by the failure branch **only when**
