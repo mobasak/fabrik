@@ -338,7 +338,7 @@ if this run shipped a feature/route/service/schema/config change:
 
 run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
 fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours)
-run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → offer push/hold/deploy
+run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → PUSH (task-end law; ladder on rejection) → name the deploy decision
 ```
 
 ## Dispatcher Mode — spine+ticket plan sets
@@ -932,7 +932,8 @@ to merge back. "Finishing" is:
    claim that nothing is left. Commit the move with the plan-status commit (explicit paths).
 7. **Push, then name the one decision left.** The commits are on `master` — **PUSH them now** (`git push`;
    the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
-   `git pull --rebase` then push · conflict: abort + report · NEVER `--force`). The only remaining
+   `git pull --rebase=merges` then push (preserves the Merge Protocol's `--no-ff` merge commits —
+   plain `--rebase` linearizes them away) · conflict: abort + report · NEVER `--force`). The only remaining
    operator call is **deploy**: `fabrik redeploy` / `fabrik apply` is **hub-side + user-run**
    (trigger-not-execute) — name it as the next step, don't run it. Don't trail off with "what next?" —
    push, name the deploy decision, stop.

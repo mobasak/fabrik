@@ -122,12 +122,13 @@ contradiction, each reported in the `BLOCKED:` format, not asked).
 | Product questions | gauntlet design-gap briefs ("never decide a product question inside a test run") |
 | Deploy | `/fabrik-release` Gate 2 — you run `fabrik apply`; agents never do |
 | Retirement / teardown | `/fabrik-decommission` Phase 1.5 confirmation before ANY move; `fabrik destroy` is yours |
-| Publish | `git push` — always operator-authorized |
+| Publish artifacts / deploy | `fabrik apply`/`redeploy`, store submissions — operator-run (plain `git push` of own work is the routine task-end BACKUP step, Stop-hook-enforced, never a gate) |
 | Stuck finding | after 3 failed fix attempts → BLOCKED-escalated to you; the loop continues on everything else |
 
 Control-loop framing: inner loops run closed and unattended; you are the outer
 controller — the system breaks the loop only at setpoint-changing (design,
-product) and irreversible-actuation (deploy, teardown, publish) points.
+product) and irreversible-actuation (deploy, teardown, store publication) points — plain `git push`
+is no longer one of them (routine task-end backup, Stop-hook-enforced).
 
 ## 5. The awareness + anti-stall mesh (what every session starts with and may not end without)
 

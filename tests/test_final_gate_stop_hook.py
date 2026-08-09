@@ -224,6 +224,48 @@ def test_no_upstream_is_indeterminate_and_allows(tmp_path: Path) -> None:
     assert _run_stop(p, "push3", "", baseline=[]) == ""
 
 
+def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path) -> None:
+    # Reset-when-false for the p slot: a push block, then push (cause resolves),
+    # then a gate/commit block must NOT carry the stale p count into a brand-new
+    # unpushed streak (review finding — the stranded-counter class, p-slot edition).
+    p = _push_repo(tmp_path, upstream=True, push=False)
+    sid = "pstrand"
+    ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
+    try:
+        bl.write_text(json.dumps([]))
+        ctr.unlink(missing_ok=True)
+        env = {**os.environ, "FAKE_FAILS": ""}
+
+        def stop() -> str:
+            proc = subprocess.run(
+                [sys.executable, str(_HOOK)],
+                input=json.dumps({"session_id": sid, "cwd": str(p), "hook_event_name": "Stop"}),
+                capture_output=True, text=True, timeout=60, env=env,
+            )
+            return proc.stdout.strip()
+
+        assert "UNPUSHED" in stop()                      # p -> 1
+        subprocess.run(["git", "push", "-q"], cwd=p, check=True, timeout=15)  # cause resolves
+        (p / "dirty.txt").write_text("x")                # dirty tree
+        env["FAKE_FAILS"] = "NewCheck"                   # NEW gate failure -> gate block
+        out = stop()
+        assert "DEFINITION OF DONE NOT MET" in out
+        env["FAKE_FAILS"] = ""
+        (p / "dirty.txt").unlink()
+        (p / "c.txt").write_text("z")                    # brand-new unpushed streak
+        subprocess.run(["git", "add", "c.txt"], cwd=p, check=True, timeout=15)
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "new"],
+            cwd=p, check=True, timeout=15,
+        )
+        out = stop()
+        assert "UNPUSHED WORK (attempt 1/3)" in out, out  # fresh streak starts at 1, not 2
+    finally:
+        ctr.unlink(missing_ok=True)
+        bl.unlink(missing_ok=True)
+
+
 def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
     ctr.write_text("1,2,0")

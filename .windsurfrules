@@ -32,7 +32,7 @@ Listing a pack = you read it. Pure-planning = `PACKS: none`.
 2. **GATE** — run ticket's `Final Gate Instruction` to `status:"success"`. Flags: **`--json` (std — FULL Tier 2: mypy+bandit+semgrep+schema/plan/docs)** · `--lean --json` (fast Tier‑1 subset for in-iteration self-review, NOT the completion gate) · `--systemic --json` (epic). Add **`--check`** for a read-only run (never mutates); a bare run auto-fixes + auto-stages **only your changed files** (the gate scopes every fixer + `ruff` to the diff, incl. committed-unpushed; Fabrik-synced files excluded in projects). Ref: `/opt/fabrik/docs/workflows/FINAL_GATE_WORKFLOW.md` (upstream-only).
 3. **CHANGELOG** — one entry under `## [Unreleased]` (gate-enforced).
 4. **LESSONS LEARNT** — ticket field `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — gate green → COMMIT your own work (explicit pathspecs + Agent Provenance Trailers; never bundle others' files), then PUSH it (`git push`; rejected → dirty tree: defer · clean: `git pull --rebase` then push · NEVER --force). Uncommitted or unpushed = unfinished.
+5. **EXIT** — gate green → COMMIT your own work (explicit pathspecs + Agent Provenance Trailers; never bundle others' files), then PUSH it (`git push`; rejected → dirty tree: defer · clean: `git pull --rebase=merges` then push · conflict: `git rebase --abort` + report · NEVER --force). Uncommitted or unpushed = unfinished.
 
 ## HARD STOPS — Cascade mechanics
 | Rule | Instead |

@@ -1,6 +1,7 @@
 # Plan 1 — Routine task-end push (2026-08-09)
 
-Status: CONVERGED
+Status: EXECUTED 2026-08-09 (f5c71bde → cef3be75 → adjudication fixes)
+Whole-plan review: docs/development/reviews/2026-08-09-plan-1-routine-push-review.md
 
 ## Goal
 
@@ -138,7 +139,18 @@ PUSH OK after rebase                                                    # clean-
 # dirty-tree probe: pull --rebase left a mid-rebase detached state → dirty-tree leg = defer
 ```
 
-Execution appends: Phase A red→green pytest output · Phase B corpus `--check` + gate line.
+**Execution evidence:**
+
+```
+Phase A red-first: 2 failed (unpushed-blocks, legacy-counter) -> hook change -> 65 passed
+Phase B: corpus check OK -- installed commands + skills match rendered sources
+Adjudication: 7 findings (5 fixed incl. --rebase=merges ladder + p-slot strand w/ multi-stop
+red-first test; 2 accepted residuals) + 1 live FP fixed (1df51065); final suite 67 passed
+Live self-demonstration: the 4th cause's first firing was on its own author; git push cleared it
+(cef3be75..003091e9), and the block message already spoke the new law.
+$ python scripts/final_gate.py --check --json
+{"status": "success", "tier": 2, "passed": 45, "failed": 0}
+```
 
 ## Self-audit
 

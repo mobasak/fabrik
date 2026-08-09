@@ -626,8 +626,8 @@ def main(argv: list[str]) -> int:
                     "this branch are not on origin — an unpushed task is an "
                     "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
                     "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
-                    "tree → `git pull --rebase` then push · conflict → `git rebase --abort` "
-                    "+ report · NEVER --force."
+                    "tree → `git pull --rebase=merges` then push · conflict → "
+                    "`git rebase --abort` + report · NEVER --force."
                 )
                 sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
                 return 0
@@ -762,12 +762,14 @@ def main(argv: list[str]) -> int:
             counter.write_text(f"0,0,{stall_attempts},{push_attempts}")
             return _stall_gate()
 
-        # Reset-when-cause-false applies to the stall slot here too: a gate/commit
-        # block must not STRAND a stale stall count that later waves a brand-new
-        # stall streak through on its first stop (review finding — the same
-        # regression class decide()'s own docstring documents, reintroduced).
+        # Reset-when-cause-false applies to the stall AND push slots here too: a
+        # gate/commit block must not STRAND a stale count that later shortens (or
+        # mis-numbers) a brand-new streak (review finding — the same regression
+        # class decide()'s own docstring documents; the p-slot edition was caught
+        # by the routine-push whole-plan review).
         counter.write_text(
-            f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},{push_attempts}"
+            f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},"
+            f"{push_attempts if _ahead_of_upstream(root) else 0}"
         )
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])
