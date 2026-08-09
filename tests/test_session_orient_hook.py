@@ -58,6 +58,26 @@ def test_no_memory_index_is_graceful(tmp_path: Path) -> None:
     assert "no memory index yet" in out.lower()
 
 
+def test_selfwatch_arm_order_carries_the_real_session_id(tmp_path: Path) -> None:
+    # Operator directive: auto-continue always on — every session is ordered to
+    # arm its self-watch with ITS OWN sid as the first action (pane-safe path).
+    (tmp_path / ".claude/bin").mkdir(parents=True)
+    (tmp_path / ".claude/bin/claude-selfwatch.sh").write_text("#!/bin/bash\n")
+    proj = tmp_path / "opt" / "p"
+    proj.mkdir(parents=True)
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-42-abc"}))
+    assert rc == 0
+    assert "claude-selfwatch.sh sid-42-abc" in out
+    assert "ARM YOUR SELF-WATCH" in out
+
+
+def test_no_selfwatch_script_no_arm_order(tmp_path: Path) -> None:
+    proj = tmp_path / "opt" / "p2"
+    proj.mkdir(parents=True)
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "s"}))
+    assert rc == 0 and "ARM YOUR SELF-WATCH" not in out  # boxes without the mesh stay clean
+
+
 def test_fail_open_on_garbage_stdin(tmp_path: Path) -> None:
     rc, _ = _run(tmp_path, tmp_path, "{not json")
     assert rc == 0  # fail-open: never block a session

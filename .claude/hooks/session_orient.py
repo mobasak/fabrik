@@ -87,9 +87,27 @@ def main() -> int:
     except Exception:
         data = {}
     cwd = str(data.get("cwd") or os.getcwd())
+    sid = str(data.get("session_id") or "")
+
+    # Pane auto-continue (operator directive: always on in interactive sessions):
+    # the self-watch is the ONLY pane-safe revival mechanism (the headless
+    # reviver against a pane forks a second writer — spec-disqualified), and a
+    # Monitor can only be armed BY the agent — so the ORIENT block orders it
+    # with the concrete session id.
+    arm_line = ""
+    if sid and Path(os.environ.get("HOME", str(Path.home()))) \
+            .joinpath(".claude/bin/claude-selfwatch.sh").is_file():
+        arm_line = (
+            "- **ARM YOUR SELF-WATCH NOW (first tool action, operator-mandated):** call "
+            f"Monitor(persistent: true, command: \"bash ~/.claude/bin/claude-selfwatch.sh {sid}\","
+            " description: \"resume-mesh self-watch\") — it wakes THIS pane automatically when a"
+            " turn dies on a healed API error or a lost waker. Zero cost while silent; skip ONLY"
+            " if this session already armed it.\n"
+        )
 
     print(
         "## ORIENT (binding — read before acting)\n"
+        + arm_line
         + _governance_line(cwd)
         + "\n"
         + _memory_line(cwd)
