@@ -1,15 +1,7 @@
 <!-- Read by: Claude Code ≤6,000 chars. -->
-# Contract — the HUB (/opt/fabrik)
+# Contract
 
 Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read fully before non-trivial work.
-
-**You are in the PLATFORM repo, not a project.** This repo IS the machinery every `/opt` project runs on:
-the `fabrik` CLI + scaffolder (`src/fabrik/`), the enforcement gates (`scripts/enforcement/`), the command
-corpus (`commands/_sources/` → rendered box-wide), the rule packs (`.windsurf/rules/` — fleet-synced), the
-fleet deploy specs (`specs/services/*.yaml` — OTHER projects' deploys), and the governance distributed to
-every project (`scripts/fabrik_synced_manifest.py` is the canonical list; the project-facing `CLAUDE.md`
-lives at `templates/governance/CLAUDE.md`, NOT here — this file is yours alone). **What you edit here
-ships fleet-wide**: a synced-surface commit distributes to ~46 repos via the pre-commit governance-sync.
 
 ## ⚠️ FIRST OUTPUT (every task-completing response; skip on read-only / clarifying turns)
 `RULES ACTIVE: CLAUDE-CODE | <3 rules from this file you applied or will apply>`
@@ -29,7 +21,7 @@ ships fleet-wide**: a synced-surface commit distributes to ~46 repos via the pre
    | `utility` | support work invocable at any point, not a fixed position in the chain |
 
    Fork rules: data-shaped work → `2-contract` (`/fabrik-data-contract`); GUI work also routes through `/fabrik-ui-design` + `/fabrik-ui-design-review` (`2-contract`); headless types (§ Pipeline item 2) skip GUI-only stages — their `5-certify` runs `/fabrik-service-test`, never `/fabrik-user-test`. Escape: a matched stage that genuinely doesn't fit — say so in one line and proceed without invoking it; no stage applies at all (pure conversation, a one-off read-only question) — no declaration owed, proceed silently.
-1. **Hub identity, not a scaffold type:** there is no `project.yaml` here — the 12 `SCAFFOLD_TYPES` are what this repo EMITS (`scaffold.py::SCAFFOLD_TYPES` is the registry), not what it is. Local dev runs in `.venv`; deploys of OTHER projects run from here via `fabrik apply specs/services/<id>.yaml` (SSH + Docker Compose to the VPS fleet).
+1. `project.yaml::type` tells you which of the 12 `SCAFFOLD_TYPES` this is (11 scaffoldable — `wordpress` ships from `/opt/wpf`). All projects use `.venv` for local WSL development and deploy as Docker containers via `fabrik apply` (SSH + Docker Compose to VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
 4. **Only when PLANNING** (producing/revising a plan): (a) read `agents-fabrik.md` (the canonical infra + codebase map — `AGENTS.md` is a stub); (b) run `python scripts/select_rules.py` and **read every ACTIVE pack + any AVAILABLE pack whose description matches the work** — binding; (c) ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
@@ -46,13 +38,6 @@ ships fleet-wide**: a synced-surface commit distributes to ~46 repos via the pre
   you **RETURN to the invoked command in the same run** — delivering a different command's output is
   answering the wrong question, however good the commits look.
 - **Stay on task:** no unsolicited advice or process commentary.
-- **Merge-time render only:** NEVER bare-render `commands/assemble_commands.py` from a worktree — the
-  renderer PRUNES installed commands+skills absent from the current tree's `_sources/`, deleting
-  master-only artifacts box-wide. Render from merged master; `--check` (temp-dir render) is always safe.
-- **Sync-consciousness:** a commit touching any synced surface (`fabrik_synced_manifest.py` list,
-  `.windsurf/rules/`, `scripts/enforcement/`, `templates/governance/`, hooks) distributes fleet-wide via
-  the pre-commit governance-sync — know the blast radius BEFORE staging; a hub-only experiment never goes
-  on a synced path.
 - **Conflict resolution:** rule pack > ticket (for *how* to write). `spec.shape` is canonical for *what* the code must match — orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 - **Shared repo — you are NOT alone:** other AI agents (and the daily pipeline) work in this repo concurrently and routinely have **uncommitted, half-finished work in the tree**. Commit and push carefully so you never destroy another AI's work: stage explicit paths only (never `git add -A` / `git add .` / `git commit -a`), `git diff --cached --name-only` before every commit, `git fetch` + fast-forward before pushing, and **never stash, revert, overwrite, `noqa`, "fix", or commit a file you did not author this turn** — a sibling's failing or half-edited file is THEIR work-in-progress, not your bug to touch (a gate that flags it is a shared-tree false-positive → report it, don't edit it). Causing data loss of another AI's work is a critical failure.
@@ -93,7 +78,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/development/plans/YYYY-MM-DD-plan-<slug>/` spine+ticket plan sets (same-stem spine + `T##[a-z]?-<slug>.md` tickets ONLY — gate-enforced shape, not a free `**`) · `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (the orchestrator's ticket store — we have no native one) · `docs/reference/**/*.md` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` |
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
-| treat a synced-surface edit as hub-local (canonical list: `scripts/fabrik_synced_manifest.py` — the projects' `.gitignore` "Fabrik-synced" block is generated from it) | HERE the synced sources are CANONICAL — editing one IS a fleet-wide change. Make it only if correct for **ALL** ~46 projects; ground enumerations from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `spec_loader.py::Shape`), verify a flag's real effect by reading the fn, and let the pre-commit governance-sync distribute it. NEVER hand-edit a single project's copy to "hotfix" one repo — that fork dies on the next sync (gate-enforced project-side by `check_synced_unmodified.py`) |
+| edit a **Fabrik-synced** file (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py` — the `.gitignore` "Fabrik-synced" block is generated from it) | these are centrally distributed from `/opt/fabrik` and **overwritten on every sync** (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Never edit locally. If the change is correct for **ALL** projects, make it in `/opt/fabrik/<path>` + re-sync; otherwise propose it upstream — don't fork it here |
 | claim "converged"/"reviewed"/"in-sync"/"100%"/"zero unknowns" without embedded proof + the matching gate green | **PLAN** → `## Evidence` per Phase (≥1 `path:line` AND ≥1 fenced command-output block) + a `## Self-audit`; set `Status: CONVERGED` only after `final_gate.py --check`. **CODE REVIEW** → `docs/development/reviews/<plan>-review.md` embedding the verbatim `final_gate.py --json` `"status":"success"` + a per-Phase verdict. **DOCS** → `docs_updater.py --check` green + a per-file claim→proof line. A column *name* ≠ its values (read them); subagent summaries ≠ proof. `scripts/enforcement/check_convergence.py` fails the gate otherwise. Prompt templates: `docs/reference/convergence-prompts.md` |
 
 ## Doc Sync Matrix (update matched docs in same change — gate-enforced)
