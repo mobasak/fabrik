@@ -1,6 +1,7 @@
 # Plan 1 — CLAUDE.md hub/project split (2026-08-08)
 
-Status: CONVERGED
+Status: EXECUTED 2026-08-08 (bee1eb31 → 29176126 → e46bd7c5 → 3427b25f)
+Whole-plan review: docs/development/reviews/2026-08-08-plan-1-claude-md-hub-split-review.md
 
 ## Goal
 
@@ -181,8 +182,32 @@ docs/development/plans/2026-08-08-plan-1-claude-md-hub-split.md   # this plan
 $ grep -n "CLAUDE" tests/test_scaffold_doc_seeding.py             # (no output — G-B5 has no test today)
 ```
 
-Execution appends: Phase A red→green pytest output · Phase B the two `md5sum` lines ·
-Phase C the two-project verification + fabrik-lib untouched proof.
+**Execution evidence (appended at §Finish):**
+
+- Phase A: 4 tests seen RED (`4 failed in 0.19s`) → machinery landed → green; commit `bee1eb31`.
+- Phase B (`templates/governance/CLAUDE.md` byte-identity + hub divergence; commit `29176126`):
+
+```
+$ md5sum CLAUDE.md templates/governance/CLAUDE.md   # after cp, before rewrite
+20f25d8e7ee5d6cfda0cd025fd9ae919  CLAUDE.md
+20f25d8e7ee5d6cfda0cd025fd9ae919  templates/governance/CLAUDE.md
+$ md5sum CLAUDE.md templates/governance/CLAUDE.md   # after hub rewrite
+42a4aac977bd593be94e8654b777bc1c  CLAUDE.md
+20f25d8e7ee5d6cfda0cd025fd9ae919  templates/governance/CLAUDE.md
+```
+
+- Phase C (fleet sync + verification; commit `e46bd7c5`):
+
+```
+Results: 46 projects synced, 2 failed  # Traycer/microsoft: root-owned non-fabrik dirs
+/opt/seo: file=20f25d8e… lock=20f25d8e… match_tpl=YES
+/opt/trade-intelligence: file=20f25d8e… lock=20f25d8e… match_tpl=YES
+6ab88afc89abb4a3b2ee6ac14acc46c7  /opt/fabrik-lib/CLAUDE.md   (mtime 2026-07-23 — untouched)
+```
+
+- Adjudication fixes (commit `3427b25f`): gitignore canary RED → fix → fleet re-sync → IGNORED verified
+  on 5 projects; filter guard proven red-on-revert; suites 37 green. Full detail: the cited whole-plan
+  validation doc.
 
 ## Pass Ledger (plan-review convergence)
 

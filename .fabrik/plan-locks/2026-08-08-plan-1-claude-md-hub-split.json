@@ -1,0 +1,18 @@
+{
+  "plan": "docs/development/plans/archived/2026-08-08-plan-1-claude-md-hub-split.md",
+  "status": "executed",
+  "mode": "monolith",
+  "phase": "A",
+  "owned_paths": [
+    "scripts/fabrik_synced_manifest.py",
+    "scripts/sync_enforcement_to_projects.py",
+    "src/fabrik/scaffold.py",
+    ".pre-commit-config.yaml",
+    "templates/governance/CLAUDE.md",
+    "CLAUDE.md",
+    "docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md",
+    "tests/test_governance_template_split.py"
+  ],
+  "started_at": "2026-08-08T13:05:00+03:00",
+  "finished_at": "2026-08-08T13:45:00+03:00"
+}
