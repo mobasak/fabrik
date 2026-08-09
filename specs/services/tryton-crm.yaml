@@ -8,10 +8,10 @@ shape:
   is_admin_dashboard: false
   has_bearer_api: false       # X-Internal-Token M2M, not a public bearer API
   has_persistent_data: false
-  needs_database: false       # Decision F-DB: DB-free — reaches trytond via proteus RPC, never opens Postgres
+  needs_database: false       # Decision F-DB: DB-free — reaches trytond via proteus RPC, never opens Postgres (re-verified 2026-08-09: no psycopg/sqlalchemy/asyncpg in src/)
   has_search_feature: false
-  needs_cache: false
-  exposes_metrics: false      # to-build: no /metrics endpoint yet (flip true when added; avoids Prometheus 404 at apply)
+  needs_cache: true           # pause_state.py uses Redis (default redis-main:6379/0 — registrar must assign a proper index; shared db0 = key-collision risk)
+  exposes_metrics: true       # GET /metrics now live (src/tryton_crm/main.py:53, direct route) → Prometheus scrape job
 expose:
   http: true
   internal_only: true         # fabrik-net DNS only (tryton-crm:8000); TI + Tojlo call it internally
@@ -27,12 +27,30 @@ infrastructure:
 env:
   PORT: ${PORT:-8000}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # Operative bridge envs (grounded vs src/ getenv reads + .env.example, 2026-08-09). fabrik apply
+  # builds .env from THIS block + secrets only — project .env.example never rides along
+  # (_build_env_content merge). Code defaults exist for most; declared here so the deploy is explicit.
+  ENVIRONMENT: production
+  SERVICE_NAME: tryton-crm
+  RATE_LIMIT_PER_MIN: "600"
+  TRYTOND_XMLRPC_URL: http://trytond:8000/tryton/rpc/   # compose service DNS on the fabrik net
+  TRYTOND_RPC_USER: admin
+  TRYTOND_CONNECT_TIMEOUT: "30"
+  PROTEUS_RETRY_ATTEMPTS: "2"
+  PROTEUS_RETRY_BACKOFF_MS: "200"
+  EXPOSE_AMOUNTS_TO_CUSTOMER: "false"
+  CONFIDENCE_DRAFT_GATE: "0.5"
+  # NOT declared (project-side deploy decisions, optional features with fail-soft paths):
+  # GOTENBERG_URL (offers→PDF — no gotenberg service exists in the stack or fleet yet),
+  # EFATURA_* (e-invoice provider — unconfigured), REDIS_URL (registrar-injected via needs_cache).
 secrets:
   required: []
   generate:
   - X_INTERNAL_TOKEN          # fabrik mints the bridge M2M token (never hand-delivered)
   from_env:
   - SERVICE_INTERNAL_SECRET_KEY   # bridge accepts TI's shared token too (X-Internal-Token == either)
+  - CONSUMER_TOKENS               # per-consumer M2M token JSON (trade-intelligence, whatsapp-agent) — token material, never a plain env
+  - TRYTOND_RPC_PASSWORD          # proteus RPC credential for the bridge→trytond calls
   from_file: {}
 resources:
   memory: 512M
