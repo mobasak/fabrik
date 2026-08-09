@@ -102,6 +102,20 @@ DNS flip) self-healing and long outages patient-then-loud, instead of burning bo
 offline. Note: Layer-1 rotation also needs network — if it failed offline, the gated resume simply
 fails once online, consumes an attempt, and the cap/ring path holds.
 
+**Revival-storm guard (the operator's real pattern: MANY full-throttle sessions dying together on a
+VPN/Wi-Fi/tether switch, then the network returning for all of them at once):** after the gate
+passes, each reviver sleeps a random **0–45s jitter**, then acquires one of **K=2 box-wide revival
+slots** (mkdir locks in the shared lock dir, 5-min stale timeout) before running its resume — so N
+simultaneous deaths revive as a staggered trickle, never as an N-wide burst that itself triggers a
+`rate_limit` cascade. The 2b self-watch applies the same jitter before printing its RESUME line.
+Sibling guard: the rotation-storm limiter (Layer 1) already serializes the account side; this
+serializes the turn side.
+
+**WSL note (deliberate):** the probe runs inside WSL with the agents' own resolver — it measures
+the network the agents actually experience. If a VPN leaves WSL DNS persistently broken (the
+documented `WSL2-DNS-FIX` class), the probe correctly stays down and the ceiling rings — that is a
+box fault to fix at the OS layer, not something revival should paper over.
+
 **Proven path:** the ZEBRA-42 test is this flow end-to-end.
 
 ### Layer 2b — interactive pane self-watch (opt-in per long run)
@@ -156,7 +170,9 @@ error-family sound, exactly as today.
    crafted payload through the real script), assert `claude -p --resume` is invoked with backoff
    and capped at 2. **Connectivity gate:** with the probe shimmed DOWN (PATH curl shim), assert no
    attempt is consumed and the 30-min ceiling falls through to ring; shim UP mid-wait → assert the
-   resume fires and exactly one attempt is counted. Watched-fail-first where practical.
+   resume fires and exactly one attempt is counted. **Storm guard:** launch 5 revivers against a
+   shimmed-up probe → assert at most 2 hold slots concurrently and all 5 attempts are jitter-spread
+   (no two within the same second). Watched-fail-first where practical.
 3. **Layer 2b:** arm the self-watch on a scratch session, write its `errparked` marker by hand,
    assert exactly one RESUME line is printed and the process exits; live-arm in a real long run at
    the next opportunity (the delivery-after-error residual's confirmation).
@@ -179,10 +195,10 @@ error-family sound, exactly as today.
 - `claude-sound.sh` failure branch: +Layer-1 dispatch (~15 lines) + 2a spawn gate (~10 lines)
 - `claude-stop-decider.py`: clear `errparked` on successful Stop-path runs (~4 lines) — plus fixtures
   (the WRITE lives in the failure branch, per the marker semantics above)
-- `~/.claude/bin/claude-autoresume.sh` (new, ~45 lines): backoff + connectivity gate (probe loop,
-  30-min ceiling) + resume + cap — Layer 2a
-- `~/.claude/bin/claude-selfwatch.sh` (new, ~25 lines): marker watch template + the same
-  connectivity gate for network-shaped classes — Layer 2b
+- `~/.claude/bin/claude-autoresume.sh` (new, ~55 lines): backoff + connectivity gate (probe loop,
+  30-min ceiling) + jitter + K=2 revival-slot locks + resume + cap — Layer 2a
+- `~/.claude/bin/claude-selfwatch.sh` (new, ~30 lines): marker watch template + the same
+  connectivity gate for network-shaped classes + wake jitter — Layer 2b
 - Rotation rate-limit marker (~5 lines, in the Layer-1 dispatch)
 - Telegram escalation hook-in (~10 lines, reuses APPRISE_SEND)
 - Docs: workstation run-discipline sentence (arm the self-watch) + inventory rows; DR-backup list
