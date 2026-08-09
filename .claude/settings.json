@@ -9,6 +9,12 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\" --baseline",
             "timeout": 120,
             "statusMessage": "Snapshotting gate baseline..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_orient.py\"",
+            "timeout": 10,
+            "statusMessage": "Orienting: governance + memory + session-recall..."
           }
         ]
       }

@@ -104,6 +104,7 @@ AGENT_HOOK_FILES = [
     ".claude/settings.json",
     ".claude/hooks/final_gate_stop.py",
     ".claude/hooks/skill_router.py",
+    ".claude/hooks/session_orient.py",  # SessionStart orientation: governance/memory/session-recall/mesh
     ".windsurf/hooks.json",
 ]
 
