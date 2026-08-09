@@ -10,6 +10,7 @@
 #   ~/.claude.json                          main config: MCP servers, project registry
 #   ~/.claude/settings.json                 permissions, hooks, statusLine, model, plugins
 #   ~/.claude/agents/*.md                   custom subagent definitions (4) — exist ONLY here
+#   ~/.claude/bin/**                        hand-built hook helpers (claude-sound.sh, claude-stop-decider.py) — exist ONLY here
 #   ~/.claude/.credentials.json             OAuth tokens (secret)
 #   ~/.claude/manager-accounts/**           the 3 rotated account credential snapshots (secret)
 #   ~/.claude/.claude-manager/*.{json,js}   rotation engine taps + statusline config
@@ -86,6 +87,7 @@ do_backup() {
   norm_json "$HOME/.claude.json"          "$DEST/claude.json"
   mirror "$CLAUDE_DIR/settings.json"               "claude/settings.json"
   mirror "$CLAUDE_DIR/agents"                      "claude/agents"
+  mirror "$CLAUDE_DIR/bin"                         "claude/bin"
   mirror "$CLAUDE_DIR/.credentials.json"           "claude/credentials.json"
   mirror "$CLAUDE_DIR/manager-accounts"            "claude/manager-accounts"
   norm_json "$HEADLESS_DIR/.claude.json"   "$DEST/claude-youtube-headless/claude.json"
@@ -149,7 +151,8 @@ do_restore() {
     [ -e "$dst" ] && cp -p "$dst" "$BK/$(echo "${pair%%:*}" | tr / _)" || true
     mkdir -p "$(dirname "$dst")"; cp -p "$src" "$dst"; log "restored $dst"
   done
-  for d in "agents:$CLAUDE_DIR/agents" "manager-accounts:$CLAUDE_DIR/manager-accounts" \
+  for d in "agents:$CLAUDE_DIR/agents" "bin:$CLAUDE_DIR/bin" \
+           "manager-accounts:$CLAUDE_DIR/manager-accounts" \
            ".claude-manager:$CLAUDE_DIR/.claude-manager" "plugins:$CLAUDE_DIR/plugins"; do
     src="$DEST/claude/${d%%:*}"; dst="${d#*:}"
     [ -d "$src" ] || continue

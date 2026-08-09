@@ -36,6 +36,7 @@ Small, hand-maintained, **not regenerable from any other repo**:
 | `~/.claude.json` | `claude.json` (normalized) |
 | `~/.claude/settings.json` | `claude/settings.json` |
 | `~/.claude/agents/*.md` (4) | `claude/agents/` — **exist only here**, no other copy on earth |
+| `~/.claude/bin/**` | `claude/bin/` — hand-built hook helpers (`claude-sound.sh`, `claude-stop-decider.py`), **exist only here** |
 | `~/.claude/.credentials.json` | `claude/credentials.json` 🔐 |
 | `~/.claude/manager-accounts/**` (3 accounts) | `claude/manager-accounts/` 🔐 |
 | `~/.claude/.claude-manager/*.{json,js}` | `claude/.claude-manager/` (minus ephemeral `active-sessions.json`) |

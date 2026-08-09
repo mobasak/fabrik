@@ -42,7 +42,7 @@ carry their own MCP roster.
 | `~/.claude/statsig/` · `cache/` · `paste-cache/` · `debug/` · `downloads/` | ≤476 KB each | Feature flags, changelog cache, paste buffers, debug dumps | Live, low cost |
 | `~/.claude/sound-debug.log` | 316 KB | Debug log from the notification-sound hook | Growing; prune candidate |
 | `~/.claude/mcp-needs-auth-cache.json`, `stats-cache.json`, `.last-cleanup`, `.last-update-result.json` | small | MCP auth prompts, usage stats, cleanup + self-update markers | Live |
-| `~/.claude/bin/claude-sound.sh` | 8 KB | Notification sound helper invoked by a hook | Live |
+| `~/.claude/bin/` (`claude-sound.sh` + `claude-stop-decider.py`) | 36 KB | Notification-sound hook router + the state-based stop decider (rings only at true final rest) | **Live** — DR-mirrored via `dr_claude_backup.sh` |
 | `~/.claude/ide/*.lock` | 36 KB | VS Code extension ↔ CLI handshake locks | Live |
 | `~/.claude/chrome/chrome-native-host` | 8 KB | Chrome native-messaging host | Present |
 

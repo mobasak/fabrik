@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Claude-config DR backup now mirrors ~/.claude/bin (sound-hook helpers) (2026-08-09)
+`dr_claude_backup.sh` gains `~/.claude/bin/**` on both the mirror and restore sides — the hand-built
+hook helpers (`claude-sound.sh` router + `claude-stop-decider.py`, the state-based stop decider that
+rings only at true final rest) exist nowhere else and are wired into the backed-up `settings.json`
+hooks, so a restore without them left the hook config pointing at missing files. Coupled workstation
+docs (backup-restore + configuration-inventory) updated; verified live: `claude/bin/` present in the
+DR store, `*.bak*` excluded.
+
+### Added — SessionStart orientation hook: every agent starts explicitly aware of its connected mesh (2026-08-08)
+New fleet-synced `.claude/hooks/session_orient.py` (AGENT_HOOK_FILES + settings.json SessionStart, after the gate-baseline snapshot): a binding ORIENT block at every session start — the synced CLAUDE.md is loaded and binding (never edit locally; RULES ACTIVE + 6-line FINAL OUTPUT owed), the project's MEMORY.md state (entry count when present, memory-contract reminder either way), session-recall connectivity (`search_chats`/`recent_chats`/`get_chat` + the mandatory-use cases), and the enforcement mesh (Stop hook causes, prompt router, final_gate). CLAUDE.md/MEMORY.md are harness-auto-loaded; the hook binds acting on them and surfaces state. Stdlib-only, fail-open (never blocks a session), red-first (5 tests incl. memory-present/absent + garbage-stdin fail-open + wiring assertion). Distributed to 46 projects and verified wired on trade-intelligence.
+
 ### Changed — CLAUDE.md hub/project split: the hub gets its own contract, projects keep the template (2026-08-08)
 Executed plan `2026-08-08-plan-1-claude-md-hub-split` (Phases A–C + review-fix). `/opt/fabrik/CLAUDE.md` is now the HUB agents' contract (platform-repo identity, merge-time-render + sync-consciousness Behavior rows, the Fabrik-synced HARD STOP inverted for the canonical side); projects receive `templates/governance/CLAUDE.md` via the new manifest `GOVERNANCE_TEMPLATES` (src,dest) leg — byte-identical at cutover (md5 `20f25d8e…` proven hub-HEAD == template == project files == locks on seo + trade-intelligence), so zero fleet behavior change; scaffold G-B5 seeds from the template; `fabrik-lib`'s own CLAUDE.md untouched. Whole-plan native review found 7: the HIGH one — the fleet `.gitignore` "Fabrik-synced" block derives from the `GOVERNANCE_FILES` NAME LIST, so the split silently dropped CLAUDE.md's ignore line fleet-wide (my plan's residual claimed dest-rel derivation without opening the deriving fn) — fixed red-first (`gitignore_dest_paths` feeds template dests; canary test; fleet re-synced, ignore restored and verified on 5 projects). Also fixed: the hub Sync-consciousness row taught trigger surfaces the pre-commit filter didn't actually watch — filter extended (manifest, sync script, both hook configs, agents-fabrik*.md) and the row now points at the filter as the truth source; filter-swap guard test (red-on-revert proven); `check_structure` comment staleness. Follow-ups filed, not fixed: ~30 manifest paths still outside the trigger filter (pre-existing class), stale template rows (wpf) awaiting a first real template edit, `/opt/proxy` safety-floor (.env committable, project-side).
 
