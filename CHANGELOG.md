@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — release versioning: /fabrik-release cuts semver + tag + GitHub Release from the changelog (2026-08-09)
+`scripts/release_cut.py` (new, fleet-synced via CORE_SCRIPTS): graduates `[Unreleased]` into `[X.Y.Z] — date` (bump derived from entry types: BREAKING → major · Added → minor · else patch; refuses an empty section), commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the graduated entries as notes. `/fabrik-release` runs the dry-run in its verdict and executes the cut on a fully-PASS checklist, before Gate 2 — the tag names what the operator's `fabrik apply` ships; deploy stays the human gate. Answers "why don't our repos show versions": we never had the release-cut act. Red-first (6 tests: bump derivation ×3, empty-refusal, graduation+tag+clean-tree, first-cut). Pushed ≠ published stays true — push is backup, the CUT is the version act, deploy is Gate 2.
+
+
 ### Fixed — daily_refresh stranded-outputs class: auto-commit list completed, shared-file staging banned (2026-08-09)
 The operator's "16 in source control": all 16 were the AI-catalog daily-refresh pipeline's outputs (single shared mtime), stranded by (a) today's run dying before its auto-commit step and (b) two regenerated artifacts (`embedding_models_dump.json`, `LOCAL_LLM_INFRASTRUCTURE.md`) never being in the auto-commit pathspec list at all — perpetual dirt even on green runs. Instance rescued (batch committed+pushed with pipeline provenance, 9cb3b8c1); list completed (66e0c9da) with an in-place ban on ever staging shared agent-edited files (PORTS.md, plan-locks, enforcement code) from a cron — that would automate the never-bundle violation; the pipeline's format-churn of such files is itself the named defect. Follow-ups filed: today's `role-mapper ERROR (coding_simple: 1 candidate, need ≥3)` + the unexplained 15:45 second regeneration pass.
 

@@ -34,6 +34,7 @@ CORE_SCRIPTS = [
     "health_checker.py",
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
     "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
+    "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
 ]
 
 # Long Command Monitoring System → project ``scripts/`` (sourced from

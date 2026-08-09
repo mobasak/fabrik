@@ -93,9 +93,26 @@ regularly."* Then the Gate-2 handoff (operator distributes the artifact).
 
 ## Output (always, last thing)
 
+## Version cut (at the READY verdict — before Gate 2)
+
+When every checklist item is PASS, **cut the release version** — this is what puts real versions next to
+the repo on GitHub:
+
+1. `python scripts/release_cut.py --dry-run` — show the plan (current tag → next semver, derived from
+   the `[Unreleased]` entry types: any BREAKING → major · any Added → minor · else patch; refuses on an
+   empty `[Unreleased]` — never cut a hollow version).
+2. `python scripts/release_cut.py --execute` — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
+   CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the
+   graduated entries as notes. Include the printed plan in the report.
+3. A BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict.
+
+The cut is the version act; **deploy stays Gate 2** (the tag names what the operator's `fabrik apply`
+will ship — record `vX.Y.Z` in the handoff line).
+
 ```
 RELEASE SURFACE: <vps|mobile|extension|desktop>
 CHECKLIST: <n> PASS / <n> BLOCKED (each with evidence above)
+VERSION: v<X.Y.Z> cut (tag + GitHub Release) | not cut (<why>)
 ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
 GATE 2 → OPERATOR: <the one action only the human takes>
 ```
