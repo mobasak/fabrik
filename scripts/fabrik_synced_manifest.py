@@ -61,9 +61,17 @@ GOVERNANCE_FILES = [
     "agents-fabrik.md",  # canonical agents doc (AGENTS.md is a stub pointing here)
     "agents-fabrik-core.md",  # high-frequency core @import-ed by CLAUDE.md — must exist fleet-wide
     "AGENTS-compact.md",
-    "CLAUDE.md",
     "opencode.json",
     ".windsurfrules",
+]
+
+# Governance templates → (src_rel under templates/, dest_rel at project root).
+# CLAUDE.md hub/project split (2026-08-08): /opt/fabrik/CLAUDE.md is the HUB
+# agents' contract and is NEVER distributed; projects receive the template.
+# Same (src, dest) pair shape as REFERENCE_DOCS; scaffold G-B5 seeds from the
+# same template source.
+GOVERNANCE_TEMPLATES = [
+    ("templates/governance/CLAUDE.md", "CLAUDE.md"),
 ]
 
 # Governance directories → synced recursively, with orphan pruning.
@@ -211,6 +219,13 @@ def iter_synced_pairs(
     # Governance files + agent hooks (verbatim, root-relative paths)
     for rel in [*GOVERNANCE_FILES, *AGENT_HOOK_FILES]:
         yield fabrik_root / rel, project_root / rel
+
+    # Governance templates (src under templates/, dest at project root) —
+    # unconditional yield like the leg above; the lock writer filters on
+    # dest.exists(), so a project's copy stays lock-protected even if the
+    # template source is momentarily absent.
+    for src_rel, dest_rel in GOVERNANCE_TEMPLATES:
+        yield fabrik_root / src_rel, project_root / dest_rel
 
     # Reference docs
     for src_rel, dest_rel in REFERENCE_DOCS:

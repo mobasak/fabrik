@@ -1137,8 +1137,9 @@ def _scaffold_shared(
     # copy, scaffolded projects under /opt/<name>/ would have no per-project
     # CLAUDE.md and Claude Code would fall back to whatever it finds upward
     # (or nothing). Symmetric to AGENTS-compact.md (Kilo) and .windsurfrules
-    # (Cascade) which are already copied.
-    fabrik_claude_md = FABRIK_ROOT / "CLAUDE.md"
+    # (Cascade) which are already copied. Source is the PROJECT TEMPLATE —
+    # /opt/fabrik/CLAUDE.md is the hub agents' own contract, never seeded.
+    fabrik_claude_md = FABRIK_ROOT / "templates/governance/CLAUDE.md"
     if fabrik_claude_md.exists():
         shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
 

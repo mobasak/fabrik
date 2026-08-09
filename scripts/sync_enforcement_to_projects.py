@@ -43,6 +43,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     CORE_SCRIPTS,
     GOVERNANCE_DIRS,
     GOVERNANCE_FILES,
+    GOVERNANCE_TEMPLATES,
     REFERENCE_DOCS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
@@ -501,6 +502,18 @@ def sync_scripts_to_project(
             source = FABRIK_ROOT / gov_file
             if source.exists():
                 destination = project_dir / gov_file
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+
+        # Governance templates: src under templates/, dest at project root.
+        # CLAUDE.md hub/project split — /opt/fabrik/CLAUDE.md is the HUB agents'
+        # contract and is never distributed; projects receive the template copy.
+        for src_rel, dest_rel in GOVERNANCE_TEMPLATES:
+            source = FABRIK_ROOT / src_rel
+            if source.exists():
+                destination = project_dir / dest_rel
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
                 )
