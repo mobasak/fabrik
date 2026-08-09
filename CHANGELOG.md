@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Resume-mesh Round-1 review fixes: persistent-Monitor waker false-positive, self-watch one-shot consume, proof-of-loss waker_lost (2026-08-09)
+
+- `/fabrik-review` of the full auto-continuation stack: 7 finders (4 pool + 3 native) + live-log
+  trace -> 24 confirmed fix-classes, ~45 refuted with proof. Heaviest: persistent Monitors counted
+  as pending wakers (suppressed park chimes + false waker_lost ring/Telegram ~62min after every
+  armed park), self-watch marker never consumed (spurious RESUME on re-arm), recheck sleeper wrote
+  waker_lost without proof-of-loss. Fleet-synced `session_orient.py` hardened (sid allowlist,
+  non-dict payloads, headless + compact-source arm skips) with 4 red-first tests; mesh harness
+  42->57 fixtures; hooks-index + config-inventory rewritten to shipped behavior. Receipt:
+  `docs/development/reviews/2026-08-09-auto-continuation-review.md`.
+
 ### Added — tryton-crm SaaS launch readiness: public re-spec + wildcard TLS staging (2026-08-09)
 Deploy-readiness prep (operator: "make everything ready, don't deploy"). Spec: `is_public: true`
 (tenant self-service front door — NO Authelia, per project AI), single-worker guard note

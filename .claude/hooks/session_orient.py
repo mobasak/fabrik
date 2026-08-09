@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -86,16 +87,25 @@ def main() -> int:
         data = json.loads(raw) if raw.strip() else {}
     except Exception:
         data = {}
+    if not isinstance(data, dict):
+        data = {}  # [] / "x" / 42 payloads must not swallow the whole block
     cwd = str(data.get("cwd") or os.getcwd())
-    sid = str(data.get("session_id") or "")
+    # sid lands inside a command the agent is told to RUN — allowlist it to the
+    # same class every mesh script sanitizes to ([A-Za-z0-9_-], first 64).
+    sid = re.sub(r"[^A-Za-z0-9_-]", "_", str(data.get("session_id") or ""))[:64]
 
     # Pane auto-continue (operator directive: always on in interactive sessions):
     # the self-watch is the ONLY pane-safe revival mechanism (the headless
     # reviver against a pane forks a second writer — spec-disqualified), and a
     # Monitor can only be armed BY the agent — so the ORIENT block orders it
-    # with the concrete session id.
+    # with the concrete session id. Skipped when: headless (the reviver exports
+    # CLAUDE_MESH_HEADLESS=1 — no pane to wake) or source=compact (same process,
+    # the already-armed Monitor SURVIVES compaction — proven live 2026-08-09;
+    # re-ordering there breeds duplicate watchers).
     arm_line = ""
-    if sid and Path(os.environ.get("HOME", str(Path.home()))) \
+    if sid and os.environ.get("CLAUDE_MESH_HEADLESS") != "1" \
+            and data.get("source") != "compact" \
+            and Path(os.environ.get("HOME", str(Path.home()))) \
             .joinpath(".claude/bin/claude-selfwatch.sh").is_file():
         arm_line = (
             "- **ARM YOUR SELF-WATCH NOW (first tool action, operator-mandated):** call "

@@ -124,13 +124,18 @@ Note the CLAUDE.md split: a PROJECT's `CLAUDE.md` is the synced copy of the hub'
 `templates/governance/CLAUDE.md`; the hub's own `/opt/fabrik/CLAUDE.md` is a distinct platform-repo
 contract (never distributed).
 
-Resume mesh (`~/.claude/bin`, DR-backed): `claude-autoresume.sh` (headless reviver — backoff,
-connectivity gate with 30-min offline ceiling, storm jitter + K=2 slots + second-distinct starts,
-cap 2, final failure re-fires the pipeline with `CLAUDE_SOUND_NO_REVIVE=1` → ring),
-`claude-selfwatch.sh` (pane self-watch armed per long run via persistent Monitor),
-`claude-mesh-test.sh` (sandboxed fixture harness — 28 fixtures, silent). Markers in the sound lock
-dir: `<sess>.errparked` (death record, cleared on the next normal Stop), `rotation.last`,
-`<sess>.notified`, `<sess>.attempts`, revival `slot-1/2` + `start.last`.
+Resume mesh (`~/.claude/bin`, DR-backed): `claude-autoresume.sh` (headless reviver — per-class
+backoff, per-attempt connectivity gate with 30-min offline ceiling, storm jitter + box-wide
+serialized starts via the `start.lock` mutex, cap 2 with pre-backoff short-circuit, per-attempt
+marker re-check, child carries `CLAUDE_SOUND_NO_REVIVE=1` + `CLAUDE_MESH_HEADLESS=1`; final failure
+re-fires the pipeline → ring), `claude-selfwatch.sh` (pane self-watch — EVERY interactive session
+is ordered to arm it by the ORIENT hook, first tool action; consumes a pre-arm marker silently,
+consumes on fire — one wake per death record; network-gated for all classes),
+`claude-mesh-test.sh` (sandboxed fixture harness — 57 fixtures, silent). Markers in the sound lock
+dir: `<sess>.errparked` (death record — cleared on the next normal Stop, on a busy turn-death
+verdict [a live waker exists], or consumed by the self-watch's fire), `rotation.last`,
+`<sess>.notified`, `<sess>.attempts`, `<sess>.reviving`, `<sess>.recheck`, `start.last` +
+`start.lock`.
 
 ---
 

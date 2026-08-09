@@ -15,14 +15,16 @@ FABRIK = Path(__file__).resolve().parents[1]
 HOOK = FABRIK / ".claude/hooks/session_orient.py"
 
 
-def _run(cwd: Path, home: Path, stdin: str) -> tuple[int, str]:
+def _run(cwd: Path, home: Path, stdin: str, extra_env: dict | None = None) -> tuple[int, str]:
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+    env.update(extra_env or {})
     proc = subprocess.run(
         [sys.executable, str(HOOK)],
         input=stdin,
         capture_output=True,
         text=True,
         timeout=15,
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env=env,
     )
     return proc.returncode, proc.stdout
 
@@ -47,7 +49,7 @@ def test_memory_index_reported_when_present(tmp_path: Path) -> None:
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
     assert rc == 0
     assert "MEMORY.md" in out
-    assert "2" in out  # entry count surfaced
+    assert "(2 entries)" in out  # exact count — a bare digit hides 12/20/200
 
 
 def test_no_memory_index_is_graceful(tmp_path: Path) -> None:
@@ -58,17 +60,63 @@ def test_no_memory_index_is_graceful(tmp_path: Path) -> None:
     assert "no memory index yet" in out.lower()
 
 
+def _mesh_home(tmp_path: Path) -> None:
+    (tmp_path / ".claude/bin").mkdir(parents=True)
+    (tmp_path / ".claude/bin/claude-selfwatch.sh").write_text("#!/bin/bash\n")
+
+
 def test_selfwatch_arm_order_carries_the_real_session_id(tmp_path: Path) -> None:
     # Operator directive: auto-continue always on — every session is ordered to
     # arm its self-watch with ITS OWN sid as the first action (pane-safe path).
-    (tmp_path / ".claude/bin").mkdir(parents=True)
-    (tmp_path / ".claude/bin/claude-selfwatch.sh").write_text("#!/bin/bash\n")
+    _mesh_home(tmp_path)
     proj = tmp_path / "opt" / "p"
     proj.mkdir(parents=True)
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-42-abc"}))
     assert rc == 0
-    assert "claude-selfwatch.sh sid-42-abc" in out
     assert "ARM YOUR SELF-WATCH" in out
+    # Pin the invocation SHAPE, not just a substring: persistent:true is the one
+    # property that makes the watch pane-safe — dropping it must fail this test.
+    assert "Monitor(persistent: true" in out
+    assert 'command: "bash ~/.claude/bin/claude-selfwatch.sh sid-42-abc"' in out
+
+
+def test_arm_order_sanitizes_a_garbage_sid(tmp_path: Path) -> None:
+    # sid is payload-controlled and lands inside a command the agent will run —
+    # anything outside [A-Za-z0-9_-] must be neutralized before embedding.
+    _mesh_home(tmp_path)
+    proj = tmp_path / "opt" / "p3"
+    proj.mkdir(parents=True)
+    evil = 'x"; touch /tmp/pwned; echo "'
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": evil}))
+    assert rc == 0
+    assert "touch /tmp/pwned" not in out
+    assert "claude-selfwatch.sh x_" in out  # sanitized to the shared allowlist
+
+
+def test_headless_run_gets_no_arm_order(tmp_path: Path) -> None:
+    # The headless reviver (claude -p) exports CLAUDE_MESH_HEADLESS=1 — a
+    # headless process has no pane to wake; ordering it to arm is pure noise.
+    _mesh_home(tmp_path)
+    proj = tmp_path / "opt" / "p4"
+    proj.mkdir(parents=True)
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "s4"}),
+                   extra_env={"CLAUDE_MESH_HEADLESS": "1"})
+    assert rc == 0 and "ARM YOUR SELF-WATCH" not in out
+    assert "Governance" in out  # the rest of ORIENT still prints
+
+
+def test_compact_source_gets_no_arm_order(tmp_path: Path) -> None:
+    # Compaction keeps the same process — an already-armed Monitor SURVIVES it
+    # (proven live 2026-08-09); re-ordering an arm there breeds duplicate watchers.
+    _mesh_home(tmp_path)
+    proj = tmp_path / "opt" / "p5"
+    proj.mkdir(parents=True)
+    rc, out = _run(proj, tmp_path,
+                   json.dumps({"cwd": str(proj), "session_id": "s5", "source": "compact"}))
+    assert rc == 0 and "ARM YOUR SELF-WATCH" not in out
+    rc, out = _run(proj, tmp_path,
+                   json.dumps({"cwd": str(proj), "session_id": "s5", "source": "resume"}))
+    assert rc == 0 and "ARM YOUR SELF-WATCH" in out  # a resumed PROCESS is new — arm
 
 
 def test_no_selfwatch_script_no_arm_order(tmp_path: Path) -> None:
@@ -78,9 +126,17 @@ def test_no_selfwatch_script_no_arm_order(tmp_path: Path) -> None:
     assert rc == 0 and "ARM YOUR SELF-WATCH" not in out  # boxes without the mesh stay clean
 
 
+def test_non_dict_payload_still_orients(tmp_path: Path) -> None:
+    # Valid JSON of the wrong shape ([]) must not swallow the whole block.
+    rc, out = _run(tmp_path, tmp_path, "[]")
+    assert rc == 0
+    assert "ORIENT" in out and "Governance" in out
+
+
 def test_fail_open_on_garbage_stdin(tmp_path: Path) -> None:
-    rc, _ = _run(tmp_path, tmp_path, "{not json")
+    rc, out = _run(tmp_path, tmp_path, "{not json")
     assert rc == 0  # fail-open: never block a session
+    assert "ORIENT" in out  # and the block still prints — rc alone hides an empty hook
 
 
 def test_hub_repo_gets_hub_orientation(tmp_path: Path) -> None:
@@ -105,7 +161,7 @@ def test_memory_key_sanitizes_dots_like_the_harness(tmp_path: Path) -> None:
     (memdir / "MEMORY.md").write_text("- [A](a.md) — x\n", encoding="utf-8")
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
     assert rc == 0
-    assert "1" in out and "MEMORY.md" in out
+    assert "(1 entries)" in out and "MEMORY.md" in out
 
 
 def test_huge_memory_index_is_bounded_and_output_survives_c_locale(tmp_path: Path) -> None:
@@ -127,6 +183,9 @@ def test_huge_memory_index_is_bounded_and_output_survives_c_locale(tmp_path: Pat
     )
     assert proc.returncode == 0
     assert len(proc.stdout) > 200, "C locale must not silently swallow the whole block"
+    # The bound must actually bind: 256KiB / 16 chars-per-line = 16384 counted
+    # entries + the truncation marker. Without the cap this reads 200000.
+    assert "(16384+ entries)" in proc.stdout, "read cap or truncation marker regressed"
 
 
 def test_hook_is_synced_and_wired() -> None:
