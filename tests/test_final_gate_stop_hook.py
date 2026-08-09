@@ -725,6 +725,16 @@ def test_next_operator_decision_line_does_not_blind_the_guard(tmp_path: Path) ->
     assert kind and kind[0] == "promise"
 
 
+def test_conditional_offer_is_an_operator_gate_not_a_stall(tmp_path: Path) -> None:
+    # Live FP (guard fired on its own author): a follow-up OFFER conditioned on
+    # the operator's word is a sanctioned stop, not a stall.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "This is a command-source change plus a small helper — say the word and "
+        "I'll run it through the pipeline."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
 def test_gate_exemption_suppresses_a_real_promise(tmp_path: Path) -> None:
     """Mutation-killer: the exemption must be load-bearing — a REAL promise inside
     human-gate wording is exempt; delete the exemption regex and this goes red."""

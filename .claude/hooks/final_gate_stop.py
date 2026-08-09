@@ -395,7 +395,10 @@ _NEGATED_BEFORE_RE = re.compile(r"\b(?:no|none|nothing|zero)\b[\s\w-]{0,32}$", r
 _GATE_EXEMPT_GLOBAL_RE = re.compile(r"\bBLOCKED:", re.I)
 _GATE_EXEMPT_LOCAL_RE = re.compile(
     r"\bgate\s*2\b|\boperator decision\b|\bapproval\b|\bhuman gate\b"
-    r"|\byours to run\b|\bawait\w*\s+(?:your|the operator)\b|\boperator[- ]gated\b",
+    r"|\byours to run\b|\bawait\w*\s+(?:your|the operator)\b|\boperator[- ]gated\b"
+    # Conditional OFFER vocabulary — a follow-up gated on the operator's word is
+    # a sanctioned stop (live FP: the guard fired on its own author's offer).
+    r"|\bsay the word\b|\bon your (?:yes|word|go|approval)\b|\bif you want\b|\byour call\b",
     re.I,
 )
 # Tool names whose use in the final turn means a promise was KEPT (work dispatched).
