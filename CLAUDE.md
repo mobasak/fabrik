@@ -49,10 +49,14 @@ ships fleet-wide**: a synced-surface commit distributes to ~46 repos via the pre
 - **Merge-time render only:** NEVER bare-render `commands/assemble_commands.py` from a worktree — the
   renderer PRUNES installed commands+skills absent from the current tree's `_sources/`, deleting
   master-only artifacts box-wide. Render from merged master; `--check` (temp-dir render) is always safe.
-- **Sync-consciousness:** a commit touching any synced surface (`fabrik_synced_manifest.py` list,
-  `.windsurf/rules/`, `scripts/enforcement/`, `templates/governance/`, hooks) distributes fleet-wide via
-  the pre-commit governance-sync — know the blast radius BEFORE staging; a hub-only experiment never goes
-  on a synced path.
+- **Sync-consciousness:** a commit touching the governance-sync trigger surfaces (`.windsurf/rules/`,
+  `scripts/enforcement/`, `templates/governance/`, `.claude/hooks/` + both hook configs, the root
+  governance files, `fabrik_synced_manifest.py` / `sync_enforcement_to_projects.py` themselves)
+  distributes fleet-wide via the pre-commit governance-sync — the exact trigger set IS the
+  `governance-sync` files-filter in `.pre-commit-config.yaml`; read it, don't recall it. Know the blast
+  radius BEFORE staging; a hub-only experiment never goes on a synced path. ⚠️ NOT every manifest-synced
+  path is a trigger (RUN_SCRIPTS, reference docs, `.windsurf/workflows/` ride the next unrelated sync) —
+  when distribution must happen NOW, run `scripts/sync_enforcement_to_projects.py --force` yourself.
 - **Conflict resolution:** rule pack > ticket (for *how* to write). `spec.shape` is canonical for *what* the code must match — orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 - **Shared repo — you are NOT alone:** other AI agents (and the daily pipeline) work in this repo concurrently and routinely have **uncommitted, half-finished work in the tree**. Commit and push carefully so you never destroy another AI's work: stage explicit paths only (never `git add -A` / `git add .` / `git commit -a`), `git diff --cached --name-only` before every commit, `git fetch` + fast-forward before pushing, and **never stash, revert, overwrite, `noqa`, "fix", or commit a file you did not author this turn** — a sibling's failing or half-edited file is THEIR work-in-progress, not your bug to touch (a gate that flags it is a shared-tree false-positive → report it, don't edit it). Causing data loss of another AI's work is a critical failure.

@@ -68,6 +68,23 @@ def test_sync_dry_run_sources_claude_from_template(tmp_path: Path, monkeypatch) 
     )
 
 
+def test_gitignore_block_still_ignores_claude() -> None:
+    # The fleet .gitignore "Fabrik-synced" block derives from NAME LISTS, not
+    # iter_synced_pairs — template-sourced dests must be fed in explicitly.
+    # (Live regression: removing CLAUDE.md from GOVERNANCE_FILES silently
+    # dropped its ignore line fleet-wide on the next sync.)
+    assert "CLAUDE.md" in manifest.gitignore_block_text()
+    assert "CLAUDE.md" in manifest.gitignore_dest_paths()["Governance files"]
+
+
+def test_precommit_filter_watches_template_not_hub_file() -> None:
+    # Guard the trigger swap: template edits fire the fleet sync, hub-contract
+    # edits do not (revert of the swap must red this).
+    cfg = (FABRIK / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    assert "^templates/governance/" in cfg
+    assert "^CLAUDE\\.md$" not in cfg
+
+
 def test_scaffold_seeds_claude_from_template() -> None:
     # Unit-level source guard (no full scaffold run): the G-B5 copy must read the
     # template path, not the hub's contract.

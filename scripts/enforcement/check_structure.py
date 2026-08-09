@@ -25,7 +25,8 @@ ALLOWED_ROOT_MD = {
     # projects without the file are unaffected.
     "agents-fabrik.md",
     # agents-fabrik-core.md (2026-07-19): the high-frequency platform core @import-ed by
-    # CLAUDE.md — a root governance file synced fleet-wide (fabrik_synced_manifest GOVERNANCE_FILES).
+    # CLAUDE.md — a root governance file synced fleet-wide (fabrik_synced_manifest GOVERNANCE_FILES;
+    # CLAUDE.md itself now rides GOVERNANCE_TEMPLATES, sourced from templates/governance/).
     "agents-fabrik-core.md",
     "PORTS.md",
     "LICENSE.md",
