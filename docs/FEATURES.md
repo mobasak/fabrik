@@ -299,7 +299,7 @@ fabrik scaffold my-project --type python-api
 - `.env.example` — Environment template
 - `AGENTS.md` — file copy of `/opt/fabrik/AGENTS.md` (Traycer)
 - `AGENTS-compact.md` — file copy of `/opt/fabrik/AGENTS-compact.md` (Kilo CLI)
-- `CLAUDE.md` — file copy of `/opt/fabrik/CLAUDE.md` (Claude Code) — *added T1-02 G-B5*
+- `CLAUDE.md` — file copy of `/opt/fabrik/templates/governance/CLAUDE.md` (Claude Code; the hub's own `CLAUDE.md` is the hub contract, never seeded) — *added T1-02 G-B5*
 - `.windsurfrules` — file copy of `/opt/fabrik/.windsurfrules` (compact synced contract file; consumed by non-Claude tooling — Windsurf Cascade itself is retired)
 - `.windsurf/rules/` — file copy of `/opt/fabrik/.windsurf/rules/`
 

@@ -39,7 +39,7 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 | `agents-fabrik.md` | Canonical infra + codebase map (the real content `AGENTS.md` stubs to) |
 | `agents-fabrik-core.md` | High-frequency platform core, @import-ed by every project's synced `CLAUDE.md` |
 | `AGENTS-compact.md` | Compact reference |
-| `CLAUDE.md` | Per-project Claude agent configuration |
+| `CLAUDE.md` | Per-project Claude agent configuration — sourced from `templates/governance/CLAUDE.md` (`GOVERNANCE_TEMPLATES`), NOT from the hub's own `/opt/fabrik/CLAUDE.md`, which is the hub agents' contract and never distributed |
 | `opencode.json` | Kilo CLI configuration |
 | `.windsurfrules` | Cascade compact agent contract |
 | `.windsurf/rules/` | Cascade rule files (recursive, orphan-pruned) |
