@@ -148,14 +148,16 @@ Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you
 | raw SQL DDL | Alembic migrations only; `db/schema.sql` reference only |
 | recreate `.venv` / replace existing Docker config | reuse what exists |
 
-## ⚠️ FINAL OUTPUT (last 4 lines)
+## ⚠️ FINAL OUTPUT (last 6 lines)
 ```
 GATE: <command run> → success|failure
 DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
+DONE: <one line — what this run delivered: commits/artifacts, not intentions>
+NEXT: <named successor — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
 ```
-Missing any line = task failure. Re-run gate until `success`, then output 4 lines.
+Missing any line = task failure. Re-run gate until `success`, then output 6 lines. `NEXT:` must be runnable without re-derivation; a vague NEXT ("continue") is a missing line; own-session work named in NEXT is dispatched, not narrated.
 
 ## Spec contract awareness
 

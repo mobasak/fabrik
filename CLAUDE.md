@@ -156,20 +156,22 @@ Every `/fabrik-*` command, at the end of its run, applies these three (lean — 
 2. **Skip the GUI commands** (`/fabrik-ui-design`, `/fabrik-ui-design-review`, `/design-review`) when the project has **no user-facing UI** — the headless API/worker `SCAFFOLD_TYPES` `project.yaml::type` ∈ {`python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`} (and `wordpress`, which is deploy-only). The UI-bearing types run them: {`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`, `docusaurus`}. Non-UI → go straight from the data contract (or spec) to `/fabrik-plan-after-chat`; never suggest a GUI command there.
 3. **Re-freeze the data contract** — if the work changed a DB **field / enum / model** (Doc Sync Matrix), the next step is **/fabrik-data-contract** to re-freeze `docs/data-contract.md` before any plan/build consumes a stale contract.
 
-## ⚠️ FINAL OUTPUT (last 4 lines of every task-completing response)
+## ⚠️ FINAL OUTPUT (last 6 lines of every task-completing response)
 
 ```
 GATE: <command run> → success|failure
 DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
+DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
+NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
 ```
 
-Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 4 lines. Pure-conversational / clarifying / read-only turns are exempt — no gate, no entry, no block.
+Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 6 lines. Pure-conversational / clarifying / read-only turns are exempt — no gate, no entry, no block. **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — a named-but-undispatched own-next is the checkpoint-stall class the Stop hook's promise-guard exists to catch.
 
 **⚠️ The block is a TASK terminator, never a phase/loop terminator.** Mid-`/fabrik-execute-plan` phase
 boundaries and mid-certification rounds are NOT task-completing responses — do NOT emit this block there,
-and NEVER treat having emitted it as permission to stop (live defect: an agent emitted the 4 lines at a
+and NEVER treat having emitted it as permission to stop (live defect: an agent emitted the block at a
 green phase gate, read it as "done," and handed back control mid-plan — the checkpoint-stall). Emit it
 ONCE, at the true end of the run.
 
