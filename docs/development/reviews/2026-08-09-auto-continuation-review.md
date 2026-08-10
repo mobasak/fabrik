@@ -287,6 +287,17 @@ tight under hypothetical heavy box load — test-fixture risk only, currently de
   both-revival-layers ms-window if an operator ever co-deploys 2a against a pane (config-refuted);
   D10 timing margin; single-operator threat-model refutations.
 
+## Post-close addendum (2026-08-10 ~05:50) — the review's observability fix caught a live incident
+
+The 23:22 daily-quota deaths attempted their Layer-3 Telegram escalations and FAILED — visible
+ONLY because of F17 (mesh-notify outcome logging; pre-review this was silent). Diagnosis: Telegram
+404 — `/opt/fabrik/.env` splits the credential (`TELEGRAM_BOT_TOKEN` holds the SECRET HALF only;
+the complete `id:secret` is `TELEGRAM_FULL_BOT_TOKEN`), so every escalation ever sent from this
+box had 404'd silently. Fixed in `claude-sound.sh` (reads the FULL key, composes ID+secret as
+fallback, colon-shape enforced), live-verified `notify-sent` at 05:51, DR `…T025212Z`. The
+1:10 AM quota reset itself resumed nothing — correct per current design: reset-clock revival is
+the operator-confirmed NEXT-SESSION build, and tonight is its live justification.
+
 Self-audit: the exit conditions of the termination contract all hold — final round raised
 nothing (Pass 6: found 0, fixed 0, two independent finder layers + the authoritative native);
 every checklist row terminates CLEAN/FIXED/REFUTED with evidence; the last code-changing pass
