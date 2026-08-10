@@ -1,6 +1,6 @@
 # Plan — Deploy Command Triad: /fabrik-deploy-plan → /fabrik-deploy-plan-review → /fabrik-deploy
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Owner: hub (fabrik command corpus)
 Operator directive (verbatim, 2026-08-10): "for any deployment, you must first create a deployment
 plan, then review the plan. and then deploy. for all of these, i want commands and also skills
