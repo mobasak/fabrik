@@ -27,6 +27,16 @@ host, closing the DR gap where a rebuilt box had the autoheal cron line but no b
   block scalar — both silent false passes), refuses a vacuous green when the manifest derivation
   yields nothing, matches declared non-triggers on a real path boundary, fails loudly on a renamed
   manifest constant, and reads `SEEDED_NOT_ENFORCED` from the manifest instead of duplicating it.
+- A confirming review round then caught the first fix over-correcting into the OPPOSITE vacuous
+  green: a hardcoded `/opt/fabrik` root made any `git worktree` of the hub silently skip its own
+  gate, and `final_gate.py` uses `Path.cwd()`, so a plan executed in a worktree would report the
+  check green having never run it. Hub-ness is now decided by "is the manifest sitting next to me"
+  — a worktree qualifies, a project copy cannot. Same round: the blanket `docs/reference/`
+  exemption was masking `technology-stack-decision-guide.md`, which the filter individually names
+  (dropping it went undetected); `RUN_SCRIPTS_SRC_DIR` slipped the loud-fail net; and the
+  no-PyYAML fallback anchored on a bare substring, so a comment mentioning the hook id broke it.
+  15 further tests (30 total), each mutation-verified — the first fallback fixtures passed against
+  a gutted implementation and were rewritten until they killed it.
 
 ### Added — Quota-health: reset-clock revival, health-aware rotation, token re-capture, reboot sweep (2026-08-10)
 

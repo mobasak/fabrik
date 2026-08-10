@@ -189,3 +189,117 @@ def test_seeded_not_enforced_is_read_from_the_manifest_not_duplicated(monkeypatc
     monkeypatch.setattr(chk, "_manifest", lambda: Extra())
     monkeypatch.setattr(chk, "synced_surfaces", lambda: {"docs/INVENTED_SEEDED.md"})
     assert chk.uncovered(Path("/opt/fabrik")) == []
+
+
+def test_a_hub_worktree_still_runs_the_check_instead_of_skipping(tmp_path):
+    """`git worktree` of the hub is a documented workflow (CLAUDE.md § EXIT), and a worktree
+    lives at a path that is NOT /opt/fabrik. Hub-ness must be decided by "is the manifest
+    sitting next to me", not by an absolute path — otherwise the gate silently skips in every
+    worktree, which is the vacuous-green class this file has already been bitten by twice."""
+    import shutil
+    import subprocess
+    import sys
+
+    wt = tmp_path / "fabrik-worktree"
+    (wt / "scripts" / "enforcement").mkdir(parents=True)
+    shutil.copy(_MOD, wt / "scripts" / "enforcement" / _MOD.name)
+    shutil.copy("/opt/fabrik/scripts/fabrik_synced_manifest.py", wt / "scripts")
+    shutil.copy("/opt/fabrik/.pre-commit-config.yaml", wt / ".pre-commit-config.yaml")
+
+    r = subprocess.run(
+        [sys.executable, "scripts/enforcement/check_sync_trigger_coverage.py"],
+        cwd=wt, capture_output=True, text=True,
+    )
+    out = r.stdout + r.stderr
+    assert "not the hub" not in out.lower(), f"a hub worktree must NOT be treated as a project:\n{out}"
+    assert "sync-trigger coverage" in out
+    assert r.returncode == 0, out
+
+
+def _no_yaml(monkeypatch):
+    """Force trigger_pattern down its no-PyYAML fallback branch."""
+    import builtins
+    real_import = builtins.__import__
+
+    def fake(name, *a, **kw):
+        if name == "yaml":
+            raise ImportError("forced")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+
+
+def test_fallback_branch_reads_the_right_hook_when_pyyaml_is_absent(monkeypatch, tmp_path):
+    """The 15-test suite never forced `yaml is None`, so the whole fallback was untested and
+    a naive global `files:` scan would have survived every test (review finding)."""
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    # governance-sync deliberately NOT first: a naive global `files:` scan grabs the EARLIER
+    # hook's filter, so this fixture kills that mutation (the first version did not).
+    cfg.write_text(
+        "repos:\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: earlier-hook\n"
+        "        files: '^earlier/'\n"
+        "      - id: governance-sync\n"
+        "        files: '^wanted/'\n"
+        "      - id: later-hook\n"
+        "        files: '^stolen/'\n"
+    )
+    _no_yaml(monkeypatch)
+    pattern = chk.trigger_pattern(cfg)
+    assert re.search(pattern, "wanted/x.py")
+    assert not re.search(pattern, "earlier/x.py"), "fallback must not grab an EARLIER hook's filter"
+    assert not re.search(pattern, "stolen/x.py"), "fallback must not steal a later hook's filter"
+
+
+def test_fallback_is_not_fooled_by_a_stray_mention_of_the_hook_id(monkeypatch, tmp_path):
+    """A comment naming the hook above the real block truncated it and raised a spurious
+    'no files: filter' — the fallback must anchor on the real `- id:` line."""
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    cfg.write_text(
+        "# this repo's governance-sync distribution flow is described in CLAUDE.md\n"
+        "repos:\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: earlier-hook\n"
+        "        files: '^earlier/'\n"
+        "      - id: governance-sync\n"
+        "        files: '^wanted/'\n"
+    )
+    _no_yaml(monkeypatch)
+    pattern = chk.trigger_pattern(cfg)
+    assert re.search(pattern, "wanted/x.py")
+    assert not re.search(pattern, "earlier/x.py")
+
+
+@pytest.mark.parametrize("attr", chk.REQUIRED_MANIFEST_ATTRS)
+def test_every_required_manifest_attr_fails_loudly_when_missing(monkeypatch, attr):
+    """The loud-fail net was proven for ONE attr; prove it for all of them — `RUN_SCRIPTS_SRC_DIR`
+    was silently `getattr`-defaulted and slipped the net entirely (review finding)."""
+    real = chk._manifest()
+
+    class Crippled:
+        def __getattr__(self, name):
+            if name == attr:
+                raise AttributeError(name)
+            return getattr(real, name)
+
+    monkeypatch.setattr(chk, "_manifest", lambda: Crippled())
+    with pytest.raises(chk.CoverageError, match=attr):
+        chk.synced_surfaces()
+
+
+def test_a_filter_named_reference_doc_is_not_masked_by_a_blanket_exemption(monkeypatch, tmp_path):
+    """`docs/reference/technology-stack-decision-guide.md` is individually wired into the real
+    filter — someone decided it SHOULD trigger. A blanket `docs/reference/` exemption checked
+    before the regex meant dropping it from the filter went undetected."""
+    doc = "docs/reference/technology-stack-decision-guide.md"
+    assert not chk._declared(doc), "a filter-named doc must not be blanket-exempted"
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {doc})
+    assert chk.uncovered(Path("/opt/fabrik")) == []          # covered by the live filter
+
+    stripped = tmp_path / ".pre-commit-config.yaml"
+    live = Path("/opt/fabrik/.pre-commit-config.yaml").read_text()
+    stripped.write_text(live.replace(r"|^docs/reference/technology-stack-decision-guide\.md$", ""))
+    assert chk.uncovered(tmp_path) == [doc], "dropping it from the filter must now be caught"
