@@ -43,7 +43,9 @@ env:
   SERVICE_NAME: tryton-crm
   RATE_LIMIT_PER_MIN: "600"
   TRYTOND_XMLRPC_URL: http://trytond:8000/tryton/rpc/   # compose service DNS on the fabrik net
-  TRYTOND_RPC_USER: admin
+  # TRYTOND_RPC_USER deliberately NOT hardcoded here: `admin` on a PUBLIC login form would make
+  # the injected M2M secret a superuser password (DEPLOYMENT.md § admin-on-public-login — launch
+  # blocker). The dedicated least-privilege login (crm-bridge-svc) flows via secrets.from_env.
   TRYTOND_CONNECT_TIMEOUT: "30"
   PROTEUS_RETRY_ATTEMPTS: "2"
   PROTEUS_RETRY_BACKOFF_MS: "200"
@@ -72,7 +74,8 @@ secrets:
   from_env:
   - SERVICE_INTERNAL_SECRET_KEY   # bridge accepts TI's shared token too (X-Internal-Token == either)
   - CONSUMER_TOKENS               # per-consumer M2M token JSON (trade-intelligence, whatsapp-agent) — token material, never a plain env
-  - TRYTOND_RPC_PASSWORD          # proteus RPC credential for the bridge→trytond calls
+  - TRYTOND_RPC_USER              # dedicated least-privilege service login (crm-bridge-svc) — NEVER admin on a public-login product
+  - TRYTOND_RPC_PASSWORD          # proteus RPC credential for the bridge→trytond calls (pre-minted in the project handoff; create_rpc_service_user.py creates the login WITH it at init)
   from_file: {}
 resources:
   memory: 512M
