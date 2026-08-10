@@ -1,6 +1,6 @@
 # Quota-health for the resume mesh — reset-clock revival, health-aware rotation, token re-capture, reboot sweep
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: docs/superpowers/specs/2026-08-10-quota-health-design.md (CONVERGED 2026-08-10, operator-approved)
 Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-manager` (out-of-repo, DR-versioned); the ticket-set gate bans out-of-repo Touches, and the reviewed resume-mesh plan (2026-08-09-plan-2) is the precedent for this shape. 5 phases.
 
@@ -39,7 +39,12 @@ Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-mana
 - `<synthetic>`/anonymous sids: no per-session mesh state (existing guards; new code honors them).
 - Shared-tree law: stage explicit paths only; provenance trailers; push per phase; DR backup after every `~/.claude/bin` or `.claude-manager` change (`bash /opt/fabrik/scripts/dr_claude_backup.sh`).
 
-## Phase A — `claude-quota.py`: parse, wall-state, wait computation (the core)
+## Phase A — `claude-quota.py`: parse, wall-state, wait computation (the core) ✅ EXECUTED
+
+> Closed 2026-08-10: 39 self-test fixtures + harness Section Q. `/fabrik-review` ran 4 rounds,
+> 14 fixes — heaviest: the manager tap reports AMBIENT usage, not exhaustion (a transient 429
+> would have slept hours), then the priority inversion that fix introduced. Final round NONE.
+> Gate `mesh-test: 80 ok, 0 fail` · DR `20260810T082835Z`.
 
 **Files:** `~/.claude/bin/claude-quota.py` (new, ~200 LOC, stdlib-only) · harness Section Q in `~/.claude/bin/claude-mesh-test.sh` (new fixtures appended BEFORE the summary PRINT at :473 — :474 is the trailing exit-check; inserting between them would print a stale count).
 
@@ -62,7 +67,16 @@ Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-mana
 
 **Behavior Contract (risk-ordered):** structured-source-beats-regex (the ladder inversion) · plausibility gate rejects out-of-window epochs · wait always bounded per type · healthy-sibling prefers lowest usedPercent · fail-open: malformed payload/state → exit 0 + legacy semantics.
 
-## Phase B — Mesh integration: record at death, switch-or-wait, announce
+## Phase B — Mesh integration: record at death, switch-or-wait, announce ✅ EXECUTED
+
+> Closed 2026-08-10: harness Section BQ (+ BQ7/8/9 gap fixtures) → `mesh-test: 95 ok, 0 fail`.
+> `/fabrik-review` ran 3 rounds, 10 fixes — heaviest (native, reproduced): the gate verified the
+> healthy sibling then called blind `--next`, which on a 3-account box can rotate INTO another
+> walled account; rotation now targets `--switch <verified>`. Also: the offline ceiling was
+> measured from the original death (any hiccup after a multi-hour wait rang instantly), an absent
+> helper failed CLOSED, and the announce hid behind the rotation opt-in. Confirming round: both
+> raised candidates REFUTED with proof (the `*[!0-9]*` guard does catch negatives — verified
+> empirically; the ceiling re-baseline is the intended semantic). DR `20260810T1157Z`.
 
 **Files:** `~/.claude/bin/claude-sound.sh` (failure branch) · `~/.claude/bin/claude-selfwatch.sh` · `~/.claude/bin/claude-autoresume.sh` · harness fixtures.
 
