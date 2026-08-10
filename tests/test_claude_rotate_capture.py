@@ -17,6 +17,7 @@ import importlib.util
 import json
 import os
 import stat
+import time
 from pathlib import Path
 
 import pytest
@@ -216,3 +217,50 @@ def test_capture_accepts_an_org_matched_identity(box):
     assert rot._cmd_capture_current() == 0
     snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
     assert snap["claudeAiOauth"]["accessToken"] == "tok-B-ROTATED"
+
+
+# --- Stale-snapshot rotation guard (live incident 2026-08-10 14:37) ------------------------
+
+
+def _oauth_blob(access_h: float, refresh_h: float) -> bytes:
+    """A credentials payload whose access/refresh tokens expire in N hours (negative = past)."""
+    now = time.time()
+    return json.dumps(
+        {
+            "claudeAiOauth": {
+                "accessToken": "redacted",
+                "refreshToken": "redacted",
+                "expiresAt": int((now + access_h * 3600) * 1000),
+                "refreshTokenExpiresAt": int((now + refresh_h * 3600) * 1000),
+            }
+        }
+    ).encode()
+
+
+def test_a_month_old_snapshot_is_refused_as_a_rotation_target():
+    """THE incident: mob@ hit its weekly wall, the picker chose can@ (never walled), and can@'s
+    snapshot was a month old. The switch installed a dead credential and logged the operator out
+    mid-session with 'OAuth session expired and could not be refreshed'."""
+    reason = rot._stale_snapshot_reason(_oauth_blob(-720, -10))
+    assert reason is not None and "refresh token expired" in reason
+
+
+def test_an_expired_access_token_is_refused_even_when_the_refresh_token_has_time_left():
+    """Refresh tokens are SINGLE-USE and four boxes share three accounts, so 'the refresh token
+    has not expired' does not mean it is still unspent. A target must work WITHOUT a refresh."""
+    reason = rot._stale_snapshot_reason(_oauth_blob(-50, 600))  # ob@'s real shape today
+    assert reason is not None and "single-use" in reason
+
+
+def test_a_fresh_snapshot_is_allowed():
+    assert rot._stale_snapshot_reason(_oauth_blob(8, 700)) is None
+
+
+def test_a_token_expiring_inside_the_margin_is_refused():
+    """Never hand over a token that dies while the switch is still happening."""
+    assert rot._stale_snapshot_reason(_oauth_blob(0.03, 700)) is not None
+
+
+def test_the_operator_can_override_a_stale_target(monkeypatch):
+    monkeypatch.setenv("CLAUDE_ROTATE_ALLOW_STALE", "1")
+    assert rot._stale_snapshot_reason(_oauth_blob(-720, -10)) is None

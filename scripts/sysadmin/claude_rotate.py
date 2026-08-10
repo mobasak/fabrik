@@ -44,6 +44,7 @@ from pathlib import Path
 CLAUDE_DIR = Path.home() / ".claude"
 ACTIVE_CREDS = CLAUDE_DIR / ".credentials.json"
 ACCOUNTS_DIR = CLAUDE_DIR / "manager-accounts"
+_CRED_MARGIN_S = 300  # never hand over a token that dies mid-switch
 BACKUP_CREDS = CLAUDE_DIR / ".credentials.json.prev"  # single rolling backup of outgoing active
 ROTATE_LOCK = CLAUDE_DIR / ".claude-rotate.lock"
 # Dir-NAME of the currently-active snapshot, written on every install. Org-independent identity:
@@ -229,6 +230,48 @@ def _secure_write(dst: Path, data: bytes) -> None:
         os.close(fd)
 
 
+def _stale_snapshot_reason(blob: bytes, now: float | None = None) -> str | None:
+    """Why this snapshot must NOT be installed as the active account, or None if it is safe.
+
+    Token PRESENCE is not usability. Refresh tokens here are SINGLE-USE and four boxes share
+    three accounts, so a snapshot whose access token has already expired can only be revived by
+    a refresh whose token another box may have already consumed — installing it lands the
+    operator on "OAuth session expired and could not be refreshed" and a re-login prompt.
+
+    LIVE INCIDENT 2026-08-10 14:37: mob@ hit its weekly wall, the picker ranked can@ first
+    (never walled), and can@'s snapshot was a month old. The switch installed a dead credential
+    and logged the operator out mid-session. A rotation target must be usable WITHOUT a refresh.
+
+    Escape hatch: CLAUDE_ROTATE_ALLOW_STALE=1 (an operator who knows the snapshot is fine).
+    Never emits token bytes.
+    """
+    if os.getenv("CLAUDE_ROTATE_ALLOW_STALE") == "1":
+        return None
+    now = now if now is not None else time.time()
+    try:
+        oauth = json.loads(blob.decode("utf-8")).get("claudeAiOauth") or {}
+    except (ValueError, UnicodeDecodeError):
+        return None  # shape already covered by the token-presence check above; don't double-fail
+
+    def _left(v):
+        if not isinstance(v, (int, float)):
+            return None
+        return (v / 1000 if v > 1e11 else v) - now
+
+    refresh_left = _left(oauth.get("refreshTokenExpiresAt"))
+    if refresh_left is not None and refresh_left <= 0:
+        return f"refresh token expired {abs(refresh_left) / 3600:.0f}h ago"
+    access_left = _left(oauth.get("expiresAt"))
+    if access_left is None:
+        return None  # no expiry field: old format, don't block on missing metadata
+    if access_left <= _CRED_MARGIN_S:
+        return (
+            f"access token expired {abs(access_left) / 3600:.0f}h ago — it would need a refresh, "
+            "and refresh tokens are single-use across the fleet"
+        )
+    return None
+
+
 def _activate_snapshot(
     target: Path | None = None,
     selector: Callable[[], Path | None] | None = None,
@@ -273,6 +316,12 @@ def _activate_snapshot(
             sys.stderr.write(
                 f"refusing to activate {target.name}: unreadable/corrupt credentials\n"
             )
+            return None
+        stale = _stale_snapshot_reason(target_bytes)
+        if stale is not None:
+            # Fail-soft and STAY PUT: a walled-but-authenticated session is recoverable by
+            # waiting for the reset clock; a logged-out one needs the operator at the keyboard.
+            sys.stderr.write(f"refusing to activate {target.name}: {stale}\n")
             return None
         # Single rolling backup of the outgoing active (satisfies the backup-before-swap rule).
         if active_bytes is not None:
