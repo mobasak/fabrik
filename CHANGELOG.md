@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fleet-wide container auto-heal: unhealthy-but-alive now restarts itself (2026-08-10)
+Operator directive: Docker's restart policy only covers exited containers; a wedged-but-alive
+process failing its healthcheck ran forever with only an alert. New `scripts/vps-autoheal.sh`
+(deployed as `/usr/local/bin/fabrik-autoheal`, root cron every minute, all 3 VPS + spoke bootstrap
+template): restarts any `health=unhealthy` container, restart-storm-capped (3/container/30min then
+hold-down so alerting fires loud), opt-out compose label `fabrik.autoheal=false`, syslog-tagged.
+E2E-proven live with an always-failing healthcheck container on vps1.
+
 ### Changed — STATE footer on EVERY response fleet-wide (operator mandate: no exempt turns) (2026-08-10)
 
 - The FINAL OUTPUT contract's conversational/read-only exemption is closed: every non-task-completing

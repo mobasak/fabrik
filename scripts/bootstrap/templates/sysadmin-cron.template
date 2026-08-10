@@ -47,3 +47,7 @@
 # 3+ reversals of the same action class in a week → move that class from
 # AUTONOMOUS to ASK OWNER FIRST in system-prompt.txt.
 */5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/sysadmin-proactive.log 2>&1
+# fabrik-autoheal: restart containers Docker marks unhealthy (storm-capped 3/30min,
+# opt-out label fabrik.autoheal=false). Script: /usr/local/bin/fabrik-autoheal
+# (deployed from /opt/fabrik/scripts/vps-autoheal.sh). Operator directive 2026-08-10.
+* * * * * root /usr/local/bin/fabrik-autoheal

@@ -9,6 +9,8 @@
 
 ## Tooling/code changes since this 2026-06-07 health probe (not yet re-probed live)
 
+- **2026-08-10 — fleet-wide container auto-heal LIVE (operator directive: unhealthy-but-alive must auto-restart, all project types).** `/usr/local/bin/fabrik-autoheal` (source: `scripts/vps-autoheal.sh`) on vps1+vps2+vps3, root cron every minute: `docker ps --filter health=unhealthy` → `docker restart`, storm-capped (max 3 restarts/container/30min, then HOLD-DOWN so Gatus/Prometheus alerting fires instead of being masked), per-container opt-out via compose label `fabrik.autoheal=false`, logs to syslog tag `fabrik-autoheal`. Spoke template `sysadmin-cron.template` extended for future installs. E2E-verified on vps1 with a deliberately failing-healthcheck container. Known interaction: site-provisioner's flapping healthcheck (row below) now earns bounded restarts on flap — fix its probe timeout upstream or label it out if noisy.
+
 - **2026-08-04 morning: fleet-wide OAuth exhaustion — rotation worked as designed, the WINDOW was the bug.**
   All 3 hosts' keepalives went `KEEPALIVE_FAIL:401_auth` (~06:00–08:37 UTC+1): rotation correctly walked
   every account (actives ended ob/mob/mob) but **every VPS-side copy was dead**, so it exhausted + alerted
