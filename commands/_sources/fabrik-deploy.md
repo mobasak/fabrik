@@ -63,18 +63,23 @@ inside them.
    `source.branch` declares — `git log origin/<that branch>..HEAD` empty in the SERVICE repo; a VPS
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the plan's
    build SHA is on the service repo's remote).
-3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat /run/fabrik-autoheal/pause`
-   on the target. The pause file is **host-global with no owner field** — attribution needs the ledger
-   AND the clock: the pause is THIS deploy's own orphan ONLY when the ledger shows the window-open step
-   `✅` without its close AND the file's mtime falls inside that window (open-row UTC timestamp ≤ mtime;
-   a stale unclosed row with a FRESH pause means someone else touched it — fall through). Own orphan →
-   plan to re-adopt: the actual re-open (fresh `touch` + the PAUSED-log confirmation) executes as
-   Phase 1's open step AFTER pre-flight passes — never mutate the target before the pre-flight gate.
-   Not own: mtime **≥ 2h** (already inert — the healer ignores it) → remove it with fenced proof; mtime
-   **< 2h** → `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm with
-   the operator before deploying to this host`. One maintenance window per VPS at a time is the rule
-   this enforces — and it applies at window OPEN too (Phase 1 step 1 re-checks; an unattributed fresh
-   pause appearing there stops the run the same way).
+3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat -c %Y
+   /run/fabrik-autoheal/pause` on the target. The pause file is **host-global with no owner field** —
+   attribution needs the ledger AND the clock, **compared as UTC epoch seconds on BOTH sides**
+   (`stat -c %Y` is already epoch; convert the ledger's UTC row timestamp via `date -u -d <ts> +%s` —
+   never compare wall-clock strings across hosts on a fleet spanning timezones). The pause is THIS
+   deploy's own orphan ONLY when the ledger's **latest unclosed window-open row** (a plan may bracket
+   several windows — the latest one is the candidate) satisfies
+   `open-row epoch ≤ pause mtime ≤ open-row epoch + 7200` — a pause outside that band (fresher than
+   this run's own window could have touched, or predating it) is someone else's: fall through. Own
+   orphan → plan to re-adopt: the actual re-open (fresh `touch` + the PAUSED-log confirmation) executes
+   as Phase 1's open step AFTER pre-flight passes. Not own: mtime age **≥ 2h** (already inert — the
+   healer ignores it) → mark for removal, executed immediately before the run's first target mutation
+   (never before the pre-flight gate — the DECISION here mutates nothing); mtime age **< 2h** →
+   `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm with the
+   operator before deploying to this host`. One maintenance window per VPS at a time is the rule this
+   enforces — and it applies at window OPEN too (Phase 1 step 1 re-checks; an unattributed fresh pause
+   appearing there stops the run the same way).
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
@@ -155,8 +160,9 @@ resumed) — never blanket-defer the close to the end.
 Run the plan's verification battery in full — write-path probe, queue-drain, companion reachability,
 cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output. **The battery
 is the deploy's exit gate:** any FAIL means the deploy is NOT done — fix via the plan's named rollback/
-retry path or stop at `BLOCKED` with the battery table printed. Never report a deploy complete on a
-partial battery.
+retry path or stop at `BLOCKED` with the battery table printed, following the SAME abandonment protocol
+as a runbook-step stop (Phase 2 step 3: rollback with fenced proof, `↩` rows, the ⛔ ledger row committed,
+window closed last). Never report a deploy complete on a partial battery.
 
 ## Phase 4 — Store surfaces: stop at the operator's publish act, then close out
 
@@ -167,7 +173,9 @@ upload, no draft submission, no dashboard click, whatever a plan says (a plan ca
 corpus forbids; flag the contradiction instead of executing it). A credentialed BUILD step is legal only
 where the surface's release path already runs it (cloud `eas build` — `/fabrik-release`'s own MOBILE
 step); any other credentialed act (an Apple notarization submission, a signing service) defaults to
-`OPERATOR-GATE` — when in doubt, it is the operator's. Print the Gate-2 handoff per the
+`OPERATOR-GATE` — when in doubt, it is the operator's, and a build pipeline that EMBEDS such an act
+splits at it: build up to the notarization/signing step, hand that step over, resume after. Print the
+Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
 action only the human takes. The handoff IS this surface's deploy completion: **proceed to Phase 5**,
 where the completion stamp records "handed to the operator publish gate: <the action>".
@@ -176,10 +184,12 @@ where the completion stamp records "handed to the operator publish gate: <the ac
 
 1. **Verify the review artifact exists on disk FIRST**
    (`ls docs/development/reviews/<plan-stem>-review.md`). Missing → it rode the review's flip commit by
-   contract, so recover it from history: `git log --oneline -- <path>` locates any commit that ever
-   carried it (this also catches a working-tree-only deletion, which `--diff-filter=D` would miss) →
-   `git restore --source <that commit> -- <path>`, and the recovered file rides the step-2 close-out
-   commit. Never in history → the plan's convergence was non-compliant —
+   contract, so recover it from history: `git log --oneline --diff-filter=d -- <path> | head -1` — the
+   lowercase filter EXCLUDES deletion commits, so the newest listed commit actually CONTAINS the file
+   (a bare `git log` lists the deletion first and `restore` from it errors) →
+   `git restore --source <that commit> -- <path>`, then **`git add` the recovered file** (an untracked
+   path in an explicit-pathspec commit aborts the whole commit) so it rides the step-2 close-out commit.
+   Never in history → the plan's convergence was non-compliant —
    `BLOCKED: convergence record missing — operator decision (the deploy is live; the record must be
    regenerated honestly, never fabricated)`. Then flip the plan
    `Status: IN-PROGRESS → EXECUTED <date>` + a one-line completion stamp (what shipped — or the store
@@ -189,10 +199,13 @@ where the completion stamp records "handed to the operator publish gate: <the ac
    lifecycle (`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`).
 2. **Commit the flip + archive — plus the recovered review artifact when step 1's recovery ran —
    together (ONE commit — atomicity is the staging area's; explicit pathspecs, Agent Provenance
-   Trailers) and PUSH** — per CLAUDE.md § EXIT an uncommitted flip is an unfinished task, and an
-   unpushed one can be silently reverted by the next pre-commit stash cycle, losing the record that the
-   deploy ran (an uncommitted recovered artifact vanishes the same way, leaving the archived plan citing
-   a path that no longer exists).
+   Trailers) and PUSH.** ⚠️ The pathspecs MUST include **both halves of the `git mv`** — the OLD plan
+   path (its staged deletion) AND the archived path: committing the destination alone leaves the
+   pre-flip plan alive at the old path (IN-PROGRESS, ledger intact, re-dispatchable — a proven
+   double-deploy vector) with a dangling staged deletion. Per CLAUDE.md § EXIT an uncommitted flip is an
+   unfinished task, and an unpushed one can be silently reverted by the next pre-commit stash cycle,
+   losing the record that the deploy ran (an uncommitted recovered artifact vanishes the same way,
+   leaving the archived plan citing a path that no longer exists).
 3. Confirm the maintenance window is closed (fenced `stat`/log evidence) — verify, don't trust.
 4. Hand off: the next command is `/fabrik-deploy-verify` (VPS surfaces — fresh-probe certification of the
    live service) or the operator's publish act (store surfaces).

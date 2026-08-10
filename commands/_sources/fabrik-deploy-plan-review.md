@@ -1,5 +1,5 @@
 ---
-description: Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the live spec/compose/code/infra, runs the surface-conditioned class checklist (secrets flow · env completeness · staged-infra validity · ordering+timing · healing/rollout · battery · monitoring+DR truth), and flips Status: DRAFT → CONVERGED only on an md5-verified edit-free no-op round. TRIGGER — EN: "review the deployment plan", "converge the deploy plan"; TR: "dağıtım planını gözden geçir" — fires on an EXISTING deploy plan document. SKIP: authoring one (→ /fabrik-deploy-plan) · executing one (→ /fabrik-deploy) · a general implementation-plan review (→ /fabrik-plan-review). Stage: gate.
+description: Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the live spec/compose/code/infra, runs the surface-conditioned class checklist (secrets flow · env completeness · staged-infra validity · ordering+timing · healing/rollout · battery · monitoring+DR truth · recurrence), and flips Status: DRAFT → CONVERGED only on an md5-verified edit-free no-op round. TRIGGER — EN: "review the deployment plan", "converge the deploy plan"; TR: "dağıtım planını gözden geçir" — fires on an EXISTING deploy plan document. SKIP: authoring one (→ /fabrik-deploy-plan) · executing one (→ /fabrik-deploy) · a general implementation-plan review (→ /fabrik-plan-review). Stage: gate.
 argument-hint: "<path to the deploy plan — docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md>"
 ---
 
@@ -43,7 +43,7 @@ hand-backs, not failures. Never self-exit with an "accepted risk". **Context is
 never a reason to stop:** the harness auto-compacts and the run continues — keep going; post-compact, the
 `session-recall` MCP recovers any detail the summary dropped.
 
-| Pass | axes re-checked (secrets · env · infra · ordering · healing/rollout · battery · monitoring/DR) | edits made | plan md5 (start → end) |
+| Pass | axes re-checked (secrets · env · infra · ordering · healing/rollout · battery · monitoring/DR · recurrence) | edits made | plan md5 (start → end) |
 |-----:|---|---:|---|
 | 1 | all | 4 | a1b2… → 9f8e… |
 | 2 | all | **0** | 9f8e… → 9f8e… ✓ → **CONVERGED** |
@@ -67,11 +67,12 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
   flip back and converge again; unchanged inputs → report already-converged, do not re-run.
 - `IN-PROGRESS` carrying a `⛔ BLOCKED` step-ledger row (a halted deploy routed back here by
   `/fabrik-deploy`): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
-  converge the AMENDED plan, **annotate every step whose LATEST ledger row is `✅` with `KEEP` (still
-  valid) or `REDO` (the amendment or a rollback invalidated it)** — a step whose latest row is
-  `↩ ROLLED-BACK` is already in the run set, never `KEEP` it — `/fabrik-deploy` executes a re-converged
-  plan resume-style off exactly these annotations — and end at `CONVERGED` for a fresh operator
-  dispatch.
+  converge the AMENDED plan **preserving retained steps' IDs verbatim** (step IDs are the ledger's join
+  keys — renumbering orphans every existing row; new steps get NEW ids), **annotate every step whose
+  LATEST ledger row is `✅` with `KEEP` (still valid) or `REDO` (the amendment or a rollback invalidated
+  it)** — a step whose latest row is `↩ ROLLED-BACK` is already in the run set, never `KEEP` it —
+  `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations — and end at
+  `CONVERGED` for a fresh operator dispatch.
 
 Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row (a deploy still running) → **refuse**: the
 deploy ran (or is live); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED`
@@ -165,14 +166,16 @@ Only after the md5-verified no-op round:
 2. **Persist the review** to `docs/development/reviews/<plan-stem>-review.md` (same stem as the plan
    file). This is an EDIT-CONVERGENCE review artifact — `check_convergence.py`'s review branch covers it
    (`check_review_coverage.py`'s own contract excludes edit-convergence artifacts, and the artifact must
-   not opt itself in: the phrase "coverage checklist" must appear NOWHERE in the artifact — title,
-   prose, or quotes — because the foreign gate's fallback matches it anywhere in the file; the verdict
-   table is titled **Class verdicts**). Its anatomy:
+   not opt itself in — the gate has TWO triggers, both banned from the artifact: the phrase
+   "coverage checklist" must appear NOWHERE — title, prose, or quotes — and the artifact must not name
+   `/fabrik-review` or `/fabrik-repo-review` either (write "the review loop" when the prose needs the
+   concept); the verdict table is titled **Class verdicts**). Its anatomy:
    - the header line + a `## Phase verdicts` section — one verdict line per plan Phase (the per-phase
      adjudication the convergence gate requires);
-   - the class-verdict table — artifact tokens **CLEAN / FIXED / REFUTED**, every row carrying its
-     evidence (a pass-time `N/A-<surface>` row is rewritten `CLEAN — N/A-<surface>: <why> + the proving
-     path`; a bare CLEAN names nothing and proves nothing);
+   - the class-verdict table — row tokens **CLEAN / FIXED** only, every row carrying its evidence (a
+     pass-time `N/A-<surface>` row is rewritten `CLEAN — N/A-<surface>: <why> + the proving path`; a
+     bare CLEAN names nothing and proves nothing; FIXED/REFUTED are FINDING dispositions — they live in
+     the Pass Ledger and `## Phase verdicts`, not as row verdicts);
    - the Pass Ledger verbatim, the final round reading `found: 0, fixed: 0` (the quiet-pass marker the
      later `EXECUTED` flip is checked against — it appears ONLY on a CONVERGED ending, never in a
      DRAFT/BLOCKED report);
@@ -182,9 +185,12 @@ Only after the md5-verified no-op round:
 3. **Two gate runs break the bootstrap circularity — the anatomy is proven, not asserted:**
    (a) stage the flipped PLAN only; (b) run `python scripts/final_gate.py --check --json` → fix until
    `"status": "success"` and capture the fenced output (the artifact is still untracked, so the review
-   gates don't demand an embed that doesn't exist yet); (c) write the artifact WITH that fence embedded;
-   (d) stage the artifact; (e) re-run the gate → `"status": "success"` now proves the artifact itself
-   passes its review branch; (f) **commit both and PUSH** (ONE commit, explicit pathspecs, Agent
+   gates don't demand an embed that doesn't exist yet; fixes at this step are to staging/format issues
+   OUTSIDE the plan body — a fix that must touch the PLAN means the flip was premature: the loop
+   re-opens and the flip is redone after); (c) write the artifact WITH that fence embedded; (d) stage
+   the artifact; (e) re-run the gate → `"status": "success"` now proves the artifact itself passes its
+   review branch — print this run in your session output (the artifact's embedded fence is (b)'s run);
+   (f) **commit both and PUSH** (ONE commit, explicit pathspecs, Agent
    Provenance Trailers + `Agent-Context: deploy-plan-review <plan-stem>` — the marker `/fabrik-deploy`'s
    post-flip-edit gate exempts; use it on EVERY status commit this command makes: the CONVERGED flip,
    the inputs-changed flip-back, and the ⛔ re-entry flips). An uncommitted flip is what the next
