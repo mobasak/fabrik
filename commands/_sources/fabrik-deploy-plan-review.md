@@ -46,17 +46,34 @@ never a reason to stop:** the harness auto-compacts and the run continues — ke
 | 1 | all | 4 | a1b2… → 9f8e… |
 | 2 | all | **0** | 9f8e… → 9f8e… ✓ → **CONVERGED** |
 
+## Where this runs
+
+Same split as `/fabrik-deploy-plan`: **VPS surfaces → hub-side (`/opt/fabrik`)** — the spec, the fleet
+SSH path for re-probes, and the plan document live here; **store surfaces → project-side**. Running from
+the wrong repo makes the grounding layer unreachable (the ground truth cannot be re-read) — stop and say
+so rather than converging on unread sources.
+
 ## Phase 0 — Establish scope + status guard
 
 The plan under review is `$ARGUMENTS`. Read its declared **surface** (vps · mobile · extension ·
 desktop — authored by `/fabrik-deploy-plan` Phase 0); the checklist below is conditioned on it.
 
-**Status guard — this command flips exactly one edge, `DRAFT → CONVERGED`:** pointed at a plan already
-`CONVERGED`, re-enter the loop ONLY if its inputs changed (the spec, compose, or code moved under it —
-then it is `DRAFT` in fact: flip the header back and converge again); unchanged inputs → report
-already-converged, do not re-run. Pointed at `EXECUTED` (or `IN-PROGRESS`) → **refuse**: the deploy ran
-(or is running); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED` back —
-that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
+**Status guard — this command's PRODUCT is the `DRAFT → CONVERGED` flip.** The only other writes it may
+make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
+
+- `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in fact):
+  flip back and converge again; unchanged inputs → report already-converged, do not re-run.
+- `IN-PROGRESS` carrying a `⛔ BLOCKED` step-ledger row (a halted deploy routed back here by
+  `/fabrik-deploy`): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
+  converge the AMENDED plan, and end at `CONVERGED` for a fresh operator dispatch.
+
+Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row (a deploy still running) → **refuse**: the
+deploy ran (or is live); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED`
+back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
+
+**Gate-required sections:** verify the plan carries `## Context Ledger`, `## File Scope`, `## Evidence`,
+and `## Self-audit` — `check_plan_quality.py` (modern pillars) and `check_convergence.py` (on the
+`CONVERGED` flip) hard-fail without them; a missing one is a finding to fix, not a style note.
 
 **Precondition trail:** the plan header must embed the FENCED release-readiness evidence (or the verbatim
 operator waiver) `/fabrik-deploy-plan` mandates — release's own Gate-2 handoff is an ephemeral print, so
@@ -121,19 +138,30 @@ session can settle it without stopping — the plan states the exact probe/comma
 adjudicate questions mid-deploy. A genuine dependency the deploy session cannot satisfy alone is a named
 BLOCKING unknown → the plan stays `DRAFT` until its owner resolves it.
 
-## Phase 3 — Flip + hand off
+## Phase 3 — Flip + persist + hand off
 
-Only after the md5-verified no-op round: flip `Status: DRAFT → CONVERGED`, print the Output block, and
-name the next command. The flip is the LAST act — a plan edited after its flip is `DRAFT` again in fact,
-whatever the header says; re-run the loop.
+Only after the md5-verified no-op round:
 
-## Output (always, last thing)
+1. Flip `Status: DRAFT → CONVERGED`. The flip is the LAST content act — a plan edited after its flip is
+   `DRAFT` again in fact, whatever the header says; re-run the loop.
+2. **Persist the review**: write the Output block to
+   `docs/development/reviews/<plan-stem>-review.md` (same stem as the plan file). It MUST contain the
+   final round's `found: 0, fixed: 0` line — `check_convergence.py` requires exactly this stem-matched,
+   quiet-pass artifact before the plan may ever flip `EXECUTED`; without it `/fabrik-deploy`'s close-out
+   reds the gate.
+3. **Commit the flip + the review artifact and PUSH** (ONE commit, explicit pathspecs, Agent Provenance
+   Trailers) — `/fabrik-deploy`'s post-flip-edit gate keys on the flip COMMIT, and an uncommitted flip is
+   what the next pre-commit stash cycle silently reverts.
+4. Print the Output block and name the next command.
+
+## Output (always, last thing — also persisted per Phase 3)
 
 ```
 DEPLOY-PLAN-REVIEW: <plan path> (surface: <vps|mobile|extension|desktop>)
 <the Pass Ledger table, verbatim>
 <the coverage-checklist verdict table: row → CLEAN | FIXED | N/A-<surface> + why>
 FINDERS: pool <models×n> + native Opus ×<n> per round
+Final round: found: 0, fixed: 0
 ## BLOCKED: <axis + the 3 attempts | none>
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```

@@ -13,28 +13,29 @@ an invention.
 You are done when EVERY runbook step has run with its verification **PASS (fenced output, this run)**, the
 plan's battery (its exit gate) is green, the maintenance window is provably closed, the plan is flipped
 `→ EXECUTED <date>`, archived, **committed and pushed**, and the 6-line FINAL OUTPUT block is printed — OR
-you have stopped at a `BLOCKED` with rollback state honestly recorded in the plan's step ledger. Store
-surfaces are done at their **operator publish gate**: prepared, verified, handed off — ending there IS
-success, not an incomplete run. **Context is never a reason to stop:** the harness auto-compacts and the
-run continues — keep going.
+you have stopped at a `BLOCKED` with rollback state honestly recorded (and committed) in the plan's step
+ledger. Store surfaces are done at their **operator publish gate**: prepared, verified, handed off, and
+CLOSED OUT per Phase 5 — ending there IS success, not an incomplete run. **Context is never a reason to
+stop:** the harness auto-compacts and the run continues — keep going.
 
 ## ⚠️ Hard gates — check ALL before any action
 
 1. **Operator dispatch (Gate 2).** This command runs ONLY when the operator explicitly dispatched it THIS
-   turn. It is never self-triggered, never auto-chained from the plan review, never run "since the plan
-   converged anyway". If you arrived here any other way, stop and hand the decision back. **Gate-2
-   supersession note:** older corpus text defines Gate 2 as "deploy = manual `fabrik apply`"
-   (north-star § gates; `/fabrik-release`'s "no agent deploys"). Under the deploy triad (operator
-   directive 2026-08-10), the operator's explicit dispatch of THIS command **is** that manual approval
-   act for plan-governed deploys — the human gate moves to the dispatch, it does not disappear. Where the
-   two texts meet, this note is the tiebreak.
-2. **`Status: CONVERGED` (fresh run) or `Status: IN-PROGRESS <this plan's own deploy>` (resume).**
-   Anything else — `DRAFT`, `EXECUTED`, absent — → refuse: `BLOCKED: plan not executable — <status>; run
+   turn — and a RESUME is still a dispatch: this gate applies to every invocation, including one that
+   continues an `IN-PROGRESS` ledger. It is never self-triggered, never auto-chained from the plan
+   review, never run "since the plan converged anyway". If you arrived here any other way, stop and hand
+   the decision back. **Gate-2 definition (the tiebreak where corpus texts meet):** the human deploy
+   approval IS the operator's explicit dispatch of this command — for plan-governed deploys, that
+   dispatch is the "manual `fabrik apply`" the corpus's Gate-2 lines describe. `/fabrik-release` still
+   never deploys: it hands TO this gate; this command is what the gate's approval sanctions.
+2. **`Status: CONVERGED` (fresh run) or `Status: IN-PROGRESS` with a step ledger (resume).** Anything
+   else — `DRAFT`, `EXECUTED`, absent — → refuse: `BLOCKED: plan not executable — <status>; run
    /fabrik-deploy-plan-review first (DRAFT) or author a new plan (EXECUTED)`. This echoes the
    data-contract FROZEN gate: nothing executes against an unconverged artifact. **Post-flip edits void
-   the flip:** if `git log` shows commits touching the plan AFTER its `CONVERGED` flip commit (other than
-   the flip itself and this command's own ledger writes), the plan is `DRAFT` in fact — refuse the same
-   way. (Git evidence only — file mtime resets on every checkout/stash and proves nothing.)
+   the flip:** the review command commits its `CONVERGED` flip — if `git log` shows commits touching the
+   plan AFTER that flip commit (other than this command's own ledger writes), the plan is `DRAFT` in
+   fact — refuse the same way. (Git evidence only — file mtime resets on every checkout/stash and proves
+   nothing.)
 3. **Where this runs.** VPS surfaces: hub-side, from `/opt/fabrik` — the `fabrik` CLI, the fleet SSH
    path, and the plan document itself live here (a project-side run has no fleet creds, and its local
    Docker probes hit the WSL `fabrik` bridge, not the fleet's — the false-clean trap). Store surfaces:
@@ -46,18 +47,24 @@ inside them.
 
 ## Phase 0 — Resolve + pre-flight
 
-1. Read the plan fully: surface, target, runbook, battery, rollback columns, `OPERATOR-GATE` markers, and
-   any existing step ledger (resume case — see Phase 2).
+1. Read the plan fully: surface, target, runbook, battery, retryable/rollback columns, `OPERATOR-GATE`
+   markers, and any existing step ledger (resume case — see Phase 2).
 2. Verify the code state the plan deploys is real: committed AND pushed on the branch the spec's
    `source.branch` declares (`git log origin/<that branch>..HEAD` empty in the SERVICE repo) — a VPS
    deploy runs `git pull` from the remote; local-only commits deploy nothing.
-3. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
+3. **Reconcile healing state:** `stat /run/fabrik-autoheal/pause` on the target. An existing pause file
+   no live window of THIS plan owns is stale residue from a dead run — remove it (fenced proof) before
+   starting, so the deploy never begins inside an unaccounted-for pause.
+4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
-4. **First mutating step flips the plan `CONVERGED → IN-PROGRESS`** and starts the **step ledger** inside
-   the plan document (append `— ✅ <step id> <UTC timestamp>` per completed step, `— ⛔ BLOCKED <step id>
-   <why> <rollback taken>` on a halt). The ledger is the durable record a resume reads.
-5. Honor the plan's env knobs verbatim (e.g. `FABRIK_BUILD_TIMEOUT=1200` for heavy images — the deployer
+5. **The first mutating step flips the plan `CONVERGED → IN-PROGRESS`, starts the step ledger inside the
+   plan document, and COMMITS that flip immediately** (explicit pathspec, provenance trailers). Ledger
+   rows — `— ✅ <step id> <UTC timestamp>` per completed step, `— ⛔ BLOCKED <step id> <why> <rollback
+   taken>` on a halt — are **committed at every step that mutated remote state**: a migration's ledger
+   row living only in the working tree is not durable (the pre-commit stash cycle can silently revert
+   it, and a resume would re-run the migration).
+6. Honor the plan's env knobs verbatim (e.g. `FABRIK_BUILD_TIMEOUT=1200` for heavy images — the deployer
    reads it per `deployer_ssh.py::_BUILD_TIMEOUT`). Background any step likely >30s and monitor it —
    never block the session on a long build, never abandon it either.
 
@@ -66,14 +73,17 @@ inside them.
 If the plan brackets a window (migrations, module init — any step a healthcheck outlives), the runbook's
 own steps open and close it; execute them with these guarantees:
 
-1. Open: `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause'`.
-2. **Confirm a `PAUSED` line in the healer's log BEFORE the sensitive step starts** (`journalctl -t
-   fabrik-autoheal` on the target — the healer ticks every minute; an already-in-flight tick is not
-   retroactively paused, so the log line is the only proof the window is live).
+1. Open: `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause'` —
+   capture the touch timestamp.
+2. **Confirm the window is live BEFORE the sensitive step starts:** `stat` shows the pause file, AND
+   `journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line **newer than
+   the touch** (the healer ticks every minute; an already-in-flight tick is not retroactively paused,
+   and last week's PAUSED lines prove nothing — bound the read or the check can never fail).
 3. **A shell `trap` is NOT a safety net here** — each command runs in a fresh shell, so an `EXIT` trap
-   fires when that call ends, not when the deploy does. The closing `rm` is an explicit runbook step, and
-   EVERY abort path (a `BLOCKED`, a rollback) performs it FIRST and verifies with a fresh `stat`. If the
-   session dies outright, the pause file's 2h staleness self-heal is the last-resort backstop.
+   fires when that call ends, not when the deploy does. The closing `rm` is an explicit runbook step. On
+   an abort: **run the rollback steps FIRST — still inside the window, which protects the rollback
+   too — then close the window as the abort's LAST act** and verify with a fresh `stat`. If the session
+   dies outright, the pause file's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es the file at each step boundary
    per the plan's heartbeat step; never trust a single touch past 2h.
 
@@ -84,13 +94,21 @@ after re-running the LAST marked step's verification to confirm the world still 
 
 1. Run the step's exact command (an `OPERATOR-GATE` step is NEVER run — see Phase 4).
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
-   starts. A verification you didn't run is a step that didn't happen. Mark the ledger.
-3. On failure: apply the step's rollback column, then — only if the plan marks the step retryable — retry
-   up to twice more. **The third failure of the same step stops the run**: execute the plan's rollback
-   for every completed step that requires it, write the ⛔ ledger row, and report
-   `BLOCKED: <step> — <evidence> — <rollback taken>`. No improvisation: a situation the plan didn't
-   anticipate is a plan defect — stop, report, route back to `/fabrik-deploy-plan-review`; never redesign
-   the deploy mid-run.
+   starts. A verification you didn't run is a step that didn't happen. Mark + commit the ledger per
+   Phase 0.5.
+3. On failure, the plan's `retryable` column decides:
+   - **Retryable step** → retry up to twice more (three attempts total). Rollback is the EXIT action of
+     an abandoned step, not a between-attempts reflex — apply per-attempt cleanup only where the plan's
+     rollback column explicitly orders it (re-running a step against a state its own rollback just tore
+     down is how a retry makes things worse).
+   - **Non-retryable step** → its FIRST failure is terminal for the run.
+   - **On abandonment (either case):** execute the step's rollback command and **prove it landed (fenced
+     output)**, execute the plan's rollback for every completed step that requires it (inside the
+     maintenance window — Phase 1.3), write + commit the ⛔ ledger row, close the window last, and report
+     `BLOCKED: <step> — <evidence> — <rollback taken>`. The halted plan then goes back through
+     `/fabrik-deploy-plan-review` (its sanctioned `IN-PROGRESS + ⛔` re-entry — the plan is amended and
+     re-converged before any fresh dispatch). No improvisation: a situation the plan didn't anticipate
+     is a plan defect — never redesign the deploy mid-run.
 
 Close the maintenance window at the runbook step that closes it (verify the `rm` landed and the healer
 resumed) — never blanket-defer the close to the end.
@@ -103,25 +121,29 @@ is the deploy's exit gate:** any FAIL means the deploy is NOT done — fix via t
 retry path or stop at `BLOCKED` with the battery table printed. Never report a deploy complete on a
 partial battery.
 
-## Phase 4 — Store surfaces: stop at the operator's publish act
+## Phase 4 — Store surfaces: stop at the operator's publish act, then close out
 
 Mobile / extension / desktop runbooks execute up to — never through — the publish act: build the artifact
 from the pushed SHA, verify it (the plan's battery analogue), prepare listing/rollout content. **No store
 credential use, ever** (inherited verbatim from `/fabrik-release`): no upload, no draft submission, no
 dashboard action — those are all the operator's, whatever a plan says (a plan cannot sanction what the
-corpus forbids; flag the contradiction instead of executing it). Print the handoff exactly as
-`/fabrik-release` R14 mandates: the artifact, the verdicts, and the one action only the human takes.
-Ending at the handoff IS this surface's completion.
+corpus forbids; flag the contradiction instead of executing it). Print the Gate-2 handoff per the
+convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
+action only the human takes. The handoff IS this surface's deploy completion: **proceed to Phase 5**,
+where the completion stamp records "handed to the operator publish gate: <the action>".
 
-## Phase 5 — Close out
+## Phase 5 — Close out (all surfaces)
 
-1. Flip the plan `Status: IN-PROGRESS → EXECUTED <date>` + a one-line completion stamp (what shipped, the
-   battery verdict), and archive it per the plan lifecycle
-   (`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`) — a finished
-   deploy plan left active misleads the next agent into treating it as open work.
-2. **Commit the flip + archive (explicit pathspecs, Agent Provenance Trailers) and PUSH** — per
-   CLAUDE.md § EXIT an uncommitted flip is an unfinished task, and an unpushed one can be silently
-   reverted by the next pre-commit stash cycle, losing the record that the deploy ran.
+1. Flip the plan `Status: IN-PROGRESS → EXECUTED <date>` + a one-line completion stamp (what shipped —
+   or the store handoff — and the battery verdict), citing the review artifact
+   (`Whole-plan review: docs/development/reviews/<plan-stem>-review.md` — the file
+   `/fabrik-deploy-plan-review` persisted; `check_convergence.py` refuses an `EXECUTED` plan without
+   that stem-matched, quiet-pass citation), and archive it per the plan lifecycle
+   (`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`).
+2. **Commit the flip + archive together (ONE commit — atomicity is the staging area's; explicit
+   pathspecs, Agent Provenance Trailers) and PUSH** — per CLAUDE.md § EXIT an uncommitted flip is an
+   unfinished task, and an unpushed one can be silently reverted by the next pre-commit stash cycle,
+   losing the record that the deploy ran.
 3. Confirm the maintenance window is closed (fenced `stat`/log evidence) — verify, don't trust.
 4. Hand off: the next command is `/fabrik-deploy-verify` (VPS surfaces — fresh-probe certification of the
    live service) or the operator's publish act (store surfaces).
