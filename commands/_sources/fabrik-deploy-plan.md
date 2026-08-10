@@ -169,8 +169,8 @@ notarization submission or a signing service: when in doubt, mark it) are marked
 is immediately checkable; the deploy hands over, waits, verifies, continues) or `verify: deferred`
 (a store review measured in days; the handoff completes the surface — a deferred-gate step is
 therefore ALWAYS the runbook's final step, and the deploy runs the plan's battery immediately BEFORE
-the runbook's TERMINAL gate of either shape on ANY surface — mid-runbook in-session gates are not
-preceded by it; a gateless runbook runs the battery after the runbook) — the runbook prepares each
+that DEFERRED gate — the one shape nothing can run after; every other runbook, terminal in-session
+gate included, runs the battery AFTER the runbook so it certifies the post-gate state) — the runbook prepares each
 and hands it to the operator, never performs it. The surface's sanctioned build path (cloud `eas build`,
 per `/fabrik-release`'s own MOBILE step) is NOT `OPERATOR-GATE` — marking it makes the artifact
 unbuildable and stalls the deploy at a step the corpus already sanctions. `/fabrik-deploy` applies the
@@ -184,18 +184,28 @@ module init — the B3 class: autoheal's worst-case time-to-unhealthy is minutes
 be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartbeat` / `window-close`**
 (the labels make the bracket auditable — the review's re-entry audit and the halt protocol key on them), **authored in their EXECUTABLE root form** — the dir is
 root-owned and the fleet SSH user is not root, and the alias for `target_vps: vps1` is `vps` (no
-`vps1` alias exists; `vps2`/`vps3` literal) — so the open and every heartbeat step are
+`vps1` alias exists; `vps2`/`vps3` literal) — so the open step is
 `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause &&
-printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` (a bare touch or
-redirect gets Permission denied; the deploy executes the runbook verbatim and may not add sudo
-mid-run);
+printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` and every
+heartbeat step is the STEM-GUARDED variant —
+`ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] &&
+grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause &&
+printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner || echo
+OWNERSHIP-LOST'"` — an `OWNERSHIP-LOST` heartbeat means the window expired and another actor took
+it: the sensitive step STOPS (the halt protocol — our protection is gone); NEVER re-take a lost
+window (a bare touch or redirect gets Permission denied; the deploy executes the runbook verbatim
+and may not add sudo mid-run);
 **wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
-step** (an already-in-flight healer tick is not retroactively paused); the close step is STEM-GUARDED —
-`ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] && grep -q \\"^<plan-stem> \\"
-/run/fabrik-autoheal/pause.owner && rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner
-|| echo OWNERSHIP-LOST'"` (removes ONLY while the owner still carries this plan's stem; a >2h
-suspension can hand the window to another actor — never remove theirs) — ordered so the close comes
-AFTER any rollback the window's steps might need. **The pause file
+step** (an already-in-flight healer tick is not retroactively paused); the close step is STEM-GUARDED — tested form, single-backslash `\"` escapes, operators at
+end-of-line when wrapping:
+`ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] &&
+grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner &&
+rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERSHIP-LOST'"`
+(removes ONLY while the owner still carries this plan's stem — a >2h suspension can hand the window
+to another actor: never remove theirs; the step's VERIFICATION checks BOTH FILES GONE, never rc alone —
+an `OWNERSHIP-LOST` print exits 0) — ordered so the close comes
+AFTER any rollback the window's steps might need. Declare the window **WAIT BOUND** (how long a deploy may wait on a foreign pause before giving up;
+default 30 min — the deploy's waits read this). **The pause file
 is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must schedule its re-`touch`
 heartbeat at step boundaries (each a labeled step) or split the work; a single touch is never trusted
 past it. Also name watchdog posture and
@@ -209,9 +219,9 @@ the service has workers, companion-service reachability (each compose sibling pr
 container), ACME/cert diagnostics for a new domain (the acme log read BEFORE the TLS test, so a
 cert-pending state isn't misread as a routing failure), and same-origin routing probes where routing is
 nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The
-battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — hub-side for VPS after the
-runbook; immediately before the runbook's terminal OPERATOR-GATE where one exists — any surface — or after
-the runbook otherwise; hub-side for VPS, project-side for stores.)
+battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — after the runbook, EXCEPT when the
+runbook's terminal step is a DEFERRED gate, where it runs immediately before that gate (nothing can
+run after it); hub-side for VPS, project-side for stores.)
 
 ## Phase 7 — Monitoring / backup / DR truth check `[hub-side · stores: anywhere]` (all surfaces)
 
