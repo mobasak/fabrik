@@ -24,7 +24,10 @@ and the run continues — keep going.
 
 1. **Operator dispatch (Gate 2).** This command runs ONLY when the operator explicitly dispatched it THIS
    turn — and a RESUME is still a dispatch: this gate applies to every invocation, including one that
-   continues an `IN-PROGRESS` ledger. It is never self-triggered, never auto-chained from the plan
+   continues an `IN-PROGRESS` ledger. **The re-dispatch of an `IN-PROGRESS` plan IS the operator's
+   assertion that the prior session is dead** (the same authorization rule as plan-lock resumes — one
+   live session per deploy plan is the operator's to guarantee; state this assumption in your opening
+   output so a wrong assertion surfaces immediately). It is never self-triggered, never auto-chained from the plan
    review, never run "since the plan converged anyway". If you arrived here any other way, stop and hand
    the decision back. **Gate-2 definition (the tiebreak where corpus texts meet):** the human deploy
    approval IS the operator's explicit dispatch of this command — for plan-governed deploys, that
@@ -38,10 +41,11 @@ and the run continues — keep going.
    `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO` annotations) → RESUME-STYLE
    per Phase 2 — completed work is never blindly re-run. **Post-flip edits void the flip:** the review
    command commits its `CONVERGED` flip — if `git log` shows commits touching the plan after that flip
-   commit OTHER THAN the sanctioned set (this command's own flip/ledger/close-out commits — identifiable
-   by their `Agent-Context: deploy-ledger <plan-stem>` trailer, mandated in Phase 0 step 5 — and the review's
-   own sanctioned re-entry flips), the plan is `DRAFT` in fact — refuse the same way. (Git evidence
-   only — file mtime resets on every checkout/stash and proves nothing.)
+   commit OTHER THAN the sanctioned set (identifiable by trailer: `Agent-Context: deploy-ledger
+   <plan-stem>` = this command's own flip/ledger/close-out commits, mandated in Phase 0 step 5;
+   `Agent-Context: deploy-plan-review <plan-stem>` = the review's flip and sanctioned re-entry commits),
+   the plan is `DRAFT` in fact — refuse the same way. (Git evidence only — file mtime resets on every
+   checkout/stash and proves nothing.)
 3. **Where this runs.** VPS surfaces: hub-side, from `/opt/fabrik` — the `fabrik` CLI, the fleet SSH
    path, and the plan document itself live here (a project-side run has no fleet creds, and its local
    Docker probes hit the WSL `fabrik` bridge, not the fleet's — the false-clean trap). Store surfaces:
@@ -60,16 +64,20 @@ inside them.
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the plan's
    build SHA is on the service repo's remote).
 3. **Reconcile healing state (VPS):** `stat /run/fabrik-autoheal/pause` on the target. The pause file is
-   **host-global with no owner field** — it may belong to a SIBLING deploy's live window, so never
-   assume residue: mtime **≥ 2h** (already inert — the healer ignores it) → remove it with fenced proof;
-   mtime **< 2h** and not this run's own → `BLOCKED: active pause on <target> — possibly a sibling's
-   maintenance window; confirm with the operator before deploying to this host`. One maintenance window
-   per VPS at a time is the rule this enforces.
+   **host-global with no owner field** — attribution comes from THIS plan's ledger, so read it first:
+   the ledger shows the window-open step `✅` without its close → the pause is THIS deploy's own orphan —
+   re-adopt it (fresh `touch` + continue the resume), never BLOCK on it. Otherwise: mtime **≥ 2h**
+   (already inert — the healer ignores it) → remove it with fenced proof; mtime **< 2h** with no owning
+   ledger row → `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm
+   with the operator before deploying to this host`. One maintenance window per VPS at a time is the
+   rule this enforces.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
 5. **The first mutating step flips the plan `CONVERGED → IN-PROGRESS`, starts the step ledger inside the
-   plan document, and COMMITS that flip immediately** (explicit pathspec, provenance trailers — every
+   plan document (or APPENDS to an existing one — a re-entry/resume plan arrives with its ledger and
+   `KEEP`/`REDO` annotations intact; reinitializing it erases exactly what Phase 2 keys on), and COMMITS
+   that flip immediately** (explicit pathspec, provenance trailers — every
    flip/ledger/close-out commit carries `Agent-Context: deploy-ledger <plan-stem>`, the marker Hard
    gate 2's post-flip-edit rule keys on). Ledger rows — `— ✅ <step id> <UTC timestamp>` per completed
    step, `— ⛔ BLOCKED <step id> <why> <rollback taken>` on a halt, `— ↩ ROLLED-BACK <step id>` for a
@@ -103,9 +111,12 @@ own steps open and close it; execute them with these guarantees:
 
 For each step, in the plan's order. **Resume-style execution (any run whose plan carries a ledger):** run
 only the steps with NO truthful `✅` — i.e. steps unmarked, marked `⛔`, marked `↩ ROLLED-BACK`, or whose
-`✅` the re-entry review annotated `REDO`; skip `✅ KEEP` steps after re-running the LAST kept step's
-verification to confirm the world still agrees with the ledger (a re-converged plan with a ledger is a
-resume, never a from-step-1 re-run — that is how a completed migration gets run twice):
+`✅` the re-entry review annotated `REDO`. Skipped steps are the truthful-`✅` set: a bare `✅` on an
+ordinary resume (no re-entry ran, so no annotations exist), a `✅ KEEP` after a re-entry. **Before the
+first executed step, re-run the LAST skipped step's verification** to confirm the world still agrees
+with the ledger — a world that drifted (a healer restart, an expired window) fails here, not three steps
+in. (A ledger-bearing plan is a resume, never a from-step-1 re-run — that is how a completed migration
+gets run twice.)
 
 1. Run the step's exact command (an `OPERATOR-GATE` step is NEVER run — see Phase 4).
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
@@ -155,9 +166,11 @@ where the completion stamp records "handed to the operator publish gate: <the ac
 ## Phase 5 — Close out (all surfaces)
 
 1. **Verify the review artifact exists on disk FIRST**
-   (`ls docs/development/reviews/<plan-stem>-review.md`) — missing → `BLOCKED: convergence record
-   missing — re-run /fabrik-deploy-plan-review to regenerate it` (NEVER fabricate it; a citation to a
-   missing file fails the gate identically to no citation). Then flip the plan
+   (`ls docs/development/reviews/<plan-stem>-review.md`). Missing → it rode the review's flip commit by
+   contract, so recover it from git first (`git log --diff-filter=D -- <path>` / `git restore --source
+   <the flip commit> -- <path>`); truly never-committed → the plan's convergence was non-compliant —
+   `BLOCKED: convergence record missing — operator decision (the deploy is live; the record must be
+   regenerated honestly, never fabricated)`. Then flip the plan
    `Status: IN-PROGRESS → EXECUTED <date>` + a one-line completion stamp (what shipped — or the store
    handoff — and the battery verdict), citing it
    (`Whole-plan review: docs/development/reviews/<plan-stem>-review.md` — `check_convergence.py` refuses

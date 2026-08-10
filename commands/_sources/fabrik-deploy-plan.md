@@ -14,7 +14,7 @@ seeded this command's section list; each is also glossed inline where it binds.
 
 ## ⚠️ Termination contract
 
-This run has exactly FOUR legitimate endings:
+This run has exactly FIVE legitimate endings:
 
 1. **The plan authored** — `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` exists with
    `Status: DRAFT` (the `-plan-` stem is gate-mandated: `check_plans.py::PLAN_NAME_NEW_RE` and the
@@ -78,9 +78,10 @@ inside them.
 1. Read the SERVICE's `project.yaml::type` (hub-side that file is `/opt/<service>/project.yaml`; the hub
    repo itself has none) and dispatch against the LIVE registry
    (`/opt/fabrik/src/fabrik/scaffold.py::SCAFFOLD_TYPES` — 12 types). Hub-side runs verify the table
-   below against it (on divergence the REGISTRY wins: proceed on the registry, record the divergence in
-   the plan's `## Self-audit` and in your report — the stale table is a corpus defect for the operator);
-   a project-side run that cannot reach the hub tree proceeds on the table and says so:
+   below against it (on divergence the REGISTRY wins: proceed on the registry and record the divergence
+   in the plan's `## Self-audit` — or, on a plan-less ending like the LEGACY verdict, in your report —
+   the stale table is a corpus defect for the operator); a project-side run that cannot reach the hub
+   tree proceeds on the table and says so:
 
    | `type` | Surface | Plan shape |
    |---|---|---|
@@ -152,8 +153,10 @@ intention** ("re-run previous release" is not a rollback). In-container exec sem
 (the B1 class: an in-container default port/host is dev-shaped — pass the explicit `-e` override).
 Long-running steps state their expected duration, and any step expected to exceed its window's tolerances
 names the mitigation (Phase 5). Steps only the operator may take (any store-dashboard or credentialed
-publish action, a paid account action) are marked `OPERATOR-GATE` — the runbook prepares up to them, never
-through them.
+publish action, a paid account action — and any credentialed act whose classification is unclear, e.g. a
+notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE` — the
+runbook prepares up to them, never through them. `/fabrik-deploy` applies the same default, so an
+unmarked ambiguous step is a plan defect the review must catch, not a deploy-time judgment call.
 
 ## Phase 5 — Maintenance-window interactions (the healing layer) `[anywhere]` (VPS)
 

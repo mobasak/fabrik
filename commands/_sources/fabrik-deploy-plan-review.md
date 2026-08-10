@@ -123,9 +123,10 @@ the one-line why — a row is never silently dropped):**
 | 8 | Standing recurrence sweep | fail-open/fail-closed defaults (a healing window failing open, a guard a caller swallows) · cost/quota limits (build minutes, API quota a runbook step can exhaust) · boundary/sentinel/prefix traps (route prefixes, placeholder sentinels, off-by-one windows) · behavior-without-a-test (a runbook step whose verification cannot fail) |
 
 **Rubric injection (corpus review-time contract):** at the start of Phase 1 run
-`python scripts/review_rubric.py --changed <the plan + its ground-truth paths>` and fold the injected
-mandates into the pass — checklist classes derive from the rubric, not memory; record the invocation in
-the persisted artifact (the coverage gate checks for it).
+`python scripts/review_rubric.py --changed <the plan + its ground-truth paths>` and inject its output —
+rule-pack MANDATES plus the mandatory-core floor — into every finder prompt (that is what the tool
+emits; the checklist CLASSES come from the canonical table above, which the rubric supplements, never
+replaces).
 
 Also hunt beyond the checklist: plan↔reality drift, unstated assumptions, steps whose verification is
 vague or unrunnable, and any `OPERATOR-GATE` marker missing from a step only the human may take.
@@ -159,38 +160,39 @@ Only after the md5-verified no-op round:
 1. Flip `Status: DRAFT → CONVERGED`. The flip is the LAST content act — a plan edited after its flip is
    `DRAFT` again in fact, whatever the header says; re-run the loop.
 2. **Persist the review** to `docs/development/reviews/<plan-stem>-review.md` (same stem as the plan
-   file). This artifact is itself gate-checked (`check_convergence.py` review-claim branch +
-   `check_review_coverage.py`), so its anatomy is CONTRACTUAL — all of:
-   - a `Surface:` line at line start (`Surface: <plan path> @ <git rev-parse HEAD> · plan md5 <hash>`);
-   - the `review_rubric.py` invocation line (Phase 1's rubric step);
-   - a `## Phase verdicts` section — one verdict line per plan Phase (the per-phase adjudication the
-     convergence gate requires);
-   - the coverage-checklist verdict table — every row's verdict uses the tokens
-     **CLEAN / FIXED / REFUTED** (the gate accepts only these; an inapplicable row is written
-     `CLEAN — N/A-<surface>: <why> + the proving path`, and every CLEAN row names the files/paths it
-     hunted — a bare CLEAN is rejected);
-   - the Pass Ledger verbatim, including the literal `Pass 2` row and the final round's
-     `found: 0, fixed: 0` line (the quiet-pass marker the later `EXECUTED` flip is checked against);
-   - a fenced `python scripts/final_gate.py --check --json` output showing `"status": "success"`, run
-     THIS turn after the flip is staged;
+   file). This is an EDIT-CONVERGENCE review artifact — `check_convergence.py`'s review branch covers it
+   (`check_review_coverage.py`'s own contract excludes edit-convergence artifacts, and the artifact must
+   not opt itself in: title its verdict table **Class verdicts**, never "coverage checklist" — that
+   phrase is the foreign gate's trigger). Its anatomy:
+   - the header line + a `## Phase verdicts` section — one verdict line per plan Phase (the per-phase
+     adjudication the convergence gate requires);
+   - the class-verdict table — verdict tokens **CLEAN / FIXED / REFUTED**, every row carrying its
+     evidence (an inapplicable row is `CLEAN — N/A-<surface>: <why> + the proving path`; a bare CLEAN
+     names nothing and proves nothing);
+   - the Pass Ledger verbatim, the final round reading `found: 0, fixed: 0` (the quiet-pass marker the
+     later `EXECUTED` flip is checked against — it appears ONLY on a CONVERGED ending, never in a
+     DRAFT/BLOCKED report);
+   - a fenced `python scripts/final_gate.py --check --json` output showing `"status": "success"`;
    - the `## BLOCKED` section (`none` when quiet).
-3. **Commit the flip + the review artifact and PUSH** (ONE commit, explicit pathspecs, Agent Provenance
-   Trailers) — `/fabrik-deploy`'s post-flip-edit gate keys on the flip COMMIT, and an uncommitted flip is
-   what the next pre-commit stash cycle silently reverts.
+3. **Stage, gate, then commit — the anatomy is proven, not asserted:** `git add` the flipped plan + the
+   artifact, run `python scripts/final_gate.py --check --json` (the gate scans the STAGED files — an
+   untracked artifact is invisible to it), fix until `"status": "success"`, embed that fenced run in the
+   artifact, then **commit both and PUSH** (ONE commit, explicit pathspecs, Agent Provenance Trailers +
+   `Agent-Context: deploy-plan-review <plan-stem>` — the marker `/fabrik-deploy`'s post-flip-edit gate
+   exempts; use it on the re-entry flip-back commits too). An uncommitted flip is what the next
+   pre-commit stash cycle silently reverts.
 4. Print the Output block and name the next command.
 
-## Output (always, last thing — also persisted per Phase 3, with the contractual anatomy above)
+## Output (always, last thing — also persisted per Phase 3, with the anatomy above)
 
 ```
 DEPLOY-PLAN-REVIEW: <plan path> (surface: <vps|mobile|extension|desktop>)
-Surface: <plan path> @ <HEAD sha> · plan md5 <hash>
-Rubric: python scripts/review_rubric.py --changed <paths> (classes folded into the checklist)
-<the Pass Ledger table, verbatim — Pass 2 present>
+<the Pass Ledger table, verbatim>
 ## Phase verdicts
 <one line per plan Phase: Phase N — CLEAN | FIXED (n) | REFUTED, with evidence>
-<the coverage-checklist verdict table — CLEAN/FIXED/REFUTED tokens only, evidence per row>
+<the Class verdicts table — CLEAN/FIXED/REFUTED tokens only, evidence per row>
 FINDERS: pool <models×n> + native Opus ×<n> per round
-Final round: found: 0, fixed: 0
+<CONVERGED endings only: Final round: found: 0, fixed: 0>
 <fenced final_gate.py --check --json run → "status": "success">
 ## BLOCKED: <axis + the 3 attempts | none>
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
