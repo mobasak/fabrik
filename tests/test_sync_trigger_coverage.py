@@ -313,3 +313,13 @@ def test_a_config_that_is_valid_yaml_but_not_a_mapping_fails_clearly(tmp_path):
         cfg.write_text(text)
         with pytest.raises(chk.CoverageError, match="mapping"):
             chk.trigger_pattern(cfg)
+
+
+def test_an_auto_generated_file_is_declared_not_triggered(monkeypatch):
+    """An AUTO-GENERATED, robot-committed file must not be a sync trigger: the sync copies
+    WORKING-TREE contents, so an unattended regen would force-ship a sibling's uncommitted
+    rules/enforcement edits to ~48 repos. It is a declared non-trigger instead."""
+    live = Path("/opt/fabrik/.pre-commit-config.yaml").read_text()
+    assert "PROJECT_CATALOG" not in live, "an auto-generated file must not fire the fleet sync"
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"docs/PROJECT_CATALOG.md"})
+    assert chk.uncovered(Path("/opt/fabrik")) == [], "…and must be DECLARED, not silently uncovered"

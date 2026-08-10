@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review Pass 2: my own gates were over- and under-firing fleet-wide (2026-08-10)
+
+The native Opus finder disproved two claims I had made about these checks, both reproduced:
+
+- **`check_doc_sync` was weakened far more than intended.** Stripping EVERY inline code span meant
+  backticks paired left-to-right, so one stray tick earlier in a line swallowed a plainly-written
+  `TODO: document the --force path`; a span carrying a real task (`TODO: wire the OOM alert`)
+  vanished too; and the template-placeholder test, which reads the stripped body, let a pasted
+  `` `<brief title>` `` / `` `<description>` `` changelog template through. Now only a span whose
+  ENTIRE content is a placeholder token is stripped (documentation), and the placeholder test reads
+  the unstripped body. A bare token is documentation; a token WITH a task is unfinished work.
+- **The spine-pillar check false-positived on compliant plans.** "may run concurrently; findings are
+  deduped at the Integration ticket", "**Parallel fan-out points:** T01 ‖ T05 ‖ T06", "the OpenRouter
+  pool is the default worker", "pool by default (`pick_models`)" — every one a correct statement of
+  the policy, every one MISSED. A gate that cries wolf gets ignored; the patterns are now generous.
+  Also fixed: a blockquoted line CONTRADICTING a pillar satisfied it, and a test that claimed to
+  prove "narrative cannot satisfy the review pillar" used `/fabrik-plan-review` — which does not
+  contain the substring `/fabrik-review` at all, so it passed against any implementation.
+- **`docs/PROJECT_CATALOG.md` removed from the governance-sync trigger** (reversing an earlier
+  change in this session). It is AUTO-GENERATED and committed by automated `chore(catalog)` commits,
+  and the sync distributes WORKING-TREE contents — so an unattended regen would force-ship whatever
+  half-finished `.windsurf/rules/` or `scripts/enforcement/` edits a sibling agent has uncommitted,
+  to ~48 repos. A deliberate rules edit is made by an agent who knows the tree state; a robot's is
+  not. It is now a DECLARED non-trigger and rides the next deliberate sync.
+
+### Fixed — Rotation logged the operator out: a "healthy" sibling was never checked for usable credentials (2026-08-10)
+
+Live incident 14:37: mob@ hit its weekly wall, rotation switched to can@, and can@'s snapshot was a
+month old — Claude died with "OAuth session expired and could not be refreshed" and demanded a
+re-login mid-session. `healthy_sibling()` filtered on wall state ONLY; can@ ranked FIRST precisely
+because it had never been walled. Wall-freedom was never sufficient — the target also has to be able
+to authenticate.
+
+Refresh tokens here are SINGLE-USE and four boxes share three accounts, so a snapshot whose access
+token has already expired can only be revived by a refresh whose token another box may already have
+consumed. A rotation target must therefore be usable WITHOUT a refresh:
+
+- `claude-quota.py`: `credentials_usable()` gates every candidate on `expiresAt` (with a 5-minute
+  margin so a token can't die mid-switch) and `refreshTokenExpiresAt`. No usable sibling ⇒ `None` ⇒
+  the mesh WAITS for the reset clock, which is the operator's own stated algorithm.
+- `claude_rotate.py` (+ the byte-identical aro-wake copy): `_stale_snapshot_reason()` refuses the
+  install at the authoritative layer, so ANY caller is covered, not just the quota picker. The
+  pre-existing guard checked token PRESENCE — a month-old snapshot passes that. Fail-soft and stay
+  put: a walled-but-authenticated session recovers by waiting; a logged-out one needs the operator.
+  `CLAUDE_ROTATE_ALLOW_STALE=1` overrides.
+- `--status` now prints per-account rotation-target usability. The logout was invisible in advance;
+  it currently shows ob@ as NOT A ROTATION TARGET (access token expired 50h ago) — the next landmine.
+
+Root cause of the miss: BOTH test fixtures (`--self-test` and the mesh harness) wrote credentials
+carrying only an `accessToken`, a shape that does not occur in reality — so the usability dimension
+could not be expressed and shipped untested. Both now emit realistic four-field credentials, and the
+incident is pinned as fixtures. mesh-test 114 ok/0 fail, self-test all green, 24 rotate tests.
+
 ### Fixed — Plan SETS silently dropped all three execution pillars, incl. the per-ticket /fabrik-review floor (2026-08-10)
 
 A spine+ticket plan set has **no `## Phase` headings**, and every statement of the three enforced

@@ -711,11 +711,17 @@ def test_a_monolith_is_never_asked_for_spine_pillars(plans_env: Path) -> None:
 
 
 def test_a_narrative_mention_does_not_satisfy_the_review_pillar(plans_env: Path) -> None:
-    """Prose about the planning process ("converged by /fabrik-plan-review") is not a mandate that
-    tickets get reviewed — the pillar must name /fabrik-review AND the unit it binds to."""
+    """Prose ABOUT reviewing is not a mandate that tickets get reviewed.
+
+    The first version of this test used `/fabrik-plan-review`, which does not contain the
+    substring `/fabrik-review` at all — so it passed against any implementation and proved
+    nothing (native review finding). This fixture uses the real command name in narrative
+    voice, which is the case that actually occurs on live spines.
+    """
     narrated = SPINE_OK.replace(
         "## Interfaces",
-        "## Notes\n\nThis set was converged by `/fabrik-plan-review` over three passes.\n\n"
+        "## Notes\n\nDuring planning we discussed whether each ticket gets a `/fabrik-review` "
+        "to a no-op; the operator asked about it and we moved on.\n\n"
         "## Interfaces",
     )
     p = _write(plans_env, SPINE, narrated)
@@ -761,3 +767,40 @@ def test_a_blockquoted_counter_example_does_not_satisfy_a_pillar(plans_env: Path
     )
     p = _write(plans_env, SPINE, quoted)
     assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p))
+
+
+@pytest.mark.parametrize("phrasing", [
+    "T01 · T05 · T06 touch disjoint trees and may run concurrently; findings are deduped at T11.",
+    "**Parallel fan-out points:** T01 || T05 || T06 (disjoint trees) in the first wave.",
+])
+def test_legitimate_parallelism_phrasings_are_not_flagged(plans_env: Path, phrasing: str) -> None:
+    """A gate that cries wolf on a compliant plan gets ignored. These real phrasings from a live
+    sibling spine were flagged as MISSING before (native review finding)."""
+    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrasing}\n\n## Interfaces")
+    assert "parallelism" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))
+
+
+@pytest.mark.parametrize("phrasing", [
+    "the OpenRouter pool is the default worker for the gradeable finders",
+    "pool by default (`pick_models`)",
+    "Use `fanout` with task_type='review'",
+])
+def test_legitimate_dispatch_phrasings_are_not_flagged(plans_env: Path, phrasing: str) -> None:
+    """Same class: each is a correct statement of the pool-default policy and each MISSED."""
+    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrasing}\n\n## Interfaces")
+    assert "pool-default" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))
+
+
+def test_a_spine_missing_only_ONE_pillar_is_still_flagged(plans_env: Path) -> None:
+    """ANY-vs-ALL: nothing pinned this, so a mutation returning [] unless all three were missing
+    survived the whole suite — and the docstring described that surviving mutant, not the code."""
+    two_of_three = SPINE_OK.replace(
+        "## Interfaces",
+        "## Execution Discipline\n\n"
+        "- Every ticket runs `/fabrik-review` to a coverage-adjudicated exit before its merge.\n"
+        "- Dispatch is pool-default (`fanout`); native on top for the high-risk slices.\n\n"
+        "## Interfaces",
+    )  # pillar 3 (parallelism/merge) deliberately absent
+    msg = _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, two_of_three)))
+    assert msg, "a spine stating 2 of 3 must still be flagged"
+    assert "parallelism" in msg and "/fabrik-review" not in msg and "pool-default" not in msg

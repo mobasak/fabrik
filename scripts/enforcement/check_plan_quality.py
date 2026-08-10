@@ -226,14 +226,35 @@ SPINE_PILLAR_PATTERNS = [
     ),
     (
         "pool-default dispatch policy",
-        re.compile(r"\bpool[- ]default\b|\bfanout\s*\(", re.I),
+        # Deliberately GENEROUS. A gate that cries wolf on a compliant plan gets ignored, and every
+        # one of these MISSED before (native review, reproduced): "the OpenRouter pool is the
+        # default worker for the gradeable finders", "pool by default (`pick_models`)", "Use
+        # `fanout` with task_type='review'" — each a correct statement of the policy.
+        re.compile(
+            r"\bpool[- ]default\b"
+            r"|\bfanout\b"
+            r"|\bpick_models\b"
+            r"|\bpool\b[^.\n]{0,40}\bdefault\b"
+            r"|\bdefault\b[^.\n]{0,40}\bpool\b",
+            re.I,
+        ),
         "state on the spine: pool-default (fanout(task_type, …)) for gradeable work, native "
         "added on top for GUI / high-risk / decide-merge",
     ),
     (
         "parallelism + where results merge",
+        # Same reason: "may run concurrently; findings are deduped at the Integration ticket" and
+        # "**Parallel fan-out points:** T01 ‖ T05 ‖ T06 (disjoint trees)" both MISSED, and both
+        # state exactly what this pillar asks for.
         re.compile(
-            r"\bmerges?/dedupes?\b|\bmerges?\s+and\s+dedupes?\b|\bwhere\b[^.\n]{0,40}\bmerge", re.I
+            r"\bmerges?/dedupes?\b"
+            r"|\bdedupe[sd]?\b"
+            r"|\bfan[- ]?out\b"
+            r"|\bconcurrent(?:ly)?\b"
+            r"|\bin parallel\b"
+            r"|\bparallel\b[^.\n]{0,40}\b(?:wave|point|set|track)s?\b"
+            r"|\bwhere\b[^.\n]{0,40}\bmerge",
+            re.I,
         ),
         "state on the spine: which tickets fan out concurrently and WHERE their results "
         "merge/dedupe (Merge Order gives sequencing, not fan-out semantics)",

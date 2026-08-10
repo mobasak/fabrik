@@ -172,10 +172,26 @@ def _changelog_quality_ok() -> bool:
     # reddened the gate for every agent in the repo, and the entry was not theirs to edit.
     # Stripped AFTER the entry-shape check below reads `defenced`, so a `### …` heading
     # inside ticks still cannot fake an entry.
-    defenced_for_tokens = re.sub(r"`[^`\n]*`", "", defenced)
+    # Strip ONLY a code span whose entire content is a placeholder TOKEN — `todo`, `fixme`,
+    # `tbd`… — i.e. prose naming the token rather than leaving work. Stripping EVERY inline span
+    # (the first version of this fix) was far too broad and weakened the guard fleet-wide two ways
+    # (native review, both reproduced): backticks pair left-to-right, so one stray tick earlier in
+    # the line swallowed a plainly-written "TODO: document the --force path"; and a span carrying a
+    # real task (`TODO: wire the OOM alert`) vanished along with the bare ones. A bare token is
+    # documentation; a token WITH a task is unfinished work, and only the former is stripped.
+    defenced_for_tokens = re.sub(
+        r"`\s*(?:todo|fixme|tbd|xxx|hack|example|sample|dummy|placeholder)\s*`",
+        "",
+        defenced,
+        flags=re.I,
+    )
     if not CHANGELOG_ENTRY_RE.search(defenced):
         return False
+    # ⚠ The template-placeholder test below reads `defenced`, NOT the token-stripped text: a pasted
+    # changelog template with `<brief title>` / `<description>` inside ticks is exactly the thing
+    # that check exists to reject, and reading the stripped body let it through (native review).
     body = defenced_for_tokens.lower()
+    placeholder_body = defenced.lower()
     # Strip dated escalations like `TODO(2026-07-22)` — those are valid
     # follow-up markers, not placeholders. Only bare `todo` / `fixme` are
     # unfinished-work signals.
@@ -185,7 +201,7 @@ def _changelog_quality_ok() -> bool:
     # Require surrounds to be neither hyphens nor word chars, so it doesn't
     # match inside compounds like `updated-todo-list` or `pre-dated-todo-item`.
     body = re.sub(r"(?<![-\w])dated-todos?(?![-\w])", "", body)
-    if any(ph in body for ph in ("<brief title>", "<description>")):
+    if any(ph in placeholder_body for ph in ("<brief title>", "<description>")):
         return False
     # `todo` / `fixme` are unfinished-work markers when they stand as tokens —
     # separated from surrounding chars by non-letter (whitespace / hyphen /

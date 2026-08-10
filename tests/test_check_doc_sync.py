@@ -209,3 +209,39 @@ def test_bare_todo_in_the_changelog_still_fails(repo: Path) -> None:
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     assert _run(repo).returncode == 1
+
+
+def test_an_unbalanced_backtick_cannot_swallow_a_real_todo(repo: Path) -> None:
+    """Inline-span stripping pairs backticks left-to-right, so ONE stray tick earlier on the line
+    swallows everything up to the next tick — including a plainly-written unfinished-work marker.
+    A typo elsewhere must not disable the guard (native review finding, reproduced)."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
+           "- The `run flag is gone; TODO: document the `--force` path\n")
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+    r = _run(repo)
+    assert r.returncode == 1, f"a stray tick must not disable the TODO guard: {r.stdout}"
+
+
+def test_a_backticked_token_WITH_a_task_is_still_unfinished_work(repo: Path) -> None:
+    """`todo` alone documents the token; `TODO: wire the alert` is real unfinished work."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
+           "- left a `TODO: wire the OOM alert` in poll_worker\n")
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+    r = _run(repo)
+    assert r.returncode == 1, f"a backticked token WITH a task is unfinished work: {r.stdout}"
+
+
+def test_the_changelog_template_placeholders_are_still_rejected_in_ticks(repo: Path) -> None:
+    """The placeholder test reads the tick-stripped body, so a pasted template with the tokens
+    in code spans passed a gate that exists to catch exactly that (native review finding)."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Added — `<brief title>` (2026-08-10)\n"
+           "- `<description>`\n")
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+    r = _run(repo)
+    assert r.returncode == 1, f"a ticked template placeholder must still fail: {r.stdout}"
