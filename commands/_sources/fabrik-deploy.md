@@ -115,8 +115,9 @@ inside them.
    deploy with no long-unhealthy step); a plan that BRACKETS a window → **wait in-session**: re-probe
    every 60s up to the plan's declared tolerance (default 30 min), proceed when clear; tolerance
    exceeded → refuse (`BLOCKED: persistent foreign pause on <target> — confirm with the operator`;
-   pre-flip, so nothing to unwind). An orphan `pause.owner` with NO pause file is incomplete-close residue — same
-   deferred removal, its re-verify being that a pause STILL does not exist. `pause.owner` names THIS
+   pre-flip, so nothing to unwind). An orphan `pause.owner` with NO pause file: OUR stem → our own incomplete-close residue — same
+   deferred removal, its re-verify being that a pause STILL does not exist; ANOTHER stem → leave it
+   (a sibling's metadata, harmless without a pause — never ours to delete). `pause.owner` names THIS
    plan-stem: residue of this plan's own earlier halted window — remove both files the same deferred
    way (this run is fresh; it opens its own windows).
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
@@ -177,6 +178,10 @@ close it; execute them with these guarantees:
 
 ## Phase 2 — Execute the runbook, step by step, from its first step
 
+0. If Phase 0 marked a healing-state removal and this plan brackets NO window (no Phase 1 will run),
+   execute the marked removal NOW — re-verified per Phase 0 — immediately before the first mutating
+   step.
+
 1. Run the step's exact command. An `OPERATOR-GATE` step is never run BY YOU — it is a **mid-session
    operator handoff**, in two shapes the plan declares per step: **verify-in-session** (the act's
    result is immediately checkable — e.g. notarization before a staple) → name the exact act and its
@@ -188,11 +193,15 @@ close it; execute them with these guarantees:
    sit only on the exempt line —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
-   surface's completion — but FIRST, before executing the deferred gate itself, run the surface's
-   battery (Phase 3's store analogue: installability, first-run smoke — write AND COMMIT the
-   `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row); then write the gate's row as
-   `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is the recorded event; its verification is
-   deferred by declaration) and proceed to the close-out (the store shape of ending 1). A deferred
+   surface's completion. **The store battery rule (both gate shapes):** when the NEXT step to execute
+   is the runbook's TERMINAL `OPERATOR-GATE`, run the surface's battery FIRST (Phase 3's store
+   analogue: installability, first-run smoke — write AND COMMIT the
+   `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row); a store runbook with NO gate runs it after the
+   runbook, exactly like VPS. For the deferred gate then: produce Phase 4's Gate-2 handoff print (the
+   artifact path/build id, the checklist verdicts, the one human action — name it explicitly), write
+   AND COMMIT the gate's row as `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is the
+   recorded event; its verification is deferred by declaration), and proceed to the close-out (the
+   store shape of ending 1). A deferred
    gate is by AUTHORING RULE the runbook's FINAL step (the review enforces this) — finding runbook
    steps AFTER a deferred gate is a plan defect → the halt protocol. An
    operator reply of "halt" (or a refusal to proceed) → the halt protocol.
@@ -216,7 +225,7 @@ close it; execute them with these guarantees:
      the route. No improvisation: a situation the plan didn't anticipate is a plan defect — the same
      protocol, PLAN-DEFECT flavor; never redesign the deploy mid-run.
 
-## Phase 3 — Battery: the exit gate (VPS: after the runbook; stores: invoked from Phase 2 immediately BEFORE the deferred gate)
+## Phase 3 — Battery: the exit gate (VPS: after the runbook; stores: from Phase 2, immediately BEFORE the runbook's terminal OPERATOR-GATE of either shape — or after the runbook when no gate exists)
 
 Run the plan's verification battery in full — write-path probe, queue-drain, companion reachability,
 cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output; on full
@@ -248,11 +257,11 @@ the completion stamp records "handed to the operator publish gate: <the action>"
    evidence). Still present with `pause.owner` reading THIS plan-stem → fix OUR close: re-run the
    runbook's own `window-close` step, verified, before anything else — the flip never happens over
    our own open window. An owner reading ANOTHER stem → foreign: never remove it (a sibling's or the
-   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → NOT ours: the
-   triad always writes the owner with the pause, and OUR interrupted close leaves the opposite state
-   (an orphan owner — the close removes `pause` first), so an ownerless pause is an operator's manual
-   pause — never remove it; note it and proceed (our window-closed confirmation rests on our
-   `window-close` step's `✅` row plus the absence of any pause carrying OUR stem). The probe itself failing (target
+   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → discriminate by OUR OWN ledger: our `window-close` step's `✅`
+   row PRESENT → we closed ours, so this is an operator's manual pause (the
+   triad always writes the owner with the pause) — never remove it; note it and proceed. Our close
+   row ABSENT → we never finished closing → ours to finish: re-run our `window-close` (idempotent
+   `rm -f`, verified). The probe itself failing (target
    unreachable post-deploy) → ending 2b (admin stop — deploy LIVE; the pause self-heals at 2h; never
    unwind).
 2. **Verify the review artifact exists on disk**
