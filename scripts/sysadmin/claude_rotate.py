@@ -675,6 +675,25 @@ def _cmd_next() -> int:
     return 1
 
 
+def _cred_generation(data: bytes) -> int:
+    """The credential's own generation marker: `claudeAiOauth.expiresAt` (ms epoch), or 0
+    when absent/unparseable. Used to refuse a REGRESSION — a newer snapshot is never
+    overwritten by an older live file."""
+    try:
+        oauth = json.loads(data).get("claudeAiOauth")
+        val = oauth.get("expiresAt") if isinstance(oauth, dict) else None
+        return int(val) if isinstance(val, (int, float)) else 0
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
+
+def _cred_generation_of(path: Path) -> int:
+    try:
+        return _cred_generation(path.read_bytes())
+    except OSError:
+        return 0
+
+
 def _cmd_capture_current() -> int:
     """Snapshot the LIVE credentials into the ACTIVE account's dir (plan 2026-08-10-plan-1).
 
@@ -699,6 +718,14 @@ def _cmd_capture_current() -> int:
     if target is None:
         sys.stderr.write("claude_rotate: cannot resolve the active account — capture skipped\n")
         return 1
+    # ⚠ RESIDUAL, deliberately accepted (review 2026-08-10): when the live token matches
+    # no snapshot, identity falls back to the `.active-account` marker — and a legitimate
+    # token REFRESH is indistinguishable from an out-of-band `claude auth login` as a
+    # DIFFERENT account. Refusing marker-resolved captures would block the primary use
+    # case (a refreshed token no longer matching its snapshot IS the drift we exist to
+    # capture), so capture proceeds and the `.prev` rolling backup below is the recovery
+    # path for a mis-capture. Documented in the plan's residuals, not silently ignored.
+
     dst = target / ".credentials.json"
     try:
         live_bytes = ACTIVE_CREDS.read_bytes()
@@ -711,8 +738,27 @@ def _cmd_capture_current() -> int:
     except OSError:
         pass
     # Collision-proof tmp name (pid alone can repeat across namespaces/recycling).
+    # MONOTONE (the plan's word, now enforced): refuse to regress a snapshot. `expiresAt`
+    # is the credential's own generation marker — a live file rolled back to an older
+    # token must never stamp over a newer stored one (review finding: the previous code
+    # only skipped IDENTICAL content, which is idempotency, not monotonicity).
+    if _cred_generation(live_bytes) < _cred_generation_of(dst):
+        sys.stderr.write(
+            f"claude_rotate: live credentials are OLDER than {target.name}'s snapshot —"
+            " refusing to regress it (capture skipped)\n"
+        )
+        return 1
     tmp = dst.with_name(f"{dst.name}.tmp{os.getpid()}.{time.monotonic_ns():x}")
+    lock_fd = None
     try:
+        # Hold the rotation lock: without it a concurrent _activate_snapshot can land
+        # between our identity resolution and this write, so `target` and the live bytes
+        # would name two different accounts (review finding).
+        try:
+            lock_fd = os.open(str(ROTATE_LOCK), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except OSError:
+            lock_fd = None  # best-effort: os.replace still keeps readers atomic
         # Roll the OUTGOING snapshot aside first — a capture must never be the operation
         # that loses a usable credential (mirrors _activate_snapshot's BACKUP_CREDS).
         if dst.is_file():
@@ -729,6 +775,13 @@ def _cmd_capture_current() -> int:
             pass
         sys.stderr.write(f"claude_rotate: capture failed: {e.strerror}\n")
         return 1
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+            except OSError:
+                pass
     print(f"captured live credentials into {target.name}")
     return 0
 

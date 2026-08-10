@@ -169,3 +169,50 @@ def test_drift_check_reports_a_failed_capture_without_failing_the_hook(box, monk
     monkeypatch.setattr(rot, "_cmd_capture_current", lambda: 1)
     assert rot._cmd_drift_check() == 0          # a hook must never fail
     assert "capture FAILED" in capsys.readouterr().err  # but it must be visible
+
+
+def _creds_gen(token: str, expires_at: int) -> str:
+    return json.dumps({"claudeAiOauth": {
+        "accessToken": token, "refreshToken": f"rt-{token}", "expiresAt": expires_at}})
+
+
+def test_capture_refuses_to_regress_a_newer_snapshot(box):
+    """MONOTONE, as the plan words it: an OLDER live file never stamps over a NEWER
+    snapshot (the previous code only skipped byte-identical content — idempotency, not
+    monotonicity)."""
+    snap = box / "manager-accounts/acct-b/.credentials.json"
+    snap.write_text(_creds_gen("tok-B", 2_000_000_000_000))          # newer generation
+    (box / ".credentials.json").write_text(_creds_gen("tok-B", 1_000_000_000_000))  # older
+    assert rot._cmd_capture_current() != 0
+    assert json.loads(snap.read_text())["claudeAiOauth"]["expiresAt"] == 2_000_000_000_000
+
+
+def test_capture_allows_a_newer_live_generation(box):
+    snap = box / "manager-accounts/acct-b/.credentials.json"
+    snap.write_text(_creds_gen("tok-B", 1_000_000_000_000))
+    (box / ".credentials.json").write_text(_creds_gen("tok-B-NEW", 2_000_000_000_000))
+    assert rot._cmd_capture_current() == 0
+    assert json.loads(snap.read_text())["claudeAiOauth"]["accessToken"] == "tok-B-NEW"
+
+
+def test_marker_resolved_capture_is_recoverable(box):
+    """Accepted residual: a refreshed token no longer matches its snapshot, so identity
+    falls back to the marker — indistinguishable from an out-of-band login as another
+    account. Capture must therefore PROCEED (it is the primary use case) while leaving
+    the prior credentials recoverable in `.prev`."""
+    (box / ".credentials.json").write_text(_creds("tok-UNTRACKED"))  # matches no snapshot
+    (box / ".active-account").write_text("acct-b")
+    assert rot._cmd_capture_current() == 0
+    snap = box / "manager-accounts/acct-b/.credentials.json"
+    assert json.loads(snap.read_text())["claudeAiOauth"]["accessToken"] == "tok-UNTRACKED"
+    prev = json.loads((snap.parent / (snap.name + ".prev")).read_text())
+    assert prev["claudeAiOauth"]["accessToken"] == "tok-B-OLD"  # one-generation recovery
+
+
+def test_capture_accepts_an_org_matched_identity(box):
+    """An org-matched (old-format, marker-less) account resolves without the marker."""
+    (box / "manager-accounts/acct-b/.credentials.json").write_text(_creds("tok-B-OLD", "org-42"))
+    (box / ".credentials.json").write_text(_creds("tok-B-ROTATED", "org-42"))
+    assert rot._cmd_capture_current() == 0
+    snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-ROTATED"

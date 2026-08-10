@@ -270,7 +270,9 @@ def _activate_snapshot(
         # leaving BOTH active and .prev intact. Guards the EXPLICIT --switch/--next path too.
         # Diagnostic names the dir only, never token bytes.
         if _access_token_from(target_bytes) is None:
-            sys.stderr.write(f"refusing to activate {target.name}: unreadable/corrupt credentials\n")
+            sys.stderr.write(
+                f"refusing to activate {target.name}: unreadable/corrupt credentials\n"
+            )
             return None
         # Single rolling backup of the outgoing active (satisfies the backup-before-swap rule).
         if active_bytes is not None:
@@ -413,7 +415,9 @@ def _should_alert_401() -> bool:
     return True
 
 
-ENV_SYSADMIN = Path("/opt/fabrik/.env.sysadmin")  # fleet sysadmin env (ozgur-readable) — token fallback
+ENV_SYSADMIN = Path(
+    "/opt/fabrik/.env.sysadmin"
+)  # fleet sysadmin env (ozgur-readable) — token fallback
 
 
 def _telegram_config() -> tuple[str, str] | None:
@@ -470,7 +474,9 @@ def _notify_telegram(text: str) -> bool:
         # captive-portal/proxy/malformed-token) is NOT an OSError subclass and would otherwise
         # escape and abort the retry. Emit a GENERIC line only — never str(e), which for an
         # InvalidURL embeds the full request URL (and thus the bot token).
-        sys.stderr.write("claude_rotate: 401 Telegram alert failed to send (best-effort, ignored)\n")
+        sys.stderr.write(
+            "claude_rotate: 401 Telegram alert failed to send (best-effort, ignored)\n"
+        )
         return False
 
 
@@ -505,7 +511,14 @@ def run_claude(
     # — a ValueError that escapes main()'s OSError/TimeoutExpired handlers. UTF-8/replace is symmetric
     # with the decode and locale-independent; claude's own I/O is UTF-8.
     result = subprocess.run(
-        argv, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, cwd=cwd, env=env, input=stdin_data
+        argv,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        cwd=cwd,
+        env=env,
+        input=stdin_data,
     )
     accounts = _list_accounts()
     start = _active_account()
@@ -544,7 +557,14 @@ def run_claude(
         tried.add(new_account)
         rotations += 1
         result = subprocess.run(
-            argv, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, cwd=cwd, env=env, input=stdin_data
+            argv,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            cwd=cwd,
+            env=env,
+            input=stdin_data,
         )
     # A 401 (dead creds) alerts AFTER the loop, reflecting the ACTUAL final outcome — never an
     # optimistic mid-loop guess, since a standby we rotated to may itself be dead. Recovery = the
@@ -655,6 +675,143 @@ def _cmd_next() -> int:
     return 1
 
 
+def _cred_generation(data: bytes) -> int:
+    """The credential's own generation marker: `claudeAiOauth.expiresAt` (ms epoch), or 0
+    when absent/unparseable. Used to refuse a REGRESSION — a newer snapshot is never
+    overwritten by an older live file."""
+    try:
+        oauth = json.loads(data).get("claudeAiOauth")
+        val = oauth.get("expiresAt") if isinstance(oauth, dict) else None
+        return int(val) if isinstance(val, (int, float)) else 0
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
+
+def _cred_generation_of(path: Path) -> int:
+    try:
+        return _cred_generation(path.read_bytes())
+    except OSError:
+        return 0
+
+
+def _cmd_capture_current() -> int:
+    """Snapshot the LIVE credentials into the ACTIVE account's dir (plan 2026-08-10-plan-1).
+
+    Why: a stored snapshot drifts off the live token every time Claude refreshes it. A restore
+    of a stale snapshot installs a superseded refresh token, which the server rejects — the
+    live 2026-08-10 12:05 "OAuth session expired and could not be refreshed" incident, whose
+    snapshot was 1.5 days old. Keeping the snapshot equal to the live token makes that restore
+    impossible.
+
+    Atomic (tmp + ``os.replace``, mirroring ``_activate_snapshot``) so a crash mid-write can
+    never leave a truncated snapshot — ``_secure_write`` alone unlinks then recreates. MONOTONE
+    in the practical sense: identical content is a no-op (no churn, no mtime bump). Never emits
+    token bytes.
+    """
+    live_tok = _read_access_token(ACTIVE_CREDS)
+    if live_tok is None:
+        sys.stderr.write(
+            "claude_rotate: live credentials carry no access token — nothing to capture\n"
+        )
+        return 1
+    target = _active_account()
+    if target is None:
+        sys.stderr.write("claude_rotate: cannot resolve the active account — capture skipped\n")
+        return 1
+    # ⚠ RESIDUAL, deliberately accepted (review 2026-08-10): when the live token matches
+    # no snapshot, identity falls back to the `.active-account` marker — and a legitimate
+    # token REFRESH is indistinguishable from an out-of-band `claude auth login` as a
+    # DIFFERENT account. Refusing marker-resolved captures would block the primary use
+    # case (a refreshed token no longer matching its snapshot IS the drift we exist to
+    # capture), so capture proceeds and the `.prev` rolling backup below is the recovery
+    # path for a mis-capture. Documented in the plan's residuals, not silently ignored.
+
+    dst = target / ".credentials.json"
+    try:
+        live_bytes = ACTIVE_CREDS.read_bytes()
+    except OSError as e:
+        sys.stderr.write(f"claude_rotate: cannot read live credentials: {e.strerror}\n")
+        return 1
+    try:
+        if dst.is_file() and dst.read_bytes() == live_bytes:
+            return 0  # already in sync — never churn the file
+    except OSError:
+        pass
+    # Collision-proof tmp name (pid alone can repeat across namespaces/recycling).
+    # MONOTONE (the plan's word, now enforced): refuse to regress a snapshot. `expiresAt`
+    # is the credential's own generation marker — a live file rolled back to an older
+    # token must never stamp over a newer stored one (review finding: the previous code
+    # only skipped IDENTICAL content, which is idempotency, not monotonicity).
+    if _cred_generation(live_bytes) < _cred_generation_of(dst):
+        sys.stderr.write(
+            f"claude_rotate: live credentials are OLDER than {target.name}'s snapshot —"
+            " refusing to regress it (capture skipped)\n"
+        )
+        return 1
+    tmp = dst.with_name(f"{dst.name}.tmp{os.getpid()}.{time.monotonic_ns():x}")
+    lock_fd = None
+    try:
+        # Hold the rotation lock: without it a concurrent _activate_snapshot can land
+        # between our identity resolution and this write, so `target` and the live bytes
+        # would name two different accounts (review finding).
+        try:
+            lock_fd = os.open(str(ROTATE_LOCK), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except OSError:
+            lock_fd = None  # best-effort: os.replace still keeps readers atomic
+        # Roll the OUTGOING snapshot aside first — a capture must never be the operation
+        # that loses a usable credential (mirrors _activate_snapshot's BACKUP_CREDS).
+        if dst.is_file():
+            try:
+                _secure_write(dst.with_name(dst.name + ".prev"), dst.read_bytes())
+            except OSError:
+                pass  # best-effort backup; never block the capture itself
+        _secure_write(tmp, live_bytes)
+        os.replace(tmp, dst)  # atomic swap: a reader sees old-or-new, never a torn file
+    except OSError as e:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        sys.stderr.write(f"claude_rotate: capture failed: {e.strerror}\n")
+        return 1
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+            except OSError:
+                pass
+    print(f"captured live credentials into {target.name}")
+    return 0
+
+
+def _cmd_drift_check() -> int:
+    """Capture ONLY when the live token has diverged from the stored snapshot.
+
+    The hourly/SessionStart trigger: read-only and silent in the common case, so it can run on
+    every session start without cost. Always exits 0 — a drift-check must never fail a hook.
+    """
+    live_tok = _read_access_token(ACTIVE_CREDS)
+    target = _active_account()
+    if live_tok is None or target is None:
+        return 0  # nothing resolvable to compare — quiet no-op
+    # Compare the WHOLE credential blob, never just the access token: the live incident
+    # (2026-08-10) was a stale REFRESH token, and the refresh token rotates independently
+    # of the short-lived access token — an accessToken-only compare would see "in sync"
+    # while the snapshot carried a dead refresh token (review finding).
+    try:
+        if (target / ".credentials.json").read_bytes() == ACTIVE_CREDS.read_bytes():
+            return 0  # byte-identical — genuinely in sync
+    except OSError:
+        pass  # unreadable either side → fall through to capture (fail toward freshness)
+    if _cmd_capture_current() != 0:
+        # Never fail a hook, but never hide a failed capture either: the cron log is the
+        # only place an operator would ever see this (review finding).
+        sys.stderr.write("claude_rotate: drift detected but capture FAILED — snapshot is stale\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI. Two modes:
 
@@ -667,11 +824,15 @@ def main(argv: list[str] | None = None) -> int:
         ``python3 claude_rotate.py --list``            list accounts, mark the active one
         ``python3 claude_rotate.py --switch <name>``   set active to a named account/email/prefix
         ``python3 claude_rotate.py --next``            cycle to the next other account
+        ``python3 claude_rotate.py --capture-current`` snapshot the live creds into the active
+                                                       account (keeps the store un-stale)
+        ``python3 claude_rotate.py --drift-check``     capture only if the live token diverged
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         sys.stderr.write(
-            "usage: claude_rotate.py [--list | --switch <name> | --next | <claude> args...]\n"
+            "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
+            " | --drift-check | <claude> args...]\n"
         )
         return 2
     if args[0] == "--list":
@@ -683,6 +844,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_switch(args[1])
     if args[0] == "--next":
         return _cmd_next()
+    if args[0] == "--capture-current":
+        return _cmd_capture_current()
+    if args[0] == "--drift-check":
+        return _cmd_drift_check()
     env = os.environ.copy()
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     try:
@@ -714,7 +879,9 @@ def main(argv: list[str] | None = None) -> int:
         # rsync'd without the exec bit), IsADirectoryError, or "Exec format error" (wrong arch/bad
         # shebang). run_claude's own internals guard their OSErrors, so the only OSError that reaches
         # here is subprocess.run's spawn failure → the child never ran; exit 126, don't traceback.
-        sys.stderr.write(f"claude_rotate: cannot execute {args[0]!r}: {e.strerror or 'exec error'}\n")
+        sys.stderr.write(
+            f"claude_rotate: cannot execute {args[0]!r}: {e.strerror or 'exec error'}\n"
+        )
         return 126
     except subprocess.TimeoutExpired:
         sys.stderr.write(f"claude_rotate: claude timed out after {timeout}s\n")

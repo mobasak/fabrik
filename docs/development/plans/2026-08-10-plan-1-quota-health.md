@@ -93,7 +93,18 @@ Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-mana
 
 **Behavior Contract:** death-with-reset records the wall · sibling-healthy switches (rotation limiter honored) · alone-and-walled announces + schedules, zero churn · both layers' rate_limit waits come from the ONE helper · `.reviving` stays fresh through arbitrary waits · helper failure degrades to today's 90s.
 
-## Phase C — Token re-capture: `--capture-current` + drift triggers
+## Phase C — Token re-capture: `--capture-current` + drift triggers ✅ EXECUTED
+
+> Closed 2026-08-10: 19 red-first tests, lean gate 25/0. `/fabrik-review` (native + pool) found
+> FOUR real defects — (1) drift-check compared only the ACCESS token while the incident was a
+> stale REFRESH token (byte-compare now), (2) the hourly cron logged to an unwritable `/var/log`
+> path so the trigger NEVER RAN (empirically reproduced; now `~/.claude/drift-check.log`, live
+> end-to-end verified), (3) "monotone" was renamed rather than implemented (now a real
+> regression-refusal on the credential's `expiresAt` generation), (4) the byte-identical vendored
+> `scripts/aro-wake/` copy was never synced. Plus `.prev` rolling backup, ROTATE_LOCK during
+> capture, collision-proof tmp, failed-capture logging. **Live effect: mob@'s 1.5-day-stale
+> snapshot — the cause of today's 12:05 login failure — is now byte-identical to the live
+> credentials.**
 
 **Files:** `scripts/sysadmin/claude_rotate.py` (repo, fleet-synced surface — the seam is additive) · `tests/test_claude_rotate_capture.py` (new, repo) · `~/.claude/settings.json` (one SessionStart hook entry) · crontab (+1 hourly line).
 
@@ -191,5 +202,11 @@ mesh-test: 71 ok, 0 fail
 ## Residual unknowns
 
 - RESOLVED (spec): parse-ladder precedence; bounds per type; `.reviving` touch contract; sweep eligibility.
+- ACCEPTED RESIDUAL (Phase C, review 2026-08-10): when a refreshed live token matches no
+  snapshot, identity falls back to the `.active-account` marker — and a legitimate refresh is
+  indistinguishable from an out-of-band `claude auth login` as a DIFFERENT account. Refusing
+  marker-resolved captures would block the primary use case, so capture proceeds and the `.prev`
+  rolling backup is the one-generation recovery path. Revisit if the CLI ever exposes an account
+  identifier inside the credential blob.
 - OPEN (named, self-service): exact `error_details` text per wall type — Phase A ships the payload-capture line (class+details only) and the regex is tuned from the first live wall; until then the structured source + 90s fallback carry. — statusline staleness: Phase A probes at build (Q-fixtures include a stale-entry case); wall-state self-expiry bounds it. — the overage delivery channel: conservative pin per spec; payload capture resolves it.
 - No open item blocks execution start; none requires the operator.
