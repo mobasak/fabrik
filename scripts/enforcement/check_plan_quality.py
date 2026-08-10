@@ -204,12 +204,23 @@ def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
 # "the dispatcher owns the review floor at runtime", which deleted them from the artifact
 # entirely. Live defect 2026-08-10: a 14-ticket CONVERGED set contained none of the three, so
 # neither the operator nor an auditing agent could see that any ticket would be reviewed.
+#
+# ⚠️ WHAT THIS CAN AND CANNOT PROVE (own review finding, recorded rather than overstated): these are
+# KEYWORD-PRESENCE heuristics, not semantic checks. Probed live, a NEGATED mandate ("Do NOT run
+# /fabrik-review per ticket") satisfies pattern 1, as does a look-alike command name. So a clean run
+# means "the spine talks about all three pillars", NEVER "the spine mandates them correctly". The
+# real enforcement is /fabrik-plan-review, whose reviewing agent reads the spine and treats a set
+# missing the three as a finding to FIX; this check is only the mechanical floor that catches the
+# case that actually happened — a spine that says NOTHING about them at all.
 SPINE_PILLAR_PATTERNS = [
     (
         "per-ticket /fabrik-review floor",
         # Line-scoped: a narrative mention ("this set was converged by /fabrik-plan-review") must
         # NOT satisfy the pillar. The mandate names /fabrik-review AND the unit it binds to.
-        re.compile(r"^(?=.*/fabrik-review)(?=.*\b(?:ticket|merge|boundary)\b).*$", re.I | re.M),
+        # `(?![\w-])` stops a longer command name (`/fabrik-review-lite`) from standing in for it.
+        re.compile(
+            r"^(?=.*/fabrik-review(?![\w-]))(?=.*\b(?:ticket|merge|boundary)\b).*$", re.I | re.M
+        ),
         "state on the spine: every ticket runs /fabrik-review on its changed surface to a "
         "coverage-adjudicated exit BEFORE its merge",
     ),
@@ -238,8 +249,15 @@ def _check_spine_execution_pillars(scan: str, file_path: Path) -> list[CheckResu
     plan was written. The binding enforcement is /fabrik-plan-after-chat (emits them) and
     /fabrik-plan-review (a set missing them is a finding to FIX); this is the mechanical backstop.
     """
+    # Blockquoted lines are QUOTED content, not the spine's own mandate — same convention the
+    # ticket-Status determination uses above. Without this, a quoted counter-example
+    # ("> Note: this ticket bypasses /fabrik-review due to the boundary of the change") SATISFIES
+    # the pillar it contradicts (pool finder, reproduced).
+    unquoted = _BLOCKQUOTE_RE.sub("", scan)
     missing = [
-        (name, hint) for name, pattern, hint in SPINE_PILLAR_PATTERNS if not pattern.search(scan)
+        (name, hint)
+        for name, pattern, hint in SPINE_PILLAR_PATTERNS
+        if not pattern.search(unquoted)
     ]
     if not missing:
         return []

@@ -303,3 +303,13 @@ def test_a_filter_named_reference_doc_is_not_masked_by_a_blanket_exemption(monke
     live = Path("/opt/fabrik/.pre-commit-config.yaml").read_text()
     stripped.write_text(live.replace(r"|^docs/reference/technology-stack-decision-guide\.md$", ""))
     assert chk.uncovered(tmp_path) == [doc], "dropping it from the filter must now be caught"
+
+
+def test_a_config_that_is_valid_yaml_but_not_a_mapping_fails_clearly(tmp_path):
+    """`yes` is valid YAML (a bool). The .get() below it raised AttributeError — not a
+    CoverageError — so the gate died with an unexplained crash instead of a clear message."""
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    for text in ("yes\n", "- a\n- b\n", "just a string\n"):
+        cfg.write_text(text)
+        with pytest.raises(chk.CoverageError, match="mapping"):
+            chk.trigger_pattern(cfg)

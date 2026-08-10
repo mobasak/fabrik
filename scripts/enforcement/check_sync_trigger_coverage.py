@@ -123,6 +123,11 @@ def trigger_pattern(config: Path, hook_id: str = "governance-sync") -> str:
             data = yaml.safe_load(text) or {}
         except Exception as e:  # noqa: BLE001 — a malformed config must fail loudly, not pass
             raise CoverageError(f"cannot parse {config}: {e}") from e
+        if not isinstance(data, dict):
+            # `yes` / a bare list / a string all parse as VALID yaml but are not a config; the
+            # .get() below would raise AttributeError, which is not a CoverageError and surfaces
+            # as an unexplained crash (pool finder, reproduced).
+            raise CoverageError(f"{config} does not parse to a mapping (got {type(data).__name__})")
         for repo in data.get("repos", []) or []:
             for hook in (repo or {}).get("hooks", []) or []:
                 if (hook or {}).get("id") == hook_id:

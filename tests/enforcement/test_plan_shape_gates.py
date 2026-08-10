@@ -720,3 +720,44 @@ def test_a_narrative_mention_does_not_satisfy_the_review_pillar(plans_env: Path)
     )
     p = _write(plans_env, SPINE, narrated)
     assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p))
+
+
+def test_pillar_finding_stays_advisory_even_on_a_converged_spine(plans_env: Path) -> None:
+    """The fleet-safety property this check SHIPPED on: it lands in ~48 repos where a hard ERROR
+    would red another agent's in-flight gate for a rule that postdates their plan. Sibling checks
+    escalate to ERROR at CONVERGED — the pillar finding must NOT follow them."""
+    # Drop a required section too, so a SIBLING check escalates to ERROR in the same run — the
+    # contrast is the point: same file, same status, sibling ERRORs, pillar stays WARN.
+    converged = SPINE_OK.replace("Status: DRAFT", "Status: CONVERGED").replace(
+        "## Merge Order", "## Something Else"
+    )
+    p = _write(plans_env, SPINE, converged)
+    results = cpq_mod.check_file(p)
+    pillar = [r for r in results if "execution pillars" in r.message]
+    assert pillar, "the pillar finding must still be raised on a CONVERGED spine"
+    assert {r.severity.value for r in pillar} == {"warn"}, "must stay advisory at every status"
+    assert "error" in _sev(results), "sibling checks DO escalate at CONVERGED — proves the contrast"
+
+
+def test_a_look_alike_command_name_does_not_stand_in_for_the_review_floor(plans_env: Path) -> None:
+    """`/fabrik-review-lite` is a different command; a prefix match must not satisfy the pillar."""
+    faked = SPINE_OK.replace(
+        "## Interfaces",
+        "## Execution Discipline\n\n- Every ticket runs `/fabrik-review-lite` before its merge.\n\n"
+        "## Interfaces",
+    )
+    p = _write(plans_env, SPINE, faked)
+    assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p)), \
+        "a longer command name must not satisfy the review-floor pillar"
+
+
+def test_a_blockquoted_counter_example_does_not_satisfy_a_pillar(plans_env: Path) -> None:
+    """Quoted content is not the spine's own mandate. A quoted line that CONTRADICTS the pillar
+    ("> this ticket bypasses /fabrik-review ... boundary") must not satisfy it."""
+    quoted = SPINE_OK.replace(
+        "## Interfaces",
+        "## Notes\n\n> Note: this ticket bypasses `/fabrik-review` due to the boundary of the "
+        "change.\n\n## Interfaces",
+    )
+    p = _write(plans_env, SPINE, quoted)
+    assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p))
