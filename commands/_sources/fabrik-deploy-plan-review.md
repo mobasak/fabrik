@@ -74,7 +74,9 @@ halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` a
   evidence — a console BLOCKED print alone proves nothing later): flip back to `DRAFT` and converge
   again, annotating the consumed defect row(s) `[ADJUDICATED <date> — closed by this re-convergence]`
   in the re-convergence commit (kept, never deleted — the checks key on UNadjudicated rows). Unchanged
-  inputs AND no unadjudicated defect row → report already-converged, do not re-run.
+  inputs AND no unadjudicated defect row → report already-converged, do not re-run — UNLESS the
+  ledger's LATEST run is complete (every step `✅` + `✅ BATTERY`): a CONSUMED record — never
+  re-certify it; route to `/fabrik-deploy-verify` or a new plan.
 - `BLOCKED` — a halted deploy: the **RE-ENTRY AUDIT** below, then flip to `DRAFT`, amend, converge.
   **Every status flip-back this guard performs commits IMMEDIATELY** (explicit pathspec, the
   `deploy-plan-review` marker) — an uncommitted flip is what the next pre-commit stash cycle silently
@@ -95,7 +97,10 @@ halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` a
 read the ledger PARTITIONED BY ITS `— RUN <n>` header rows — only the LATEST run's rows, as modified
 by its halt's `<rollback taken>` field, describe current target state (earlier runs are history whose
 effects the later halts already accounted for; a handed-off publish act's survivor state comes from
-the OPERATOR'S answer in the batched ask — never a store-dashboard read, which the deploy forbids) — establish what actually
+the OPERATOR'S answer — its question JOINS the one batched ask (Phase 2's single sanctioned ask; the
+loop converges the other axes meanwhile, that step's amendment finalizing on the answer) — never a
+live submission-state read (dashboard state is the operator's to read; this review reads listings
+only as plan-data) — establish what actually
 survived on the target (re-probe, never recall), and make the AMENDED runbook account for every
 survivor EXPLICITLY — a completed migration that was not rolled back is dropped or replaced by a
 guard-checked no-op step; a half-applied step gets a cleanup step; a `NON-RERUNNABLE` step that ran
