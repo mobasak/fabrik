@@ -29,6 +29,16 @@ never in a commit, only added afterwards in the working tree.
   sets already existed in sibling repos and a hard ERROR would red another agent's in-flight gate
   for a rule that postdates their plan). The review-floor pattern is line-scoped so narrative prose
   ("converged by /fabrik-plan-review") cannot satisfy it.
+- `/fabrik-review` Pass 1 over this session's own three commits (4 pool finders + my own sweeps)
+  raised 10 candidates → 5 FIXED, 5 REFUTED with proof. Fixed: a blockquoted line that CONTRADICTS
+  a pillar ("> this ticket bypasses /fabrik-review due to the boundary") satisfied it — blockquotes
+  are now stripped before the pillar scan, matching the ticket-Status convention in the same
+  module; a `.pre-commit-config.yaml` that is valid YAML but not a mapping (`yes`) crashed
+  `check_sync_trigger_coverage` with a bare `AttributeError` instead of a `CoverageError`; a
+  look-alike command name (`/fabrik-review-lite`) stood in for the review floor; and the
+  always-WARN fleet-safety property — the whole reason this ships to ~48 repos — had no test.
+  Recorded in-code rather than overstated: these are presence heuristics, so a clean run proves a
+  spine TALKS about the three pillars, never that it mandates them correctly.
 
 Verified against the four live spines fleet-wide: it flags `iterative_image_editor`'s IN-PROGRESS
 set (no review floor, no merge semantics) and both `web-ecommerce-factory` sets (no merge
