@@ -172,13 +172,15 @@ judgment call.
 Any step that leaves a container legitimately unhealthy longer than its healthcheck tolerates (migrations,
 module init — the B3 class: autoheal's worst-case time-to-unhealthy is minutes, an init can be 8–10) MUST
 be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartbeat` / `window-close`**
-(the deploy's pause-attribution logic reads these labels from the ledger): `touch
-/run/fabrik-autoheal/pause` on the target before the window, **wait for a `PAUSED` line newer than the
-touch in the healer's log before starting the sensitive step** (an already-in-flight healer tick is not
-retroactively paused), and `rm` the pause after — ordered so the close comes AFTER any rollback the
-window's steps might need. **The pause file is ignored after 2h** (staleness self-heal) — a window that
-can exceed 2h must schedule a re-`touch` heartbeat at step boundaries (each a labeled step) or split the
-work; a single touch is never trusted past it. Also name watchdog posture and
+(the labels let a resume locate the bracket): the open and every heartbeat step run `touch
+/run/fabrik-autoheal/pause` AND write `/run/fabrik-autoheal/pause.owner` (`<plan-stem> <ISO-8601 UTC>` —
+the deploy's ownership attribution is a read of this file; the healer itself reads only `pause`);
+**wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
+step** (an already-in-flight healer tick is not retroactively paused); the close step removes BOTH
+files — ordered so the close comes AFTER any rollback the window's steps might need. **The pause file
+is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must schedule its re-`touch`
+heartbeat at step boundaries (each a labeled step) or split the work; a single touch is never trusted
+past it. Also name watchdog posture and
 restart-policy interactions for first boot.
 
 ## Phase 6 — Verification battery (the deploy's exit gate) `[anywhere]` (all surfaces)

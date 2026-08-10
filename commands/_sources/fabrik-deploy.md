@@ -63,26 +63,20 @@ inside them.
    `source.branch` declares — `git log origin/<that branch>..HEAD` empty in the SERVICE repo; a VPS
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the plan's
    build SHA is on the service repo's remote).
-3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat -c %Y
-   /run/fabrik-autoheal/pause` on the target. The pause file is **host-global with no owner field** —
-   attribution needs the ledger AND the clock, **compared as UTC epoch seconds on BOTH sides**
-   (`stat -c %Y` is already epoch; convert the ledger's UTC row timestamp via `date -u -d <ts> +%s` —
-   never compare wall-clock strings across hosts on a fleet spanning timezones). The pause is THIS
-   deploy's own orphan ONLY when the ledger's **latest unclosed window** (a plan may bracket several —
-   the latest unclosed open row is the candidate; the plan labels its window steps `window-open` /
-   `window-heartbeat` / `window-close`, so the rows are distinguishable) satisfies
-   `latest-window-activity epoch ≤ pause mtime ≤ that + 7200`, where latest-window-activity = the
-   newest `✅` open-or-heartbeat row of that window (heartbeat re-touches move the file's mtime — an
-   upper bound anchored on the OPEN row would misattribute a >2h window's own orphan to a sibling).
-   A pause outside that band is someone else's: fall through. Own
-   orphan → plan to re-adopt: the actual re-open (fresh `touch` + the PAUSED-log confirmation) executes
-   as Phase 1's open step AFTER pre-flight passes. Not own: mtime age **≥ 2h** (already inert — the
-   healer ignores it) → mark for removal, executed immediately before the run's first target mutation
-   (never before the pre-flight gate — the DECISION here mutates nothing); mtime age **< 2h** →
+3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat /run/fabrik-autoheal/pause`
+   on the target. The pause file itself is content-free, so the triad writes ownership NEXT TO it:
+   every touch (open, heartbeat, re-adopt) also writes `/run/fabrik-autoheal/pause.owner` containing
+   `<plan-stem> <ISO-8601 UTC timestamp>` (the healer reads only `pause`; the owner file is the triad's
+   own metadata). Attribution is therefore a READ, not an inference: `pause.owner` names THIS
+   plan-stem → the pause is this deploy's own orphan → plan to re-adopt (the actual re-open — fresh
+   `touch` + owner write + the PAUSED-log confirmation — executes as Phase 1's open step AFTER
+   pre-flight passes). Owner absent or another stem: pause mtime age **≥ 2h** (already inert — the
+   healer ignores it) → mark both files for removal, executed immediately before the run's first target
+   mutation (never before the pre-flight gate — the DECISION here mutates nothing); age **< 2h** →
    `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm with the
    operator before deploying to this host`. One maintenance window per VPS at a time is the rule this
-   enforces — and it applies at window OPEN too (Phase 1 step 1 re-checks; an unattributed fresh pause
-   appearing there stops the run the same way).
+   enforces — it applies at window OPEN too, where a pause discovered mid-runbook follows Phase 1
+   step 1's abandonment path, never this entry-time message.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
@@ -92,10 +86,11 @@ inside them.
    that flip immediately** (explicit pathspec, provenance trailers — every
    flip/ledger/close-out commit carries `Agent-Context: deploy-ledger <plan-stem>`, the marker Hard
    gate 2's post-flip-edit rule keys on). Ledger rows — `— ✅ <step id> <UTC timestamp>` per completed
-   step, `— ⛔ BLOCKED <step id> <why> <rollback taken>` on a halt, `— ↩ ROLLED-BACK <step id>` for a
-   completed step whose rollback later ran — carry an ISO-8601 UTC timestamp
-   (`YYYY-MM-DDTHH:MM:SSZ`; a bare time or date-less form silently corrupts the epoch conversion the
-   pause-attribution band depends on) and are **committed at every step that mutated remote state**:
+   step, `— ⛔ BLOCKED <step id> <UTC timestamp> <why> <rollback taken>` on a halt,
+   `— ↩ ROLLED-BACK <step id> <UTC timestamp>` for a completed step whose rollback later ran — every
+   row kind carries an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ`; a bare time or date-less form
+   parses silently to the WRONG epoch) and rows are **committed at every step that mutated remote
+   state**:
    a migration's ledger row living only in the working tree is not durable (the pre-commit stash cycle
    can silently revert it, and a resume would re-run the migration).
 6. Honor the plan's env knobs verbatim (e.g. `FABRIK_BUILD_TIMEOUT=1200` for heavy images — the deployer
@@ -107,14 +102,17 @@ inside them.
 If the plan brackets a window (migrations, module init — any step a healthcheck outlives), the runbook's
 own steps open and close it; execute them with these guarantees:
 
-1. Open: first re-check for an existing pause this run does not own (`stat` — a sibling's window may
-   have opened since Phase 0's entry check; one window per VPS). An unattributed fresh pause HERE is a
-   **mid-runbook abandonment**, not an entry refusal — earlier steps have mutated state, so follow
-   Phase 2 step 3's protocol (rollbacks per the plan, the ⛔ ledger row committed) and report
-   `BLOCKED: sibling window appeared mid-deploy on <target> — <what is half-deployed>` (never the
-   entry-time "before deploying" message once the runbook has mutated anything). Clear → then
-   `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause'` — capture the
-   touch timestamp.
+1. Open: first re-check for an existing pause this run does not own (`pause.owner` read — a sibling's
+   window may have opened since Phase 0's entry check; one window per VPS). An unowned fresh pause HERE
+   is a **mid-runbook abandonment**, not an entry refusal — earlier steps have mutated state, so:
+   perform the plan's NON-window rollbacks only (a healing-sensitive rollback cannot run under a
+   sibling's window — record what remains undone in the ⛔ row for the operator), write + commit the ⛔
+   ledger row, **skip every window-close act — the pause on disk is the SIBLING's; never remove it**,
+   and report `BLOCKED: sibling window appeared mid-deploy on <target> — <what is half-deployed, what
+   rollback remains>` (never the entry-time "before deploying" message once the runbook has mutated
+   anything). Clear → then `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch
+   /run/fabrik-autoheal/pause'` + write `pause.owner` (`<plan-stem> <ISO-8601 UTC>` — heartbeat
+   re-touches refresh BOTH files) — capture the touch timestamp.
 2. **Confirm the window is live BEFORE the sensitive step starts:** `stat` shows the pause file, AND
    `journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line **newer than
    the touch** (the healer ticks every minute; an already-in-flight tick is not retroactively paused,
@@ -189,7 +187,9 @@ step); any other credentialed act (an Apple notarization submission, a signing s
 automatable build with a gated act (a single invocation whose pipeline embeds notarization/signing) is
 a **plan defect discovered at deploy time** — `BLOCKED`, route back to `/fabrik-deploy-plan-review`;
 never restructure the step mid-run (the plan command authors the split — this command only executes
-it). Print the Gate-2 handoff per the
+it). If any mutating step already ran, write + commit the ⛔ ledger row first (the review's re-entry
+key); either way the BLOCKED report itself is the review's sanctioned re-entry evidence (its status
+guard admits a plan `/fabrik-deploy` routed back with a named defect). Print the Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
 action only the human takes. The handoff IS this surface's deploy completion: **proceed to Phase 5**,
 where the completion stamp records "handed to the operator publish gate: <the action>".
