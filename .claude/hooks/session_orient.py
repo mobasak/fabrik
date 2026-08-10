@@ -81,6 +81,9 @@ def _governance_line(cwd: str) -> str:
 def main() -> int:
     try:
         sys.stdout.reconfigure(errors="replace")  # C-locale must degrade, not swallow
+        # stdin too: a non-ASCII cwd/transcript path under LC_ALL=C would otherwise raise
+        # UnicodeDecodeError and silently drop the WHOLE payload (review finding).
+        sys.stdin.reconfigure(errors="replace")
     except Exception:
         pass
     try:
@@ -126,12 +129,18 @@ def main() -> int:
             locks = Path(os.environ.get(
                 "CLAUDE_SOUND_LOCKDIR", f"/tmp/claude-sound-locks-{os.getuid()}"))
             locks.mkdir(mode=0o700, parents=True, exist_ok=True)
-            (locks / f"{sid}.autonomous").write_text(json.dumps({
+            # 0600 at CREATE time: the marker carries cwd + transcript path (project
+            # names, task slugs) and the default umask would make it world-readable.
+            payload = json.dumps({
                 "sid": sid,
                 "cwd": cwd,
                 "transcript_path": str(data.get("transcript_path") or ""),
                 "marked_at": int(time.time()),
-            }))
+            })
+            fd = os.open(locks / f"{sid}.autonomous",
+                         os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as fh:
+                fh.write(payload)
         except OSError:
             pass  # fail-open: an unmarkable session is un-swept, never a broken start
 
