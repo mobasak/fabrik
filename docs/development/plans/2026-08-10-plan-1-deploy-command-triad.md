@@ -21,6 +21,8 @@ derived from the existing commands, some structure, same enforcements, same deta
 - This session PLANS; a fresh `/fabrik-execute-plan` session AUTHORS (command prose needs fresh
   context; grounded here so the executor inherits, not re-derives).
 - No deploy happens in this work.
+- **Universality (operator directive, follow-up):** the triad must serve EVERY scaffold type AND
+  unknown-type projects. Inherited mechanism: `/fabrik-release`'s surface-aware dispatch.
 
 ## Context Ledger
 
@@ -56,8 +58,21 @@ TRIGGER EN/TR + SKIP + `Stage:` · `argument-hint:` · ⚠ Termination contract 
 numbered phases · lean NEXT line at the end). Target scale 130-240 lines each (the largest exemplar is 239L). Content contracts:
 
 **A1 `/fabrik-deploy-plan`** (Stage: 6-release · trigger EN "plan the deployment", TR "dağıtımı planla")
-Produces `docs/development/plans/YYYY-MM-DD-deploy-<service>.md`, `Status: DRAFT`. Mandatory
-sections it must emit: (1) target-VPS decision WITH capacity+latency evidence (live `free -h`,
+Produces `docs/development/plans/YYYY-MM-DD-deploy-<service>.md`, `Status: DRAFT`.
+**Phase 0 — SURFACE RESOLUTION (universality contract):** read `project.yaml::type` against the
+live registry (`scaffold.py::SCAFFOLD_TYPES`, 12 types — grounded 2026-08-10) and dispatch:
+VPS-deployed types (python-api, python-api-gpu, node-api, file-api, file-worker, saas-skeleton,
+static-site, docusaurus, wordpress) → the VPS contract below; mobile-app → EAS/store plan
+(build profile, submission track, staged rollout %, store-listing deltas, signing); chrome-extension
+→ Web Store plan (zip provenance, listing/privacy deltas, review-trap checklist, rollout);
+desktop-app → release-artifact plan (build matrix, signing/notarization, update channel, GitHub
+Release cut). **Unknown/absent/unregistered type → INFER the surface from artifacts, never
+refuse:** `specs/services/<id>.yaml` exists → VPS; `eas.json` → mobile; MV3 `manifest.json` →
+extension; electron config → desktop; multiple/none matching → present the evidence and ask the
+operator ONCE (a single batched surface question is the sanctioned ask). An explicit
+`argument-hint` surface override always wins. Mandatory sections FOR THE VPS SURFACE (the richest;
+other surfaces emit their surface's analogue of every numbered class — reconciliation, runbook,
+battery, monitoring/rollback truth — swapping the mechanics, never dropping the class): (1) target-VPS decision WITH capacity+latency evidence (live `free -h`,
 shared-infra locality — the vps1-vs-spoke argument pattern); (2) spec↔code↔compose reconciliation —
 every shape flag re-verified at path:line, every compose `${VAR}` traced to spec env / secrets /
 registrar / code-default, **placeholder-key semantics checked against the compose derivation** (A1
@@ -77,14 +92,21 @@ the operator). Question bar: target/domain decisions surface to the operator ONC
 edit-free no-op round the ONLY exit; minimum two passes; Pass Ledger reproduced; no pass ceiling;
 BLOCKED escalation after 3 stuck reconcile attempts. Finder fan-out pool-default + native for
 live-SSH/high-risk slices (secrets flow, infra reality); refute-with-evidence; prove-before-fix.
-Canonical coverage checklist (from the live 2026-08-10 review): secrets flow · compose env
-completeness · staged-infra validity · runbook ordering+timing · healing-interactions (autoheal,
-watchdog, restart policies) · battery completeness · monitoring+backup/DR truth. Flips
+Canonical coverage checklist, SURFACE-CONDITIONED (rows apply per the plan's declared surface;
+a row inapplicable to the surface is marked N/A-<surface>, never silently dropped): secrets flow ·
+env/config completeness (compose vars ↔ store metadata ↔ build profiles, per surface) ·
+staged-infra validity · runbook ordering+timing · healing-interactions (autoheal, watchdog,
+restart policies — VPS) / rollout-and-rollback mechanics (stores) · battery completeness ·
+monitoring+backup/DR truth. From the live 2026-08-10 review. Flips
 `Status: DRAFT → CONVERGED` only on the no-op round; a deferred `[OPEN → at deploy]` item is a
 DEFECT (ask-before-not-during, inherited).
 
 **A3 `/fabrik-deploy`** (Stage: 6-release · trigger "deploy it", TR "dağıt" — OPERATOR-dispatched only)
 Hard gate: refuses any plan not `Status: CONVERGED` (echoes the data-contract FROZEN gate).
+Surface-aware execution: runs the plan's declared surface — VPS runbooks execute end-to-end; store
+surfaces execute up to THEIR human gate (the store submit click / `eas submit` stays the
+operator's, exactly as `/fabrik-release` R14 mandates — the command prepares, uploads drafts where
+sanctioned, and STOPS at the publish act).
 Gate-2 discipline inherited from `/fabrik-release`: this command runs ONLY when the operator
 explicitly dispatched it THIS turn — it is the sanctioned execution of the human-approved deploy,
 never self-triggered. Executes the plan's runbook step-by-step: each step's verification must PASS
