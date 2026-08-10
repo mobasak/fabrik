@@ -409,8 +409,9 @@ sequence (that would blow the ≤3 `Gate:` cap; the Integration ticket owns the 
 that mapping must NOT do is delete the three pillars from the artifact: a per-ticket field named
 `Parallel:` is not a statement of where the merge happens, and "the dispatcher owns the review floor"
 is not something an operator reading the plan — or an agent auditing it — can see. **So the SPINE
-states all three ONCE, verbatim-binding, in a dedicated `## Execution Discipline (binding on
-`/fabrik-execute-plan`)` section** (live defect 2026-08-10: a
+states all three ONCE, verbatim-binding, in a dedicated **`## Execution Discipline`** section**
+(a parenthetical such as "(binding on /fabrik-execute-plan)" after the heading text is fine —
+write it WITHOUT backticks, so the heading itself never contains a code span) (live defect 2026-08-10: a
 14-ticket set was asked "is `/fabrik-review` per ticket to a no-op in here?" and the honest answer
 was "it appears nowhere in the set"; the executor's D4 loop did own it, but nothing in the plan said
 so, so the reviewing agent correctly called it a defect and the operator had no way to trust it):
@@ -424,8 +425,10 @@ so, so the reviewing agent correctly called it a defect and the operator had no 
   merge/dedupe**. `## Merge Order` gives sequencing; this gives the fan-out semantics, which a
   topological list cannot express.
 
-A spine carrying none of the three is the same defect as a monolith
-that omits its per-phase `/fabrik-review` step — `check_plan_quality.py` WARNs on it. The monolith
+A spine missing ANY of the three is the same defect as a monolith that omits its per-phase
+`/fabrik-review` step — `check_plan_quality.py` WARNs on each one that is absent (it is not a
+none-of-three check, and it credits a pillar only inside the binding section, never from
+narrative elsewhere in the spine). The monolith
 path resumes here:
 
 Write phases in dependency order. Each phase names the exact files/changes and, for **every** step,

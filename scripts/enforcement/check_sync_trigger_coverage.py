@@ -34,6 +34,10 @@ from pathlib import Path
 
 DEFAULT_HUB = Path("/opt/fabrik")
 
+# Files only the hub has. Used to tell "a project copy" (skip, correct) apart from "the hub with a
+# renamed/moved manifest" (fail loudly) — see hub_root().
+_HUB_MARKERS = ("commands/_sources", "templates/governance")
+
 
 def hub_root(script: Path | None = None) -> Path | None:
     """The hub checkout this script belongs to, or None if this is a synced project copy.
@@ -56,6 +60,26 @@ def hub_root(script: Path | None = None) -> Path | None:
         if (candidate / "scripts" / "fabrik_synced_manifest.py").is_file():
             return candidate
     return None
+
+
+def hub_shaped_without_manifest(script: Path | None = None) -> Path | None:
+    """A tree that IS the hub but has no manifest to read, or None.
+
+    The one file whose absence should be LOUDEST is the file that decides whether to check at all:
+    renaming or moving `scripts/fabrik_synced_manifest.py` turned this gate into a permanent silent
+    no-op ON THE HUB, indistinguishable from a pass in `final_gate --json` (review finding,
+    reproduced). A project copy carries none of these markers, so it still self-skips correctly.
+
+    Deliberately NOT raised from `hub_root()` at import time — this module is fleet-synced, and an
+    import-time raise would break every consumer instead of failing one check.
+    """
+    script = (script or Path(__file__)).resolve()
+    if len(script.parents) <= 2:
+        return None
+    candidate = script.parents[2]
+    if (candidate / "scripts" / "fabrik_synced_manifest.py").is_file():
+        return None
+    return candidate if any((candidate / m).exists() for m in _HUB_MARKERS) else None
 
 
 FABRIK_ROOT = hub_root() or DEFAULT_HUB
@@ -241,6 +265,34 @@ def _declared(surface: str, seeded: frozenset[str] = frozenset()) -> bool:
     return False
 
 
+_PWD_GUARD_RE = re.compile(r'\$\(pwd\)"?\s*=\s*"?(/[^"\s\]]+)')
+
+
+def sync_is_inert_here(config: Path, root: Path) -> str | None:
+    """Why a commit from THIS checkout would distribute nothing, or None if the sync can fire.
+
+    The governance-sync hook body is wrapped in `if [ "$(pwd)" = "/opt/fabrik" ]`, so from a `git
+    worktree` of the hub it never executes — and `sync_enforcement_to_projects.py` hardcodes the
+    same root, so even if it did it would ship the MAIN checkout's files. Reporting "every synced
+    surface triggers a sync" there is a FALSE GREEN about the very thing this gate exists to
+    guarantee: an agent edits a rule in a worktree, commits, sees the tick, and zero repos receive
+    it. Filter coverage is still genuinely complete, so this is a truthful caveat, not a failure
+    (failing would red every worktree gate for a condition the author cannot fix in the filter).
+    """
+    try:
+        text = config.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for m in _PWD_GUARD_RE.finditer(text):
+        guarded = Path(m.group(1))
+        if guarded != root:
+            return (
+                f"the governance-sync hook only runs when pwd is {guarded}, but this checkout is "
+                f"{root} — a commit from here fires NO sync and distributes nothing"
+            )
+    return None
+
+
 def _probe(path: str) -> str:
     """A concrete path to test the regex against (a directory entry needs a child)."""
     return f"{path}probe.py" if path.endswith("/") else path
@@ -283,8 +335,17 @@ def fix_suggestion(root: Path | None = None) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    broken_hub = hub_shaped_without_manifest()
+    if broken_hub is not None:
+        print(
+            f"✗ sync-trigger coverage: {broken_hub} looks like the hub "
+            f"({', '.join(_HUB_MARKERS)} present) but scripts/fabrik_synced_manifest.py is "
+            "missing — renamed or moved? Refusing to skip: that would silently disable this "
+            "gate on the hub itself."
+        )
+        return 1
     if not running_on_hub():
-        # This script syncs to ~46 projects with the rest of scripts/enforcement/; there is no
+        # This script syncs to ~48 projects with the rest of scripts/enforcement/; there is no
         # manifest there to compare against. Skip, never crash their Tier-2 gate.
         print("(not the hub — sync-trigger coverage check skipped)")
         return 0
@@ -297,6 +358,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"✗ sync-trigger coverage: unexpected {type(e).__name__}: {e}")
         return 1
     if not gaps:
+        inert = sync_is_inert_here(FABRIK_ROOT / ".pre-commit-config.yaml", FABRIK_ROOT)
+        if inert:
+            print("✓ sync-trigger coverage: the filter covers every synced surface")
+            print(f"⚠ but the sync CANNOT FIRE from this checkout — {inert}.")
+            print(
+                "  Commit from the main checkout, or run "
+                "scripts/sync_enforcement_to_projects.py --force yourself."
+            )
+            return 0
         print("✓ sync-trigger coverage: every synced surface triggers a sync or is declared")
         return 0
     print("✗ sync-trigger coverage — these are DISTRIBUTED fleet-wide but editing them fires NO")

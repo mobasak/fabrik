@@ -323,3 +323,56 @@ def test_an_auto_generated_file_is_declared_not_triggered(monkeypatch):
     assert "PROJECT_CATALOG" not in live, "an auto-generated file must not fire the fleet sync"
     monkeypatch.setattr(chk, "synced_surfaces", lambda: {"docs/PROJECT_CATALOG.md"})
     assert chk.uncovered(Path("/opt/fabrik")) == [], "…and must be DECLARED, not silently uncovered"
+
+
+def _hub_like(tmp_path, *, with_manifest: bool, markers=("commands/_sources",)):
+    import shutil
+    root = tmp_path / "tree"
+    (root / "scripts" / "enforcement").mkdir(parents=True)
+    shutil.copy(_MOD, root / "scripts" / "enforcement" / _MOD.name)
+    shutil.copy("/opt/fabrik/.pre-commit-config.yaml", root / ".pre-commit-config.yaml")
+    for m in markers:
+        (root / m).mkdir(parents=True, exist_ok=True)
+    if with_manifest:
+        shutil.copy("/opt/fabrik/scripts/fabrik_synced_manifest.py", root / "scripts")
+    return root
+
+
+def _run_in(root):
+    import subprocess
+    import sys
+    r = subprocess.run([sys.executable, "scripts/enforcement/check_sync_trigger_coverage.py"],
+                       cwd=root, capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
+
+
+def test_a_hub_with_a_moved_manifest_fails_loudly_instead_of_self_skipping(tmp_path):
+    """The file that DECIDES whether to check must not be able to disable the check by going
+    missing — that was a permanent silent no-op on the hub, and `final_gate --json` cannot tell a
+    skip from a pass (review finding, reproduced)."""
+    rc, out = _run_in(_hub_like(tmp_path, with_manifest=False))
+    assert rc == 1, out
+    assert "looks like the hub" in out and "Refusing to skip" in out
+    assert "Traceback" not in out, "must fail as a check, never as an import-time crash"
+
+
+def test_a_project_copy_still_self_skips(tmp_path):
+    """The same detection must NOT catch a project: it has no hub markers."""
+    rc, out = _run_in(_hub_like(tmp_path, with_manifest=False, markers=()))
+    assert rc == 0 and "not the hub" in out.lower(), out
+
+
+def test_a_relocated_hub_warns_that_the_sync_cannot_fire(tmp_path):
+    """A worktree's filter coverage is complete, but the hook is pwd-guarded to /opt/fabrik and
+    never executes there — reporting a bare tick is a FALSE GREEN about the one guarantee this
+    gate exists to give (review finding, reproduced)."""
+    rc, out = _run_in(_hub_like(tmp_path, with_manifest=True))
+    assert rc == 0, out
+    assert "CANNOT FIRE" in out and "distributes nothing" in out, out
+
+
+def test_the_main_checkout_gets_no_inert_caveat():
+    """Non-vacuous guard: the caveat must be absent where the sync genuinely fires."""
+    assert chk.sync_is_inert_here(
+        Path("/opt/fabrik/.pre-commit-config.yaml"), Path("/opt/fabrik")
+    ) is None

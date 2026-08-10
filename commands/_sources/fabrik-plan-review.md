@@ -152,8 +152,9 @@ plan, add it.
 ⚠️ **Check the SHAPE first, or all three pass vacuously.** A spine+ticket set (`## Ticket Board`
 present) has **no `## Phase` headings at all**, so "at every phase boundary" has nothing to bind to
 and a set carrying none of the three sails through. On a SET, the three below are satisfied ONLY by
-explicit statements in a binding spine section (conventionally `## Execution Discipline (binding on
-`/fabrik-execute-plan`)`) — (a) every ticket runs `/fabrik-review`
+explicit statements in a binding spine section (conventionally **`## Execution Discipline`**;
+`## Global Constraints` is accepted for spines that predate it — the gate reads BOTH, and credits
+a pillar ONLY from inside such a section, never from narrative elsewhere) — (a) every ticket runs `/fabrik-review`
 on its changed surface to a coverage-adjudicated exit BEFORE its merge, (b) pool-default dispatch
 with native on top for GUI/high-risk/decide-merge, (c) which tickets fan out concurrently and where
 their results merge/dedupe. Absent = a finding you FIX, exactly as for a monolith missing its

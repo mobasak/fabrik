@@ -46,10 +46,37 @@ derived from the existing commands, some structure, same enforcements, same deta
 - `commands/_sources/fabrik-deploy.md` (new)
 - `commands/assemble_commands.py` (NEXT map only)
 - `commands/_sources/fabrik-release.md` (its trailing `Next command:` line ONLY — see Phase B1b)
+- `commands/_sources/fabrik-deploy-verify.md` (its opening framing sentence ONLY — see Phase B4;
+  added 2026-08-10 by review, so the corpus does not ship self-contradicting)
 - `CLAUDE.md` + `templates/governance/CLAUDE.md` (§ Pipeline chain line only — ⚠ governance-sync)
 - `.claude/hooks/skill_router.py` (Tier-1 stems for the triad — ⚠ governance-sync)
 - `CHANGELOG.md`, `INDEX.md`
 Disjoint from all active plan-locks (checked at execution start per the executor's step 7).
+
+## Execution Discipline (binding on every phase below)
+
+Added 2026-08-10 after review: the plan carried NONE of `/fabrik-plan-after-chat` § Phase 3's three
+enforced pillars for its own execution — the only `/fabrik-review` was one whole-pack pass in
+Phase D, *after* all three command files were already written. That is the monolith twin of the
+ticket-set defect fixed the same day; a 240-line command file that drifts from the exemplar is
+cheapest to catch at its own phase boundary, not at the end.
+
+1. **`/fabrik-review` at EVERY phase boundary — BLOCKING.** Between finishing Phase N and starting
+   Phase N+1, run the full adversarial methodology on that phase's changed surface (finders →
+   refute → prove-before-fix with a kept regression guard → re-run the gate after each fix), to a
+   coverage-adjudicated exit. Phase N+1 does not begin until it comes back clean. Phase D's
+   whole-pack review is IN ADDITION to these, never a substitute.
+2. **Dispatch is pool-default.** Every decomposable unit — the per-command structure-fidelity
+   checks, the enforcement-completeness sweeps, the chain/NEXT consistency audit — goes to the
+   OpenRouter pool via `fanout(task_type, units, …, mode="read_only")`, which auto-records to the
+   flywheel; back-fill each with `set_quality(...)`. Native `fabrik-reviewer` on **Opus** is ADDED
+   on top for the authoritative pass over the governance-sync blast radius (the § Pipeline +
+   `skill_router.py` edits reach ~46 repos) — never instead of the pool layer.
+3. **Parallelism + where results merge.** The three command sources in Phase A are independent →
+   author/review them CONCURRENTLY, one unit each; their findings merge at the Phase-A review gate,
+   deduped by (file, failure-class) before any fix is applied. Phase B's four wiring edits (NEXT
+   map, both § Pipeline copies, `skill_router.py`) are serialized — they share the chain string,
+   and a divergent copy is the exact defect the parity Behavior Contract exists to catch.
 
 ## Phase A — Author the three command sources (fresh-session, ai-prompt-templates-bound)
 
@@ -62,7 +89,9 @@ Produces `docs/development/plans/YYYY-MM-DD-deploy-<service>.md`, `Status: DRAFT
 **Phase 0 — SURFACE RESOLUTION (universality contract):** read `project.yaml::type` against the
 live registry (`scaffold.py::SCAFFOLD_TYPES`, 12 types — grounded 2026-08-10) and dispatch:
 VPS-deployed types (python-api, python-api-gpu, node-api, file-api, file-worker, saas-skeleton,
-static-site, docusaurus, wordpress) → the VPS contract below; mobile-app → EAS/store plan
+static-site, docusaurus, wordpress — the last is LEGACY: `wpf` was archived 2026-08-07 and
+WordPress is out of fabrik, so it stays in the dispatch table only because it is still in the live
+`SCAFFOLD_TYPES` registry; emit no new WordPress-specific contract work) → the VPS contract below; mobile-app → EAS/store plan
 (build profile, submission track, staged rollout %, store-listing deltas, signing); chrome-extension
 → Web Store plan (zip provenance, listing/privacy deltas, review-trap checklist, rollout);
 desktop-app → release-artifact plan (build matrix, signing/notarization, update channel, GitHub
@@ -117,6 +146,12 @@ Heavy builds: `FABRIK_BUILD_TIMEOUT` honored from the plan. The battery is the E
 flips the plan `Status: CONVERGED → EXECUTED <date>`, archives it per plan lifecycle, and hands to
 `/fabrik-deploy-verify`. Ends with the 6-line FINAL OUTPUT block.
 
+**Review gate A (BLOCKING, before Phase B):** `/fabrik-review` over the three authored sources —
+pool finders partitioned one-per-command on structure-fidelity vs the exemplar and
+enforcement-completeness vs the content contracts above (parallel, `mode="read_only"`), findings
+merged and deduped by (file, failure-class), plus ≥1 native Opus pass; loop to a
+coverage-adjudicated exit. Do NOT start Phase B until it is clean.
+
 Validation gate A: all three files exist; each carries frontmatter description ≤ the 1024-char
 combined limit (run `python commands/assemble_commands.py --check` — it enforces at :86), a
 ⚠ Termination contract section, and a trailing NEXT line. `grep -L "Termination contract" the 3
@@ -129,10 +164,13 @@ files` returns empty.
    - `"fabrik-deploy-plan-review": "Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>."`
    - `"fabrik-deploy": "/fabrik-deploy-verify — prove the deployed service against its live checklist."`
    - RETARGET `"fabrik-release"` → EXACTLY:
-     `"Gate 2 — human approval; VPS: /fabrik-deploy-plan (deploy triad; direct apply retired). Stores: operator submits; /fabrik-deploy-verify."`
-     (measured twice — author 1014, independent grounder 1015 — both ≤ the 1024 hard limit
-      checked at assemble_commands.py:83; a longer wording at 1029 FAILS the render. The executor
-      re-measures via `--check` before committing.)
+     `"Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify."`
+     (composed length re-measured 2026-08-10 with the renderer's OWN `_description_of` parser:
+      **1002 chars, 22 of headroom** under the 1024 limit checked at `assemble_commands.py:83`.
+      The originally-planned wording measured 1015 — correct, but NINE chars of headroom, so one
+      added word in fabrik-release's description would break the render box-wide; this trim buys
+      margin and drops the "direct apply retired" claim that Phase B4 below now resolves. The
+      executor still re-measures via `--check` before committing.)
    1b. ⚠ THE NEXT TEXT IS DUPLICATED BY HAND in source bodies (corpus convention — grounder-verified
       at fabrik-release.md:127, fabrik-upstream.md:240, fabrik-decommission.md:178,
       fabrik-catchup.md:121, fabrik-deploy-verify.md:180): update fabrik-release.md's trailing
@@ -153,9 +191,21 @@ files` returns empty.
    deterministic nudge. ⚠ `.claude/hooks/` is a governance-sync trigger — this edit distributes
    fleet-wide with the same commit; correct for all projects (the stems name hub-pipeline skills
    exactly like the existing release/deploy-verify stems).
-4. `CHANGELOG.md` entry. (NO INDEX.md rows: verified this session — INDEX does not track
+4. `commands/_sources/fabrik-deploy-verify.md` — ONE line only: its opening framing says the
+   command proves "a service the operator just `fabrik apply`'d". Once the triad lands, the VPS
+   deployer is `/fabrik-deploy`, so that sentence contradicts the new chain. Reword to name both
+   paths (`/fabrik-deploy` for the triad, a direct `fabrik apply` for the legacy/manual path).
+   Scope is that sentence — NOT the command's behaviour, which is unchanged. (Added 2026-08-10 by
+   review: the original plan declared "direct apply retired" in the release NEXT while explicitly
+   putting deploy-verify out of scope, which would have shipped the corpus self-contradicting.)
+5. `CHANGELOG.md` entry. (NO INDEX.md rows: verified this session — INDEX does not track
    `commands/_sources/` granularity; all 24 existing sources are unlisted. The Doc Sync Matrix
    INDEX trigger applies only where INDEX carries that class of file.)
+
+**Review gate B (BLOCKING, before Phase C):** `/fabrik-review` over the wiring diff, with the
+governance-sync blast radius as its own named failure class (the § Pipeline + `skill_router.py`
+edits distribute to ~46 repos, so an edit that is wrong for ANY project is a CONFIRMED finding) and
+dict↔body NEXT parity as another. Native Opus owns the blast-radius class.
 
 Validation gate B: `python commands/assemble_commands.py --check` exit 0 (temp-dir render — safe
 pre-merge); `git diff --cached` shows ONLY owned paths; `check_doc_sync.py` clean for the phase diff.
@@ -167,6 +217,10 @@ bare render is sanctioned): `python commands/assemble_commands.py` → verify
 `~/.claude/commands/fabrik-deploy{,-plan,-plan-review}.md` exist with the banner (:31) and
 `~/.claude/skills/fabrik-deploy*/SKILL.md` wrappers carry the Stage + NEXT lines. Fleet-synced
 skill listing refresh rides the render (box-wide).
+
+**Review gate C (BLOCKING, before Phase D):** mechanical phase — the review is a diff read
+confirming the render changed ONLY the 6 expected artifacts (a render that touched anything else
+means the prune ran against an unexpected tree; stop and report rather than proceed).
 
 Validation gate C: `ls` assertions on the 6 rendered artifacts; banner greps are PER-KIND —
 `grep -q "RENDERED"` on the 3 `~/.claude/commands/*.md` (BANNER, :30) and `grep -q "GENERATED"`
@@ -212,4 +266,10 @@ precedent; no unit-test dogma for markdown.)
   operator decision (approve execution) is the standard plan gate, not a deferred question.
 - Out of scope, explicitly: retiring `/fabrik-release`'s non-VPS surfaces (mobile/extension keep
   their checklists — the triad covers VPS deploys; the release retarget names deploy-plan only for
-  the VPS path), auto-triggering deploys (never), altering `/fabrik-deploy-verify`.
+  the VPS path), auto-triggering deploys (never), and any change to `/fabrik-deploy-verify`'s
+  BEHAVIOUR — Phase B4 touches exactly one framing sentence in it and nothing else.
+- Review-added 2026-08-10 (this plan reviewed against the live registry/renderer/gates): the three
+  execution pillars now bind every phase (§ Execution Discipline + per-phase review gates A/B/C);
+  the release NEXT retarget was re-measured with the renderer's own parser and trimmed from 9 to 22
+  chars of headroom; the deploy-verify framing contradiction is closed rather than deferred; and
+  `wordpress` is marked LEGACY in the dispatch table so no new work is spent on it.

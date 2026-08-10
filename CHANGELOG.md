@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the last five review findings on my own gates, incl. two more false-greens (2026-08-10)
+
+- **A hub worktree got a green coverage verdict while the sync was a guaranteed no-op there.** The
+  `governance-sync` hook body is wrapped in `if [ "$(pwd)" = "/opt/fabrik" ]`, so from a worktree it
+  never executes — and `sync_enforcement_to_projects.py` hardcodes the same root, so even if it ran
+  it would ship the MAIN checkout's files. An agent could edit a rule in a worktree, commit, see
+  "✓ every synced surface triggers a sync", and zero repos would receive it. The gate now prints the
+  caveat and names the fix; it does not FAIL, because filter coverage is genuinely complete there
+  and failing would red every worktree gate for something the filter's author cannot fix.
+- **Renaming or moving the manifest turned the gate into a permanent silent no-op ON THE HUB** —
+  the one file whose absence should be loudest was the file deciding whether to check at all, and
+  `run_optional_check` makes a skip indistinguishable from a pass in `--json`. A hub-SHAPED tree
+  (`commands/_sources`, `templates/governance` present) with no manifest now fails loudly. Detection
+  deliberately lives in `main()`, never at import: an import-time raise in a fleet-synced module
+  breaks every consumer instead of failing one check.
+- `/fabrik-plan-after-chat` claimed the gate warns on a spine "carrying none of the three" — it
+  warns on **each one absent**. An author stating two of three would have read the resulting WARN
+  as a gate bug.
+- The mandated heading was written with nested backticks (`` `## Execution Discipline (binding on
+  `/fabrik-execute-plan`)` ``), so the code span closed at the inner tick and an agent could emit a
+  heading literally containing backticks.
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` — CLAUDE.md § GATE names it the canonical per-check
+  reference, and it still said "15 Tier-2-only checks … 33 total" with neither Hooks Index Fresh nor
+  Sync Trigger Coverage listed. Corrected to 18/36 by enumerating the real `run_optional_check`
+  calls, both checks documented, and the cited line ranges DROPPED — they drifted on every
+  insertion, and a wrong `path:line` is worse than none.
+
+Also: the deploy-command-triad plan updated with the four findings from its review — the three
+execution pillars now bind every phase (§ Execution Discipline + blocking review gates A/B/C), the
+release NEXT retarget re-measured with the renderer's own parser and trimmed from 9 to 22 chars of
+headroom, the `/fabrik-deploy-verify` framing contradiction brought into scope instead of deferred,
+and `wordpress` marked LEGACY so no new work is spent on it.
+
 ### Fixed — /fabrik-review Pass 2: my own gates were over- and under-firing fleet-wide (2026-08-10)
 
 The native Opus finder disproved two claims I had made about these checks, both reproduced:
