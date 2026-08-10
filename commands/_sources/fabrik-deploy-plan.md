@@ -159,8 +159,10 @@ defect here. In-container exec semantics are spelled out
 (the B1 class: an in-container default port/host is dev-shaped — pass the explicit `-e` override).
 Long-running steps state their expected duration, and any step expected to exceed its window's tolerances
 names the mitigation (Phase 5). Every step — S1 and the heavy steps especially — must be SAFE TO RE-RUN
-from scratch: the deploy's flip/ledger commit lands only at a step's boundary, so a session death
-mid-step leaves no resume evidence for it and the next dispatch re-executes it. Steps only the operator may take (any store-dashboard or credentialed
+from scratch (a session death mid-step leaves no ledger row for it, so the next dispatch re-executes
+it), OR carry an explicit `NON-RERUNNABLE` marking WITH a guard pre-check that detects the
+already-ran state and skips (a registrar purchase, a token mint — the guard is what makes the re-run
+safe). Steps only the operator may take (any store-dashboard or credentialed
 publish action, a paid account action — and any credentialed act whose classification is unclear, e.g. a
 notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE` — the
 runbook prepares up to them, never through them. The surface's sanctioned build path (cloud `eas build`,

@@ -33,17 +33,22 @@ and the run continues — keep going.
    approval IS the operator's explicit dispatch of this command — for plan-governed deploys, that
    dispatch is the "manual `fabrik apply`" the corpus's Gate-2 lines describe. `/fabrik-release` still
    never deploys: it hands TO this gate; this command is what the gate's approval sanctions.
-2. **`Status: CONVERGED` or `Status: IN-PROGRESS` with a step ledger.** Anything else — `DRAFT`,
-   `EXECUTED`, absent — → refuse: `BLOCKED: plan not executable — <status>; run
-   /fabrik-deploy-plan-review first (DRAFT) or author a new plan (EXECUTED)`. This echoes the
-   data-contract FROZEN gate: nothing executes against an unconverged artifact. **Execution mode by
-   ledger, not by status alone:** a still-CONVERGED plan whose only rows are `⛔ PLAN-DEFECT` (routing
-   history, adjudicated or not) or with no rows at all → fresh run; any `✅`/`⛔`/`↩` row in an
-   `IN-PROGRESS` plan, or a `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO`
-   annotations → RESUME-STYLE per Phase 2 — completed work is never blindly re-run. **An UNADJUDICATED
-   `⛔` row refuses the dispatch outright** — `BLOCKED: halted plan not yet re-converged — run
-   /fabrik-deploy-plan-review first`: a deliberate halt routes back through the review; the resume
-   path is for sessions that DIED (rows are `✅`-only), never for skipping the re-convergence. **Post-flip edits void the flip:** the review
+2. **Status + ledger, adjudicated as an ORDERED decision list — first match wins:**
+   1. `DRAFT` / `EXECUTED` / status absent → refuse: `BLOCKED: plan not executable — <status>; run
+      /fabrik-deploy-plan-review first (DRAFT) or author a new plan (EXECUTED)` — nothing executes
+      against an unconverged artifact (the data-contract FROZEN gate's echo).
+   2. Any UNADJUDICATED `⛔ BLOCKED` or `⛔ PLAN-DEFECT` row, whatever the status → refuse:
+      `BLOCKED: halted plan not yet re-converged — run /fabrik-deploy-plan-review first` (a deliberate
+      halt routes back through the review — never skip the re-convergence).
+   3. Any `↩` row NOT followed by its `⛔` row → refuse the same way (an abandonment died mid-record —
+      the review treats it as a re-entry).
+   4. A `⛔ WAIT` row as the latest halt → re-probe its recorded condition: clear → proceed (resume);
+      still present → report and stop, no new row.
+   5. `IN-PROGRESS` with an EMPTY ledger → refuse: a mid-flip death artifact — the review's recovery
+      bullet flips it back to `CONVERGED`.
+   6. Else accepted. Mode: `✅ KEEP`/`REDO` annotations or bare `✅`/`↩` rows present → RESUME-STYLE per
+      Phase 2 (completed work is never blindly re-run); otherwise (no rows, or only adjudicated `⛔`
+      history) → fresh run. **Post-flip edits void the flip:** the review
    command commits its `CONVERGED` flip — if `git log` shows commits touching the plan after that flip
    commit OTHER THAN the sanctioned set (identifiable by trailer: `Agent-Context: deploy-ledger
    <plan-stem>` = this command's own flip/ledger/close-out commits, mandated in Phase 0 step 5;
@@ -94,21 +99,14 @@ inside them.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
-5. **The flip lands at the FIRST runbook-step boundary OF THIS RUN** — a step EVENT: a completion, a
-   terminal failure, or (on a resume of a re-entry `CONVERGED` plan) the skip-after-verification of a
-   `✅ KEEP` step — whichever comes first; for a fresh run that is after S1 completes or terminally fails,
-   whatever S1 is (a read-only step counts: executing the runbook AT ALL is the event the flip
-   records, and it is what makes the resume semantics and the review's "deploy still running" refusal
-   well-defined). A step REFUSED at its own pre-check (e.g. the window-open's sibling re-check) has
-   not RUN — on a FRESH run, a refusal before ANY step boundary leaves the plan `CONVERGED` and
-   unflipped (the entry-shaped refusal); **on a RESUME the plan is already `IN-PROGRESS`, so even a
-   pre-boundary refusal writes + commits its `⛔` row** (durability — an IN-PROGRESS plan without a
-   row reads as a live deploy). Once any boundary passed, the flip exists and every later stop writes
-   its `⛔` row. A terminal step failure commits the flip and its `⛔ BLOCKED` row together (execution
-   was ATTEMPTED — the halt must be durable). The Phase 0 healing-state cleanup precedes the runbook
-   and never flips. (Commit-after-event by design: a session death MID-step leaves no row for it —
-   the next dispatch re-runs that step from scratch, which is why the plan must author S1, and every
-   heavy step, safe to re-run.) The flip starts
+5. **The flip happens at DISPATCH ACCEPTANCE — after the hard gates and the pre-flight pass, BEFORE
+   S1 runs:** flip `CONVERGED → IN-PROGRESS` and commit. From that moment the rule is TOTAL: **every
+   stop of any kind writes + commits its ledger row** — there is no rowless `IN-PROGRESS` state except
+   a death inside the flip commit itself (hard gate 2's recovery rule). Everything BEFORE the flip —
+   hard-gate refusals, wrong-repo stops, pre-flight failures, an entry-time pause conflict — leaves
+   the plan `CONVERGED`, rowless, nothing deployed. (Commit-after-event for STEP rows: a session death
+   MID-step leaves no row for that step — the next dispatch re-runs it from scratch, which is why the
+   plan authors every step safe to re-run or `NON-RERUNNABLE`-guarded.) The flip starts
    the step ledger inside the plan document (or APPENDS to an existing one — a re-entry/resume plan arrives with its ledger and
    `KEEP`/`REDO` annotations intact; reinitializing it erases exactly what Phase 2 keys on), and COMMITS
    that flip immediately** (explicit pathspec, provenance trailers — every
@@ -116,8 +114,11 @@ inside them.
    gate 2's post-flip-edit rule keys on). Ledger rows — `— ✅ <step id> <UTC timestamp>` per completed
    step, `— ⛔ BLOCKED <step id> <UTC timestamp> <why> <rollback taken>` on a halt,
    `— ↩ ROLLED-BACK <step id> <UTC timestamp>` for a completed step whose rollback later ran, and
-   `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <defect>` (Phase 4 — the ONE row kind that may precede
-   the flip and live in a still-CONVERGED plan) — every
+   `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <defect>` (a defect found BEFORE dispatch acceptance —
+   Phase 0's read of the plan — is the one case this row lives in a still-CONVERGED plan), and
+   `— ⛔ WAIT <step id> <UTC timestamp> <transient condition>` (a stop on a TRANSIENT environmental
+   condition — a sibling's window, a briefly unreachable host — that needs re-probing, never
+   re-convergence) — every
    row kind carries an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ` — unambiguous evidence across a
    multi-timezone fleet) and rows are **committed at every step that mutated remote
    state**:
@@ -135,14 +136,12 @@ own steps open and close it; execute them with these guarantees:
 1. Open: first re-check BOTH files (`stat` the pause AND read `pause.owner` — a sibling's window may
    have opened since Phase 0's entry check; one window per VPS). A pause that exists and is not this
    run's own — owner file ABSENT (e.g. an operator's manual pause, the healer's own documented
-   procedure) or another stem — stops the run: **if any step boundary has passed**, this is a
-   mid-runbook abandonment — perform the plan's NON-window rollbacks only (a healing-sensitive
-   rollback cannot run under a sibling's window — record what remains undone in the ⛔ row for the
-   operator), write + commit the ⛔ ledger row, **skip every window-close act — the pause on disk is
-   NOT this run's; never remove it**, and report `BLOCKED: sibling window appeared mid-deploy on
-   <target> — <what is half-deployed, what rollback remains>`; **if no step boundary has passed yet** (the
-   window-open is S1 and its pre-check refused before running), it is an entry-shaped refusal — `BLOCKED` naming the pause,
-   NO ⛔ row, NO status flip, nothing deployed. An orphan `pause.owner` with NO pause file is
+   procedure) or another stem — is a TRANSIENT condition, not a plan defect: write + commit a
+   `⛔ WAIT <step id> <ts> sibling window on <target>` row and stop (the plan is `IN-PROGRESS` — the
+   flip happened at acceptance; the next dispatch re-probes and resumes when clear, no re-convergence
+   owed). Roll back ONLY what THIS run's completed steps require and cannot wait (rollbacks never
+   touch inherited `✅ KEEP`/prior-session work), append the `↩` rows for anything rolled back, and
+   **skip every window-close act — the pause on disk is NOT this run's; never remove it**. An orphan `pause.owner` with NO pause file is
    incomplete-close residue — remove the orphan and proceed. Clear → open in ONE invocation, **as
    root** — `/run/fabrik-autoheal` is root-owned (the healer's cron creates it) and the fleet SSH user
    is not root, so every WRITE (touch / printf-redirect / rm) is `sudo bash -c '…'` (a bare redirect
@@ -195,7 +194,9 @@ that is how a completed migration gets run twice.)
    - **On abandonment (either case):** execute the step's rollback command and **prove it landed (fenced
      output)**, execute the plan's rollback for every completed step that requires it (inside the
      maintenance window — Phase 1 step 3) **appending a `↩ ROLLED-BACK <step id>` ledger row for each** (its
-     `✅` is no longer the truth — a resume must see the teardown), write + commit the ⛔ row, close the
+     `✅` is no longer the truth — a resume must see the teardown), write + commit the ⛔ row (in ONE
+     commit with the `↩` rows, or immediately after — an `↩` without its `⛔` reads as an interrupted
+     abandonment and refuses dispatch), close the
      window last, and report `BLOCKED: <step> — <evidence> — <rollback taken>`. The halted plan then
      goes back through `/fabrik-deploy-plan-review` (its sanctioned `IN-PROGRESS + ⛔` re-entry — the
      plan is amended, `KEEP`/`REDO`-annotated, and re-converged before any fresh dispatch). No
@@ -231,10 +232,10 @@ automatable build with a gated act (a single invocation whose pipeline embeds no
 a **plan defect discovered at deploy time** — `BLOCKED`, route back to `/fabrik-deploy-plan-review`;
 never restructure the step mid-run (the plan command authors the split — this command only executes
 it). Either way, write + commit a durable routing record into the plan:
-`— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` (with the `deploy-ledger` commit marker; the
-status is NOT flipped when no step boundary has passed — once a boundary passed, the flip already
-exists per Phase 0 step 5; a console BLOCKED print is ephemeral, and this committed row is exactly
-what the review's status guard reads as its sanctioned re-entry evidence). **A
+`— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` (with the `deploy-ledger` commit marker; the status stays `CONVERGED` only when the defect was found
+BEFORE dispatch acceptance — Phase 0's plan read; post-acceptance the plan is already `IN-PROGRESS`
+per Phase 0 step 5; a console BLOCKED print is ephemeral, and this committed row is exactly what the
+review's status guard reads as its sanctioned re-entry evidence). **A
 PLAN-DEFECT stop ENDS the run at that BLOCKED report** — but with abort hygiene first: if a
 maintenance window is open, run the rollbacks that need it — **appending the `↩ ROLLED-BACK` row for
 each rolled-back step, exactly as Phase 2 step 3** — and close it (BOTH files, verified) before

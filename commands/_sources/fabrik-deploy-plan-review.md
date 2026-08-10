@@ -60,35 +60,32 @@ so rather than converging on unread sources.
 The plan under review is `$ARGUMENTS`. Read its declared **surface** (vps · mobile · extension ·
 desktop — authored by `/fabrik-deploy-plan` Phase 0); the checklist below is conditioned on it.
 
-**Status guard — this command's PRODUCT is the `DRAFT → CONVERGED` flip.** The only other writes it may
-make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
+**Status guard — this command's PRODUCT is the `DRAFT → CONVERGED` flip.** The only other writes it
+may make are the sanctioned flip-BACKS and the recovery below, each re-entering the loop at `DRAFT`:
 
-- `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in fact),
-  OR that `/fabrik-deploy` routed back with a NAMED defect — the durable evidence is the committed
-  `⛔ PLAN-DEFECT` ledger row the deploy writes (a console BLOCKED print alone is ephemeral and proves
-  nothing later): flip back, converge again — and if the plan carries a ledger from a prior re-entry,
-  **re-adjudicate every `✅ KEEP` against the changed inputs** (KEEP→REDO where the change invalidated
-  it — a stale KEEP makes the deploy skip a step whose input moved, shipping nothing) — then
-  **annotate EVERY unadjudicated routed-back row** with `[ADJUDICATED <date> — closed by this
-  re-convergence]` (kept as history, never deleted; the durable evidence must survive), all landed in
-  the same ONE commit as the re-convergence. The already-converged check keys on UNADJUDICATED
-  routed-back rows only: unchanged inputs AND no unadjudicated row → report already-converged, do not
-  re-run.
-- `IN-PROGRESS` carrying any UNADJUDICATED `⛔` step-ledger row — `⛔ BLOCKED` or `⛔ PLAN-DEFECT` (a
-  halted or defect-routed deploy sent back here by `/fabrik-deploy`; rows already `[ADJUDICATED]` are
-  healed history and do NOT trigger re-entry): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
-  converge the AMENDED plan **preserving retained steps' IDs verbatim** (step IDs are the ledger's join
-  keys — renumbering orphans every existing row; new steps get NEW ids), **annotate every step whose
-  LATEST ledger row is `✅` with `KEEP` (still valid) or `REDO` (the amendment or a rollback invalidated
-  it)** — a step whose latest row is `↩ ROLLED-BACK` is already in the run set, never `KEEP` it —
-  `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations, **annotate EVERY
-  unadjudicated `⛔` row this re-entry consumed** (a plan can carry several from repeated halts) with
-  `[ADJUDICATED <date> — re-entered + re-converged]` (kept, never deleted — the guard keys on
-  UNadjudicated rows, so a re-invocation after this re-entry correctly reports already-converged), and
-  land the flip-back, the KEEP/REDO annotations, the ID preservation, and these adjudications **in ONE
-  commit** (a bare flip-back committed alone strands a DRAFT plan without its annotations if the
-  session dies) — and end at
-  `CONVERGED` for a fresh operator dispatch.
+- `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in
+  fact), OR carrying an UNADJUDICATED routed-back `⛔` row (the committed evidence `/fabrik-deploy`
+  writes — a console BLOCKED print alone proves nothing later): flip back and converge again.
+  Unchanged inputs AND no unadjudicated row → report already-converged, do not re-run.
+- `IN-PROGRESS` carrying an UNADJUDICATED `⛔ BLOCKED`/`⛔ PLAN-DEFECT` row — or an `↩` row with no
+  following `⛔` (an abandonment that died mid-record) — (a halted or defect-routed deploy sent back
+  by `/fabrik-deploy`; `[ADJUDICATED]` rows are healed history and `⛔ WAIT` rows are transient
+  conditions the deploy self-serves — neither triggers re-entry): flip to `DRAFT` keeping the ledger
+  intact (it is evidence) and converge the AMENDED plan.
+- `IN-PROGRESS` with an EMPTY ledger → a mid-flip death artifact, not a deploy: flip back to
+  `CONVERGED` (a RECOVERY, recorded in the report — no convergence loop owed).
+
+**Re-entry duties — ONE set, owed by EVERY flip-back and by converging ANY ledger-bearing `DRAFT`
+(trigger-independent, so a death after a bare flip-back cannot strand them):** preserve retained
+steps' IDs verbatim (step IDs are the ledger's join keys — renumbering orphans every existing row;
+new steps get NEW ids); re-adjudicate every `✅ KEEP` against EVERYTHING that changed — the inputs AND
+this re-entry's amendment/rollbacks — marking `KEEP` (still valid) or `REDO` (invalidated); never
+`KEEP` a step whose latest row is `↩ ROLLED-BACK` (it is already in the run set); annotate EVERY
+unadjudicated `⛔` row consumed with `[ADJUDICATED <date> — closed by this re-convergence]` (kept,
+never deleted). The flip-back and the adjudication annotations commit IMMEDIATELY (one commit — the
+durable record); the KEEP/REDO finalization rides the re-convergence's own flip commit (Phase 3) —
+and because the duties bind any ledger-bearing `DRAFT`, a session death between the two commits
+strands nothing: the next invocation resumes the duty.
 
 Pointed at `EXECUTED` — or an `IN-PROGRESS` with no UNADJUDICATED `⛔` row (a deploy still running —
 healed-over rows from prior re-entries do not change that) → **refuse**: the
@@ -138,7 +135,7 @@ the one-line why — a row is never silently dropped; pass-time rows use exactly
 | 1 | Secrets flow | generate/from_env/registrar/init lifecycle coherent; precedence audited (project `.env` reads BEFORE hub env); placeholder rules honor BOTH halves — derived keys absent, and the value-scoped merge guard (`_is_placeholder` protects an injected real only from values containing the literal `placeholder`); store surfaces: signing/credential custody named, never inlined |
 | 2 | Env/config completeness | every compose var ↔ spec/secrets/registrar/code-default traced (VPS) · store metadata ↔ build profiles ↔ code consistent (stores) — nothing unresolved, nothing double-sourced |
 | 3 | Staged-infra validity | staged resolver/DNS/config files re-read and valid; activation step present and ordered; registrar preview matches the shape |
-| 4 | Runbook ordering + timing | every step verifiable + rollbackable; **stable `S`-prefixed step ids present** (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`'s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a **fused build+credentialed step left unsplit** is a finding |
+| 4 | Runbook ordering + timing | every step verifiable + rollbackable; **stable `S`-prefixed step ids present** (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`'s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a **fused build+credentialed step left unsplit** is a finding; every step safe to re-run from scratch OR explicitly `NON-RERUNNABLE` with its guard pre-check (detects the already-ran state and skips) — an unguarded one-shot step is a finding |
 | 5 | Healing / rollout interactions | VPS: autoheal pause brackets every long-unhealthy window as **labeled `window-open`/`window-heartbeat`/`window-close` steps** (open + heartbeat write/refresh `pause.owner` — the deploy's attribution reads it; the CLOSE step removes BOTH files, it never writes; every window command authored in its executable root form — `sudo bash -c` via the real SSH alias), PAUSED-log confirmation before the sensitive step, a >2h window carries its re-touch heartbeat; watchdog + restart-policy posture named · stores: staged-rollout %, halt + rollback mechanics named |
 | 6 | Battery completeness | includes a WRITE-path probe, queue-drain where workers exist, companion reachability, cert/ACME diagnostics, same-origin probes where routing is nontrivial · stores: artifact installability + first-run smoke |
 | 7 | Monitoring + backup/DR truth | what ACTUALLY watches the surface (endpoint/scrape/alert verified, cert-expiry condition for new domains); which Backrest plan ACTUALLY covers the data — path lists read live, never assumed; honest RPO/RTO · stores: crash reporting + rollout-halt named |
