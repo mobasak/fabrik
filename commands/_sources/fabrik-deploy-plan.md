@@ -65,7 +65,10 @@ authoring never writes outside this repo). **If the resolved surface is VPS and 
 `/opt/fabrik`, stop and hand back: "run `/fabrik-deploy-plan` from `/opt/fabrik`"** — a project-side VPS
 plan lands in a tree `/fabrik-deploy` will never read. **Store surfaces (mobile / extension / desktop) →
 project-side**: the build tooling lives with the project and the plan is written into the PROJECT's
-`docs/development/plans/`. Phases below are labeled `[anywhere]` (readable from the trees this section
+`docs/development/plans/`. **The hand-back is SYMMETRIC: a store surface resolved while you sit in
+`/opt/fabrik` (or any repo other than the service's own) → stop and hand back: "run
+`/fabrik-deploy-plan` from `/opt/<service>`"** — a hub-written store plan lands where the
+project-side `/fabrik-deploy` will never read it. Phases below are labeled `[anywhere]` (readable from the trees this section
 names) or `[hub-side]` (needs the fleet SSH path or the `fabrik` CLI). Never shell out to `fabrik` from a
 project — it is not on a project's PATH.
 
@@ -91,7 +94,9 @@ inside them.
    | `desktop-app` | **DESKTOP** | release-artifact plan: build matrix, signing/notarization, update channel, GitHub Release cut |
    | `wordpress` | **LEGACY** | resolves to a grounded terminal verdict, not a refusal: report "WordPress is out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik deploy path exists to plan" and stop |
 
-2. **Unknown / absent / unregistered type → INFER the surface from artifacts.** Run ALL FOUR probes
+2. **Unknown / absent / unregistered type — or a REGISTERED type this table doesn't map** (the
+   registry names types, not surfaces, so a type newer than this table has no surface row — "registry
+   wins" settles divergent rows, never an unmapped one) **→ INFER the surface from artifacts.** Run ALL FOUR probes
    first, each against the tree that can hold it — `specs/services/<id>.yaml` in the HUB tree (→ VPS) ·
    `eas.json` in the service's tree (→ mobile) · an MV3 `manifest.json` in the service's tree
    (→ extension) · an electron config (`electron-builder`/`forge` in `package.json`) in the service's
@@ -233,9 +238,10 @@ is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must
 heartbeat at EVERY step boundary inside the window (each a labeled step) or split the work. **The
 load-bearing invariant is the INTERVAL: no two consecutive pause touches (open → heartbeat → … →
 close) may sit more than 120 minutes apart** — boundary heartbeats prove it only when every gap
-between them is bounded, so NO SINGLE STEP may exceed
+between them is bounded, so NO SINGLE STEP INSIDE THE WINDOW may exceed
 90 MINUTES (heartbeats fire only at boundaries — the 30-min margin covers the
-healer's tick and heartbeat latency; split any step that could run longer); a single touch is never trusted
+healer's tick and heartbeat latency; split any step that could run longer; a windowless step has no
+pause to outlive — this cap binds window steps, its rationale does not reach steps outside one); a single touch is never trusted
 past it. Also name watchdog posture and
 restart-policy interactions for first boot.
 
@@ -272,7 +278,10 @@ Resolve everything from the spec, the code, the rules packs, and the docs first.
 decisions (target VPS with two defensible answers, domain choice, rollout %, a release-readiness waiver)
 are batched into ONE question set, asked once (termination exit 3) — never dripped mid-authoring, and
 never deferred into the plan as an `[OPEN]` item (the review command treats a deferred question as a
-defect).
+defect). Batching binds per DECISION POINT: a question that only becomes KNOWABLE after a prior ask's
+answer (Phase 0's surface ask resolving the surface is what makes the surface-specific decisions
+askable at all) joins a follow-up batch carrying everything knowable at that point — dripping is
+asking what was already knowable at the last ask, not asking what has only just become knowable.
 
 ## Output
 
