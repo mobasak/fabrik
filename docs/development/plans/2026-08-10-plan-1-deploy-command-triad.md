@@ -282,3 +282,14 @@ precedent; no unit-test dogma for markdown.)
   the release NEXT retarget was re-measured with the renderer's own parser and trimmed from 9 to 22
   chars of headroom; the deploy-verify framing contradiction is closed rather than deferred; and
   `wordpress` is marked LEGACY in the dispatch table so no new work is spent on it.
+- Execution-recorded residual (gate B native, 2026-08-11 — operator adjudication, no edit made):
+  the plan-frozen release NEXT string routes STORE surfaces post-submit to `/fabrik-deploy-verify`,
+  whose contract at HEAD is spec-driven VPS certification only — a store agent chaining there
+  dead-ends cleanly at target resolution (bounded: verify-only, refuses). The triad's own store
+  terminal is the operator publish act (`fabrik-deploy.md` Phase 4/5). Options when adjudicated: a
+  store analogue inside deploy-verify, or rewording the store terminal in the release NEXT (both
+  out of this plan's frozen scope).
+- Execution-recorded residual (gate A, operator-visible): `docs/reference/MD/north-star.md`-family
+  corpus line "deploy = manual `fabrik apply`" predates the triad; `/fabrik-deploy`'s Gate-2
+  tiebreak absorbs it (the operator's dispatch IS that manual act for plan-governed deploys), but
+  the corpus line itself is out of this plan's File Scope.

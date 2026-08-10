@@ -57,7 +57,8 @@ gauntlet first). The operator may waive a specific row explicitly this turn; you
 2. Compose sane (if the project carries one): every service has `deploy.resources.limits.memory`; no host
    `ports:`; `fabrik` network; no `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`).
 3. `.env.example` complete vs the code's `os.getenv` calls; `docs/DEPLOYMENT.md` current.
-4. **Gate-2 handoff:** print — *"Release-ready at `<SHA>`. Operator: run `fabrik apply` from `/opt/fabrik`
+4. **Gate-2 handoff:** print — *"Release-ready at `<SHA>`. Operator: dispatch `/fabrik-deploy-plan`
+   (the deploy triad) — or run `fabrik apply` directly (the manual path) — from `/opt/fabrik`
    (hub-side; this project cannot self-deploy — trigger, don't execute)."*
 
 ## MOBILE path (store or sideload — per `.windsurf/rules/mobile-app/80-mobile.md` § distribution)

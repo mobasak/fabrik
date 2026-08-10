@@ -16,7 +16,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
    | `3-plan` | approved decisions → execution-ready plan |
    | `4-build` | execute the plan — code, tests, docs, phase by phase |
    | `5-certify` | FEATURES.md denominator refresh + end-to-end journey certification gauntlets (user-test/service-test) against the live build |
-   | `6-release` | release-readiness verification, hands to the human gate; the deploy triad (`/fabrik-deploy-plan` → its review → Gate-2 `/fabrik-deploy` → `/fabrik-deploy-verify`) then executes the approved deploy |
+   | `6-release` | release-readiness verification, hands to the human gate; the deploy triad (`/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` → `/fabrik-deploy-verify`) then executes the approved deploy |
    | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op |
    | `utility` | support work invocable at any point, not a fixed position in the chain |
 
@@ -149,7 +149,7 @@ unclear. Never claim no previous conversation exists without searching first.
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
 
-**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → *(denominator refresh)* **/fabrik-features** → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release** → **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify** (VPS surfaces; store surfaces: operator submits after /fabrik-release, then /fabrik-deploy-verify).
+**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → *(denominator refresh)* **/fabrik-features** → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release** → **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify** (this bold tail is the VPS route ONLY; store surfaces skip it: operator submits after /fabrik-release, then /fabrik-deploy-verify).
 
 Every `/fabrik-*` command, at the end of its run, applies these three (lean — one line, not a section):
 1. **Name the NEXT command** in the flow (+ the one-line why) so the operator chains without re-deriving it.

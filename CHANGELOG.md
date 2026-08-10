@@ -17,8 +17,10 @@ fresh-run-only semantics with a committed deploy ledger, halt protocol, battery 
 Wiring: NEXT-map entries + `/fabrik-release` retarget, § Pipeline chains in both CLAUDE.md copies
 (governance-synced), skill-router stems (deploy-plan/deploy-plan-review/deploy inserted ahead of
 the generic plan/review patterns; pre-existing `deploy-verify` pattern extended to match
-"deployment"), and `/fabrik-deploy-verify` framing now naming both deploy paths. Seeded by the
-2026-08-10 tryton-crm deploy-readiness review's failure classes.
+"deployment"), and `/fabrik-deploy-verify` framing now naming both deploy paths. Adjacent fixes in
+`fabrik-release.md`: the wordpress row now states the archived truth (`/opt/wpf` archived
+2026-08-07 — the dead `wpf wp apply` path removed) and the VPS Gate-2 handoff print names both
+deploy paths. Seeded by the 2026-08-10 tryton-crm deploy-readiness review's failure classes.
 
 ### Fixed — docs_updater link check false-failed on Fabrik-synced docs in every project (2026-08-10)
 
