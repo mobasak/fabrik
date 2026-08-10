@@ -228,6 +228,13 @@ pre-merge); `git diff --cached` shows ONLY owned paths; `check_doc_sync.py` clea
 
 ## Phase C — Render + verify installed artifacts
 
+**✅ EXECUTED 2026-08-11 (rendered from merged master f04f26db)** — bare render post-commit
+(sanctioned): 27 commands + 27 skills. Gate C green this run: all 6 triad artifacts exist ·
+per-kind banner greps pass (RENDERED ×3 commands, GENERATED ×3 SKILL.md) · release retarget landed
+in both installed copies · wrapper NEXT lines verbatim-match the dict · `--check` exit 0 after the
+render (pre-render drift was exactly the designed 9-row set; post-render zero → the render changed
+exactly those 9 artifacts). The triad is installed and live box-wide.
+
 On merged master ONLY (per the merge-time render rule; execution runs on master post-commit so a
 bare render is sanctioned): `python commands/assemble_commands.py` → verify
 `~/.claude/commands/fabrik-deploy{,-plan,-plan-review}.md` exist with the banner (:31) and
