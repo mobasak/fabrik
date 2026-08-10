@@ -60,16 +60,17 @@ env:
   TRYTOND_ADMIN_EMAIL: admin@ocoron.com
   COMPANY_NAME: Ocoron
   COMPANY_CURRENCY: EUR
-  # HARD-REQUIRED by compose (`${TRYTOND_DATABASE_URI:?}`). Placeholder satisfies the first
-  # `docker compose up`; the postgres registrar injects the real DATABASE_URL post-provision —
-  # ⚠ BUT under the DATABASE_URL key, not this one. REMAINING PROJECT-SIDE ITEM before first
-  # apply: the trytond entrypoint must derive TRYTOND_DATABASE_URI from DATABASE_URL (or ops
-  # sets it once post-apply). Placeholder-aware merge means a re-apply never clobbers the real value.
-  TRYTOND_DATABASE_URI: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"
+  # ⚠ TRYTOND_DATABASE_URI is deliberately ABSENT (review finding A1, 2026-08-10): the compose
+  # derives it — `${TRYTOND_DATABASE_URI:-${DATABASE_URL:-}}` — and `:-` only falls through when
+  # the var is UNSET/EMPTY. A placeholder here is a set, non-empty value that wins forever and
+  # the real DSN never reaches trytond. Instead the placeholder lives under DATABASE_URL (the
+  # key the postgres registrar injects and _build_env_content's placeholder-aware merge protects):
+  DATABASE_URL: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"
 secrets:
   required: []
   generate:
-  - X_INTERNAL_TOKEN          # fabrik mints the bridge M2M token (never hand-delivered)
+  # (X_INTERNAL_TOKEN removed — review finding A4: no code reads that env var; the real M2M
+  #  auth path is SERVICE_INTERNAL_SECRET_KEY + CONSUMER_TOKENS below, both operator-supplied)
   - TRYTOND_ADMIN_PASSWORD    # Tryton admin bootstrap credential — minted, never hand-set
   from_env:
   - SERVICE_INTERNAL_SECRET_KEY   # bridge accepts TI's shared token too (X-Internal-Token == either)
