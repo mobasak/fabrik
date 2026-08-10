@@ -1,0 +1,173 @@
+# Plan — Deploy Command Triad: /fabrik-deploy-plan → /fabrik-deploy-plan-review → /fabrik-deploy
+
+Status: CONVERGED
+Owner: hub (fabrik command corpus)
+Operator directive (verbatim, 2026-08-10): "for any deployment, you must first create a deployment
+plan, then review the plan. and then deploy. for all of these, i want commands and also skills
+derived from the existing commands, some structure, same enforcements, same detailing same mindset."
+
+## What we already agreed
+
+- Three new pipeline commands, derived from the existing corpus — not invented fresh: the
+  **structure** (frontmatter description with TRIGGER EN/TR + SKIP + Stage · argument-hint ·
+  ⚠ Termination contract · preconditions · numbered phases) copied from the parents; the
+  **enforcements** (md5 no-op convergence, evidence-per-verdict, finder→refute→prove, hard gates,
+  operator-gated execution, 6-line FINAL OUTPUT) inherited verbatim in kind.
+- Mindset parents: `/fabrik-plan-after-chat`+`/fabrik-release` → deploy-plan ·
+  `/fabrik-plan-review` → deploy-plan-review · `/fabrik-execute-plan`+`/fabrik-release` → deploy.
+- The 2026-08-10 tryton-crm readiness review (15 candidates, 4 deploy-breakers:
+  A1 placeholder-key, A2/B1 in-container port, B2 restart-after-init, B3 autoheal×init) is the
+  EVIDENCE BASE — its coverage checklist becomes the review command's canonical checklist.
+- This session PLANS; a fresh `/fabrik-execute-plan` session AUTHORS (command prose needs fresh
+  context; grounded here so the executor inherits, not re-derives).
+- No deploy happens in this work.
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| `commands/assemble_commands.py` NEXT map | chaining lives HERE (dict), rendered into wrappers + skills; description+NEXT ≤1024 chars enforced | `assemble_commands.py:37-62` (map), `:86` (limit), `:31` (banner) |
+| Exemplar structure | frontmatter/termination-contract/phases skeleton + scale (127-226 lines) | `_sources/fabrik-release.md:1-30`, `fabrik-plan-review.md` (226L), `fabrik-deploy-verify.md` (183L) |
+| Merge-time render rule | NEVER bare-render from a worktree (renderer PRUNES absent artifacts); `--check` always safe; execution renders from merged master | CLAUDE.md § Behavior "Merge-time render only" |
+| `docs/reference/MD/ai-prompt-templates.md` | BINDING for authoring the command prose: Part A template · Part B agentic patterns (termination contract, evidence-before-assertion, path:line grounding, question bar, untrusted input) · Part C markdown rules | CLAUDE.md § Pointers "Authoring a prompt" |
+| `templates/governance/CLAUDE.md` § Pipeline | the PROJECT-facing flow chain — **governance-sync trigger → ~46 repos** | templates/governance/CLAUDE.md:~"## Pipeline" |
+| hub `CLAUDE.md` § Pipeline | hub's own copy of the chain (hub-local file, not synced) | CLAUDE.md § Pipeline |
+| 2026-08-10 readiness review | the deploy-review coverage checklist + battery content, live-proven | docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md |
+| autoheal pause mechanism | maintenance-window bracketing the deploy command must use | scripts/vps-autoheal.sh (PAUSED branch), review B3 |
+| `FABRIK_BUILD_TIMEOUT` | deploy command's heavy-build knob | src/fabrik/orchestrator/deployer_ssh.py:33 |
+| fabrik-lib | N/A — command corpus, no runtime capability to vendor | checked; no module applies |
+
+## File Scope (owned paths)
+
+- `commands/_sources/fabrik-deploy-plan.md` (new)
+- `commands/_sources/fabrik-deploy-plan-review.md` (new)
+- `commands/_sources/fabrik-deploy.md` (new)
+- `commands/assemble_commands.py` (NEXT map only)
+- `CLAUDE.md` + `templates/governance/CLAUDE.md` (§ Pipeline chain line only — ⚠ governance-sync)
+- `CHANGELOG.md`, `INDEX.md`
+Disjoint from all active plan-locks (checked at execution start per the executor's step 7).
+
+## Phase A — Author the three command sources (fresh-session, ai-prompt-templates-bound)
+
+Each file follows the exemplar skeleton EXACTLY (frontmatter `description:` with one-line essence +
+TRIGGER EN/TR + SKIP + `Stage:` · `argument-hint:` · ⚠ Termination contract first · preconditions ·
+numbered phases · lean NEXT line at the end). Target scale 130-230 lines each. Content contracts:
+
+**A1 `/fabrik-deploy-plan`** (Stage: 6-release · trigger EN "plan the deployment", TR "dağıtımı planla")
+Produces `docs/development/plans/YYYY-MM-DD-deploy-<service>.md`, `Status: DRAFT`. Mandatory
+sections it must emit: (1) target-VPS decision WITH capacity+latency evidence (live `free -h`,
+shared-infra locality — the vps1-vs-spoke argument pattern); (2) spec↔code↔compose reconciliation —
+every shape flag re-verified at path:line, every compose `${VAR}` traced to spec env / secrets /
+registrar / code-default, **placeholder-key semantics checked against the compose derivation** (A1
+class: a set non-empty var defeats `:-` fallbacks), from_env precedence audit (project .env read
+BEFORE hub env — A5 class); (3) infra prerequisites (resolvers, DNS, registrar preview via
+`fabrik plan`); (4) ordered runbook: exact commands, per-step verification, per-step rollback;
+(5) maintenance-window interactions (autoheal pause bracketing, in-container exec semantics —
+B1/B3 classes); (6) verification battery incl. WRITE-path probe (B2 class), queue-drain check,
+companion-service reachability, ACME/cert diagnostics, `/brand`-style same-origin probes where
+routing is nontrivial; (7) monitoring/backup/DR truth check (M2/M3 classes: what ACTUALLY watches
+the new surface, which Backrest plan ACTUALLY covers the data — paths read live, never assumed);
+(8) first-days posture. Precondition: `/fabrik-release` checklist green (or explicitly waived by
+the operator). Question bar: target/domain decisions surface to the operator ONCE, batched.
+
+**A2 `/fabrik-deploy-plan-review`** (Stage: gate · trigger "review the deployment plan")
+`/fabrik-plan-review`'s termination contract VERBATIM in kind: loop, not one-shot; md5-verified
+edit-free no-op round the ONLY exit; minimum two passes; Pass Ledger reproduced; no pass ceiling;
+BLOCKED escalation after 3 stuck reconcile attempts. Finder fan-out pool-default + native for
+live-SSH/high-risk slices (secrets flow, infra reality); refute-with-evidence; prove-before-fix.
+Canonical coverage checklist (from the live 2026-08-10 review): secrets flow · compose env
+completeness · staged-infra validity · runbook ordering+timing · healing-interactions (autoheal,
+watchdog, restart policies) · battery completeness · monitoring+backup/DR truth. Flips
+`Status: DRAFT → CONVERGED` only on the no-op round; a deferred `[OPEN → at deploy]` item is a
+DEFECT (ask-before-not-during, inherited).
+
+**A3 `/fabrik-deploy`** (Stage: 6-release · trigger "deploy it", TR "dağıt" — OPERATOR-dispatched only)
+Hard gate: refuses any plan not `Status: CONVERGED` (echoes the data-contract FROZEN gate).
+Gate-2 discipline inherited from `/fabrik-release`: this command runs ONLY when the operator
+explicitly dispatched it THIS turn — it is the sanctioned execution of the human-approved deploy,
+never self-triggered. Executes the plan's runbook step-by-step: each step's verification must PASS
+(fenced output) before the next; failure → `BLOCKED: <step> — <evidence> — <rollback taken>`; 3
+same-step failures → stop + rollback per the plan's per-step rollback column. Maintenance-window
+bracketing mandatory (autoheal pause/unpause with a trap so an aborted run never leaves the pause).
+Heavy builds: `FABRIK_BUILD_TIMEOUT` honored from the plan. The battery is the EXIT gate; then
+flips the plan `Status: CONVERGED → EXECUTED <date>`, archives it per plan lifecycle, and hands to
+`/fabrik-deploy-verify`. Ends with the 6-line FINAL OUTPUT block.
+
+Validation gate A: all three files exist; each carries frontmatter description ≤ the 1024-char
+combined limit (run `python commands/assemble_commands.py --check` — it enforces at :86), a
+⚠ Termination contract section, and a trailing NEXT line. `grep -L "Termination contract" the 3
+files` returns empty.
+
+## Phase B — Wiring (NEXT map + § Pipeline chains + docs)
+
+1. `assemble_commands.py` NEXT map adds:
+   - `"fabrik-deploy-plan": "/fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted."`
+   - `"fabrik-deploy-plan-review": "Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>."`
+   - `"fabrik-deploy": "/fabrik-deploy-verify — prove the deployed service against its live checklist."`
+   - RETARGET `"fabrik-release"` → EXACTLY:
+     `"Gate 2 — human approval; VPS: /fabrik-deploy-plan (deploy triad; direct apply retired). Stores: operator submits; /fabrik-deploy-verify."`
+     (measured this session: release desc=809 chars + harness suffix → 980 with the current NEXT;
+      the string above lands ≈1014 ≤ the 1024 hard limit at assemble_commands.py:86 — a longer
+      wording at 1029 FAILS the render. The executor re-measures via `--check` before committing.)
+2. § Pipeline chain: append the deploy triad to the flow line in BOTH `CLAUDE.md` (hub-local) and
+   `templates/governance/CLAUDE.md` (**governance-sync → fleet**): …`/fabrik-release` →
+   **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify**.
+   ⚠ Blast radius: the governance-sync pre-commit distributes the template edit to ~46 repos —
+   the edit must be correct for ALL (it is: projects trigger, hub executes — the chain names hub
+   commands the same way `fabrik apply` is named today).
+3. `CHANGELOG.md` entry. (NO INDEX.md rows: verified this session — INDEX does not track
+   `commands/_sources/` granularity; all 24 existing sources are unlisted. The Doc Sync Matrix
+   INDEX trigger applies only where INDEX carries that class of file.)
+
+Validation gate B: `python commands/assemble_commands.py --check` exit 0 (temp-dir render — safe
+pre-merge); `git diff --cached` shows ONLY owned paths; `check_doc_sync.py` clean for the phase diff.
+
+## Phase C — Render + verify installed artifacts
+
+On merged master ONLY (per the merge-time render rule; execution runs on master post-commit so a
+bare render is sanctioned): `python commands/assemble_commands.py` → verify
+`~/.claude/commands/fabrik-deploy{,-plan,-plan-review}.md` exist with the banner (:31) and
+`~/.claude/skills/fabrik-deploy*/SKILL.md` wrappers carry the Stage + NEXT lines. Fleet-synced
+skill listing refresh rides the render (box-wide).
+
+Validation gate C: `ls` assertions on the 6 rendered artifacts + `grep -q "GENERATED" each`;
+`python commands/assemble_commands.py --check` still exit 0 after the real render.
+
+## Phase D — Review-to-no-op + gate
+
+Full `/fabrik-review` on the authored pack (the three sources + wiring diff): finders partitioned
+(structure-fidelity vs parents · enforcement-completeness vs the content contracts above ·
+chain/NEXT consistency incl. the release retarget · governance-sync blast-radius correctness),
+refute → prove-and-fix → md5-stable no-op round. Then `python scripts/final_gate.py --json` to
+`"status":"success"` + `check_convergence.py`; LESSONS_LEARNT entry or `none`.
+
+## Behavior Contract (risk-ordered)
+
+1. Renderer round-trip: `--check` green with the 3 new sources present (catches description-limit
+   and prune-safety regressions) — SEEN RED first by running `--check` with a deliberately
+   >1024-char description in a scratch copy, then the real files green.
+2. NEXT-map integrity: every new key resolves (no "(no defined successor)" fallback for the triad);
+   `fabrik-release`'s entry no longer names direct `fabrik apply` as the post-gate path.
+3. § Pipeline parity: hub CLAUDE.md and templates/governance/CLAUDE.md carry the SAME triad chain
+   (grep-identical fragment) — divergence is the defect class the sync exists to prevent.
+4. Skill wrappers: each SKILL.md names its Stage and its NEXT (grep assertions).
+(Command prose itself is governance text — its "test" is Phase D's adversarial review, per corpus
+precedent; no unit-test dogma for markdown.)
+
+## Evidence
+
+- NEXT map + limit: `commands/assemble_commands.py:37-62,86` (read this session)
+- Exemplar skeleton: `commands/_sources/fabrik-release.md:1-30` (read this session)
+- Review evidence base: `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md`
+  (authored + committed this session, 7a8a1c0c)
+- Autoheal pause: `scripts/vps-autoheal.sh` PAUSED branch (E2E-proven 13:50:13, journal)
+- Build timeout knob: `src/fabrik/orchestrator/deployer_ssh.py:33` (authored this session, 3466caa3)
+
+## Self-audit
+
+- All grounding is from THIS session's live reads — no recalled-from-memory enumeration.
+- The one cross-AI dependency (none — all hub-owned surfaces) — no OPEN residuals; the single
+  operator decision (approve execution) is the standard plan gate, not a deferred question.
+- Out of scope, explicitly: retiring `/fabrik-release`'s non-VPS surfaces (mobile/extension keep
+  their checklists — the triad covers VPS deploys; the release retarget names deploy-plan only for
+  the VPS path), auto-triggering deploys (never), altering `/fabrik-deploy-verify`.
