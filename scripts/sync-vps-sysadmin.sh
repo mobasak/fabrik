@@ -42,6 +42,17 @@ rsync -az specs/services/ vps:/opt/fabrik/specs/services/
 # VPS apply limits script
 rsync -az scripts/vps_apply_limits.sh vps:/opt/fabrik/scripts/
 
+# Sysadmin bot files + autoheal binary → the WHOLE fleet (spokes run the same bot and the
+# same autoheal cron; a hub-only sync left their prompts to drift — fixed 2026-08-10)
+for spoke in vps2 vps3; do
+  rsync -az scripts/sysadmin/ "$spoke":/opt/fabrik/scripts/sysadmin/ 2>/dev/null || echo "⚠ $spoke sysadmin sync failed"
+done
+for host in vps vps2 vps3; do
+  rsync -az scripts/vps-autoheal.sh "$host":/tmp/fabrik-autoheal 2>/dev/null \
+    && ssh "$host" 'sudo install -m 755 -o root /tmp/fabrik-autoheal /usr/local/bin/fabrik-autoheal && rm -f /tmp/fabrik-autoheal' 2>/dev/null \
+    || echo "⚠ $host autoheal deploy failed"
+done
+
 # Generate fresh inventory on VPS
 rsync -az scripts/generate_vps_inventory.py vps:/opt/fabrik/scripts/
 ssh vps 'cd /opt/fabrik && python3 scripts/generate_vps_inventory.py --update 2>/dev/null' || true

@@ -72,6 +72,19 @@ Direct Docker commands (no network needed):
 - sudo docker ps / stats / logs / inspect / restart / update
 - sudo docker events --since 15m --until now --filter event=die
 IMPORTANT: ALWAYS use `--until now` with `docker events`. Without it, the command streams forever and hangs.
+
+fabrik-autoheal (ON EVERY VPS since 2026-08-10 — factor it into EVERY restart diagnosis):
+- A root cron (every minute, /usr/local/bin/fabrik-autoheal) auto-restarts any container
+  Docker marks health=unhealthy. Storm-capped: max 3 restarts/container/30min, then
+  HOLD-DOWN (it stops restarting so the alert layer fires). Opt-out label: fabrik.autoheal=false.
+- BEFORE diagnosing "container keeps restarting": check `sudo journalctl -t fabrik-autoheal
+  --since '1h ago' --no-pager` — restarts you see may be autoheal doing its job, not a crash loop.
+- A logged HOLD-DOWN means restarting demonstrably does NOT fix that container — do NOT
+  manually restart it again as your remedy; diagnose the underlying cause instead.
+- Do not fight it: if you deliberately stop a container, autoheal will not revive it
+  (restart policies and autoheal act on unhealthy/exited states, not on operator stops);
+  but a container you leave unhealthy WILL be bounced within a minute unless it is in
+  hold-down or labeled fabrik.autoheal=false.
 </infrastructure_apis>
 
 <infrastructure_classification>
