@@ -22,6 +22,17 @@ STATE_DIR=/run/fabrik-autoheal
 MAX_RESTARTS="${AUTOHEAL_MAX_RESTARTS:-3}"
 WINDOW_S="${AUTOHEAL_WINDOW_S:-1800}"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
+
+# Single-instance guard: `docker restart` blocks ~10s per container, so several unhealthy
+# containers push one run past the 60s cron cadence — an overlapping second instance would
+# double-restart and corrupt the counters (review finding). Skip, never queue: the next
+# minute's tick handles whatever is still unhealthy.
+exec 9> "$STATE_DIR/.lock"
+if ! flock -n 9; then
+  logger -t fabrik-autoheal "SKIP-RUN: previous instance still running"
+  exit 0
+fi
+
 now=$(date +%s)
 
 docker ps --filter health=unhealthy --format '{{.Names}}' 2>/dev/null | while read -r name; do
