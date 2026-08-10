@@ -103,6 +103,7 @@
 ## script
 - [.archive](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [_partials](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
+- [governance](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [i18n-kit](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [modal](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [preplan](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
@@ -128,6 +129,7 @@
 - [scripts/enforcement/check_duplicates.py](INDEX.md): Check for code duplication using jscpd.
 - [scripts/enforcement/check_env_example.py](INDEX.md): Enforce .env.example completeness.
 - [scripts/enforcement/check_env_updates.py](INDEX.md): Enforce .env file population when secrets are mentioned.
+- [scripts/enforcement/check_hooks_index.py](INDEX.md): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
 - [scripts/enforcement/check_index_md.py](INDEX.md): Enforce INDEX.md existence and updates.
 - [scripts/enforcement/check_mutation.py](INDEX.md): AFTER-EDIT: docs/CONFIGURATION.md
 - [scripts/enforcement/check_no_host_ports.py](INDEX.md): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
@@ -170,6 +172,7 @@
 - [scripts/probes/glitchtip_webhook_capture.py](INDEX.md): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](INDEX.md): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
 - [scripts/refresh_service_inventory.py](INDEX.md): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
+- [scripts/release_cut.py](INDEX.md): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
 - [scripts/review_rubric.py](INDEX.md): AFTER-EDIT: scripts/select_rules.py tests/test_review_rubric.py
 - [scripts/seed_real_ports.py](INDEX.md): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
 - [scripts/select_rules.py](INDEX.md): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.

@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-09T10:15:20.074574
+**Last Updated:** 2026-08-10T06:00:31.258285
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -43,7 +43,7 @@
 | 34 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
 | 35 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $2.55 | 204K |  | ✓ | ✓ | 2 | 680 | ✅ |
 | 36 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 204K |  | ✓ | ✓ | 2 | 1034 | ✅ |
-| 37 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.07 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5358 | ✅ |
+| 37 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.12 | $0.40 | 262K | ✓ | ✓ | ✓ | 1 | 4424 | ✅ |
 | 38 | **gemma-4-26b-a4b-it:free** | google | 1460 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1460 | ✅ |
 | 39 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.50 | $2.00 | 204K |  | ✓ | ✓ | 2 | 897 | ✅ |
 | 40 | **qwen3-235b-a22b-2507** | qwen | 1457 | ~ | $0.09 | $0.55 | 262K |  | ✓ |  | 1 | 3349 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-08-09:** Auto-updated from benchmarks
+- **2026-08-10:** Auto-updated from benchmarks
