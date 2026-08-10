@@ -30,6 +30,8 @@ This run has exactly FOUR legitimate endings:
    issued ONCE, as one question set; a sanctioned stop that resumes on the answer.
 4. **`BLOCKED: <what> — searched: <where> — missing: <need>`** — a required input genuinely missing after
    a real search.
+5. **The wrong-repo hand-back** (per Where-this-runs) — a clean stop naming the right repo; not a
+   BLOCKED, not a failure.
 
 A section filled from memory (a spec flag recalled, a Backrest path assumed, a store profile quoted
 unread) is not authored, it is guessed — open the file, run the probe. You never flip the plan beyond
@@ -76,8 +78,9 @@ inside them.
 1. Read the SERVICE's `project.yaml::type` (hub-side that file is `/opt/<service>/project.yaml`; the hub
    repo itself has none) and dispatch against the LIVE registry
    (`/opt/fabrik/src/fabrik/scaffold.py::SCAFFOLD_TYPES` — 12 types). Hub-side runs verify the table
-   below against it (the registry wins on divergence — report the divergence to the hub agent, which owns
-   this table); a project-side run that cannot reach the hub tree proceeds on the table and says so:
+   below against it (on divergence the REGISTRY wins: proceed on the registry, record the divergence in
+   the plan's `## Self-audit` and in your report — the stale table is a corpus defect for the operator);
+   a project-side run that cannot reach the hub tree proceeds on the table and says so:
 
    | `type` | Surface | Plan shape |
    |---|---|---|
@@ -211,6 +214,13 @@ them:
   configs, the plan file itself);
 - `## Evidence` — the fenced probe outputs backing each section's claims;
 - `## Self-audit` — what was verified vs assumed, and the named residuals the review must attack.
+
+**Citation floor (the convergence gate counts, so author to it):** the flip contract additionally demands
+**at least one DISTINCT `path:line` citation per `Phase`/`Step` heading** and ≥1 nontrivial fenced output
+in `## Evidence`. Consequences: every Phase section — including an `N/A-<surface>` one — carries its own
+citation (for an N/A, cite the artifact that PROVES inapplicability, e.g. the `eas.json:1` that makes the
+surface mobile); and write the runbook's steps as numbered list items, never `### Step N` headings (each
+such heading inflates the per-heading citation denominator).
 
 End by naming the next command.
 
