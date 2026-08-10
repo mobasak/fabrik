@@ -9,7 +9,8 @@ final_gate_stop.py).
 
 Two tiers:
   Tier 1 (regex): a small, STABLE bilingual keyword->stem map (spec/design,
-    plan, review, docs, test/certify, release, deploy-verify, catchup,
+    plan, review, docs, test/certify, release, deploy-plan,
+    deploy-plan-review, deploy, deploy-verify, catchup,
     retire, upstream). The map's VALUES rarely change; what's dynamic is the
     live skill roster (``~/.claude/skills/fabrik-*``) it resolves against at
     fire time — a stem only fires once its target skill actually exists, so
@@ -110,6 +111,9 @@ STEM_SKILLS: dict[str, str] = {
     "review": "fabrik-review",
     "docs": "fabrik-docs-review",
     "release": "fabrik-release",
+    "deploy-plan": "fabrik-deploy-plan",
+    "deploy-plan-review": "fabrik-deploy-plan-review",
+    "deploy": "fabrik-deploy",
     "deploy-verify": "fabrik-deploy-verify",
     "catchup": "fabrik-catchup",
     "retire": "fabrik-decommission",
@@ -226,6 +230,29 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
         ),
         "spec",
     ),
+    # Deploy-triad stems sit BEFORE the generic plan/review entries: first
+    # match wins, and "plan the deployment" / "review the deployment plan"
+    # would otherwise be swallowed by the generic patterns below (proven
+    # live). The review stem precedes the authoring stem for the same
+    # reason ("deploy plan" appears in both).
+    (
+        re.compile(
+            r"\b(review|converge)\b[^.]{0,30}\bdeploy(ment)?\s+plan\b"
+            r"|\bdeploy(ment)?\s+plan\b[^.]{0,30}\b(review|converge)\b"
+            r"|\bda[ğg][ıi]t[ıi]m\s+plan[ıi]n[ıi]?\b[^.]{0,20}\bg[öo]zden ge[çc]ir\w*",
+            re.I,
+        ),
+        "deploy-plan-review",
+    ),
+    (
+        re.compile(
+            r"\bplan\b[^.]{0,20}\bdeploy(ment)?\b"
+            r"|\b(write|create|draft|author|make|need|let'?s|time to)\b[^.]{0,30}\bdeploy(ment)?\s+plan\b"
+            r"|\bda[ğg][ıi]t[ıi]m[ıi]?\b[^.]{0,20}\bplanla\w*",
+            re.I,
+        ),
+        "deploy-plan",
+    ),
     (
         re.compile(
             r"\b(make|write|create|do|start|need|let'?s|time to)\b[^.]{0,30}\bplan(ning)?\b"
@@ -287,11 +314,25 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(
-            r"\bdeploy\b.*\bverify\b|\bverify\b.*\bdeploy\b|"
+            r"\bdeploy(ment)?\b.*\bverify\b|\bverify\b.*\bdeploy(ment)?\b|"
             r"\bda[ğg][ıi]t[ıi]m\b.*\bdo[ğg]rula\b|\bdo[ğg]rula\b.*\bda[ğg][ıi]t[ıi]m\b",
             re.I,
         ),
         "deploy-verify",
+    ),
+    # Deploy EXECUTION sits AFTER deploy-verify (its regex needs both words,
+    # so "verify the deploy" keeps routing to deploy-verify) and after the
+    # deploy-plan pair above. Bare TR "dağıt" is word-bounded — it never
+    # matches "dağıtım"-prefixed forms.
+    (
+        re.compile(
+            r"\bdeploy\s+(it|this|now)\b"
+            r"|\b(run|execute)\b[^.]{0,30}\bdeploy(ment)?\s+plan\b"
+            r"|\bda[ğg][ıi]t\b"
+            r"|\bdeploy\s+plan[ıi]n[ıi]?\s+[çc]al[ıi][şs]t[ıi]r\w*",
+            re.I,
+        ),
+        "deploy",
     ),
     # "docs" is checked BEFORE "catchup" above, so "döküman güncelle" still
     # resolves to docs, not catchup, on the keyword overlap.

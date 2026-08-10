@@ -31,8 +31,8 @@ gauntlet first). The operator may waive a specific row explicitly this turn; you
 1. Read `project.yaml::type`. Map: `saas-skeleton | python-api | python-api-gpu | node-api | file-api |
    file-worker | static-site | docusaurus` → **VPS** · `mobile-app` → **MOBILE** ·
    `chrome-extension` → **EXTENSION** · `desktop-app` → **DESKTOP** · `wordpress` → **out of scope
-   here**: WordPress deploys via the standalone `/opt/wpf` project (`wpf wp apply`), never `fabrik apply` —
-   print that and stop. An argument overrides.
+   here**: WordPress is out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy
+   path exists; print that and stop. An argument overrides.
 2. Universal preconditions (all surfaces, verify with real commands, not memory):
    - `python scripts/final_gate.py --check --json` → `"status":"success"` **this run** (a stale green is not evidence).
    - Working tree clean for this project's scope; work committed AND pushed (`git status --short`, `git log
@@ -124,4 +124,4 @@ ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
 GATE 2 → OPERATOR: <the one action only the human takes>
 ```
 
-Next command: Gate 2 — human approval; after the operator runs `fabrik apply`, verify with `/fabrik-deploy-verify`.
+Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.

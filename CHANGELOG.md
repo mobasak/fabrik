@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Deploy command triad: /fabrik-deploy-plan → /fabrik-deploy-plan-review → /fabrik-deploy (2026-08-11)
+
+Three new pipeline commands close the gap between `/fabrik-release`'s Gate-2 handoff and
+`/fabrik-deploy-verify`: a per-service deployment plan (surface-resolved across all 12 scaffold
+types; target evidence, spec↔code↔compose reconciliation, ordered runbook with per-step
+verification+rollback, healing-window bracketing with stem-guarded pause ownership, verification
+battery, monitoring/DR truth), its adversarial convergence gate (md5-verified no-op exit,
+surface-conditioned class checklist, behavioral sandbox execution of the window one-liners through
+both quoting layers), and the operator-dispatched executor (CONVERGED-only allowlist gate,
+fresh-run-only semantics with a committed deploy ledger, halt protocol, battery as exit gate).
+Wiring: NEXT-map entries + `/fabrik-release` retarget, § Pipeline chains in both CLAUDE.md copies
+(governance-synced), skill-router stems (deploy-plan/deploy-plan-review/deploy inserted ahead of
+the generic plan/review patterns; pre-existing `deploy-verify` pattern extended to match
+"deployment"), and `/fabrik-deploy-verify` framing now naming both deploy paths. Seeded by the
+2026-08-10 tryton-crm deploy-readiness review's failure classes.
+
 ### Fixed — docs_updater link check false-failed on Fabrik-synced docs in every project (2026-08-10)
 
 Reported from tryton-crm: `docs_updater.py --check` failed with 4 broken links in

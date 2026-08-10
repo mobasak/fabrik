@@ -4,7 +4,8 @@ argument-hint: "[optional: spec path or service id to verify — omit to read sp
 ---
 
 Run this project's **post-deploy verification** — the twin of `/fabrik-decommission`'s liveness probe run
-in the opposite direction: proving a service the operator just `fabrik apply`'d is actually ALIVE, with
+in the opposite direction: proving a service that just deployed — via `/fabrik-deploy` (the triad's
+executor) or a direct operator `fabrik apply` (the manual path) — is actually ALIVE, with
 the same evidence discipline (a fresh probe this run, never a catalog/registry/env row read as proof).
 This command **verifies only**: no `fabrik apply`, no `fabrik destroy`, no registrar re-run, no file
 mutation beyond the report it writes.
