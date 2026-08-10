@@ -200,3 +200,49 @@ def test_hook_is_synced_and_wired() -> None:
         for h in grp["hooks"]
     ]
     assert any("session_orient.py" in c for c in cmds)
+
+
+def test_autonomous_env_drops_a_marker(tmp_path: Path) -> None:
+    # Phase D (plan 2026-08-10-plan-1): a launcher marks its session autonomous; the
+    # @reboot sweep resumes ONLY marked, mid-work sessions.
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    proj = tmp_path / "opt" / "auto"
+    proj.mkdir(parents=True)
+    rc, _ = _run(proj, tmp_path,
+                 json.dumps({"cwd": str(proj), "session_id": "sid-auto",
+                             "transcript_path": str(tmp_path / "t.jsonl")}),
+                 extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
+                            "CLAUDE_SOUND_LOCKDIR": str(locks)})
+    assert rc == 0
+    marker = locks / "sid-auto.autonomous"
+    assert marker.is_file()
+    data = json.loads(marker.read_text())
+    assert data["sid"] == "sid-auto" and data["cwd"] == str(proj)
+
+
+def test_autonomous_marker_even_when_headless(tmp_path: Path) -> None:
+    # The sweep's whole population is headless autonomous runs — the marker block must be
+    # INDEPENDENT of the pane arm-gate, or every batch session goes unmarked.
+    _mesh_home(tmp_path)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    proj = tmp_path / "opt" / "auto2"
+    proj.mkdir(parents=True)
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-h"}),
+                   extra_env={"CLAUDE_MESH_AUTONOMOUS": "1", "CLAUDE_MESH_HEADLESS": "1",
+                              "CLAUDE_SOUND_LOCKDIR": str(locks)})
+    assert rc == 0
+    assert "ARM YOUR SELF-WATCH" not in out           # headless: no pane to wake
+    assert (locks / "sid-h.autonomous").is_file()      # but still swept
+
+
+def test_no_autonomous_env_no_marker(tmp_path: Path) -> None:
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    proj = tmp_path / "opt" / "manual"
+    proj.mkdir(parents=True)
+    rc, _ = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-m"}),
+                 extra_env={"CLAUDE_SOUND_LOCKDIR": str(locks)})
+    assert rc == 0
+    assert not (locks / "sid-m.autonomous").exists()   # panes are never swept

@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 # Read at most this much of MEMORY.md when counting entries (bound reads by
@@ -114,6 +115,25 @@ def main() -> int:
             " turn dies on a healed API error or a lost waker. Zero cost while silent; skip ONLY"
             " if this session already armed it.\n"
         )
+
+    # Reboot sweep (plan 2026-08-10-plan-1, Phase D): a launcher that exports
+    # CLAUDE_MESH_AUTONOMOUS=1 marks its session as machine-driven work worth resuming
+    # after a reboot. INDEPENDENT of the pane arm-gate above — the sweep's whole
+    # population is headless runs, so gating the marker on the arm would unmark exactly
+    # the sessions it serves. Panes never set the env, so they are structurally excluded.
+    if sid and os.environ.get("CLAUDE_MESH_AUTONOMOUS") == "1":
+        try:
+            locks = Path(os.environ.get(
+                "CLAUDE_SOUND_LOCKDIR", f"/tmp/claude-sound-locks-{os.getuid()}"))
+            locks.mkdir(mode=0o700, parents=True, exist_ok=True)
+            (locks / f"{sid}.autonomous").write_text(json.dumps({
+                "sid": sid,
+                "cwd": cwd,
+                "transcript_path": str(data.get("transcript_path") or ""),
+                "marked_at": int(time.time()),
+            }))
+        except OSError:
+            pass  # fail-open: an unmarkable session is un-swept, never a broken start
 
     print(
         "## ORIENT (binding — read before acting)\n"
