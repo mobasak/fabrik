@@ -190,8 +190,8 @@ printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner
 heartbeat step is the STEM-GUARDED variant —
 `ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] &&
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause &&
-printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner || echo
-OWNERSHIP-LOST'"` — an `OWNERSHIP-LOST` heartbeat means the window expired and another actor took
+printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner ||
+echo OWNERSHIP-LOST'"` — an `OWNERSHIP-LOST` heartbeat means the window expired and another actor took
 it: the sensitive step STOPS (the halt protocol — our protection is gone); NEVER re-take a lost
 window (a bare touch or redirect gets Permission denied; the deploy executes the runbook verbatim
 and may not add sudo mid-run);
@@ -202,12 +202,15 @@ end-of-line when wrapping:
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner &&
 rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERSHIP-LOST'"`
 (removes ONLY while the owner still carries this plan's stem — a >2h suspension can hand the window
-to another actor: never remove theirs; the step's VERIFICATION checks BOTH FILES GONE, never rc alone —
-an `OWNERSHIP-LOST` print exits 0) — ordered so the close comes
+to another actor: never remove theirs; the step's VERIFICATION is CONDITIONAL, never rc alone (`OWNERSHIP-LOST` exits 0): PASS = both files
+gone, OR the output is `OWNERSHIP-LOST` with a FOREIGN owner confirmed by a fresh `cat` (the window
+is closed FOR US — proceed, noting it); both files present WITHOUT a foreign owner = the `rm` itself
+failed (read-only fs, EBUSY) → step failure) — ordered so the close comes
 AFTER any rollback the window's steps might need. Declare the window **WAIT BOUND** (how long a deploy may wait on a foreign pause before giving up;
 default 30 min — the deploy's waits read this). **The pause file
 is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must schedule its re-`touch`
-heartbeat at step boundaries (each a labeled step) or split the work; a single touch is never trusted
+heartbeat at step boundaries (each a labeled step) or split the work — and NO SINGLE STEP may exceed
+2h (heartbeats fire only at boundaries; split any step that could); a single touch is never trusted
 past it. Also name watchdog posture and
 restart-policy interactions for first boot.
 

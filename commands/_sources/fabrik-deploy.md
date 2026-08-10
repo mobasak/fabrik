@@ -108,8 +108,10 @@ inside them.
    - `pause` absent → clear (an orphan `pause.owner` of any stem is stale metadata — ignored; our
      open, where a window exists, writes over it).
    - `pause` present, owner OUR stem → our own residue from an earlier halted run: a window-bracketing
-     plan notes it (Phase 1's open writes over it); a WINDOWLESS plan runs the stem-guarded close
-     ONCE, now (the guard makes it only-ours by construction).
+     plan notes it (Phase 1's open writes over it); a WINDOWLESS plan notes it here and runs the stem-guarded
+     close ONCE as its first POST-FLIP act (before S1 — Phase 0 stays mutation-free; the canonical
+     close one-liner is the plan command's authored form, reproduced for plan-less use in its Phase 5,
+     substituting THIS plan's stem; the guard makes it only-ours by construction).
    - `pause` present, owner foreign-or-absent → FOREIGN. Windowless plan → note + proceed (irrelevant
      to a deploy with no long-unhealthy step). Window-bracketing plan: age ≥2h (by the PAUSE file's
      mtime, read on the TARGET — the healer's own clock, no cross-host skew) → dead metadata, the
@@ -172,9 +174,12 @@ close it; execute them with these guarantees:
    the window — then close it (BOTH files, fresh `stat` on each) as the halt's LAST target act. If the
    session dies outright, the pause's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es both files at each step
-   boundary per the plan's labeled STEM-GUARDED heartbeat steps — an `OWNERSHIP-LOST` heartbeat means
-   the window expired and another actor took it: the sensitive step STOPS (the halt protocol — our
-   protection is gone); NEVER re-take a lost window. Never trust a single touch past 2h.
+   boundary per the plan's labeled STEM-GUARDED heartbeat steps — an `OWNERSHIP-LOST` heartbeat is DISAMBIGUATED by a fresh probe of both files: owner FOREIGN → the
+   window expired and another actor took it — the sensitive step STOPS (the halt protocol; its
+   rollbacks run WITHOUT window protection — the protection is gone either way; run them promptly and
+   record that); both files ABSENT → the window VANISHED (a reboot — `/run` is tmpfs — or a cleanup):
+   RE-OPEN via the plan's open step (mid-window, an absent pause is recovery, not theft) and
+   continue. NEVER re-take a window another actor HOLDS. Never trust a single touch past 2h.
 
 ## Phase 2 — Execute the runbook, step by step, from its first step
 
@@ -194,8 +199,9 @@ close it; execute them with these guarantees:
    execute is the runbook's terminal DEFERRED gate, run the plan's battery FIRST — as authored for
    the surface — writing AND COMMITTING the `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row (nothing
    can run after a deferred gate; every other runbook shape, terminal in-session gates included, runs
-   the battery AFTER the runbook per Phase 3 — certifying the post-gate state). For the deferred gate then: produce Phase 4's Gate-2 handoff print (the
-   artifact path/build id, the checklist verdicts, the one human action — name it explicitly), write
+   the battery AFTER the runbook per Phase 3 — certifying the post-gate state). For the deferred gate then: produce the Gate-2 handoff print ONCE — Phase 4 DEFINES its content (the
+   artifact path/build id, the checklist verdicts, the one human action — name it explicitly), this is
+   its execution — then write
    AND COMMIT the gate's row as `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is the
    recorded event; its verification is deferred by declaration), and proceed to the close-out (the
    store shape of ending 1). A deferred
@@ -234,7 +240,8 @@ via Phase 1's full procedure and closes it last). Never report a deploy complete
 
 ## Phase 4 — Store surfaces (and any surface's DEFERRED terminal-gate handoff): stop at the operator's publish act, then close out
 
-Mobile / extension / desktop runbooks execute up to — never through — the publish act: build the
+Mobile / extension / desktop runbooks (and a VPS runbook with a deferred terminal gate — same flow,
+'artifact' = the SHA + target) execute up to — never through — the operator's gated act: build the
 artifact from the pushed SHA (the battery has already run per the deferred-gate battery rule or Phase 3 — VERIFY the
 `✅ BATTERY` row exists before printing any handoff; the exit gate binds every surface), prepare
 listing/rollout content.
@@ -244,10 +251,10 @@ forbids — that contradiction is a plan defect: the halt protocol, PLAN-DEFECT 
 BUILD step is legal only where the surface's release path already runs it (cloud `eas build` —
 `/fabrik-release`'s own MOBILE step); any other credentialed act (an Apple notarization submission, a
 signing service) is `OPERATOR-GATE` — executed as Phase 2 step 1's handoff, its shape (in-session vs
-deferred) per the plan's declaration. For the DEFERRED shape, print the Gate-2 handoff per the convention `/fabrik-release`'s surface paths
-define — the artifact (path/build id; VPS analogue: the SHA + target), the checklist verdicts, and
+deferred) per the plan's declaration. For the DEFERRED shape the handoff print already happened in Phase 2 — never repeat it; its content
+is defined per the convention `/fabrik-release`'s surface paths — the artifact (path/build id; VPS analogue: the SHA + target), the checklist verdicts, and
 the one action only the human takes — and proceed
-to Phase 5, the completion stamp recording "handed to the operator publish gate: <the action>". A
+to Phase 5, the completion stamp recording "handed to the operator gate: <the action>". A
 terminal IN-SESSION gate already handed off in Phase 2 (reply received, verification run) — no second
 print; proceed to Phase 5 directly.
 
