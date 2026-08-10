@@ -246,7 +246,7 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(
-            r"\bplan\b[^.]{0,20}\bdeploy(ment)?\b"
+            r"\bplan\s+(the|this|a|an|our)\b[^.]{0,20}\bdeploy(ment)?\b"
             r"|\b(write|create|draft|author|make|need|let'?s|time to)\b[^.]{0,30}\bdeploy(ment)?\s+plan\b"
             r"|\bda[ğg][ıi]t[ıi]m[ıi]?\b[^.]{0,20}\bplanla(?!n)\w*",
             re.I,
@@ -315,7 +315,7 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(
             r"\bdeploy(ment)?\b.*\bverify\b|\bverify\b.*\bdeploy(ment)?\b|"
-            r"\bda[ğg][ıi]t[ıi]m\b.*\bdo[ğg]rula\b|\bdo[ğg]rula\b.*\bda[ğg][ıi]t[ıi]m\b",
+            r"\bda[ğg][ıi]t[ıi]m[ıi]?\b.*\bdo[ğg]rula\b|\bdo[ğg]rula\b.*\bda[ğg][ıi]t[ıi]m[ıi]?\b",
             re.I,
         ),
         "deploy-verify",

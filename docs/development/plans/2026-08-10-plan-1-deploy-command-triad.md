@@ -283,7 +283,10 @@ precedent; no unit-test dogma for markdown.)
   chars of headroom; the deploy-verify framing contradiction is closed rather than deferred; and
   `wordpress` is marked LEGACY in the dispatch table so no new work is spent on it.
 - Execution-recorded residual (gate B native, 2026-08-11 — operator adjudication, no edit made):
-  the plan-frozen release NEXT string routes STORE surfaces post-submit to `/fabrik-deploy-verify`,
+  the plan-frozen release NEXT string — and its two mirrors, the trailing body line in
+  `fabrik-release.md` and the § Pipeline parenthetical in BOTH fleet-synced CLAUDE.md copies (an
+  adjudication must touch all three encoding surfaces) — routes STORE surfaces post-submit to
+  `/fabrik-deploy-verify`,
   whose contract at HEAD is spec-driven VPS certification only — a store agent chaining there
   dead-ends cleanly at target resolution (bounded: verify-only, refuses). The triad's own store
   terminal is the operator publish act (`fabrik-deploy.md` Phase 4/5). Options when adjudicated: a

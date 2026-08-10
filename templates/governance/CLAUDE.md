@@ -16,7 +16,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
    | `3-plan` | approved decisions → execution-ready plan |
    | `4-build` | execute the plan — code, tests, docs, phase by phase |
    | `5-certify` | FEATURES.md denominator refresh + end-to-end journey certification gauntlets (user-test/service-test) against the live build |
-   | `6-release` | release-readiness verification, hands to the human gate; the deploy triad (`/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` → `/fabrik-deploy-verify`) then executes the approved deploy |
+   | `6-release` | release-readiness verification, hands to the human gate; VPS then runs the deploy triad — `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → (Gate 2) `/fabrik-deploy` — and `/fabrik-deploy-verify` proves it; store surfaces: operator submits, then `/fabrik-deploy-verify` |
    | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op |
    | `utility` | support work invocable at any point, not a fixed position in the chain |
 
