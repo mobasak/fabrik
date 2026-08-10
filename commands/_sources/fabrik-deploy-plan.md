@@ -168,7 +168,8 @@ publish action, a paid account action — and any credentialed act whose classif
 notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE`, each declaring its verification shape — `verify: in-session` (the result
 is immediately checkable; the deploy hands over, waits, verifies, continues) or `verify: deferred`
 (a store review measured in days; the handoff completes the surface — a deferred-gate step is
-therefore ALWAYS the runbook's final step, the battery ordered before it) — the runbook prepares each
+therefore ALWAYS the runbook's final step, and the deploy runs the surface's battery BEFORE any
+handoff) — the runbook prepares each
 and hands it to the operator, never performs it. The surface's sanctioned build path (cloud `eas build`,
 per `/fabrik-release`'s own MOBILE step) is NOT `OPERATOR-GATE` — marking it makes the artifact
 unbuildable and stalls the deploy at a step the corpus already sanctions. `/fabrik-deploy` applies the
@@ -204,7 +205,8 @@ the service has workers, companion-service reachability (each compose sibling pr
 container), ACME/cert diagnostics for a new domain (the acme log read BEFORE the TLS test, so a
 cert-pending state isn't misread as a routing failure), and same-origin routing probes where routing is
 nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The
-battery is AUTHORED here; `/fabrik-deploy` runs it hub-side at deploy time.)
+battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — hub-side for VPS, project-side
+for stores, always before any handoff.)
 
 ## Phase 7 — Monitoring / backup / DR truth check `[hub-side · stores: anywhere]` (all surfaces)
 
