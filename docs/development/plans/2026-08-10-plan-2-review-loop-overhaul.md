@@ -51,8 +51,9 @@ to lose functionality. also i dont want to lose time too." · "first review pass
   that cost this plan two review passes, § the grounding result below). (3) **role separation** in
   `62-using-subagents.md` — the loop-closing pass runs in a context that did not author the
   artifact; an author's own quiet round never closes the loop. Evidence: the deploy-triad plan's
-  author declared a premature CONVERGED that an operator-forced independent round then broke with 7
-  findings (commit `f598364c`).
+  author declared a premature CONVERGED; an operator-forced independent round then found 5 findings
+  the self-review had missed (commit `f598364c`, title verbatim: "independent round found 5 my
+  self-review missed").
 - **Operator constraints:** no functionality loss, no time loss, blast radius ~48 repos.
 
 ## Shape decision — MONOLITH (3 phases), stated per the command's Phase-2 gate
@@ -61,8 +62,15 @@ Three phases, not four+: each is the smallest unit carrying its own test cycle a
 `/fabrik-review` (the command's own right-sizing definition). Phase A is a measurement that GATES
 the others; Phase B is one coherent semantic change to the loop contract (splitting the two loop
 fragments would risk exactly the divergence the fragment scoping exists to prevent); Phase C is the
-enforcement backstop. Projected length is under the ~300-line monolith trigger and no phase's READ
-set approaches `READ_BUDGET_BYTES`.
+enforcement backstop. Shape triggers re-checked at review pass 4 — the emit-time length projection
+did NOT survive review: the file has grown past the ~300-line monolith projection (506 lines at
+that pass) by absorbing review evidence and provenance, not additional work units. The other two
+triggers stay inside budget: phases = 3 (not >3), and the largest phase READ set measures 46,447
+bytes vs the 262,144 `READ_BUDGET_BYTES` budget (probe: `find <Phase-B files> -exec cat {} + |
+wc -c`). Adjudication: the monolith STANDS — the line trigger is an emit-time projection heuristic
+("both shapes are first-class, no forced migration", fabrik-plan-after-chat § Shape decision), the
+executor's real burdens (phase count, read bytes) are both in budget, and re-shaping a converged
+plan trades operator time for a proxy metric, against the no-time-loss constraint.
 
 ## ⚠️ The grounding result that changed the design — and the RE-grounding that reversed it
 
@@ -113,7 +121,8 @@ empty/overlapping WRITE scope, and the fix is a per-finder report path, not aban
 - **Fleet blast radius:** every file in File Scope is fleet-synced or renders box-wide. A change must
   be correct for ALL ~48 projects, not just the hub.
 - **Fragments are the edit surface.** Never hand-edit a rendered command in `~/.claude/commands/`;
-  never edit one of the 10 review commands to change behaviour a fragment owns.
+  never edit a consumer command source to change behaviour a fragment owns (24 consumer renders
+  across the three fragments — the 4/8/12 counts above).
 - **Merge-time render only:** `commands/assemble_commands.py` runs from merged master in the MAIN
   checkout — never from a worktree (the renderer PRUNES artifacts absent from the current tree).
   `--check` (temp-dir) is always safe.
@@ -143,9 +152,10 @@ empty/overlapping WRITE scope, and the fix is a per-finder report path, not aban
 native 15/18) is n=1 and confounded — different models, different brief depth, AND different tool
 access varied together. Phase B's VERIFY stage design depends on which factor dominates.
 
-**Interfaces — Produces:** a decision record naming which VERIFY dispatch shape Phase B writes into
-the fragments (`tool-enabled pool over candidates` vs `native over candidates`), plus measured
-precision and wall-clock for each arm.
+**Interfaces — Produces:** a decision record naming the winning dispatch shape Phase B transcribes —
+arm 1's read-only status quo · arm 2's tool-enabled finders with per-finder report paths · arm 3's
+read-only FIND + tool-enabled VERIFY over candidates — plus measured precision, recall and
+wall-clock for each arm.
 
 Steps:
 
@@ -189,9 +199,10 @@ Expected: three arm rows each carrying raised/real/wall-clock, and a line beginn
 naming the shape and the arm that justifies it.
 
 **Behavior Contract (Phase A):**
-- **Given** three arms with a known ground-truth finding set, **When** the A/B runs, **Then** each
-  arm's precision is computed against that set rather than asserted
-  (`docs/development/reviews/2026-08-10-hub-governance-gates-review.md`).
+- **Given** three arms, **When** the A/B runs, **Then** each arm's precision and recall are
+  computed against the pooled anonymised adjudication union of step 1 — never against the plan
+  author's prior ledger (`2026-08-10-hub-governance-gates-review.md` is the circular baseline
+  step 1 forbids).
 - **Given** arm 2 uses `tools_enabled=True`, **When** its `owned_paths` overlap, **Then** the run is
   rejected as invalid (it would measure serialization, not tool access) — assert disjointness before
   dispatch (`libs/subagents/agent.py:636`).
@@ -236,7 +247,9 @@ Steps:
      on measured non-progress, and it routes to re-grounding exactly as the existing BLOCKED
      escalation (`term-coverage.md:21`) routes a thrice-stuck finding.
 2. `commands/_fragments/term-edit.md` — the same round semantics for artifact reviews. This is the
-   fragment that drove 13 plan passes on one plan; the scoped-successor rule applies to prose
+   fragment that governed the quota-health spec's convergence the same day — 37 findings absorbed
+   over passes 1-3, then an md5-verified no-op on pass 4 (commit titles verbatim: `4a51bc9f`,
+   `0d82d67e`); the scoped-successor rule applies to prose
    identically (pass 2+ reviews the EDITS, not the whole artifact). Two additions land here too:
    the same stall circuit-breaker (term-edit's per-axis 3-attempt BLOCKED at `term-edit.md:7`
    stays — the breaker adds the LOOP-level rule the per-axis one cannot see), and the **probe
@@ -253,14 +266,19 @@ Steps:
    serialization trap restated inline so no future editor re-makes the proposal this plan rejected.
    Writing it anywhere else leaves the pack contradicting the fragments that defer to it.
    Two more edits ride the same section pass: (a) **§ Role separation (operator-approved
-   addition)** — the loop-closing/authoritative pass of any review runs in a context that did NOT
-   author the artifact (a dispatched fresh subagent, or a post-compaction session re-grounding from
-   disk); an author's own quiet round never closes the loop. The fragments already require "a
-   fresh, independent round" (`term-coverage.md:19`); the pack defines what "independent" MEANS and
-   the fragments keep pointing at it (no duplication, per step 4's rule). (b) refresh the section's
+   addition)** — precisely scoped: the closing round's **FINDER pass** runs in a context that did
+   NOT author the artifact (a dispatched fresh subagent, or a post-compaction session re-grounding
+   from disk); **adjudication — decide/refute/merge — stays with the orchestrator**, per CLAUDE.md
+   § Subagent fan-out ("the decide/refute/merge you own"). The rule governs who HUNTS last, never
+   who adjudicates; an author's own quiet round never closes the loop. The fragments already
+   require "a fresh, independent round" (`term-coverage.md:19`); the pack defines what
+   "independent" MEANS and the fragments keep pointing at it (no duplication, per step 4's rule).
+   This plan's own phase-closing `/fabrik-review` rounds apply the rule from Phase A onward
+   (dispatch the closing round's finders to fresh non-author subagents) — do not wait for Phase B
+   to render it. (b) refresh the section's
    STALE internal citations while editing it: it currently cites `workspace.py:321` and
    `agent.py:430/:435` for mechanisms that live at `workspace.py:419-425` (`disjoint()`, "empty
-   `owned_paths` overlaps everything") and `agent.py:633-637` (the grouping) — verified live
+   `owned_paths` overlaps everything") and `agent.py:632-636` (the grouping) — verified live
    2026-08-10.
 4. `commands/_fragments/subagents-core.md` — point at the pack's new shape in one line. The fragment
    states WHICH shape this command uses; the pack states what the shape IS. No duplication: a
@@ -295,10 +313,11 @@ the rendered output.
   no-round-ceiling guarantee survives, `commands/_fragments/term-coverage.md:21`).
 - **Given** an artifact embedding probes, **When** pass 1 of its review runs, **Then** each probe is
   RE-RUN, and a load-bearing claim with no probe is raised as a finding
-  (`commands/_fragments/term-edit.md:7`).
-- **Given** a review loop whose artifact was authored in this context, **When** the closing pass
-  arrives, **Then** it runs in a non-author context, and the author's own quiet round does not close
-  the loop (`.windsurf/rules/core/62-using-subagents.md` § Role separation, added by step 3).
+  (`commands/_fragments/term-edit.md`, added by step 2).
+- **Given** a review loop whose artifact was authored in this context, **When** the closing round
+  arrives, **Then** its FINDER pass runs in a non-author context while adjudication stays with the
+  orchestrator, and the author's own quiet round does not close the loop
+  (`.windsurf/rules/core/62-using-subagents.md` § Role separation, added by step 3).
 
 Closing sequence: gate B → `check_doc_sync.py` → **`/fabrik-review` to a coverage-adjudicated
 exit** → commit.
@@ -350,7 +369,9 @@ Steps:
    Record in the plan's residuals that flipping it blocking is a SEPARATE operator decision after
    observing WARN-rate — per the operator's "stage it last" and the no-time-loss constraint.
 4. Tests for both: `tests/enforcement/test_phase_tests_gate.py` (behaviour-without-test detected;
-   docs-only phase not flagged; no plan lock ⇒ silent) and a mutation-cap test.
+   docs-only phase not flagged; no plan lock ⇒ silent) and a mutation-cap test extending the
+   EXISTING `tests/test_check_mutation.py` (repo-root `tests/`, verified present — in File Scope
+   below so the plan owns the file it edits).
 
 Validation gate C: `python -m pytest tests/enforcement/test_phase_tests_gate.py -q` green;
 `python scripts/enforcement/check_phase_tests.py` exits 0 on the hub; the FULL gate
@@ -382,6 +403,7 @@ to `"status":"success"` → `python scripts/enforcement/check_convergence.py` �
 - `scripts/enforcement/check_mutation.py`
 - `scripts/final_gate.py`
 - `tests/enforcement/test_phase_tests_gate.py`
+- `tests/test_check_mutation.py` (the mutation-cap test extends it — Phase C step 4)
 - `docs/workflows/FINAL_GATE_WORKFLOW.md`
 - `docs/development/reviews/2026-08-10-finder-shape-ab.md`
 - `docs/CONFIGURATION.md` (forced by `check_mutation.py:2`'s `# AFTER-EDIT:` coupling)
@@ -410,8 +432,9 @@ fabrik-plan-review.md    includes: {{include:term-edit}} {{include:grounding-art
 fabrik-workflow-review.md includes: {{include:term-edit}} {{include:grounding-artifact}}
 ```
 
-- The serialization mechanism that rejected the original proposal — `libs/subagents/agent.py:633-637`
-  (label corrected in pass 3; the block starts at `:633`, the `tools_enabled` grouping line is `:636`):
+- The serialization mechanism that rejected the original proposal — `libs/subagents/agent.py:632-636`
+  (the block starts at `:632`; the `tools_enabled` grouping line is `:636` — range re-verified by
+  the pass-4 independent grounder after two earlier label errors):
 
 ```
     groups = [
@@ -438,17 +461,35 @@ docstring was edited underneath it the same day; re-captured verbatim from the l
 The claim — opt-in, diff-scoped, always exits 0 — held through both artifact failures, which is the
 probe duty's argument in miniature: re-run the probe, don't trust the pasted output.)
 
-- The problem this plan exists to fix, measured fleet-wide today: 174 commits, 34 features, 81
-  fix-or-review commits = **2.4 rework commits per feature**; `brand-identiy-creator` Phase A built
-  597 lines in ~33 min then spent ~2h34m adding 1,514 lines (mostly tests) across 8 review rounds.
+- The problem this plan exists to fix. Mid-day in-session measurement (~14:30): 174 commits / 34
+  feat / 81 fix-or-review = **2.4 rework commits per feature**; `brand-identiy-creator` Phase A
+  built 597 lines in ~33 min then spent ~2h34m adding 1,514 lines (mostly tests) across 8 review
+  rounds (method: commit-log inspection of `/opt/brand-identiy-creator`). Re-probed at review
+  pass 4 (evening) — the ratio had WORSENED to **2.9**; the probe and its verbatim output (this
+  bullet previously carried a bare table with no probe — the plan's own "ungrounded claim" class,
+  raised by the pass-4 grounder against the plan itself):
 
 ```
-project                  feat  fix review plan  | rework per feat
-brand-identiy-creator       2    0     10   17  | 5.0
-fabrik                      8   13     19    6  | 4.0
-web-ecommerce-factory      14   12      0    0  | 0.9   (pays it later: a hero default reached 14 pages)
-iterative_image_editor      6    7      0    1  | 1.2   (4 sequential fixes to ONE guard bug)
+$ TOT=0; FEAT=0; RW=0; for g in /opt/*/.git; do r=${g%/.git}; \
+    s=$(git -C "$r" log --since='2026-08-10 00:00' --format='%s' 2>/dev/null) || continue; \
+    [ -z "$s" ] && continue; t=$(printf '%s\n' "$s" | wc -l); \
+    f=$(printf '%s\n' "$s" | grep -c '^feat'); w=$(printf '%s\n' "$s" | grep -cE '^fix|review'); \
+    TOT=$((TOT+t)); FEAT=$((FEAT+f)); RW=$((RW+w)); done; \
+  echo "fleet today: commits=$TOT feat=$FEAT fix-or-review=$RW"
+fleet today: commits=216 feat=38 fix-or-review=112
+$ for p in brand-identiy-creator fabrik web-ecommerce-factory iterative_image_editor; do \
+    s=$(git -C /opt/$p log --since='2026-08-10 00:00' --format='%s'); \
+    printf '%-24s feat=%-3s fix=%-3s review=%-3s plan=%-3s\n' "$p" \
+      "$(printf '%s\n' "$s" | grep -c '^feat')" "$(printf '%s\n' "$s" | grep -c '^fix')" \
+      "$(printf '%s\n' "$s" | grep -cie review)" "$(printf '%s\n' "$s" | grep -cie plan)"; done
+brand-identiy-creator    feat=2   fix=9   review=13  plan=17
+fabrik                   feat=9   fix=46  review=25  plan=14
+web-ecommerce-factory    feat=16  fix=12  review=0   plan=2
+iterative_image_editor   feat=6   fix=10  review=1   plan=2
 ```
+
+  (web-ecommerce-factory's zero-review row pays later — a hero default reached 14 pages;
+  iterative_image_editor shipped 4 sequential fixes to ONE guard bug.)
 
 ## Self-audit
 
@@ -477,7 +518,12 @@ unchanged by the additions.
 Review state: converging under `/fabrik-plan-review` — pass 1 (8 edits) · pass 2 (11 native
 findings absorbed, incl. the owned_paths reversal and the true fragment counts) · pass 3 (the three
 additions + this pass's own catches: the stale 9/2/5 counts in three places, the drifted mutation
-quote, the stale 62-pack internal citations, the lock pre-check resolved with proof). The numbered
+quote, the stale 62-pack internal citations, the lock pre-check resolved with proof) · pass 4 (an
+independent NON-AUTHOR grounder — the role-separation rule applied to this plan's own review —
+returned 3 CONFIRMED + 4 PLAUSIBLE, merged with the orchestrator's 5: the `agent.py:632-636`
+off-by-one, the `f598364c` finding-count, the mutation-cap test's missing File-Scope home, the
+probe-less rework table, the false under-300-lines shape claim, and role-separation's
+finder-vs-adjudicator precision). The numbered
 Pass Ledger with md5s lives in the review report per `term-edit.md:7`; Status flips to CONVERGED
 only at an edit-free, md5-verified pass.
 
