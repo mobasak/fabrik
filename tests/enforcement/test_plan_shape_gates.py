@@ -791,7 +791,7 @@ def test_legitimate_dispatch_phrasings_are_not_flagged(plans_env: Path, phrasing
     assert "pool-default" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))
 
 
-def test_a_spine_missing_only_ONE_pillar_is_still_flagged(plans_env: Path) -> None:
+def test_a_spine_missing_only_one_pillar_is_still_flagged(plans_env: Path) -> None:
     """ANY-vs-ALL: nothing pinned this, so a mutation returning [] unless all three were missing
     survived the whole suite — and the docstring described that surviving mutant, not the code."""
     two_of_three = SPINE_OK.replace(

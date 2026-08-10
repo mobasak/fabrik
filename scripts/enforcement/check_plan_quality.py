@@ -55,6 +55,11 @@ PILLAR_SECTIONS = [
     ("File Scope", re.compile(r"^##\s+File Scope\b", re.I | re.M)),
     ("Evidence", re.compile(r"^##\s+Evidence\b", re.I | re.M)),
 ]
+# The spine sections whose contents BIND execution. `/fabrik-plan-after-chat` mandates
+# `## Execution Discipline`; `## Global Constraints` is accepted as the sibling that predates it.
+_BINDING_SECTION_RE = re.compile(
+    r"^##\s+(?:Execution Discipline|Global Constraints)\b.*?(?=^##\s|\Z)", re.I | re.M | re.S
+)
 SPINE_MARKER_RE = re.compile(r"^##\s+Ticket Board\b", re.I | re.M)
 SPINE_SECTIONS = [
     ("Merge Order", re.compile(r"^##\s+Merge Order\b", re.I | re.M)),
@@ -249,7 +254,10 @@ SPINE_PILLAR_PATTERNS = [
         re.compile(
             r"\bmerges?/dedupes?\b"
             r"|\bdedupe[sd]?\b"
-            r"|\bfan[- ]?out\b"
+            # The CONCEPT (a separator is required) — never the `fanout()` function NAME, which is
+            # a DISPATCH term: without the separator, a pool-default line satisfied the
+            # parallelism pillar too, so a spine stating 2 of 3 looked complete.
+            r"|\bfan[- ]out\b"
             r"|\bconcurrent(?:ly)?\b"
             r"|\bin parallel\b"
             r"|\bparallel\b[^.\n]{0,40}\b(?:wave|point|set|track)s?\b"
@@ -275,10 +283,14 @@ def _check_spine_execution_pillars(scan: str, file_path: Path) -> list[CheckResu
     # ("> Note: this ticket bypasses /fabrik-review due to the boundary of the change") SATISFIES
     # the pillar it contradicts (pool finder, reproduced).
     unquoted = _BLOCKQUOTE_RE.sub("", scan)
+    # Scan ONLY the spine's binding execution section(s). Scanning the whole document meant any
+    # narrative mention satisfied a pillar — a live spine passed because its header asked the
+    # QUESTION "does each ticket get a /fabrik-review to a no-op?" (native review, reproduced).
+    # A pillar is a MANDATE, so it has to live where mandates live. No binding section at all ⇒
+    # nothing is stated ⇒ all three are missing, which is exactly the defect case.
+    binding = "".join(m.group(0) for m in _BINDING_SECTION_RE.finditer(unquoted))
     missing = [
-        (name, hint)
-        for name, pattern, hint in SPINE_PILLAR_PATTERNS
-        if not pattern.search(unquoted)
+        (name, hint) for name, pattern, hint in SPINE_PILLAR_PATTERNS if not pattern.search(binding)
     ]
     if not missing:
         return []

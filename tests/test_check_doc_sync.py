@@ -224,7 +224,7 @@ def test_an_unbalanced_backtick_cannot_swallow_a_real_todo(repo: Path) -> None:
     assert r.returncode == 1, f"a stray tick must not disable the TODO guard: {r.stdout}"
 
 
-def test_a_backticked_token_WITH_a_task_is_still_unfinished_work(repo: Path) -> None:
+def test_a_backticked_token_with_a_task_is_still_unfinished_work(repo: Path) -> None:
     """`todo` alone documents the token; `TODO: wire the alert` is real unfinished work."""
     _write(repo, "CHANGELOG.md",
            "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"

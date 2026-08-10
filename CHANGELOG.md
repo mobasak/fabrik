@@ -28,6 +28,14 @@ The native Opus finder disproved two claims I had made about these checks, both 
   half-finished `.windsurf/rules/` or `scripts/enforcement/` edits a sibling agent has uncommitted,
   to ~48 repos. A deliberate rules edit is made by an agent who knows the tree state; a robot's is
   not. It is now a DECLARED non-trigger and rides the next deliberate sync.
+- **The pillar scan is now scoped to the spine's BINDING section** (`## Execution Discipline`, or
+  `## Global Constraints` for spines predating it) instead of the whole document. Scanning
+  everything meant any narrative mention satisfied a pillar — a live spine passed because its
+  header asked the *question* "does each ticket get a `/fabrik-review` to a no-op?". A pillar is a
+  MANDATE, so it is only credited where mandates live; no binding section at all means nothing is
+  stated, which is the defect case. Also: the `fanout()` function NAME (a dispatch term) was
+  satisfying the *parallelism* pillar, so a spine stating 2 of 3 looked complete — the concept now
+  requires a separator (`fan-out`/`fan out`).
 
 ### Fixed — Rotation logged the operator out: a "healthy" sibling was never checked for usable credentials (2026-08-10)
 
