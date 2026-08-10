@@ -155,8 +155,11 @@ Long-running steps state their expected duration, and any step expected to excee
 names the mitigation (Phase 5). Steps only the operator may take (any store-dashboard or credentialed
 publish action, a paid account action — and any credentialed act whose classification is unclear, e.g. a
 notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE` — the
-runbook prepares up to them, never through them. `/fabrik-deploy` applies the same default, so an
-unmarked ambiguous step is a plan defect the review must catch, not a deploy-time judgment call.
+runbook prepares up to them, never through them. The surface's sanctioned build path (cloud `eas build`,
+per `/fabrik-release`'s own MOBILE step) is NOT `OPERATOR-GATE` — marking it makes the artifact
+unbuildable and stalls the deploy at a step the corpus already sanctions. `/fabrik-deploy` applies the
+same defaults, so an unmarked ambiguous step is a plan defect the review must catch, not a deploy-time
+judgment call.
 
 ## Phase 5 — Maintenance-window interactions (the healing layer) `[anywhere]` (VPS)
 

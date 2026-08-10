@@ -1,5 +1,5 @@
 ---
-description: Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the live spec/compose/code/infra, runs the surface-conditioned coverage checklist (secrets flow · env completeness · staged-infra validity · ordering+timing · healing/rollout · battery · monitoring+DR truth), and flips Status: DRAFT → CONVERGED only on an md5-verified edit-free no-op round. TRIGGER — EN: "review the deployment plan", "converge the deploy plan"; TR: "dağıtım planını gözden geçir" — fires on an EXISTING deploy plan document. SKIP: authoring one (→ /fabrik-deploy-plan) · executing one (→ /fabrik-deploy) · a general implementation-plan review (→ /fabrik-plan-review). Stage: gate.
+description: Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the live spec/compose/code/infra, runs the surface-conditioned class checklist (secrets flow · env completeness · staged-infra validity · ordering+timing · healing/rollout · battery · monitoring+DR truth), and flips Status: DRAFT → CONVERGED only on an md5-verified edit-free no-op round. TRIGGER — EN: "review the deployment plan", "converge the deploy plan"; TR: "dağıtım planını gözden geçir" — fires on an EXISTING deploy plan document. SKIP: authoring one (→ /fabrik-deploy-plan) · executing one (→ /fabrik-deploy) · a general implementation-plan review (→ /fabrik-plan-review). Stage: gate.
 argument-hint: "<path to the deploy plan — docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md>"
 ---
 
@@ -67,9 +67,11 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
   flip back and converge again; unchanged inputs → report already-converged, do not re-run.
 - `IN-PROGRESS` carrying a `⛔ BLOCKED` step-ledger row (a halted deploy routed back here by
   `/fabrik-deploy`): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
-  converge the AMENDED plan, **annotate every retained `✅` ledger row `KEEP` (still valid) or `REDO`
-  (the amendment or a rollback invalidated it)** — `/fabrik-deploy` executes a re-converged plan
-  resume-style off exactly these annotations — and end at `CONVERGED` for a fresh operator dispatch.
+  converge the AMENDED plan, **annotate every step whose LATEST ledger row is `✅` with `KEEP` (still
+  valid) or `REDO` (the amendment or a rollback invalidated it)** — a step whose latest row is
+  `↩ ROLLED-BACK` is already in the run set, never `KEEP` it — `/fabrik-deploy` executes a re-converged
+  plan resume-style off exactly these annotations — and end at `CONVERGED` for a fresh operator
+  dispatch.
 
 Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row (a deploy still running) → **refuse**: the
 deploy ran (or is live); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED`
@@ -108,15 +110,16 @@ probe, read the actual values:
   semantics inside vs outside the container), and each verification for decidability (a step whose
   "verify" cannot fail is not a verification).
 
-**Canonical coverage checklist — every row gets a verdict every pass: CLEAN / FIXED / N/A-<surface> (with
-the one-line why — a row is never silently dropped):**
+**Canonical class checklist — every row gets a verdict every pass: CLEAN / FIXED / N/A-<surface> (with
+the one-line why — a row is never silently dropped; pass-time rows use exactly these three tokens —
+`REFUTED` is a FINDING disposition, not a row verdict):**
 
 | # | Class | What must hold (surface-conditioned) |
 |---|---|---|
 | 1 | Secrets flow | generate/from_env/registrar/init lifecycle coherent; precedence audited (project `.env` reads BEFORE hub env); placeholder rules honor BOTH halves — derived keys absent, and the value-scoped merge guard (`_is_placeholder` protects an injected real only from values containing the literal `placeholder`); store surfaces: signing/credential custody named, never inlined |
 | 2 | Env/config completeness | every compose var ↔ spec/secrets/registrar/code-default traced (VPS) · store metadata ↔ build profiles ↔ code consistent (stores) — nothing unresolved, nothing double-sourced |
 | 3 | Staged-infra validity | staged resolver/DNS/config files re-read and valid; activation step present and ordered; registrar preview matches the shape |
-| 4 | Runbook ordering + timing | every step verifiable + rollbackable; issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers on every human-only act |
+| 4 | Runbook ordering + timing | every step verifiable + rollbackable; issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`'s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act is a finding |
 | 5 | Healing / rollout interactions | VPS: autoheal pause brackets every long-unhealthy window, PAUSED-log confirmation before the sensitive step, a >2h window carries its re-touch heartbeat; watchdog + restart-policy posture named · stores: staged-rollout %, halt + rollback mechanics named |
 | 6 | Battery completeness | includes a WRITE-path probe, queue-drain where workers exist, companion reachability, cert/ACME diagnostics, same-origin probes where routing is nontrivial · stores: artifact installability + first-run smoke |
 | 7 | Monitoring + backup/DR truth | what ACTUALLY watches the surface (endpoint/scrape/alert verified, cert-expiry condition for new domains); which Backrest plan ACTUALLY covers the data — path lists read live, never assumed; honest RPO/RTO · stores: crash reporting + rollout-halt named |
@@ -162,24 +165,29 @@ Only after the md5-verified no-op round:
 2. **Persist the review** to `docs/development/reviews/<plan-stem>-review.md` (same stem as the plan
    file). This is an EDIT-CONVERGENCE review artifact — `check_convergence.py`'s review branch covers it
    (`check_review_coverage.py`'s own contract excludes edit-convergence artifacts, and the artifact must
-   not opt itself in: title its verdict table **Class verdicts**, never "coverage checklist" — that
-   phrase is the foreign gate's trigger). Its anatomy:
+   not opt itself in: the phrase "coverage checklist" must appear NOWHERE in the artifact — title,
+   prose, or quotes — because the foreign gate's fallback matches it anywhere in the file; the verdict
+   table is titled **Class verdicts**). Its anatomy:
    - the header line + a `## Phase verdicts` section — one verdict line per plan Phase (the per-phase
      adjudication the convergence gate requires);
-   - the class-verdict table — verdict tokens **CLEAN / FIXED / REFUTED**, every row carrying its
-     evidence (an inapplicable row is `CLEAN — N/A-<surface>: <why> + the proving path`; a bare CLEAN
-     names nothing and proves nothing);
+   - the class-verdict table — artifact tokens **CLEAN / FIXED / REFUTED**, every row carrying its
+     evidence (a pass-time `N/A-<surface>` row is rewritten `CLEAN — N/A-<surface>: <why> + the proving
+     path`; a bare CLEAN names nothing and proves nothing);
    - the Pass Ledger verbatim, the final round reading `found: 0, fixed: 0` (the quiet-pass marker the
      later `EXECUTED` flip is checked against — it appears ONLY on a CONVERGED ending, never in a
      DRAFT/BLOCKED report);
-   - a fenced `python scripts/final_gate.py --check --json` output showing `"status": "success"`;
+   - a fenced `python scripts/final_gate.py --check --json` output showing `"status": "success"` (the
+     step-3 pre-artifact run — see the sequence below);
    - the `## BLOCKED` section (`none` when quiet).
-3. **Stage, gate, then commit — the anatomy is proven, not asserted:** `git add` the flipped plan + the
-   artifact, run `python scripts/final_gate.py --check --json` (the gate scans the STAGED files — an
-   untracked artifact is invisible to it), fix until `"status": "success"`, embed that fenced run in the
-   artifact, then **commit both and PUSH** (ONE commit, explicit pathspecs, Agent Provenance Trailers +
-   `Agent-Context: deploy-plan-review <plan-stem>` — the marker `/fabrik-deploy`'s post-flip-edit gate
-   exempts; use it on the re-entry flip-back commits too). An uncommitted flip is what the next
+3. **Two gate runs break the bootstrap circularity — the anatomy is proven, not asserted:**
+   (a) stage the flipped PLAN only; (b) run `python scripts/final_gate.py --check --json` → fix until
+   `"status": "success"` and capture the fenced output (the artifact is still untracked, so the review
+   gates don't demand an embed that doesn't exist yet); (c) write the artifact WITH that fence embedded;
+   (d) stage the artifact; (e) re-run the gate → `"status": "success"` now proves the artifact itself
+   passes its review branch; (f) **commit both and PUSH** (ONE commit, explicit pathspecs, Agent
+   Provenance Trailers + `Agent-Context: deploy-plan-review <plan-stem>` — the marker `/fabrik-deploy`'s
+   post-flip-edit gate exempts; use it on EVERY status commit this command makes: the CONVERGED flip,
+   the inputs-changed flip-back, and the ⛔ re-entry flips). An uncommitted flip is what the next
    pre-commit stash cycle silently reverts.
 4. Print the Output block and name the next command.
 

@@ -63,14 +63,18 @@ inside them.
    `source.branch` declares — `git log origin/<that branch>..HEAD` empty in the SERVICE repo; a VPS
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the plan's
    build SHA is on the service repo's remote).
-3. **Reconcile healing state (VPS):** `stat /run/fabrik-autoheal/pause` on the target. The pause file is
-   **host-global with no owner field** — attribution comes from THIS plan's ledger, so read it first:
-   the ledger shows the window-open step `✅` without its close → the pause is THIS deploy's own orphan —
-   re-adopt it (fresh `touch` + continue the resume), never BLOCK on it. Otherwise: mtime **≥ 2h**
-   (already inert — the healer ignores it) → remove it with fenced proof; mtime **< 2h** with no owning
-   ledger row → `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm
-   with the operator before deploying to this host`. One maintenance window per VPS at a time is the
-   rule this enforces.
+3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat /run/fabrik-autoheal/pause`
+   on the target. The pause file is **host-global with no owner field** — attribution needs the ledger
+   AND the clock: the pause is THIS deploy's own orphan ONLY when the ledger shows the window-open step
+   `✅` without its close AND the file's mtime falls inside that window (open-row UTC timestamp ≤ mtime;
+   a stale unclosed row with a FRESH pause means someone else touched it — fall through). Own orphan →
+   plan to re-adopt: the actual re-open (fresh `touch` + the PAUSED-log confirmation) executes as
+   Phase 1's open step AFTER pre-flight passes — never mutate the target before the pre-flight gate.
+   Not own: mtime **≥ 2h** (already inert — the healer ignores it) → remove it with fenced proof; mtime
+   **< 2h** → `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm with
+   the operator before deploying to this host`. One maintenance window per VPS at a time is the rule
+   this enforces — and it applies at window OPEN too (Phase 1 step 1 re-checks; an unattributed fresh
+   pause appearing there stops the run the same way).
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
@@ -93,8 +97,10 @@ inside them.
 If the plan brackets a window (migrations, module init — any step a healthcheck outlives), the runbook's
 own steps open and close it; execute them with these guarantees:
 
-1. Open: `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause'` —
-   capture the touch timestamp.
+1. Open: first re-check for an existing pause this run does not own (`stat` — a sibling's window may
+   have opened since Phase 0's entry check; unattributed fresh pause → stop, one window per VPS), then
+   `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause'` — capture the
+   touch timestamp.
 2. **Confirm the window is live BEFORE the sensitive step starts:** `stat` shows the pause file, AND
    `journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line **newer than
    the touch** (the healer ticks every minute; an already-in-flight tick is not retroactively paused,
@@ -109,14 +115,17 @@ own steps open and close it; execute them with these guarantees:
 
 ## Phase 2 — Execute the runbook, step by step
 
-For each step, in the plan's order. **Resume-style execution (any run whose plan carries a ledger):** run
-only the steps with NO truthful `✅` — i.e. steps unmarked, marked `⛔`, marked `↩ ROLLED-BACK`, or whose
-`✅` the re-entry review annotated `REDO`. Skipped steps are the truthful-`✅` set: a bare `✅` on an
-ordinary resume (no re-entry ran, so no annotations exist), a `✅ KEEP` after a re-entry. **Before the
-first executed step, re-run the LAST skipped step's verification** to confirm the world still agrees
-with the ledger — a world that drifted (a healer restart, an expired window) fails here, not three steps
-in. (A ledger-bearing plan is a resume, never a from-step-1 re-run — that is how a completed migration
-gets run twice.)
+For each step, in the plan's order. **Resume-style execution (any run whose plan carries a ledger) — the
+LATEST ledger row for a step is its truth:** SKIP a step whose latest row is `✅` — bare or `✅ KEEP`
+(bare `✅` rows are truthful whether written before any re-entry or by a later session after one;
+`KEEP`/`REDO` annotations exist only on rows a re-entry actually reviewed). RUN a step whose latest row
+is `⛔`, `↩ ROLLED-BACK`, or `✅ REDO`, or which has no row. A `↩` row postdates and supersedes the `✅`
+it retracts — precedence is by position, never by token. **Before the first executed step, re-run the
+LAST skipped step's verification** to confirm the world still agrees with the ledger — a world that
+drifted (a healer restart, an expired window) fails here, not three steps in; and a resumed maintenance
+window re-opens via Phase 1's full procedure (touch + PAUSED-line-newer-than-touch) before any sensitive
+step, exactly as a fresh one would. (A ledger-bearing plan is a resume, never a from-step-1 re-run —
+that is how a completed migration gets run twice.)
 
 1. Run the step's exact command (an `OPERATOR-GATE` step is NEVER run — see Phase 4).
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
@@ -167,8 +176,10 @@ where the completion stamp records "handed to the operator publish gate: <the ac
 
 1. **Verify the review artifact exists on disk FIRST**
    (`ls docs/development/reviews/<plan-stem>-review.md`). Missing → it rode the review's flip commit by
-   contract, so recover it from git first (`git log --diff-filter=D -- <path>` / `git restore --source
-   <the flip commit> -- <path>`); truly never-committed → the plan's convergence was non-compliant —
+   contract, so recover it from history: `git log --oneline -- <path>` locates any commit that ever
+   carried it (this also catches a working-tree-only deletion, which `--diff-filter=D` would miss) →
+   `git restore --source <that commit> -- <path>`, and the recovered file rides the step-2 close-out
+   commit. Never in history → the plan's convergence was non-compliant —
    `BLOCKED: convergence record missing — operator decision (the deploy is live; the record must be
    regenerated honestly, never fabricated)`. Then flip the plan
    `Status: IN-PROGRESS → EXECUTED <date>` + a one-line completion stamp (what shipped — or the store
@@ -176,10 +187,12 @@ where the completion stamp records "handed to the operator publish gate: <the ac
    (`Whole-plan review: docs/development/reviews/<plan-stem>-review.md` — `check_convergence.py` refuses
    an `EXECUTED` plan without that stem-matched, quiet-pass citation), and archive it per the plan
    lifecycle (`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`).
-2. **Commit the flip + archive together (ONE commit — atomicity is the staging area's; explicit
-   pathspecs, Agent Provenance Trailers) and PUSH** — per CLAUDE.md § EXIT an uncommitted flip is an
-   unfinished task, and an unpushed one can be silently reverted by the next pre-commit stash cycle,
-   losing the record that the deploy ran.
+2. **Commit the flip + archive — plus the recovered review artifact when step 1's recovery ran —
+   together (ONE commit — atomicity is the staging area's; explicit pathspecs, Agent Provenance
+   Trailers) and PUSH** — per CLAUDE.md § EXIT an uncommitted flip is an unfinished task, and an
+   unpushed one can be silently reverted by the next pre-commit stash cycle, losing the record that the
+   deploy ran (an uncommitted recovered artifact vanishes the same way, leaving the archived plan citing
+   a path that no longer exists).
 3. Confirm the maintenance window is closed (fenced `stat`/log evidence) — verify, don't trust.
 4. Hand off: the next command is `/fabrik-deploy-verify` (VPS surfaces — fresh-probe certification of the
    live service) or the operator's publish act (store surfaces).
