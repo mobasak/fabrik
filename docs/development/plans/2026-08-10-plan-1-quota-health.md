@@ -1,0 +1,181 @@
+# Quota-health for the resume mesh — reset-clock revival, health-aware rotation, token re-capture, reboot sweep
+
+Status: DRAFT
+Spec: docs/superpowers/specs/2026-08-10-quota-health-design.md (CONVERGED 2026-08-10, operator-approved)
+Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-manager` (out-of-repo, DR-versioned); the ticket-set gate bans out-of-repo Touches, and the reviewed resume-mesh plan (2026-08-09-plan-2) is the precedent for this shape. 5 phases.
+
+## What we already agreed (spec + operator, verbatim decisions)
+
+- Parse the wall (`rateLimitType`, `resetsAt`) at death; switch to a healthy sibling when one exists
+  ("if the other account has quota, we can switch directly"); schedule revival at the reset clock
+  otherwise ("send a resume/continue after the clock is reached") — operator, 2026-08-09.
+- AUTOROTATE flips default ON with this build (was opt-in-off pending exactly this design).
+- Pane revival = the armed self-watch's wake; never headless typing into a pane.
+- Re-capture live tokens after manual logins (three triggers; monotone snapshot guard).
+- Reboot sweep resumes ONLY `CLAUDE_MESH_AUTONOMOUS=1`-marked sessions, staggered; panes manual.
+- Lowest-`usedPercent` healthy sibling preferred (operator cost-question delta).
+- Dollar-cost accounting stays decoupled (recorded decision in the spec).
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| Spec (CONVERGED) | goal, approach, bounds, taxonomy, allocation of every design decision | docs/superpowers/specs/2026-08-10-quota-health-design.md |
+| Shipped CLI binary | StopFailure payload fields (`error_details`); `resetsAt`/`rateLimitType` (6 members incl. `overage`) | `~/.local/share/claude/versions/2.1.219` — two independent inspections 2026-08-10 (spec table) |
+| claude-manager tap | `statusline.json rateLimits.{fiveHour,sevenDay}.resetsAt` structured source; `session-start-tap.js` = the SessionStart ride for the drift-check | `~/.claude/.claude-manager/statusline-tap.js` (`resetsAt:l(n.resets_at)`) |
+| `claude_rotate.py` | the rotation CLI this plan seam-extends: `main()` dispatch `scripts/sysadmin/claude_rotate.py:658-685`; `_active_account()` :151; `_secure_write()` :203; install writes `ACTIVE_MARKER` :284, rolling `BACKUP_CREDS` :277 | fresh read 2026-08-10 |
+| The reviewed mesh | insertion points: sound.sh rotation gate :122 + 2a spawn gate :141; selfwatch backoff :36-38; autoresume backoff :41+:78; harness 474 lines / 71 fixtures | fresh greps 2026-08-10 (below, Evidence A) |
+| `.windsurf/rules` (ACTIVE per select_rules) | 10-python (typing/env), 55-observability (stdout/bounded logs), 45-testing (behavior contract), 35-security-auth floor (no secrets in code/echo) | run at spec time, packs re-read |
+| fabrik-lib | verdict table inherited from the spec: BUILD (box opsware; `api-quota`/`llm-dispatch` dismissed by name), VENDOR `claude_rotate.py` + tap + mesh | spec § fabrik-lib verdict |
+| Memories (operator law) | Claude Code CLI/OAuth only; no $ caps on operational loops; single-operator threat model; DR backup after every `~/.claude` change; commit-AND-push per phase | recorded memory files |
+
+## Global Constraints
+
+- All new box files: stdlib-only python or POSIX bash, peers of the decider; `set -u` in bash; fail-open toward the existing mesh behavior (an error in quota logic must degrade to today's 90s path, never block a hook).
+- No secrets in code or logs; token BYTES never echoed/printed; snapshot files 600-mode via `_secure_write`.
+- 12-Factor rows binding here: **III** config via env (`CLAUDE_SOUND_*`/`MESH_*` knobs; no grouped sets) · **XI** no new log files — all logging through `log_line`/`log_verdict` into the existing bounded log · **VIII** owned deviation per spec (sleepers/watches ARE the substrate; no PID files; kill-safe via markers) · **V** no hot-patching a running watch (changes land on disk; running monitors pick them up at next arm).
+- Every waiter bounded: waits return from `--wait-seconds` already clamped (`max(0, resetsAt−now)+jitter`, `jitter_max<slack` per type: five_hour 120/300s, seven_day* + exhausted-overage 600/1800s); unknown reset → legacy 90s; past deadline → the mesh ring path owns.
+- The wait loop contract (spec): slices ≤60s, each slice touches `.reviving` (35-min staleness stays honest) and re-runs the survival re-check; `start.lock` wraps only the start instant.
+- `<synthetic>`/anonymous sids: no per-session mesh state (existing guards; new code honors them).
+- Shared-tree law: stage explicit paths only; provenance trailers; push per phase; DR backup after every `~/.claude/bin` or `.claude-manager` change (`bash /opt/fabrik/scripts/dr_claude_backup.sh`).
+
+## Phase A — `claude-quota.py`: parse, wall-state, wait computation (the core)
+
+**Files:** `~/.claude/bin/claude-quota.py` (new, ~200 LOC, stdlib-only) · harness Section Q in `~/.claude/bin/claude-mesh-test.sh` (new fixtures appended before the summary line, currently :474).
+
+**Interfaces — Produces (later phases consume verbatim):**
+- CLI `claude-quota.py --record` — stdin = the StopFailure payload JSON; resolves `(rateLimitType, resetsAt)` via the spec ladder (statusline-structured first; `error_details` regex second, plausibility-gated to `[now, now+max_window_for_type]`; else UNKNOWN) and upserts `~/.claude/.claude-manager/wall-state.json` `{account: {rateLimitType, resetsAt, recordedAt}}` for the ACTIVE account (resolved like `_active_account()`: token-match → marker; simplified read-only reimplementation, bash-callable). Exit 0 always (fail-open); `--record` never blocks the hook path.
+- CLI `claude-quota.py --wait-seconds <error-class>` — prints ONE integer: `max(0, resetsAt−now)+jitter` for the active account's live wall (self-expired entries ignored), `90` when unknown/transient/flowing-overage, per-type jitter/slack from the Global Constraints row. THE one wait computation both revival layers consult.
+- CLI `claude-quota.py --healthy-sibling` — prints the snapshot-dir NAME of the healthiest sibling (no live wall; among several, lowest `statusline` `usedPercent`… falls back to any-no-wall when percents are absent) or exits 1 when none.
+- CLI `claude-quota.py --status` — human-readable wall-state dump (the operator inspector).
+- CLI `claude-quota.py --self-test` — fixture suite like the decider's; exit 0 = green.
+- `rateLimitType=overage`: flowing → transient (90); exhausted-with-parseable-reset in `error_details` → wall on seven_day* bounds (spec's conservative pin; the channel is the named unknown).
+
+**Steps:**
+1. Highest-risk test FIRST (TDD): write `--self-test` fixtures for the parse ladder — structured-beats-regex, plausibility gate rejects an implausible regex epoch, unknown→90, per-type jitter bounds, self-expiry, `<synthetic>`-safe account resolution, monotone `recordedAt` — run `python3 ~/.claude/bin/claude-quota.py --self-test` and watch the missing implementation FAIL RED, then implement to green.
+2. Implement the four subcommands per the Interfaces block; `bash -n`-clean callers not needed here (python); `ruff` the file with the repo venv (advisory — the file is out-of-repo, style parity with the decider).
+3. Harness Section Q (sandboxed like A-D: `CLAUDE_SOUND_LOCKDIR` + tmp `.claude-manager`): Q1 record-from-payload writes wall-state; Q2 wait-seconds bounded (assert integer within `[resetsAt−now, resetsAt−now+jitter_max]`); Q3 healthy-sibling picks lowest usedPercent; Q4 no-sibling exit 1; Q5 unknown→90. Watch each RED first (missing script → red), then green.
+4. Gate: `bash ~/.claude/bin/claude-mesh-test.sh` → `mesh-test: <71+5> ok, 0 fail` AND `python3 ~/.claude/bin/claude-quota.py --self-test` → all green.
+5. `python scripts/enforcement/check_doc_sync.py` (no repo docs owed yet — Phase E owns them) → note-only.
+6. **/fabrik-review on Phase A's changed surface — BLOCKING, run to its coverage-adjudicated exit** (every class CLEAN/FIXED/REFUTED; the fixing pass is never the last look).
+7. DR backup (`bash /opt/fabrik/scripts/dr_claude_backup.sh`) + commit any repo-side deltas with trailers + push.
+
+**Behavior Contract (risk-ordered):** structured-source-beats-regex (the ladder inversion) · plausibility gate rejects out-of-window epochs · wait always bounded per type · healthy-sibling prefers lowest usedPercent · fail-open: malformed payload/state → exit 0 + legacy semantics.
+
+## Phase B — Mesh integration: record at death, switch-or-wait, announce
+
+**Files:** `~/.claude/bin/claude-sound.sh` (failure branch) · `~/.claude/bin/claude-selfwatch.sh` · `~/.claude/bin/claude-autoresume.sh` · harness fixtures.
+
+**Interfaces — Consumes:** Phase A's four CLIs verbatim. **Produces:** the end-to-end behavior the spec's Goals 1-3 name.
+
+**Steps:**
+1. Red-first harness fixtures (append; watch each red against unmodified scripts): B13 death-with-known-reset → wall-state written (sound.sh calls `--record`); B14 healthy-sibling present + AUTOROTATE=1 → `claude_rotate --next` spawned (shim) + immediate revival; B15 no sibling → NO rotation churn + the announce line carries "walled until" (MESH_NOTIFY_CMD shim); W6 selfwatch consults `--wait-seconds` (override-able via `MESH_QUOTA_CMD` shim printing a small integer) instead of the fixed 90; B16 autoresume same; B17 wait-loop touches `.reviving` each slice (mtime advances during a shimmed 3-slice wait).
+2. sound.sh failure branch, `rate_limit` arm (insertion at the rotation gate `:122` region): call `--record` (detached-safe, `|| true`); with AUTOROTATE on: `--healthy-sibling` → hit: existing `claude_rotate.py --next` path (10-min limiter kept) · miss: skip rotation, `mesh-notify`-announce "walled until <reset>, revival scheduled" (suppress rules reused).
+3. selfwatch `:36-38` + autoresume `:41,:78`: replace the fixed `bo=90` for `rate_limit` with `$(claude-quota.py --wait-seconds rate_limit)` (env override `MESH_QUOTA_CMD` for fixtures; absent/failed helper → 90 fail-open); implement the sliced wait (≤60s slices; touch `.reviving` per slice in autoresume; selfwatch's existing poll-slice structure reused) with the survival re-check per slice (already present — verify it applies inside the new wait).
+4. Gate: full harness green (`mesh-test: <76+~6> ok, 0 fail`) + `bash -n` all three scripts + decider `--self-test` unchanged-green.
+5. `check_doc_sync.py` → note-only (Phase E owns docs).
+6. **/fabrik-review on Phase B's changed surface — BLOCKING, coverage-adjudicated exit.**
+7. DR backup + commit repo deltas + push.
+
+**Behavior Contract:** death-with-reset records the wall · sibling-healthy switches (rotation limiter honored) · alone-and-walled announces + schedules, zero churn · both layers' rate_limit waits come from the ONE helper · `.reviving` stays fresh through arbitrary waits · helper failure degrades to today's 90s.
+
+## Phase C — Token re-capture: `--capture-current` + drift triggers
+
+**Files:** `scripts/sysadmin/claude_rotate.py` (repo, fleet-synced surface — the seam is additive) · `tests/test_claude_rotate_capture.py` (new, repo) · `~/.claude/settings.json` (one SessionStart hook entry) · crontab (+1 hourly line).
+
+**Interfaces — Produces:** `claude_rotate.py --capture-current` (snapshot live `ACTIVE_CREDS` into the active account's dir via `_secure_write` `:203`, identified via `_active_account()` `:151`; MONOTONE guard: refuse when the live creds' mtime/content is not newer than the stored snapshot — never regress a snapshot) · `claude_rotate.py --drift-check` (read-only compare live-vs-snapshot; on divergence → capture; exit 0 quiet) — wired at `main()` dispatch `:676-685`.
+
+**Steps:**
+1. Red-first pytest: `tests/test_claude_rotate_capture.py` — tmp CLAUDE_DIR fixtures: capture writes 600-mode snapshot for the active account; monotone guard refuses older content; drift-check captures on divergence and no-ops on parity; token bytes never in stdout/stderr (capture output asserted empty of the token string). Run RED (args unrecognized) → implement → green.
+2. Implement both subcommands (reuse `_read_access_token`/`_active_account`/`_secure_write`; ~60 LOC).
+3. Triggers: settings.json SessionStart hook entry `claude_rotate.py --drift-check` (async, 10s timeout — rides every session start incl. the first after a manual login) + crontab hourly floor line. Backup settings.json first (credentials-adjacent config → `backups/` per CLAUDE.md).
+4. Gate: `python -m pytest tests/test_claude_rotate_capture.py -q` green + `.venv/bin/ruff check scripts/sysadmin/claude_rotate.py` clean + a live `--drift-check` run exits 0.
+5. `check_doc_sync.py` → CHANGELOG owed (Phase E consolidates).
+6. **/fabrik-review on Phase C's changed surface — BLOCKING, coverage-adjudicated exit.**
+7. DR backup (settings.json changed) + commit `scripts/sysadmin/claude_rotate.py` + tests with trailers + push.
+
+**Behavior Contract:** capture is monotone (never regresses) · drift-check auto-captures within one trigger of any manual login · restore reads only the single per-account snapshot (existing `--switch` path unchanged — verified by an assertion test, not modified) · token bytes never emitted.
+
+## Phase D — Reboot sweep + autonomous marking
+
+**Files:** `~/.claude/bin/claude-reboot-sweep.sh` (new) · `.claude/hooks/session_orient.py` (repo, fleet-synced: the env-gated marker drop) · `tests/test_session_orient_hook.py` (repo) · crontab (+1 `@reboot` line) · harness Section R.
+
+**Interfaces — Consumes:** the decider's `decide()` verdicts + `errparked` records; `start.lock` serialization; `CLAUDE_MESH_AUTONOMOUS=1` launcher convention. **Produces:** `<sid>.autonomous` markers `{sid, cwd, transcript_path}` (JSON, lock dir); the sweep resumes marked+mid-work sessions staggered.
+
+**Steps:**
+1. Red-first orient tests: `test_autonomous_env_drops_marker` (env set + sid → marker JSON in `CLAUDE_SOUND_LOCKDIR`), `test_no_env_no_marker` — run RED, then add the ~8-line env-gated block to `session_orient.py:105` region (fail-open, after the arm gate; headless sessions get markers — that is the POINT), green (16 orient tests).
+2. `claude-reboot-sweep.sh`: walk `*.autonomous` markers; per marker: clear the sid's pre-reboot `.reviving` FIRST (spec pin), keep only `decide()`-busy or errparked-standing sessions (probe via `claude-stop-decider.py --check`), resume via `serialize_start`-style spacing with `CLAUDE_SOUND_NO_REVIVE=1 CLAUDE_MESH_HEADLESS=1 claude -p --resume <sid> "continue"`; consume the marker after a successful start; log every outcome through the sound log.
+3. Harness Section R (sandboxed, `claude` shim): R1 marked+mid-work → resumed (shim log) + marker consumed; R2 marked+parked-clean → skipped + marker consumed; R3 unmarked → untouched; R4 two marked → starts spaced (starts.log seconds distinct); R5 pre-reboot `.reviving` cleared. Red-first (missing script), then green.
+4. Crontab: `@reboot sleep 120 && bash ~/.claude/bin/claude-reboot-sweep.sh` (after the DR entry's slot; 120s lets systemd/net settle).
+5. Gate: full harness green + orient pytest 16/16 + `bash -n` sweep.
+6. **/fabrik-review on Phase D's changed surface — BLOCKING, coverage-adjudicated exit.**
+7. DR backup + fleet-sync rides the `.claude/hooks/` commit + push.
+
+**Behavior Contract:** only marked sessions swept · mid-work filter via the decider's real verdicts · staggered starts · pre-reboot `.reviving` cleared before any resume · marker consumed exactly once · panes structurally excluded.
+
+## Phase E — Flip, docs, receipt (the closing phase)
+
+**Files:** `~/.claude/bin/claude-sound.sh` (AUTOROTATE default flip) · `docs/workstation/hooks-index.md` · `docs/workstation/claude-configuration-inventory.md` · `CHANGELOG.md` · `docs/LESSONS_LEARNT.md` (entry or `none`) · `docs/development/reviews/2026-08-10-plan-1-quota-health-review.md` (receipt) · memory files.
+
+**Steps:**
+1. Flip `CLAUDE_SOUND_AUTOROTATE` default `0→1` in sound.sh (the operator's condition is now met: rotation is health-aware); keep `=0` as the documented escape hatch; harness A0 fixture updated red-first (asserts the NEW default rotates only-with-healthy-sibling; explicit `=0` still suppresses).
+2. Docs: hooks-index StopFailure row (health-aware rotation ON, reset-clock waits, sweep row for the new @reboot entry + SessionStart drift-check row); config-inventory (new files, crontab lines, wall-state.json, fixture count); CHANGELOG one entry; memory: `feedback_commit_push_backup_discipline` gains "SHIPPED" note + `project_claude_max_quota_burn` updated.
+3. `python scripts/enforcement/check_doc_sync.py` + `python scripts/enforcement/check_hooks_index.py` green.
+4. `/fabrik-docs-review` for the touched docs — run to its truthful fixed point.
+5. FULL gate: `python scripts/final_gate.py --check --json` → `"status":"success"` + `python scripts/enforcement/check_convergence.py` green. (Green is necessary, not sufficient — the Evidence below is the proof.)
+6. **/fabrik-review on the whole-plan surface — BLOCKING, coverage-adjudicated exit** — the receipt file embeds the verbatim gate JSON + per-phase verdicts.
+7. DR backup + commit + push; plan `Status:` flip to EXECUTED is the executor's.
+
+**Behavior Contract:** default-on rotation switches ONLY with a healthy sibling (A0-new) · explicit `=0` preserves wait-only · docs rows match shipped behavior (checked by hooks-index gate).
+
+## File Scope (owned paths)
+
+- docs/development/plans/2026-08-10-plan-1-quota-health.md
+- docs/development/reviews/2026-08-10-plan-1-quota-health-review.md
+- scripts/sysadmin/claude_rotate.py
+- tests/test_claude_rotate_capture.py
+- .claude/hooks/session_orient.py
+- tests/test_session_orient_hook.py
+- docs/workstation/hooks-index.md
+- docs/workstation/claude-configuration-inventory.md
+
+Box surfaces (out-of-repo, DR-versioned — outside the repo lock, listed for the executor's awareness):
+`~/.claude/bin/claude-quota.py` (new) · `claude-sound.sh` · `claude-selfwatch.sh` · `claude-autoresume.sh` ·
+`claude-mesh-test.sh` · `claude-reboot-sweep.sh` (new) · `~/.claude/settings.json` (one hook entry) ·
+`~/.claude/.claude-manager/wall-state.json` (new state) · crontab (2 lines).
+(Governance files CHANGELOG/INDEX/docs-README/FEATURES + LESSONS_LEARNT stay outside File Scope per the shared-append rule.)
+
+## Evidence
+
+**Phase A/B (mesh insertion points — fresh greps 2026-08-10 ~07:4x):**
+- `~/.claude/bin/claude-sound.sh:122` (`rate_limit|authentication_failed|invalid_grant)` — the rotation gate arm) and `:141` (the 2a spawn-gate class list).
+- `~/.claude/bin/claude-selfwatch.sh:36-38` (`rate_limit) bo=90 … sleep "${MESH_BACKOFF_OVERRIDE:-$bo}"`); `~/.claude/bin/claude-autoresume.sh:41,:78` (same pair).
+- Harness summary at `claude-mesh-test.sh:474`; 71 fixtures green this session:
+```
+mesh-test: 71 ok, 0 fail
+```
+**Phase C (rotate seam):**
+- `scripts/sysadmin/claude_rotate.py:658-685` (`main()` dispatch: `--list`/`--switch`/`--next` — the exact place `--capture-current`/`--drift-check` slot in); `:151` `_active_account()` (token-match → marker → org, PURE read); `:203` `_secure_write` (0600 atomic); `:277` BACKUP_CREDS; `:284` ACTIVE_MARKER write.
+**Phase A parse sources (spec-inherited, independently re-verified twice):**
+- CLI binary: `hook_event_name:"StopFailure",error:s,error_details:e.errorDetails,…` + `resetsAt=Math.round(Number(o));if(t)n.rateLimitType=t` + the 6-member `rateLimitType` enum (spec External-deps table, two inspections).
+- Tap: `statusline-tap.js` `resetsAt:l(n.resets_at)` → `rateLimits.{fiveHour,sevenDay}`; live keys present:
+```
+/rateLimits/fiveHour = None
+/rateLimits/sevenDay = None
+```
+**Phase D:**
+- `.claude/hooks/session_orient.py:105-106` (`arm_line = ""` + the `CLAUDE_MESH_HEADLESS` gate — the marker block lands adjacent, same env vocabulary); orient tests currently 14 green.
+- `~/.claude/settings.json:11` (`"SessionStart": [` — the drift-check hook entry's insertion list).
+
+## Self-audit
+
+- (a) Coverage: agreed items → phases: parse/wall-state→A; switch-or-schedule+announce→B; re-capture→C; sweep→D; AUTOROTATE flip+docs→E; lowest-usedPercent→A (`--healthy-sibling`); cost-decoupling→no phase (recorded non-goal). No gaps found.
+- (b) Cross-phase interfaces: B consumes exactly A's four CLI names/outputs (single-integer stdout for `--wait-seconds`; dir-name stdout for `--healthy-sibling`); D consumes the decider's existing `--check` verdicts and the NO_REVIVE/HEADLESS env names already shipped in autoresume; C touches only additive `main()` arms (existing `--switch`/`--next` asserted-unchanged by a test). Names verified against the fresh greps above.
+- Grounding passes: spec inherited (4-pass converged); this plan added fresh line-number greps for every insertion point + the rotate-seam read; environment preflight: python3/bash/crontab/pytest/ruff all present in WSL (used this session); no new system toolchain.
+- Not yet a fixed point: `/fabrik-plan-review` owes the independent convergence round.
+
+## Residual unknowns
+
+- RESOLVED (spec): parse-ladder precedence; bounds per type; `.reviving` touch contract; sweep eligibility.
+- OPEN (named, self-service): exact `error_details` text per wall type — Phase A ships the payload-capture line (class+details only) and the regex is tuned from the first live wall; until then the structured source + 90s fallback carry. — statusline staleness: Phase A probes at build (Q-fixtures include a stale-entry case); wall-state self-expiry bounds it. — the overage delivery channel: conservative pin per spec; payload capture resolves it.
+- No open item blocks execution start; none requires the operator.
