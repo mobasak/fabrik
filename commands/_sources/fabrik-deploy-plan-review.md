@@ -71,20 +71,24 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
   deleted; the durable evidence must survive). The already-converged check keys on UNADJUDICATED
   routed-back rows only: unchanged inputs AND no unadjudicated row → report already-converged, do not
   re-run.
-- `IN-PROGRESS` carrying any `⛔` step-ledger row — `⛔ BLOCKED` or `⛔ PLAN-DEFECT` (a halted or
-  defect-routed deploy sent back here by `/fabrik-deploy`): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
+- `IN-PROGRESS` carrying any UNADJUDICATED `⛔` step-ledger row — `⛔ BLOCKED` or `⛔ PLAN-DEFECT` (a
+  halted or defect-routed deploy sent back here by `/fabrik-deploy`; rows already `[ADJUDICATED]` are
+  healed history and do NOT trigger re-entry): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
   converge the AMENDED plan **preserving retained steps' IDs verbatim** (step IDs are the ledger's join
   keys — renumbering orphans every existing row; new steps get NEW ids), **annotate every step whose
   LATEST ledger row is `✅` with `KEEP` (still valid) or `REDO` (the amendment or a rollback invalidated
   it)** — a step whose latest row is `↩ ROLLED-BACK` is already in the run set, never `KEEP` it —
-  `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations, **annotate
-  the consumed `⛔` row `[ADJUDICATED <date> — re-entered + re-converged]` in the same commit** (kept,
-  never deleted — the guard keys on UNadjudicated rows of either kind, so a re-invocation after this
-  re-entry correctly reports already-converged) — and end at
+  `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations, **annotate EVERY
+  unadjudicated `⛔` row this re-entry consumed** (a plan can carry several from repeated halts) with
+  `[ADJUDICATED <date> — re-entered + re-converged]` (kept, never deleted — the guard keys on
+  UNadjudicated rows, so a re-invocation after this re-entry correctly reports already-converged), and
+  land the flip-back, the KEEP/REDO annotations, the ID preservation, and these adjudications **in ONE
+  commit** (a bare flip-back committed alone strands a DRAFT plan without its annotations if the
+  session dies) — and end at
   `CONVERGED` for a fresh operator dispatch.
 
-Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row of either kind (a deploy still
-running) → **refuse**: the
+Pointed at `EXECUTED` — or an `IN-PROGRESS` with no UNADJUDICATED `⛔` row (a deploy still running —
+healed-over rows from prior re-entries do not change that) → **refuse**: the
 deploy ran (or is live); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED`
 back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
 

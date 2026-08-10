@@ -180,8 +180,9 @@ printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner
 redirect gets Permission denied; the deploy executes the runbook verbatim and may not add sudo
 mid-run);
 **wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
-step** (an already-in-flight healer tick is not retroactively paused); the close step removes BOTH
-files — ordered so the close comes AFTER any rollback the window's steps might need. **The pause file
+step** (an already-in-flight healer tick is not retroactively paused); the close step is
+`ssh <alias> "sudo bash -c 'rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner'"` —
+ordered so the close comes AFTER any rollback the window's steps might need. **The pause file
 is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must schedule its re-`touch`
 heartbeat at step boundaries (each a labeled step) or split the work; a single touch is never trusted
 past it. Also name watchdog posture and
