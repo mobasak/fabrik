@@ -169,7 +169,8 @@ notarization submission or a signing service: when in doubt, mark it) are marked
 is immediately checkable; the deploy hands over, waits, verifies, continues) or `verify: deferred`
 (a store review measured in days; the handoff completes the surface — a deferred-gate step is
 therefore ALWAYS the runbook's final step, and the deploy runs the surface's battery immediately
-BEFORE that deferred gate — in-session gates are mid-runbook acts the battery does not precede) — the runbook prepares each
+BEFORE the runbook's TERMINAL gate of EITHER shape — mid-runbook in-session gates are not preceded
+by it, and a gateless store runbook runs the battery after the runbook) — the runbook prepares each
 and hands it to the operator, never performs it. The surface's sanctioned build path (cloud `eas build`,
 per `/fabrik-release`'s own MOBILE step) is NOT `OPERATOR-GATE` — marking it makes the artifact
 unbuildable and stalls the deploy at a step the corpus already sanctions. `/fabrik-deploy` applies the
@@ -206,7 +207,8 @@ container), ACME/cert diagnostics for a new domain (the acme log read BEFORE the
 cert-pending state isn't misread as a routing failure), and same-origin routing probes where routing is
 nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The
 battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — hub-side for VPS after the
-runbook, project-side for stores immediately before the deferred gate.)
+runbook; project-side for stores immediately before the runbook's terminal OPERATOR-GATE of either
+shape, or after the runbook when no gate exists.)
 
 ## Phase 7 — Monitoring / backup / DR truth check `[hub-side · stores: anywhere]` (all surfaces)
 

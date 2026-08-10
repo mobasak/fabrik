@@ -101,25 +101,17 @@ inside them.
    is a non-root sudoer. Reads are unprivileged.) The pause file is content-free; the triad writes
    ownership NEXT TO it: every window touch also writes `/run/fabrik-autoheal/pause.owner` containing
    `<plan-stem> <ISO-8601 UTC timestamp>` (the healer reads only `pause` — the owner file is triad
-   metadata). `pause.owner` names another stem or is absent while a pause exists: mtime age **≥ 2h**
-   (inert — the healer ignores it): a WINDOWLESS plan notes it and proceeds (no interest in the
-   file); a window-bracketing plan marks both files for removal, executed immediately before the
-   run's first target mutation — whatever step that is: Phase 1's open where a window exists,
-   otherwise the first mutating runbook step (the marking's executor is the first mutation, never
-   only Phase 1) — and re-verified at execution time (fresh `stat` + owner read — anything
-   fresher or now-owned at execution time means a sibling opened in the gap → the removal is OFF; a
-   windowless plan then notes it and proceeds, a window-bracketing plan takes the <2h WAIT below with
-   the mid-run exit — tolerance exceeded → the halt protocol, never the pre-flip refusal); age **< 2h** → a
-   live window (a sibling deploy or an operator's manual pause): a WINDOWLESS plan leaves it entirely
-   alone — no wait, no removal, note it and proceed (a foreign healing window is irrelevant to a
-   deploy with no long-unhealthy step); a plan that BRACKETS a window → **wait in-session**: re-probe
-   every 60s up to the plan's declared tolerance (default 30 min), proceed when clear; tolerance
-   exceeded → refuse (`BLOCKED: persistent foreign pause on <target> — confirm with the operator`;
-   pre-flip, so nothing to unwind). An orphan `pause.owner` with NO pause file: OUR stem → our own incomplete-close residue — same
-   deferred removal, its re-verify being that a pause STILL does not exist; ANOTHER stem → leave it
-   (a sibling's metadata, harmless without a pause — never ours to delete). `pause.owner` names THIS
-   plan-stem: residue of this plan's own earlier halted window — remove both files the same deferred
-   way (this run is fresh; it opens its own windows).
+   metadata). **The one removal rule: this deploy removes pause files ONLY at its own `window-close`
+   step (and Phase 5's re-close of OUR-stem residue) — never as housekeeping.** Accordingly:
+   `pause.owner` reads OUR stem (residue of this plan's earlier halted window) → our window machinery
+   owns it: Phase 1's open will write over it; no pre-action here. A LIVE foreign pause (age < 2h by
+   the PAUSE file's mtime — the healer keys on exactly that, `stat -c %Y` on `pause`) → a windowless
+   plan notes it and proceeds (irrelevant to a deploy with no long-unhealthy step); a window-bracketing
+   plan will WAIT at its open (Phase 1's rule). An INERT foreign pause (age ≥ 2h — the healer already
+   ignores it) → dead metadata: note it; a window-bracketing plan's open simply writes over it (the
+   touch + our owner make it OUR window); a windowless plan leaves it untouched. An orphan
+   `pause.owner` with NO pause file — any stem — is stale metadata: leave it; Phase 1's open
+   overwrites it where a window exists.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → refuse BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
@@ -151,8 +143,7 @@ If the plan brackets a window (migrations, module init — any step a healthchec
 own labeled steps (`window-open` / `window-heartbeat` / `window-close`, authored in root form) open and
 close it; execute them with these guarantees:
 
-1. Open: execute Phase 0's deferred removal NOW if one was marked (its re-verify included), then
-   re-check BOTH files (a foreign pause may have appeared since Phase 0 — same wait-then-proceed
+1. Open: re-check BOTH files (a foreign pause may have appeared since Phase 0 — same wait-then-proceed
    rule, tolerance-bounded; a wait here needs no ledger row, it is just elapsed time;
    tolerance exceeded mid-run → the halt protocol). Clear → run the plan's open step (ONE invocation,
    as root — a bare redirect runs as the login user and is denied):
@@ -161,8 +152,9 @@ close it; execute them with these guarantees:
    at end-of-line when wrapping — a leading `&&` inside the quoted script is a bash syntax error), then
    **verify BOTH landed** (fenced `stat` + `cat pause.owner` — the owner MUST read this plan-stem: a
    different stem after our own write is a clobber race with a concurrent opener → the halt protocol,
-   without removing anything). The open never touches over an existing foreign `pause.owner` — that
-   is what the preceding re-check guarantees. Capture the touch timestamp.
+   without removing anything). The open never writes over a LIVE foreign pause (the re-check + wait rule guarantee it); an INERT
+   (≥2h) foreign pause or a pause-less orphan owner IS written over — dead metadata becoming our
+   window. Capture the touch timestamp.
 2. **Confirm the window is live BEFORE the sensitive step starts:**
    `sudo journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line newer
    than the touch (the `sudo` is load-bearing: the fleet user is not in `adm`/`systemd-journal`, and an
@@ -178,9 +170,6 @@ close it; execute them with these guarantees:
 
 ## Phase 2 — Execute the runbook, step by step, from its first step
 
-0. If Phase 0 marked a healing-state removal and this plan brackets NO window (no Phase 1 will run),
-   execute the marked removal NOW — re-verified per Phase 0 — immediately before the first mutating
-   step.
 
 1. Run the step's exact command. An `OPERATOR-GATE` step is never run BY YOU — it is a **mid-session
    operator handoff**, in two shapes the plan declares per step: **verify-in-session** (the act's
@@ -237,8 +226,9 @@ via Phase 1's full procedure and closes it last). Never report a deploy complete
 ## Phase 4 — Store surfaces: stop at the operator's publish act, then close out
 
 Mobile / extension / desktop runbooks execute up to — never through — the publish act: build the
-artifact from the pushed SHA (the battery already ran from Phase 2, immediately before the deferred
-gate — the exit gate binds every surface), prepare listing/rollout content.
+artifact from the pushed SHA (the battery has already run per the store battery rule — VERIFY the
+`✅ BATTERY` row exists before printing any handoff; the exit gate binds every surface), prepare
+listing/rollout content.
 **The credential rule:** publish acts and ALL store-dashboard actions are the operator's — no upload, no
 draft submission, no dashboard click, whatever a plan says (a plan cannot sanction what the corpus
 forbids — that contradiction is a plan defect: the halt protocol, PLAN-DEFECT flavor). A credentialed
@@ -257,11 +247,11 @@ the completion stamp records "handed to the operator publish gate: <the action>"
    evidence). Still present with `pause.owner` reading THIS plan-stem → fix OUR close: re-run the
    runbook's own `window-close` step, verified, before anything else — the flip never happens over
    our own open window. An owner reading ANOTHER stem → foreign: never remove it (a sibling's or the
-   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → discriminate by OUR OWN ledger: our `window-close` step's `✅`
-   row PRESENT → we closed ours, so this is an operator's manual pause (the
-   triad always writes the owner with the pause) — never remove it; note it and proceed. Our close
-   row ABSENT → we never finished closing → ours to finish: re-run our `window-close` (idempotent
-   `rm -f`, verified). The probe itself failing (target
+   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → an operator's manual pause, NEVER ours (the triad always writes
+   the owner with the pause — even a lost ledger row would leave OUR stem on disk): never remove it;
+   note it and proceed. Our windows are closed when EVERY `window-close` step row of THIS run is `✅`
+   and no pause carries OUR stem — a missing close row with our stem on disk → re-run that
+   `window-close` (idempotent `rm -f`, verified). The probe itself failing (target
    unreachable post-deploy) → ending 2b (admin stop — deploy LIVE; the pause self-heals at 2h; never
    unwind).
 2. **Verify the review artifact exists on disk**

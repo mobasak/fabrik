@@ -38,7 +38,8 @@ besides the no-op flip: (a) the **batched operator ask** (Phase 2 — one questi
 answers and continue the loop in the same invocation); (b) a **BLOCKED escalation**: an axis stuck after
 3 consecutive reconcile attempts → pause it, surface it in the Output block's `## BLOCKED` section (axis
 + the 3 attempts), keep converging the rest; (c) the **status-guard verdicts** (Phase 0 — the
-already-converged report, the EXECUTED / live-IN-PROGRESS refusal, the wrong-repo stop) — clean
+already-converged report, the consumed-record route, the complete-deploy route back to
+`/fabrik-deploy`, the EXECUTED / live-IN-PROGRESS refusal, the wrong-repo stop) — clean
 hand-backs, not failures. Never self-exit with an "accepted risk". **Context is
 never a reason to stop:** the harness auto-compacts and the run continues — keep going; post-compact, the
 `session-recall` MCP recovers any detail the summary dropped.
@@ -69,14 +70,15 @@ halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` a
 
 - `DRAFT`/`PLANNED` → the normal convergence loop below — and a DRAFT carrying LEDGER rows is an
   interrupted re-entry: it inherits the RE-ENTRY AUDIT duty below before it may flip.
-- `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in
-  fact), or carrying a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded at pre-flight (the committed
-  evidence — a console BLOCKED print alone proves nothing later): flip back to `DRAFT` and converge
+- `CONVERGED` — FIRST, regardless of arm: the ledger's LATEST run complete (every step `✅` +
+  `✅ BATTERY`) → a CONSUMED record, never re-certified OR re-converged; route to
+  `/fabrik-deploy-verify` or a new plan. Otherwise: inputs changed (the spec, compose, or code moved
+  under it — it is `DRAFT` in fact), or carrying a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded at
+  pre-flight (the committed evidence — a console BLOCKED print alone proves nothing later): flip back
+  to `DRAFT` and converge
   again, annotating the consumed defect row(s) `[ADJUDICATED <date> — closed by this re-convergence]`
   in the re-convergence commit (kept, never deleted — the checks key on UNadjudicated rows). Unchanged
-  inputs AND no unadjudicated defect row → report already-converged, do not re-run — UNLESS the
-  ledger's LATEST run is complete (every step `✅` + `✅ BATTERY`): a CONSUMED record — never
-  re-certify it; route to `/fabrik-deploy-verify` or a new plan.
+  inputs AND no unadjudicated defect row → report already-converged, do not re-run.
 - `BLOCKED` — a halted deploy: the **RE-ENTRY AUDIT** below, then flip to `DRAFT`, amend, converge.
   **Every status flip-back this guard performs commits IMMEDIATELY** (explicit pathspec, the
   `deploy-plan-review` marker) — an uncommitted flip is what the next pre-commit stash cycle silently
@@ -153,7 +155,7 @@ the one-line why — a row is never silently dropped; pass-time rows use exactly
 | 1 | Secrets flow | generate/from_env/registrar/init lifecycle coherent; precedence audited (project `.env` reads BEFORE hub env); placeholder rules honor BOTH halves — derived keys absent, and the value-scoped merge guard (`_is_placeholder` protects an injected real only from values containing the literal `placeholder`); store surfaces: signing/credential custody named, never inlined |
 | 2 | Env/config completeness | every compose var ↔ spec/secrets/registrar/code-default traced (VPS) · store metadata ↔ build profiles ↔ code consistent (stores) — nothing unresolved, nothing double-sourced |
 | 3 | Staged-infra validity | staged resolver/DNS/config files re-read and valid; activation step present and ordered; registrar preview matches the shape |
-| 4 | Runbook ordering + timing | every step verifiable + rollbackable; **stable `S`-prefixed step ids present** (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`'s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a **fused build+credentialed step left unsplit** is a finding; every `OPERATOR-GATE` step declares `verify: in-session` or `verify: deferred`, and a deferred one is the runbook's FINAL step (the deploy runs the surface's battery immediately before the DEFERRED gate; undeclared shape, or steps after a deferred gate, is a finding); every step safe to re-run from scratch OR explicitly `NON-RERUNNABLE` with its guard pre-check (detects the already-ran state and skips) — an unguarded one-shot step is a finding |
+| 4 | Runbook ordering + timing | every step verifiable + rollbackable; **stable `S`-prefixed step ids present** (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`'s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a **fused build+credentialed step left unsplit** is a finding; every `OPERATOR-GATE` step declares `verify: in-session` or `verify: deferred`, and a deferred one is the runbook's FINAL step (the deploy runs the surface's battery immediately before the runbook's TERMINAL gate of either shape — or after a gateless runbook; undeclared shape, or steps after a deferred gate, is a finding); every step safe to re-run from scratch OR explicitly `NON-RERUNNABLE` with its guard pre-check (detects the already-ran state and skips) — an unguarded one-shot step is a finding |
 | 5 | Healing / rollout interactions | VPS: autoheal pause brackets every long-unhealthy window as **labeled `window-open`/`window-heartbeat`/`window-close` steps** (open + heartbeat write/refresh `pause.owner` — the deploy's attribution reads it; the CLOSE step removes BOTH files, it never writes; every window command authored in its executable root form — `sudo bash -c` via the real SSH alias), PAUSED-log confirmation before the sensitive step, a >2h window carries its re-touch heartbeat; watchdog + restart-policy posture named · stores: staged-rollout %, halt + rollback mechanics named |
 | 6 | Battery completeness | includes a WRITE-path probe, queue-drain where workers exist, companion reachability, cert/ACME diagnostics, same-origin probes where routing is nontrivial · stores: artifact installability + first-run smoke |
 | 7 | Monitoring + backup/DR truth | what ACTUALLY watches the surface (endpoint/scrape/alert verified, cert-expiry condition for new domains); which Backrest plan ACTUALLY covers the data — path lists read live, never assumed; honest RPO/RTO · stores: crash reporting + rollout-halt named |
