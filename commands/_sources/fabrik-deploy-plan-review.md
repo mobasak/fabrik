@@ -66,9 +66,12 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
 - `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in fact),
   OR that `/fabrik-deploy` routed back with a NAMED defect — the durable evidence is the committed
   `⛔ PLAN-DEFECT` ledger row the deploy writes (a console BLOCKED print alone is ephemeral and proves
-  nothing later): flip back, converge again, and **annotate the consumed row in the same commit**
-  (append `[ADJUDICATED <date> — closed by this re-convergence]` to it — kept as history, never
-  deleted; the durable evidence must survive). The already-converged check keys on UNADJUDICATED
+  nothing later): flip back, converge again — and if the plan carries a ledger from a prior re-entry,
+  **re-adjudicate every `✅ KEEP` against the changed inputs** (KEEP→REDO where the change invalidated
+  it — a stale KEEP makes the deploy skip a step whose input moved, shipping nothing) — then
+  **annotate EVERY unadjudicated routed-back row** with `[ADJUDICATED <date> — closed by this
+  re-convergence]` (kept as history, never deleted; the durable evidence must survive), all landed in
+  the same ONE commit as the re-convergence. The already-converged check keys on UNADJUDICATED
   routed-back rows only: unchanged inputs AND no unadjudicated row → report already-converged, do not
   re-run.
 - `IN-PROGRESS` carrying any UNADJUDICATED `⛔` step-ledger row — `⛔ BLOCKED` or `⛔ PLAN-DEFECT` (a

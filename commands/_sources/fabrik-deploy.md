@@ -37,11 +37,13 @@ and the run continues — keep going.
    `EXECUTED`, absent — → refuse: `BLOCKED: plan not executable — <status>; run
    /fabrik-deploy-plan-review first (DRAFT) or author a new plan (EXECUTED)`. This echoes the
    data-contract FROZEN gate: nothing executes against an unconverged artifact. **Execution mode by
-   ledger, not by status alone:** no execution rows → fresh run (`⛔ PLAN-DEFECT` rows in a still-CONVERGED plan
-   are routing history, adjudicated or not — they do NOT make a resume; in an IN-PROGRESS plan a
-   PLAN-DEFECT row resumes exactly like `⛔ BLOCKED`); any `✅`/`⛔ BLOCKED`/`↩` row present (an
-   `IN-PROGRESS` resume, or a `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO`
-   annotations) → RESUME-STYLE per Phase 2 — completed work is never blindly re-run. **Post-flip edits void the flip:** the review
+   ledger, not by status alone:** a still-CONVERGED plan whose only rows are `⛔ PLAN-DEFECT` (routing
+   history, adjudicated or not) or with no rows at all → fresh run; any `✅`/`⛔`/`↩` row in an
+   `IN-PROGRESS` plan, or a `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO`
+   annotations → RESUME-STYLE per Phase 2 — completed work is never blindly re-run. **An UNADJUDICATED
+   `⛔` row refuses the dispatch outright** — `BLOCKED: halted plan not yet re-converged — run
+   /fabrik-deploy-plan-review first`: a deliberate halt routes back through the review; the resume
+   path is for sessions that DIED (rows are `✅`-only), never for skipping the re-convergence. **Post-flip edits void the flip:** the review
    command commits its `CONVERGED` flip — if `git log` shows commits touching the plan after that flip
    commit OTHER THAN the sanctioned set (identifiable by trailer: `Agent-Context: deploy-ledger
    <plan-stem>` = this command's own flip/ledger/close-out commits, mandated in Phase 0 step 5;
@@ -92,15 +94,21 @@ inside them.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
-5. **The flip lands at the FIRST runbook-step boundary** — after S1 completes or terminally fails,
+5. **The flip lands at the FIRST runbook-step boundary OF THIS RUN** — a step EVENT: a completion, a
+   terminal failure, or (on a resume of a re-entry `CONVERGED` plan) the skip-after-verification of a
+   `✅ KEEP` step — whichever comes first; for a fresh run that is after S1 completes or terminally fails,
    whatever S1 is (a read-only step counts: executing the runbook AT ALL is the event the flip
    records, and it is what makes the resume semantics and the review's "deploy still running" refusal
    well-defined). A step REFUSED at its own pre-check (e.g. the window-open's sibling re-check) has
-   not RUN — if that refusal lands before ANY step boundary, the plan stays `CONVERGED` and unflipped
-   (the entry-shaped refusal); once any boundary passed, the flip exists and every later stop writes
+   not RUN — on a FRESH run, a refusal before ANY step boundary leaves the plan `CONVERGED` and
+   unflipped (the entry-shaped refusal); **on a RESUME the plan is already `IN-PROGRESS`, so even a
+   pre-boundary refusal writes + commits its `⛔` row** (durability — an IN-PROGRESS plan without a
+   row reads as a live deploy). Once any boundary passed, the flip exists and every later stop writes
    its `⛔` row. A terminal step failure commits the flip and its `⛔ BLOCKED` row together (execution
    was ATTEMPTED — the halt must be durable). The Phase 0 healing-state cleanup precedes the runbook
-   and never flips. The flip starts
+   and never flips. (Commit-after-event by design: a session death MID-step leaves no row for it —
+   the next dispatch re-runs that step from scratch, which is why the plan must author S1, and every
+   heavy step, safe to re-run.) The flip starts
    the step ledger inside the plan document (or APPENDS to an existing one — a re-entry/resume plan arrives with its ledger and
    `KEEP`/`REDO` annotations intact; reinitializing it erases exactly what Phase 2 keys on), and COMMITS
    that flip immediately** (explicit pathspec, provenance trailers — every
@@ -224,8 +232,9 @@ a **plan defect discovered at deploy time** — `BLOCKED`, route back to `/fabri
 never restructure the step mid-run (the plan command authors the split — this command only executes
 it). Either way, write + commit a durable routing record into the plan:
 `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` (with the `deploy-ledger` commit marker; the
-status is NOT flipped when nothing mutated — a console BLOCKED print is ephemeral, and this committed
-row is exactly what the review's status guard reads as its sanctioned re-entry evidence). **A
+status is NOT flipped when no step boundary has passed — once a boundary passed, the flip already
+exists per Phase 0 step 5; a console BLOCKED print is ephemeral, and this committed row is exactly
+what the review's status guard reads as its sanctioned re-entry evidence). **A
 PLAN-DEFECT stop ENDS the run at that BLOCKED report** — but with abort hygiene first: if a
 maintenance window is open, run the rollbacks that need it — **appending the `↩ ROLLED-BACK` row for
 each rolled-back step, exactly as Phase 2 step 3** — and close it (BOTH files, verified) before
