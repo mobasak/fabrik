@@ -66,10 +66,13 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
 - `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in fact),
   OR that `/fabrik-deploy` routed back with a NAMED defect — the durable evidence is the committed
   `⛔ PLAN-DEFECT` ledger row the deploy writes (a console BLOCKED print alone is ephemeral and proves
-  nothing later): flip back and converge again. Unchanged inputs AND no committed routed-back row →
-  report already-converged, do not re-run.
-- `IN-PROGRESS` carrying a `⛔ BLOCKED` step-ledger row (a halted deploy routed back here by
-  `/fabrik-deploy`): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
+  nothing later): flip back, converge again, and **annotate the consumed row in the same commit**
+  (append `[ADJUDICATED <date> — closed by this re-convergence]` to it — kept as history, never
+  deleted; the durable evidence must survive). The already-converged check keys on UNADJUDICATED
+  routed-back rows only: unchanged inputs AND no unadjudicated row → report already-converged, do not
+  re-run.
+- `IN-PROGRESS` carrying any `⛔` step-ledger row — `⛔ BLOCKED` or `⛔ PLAN-DEFECT` (a halted or
+  defect-routed deploy sent back here by `/fabrik-deploy`): the sanctioned re-entry — flip to `DRAFT` keeping the ledger intact (it is evidence),
   converge the AMENDED plan **preserving retained steps' IDs verbatim** (step IDs are the ledger's join
   keys — renumbering orphans every existing row; new steps get NEW ids), **annotate every step whose
   LATEST ledger row is `✅` with `KEEP` (still valid) or `REDO` (the amendment or a rollback invalidated
@@ -77,7 +80,8 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
   `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations — and end at
   `CONVERGED` for a fresh operator dispatch.
 
-Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row (a deploy still running) → **refuse**: the
+Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row of either kind (a deploy still
+running) → **refuse**: the
 deploy ran (or is live); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED`
 back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
 

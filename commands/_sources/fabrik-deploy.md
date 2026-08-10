@@ -37,9 +37,10 @@ and the run continues — keep going.
    `EXECUTED`, absent — → refuse: `BLOCKED: plan not executable — <status>; run
    /fabrik-deploy-plan-review first (DRAFT) or author a new plan (EXECUTED)`. This echoes the
    data-contract FROZEN gate: nothing executes against an unconverged artifact. **Execution mode by
-   ledger, not by status alone:** no ledger → fresh run; a ledger present (an `IN-PROGRESS` resume, or a
-   `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO` annotations) → RESUME-STYLE
-   per Phase 2 — completed work is never blindly re-run. **Post-flip edits void the flip:** the review
+   ledger, not by status alone:** no execution rows → fresh run (adjudicated `⛔ PLAN-DEFECT` annotations
+   alone do NOT make a resume — they are routing history); any `✅`/`⛔ BLOCKED`/`↩` row present (an
+   `IN-PROGRESS` resume, or a `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO`
+   annotations) → RESUME-STYLE per Phase 2 — completed work is never blindly re-run. **Post-flip edits void the flip:** the review
    command commits its `CONVERGED` flip — if `git log` shows commits touching the plan after that flip
    commit OTHER THAN the sanctioned set (identifiable by trailer: `Agent-Context: deploy-ledger
    <plan-stem>` = this command's own flip/ledger/close-out commits, mandated in Phase 0 step 5;
@@ -78,20 +79,27 @@ inside them.
    DECISION here mutates nothing); age **< 2h** →
    `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm with the
    operator before deploying to this host`. An orphan `pause.owner` with NO pause file is residue of an
-   incomplete close — treat as removable the same deferred way. One maintenance window per VPS at a
+   incomplete close — treat as removable the same deferred way, where ITS re-verify is that a pause
+   file STILL does not exist at execution time (one appearing in the gap — an operator's manual
+   window — aborts the removal → the BLOCKED branch). One maintenance window per VPS at a
    time is the rule this enforces — it applies at window OPEN too, where a pause discovered mid-runbook
    follows Phase 1 step 1's abandonment path, never this entry-time message.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
-5. **The first mutating step flips the plan `CONVERGED → IN-PROGRESS`, starts the step ledger inside the
-   plan document (or APPENDS to an existing one — a re-entry/resume plan arrives with its ledger and
+5. **The first PAYLOAD mutation flips the plan `CONVERGED → IN-PROGRESS`** — the flip+ledger commit
+   lands immediately AFTER that first mutation SUCCEEDS, never before it (an entry-shaped refusal at
+   the first step must leave the plan CONVERGED and unflipped; the Phase 0 healing-state cleanup is
+   maintenance, not deployment — it neither flips the plan nor counts as "mutated"). **The flip starts
+   the step ledger inside the plan document (or APPENDS to an existing one — a re-entry/resume plan arrives with its ledger and
    `KEEP`/`REDO` annotations intact; reinitializing it erases exactly what Phase 2 keys on), and COMMITS
    that flip immediately** (explicit pathspec, provenance trailers — every
    flip/ledger/close-out commit carries `Agent-Context: deploy-ledger <plan-stem>`, the marker Hard
    gate 2's post-flip-edit rule keys on). Ledger rows — `— ✅ <step id> <UTC timestamp>` per completed
    step, `— ⛔ BLOCKED <step id> <UTC timestamp> <why> <rollback taken>` on a halt,
-   `— ↩ ROLLED-BACK <step id> <UTC timestamp>` for a completed step whose rollback later ran — every
+   `— ↩ ROLLED-BACK <step id> <UTC timestamp>` for a completed step whose rollback later ran, and
+   `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <defect>` (Phase 4 — the ONE row kind that may precede
+   the flip and live in a still-CONVERGED plan) — every
    row kind carries an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ` — unambiguous evidence across a
    multi-timezone fleet) and rows are **committed at every step that mutated remote
    state**:
@@ -117,13 +125,18 @@ own steps open and close it; execute them with these guarantees:
    <target> — <what is half-deployed, what rollback remains>`; **if nothing has mutated yet** (the
    window-open is the run's first act), it is an entry-shaped refusal — `BLOCKED` naming the pause,
    NO ⛔ row, NO status flip, nothing deployed. An orphan `pause.owner` with NO pause file is
-   incomplete-close residue — remove the orphan and proceed. Clear → open in ONE invocation:
-   `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause && printf "%s
-   %s\n" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'` (heartbeat re-touches refresh
-   BOTH files the same way), then **verify BOTH landed** (fenced `stat` + `cat pause.owner`) — capture
-   the touch timestamp.
+   incomplete-close residue — remove the orphan and proceed. Clear → open in ONE invocation, **as
+   root** — `/run/fabrik-autoheal` is root-owned (the healer's cron creates it) and the fleet SSH user
+   is not root, so every WRITE (touch / printf-redirect / rm) is `sudo bash -c '…'` (a bare redirect
+   would run as the login user and be denied — the platform's own deployer uses exactly this form):
+   `ssh <target_vps> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause
+   && printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` (heartbeat
+   re-touches refresh BOTH files the same way; reads — `stat`, `cat` — work unprivileged), then
+   **verify BOTH landed** (fenced `stat` + `cat pause.owner`) — capture the touch timestamp.
 2. **Confirm the window is live BEFORE the sensitive step starts:** `stat` shows the pause file, AND
-   `journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line **newer than
+   `sudo journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line (the
+   `sudo` is load-bearing: the fleet user is not in `adm`/`systemd-journal`, and an unprivileged read
+   returns rc=0 with NO entries — a false "nothing found") **newer than
    the touch** (the healer ticks every minute; an already-in-flight tick is not retroactively paused,
    and last week's PAUSED lines prove nothing — bound the read or the check can never fail).
 3. **A shell `trap` is NOT a safety net here** — each command runs in a fresh shell, so an `EXIT` trap
@@ -200,7 +213,10 @@ never restructure the step mid-run (the plan command authors the split — this 
 it). Either way, write + commit a durable routing record into the plan:
 `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` (with the `deploy-ledger` commit marker; the
 status is NOT flipped when nothing mutated — a console BLOCKED print is ephemeral, and this committed
-row is exactly what the review's status guard reads as its sanctioned re-entry evidence). Print the
+row is exactly what the review's status guard reads as its sanctioned re-entry evidence). **A
+PLAN-DEFECT stop ENDS the run at that BLOCKED report** — no handoff, no Phase 5, no `EXECUTED` flip,
+no archive; the plan goes back through the review and returns on a fresh operator dispatch. On the
+CLEAN path (no defect), print the
 Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
 action only the human takes. The handoff IS this surface's deploy completion: **proceed to Phase 5**,
