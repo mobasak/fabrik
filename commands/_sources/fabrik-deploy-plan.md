@@ -196,8 +196,8 @@ it: the sensitive step STOPS (the halt protocol — our protection is gone); NEV
 window (a bare touch or redirect gets Permission denied; the deploy executes the runbook verbatim
 and may not add sudo mid-run);
 **wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
-step** (an already-in-flight healer tick is not retroactively paused); the close step is STEM-GUARDED — tested form, single-backslash `\"` escapes, operators at
-end-of-line when wrapping:
+step** (an already-in-flight healer tick is not retroactively paused); the close step is STEM-GUARDED — tested form, single-backslash `\"` escapes, operators-AND-their-arguments
+whole at end-of-line when wrapping:
 `ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] &&
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner &&
 rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERSHIP-LOST'"`
@@ -205,12 +205,16 @@ rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERS
 to another actor: never remove theirs; the step's VERIFICATION is CONDITIONAL, never rc alone (`OWNERSHIP-LOST` exits 0): PASS = both files
 gone, OR the output is `OWNERSHIP-LOST` with a FOREIGN owner confirmed by a fresh `cat` (the window
 is closed FOR US — proceed, noting it); both files present WITHOUT a foreign owner = the `rm` itself
-failed (read-only fs, EBUSY) → step failure) — ordered so the close comes
+failed (read-only fs, EBUSY) → step failure; `pause` present with owner ABSENT = a half-landed
+open/close — re-write OUR owner (the open's `printf` line alone) then re-run the guarded close ONCE;
+any OTHER outcome → the conservative default: stop, report the raw state, never remove foreign
+files — the 2h self-heal bounds residue) — ordered so the close comes
 AFTER any rollback the window's steps might need. Declare the window **WAIT BOUND** (how long a deploy may wait on a foreign pause before giving up;
 default 30 min — the deploy's waits read this). **The pause file
 is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must schedule its re-`touch`
 heartbeat at step boundaries (each a labeled step) or split the work — and NO SINGLE STEP may exceed
-2h (heartbeats fire only at boundaries; split any step that could); a single touch is never trusted
+90 MINUTES (the pause dies at 120 min and heartbeats fire only at boundaries — the margin covers the
+healer's tick and heartbeat latency; split any step that could run longer); a single touch is never trusted
 past it. Also name watchdog posture and
 restart-policy interactions for first boot.
 

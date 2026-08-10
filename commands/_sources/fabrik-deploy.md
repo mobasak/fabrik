@@ -111,7 +111,9 @@ inside them.
      plan notes it (Phase 1's open writes over it); a WINDOWLESS plan notes it here and runs the stem-guarded
      close ONCE as its first POST-FLIP act (before S1 — Phase 0 stays mutation-free; the canonical
      close one-liner is the plan command's authored form, reproduced for plan-less use in its Phase 5,
-     substituting THIS plan's stem; the guard makes it only-ours by construction).
+     substituting THIS plan's stem; the guard makes it only-ours by construction — verified per the close
+     step's conditional contract, an unresolvable outcome falling to the conservative default:
+     report the raw state and proceed, the 2h self-heal bounding the residue).
    - `pause` present, owner foreign-or-absent → FOREIGN. Windowless plan → note + proceed (irrelevant
      to a deploy with no long-unhealthy step). Window-bracketing plan: age ≥2h (by the PAUSE file's
      mtime, read on the TARGET — the healer's own clock, no cross-host skew) → dead metadata, the
@@ -175,11 +177,15 @@ close it; execute them with these guarantees:
    session dies outright, the pause's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es both files at each step
    boundary per the plan's labeled STEM-GUARDED heartbeat steps — an `OWNERSHIP-LOST` heartbeat is DISAMBIGUATED by a fresh probe of both files: owner FOREIGN → the
-   window expired and another actor took it — the sensitive step STOPS (the halt protocol; its
-   rollbacks run WITHOUT window protection — the protection is gone either way; run them promptly and
-   record that); both files ABSENT → the window VANISHED (a reboot — `/run` is tmpfs — or a cleanup):
-   RE-OPEN via the plan's open step (mid-window, an absent pause is recovery, not theft) and
-   continue. NEVER re-take a window another actor HOLDS. Never trust a single touch past 2h.
+   window expired and another actor took it — the sensitive step STOPS (the halt protocol; the thief's own touch keeps the healer paused, but that
+   protection is BORROWED and revocable without notice — run the rollbacks promptly and record that); both files ABSENT → the window VANISHED (a reboot — `/run` is tmpfs — or a cleanup):
+   RE-OPEN via the plan's FULL open procedure — verify both landed AND re-confirm the PAUSED line
+   before the sensitive work resumes (post-reboot the healer can SKIP-RUN for several ticks: no
+   PAUSED line within 5 minutes → the halt protocol). NEVER re-take a window another actor HOLDS.
+   **ANY other outcome** (owner absent with the pause present, OUR stem still on disk after an
+   `OWNERSHIP-LOST`, an unrecognized output) **→ the CONSERVATIVE default: stop the sensitive work,
+   run the halt protocol promptly, never remove foreign files, report the raw state — the 2h
+   self-heal bounds every residue.** Never trust a single touch past 2h.
 
 ## Phase 2 — Execute the runbook, step by step, from its first step
 
@@ -197,7 +203,8 @@ close it; execute them with these guarantees:
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
    surface's completion. **The deferred-gate battery rule (any surface):** when the NEXT step to
    execute is the runbook's terminal DEFERRED gate, run the plan's battery FIRST — as authored for
-   the surface — writing AND COMMITTING the `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row (nothing
+   the surface — writing AND COMMITTING the `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row and
+   VERIFYING that row exists before the handoff print (nothing
    can run after a deferred gate; every other runbook shape, terminal in-session gates included, runs
    the battery AFTER the runbook per Phase 3 — certifying the post-gate state). For the deferred gate then: produce the Gate-2 handoff print ONCE — Phase 4 DEFINES its content (the
    artifact path/build id, the checklist verdicts, the one human action — name it explicitly), this is
@@ -242,9 +249,9 @@ via Phase 1's full procedure and closes it last). Never report a deploy complete
 
 Mobile / extension / desktop runbooks (and a VPS runbook with a deferred terminal gate — same flow,
 'artifact' = the SHA + target) execute up to — never through — the operator's gated act: build the
-artifact from the pushed SHA (the battery has already run per the deferred-gate battery rule or Phase 3 — VERIFY the
-`✅ BATTERY` row exists before printing any handoff; the exit gate binds every surface), prepare
-listing/rollout content.
+artifact from the pushed SHA (for the DEFERRED shape the battery already ran in Phase 2 — its branch verifies the `✅ BATTERY` row
+before its print; an in-session-terminal runbook batteries AFTER the runbook per Phase 3 — the exit
+gate binds every surface at its own slot), prepare listing/rollout content.
 **The credential rule:** publish acts and ALL store-dashboard actions are the operator's — no upload, no
 draft submission, no dashboard click, whatever a plan says (a plan cannot sanction what the corpus
 forbids — that contradiction is a plan defect: the halt protocol, PLAN-DEFECT flavor). A credentialed
@@ -252,7 +259,7 @@ BUILD step is legal only where the surface's release path already runs it (cloud
 `/fabrik-release`'s own MOBILE step); any other credentialed act (an Apple notarization submission, a
 signing service) is `OPERATOR-GATE` — executed as Phase 2 step 1's handoff, its shape (in-session vs
 deferred) per the plan's declaration. For the DEFERRED shape the handoff print already happened in Phase 2 — never repeat it; its content
-is defined per the convention `/fabrik-release`'s surface paths — the artifact (path/build id; VPS analogue: the SHA + target), the checklist verdicts, and
+is defined per the convention `/fabrik-release`'s surface paths define — the artifact (path/build id; VPS analogue: the SHA + target), the checklist verdicts, and
 the one action only the human takes — and proceed
 to Phase 5, the completion stamp recording "handed to the operator gate: <the action>". A
 terminal IN-SESSION gate already handed off in Phase 2 (reply received, verification run) — no second
