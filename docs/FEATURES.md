@@ -130,6 +130,7 @@ Data source: `scripts/kilo-benchmarks/rank_coding_subagents.py` (single source o
 | Feature | Status | Audience | Headline |
 |---------|--------|----------|----------|
 | [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
+| [Deploy Command Triad](#deploy-command-triad) | ✅ Shipped | Operator | `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` — plan-governed, evidence-bound deploys wrapping `fabrik apply` |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |
 | [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 12 scaffold types with `.droid/`, AI guardrails, and spec emission |
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
@@ -223,6 +224,41 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 - **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.) plus archived legacy `coolify` driver for `fabrik status`/`logs` against pre-2026-05-30 services
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
 - **State:** `src/fabrik/state.py` — 8-field manifest written after each successful apply
+
+---
+
+## Deploy Command Triad
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** 2026-08-11
+
+> **Headline:** Every VPS deploy can now be plan-governed: `/fabrik-deploy-plan` authors a per-service
+> deployment plan (surface resolution across all 12 scaffold types, spec↔code↔compose reconciliation,
+> an ordered runbook with per-step verification + rollback, healing-window bracketing with stem-guarded
+> autoheal-pause ownership, a verification battery, monitoring/DR truth), `/fabrik-deploy-plan-review`
+> adversarially converges it to an md5-verified no-op (`Status: CONVERGED`), and the operator-dispatched
+> `/fabrik-deploy` executes it step-by-step with a committed deploy ledger, halt protocol, and the
+> battery as its exit gate — handing to `/fabrik-deploy-verify`.
+
+### What It Does
+
+- Closes the gap between `/fabrik-release`'s Gate-2 handoff and `/fabrik-deploy-verify`: the deploy
+  itself becomes a reviewed, evidence-bound artifact instead of an ad-hoc `fabrik apply`.
+- Gate-2 discipline preserved: `/fabrik-deploy` runs ONLY on the operator's explicit dispatch of a
+  `Status: CONVERGED` plan (allowlist gate; every dispatch is a fresh run — no mid-runbook resume).
+- Store surfaces (mobile/extension/desktop) get their surface's analogue of every class and stop at
+  the operator's publish act.
+- Seeded by the failure classes of `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md`.
+
+### How To Use
+
+```bash
+/fabrik-deploy-plan specs/services/<id>.yaml     # author the plan (Status: DRAFT)
+/fabrik-deploy-plan-review docs/development/plans/<plan>.md   # converge to CONVERGED
+/fabrik-deploy docs/development/plans/<plan>.md  # operator-dispatched execution (Gate 2)
+```
+
+Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via the NEXT map in
+`commands/assemble_commands.py` (`/fabrik-release` hands VPS surfaces to `/fabrik-deploy-plan`).
 
 ---
 
