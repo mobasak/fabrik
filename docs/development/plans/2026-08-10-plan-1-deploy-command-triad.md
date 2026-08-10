@@ -80,6 +80,13 @@ cheapest to catch at its own phase boundary, not at the end.
 
 ## Phase A — Author the three command sources (fresh-session, ai-prompt-templates-bound)
 
+**✅ EXECUTED 2026-08-11 (reviewed HEAD f79ce910)** — three sources authored; review gate A closed
+at round 58: native Opus rounds 52/54/56/58 all CLEAN, pool round 58 zero survivors, no edits from
+the closing round. 29 fix-waves total; window one-liners proven behaviorally through BOTH quoting
+layers (16-case harness + the natives' independent 20-case tables). Validation gate A green this
+run: 3 files exist · `grep -L "Termination contract"` empty · trailing NEXT lines verbatim-match
+the planned dict strings · `--check` shows only the designed pre-render MISSING state.
+
 Each file follows the exemplar skeleton EXACTLY (frontmatter `description:` with one-line essence +
 TRIGGER EN/TR + SKIP + `Stage:` · `argument-hint:` · ⚠ Termination contract first · preconditions ·
 numbered phases · lean NEXT line at the end). Target scale 130-240 lines each (the largest exemplar is 239L). Content contracts:
