@@ -68,5 +68,14 @@ NEXT: <named successor — /fabrik-<x> <args> | operator decision: <what> | none
 Missing any line = failure. Run gate → success, then output the 6 lines. NEXT: must be runnable
 without re-derivation; a vague NEXT ("continue") is a missing line.
 
+**EVERY OTHER response ends with the two-line STATE footer** (operator mandate 2026-08-10 — no
+exempt turns: conversational, clarifying, read-only, mid-plan status all carry it):
+```
+STATE: <where things stand — stage/board/loop position, one line>
+NEXT: <successor command · operator decision awaited · "awaiting your reply" · none — terminal>
+```
+It never replaces the 6-line block on a task-completing response; a footer `NEXT:` naming
+undispatched own-session work is the same checkpoint-stall the Stop hook blocks.
+
 ## Spec contract awareness
 `specs/services/<id>.yaml::shape` drives registrars on `fabrik apply`. Code MUST match shape: DB call → `needs_database`; cache → `needs_cache`; `/metrics` → `exposes_metrics`; search → `has_search_feature`; admin UI behind auth → `is_admin_dashboard`. Mismatch = registrar skipped = broken deploy. Preview `fabrik plan <spec>` is hub-side (not on a project's PATH); from a project, reason from the shape flags.

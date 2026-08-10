@@ -159,6 +159,15 @@ NEXT: <named successor — /fabrik-<x> <args> | operator decision: <what> | none
 ```
 Missing any line = task failure. Re-run gate until `success`, then output 6 lines. `NEXT:` must be runnable without re-derivation; a vague NEXT ("continue") is a missing line; own-session work named in NEXT is dispatched, not narrated.
 
+**EVERY OTHER response ends with the two-line STATE footer** (operator mandate 2026-08-10 — no
+exempt turns: conversational, clarifying, read-only, mid-plan status all carry it):
+```
+STATE: <where things stand — stage/board/loop position, one line>
+NEXT: <successor command · operator decision awaited · "awaiting your reply" · none — terminal>
+```
+It never replaces the 6-line block on a task-completing response; a footer `NEXT:` naming
+undispatched own-session work is the same checkpoint-stall the Stop hook blocks.
+
 ## Spec contract awareness
 
 Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that drives:
