@@ -64,16 +64,24 @@ desktop — authored by `/fabrik-deploy-plan` Phase 0); the checklist below is c
 serves is simple by design — every `/fabrik-deploy` dispatch is a FRESH run of a `CONVERGED` plan; a
 halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` again:
 
-- `DRAFT`/`PLANNED` → the normal convergence loop below.
+- `DRAFT`/`PLANNED` → the normal convergence loop below — and a DRAFT carrying LEDGER rows is an
+  interrupted re-entry: it inherits the RE-ENTRY AUDIT duty below before it may flip.
 - `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in
   fact), or carrying a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded at pre-flight (the committed
   evidence — a console BLOCKED print alone proves nothing later): flip back to `DRAFT` and converge
-  again. Unchanged inputs AND no unadjudicated defect row → report already-converged, do not re-run.
+  again, annotating the consumed defect row(s) `[ADJUDICATED <date> — closed by this re-convergence]`
+  in the re-convergence commit (kept, never deleted — the checks key on UNadjudicated rows). Unchanged
+  inputs AND no unadjudicated defect row → report already-converged, do not re-run.
 - `BLOCKED` — a halted deploy: the **RE-ENTRY AUDIT** below, then flip to `DRAFT`, amend, converge.
+  **Every status flip-back this guard performs commits IMMEDIATELY** (explicit pathspec, the
+  `deploy-plan-review` marker) — an uncommitted flip is what the next pre-commit stash cycle silently
+  reverts, snapping a defective plan back to dispatchable `CONVERGED`.
 - `IN-PROGRESS` → a deploy is live, or its session died mid-run: **refuse unless the operator confirms
   THIS turn that it is dead**; on that confirmation, audit the ledger (what completed, what the halt
   protocol never got to unwind), flip `IN-PROGRESS → BLOCKED — <audited state>` (committed, with the
   marker), and proceed as the BLOCKED case.
+- Status absent/unrecognized → refuse: not a deploy plan — nothing here to converge (route to
+  `/fabrik-deploy-plan`).
 - `EXECUTED` → refuse: consumed — a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip
   `EXECUTED` back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
 

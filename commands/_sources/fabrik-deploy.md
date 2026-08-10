@@ -20,10 +20,15 @@ This run has exactly FOUR legitimate endings:
    `→ EXECUTED <date>`, archived, **committed and pushed**, and the 6-line FINAL OUTPUT block printed.
    Store surfaces are "deployed" at their operator publish gate: prepared, verified, handed off, and
    closed out per Phase 4 — ending there IS success.
-2. **Halted** — the halt protocol ran in full (Phase 2 step 3: rollbacks per the plan with fenced proof,
-   the `⛔` ledger row, the window closed, `Status: → BLOCKED — <step> <why>`, committed AND pushed) and
-   the `BLOCKED: <step> — <evidence> — <rollback taken>` report names the route back
-   (`/fabrik-deploy-plan-review`). A halt is a complete, honest ending — never a half-recorded one.
+2. **Halted** — two flavors, both complete and honest: (a) a RUNBOOK/BATTERY halt (Phases 1-3) ran
+   the full halt protocol (Phase 2 step 3: rollbacks per the plan with fenced proof, the `⛔` ledger
+   row, the window closed, the literal line `Status: BLOCKED — <step id> <why>` — the file carries
+   only the target status, never arrow notation — committed AND pushed) and the
+   `BLOCKED: <step> — <evidence> — <rollback taken>` report names the route back
+   (`/fabrik-deploy-plan-review`); (b) an ADMINISTRATIVE stop (Phase 5 — a missing record, an
+   unconfirmable window) **NEVER unwinds the live deploy**: the service stays up, nothing rolls back,
+   the plan stays `IN-PROGRESS`, and the report reads
+   `BLOCKED: <admin issue> — deploy LIVE, close-out incomplete — operator decision`.
 3. **Refused** — a hard-gate or pre-flight refusal ended the run cleanly BEFORE the flip: nothing
    mutated, the plan untouched (except a pre-acceptance `⛔ PLAN-DEFECT` record where Phase 0 found the
    plan itself defective), the refusal names its remedy.
@@ -44,7 +49,9 @@ This run has exactly FOUR legitimate endings:
    refuses with its route: `DRAFT`/`PLANNED` → `run /fabrik-deploy-plan-review first` · `BLOCKED` → `a
    halted deploy — the review's re-entry re-converges it` · `IN-PROGRESS` → `a deploy is live or died
    mid-run — operator confirms it is dead, then the review audits the ledger and flips it BLOCKED` ·
-   `EXECUTED` → `consumed — author a new plan` · absent/unrecognized → `not a deploy plan`. **Post-flip
+   `EXECUTED` → `consumed — author a new plan` · absent/unrecognized → `not a deploy plan` · and even
+   at `CONVERGED`, an UNADJUDICATED `⛔ PLAN-DEFECT` row refuses (`the recorded defect was never
+   re-converged — run /fabrik-deploy-plan-review`; mechanical — read the rows, don't re-judge). **Post-flip
    edits void the flip:** the review commits its `CONVERGED` flip — if `git log` shows commits touching
    the plan after that flip commit other than the sanctioned set (trailers `Agent-Context:
    deploy-ledger <plan-stem>` = this command's own; `Agent-Context: deploy-plan-review <plan-stem>` =
@@ -62,8 +69,8 @@ inside them.
 ## Phase 0 — Resolve + pre-flight (all BEFORE the flip — a refusal here leaves the plan untouched)
 
 1. Read the plan fully: surface, target, runbook, battery, retryable/rollback columns, `OPERATOR-GATE`
-   markers. A structural defect found in this read (a fused build+credentialed step, a non-terminal
-   `OPERATOR-GATE` step, an unexecutable command) → record it durably —
+   markers. A structural defect found in this read (a fused build+credentialed step, an unexecutable
+   command) → record it durably —
    `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` appended to the plan, committed with the
    `deploy-ledger` marker, status untouched — and refuse: `BLOCKED: plan defect — run
    /fabrik-deploy-plan-review` (the committed row is the review's re-entry evidence; a console print
@@ -82,7 +89,9 @@ inside them.
    metadata). `pause.owner` names another stem or is absent while a pause exists: mtime age **≥ 2h**
    (inert — the healer ignores it) → mark both files for removal, executed immediately before the
    run's first target mutation and re-verified at execution time (fresh `stat` + owner read — anything
-   fresher or now-owned means a sibling opened in the gap → treat as the <2h case); age **< 2h** → a
+   fresher or now-owned at execution time means a sibling opened in the gap → the removal is OFF and,
+   being post-flip now, the <2h WAIT below applies with the mid-run exit: tolerance exceeded → the
+   halt protocol, never the pre-flip refusal); age **< 2h** → a
    live window (a sibling deploy or an operator's manual pause) → **wait in-session**: re-probe every
    60s up to the plan's declared tolerance (default 30 min), proceed when clear; tolerance exceeded →
    refuse (`BLOCKED: persistent foreign pause on <target> — confirm with the operator`; pre-flip, so
@@ -95,14 +104,21 @@ inside them.
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
 5. **The flip: `CONVERGED → IN-PROGRESS`, committed NOW** (explicit pathspec; every ledger/flip/close
    commit carries `Agent-Context: deploy-ledger <plan-stem>`). From here the rule is TOTAL: **the run
-   ends only through ending 1 (EXECUTED) or ending 2 (the halt protocol)** — every post-flip stop, of
-   any kind, IS a halt and runs the full protocol. The ledger starts here: rows are
+   ends only through ending 1 (EXECUTED) or ending 2** — every post-flip stop in Phases 1-3 IS a
+   runbook halt and runs the full protocol; a Phase-5 stop is ending 2's administrative flavor (the
+   deploy is live — never unwound over a record-keeping failure). The ledger starts here: rows are
    `— ✅ <step id> <UTC timestamp>` per completed step and
    `— ⛔ <BLOCKED|PLAN-DEFECT> <step id> <UTC timestamp> <why> <rollback taken>` on the halt — ISO-8601
    UTC timestamps (`YYYY-MM-DDTHH:MM:SSZ`), each row committed at the step that earned it (a
    migration's row living only in the working tree is not durable — the pre-commit stash cycle can
    silently revert it). The ledger is an EVIDENCE RECORD for the review's re-entry audit — never a
    resume protocol.
+
+6. Honor the plan's env knobs verbatim (e.g. `FABRIK_BUILD_TIMEOUT=1200` for heavy images — the
+   deployer reads it per `deployer_ssh.py::_BUILD_TIMEOUT`). **Background any step likely >30s and
+   monitor it** — never block the session on a long build, never abandon it; a foreground harness
+   timeout is a MONITORING mistake, not a step failure — the three-attempt accounting counts real
+   failures only.
 
 ## Phase 1 — Maintenance window open (VPS surfaces with a healing-sensitive step)
 
@@ -131,12 +147,13 @@ close it; execute them with these guarantees:
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es both files at each step
    boundary per the plan's labeled heartbeat steps; never trust a single touch past 2h.
 
-## Phase 2 — Execute the runbook, step by step, from S1
+## Phase 2 — Execute the runbook, step by step, from its first step
 
-1. Run the step's exact command. An `OPERATOR-GATE` step is never run — the plan authors such steps
-   only as a runbook's TERMINAL act (the review enforces it; finding one mid-runbook is a plan defect
-   → the halt protocol, PLAN-DEFECT flavor): reaching it IS the run's success boundary — proceed to
-   the close-out with the handoff naming the operator's act.
+1. Run the step's exact command. An `OPERATOR-GATE` step is never run BY YOU — it is a **mid-session
+   synchronous handoff**: this run is operator-dispatched, so the human is present by construction —
+   name the exact act and its expected result, hand it over, WAIT for the operator's confirmation in
+   this session, then run the step's VERIFICATION column (their act must prove out like any other
+   step) and continue. No confirmation forthcoming → the halt protocol (the operator can always halt).
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
    starts. A verification you didn't run is a step that didn't happen. Commit the `✅` row.
 3. **On failure — the plan's `retryable` column decides, then the HALT PROTOCOL (ending 2) runs:**
@@ -147,9 +164,12 @@ close it; execute them with these guarantees:
    - **The halt protocol, in order:** execute the failed step's rollback and **prove it landed (fenced
      output)**; execute the plan's rollback for every step THIS run completed that requires it (inside
      the maintenance window where they need it — Phase 1 step 3; a `NON-RERUNNABLE` step's surviving
-     effects are recorded, not improvised around); close any open window (BOTH files, verified); write
+     effects are recorded, not improvised around); close any window THIS RUN OPENED (BOTH files, verified — a foreign pause on the target is NEVER
+     removed: it is a sibling's or the operator's, and the tolerance-exceeded halt path by definition
+     holds no window of its own); write
      + commit the `⛔` row (its `<rollback taken>` field lists exactly what was unwound and what
-     deliberately survived); flip `Status: IN-PROGRESS → BLOCKED — <step id> <why>`, commit AND push;
+     deliberately survived); set the literal line `Status: BLOCKED — <step id> <why>` (no arrow notation in the file), commit AND
+     push;
      report `BLOCKED: <step> — <evidence> — <rollback taken>` naming `/fabrik-deploy-plan-review` as
      the route. No improvisation: a situation the plan didn't anticipate is a plan defect — the same
      protocol, PLAN-DEFECT flavor; never redesign the deploy mid-run.
@@ -171,7 +191,8 @@ draft submission, no dashboard click, whatever a plan says (a plan cannot sancti
 forbids — that contradiction is a plan defect: the halt protocol, PLAN-DEFECT flavor). A credentialed
 BUILD step is legal only where the surface's release path already runs it (cloud `eas build` —
 `/fabrik-release`'s own MOBILE step); any other credentialed act (an Apple notarization submission, a
-signing service) is `OPERATOR-GATE` — and per Phase 2 step 1, terminal. Print the Gate-2 handoff per the
+signing service) is `OPERATOR-GATE` — executed as Phase 2 step 1's mid-session handoff. Print the
+Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
 action only the human takes. The handoff IS this surface's deploy completion: proceed to Phase 5, where
 the completion stamp records "handed to the operator publish gate: <the action>".

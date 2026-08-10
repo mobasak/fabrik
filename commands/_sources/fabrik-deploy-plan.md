@@ -154,8 +154,9 @@ the verification that proves the step landed (a command + expected output, fence
 intention** ("re-run previous release" is not a rollback). A step that would FUSE an automatable build
 with a gated credentialed act (a single invocation whose pipeline embeds notarization/signing) must be
 AUTHORED as separate steps — the build up to it, the gated act as its own `OPERATOR-GATE` step, the
-resume after; `/fabrik-deploy` may not restructure a fused step mid-run, so a fused step is a plan
-defect here. In-container exec semantics are spelled out
+resume after (`/fabrik-deploy` executes the gated act as a mid-session operator handoff — hand over,
+wait, verify, continue); `/fabrik-deploy` may not restructure a fused step mid-run, so a fused step
+is a plan defect here. In-container exec semantics are spelled out
 (the B1 class: an in-container default port/host is dev-shaped — pass the explicit `-e` override).
 Long-running steps state their expected duration, and any step expected to exceed its window's tolerances
 names the mitigation (Phase 5). Every step — S1 and the heavy steps especially — must be SAFE TO RE-RUN
