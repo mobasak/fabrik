@@ -185,18 +185,29 @@ be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartb
 (the labels make the bracket auditable — the review's re-entry audit and the halt protocol key on them), **authored in their EXECUTABLE root form** — the dir is
 root-owned and the fleet SSH user is not root, and the alias for `target_vps: vps1` is `vps` (no
 `vps1` alias exists; `vps2`/`vps3` literal) — so the open step is
-`ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause &&
-printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` and every
+`ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal &&
+printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner &&
+touch /run/fabrik-autoheal/pause'"` (**OWNER FIRST, pause second — deliberate ordering**: a
+half-landed open then leaves OUR stem-verifiable owner with no pause — repairable by re-running the
+full open ONCE — while a `pause` with NO owner is always someone ELSE's: the healer's own header
+documents the operator's bare-`touch`-no-owner contract, so no repair path ever writes over or
+removes an ownerless pause) and every
 heartbeat step is the STEM-GUARDED variant —
-`ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] &&
+`ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause ] &&
+[ -f /run/fabrik-autoheal/pause.owner ] &&
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause &&
 printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner ||
-echo OWNERSHIP-LOST'"` — an `OWNERSHIP-LOST` heartbeat means the window expired and another actor took
-it: the sensitive step STOPS (the halt protocol — our protection is gone); NEVER re-take a lost
+echo OWNERSHIP-LOST'"` — the guard proves BOTH files live before refreshing (a heartbeat that
+silently re-created a vanished pause would hide that the healer was LIVE during the gap), so an
+`OWNERSHIP-LOST` heartbeat means the window is no longer intact — ours taken, or the pause gone —
+and the sensitive step STOPS while the deploy's fresh two-file probe disambiguates (theft → the
+halt protocol; vanished → the deploy's full re-open procedure); NEVER re-take a lost
 window (a bare touch or redirect gets Permission denied; the deploy executes the runbook verbatim
 and may not add sudo mid-run);
 **wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
-step** (an already-in-flight healer tick is not retroactively paused); the close step is STEM-GUARDED — tested form, single-backslash `\"` escapes, operators-AND-their-arguments
+step — BOUNDED: the healer ticks every minute, so no `PAUSED` line within 5 minutes means its cron
+is absent or wedged on that target → the deploy halts; author no unbounded wait** (an
+already-in-flight healer tick is not retroactively paused); the close step is STEM-GUARDED — tested form, single-backslash `\"` escapes, operators-AND-their-arguments
 whole at end-of-line when wrapping:
 `ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] &&
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner &&
@@ -205,15 +216,20 @@ rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERS
 to another actor: never remove theirs; the step's VERIFICATION is CONDITIONAL, never rc alone (`OWNERSHIP-LOST` exits 0): PASS = both files
 gone, OR the output is `OWNERSHIP-LOST` with a FOREIGN owner confirmed by a fresh `cat` (the window
 is closed FOR US — proceed, noting it); both files present WITHOUT a foreign owner = the `rm` itself
-failed (read-only fs, EBUSY) → step failure; `pause` present with owner ABSENT = a half-landed
-open/close — re-write OUR owner (the open's `printf` line alone) then re-run the guarded close ONCE;
+failed (read-only fs, EBUSY) → step failure; `pause` GONE with `pause.owner` still OURS = a partial
+`rm` (a half-landed close) — re-run the guarded close ONCE (the guard passes on our own owner and
+removes the orphan); `pause` present with owner ABSENT = FOREIGN — the operator's own
+bare-touch-no-owner contract per the healer's header: NEVER remove it, the conservative default;
 any OTHER outcome → the conservative default: stop, report the raw state, never remove foreign
 files — the 2h self-heal bounds residue) — ordered so the close comes
 AFTER any rollback the window's steps might need. Declare the window **WAIT BOUND** (how long a deploy may wait on a foreign pause before giving up;
 default 30 min — the deploy's waits read this). **The pause file
 is ignored after 2h** (staleness self-heal) — a window that can exceed 2h must schedule its re-`touch`
-heartbeat at step boundaries (each a labeled step) or split the work — and NO SINGLE STEP may exceed
-90 MINUTES (the pause dies at 120 min and heartbeats fire only at boundaries — the margin covers the
+heartbeat at EVERY step boundary inside the window (each a labeled step) or split the work. **The
+load-bearing invariant is the INTERVAL: no two consecutive pause touches (open → heartbeat → … →
+close) may sit more than 120 minutes apart** — boundary heartbeats prove it only when every gap
+between them is bounded, so NO SINGLE STEP may exceed
+90 MINUTES (heartbeats fire only at boundaries — the 30-min margin covers the
 healer's tick and heartbeat latency; split any step that could run longer); a single touch is never trusted
 past it. Also name watchdog posture and
 restart-policy interactions for first boot.

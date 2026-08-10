@@ -155,19 +155,29 @@ close it; execute them with these guarantees:
 
 1. Open — the open-time rule (total): re-probe BOTH files. `pause` absent, OUR stem, an orphan owner,
    or a ≥2h foreign pause (dead by the healer's own truth) → OPEN: run the plan's open step (ONE
-   invocation, as root — a bare redirect runs as the login user and is denied):
-   `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause &&
-   printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` (the `&&`
+   invocation, as root — a bare redirect runs as the login user and is denied; OWNER FIRST, pause
+   second, the plan command's authored ordering):
+   `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal &&
+   printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner &&
+   touch /run/fabrik-autoheal/pause'"` (the `&&`
    stays at end-of-line when wrapping — a leading `&&` inside the quoted script is a bash syntax
    error), then **verify BOTH landed** (fenced `stat` + `cat pause.owner` — a different stem after our
-   own write is a clobber race with a concurrent opener → the halt protocol, removing nothing).
+   own write is a clobber race with a concurrent opener → the halt protocol, removing nothing; owner
+   OURS with the pause missing = OUR half-landed open → re-run the full open ONCE and re-verify,
+   still short = step failure, the halt protocol).
    Capture the touch timestamp. A LIVE (<2h) foreign pause → wait (same 60s/bound rule); still live
    past the bound → this is post-flip: the halt protocol.
 2. **Confirm the window is live BEFORE the sensitive step starts:**
    `sudo journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line newer
    than the touch (the `sudo` is load-bearing: the fleet user is not in `adm`/`systemd-journal`, and an
    unprivileged read returns rc=0 with NO entries — a false "nothing found"; the healer ticks every
-   minute and an in-flight tick is not retroactively paused).
+   minute and an in-flight tick is not retroactively paused). **BOUNDED: no `PAUSED` line within 5
+   minutes** (five ticks of silence = the healer cron absent or stopped on that target, or an
+   instance overrunning) **→ the halt protocol — never start the sensitive step on an unconfirmed
+   window.** A `SKIP-RUN` line here is an ACTIVE-healer signal, never a benign transient: it means a
+   previous healer instance STILL HOLDS the run lock — it is inside its restart loop RIGHT NOW, and
+   that in-flight instance is not retroactively paused — keep waiting for the `PAUSED` line within
+   the same bound, starting nothing while `SKIP-RUN` is the latest word.
 3. **A shell `trap` is NOT a safety net here** — each command runs in a fresh shell, so an `EXIT` trap
    fires when that call ends, not when the deploy does. The closing `rm` — BOTH files, STEM-GUARDED (the authored close verifies `pause.owner` still carries
    THIS plan's stem before removing; ownership lost mid-window means a >2h suspension let another
@@ -176,14 +186,23 @@ close it; execute them with these guarantees:
    the window — then close it (BOTH files, fresh `stat` on each) as the halt's LAST target act. If the
    session dies outright, the pause's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es both files at each step
-   boundary per the plan's labeled STEM-GUARDED heartbeat steps — an `OWNERSHIP-LOST` heartbeat is DISAMBIGUATED by a fresh probe of both files: owner FOREIGN → the
+   boundary per the plan's labeled STEM-GUARDED heartbeat steps (the guard proves BOTH files live
+   before refreshing — it never silently re-creates a vanished pause) — an `OWNERSHIP-LOST` heartbeat is DISAMBIGUATED by a fresh probe of both files: owner FOREIGN → the
    window expired and another actor took it — the sensitive step STOPS (the halt protocol; the thief's own touch keeps the healer paused, but that
-   protection is BORROWED and revocable without notice — run the rollbacks promptly and record that); both files ABSENT → the window VANISHED (a reboot — `/run` is tmpfs — or a cleanup):
-   RE-OPEN via the plan's FULL open procedure — verify both landed AND re-confirm the PAUSED line
-   before the sensitive work resumes (post-reboot the healer can SKIP-RUN for several ticks: no
-   PAUSED line within 5 minutes → the halt protocol). NEVER re-take a window another actor HOLDS.
-   **ANY other outcome** (owner absent with the pause present, OUR stem still on disk after an
-   `OWNERSHIP-LOST`, an unrecognized output) **→ the CONSERVATIVE default: stop the sensitive work,
+   protection is BORROWED and revocable without notice — run the rollbacks promptly and record that); the pause ABSENT (owner still OURS, or both files gone — a reboot (`/run` is tmpfs), a
+   cleanup, or the healer header's documented operator `rm`) → the window VANISHED and **the healer
+   may have been LIVE during the gap — FIRST read its actions**:
+   `sudo journalctl -t fabrik-autoheal --since '<the last successful touch>'` — a `RESTARTED` line
+   naming a container this deploy touches means the sensitive work was interfered with → the halt
+   protocol, never a resume (an unrelated `RESTARTED` proves the gap was live — record it in the
+   ledger row); a clean log → RE-OPEN via the plan's FULL open procedure — verify both landed AND
+   re-confirm the PAUSED line before the sensitive work resumes (step 2's 5-minute bound and its
+   `SKIP-RUN` rule apply — and post-reboot `SKIP-RUN` is IMPOSSIBLE: the lock died with the tmpfs, so
+   silence there just means cron has not ticked yet, while a `SKIP-RUN` line means a live instance is
+   restarting containers RIGHT NOW). NEVER re-take a window another actor HOLDS.
+   **ANY other outcome** (owner absent with the pause present — always FOREIGN, the operator's own
+   bare-touch contract; OUR stem AND the pause both still on disk after an `OWNERSHIP-LOST` — a
+   guard/probe contradiction; an unrecognized output) **→ the CONSERVATIVE default: stop the sensitive work,
    run the halt protocol promptly, never remove foreign files, report the raw state — the 2h
    self-heal bounds every residue.** Never trust a single touch past 2h.
 
