@@ -167,8 +167,9 @@ safe). Steps only the operator may take (any store-dashboard or credentialed
 publish action, a paid account action — and any credentialed act whose classification is unclear, e.g. a
 notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE`, each declaring its verification shape — `verify: in-session` (the result
 is immediately checkable; the deploy hands over, waits, verifies, continues) or `verify: deferred`
-(a store review measured in days; the handoff completes the surface) — the runbook prepares each and
-hands it to the operator, never performs it. The surface's sanctioned build path (cloud `eas build`,
+(a store review measured in days; the handoff completes the surface — a deferred-gate step is
+therefore ALWAYS the runbook's final step, the battery ordered before it) — the runbook prepares each
+and hands it to the operator, never performs it. The surface's sanctioned build path (cloud `eas build`,
 per `/fabrik-release`'s own MOBILE step) is NOT `OPERATOR-GATE` — marking it makes the artifact
 unbuildable and stalls the deploy at a step the corpus already sanctions. `/fabrik-deploy` applies the
 same defaults, so an unmarked ambiguous step is a plan defect the review must catch, not a deploy-time

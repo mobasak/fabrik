@@ -16,7 +16,10 @@ for anything that deliberately survived the halt.
 
 ## ⚠️ Termination contract
 
-This run has exactly FOUR legitimate endings:
+This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the
+verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, phrase the wait as
+an explicit `operator decision:`, end the turn, resume on the reply — a suspension is not a stop and
+never triggers the halt protocol):
 
 1. **Deployed** — every runbook step ran with its verification **PASS (fenced output, this run)**, the
    battery (the exit gate) is green, the maintenance window is provably closed, the plan carries the
@@ -53,8 +56,8 @@ This run has exactly FOUR legitimate endings:
    TO this gate; this command is what the gate's approval sanctions.
 2. **`Status: CONVERGED` — the ONLY executable status (allowlist, not denylist).** Anything else
    refuses with its route: `DRAFT`/`PLANNED` → `run /fabrik-deploy-plan-review first` · `BLOCKED` → `a
-   halted deploy — the review's re-entry re-converges it` · `IN-PROGRESS` → ONE narrow acceptance: a ledger showing every runbook step `✅` + a battery-green
-   record = an admin-stopped COMPLETE deploy → run Phase 5 (close-out) only; any other `IN-PROGRESS`
+   halted deploy — the review's re-entry re-converges it` · `IN-PROGRESS` → ONE narrow acceptance: a ledger showing every runbook step `✅` + the `✅ BATTERY`
+   row = an admin-stopped COMPLETE deploy → run Phase 5 (close-out) only; any other `IN-PROGRESS`
    → `a deploy is live or died mid-run — operator confirms it is dead, then the review audits the
    ledger and flips it BLOCKED` ·
    `EXECUTED` → `consumed — author a new plan` · absent/unrecognized → `not a deploy plan` · and even
@@ -96,7 +99,9 @@ inside them.
    `<plan-stem> <ISO-8601 UTC timestamp>` (the healer reads only `pause` — the owner file is triad
    metadata). `pause.owner` names another stem or is absent while a pause exists: mtime age **≥ 2h**
    (inert — the healer ignores it) → mark both files for removal, executed immediately before the
-   run's first target mutation and re-verified at execution time (fresh `stat` + owner read — anything
+   run's first target mutation — whatever step that is: Phase 1's open where a window exists,
+   otherwise the first mutating runbook step (the marking's executor is the first mutation, never
+   only Phase 1) — and re-verified at execution time (fresh `stat` + owner read — anything
    fresher or now-owned at execution time means a sibling opened in the gap → the removal is OFF and,
    being post-flip now, the <2h WAIT below applies with the mid-run exit: tolerance exceeded → the
    halt protocol, never the pre-flip refusal); age **< 2h** → a
@@ -112,8 +117,8 @@ inside them.
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
 5. **The flip: write the literal `Status: IN-PROGRESS`, committed NOW** (explicit pathspec; every ledger/flip/close
    commit carries `Agent-Context: deploy-ledger <plan-stem>`). From here the rule is TOTAL: **the run
-   ends only through ending 1 (EXECUTED) or ending 2** — every post-flip stop in Phases 1-4 IS a
-   runbook halt and runs the full protocol; a Phase-5 stop is ending 2's administrative flavor (the
+   ends only through ending 1 (EXECUTED) or ending 2** — every post-flip TERMINAL stop in Phases 1-4 IS
+   a runbook halt (the registered handoff suspension is not a stop) and runs the full protocol; a Phase-5 stop is ending 2's administrative flavor (the
    deploy is live — never unwound over a record-keeping failure). The ledger starts here — **each dispatch opens its section with a `— RUN <n> <UTC timestamp>` header
    row** (the review's audit partitions by run: only the LATEST run's rows describe current target
    state; earlier runs are history): rows are
@@ -168,11 +173,15 @@ close it; execute them with these guarantees:
 1. Run the step's exact command. An `OPERATOR-GATE` step is never run BY YOU — it is a **mid-session
    operator handoff**, in two shapes the plan declares per step: **verify-in-session** (the act's
    result is immediately checkable — e.g. notarization before a staple) → name the exact act and its
-   expected result, END THE TURN on that handoff (a sanctioned mid-run pause, exactly like the sibling
-   commands' operator asks — the checkpoint-stall rule does not bind a genuine operator-gated wait),
+   expected result, then END THE TURN on that handoff — first PUSH the ledger commits (the task-end law
+   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and word the wait as
+   `operator decision: <the act>` (the enforcement mesh's sanctioned pause phrasing) —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
-   surface's completion: record it and proceed to the close-out (the store shape of ending 1). An
+   surface's completion: record it and proceed to the close-out (the store shape of ending 1). A
+   deferred gate is by AUTHORING RULE the runbook's FINAL step with the battery run before it (the
+   review enforces this) — finding runbook steps AFTER a deferred gate is a plan defect → the halt
+   protocol. An
    operator reply of "halt" (or a refusal to proceed) → the halt protocol.
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
    starts. A verification you didn't run is a step that didn't happen. Commit the `✅` row.
@@ -197,8 +206,9 @@ close it; execute them with these guarantees:
 ## Phase 3 — Battery: the exit gate
 
 Run the plan's verification battery in full — write-path probe, queue-drain, companion reachability,
-cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output. **The
-battery is the deploy's exit gate:** any FAIL means the deploy is NOT done — fix via the plan's named
+cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output; on full
+PASS write + commit the ledger row `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` (the record the
+close-out-only re-entry keys on). **The battery is the deploy's exit gate:** any FAIL means the deploy is NOT done — fix via the plan's named
 rollback/retry path or run the halt protocol (a rollback that needs healing protection RE-OPENS a window
 via Phase 1's full procedure and closes it last). Never report a deploy complete on a partial battery.
 
@@ -219,10 +229,14 @@ the completion stamp records "handed to the operator publish gate: <the action>"
 
 ## Phase 5 — Close out (all surfaces, ending 1 only)
 
-1. **Confirm the maintenance window is closed FIRST** — BOTH files gone (fenced `stat` on each + log
-   evidence). Still present → this is NOT an administrative stop: fix the close per the runbook's own
-   `window-close` step (re-run it, verified) before anything else — the flip never happens over an
-   open window (ending 1 requires it provably closed).
+1. **Confirm the maintenance window is closed FIRST** (VPS surfaces whose plan bracketed a window —
+   store surfaces and windowless plans skip this step) — BOTH files gone (fenced `stat` on each + log
+   evidence). Still present with `pause.owner` reading THIS plan-stem → fix OUR close: re-run the
+   runbook's own `window-close` step, verified, before anything else — the flip never happens over
+   our own open window. A FOREIGN owner (or owner absent) → NOT ours: never remove it (a sibling's or
+   the operator's business) — note it in the report and proceed. The probe itself failing (target
+   unreachable post-deploy) → ending 2b (admin stop — deploy LIVE; the pause self-heals at 2h; never
+   unwind).
 2. **Verify the review artifact exists on disk**
    (`ls docs/development/reviews/<plan-stem>-review.md`). Missing → recover from history:
    `git log --oneline --diff-filter=AM -- <path> | head -1` (the `AM` filter lists only commits that
