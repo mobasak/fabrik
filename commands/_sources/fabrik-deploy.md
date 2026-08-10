@@ -17,8 +17,9 @@ for anything that deliberately survived the halt.
 ## ⚠️ Termination contract
 
 This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the
-verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, phrase the wait as
-an explicit `operator decision:`, end the turn, resume on the reply — a suspension is not a stop and
+verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, make the footer's
+`NEXT:` line the single `operator decision: <the act>` line — the hook exemption is line-scoped —
+end the turn, resume on the reply — a suspension is not a stop and
 never triggers the halt protocol):
 
 1. **Deployed** — every runbook step ran with its verification **PASS (fenced output, this run)**, the
@@ -101,13 +102,14 @@ inside them.
    ownership NEXT TO it: every window touch also writes `/run/fabrik-autoheal/pause.owner` containing
    `<plan-stem> <ISO-8601 UTC timestamp>` (the healer reads only `pause` — the owner file is triad
    metadata). `pause.owner` names another stem or is absent while a pause exists: mtime age **≥ 2h**
-   (inert — the healer ignores it) → mark both files for removal, executed immediately before the
+   (inert — the healer ignores it): a WINDOWLESS plan notes it and proceeds (no interest in the
+   file); a window-bracketing plan marks both files for removal, executed immediately before the
    run's first target mutation — whatever step that is: Phase 1's open where a window exists,
    otherwise the first mutating runbook step (the marking's executor is the first mutation, never
    only Phase 1) — and re-verified at execution time (fresh `stat` + owner read — anything
-   fresher or now-owned at execution time means a sibling opened in the gap → the removal is OFF and,
-   being post-flip now, the <2h WAIT below applies with the mid-run exit: tolerance exceeded → the
-   halt protocol, never the pre-flip refusal); age **< 2h** → a
+   fresher or now-owned at execution time means a sibling opened in the gap → the removal is OFF; a
+   windowless plan then notes it and proceeds, a window-bracketing plan takes the <2h WAIT below with
+   the mid-run exit — tolerance exceeded → the halt protocol, never the pre-flip refusal); age **< 2h** → a
    live window (a sibling deploy or an operator's manual pause): a WINDOWLESS plan leaves it entirely
    alone — no wait, no removal, note it and proceed (a foreign healing window is irrelevant to a
    deploy with no long-unhealthy step); a plan that BRACKETS a window → **wait in-session**: re-probe
@@ -179,18 +181,20 @@ close it; execute them with these guarantees:
    operator handoff**, in two shapes the plan declares per step: **verify-in-session** (the act's
    result is immediately checkable — e.g. notarization before a staple) → name the exact act and its
    expected result, then END THE TURN on that handoff — first PUSH the ledger commits (the task-end law
-   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and make the message's FINAL
-   line the single `operator decision: <the act>` line with NO other line promising work ('I'll run
-   it') or naming outstanding obligations — the enforcement mesh's exemption is LINE-scoped, so the
-   whole stall-bearing tail must be that one line —
+   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and shape the closing footer
+   so the `NEXT:` line IS the single `operator decision: <the act>` line, with the `STATE:` line (and
+   every other line) free of promise/obligation constructions ('I'll run it', '<work> is
+   outstanding') — the enforcement mesh's exemption is LINE-scoped, so the stall-bearing text must
+   sit only on the exempt line —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
-   surface's completion: write its row as `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is
-   the recorded event; its verification is deferred by declaration) and proceed to the close-out (the
-   store shape of ending 1). A deferred gate is by AUTHORING RULE the runbook's FINAL step (the
-   review enforces this) — finding runbook steps AFTER a deferred gate is a plan defect → the halt
-   protocol — and the surface's BATTERY has already run before the handoff (Phase 4 orders it), so
-   the deferred jump skips nothing. An
+   surface's completion — but FIRST, before executing the deferred gate itself, run the surface's
+   battery (Phase 3's store analogue: installability, first-run smoke — write AND COMMIT the
+   `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row); then write the gate's row as
+   `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is the recorded event; its verification is
+   deferred by declaration) and proceed to the close-out (the store shape of ending 1). A deferred
+   gate is by AUTHORING RULE the runbook's FINAL step (the review enforces this) — finding runbook
+   steps AFTER a deferred gate is a plan defect → the halt protocol. An
    operator reply of "halt" (or a refusal to proceed) → the halt protocol.
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
    starts. A verification you didn't run is a step that didn't happen. Commit the `✅` row.
@@ -212,7 +216,7 @@ close it; execute them with these guarantees:
      the route. No improvisation: a situation the plan didn't anticipate is a plan defect — the same
      protocol, PLAN-DEFECT flavor; never redesign the deploy mid-run.
 
-## Phase 3 — Battery: the exit gate
+## Phase 3 — Battery: the exit gate (VPS: after the runbook; stores: invoked from Phase 2 immediately BEFORE the deferred gate)
 
 Run the plan's verification battery in full — write-path probe, queue-drain, companion reachability,
 cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output; on full
@@ -224,9 +228,8 @@ via Phase 1's full procedure and closes it last). Never report a deploy complete
 ## Phase 4 — Store surfaces: stop at the operator's publish act, then close out
 
 Mobile / extension / desktop runbooks execute up to — never through — the publish act: build the
-artifact from the pushed SHA, run the plan's battery (the store analogue — installability, first-run
-smoke — writing the same `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row Phase 3 writes for VPS; the
-exit gate binds every surface, BEFORE any handoff), prepare listing/rollout content.
+artifact from the pushed SHA (the battery already ran from Phase 2, immediately before the deferred
+gate — the exit gate binds every surface), prepare listing/rollout content.
 **The credential rule:** publish acts and ALL store-dashboard actions are the operator's — no upload, no
 draft submission, no dashboard click, whatever a plan says (a plan cannot sanction what the corpus
 forbids — that contradiction is a plan defect: the halt protocol, PLAN-DEFECT flavor). A credentialed
@@ -245,10 +248,11 @@ the completion stamp records "handed to the operator publish gate: <the action>"
    evidence). Still present with `pause.owner` reading THIS plan-stem → fix OUR close: re-run the
    runbook's own `window-close` step, verified, before anything else — the flip never happens over
    our own open window. An owner reading ANOTHER stem → foreign: never remove it (a sibling's or the
-   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → a partial
-   state (a half-run close, a third party's owner-file removal): this step is scoped to plans that
-   bracketed a window this run, so the pause is OURS to finish closing — re-run our `window-close`
-   (idempotent `rm -f`, verified). The probe itself failing (target
+   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → NOT ours: the
+   triad always writes the owner with the pause, and OUR interrupted close leaves the opposite state
+   (an orphan owner — the close removes `pause` first), so an ownerless pause is an operator's manual
+   pause — never remove it; note it and proceed (our window-closed confirmation rests on our
+   `window-close` step's `✅` row plus the absence of any pause carrying OUR stem). The probe itself failing (target
    unreachable post-deploy) → ending 2b (admin stop — deploy LIVE; the pause self-heals at 2h; never
    unwind).
 2. **Verify the review artifact exists on disk**
