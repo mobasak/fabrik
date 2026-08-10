@@ -1,6 +1,6 @@
 id: tryton-crm
 kind: service
-template: python-api
+template: saas-skeleton
 domain: tryton-crm.vps1.ocoron.com
 # ⚠ STACK SPEC (2026-08-09): the repo compose deploys THREE services — tryton-crm (bridge) +
 # trytond (local Dockerfile.trytond) + trytond-worker — and the deployer runs that compose as-is
