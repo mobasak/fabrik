@@ -1,0 +1,141 @@
+# AFTER-EDIT: scripts/sysadmin/claude_rotate.py
+"""Behavior contract for claude_rotate's token RE-CAPTURE (plan 2026-08-10-plan-1, Phase C).
+
+Why this exists (live incident 2026-08-10 12:05): the stored snapshot for the active account
+was 1.5 days stale, so the credential chain ran on an old refresh token until it could not be
+refreshed at all. Re-capture keeps the snapshot equal to the live token, so a later restore can
+never resurrect a dead one.
+
+Contract under test:
+  --capture-current  snapshot the LIVE creds into the active account's dir — atomically
+                     (tmp + os.replace, mirroring _activate_snapshot), 0600, MONOTONE (never
+                     replace a newer snapshot with an older one), token bytes never emitted.
+  --drift-check      read-only compare; capture only when the live token differs. Quiet, exit 0.
+"""
+
+import importlib.util
+import json
+import os
+import stat
+from pathlib import Path
+
+import pytest
+
+_MOD = Path(__file__).resolve().parent.parent / "scripts" / "sysadmin" / "claude_rotate.py"
+_spec = importlib.util.spec_from_file_location("claude_rotate", _MOD)
+rot = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(rot)
+
+
+def _creds(token: str, org: str | None = None) -> str:
+    d: dict = {"claudeAiOauth": {"accessToken": token, "refreshToken": f"rt-{token}"}}
+    if org:
+        d["organizationUuid"] = org
+    return json.dumps(d)
+
+
+@pytest.fixture
+def box(tmp_path, monkeypatch):
+    """An isolated ~/.claude with two account snapshots; acct-b is active."""
+    claude = tmp_path / ".claude"
+    accounts = claude / "manager-accounts"
+    (accounts / "acct-a").mkdir(parents=True)
+    (accounts / "acct-b").mkdir(parents=True)
+    (accounts / "acct-a" / ".credentials.json").write_text(_creds("tok-A"))
+    (accounts / "acct-b" / ".credentials.json").write_text(_creds("tok-B-OLD"))
+    (claude / ".credentials.json").write_text(_creds("tok-B-LIVE"))
+    (claude / ".active-account").write_text("acct-b")
+    monkeypatch.setattr(rot, "CLAUDE_DIR", claude)
+    monkeypatch.setattr(rot, "ACTIVE_CREDS", claude / ".credentials.json")
+    monkeypatch.setattr(rot, "ACCOUNTS_DIR", accounts)
+    monkeypatch.setattr(rot, "ACTIVE_MARKER", claude / ".active-account")
+    return claude
+
+
+def test_capture_writes_the_live_token_into_the_active_snapshot(box):
+    assert rot._cmd_capture_current() == 0
+    snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-LIVE"
+
+
+def test_capture_is_0600(box):
+    rot._cmd_capture_current()
+    mode = stat.S_IMODE((box / "manager-accounts/acct-b/.credentials.json").stat().st_mode)
+    assert mode == 0o600
+
+
+def test_capture_leaves_no_tmp_litter(box):
+    rot._cmd_capture_current()
+    leftovers = [p.name for p in (box / "manager-accounts/acct-b").iterdir() if ".tmp" in p.name]
+    assert leftovers == []
+
+
+def test_capture_never_touches_a_sibling_snapshot(box):
+    before = (box / "manager-accounts/acct-a/.credentials.json").read_text()
+    rot._cmd_capture_current()
+    assert (box / "manager-accounts/acct-a/.credentials.json").read_text() == before
+
+
+def test_capture_is_monotone_identical_content_is_a_noop(box):
+    """A capture that would write the SAME bytes must not churn the file (mtime stable)."""
+    rot._cmd_capture_current()
+    snap = box / "manager-accounts/acct-b/.credentials.json"
+    os.utime(snap, (1_000_000, 1_000_000))
+    rot._cmd_capture_current()
+    assert snap.stat().st_mtime == 1_000_000
+
+
+def test_capture_refuses_when_the_live_creds_have_no_token(box):
+    (box / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {}}))
+    assert rot._cmd_capture_current() != 0
+    snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-OLD"  # untouched
+
+
+def test_capture_refuses_when_no_active_account_resolves(box):
+    (box / ".credentials.json").write_text(_creds("tok-UNKNOWN"))
+    (box / ".active-account").unlink()
+    assert rot._cmd_capture_current() != 0
+
+
+def test_drift_check_captures_when_the_token_diverged(box):
+    assert rot._cmd_drift_check() == 0
+    snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-LIVE"
+
+
+def test_drift_check_is_a_noop_when_in_sync(box):
+    rot._cmd_capture_current()
+    snap = box / "manager-accounts/acct-b/.credentials.json"
+    os.utime(snap, (1_000_000, 1_000_000))
+    assert rot._cmd_drift_check() == 0
+    assert snap.stat().st_mtime == 1_000_000  # no rewrite when already equal
+
+
+def test_neither_command_emits_token_bytes(box, capsys):
+    rot._cmd_capture_current()
+    rot._cmd_drift_check()
+    out = capsys.readouterr()
+    assert "tok-B-LIVE" not in out.out + out.err
+    assert "rt-tok-B-LIVE" not in out.out + out.err
+
+
+def test_cli_dispatches_both_subcommands(box, monkeypatch):
+    seen = []
+    monkeypatch.setattr(rot, "_cmd_capture_current", lambda: seen.append("capture") or 0)
+    monkeypatch.setattr(rot, "_cmd_drift_check", lambda: seen.append("drift") or 0)
+    assert rot.main(["--capture-current"]) == 0
+    assert rot.main(["--drift-check"]) == 0
+    assert seen == ["capture", "drift"]
+
+
+def test_existing_switch_and_next_paths_are_untouched(box, monkeypatch):
+    """The additive seam must not change the pre-existing CLI contract."""
+    calls = []
+    monkeypatch.setattr(rot, "_cmd_list", lambda: calls.append("list") or 0)
+    monkeypatch.setattr(rot, "_cmd_switch", lambda n: calls.append(f"switch:{n}") or 0)
+    monkeypatch.setattr(rot, "_cmd_next", lambda: calls.append("next") or 0)
+    rot.main(["--list"])
+    rot.main(["--switch", "acct-a"])
+    rot.main(["--next"])
+    assert calls == ["list", "switch:acct-a", "next"]
