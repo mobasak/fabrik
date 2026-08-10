@@ -7,10 +7,19 @@ to lose functionality. also i dont want to lose time too." · "first review pass
 
 ## What we already agreed
 
-- **Scope is the 3 shared FRAGMENTS, not the 10 review commands.** Grounded: `subagents-core.md` is
-  included by 9 of 10 review commands, `term-coverage.md` by the two code-review commands,
-  `term-edit.md` by the five artifact-review commands. Editing fragments cannot produce divergence
-  between commands; editing ten files invites it.
+- **Scope is the 3 shared FRAGMENTS** — but the blast radius is WIDER than "review commands", and
+  getting this wrong was the plan's most dangerous error. Exhaustive grep of
+  `commands/_sources/*.md` (not the render table):
+  **`term-coverage` → 4** (`fabrik-review`, `fabrik-repo-review`, **`fabrik-user-test`,
+  `fabrik-service-test`**) · **`term-edit` → 8** (`fabrik-plan-review`, `fabrik-spec-review`,
+  `fabrik-ui-design-review`, `fabrik-workflow-review`, **`fabrik-features`, `fabrik-doc-converge`,
+  `fabrik-data-contract`, `fabrik-ui-design`**) · **`subagents-core` → 12**. And `design-review`
+  carries NO fragment at all, so this plan does not touch it.
+  **The bolded consumers are not reviews:** they are the 5-certify certification gauntlets and the
+  2-contract freezing / doc-convergence commands. A loop change written blindly into `term-coverage`
+  rewrites the termination contract of `/fabrik-user-test` and `/fabrik-service-test`, where
+  "callers and callees" is meaningless and whole uncertified journeys could escape. Phase B is
+  therefore CONDITIONAL by construction (see its step 1).
 - **Pass 1 sweeps the full failure-class partition wide; passes 2+ are scoped to the fix diff PLUS
   its callers/callees** (not the changed lines — today's severest bug sat in a function never
   edited). Loop terminates when a fix-diff-scoped pass finds nothing new.
@@ -29,6 +38,21 @@ to lose functionality. also i dont want to lose time too." · "first review pass
   into a fragment would leave the pack contradicting it — the divergence class this plan's fragment
   scoping exists to prevent. The canonical statement goes in the PACK; the fragment keeps pointing
   at it.
+- **Three additions approved by the operator (2026-08-10 — "approved folding the three additions
+  into plan-2"):** (1) a **stall circuit-breaker** in both loop fragments — 3 consecutive rounds
+  with a non-decreasing count of NEW candidates STOPS the loop with `## BLOCKED: NON-CONVERGENCE`
+  naming the suspected foundation error; re-grounding the design is the fix, never round N+1.
+  Evidence: the deploy-triad executor spent rounds labelled up to 21 (14 fix commits,
+  `e4b31ade..3b66faa1`, 15:40→19:34 the same day) on 3 files, each late round re-litigating
+  semantics — measured non-convergence IS a verdict, and nothing in the current contract says so.
+  (2) a **probe-duty finding class** in `term-edit.md` — pass 1 of an artifact review RE-RUNS the
+  artifact's embedded probes (fenced command + output) instead of re-deriving its claims, and a
+  load-bearing claim carrying NO probe is itself a standing finding ("ungrounded claim" — the class
+  that cost this plan two review passes, § the grounding result below). (3) **role separation** in
+  `62-using-subagents.md` — the loop-closing pass runs in a context that did not author the
+  artifact; an author's own quiet round never closes the loop. Evidence: the deploy-triad plan's
+  author declared a premature CONVERGED that an operator-forced independent round then broke with 7
+  findings (commit `f598364c`).
 - **Operator constraints:** no functionality loss, no time loss, blast radius ~48 repos.
 
 ## Shape decision — MONOLITH (3 phases), stated per the command's Phase-2 gate
@@ -60,7 +84,7 @@ serial group. A pool grounder independently reached the same wrong conclusion an
 **Therefore tool-enabled finders CAN run in parallel:** give each one a distinct write scope (its own
 report file, e.g. `owned_paths=[".tmp/finders/<class>.md"]`) and it reads the whole surface while
 remaining disjoint from its siblings. The serialization trap is real, but it is triggered by EMPTY or
-overlapping `owned_paths` (`workspace.py:426` — "An agent with empty `owned_paths` (unrestricted)
+overlapping `owned_paths` (`workspace.py:425` — "An agent with empty `owned_paths` (unrestricted)
 overlaps everything"), not by shared reads.
 
 **Consequence for this plan:** the original proposal is viable and Phase A's arm 2 is constructible —
@@ -76,9 +100,9 @@ empty/overlapping WRITE scope, and the fix is a per-finder report path, not aban
 | `core/45-testing-strategy.md` (ACTIVE, **EDITED by Phase C**) | test-per-behaviour, risk-ordered, TDD for the risky — and the canonical rule a new gate must cite, since enforcement with no pack rule behind it is unappealable | pack § Behavior Contract |
 | `core/40-documentation.md` (ACTIVE) | command/fragment prose conventions; commands state rules present-tense, never change-history | pack § writing style |
 | `core/10-python.md` (ACTIVE) | the enforcement scripts' typing/env discipline | pack § typing |
-| Fragment `subagents-core.md` | the dispatch policy 9 of 10 review commands inherit | `commands/_fragments/subagents-core.md:3` |
+| Fragment `subagents-core.md` | the dispatch policy 12 command sources inherit (reviews AND the spec/plan/contract authors) | `commands/_fragments/subagents-core.md:3` |
 | Fragment `term-coverage.md` | the code-review loop: "fresh full round after any fix", no ceiling | `commands/_fragments/term-coverage.md:13-21` |
-| Fragment `term-edit.md` | the artifact-review loop (plan/spec/ui/workflow/deploy-plan reviews) | included by 5 commands per the render map |
+| Fragment `term-edit.md` | the artifact-review loop (plan/spec/ui/workflow reviews + the 2-contract freeze / doc-convergence commands) | included by 8 command sources (grep-measured) |
 | `check_mutation.py` | advisory by design — opt-in, diff-scoped, always exits 0 | `scripts/enforcement/check_mutation.py:8-12` |
 | `fabrik-execute-plan.md` | already mandates `/fabrik-generate-tests` per phase — unenforced | `commands/_sources/fabrik-execute-plan.md:321` |
 | fabrik-lib | **consulted — no applicable module.** The table has no review-orchestration, mutation-testing or gate-enforcement module (`api-smoke-test` is endpoint smoke, `llm-dispatch` is `claude -p` plumbing). Build fresh inside the existing hub enforcement surface; not a new-module candidate (hub-corpus-specific, not reusable across project types) | `/opt/fabrik-lib/README.md` module table |
@@ -93,9 +117,22 @@ empty/overlapping WRITE scope, and the fix is a per-finder report path, not aban
 - **Merge-time render only:** `commands/assemble_commands.py` runs from merged master in the MAIN
   checkout — never from a worktree (the renderer PRUNES artifacts absent from the current tree).
   `--check` (temp-dir) is always safe.
-- **No functionality loss** is a hard acceptance criterion, not an aspiration: every behaviour the
-  current loop guarantees (adjudicated checklist, no silent skips, ledger honesty, BLOCKED
-  escalation, minimum two rounds) must still be mandated after the edit.
+- **No functionality loss** is a hard acceptance criterion, and the checklist is the FULL guarantee
+  set of `term-coverage.md`, not a sample. The first draft listed five and a review found ~13; the
+  omissions were the pre-pass-1 obligations and the recall machinery. Every one of these must still
+  be mandated after the edit: (1) exit needs BOTH a quiet round and an adjudicated checklist ·
+  (2) pre-pass-1 ANCHOR (read the newest prior review + compute the surface hash) · (3) pre-pass-1
+  RUBRIC (`review_rubric.py --changed`, pasted verbatim) · (4) pre-pass-1 PERSIST (the review file
+  exists before pass 1; a chat-only review does not exist) · (5) the four standing recurrence
+  classes · (6) `found:` counts REFUTED candidates too · (7) every row CLEAN/FIXED/REFUTED, no
+  UNCHECKED · (8) the post-fix confirming re-check, and a spot-verify is NEVER the closing round ·
+  (9) mechanical gates green · (10) ledger rows name their finders; a fabricated row is forgery ·
+  (11) minimum two full rounds · (12) no round ceiling · (13) return control exactly once, with the
+  safety HARD STOP and "context is never a reason to stop". Gate B asserts each survives.
+  Phase B ADDS a 14th — the stall circuit-breaker — and it must be WRITTEN so (12) survives
+  verbatim: the breaker keys on measured NON-PROGRESS (3 consecutive rounds with non-decreasing
+  new-candidate counts), never on round count; unbounded rounds while converging remain the
+  contract.
 - Commands state rules present-tense; change-history goes to CHANGELOG/git, never into a fragment.
 - 12-Factor: N/A to prose fragments; the enforcement scripts add no logfile, no daemon, no host
   ports, no backing-service substitution.
@@ -169,20 +206,45 @@ review command inherits.
 
 Steps:
 
-1. `commands/_fragments/term-coverage.md` — replace the round semantics:
+1. `commands/_fragments/term-coverage.md` — replace the round semantics. **Three corrections a
+   review forced into this step; do not simplify them away:**
    - **Pass 1 is a WIDE sweep**: every class in the rubric partition is assigned to a finder in the
      SAME round. A round that samples a subset is not a pass-1.
-   - **Passes 2+ are scoped to the fix diff PLUS its callers and callees** — spelled out, with the
-     reason stated once: today's severest finding sat in a function no fix had edited.
-   - **Exit** = a fix-diff-scoped pass raises nothing new AND the checklist is fully adjudicated.
-     The existing "minimum two rounds", BLOCKED escalation, ledger-honesty and no-silent-skip rules
-     are carried VERBATIM — no functionality loss.
-   - Replace "a fresh, fully-independent finder round on the updated code" (`term-coverage.md:15`,
-     which is what forces a full re-sweep per fix) with the scoped form, keeping the "the pass that
-     changed code is never the last look at those classes" guarantee intact.
+   - **Middle passes (2 … N-1) are scoped** to the fix diff PLUS its callers and callees.
+   - **The CLOSING pass is a FULL fresh sweep — non-negotiable.** The first draft made scoped
+     passes run all the way to exit, which re-institutionalizes the exact defect
+     `term-coverage.md:15` records ("a loop closed on 'round 11 spot-verify only' … leaving the
+     post-fix surface without its full fresh sweep"). The concrete escape: pass 1's finder for class
+     X samples file A and misses a class-X defect in file B; fixes land in file C; a scoped pass 2
+     covers C and its neighbours; B is never re-examined and the loop exits with the defect live.
+     The unbounded fresh round is the RECALL mechanism — what this plan removes is one full sweep
+     PER FIX, not the full sweep itself. Net effect: 1 wide + k scoped + 1 wide, instead of k+1 wide.
+   - **The scoped form applies ONLY when the review's surface is a DIFF.** `term-coverage` is also
+     included by `fabrik-user-test` and `fabrik-service-test`, whose surface is journeys/personas
+     /states, not a changed-file set; those keep discovery-until-dry unchanged. State the condition
+     in the fragment so the gauntlets are not silently rewritten.
+   - The real text forcing a full re-sweep per fix is `term-coverage.md:19` ("a fresh, independent
+     round must re-adjudicate it") plus `:21` ("There is NO round ceiling") — **not** `:15`, and the
+     string "a fresh, fully-independent finder round on the updated code" does NOT exist in the file
+     (a review caught the first draft instructing the executor to search for a literal that isn't
+     there). Edit `:19`/`:21`; leave `:15` intact, since it is the guarantee the closing sweep keeps.
+   - **The stall circuit-breaker (operator-approved addition).** If 3 consecutive rounds raise a
+     non-decreasing count of NEW candidates, the loop STOPS and emits `## BLOCKED: NON-CONVERGENCE`
+     naming the suspected foundation error (a design claim, a contract, the decomposition) — round
+     N+1 spends review time on a defect that lives UPSTREAM of the surface. This is NOT a round
+     ceiling: rounds stay unbounded while the new-candidate count is falling; the breaker fires only
+     on measured non-progress, and it routes to re-grounding exactly as the existing BLOCKED
+     escalation (`term-coverage.md:21`) routes a thrice-stuck finding.
 2. `commands/_fragments/term-edit.md` — the same round semantics for artifact reviews. This is the
    fragment that drove 13 plan passes on one plan; the scoped-successor rule applies to prose
-   identically (pass 2+ reviews the EDITS, not the whole artifact).
+   identically (pass 2+ reviews the EDITS, not the whole artifact). Two additions land here too:
+   the same stall circuit-breaker (term-edit's per-axis 3-attempt BLOCKED at `term-edit.md:7`
+   stays — the breaker adds the LOOP-level rule the per-axis one cannot see), and the **probe
+   duty**: pass 1 RE-RUNS every probe the artifact embeds (fenced command + output) rather than
+   re-deriving its claims, and a load-bearing claim with NO probe is a standing finding class
+   ("ungrounded claim"). The authoring-side mandate (plans/specs must CARRY probes) is deliberately
+   NOT edited into `/fabrik-plan-after-chat` by this plan — outside File Scope; the review-side duty
+   creates the authoring pressure, and wiring the authoring commands is a named residual.
 3. **`.windsurf/rules/core/62-using-subagents.md` § Parallelism — the CANONICAL edit, and the named
    CONSUMER of Phase A's artifact** (`docs/development/reviews/2026-08-10-finder-shape-ab.md` → its
    `CHOSEN SHAPE:` line is what this step transcribes; the artifact is not written-and-never-read).
@@ -190,6 +252,16 @@ Steps:
    (`FIND read-only + parallel → VERIFY tools-enabled over the CANDIDATE list only`), with the
    serialization trap restated inline so no future editor re-makes the proposal this plan rejected.
    Writing it anywhere else leaves the pack contradicting the fragments that defer to it.
+   Two more edits ride the same section pass: (a) **§ Role separation (operator-approved
+   addition)** — the loop-closing/authoritative pass of any review runs in a context that did NOT
+   author the artifact (a dispatched fresh subagent, or a post-compaction session re-grounding from
+   disk); an author's own quiet round never closes the loop. The fragments already require "a
+   fresh, independent round" (`term-coverage.md:19`); the pack defines what "independent" MEANS and
+   the fragments keep pointing at it (no duplication, per step 4's rule). (b) refresh the section's
+   STALE internal citations while editing it: it currently cites `workspace.py:321` and
+   `agent.py:430/:435` for mechanisms that live at `workspace.py:419-425` (`disjoint()`, "empty
+   `owned_paths` overlaps everything") and `agent.py:633-637` (the grouping) — verified live
+   2026-08-10.
 4. `commands/_fragments/subagents-core.md` — point at the pack's new shape in one line. The fragment
    states WHICH shape this command uses; the pack states what the shape IS. No duplication: a
    fragment that restates the pack is how the two drift.
@@ -198,20 +270,35 @@ Steps:
    distributes the pack edit to ~48 repos; it must be correct for ALL of them.
 
 Validation gate B: `python commands/assemble_commands.py --check` exits 0 with no DRIFT lines;
-`grep -c` proves each of the 10 review commands received the new loop text via its fragment (9 for
-`subagents-core`, 2 for `term-coverage`, 5 for `term-edit`); and a no-functionality-loss diff review
-confirms every guarantee listed in Global Constraints still appears in the rendered output.
+`grep -l` over the RENDERED output proves every consumer received the text its fragment carries —
+**4 for `term-coverage`, 8 for `term-edit`, 12 for `subagents-core`** (live counts, re-measured;
+the old 9/2/5 figures were this plan's own stale enumeration, caught in pass 3) — plus two negative
+checks: rendered `design-review` unchanged (it includes NO fragment) and the two certification
+gauntlets still carrying discovery-until-dry, not the diff-scoped form; and a no-functionality-loss
+diff review confirms every guarantee in Global Constraints (all 13 + the breaker) still appears in
+the rendered output.
 
 **Behavior Contract (Phase B):**
 - **Given** a VERIFY shape is adopted, **When** the pack and the fragments are both read, **Then**
   the pack STATES the shape and the fragment only REFERENCES it — no restatement that could drift
   (`.windsurf/rules/core/62-using-subagents.md:77-93`).
-- **Given** the fragments are edited, **When** the corpus renders, **Then** all 10 review commands
-  carry the new loop semantics and `--check` reports no drift
-  (`commands/assemble_commands.py:83`).
+- **Given** the fragments are edited, **When** the corpus renders, **Then** every fragment consumer
+  (4 `term-coverage` + 8 `term-edit` + 12 `subagents-core` renders) carries the loop text its
+  fragment owns and `--check` reports no drift
+  (`--check` renders to a temp dir and diffs; `assemble_commands.py:83` is the 1024-char skill-description limit, NOT the drift check — cited correctly here after a review caught the mis-citation).
 - **Given** the loop rewrite, **When** the rendered `term-coverage` text is read, **Then** the
   adjudicated-checklist, minimum-two-rounds, BLOCKED-escalation and ledger-honesty guarantees are
   still present verbatim (`commands/_fragments/term-coverage.md:13-21`).
+- **Given** 3 consecutive rounds each raising a NEW-candidate count ≥ the round before, **When** the
+  loop evaluates continuation, **Then** it STOPS with `## BLOCKED: NON-CONVERGENCE` instead of
+  dispatching the next round — and a run whose counts are FALLING is never stopped by it (the
+  no-round-ceiling guarantee survives, `commands/_fragments/term-coverage.md:21`).
+- **Given** an artifact embedding probes, **When** pass 1 of its review runs, **Then** each probe is
+  RE-RUN, and a load-bearing claim with no probe is raised as a finding
+  (`commands/_fragments/term-edit.md:7`).
+- **Given** a review loop whose artifact was authored in this context, **When** the closing pass
+  arrives, **Then** it runs in a non-author context, and the author's own quiet round does not close
+  the loop (`.windsurf/rules/core/62-using-subagents.md` § Role separation, added by step 3).
 
 Closing sequence: gate B → `check_doc_sync.py` → **`/fabrik-review` to a coverage-adjudicated
 exit** → commit.
@@ -232,14 +319,34 @@ Steps:
    asserts the range added at least one test per row — nothing is inferred, and a phase with no
    declared behaviours is silent by construction. Scope it to the plan-execution window (a plan lock
    with a `baseline_commit`, as `check_plan_tickets` already does for its missing-trailer finding).
-   **WARN, not ERROR** — observe the real rate first; escalation is a later, separate decision.
+   **The range boundary is the phase's END, after its `/fabrik-generate-tests` step — never the code
+   commit.** `fabrik-execute-plan.md:321` mandates commit-code-THEN-generate-tests, so at the code
+   commit the range always contains source changes and zero test delta; a check anchored there fires
+   on every correctly-executed phase (review finding — a structural false positive, not a tuning
+   problem). **WARN, not ERROR** — observe the real rate first; escalation is a later, separate
+   decision. **Pre-build check — RESOLVED with proof (2026-08-10):** `check_plan_tickets.py:5-6`
+   fires only for plan-SET directories, but monolith execution locks DO carry the anchor: both live
+   monolith locks were read this pass — `.fabrik/plan-locks/2026-08-10-plan-1-deploy-command-triad.json`
+   and `…-plan-1-quota-health.json` each contain `baseline_commit` (full key set verified:
+   `baseline_commit, baseline_gate, branch, owned_paths, plan, started_at, status`). The executor
+   still re-asserts the key on ITS OWN lock as this step's first line — one `python -c` read, no
+   longer a design risk.
 2. Register it in `final_gate.py`'s Tier-2 block next to the sibling optional checks; add it to
    `docs/workflows/FINAL_GATE_WORKFLOW.md`'s enumeration (18 → 19, and the total).
 2b. **State the rule in `.windsurf/rules/core/45-testing-strategy.md`** — "a phase that ships
-   user-observable behaviour shows its Behavior-Contract tests in the same range". A gate with no
-   pack rule behind it is unappealable and gets `noqa`'d; the pack is what the WARN cites.
-3. **`check_mutation.py` — staged, still not blocking in this plan.** Add diff-scoped selection of
-   tests ADDED in the range and a hard wall-clock cap, keep `FABRIK_MUTMUT` opt-in and exit 0.
+   user-observable behaviour shows its Behavior-Contract tests in the same range". ⚠️ That pack is
+   `activation: glob` on test-file paths (`45-testing-strategy.md:2-5`), so it does NOT load in the
+   case the rule targets — shipping behaviour WITHOUT touching a test file (review finding). The
+   pack is therefore the WARN's CITATION, not its trigger; the always-loaded statement already
+   exists at `CLAUDE.md` § Completion Contract item 1, and the check cites both.
+3. **`check_mutation.py` — staged, still not blocking, and it must name its INVOKER or be cut.**
+   A review found the first draft shipped capability with no caller: the script stays
+   `FABRIK_MUTMUT`-gated and always exits 0, and residual #3 defers the decision that would turn it
+   on — so nothing would ever run the new code. Either wire it to a named invoker (the nightly
+   `FABRIK_MUTMUT=1` run) in this step, or drop step 3 entirely. Add diff-scoped selection of tests
+   ADDED in the range and a hard wall-clock cap, keep `FABRIK_MUTMUT` opt-in and exit 0.
+   ⚠️ `check_mutation.py:2` carries `# AFTER-EDIT: docs/CONFIGURATION.md` — editing it obliges
+   staging that file, so it is in File Scope below.
    Record in the plan's residuals that flipping it blocking is a SEPARATE operator decision after
    observing WARN-rate — per the operator's "stage it last" and the no-time-loss constraint.
 4. Tests for both: `tests/enforcement/test_phase_tests_gate.py` (behaviour-without-test detected;
@@ -277,14 +384,25 @@ to `"status":"success"` → `python scripts/enforcement/check_convergence.py` �
 - `tests/enforcement/test_phase_tests_gate.py`
 - `docs/workflows/FINAL_GATE_WORKFLOW.md`
 - `docs/development/reviews/2026-08-10-finder-shape-ab.md`
+- `docs/CONFIGURATION.md` (forced by `check_mutation.py:2`'s `# AFTER-EDIT:` coupling)
 
 (Governance files CHANGELOG/INDEX/docs README/FEATURES + `docs/LESSONS_LEARNT.md` are deliberately
 OUT of File Scope — shared-append surfaces outside the plan lock.)
 
 ## Evidence
 
-- Fragment sharing, the whole basis of the scope decision — measured this session:
-  `subagents-core` included by 9 of 10 review commands, `term-coverage` by 2, `term-edit` by 5.
+- Fragment sharing, the whole basis of the scope decision — RE-measured in pass 3 (this block's
+  first draft said 9/2/5 while the plan's own top section carried the true counts — the exact drift
+  class the probe duty exists to kill; the fenced run below is the live probe):
+
+```
+$ cd commands/_sources && for f in term-coverage term-edit subagents-core; do \
+    printf '%s %s\n' "$f" "$(grep -l include:$f *.md | wc -l)"; done; grep -c include: design-review.md
+term-coverage 4
+term-edit 8
+subagents-core 12
+0
+```
 
 ```
 fabrik-review.md         includes: {{include:term-coverage}} {{include:grounding-code}} {{include:subagents-core}}
@@ -292,7 +410,8 @@ fabrik-plan-review.md    includes: {{include:term-edit}} {{include:grounding-art
 fabrik-workflow-review.md includes: {{include:term-edit}} {{include:grounding-artifact}}
 ```
 
-- The serialization mechanism that rejected the original proposal — `libs/subagents/agent.py:636`:
+- The serialization mechanism that rejected the original proposal — `libs/subagents/agent.py:633-637`
+  (label corrected in pass 3; the block starts at `:633`, the `tools_enabled` grouping line is `:636`):
 
 ```
     groups = [
@@ -305,10 +424,19 @@ fabrik-workflow-review.md includes: {{include:term-edit}} {{include:grounding-ar
 - Mutation testing is advisory by design — `scripts/enforcement/check_mutation.py:8-12`:
 
 ```
+$ sed -n '8,12p' scripts/enforcement/check_mutation.py
 `.windsurf/rules/core/45-testing-strategy.md` this is **advisory + diff-scoped, NOT a per-PR blocking gate**
+(full mutmut runs take minutes–hours and carry equivalent-mutant noise). So in the per-commit `final_gate`
 it is **opt-in**: it runs only when `FABRIK_MUTMUT=1` (nightly / CI / on-demand), mutates only the
+**committed** changed Python (applied code — never the dirty worktree), leans on mutmut's incremental mode
 for diff-scoping, and **ALWAYS exits 0** (advisory, never blocks).
 ```
+
+(Provenance of this block: the first draft silently dropped lines 9 and 11 with no ellipsis — a
+doctored evidence artifact, caught in review. The corrected quote then went STALE when the file's
+docstring was edited underneath it the same day; re-captured verbatim from the live file in pass 3.
+The claim — opt-in, diff-scoped, always exits 0 — held through both artifact failures, which is the
+probe duty's argument in miniature: re-run the probe, don't trust the pasted output.)
 
 - The problem this plan exists to fix, measured fleet-wide today: 174 commits, 34 features, 81
   fix-or-review commits = **2.4 rework commits per feature**; `brand-identiy-creator` Phase A built
@@ -324,8 +452,8 @@ iterative_image_editor      6    7      0    1  | 1.2   (4 sequential fixes to O
 
 ## Self-audit
 
-Grounding passes run: (1) fragment-inclusion map across all 10 review commands — produced the scope
-decision; (2) `select_rules.py` → 24 ACTIVE packs, `62-using-subagents` read in full — produced the
+Grounding passes run: (1) fragment-inclusion map across ALL `commands/_sources/*.md` — produced the
+scope decision; (2) `select_rules.py` → 24 ACTIVE packs, `62-using-subagents` read in full — produced the
 rejection of the tool-enabled-finders proposal; (3) `agent.py` grouping code read at
 `path:line` — confirmed the serialization mechanism rather than trusting the pack's prose;
 (4) fabrik-lib table consulted — no applicable module, build fresh, not a new-module candidate.
@@ -340,7 +468,18 @@ Phase A. No agreed item is unassigned.
 *Consumes* exactly that and is explicitly allowed to be a no-op if arm 3 loses. Phase C consumes
 nothing from A or B, so it could run first — it is ordered last only because it is the riskiest.
 
-Not a fixed point yet: `/fabrik-plan-review` has not run.
+**(c) The three operator-approved additions (2026-08-10):** stall breaker → Phase B steps 1-2 +
+Behavior Contract + Global Constraints (the 14th guarantee, written to preserve (12)) · probe duty
+→ Phase B step 2 + Behavior Contract (authoring-side wiring = named residual 5) · role separation →
+Phase B step 3 + Behavior Contract. Each lands in a file already in File Scope; File Scope is
+unchanged by the additions.
+
+Review state: converging under `/fabrik-plan-review` — pass 1 (8 edits) · pass 2 (11 native
+findings absorbed, incl. the owned_paths reversal and the true fragment counts) · pass 3 (the three
+additions + this pass's own catches: the stale 9/2/5 counts in three places, the drifted mutation
+quote, the stale 62-pack internal citations, the lock pre-check resolved with proof). The numbered
+Pass Ledger with md5s lives in the review report per `term-edit.md:7`; Status flips to CONVERGED
+only at an edit-free, md5-verified pass.
 
 ## Residual unknowns
 
@@ -357,3 +496,10 @@ question (fragments, not commands); whether the build-time test rule exists (it 
 3. **Whether mutation verification should ever become blocking** — deliberately NOT decided here.
    Resolution step: a separate operator decision after observing the diff-scoped, time-capped
    advisory run; this plan only makes that observation possible.
+4. **The breaker threshold (3 consecutive non-decreasing rounds)** — a constant chosen from one
+   day's evidence (the 21-round stall would have tripped it by round ~7). Resolution step: ship it,
+   count real trips for a period, then tune; a threshold debate without trip data is guessing.
+5. **Authoring-side probe mandate** (plans/specs must CARRY probes, in `/fabrik-plan-after-chat` /
+   `/fabrik-spec`) — deliberately out of this plan's File Scope. Resolution step: the review-side
+   probe duty ships first and creates the pressure; wiring the authoring commands is a follow-up
+   plan once the finding class proves its rate.
