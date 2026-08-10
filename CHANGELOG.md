@@ -15,9 +15,9 @@ surface-conditioned class checklist, behavioral sandbox execution of the window 
 both quoting layers), and the operator-dispatched executor (CONVERGED-only allowlist gate,
 fresh-run-only semantics with a committed deploy ledger, halt protocol, battery as exit gate).
 Wiring: NEXT-map entries + `/fabrik-release` retarget, § Pipeline chains in both CLAUDE.md copies
-(governance-synced), skill-router stems (deploy-plan/deploy-plan-review/deploy inserted ahead of
-the generic plan/review patterns; pre-existing `deploy-verify` pattern extended to match
-"deployment"), and `/fabrik-deploy-verify` framing now naming both deploy paths. Adjacent fixes in
+(governance-synced), skill-router stems (the two deploy-plan stems inserted ahead of the generic
+plan/review patterns, the deploy execution stem after deploy-verify's; pre-existing `deploy-verify`
+pattern extended to match "deployment"), and `/fabrik-deploy-verify` framing now naming both deploy paths. Adjacent fixes in
 `fabrik-release.md`: the wordpress row now states the archived truth (`/opt/wpf` archived
 2026-08-07 — the dead `wpf wp apply` path removed) and the VPS Gate-2 handoff print names both
 deploy paths. Seeded by the 2026-08-10 tryton-crm deploy-readiness review's failure classes.
