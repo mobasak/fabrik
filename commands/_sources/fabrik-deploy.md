@@ -99,8 +99,8 @@ inside them.
    fleet config has no `vps1` alias; `vps2`/`vps3` are literal. **Privilege:** every WRITE to
    `/run/fabrik-autoheal` is `ssh <alias> "sudo bash -c '…'"` — root-owned dir, non-root fleet user;
    reads are unprivileged). The pause file is content-free; the triad writes ownership NEXT TO it:
-   every window touch also writes `pause.owner` = `<plan-stem> <ISO-8601 UTC timestamp>` (the healer
-   reads only `pause`). **The 2h boundary is the HEALER'S own truth** (`vps-autoheal.sh` ignores a
+   every window touch also writes `pause.owner` = `<plan-stem> <ISO-8601 UTC timestamp>` (the stem =
+   the plan file's basename without `.md`; the healer reads only `pause`). **The 2h boundary is the HEALER'S own truth** (`vps-autoheal.sh` ignores a
    pause older than 7200s — such a pause protects nobody, and the healer never deletes it), and **the
    one removal rule stands: this deploy removes pause files ONLY via the stem-guarded close** — at
    the runbook's `window-close` step, at Phase 5's re-close, and at Phase 0 for OUR-stem residue on a

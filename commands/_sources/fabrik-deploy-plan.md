@@ -182,7 +182,12 @@ judgment call.
 Any step that leaves a container legitimately unhealthy longer than its healthcheck tolerates (migrations,
 module init — the B3 class: autoheal's worst-case time-to-unhealthy is minutes, an init can be 8–10) MUST
 be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartbeat` / `window-close`**
-(the labels make the bracket auditable — the review's re-entry audit and the halt protocol key on them), **authored in their EXECUTABLE root form** — the dir is
+(the labels make the bracket auditable — the review's re-entry audit and the halt protocol key on them), **authored in their EXECUTABLE root form** — EXECUTABLE means every
+angle-bracket token below is SUBSTITUTED at authoring time: `<plan-stem>` is THIS plan file's
+basename without `.md` (e.g. `2026-08-10-plan-deploy-tryton-crm`), `<alias>`/`<ISO-8601-UTC>`
+likewise (a literal placeholder surviving into the plan is a defect — the stem guards are
+self-consistent, so a literal `<plan-stem>` passes every behavioral test yet shares one identity
+with every other plan that kept it: mutual window theft by construction) — the dir is
 root-owned and the fleet SSH user is not root, and the alias for `target_vps: vps1` is `vps` (no
 `vps1` alias exists; `vps2`/`vps3` literal) — so the open step is
 `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal &&
