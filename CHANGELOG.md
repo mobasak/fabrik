@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Plan SETS silently dropped all three execution pillars, incl. the per-ticket /fabrik-review floor (2026-08-10)
+
+A spine+ticket plan set has **no `## Phase` headings**, and every statement of the three enforced
+pillars in `/fabrik-plan-after-chat` and `/fabrik-plan-review` was phrased *per phase boundary*. So
+on a set they bound to nothing: the ticket-set path mapped the subagent/parallelism mandates onto
+per-ticket `Complexity:`/`Parallel:` fields and declared the review floor "owned by
+`/fabrik-execute-plan`'s dispatcher at runtime" — which is true (D4 does own it) and still leaves
+the artifact silent. `/fabrik-plan-review`'s three checks then passed **vacuously** on any set,
+because "at every phase boundary" has no phases to check.
+
+Live: a 14-ticket set reviewed to CONVERGED contained zero of the three; asked "is `/fabrik-review`
+per ticket to a no-op in here?", the executing agent had to answer "it appears nowhere in the set"
+and called it a defect it owed. Confirmed against the artifact's own history — the pillars were
+never in a commit, only added afterwards in the working tree.
+
+- `/fabrik-plan-after-chat`: both shapes owe all three. A monolith writes them into each phase's
+  steps; a SET states them ONCE on the spine under `## Execution Discipline` (the heading a sibling
+  agent independently converged on) — review floor, pool-default dispatch, and fan-out/merge
+  semantics, which `## Merge Order` cannot express since a topological list is not a merge point.
+- `/fabrik-plan-review`: checks the SHAPE first. On a set, the three are satisfied only by explicit
+  spine statements; "the dispatcher owns it at runtime" is explicitly NOT a pass.
+- `check_plan_quality.py`: WARNs when a spine states none of the three (advisory on purpose — live
+  sets already existed in sibling repos and a hard ERROR would red another agent's in-flight gate
+  for a rule that postdates their plan). The review-floor pattern is line-scoped so narrative prose
+  ("converged by /fabrik-plan-review") cannot satisfy it.
+
+Verified against the four live spines fleet-wide: it flags `iterative_image_editor`'s IN-PROGRESS
+set (no review floor, no merge semantics) and both `web-ecommerce-factory` sets (no merge
+semantics), and passes the now-fixed `seo` set. 4 new tests (45 in the shape-gate suite).
+
 ### Changed — sysadmin bots learn autoheal + fleet-wide sync gap closed (2026-08-10)
 `system-prompt.txt` gains the fabrik-autoheal block (check `journalctl -t fabrik-autoheal` before
 diagnosing restart patterns; HOLD-DOWN = restart is not the cure; opt-out label). Prompt verified

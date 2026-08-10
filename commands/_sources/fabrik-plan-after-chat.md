@@ -403,11 +403,30 @@ unknowns, `Status: DRAFT` — and Phase 5's mandatory `/fabrik-plan-review` hand
 `check_convergence` holds the spine to the Evidence/Self-audit/fenced-proof floor at the CONVERGED
 flip — but a spine has no `## Phase` headings, so the MECHANICAL citation floor collapses to ONE:
 the AUTHORIAL rule is spine Evidence cites every ticket's primary path). **Phase 3 maps differently
-onto a set:** its subagent/parallelism mandates inform
-the tickets' `Complexity:`/`Parallel:` fields, and the per-phase-boundary `/fabrik-review` is
-replaced by the per-ticket review floor that `/fabrik-execute-plan`'s dispatcher owns — tickets do
-NOT embed the closing sequence (that would blow the ≤3 `Gate:` cap; the Integration ticket owns the
-whole-plan gate). The monolith path resumes here:
+onto a set — but it is NEVER dropped.** Its subagent/parallelism mandates inform
+the tickets' `Complexity:`/`Parallel:` fields, and individual tickets do NOT embed the closing
+sequence (that would blow the ≤3 `Gate:` cap; the Integration ticket owns the whole-plan gate). What
+that mapping must NOT do is delete the three pillars from the artifact: a per-ticket field named
+`Parallel:` is not a statement of where the merge happens, and "the dispatcher owns the review floor"
+is not something an operator reading the plan — or an agent auditing it — can see. **So the SPINE
+states all three ONCE, verbatim-binding, in a dedicated `## Execution Discipline (binding on
+`/fabrik-execute-plan`)` section** (live defect 2026-08-10: a
+14-ticket set was asked "is `/fabrik-review` per ticket to a no-op in here?" and the honest answer
+was "it appears nowhere in the set"; the executor's D4 loop did own it, but nothing in the plan said
+so, so the reviewing agent correctly called it a defect and the operator had no way to trust it):
+
+- **Review floor** — "every ticket, on the coder's return, runs `/fabrik-review` on its changed
+  surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green."
+- **Dispatch policy** — pool-default (`fanout(task_type, …)`, auto-records to the flywheel, wants the
+  `set_quality` back-fill) for the gradeable work, native added on top for GUI / the
+  authoritative-high-risk pass / the decide-merge. Naming neither lets the executor go all-native.
+- **Parallelism + merge** — which tickets fan out concurrently and **where their results
+  merge/dedupe**. `## Merge Order` gives sequencing; this gives the fan-out semantics, which a
+  topological list cannot express.
+
+A spine carrying none of the three is the same defect as a monolith
+that omits its per-phase `/fabrik-review` step — `check_plan_quality.py` WARNs on it. The monolith
+path resumes here:
 
 Write phases in dependency order. Each phase names the exact files/changes and, for **every** step,
 embeds a **runnable validation gate: the exact command + the expected result** (not "verify it works").
@@ -502,7 +521,11 @@ from scratch — the coder curates the applied patch. The plan's
 
 ## Phase 3 — Bake in the enforced pillars (review + subagents + parallelism)
 
-The emitted plan MUST contain all three as written steps, not suggestions:
+The emitted plan MUST contain all three as written steps, not suggestions. **Both shapes owe all
+three** — a monolith writes them into each phase's steps; a plan SET writes them ONCE on the spine
+under `## Execution Discipline` (§ The MONOLITH shape above), because a set has no phase boundaries to
+hang them on and "the dispatcher owns it at runtime" leaves the artifact silent. Emitting a set that
+carries none of the three is a defective plan, not a shape difference:
 
 1. **A full `/fabrik-review` at EVERY phase boundary — a BLOCKING gate.** Between finishing Phase N and
    starting Phase N+1: run the complete `/fabrik-review` adversarial methodology on Phase N's changed

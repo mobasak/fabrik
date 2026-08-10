@@ -669,3 +669,54 @@ def test_quality_field_presence_accepts_bolded_complexity() -> None:
         assert fields[name].search(f"{name}: value"), name
         # Blockquoted examples must NOT count as field presence (quoted content).
         assert not fields[name].search(f"> {name}: value"), name
+
+
+# --- Execution pillars on a spine (a set has no phase boundaries to hang them on) -------------
+
+
+def _pillar_msgs(results) -> str:
+    return " ".join(r.message for r in results if "execution pillars" in r.message)
+
+
+def test_spine_without_any_execution_pillar_warns(plans_env: Path) -> None:
+    """The live defect: a CONVERGED 14-ticket set stated no per-ticket /fabrik-review floor, no
+    pool-default dispatch policy, and no fan-out/merge semantics — so neither the operator nor an
+    auditing agent could see that any ticket would ever be reviewed."""
+    p = _write(plans_env, SPINE, SPINE_OK)          # the baseline fixture carries none of them
+    results = cpq_mod.check_file(p)
+    msg = _pillar_msgs(results)
+    assert msg, "a spine stating none of the three pillars must be flagged"
+    assert "/fabrik-review" in msg and "pool-default" in msg and "merge" in msg
+    assert "error" not in _sev(results), "advisory only — must not red a sibling's in-flight plan"
+
+
+def test_spine_stating_all_three_pillars_is_clean(plans_env: Path) -> None:
+    good = SPINE_OK.replace(
+        "## Interfaces",
+        "## Global Constraints\n\n"
+        "- Every ticket runs `/fabrik-review` on its changed surface to a coverage-adjudicated\n"
+        "  exit BEFORE its merge; no ticket merges on a first-pass green.\n"
+        "- Dispatch is pool-default (`fanout(task_type, …)`); native on top for high-risk slices.\n"
+        "- T02/T03 fan out concurrently; their results merge/dedupe at T11 (Integration).\n\n"
+        "## Interfaces",
+    )
+    p = _write(plans_env, SPINE, good)
+    assert not _pillar_msgs(cpq_mod.check_file(p))
+
+
+def test_a_monolith_is_never_asked_for_spine_pillars(plans_env: Path) -> None:
+    """Monoliths hang the pillars on their per-phase steps — this check is spine-only."""
+    p = _write(plans_env, "2026-01-01-plan-1-mono.md", MODERN_MONOLITH)
+    assert not _pillar_msgs(cpq_mod.check_file(p))
+
+
+def test_a_narrative_mention_does_not_satisfy_the_review_pillar(plans_env: Path) -> None:
+    """Prose about the planning process ("converged by /fabrik-plan-review") is not a mandate that
+    tickets get reviewed — the pillar must name /fabrik-review AND the unit it binds to."""
+    narrated = SPINE_OK.replace(
+        "## Interfaces",
+        "## Notes\n\nThis set was converged by `/fabrik-plan-review` over three passes.\n\n"
+        "## Interfaces",
+    )
+    p = _write(plans_env, SPINE, narrated)
+    assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p))

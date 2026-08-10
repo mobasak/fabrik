@@ -147,7 +147,20 @@ evidence, so cite it.
 ## Phase 3 — The plan must enforce review + subagents + parallelism
 
 Ensure the converged plan itself bakes in ALL THREE of the following as written steps — if any is missing from the
-plan, add it:
+plan, add it.
+
+⚠️ **Check the SHAPE first, or all three pass vacuously.** A spine+ticket set (`## Ticket Board`
+present) has **no `## Phase` headings at all**, so "at every phase boundary" has nothing to bind to
+and a set carrying none of the three sails through. On a SET, the three below are satisfied ONLY by
+explicit statements in a binding spine section (conventionally `## Execution Discipline (binding on
+`/fabrik-execute-plan`)`) — (a) every ticket runs `/fabrik-review`
+on its changed surface to a coverage-adjudicated exit BEFORE its merge, (b) pool-default dispatch
+with native on top for GUI/high-risk/decide-merge, (c) which tickets fan out concurrently and where
+their results merge/dedupe. Absent = a finding you FIX, exactly as for a monolith missing its
+per-phase review step. "The `/fabrik-execute-plan` dispatcher owns the per-ticket review loop at
+runtime" is TRUE and is NOT a pass: the artifact must say it, or nobody reading the plan — operator
+or auditing agent — can see it, and any executor other than the full dispatcher path has no floor
+(live defect 2026-08-10: a 14-ticket set, reviewed and CONVERGED, contained zero of the three).
 
 1. **A full `/fabrik-review` code review AT EVERY PHASE BOUNDARY.** Make it an explicit, blocking step between the
    completion of each phase and the start of the next: "Phase N complete → run the full `/fabrik-review`

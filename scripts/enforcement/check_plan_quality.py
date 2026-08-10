@@ -193,7 +193,70 @@ def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
                     fix_hint=f"Add '## {section_name}' to the plan document",
                 )
             )
+    if SPINE_MARKER_RE.search(scan):
+        results += _check_spine_execution_pillars(scan, file_path)
     return results
+
+
+# The three pillars /fabrik-plan-after-chat § Phase 3 mandates. A MONOLITH hangs them on its
+# per-phase steps; a SET has no `## Phase` headings, so they have nowhere to live but the spine —
+# and the ticket-set path used to map them onto per-ticket `Complexity:`/`Parallel:` fields and
+# "the dispatcher owns the review floor at runtime", which deleted them from the artifact
+# entirely. Live defect 2026-08-10: a 14-ticket CONVERGED set contained none of the three, so
+# neither the operator nor an auditing agent could see that any ticket would be reviewed.
+SPINE_PILLAR_PATTERNS = [
+    (
+        "per-ticket /fabrik-review floor",
+        # Line-scoped: a narrative mention ("this set was converged by /fabrik-plan-review") must
+        # NOT satisfy the pillar. The mandate names /fabrik-review AND the unit it binds to.
+        re.compile(r"^(?=.*/fabrik-review)(?=.*\b(?:ticket|merge|boundary)\b).*$", re.I | re.M),
+        "state on the spine: every ticket runs /fabrik-review on its changed surface to a "
+        "coverage-adjudicated exit BEFORE its merge",
+    ),
+    (
+        "pool-default dispatch policy",
+        re.compile(r"\bpool[- ]default\b|\bfanout\s*\(", re.I),
+        "state on the spine: pool-default (fanout(task_type, …)) for gradeable work, native "
+        "added on top for GUI / high-risk / decide-merge",
+    ),
+    (
+        "parallelism + where results merge",
+        re.compile(
+            r"\bmerges?/dedupes?\b|\bmerges?\s+and\s+dedupes?\b|\bwhere\b[^.\n]{0,40}\bmerge", re.I
+        ),
+        "state on the spine: which tickets fan out concurrently and WHERE their results "
+        "merge/dedupe (Merge Order gives sequencing, not fan-out semantics)",
+    ),
+]
+
+
+def _check_spine_execution_pillars(scan: str, file_path: Path) -> list[CheckResult]:
+    """WARN when a spine states none of Phase 3's three execution pillars.
+
+    Advisory on purpose: this landed while live plan sets already existed in sibling repos, and a
+    hard ERROR would red another agent's in-flight gate for a rule that did not exist when their
+    plan was written. The binding enforcement is /fabrik-plan-after-chat (emits them) and
+    /fabrik-plan-review (a set missing them is a finding to FIX); this is the mechanical backstop.
+    """
+    missing = [
+        (name, hint) for name, pattern, hint in SPINE_PILLAR_PATTERNS if not pattern.search(scan)
+    ]
+    if not missing:
+        return []
+    return [
+        CheckResult(
+            check_name="plan_quality",
+            severity=Severity.WARN,
+            message=(
+                "Spine states none of / not all of the execution pillars: "
+                + ", ".join(n for n, _ in missing)
+                + " — a ticket set has no phase boundaries, so the spine is the only place these "
+                "can live; without them nobody reading the plan can see that tickets get reviewed"
+            ),
+            file_path=str(file_path),
+            fix_hint="; ".join(h for _, h in missing),
+        )
+    ]
 
 
 def check_file(file_path: Path) -> list[CheckResult]:
