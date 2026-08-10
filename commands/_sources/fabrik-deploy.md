@@ -72,11 +72,15 @@ inside them.
    `touch` + owner write + the PAUSED-log confirmation — executes as Phase 1's open step AFTER
    pre-flight passes). Owner absent or another stem: pause mtime age **≥ 2h** (already inert — the
    healer ignores it) → mark both files for removal, executed immediately before the run's first target
-   mutation (never before the pre-flight gate — the DECISION here mutates nothing); age **< 2h** →
+   mutation — **re-verified at execution time** (fresh `stat` + owner read: the file must still be the
+   SAME inert one, mtime unchanged since the decision; anything fresher or now-owned means a sibling
+   opened in the gap → the BLOCKED branch, never the `rm`) and never before the pre-flight gate (the
+   DECISION here mutates nothing); age **< 2h** →
    `BLOCKED: active pause on <target> — possibly a sibling's maintenance window; confirm with the
-   operator before deploying to this host`. One maintenance window per VPS at a time is the rule this
-   enforces — it applies at window OPEN too, where a pause discovered mid-runbook follows Phase 1
-   step 1's abandonment path, never this entry-time message.
+   operator before deploying to this host`. An orphan `pause.owner` with NO pause file is residue of an
+   incomplete close — treat as removable the same deferred way. One maintenance window per VPS at a
+   time is the rule this enforces — it applies at window OPEN too, where a pause discovered mid-runbook
+   follows Phase 1 step 1's abandonment path, never this entry-time message.
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
@@ -88,8 +92,8 @@ inside them.
    gate 2's post-flip-edit rule keys on). Ledger rows — `— ✅ <step id> <UTC timestamp>` per completed
    step, `— ⛔ BLOCKED <step id> <UTC timestamp> <why> <rollback taken>` on a halt,
    `— ↩ ROLLED-BACK <step id> <UTC timestamp>` for a completed step whose rollback later ran — every
-   row kind carries an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ`; a bare time or date-less form
-   parses silently to the WRONG epoch) and rows are **committed at every step that mutated remote
+   row kind carries an ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ` — unambiguous evidence across a
+   multi-timezone fleet) and rows are **committed at every step that mutated remote
    state**:
    a migration's ledger row living only in the working tree is not durable (the pre-commit stash cycle
    can silently revert it, and a resume would re-run the migration).
@@ -102,23 +106,29 @@ inside them.
 If the plan brackets a window (migrations, module init — any step a healthcheck outlives), the runbook's
 own steps open and close it; execute them with these guarantees:
 
-1. Open: first re-check for an existing pause this run does not own (`pause.owner` read — a sibling's
-   window may have opened since Phase 0's entry check; one window per VPS). An unowned fresh pause HERE
-   is a **mid-runbook abandonment**, not an entry refusal — earlier steps have mutated state, so:
-   perform the plan's NON-window rollbacks only (a healing-sensitive rollback cannot run under a
-   sibling's window — record what remains undone in the ⛔ row for the operator), write + commit the ⛔
-   ledger row, **skip every window-close act — the pause on disk is the SIBLING's; never remove it**,
-   and report `BLOCKED: sibling window appeared mid-deploy on <target> — <what is half-deployed, what
-   rollback remains>` (never the entry-time "before deploying" message once the runbook has mutated
-   anything). Clear → then `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch
-   /run/fabrik-autoheal/pause'` + write `pause.owner` (`<plan-stem> <ISO-8601 UTC>` — heartbeat
-   re-touches refresh BOTH files) — capture the touch timestamp.
+1. Open: first re-check BOTH files (`stat` the pause AND read `pause.owner` — a sibling's window may
+   have opened since Phase 0's entry check; one window per VPS). A pause that exists and is not this
+   run's own — owner file ABSENT (e.g. an operator's manual pause, the healer's own documented
+   procedure) or another stem — stops the run: **if any mutating step already ran**, this is a
+   mid-runbook abandonment — perform the plan's NON-window rollbacks only (a healing-sensitive
+   rollback cannot run under a sibling's window — record what remains undone in the ⛔ row for the
+   operator), write + commit the ⛔ ledger row, **skip every window-close act — the pause on disk is
+   NOT this run's; never remove it**, and report `BLOCKED: sibling window appeared mid-deploy on
+   <target> — <what is half-deployed, what rollback remains>`; **if nothing has mutated yet** (the
+   window-open is the run's first act), it is an entry-shaped refusal — `BLOCKED` naming the pause,
+   NO ⛔ row, NO status flip, nothing deployed. An orphan `pause.owner` with NO pause file is
+   incomplete-close residue — remove the orphan and proceed. Clear → open in ONE invocation:
+   `ssh <target_vps> 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause && printf "%s
+   %s\n" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'` (heartbeat re-touches refresh
+   BOTH files the same way), then **verify BOTH landed** (fenced `stat` + `cat pause.owner`) — capture
+   the touch timestamp.
 2. **Confirm the window is live BEFORE the sensitive step starts:** `stat` shows the pause file, AND
    `journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line **newer than
    the touch** (the healer ticks every minute; an already-in-flight tick is not retroactively paused,
    and last week's PAUSED lines prove nothing — bound the read or the check can never fail).
 3. **A shell `trap` is NOT a safety net here** — each command runs in a fresh shell, so an `EXIT` trap
-   fires when that call ends, not when the deploy does. The closing `rm` is an explicit runbook step. On
+   fires when that call ends, not when the deploy does. The closing `rm` — of BOTH files, `pause` and `pause.owner`; removing only the pause leaves an
+   orphan owner that poisons the next attribution read — is an explicit runbook step. On
    an abort: **run the rollback steps FIRST — still inside the window, which protects the rollback
    too — then close the window as the abort's LAST act** and verify with a fresh `stat`. If the session
    dies outright, the pause file's 2h staleness self-heal is the last-resort backstop.
@@ -159,7 +169,7 @@ that is how a completed migration gets run twice.)
      improvisation: a situation the plan didn't anticipate is a plan defect — never redesign the deploy
      mid-run.
 
-Close the maintenance window at the runbook step that closes it (verify the `rm` landed and the healer
+Close the maintenance window at the runbook step that closes it (verify the `rm` of BOTH files landed and the healer
 resumed) — never blanket-defer the close to the end.
 
 ## Phase 3 — Battery: the exit gate
@@ -187,9 +197,11 @@ step); any other credentialed act (an Apple notarization submission, a signing s
 automatable build with a gated act (a single invocation whose pipeline embeds notarization/signing) is
 a **plan defect discovered at deploy time** — `BLOCKED`, route back to `/fabrik-deploy-plan-review`;
 never restructure the step mid-run (the plan command authors the split — this command only executes
-it). If any mutating step already ran, write + commit the ⛔ ledger row first (the review's re-entry
-key); either way the BLOCKED report itself is the review's sanctioned re-entry evidence (its status
-guard admits a plan `/fabrik-deploy` routed back with a named defect). Print the Gate-2 handoff per the
+it). Either way, write + commit a durable routing record into the plan:
+`— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` (with the `deploy-ledger` commit marker; the
+status is NOT flipped when nothing mutated — a console BLOCKED print is ephemeral, and this committed
+row is exactly what the review's status guard reads as its sanctioned re-entry evidence). Print the
+Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
 action only the human takes. The handoff IS this surface's deploy completion: **proceed to Phase 5**,
 where the completion stamp records "handed to the operator publish gate: <the action>".
@@ -221,7 +233,8 @@ where the completion stamp records "handed to the operator publish gate: <the ac
    unfinished task, and an unpushed one can be silently reverted by the next pre-commit stash cycle,
    losing the record that the deploy ran (an uncommitted recovered artifact vanishes the same way,
    leaving the archived plan citing a path that no longer exists).
-3. Confirm the maintenance window is closed (fenced `stat`/log evidence) — verify, don't trust.
+3. Confirm the maintenance window is closed — BOTH files gone (fenced `stat` on each + log evidence) —
+   verify, don't trust.
 4. Hand off: the next command is `/fabrik-deploy-verify` (VPS surfaces — fresh-probe certification of the
    live service) or the operator's publish act (store surfaces).
 5. Print the 6-line FINAL OUTPUT block per CLAUDE.md:
