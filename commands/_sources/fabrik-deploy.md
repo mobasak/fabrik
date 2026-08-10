@@ -102,15 +102,18 @@ inside them.
    every window touch also writes `pause.owner` = `<plan-stem> <ISO-8601 UTC timestamp>` (the healer
    reads only `pause`). **The 2h boundary is the HEALER'S own truth** (`vps-autoheal.sh` ignores a
    pause older than 7200s — such a pause protects nobody, and the healer never deletes it), and **the
-   one removal rule stands: this deploy removes pause files only at its own stem-guarded
-   `window-close`** (and Phase 5's OUR-stem re-close). Exactly THREE outcomes:
+   one removal rule stands: this deploy removes pause files ONLY via the stem-guarded close** — at
+   the runbook's `window-close` step, at Phase 5's re-close, and at Phase 0 for OUR-stem residue on a
+   windowless plan. Exactly THREE outcomes:
    - `pause` absent → clear (an orphan `pause.owner` of any stem is stale metadata — ignored; our
      open, where a window exists, writes over it).
-   - `pause` present, owner OUR stem → our own residue from an earlier halted run — note it; Phase 1's
-     open writes over it (a windowless plan just notes it: it is ≤2h from that halt and self-heals).
+   - `pause` present, owner OUR stem → our own residue from an earlier halted run: a window-bracketing
+     plan notes it (Phase 1's open writes over it); a WINDOWLESS plan runs the stem-guarded close
+     ONCE, now (the guard makes it only-ours by construction).
    - `pause` present, owner foreign-or-absent → FOREIGN. Windowless plan → note + proceed (irrelevant
      to a deploy with no long-unhealthy step). Window-bracketing plan: age ≥2h (by the PAUSE file's
-     mtime) → dead metadata, the open will write over it; age <2h (a LIVE window — a sibling deploy or
+     mtime, read on the TARGET — the healer's own clock, no cross-host skew) → dead metadata, the
+     open will write over it; age <2h (a LIVE window — a sibling deploy or
      an operator's manual pause) → **wait NOW, pre-flip**: re-probe every 60s up to the plan's declared
      wait bound (default 30 min); cleared → proceed; still live past the bound → refuse
      (`BLOCKED: persistent foreign pause on <target> — confirm with the operator`; pre-flip, nothing
@@ -169,7 +172,9 @@ close it; execute them with these guarantees:
    the window — then close it (BOTH files, fresh `stat` on each) as the halt's LAST target act. If the
    session dies outright, the pause's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es both files at each step
-   boundary per the plan's labeled heartbeat steps; never trust a single touch past 2h.
+   boundary per the plan's labeled STEM-GUARDED heartbeat steps — an `OWNERSHIP-LOST` heartbeat means
+   the window expired and another actor took it: the sensitive step STOPS (the halt protocol — our
+   protection is gone); NEVER re-take a lost window. Never trust a single touch past 2h.
 
 ## Phase 2 — Execute the runbook, step by step, from its first step
 
@@ -185,11 +190,11 @@ close it; execute them with these guarantees:
    sit only on the exempt line —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
-   surface's completion. **The terminal-gate battery rule (ANY surface):** when the NEXT step to execute
-   is the runbook's TERMINAL `OPERATOR-GATE`, run the plan's battery FIRST (Phase 3's store
-   analogue: installability, first-run smoke — write AND COMMIT the
-   `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row); a runbook with NO terminal gate runs it after the
-   runbook (any surface). For the deferred gate then: produce Phase 4's Gate-2 handoff print (the
+   surface's completion. **The deferred-gate battery rule (any surface):** when the NEXT step to
+   execute is the runbook's terminal DEFERRED gate, run the plan's battery FIRST — as authored for
+   the surface — writing AND COMMITTING the `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row (nothing
+   can run after a deferred gate; every other runbook shape, terminal in-session gates included, runs
+   the battery AFTER the runbook per Phase 3 — certifying the post-gate state). For the deferred gate then: produce Phase 4's Gate-2 handoff print (the
    artifact path/build id, the checklist verdicts, the one human action — name it explicitly), write
    AND COMMIT the gate's row as `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is the
    recorded event; its verification is deferred by declaration), and proceed to the close-out (the
@@ -217,19 +222,20 @@ close it; execute them with these guarantees:
      the route. No improvisation: a situation the plan didn't anticipate is a plan defect — the same
      protocol, PLAN-DEFECT flavor; never redesign the deploy mid-run.
 
-## Phase 3 — Battery: the exit gate (ANY surface: immediately BEFORE the runbook's terminal OPERATOR-GATE where one exists; otherwise after the runbook)
+## Phase 3 — Battery: the exit gate (after the runbook — EXCEPT a DEFERRED terminal gate pulls it immediately before itself, the one shape nothing can run after)
 
 Run the plan's verification battery in full — write-path probe, queue-drain, companion reachability,
-cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output; on full
+cert/ACME diagnostics, same-origin probes for VPS; installability + first-run smoke for stores — as
+the plan authored for its surface — each item PASS with fenced output; on full
 PASS write + commit the ledger row `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` (the record the
 close-out-only re-entry keys on). **The battery is the deploy's exit gate:** any FAIL means the deploy is NOT done — fix via the plan's named
 rollback/retry path or run the halt protocol (a rollback that needs healing protection RE-OPENS a window
 via Phase 1's full procedure and closes it last). Never report a deploy complete on a partial battery.
 
-## Phase 4 — Store surfaces: stop at the operator's publish act, then close out
+## Phase 4 — Store surfaces (and any surface's DEFERRED terminal-gate handoff): stop at the operator's publish act, then close out
 
 Mobile / extension / desktop runbooks execute up to — never through — the publish act: build the
-artifact from the pushed SHA (the battery has already run per the store battery rule — VERIFY the
+artifact from the pushed SHA (the battery has already run per the deferred-gate battery rule or Phase 3 — VERIFY the
 `✅ BATTERY` row exists before printing any handoff; the exit gate binds every surface), prepare
 listing/rollout content.
 **The credential rule:** publish acts and ALL store-dashboard actions are the operator's — no upload, no
@@ -239,7 +245,8 @@ BUILD step is legal only where the surface's release path already runs it (cloud
 `/fabrik-release`'s own MOBILE step); any other credentialed act (an Apple notarization submission, a
 signing service) is `OPERATOR-GATE` — executed as Phase 2 step 1's handoff, its shape (in-session vs
 deferred) per the plan's declaration. For the DEFERRED shape, print the Gate-2 handoff per the convention `/fabrik-release`'s surface paths
-define — the artifact, the checklist verdicts, and the one action only the human takes — and proceed
+define — the artifact (path/build id; VPS analogue: the SHA + target), the checklist verdicts, and
+the one action only the human takes — and proceed
 to Phase 5, the completion stamp recording "handed to the operator publish gate: <the action>". A
 terminal IN-SESSION gate already handed off in Phase 2 (reply received, verification run) — no second
 print; proceed to Phase 5 directly.
@@ -250,7 +257,9 @@ print; proceed to Phase 5 directly.
    store surfaces and windowless plans skip this step). CLOSED means: every `window-close` step row is
    `✅` (of the COMPLETED run, on a close-out-only re-dispatch — this dispatch has no step rows of its
    own) AND no `pause` or `pause.owner` on disk carries OUR stem (fenced `stat` + `cat`). An OUR-stem
-   leftover of either file → re-run our stem-guarded `window-close` (idempotent, verified). A foreign
+   leftover of either file → re-run our stem-guarded `window-close` ONCE (verified — both files gone,
+   never rc alone); still OUR-stem files on disk → ending 2b (admin stop — deploy LIVE; report the
+   stuck close; the pause self-heals at 2h). A foreign
    or ownerless pause → NOT ours (an operator's or a sibling's — the triad always writes our stem with
    our pause): never remove it; note it in the report and proceed. The probe itself failing (target
    unreachable post-deploy) → ending 2b (admin stop — deploy LIVE; the pause self-heals at 2h; never
