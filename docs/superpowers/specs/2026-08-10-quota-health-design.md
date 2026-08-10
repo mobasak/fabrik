@@ -24,7 +24,12 @@ nothing resumed):
 
 Out of scope: fleet/VPS quota handling (workstation first; the fleet healer runs its own account),
 any Anthropic-API-key path (operational stack is Claude Code CLI + subscription OAuth only —
-recorded constraint), UI/dashboard surfaces.
+recorded constraint), UI/dashboard surfaces, and DOLLAR-cost accounting — a recorded decision,
+not an omission: Fabrik's cost surfaces (`scripts/kilo-benchmarks/claude_p_cost.json`
+`amortized_per_mtok` + `derive_cost.py`, checked 2026-08-10) model subscription cost as
+amortized-over-utilization, so quota (the binding constraint) is what this design manages and
+utilization-maximization IS the cost optimization; per-call $ gates on operational loops are
+separately banned (recorded operator rule).
 
 ## External dependencies — grounded THIS session (primary vendor artifacts + live probes, 2026-08-10)
 
@@ -59,7 +64,10 @@ This is ONE buildable unit (like the mesh itself): shared state, one plan, phase
    Writes/updates **`~/.claude/.claude-manager/wall-state.json`**: per-account
    `{rateLimitType, resetsAt, recordedAt}`; entries self-expire when `resetsAt` passes.
    Subcommands: `--record` (parse+persist at death) · `--healthy-sibling` (the known-account set — enumerated
-   from the snapshot dirs — intersected with no-live-wall from wall-state) · `--wait-seconds <error-class>` (the ONE wait computation
+   from the snapshot dirs — intersected with no-live-wall from wall-state; among several
+   healthy siblings, prefer the LOWEST `usedPercent` from the tap — spreading the burn delays
+   the next wall and, under the amortized-subscription cost model, is also the cost-optimal
+   pick) · `--wait-seconds <error-class>` (the ONE wait computation
    both revival layers consult — resolves the ACTIVE account itself (the claude-manager active-account record — the same
    source `claude_rotate.py --list` marks active), seeds jitter internally,
    and returns an ALREADY-BOUNDED duration — no duplicated reset logic in bash) · `--status` (human-readable
