@@ -1,6 +1,6 @@
 # Quota-health for the resume mesh — reset-clock revival, health-aware rotation, token re-capture, reboot sweep
 
-Status: IN-PROGRESS
+Status: EXECUTED
 Spec: docs/superpowers/specs/2026-08-10-quota-health-design.md (CONVERGED 2026-08-10, operator-approved)
 Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-manager` (out-of-repo, DR-versioned); the ticket-set gate bans out-of-repo Touches, and the reviewed resume-mesh plan (2026-08-09-plan-2) is the precedent for this shape. 5 phases.
 
@@ -121,7 +121,13 @@ Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-mana
 
 **Behavior Contract:** capture is monotone (never regresses) · drift-check auto-captures within one trigger of any manual login · restore reads only the single per-account snapshot (existing `--switch` path unchanged — verified by an assertion test, not modified) · token bytes never emitted.
 
-## Phase D — Reboot sweep + autonomous marking
+## Phase D — Reboot sweep + autonomous marking ✅ EXECUTED
+
+> Closed 2026-08-10: harness Section R (11 assertions) -> `mesh-test: 113 ok, 0 fail`; 2 review
+> rounds, 8 fixes — heaviest: `@reboot` fires on any cron-daemon restart, so without a liveness
+> gate the sweep could resume a session whose writer is still alive; plus cron-environment
+> realities (unset HOME crashes under `set -u`; a bare PATH made it log "resumed" while
+> `claude` never ran). DR `20260810T095823Z`.
 
 **Files:** `~/.claude/bin/claude-reboot-sweep.sh` (new) · `.claude/hooks/session_orient.py` (repo, fleet-synced: the env-gated marker drop) · `tests/test_session_orient_hook.py` (repo) · crontab (+1 `@reboot` line) · harness Section R.
 
@@ -138,7 +144,12 @@ Shape: MONOLITH — primary surface is `~/.claude/bin` + `~/.claude/.claude-mana
 
 **Behavior Contract:** only marked sessions swept (R1/R3) · mid-work filter via the decider's real verdicts (R2) · staggered starts (R4) · pre-reboot `.reviving` cleared before any resume (R5) · marker consumed exactly once, idempotent (R1+R6) · panes structurally excluded = R3 (no marker → untouched; panes never mark).
 
-## Phase E — Flip, docs, receipt (the closing phase)
+## Phase E — Flip, docs, receipt (the closing phase) ✅ EXECUTED
+
+> Closed 2026-08-10: AUTOROTATE default 0->1 (A0 fixtures rewritten red-first), hooks-index +
+> config-inventory + CHANGELOG + memory updated, FULL gate `success 35 / 0`,
+> `check_convergence` rc=0, `mesh-test: 114 ok, 0 fail`. Receipt:
+> `docs/development/reviews/2026-08-10-plan-1-quota-health-review.md`.
 
 **Files:** `~/.claude/bin/claude-sound.sh` (AUTOROTATE default flip) · `docs/workstation/hooks-index.md` · `docs/workstation/claude-configuration-inventory.md` · `CHANGELOG.md` · `docs/LESSONS_LEARNT.md` (entry or `none`) · `docs/development/reviews/2026-08-10-plan-1-quota-health-review.md` (receipt) · memory files.
 

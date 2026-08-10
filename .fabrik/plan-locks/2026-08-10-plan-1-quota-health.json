@@ -1,0 +1,23 @@
+{
+ "plan": "2026-08-10-plan-1-quota-health",
+ "owned_paths": [
+  "docs/development/plans/2026-08-10-plan-1-quota-health.md",
+  "docs/development/reviews/2026-08-10-plan-1-quota-health-review.md",
+  "scripts/sysadmin/claude_rotate.py",
+  "tests/test_claude_rotate_capture.py",
+  ".claude/hooks/session_orient.py",
+  "tests/test_session_orient_hook.py",
+  "docs/workstation/hooks-index.md",
+  "docs/workstation/claude-configuration-inventory.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-10T09:20:00+03:00",
+ "status": "released",
+ "baseline_commit": "adb202720a129dee6a057422ee03c02f1f8cd203",
+ "baseline_gate": {
+  "status": "success",
+  "reds": []
+ },
+ "completed_at": "2026-08-10T13:05:00+03:00",
+ "final_commit": "pending-commit"
+}

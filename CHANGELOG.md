@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Quota-health: reset-clock revival, health-aware rotation, token re-capture, reboot sweep (2026-08-10)
+
+- The mesh now knows WHY a rate_limit death happened. `claude-quota.py` (new) parses the wall
+  (`rateLimitType` + `resetsAt`) from the manager tap's EXHAUSTED window or the payload's
+  `error_details`, persists per-account state (0600, atomic, self-expiring with a bounded history
+  stub), and answers the ONE wait both revival layers consult — a quota death waits to the CLOCK
+  in <=60s slices instead of a blind 90s cool-off.
+- Rotation is HEALTH-AWARE and default-ON: it switches only to a VERIFIED unwalled sibling and
+  targets it by name (`--switch`), so the 2026-08-09 blind churn cannot recur;
+  `CLAUDE_SOUND_AUTOROTATE=0` is the wait-only escape hatch. Walled everywhere -> no churn, plus a
+  "revival scheduled in Nm" Telegram.
+- Token re-capture (`claude_rotate.py --capture-current`/`--drift-check`; SessionStart hook +
+  hourly cron at :35) keeps the stored snapshot equal to the live credentials, closing the
+  stale-refresh-token failure that broke the operator's login at 12:05 today. Byte-compares the
+  WHOLE credential (the refresh token rotates independently of the access token), refuses to
+  regress a newer snapshot, rolls the outgoing one to `.prev`, holds ROTATE_LOCK.
+- Reboot sweep (`claude-reboot-sweep.sh`, @reboot) resumes AUTONOMOUS-marked sessions that were
+  genuinely mid-work and are not still live, staggered; interactive panes are structurally
+  excluded. Harness 71 -> 114 fixtures; each of the 5 phases closed by a blocking /fabrik-review
+  (36 defects found and fixed during the build).
+
 ### Added — fleet-wide container auto-heal: unhealthy-but-alive now restarts itself (2026-08-10)
 Operator directive: Docker's restart policy only covers exited containers; a wedged-but-alive
 process failing its healthcheck ran forever with only an alert. New `scripts/vps-autoheal.sh`

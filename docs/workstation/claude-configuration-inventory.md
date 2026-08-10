@@ -40,7 +40,8 @@ carry their own MCP roster.
 | `~/.claude/sessions/` · `todos/` · `tasks/` · `shell-snapshots/` | 1.4 MB / 92 KB / 12 KB / 464 KB | Session index, todo lists, background-task registry, shell state | Live |
 | `~/.claude/history.jsonl` | 656 KB | Prompt history | Live |
 | `~/.claude/statsig/` · `cache/` · `paste-cache/` · `debug/` · `downloads/` | ≤476 KB each | Feature flags, changelog cache, paste buffers, debug dumps | Live, low cost |
-| `~/.claude/sound-debug.log` | 316 KB | Debug log from the notification-sound hook | Growing; prune candidate |
+| `~/.claude/sound-debug.log` | 316 KB | Debug log from the notification-sound hook + the reboot sweep's per-decision lines | Growing; prune candidate |
+| `~/.claude/drift-check.log` · `~/.claude/sweep.log` | small | Cron output for the hourly token drift-check (`:35`) and the `@reboot` sweep — deliberately under `$HOME`: `/var/log` is not writable by this user, which silently no-op'd the first attempt | Live |
 | `~/.claude/mcp-needs-auth-cache.json`, `stats-cache.json`, `.last-cleanup`, `.last-update-result.json` | small | MCP auth prompts, usage stats, cleanup + self-update markers | Live |
 | `~/.claude/bin/` (`claude-sound.sh` · `claude-stop-decider.py` · `claude-autoresume.sh` · `claude-selfwatch.sh` · `claude-mesh-test.sh`) | ~90 KB | Notification-sound router + state-based stop decider + the resume-mesh revivers and their fixture harness (detail: the Resume mesh paragraph below) | **Live** — DR-mirrored via `dr_claude_backup.sh` |
 | `~/.claude/ide/*.lock` | 36 KB | VS Code extension ↔ CLI handshake locks | Live |
@@ -131,7 +132,7 @@ marker re-check, child carries `CLAUDE_SOUND_NO_REVIVE=1` + `CLAUDE_MESH_HEADLES
 re-fires the pipeline → ring), `claude-selfwatch.sh` (pane self-watch — EVERY interactive session
 is ordered to arm it by the ORIENT hook, first tool action; consumes a pre-arm marker silently,
 consumes on fire — one wake per death record; network-gated for all classes),
-`claude-mesh-test.sh` (sandboxed fixture harness — 71 fixtures, silent). Markers in the sound lock
+`claude-mesh-test.sh` (sandboxed fixture harness — 114 fixtures, silent), `claude-quota.py` (quota-wall parser + the ONE wait computation both revival layers consult; state in `.claude-manager/wall-state.json`, 0600), `claude-reboot-sweep.sh` (@reboot: resumes AUTONOMOUS-marked, mid-work, not-still-live sessions, staggered). Markers in the sound lock
 dir: `<sess>.errparked` (death record — cleared on the next normal Stop, on a busy turn-death
 verdict [a live waker exists], or consumed by the self-watch's fire), `rotation.last`,
 `<sess>.notified`, `<sess>.attempts`, `<sess>.reviving`, `<sess>.recheck`, `start.last` +
