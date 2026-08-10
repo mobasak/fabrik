@@ -36,7 +36,10 @@ DEFAULT_HUB = Path("/opt/fabrik")
 
 # Files only the hub has. Used to tell "a project copy" (skip, correct) apart from "the hub with a
 # renamed/moved manifest" (fail loudly) — see hub_root().
-_HUB_MARKERS = ("commands/_sources", "templates/governance")
+_HUB_MARKERS = ("commands/_sources",)  # the corpus source dir — projects never have it.
+# `templates/governance` was in this set and is too generic: `templates/` is an ordinary directory
+# name, so a project that ever created `templates/governance/` would red its own Tier-2 gate with
+# "looks like the hub" (review finding — currently clean fleet-wide, but a latent trap).
 
 
 def hub_root(script: Path | None = None) -> Path | None:
@@ -265,7 +268,10 @@ def _declared(surface: str, seeded: frozenset[str] = frozenset()) -> bool:
     return False
 
 
-_PWD_GUARD_RE = re.compile(r'\$\(pwd\)"?\s*=\s*"?(/[^"\s\]]+)')
+# Tolerates the spellings a shell author actually uses. The first version understood only
+# `[ "$(pwd)" = "/opt/fabrik" ]`; `$PWD`, `[[ … == … ]]`, and `!=` all read as "no guard" and
+# returned the exact false-green this caveat exists to kill (review finding).
+_PWD_GUARD_RE = re.compile(r'(?:\$\(pwd\)|\$PWD|\$\{PWD\})"?\s*[!=]?==?\s*"?(/[^"\s\]]+)')
 
 
 def sync_is_inert_here(config: Path, root: Path) -> str | None:
@@ -369,6 +375,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print("✓ sync-trigger coverage: every synced surface triggers a sync or is declared")
         return 0
+    inert = sync_is_inert_here(FABRIK_ROOT / ".pre-commit-config.yaml", FABRIK_ROOT)
+    if inert:
+        # Also on the FAILING path: an agent in a worktree who fixes the gap still ships nothing,
+        # and without this would never be told (review finding).
+        print(f"⚠ note: {inert} — fixing the gap here still distributes nothing.")
     print("✗ sync-trigger coverage — these are DISTRIBUTED fleet-wide but editing them fires NO")
     print("  governance-sync, so a commit ships nothing and the fleet keeps the old copy:")
     for g in gaps:

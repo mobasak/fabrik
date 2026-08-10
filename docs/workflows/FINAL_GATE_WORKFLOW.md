@@ -157,7 +157,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Fast showstoppers only (syntax, secrets, schema sync, doc sync)
 
-**Phase 3: Repo Consistency (17 checks)** — `run_consistency_checks(tier=1)`, `final_gate.py:654-838`
+**Phase 3: Repo Consistency (17 checks)** — `run_consistency_checks(tier=1)` (the `if tier in (1, 2):` block)
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
@@ -197,9 +197,11 @@ trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped 
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
 no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
 
-**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (`tier in (1, 2)` block), **plus 18 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory] — plus the Plan-Set Contract, Hooks Index Fresh, and Sync Trigger Coverage), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **36 checks total**. (Counts verified 2026-08-10 by enumerating the `run_optional_check` calls in that block; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
+**Phase 3: Repo Consistency** — inherits all **17** Tier-1 checks above (16 in the `tier in (1, 2)` block; `check_convergence.py` runs unconditionally outside it), **plus 18 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory] — plus the Plan-Set Contract, Hooks Index Fresh, and Sync Trigger Coverage), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **36 checks total**. (Counts verified 2026-08-10 by enumerating the `run_optional_check` calls in that block; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
 
 **The Tier-2-only checks:**
+- **Stage-Skip Artifact Gate** - `check_stage_artifacts.py`
+  - Spec freshness + FROZEN header shape for a stage that was skipped
 - **Hooks Index Fresh** - `check_hooks_index.py`
   - Hub-only; the hooks index matches the live hook set (self-skips off the hub)
 - **Sync Trigger Coverage** - `check_sync_trigger_coverage.py`
@@ -245,7 +247,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 
 **Purpose:** On-demand repo/system hygiene (no showstoppers)
 
-**Phase 3: Repo Consistency (13 checks)** — `final_gate.py:654-983`
+**Phase 3: Repo Consistency (13 checks)** — `run_consistency_checks` (the `tier >= 2` / Tier-3 selections)
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
 - **Docker** - `check_docker.py`
   - Validates amd64 compatibility, No-Alpine base images, HEALTHCHECK presence

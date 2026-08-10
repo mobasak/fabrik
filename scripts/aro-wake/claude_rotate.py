@@ -250,25 +250,49 @@ def _stale_snapshot_reason(blob: bytes, now: float | None = None) -> str | None:
     now = now if now is not None else time.time()
     try:
         oauth = json.loads(blob.decode("utf-8")).get("claudeAiOauth") or {}
-    except (ValueError, UnicodeDecodeError):
-        return None  # shape already covered by the token-presence check above; don't double-fail
+        if not isinstance(oauth, dict):
+            return "credentials are malformed (claudeAiOauth is not an object)"
+    except (ValueError, AttributeError, TypeError):
+        # UnicodeDecodeError subclasses ValueError. AttributeError/TypeError cover a payload that
+        # is valid JSON but not the expected shape (`123`, `[]`, or a string `claudeAiOauth`) —
+        # today `_access_token_from` pre-screens those, but this function is module-level and
+        # documented as the authoritative guard, so the next caller without that pre-screen must
+        # not crash the rotation path (review finding).
+        return None
 
     def _left(v):
         if not isinstance(v, (int, float)):
             return None
         return (v / 1000 if v > 1e11 else v) - now
 
+    if not oauth.get("refreshToken"):
+        # No refresh token at all: the moment the access token lapses there is no way back, and
+        # the picker already refused this shape. Two layers disagreeing about one credential is
+        # the class that caused the incident (review finding F6).
+        return "credentials carry no refresh token — nothing to renew with"
     refresh_left = _left(oauth.get("refreshTokenExpiresAt"))
     if refresh_left is not None and refresh_left <= 0:
         return f"refresh token expired {abs(refresh_left) / 3600:.0f}h ago"
+    # NOT a disqualifier: an expired ACCESS token is the NORMAL state of a standby. Only the
+    # active account self-refreshes, so a standby's `expiresAt` is frozen at capture and goes stale
+    # within ~8-12h — while a weekly wall arrives ~2.x days later. Disqualifying on it meant that
+    # by the time rotation was needed, EVERY standby looked dead and rotation was structurally
+    # impossible (review finding, and the mirror failure of the bug this guard exists to fix).
+    # The live incident is caught by the refresh-token clause above on its own: can@'s month-old
+    # snapshot had an EXPIRED refresh token, which is what "could not be refreshed" means.
+    # A live access token is a PREFERENCE, applied by ranking in the picker — never a filter.
     access_left = _left(oauth.get("expiresAt"))
     if access_left is None:
-        return None  # no expiry field: old format, don't block on missing metadata
-    if access_left <= _CRED_MARGIN_S:
-        return (
-            f"access token expired {abs(access_left) / 3600:.0f}h ago — it would need a refresh, "
-            "and refresh tokens are single-use across the fleet"
-        )
+        # FAIL CLOSED. A missing expiry field does not mean "still valid" — it means we CANNOT
+        # PROVE it authenticates, and an unprovable credential is exactly what logged the operator
+        # out. This also removes a cross-layer divergence: the picker (claude-quota.py
+        # credentials_usable) already treats a missing field as unusable, and two layers
+        # disagreeing about the same credential is the defect class that caused the incident
+        # (found independently by review; carried as a self-finding first).
+        # Cost asymmetry decides the direction: refusing costs a WAIT for the reset clock;
+        # allowing costs a logged-out operator at the keyboard. CLAUDE_ROTATE_ALLOW_STALE=1
+        # overrides for a legacy snapshot an operator knows is good.
+        return "credentials carry no expiry metadata — cannot prove they still authenticate"
     return None
 
 
@@ -321,7 +345,10 @@ def _activate_snapshot(
         if stale is not None:
             # Fail-soft and STAY PUT: a walled-but-authenticated session is recoverable by
             # waiting for the reset clock; a logged-out one needs the operator at the keyboard.
-            sys.stderr.write(f"refusing to activate {target.name}: {stale}\n")
+            sys.stderr.write(
+                f"refusing to activate {target.name}: {stale}. "
+                "Re-authenticate that account, or set CLAUDE_ROTATE_ALLOW_STALE=1 to override.\n"
+            )
             return None
         # Single rolling backup of the outgoing active (satisfies the backup-before-swap rule).
         if active_bytes is not None:
@@ -389,6 +416,17 @@ def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
                 continue
             tok = _read_access_token(acc / ".credentials.json")
             if tok is None:  # corrupt / empty / tokenless — never install
+                continue
+            # …and skip one the installer would REFUSE, so a healthy account later in the sort is
+            # still reached. Without this the first stale candidate ended rotation entirely: the
+            # installer refused it, `run_claude` saw None and broke out, and a fresh standby one
+            # index later was never tried (review finding — the mirror of the logout bug: pre-fix
+            # it rotated to a dead account, post-fix it rotated NOWHERE). Matters most on the VPS
+            # fleet, where this is the ONLY rotation path (no claude-quota.py picker there).
+            try:
+                if _stale_snapshot_reason((acc / ".credentials.json").read_bytes()) is not None:
+                    continue
+            except OSError:
                 continue
             if acc.name == active_name:  # the account we're rotating away FROM
                 continue
@@ -708,7 +746,9 @@ def _cmd_switch(name: str) -> int:
         )
         _reload_hint()
         return 0
-    sys.stderr.write("switch failed (filesystem error) — active account unchanged\n")
+    sys.stderr.write(
+        "switch failed (unreadable creds, or the snapshot cannot authenticate — see above) — active account unchanged\n"
+    )
     return 1
 
 

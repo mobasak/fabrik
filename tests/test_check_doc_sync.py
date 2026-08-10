@@ -224,23 +224,51 @@ def test_an_unbalanced_backtick_cannot_swallow_a_real_todo(repo: Path) -> None:
     assert r.returncode == 1, f"a stray tick must not disable the TODO guard: {r.stdout}"
 
 
-def test_a_backticked_token_with_a_task_is_still_unfinished_work(repo: Path) -> None:
-    """`todo` alone documents the token; `TODO: wire the alert` is real unfinished work."""
+def test_a_quoted_task_marker_is_documentation_not_unfinished_work(repo: Path) -> None:
+    """REVERSED after review. I first asserted that `TODO: wire the alert` inside ticks was
+    unfinished work. That rule was wrong, and it made the gate RED on the hub for every agent —
+    because the CHANGELOG paragraph describing the detector necessarily QUOTES the tokens it
+    detects. A gate that cannot describe its own behaviour is broken. Inside balanced ticks is a
+    quotation; the question this gate asks is only "is the entry itself a stub?"."""
     _write(repo, "CHANGELOG.md",
            "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
            "- left a `TODO: wire the OOM alert` in poll_worker\n")
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
-    r = _run(repo)
-    assert r.returncode == 1, f"a backticked token WITH a task is unfinished work: {r.stdout}"
+    assert _run(repo).returncode == 0
 
 
-def test_the_changelog_template_placeholders_are_still_rejected_in_ticks(repo: Path) -> None:
-    """The placeholder test reads the tick-stripped body, so a pasted template with the tokens
-    in code spans passed a gate that exists to catch exactly that (native review finding)."""
+def test_the_gate_accepts_an_entry_describing_its_own_detector(repo: Path) -> None:
+    """The self-inflicted hub-RED (review finding): this exact prose blocked every agent in the
+    repo, with a message claiming [Unreleased] was 'empty or has a placeholder' while it held
+    thousands of real entries."""
     _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Added — `<brief title>` (2026-08-10)\n"
-           "- `<description>`\n")
+           "# Changelog\n\n## [Unreleased]\n\n### Fixed — doc-sync guard (2026-08-10)\n"
+           "- a stray tick swallowed `TODO: document the --force path`; the template tokens\n"
+           "  `<brief title>` / `<description>` were also read from the wrong body.\n")
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+    r = _run(repo)
+    assert r.returncode == 0, f"the gate must not reject prose that documents it: {r.stdout}"
+
+
+def test_plural_and_comment_forms_inside_ticks_are_quotations(repo: Path) -> None:
+    """Strip/detect asymmetry (review finding): the detector had `s?`, the strip did not, so
+    `todos` was rejected — a plausible real entry in any of ~48 repos."""
+    for line in ("- scanner lists the `todos` it found",
+                 "- the linter now understands `# TODO` comments"):
+        _write(repo, "CHANGELOG.md",
+               f"# Changelog\n\n## [Unreleased]\n\n### Fixed — x (2026-08-10)\n{line}\n")
+        _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+        _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+        assert _run(repo).returncode == 0, line
+
+
+def test_an_actually_pasted_template_placeholder_is_still_rejected(repo: Path) -> None:
+    """The real template is pasted WITHOUT ticks — that is the stub this gate exists to catch."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Added — <brief title> (2026-08-10)\n"
+           "- <description>\n")
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     r = _run(repo)

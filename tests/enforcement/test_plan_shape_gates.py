@@ -804,3 +804,33 @@ def test_a_spine_missing_only_one_pillar_is_still_flagged(plans_env: Path) -> No
     msg = _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, two_of_three)))
     assert msg, "a spine stating 2 of 3 must still be flagged"
     assert "parallelism" in msg and "/fabrik-review" not in msg and "pool-default" not in msg
+
+
+@pytest.mark.parametrize("alt,phrase", [
+    ("merges/dedupes",  "results merge/dedupe at the Integration ticket"),
+    ("dedupe",          "their findings are deduped before any fix"),
+    ("fan-out",         "the first wave is a fan-out across T01/T05"),
+    ("concurrently",    "T01 and T05 run concurrently"),
+    ("in parallel",     "T01 and T05 are built in parallel"),
+    ("parallel waves",  "two parallel waves, then Integration"),
+    ("where...merge",   "T02 and T03 are independent; where they merge is T11"),
+])
+def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, alt, phrase):
+    """F9: every parametrised fixture matched TWO alternatives at once, so deleting any single one
+    left the suite green — 7 of them were individually unpinned. Each phrase here exercises exactly
+    one alternative, so removing that alternative reds exactly this case."""
+    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrase}\n\n## Interfaces")
+    assert "parallelism" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good))), alt
+
+
+@pytest.mark.parametrize("alt,phrase", [
+    ("pool-default", "dispatch is pool-default for the gradeable work"),
+    ("fanout",       "use `fanout` for the finder units"),
+    ("pick_models",  "the roster comes from `pick_models`"),
+    ("pool...default", "the pool is the default worker for gradeable finders"),
+    ("default...pool", "by default we dispatch to the OpenRouter pool"),
+])
+def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, phrase):
+    """Same class, dispatch side — including the reverse word order, which no test used at all."""
+    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrase}\n\n## Interfaces")
+    assert "pool-default" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good))), alt

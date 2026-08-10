@@ -245,22 +245,114 @@ def test_a_month_old_snapshot_is_refused_as_a_rotation_target():
     assert reason is not None and "refresh token expired" in reason
 
 
-def test_an_expired_access_token_is_refused_even_when_the_refresh_token_has_time_left():
-    """Refresh tokens are SINGLE-USE and four boxes share three accounts, so 'the refresh token
-    has not expired' does not mean it is still unspent. A target must work WITHOUT a refresh."""
-    reason = rot._stale_snapshot_reason(_oauth_blob(-50, 600))  # ob@'s real shape today
-    assert reason is not None and "single-use" in reason
+def test_a_lapsed_access_token_is_not_disqualifying():
+    """REVERSED after review. I first refused any snapshot whose access token had expired, on the
+    single-use-refresh-token argument. That made rotation structurally impossible exactly when it
+    is needed: only the ACTIVE account self-refreshes, so every standby's 8-12h token has lapsed
+    long before a weekly wall arrives ~2.x days later — `healthy_sibling()` would return None
+    permanently. It is a ranking preference now, not a filter. The live incident is still caught
+    by the refresh-token clause alone: can@'s month-old snapshot had an EXPIRED refresh token,
+    which is precisely what "could not be refreshed" means."""
+    assert rot._stale_snapshot_reason(_oauth_blob(-50, 600)) is None  # ob@'s real shape
 
 
 def test_a_fresh_snapshot_is_allowed():
     assert rot._stale_snapshot_reason(_oauth_blob(8, 700)) is None
 
 
-def test_a_token_expiring_inside_the_margin_is_refused():
-    """Never hand over a token that dies while the switch is still happening."""
-    assert rot._stale_snapshot_reason(_oauth_blob(0.03, 700)) is not None
+def test_a_token_expiring_inside_the_margin_is_still_a_valid_target():
+    """Same reversal: it will simply refresh on first use, which is the standby's normal path."""
+    assert rot._stale_snapshot_reason(_oauth_blob(0.03, 700)) is None
+
+
+def test_an_expired_refresh_token_is_the_real_disqualifier():
+    """The clause that actually caught the incident, kept and pinned on its own."""
+    reason = rot._stale_snapshot_reason(_oauth_blob(-720, -10))
+    assert reason is not None and "refresh token expired" in reason
 
 
 def test_the_operator_can_override_a_stale_target(monkeypatch):
     monkeypatch.setenv("CLAUDE_ROTATE_ALLOW_STALE", "1")
     assert rot._stale_snapshot_reason(_oauth_blob(-720, -10)) is None
+
+
+def test_a_snapshot_with_no_expiry_metadata_is_refused_not_assumed_good():
+    """Cross-layer divergence: the picker treated a missing expiry field as unusable while the
+    installer treated it as allowed. Two layers disagreeing about the same credential is the exact
+    class that logged the operator out, and 'we cannot prove it authenticates' must fail CLOSED —
+    refusing costs a wait, allowing costs a re-login."""
+    blob = json.dumps({"claudeAiOauth": {"accessToken": "x", "refreshToken": "y"}}).encode()
+    reason = rot._stale_snapshot_reason(blob)
+    assert reason is not None and "no expiry metadata" in reason
+
+
+def test_the_override_still_admits_a_metadata_less_snapshot(monkeypatch):
+    monkeypatch.setenv("CLAUDE_ROTATE_ALLOW_STALE", "1")
+    blob = json.dumps({"claudeAiOauth": {"accessToken": "x", "refreshToken": "y"}}).encode()
+    assert rot._stale_snapshot_reason(blob) is None
+
+
+# --- The guard's WIRING, not just its helper (review finding F2) ----------------------------
+# Every earlier test called `_stale_snapshot_reason` directly, so deleting the call from
+# `_activate_snapshot` left the suite green — i.e. the entire fix could be removed without a
+# single failure, while the commit claimed "ANY caller is covered".
+
+
+def _rotation_sandbox(tmp_path, accounts):
+    """A real snapshot tree; `accounts` is {name: hours-until-access-expiry or None-for-dead}."""
+    import time as _t
+    now = _t.time()
+    (tmp_path / "manager-accounts").mkdir()
+    for name, (access_h, refresh_h) in accounts.items():
+        d = tmp_path / "manager-accounts" / name
+        d.mkdir()
+        d.joinpath(".credentials.json").write_bytes(json.dumps({"claudeAiOauth": {
+            "accessToken": f"tok-{name}", "refreshToken": f"r-{name}",
+            "expiresAt": int((now + access_h * 3600) * 1000),
+            "refreshTokenExpiresAt": int((now + refresh_h * 3600) * 1000)}}).encode())
+    (tmp_path / ".credentials.json").write_bytes(json.dumps({"claudeAiOauth": {
+        "accessToken": "tok-live", "refreshToken": "r-live",
+        "expiresAt": int((now + 5 * 3600) * 1000),
+        "refreshTokenExpiresAt": int((now + 700 * 3600) * 1000)}}).encode())
+    rot.CLAUDE_DIR = tmp_path
+    rot.ACTIVE_CREDS = tmp_path / ".credentials.json"
+    rot.ACCOUNTS_DIR = tmp_path / "manager-accounts"
+    rot.ACTIVE_MARKER = tmp_path / ".active-account"
+    rot.BACKUP_CREDS = tmp_path / ".credentials.json.prev"
+    rot.ROTATE_LOCK = tmp_path / ".rotate.lock"
+    return tmp_path / ".credentials.json"
+
+
+def test_activate_snapshot_itself_refuses_a_dead_target(tmp_path):
+    """Pins the CALL SITE: deleting the guard from `_activate_snapshot` must red this."""
+    live = _rotation_sandbox(tmp_path, {"dead": (-720, -10)})
+    before = live.read_bytes()
+    assert rot._activate_snapshot(target=tmp_path / "manager-accounts" / "dead") is None
+    assert live.read_bytes() == before, "a refused activation must not touch the live credentials"
+
+
+def test_activate_snapshot_still_installs_a_good_target(tmp_path):
+    """Non-vacuity: proves the refusal is selective, not a blanket 'refuse everything' that would
+    silently disable rotation — the mirror failure of the bug this guard exists to fix."""
+    live = _rotation_sandbox(tmp_path, {"good": (8, 700)})
+    before = live.read_bytes()
+    assert rot._activate_snapshot(target=tmp_path / "manager-accounts" / "good") == "good"
+    assert live.read_bytes() != before
+
+
+def test_a_dead_first_candidate_does_not_block_a_healthy_later_one(tmp_path):
+    """Review finding F1: the selector returned the FIRST tokened snapshot without consulting the
+    guard, the installer refused it, and the caller broke out — so a fresh standby one index later
+    was never tried. Pre-fix that logged the operator out; post-fix it rotated NOWHERE."""
+    live = _rotation_sandbox(tmp_path, {"a-dead": (-720, -10), "b-good": (8, 700)})
+    assert rot._rotate_active_account() == "b-good"
+    assert b"tok-b-good" in live.read_bytes()
+
+
+def test_a_snapshot_with_no_refresh_token_is_refused_by_both_layers():
+    """Cross-layer divergence (F6): the picker refused it, the installer allowed it. Once the
+    access token lapses there is no way back, and every non-picker path — --switch, --next,
+    run_claude's rotation, and the VPS fleet where no picker exists — takes the installer."""
+    blob = json.dumps({"claudeAiOauth": {"accessToken": "x", "expiresAt": 9_999_999_999_000}}).encode()
+    reason = rot._stale_snapshot_reason(blob)
+    assert reason is not None and "no refresh token" in reason

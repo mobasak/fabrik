@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review of the day's own work: 25 findings, 16 fixed, incl. a live hub-blocker (2026-08-10)
+
+Operator-scoped round over my six unreviewed commits (the deploy-triad plan excluded — a sibling
+executes it, and I am author-blind to it having validated and amended it). Pool x4 + native Opus.
+
+The three that mattered most, all reproduced:
+
+- **The doc-sync gate was RED on the hub**, self-inflicted: the CHANGELOG paragraph describing the
+  token detector necessarily QUOTES the tokens it detects, so it rejected itself — with a message
+  claiming `[Unreleased]` was "empty or has a placeholder" while it held thousands of entries.
+  Every agent committing significant code was blocked or forced to `--no-verify`. Re-framed: an
+  inline code span is a QUOTATION, stripped per line and only where backticks are BALANCED, so the
+  unbalanced-tick case that motivated the earlier narrowing still fails closed.
+- **Rotation was structurally impossible at the moment it is needed.** Only the ACTIVE account
+  self-refreshes, so a standby's 8-12h access token has always lapsed by the time a weekly wall
+  arrives ~2.x days later — my access-token filter would have returned "no healthy sibling"
+  permanently. It is a RANKING preference now; the live incident is caught by the refresh-token
+  clause alone, which is literally what "could not be refreshed" means.
+- **A stale FIRST candidate ended rotation entirely** while a healthy account sat one index later:
+  the selector never consulted the guard, the installer refused, and the caller broke out. Worst on
+  the VPS fleet, where that is the only rotation path.
+
+Also: the guard's call site was untested (the whole fix was deletable with a green suite); the
+installer and picker disagreed on four credential shapes (now verified to agree on all six); a
+decorated `## ⚠️` heading defeated the binding-section anchor and flagged a compliant CONVERGED
+spine; 9 regex alternatives were individually unpinned; refusals were mislabelled ("filesystem
+error" for a staleness refusal, "all credentials are dead" when one was healthy) and never named
+the override; and `FINAL_GATE_WORKFLOW.md` still miscounted after the commit that claimed to have
+verified it by enumeration.
+
+Two of my own tests asserted rules this round disproved and were reversed with their reasoning
+recorded. One of my own "CLEAN, proven" verdicts is re-opened in the review file rather than
+defended: the sandbox rows I ran were true, but the conclusion drawn from them was too broad.
+
 ### Fixed — the last five review findings on my own gates, incl. two more false-greens (2026-08-10)
 
 - **A hub worktree got a green coverage verdict while the sync was a guaranteed no-op there.** The

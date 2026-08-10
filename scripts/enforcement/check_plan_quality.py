@@ -57,8 +57,26 @@ PILLAR_SECTIONS = [
 ]
 # The spine sections whose contents BIND execution. `/fabrik-plan-after-chat` mandates
 # `## Execution Discipline`; `## Global Constraints` is accepted as the sibling that predates it.
+# DECORATION-TOLERANT on purpose. The heading must be an h2 naming one of these sections, but the
+# repo's own house style decorates headings — the live spine at
+# web-ecommerce-factory/…/2026-08-09-plan-upstream-consumption.md writes
+# `## ⚠️ Global Constraints (every ticket inherits these)`, and a strict anchor scored ZERO binding
+# characters there and flagged all three pillars on a COMPLIANT, CONVERGED plan (review finding,
+# reproduced). `## **Execution Discipline**` and `## 3. Execution Discipline` missed too. Crying
+# wolf on a compliant plan is how a gate gets ignored, so anything between `##` and the section
+# name is allowed; the `(?=^##\s|\Z)` terminator still stops at the next h2 (never a `###`, whose
+# third `#` is not whitespace).
+#
+# The NAME SET is the concept, not two literals: the same live spine puts its mandates under
+# `## Phase gates (every ticket)` and `## Subagent dispatch (pool-default…)`, which are execution
+# -mandate sections by any reading. `/fabrik-plan-after-chat` still mandates ONE canonical heading
+# so new plans converge on it; this set is what the gate ACCEPTS, deliberately wider than what the
+# command PRESCRIBES, because an advisory check should never punish a plan that did the right
+# thing under a different name.
 _BINDING_SECTION_RE = re.compile(
-    r"^##\s+(?:Execution Discipline|Global Constraints)\b.*?(?=^##\s|\Z)", re.I | re.M | re.S
+    r"^##\s+[^\n]*?\b(?:Execution Discipline|Global Constraints|Phase Gates?|Subagent Dispatch"
+    r"|Dispatch Policy|Execution Rules)\b.*?(?=^##\s|\Z)",
+    re.I | re.M | re.S,
 )
 SPINE_MARKER_RE = re.compile(r"^##\s+Ticket Board\b", re.I | re.M)
 SPINE_SECTIONS = [

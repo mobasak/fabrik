@@ -144,20 +144,20 @@ never persisted to a review file — that is itself a contract miss, recorded he
 
 | # | Failure class | Source | Verdict |
 |---|---|---|---|
-| 1 | core/35-security-auth (FLOOR) | rubric FLOOR | UNCHECKED |
-| 2 | core/25-data-postgres (FLOOR) | rubric FLOOR | UNCHECKED |
-| 3 | core/30-ops (FLOOR) | rubric FLOOR | UNCHECKED |
-| 4 | 12-Factor — all twelve axes | rubric FLOOR | UNCHECKED |
-| 5 | core/10-python | MATCHED | UNCHECKED |
-| 6 | core/40-documentation | MATCHED | UNCHECKED |
-| 7 | core/45-testing-strategy | MATCHED | UNCHECKED |
-| 8 | fail-open vs fail-closed on every gate/guard | standing | UNCHECKED |
-| 9 | cost/quota/limit accounting edges (unknown≠0) | standing | UNCHECKED |
-| 10 | boundary/sentinel/prefix collisions | standing | UNCHECKED |
-| 11 | behavior-without-a-test | standing | UNCHECKED |
-| 12 | FLEET: breaks a project lacking feature X / backward-compat | HUB lens | UNCHECKED |
-| 13 | FLEET: gate false-positives on a legitimate pattern | HUB lens | UNCHECKED |
-| 14 | FLEET: rule/pack contradiction (corpus vs enforcement) | HUB lens | UNCHECKED |
+| 1 | core/35-security-auth (FLOOR) | rubric FLOOR | **CLEAN** — the only security-relevant surface is the credential path. Hunted: token bytes in every new emitting line (all interpolate account dir names + durations), snapshot file modes (0600 preserved by `_secure_write`), and the fail-direction of every new guard. No auth pattern from this pack is touched (no JWT, no CORS, no session storage) |
+| 2 | core/25-data-postgres (FLOOR) | rubric FLOOR | **CLEAN** — no DB, schema, migration, session or DSN surface in any of the six commits (`git diff --stat`: enforcement scripts, rotation scripts, tests, docs only) |
+| 3 | core/30-ops (FLOOR) | rubric FLOOR | **CLEAN** — no compose, ports, container, Traefik, or deploy surface touched. The rotation scripts run on the box and the fleet, not in a container |
+| 4 | 12-Factor — all twelve axes | rubric FLOOR | **CLEAN** — greppable sweep over every `+` line of the six commits for the pack's own hunt list (FileHandler/rotating logs, `.pid`, `daemon=True`, `sqlite:///`, `:memory:`, fakeredis, host `ports:`, `localhost`, subprocess-of-a-binary). Only hits are `subprocess.run([sys.executable, …])` in TESTS — axis II is about shelled-out BINARIES absent from the Dockerfile, not a test invoking its own interpreter |
+| 5 | core/10-python | MATCHED | **CLEAN** — `ruff check` and `mypy` green on all changed modules this round; three N802 naming errors I introduced were found and fixed before commit |
+| 6 | core/40-documentation | MATCHED | **FIXED(1)** — F11: `FINAL_GATE_WORKFLOW.md` enumerated 17 of 18 Tier-2 checks, omitted `check_stage_artifacts.py`, and kept a stale `final_gate.py:654-838` in the very commit that said stale ranges were dropped |
+| 7 | core/45-testing-strategy | MATCHED | **FIXED(3)** — F2 (the guard's call site was untested: the whole fix was deletable with a green suite), F7 (`placeholder_body` passed against its own reverted implementation), F9 (9 regex alternatives individually unpinned — every one now mutation-killed) |
+| 8 | fail-open vs fail-closed on every gate/guard | standing | **FIXED(3)** — F6 (installer/picker disagreed on 4 credential shapes; all six now agree), F16 (the authoritative guard caught only `ValueError`, so a malformed-but-valid-JSON payload raised past it), and the self-test's own fail-open handler silently truncating a crashed fixture run |
+| 9 | cost/quota/limit accounting edges | standing | **FIXED(2)** — F4 (the access-token clause disqualified every standby, making rotation structurally impossible at the moment a quota wall arrives) and F1 (a stale first candidate ended rotation while a healthy account sat one index later). Both are quota-accounting edges: the system had to keep working precisely when the limit bit |
+| 10 | boundary/sentinel/prefix collisions | standing | **FIXED(3)** — F5 (a decorated `## ⚠️` heading defeated the section anchor and flagged a compliant spine), F10 (strip/detect asymmetry on the plural `todos`), F14 (`_PWD_GUARD_RE` understood one of four equivalent shell spellings). Refuted with proof: `^##\s` cannot match a `###` sub-heading |
+| 11 | behavior-without-a-test | standing | **FIXED(4)** — the guard's wiring, the dead-first-good-later rotation, the no-refresh-token shape, and 9 pattern alternatives all had zero coverage. Each new test mutation-verified |
+| 12 | FLEET: breaks a project lacking feature X | HUB lens | **FIXED(1)** — F15: `_HUB_MARKERS` included `templates/governance`, so any project that ever created that ordinary directory name would red its own Tier-2 gate with "looks like the hub". Narrowed to `commands/_sources`. Swept all 55 `/opt/*` dirs: none carries a marker today |
+| 13 | FLEET: gate false-positives on a legitimate pattern | HUB lens | **FIXED(3)** — F3 (the doc-sync gate was RED on the hub for every agent, tripped by the CHANGELOG paragraph describing it), F10, F5. This class is why the round mattered: all three shipped fleet-wide and two were actively blocking work |
+| 14 | FLEET: rule/pack contradiction (corpus vs enforcement) | HUB lens | **CLEAN** — the command mandates ONE canonical heading while the gate ACCEPTS a wider set; that asymmetry is deliberate and now documented in both. `check_plan_tickets` scopes its own parsing, `SPINE_SECTIONS` is additive, and `## Execution Discipline` collides with no gate. The ≤3 `Gate:` cap and "tickets do NOT embed the closing sequence" are preserved |
 
 ## Pass Ledger
 
@@ -229,3 +229,168 @@ Scored via `set_quality(...)` — all four back-filled.
 | U3-F2 | pool[3] | No regression test proves a legitimate marker still fails | **REFUTED** — `tests/test_check_doc_sync.py::test_bare_todo_in_the_changelog_still_fails` predates this round |
 
 **Pass 1 — finders: pool×4 (fail-open · regex boundary · test quality · cross-file contract) + me (mechanical, 12F, fleet-safety, boundary) | found: 10 | fixed: 5 | → not done (changed code; native Opus layer outstanding)**
+
+---
+
+## Round 2 — the whole day's work (operator-scoped, 2026-08-10)
+
+Operator split: a sibling executes the deploy-command-triad plan; I review everything else I did
+today. `docs/development/plans/**` is EXCLUDED — I am author-blind to that plan, having validated
+and then amended it, which is exactly why the sibling executes it.
+
+Surface: `HEAD=04baf7501d196d89cab0ebd25730a127d5435011`, `diff-md5=208492d998bb044abb8a591c16c354b7`
+
+**Mine today (10 commits); the rest of today's log belongs to siblings.** Already adjudicated in
+Round 1: `c23ac4ee`, `b8ced0b1`, `d5154244`, `f5b918be`. **Unreviewed and therefore this round's
+target:** `84452d45`, `07d3d3ca`, `14757d2e`, `dba68cf7`, `265081fd`, `04baf750` — five of the six
+are FIXES OF FIXES (the least-reviewed code in any loop) and `dba68cf7` is the credential path,
+written fast during a live incident in which the operator was logged out.
+
+### Finders (manifest)
+
+- **Native `fabrik-reviewer` on Opus** — owns the credential slice (every `_activate_snapshot`
+  caller, epoch unit handling, the too-strict mirror failure, `CLAUDE_ROTATE_ALLOW_STALE`, copy
+  parity, token hygiene) plus test-quality mutations across the rest. Briefed with the two
+  mutation-survival traps that already bit me, and with the `Path.cwd()` methodology trap that
+  produced a false "all clean" earlier today.
+- **Pool ×4** (`fanout("review", mode="read_only")`) — (1) numeric/unit/time boundary arithmetic in
+  the expiry logic; (2) DIVERGENCE between the two layers that implement it; (3) regex over/under
+  matching in the new markdown section scoping; (4) guard weakening in the changelog gate.
+
+### My own sweep (evidence)
+
+| Class | Verdict |
+|---|---|
+| Copy parity of the two `claude_rotate.py` | **CLEAN** — `md5sum` identical (`3084bb52…`) |
+| Token hygiene on every new emitting line | **CLEAN** — the four new f-strings interpolate DURATIONS (`abs(x)/3600`), never credential material |
+| Guard covers the SELECTOR path, not just fixed targets | **CLEAN, proven** — sandbox run below |
+
+```
+SELECTOR picks a DEAD snapshot -> returned None; live creds unchanged: True
+SELECTOR picks a GOOD snapshot -> returned 'good'; live creds swapped:  True
+FIXED TARGET, dead snapshot     -> returned None; live creds still good: True
+```
+
+The GOOD-snapshot row is the non-vacuity guard: it proves the refusal is selective, not a blanket
+"refuse everything" that would silently disable rotation (the mirror failure of the bug being fixed).
+
+**Open self-finding carried into this round:** `credentials_usable()` (picker) treats a MISSING
+expiry field as unusable, while `_stale_snapshot_reason()` (installer) treats it as allowed. Two
+layers disagreeing about the same input is the defect class that produced the original incident;
+I raised it to the finders rather than settling it alone, and it terminates FIXED or REFUTED below.
+
+### Round 2, Pass 1 — pool layer (4/4 units, $0.0255, all scored)
+
+| Model | Cost | Score | Why |
+|---|---:|:--:|---|
+| deepseek/deepseek-v4-flash | $0.0023 | 4/5 | found the one real defect, independently confirming a self-finding |
+| google/gemini-3-flash-preview | $0.0060 | 1/5 | misgrounded — cited `scripts/enforcement/claude-quota.py:237` (no such path) and invented an "Installer legacy layer" with `LEGACY_WAIT_S`/`BOUNDS` semantics that do not exist |
+| qwen/qwen3-max | $0.0153 | 2/5 | one sharp, specific, testable claim — and false |
+| deepseek/deepseek-v3.2-exp | $0.0019 | 2/5 | two specific claims, both refuted by the code as written |
+
+| # | Finding | Terminal state |
+|---|---|---|
+| P0 | `_stale_snapshot_reason` returned None for a snapshot with NO expiry metadata, so an unprovable credential could still be installed — while the picker already treated it as unusable | **FIXED** — installer now fails CLOSED with "cannot prove they still authenticate"; the two layers were shown to agree on fresh / access-dead / no-metadata; mutation-verified (reverting to `return None` reds the new test); `CLAUDE_ROTATE_ALLOW_STALE=1` still overrides |
+| P1 | "Picker/Installer diverge on a missing `resetsAt`, Installer spins on 90s `LEGACY_WAIT_S`" | **REFUTED** — the cited path `scripts/enforcement/claude-quota.py` does not exist, and no component with those semantics does either. Misgrounded, not a defect |
+| P2 | Ignoring refresh-token expiry when resolving the active account | **REFUTED** — `active_account()` resolves IDENTITY by token match; expiry is irrelevant to "which account is this" |
+| P3 | `^##\s` in the lookahead matches a `###` sub-heading, truncating the binding section early | **REFUTED** — executed: `re.match(r"^##\s", "### Subheading")` is `False` (the third `#` is not whitespace). A section containing a `###` sub-heading captures the mandate that follows it and still stops at the next real h2 |
+| P4 | A backticked token WITH a task (`` `TODO: implement rate limiting` ``) is stripped | **REFUTED** — executed: `stripped=False`. The `:` breaks the token-only pattern, which is the designed behaviour; `test_a_backticked_token_with_a_task_is_still_unfinished_work` already pins it |
+| P5 | "Support for `example` configurations" is wrongly rejected | **REFUTED** — the placeholder test looks only for `<brief title>` / `<description>`; "example" is not in that set and cannot reject anything |
+
+**Round 2 Pass 1 — finders: pool×4 (expiry arithmetic · cross-layer divergence · section-regex · changelog guard) + my own sweep (copy parity, token hygiene, selector-path proof) | found: 7 | fixed: 1 | → not done (changed code; native Opus layer outstanding)**
+
+Note on the ratio: 5 of 7 pool candidates were refutable from the code as written, one by pointing at a
+path that does not exist. That is the expected shape of a breadth layer and the reason every pool
+finding is refuted before it is acted on — but it is also why the native Opus pass is not optional.
+
+### Round 2, Pass 2 — native Opus (authoritative), 18 findings
+
+The strongest round of the day. It re-opened one of my own "CLEAN, proven" verdicts, and found a
+defect that was blocking every agent in the repo at the moment it ran.
+
+| # | Finding | Terminal state |
+|---|---|---|
+| F3 | **The fleet-synced doc-sync gate was RED on the hub**, self-inflicted: my own CHANGELOG paragraph *describing* the token detector necessarily QUOTES the tokens it detects, and the narrowed strip + `placeholder_body` rejected it — with a message claiming `[Unreleased]` was "empty or has a placeholder" while it held thousands of entries. Every agent committing significant code was blocked or forced to `--no-verify` | **FIXED** — re-framed: an inline code span is a QUOTATION, invisible to both scans. Stripped PER LINE and only where backticks are BALANCED, so the unbalanced-tick case that motivated the narrowing still fails closed. A gate that cannot describe its own behaviour is broken |
+| F4 | **The access-token clause structurally disqualified every standby**, so rotation was impossible exactly when needed: only the ACTIVE account self-refreshes, so a standby's 8-12h token has lapsed long before a weekly wall arrives ~2.x days later. `healthy_sibling()` would return `None` permanently | **FIXED** — an expired access token is now a RANKING preference, never a filter. The live incident is caught by the refresh-token clause alone (can@'s month-old snapshot had an EXPIRED refresh token — literally "could not be refreshed"). Two of my own tests asserted the wrong rule and were reversed |
+| F1 | A stale FIRST candidate killed rotation entirely: the selector returned the first tokened snapshot without consulting the guard, the installer refused it, and the caller broke out — a healthy standby one index later was never tried. Worst on the VPS fleet, where this is the ONLY rotation path | **FIXED** — the selector now skips what the installer would refuse; `test_a_dead_first_candidate_does_not_block_a_healthy_later_one` |
+| F2 | The guard's CALL SITE was untested — deleting the 6-line block from `_activate_snapshot` left the whole suite green, i.e. the entire fix could be removed silently while the commit claimed "ANY caller is covered" | **FIXED** — `test_activate_snapshot_itself_refuses_a_dead_target` + a non-vacuity twin; mutation-verified (deleting the call site reds it) |
+| F5 | The binding-section scope flagged a live, compliant, CONVERGED spine on all three pillars — `## ⚠️ Global Constraints (…)` defeated the anchor, and its mandates live under `## Phase gates` / `## Subagent dispatch` | **FIXED** — decoration-tolerant, and the accepted name set is the CONCEPT (deliberately wider than the single heading the command prescribes). That spine is now clean; the remaining WARN is a genuinely older plan |
+| F6 | Installer and picker disagreed on four credential shapes; every non-picker path (`--switch`, `--next`, `run_claude`, the entire VPS fleet) takes the permissive one | **FIXED** — verified agreement across all six shapes (fresh · lapsed access · refresh expired · numeric-string · no-refreshToken · no-metadata) |
+| F7 | `placeholder_body` was a provable no-op whose test passed against the reverted implementation | **FIXED** — removed; the quotation framing makes it one scan. Mutation sweep now kills both halves |
+| F10 | Strip/detect asymmetry rejected legitimate entries fleet-wide (`` `todos` `` plural, `` `# TODO` `` comments) | **FIXED** — same quotation framing; pinned |
+| F8 | Every refusal was invisible or mislabelled: "filesystem error" for a staleness refusal, "all credentials are dead" when a healthy one existed, and nothing named the override | **FIXED** — messages corrected and `CLAUDE_ROTATE_ALLOW_STALE=1` named at the refusal. (`claude-sound.sh`'s `>/dev/null` is NOT touched — operator instruction; recorded as a residual) |
+| F11 | My "counts verified by enumerating" claim was itself wrong: 17 bullets vs 18 checks, `check_stage_artifacts.py` absent, and a stale `final_gate.py:654-838` left in place by the very commit that said stale ranges were dropped | **FIXED** — check documented, both stale ranges dropped, the 16-vs-17 attribution corrected |
+| F17 | My own Round-2 sweep marked "guard covers the SELECTOR path — CLEAN, proven" from three sandbox rows, none of which was dead-first-good-later (F1) | **ACCEPTED — verdict re-opened.** The rows were true and the conclusion was too broad: I proved the guard runs on the selector path, not that rotation still finds a healthy account. Recorded as a lesson in what a sandbox row licenses you to claim |
+| F18 | `assemble_commands.py --check` shows drift, contradicting an earlier claim | **REFUTED (not mine)** — the drift is the sibling's `fabrik-deploy*` triad landing as they execute the plan. The two sources I edited show none |
+| F9, F12–F16 | 7 unpinned regex alternatives; `ALLOW_STALE` unlogged; clock skew; `_PWD_GUARD_RE` rewrite-fragility; `_HUB_MARKERS` breadth; narrow exception tuple | **CARRIED to Pass 3** — all PLAUSIBLE/test-quality, none reachable today |
+
+**Round 2 Pass 2 — finders: native Opus (credential path, fix-of-fix, test-quality mutations) | found: 18 | fixed: 11 | → not done (changed code)**
+
+### Round 2, Pass 3 — confirming round (no code changes beyond the carried plausibles)
+
+Closed the findings Pass 2 carried: F9 (9 alternatives, each now individually mutation-killed),
+F14 (`_PWD_GUARD_RE` now reads all four shell spellings; the caveat also prints on the FAILING
+path, so a worktree agent who fixes a gap is still told the sync cannot fire), F15 (`_HUB_MARKERS`
+narrowed), F16 (guard no longer raises past its own except-tuple on a malformed payload).
+
+**Residuals — accepted, each with its reason:**
+
+- **F12 `CLAUDE_ROTATE_ALLOW_STALE=1` is unlogged.** It is an operator escape hatch; probed and not
+  set anywhere on this box. Logging it on every refusal would be noise. Named in the refusal
+  message instead, which is what was actually missing.
+- **F13 clock skew.** `_left()` has no monotonic anchor, so a badly-skewed clock flips the guard
+  either way. There is no local fix — the expiry timestamps are absolute and server-issued. Noted.
+- **F8's `claude-sound.sh` half.** Its `>/dev/null 2>&1` still swallows the refusal line, and it
+  writes `rotation.last` before the switch, burning the limiter on a refusal. NOT fixed: the
+  operator instructed that the sound path is off-limits, and the rotation-side messages now carry
+  the diagnosis. Deliberate, not an oversight.
+- **F17.** My own "CLEAN, proven" verdict is re-opened above rather than defended.
+
+**Verification, this round:**
+
+```
+mesh-test: 114 ok, 0 fail
+claude-quota.py --self-test: all green
+pytest (4 suites): 153 passed
+ruff (all changed files): All checks passed!
+md5sum claude_rotate.py twins: identical
+installer vs picker agreement: fresh · lapsed-access · refresh-expired · numeric-string ·
+                               no-refreshToken · no-metadata  -> ALL LAYERS AGREE: True
+```
+
+**Round 2 Pass 3 — finders: my own carried-finding closure + full mutation sweep | found: 0 new | fixed: 4 carried | → exit pending the gate embed below**
+
+
+## Exit — whole-round gate (verbatim)
+
+Captured with THIS review file moved aside, so the run measures the CODE SURFACE the round
+changed. Stated plainly because the alternative is circular: `check_convergence` requires a review
+to embed a `"status": "success"` run, and while the file lacks that string the gate cannot return
+success — so the only way to embed a true success block is to run against the code without it. The
+run below is real and unedited; nothing in it was hand-written.
+
+```json
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 50,
+  "failed": 0,
+  "failures": [],
+  "warnings": []
+}
+```
+
+With this file present the same run reports `49 / 1`, the single failure being this check asking
+for the block above — no code check differs.
+
+## Phase verdicts — one row per pass
+
+| Round / Pass | Surface | Found | Fixed | Verdict |
+|---|---|---:|---:|---|
+| R2 P1 — pool ×4 | expiry arithmetic · cross-layer divergence · section regex · changelog guard | 7 | 1 | 6 REFUTED with executed proof; 1 real (cross-layer divergence) |
+| R2 P2 — native Opus | credential path · fix-of-fix · test-quality mutations | 18 | 11 | the round's value: a live hub-blocker and two structural rotation defects |
+| R2 P3 — confirming | carried plausibles + full mutation sweep | 0 new | 4 carried | no new findings; every alternative now individually mutation-killed |
+
+**Exit: the checklist is fully adjudicated (no UNCHECKED rows), the last code-changing pass had its
+touched classes re-swept, and the mechanical gates are green over the code surface.** Residuals are
+listed in Pass 3 with reasons — none is an in-scope CONFIRMED or PLAUSIBLE finding left unfixed.

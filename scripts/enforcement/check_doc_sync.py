@@ -166,32 +166,42 @@ def _changelog_quality_ok() -> bool:
     # Strip fenced code blocks FIRST — a `### …` line that only appears inside a
     # ``` fence ``` (a template/example) is NOT a real changelog entry.
     defenced = re.sub(r"```.+?```", "", section, flags=re.DOTALL)
+
     # …and INLINE code spans: an entry that DOCUMENTS placeholder tokens (`todo`, `fixme`)
     # is describing them, not leaving unfinished work. Live shared-tree false positive
     # 2026-08-10 — a sibling's scanner entry listing "`example`/`dummy`/`todo`/`tbd`"
     # reddened the gate for every agent in the repo, and the entry was not theirs to edit.
     # Stripped AFTER the entry-shape check below reads `defenced`, so a `### …` heading
     # inside ticks still cannot fake an entry.
-    # Strip ONLY a code span whose entire content is a placeholder TOKEN — `todo`, `fixme`,
-    # `tbd`… — i.e. prose naming the token rather than leaving work. Stripping EVERY inline span
-    # (the first version of this fix) was far too broad and weakened the guard fleet-wide two ways
-    # (native review, both reproduced): backticks pair left-to-right, so one stray tick earlier in
-    # the line swallowed a plainly-written "TODO: document the --force path"; and a span carrying a
-    # real task (`TODO: wire the OOM alert`) vanished along with the bare ones. A bare token is
-    # documentation; a token WITH a task is unfinished work, and only the former is stripped.
-    defenced_for_tokens = re.sub(
-        r"`\s*(?:todo|fixme|tbd|xxx|hack|example|sample|dummy|placeholder)\s*`",
-        "",
-        defenced,
-        flags=re.I,
-    )
+    # Inline code spans are QUOTATIONS. An entry that writes `todo`, `TODO: wire the alert`, or
+    # `<brief title>` inside ticks is DESCRIBING those tokens — documenting a scanner, a code
+    # comment, or the changelog template — not leaving the entry itself unfinished. This gate asks
+    # one question: "is this [Unreleased] entry real, or a stub?" A quotation is real prose.
+    #
+    # Two failures got us here, and this framing resolves both. Stripping only whole-span BARE
+    # tokens was too narrow: it rejected `todos` (plural — the detector has `s?`, the strip did
+    # not), `# TODO` comments, and — self-inflicted, hub-RED for every agent — the CHANGELOG
+    # paragraph describing THIS VERY FIX, which necessarily quotes the tokens it detects. A gate
+    # that cannot describe its own behaviour is broken. Stripping EVERY span was too broad in one
+    # specific way: backticks pair left-to-right, so a single stray tick earlier in the line
+    # swallowed a plainly-written marker after it.
+    #
+    # So: strip spans PER LINE, and only where the line's backticks are BALANCED (even count).
+    # An odd count means the pairing is ambiguous, so that line is left intact and its bare
+    # markers still fire — fail-closed exactly where the ambiguity lives.
+    def _strip_quotations(text: str) -> str:
+        out = []
+        for line in text.split("\n"):
+            out.append(re.sub(r"`[^`]*`", "", line) if line.count("`") % 2 == 0 else line)
+        return "\n".join(out)
+
+    defenced_for_tokens = _strip_quotations(defenced)
     if not CHANGELOG_ENTRY_RE.search(defenced):
         return False
     # ⚠ The template-placeholder test below reads `defenced`, NOT the token-stripped text: a pasted
     # changelog template with `<brief title>` / `<description>` inside ticks is exactly the thing
     # that check exists to reject, and reading the stripped body let it through (native review).
     body = defenced_for_tokens.lower()
-    placeholder_body = defenced.lower()
     # Strip dated escalations like `TODO(2026-07-22)` — those are valid
     # follow-up markers, not placeholders. Only bare `todo` / `fixme` are
     # unfinished-work signals.
@@ -201,7 +211,7 @@ def _changelog_quality_ok() -> bool:
     # Require surrounds to be neither hyphens nor word chars, so it doesn't
     # match inside compounds like `updated-todo-list` or `pre-dated-todo-item`.
     body = re.sub(r"(?<![-\w])dated-todos?(?![-\w])", "", body)
-    if any(ph in placeholder_body for ph in ("<brief title>", "<description>")):
+    if any(ph in body for ph in ("<brief title>", "<description>")):
         return False
     # `todo` / `fixme` are unfinished-work markers when they stand as tokens —
     # separated from surrounding chars by non-letter (whitespace / hyphen /
