@@ -224,8 +224,9 @@ grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner &&
 rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERSHIP-LOST'"`
 (removes ONLY while the owner still carries this plan's stem — a >2h suspension can hand the window
 to another actor: never remove theirs; the step's VERIFICATION is CONDITIONAL, never rc alone (`OWNERSHIP-LOST` exits 0): PASS = both files
-gone, OR the output is `OWNERSHIP-LOST` with a FOREIGN owner confirmed by a fresh `cat` (the window
-is closed FOR US — proceed, noting it); both files present WITHOUT a foreign owner = the `rm` itself
+gone, OR the output is `OWNERSHIP-LOST` with a FOREIGN owner confirmed by a fresh `cat` — FOREIGN
+means the owner's FIRST TOKEN is not THIS plan's stem; a non-empty owner is not itself foreign (the
+window is closed FOR US — proceed, noting it); both files present WITHOUT a foreign owner = the `rm` itself
 failed (read-only fs, EBUSY) → step failure; `pause` GONE with `pause.owner` still OURS = a partial
 `rm` (a half-landed close) — re-run the guarded close ONCE (the guard passes on our own owner and
 removes the orphan); `pause` present with owner ABSENT = FOREIGN — the operator's own
