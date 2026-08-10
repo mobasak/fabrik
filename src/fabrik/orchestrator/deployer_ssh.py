@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 # Shell-safe name pattern — prevents injection in SSH commands.
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
+# `docker compose build` wall-clock cap. 300s starves a heavy FIRST build (review finding
+# 2026-08-10: tryton-crm's image bakes tesseract + language packs + poppler + pinned pip
+# layers — a cold build plausibly exceeds 5 min and the apply died mid-build). Env-tunable
+# per run: FABRIK_BUILD_TIMEOUT=1200 fabrik apply … ; default unchanged for light images.
+_BUILD_TIMEOUT = int(os.getenv("FABRIK_BUILD_TIMEOUT", "300"))
+
 
 def _extract_git_host(repository: str) -> str | None:
     """Extract hostname from a git URL — `git@host:path` or `https://host/path`."""
@@ -269,7 +275,7 @@ class SSHDeployer:
             old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
             build_flags = " --no-cache" if force else ""
-            _ssh(f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=300)
+            _ssh(f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=_BUILD_TIMEOUT)
             try:
                 _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
             except (RuntimeError, subprocess.TimeoutExpired) as err:
@@ -286,7 +292,7 @@ class SSHDeployer:
                         )
                         _ssh(
                             f"cd /opt/{name} && sudo docker compose build{build_flags}",
-                            timeout=300,
+                            timeout=_BUILD_TIMEOUT,
                         )
                         _ssh(
                             f"cd /opt/{name} && sudo docker compose up -d --wait",
@@ -463,7 +469,7 @@ class SSHDeployer:
         env_content = self._build_env_content(ctx, name, existing)
         _write_file_to_vps(name, ".env", env_content)
 
-        _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=300)
+        _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=_BUILD_TIMEOUT)
         _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
     def _deploy_docker(
