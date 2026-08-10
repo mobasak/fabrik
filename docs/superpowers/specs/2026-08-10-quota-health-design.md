@@ -1,6 +1,6 @@
 # Quota-health for the resume mesh — reset-clock revival, health-aware rotation, token re-capture, reboot sweep
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-08-10
 Scope: workstation mesh layer (`~/.claude/bin` + `~/.claude/.claude-manager` + one fleet-synced hook touch) — same scope class as `2026-08-09-stopfailure-resume-mesh-design.md`. No `specs/services/*.yaml`, no scaffold type, no deploy: this is box opsware, DR-versioned not fleet-deployed.
 
