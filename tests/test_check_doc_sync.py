@@ -182,3 +182,30 @@ def test_changelog_compound_todo_still_flagged(repo: Path) -> None:
     r = _run(repo)
     assert r.returncode == 1, r.stdout
     assert "placeholder" in r.stdout.lower()
+
+
+def test_backticked_placeholder_word_in_prose_is_not_unfinished_work(repo: Path) -> None:
+    """A changelog entry DOCUMENTING placeholder tokens is not itself a placeholder.
+
+    Live shared-tree false positive (2026-08-10): a sibling's entry described a
+    credential-scanner change — "placeholder family narrowed (`example`/`sample`/`dummy`/
+    `todo`/`tbd`)" — and the bare-token scan read the inline-code `todo` as unfinished work,
+    reddening the gate for every agent in the repo.
+    """
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Fixed — scanner tuned (2026-08-10)\n"
+           "- placeholder family narrowed (`example`/`sample`/`dummy`/`todo`/`tbd`).\n")
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+    r = _run(repo)
+    assert r.returncode == 0, f"documented token must not read as a placeholder: {r.stdout}"
+
+
+def test_bare_todo_in_the_changelog_still_fails(repo: Path) -> None:
+    """The guard must keep catching a REAL unfinished-work marker outside code ticks."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Added — thing (2026-08-10)\n"
+           "- shipped the thing. TODO: write the docs.\n")
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _stage(repo, "CHANGELOG.md", "src/app/handler.py")
+    assert _run(repo).returncode == 1

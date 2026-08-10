@@ -904,6 +904,14 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_hooks_index.py", "Hooks Index Fresh")
         )
+        # Sync-trigger coverage: a manifest surface whose edits fire NO governance-sync
+        # ships nothing to the fleet (happened twice on 2026-08-09). Every synced path
+        # must trigger, or be declared a deliberate non-trigger.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_sync_trigger_coverage.py", "Sync Trigger Coverage"
+            )
+        )
         # Docs-truth durability gates (2026-07-20 convergence): links + index are
         # blocking (the tree was converged to zero drift and must stay there);
         # retired-terms is WARN-only — the SCRIPT always exits 0, advisory=True

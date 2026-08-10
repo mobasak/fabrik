@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — sysadmin bots learn autoheal + fleet-wide sync gap closed (2026-08-10)
+`system-prompt.txt` gains the fabrik-autoheal block (check `journalctl -t fabrik-autoheal` before
+diagnosing restart patterns; HOLD-DOWN = restart is not the cure; opt-out label). Prompt verified
+md5-identical on WSL + all 3 VPS. `sync-vps-sysadmin.sh` now syncs sysadmin files to the spokes too
+(was hub-only — spoke prompts drifted) and provisions `/usr/local/bin/fabrik-autoheal` on every
+host, closing the DR gap where a rebuilt box had the autoheal cron line but no binary.
+
+### Added — Sync-trigger coverage gate: a fleet-synced path can no longer ship nothing (2026-08-10)
+
+- `scripts/enforcement/check_sync_trigger_coverage.py` (Tier 2): every surface `fabrik_synced_manifest`
+  distributes must either TRIGGER the governance-sync or be DECLARED a deliberate non-trigger. Closes
+  the class that bit twice on 2026-08-09 (a review fix sat un-distributed because its path was in the
+  manifest but not the pre-commit files-filter). Found a live gap on first run:
+  `docs/PROJECT_CATALOG.md` was synced but fired no sync — agents read it for the duplicate-check, so
+  a stale copy is a correctness problem; now a trigger. 15 red-first tests.
+- Review of that gate found and fixed 6 defects in it, one fleet-breaking: the script lives in
+  `scripts/enforcement/`, so it distributes to all ~46 projects — where there is no manifest to read
+  and it died on a `FileNotFoundError`, failing every project's Tier-2 completion gate. It now
+  self-skips off the hub (`running_on_hub()`, the `check_hooks_index.py` precedent), reads the
+  filter BY HOOK ID via YAML (a string-scan stole a later hook's regex, and returned `>-` for a
+  block scalar — both silent false passes), refuses a vacuous green when the manifest derivation
+  yields nothing, matches declared non-triggers on a real path boundary, fails loudly on a renamed
+  manifest constant, and reads `SEEDED_NOT_ENFORCED` from the manifest instead of duplicating it.
+
 ### Added — Quota-health: reset-clock revival, health-aware rotation, token re-capture, reboot sweep (2026-08-10)
 
 - The mesh now knows WHY a rate_limit death happened. `claude-quota.py` (new) parses the wall

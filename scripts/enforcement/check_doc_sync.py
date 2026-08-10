@@ -166,9 +166,16 @@ def _changelog_quality_ok() -> bool:
     # Strip fenced code blocks FIRST — a `### …` line that only appears inside a
     # ``` fence ``` (a template/example) is NOT a real changelog entry.
     defenced = re.sub(r"```.+?```", "", section, flags=re.DOTALL)
+    # …and INLINE code spans: an entry that DOCUMENTS placeholder tokens (`todo`, `fixme`)
+    # is describing them, not leaving unfinished work. Live shared-tree false positive
+    # 2026-08-10 — a sibling's scanner entry listing "`example`/`dummy`/`todo`/`tbd`"
+    # reddened the gate for every agent in the repo, and the entry was not theirs to edit.
+    # Stripped AFTER the entry-shape check below reads `defenced`, so a `### …` heading
+    # inside ticks still cannot fake an entry.
+    defenced_for_tokens = re.sub(r"`[^`\n]*`", "", defenced)
     if not CHANGELOG_ENTRY_RE.search(defenced):
         return False
-    body = defenced.lower()
+    body = defenced_for_tokens.lower()
     # Strip dated escalations like `TODO(2026-07-22)` — those are valid
     # follow-up markers, not placeholders. Only bare `todo` / `fixme` are
     # unfinished-work signals.
