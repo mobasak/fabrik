@@ -94,24 +94,27 @@ inside them.
    `source.branch` declares — `git log origin/<that branch>..HEAD` empty in the SERVICE repo; a VPS
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the
    plan's build SHA is on the service repo's remote).
-3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat /run/fabrik-autoheal/pause`
-   on the target. (**SSH alias:** `target_vps: vps1` connects as `ssh vps` — the fleet config has no
-   `vps1` alias; `vps2`/`vps3` are literal. **Privilege:** every WRITE to `/run/fabrik-autoheal` —
-   touch, redirect, rm — is `ssh <alias> "sudo bash -c '…'"`; the dir is root-owned and the fleet user
-   is a non-root sudoer. Reads are unprivileged.) The pause file is content-free; the triad writes
-   ownership NEXT TO it: every window touch also writes `/run/fabrik-autoheal/pause.owner` containing
-   `<plan-stem> <ISO-8601 UTC timestamp>` (the healer reads only `pause` — the owner file is triad
-   metadata). **The one removal rule: this deploy removes pause files ONLY at its own `window-close`
-   step (and Phase 5's re-close of OUR-stem residue) — never as housekeeping.** Accordingly:
-   `pause.owner` reads OUR stem (residue of this plan's earlier halted window) → our window machinery
-   owns it: Phase 1's open will write over it; no pre-action here. A LIVE foreign pause (age < 2h by
-   the PAUSE file's mtime — the healer keys on exactly that, `stat -c %Y` on `pause`) → a windowless
-   plan notes it and proceeds (irrelevant to a deploy with no long-unhealthy step); a window-bracketing
-   plan will WAIT at its open (Phase 1's rule). An INERT foreign pause (age ≥ 2h — the healer already
-   ignores it) → dead metadata: note it; a window-bracketing plan's open simply writes over it (the
-   touch + our owner make it OUR window); a windowless plan leaves it untouched. An orphan
-   `pause.owner` with NO pause file — any stem — is stale metadata: leave it; Phase 1's open
-   overwrites it where a window exists.
+3. **Reconcile healing state (VPS) — read BOTH files** (`stat /run/fabrik-autoheal/pause` + `cat
+   /run/fabrik-autoheal/pause.owner`; **SSH alias:** `target_vps: vps1` connects as `ssh vps` — the
+   fleet config has no `vps1` alias; `vps2`/`vps3` are literal. **Privilege:** every WRITE to
+   `/run/fabrik-autoheal` is `ssh <alias> "sudo bash -c '…'"` — root-owned dir, non-root fleet user;
+   reads are unprivileged). The pause file is content-free; the triad writes ownership NEXT TO it:
+   every window touch also writes `pause.owner` = `<plan-stem> <ISO-8601 UTC timestamp>` (the healer
+   reads only `pause`). **The 2h boundary is the HEALER'S own truth** (`vps-autoheal.sh` ignores a
+   pause older than 7200s — such a pause protects nobody, and the healer never deletes it), and **the
+   one removal rule stands: this deploy removes pause files only at its own stem-guarded
+   `window-close`** (and Phase 5's OUR-stem re-close). Exactly THREE outcomes:
+   - `pause` absent → clear (an orphan `pause.owner` of any stem is stale metadata — ignored; our
+     open, where a window exists, writes over it).
+   - `pause` present, owner OUR stem → our own residue from an earlier halted run — note it; Phase 1's
+     open writes over it (a windowless plan just notes it: it is ≤2h from that halt and self-heals).
+   - `pause` present, owner foreign-or-absent → FOREIGN. Windowless plan → note + proceed (irrelevant
+     to a deploy with no long-unhealthy step). Window-bracketing plan: age ≥2h (by the PAUSE file's
+     mtime) → dead metadata, the open will write over it; age <2h (a LIVE window — a sibling deploy or
+     an operator's manual pause) → **wait NOW, pre-flip**: re-probe every 60s up to the plan's declared
+     wait bound (default 30 min); cleared → proceed; still live past the bound → refuse
+     (`BLOCKED: persistent foreign pause on <target> — confirm with the operator`; pre-flip, nothing
+     to unwind).
 4. Run the plan's own pre-flight guard steps (secrets-injection preview, headroom check, staged-config
    validation) — each with fenced output. Any pre-flight failure → refuse BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
@@ -143,26 +146,26 @@ If the plan brackets a window (migrations, module init — any step a healthchec
 own labeled steps (`window-open` / `window-heartbeat` / `window-close`, authored in root form) open and
 close it; execute them with these guarantees:
 
-1. Open: re-check BOTH files (a foreign pause may have appeared since Phase 0 — same wait-then-proceed
-   rule, tolerance-bounded; a wait here needs no ledger row, it is just elapsed time;
-   tolerance exceeded mid-run → the halt protocol). Clear → run the plan's open step (ONE invocation,
-   as root — a bare redirect runs as the login user and is denied):
+1. Open — the open-time rule (total): re-probe BOTH files. `pause` absent, OUR stem, an orphan owner,
+   or a ≥2h foreign pause (dead by the healer's own truth) → OPEN: run the plan's open step (ONE
+   invocation, as root — a bare redirect runs as the login user and is denied):
    `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause &&
-   printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` (the `&&` stays
-   at end-of-line when wrapping — a leading `&&` inside the quoted script is a bash syntax error), then
-   **verify BOTH landed** (fenced `stat` + `cat pause.owner` — the owner MUST read this plan-stem: a
-   different stem after our own write is a clobber race with a concurrent opener → the halt protocol,
-   without removing anything). The open never writes over a LIVE foreign pause (the re-check + wait rule guarantee it); an INERT
-   (≥2h) foreign pause or a pause-less orphan owner IS written over — dead metadata becoming our
-   window. Capture the touch timestamp.
+   printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` (the `&&`
+   stays at end-of-line when wrapping — a leading `&&` inside the quoted script is a bash syntax
+   error), then **verify BOTH landed** (fenced `stat` + `cat pause.owner` — a different stem after our
+   own write is a clobber race with a concurrent opener → the halt protocol, removing nothing).
+   Capture the touch timestamp. A LIVE (<2h) foreign pause → wait (same 60s/bound rule); still live
+   past the bound → this is post-flip: the halt protocol.
 2. **Confirm the window is live BEFORE the sensitive step starts:**
    `sudo journalctl -t fabrik-autoheal --since '<the touch timestamp>'` shows a `PAUSED` line newer
    than the touch (the `sudo` is load-bearing: the fleet user is not in `adm`/`systemd-journal`, and an
    unprivileged read returns rc=0 with NO entries — a false "nothing found"; the healer ticks every
    minute and an in-flight tick is not retroactively paused).
 3. **A shell `trap` is NOT a safety net here** — each command runs in a fresh shell, so an `EXIT` trap
-   fires when that call ends, not when the deploy does. The closing `rm` — BOTH files — is an explicit
-   runbook step. On a halt: run the rollbacks that need the window's protection FIRST — still inside
+   fires when that call ends, not when the deploy does. The closing `rm` — BOTH files, STEM-GUARDED (the authored close verifies `pause.owner` still carries
+   THIS plan's stem before removing; ownership lost mid-window means a >2h suspension let another
+   actor take the window — never remove theirs, note `OWNERSHIP-LOST` and treat the window as closed
+   for us) — is an explicit runbook step. On a halt: run the rollbacks that need the window's protection FIRST — still inside
    the window — then close it (BOTH files, fresh `stat` on each) as the halt's LAST target act. If the
    session dies outright, the pause's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es both files at each step
@@ -182,11 +185,11 @@ close it; execute them with these guarantees:
    sit only on the exempt line —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
-   surface's completion. **The store battery rule (both gate shapes):** when the NEXT step to execute
-   is the runbook's TERMINAL `OPERATOR-GATE`, run the surface's battery FIRST (Phase 3's store
+   surface's completion. **The terminal-gate battery rule (ANY surface):** when the NEXT step to execute
+   is the runbook's TERMINAL `OPERATOR-GATE`, run the plan's battery FIRST (Phase 3's store
    analogue: installability, first-run smoke — write AND COMMIT the
-   `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row); a store runbook with NO gate runs it after the
-   runbook, exactly like VPS. For the deferred gate then: produce Phase 4's Gate-2 handoff print (the
+   `— ✅ BATTERY <UTC timestamp> <n>/<n> PASS` row); a runbook with NO terminal gate runs it after the
+   runbook (any surface). For the deferred gate then: produce Phase 4's Gate-2 handoff print (the
    artifact path/build id, the checklist verdicts, the one human action — name it explicitly), write
    AND COMMIT the gate's row as `— ✅ <step id> <UTC timestamp> HANDED-OFF` (the handoff is the
    recorded event; its verification is deferred by declaration), and proceed to the close-out (the
@@ -214,7 +217,7 @@ close it; execute them with these guarantees:
      the route. No improvisation: a situation the plan didn't anticipate is a plan defect — the same
      protocol, PLAN-DEFECT flavor; never redesign the deploy mid-run.
 
-## Phase 3 — Battery: the exit gate (VPS: after the runbook; stores: from Phase 2, immediately BEFORE the runbook's terminal OPERATOR-GATE of either shape — or after the runbook when no gate exists)
+## Phase 3 — Battery: the exit gate (ANY surface: immediately BEFORE the runbook's terminal OPERATOR-GATE where one exists; otherwise after the runbook)
 
 Run the plan's verification battery in full — write-path probe, queue-drain, companion reachability,
 cert/ACME diagnostics, same-origin probes, per the plan — each item PASS with fenced output; on full
@@ -235,23 +238,21 @@ forbids — that contradiction is a plan defect: the halt protocol, PLAN-DEFECT 
 BUILD step is legal only where the surface's release path already runs it (cloud `eas build` —
 `/fabrik-release`'s own MOBILE step); any other credentialed act (an Apple notarization submission, a
 signing service) is `OPERATOR-GATE` — executed as Phase 2 step 1's handoff, its shape (in-session vs
-deferred) per the plan's declaration. Print the Gate-2 handoff per the
-convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
-action only the human takes. The handoff IS this surface's deploy completion: proceed to Phase 5, where
-the completion stamp records "handed to the operator publish gate: <the action>".
+deferred) per the plan's declaration. For the DEFERRED shape, print the Gate-2 handoff per the convention `/fabrik-release`'s surface paths
+define — the artifact, the checklist verdicts, and the one action only the human takes — and proceed
+to Phase 5, the completion stamp recording "handed to the operator publish gate: <the action>". A
+terminal IN-SESSION gate already handed off in Phase 2 (reply received, verification run) — no second
+print; proceed to Phase 5 directly.
 
 ## Phase 5 — Close out (all surfaces, ending 1 only)
 
 1. **Confirm the maintenance window is closed FIRST** (VPS surfaces whose plan bracketed a window —
-   store surfaces and windowless plans skip this step) — BOTH files gone (fenced `stat` on each + log
-   evidence). Still present with `pause.owner` reading THIS plan-stem → fix OUR close: re-run the
-   runbook's own `window-close` step, verified, before anything else — the flip never happens over
-   our own open window. An owner reading ANOTHER stem → foreign: never remove it (a sibling's or the
-   operator's business) — note it in the report and proceed. Owner ABSENT while a pause exists → an operator's manual pause, NEVER ours (the triad always writes
-   the owner with the pause — even a lost ledger row would leave OUR stem on disk): never remove it;
-   note it and proceed. Our windows are closed when EVERY `window-close` step row of THIS run is `✅`
-   and no pause carries OUR stem — a missing close row with our stem on disk → re-run that
-   `window-close` (idempotent `rm -f`, verified). The probe itself failing (target
+   store surfaces and windowless plans skip this step). CLOSED means: every `window-close` step row is
+   `✅` (of the COMPLETED run, on a close-out-only re-dispatch — this dispatch has no step rows of its
+   own) AND no `pause` or `pause.owner` on disk carries OUR stem (fenced `stat` + `cat`). An OUR-stem
+   leftover of either file → re-run our stem-guarded `window-close` (idempotent, verified). A foreign
+   or ownerless pause → NOT ours (an operator's or a sibling's — the triad always writes our stem with
+   our pause): never remove it; note it in the report and proceed. The probe itself failing (target
    unreachable post-deploy) → ending 2b (admin stop — deploy LIVE; the pause self-heals at 2h; never
    unwind).
 2. **Verify the review artifact exists on disk**
