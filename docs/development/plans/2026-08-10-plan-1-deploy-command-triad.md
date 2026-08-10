@@ -283,16 +283,17 @@ precedent; no unit-test dogma for markdown.)
   chars of headroom; the deploy-verify framing contradiction is closed rather than deferred; and
   `wordpress` is marked LEGACY in the dispatch table so no new work is spent on it.
 - Execution-recorded residual (gate B native, 2026-08-11 — operator adjudication, no edit made):
-  the plan-frozen release NEXT string — and its two mirrors, the trailing body line in
-  `fabrik-release.md` and the § Pipeline parenthetical in BOTH fleet-synced CLAUDE.md copies (an
-  adjudication must touch all three encoding surfaces) — routes STORE surfaces post-submit to
-  `/fabrik-deploy-verify`,
+  the plan-frozen release NEXT string — and its three mirrors: the trailing body line in
+  `fabrik-release.md`, the § Pipeline parenthetical, AND the `6-release` stage-table row, the
+  latter two in BOTH fleet-synced CLAUDE.md copies (an adjudication must touch all FOUR encoding
+  surfaces) — routes STORE surfaces post-submit to `/fabrik-deploy-verify`,
   whose contract at HEAD is spec-driven VPS certification only — a store agent chaining there
   dead-ends cleanly at target resolution (bounded: verify-only, refuses). The triad's own store
   terminal is the operator publish act (`fabrik-deploy.md` Phase 4/5). Options when adjudicated: a
   store analogue inside deploy-verify, or rewording the store terminal in the release NEXT (both
   out of this plan's frozen scope).
-- Execution-recorded residual (gate A, operator-visible): `docs/reference/MD/north-star.md`-family
-  corpus line "deploy = manual `fabrik apply`" predates the triad; `/fabrik-deploy`'s Gate-2
-  tiebreak absorbs it (the operator's dispatch IS that manual act for plan-governed deploys), but
-  the corpus line itself is out of this plan's File Scope.
+- Execution-recorded residual (gate A, operator-visible): the corpus line "deploy = manual
+  `fabrik apply`" at `docs/orchestrator/00-autonomous-factory-north-star.md:143` (R14; same claim
+  at :44 and :200) predates the triad; `/fabrik-deploy`'s Gate-2 tiebreak absorbs it (the
+  operator's dispatch IS that manual act for plan-governed deploys), but the corpus line itself is
+  out of this plan's File Scope.

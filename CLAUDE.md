@@ -173,7 +173,7 @@ unclear. Never claim no previous conversation exists without searching first.
 
 Every `/fabrik-*` command, at the end of its run, applies these three (lean — one line, not a section):
 1. **Name the NEXT command** in the flow (+ the one-line why) so the operator chains without re-deriving it.
-2. **Skip the GUI commands** (`/fabrik-ui-design`, `/fabrik-ui-design-review`, `/design-review`) when the project has **no user-facing UI** — the headless API/worker `SCAFFOLD_TYPES` `project.yaml::type` ∈ {`python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`} (and `wordpress`, which is deploy-only). The UI-bearing types run them: {`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`, `docusaurus`}. Non-UI → go straight from the data contract (or spec) to `/fabrik-plan-after-chat`; never suggest a GUI command there.
+2. **Skip the GUI commands** (`/fabrik-ui-design`, `/fabrik-ui-design-review`, `/design-review`) when the project has **no user-facing UI** — the headless API/worker `SCAFFOLD_TYPES` `project.yaml::type` ∈ {`python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`} (and `wordpress`, which is out of fabrik — `/opt/wpf` archived 2026-08-07). The UI-bearing types run them: {`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`, `docusaurus`}. Non-UI → go straight from the data contract (or spec) to `/fabrik-plan-after-chat`; never suggest a GUI command there.
 3. **Re-freeze the data contract** — if the work changed a DB **field / enum / model** (Doc Sync Matrix), the next step is **/fabrik-data-contract** to re-freeze `docs/data-contract.md` before any plan/build consumes a stale contract.
 
 ## ⚠️ FINAL OUTPUT (last 6 lines of every task-completing response)
