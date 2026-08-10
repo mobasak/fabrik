@@ -139,3 +139,33 @@ def test_existing_switch_and_next_paths_are_untouched(box, monkeypatch):
     rot.main(["--switch", "acct-a"])
     rot.main(["--next"])
     assert calls == ["list", "switch:acct-a", "next"]
+
+
+def test_drift_check_captures_when_only_the_refresh_token_rotated(box):
+    """The live-incident shape: access token unchanged, refresh token rotated.
+
+    An accessToken-only comparison reads "in sync" and leaves a DEAD refresh token in the
+    snapshot — exactly what broke the operator's login on 2026-08-10.
+    """
+    snap = box / "manager-accounts/acct-b/.credentials.json"
+    snap.write_text(json.dumps(
+        {"claudeAiOauth": {"accessToken": "tok-SAME", "refreshToken": "rt-OLD"}}))
+    (box / ".credentials.json").write_text(json.dumps(
+        {"claudeAiOauth": {"accessToken": "tok-SAME", "refreshToken": "rt-NEW"}}))
+    assert rot._cmd_drift_check() == 0
+    assert json.loads(snap.read_text())["claudeAiOauth"]["refreshToken"] == "rt-NEW"
+
+
+def test_capture_rolls_the_outgoing_snapshot_aside(box):
+    """A capture must never be the operation that loses a usable credential."""
+    rot._cmd_capture_current()
+    prev = box / "manager-accounts/acct-b/.credentials.json.prev"
+    assert prev.is_file()
+    assert json.loads(prev.read_text())["claudeAiOauth"]["accessToken"] == "tok-B-OLD"
+    assert stat.S_IMODE(prev.stat().st_mode) == 0o600
+
+
+def test_drift_check_reports_a_failed_capture_without_failing_the_hook(box, monkeypatch, capsys):
+    monkeypatch.setattr(rot, "_cmd_capture_current", lambda: 1)
+    assert rot._cmd_drift_check() == 0          # a hook must never fail
+    assert "capture FAILED" in capsys.readouterr().err  # but it must be visible

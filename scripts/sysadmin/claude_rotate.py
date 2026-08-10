@@ -710,8 +710,16 @@ def _cmd_capture_current() -> int:
             return 0  # already in sync — never churn the file
     except OSError:
         pass
-    tmp = dst.with_name(dst.name + f".tmp{os.getpid()}")
+    # Collision-proof tmp name (pid alone can repeat across namespaces/recycling).
+    tmp = dst.with_name(f"{dst.name}.tmp{os.getpid()}.{time.monotonic_ns():x}")
     try:
+        # Roll the OUTGOING snapshot aside first — a capture must never be the operation
+        # that loses a usable credential (mirrors _activate_snapshot's BACKUP_CREDS).
+        if dst.is_file():
+            try:
+                _secure_write(dst.with_name(dst.name + ".prev"), dst.read_bytes())
+            except OSError:
+                pass  # best-effort backup; never block the capture itself
         _secure_write(tmp, live_bytes)
         os.replace(tmp, dst)  # atomic swap: a reader sees old-or-new, never a torn file
     except OSError as e:
@@ -735,9 +743,19 @@ def _cmd_drift_check() -> int:
     target = _active_account()
     if live_tok is None or target is None:
         return 0  # nothing resolvable to compare — quiet no-op
-    if _read_access_token(target / ".credentials.json") == live_tok:
-        return 0  # in sync
-    _cmd_capture_current()
+    # Compare the WHOLE credential blob, never just the access token: the live incident
+    # (2026-08-10) was a stale REFRESH token, and the refresh token rotates independently
+    # of the short-lived access token — an accessToken-only compare would see "in sync"
+    # while the snapshot carried a dead refresh token (review finding).
+    try:
+        if (target / ".credentials.json").read_bytes() == ACTIVE_CREDS.read_bytes():
+            return 0  # byte-identical — genuinely in sync
+    except OSError:
+        pass  # unreadable either side → fall through to capture (fail toward freshness)
+    if _cmd_capture_current() != 0:
+        # Never fail a hook, but never hide a failed capture either: the cron log is the
+        # only place an operator would ever see this (review finding).
+        sys.stderr.write("claude_rotate: drift detected but capture FAILED — snapshot is stale\n")
     return 0
 
 
