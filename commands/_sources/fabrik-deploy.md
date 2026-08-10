@@ -39,7 +39,7 @@ and the run continues — keep going.
    per Phase 2 — completed work is never blindly re-run. **Post-flip edits void the flip:** the review
    command commits its `CONVERGED` flip — if `git log` shows commits touching the plan after that flip
    commit OTHER THAN the sanctioned set (this command's own flip/ledger/close-out commits — identifiable
-   by their `Agent-Context: deploy-ledger <plan-stem>` trailer, mandated in Phase 0.5 — and the review's
+   by their `Agent-Context: deploy-ledger <plan-stem>` trailer, mandated in Phase 0 step 5 — and the review's
    own sanctioned re-entry flips), the plan is `DRAFT` in fact — refuse the same way. (Git evidence
    only — file mtime resets on every checkout/stash and proves nothing.)
 3. **Where this runs.** VPS surfaces: hub-side, from `/opt/fabrik` — the `fabrik` CLI, the fleet SSH
@@ -110,7 +110,7 @@ resume, never a from-step-1 re-run — that is how a completed migration gets ru
 1. Run the step's exact command (an `OPERATOR-GATE` step is NEVER run — see Phase 4).
 2. Run its verification; the fenced output must show the plan's expected result BEFORE the next step
    starts. A verification you didn't run is a step that didn't happen. Mark + commit the ledger per
-   Phase 0.5.
+   Phase 0 step 5.
 3. On failure, the plan's `retryable` column decides:
    - **Retryable step** → retry up to twice more (three attempts total). Rollback is the EXIT action of
      an abandoned step, not a between-attempts reflex — apply per-attempt cleanup only where the plan's
@@ -119,7 +119,7 @@ resume, never a from-step-1 re-run — that is how a completed migration gets ru
    - **Non-retryable step** → its FIRST failure is terminal for the run.
    - **On abandonment (either case):** execute the step's rollback command and **prove it landed (fenced
      output)**, execute the plan's rollback for every completed step that requires it (inside the
-     maintenance window — Phase 1.3) **appending a `↩ ROLLED-BACK <step id>` ledger row for each** (its
+     maintenance window — Phase 1 step 3) **appending a `↩ ROLLED-BACK <step id>` ledger row for each** (its
      `✅` is no longer the truth — a resume must see the teardown), write + commit the ⛔ row, close the
      window last, and report `BLOCKED: <step> — <evidence> — <rollback taken>`. The halted plan then
      goes back through `/fabrik-deploy-plan-review` (its sanctioned `IN-PROGRESS + ⛔` re-entry — the
