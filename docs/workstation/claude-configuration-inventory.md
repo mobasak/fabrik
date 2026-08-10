@@ -42,7 +42,7 @@ carry their own MCP roster.
 | `~/.claude/statsig/` · `cache/` · `paste-cache/` · `debug/` · `downloads/` | ≤476 KB each | Feature flags, changelog cache, paste buffers, debug dumps | Live, low cost |
 | `~/.claude/sound-debug.log` | 316 KB | Debug log from the notification-sound hook | Growing; prune candidate |
 | `~/.claude/mcp-needs-auth-cache.json`, `stats-cache.json`, `.last-cleanup`, `.last-update-result.json` | small | MCP auth prompts, usage stats, cleanup + self-update markers | Live |
-| `~/.claude/bin/` (`claude-sound.sh` + `claude-stop-decider.py`) | 36 KB | Notification-sound hook router + the state-based stop decider (rings only at true final rest) | **Live** — DR-mirrored via `dr_claude_backup.sh` |
+| `~/.claude/bin/` (`claude-sound.sh` · `claude-stop-decider.py` · `claude-autoresume.sh` · `claude-selfwatch.sh` · `claude-mesh-test.sh`) | ~90 KB | Notification-sound router + state-based stop decider + the resume-mesh revivers and their fixture harness (detail: the Resume mesh paragraph below) | **Live** — DR-mirrored via `dr_claude_backup.sh` |
 | `~/.claude/ide/*.lock` | 36 KB | VS Code extension ↔ CLI handshake locks | Live |
 | `~/.claude/chrome/chrome-native-host` | 8 KB | Chrome native-messaging host | Present |
 
@@ -131,7 +131,7 @@ marker re-check, child carries `CLAUDE_SOUND_NO_REVIVE=1` + `CLAUDE_MESH_HEADLES
 re-fires the pipeline → ring), `claude-selfwatch.sh` (pane self-watch — EVERY interactive session
 is ordered to arm it by the ORIENT hook, first tool action; consumes a pre-arm marker silently,
 consumes on fire — one wake per death record; network-gated for all classes),
-`claude-mesh-test.sh` (sandboxed fixture harness — 57 fixtures, silent). Markers in the sound lock
+`claude-mesh-test.sh` (sandboxed fixture harness — 71 fixtures, silent). Markers in the sound lock
 dir: `<sess>.errparked` (death record — cleared on the next normal Stop, on a busy turn-death
 verdict [a live waker exists], or consumed by the self-watch's fire), `rotation.last`,
 `<sess>.notified`, `<sess>.attempts`, `<sess>.reviving`, `<sess>.recheck`, `start.last` +

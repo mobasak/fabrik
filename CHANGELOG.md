@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Resume-mesh review Rounds 2-3: reproduced dup-park swallow, compact proof-of-loss, spawn dedup, lockless anonymous mode (2026-08-09)
+
+- Round 2 (break-the-fixes + fresh-eyes natives): recheck rings epoch-blind + dup-park-before-
+  waker_lost swallowed a second independently-lost waker (empirically reproduced) -> recheck runs
+  never entry-clear, identity-scoped rung; selfwatch re-checks its marker after every wait (keeps
+  watching on a mid-wait heal); reviver initial grace; crashed-compaction proof-of-loss; prune
+  cutoff 2h; full-identity waker lists. Round 3 (closing sweep): selfwatch human-class filter,
+  anonymous guards for .compacting/.pid (lockless mode), .reviving-freshness spawn dedup, nested-
+  recheck marker self-consume, asymmetric stat-failure ring bias, RESUME line orders its own
+  re-arm. Harness 63->66 fixtures, all red-first or repro-witnessed. Receipt:
+  `docs/development/reviews/2026-08-09-auto-continuation-review.md`.
+
 ### Fixed — Resume-mesh Round-1 review fixes: persistent-Monitor waker false-positive, self-watch one-shot consume, proof-of-loss waker_lost (2026-08-09)
 
 - `/fabrik-review` of the full auto-continuation stack: 7 finders (4 pool + 3 native) + live-log
