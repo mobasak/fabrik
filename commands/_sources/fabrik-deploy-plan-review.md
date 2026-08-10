@@ -77,7 +77,10 @@ make are the two sanctioned flip-BACKS, each re-entering the loop at `DRAFT`:
   keys — renumbering orphans every existing row; new steps get NEW ids), **annotate every step whose
   LATEST ledger row is `✅` with `KEEP` (still valid) or `REDO` (the amendment or a rollback invalidated
   it)** — a step whose latest row is `↩ ROLLED-BACK` is already in the run set, never `KEEP` it —
-  `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations — and end at
+  `/fabrik-deploy` executes a re-converged plan resume-style off exactly these annotations, **annotate
+  the consumed `⛔` row `[ADJUDICATED <date> — re-entered + re-converged]` in the same commit** (kept,
+  never deleted — the guard keys on UNadjudicated rows of either kind, so a re-invocation after this
+  re-entry correctly reports already-converged) — and end at
   `CONVERGED` for a fresh operator dispatch.
 
 Pointed at `EXECUTED` — or an `IN-PROGRESS` with no `⛔` row of either kind (a deploy still
@@ -114,8 +117,9 @@ probe, read the actual values:
 - Live-infra claims (a resolver staged, a DNS record present, headroom on the target, a Backrest plan's
   path list) → re-probe over the fleet SSH path where this session can, and mark what only the deploy
   session can prove as an explicit runbook-verified item — never as silently assumed.
-- Runbook steps → dry-read each command for executability (right host, right cwd, right env knobs, exec
-  semantics inside vs outside the container), and each verification for decidability (a step whose
+- Runbook steps → dry-read each command for executability (right host — the vps1 alias is `vps` — right PRIVILEGE
+  (a write to a root-owned path without `sudo bash -c` is Permission denied), right cwd, right env
+  knobs, exec semantics inside vs outside the container), and each verification for decidability (a step whose
   "verify" cannot fail is not a verification).
 
 **Canonical class checklist — every row gets a verdict every pass: CLEAN / FIXED / N/A-<surface> (with
@@ -128,7 +132,7 @@ the one-line why — a row is never silently dropped; pass-time rows use exactly
 | 2 | Env/config completeness | every compose var ↔ spec/secrets/registrar/code-default traced (VPS) · store metadata ↔ build profiles ↔ code consistent (stores) — nothing unresolved, nothing double-sourced |
 | 3 | Staged-infra validity | staged resolver/DNS/config files re-read and valid; activation step present and ordered; registrar preview matches the shape |
 | 4 | Runbook ordering + timing | every step verifiable + rollbackable; **stable `S`-prefixed step ids present** (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`'s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a **fused build+credentialed step left unsplit** is a finding |
-| 5 | Healing / rollout interactions | VPS: autoheal pause brackets every long-unhealthy window as **labeled `window-open`/`window-heartbeat`/`window-close` steps** (open + heartbeat write/refresh `pause.owner` — the deploy's attribution reads it; the CLOSE step removes BOTH files, it never writes), PAUSED-log confirmation before the sensitive step, a >2h window carries its re-touch heartbeat; watchdog + restart-policy posture named · stores: staged-rollout %, halt + rollback mechanics named |
+| 5 | Healing / rollout interactions | VPS: autoheal pause brackets every long-unhealthy window as **labeled `window-open`/`window-heartbeat`/`window-close` steps** (open + heartbeat write/refresh `pause.owner` — the deploy's attribution reads it; the CLOSE step removes BOTH files, it never writes; every window command authored in its executable root form — `sudo bash -c` via the real SSH alias), PAUSED-log confirmation before the sensitive step, a >2h window carries its re-touch heartbeat; watchdog + restart-policy posture named · stores: staged-rollout %, halt + rollback mechanics named |
 | 6 | Battery completeness | includes a WRITE-path probe, queue-drain where workers exist, companion reachability, cert/ACME diagnostics, same-origin probes where routing is nontrivial · stores: artifact installability + first-run smoke |
 | 7 | Monitoring + backup/DR truth | what ACTUALLY watches the surface (endpoint/scrape/alert verified, cert-expiry condition for new domains); which Backrest plan ACTUALLY covers the data — path lists read live, never assumed; honest RPO/RTO · stores: crash reporting + rollout-halt named |
 | 8 | Standing recurrence sweep | fail-open/fail-closed defaults (a healing window failing open, a guard a caller swallows) · cost/quota limits (build minutes, API quota a runbook step can exhaust) · boundary/sentinel/prefix traps (route prefixes, placeholder sentinels, off-by-one windows) · behavior-without-a-test (a runbook step whose verification cannot fail) |

@@ -172,9 +172,13 @@ judgment call.
 Any step that leaves a container legitimately unhealthy longer than its healthcheck tolerates (migrations,
 module init — the B3 class: autoheal's worst-case time-to-unhealthy is minutes, an init can be 8–10) MUST
 be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartbeat` / `window-close`**
-(the labels let a resume locate the bracket): the open and every heartbeat step run `touch
-/run/fabrik-autoheal/pause` AND write `/run/fabrik-autoheal/pause.owner` (`<plan-stem> <ISO-8601 UTC>` —
-the deploy's ownership attribution is a read of this file; the healer itself reads only `pause`);
+(the labels let a resume locate the bracket), **authored in their EXECUTABLE root form** — the dir is
+root-owned and the fleet SSH user is not root, and the alias for `target_vps: vps1` is `vps` (no
+`vps1` alias exists; `vps2`/`vps3` literal) — so the open and every heartbeat step are
+`ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause &&
+printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner'"` (a bare touch or
+redirect gets Permission denied; the deploy executes the runbook verbatim and may not add sudo
+mid-run);
 **wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
 step** (an already-in-flight healer tick is not retroactively paused); the close step removes BOTH
 files — ordered so the close comes AFTER any rollback the window's steps might need. **The pause file

@@ -37,8 +37,8 @@ and the run continues — keep going.
    `EXECUTED`, absent — → refuse: `BLOCKED: plan not executable — <status>; run
    /fabrik-deploy-plan-review first (DRAFT) or author a new plan (EXECUTED)`. This echoes the
    data-contract FROZEN gate: nothing executes against an unconverged artifact. **Execution mode by
-   ledger, not by status alone:** no execution rows → fresh run (adjudicated `⛔ PLAN-DEFECT` annotations
-   alone do NOT make a resume — they are routing history); any `✅`/`⛔ BLOCKED`/`↩` row present (an
+   ledger, not by status alone:** no execution rows → fresh run (`⛔ PLAN-DEFECT` rows alone — adjudicated or
+   not — do NOT make a resume; they are routing history); any `✅`/`⛔ BLOCKED`/`↩` row present (an
    `IN-PROGRESS` resume, or a `CONVERGED` plan re-converged through the ⛔ re-entry with `KEEP`/`REDO`
    annotations) → RESUME-STYLE per Phase 2 — completed work is never blindly re-run. **Post-flip edits void the flip:** the review
    command commits its `CONVERGED` flip — if `git log` shows commits touching the plan after that flip
@@ -65,7 +65,10 @@ inside them.
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the plan's
    build SHA is on the service repo's remote).
 3. **Reconcile healing state (VPS) — a DECISION, not yet an action:** `stat /run/fabrik-autoheal/pause`
-   on the target. The pause file itself is content-free, so the triad writes ownership NEXT TO it:
+   on the target. (**SSH alias:** `target_vps: vps1` connects as `ssh vps` — the fleet config has no
+   `vps1` alias; `vps2`/`vps3` are literal. **Privilege:** every WRITE to `/run/fabrik-autoheal` —
+   touch, redirect, rm — is `ssh <alias> "sudo bash -c '…'"`; the dir is root-owned and the fleet user
+   is a non-root sudoer. Reads are unprivileged.) The pause file itself is content-free, so the triad writes ownership NEXT TO it:
    every touch (open, heartbeat, re-adopt) also writes `/run/fabrik-autoheal/pause.owner` containing
    `<plan-stem> <ISO-8601 UTC timestamp>` (the healer reads only `pause`; the owner file is the triad's
    own metadata). Attribution is therefore a READ, not an inference: `pause.owner` names THIS
@@ -73,7 +76,8 @@ inside them.
    `touch` + owner write + the PAUSED-log confirmation — executes as Phase 1's open step AFTER
    pre-flight passes). Owner absent or another stem: pause mtime age **≥ 2h** (already inert — the
    healer ignores it) → mark both files for removal, executed immediately before the run's first target
-   mutation — **re-verified at execution time** (fresh `stat` + owner read: the file must still be the
+   mutation and BEFORE Phase 1's own re-check (the cleanup is the run's first target write; the re-check
+   then sees a clean slate) — **re-verified at execution time** (fresh `stat` + owner read: the file must still be the
    SAME inert one, mtime unchanged since the decision; anything fresher or now-owned means a sibling
    opened in the gap → the BLOCKED branch, never the `rm`) and never before the pre-flight gate (the
    DECISION here mutates nothing); age **< 2h** →
@@ -88,9 +92,15 @@ inside them.
    validation) — each with fenced output. Any pre-flight failure → stop BEFORE mutating anything:
    `BLOCKED: pre-flight <step> — <evidence> — nothing deployed`.
 5. **The first PAYLOAD mutation flips the plan `CONVERGED → IN-PROGRESS`** — the flip+ledger commit
-   lands immediately AFTER that first mutation SUCCEEDS, never before it (an entry-shaped refusal at
-   the first step must leave the plan CONVERGED and unflipped; the Phase 0 healing-state cleanup is
-   maintenance, not deployment — it neither flips the plan nor counts as "mutated"). **The flip starts
+   lands immediately AFTER that first mutation SUCCEEDS — and a runbook step's TERMINAL FAILURE flips
+   too: once any step has RUN, the flip and its `⛔ BLOCKED` row are committed together (execution was
+   ATTEMPTED — the halt must be durable, and the review's ⛔ re-entry is how it routes back; a
+   still-CONVERGED plan after a failed step would falsely report "already-converged"). Only PRE-step
+   refusals (hard gates, pre-flight, a sibling pause before any step ran) leave the plan CONVERGED and
+   unflipped. Payload mutation = any step that changes target-host state OR produces/updates the
+   deliverable artifact (a store build counts — every surface's runbook has at least one, so the flip
+   always precedes any `✅` row). The Phase 0 healing-state cleanup is maintenance, not deployment — it
+   neither flips the plan nor counts as "mutated". **The flip starts
    the step ledger inside the plan document (or APPENDS to an existing one — a re-entry/resume plan arrives with its ledger and
    `KEEP`/`REDO` annotations intact; reinitializing it erases exactly what Phase 2 keys on), and COMMITS
    that flip immediately** (explicit pathspec, provenance trailers — every
@@ -143,7 +153,7 @@ own steps open and close it; execute them with these guarantees:
    fires when that call ends, not when the deploy does. The closing `rm` — of BOTH files, `pause` and `pause.owner`; removing only the pause leaves an
    orphan owner that poisons the next attribution read — is an explicit runbook step. On
    an abort: **run the rollback steps FIRST — still inside the window, which protects the rollback
-   too — then close the window as the abort's LAST act** and verify with a fresh `stat`. If the session
+   too — then close the window as the abort's LAST act** and verify with a fresh `stat` on BOTH files. If the session
    dies outright, the pause file's 2h staleness self-heal is the last-resort backstop.
 4. **The pause expires at 2h** — a window that can run longer re-`touch`es the file at each step boundary
    per the plan's heartbeat step; never trust a single touch past 2h.
@@ -195,7 +205,7 @@ as a runbook-step stop (Phase 2 step 3: rollback with fenced proof, `↩` rows, 
 committed). The runbook's window is already closed by now — **a rollback that includes
 healing-sensitive steps RE-OPENS a window for itself via Phase 1's full procedure** (the rollback
 deserves the same protection the forward step had; a closed window never strips it) and closes it as
-the abort's last act. Never report a deploy complete on a partial battery.
+the abort's last act — verified, BOTH files gone (fenced). Never report a deploy complete on a partial battery.
 
 ## Phase 4 — Store surfaces: stop at the operator's publish act, then close out
 
@@ -214,8 +224,10 @@ it). Either way, write + commit a durable routing record into the plan:
 `— ⛔ PLAN-DEFECT <step id> <UTC timestamp> <the defect>` (with the `deploy-ledger` commit marker; the
 status is NOT flipped when nothing mutated — a console BLOCKED print is ephemeral, and this committed
 row is exactly what the review's status guard reads as its sanctioned re-entry evidence). **A
-PLAN-DEFECT stop ENDS the run at that BLOCKED report** — no handoff, no Phase 5, no `EXECUTED` flip,
-no archive; the plan goes back through the review and returns on a fresh operator dispatch. On the
+PLAN-DEFECT stop ENDS the run at that BLOCKED report** — but with abort hygiene first: if a
+maintenance window is open, run the rollbacks that need it and close it (BOTH files, verified) before
+ending; then no handoff, no Phase 5, no `EXECUTED` flip, no archive; the plan goes back through the
+review and returns on a fresh operator dispatch. On the
 CLEAN path (no defect), print the
 Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
