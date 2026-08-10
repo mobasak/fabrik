@@ -180,7 +180,8 @@ BLOCKING unknown → the plan stays `DRAFT` until its owner resolves it.
 
 Only after the md5-verified no-op round:
 
-1. Flip `Status: DRAFT → CONVERGED`. The flip is the LAST content act — a plan edited after its flip is
+1. Write the literal `Status: CONVERGED` (arrows describe transitions; the FILE carries only the
+   target literal — an arrow form is invisible to every gate regex). The flip is the LAST content act — a plan edited after its flip is
    `DRAFT` again in fact, whatever the header says; re-run the loop.
 2. **Persist the review** to `docs/development/reviews/<plan-stem>-review.md` (same stem as the plan
    file). This is an EDIT-CONVERGENCE review artifact — `check_convergence.py`'s review branch covers it

@@ -165,8 +165,10 @@ it), OR carry an explicit `NON-RERUNNABLE` marking WITH a guard pre-check that d
 already-ran state and skips (a registrar purchase, a token mint — the guard is what makes the re-run
 safe). Steps only the operator may take (any store-dashboard or credentialed
 publish action, a paid account action — and any credentialed act whose classification is unclear, e.g. a
-notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE` — the
-runbook prepares up to them, never through them. The surface's sanctioned build path (cloud `eas build`,
+notarization submission or a signing service: when in doubt, mark it) are marked `OPERATOR-GATE`, each declaring its verification shape — `verify: in-session` (the result
+is immediately checkable; the deploy hands over, waits, verifies, continues) or `verify: deferred`
+(a store review measured in days; the handoff completes the surface) — the runbook prepares each and
+hands it to the operator, never performs it. The surface's sanctioned build path (cloud `eas build`,
 per `/fabrik-release`'s own MOBILE step) is NOT `OPERATOR-GATE` — marking it makes the artifact
 unbuildable and stalls the deploy at a step the corpus already sanctions. `/fabrik-deploy` applies the
 same defaults, so an unmarked ambiguous step is a plan defect the review must catch, not a deploy-time
