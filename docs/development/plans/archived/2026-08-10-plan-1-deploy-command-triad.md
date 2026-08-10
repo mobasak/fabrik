@@ -1,6 +1,12 @@
 # Plan — Deploy Command Triad: /fabrik-deploy-plan → /fabrik-deploy-plan-review → /fabrik-deploy
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-11
+Whole-plan review: docs/development/reviews/2026-08-10-plan-1-deploy-command-triad-review.md
+(coverage-adjudicated quiet exit — found: 0, fixed: 0; gates A/B/C/D each closed clean in-phase).
+Completion stamp: the deploy triad shipped and is live box-wide — 3 sources authored + converged
+(29-round gate A), wired (NEXT map, both CLAUDE.md chains, router stems — 4-round gate B, fleet
+synced), rendered + installed (gate C), whole-pack reviewed + docs converged (Phase D), Tier-2 gate
+"status": "success".
 Owner: hub (fabrik command corpus)
 Operator directive (verbatim, 2026-08-10): "for any deployment, you must first create a deployment
 plan, then review the plan. and then deploy. for all of these, i want commands and also skills
@@ -252,6 +258,15 @@ false-fails half the gate;
 `python commands/assemble_commands.py --check` still exit 0 after the real render.
 
 ## Phase D — Review-to-no-op + gate
+
+**✅ EXECUTED 2026-08-11** — whole-pack review CLEAN on the first round (pool sources-leg + pool
+wiring-leg both quiet, native Opus integrated-seams pass: zero new findings, 49 tool-use grounding
+sweep, git-recovery claims execution-tested); `/fabrik-docs-review` converged in 3 passes (pass 1:
+the owed FEATURES.md triad row+section; pass 2: one CHANGELOG stem-ordering precision fix; pass 3:
+no-op — ordering claims re-proven against the live router); `final_gate.py --check --json` →
+`"status": "success"` this run; Lesson 110 written (self-consistent defects vs behavioral tests;
+both-quoting-layers). Whole-tree `docs_updater` red = pre-existing sibling/repo debt outside the
+pack, reported not touched.
 
 Full `/fabrik-review` on the authored pack (the three sources + wiring diff): finders partitioned
 (structure-fidelity vs parents · enforcement-completeness vs the content contracts above ·
