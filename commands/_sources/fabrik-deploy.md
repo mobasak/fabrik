@@ -125,9 +125,11 @@ partial battery.
 
 Mobile / extension / desktop runbooks execute up to — never through — the publish act: build the artifact
 from the pushed SHA, verify it (the plan's battery analogue), prepare listing/rollout content. **No store
-credential use, ever** (inherited verbatim from `/fabrik-release`): no upload, no draft submission, no
-dashboard action — those are all the operator's, whatever a plan says (a plan cannot sanction what the
-corpus forbids; flag the contradiction instead of executing it). Print the Gate-2 handoff per the
+credential use for PUBLISH acts, ever** (inherited from `/fabrik-release`): no upload, no draft
+submission, no dashboard action — those are all the operator's, whatever a plan says (a plan cannot
+sanction what the corpus forbids; flag the contradiction instead of executing it). Building via the
+surface's sanctioned build path (e.g. cloud `eas build`, per `/fabrik-release`'s own MOBILE step) is not
+a publish act. Print the Gate-2 handoff per the
 convention `/fabrik-release`'s surface paths define — the artifact, the checklist verdicts, and the one
 action only the human takes. The handoff IS this surface's deploy completion: **proceed to Phase 5**,
 where the completion stamp records "handed to the operator publish gate: <the action>".
