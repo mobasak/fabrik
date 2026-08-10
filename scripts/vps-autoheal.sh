@@ -33,6 +33,21 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# Maintenance pause (review finding B3, 2026-08-10): during a migration/init window a
+# container can be legitimately unhealthy for longer than its healthcheck tolerates —
+# autoheal restarting it mid-migration corrupts the work (live case: tryton-crm's 8-10 min
+# module init vs a ~3.2 min worst-case time-to-unhealthy). `touch $STATE_DIR/pause` before
+# the window, `rm` after; a stale pause (>2h) is ignored so a forgotten one can't disable
+# healing forever.
+if [ -f "$STATE_DIR/pause" ]; then
+  page=$(( $(date +%s) - $(stat -c %Y "$STATE_DIR/pause" 2>/dev/null || echo 0) ))
+  if [ "$page" -lt 7200 ]; then
+    logger -t fabrik-autoheal "PAUSED (maintenance window, ${page}s old) — no restarts this tick"
+    exit 0
+  fi
+  logger -t fabrik-autoheal "STALE pause file (>2h) ignored — healing resumes"
+fi
+
 now=$(date +%s)
 
 docker ps --filter health=unhealthy --format '{{.Names}}' 2>/dev/null | while read -r name; do
