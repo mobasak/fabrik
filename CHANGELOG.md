@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — STATE footer on EVERY response fleet-wide (operator mandate: no exempt turns) (2026-08-10)
+
+- The FINAL OUTPUT contract's conversational/read-only exemption is closed: every non-task-completing
+  response now ends with the two-line STATE/NEXT footer (hub + fleet-template CLAUDE.md); the 6-line
+  block stays the task terminator; a footer NEXT naming undispatched own work = the same
+  checkpoint-stall, same hook.
+
 ### Fixed — Promise-guard catches passive-availability stalls ("T03 is dispatchable" + turn end) (2026-08-10)
 
 - Live miss: an iterative_image_editor orchestrator ended its turn on "T03 and T05 are now both

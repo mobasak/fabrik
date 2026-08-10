@@ -187,7 +187,14 @@ DONE: <one line — what this run delivered: the commits/artifacts, not intentio
 NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
 ```
 
-Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 6 lines. Pure-conversational / clarifying / read-only turns are exempt — no gate, no entry, no block. **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — the block is a TASK terminator, so emitting it while own-session work remains is itself the checkpoint-stall (the promise-guard catches the phrasing-level variants — "I'll run it", "the pass is owed" — but a bare undispatched `NEXT:` is caught by THIS rule, not by the hook).
+Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 6 lines. **EVERY OTHER response — conversational, clarifying, read-only, mid-plan status (operator mandate 2026-08-10: "in any answer agents must reply in that manner") — ends with the two-line STATE footer instead** (no gate, no changelog entry owed):
+
+```
+STATE: <where things stand — the stage/board/loop position, one line>
+NEXT: <the successor: exact command · the operator decision awaited · "awaiting your reply" · none — terminal>
+```
+
+The footer is the manner, not the machinery: it never substitutes for the 6-line block on a task-completing response, and a footer `NEXT:` naming undispatched own-session work is the same checkpoint-stall as a bare undispatched block `NEXT:` (same rule, same hook). **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — the block is a TASK terminator, so emitting it while own-session work remains is itself the checkpoint-stall (the promise-guard catches the phrasing-level variants — "I'll run it", "the pass is owed" — but a bare undispatched `NEXT:` is caught by THIS rule, not by the hook).
 
 **⚠️ The block is a TASK terminator, never a phase/loop terminator.** Mid-`/fabrik-execute-plan` phase
 boundaries and mid-certification rounds are NOT task-completing responses — do NOT emit this block there,
