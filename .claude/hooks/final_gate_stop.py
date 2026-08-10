@@ -376,6 +376,14 @@ _OBLIGATION_RE = re.compile(
     # "the sweep remains to be run/done/executed"
     r"|\b(?:pass(?:es)?|rounds?|reviews?|sweeps?|re-?runs?|phases?|audits?|fix(?:es)?)\b"
     r"[^.!?\n]{0,30}?\bremains?\s+to\s+be\s+(?:run|done|executed)\b"
+    # passive AVAILABILITY of own work — the live 2026-08-10 miss: an orchestrator ended
+    # its turn on "T03 and T05 are now both dispatchable in parallel" with the tickets
+    # undispatched. Availability phrasing = the same undone-own-work signal as "is owed";
+    # negated subjects ("nothing further is dispatchable") carry no matching work-noun and
+    # never reach this branch. T## covers bare ticket-ID subjects.
+    r"|\b(?:pass(?:es)?|rounds?|phases?|tickets?|T\d{2}[a-z]?)\b"
+    r"[^.!?\n]{0,60}?\b(?:is|are)\s+(?:(?:still|now|both|all)\s+){0,2}"
+    r"(?:dispatchable|launchable|ready\s+(?:to|for)\s+(?:dispatch|launch|run|start))\b"
     # first-person: only with a WORK object ("owe the next pass"), never credit
     # ("owe a debt of gratitude") or idiom ("owe it to future sessions")
     r"|\b(?:I|we)\s+(?:still\s+)?owe\s+(?:(?:the|a|an|another|one)\s+(?:next\s+)?"

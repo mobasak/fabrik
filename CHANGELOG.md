@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Promise-guard catches passive-availability stalls ("T03 is dispatchable" + turn end) (2026-08-10)
+
+- Live miss: an iterative_image_editor orchestrator ended its turn on "T03 and T05 are now both
+  dispatchable in parallel" with the tickets undispatched — availability phrasing carried the same
+  undone-own-work signal as "is owed" but matched no stall pattern. _OBLIGATION_RE gains the
+  availability family (dispatchable/launchable/ready-to-dispatch, incl. bare T## subjects); 4
+  red-first tests (72 total green). Fleet-synced via the hooks trigger.
+
 ### Added — Per-family amortized Claude cost (opus/sonnet/haiku/fable) in derive_cost (2026-08-10)
 
 - `derive_cost.amortized_by_family()` + sidecar field `amortized_per_mtok_by_family`: the pooled

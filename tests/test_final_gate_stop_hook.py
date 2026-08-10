@@ -912,3 +912,37 @@ def test_e2e_stall_blocks_and_gate_block_does_not_strand_stall_counter(fake_proj
     assert ctr.read_text().split(",")[2] == "0", "stall slot must reset when the stall is absent"
     ctr.unlink(missing_ok=True)
     bl.unlink(missing_ok=True)
+
+
+def test_passive_availability_stall_dispatchable(tmp_path: Path) -> None:
+    # Live miss 2026-08-10 (iterative_image_editor orchestrator): the turn ended on
+    # "T03 and T05 are now both dispatchable in parallel" with the tickets undispatched —
+    # availability phrasing carries the same undone-own-work signal as "is owed".
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "T02's review round is closed and pushed. "
+        "T03 and T05 are now both dispatchable in parallel."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_passive_availability_ready_to_dispatch(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Phase C is ready to dispatch once you confirm nothing."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_passive_availability_with_dispatch_is_kept(tmp_path: Path) -> None:
+    # Availability phrasing + an ACTUAL dispatch in the same turn = work continuing.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_tool("Task", prompt="execute T03"),
+          _asst_text("T03 and T05 are dispatchable — T03 dispatched now, T05 queued behind it."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_negated_availability_is_a_conclusion(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "Nothing further is dispatchable — every ticket is merged; the plan is EXECUTED."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
