@@ -166,3 +166,60 @@ class TestStubCreation:
 
         assert result is False
         assert "DO NOT OVERWRITE" in existing.read_text()
+
+
+class TestSyncedDocsAreNotLinkChecked:
+    """Fabrik-synced governance/reference copies are gitignored in consuming projects and their
+    links resolve only in the repo that OWNS them (`scripts/kilo-benchmarks/*`,
+    `docs/workflows/*`). Checking them against a consuming project reported broken links no
+    project could fix and blocked /fabrik-release, whose preconditions require this check green.
+    Reported from tryton-crm 2026-08-10 with 4 such rows.
+    """
+
+    @staticmethod
+    def _repo(tmp_path, *, ignore_line: str) -> Path:
+        import subprocess
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        (tmp_path / ".gitignore").write_text(ignore_line + "\n")
+        synced = tmp_path / "docs" / "reference" / "kilo"
+        synced.mkdir(parents=True)
+        (synced / "BENCHMARK_SOURCES.md").write_text(
+            "# Sources\n\n[tool](../../../scripts/kilo-benchmarks/update_kilo_benchmarks.py)\n"
+        )
+        owned = tmp_path / "docs"
+        (owned / "OWNED.md").write_text("# Owned\n\n[gone](../scripts/does_not_exist.py)\n")
+        return tmp_path
+
+    def test_a_gitignored_synced_doc_is_skipped(self, tmp_path, monkeypatch):
+        root = self._repo(tmp_path, ignore_line="docs/reference/kilo/")
+        monkeypatch.chdir(root)
+        import docs_updater as du
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        issues = du.check_link_integrity()
+        assert not any("BENCHMARK_SOURCES" in i for i in issues), issues
+
+    def test_a_tracked_doc_with_a_broken_link_is_still_reported(self, tmp_path, monkeypatch):
+        """Non-vacuity: the skip must be the gitignore predicate, not 'stop checking links'."""
+        root = self._repo(tmp_path, ignore_line="docs/reference/kilo/")
+        monkeypatch.chdir(root)
+        import docs_updater as du
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        issues = du.check_link_integrity()
+        assert any("OWNED.md" in i for i in issues), f"a repo-owned broken link must still fail: {issues}"
+
+    def test_when_nothing_is_ignored_the_synced_doc_is_checked(self, tmp_path, monkeypatch):
+        """The hub owns these files (tracked there), so it must keep checking them — that is
+        where a genuinely broken link can actually be fixed."""
+        root = self._repo(tmp_path, ignore_line="# nothing ignored")
+        monkeypatch.chdir(root)
+        import docs_updater as du
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        issues = du.check_link_integrity()
+        assert any("BENCHMARK_SOURCES" in i for i in issues), issues
+
+    def test_git_failure_falls_back_to_checking_everything(self, tmp_path, monkeypatch):
+        """A visible false positive beats silently skipping a doc the project really owns."""
+        import docs_updater as du
+        monkeypatch.setattr(du.subprocess, "run",
+                            lambda *a, **k: (_ for _ in ()).throw(OSError("no git")))
+        assert du._gitignored([tmp_path / "docs" / "x.md"]) == set()

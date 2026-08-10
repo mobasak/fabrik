@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs_updater link check false-failed on Fabrik-synced docs in every project (2026-08-10)
+
+Reported from tryton-crm: `docs_updater.py --check` failed with 4 broken links in
+`docs/reference/kilo/BENCHMARK_SOURCES.md`, none of which the project owns or can fix. Those docs
+are Fabrik-synced and gitignored in consuming projects, and their links point at
+`scripts/kilo-benchmarks/*` and `docs/workflows/*` — which exist on the hub and in no project. The
+link walk never consulted `.gitignore`, so it validated centrally-managed content against the wrong
+repo's tree. Release-blocking: `/fabrik-release`'s preconditions require this check green.
+
+The walk now skips gitignored docs, via one batched `git check-ignore -z --stdin` call rather than a
+subprocess per file (80+ in a typical project). Gitignore-awareness rather than a hardcoded
+directory list: it covers every synced surface at once and stays correct as the manifest grows.
+Verified — the HUB skips 0 of 710 docs and still checks all 12 kilo docs (where a genuine break is
+fixable); tryton-crm now passes, and all 21 files it skips are exactly the synced set. On any git
+failure the checker checks everything: a visible false positive beats silently skipping a doc the
+project really owns. 4 tests, each mutation-verified — including that removing the skip restores
+the bug and that skipping everything reds the suite.
+
+Accepted caveat (reporter's, and correct): a project could hide a genuinely broken link by
+gitignoring the doc. A gitignored doc is not part of the repo's published surface — the same
+reasoning as the existing cross-repo skip.
+
 ### Fixed — /fabrik-review of the day's own work: 25 findings, 16 fixed, incl. a live hub-blocker (2026-08-10)
 
 Operator-scoped round over my six unreviewed commits (the deploy-triad plan excluded — a sibling

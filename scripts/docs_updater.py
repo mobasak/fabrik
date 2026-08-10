@@ -1034,6 +1034,44 @@ def check_stub_completeness() -> list[str]:
     return issues
 
 
+def _gitignored(paths: list[Path]) -> set[Path]:
+    """The subset of *paths* that git ignores, via ONE batched `git check-ignore` call.
+
+    Why the link walk needs this: `docs/reference/kilo/`, `docs/reference/MD/` and friends are
+    FABRIK-SYNCED (see `fabrik_synced_manifest.py`) and gitignored in every consuming project. Their
+    links point at the tree that OWNS them — `scripts/kilo-benchmarks/*`, `docs/workflows/*` — which
+    exists on the hub and in no project. So the checker was validating centrally-managed content
+    against the wrong repo and reporting broken links no project could fix, blocking
+    `/fabrik-release` (whose preconditions require this check green) on work that was ready.
+
+    Gitignore-awareness rather than a hardcoded directory list: it covers every synced surface at
+    once and stays correct as the manifest grows. On the HUB these files are TRACKED, so they keep
+    being checked there — which is where a genuinely broken link in them can actually be fixed.
+
+    Batched deliberately: a per-file shell-out is one subprocess per doc (80+ in a typical project).
+    On ANY git failure this returns an empty set, i.e. check everything — a visible false positive
+    beats silently skipping a doc the project really owns.
+    """
+    if not paths:
+        return set()
+    try:
+        # `-z`: NUL-separated in and out, so paths with spaces/newlines survive intact.
+        # Exit 1 means "nothing matched" and is NOT an error; 128 is.
+        proc = subprocess.run(
+            ["git", "check-ignore", "-z", "--stdin"],
+            input="\0".join(str(p) for p in paths),
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    if proc.returncode not in (0, 1):
+        return set()
+    return {PROJECT_ROOT / n for n in proc.stdout.split("\0") if n}
+
+
 def check_link_integrity() -> list[str]:
     """Check all internal markdown links are valid."""
     issues: list[str] = []
@@ -1058,13 +1096,22 @@ def check_link_integrity() -> list[str]:
         "factory-enterprise.md",
     )
 
-    for doc in docs_dir.rglob("*.md"):
+    all_docs = sorted(docs_dir.rglob("*.md"))
+    # Fabrik-synced governance/reference copies are gitignored in consuming projects and their
+    # links resolve only in the repo that owns them — same rationale as the cross-repo skip below.
+    ignored = _gitignored(all_docs)
+
+    for doc in all_docs:
         # Skip known external doc copies
         if doc.name in skip_files:
             continue
 
         # Skip archived docs and design archives
         if "/archive" in str(doc) or "/.archive" in str(doc):
+            continue
+
+        # Skip centrally-managed synced copies (gitignored here, owned elsewhere)
+        if doc in ignored:
             continue
 
         content = doc.read_text()
