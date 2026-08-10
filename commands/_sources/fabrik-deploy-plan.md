@@ -145,11 +145,17 @@ network/middleware expectations, and any staged config files with their activati
 
 ## Phase 4 — Ordered runbook: exact commands, per-step verification, per-step rollback `[anywhere]` (all surfaces)
 
-The core artifact — a numbered table/list where EVERY step carries: the exact command (env knobs inline —
-e.g. `FABRIK_BUILD_TIMEOUT=1200 fabrik apply …` for a heavy image, per `deployer_ssh.py::_BUILD_TIMEOUT`),
+The core artifact — a numbered table/list where EVERY step carries: an **explicit stable step id**
+(`S1`, `S2`, … — the id is the deploy ledger's join key, NOT the list ordinal: amendments insert
+`S5a`-style ids and never renumber retained steps), the exact command (env knobs inline — e.g.
+`FABRIK_BUILD_TIMEOUT=1200 fabrik apply …` for a heavy image, per `deployer_ssh.py::_BUILD_TIMEOUT`),
 the verification that proves the step landed (a command + expected output, fenced), whether the step is
 **retryable**, and the rollback — **an exact, executable command with its own verification, never a prose
-intention** ("re-run previous release" is not a rollback). In-container exec semantics are spelled out
+intention** ("re-run previous release" is not a rollback). A step that would FUSE an automatable build
+with a gated credentialed act (a single invocation whose pipeline embeds notarization/signing) must be
+AUTHORED as separate steps — the build up to it, the gated act as its own `OPERATOR-GATE` step, the
+resume after; `/fabrik-deploy` may not restructure a fused step mid-run, so a fused step is a plan
+defect here. In-container exec semantics are spelled out
 (the B1 class: an in-container default port/host is dev-shaped — pass the explicit `-e` override).
 Long-running steps state their expected duration, and any step expected to exceed its window's tolerances
 names the mitigation (Phase 5). Steps only the operator may take (any store-dashboard or credentialed
@@ -165,12 +171,14 @@ judgment call.
 
 Any step that leaves a container legitimately unhealthy longer than its healthcheck tolerates (migrations,
 module init — the B3 class: autoheal's worst-case time-to-unhealthy is minutes, an init can be 8–10) MUST
-be bracketed as explicit runbook steps: `touch /run/fabrik-autoheal/pause` on the target before the
-window, **wait for a `PAUSED` line newer than the touch in the healer's log before starting the sensitive
-step** (an already-in-flight healer tick is not retroactively paused), and `rm` the pause after — ordered
-so the close comes AFTER any rollback the window's steps might need. **The pause file is ignored after
-2h** (staleness self-heal) — a window that can exceed 2h must schedule a re-`touch` heartbeat at step
-boundaries or split the work; a single touch is never trusted past it. Also name watchdog posture and
+be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartbeat` / `window-close`**
+(the deploy's pause-attribution logic reads these labels from the ledger): `touch
+/run/fabrik-autoheal/pause` on the target before the window, **wait for a `PAUSED` line newer than the
+touch in the healer's log before starting the sensitive step** (an already-in-flight healer tick is not
+retroactively paused), and `rm` the pause after — ordered so the close comes AFTER any rollback the
+window's steps might need. **The pause file is ignored after 2h** (staleness self-heal) — a window that
+can exceed 2h must schedule a re-`touch` heartbeat at step boundaries (each a labeled step) or split the
+work; a single touch is never trusted past it. Also name watchdog posture and
 restart-policy interactions for first boot.
 
 ## Phase 6 — Verification battery (the deploy's exit gate) `[anywhere]` (all surfaces)

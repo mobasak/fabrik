@@ -172,10 +172,11 @@ Only after the md5-verified no-op round:
    concept); the verdict table is titled **Class verdicts**). Its anatomy:
    - the header line + a `## Phase verdicts` section — one verdict line per plan Phase (the per-phase
      adjudication the convergence gate requires);
-   - the class-verdict table — row tokens **CLEAN / FIXED** only, every row carrying its evidence (a
-     pass-time `N/A-<surface>` row is rewritten `CLEAN — N/A-<surface>: <why> + the proving path`; a
-     bare CLEAN names nothing and proves nothing; FIXED/REFUTED are FINDING dispositions — they live in
-     the Pass Ledger and `## Phase verdicts`, not as row verdicts);
+   - the class-verdict table — row tokens **CLEAN / FIXED** (a class whose finding was fixed shows
+     FIXED), every row carrying its evidence; a pass-time `N/A-<surface>` row is rewritten
+     `CLEAN — N/A-<surface>: <why> + the proving path`; a bare CLEAN names nothing and proves nothing.
+     `REFUTED` is a FINDING disposition only — it lives in the Pass Ledger and `## Phase verdicts`,
+     never as a row token;
    - the Pass Ledger verbatim, the final round reading `found: 0, fixed: 0` (the quiet-pass marker the
      later `EXECUTED` flip is checked against — it appears ONLY on a CONVERGED ending, never in a
      DRAFT/BLOCKED report);
@@ -204,10 +205,11 @@ DEPLOY-PLAN-REVIEW: <plan path> (surface: <vps|mobile|extension|desktop>)
 <the Pass Ledger table, verbatim>
 ## Phase verdicts
 <one line per plan Phase: Phase N — CLEAN | FIXED (n) | REFUTED, with evidence>
-<the Class verdicts table — CLEAN/FIXED/REFUTED tokens only, evidence per row>
+<the Class verdicts table — CLEAN/FIXED tokens, evidence per row>
 FINDERS: pool <models×n> + native Opus ×<n> per round
 <CONVERGED endings only: Final round: found: 0, fixed: 0>
-<fenced final_gate.py --check --json run → "status": "success">
+<fenced final_gate.py --check --json run (b) → "status": "success" — this is the fence the artifact embeds>
+<fenced final_gate.py --check --json run (e) → "status": "success" — session print only, proves the staged artifact passes; NOT persisted (the artifact is already written when (e) runs)>
 ## BLOCKED: <axis + the 3 attempts | none>
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```
