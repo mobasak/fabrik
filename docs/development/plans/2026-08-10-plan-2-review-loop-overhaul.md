@@ -1,6 +1,6 @@
 # Plan — Review-loop overhaul: converge in ~3 rounds instead of ~8, without losing recall
 
-Status: DRAFT
+Status: CONVERGED
 Owner: hub (command corpus fragments + enforcement)
 Operator directive (verbatim, 2026-08-10): "we need to be faster, make less mistakes" · "i dont want
 to lose functionality. also i dont want to lose time too." · "first review pass must be perfect"
@@ -64,7 +64,8 @@ the others; Phase B is one coherent semantic change to the loop contract (splitt
 fragments would risk exactly the divergence the fragment scoping exists to prevent); Phase C is the
 enforcement backstop. Shape triggers re-checked at review pass 4 — the emit-time length projection
 did NOT survive review: the file has grown past the ~300-line monolith projection (506 lines at
-that pass) by absorbing review evidence and provenance, not additional work units. The other two
+that pass — 505 by `git cat-file -p <pre-wave-commit> | wc -l`, the probed figure) by absorbing
+review evidence and provenance, not additional work units. The other two
 triggers stay inside budget: phases = 3 (not >3), and the largest phase READ set measures 46,447
 bytes vs the 262,144 `READ_BUDGET_BYTES` budget (probe: `find <Phase-B files> -exec cat {} + |
 wc -c`). Adjudication: the monolith STANDS — the line trigger is an emit-time projection heuristic
@@ -194,9 +195,10 @@ Steps:
 Validation gate A (runnable):
 `python -c "import re,sys; t=open('docs/development/reviews/2026-08-10-finder-shape-ab.md').read();
 arms=re.findall(r'arm ([123]).*?raised[:= ]+(\d+).*?real[:= ]+(\d+).*?wall[-_ ]?clock[:= ]+(\d+)', t, re.S|re.I);
-sys.exit(0 if len(arms)==3 and 'CHOSEN SHAPE:' in t else 1)"` → exit 0.
-Expected: three arm rows each carrying raised/real/wall-clock, and a line beginning `CHOSEN SHAPE:`
-naming the shape and the arm that justifies it.
+sys.exit(0 if len(arms)==3 and 'CHOSEN SHAPE:' in t and re.search(r'recall', t, re.I) else 1)"` → exit 0.
+Expected: three arm rows each carrying raised/real/wall-clock, a recall figure per arm (step 5's
+mandate — the gate asserts the word appears; the reviewer verifies the numbers), and a line
+beginning `CHOSEN SHAPE:` naming the shape and the arm that justifies it.
 
 **Behavior Contract (Phase A):**
 - **Given** three arms, **When** the A/B runs, **Then** each arm's precision and recall are
@@ -515,7 +517,7 @@ Behavior Contract + Global Constraints (the 14th guarantee, written to preserve 
 Phase B step 3 + Behavior Contract. Each lands in a file already in File Scope; File Scope is
 unchanged by the additions.
 
-Review state: converging under `/fabrik-plan-review` — pass 1 (8 edits) · pass 2 (11 native
+Review state: CONVERGED under `/fabrik-plan-review`, six passes — pass 1 (8 edits) · pass 2 (11 native
 findings absorbed, incl. the owned_paths reversal and the true fragment counts) · pass 3 (the three
 additions + this pass's own catches: the stale 9/2/5 counts in three places, the drifted mutation
 quote, the stale 62-pack internal citations, the lock pre-check resolved with proof) · pass 4 (an
@@ -523,9 +525,11 @@ independent NON-AUTHOR grounder — the role-separation rule applied to this pla
 returned 3 CONFIRMED + 4 PLAUSIBLE, merged with the orchestrator's 5: the `agent.py:632-636`
 off-by-one, the `f598364c` finding-count, the mutation-cap test's missing File-Scope home, the
 probe-less rework table, the false under-300-lines shape claim, and role-separation's
-finder-vs-adjudicator precision). The numbered
-Pass Ledger with md5s lives in the review report per `term-edit.md:7`; Status flips to CONVERGED
-only at an edit-free, md5-verified pass.
+finder-vs-adjudicator precision) · pass 5 (non-author verify of the pass-4 wave: 1 minor defect —
+the 505/506 line figure — plus the latent gate-A recall gap, both fixed) · pass 6 (confirming full
+linear re-read: zero candidates, zero edits, md5 stable). The numbered
+Pass Ledger with md5s lives in the review report per `term-edit.md:7`; the Status flipped on
+pass 6's edit-free, md5-verified no-op.
 
 ## Residual unknowns
 
