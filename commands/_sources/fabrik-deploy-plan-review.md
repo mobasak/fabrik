@@ -60,37 +60,33 @@ so rather than converging on unread sources.
 The plan under review is `$ARGUMENTS`. Read its declared **surface** (vps · mobile · extension ·
 desktop — authored by `/fabrik-deploy-plan` Phase 0); the checklist below is conditioned on it.
 
-**Status guard — this command's PRODUCT is the `DRAFT → CONVERGED` flip.** The only other writes it
-may make are the sanctioned flip-BACKS and the recovery below, each re-entering the loop at `DRAFT`:
+**Status guard — this command's PRODUCT is the `DRAFT → CONVERGED` flip.** The plan lifecycle it
+serves is simple by design — every `/fabrik-deploy` dispatch is a FRESH run of a `CONVERGED` plan; a
+halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` again:
 
+- `DRAFT`/`PLANNED` → the normal convergence loop below.
 - `CONVERGED` whose inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in
-  fact), OR carrying an UNADJUDICATED routed-back `⛔` row (the committed evidence `/fabrik-deploy`
-  writes — a console BLOCKED print alone proves nothing later): flip back and converge again.
-  Unchanged inputs AND no unadjudicated row → report already-converged, do not re-run.
-- `IN-PROGRESS` carrying an UNADJUDICATED `⛔ BLOCKED`/`⛔ PLAN-DEFECT` row — or an `↩` row with no
-  following `⛔` (an abandonment that died mid-record) — (a halted or defect-routed deploy sent back
-  by `/fabrik-deploy`; `[ADJUDICATED]` rows are healed history and `⛔ WAIT` rows are transient
-  conditions the deploy self-serves — neither triggers re-entry): flip to `DRAFT` keeping the ledger
-  intact (it is evidence) and converge the AMENDED plan.
-- `IN-PROGRESS` with an EMPTY ledger → a mid-flip death artifact, not a deploy: flip back to
-  `CONVERGED` (a RECOVERY, recorded in the report — no convergence loop owed).
+  fact), or carrying a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded at pre-flight (the committed
+  evidence — a console BLOCKED print alone proves nothing later): flip back to `DRAFT` and converge
+  again. Unchanged inputs AND no unadjudicated defect row → report already-converged, do not re-run.
+- `BLOCKED` — a halted deploy: the **RE-ENTRY AUDIT** below, then flip to `DRAFT`, amend, converge.
+- `IN-PROGRESS` → a deploy is live, or its session died mid-run: **refuse unless the operator confirms
+  THIS turn that it is dead**; on that confirmation, audit the ledger (what completed, what the halt
+  protocol never got to unwind), flip `IN-PROGRESS → BLOCKED — <audited state>` (committed, with the
+  marker), and proceed as the BLOCKED case.
+- `EXECUTED` → refuse: consumed — a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip
+  `EXECUTED` back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
 
-**Re-entry duties — ONE set, owed by EVERY flip-back and by converging ANY ledger-bearing `DRAFT`
-(trigger-independent, so a death after a bare flip-back cannot strand them):** preserve retained
-steps' IDs verbatim (step IDs are the ledger's join keys — renumbering orphans every existing row;
-new steps get NEW ids); re-adjudicate every `✅ KEEP` against EVERYTHING that changed — the inputs AND
-this re-entry's amendment/rollbacks — marking `KEEP` (still valid) or `REDO` (invalidated); never
-`KEEP` a step whose latest row is `↩ ROLLED-BACK` (it is already in the run set); annotate EVERY
-unadjudicated `⛔` row consumed with `[ADJUDICATED <date> — closed by this re-convergence]` (kept,
-never deleted). The flip-back and the adjudication annotations commit IMMEDIATELY (one commit — the
-durable record); the KEEP/REDO finalization rides the re-convergence's own flip commit (Phase 3) —
-and because the duties bind any ledger-bearing `DRAFT`, a session death between the two commits
-strands nothing: the next invocation resumes the duty.
-
-Pointed at `EXECUTED` — or an `IN-PROGRESS` with no UNADJUDICATED `⛔` row (a deploy still running —
-healed-over rows from prior re-entries do not change that) → **refuse**: the
-deploy ran (or is live); a new deploy needs a NEW plan via `/fabrik-deploy-plan`. Never flip `EXECUTED`
-back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included.
+**RE-ENTRY AUDIT (the BLOCKED case's extra duty — the ledger is evidence, not a resume protocol):**
+read every `✅` and `⛔` row plus the `⛔` row's `<rollback taken>` field, establish what actually
+survived on the target (re-probe, never recall), and make the AMENDED runbook account for every
+survivor EXPLICITLY — a completed migration that was not rolled back is dropped or replaced by a
+guard-checked no-op step; a half-applied step gets a cleanup step; a `NON-RERUNNABLE` step that ran
+keeps its guard pre-check so the fresh run skips it. Annotate every consumed `⛔` row
+`[ADJUDICATED <date> — closed by this re-convergence]` (kept, never deleted). The next dispatch runs
+the amended runbook FROM ITS FIRST STEP — nothing is resumed, so anything the amendment fails to
+account for WILL re-run: that is exactly what this audit exists to prevent, and the convergence loop's
+finders attack the amended runbook on precisely this axis.
 
 **Gate-required shape (name the RIGHT gate for each demand):** `check_plan_quality.py`'s modern pillars
 are `## Context Ledger` + `## File Scope` + `## Evidence` (WARN while `DRAFT`, ERROR from `CONVERGED`);

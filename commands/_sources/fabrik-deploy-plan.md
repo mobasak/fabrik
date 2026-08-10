@@ -176,7 +176,7 @@ judgment call.
 Any step that leaves a container legitimately unhealthy longer than its healthcheck tolerates (migrations,
 module init — the B3 class: autoheal's worst-case time-to-unhealthy is minutes, an init can be 8–10) MUST
 be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartbeat` / `window-close`**
-(the labels let a resume locate the bracket), **authored in their EXECUTABLE root form** — the dir is
+(the labels make the bracket auditable — the review's re-entry audit and the halt protocol key on them), **authored in their EXECUTABLE root form** — the dir is
 root-owned and the fleet SSH user is not root, and the alias for `target_vps: vps1` is `vps` (no
 `vps1` alias exists; `vps2`/`vps3` literal) — so the open and every heartbeat step are
 `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal && touch /run/fabrik-autoheal/pause &&
