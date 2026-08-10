@@ -168,6 +168,13 @@ files` returns empty.
 
 ## Phase B — Wiring (NEXT map + § Pipeline chains + docs)
 
+**✅ EXECUTED 2026-08-11 (reviewed HEAD fde0cc1f)** — all five wiring edits + queued gate-A items
+landed (98ffdf51) with three review fix-waves (d57cad63, 01bf7861, fde0cc1f); review gate B closed
+at round 4 (pool quiet + native CLEAN; finding trajectory 5→4→2→0). Validation gate B green:
+dict↔body parity 4/4 verbatim · both CLAUDE.md copies byte-identical on every shared edited line ·
+`--check` drift = exactly the designed pre-render set · `check_doc_sync` exit 0 · router behavioral
+table 46/46 · fleet distribution byte-verified on three project copies (sync forced ×4).
+
 1. `assemble_commands.py` NEXT map adds:
    - `"fabrik-deploy-plan": "/fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted."`
    - `"fabrik-deploy-plan-review": "Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>."`
