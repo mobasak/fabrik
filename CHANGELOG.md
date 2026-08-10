@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Per-family amortized Claude cost (opus/sonnet/haiku/fable) in derive_cost (2026-08-10)
+
+- `derive_cost.amortized_by_family()` + sidecar field `amortized_per_mtok_by_family`: the pooled
+  subscription $ allocated across model families by cache-aware API-equivalent VALUE (never token
+  share, which would price every family identically) — per-family rate = effective list rate x one
+  global discount ratio. `<synthetic>`/unpriced rows excluded; fail-soft to {}. 4 red-first tests.
+  First live read: fable $0.0108/M, haiku $0.0083/M, opus $0.0055/M, sonnet $0.0032/M — cache-read-
+  dominated opus sessions draw LESS per token than output-heavy haiku one-shots.
+
 ### Fixed — Resume-mesh review Rounds 2-3: reproduced dup-park swallow, compact proof-of-loss, spawn dedup, lockless anonymous mode (2026-08-09)
 
 - Round 2 (break-the-fixes + fresh-eyes natives): recheck rings epoch-blind + dup-park-before-

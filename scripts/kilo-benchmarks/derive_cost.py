@@ -1,4 +1,4 @@
-# AFTER-EDIT: claude_price_ratios.json (the ① price source) | none else
+# AFTER-EDIT: claude_price_ratios.json (the ① price source) · tests/test_derive_cost_by_family.py
 """Three-number subscription-run cost model for claude -p benchmark scoring.
 
 ① api_equiv     — cache-aware API-equivalent USD (the RANKING axis), from a run's raw per-type tokens at
@@ -140,6 +140,82 @@ def amortized_rate(
     return (_SUBSCRIPTION_USD_PER_ACCOUNT * n_accounts) / total
 
 
+_FAMILIES = ("opus", "sonnet", "haiku", "fable")
+
+
+def _family(model_key: str) -> str | None:
+    """claude-opus-4-8 → opus; '<synthetic>'/unknown → None (excluded from family math)."""
+    low = model_key.lower()
+    for f in _FAMILIES:
+        if f in low:
+            return f
+    return None
+
+
+def amortized_by_family(
+    usage_history_path: str | Path | None = None,
+    accounts_dir: str | Path | None = None,
+    ratios_path: str | Path | None = None,
+) -> dict[str, float]:
+    """② split by model family: per-family amortized $/Mtok over the same 30-day window.
+
+    Allocation rule (the only meaningful one for a pooled subscription): allocate the
+    subscription $ across families by API-EQUIVALENT VALUE (cache-aware list prices), never
+    by raw token share — token share would price every family identically. Collapses to:
+    family_rate = family_effective_list_rate × discount, where
+    discount = (subscription $ × accounts) ÷ Σ family api-equiv $. `<synthetic>` and
+    unpriced model rows are excluded from BOTH numerator and denominator. Fail-soft: no
+    priced usage in the window → {} (callers treat as unavailable, mirroring the anchor
+    fallback of amortized_rate)."""
+    r = _load_ratios(ratios_path)
+    c = r["_cache"]
+    ad = Path(accounts_dir or _MANAGER_ACCOUNTS)
+    try:
+        n_accounts = sum(1 for p in ad.iterdir() if p.is_dir() and not p.name.startswith("."))
+    except OSError:
+        n_accounts = 1
+    n_accounts = max(1, n_accounts)
+    value: dict[str, float] = {}  # family -> api-equiv USD in window
+    raw: dict[str, int] = {}  # family -> raw tokens in window
+    try:
+        d = json.loads(Path(usage_history_path or _USAGE_HISTORY).read_text(encoding="utf-8"))
+        days = d.get("days") or {}
+        today_iso = datetime.date.today().isoformat()
+        cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
+        for dk in (k for k in days if _is_iso_date(k) and cutoff <= k <= today_iso):
+            for model, m in (days[dk].get("byModel") or {}).items():
+                fam = _family(str(model))
+                if fam is None or f"claude-code/{fam}" not in r:
+                    continue
+                p = r[f"claude-code/{fam}"]
+                inp = int(m.get("input", 0) or 0)
+                out = int(m.get("output", 0) or 0)
+                cr = int(m.get("cacheRead", 0) or 0)
+                cc = int(m.get("cacheCreation", 0) or 0)
+                value[fam] = (
+                    value.get(fam, 0.0)
+                    + (
+                        inp * p["in"]
+                        + out * p["out"]
+                        + cr * p["in"] * c["read"]
+                        + cc * p["in"] * c["write_5m"]
+                    )
+                    / 1_000_000.0
+                )
+                raw[fam] = raw.get(fam, 0) + inp + out + cr + cc
+    except (OSError, ValueError, TypeError, AttributeError):
+        return {}
+    total_value = sum(value.values())
+    if total_value <= 0:
+        return {}
+    discount = (_SUBSCRIPTION_USD_PER_ACCOUNT * n_accounts) / total_value
+    return {
+        fam: (value[fam] / raw[fam]) * 1_000_000.0 * discount
+        for fam in value
+        if raw.get(fam, 0) > 0
+    }
+
+
 def quota_snapshot(statusline_path: str | Path | None = None) -> float:
     """③ Weekly-quota proxy: statusline rateLimits.sevenDay.usedPercent (caller deltas before/after)."""
     try:
@@ -174,6 +250,7 @@ def write_cost_sidecar(
     built = (when or datetime.datetime.now()).isoformat(timespec="seconds")
     data = {
         "amortized_per_mtok": amortized_rate() * 1_000_000.0,
+        "amortized_per_mtok_by_family": amortized_by_family(),
         "quota_draw_pct": max(0.0, quota_after - quota_before),
         "built_at": built,
     }

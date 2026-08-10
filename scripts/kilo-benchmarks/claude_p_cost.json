@@ -1,5 +1,11 @@
 {
-  "amortized_per_mtok": 0.005232013220840759,
+  "amortized_per_mtok": 0.006310425076381708,
+  "amortized_per_mtok_by_family": {
+    "opus": 0.005489476973706957,
+    "haiku": 0.008287347458697648,
+    "fable": 0.010777126674046929,
+    "sonnet": 0.0031955059617919837
+  },
   "quota_draw_pct": 0.0,
-  "built_at": "2026-08-04T18:35:45"
+  "built_at": "2026-08-10T07:17:23"
 }
