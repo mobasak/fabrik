@@ -85,7 +85,9 @@ TRIGGER EN/TR + SKIP + `Stage:` · `argument-hint:` · ⚠ Termination contract 
 numbered phases · lean NEXT line at the end). Target scale 130-240 lines each (the largest exemplar is 239L). Content contracts:
 
 **A1 `/fabrik-deploy-plan`** (Stage: 6-release · trigger EN "plan the deployment", TR "dağıtımı planla")
-Produces `docs/development/plans/YYYY-MM-DD-deploy-<service>.md`, `Status: DRAFT`.
+Produces `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md`, `Status: DRAFT`. (Amended at
+execution, gate-proven: the originally-planned `-deploy-` stem fails `check_plans.py::PLAN_NAME_NEW_RE`
+and the doc-sprawl allowlist — both require `-plan-`; the `-plan-deploy-` stem passes both.)
 **Phase 0 — SURFACE RESOLUTION (universality contract):** read `project.yaml::type` against the
 live registry (`scaffold.py::SCAFFOLD_TYPES`, 12 types — grounded 2026-08-10) and dispatch:
 VPS-deployed types (python-api, python-api-gpu, node-api, file-api, file-worker, saas-skeleton,
