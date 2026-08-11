@@ -392,6 +392,24 @@ _OBLIGATION_RE = re.compile(
     re.I,
 )
 _NEGATED_BEFORE_RE = re.compile(r"\b(?:no|none|nothing|zero)\b[\s\w-]{0,32}$", re.I)
+# Assertive CONTINUATION CLAIM — the 3rd live stall shape (brand-identiy-creator,
+# 2026-08-11): "Continuing autonomously." then the turn ends. A present-progressive
+# claim of ongoing action IS a promise — the turn's end falsifies it. Precision:
+# the gerund needs an autonomy qualifier or a loop-unit object ("with round 7"),
+# OR stands as its own terminal sentence; a plain conversational gerund
+# ("continuing our discussion, …") matches neither branch.
+_CONTINUATION_CLAIM_RE = re.compile(
+    r"\b(?:continuing|proceeding|resuming)\s+(?:autonomously|now|immediately|unprompted)\b"
+    r"|\b(?:continuing|proceeding|resuming)\s+with\s+(?:round|pass|phase)\b"
+    r"|(?:^|[.!?]\s+)(?:continuing|proceeding|resuming)\s*[.!]\s*$",
+    re.I | re.M,
+)
+# Structural checkpoint-stall — a NEXT: footer naming a NUMBERED own-loop unit
+# ("NEXT: round 7 …"). The loop contracts forbid handing numbered rounds/passes
+# to the operator, so such a line is own-session work by construction; emitting
+# it undispatched is the checkpoint-stall the FINAL OUTPUT contract names.
+# Same-line human-gate wording exempts via the shared _line_exempt pass.
+_NEXT_ROUND_RE = re.compile(r"^\s*NEXT:[^\n]*?\b(?:round|pass)\s*#?\d+", re.I | re.M)
 # Legitimate stops. Two scopes (review finding: the mandated FINAL OUTPUT
 # vocabulary "NEXT: operator decision: …" appears in nearly every operator-gated
 # task end — a FULL-message scan let that routine line disarm genuine promises
@@ -574,6 +592,15 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
             if not any(_is_dispatch(t) for t in tools):
                 return "promise", m.group(0)
             break  # obligation named AND work dispatched this turn — kept
+        # Continuation claims + NEXT:-round footers share the obligation loop's
+        # protections; neither needs the negation guard (no negated form exists).
+        for pattern in (_CONTINUATION_CLAIM_RE, _NEXT_ROUND_RE):
+            for m in pattern.finditer(tail):
+                if _quoted(m) or _in_quote(m.start()) or _line_exempt(m):
+                    continue
+                if not any(_is_dispatch(t) for t in tools):
+                    return "promise", m.group(0).strip()
+                break  # claim exists but work was dispatched this turn — kept
         for m in _PERMISSION_RE.finditer(tail):
             if _quoted(m) or _line_exempt(m):
                 continue

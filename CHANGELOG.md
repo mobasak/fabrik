@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — promise-guard catches continuation-claim and NEXT:-round checkpoint stalls (2026-08-11)
+
+Live escape (brand-identiy-creator): a review agent ended its turn on "NEXT: round 7 on the r6
+diff → … Continuing autonomously." — zero guard patterns matched (no first-person future verb, no
+passive obligation). Two new pattern classes in `.claude/hooks/final_gate_stop.py`, both behind
+the existing quote/exemption/dispatch-kept protections: an assertive continuation claim
+("Continuing autonomously", terminal "Continuing.") is a promise the turn's end falsifies; and a
+`NEXT:` footer naming a NUMBERED loop unit ("NEXT: round 7 …") is the structural checkpoint-stall
+— own-session work by construction, blocked unless dispatched or operator-gated on the same line.
+Seven tests incl. the verbatim live message, red-first; fleet-distributed via governance-sync.
+
 ### Added — Deploy command triad: /fabrik-deploy-plan → /fabrik-deploy-plan-review → /fabrik-deploy (2026-08-11)
 
 Three new pipeline commands close the gap between `/fabrik-release`'s Gate-2 handoff and

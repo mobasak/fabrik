@@ -651,6 +651,74 @@ def test_negated_obligation_is_allowed(tmp_path: Path) -> None:
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
+# Live incident (brand-identiy-creator, 2026-08-11 — 3rd shape of the stall
+# class): the agent CLAIMED continuation in an assertive gerund — no first-person
+# future verb, no passive obligation — and ended the turn. "Continuing
+# autonomously." is a promise by definition: it asserts ongoing action at the
+# exact moment action stops. The same message also carries the structural form:
+# a NEXT: footer naming a NUMBERED own-loop round.
+_BRAND_IDENTITY_CONTINUING_FINAL = (
+    "Round 6 findings fixed and committed.\n\n"
+    "NEXT: round 7 on the r6 diff → a clean round closes Phase B → Phase C "
+    "(C1–C20). Continuing autonomously."
+)
+
+
+def test_continuation_claim_without_dispatch_is_a_stall(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(_BRAND_IDENTITY_CONTINUING_FINAL))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_continuation_claim_with_dispatch_is_kept(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_tool("Agent", prompt="round 7 finders"),
+          _asst_text(_BRAND_IDENTITY_CONTINUING_FINAL))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_next_round_footer_alone_is_a_stall(tmp_path: Path) -> None:
+    # The structural form with NO continuation gerund at all.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "Round 6 committed, gates green.\n\nNEXT: round 7 on the r6 diff — a clean "
+        "round closes Phase B."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_next_round_footer_operator_gated_is_exempt(tmp_path: Path) -> None:
+    # Same-line human-gate wording exempts, exactly as for the other patterns.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "Round 6 committed.\n\nNEXT: round 7 — operator decision: resume or reshape."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_terminal_bare_continuing_is_a_stall(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Fixes applied, gate green. Continuing."))
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "promise"
+
+
+def test_conversational_continuing_is_not_a_stall(tmp_path: Path) -> None:
+    # Plain gerund with neither qualifier nor terminal position — conversational.
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        "Continuing our earlier discussion of the tradeoffs, option B is better "
+        "because it keeps the contract in one file."))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_quoted_continuation_claim_is_not_a_stall(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text(
+        'The guard now also catches "Continuing autonomously." as a stall shape.'))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
 def test_obligation_quoted_mid_sentence_is_exempt(tmp_path: Path) -> None:
     # The quote span, not just the char before the noun: a report QUOTING a
     # stall snippet is discussing it, not making it.
