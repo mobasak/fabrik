@@ -77,11 +77,11 @@ The pool is a **rule, not a roster: `pick_models(task_type)` returns the flywhee
 ## Parallelism — the two shapes (a fan-out that is neither SILENTLY SERIALIZES)
 
 `run_agents` parallelizes a fan-out in **exactly two shapes**; anything else collapses to one serial group — an
-**empty `owned_paths` overlaps everything** (`workspace.py:321` `unrestricted = not owned[i] or not owned[j]`) and
-every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:430`):
+**empty `owned_paths` overlaps everything** (`workspace.py:441` `unrestricted = not owned[i] or not owned[j]`, inside `disjoint()` at `workspace.py:419`) and
+every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:632-636`):
 
 1. **Read-only fan-out (finders / grounders / auditors / reconcilers) → `tools_enabled=False`.** **The
-   parallelism trigger is `tools_enabled=False` ALONE** — every such worker becomes its own group (`agent.py:435`
+   parallelism trigger is `tools_enabled=False` ALONE** — every such worker becomes its own group (`agent.py:636`
    — `groups += [{i} … if not s.tools_enabled]`) → **all parallel, regardless of `owned_paths`**. This is the
    DEFAULT for every gradeable read-only fan-out. **Separately (orthogonal to parallelism — a *don't-get-refused*
    requirement, NOT a shape condition):** a single-shot read-only worker on a **grounded** `task_type`
@@ -92,6 +92,16 @@ every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:430`
    `tools_enabled=True` + DISJOINT `owned_paths` (one unit's files each).** Disjoint globs → parallel worktrees.
    ⚠️ **`tools_enabled=True` + empty/overlapping `owned_paths` → one group → SERIAL — the #1 dispatch trap** (looks
    parallel, runs serial). If a read-only fan-out needs file reads, prefer shape 1 (inline) over shape 2.
+
+## Role separation (review loops) — who hunts LAST is never the author
+
+The loop-closing round's **FINDER pass** runs in a context that did **not author the artifact** — a
+dispatched fresh subagent (pool or native), or a post-compaction session re-grounding from disk. An
+author's own quiet round never closes a review loop: the context that shaped the artifact is the one
+least able to see its gaps (an author re-reads intentions, not text). **Adjudication —
+decide/refute/merge — stays with the orchestrator** (CLAUDE.md § Subagent fan-out: "the
+decide/refute/merge you own"); this rule governs who HUNTS last, never who adjudicates. The loop
+fragments' "a fresh, independent round" defers to THIS definition of independent.
 
 **Corollaries (verified against the module):** `pick_models(task_type, n=<K>)` for a K-model fan-out — the default
 is **`n=1`**, so you MUST pass `n` to get more than one model. Parallel groups run **`max_concurrency` (default 4)**

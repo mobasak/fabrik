@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review-loop contract: wide→scoped→wide rounds, stall breaker, probe duty, role separation (2026-08-11)
+
+The two loop fragments (`term-coverage.md`, `term-edit.md`) now define the round SHAPE for
+diff-surface reviews: pass 1 wide (full class partition), middle passes scoped to the fix diff +
+callers/callees, closing pass a FULL fresh sweep (net 1 wide + k scoped + 1 wide — the recall
+mechanism survives; certification gauntlets' discovery-until-dry explicitly carved out). New
+mechanical `new:` ledger field feeds the stall circuit-breaker (3 consecutive non-decreasing
+new-candidate rounds → `## BLOCKED: NON-CONVERGENCE` — measured non-progress is a verdict, not a
+reason for round N+1; not a ceiling). term-edit adds the probe duty (pass 1 re-runs embedded
+`$`-fenced probes; a load-bearing claim with no probe is a standing finding). The 62 pack gains
+§ Role separation (the closing round's FINDERS are non-author; adjudication stays with the
+orchestrator) and its § Parallelism internal citations are refreshed to the live mechanisms
+(`workspace.py:419/:441`, `agent.py:632-636`). Phase A's controlled A/B chose the read-only
+finder status quo — no dispatch-shape change. Corpus re-rendered box-wide; consumer counts
+verified 4/8/12; all 14 no-loss guarantees present in the rendered output.
+
 ### Fixed — promise-guard catches continuation-claim and NEXT:-round checkpoint stalls (2026-08-11)
 
 Live escape (brand-identiy-creator): a review agent ended its turn on "NEXT: round 7 on the r6
