@@ -153,7 +153,7 @@ empty/overlapping WRITE scope, and the fix is a per-finder report path, not aban
 - 12-Factor: N/A to prose fragments; the enforcement scripts add no logfile, no daemon, no host
   ports, no backing-service substitution.
 
-## Phase A — Measure before changing: the finder-shape A/B
+## Phase A — Measure before changing: the finder-shape A/B — ✅ EXECUTED 2026-08-11 (see decision record)
 
 **Why first:** the only leg of the design still unproven. This session's evidence (pool 1/7 real vs
 native 15/18) is n=1 and confounded — different models, different brief depth, AND different tool
