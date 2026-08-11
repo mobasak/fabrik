@@ -33,14 +33,19 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   `ls`/`cat`. `<repo>` = the `/opt` directory name (`fabrik`, `tryton-crm`, …). The root is
   env-overridable (`FABRIK_MAIL_ROOT`, default `/opt/fabrik-mail`) per 12-Factor III.
 - **Message = one `.md` file**: YAML frontmatter
-  `id`, `from` (repo), `to` (repo), `ts` (ISO-8601 UTC), `re` (parent id | null),
+  `id`, `from` (repo), `to` (repo), `ts` (ISO-8601 UTC), `re` (parent id | null — an ADVISORY
+  threading hint, never validated: a dangling/unknown `re:` is harmless, it just doesn't link),
   `kind` (`request|finding|relay|reply|upstream-feedback`), `ack` (`required|no`) — then a markdown
   body. Filename = `<id>.md`. **`id` is a ULID, hand-rolled in ~10 stdlib lines** (48-bit
   `time.time_ns()`-ms + 80 bits `os.urandom`, encoded MSB-first over a Crockford-base32 alphabet map
-  `0123456789ABCDEFGHJKMNPQRSTVWXYZ` — NOT `base64.b32encode` (that is RFC-4648 `A–Z2–7`); both sort
-  lexicographically, the map is ~5 lines; sortable AND collision-safe; NO
-  new dependency, `python-ulid` is NOT pulled in, keeping the "stdlib-only" promise; "timestamp-only
-  ids" are BANNED — two same-ms sends would collide). **Time base:** all v1 senders run on the ONE
+  `0123456789ABCDEFGHJKMNPQRSTVWXYZ` (ASCII-ascending, so lexical order == value order — the map is
+  ~5 lines). **Do NOT use `base64.b32encode`:** its RFC-4648 alphabet `A–Z2–7` is NOT
+  order-preserving — the digits `2–7` (ASCII 50–55) encode the HIGH values 26–31 yet sort BEFORE
+  `A` (ASCII 65), so a b32-encoded id does not sort by value and the "sortable" ULID guarantee
+  breaks (proven empirically this review). The Crockford map is exactly why the id must be
+  hand-rolled — it is sortable AND collision-safe with NO new dependency (`python-ulid` NOT pulled
+  in, keeping the "stdlib-only" promise); "timestamp-only ids" are BANNED — two same-ms sends would
+  collide. **Time base:** all v1 senders run on the ONE
   WSL box (hub + all `/opt` projects), so a single monotonic-ish clock orders ids; cross-host vps
   senders are out of scope v1 (§ Decisions), so cross-host clock skew doesn't arise.
   **`ack` default is per kind:** `request` and `upstream-feedback` → `ack: required`; `finding`,
@@ -264,14 +269,17 @@ Ordered so no channel runs half-live:
    sandbox (`ProtectSystem=full` leaves `/opt` writable, so no `ReadWritePaths` edit is needed, but
    the plan author verifies) permit the mail root), (d)
    `scripts/hooks/check_upstream_feedback.py` (fabrik-lib's own surfacing hook → same redirect).
-   The surfaces move TOGETHER so old and new never run in parallel.
+   The surfaces move TOGETHER (one atomic fabrik-lib change) so old and new never run in parallel —
+   and the change RESTARTS the systemd unit (`systemctl --user`/`sudo systemctl` per its install)
+   after editing the watcher, or the old inotify target keeps running until reboot.
 
 ## Shape / infra implications
 
 Not a deployed service: no scaffold type, no `specs/services/` spec, no container, no port, no
-Traefik — host tooling in the hub repo + the fabrik-lib-owned edits above. Mail-root dirs are
-created by `mail.py` at first send with a fixed mode (`0755` dir, group-writable not needed on a
-single-user box) — but ONLY for a recipient that passed validation (no phantom dirs). 12-Factor:
+Traefik — host tooling in the hub repo + the fabrik-lib-owned edits above. The mail ROOT
+`/opt/fabrik-mail/` is build-provisioned once (Build inventory item 0, NOT lazily); the per-repo
+`<repo>/{inbox,archive}` dirs under it are created lazily by `mail.py` at first send (`0755`) — but
+ONLY for a recipient that passed validation (no phantom dirs). 12-Factor:
 III (env-overridable root), XI (hook/helper stdout only, no logfiles). `PORTS.md`/compose untouched.
 
 ## Constraints digest (rule-grounding gate — the rows that bind this scope)
