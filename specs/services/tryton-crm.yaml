@@ -98,6 +98,15 @@ resources:
   # ⚠ trytond MUST stay single-worker (project-measured 2026-08-09: 11 passed @ 1 worker,
   # 4 failed @ 3 — per-process _get_companies_cache breaks company-rule coherence).
   # NO capacity-tuning pass may add gunicorn workers to the trytond service.
+# ⚠ monitoring.target REQUIRED for this stack (deploy-plan-review round 6): with no block, the
+# saas-skeleton registrar branch aims the scrape at `tryton-crm-api:8000` — a service that does NOT
+# exist in this compose (keys: tryton-crm/gotenberg/trytond/trytond-worker) → `up` 0 forever. The
+# bridge serves /metrics on port 8000 at fabrik-net DNS `tryton-crm` (main.py:53). An explicit
+# target always wins (infrastructure.py:927-932); the job name will be `fabrik-tryton-crm`
+# (drivers/prometheus.py:95,122-123 JOB_PREFIX).
+monitoring:
+  target: tryton-crm:8000
+  scheme: http
 health:
   path: /health
   interval: 30s

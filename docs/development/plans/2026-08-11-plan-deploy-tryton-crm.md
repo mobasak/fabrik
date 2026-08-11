@@ -62,7 +62,7 @@ Mesh addressing: n/a (hub-local — `postgres-main:5432`, never `10.99.0.1`).
 
 - **Shape flags re-verified:** `needs_database: true` — the stack's trytond/worker use the `tryton` DB
   (bridge itself DB-free by Decision F-DB, `specs/services/tryton-crm.yaml:19`); `needs_cache: true` —
-  `pause_state.py` uses Redis (spec `:22`); `exposes_metrics: true` — `GET /metrics` live at
+  `pause_state.py` uses Redis (spec `:21`); `exposes_metrics: true` — `GET /metrics` live at
   `src/tryton_crm/main.py:53`; `is_public: true` + `is_admin_dashboard: false` — tenant self-service
   login must NOT sit behind Authelia (spec `:12-16`); `has_persistent_data: true` — trytond-filestore
   volume (Backrest, Phase 7).
@@ -247,7 +247,7 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    `SecretsManager.get` resolves os.environ → hub `.env` → mint-fresh-never-persist; the hub `.env`
    has no `TRYTOND_ADMIN_PASSWORD` today, so S11 would mint a NEW value and desynchronize the DB
    (set at S6 from the S3 value) from every `.env`. Pin the S3-minted value NOW:
-   `if grep -q '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env; then echo PRE-EXISTING; else mkdir -p backups && cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S) && ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env" >> /opt/fabrik/.env; fi`  # noqa — key-name grep/pipe form, no credential value in this document
+   `if grep -q '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env; then echo PRE-EXISTING; else mkdir -p /opt/fabrik/backups && cp /opt/fabrik/.env /opt/fabrik/backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S) && ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env" >> /opt/fabrik/.env; fi`  # noqa — key-name grep/pipe form, no credential value in this document
    (the guard is IN the command — a blind re-run prints `PRE-EXISTING` and appends nothing, so no
    duplicate line is possible).
    Verify (fenced, count only): `grep -c '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env` → `1`, and
@@ -315,7 +315,7 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    script updates the existing login) — safe, but every re-run re-obligates S10; never re-run after
    S11 verified green. Rollback: none needed (an unused new password is inert until propagated).
 10. **S10 — propagate the credential to BOTH .env copies (A5: the PROJECT copy wins from_env).**
-    Command: `mkdir -p backups && cp /opt/tryton-crm/.env backups/tryton-crm.env.backup.$(date +%Y%m%d-%H%M%S) && cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S)` then edit `TRYTOND_RPC_PASSWORD=<PASTE from S9>` in `/opt/tryton-crm/.env` AND `/opt/fabrik/.env` (hub-side files; the runbook v2 line named only the hub copy — the project copy is the one from_env actually reads first, so BOTH are written, project first).
+    Command: `mkdir -p /opt/fabrik/backups && cp /opt/tryton-crm/.env /opt/fabrik/backups/tryton-crm.env.backup.$(date +%Y%m%d-%H%M%S) && cp /opt/fabrik/.env /opt/fabrik/backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S)` then edit `TRYTOND_RPC_PASSWORD=<PASTE from S9>` in `/opt/tryton-crm/.env` AND `/opt/fabrik/.env` (hub-side files; the runbook v2 line named only the hub copy — the project copy is the one from_env actually reads first, so BOTH are written, project first).
     Verify (fenced, masked — `cmp -s`, never `diff`, so a MISMATCH prints nothing rather than both
     credential lines): `for f in /opt/tryton-crm/.env /opt/fabrik/.env; do grep -c "^TRYTOND_RPC_PASSWORD=" $f; done` → `1` `1` and
     `cmp -s <(grep '^TRYTOND_RPC_PASSWORD=' /opt/tryton-crm/.env) <(grep '^TRYTOND_RPC_PASSWORD=' /opt/fabrik/.env) && echo IDENTICAL || echo MISMATCH` → `IDENTICAL`.  # noqa — key-name grep/pipe form, no credential value in this document
@@ -378,7 +378,7 @@ escape for a literal shell pipe — strip the backslash when executing (grep-REG
 | 6 | ACME diagnostics FIRST (ordered BEFORE the TLS probes — a cert-pending state must never be misread as a routing failure) | `ssh vps "sudo docker logs traefik --since 30m 2>&1 \| grep -i 'acme\|cloudflare' \| tail -50"` | no unresolved errors; the wildcard cert issued via the `cloudflare` resolver |
 | 7 | Tenant TLS + login surface (executable form — the interactive GUI login is the operator's Phase-8 first-days smoke, not a battery gate) | `curl -fsSI https://bhdtrade.tojlo.com` then `curl -fsS https://bhdtrade.tojlo.com \| grep -ci 'login\|tryton'` | valid cert (SAN `*.tojlo.com`), 200, login markers ≥ 1 (on FAIL: probe 6's ACME read is already in hand — diagnose from it) |
 | 8 | Same-origin brand route | `curl -fsS https://bhdtrade.tojlo.com/brand/bhdtrade \| head -c 200` | 200, brand payload (`api/brand.py:39`) |
-| 9 | Monitoring green (forms proven live this review) | Gatus API via fabrik-net DNS: `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request,json;d=json.load(urllib.request.urlopen('http://gatus:8080/api/v1/endpoints/statuses',timeout=5));print([(e['name'],e['results'][-1]['success']) for e in d if e['name'] in ('tryton-crm','tryton-crm-tenant-cert')])\""` — prints exactly the two endpoints' (name, success) tuples (the raw payload is ~350KB — a filter, never a slice); Prometheus: `ssh vps "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up{job=\"tryton-crm\"}'"` | both Gatus endpoints success; Prometheus value `"1"` |
+| 9 | Monitoring green (forms proven live this review) | Gatus API via fabrik-net DNS: `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request,json;d=json.load(urllib.request.urlopen('http://gatus:8080/api/v1/endpoints/statuses',timeout=5));print([(e['name'],e['results'][-1]['success']) for e in d if e['name'] in ('tryton-crm','tryton-crm-tenant-cert')])\""` — prints exactly the two endpoints' (name, success) tuples (the raw payload is ~350KB — a filter, never a slice); Prometheus: `ssh vps "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up{job=\"fabrik-tryton-crm\"}'"` — the registrar prefixes every job `fabrik-` (`drivers/prometheus.py:95,122-123`); an empty Gatus `results` list (a just-created S12 endpoint inside its first 5m interval) = not-yet-green, wait one interval — never index it | both Gatus endpoints success; Prometheus value `"1"` |
 
 Any FAIL → the plan's rollback/retry path for the implicated step, else the halt protocol. Never
 report the deploy complete on a partial battery.
@@ -392,7 +392,11 @@ report the deploy complete on a partial battery.
   S3 (`infrastructure.py:688-706`); S12 adds the tenant cert endpoint (M2). Post-deploy: TWO endpoints.
 - **Prometheus:** zero `tryton` scrape jobs today — verified at the REAL path
   `/opt/monitoring/configs/prometheus/prometheus.yml` (`src/fabrik/drivers/prometheus.py:61-62`);
-  the prometheus registrar creates the job at S3 (`exposes_metrics: true + domain set`).
+  the prometheus registrar creates the job at S3 (`exposes_metrics: true + domain set`) as
+  **`fabrik-tryton-crm`** (JOB_PREFIX, `prometheus.py:95,122-123`), scraping the spec's explicit
+  `monitoring.target: tryton-crm:8000` (added by this review, round 6 — WITHOUT it the
+  saas-skeleton branch would target the nonexistent `tryton-crm-api:8000` and `up` would be 0
+  forever, `infrastructure.py:927-932`).
 - **Backrest (M3, corrected narrative re-verified live):** the per-service plan class is vestigial;
   the REAL cover, read from `/opt/backrest/config/config.json` this run: `docker-volumes` plan →
   `/var/lib/docker/volumes` (carries `trytond-filestore`) and `postgres-dumps` → `/opt/backups`
