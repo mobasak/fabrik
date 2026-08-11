@@ -36,7 +36,9 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   `id`, `from` (repo), `to` (repo), `ts` (ISO-8601 UTC), `re` (parent id | null),
   `kind` (`request|finding|relay|reply|upstream-feedback`), `ack` (`required|no`) — then a markdown
   body. Filename = `<id>.md`. **`id` is a ULID, hand-rolled in ~10 stdlib lines** (48-bit
-  `time.time_ns()`-ms + 80 bits `os.urandom`, Crockford base32 — sortable AND collision-safe; NO
+  `time.time_ns()`-ms + 80 bits `os.urandom`, encoded MSB-first over a Crockford-base32 alphabet map
+  `0123456789ABCDEFGHJKMNPQRSTVWXYZ` — NOT `base64.b32encode` (that is RFC-4648 `A–Z2–7`); both sort
+  lexicographically, the map is ~5 lines; sortable AND collision-safe; NO
   new dependency, `python-ulid` is NOT pulled in, keeping the "stdlib-only" promise; "timestamp-only
   ids" are BANNED — two same-ms sends would collide). **Time base:** all v1 senders run on the ONE
   WSL box (hub + all `/opt` projects), so a single monotonic-ish clock orders ids; cross-host vps
@@ -75,19 +77,28 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   [--re <id>] < body` (also `list`, `read`, `ack`, `requeue`, `digest`); the PROTOCOL is the
   tmp-then-exclusive-create rule, so a helper-less writer that follows it is a valid sender, but a
   raw `Write inbox/<id>.md` is a PROTOCOL VIOLATION (non-atomic) — the conventions doc states this.
-- **Recipient validation = live filesystem, not the hub-only discovery code** (closes both the
-  phantom-mailbox hole AND its own reachability trap): a valid `--to` is a `/opt/<name>` that, right
-  now, either (a) is `fabrik` or `fabrik-lib` (the hub + the node — ALWAYS valid, they are the
-  star's center and its first-class node), or (b) is a git working tree carrying a `project.yaml`
-  marker AND is not under `/opt/archived`. This predicate is computable identically hub-side and
-  project-side (pure `os`/`git` on the shared FS) — so the fleet-synced `mail.py` validates the same
-  way everywhere, WITHOUT importing `sync_enforcement_to_projects.py`'s inline discovery (which is
-  hub-only and, critically, EXCLUDES `fabrik`+`fabrik-lib` — reusing it would have refused the two
-  most important recipients; the round-1 "resolve against the sync set" wording was that bug and is
-  retired). An unknown/typo'd/archived `--to` is a loud refusal, no dir created.
+- **Recipient validation = "can this repo actually receive+surface mail?" — the machinery-presence
+  invariant** (supersedes both earlier attempts): a valid `--to` is a `/opt/<name>` that either
+  (a) is `fabrik` or `fabrik-lib` (the star's center + its first-class node — hardcoded valid), or
+  (b) HAS the surfacing hook on disk (`/opt/<name>/.claude/hooks/mail_notify.py` exists). This IS
+  the right question — a repo without the hook is a black hole for mail regardless — and it is a
+  pure `os.path.exists` on the shared FS, computable IDENTICALLY hub- and project-side (no import of
+  the hub-only discovery). It self-corrects: as governance-sync adds/removes a project the hook
+  presence tracks it exactly; an archived repo (no hook, under `/opt/archived`) is naturally
+  rejected; a mid-scaffold repo is rejected until sync gives it the hook (correct — you can't mail a
+  repo that can't yet surface it). This retires BOTH prior wordings and their bugs: round-1's
+  "resolve against the sync set" (which excluded fabrik/fabrik-lib) AND round-2's
+  "git tree with `project.yaml`" (which diverged from the sync set — some synced dirs lack
+  `project.yaml`, so they'd get the machinery yet be un-mailable, breaking the reply-closure to
+  them). An unknown/typo'd/hookless/archived `--to` is a loud refusal, no dir created.
+- **Message size cap:** `send` REFUSES a body over 64 KB (nothing written) — a mail is a pointer, not
+  a payload (large artifacts stay in their repo/at a path the message names). This bounds inbox
+  growth, the injected context, and the `.tmp` write; no multi-MB dump can fill `/opt`.
 - **Malformed / quarantine:** a message whose frontmatter won't parse is never left to nag — the
-  hook skips it (surfaces nothing) and `mail.py` (list/digest) MOVES it to `<repo>/malformed/` with
-  a stderr note, so a buggy sender can't wedge an inbox with an un-ackable `ack: required` file.
+  hook skips it (surfaces nothing) and `mail.py` (list/digest) MOVES it to `<repo>/malformed/`. Since
+  a quarantined file's `ack: required` can't be read, the **digest reports a `N quarantined` count**
+  (a malformed intended-required-ack is otherwise invisible to the unacked predicate) so the operator
+  sees it — mail.py-sent messages always parse, so this only bites raw-writer PROTOCOL violations.
 - **Ack/claim = atomic-by-rename**: `mv inbox/<id>.md archive/<id>.md` then append the ack line
   (`acked-by, ts, disposition`) to the archived file. POSIX guarantees rename atomicity from the
   host's point of view — another process sees the old name or the new, never both
@@ -248,9 +259,12 @@ Ordered so no channel runs half-live:
    reporting surfaces so the old cross-repo-write path is fully retired: (a) every module README
    footer (currently "append to UPSTREAM_FEEDBACK.md"), (b) the fabrik-lib CLAUDE.md heredoc in
    `refresh-governance.sh` (read-every-file duty → read-the-inbox duty), (c)
-   `scripts/upstream_feedback_agent.py` (the inotify watcher → watch the inbox), (d)
+   `scripts/upstream_feedback_agent.py` (the inotify watcher → watch the inbox; **and its systemd
+   unit** `scripts/systemd/fabrik-lib-upstream-feedback.service` — confirm its inotify target +
+   sandbox (`ProtectSystem=full` leaves `/opt` writable, so no `ReadWritePaths` edit is needed, but
+   the plan author verifies) permit the mail root), (d)
    `scripts/hooks/check_upstream_feedback.py` (fabrik-lib's own surfacing hook → same redirect).
-   The four move TOGETHER so old and new never run in parallel.
+   The surfaces move TOGETHER so old and new never run in parallel.
 
 ## Shape / infra implications
 
@@ -280,7 +294,12 @@ III (env-overridable root), XI (hook/helper stdout only, no logfiles). `PORTS.md
   projects in opt and back"; the protocol extends later over the existing SSH paths if wanted.
 - No per-message rate limiting v1 (volume tiny; the digest + human-readable dirs are the guardrail;
   native messaging adds mechanical limits at Layer 2).
-- `<repo>` naming = `/opt` directory name (matches the governance-sync project discovery).
+- `<repo>` naming = `/opt` directory name. (Recipient VALIDITY is the machinery-presence invariant
+  above — has the surfacing hook, or is fabrik/fabrik-lib — NOT an equality with the sync-discovery
+  set; the two nearly coincide but the invariant is what's actually checkable everywhere.)
+- Archive retention: `archive/` is append-only and unbounded by design (a few messages/day → KB/year,
+  and it is the audit trail). A periodic prune (e.g. >180d) is a later add if it ever matters — not
+  built v1.
 
 ## Open / blocking unknowns
 
