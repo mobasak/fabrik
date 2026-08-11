@@ -216,7 +216,10 @@ def _check_lock(lock: dict) -> bool:
         # Any other type (int, dict, …) falls back to the whole window — toward warning,
         # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
         raw_owned = []
-    owned = [str(o) for o in raw_owned]
+    # Empty / slash-only entries are dropped: `[""]` would match NOTHING and silence the
+    # whole window (review finding — false silence); an all-dropped list degrades to the
+    # whole-window fallback, toward warning.
+    owned = [str(o) for o in raw_owned if str(o).strip().strip("/")]
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)
     if owned:  # a lock without owned_paths falls back to the whole window

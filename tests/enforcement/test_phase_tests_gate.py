@@ -337,6 +337,22 @@ def test_hostile_lock_field_types_isolated_per_lock(tmp_path: Path) -> None:
     assert "skipping malformed lock" in out, out
 
 
+def test_empty_string_owned_entry_does_not_silence(tmp_path: Path) -> None:
+    # Review finding: `"owned_paths": [""]` matched nothing → empty window → false SILENCE.
+    # Empty entries drop; an all-empty list degrades to the whole-window fallback (WARN).
+    repo, _ = _repo(tmp_path)
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = [""]
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped, no tests, empty-string owned entry")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
 def test_non_list_owned_paths_falls_back_to_whole_window(tmp_path: Path) -> None:
     # An int owned_paths must degrade toward WARNING (whole-window fallback), never toward
     # silence or a run-wide abort.
