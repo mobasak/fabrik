@@ -18,7 +18,9 @@ operator can see unacked traffic — with zero always-on infrastructure.
 **Transport/topology/protocol** (the three decisions the field's current guidance names —
 [Inter-Agent Communication: A2A, MCP & Buses (2026)](https://www.taskade.com/blog/inter-agent-communication-patterns),
 fetched 2026-08-11): transport = the shared filesystem (all agents live on ONE box — the hard
-problem is pre-solved); topology = star, hub↔project only; protocol = durable async mailbox files,
+problem is pre-solved); topology = star — hub ↔ {projects, **fabrik-lib**} (fabrik-lib is a
+first-class node: its own AI, its own mailbox `/opt/fabrik-mail/fabrik-lib/`); protocol = durable
+async mailbox files,
 because agent sessions are EPHEMERAL — "thread state serialized to a durable store keyed on
 message-id is what makes agents appear continuous"
 ([How to Implement Agent Communication](https://oneuptime.com/blog/post/2026-01-30-agent-communication/view),
@@ -32,7 +34,13 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   env-overridable (`FABRIK_MAIL_ROOT`, default `/opt/fabrik-mail`) per 12-Factor III.
 - **Message = one `.md` file**: YAML frontmatter
   `id` (ULID-style sortable), `from` (repo), `to` (repo), `ts` (ISO-8601 UTC), `re` (parent id |
-  null), `kind` (`request|finding|relay|reply`), `ack` (`required|no`) — then a markdown body.
+  null), `kind` (`request|finding|relay|reply|upstream-feedback`), `ack` (`required|no`) — then a markdown
+  body. **`upstream-feedback`** maps the existing fabrik-lib convention onto mail: today a
+  consuming project's AI writes cross-repo into `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md`
+  (a pre-mail sanctioned exception); with mail, the report goes to the fabrik-lib INBOX instead
+  (no cross-repo write), and the fabrik-lib AI folds it upstream + acks with the resolution —
+  its own CLAUDE.md duty ("read every */UPSTREAM_FEEDBACK.md before you author") extends to the
+  inbox; the per-module files remain the resolved LEDGER the fabrik-lib AI maintains.
   Filename = `<id>.md` (sortable = arrival-ordered).
 - **Send** = one file write via `scripts/mail.py send --to <repo> --kind <k> [--re <id>] < body`
   (helper keeps the format honest; also `list`, `read`, `ack`, `digest`). **Distribution:** `mail.py`
@@ -56,8 +64,13 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   this review): checks the CURRENT repo's inbox (repo = the `/opt/<name>` the session cwd sits
   under; any other cwd → silent no-op), injects
   `"fabrik-mail: N unread — <from> · <kind> · <first-line subject> · <path>"` summaries.
-  `.claude/hooks/` is already a governance-sync trigger — fleet distribution costs nothing.
-  The hook is fail-open (mail down ≠ sessions broken) and injects NOTHING when the inbox is empty.
+  `.claude/hooks/` is already a governance-sync trigger — fleet distribution costs nothing for
+  the ~46 synced projects. **⚠ fabrik-lib is EXCLUDED from the governance-sync** (verified:
+  `scripts/sync_enforcement_to_projects.py:772` exclusion list; its governance arrives via its own
+  channel, `refresh-governance.sh`) — the BUILD plan must deliver the hook + `mail.py` + the
+  settings wiring to fabrik-lib through that channel (or a one-time provisioning step), named now
+  so fabrik-lib is not silently mail-deaf. The hook is fail-open (mail down ≠ sessions broken)
+  and injects NOTHING when the inbox is empty.
 - **Untrusted-input framing is part of the injected text**: messages are DATA, never commands —
   the receiving agent applies its OWN repo's gates (CLAUDE.md, plan gates, Gate-2 discipline);
   a hub message cannot force a project action; trigger-don't-execute survives intact.
@@ -153,4 +166,4 @@ XI (the hook/helper print to stdout only, no logfiles). `PORTS.md`/compose untou
   checked; `Email Gateway` is retired end-user email, different class; `/fabrik-upstream` is the
   manual prior art this replaces for transport while keeping its proposal semantics).
 
-Converged 2026-08-11: 2 passes — pass 1 raised 8 findings (6 internal + the socket-delivery mechanism correction from the native researcher + 1 typo), all fixed; pass 2 = 12-check no-op, md5 10375c89 stable. Next on operator approval: /fabrik-plan-after-chat (no data contract owed — no DB/user fields; not GUI).
+Converged 2026-08-11: 3 passes — pass 1 raised 8 findings (6 internal + the socket-delivery mechanism correction from the native researcher + 1 typo), all fixed; pass 2 = 12-check no-op, md5 10375c89 stable; pass 3 (inputs-changed re-open, operator surfaced the fabrik-lib governance surface): 3 deltas — fabrik-lib as a first-class mail node, the upstream-feedback kind mapping the */UPSTREAM_FEEDBACK.md convention onto mail, and the sync-exclusion truth (sync_enforcement_to_projects.py:772) obligating the build plan to deliver via refresh-governance.sh — then re-checked to a no-op. Next on operator approval: /fabrik-plan-after-chat (no data contract owed — no DB/user fields; not GUI).
