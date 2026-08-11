@@ -26,7 +26,7 @@ wired in the synced `.claude/settings.json`.
 |---|---|---|
 | SessionStart | `session-start-tap.js` | claude-manager session tap (account/quota rotation layer) |
 | SessionStart | `session_context.py` (/opt/session-recall) | Injects recent-context: last sessions for this project, closing context, recently-active sibling projects |
-| Stop | `claude-sound.sh done` | Task-finished sound (state-based park decider — rings only at true final rest) |
+| Stop | `claude-sound.sh done` | Task-finished sound (state-based park decider — rings only at true final rest). Stalled-mid-stream death class (2026-08-11): a tail whose last assistant record carries `isApiErrorMessage` + "Response stalled mid-stream" is a DEATH, never busy-input — checked BEFORE the pending-waiter probes (they masked the real 25-min freeze); waiters get one 120s `busy-stalled-wait` recheck (a pending wakeup defers — it IS the revival), then `api_error_stalled` `.errparked` + error voice wake the armed self-watch |
 | Notification | `claude-sound.sh attention` | Attention/input-needed sound (matcher `permission_prompt`) |
 | PreToolUse | `claude-sound.sh attention` | Question-popup ring (matcher `AskUserQuestion` — that popup emits no other hook event) |
 | PreCompact | `claude-sound.sh compact-start` | Writes the `compacting` marker so the decider reads compaction as busy (transcript shows nothing mid-compact) |

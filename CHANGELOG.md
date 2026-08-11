@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
+
+`~/.claude/bin/claude-stop-decider.py` (box surface, DR-versioned) now detects the
+"API Error: Response stalled mid-stream" tail — the class where a session froze silently
+until the operator typed "proceed" (real 25-minute incident, grounded from the live
+transcript + `/usr/bin/grep` of the Stop log). Detection keys on the record's top-level
+`isApiErrorMessage` field + a pattern constant, runs BEFORE the pending-waiter probes
+(whose busy-task/busy-subagent verdicts masked the real incident for its whole window),
+and splits: no waiters → immediate `stalled-api-error` death; task/subagent waiters →
+`busy-stalled-wait` with one 120s recheck that then escalates; a pending ScheduleWakeup
+defers death entirely (the wakeup IS the revival — racing it would double-continue). The
+death writes an `api_error_stalled <epoch>` record the already-armed self-watch consumes
+(auto-"RESUME" into the pane) and rings the error voice, with the survived-death cleanup
+suppressed while the stall remains the tail (a sibling's Stop can never clear an
+unsurvived stall). 8 new self-test fixtures (watched RED first; suite 42→50 green);
+end-to-end wire proven through `_run_hook_inner` on the real incident's transcript.
+Executed plan: `docs/development/plans/2026-08-11-plan-2-stalled-midstream-resume.md`.
+
 ### Fixed — plan-2 closing sweep: mutation runner + phase-tests gate hardening (2026-08-11)
 
 The whole-plan CLOSING full fresh sweep (non-author finders, per the new loop contract) confirmed
