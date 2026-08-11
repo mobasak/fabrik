@@ -25,7 +25,7 @@ stub cleanup as a small follow-up plan, afterwards /fabrik-plan-review"
   line. Pre-adoption entries are exempt by date — no retro-fill obligation (LESSONS_LEARNT is a
   shared-append surface outside any plan lock; retro-fill is an optional operator follow-up).
 - **Adopted fix 2 — AFCL stub retirement:** delete the never-appended stubs across the fleet
-  (dry-run first, exact-match only), retire BOTH scaffolder emission sites and the template, and
+  (dry-run first, exact-match only), retire all THREE scaffolder emission blocks and the template, and
   retire the doc-registry row as SSOT hygiene (verified this round: the row has NO live mechanical
   consumer — see Phase B step 4). The 8 non-stub AFCLs — hub (6.4KB, real project-local findings,
   outside the census by construction) plus the 7 diverged non-hub singletons (brand-identiy-creator
@@ -64,7 +64,7 @@ parallel.**
 | `scripts/enforcement/_doc_registry.py` | the SSOT doc registry; `DocRow("AFCL.md", …)` — verified ZERO live mechanical consumers for this row (MISSING probe reads the hardcoded `KEY_DOCS` tuple, `fleet_doc_audit.py:64,157`; `docs_allowlist()` returns only flat `docs/*.md` so a root-level row never enters it, `_doc_registry.py:302-306`; stubs/reconcile need a detector AFCL lacks) — retirement is SSOT hygiene, not alarm prevention | `scripts/enforcement/_doc_registry.py:164` |
 | `scripts/enforcement/check_doc_stubs.py` | unaffected by the registry-row removal: it checks the intersection of registry × mechanical trigger detectors, and AFCL has no detector ("friction hit" has no code signal) | `check_doc_stubs.py:13,52` |
 | `scripts/enforcement/check_structure.py` | AFCL.md is in the root ALLOWLIST (allowed, never required) — absence is legal, entry stays | `check_structure.py:42` |
-| `src/fabrik/scaffold.py` | BOTH emission sites: scaffold-time copy + `fix_project` re-creation-if-missing ("Only created if missing") — retiring only one regenerates the stubs | `scaffold.py:1164-1167`, `:5910` (`def fix_project`), `:6056-6060` |
+| `src/fabrik/scaffold.py` | THREE emission blocks: scaffold-time copy · `fix_project` re-creation-if-missing ("Only created if missing") · `fix_project`'s DRY-RUN reporting mirror (same guard, reports "AFCL.md (created)" without copying — found by the deep-round grounder) — retiring only some leaves regeneration or dead code | `scaffold.py:1164-1167`, `:5910` (`def fix_project`), `:6056-6060`, `:6143-6147` |
 | `scripts/fabrik_synced_manifest.py` | AFCL is NOT synced (scaffolded per-project) — the NOTE gets updated truthfully; ⚠ the manifest file is itself a governance-sync trigger | `fabrik_synced_manifest.py:58` |
 | `templates/governance/CLAUDE.md` + hub `CLAUDE.md` | Completion Contract item 4 is the always-loaded LESSONS mandate the convention extends; § Orient 2 "read if exists; append friction" already tolerates AFCL absence | `templates/governance/CLAUDE.md:50,25`; hub `CLAUDE.md` § Completion Contract item 4 |
 | `commands/_fragments/term-coverage.md` | the standing recurrence classes — one of the named graduation DESTINATIONS | `term-coverage.md:10` |
@@ -120,13 +120,19 @@ Steps:
      enforced surface; the line makes graduation a definition of done, not a habit.
 2. **Completion Contract item 4 — one-sentence extension, BOTH copies**
    (`templates/governance/CLAUDE.md:50` and hub `CLAUDE.md` § Completion Contract item 4, same
-   sentence): append `Fleet-applicable entries add a Ratchet: line (graduation target or
-   local-only) — grammar in .windsurf/rules/core/40-documentation.md § LESSONS_LEARNT.md.`
+   sentence): append `Fleet-applicable entries add a Ratchet: line (graduation status: target ·
+   local-only · pending) — grammar in .windsurf/rules/core/40-documentation.md § LESSONS_LEARNT.md.`
+   (The parenthetical enumerates all THREE status kinds — a closed "target or local-only" would
+   mis-train agents that `Ratchet: pending` is invalid, the form they will most often need first;
+   deep-round finding.)
 3. **`scripts/fleet_doc_audit.py` — probe 5 `UNGRADUATED`** (the wired consumer is the existing
    Monday-06:30 cron — no new invoker needed): for each repo's `docs/LESSONS_LEARNT.md` (and the
-   legacy lowercase alias), parse entries as blocks anchored on `**Date:** YYYY-MM-DD` matches;
-   entries dated ≥ 2026-08-11 lacking a `Ratchet:` token are WARN rows in the weekly report
-   (repo · entry heading · date). Tolerance is fail-soft by design: a file with zero parseable
+   legacy lowercase alias `docs/lessons-learnt.md`), parse deterministically: an ENTRY is the block
+   from one `**Date:** YYYY-MM-DD` anchor line to the next anchor (or EOF); its heading for the
+   WARN row is the nearest markdown heading ABOVE the anchor (else the anchor line itself); a
+   `Ratchet:` token counts iff it appears WITHIN the block. Entries dated ≥ 2026-08-11 lacking one
+   are WARN rows in the weekly report (repo · entry heading · date). Tolerance is fail-soft by
+   design: a file with zero parseable
    dated entries is skipped silently; any per-repo parse error skips that repo, never the audit.
    ⚠ AFTER-EDIT coupling (`fleet_doc_audit.py:2`): `tests/test_fleet_doc_audit.py` must be staged
    in the same commit.
@@ -166,6 +172,11 @@ with only living AFCLs; a scaffolder that never emits the stub.
 Steps (cleanup BEFORE emitter retirement — the matcher's forward arm reads the live template, and
 no cron invokes `fix_project` between the steps, so nothing regenerates mid-phase):
 
+0. **Phase preflight (deep-round finding — Phase B is the higher-risk phase and had none):**
+   `git --version`, then prove push reachability on ONE sample MATCH repo before the loop —
+   `git -C <sample> ls-remote --exit-code origin >/dev/null`. If unreachable, `--apply` runs in
+   COMMIT-ONLY mode (pushes deferred and reported per repo) rather than failing mid-loop after
+   some repos are already processed.
 1. **New `scripts/cleanup_afcl_stubs.py`** (with an `# AFTER-EDIT: tests/test_cleanup_afcl_stubs.py`
    header per the script-coupling rule). Behavior:
    - Scan `/opt/*/AFCL.md`, **excluding `/opt/fabrik`**. A file MATCHES iff its whole-file md5 is
@@ -175,17 +186,28 @@ no cron invokes `fix_project` between the steps, so nothing regenerates mid-phas
      copy created between census and run). The scaffolder copies verbatim (`shutil.copy`,
      `scaffold.py:1167`) — there is NO rendering, so generation hashes are exact; any appended
      byte breaks the match and the file is KEEP.
-   - Default = **dry-run**: print the verdict table (repo · md5 · MATCH/KEEP/SKIP-dirty) and exit.
+   - Default = **dry-run**: print the verdict table (repo · md5 ·
+     MATCH/KEEP/SKIP-dirty/SKIP-not-a-repo/SKIP-detached) and exit. A directory that is not a git
+     repo → SKIP-not-a-repo (reported, untouched); a repo not on a named branch
+     (`git symbolic-ref -q HEAD` fails) → SKIP-detached (no commit is ever attempted there — an
+     orphan commit on a detached HEAD is a data-loss shape). The `/opt/*/AFCL.md` glob depth
+     structurally excludes `/opt/archived/<project>/` trees.
    - `--apply`, per MATCHED repo only: assert `git -C <repo> status --porcelain -- AFCL.md` is
-     empty (else SKIP-dirty + report) → `git rm AFCL.md` → `git commit -- AFCL.md` with trailers
+     empty (else SKIP-dirty + report) → `git rm AFCL.md` → commit with subject
+     `chore(afcl): retire scaffold-stub AFCL.md (hub plan 2026-08-11-plan-1)` + trailers
      (`Agent-Role: primary`, `Agent-Context: fleet AFCL stub retirement per hub plan
-     2026-08-11-plan-1`) → `git push`; push rejection → report and continue (committed state is
-     safe), never `--force`. Non-matching files are unreachable by construction.
+     2026-08-11-plan-1`), pathspec `-- AFCL.md` → `git push`; push rejection → report and continue
+     (committed state is safe), never `--force`. Non-matching files are unreachable by construction.
 2. **Run it:** dry-run (expected ~31 MATCH rows — the 2026-08-11 two-generation census, 19 + 12;
    the dry-run table is the truth at execution time), embed the table in the phase's evidence,
    then `--apply`; re-run dry-run after (expect 0 MATCH rows).
-3. **Retire the emitters:** delete the scaffold-time copy (`scaffold.py:1164-1167`) and the
-   `fix_project` re-creation block (`scaffold.py:6056-6060`, inside `def fix_project` `:5910`);
+3. **Retire the emitters — all THREE blocks:** delete the scaffold-time copy
+   (`scaffold.py:1164-1167`), the `fix_project` re-creation block (`scaffold.py:6056-6060`, inside
+   `def fix_project` `:5910`), AND the `fix_project` dry-run reporting mirror
+   (`scaffold.py:6143-6147` — same `afcl_template.exists() and not afcl_target.exists()` guard,
+   emits `"AFCL.md (created)"` into the dry-run report; left in place it becomes unreachable dead
+   code referencing a deleted template, and the rewritten test at `test_scaffold_fix.py` Case-2
+   would pass vacuously without ever forcing its removal);
    delete `templates/scaffold/AFCL_TEMPLATE.md`; update the manifest NOTE
    (`fabrik_synced_manifest.py:58`) to state present-tense truth: AFCL is optional,
    created-on-first-friction, never scaffolded, never synced.
@@ -215,7 +237,7 @@ no cron invokes `fix_project` between the steps, so nothing regenerates mid-phas
      the creation-when-missing behavior this phase REMOVES, both guarded by
      `AFCL_TEMPLATE.md exists()` — after step 3 deletes the template those guards go False and the
      tests become vacuous no-ops with docstrings describing removed behavior. Rewrite them into
-     "fix_project never creates `AFCL.md`" assertions; KEEP the `:65` preservation test
+     "fix_project never creates `AFCL.md`" assertions; KEEP the `:64` preservation test
      ("project-local content survives") as the re-introduction guard.
    - `tests/test_scaffold_doc_seeding.py` — add "a fresh scaffold contains NO `AFCL.md`" — and
      note the existing `mock_root` fixture (`:110-130`) carries NO `AFCL_TEMPLATE.md` double, so
@@ -228,9 +250,11 @@ no cron invokes `fix_project` between the steps, so nothing regenerates mid-phas
 
 Validation gate B (runnable): `python -m pytest tests/test_cleanup_afcl_stubs.py
 tests/test_scaffold_doc_seeding.py tests/test_scaffold_fix.py tests/test_fleet_doc_audit.py -q`
-green; `.venv/bin/python scripts/cleanup_afcl_stubs.py` (dry-run) exits 0 reporting 0 MATCH rows
-post-apply; `.venv/bin/python scripts/fleet_doc_audit.py --stdout` exits 0 with zero AFCL-MISSING
-rows.
+green; `.venv/bin/python scripts/cleanup_afcl_stubs.py` (dry-run) exits 0 post-apply reporting
+EITHER 0 MATCH rows OR only MATCH rows belonging to SKIP-dirty/SKIP-detached/SKIP-not-a-repo
+repos, each named in the phase evidence (a legitimately-skipped repo is a report line for the
+operator, never a gate failure — deep-round finding); `.venv/bin/python scripts/fleet_doc_audit.py
+--stdout` exits 0 with zero AFCL-MISSING rows.
 
 **Behavior Contract (Phase B):**
 - **Given** a byte-exact stub AFCL, **When** `--apply` runs, **Then** the file is removed,
@@ -242,8 +266,9 @@ rows.
 - **Given** dry-run mode, **When** the script runs, **Then** no repo mutates (tree-hash assert).
 - **Given** a fresh `fabrik scaffold`, **When** it completes, **Then** no `AFCL.md` exists
   (`src/fabrik/scaffold.py:1164`).
-- **Given** `fix_project` on a repo without AFCL, **When** it runs, **Then** it does not re-create
-  it (`src/fabrik/scaffold.py:6056`).
+- **Given** `fix_project` on a repo without AFCL, **When** it runs (real or dry-run), **Then** it
+  neither re-creates the file nor reports `"AFCL.md (created)"`
+  (`src/fabrik/scaffold.py:6056`, `:6143-6147`).
 
 Closing sequence: gate B → `check_doc_sync.py` + declared doc steps (CHANGELOG entry; INDEX.md is
 orchestrator-applied) → **`/fabrik-review` to a coverage-adjudicated exit** (same dispatch shape as
@@ -349,7 +374,7 @@ no applicable module; (5) governance-sync triggers verified against the live fil
 
 **(a) Coverage of "What we already agreed":** graduation convention → Phase A steps 1-2 · weekly
 WARN sweep → Phase A steps 3-4 · pre-adoption exemption → A step 3 + BC row 3 · stub cleanup
-dry-run-first → B steps 1-2 · emitter retirement (both sites) → B step 3 · registry retirement →
+dry-run-first → B steps 1-2 · emitter retirement (all THREE blocks) → B step 3 · registry retirement →
 B step 4 · stale workflow-doc truth → B step 5b · living AFCLs untouched + file stays legal →
 B matcher + `check_structure` row · cross-repo authorization → Global Constraints. No agreed item
 unassigned.
@@ -362,8 +387,13 @@ non-author grounder; 13 edits: census corrected 19→31 two-generation, registry
 de-fabricated, hub CLAUDE.md de-listed as a trigger, three workflow docs into scope, test-rewrite
 + fixture-double specifics) · pass 2 (non-author wave verifier: all 7 corrections VERIFIED true;
 its 2 defects + the orchestrator's 7 remnants, 9 edits) · pass 3 (confirming full linear re-read:
-zero candidates, zero edits, md5 stable). The Pass Ledger with md5s lives in the review report per
-the termination contract; the Status flipped on pass 3's edit-free, md5-verified no-op.
+zero candidates, zero edits, md5 stable) · operator-ordered DEEP round 2 (3 fresh pool units + a
+second native full re-ground, blind to prior passes: the third scaffolder emission block
+`:6143-6147`, the item-4 parenthetical, parser determinism, cleanup-script edge semantics, the
+gate-B SKIP carve-out, Phase-B preflight). The Pass Ledger with md5s is reproduced in each review
+invocation's report output (term-edit contract — plan reviews persist no separate review file;
+that mandate is term-coverage's, for code reviews); the Status flipped on an edit-free,
+md5-verified no-op and was re-verified after the deep round.
 
 ## Residual unknowns
 
