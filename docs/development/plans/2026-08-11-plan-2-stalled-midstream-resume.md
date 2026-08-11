@@ -152,7 +152,8 @@ Steps:
   `busy-task`/`busy-subagent`), and a recheck that still sees the stalled tail escalates to
   the death verdict over remaining task/subagent waiters — while a pending WAKEUP defers death
   (the wakeup is itself the revival: re-arm within the depth budget, and beyond it the firing
-  wakeup re-enters the session, whose next still-stalled Stop takes the immediate-death path).
+  wakeup re-enters the session, whose still-stalled Stops take the death path once past the
+  wakeup's 120s slack window — bounded convergence, not instantaneous).
 - **Given** the stalled-tail record is NOT the last transcript line (queue-operation records
   follow, as in the real transcript), **When** the tail is scanned, **Then** detection still
   fires (the scan finds the last ASSISTANT record, not the last line).
@@ -184,8 +185,10 @@ Steps:
      exactly the double-continuation this plan forbids. The deferral needs NO depth-cap
      exemption (the existing `depth >= 3` cap at `:382` stands): within the depth budget the
      stalled state re-arms; beyond it, the pending wakeup itself is the next evaluator — when
-     it fires the session re-enters, and a still-stalled next Stop (wakeup now consumed) takes
-     the immediate-death path. No `waker_provably_lost` wiring is needed for this class:
+     it fires the session re-enters, and a still-stalled Stop landing beyond the wakeup's 120s
+     slack window (`WAKEUP_SLACK_S`, `:275`; `pending_wakeup` stays non-None until
+     fire+slack, `:318`) takes the death path — convergence to death is BOUNDED, not
+     instantaneous. No `waker_provably_lost` wiring is needed for this class:
      the stall record still being the tail IS the proof of loss.
    - **Death consequences (`stalled-api-error`):** write a NEW `.errparked` record
      `api_error_stalled <epoch>` (the `<class> <epoch>` format both existing writers use; the
@@ -201,7 +204,11 @@ Steps:
    the `.errparked` record parses by the same reader `claude-selfwatch.sh` polls (grep the marker
    filename + field format it reads — read-only verification of the wire, no selfwatch edit). Gate:
    the temp session's `.errparked` exists with the class field, then is cleaned up.
-5. **Fixture-harness sweep:** `bash ~/.claude/bin/claude-mesh-test.sh` → all fixtures green
+5. **Fixture-harness sweep:** run it env-clean — `env -u CLAUDE_SOUND_AUTOROTATE bash
+   ~/.claude/bin/claude-mesh-test.sh` → all fixtures green (the live settings env sets
+   `CLAUDE_SOUND_AUTOROTATE=0` per the manual-rotation decision, which spuriously fails the
+   pre-existing A0a rotation fixture under any Claude-Code Bash invocation — A/B-proven
+   113/114 vs 114/114; unrelated to this plan's diff)
    (114 baseline + this plan's additions if the harness includes decider fixtures; capture the real
    total). Red-on-revert proof for the record: revert the decider edit (copy held in scratchpad),
    re-run step 2's fixtures → RED; restore → green.
@@ -265,9 +272,10 @@ Phase A:
   last_message_state): the waiter checks precede the tail classifier — the masking the fix
   reorders around.
 - `/usr/bin/grep -c "1970a0ff" ~/.claude/sound-debug.log` → 488 (477 genuine `sess=` lines);
-  Stop verdicts inside the frozen window: 15:40:58/15:41:00 `busy-task`, 15:44:41/43
-  `busy-subagent` + `recheck-armed(1920s)`, 16:01:17 — captured 2026-08-11 with REAL grep
-  (the interactive grep is a ugrep wrapper that returns zero on this file).
+  Stop verdicts inside the frozen window (complete enumeration): 15:41:00 `busy-task`,
+  15:44:43 `busy-subagent` + `recheck-armed(1920s)`, 16:01:21 `busy-task`, 16:05:48
+  `busy-subagent` — captured 2026-08-11 with REAL grep (the interactive grep is a ugrep
+  wrapper that returns zero on this file); every one reinforces the masking story.
 
 ```
 $ grep -n "stalled\|mid-stream" ~/.claude/bin/claude-stop-decider.py ~/.claude/bin/claude-sound.sh \
