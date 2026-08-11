@@ -1,6 +1,6 @@
 # fabrik-mail — durable hub↔project AI mail (design spec)
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-08-11 · Scale: feature (one plan) · Owner surface: hub (`/opt/fabrik`)
 Operator direction approved 2026-08-11 (research presented live, "ok we will build it").
 
@@ -35,7 +35,10 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   null), `kind` (`request|finding|relay|reply`), `ack` (`required|no`) — then a markdown body.
   Filename = `<id>.md` (sortable = arrival-ordered).
 - **Send** = one file write via `scripts/mail.py send --to <repo> --kind <k> [--re <id>] < body`
-  (helper keeps the format honest; also `list`, `read`, `ack`, `digest`).
+  (helper keeps the format honest; also `list`, `read`, `ack`, `digest`). **Distribution:** `mail.py`
+  joins the synced manifest's core-scripts list (`scripts/fabrik_synced_manifest.py` — the existing
+  hub→project script channel, verified this review), so every project's agents get the helper; the
+  PROTOCOL stays plain files, so a helper-less writer is still a valid sender.
 - **Ack/claim = atomic-by-rename**: `mv inbox/<id>.md archive/<id>.md` then append the ack line
   (`acked-by, ts, disposition`) to the archived file. POSIX guarantees rename atomicity from the
   host's point of view — another process sees the old name or the new, never both
@@ -44,9 +47,14 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   the claim lock. **Concurrency model** (operator sizing: up to 3 hub AIs, 1–2 per project, sharing
   one inbox per repo): the race loser's `mv` fails ENOENT → it moves on; no lockfiles, no daemon.
   (Crash-safety of rename is filesystem-specific — not load-bearing: a crashed claimer leaves the
-  file in archive/ with no ack line, which the digest surfaces as unacked.)
-- **Surfacing = exactly ONE hook** (`.claude/hooks/mail_notify.py`, wired for `SessionStart` +
-  `UserPromptSubmit`): checks the CURRENT repo's inbox, injects
+  file in archive/ with no ack line, which the digest surfaces as unacked.) **Read-then-act is
+  idempotent by convention:** agents act THEN ack; in the rare two-agents-read-first race both may
+  act (duplicate work, never corruption) — bounded by volume and by the rule that `request` bodies
+  carry idempotent instructions (re-running them converges).
+- **Surfacing = exactly ONE hook** (`.claude/hooks/mail_notify.py`, wired in `.claude/settings.json`
+  for `SessionStart` + `UserPromptSubmit` — BOTH files are in the governance-sync filter, verified
+  this review): checks the CURRENT repo's inbox (repo = the `/opt/<name>` the session cwd sits
+  under; any other cwd → silent no-op), injects
   `"fabrik-mail: N unread — <from> · <kind> · <first-line subject> · <path>"` summaries.
   `.claude/hooks/` is already a governance-sync trigger — fleet distribution costs nothing.
   The hook is fail-open (mail down ≠ sessions broken) and injects NOTHING when the inbox is empty.
@@ -55,16 +63,19 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   a hub message cannot force a project action; trigger-don't-execute survives intact.
 - **Operator visibility**: `mail.py digest` lists unacked messages older than N days (default 3)
   across all mailboxes; delivery leg = vendor `fabrik-lib/alerting` (SSH→Apprise→Telegram,
-  title-deduped) invoked from the existing hub cron family. Default cadence: daily; noisy-empty
-  digests suppressed.
+  title-deduped) invoked by a hub (WSL box) crontab line joining the existing daily family
+  (`crontab -l` on the hub box — same family as the wip-net/daily-refresh entries). Default cadence:
+  daily; empty digests print nothing and alert nothing.
 - **Secrets ban**: messages MUST NOT carry credential values (the corpus's secret-handling law;
   operator-flowed values stay `<PASTE …>`-marked pointers to their sources, exactly like the
   deploy-plan convention).
 
 ### Layer 2 — adopt, don't build
 
-Claude Code native cross-session messaging (same-machine inbox sockets, hook injection, built-in
-dedup/rate-limit/50-cap) ships in **v2.1.224+**; this box runs **2.1.219** (probed live
+Claude Code native cross-session messaging ships in **v2.1.224+** (same-machine inbox sockets;
+hooks/scripts can POST INTO a session via the exported `CLAUDE_CODE_MESSAGING_SOCKET` — inbound
+delivery itself is native, between tool calls, not hook-mediated; built-in dedup, per-sender
+rate-limiting, 50-message unread cap; cross-MACHINE conversation origination needs v2.1.225+); this box runs **2.1.219** (probed live
 2026-08-11) — [cross-session messaging docs](https://code.claude.com/docs/en/cross-session-messaging),
 [mechanics write-up](https://claudefa.st/blog/guide/mechanics/cross-session-messaging), fetched
 2026-08-11. Post-upgrade it becomes the LIVE doorbell for the both-ends-running case; the mailbox
@@ -89,7 +100,7 @@ composition (socket = notification, file = truth).
 | Dependency | Grounded fact | Source + date |
 |---|---|---|
 | POSIX `rename()` | atomic from the host's view — the claim lock | [pubs.opengroup.org](https://pubs.opengroup.org/onlinepubs/9799919799/functions/rename.html), 2026-08-11 |
-| Claude Code native messaging | ≥2.1.224; box at 2.1.219 (live probe); sockets + hook injection + dedup/50-cap | [docs](https://code.claude.com/docs/en/cross-session-messaging) · [mechanics](https://claudefa.st/blog/guide/mechanics/cross-session-messaging), 2026-08-11 |
+| Claude Code native messaging | ≥2.1.224 (≥2.1.225 to originate cross-machine); box at 2.1.219 (live probe); sockets + socket-post from hooks/scripts + native inbound delivery + dedup/50-cap (held-queue cap 100, separate) | [docs](https://code.claude.com/docs/en/cross-session-messaging) · [mechanics](https://claudefa.st/blog/guide/mechanics/cross-session-messaging), 2026-08-11 |
 | Async-mailbox best practice | durable store keyed on message-id; live buses assume always-on hosts | [taskade](https://www.taskade.com/blog/inter-agent-communication-patterns) · [oneuptime](https://oneuptime.com/blog/post/2026-01-30-agent-communication/view), 2026-08-11 |
 
 No vendor APIs, no pricing, no rate limits — the build is stdlib + filesystem.
@@ -124,6 +135,7 @@ XI (the hook/helper print to stdout only, no logfiles). `PORTS.md`/compose untou
 | `.claude/hooks/` edits are fleet-wide | CLAUDE.md sync-consciousness | the hook must be correct for ALL ~46 repos on day one; fail-open mandatory |
 | Check-before-create; kebab-case | CLAUDE.md | new files verified absent; `fabrik-mail`, `mail_notify.py` (py = snake_case exception) |
 | Cross-repo law | CLAUDE.md HARD STOPS | the hub never writes into project repos — mail lives OUTSIDE all repos; receiving agents act in their own repo only |
+| ⚠ Outside-tree law ("files outside project tree → local paths only") | CLAUDE.md HARD STOPS | `/opt/fabrik-mail/` is a deliberate, operator-approved EXCEPTION (same class as `/run/fabrik-autoheal` on the fleet). The BUILD plan must codify it: one sentence sanctioning the mail root in BOTH CLAUDE.md copies (a synced-surface edit — blast radius named now) |
 
 ## Decisions taken without stopping (override in one line if wrong)
 
@@ -141,4 +153,4 @@ XI (the hook/helper print to stdout only, no logfiles). `PORTS.md`/compose untou
   checked; `Email Gateway` is retired end-user email, different class; `/fabrik-upstream` is the
   manual prior art this replaces for transport while keeping its proposal semantics).
 
-Next: /fabrik-spec-review — adversarially converge this DRAFT before it is trusted.
+Converged 2026-08-11: 2 passes — pass 1 raised 8 findings (6 internal + the socket-delivery mechanism correction from the native researcher + 1 typo), all fixed; pass 2 = 12-check no-op, md5 10375c89 stable. Next on operator approval: /fabrik-plan-after-chat (no data contract owed — no DB/user fields; not GUI).
