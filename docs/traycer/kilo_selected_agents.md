@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-10T06:00:31.258285
+**Last Updated:** 2026-08-11T06:00:23.378576
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -21,11 +21,11 @@
 | 12 | **gemini-3.1-pro-preview** | google | 1531 | 80.2 | $2.00 | $12.00 | 1048K | ✓ | ✓ | ✓ | 3 | 161 | ✅ |
 | 13 | **muse-spark-1.1** | meta | 1521 | ~ | $1.25 | $4.25 | 1048K | ✓ | ✓ | ✓ | 2 | 435 | ✅ |
 | 14 | **grok-4.20** | x-ai | 1518 | ~ | $1.25 | $2.50 | 2000K | ✓ | ✓ | ✓ | 2 | 694 | ✅ |
-| 15 | **glm-5.1** | z-ai | 1506 | ~ | $0.95 | $2.99 | 204K |  | ✓ | ✓ | 2 | 607 | ✅ |
+| 15 | **glm-5.1** | z-ai | 1506 | ~ | $1.40 | $4.40 | 204K |  | ✓ | ✓ | 2 | 413 | ✅ |
 | 16 | **qwen3.7-max** | qwen | 1505 | ~ | $1.48 | $4.42 | 1000K |  | ✓ | ✓ | 2 | 408 | ✅ |
 | 17 | **claude-sonnet-4.6** | anthropic | 1500 | 53.4 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 125 | ✅ |
 | 18 | **claude-opus-4.5** | anthropic | 1496 | 63.1 | $5.00 | $25.00 | 200K | ✓ | ✓ | ✓ | 3 | 75 | ✅ |
-| 19 | **deepseek-v4-pro** | deepseek | 1491 | ~ | $0.43 | $0.87 | 1048K |  | ✓ | ✓ | 2 | 1959 | ✅ |
+| 19 | **deepseek-v4-pro** | deepseek | 1491 | ~ | $0.64 | $1.29 | 1048K |  | ✓ | ✓ | 2 | 1322 | ✅ |
 | 20 | **mimo-v2.5-pro** | xiaomi | 1485 | ~ | $0.43 | $0.87 | 1050K |  | ✓ | ✓ | 2 | 1951 | ✅ |
 | 21 | **minimax-m3** | minimax | 1485 | ~ | $0.30 | $1.20 | 1048K | ✓ | ✓ | ✓ | 2 | 1523 | ✅ |
 | 22 | **qwen3.6-plus** | qwen | 1482 | ~ | $0.33 | $1.95 | 1000K | ✓ | ✓ | ✓ | 2 | 960 | ✅ |
@@ -38,7 +38,7 @@
 | 29 | **gpt-5.2** | openai | 1465 | 64.9 | $1.75 | $14.00 | 400K | ✓ | ✓ | ✓ | 3 | 134 | ✅ |
 | 30 | **deepseek-v4-flash** | deepseek | 1465 | ~ | $0.14 | $0.28 | 1048K |  | ✓ | ✓ | 1 | 5980 | ✅ |
 | 31 | **claude-sonnet-4.5** | anthropic | 1464 | 46.5 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 122 | ✅ |
-| 32 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.39 | $2.34 | 262K | ✓ | ✓ | ✓ | 2 | 790 | ✅ |
+| 32 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.50 | $3.60 | 262K | ✓ | ✓ | ✓ | 2 | 518 | ✅ |
 | 33 | **gemma-4-31b-it** | google | 1462 | ~ | $0.10 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5221 | ✅ |
 | 34 | **gemma-4-31b-it:free** | google | 1462 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1462 | ✅ |
 | 35 | **glm-5** | z-ai | 1461 | 52.4 | $0.95 | $2.55 | 204K |  | ✓ | ✓ | 2 | 680 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-08-10:** Auto-updated from benchmarks
+- **2026-08-11:** Auto-updated from benchmarks
