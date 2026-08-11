@@ -51,9 +51,14 @@ env:
   PROTEUS_RETRY_BACKOFF_MS: "200"
   EXPOSE_AMOUNTS_TO_CUSTOMER: "false"
   CONFIDENCE_DRAFT_GATE: "0.5"
+  # ⚠ GOTENBERG_URL MUST be declared (deploy-plan-review F1, 2026-08-11): a STANDALONE `gotenberg`
+  # container (project /opt/gotenberg, basic-auth, pdf.vps1.ocoron.com) already owns the name AND
+  # the network alias `gotenberg` on the shared fabrik net — the stack's own service must be renamed
+  # `crm-gotenberg` (project compose edit, relayed) and the bridge pointed at it explicitly (the
+  # code default http://gotenberg:3000 would resolve to the basic-auth'd standalone → 401):
+  GOTENBERG_URL: http://crm-gotenberg:3000
   # NOT declared (project-side deploy decisions, optional features with fail-soft paths):
-  # GOTENBERG_URL (compose now carries a gotenberg service — container DNS gotenberg:3000 matches
-  # the code default, nothing to declare), EFATURA_* (e-invoice provider — unconfigured),
+  # EFATURA_* (e-invoice provider — unconfigured),
   # REDIS_URL (registrar-injected via needs_cache), TRYTOND_EMAIL__URI (SMTP — off until set).
   # ── trytond + worker (same stack .env; compose env_file: .env on all three) ──
   TRYTON_DB: tryton
