@@ -169,3 +169,29 @@ def test_summary_neutralizes_delimiter_spoof_in_subject(tmp_path):
     line = hook._summaries(inbox)[0]
     # exactly ONE real delimiter at the start; the body copy is neutralized
     assert line.count(hook._DELIM) == 1
+
+
+def test_hook_process_level_failopen_on_garbage():
+    # F2 (Phase-C review): the invariant that matters fleet-wide is the PROCESS
+    # exiting 0 through the __main__ guard — assert it as a real subprocess.
+    import subprocess as sp
+    import sys as _sys
+    r = sp.run([_sys.executable, str(_HOOK_PY)], input="garbage {{{ not json",
+               capture_output=True, text=True, timeout=15)
+    assert r.returncode == 0
+
+
+def test_summary_bounded_read_still_surfaces_first_line(tmp_path):
+    # F1 (Phase-C review): a huge body must not force a full read; the first body
+    # line is still surfaced and the read is bounded (no whole-body scan).
+    inbox = tmp_path / "inbox"
+    _write_msg(inbox, "01BIG", body="the real subject\n" + "X" * (200 * 1024))
+    line = hook._summaries(inbox)[0]
+    assert "the real subject" in line
+    assert len(line) < 300  # subject capped, body not dumped
+
+
+def test_trailing_newline_from_rejected(tmp_path):
+    # F4: a from with a trailing newline must NOT validate (fullmatch, not match+$)
+    assert hook._SAFE_FROM.fullmatch("alpha\n") is None
+    assert hook._SAFE_FROM.fullmatch("alpha") is not None

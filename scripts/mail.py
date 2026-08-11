@@ -78,13 +78,13 @@ _ACK_LINE = _re.compile(r"(?m)^acked-by: .+ · disposition: (?:done|blocked|wont
 
 
 def _safe_name(name: str, what: str) -> str:
-    if name in ("", ".", "..") or not _SAFE_NAME.match(name):
+    if name in ("", ".", "..") or not _SAFE_NAME.fullmatch(name):
         raise MailRefusedError(f"unsafe {what} {name!r}: must be a plain repo name ([A-Za-z0-9._-], no path separators / `..`)")
     return name
 
 
 def _safe_id(msg_id: str) -> str:
-    if not _SAFE_ID.match(msg_id):
+    if not _SAFE_ID.fullmatch(msg_id):
         raise MailRefusedError(f"unsafe message id {msg_id!r}: must be a 26-char Crockford ULID")
     return msg_id
 

@@ -23,7 +23,10 @@ protocol + 30 behavior/security tests — watched-fail-first on the risky invari
 pass hardening path-traversal on `to`/`repo`/`msg_id`, broadened secret-refusal, and digest ack-injection) ·
 Phase C (`.claude/hooks/mail_notify.py` surfacing hook + `.claude/settings.json` wiring + both
 `fabrik_synced_manifest.py` carriage rows + the `.pre-commit-config.yaml` trigger — ONE commit, the
-fleet prompt-block guard — + the `/opt/fabrik-mail` root; 12 hook tests, exit-0 red-on-revert proven).
+fleet prompt-block guard — + the `/opt/fabrik-mail` root; 18 hook tests, exit-0 red-on-revert proven +
+a Phase-C review pass: injection hardened (isprintable subject filter, bracketed fields, delimiter
+neutralization) and the review-fix — bounded per-file reads (no whole-body scan on ~46 repos each prompt),
+`re.fullmatch` name validation, a process-level fail-open subprocess regression).
 
 ### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
 
