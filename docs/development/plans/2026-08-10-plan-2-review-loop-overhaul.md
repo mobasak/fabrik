@@ -63,12 +63,18 @@ Three phases, not four+: each is the smallest unit carrying its own test cycle a
 the others; Phase B is one coherent semantic change to the loop contract (splitting the two loop
 fragments would risk exactly the divergence the fragment scoping exists to prevent); Phase C is the
 enforcement backstop. Shape triggers re-checked at review pass 4 — the emit-time length projection
-did NOT survive review: the file has grown past the ~300-line monolith projection (506 lines at
-that pass — 505 by `git cat-file -p <pre-wave-commit> | wc -l`, the probed figure) by absorbing
+did NOT survive review: the file has grown past the ~300-line monolith projection (505 lines at
+that pass — `git cat-file -p 97256173:docs/development/plans/2026-08-10-plan-2-review-loop-overhaul.md | wc -l`
+= 505, the pinned probe) by absorbing
 review evidence and provenance, not additional work units. The other two
-triggers stay inside budget: phases = 3 (not >3), and the largest phase READ set measures 46,447
-bytes vs the 262,144 `READ_BUDGET_BYTES` budget (probe: `find <Phase-B files> -exec cat {} + |
-wc -c`). Adjudication: the monolith STANDS — the line trigger is an emit-time projection heuristic
+triggers stay inside budget: phases = 3 (not >3), and the largest phase READ set — Phase B's four
+edit surfaces (`term-coverage.md` + `term-edit.md` + `subagents-core.md` + `62-using-subagents.md`)
+— measures **30,795 bytes** vs the 262,144 `READ_BUDGET_BYTES` budget (probe:
+`find commands/_fragments/term-coverage.md commands/_fragments/term-edit.md
+commands/_fragments/subagents-core.md .windsurf/rules/core/62-using-subagents.md -type f -exec cat {} + | wc -c`;
+an earlier figure of 46,447 had mislabeled Phase C's `45-testing-strategy.md` into the Phase-B set
+— deep-round finding, both figures far under budget). Adjudication: the monolith STANDS — the line
+trigger is an emit-time projection heuristic
 ("both shapes are first-class, no forced migration", fabrik-plan-after-chat § Shape decision), the
 executor's real burdens (phase count, read bytes) are both in budget, and re-shaping a converged
 plan trades operator time for a proxy metric, against the no-time-loss constraint.
@@ -219,6 +225,10 @@ review command inherits.
 
 Steps:
 
+0. **Toolchain preflight (deep-round finding — A had one, B and C did not):**
+   `python commands/assemble_commands.py --check` exits 0 BEFORE any fragment edit — proves the
+   renderer + the current corpus are healthy so a post-edit drift is attributable to THIS phase's
+   edits, not a pre-existing break.
 1. `commands/_fragments/term-coverage.md` — replace the round semantics. **Three corrections a
    review forced into this step; do not simplify them away:**
    - **Pass 1 is a WIDE sweep**: every class in the rubric partition is assigned to a finder in the
@@ -244,7 +254,14 @@ Steps:
    - **The stall circuit-breaker (operator-approved addition).** If 3 consecutive rounds raise a
      non-decreasing count of NEW candidates, the loop STOPS and emits `## BLOCKED: NON-CONVERGENCE`
      naming the suspected foundation error (a design claim, a contract, the decomposition) — round
-     N+1 spends review time on a defect that lives UPSTREAM of the surface. This is NOT a round
+     N+1 spends review time on a defect that lives UPSTREAM of the surface. **NEW is defined, not
+     vibes (deep-round finding): a candidate is NEW iff it was first raised THIS round — never
+     raised, in any adjudication state, by an earlier round of this review.** The ledger row gains
+     a `new:` field beside `found:` to make the breaker mechanical. Consequences the definition
+     pins: a round re-raising already-refuted candidates counts `new: 0` (oscillation shows as
+     falling new-counts and never trips the breaker — the per-finding 3-attempt BLOCKED catches it
+     instead); a refute-everything round is the SUCCESS path (`new:` falls to 0 next round) and can
+     never trip it. This is NOT a round
      ceiling: rounds stay unbounded while the new-candidate count is falling; the breaker fires only
      on measured non-progress, and it routes to re-grounding exactly as the existing BLOCKED
      escalation (`term-coverage.md:21`) routes a thrice-stuck finding.
@@ -255,9 +272,13 @@ Steps:
    identically (pass 2+ reviews the EDITS, not the whole artifact). Two additions land here too:
    the same stall circuit-breaker (term-edit's per-axis 3-attempt BLOCKED at `term-edit.md:7`
    stays — the breaker adds the LOOP-level rule the per-axis one cannot see), and the **probe
-   duty**: pass 1 RE-RUNS every probe the artifact embeds (fenced command + output) rather than
-   re-deriving its claims, and a load-bearing claim with NO probe is a standing finding class
-   ("ungrounded claim"). The authoring-side mandate (plans/specs must CARRY probes) is deliberately
+   duty**: pass 1 RE-RUNS every probe the artifact embeds rather than re-deriving its claims —
+   **a probe is a fenced block whose first line begins `$ `** (the corpus's existing convention;
+   illustrative fences without the `$` prefix are exempt) — and a load-bearing claim with NO probe
+   is a standing finding class ("ungrounded claim"). **Load-bearing has an operational test (deep-round
+   finding): a claim is load-bearing iff some step or verdict would CHANGE were the claim false** —
+   the reviewer applies that test, not a marker convention. The authoring-side mandate (plans/specs
+   must CARRY probes) is deliberately
    NOT edited into `/fabrik-plan-after-chat` by this plan — outside File Scope; the review-side duty
    creates the authoring pressure, and wiring the authoring commands is a named residual.
 3. **`.windsurf/rules/core/62-using-subagents.md` § Parallelism — the CANONICAL edit, and the named
@@ -289,14 +310,18 @@ Steps:
    `--check` for zero drift. ⚠️ `.windsurf/rules/` is a governance-sync TRIGGER — this commit
    distributes the pack edit to ~48 repos; it must be correct for ALL of them.
 
-Validation gate B: `python commands/assemble_commands.py --check` exits 0 with no DRIFT lines;
-`grep -l` over the RENDERED output proves every consumer received the text its fragment carries —
-**4 for `term-coverage`, 8 for `term-edit`, 12 for `subagents-core`** (live counts, re-measured;
-the old 9/2/5 figures were this plan's own stale enumeration, caught in pass 3) — plus two negative
-checks: rendered `design-review` unchanged (it includes NO fragment) and the two certification
-gauntlets still carrying discovery-until-dry, not the diff-scoped form; and a no-functionality-loss
-diff review confirms every guarantee in Global Constraints (all 13 + the breaker) still appears in
-the rendered output.
+Validation gate B (scripted — deep-round finding: the earlier form left the grep pattern, target
+dir, and negative checks as prose): after the merged-master render,
+`python commands/assemble_commands.py --check` exits 0 with no DRIFT lines; then over the
+INSTALLED corpus `~/.claude/commands/` (the rendered output — `--check`'s temp dir is ephemeral):
+`grep -l 'closing pass is a FULL fresh sweep' ~/.claude/commands/*.md | wc -l` → **4**
+(the term-coverage consumers) · the term-edit marker sentence chosen in step 2, grep-counted the
+same way → **8** · the subagents-core pointer line → **12**; negative checks as commands:
+`git diff --stat -- commands/_sources/design-review.md` empty (no fragment, untouched) and
+`grep -c 'discovery-until-dry' ~/.claude/commands/fabrik-user-test.md ~/.claude/commands/fabrik-service-test.md`
+→ ≥1 each (the gauntlets keep their form). The no-functionality-loss diff review stays a judgment
+step but walks the FULL 14-item checklist in Global Constraints row by row against the rendered
+text — each item marked found-verbatim or CHANGED-with-justification.
 
 **Behavior Contract (Phase B):**
 - **Given** a VERIFY shape is adopted, **When** the pack and the fragments are both read, **Then**
@@ -305,7 +330,10 @@ the rendered output.
 - **Given** the fragments are edited, **When** the corpus renders, **Then** every fragment consumer
   (4 `term-coverage` + 8 `term-edit` + 12 `subagents-core` renders) carries the loop text its
   fragment owns and `--check` reports no drift
-  (`--check` renders to a temp dir and diffs; `assemble_commands.py:83` is the 1024-char skill-description limit, NOT the drift check — cited correctly here after a review caught the mis-citation).
+  (`--check` renders to a temp dir and diffs; `assemble_commands.py:86` is the 1024-char
+  skill-description limit, NOT the drift check — this line number is DRIFT-PRONE: sibling NEXT-map
+  edits above it shift it (it moved :83→:86 via commit `98ffdf51` mid-review); the executor
+  re-greps `if len(full_desc) > 1024` rather than trusting the number).
 - **Given** the loop rewrite, **When** the rendered `term-coverage` text is read, **Then** the
   adjudicated-checklist, minimum-two-rounds, BLOCKED-escalation and ledger-honesty guarantees are
   still present verbatim (`commands/_fragments/term-coverage.md:13-21`).
@@ -330,22 +358,32 @@ exit** → commit.
 
 Steps:
 
+0. **Toolchain preflight:** `.venv/bin/python -m pytest --version && .venv/bin/python -c "import
+   scripts.final_gate" 2>/dev/null || .venv/bin/python scripts/final_gate.py --help >/dev/null` —
+   pytest and the gate harness exist before the phase spends effort.
 1. **New `scripts/enforcement/check_phase_tests.py` — driven by the plan's DECLARED contract, never
    by a diff heuristic.** A grounder correctly killed the first design ("compare changed source
    files against tests added in the range"): "behaviour" cannot be inferred from a diff — refactors,
    perf work, config, logging, docstrings and vendored/generated code would all be flagged, and a
    gate that cries wolf on every change is a time sink, which is the operator's stated constraint.
-   **The deterministic version:** the plan ALREADY enumerates each phase's behaviours as
-   `## Behavior Contract` G/W/T rows. The check reads those rows for the phase being closed and
-   asserts the range added at least one test per row — nothing is inferred, and a phase with no
-   declared behaviours is silent by construction. Scope it to the plan-execution window (a plan lock
-   with a `baseline_commit`, as `check_plan_tickets` already does for its missing-trailer finding).
-   **The range boundary is the phase's END, after its `/fabrik-generate-tests` step — never the code
-   commit.** `fabrik-execute-plan.md:321` mandates commit-code-THEN-generate-tests, so at the code
-   commit the range always contains source changes and zero test delta; a check anchored there fires
-   on every correctly-executed phase (review finding — a structural false positive, not a tuning
-   problem). **WARN, not ERROR** — observe the real rate first; escalation is a later, separate
-   decision. **Pre-build check — RESOLVED with proof (2026-08-10):** `check_plan_tickets.py:5-6`
+   **The deterministic version — WHOLE-WINDOW, not per-phase (deep-round finding: the per-phase
+   form required the implementer to INVENT a phase-boundary mechanism — a monolith lock carries ONE
+   `baseline_commit` and nothing identifies "which phase is closing" or its END commit; likewise a
+   per-row test mapping needs a convention no artifact carries, leaving the gate vacuous or
+   invented):** the check's range is the LOCK WINDOW — `baseline_commit..HEAD` from the active plan
+   lock (as `check_plan_tickets` already gates its missing-trailer finding on `baseline_commit`).
+   Its rows are EVERY bulleted `- **Given**` row in the locked plan, parsed with the SAME
+   bulleted-Given regex `check_plan_tickets` already uses (reuse, don't reinvent). The assertion is
+   honest about what a gate can prove: **if the locked plan declares ≥1 Given row AND the window
+   touches source files, the window must have added ≥1 test change; the WARN detail lists all
+   declared rows plus the tests the window added, and PER-ROW coverage adjudication belongs to the
+   phase-boundary `/fabrik-review`, never to this gate.** The gate proves tests-accompany-behavior
+   (the measured fleet failure: whole build phases shipping zero tests until review); it never
+   claims per-row mapping. Known transient: early in the first phase — code committed, its
+   `/fabrik-generate-tests` step (`fabrik-execute-plan.md:321`) still pending — the WARN can fire;
+   WARN-only + observe-the-rate is already the stance, and the phase that CLOSES with zero tests is
+   exactly the signal wanted. **WARN, not ERROR** — observe the real rate first; escalation is a
+   later, separate decision. **Pre-build check — RESOLVED with proof (2026-08-10):** `check_plan_tickets.py:5-6`
    fires only for plan-SET directories, but monolith execution locks DO carry the anchor: both live
    monolith locks were read this pass — `.fabrik/plan-locks/2026-08-10-plan-1-deploy-command-triad.json`
    and `…-plan-1-quota-health.json` each contain `baseline_commit` (full key set verified:
@@ -360,18 +398,24 @@ Steps:
    case the rule targets — shipping behaviour WITHOUT touching a test file (review finding). The
    pack is therefore the WARN's CITATION, not its trigger; the always-loaded statement already
    exists at `CLAUDE.md` § Completion Contract item 1, and the check cites both.
-3. **`check_mutation.py` — staged, still not blocking, and it must name its INVOKER or be cut.**
-   A review found the first draft shipped capability with no caller: the script stays
-   `FABRIK_MUTMUT`-gated and always exits 0, and residual #3 defers the decision that would turn it
-   on — so nothing would ever run the new code. Either wire it to a named invoker (the nightly
-   `FABRIK_MUTMUT=1` run) in this step, or drop step 3 entirely. Add diff-scoped selection of tests
-   ADDED in the range and a hard wall-clock cap, keep `FABRIK_MUTMUT` opt-in and exit 0.
-   ⚠️ `check_mutation.py:2` carries `# AFTER-EDIT: docs/CONFIGURATION.md` — editing it obliges
-   staging that file, so it is in File Scope below.
+3. **`check_mutation.py` — staged, still not blocking, and its invoker is DECIDED here (deep-round
+   finding: the earlier "wire it to the nightly `FABRIK_MUTMUT=1` run" named a PHANTOM — crontab
+   probe 2026-08-11: no such job exists on any schedule; and "either wire or drop" was a fork
+   deferred to the executor, the ask-before defect).** Decision: WIRE it — this step CREATES the
+   weekly cron entry (Sunday 05:00, ahead of Monday's doc audit):
+   `0 5 * * 0 cd /opt/fabrik && FABRIK_MUTMUT=1 .venv/bin/python scripts/enforcement/check_mutation.py >> /tmp/fabrik-mutation.log 2>&1`.
+   In-script additions: diff scope = files changed in COMMITTED history of the last 7 days
+   (`git log --since='7 days ago' --name-only`, deduped, filtered to tracked `*.py`) fed to
+   mutmut's `--paths-to-mutate`; hard wall-clock cap via `FABRIK_MUTMUT_WALL_CAP_S` (default
+   `1200`), enforced in-script; `FABRIK_MUTMUT` stays opt-in and the script ALWAYS exits 0.
+   ⚠️ `check_mutation.py:2` carries `# AFTER-EDIT: docs/CONFIGURATION.md` — the CONFIGURATION edit
+   is NAMED: document the `FABRIK_MUTMUT` and `FABRIK_MUTMUT_WALL_CAP_S` env vars (both in File
+   Scope below).
    Record in the plan's residuals that flipping it blocking is a SEPARATE operator decision after
    observing WARN-rate — per the operator's "stage it last" and the no-time-loss constraint.
-4. Tests for both: `tests/enforcement/test_phase_tests_gate.py` (behaviour-without-test detected;
-   docs-only phase not flagged; no plan lock ⇒ silent) and a mutation-cap test extending the
+4. Tests for both: `tests/enforcement/test_phase_tests_gate.py` (declared-rows window with source
+   changes and zero tests → WARN; docs-only window not flagged; no plan lock ⇒ silent) and a
+   mutation-cap test extending the
    EXISTING `tests/test_check_mutation.py` (repo-root `tests/`, verified present — in File Scope
    below so the plan owns the file it edits).
 
@@ -381,9 +425,10 @@ Validation gate C: `python -m pytest tests/enforcement/test_phase_tests_gate.py 
 in its check list.
 
 **Behavior Contract (Phase C):**
-- **Given** a phase range that added a source behaviour and no test, **When** the check runs,
-  **Then** it WARNs and names the file (`scripts/enforcement/check_phase_tests.py`).
-- **Given** a docs-only range, **When** the check runs, **Then** it is silent (no false positive
+- **Given** an active plan lock whose plan declares ≥1 bulleted Given row, source changes in
+  `baseline_commit..HEAD`, and ZERO added test changes, **When** the check runs, **Then** it WARNs
+  listing the declared rows and the (empty) test set (`scripts/enforcement/check_phase_tests.py`).
+- **Given** a docs-only window, **When** the check runs, **Then** it is silent (no false positive
   across 48 repos).
 - **Given** no plan lock with a `baseline_commit`, **When** the check runs, **Then** it exits 0
   silently — ad-hoc work is not plan execution.
@@ -522,14 +567,22 @@ findings absorbed, incl. the owned_paths reversal and the true fragment counts) 
 additions + this pass's own catches: the stale 9/2/5 counts in three places, the drifted mutation
 quote, the stale 62-pack internal citations, the lock pre-check resolved with proof) · pass 4 (an
 independent NON-AUTHOR grounder — the role-separation rule applied to this plan's own review —
-returned 3 CONFIRMED + 4 PLAUSIBLE, merged with the orchestrator's 5: the `agent.py:632-636`
+returned 3 CONFIRMED + 4 PLAUSIBLE, merged with the orchestrator's 5 into an 11-edit wave whose
+headline items were: the `agent.py:632-636`
 off-by-one, the `f598364c` finding-count, the mutation-cap test's missing File-Scope home, the
 probe-less rework table, the false under-300-lines shape claim, and role-separation's
 finder-vs-adjudicator precision) · pass 5 (non-author verify of the pass-4 wave: 1 minor defect —
 the 505/506 line figure — plus the latent gate-A recall gap, both fixed) · pass 6 (confirming full
-linear re-read: zero candidates, zero edits, md5 stable). The numbered
+linear re-read: zero candidates, zero edits, md5 stable) · operator-ordered DEEP round (2026-08-11,
+3 fresh cold-executor pool units + a second blind native re-ground): check_phase_tests redesigned
+WHOLE-WINDOW (the per-phase form needed invented boundary + mapping mechanisms), the mutation
+invoker fork DECIDED (weekly cron created — the "nightly run" was a phantom, crontab-probed), the
+breaker's NEW defined net-new with a ledger `new:` field, probe-duty terms operationalized, B/C
+preflights added, gate B scripted, the Phase-B byte-count evidence corrected (30,795; 46,447 had
+mislabeled Phase C's pack in), `assemble_commands` :83→:86 drift absorbed, two literal placeholder
+probes pinned. The numbered
 Pass Ledger with md5s lives in the review report per `term-edit.md:7`; the Status flipped on
-pass 6's edit-free, md5-verified no-op.
+pass 6's edit-free, md5-verified no-op and was re-verified after the deep round.
 
 ## Residual unknowns
 
