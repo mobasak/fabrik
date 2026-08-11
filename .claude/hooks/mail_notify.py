@@ -63,9 +63,14 @@ def _parse_fm(text: str) -> dict | None:
         return None
     fm: dict[str, str] = {}
     for line in text[4:end].splitlines():
-        if ":" in line:
-            k, _, v = line.partition(":")
-            fm[k.strip()] = v.strip()
+        if not line.strip():
+            continue
+        if ":" not in line:
+            return None  # match mail.py's strict _parse — the hook must not surface what mail.py quarantines
+        k, _, v = line.partition(":")
+        if not k.strip():
+            return None
+        fm[k.strip()] = v.strip()
     return fm if fm.get("id") and fm.get("kind") else None
 
 

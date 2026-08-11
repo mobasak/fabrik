@@ -57,8 +57,9 @@ ack: required|no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox.
 - **Size cap 64 KB.** `send` refuses a larger body — a mail is a pointer, not a payload.
 - **Secrets never travel.** `send` REFUSES on a high-confidence secret pattern (PEM/private-key
-  headers, `KEY=<entropy>`, `sk-`/`sk-ant-`/`github_pat_`/`AKIA`/`ASIA`/JWT, `Authorization: Bearer`,
-  `scheme://user:pass@`); WARNs on low-confidence. Flow operator secrets as `<PASTE …>` pointers.
+  headers, `KEY=<entropy>`, `sk-`/`sk-ant-`/`github_pat_`/classic `gh?_` tokens/`AKIA`/`ASIA`/JWT/Slack
+  `xox?-`, `Authorization: Bearer`, `scheme://user:pass@`); WARNs on low-confidence. Flow operator
+  secrets as `<PASTE …>` pointers.
 - **Star topology.** Hub ↔ node only. `send` refuses a project→project `--to` (both non-hub) — route
   via the hub. `fabrik` AND `fabrik-lib` count as hub-side here, so a project MAY mail `fabrik-lib`
   directly (e.g. an `upstream-feedback` module fix); only edges where BOTH ends are ordinary projects

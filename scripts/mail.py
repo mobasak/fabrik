@@ -49,19 +49,26 @@ ACK_BY_KIND = {  # default ack per kind
     "reply": "no",
 }
 MAX_BODY = 64 * 1024  # a mail is a pointer, not a payload
+DISPOSITIONS = (
+    "done",
+    "blocked",
+    "wontfix",
+)  # SSOT — argparse choices, _ACK_LINE, and ack() all derive from this
 
 # High-confidence secret signatures — REFUSE the send.
 _SECRET_HIGH = [
     _re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"),
     _re.compile(r"\b\w*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)\w*\s*[:=]\s*\S{16,}", _re.I),
-    _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),               # sk-, sk-ant-, sk-proj- (hyphens kept)
-    _re.compile(r"\bgh[posru]_[A-Za-z0-9]{20,}"),          # classic GitHub tokens
-    _re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),        # fine-grained PATs
+    _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
+    _re.compile(r"\bgh[posru]_[A-Za-z0-9]{20,}"),  # classic GitHub tokens
+    _re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),  # fine-grained PATs
     _re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
-    _re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),         # AWS long-term + session
+    _re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),  # AWS long-term + session
     _re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),  # JWT
     _re.compile(r"(?i)\bauthorization:\s*bearer\s+\S{8,}"),  # Bearer header
-    _re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:[^\s/@]+@"),  # scheme://[user]:pass@host (user optional — redis://:pw@)
+    _re.compile(
+        r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:[^\s/@]+@"
+    ),  # scheme://[user]:pass@host (user optional — redis://:pw@)
 ]
 # Low-confidence hints — WARN but still deliver (not bare "key", too noisy).
 _SECRET_LOW = _re.compile(r"\b(?:password|passwd|secret|token|credential|api[_-]?key)\b", _re.I)
@@ -74,12 +81,14 @@ _SAFE_NAME = _re.compile(r"^[A-Za-z0-9._-]+$")
 _SAFE_ID = _re.compile(r"^[0-9A-Z]{26}$")
 # A REAL ack line (appended by ack()) — matched precisely so a body that merely
 # contains the words "acked-by:" cannot fool the digest's claimed-but-crashed scan.
-_ACK_LINE = _re.compile(r"(?m)^acked-by: .+ · disposition: (?:done|blocked|wontfix)\s*$")
+_ACK_LINE = _re.compile(r"(?m)^acked-by: .+ · disposition: (?:" + "|".join(DISPOSITIONS) + r")\s*$")
 
 
 def _safe_name(name: str, what: str) -> str:
     if name in ("", ".", "..") or not _SAFE_NAME.fullmatch(name):
-        raise MailRefusedError(f"unsafe {what} {name!r}: must be a plain repo name ([A-Za-z0-9._-], no path separators / `..`)")
+        raise MailRefusedError(
+            f"unsafe {what} {name!r}: must be a plain repo name ([A-Za-z0-9._-], no path separators / `..`)"
+        )
     return name
 
 
@@ -108,11 +117,14 @@ def _current_repo() -> str:
     try:
         out = subprocess.run(
             ["git", "worktree", "list", "--porcelain"],
-            capture_output=True, text=True, timeout=5, check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
         ).stdout
         for line in out.splitlines():
             if line.startswith("worktree "):
-                return Path(line[len("worktree "):].strip()).name
+                return Path(line[len("worktree ") :].strip()).name
     except (OSError, subprocess.SubprocessError):
         pass
     return Path.cwd().name
@@ -129,7 +141,7 @@ def _crockford(value: int, length: int) -> str:
 
 def _ulid() -> str:
     ms = (time.time_ns() // 1_000_000) & ((1 << 48) - 1)  # 48-bit ms timestamp
-    rand = int.from_bytes(os.urandom(10), "big")          # 80 random bits
+    rand = int.from_bytes(os.urandom(10), "big")  # 80 random bits
     return _crockford((ms << 80) | rand, _ULID_LEN)
 
 
@@ -187,7 +199,9 @@ def _now_iso() -> str:
     return datetime.fromtimestamp(time.time_ns() / 1e9, tz=UTC).isoformat()
 
 
-def _frontmatter(mid: str, frm: str, to: str, ts: str, re_: str, kind: str, ack: str, body: str) -> str:
+def _frontmatter(
+    mid: str, frm: str, to: str, ts: str, re_: str, kind: str, ack: str, body: str
+) -> str:
     return (
         "---\n"
         f"id: {mid}\n"
@@ -198,13 +212,18 @@ def _frontmatter(mid: str, frm: str, to: str, ts: str, re_: str, kind: str, ack:
         f"kind: {kind}\n"
         f"ack: {ack}\n"
         "---\n"
-        f"{body}"
-        + ("" if body.endswith("\n") else "\n")
+        f"{body}" + ("" if body.endswith("\n") else "\n")
     )
 
 
-def send(to: str, kind: str, body: str, frm: str | None = None,
-         ack: str | None = None, re: str | None = None) -> Path:
+def send(
+    to: str,
+    kind: str,
+    body: str,
+    frm: str | None = None,
+    ack: str | None = None,
+    re: str | None = None,
+) -> Path:
     """Publish a message to <to>'s inbox. Raises MailRefusedError on any refusal (nothing written)."""
     frm = frm or _current_repo()
     _safe_name(to, "recipient")
@@ -212,16 +231,27 @@ def send(to: str, kind: str, body: str, frm: str | None = None,
     if kind not in KINDS:
         raise MailRefusedError(f"unknown kind {kind!r} (allowed: {', '.join(sorted(KINDS))})")
     if len(body.encode("utf-8")) > MAX_BODY:
-        raise MailRefusedError(f"body over the 64 KB cap ({len(body.encode('utf-8'))} B) — a mail is a pointer, not a payload")
+        raise MailRefusedError(
+            f"body over the 64 KB cap ({len(body.encode('utf-8'))} B) — a mail is a pointer, not a payload"
+        )
     level = _secret_level(body)
     if level == "high":
-        raise MailRefusedError("refusing send: body contains a high-confidence secret — messages never carry credentials")
+        raise MailRefusedError(
+            "refusing send: body contains a high-confidence secret — messages never carry credentials"
+        )
     if level == "low":
-        print("mail.py: WARNING — low-confidence secret-like text in body; sending anyway (use <PASTE …> pointers for real secrets)", file=sys.stderr)
+        print(
+            "mail.py: WARNING — low-confidence secret-like text in body; sending anyway (use <PASTE …> pointers for real secrets)",
+            file=sys.stderr,
+        )
     if not _valid_recipient(to):
-        raise MailRefusedError(f"invalid recipient {to!r}: not fabrik/fabrik-lib and no /opt/{to}/.claude/hooks/mail_notify.py (a repo that can't surface mail)")
+        raise MailRefusedError(
+            f"invalid recipient {to!r}: not fabrik/fabrik-lib and no /opt/{to}/.claude/hooks/mail_notify.py (a repo that can't surface mail)"
+        )
     if not _is_hub(frm) and not _is_hub(to):
-        raise MailRefusedError(f"star-topology refusal: {frm}→{to} is project→project; route via the hub (--to fabrik)")
+        raise MailRefusedError(
+            f"star-topology refusal: {frm}→{to} is project→project; route via the hub (--to fabrik)"
+        )
     ack = ack or ACK_BY_KIND[kind]
     mid = _ulid()
     content = _frontmatter(mid, frm, to, _now_iso(), re or "", kind, ack, body)
@@ -233,6 +263,10 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     """Claim + resolve: rename inbox→archive (ENOENT loser stops), then append the ack line."""
     _safe_id(msg_id)
     _safe_name(repo, "repo")
+    if disposition not in DISPOSITIONS:
+        raise MailRefusedError(
+            f"unknown disposition {disposition!r} (allowed: {', '.join(DISPOSITIONS)})"
+        )
     base = _mail_root() / repo
     src = base / "inbox" / f"{msg_id}.md"
     dst = base / "archive" / f"{msg_id}.md"
@@ -320,9 +354,14 @@ def digest(days: int = 3) -> dict:
                 fm = _parse(text)
                 if fm is None:
                     continue
-                if (fm.get("ack") == "required" and not _ACK_LINE.search(text)
-                        and _age_seconds(fm.get("ts", "")) >= threshold):
-                    unacked += 1  # claimed-but-crashed (no REAL acked-by line — body prose can't fake it)
+                if (
+                    fm.get("ack") == "required"
+                    and not _ACK_LINE.search(text)
+                    and _age_seconds(fm.get("ts", "")) >= threshold
+                ):
+                    unacked += (
+                        1  # claimed-but-crashed (no REAL acked-by line — body prose can't fake it)
+                    )
     return {"unacked": unacked, "quarantined": quarantined, "repos": repos}
 
 
@@ -368,6 +407,7 @@ def _deliver_digest(d: dict) -> None:
     if _is_hub_repo():
         try:
             from libs.alerting import send_alert  # lazy: hub-only, vendored there
+
             send_alert(title, body, severity="warning")
         except Exception as exc:  # never let the digest crash on the alerting leg
             print(f"mail.py: digest alert delivery skipped ({exc})", file=sys.stderr)
@@ -394,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ack = sub.add_parser("ack", help="claim + resolve a message")
     p_ack.add_argument("id")
     p_ack.add_argument("--repo")
-    p_ack.add_argument("--disposition", default="done", choices=["done", "blocked", "wontfix"])
+    p_ack.add_argument("--disposition", default="done", choices=list(DISPOSITIONS))
 
     p_req = sub.add_parser("requeue", help="move a claimed message back to inbox")
     p_req.add_argument("id")
@@ -411,7 +451,9 @@ def main(argv: list[str] | None = None) -> int:
             print(path)
         elif args.cmd == "list":
             for fm in list_msgs(args.repo or _current_repo()):
-                print(f"{fm['id']} · {fm.get('from','?')} · {fm.get('kind','?')} · ack={fm.get('ack','?')}")
+                print(
+                    f"{fm['id']} · {fm.get('from', '?')} · {fm.get('kind', '?')} · ack={fm.get('ack', '?')}"
+                )
         elif args.cmd == "read":
             print(read_msg(args.id, args.repo or _current_repo()))
         elif args.cmd == "ack":

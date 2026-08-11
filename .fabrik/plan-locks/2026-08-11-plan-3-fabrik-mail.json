@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-08-11-plan-3-fabrik-mail.md",
+  "plan": "docs/development/plans/archived/2026-08-11-plan-3-fabrik-mail.md",
   "plan_id": "2026-08-11-plan-3-fabrik-mail",
   "owned_paths": [
     "scripts/mail.py",
@@ -21,7 +21,9 @@
   ],
   "branch": "master",
   "started_at": "2026-08-11T19:13:31+0000",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "1810e689598a3c03ecd6e60a5663d99439c68ab5",
-  "baseline_gate": "lean:success (fresh baseline capture \u2014 see run output)"
+  "baseline_gate": "lean:success (fresh baseline capture \u2014 see run output)",
+  "completed_at": "2026-08-11",
+  "final_review": "docs/development/reviews/2026-08-11-plan-3-fabrik-mail-review.md"
 }

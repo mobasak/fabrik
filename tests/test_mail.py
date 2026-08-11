@@ -333,3 +333,21 @@ def test_digest_excludes_properly_acked_message(env):
     mid = p.name.removesuffix(".md")
     mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert mail.digest(days=0)["unacked"] == 0
+
+
+def test_ack_rejects_unknown_disposition(env):
+    # DISPOSITIONS SSOT: ack() validates its arg (a disposition not in the set that
+    # _ACK_LINE matches would else archive a message digest counts unacked forever).
+    p = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    with pytest.raises(mail.MailRefusedError):
+        mail.ack(msg_id=mid, repo="fabrik", disposition="maybe")
+
+
+def test_ack_line_regex_matches_every_disposition(env):
+    # the _ACK_LINE regex (digest reader) matches what ack() writes for EACH disposition
+    for disp in mail.DISPOSITIONS:
+        p = mail.send(to="fabrik", kind="request", body=f"do {disp}", frm="alpha")
+        mid = p.name.removesuffix(".md")
+        arch = mail.ack(msg_id=mid, repo="fabrik", disposition=disp)
+        assert mail._ACK_LINE.search(arch.read_text()), disp

@@ -195,3 +195,12 @@ def test_trailing_newline_from_rejected(tmp_path):
     # F4: a from with a trailing newline must NOT validate (fullmatch, not match+$)
     assert hook._SAFE_FROM.fullmatch("alpha\n") is None
     assert hook._SAFE_FROM.fullmatch("alpha") is not None
+
+
+def test_summary_skips_colonless_frontmatter_line(tmp_path):
+    # the hook's _parse_fm now matches mail.py's strict _parse — a colon-less
+    # frontmatter line is malformed → surfaced as NOTHING (mail.py quarantines it).
+    inbox = tmp_path / "inbox"
+    inbox.mkdir(parents=True)
+    (inbox / "01CL.md").write_text("---\nid: 01CL\nthis line has no colon\nkind: request\n---\nbody\n")
+    assert hook._summaries(inbox) == []

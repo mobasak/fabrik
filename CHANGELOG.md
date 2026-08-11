@@ -28,7 +28,11 @@ a Phase-C review pass: injection hardened (isprintable subject filter, bracketed
 neutralization) and the review-fix — bounded per-file reads (no whole-body scan on ~46 repos each prompt),
 `re.fullmatch` name validation, a process-level fail-open subprocess regression) · Phase D
 (`docs/reference/fabrik-mail.md` conventions doc + `/fabrik-upstream` PROJECT-mode transport swap to
-`mail.py send` + the operator-relayed fabrik-lib provisioning-request appendix).
+`mail.py send` + the operator-relayed fabrik-lib provisioning-request appendix) · Phase E (whole-plan
+cross-phase review — VERDICT CLEAN; hardened its two latent findings: single-sourced the disposition
+vocabulary (`DISPOSITIONS`) across argparse/`_ACK_LINE`/`ack()`, and tightened the hook's frontmatter
+parser to match mail.py's quarantine so the hook never surfaces what mail.py would reject; 52 tests, full
+Tier-2 gate green).
 
 ### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
 

@@ -1,6 +1,9 @@
 # Plan — fabrik-mail: durable hub↔project AI mail
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-11
+Completion: phases A–E all shipped + pushed (eaae4292 · 5c606f50 · 5d51dd4e + 8066ac2d · 0108db39 · 28854785 + close); full Tier-2 gate `{"status":"success","passed":51,"failed":0}`; 52 tests.
+Whole-plan review: `docs/development/reviews/2026-08-11-plan-3-fabrik-mail-review.md` (VERDICT CLEAN, found:0).
+Residual (operator-owned, cross-repo): relay the item-6 fabrik-lib provisioning request (Phase D appendix in `docs/reference/fabrik-mail.md`) to the fabrik-lib AI — the hub cannot execute it (cross-repo HARD STOP).
 Owner: hub (`/opt/fabrik`) · Source spec: `docs/superpowers/specs/2026-08-11-fabrik-mail-design.md` (CONVERGED, operator-approved 2026-08-11)
 Shape: **monolith** (5 sequential phases) — the work is one cohesive system built in a tight dependency
 chain with a HARD same-commit coupling (the hook + its `settings.json` wiring + both manifest rows MUST
