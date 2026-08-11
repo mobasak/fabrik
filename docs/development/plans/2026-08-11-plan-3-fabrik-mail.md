@@ -1,18 +1,20 @@
 # Plan — fabrik-mail: durable hub↔project AI mail
 
-Status: DRAFT
+Status: CONVERGED
 Owner: hub (`/opt/fabrik`) · Source spec: `docs/superpowers/specs/2026-08-11-fabrik-mail-design.md` (CONVERGED, operator-approved 2026-08-11)
 Shape: **monolith** (5 sequential phases) — the work is one cohesive system built in a tight dependency
 chain with a HARD same-commit coupling (the hook + its `settings.json` wiring + both manifest rows MUST
 land in ONE commit — the fleet-wide prompt-block guard), and Build-inventory item 6 is cross-repo
 (fabrik-lib-owned, the hub only authors a relay message). Not parallelizable independent tickets → not a
-spine+ticket set. **This consciously overrides the `>3 phases` spine+ticket trigger**
-(`commands/_sources/fabrik-plan-after-chat.md:178-186`) — the weakest of the three triggers, a proxy for
-decomposability — while NOT tripping the other two (this file is 275 lines < ~300; the heaviest phase's READ
-set — rule packs + spec + own files ≈ 100–120 KB — is < 256 KB): the A→B→C→D→E chain has zero parallelism
-to exploit (a spine+ticket set would degenerate to a serial chain plus dispatch/merge ceremony), and the
-central manifest+hook coupling actively resists ticket-splitting (a manifest row landing on a branch before
-its file's branch is a real cross-ticket merge-ordering hazard the single branch avoids).
+spine+ticket set. **This consciously overrides two of the three spine+ticket triggers**
+(`commands/_sources/fabrik-plan-after-chat.md:178-186`): `>3 phases` (5 phases) AND the ~300-line proxy
+(this file sits just over 300 lines) — both are proxies for *decomposability*; only the READ-budget
+trigger (`READ_BUDGET_BYTES` 256 KB — the heaviest phase's rule packs + spec + own files ≈ 100–120 KB) is
+genuinely untripped. The override holds because the decomposability those two proxies stand for is absent:
+the A→B→C→D→E chain has zero parallelism to exploit (a spine+ticket set would degenerate to a serial chain
+plus dispatch/merge ceremony), and the central manifest+hook coupling actively resists ticket-splitting
+(a manifest row landing on a branch before its file's branch is a real cross-ticket merge-ordering hazard
+the single branch avoids).
 
 ## What we already agreed (from the CONVERGED spec + this session)
 
@@ -296,7 +298,11 @@ O_EXCL semantics confirmed (EEXIST on collision)
   self-consistent. `send_alert(title, body, severity)` matches the real signature.
 - Grounding passes: 5 integration points opened at `path:line` this turn (manifest, both CLAUDE.md, alerting,
   fabrik-upstream, the hook family); O_EXCL + Crockford proven empirically; next plan number verified (plan-3).
-- Not a fixed point yet — `/fabrik-plan-review` converges it next.
+- **Converged** via `/fabrik-plan-review` (3 rounds): R1 = pool leg (3 axes, flywheel-scored — deepseek's 9
+  "stale-line" findings all refuted live; gemini 3.0; qwen 4.0) + native Opus grounder (all 8 line cites
+  CONFIRMED; MONOLITH shape adjudicated SOUND) → 8 findings fixed; R2 = independent native verifier (8/9
+  absorbed, caught one fix-wave regression — a stale line count) → fixed; R3 = edit-free md5-stable no-op
+  (`56002d87…`, residue-grep clean, gate `--check` success). Fixed point reached.
 
 ## Residual unknowns
 
