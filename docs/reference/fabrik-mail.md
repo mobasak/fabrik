@@ -60,7 +60,9 @@ ack: required|no
   headers, `KEY=<entropy>`, `sk-`/`sk-ant-`/`github_pat_`/`AKIA`/`ASIA`/JWT, `Authorization: Bearer`,
   `scheme://user:pass@`); WARNs on low-confidence. Flow operator secrets as `<PASTE …>` pointers.
 - **Star topology.** Hub ↔ node only. `send` refuses a project→project `--to` (both non-hub) — route
-  via the hub. Enforced by `mail.py` as convention under the single-operator threat model (NOT a
+  via the hub. `fabrik` AND `fabrik-lib` count as hub-side here, so a project MAY mail `fabrik-lib`
+  directly (e.g. an `upstream-feedback` module fix); only edges where BOTH ends are ordinary projects
+  are refused. Enforced by `mail.py` as convention under the single-operator threat model (NOT a
   security boundary: `/opt` is one uid; identity + topology are honest-agent guides, not a jail).
 - **Malformed → quarantine.** A file whose frontmatter won't parse is moved to `<repo>/malformed/`
   (the hook surfaces nothing); the digest reports an `N quarantined` count so a broken intended-required
@@ -132,11 +134,12 @@ AI ONCE (fabrik-lib is mail-deaf until the hook lands there); after that fabrik-
 >    inbox messages to the appropriate sender.
 > 5. Cut the four reporting surfaces from the old `UPSTREAM_FEEDBACK.md` cross-repo-write path to mail
 >    (so old and new never run in parallel): (a) each module README footer, (b) the fabrik-lib
->    `CLAUDE.md` heredoc in `refresh-governance.sh` (read-every-file → read-the-inbox), (c)
->    `scripts/upstream_feedback_agent.py` (inotify watcher → watch the mail inbox) AND its systemd unit
->    `scripts/systemd/fabrik-lib-upstream-feedback.service` (verify the inotify target + sandbox permit
->    the mail root; `ProtectSystem=full` leaves `/opt` writable so no `ReadWritePaths` edit is needed —
->    confirm), (d) `scripts/hooks/check_upstream_feedback.py` (same redirect).
+>    `CLAUDE.md` heredoc in `/opt/fabrik-lib/scripts/refresh-governance.sh` (read-every-file →
+>    read-the-inbox), (c) `/opt/fabrik-lib/scripts/upstream_feedback_agent.py` (inotify watcher → watch
+>    the mail inbox) AND its systemd unit `/opt/fabrik-lib/scripts/systemd/fabrik-lib-upstream-feedback.service`
+>    (verify the inotify target + sandbox permit the mail root; `ProtectSystem=full` leaves `/opt` writable
+>    so no `ReadWritePaths` edit is needed — confirm), (d)
+>    `/opt/fabrik-lib/scripts/hooks/check_upstream_feedback.py` (same redirect).
 > 6. RESTART the systemd unit after editing the watcher (`systemctl --user`/`sudo systemctl` per its
 >    install) or the old inotify target keeps running until reboot.
 > `ack: required` — reply to `fabrik` with the disposition when done.

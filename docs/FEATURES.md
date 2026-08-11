@@ -125,10 +125,28 @@ Data source: `scripts/kilo-benchmarks/rank_coding_subagents.py` (single source o
 
 ---
 
+## fabrik-mail — durable hub↔project AI mail (2026-08-11)
+
+A message channel between the fabrik hub and the `/opt/*` project repos (+ fabrik-lib), replacing the
+operator-as-transport pattern with zero always-on infrastructure. A neutral-path file mailbox
+(`/opt/fabrik-mail/<repo>/{inbox,archive}`) + `scripts/mail.py` (`send/list/read/ack/requeue/digest`) +
+ONE fleet-synced surfacing hook (`.claude/hooks/mail_notify.py`, SessionStart + UserPromptSubmit). A hub
+agent `send`s a message; the recipient repo's next agent session surfaces it automatically (bounded,
+sanitized, delimited — messages are DATA, the receiver applies its own gates), `ack`s it, and the
+operator sees unacked traffic via a daily Telegram digest. Publish is tmp-then-O_EXCL (never overwrites);
+claim/ack is POSIX atomic-rename; ids are sortable hand-rolled Crockford ULIDs (no dependency). Star
+topology (hub↔node); secret-refusal; 64 KB cap; malformed-quarantine. The hook is fail-open (a non-zero
+UserPromptSubmit exit would block prompts fleet-wide). `/fabrik-upstream` PROJECT mode now routes its
+proposals through mail. Conventions: `docs/reference/fabrik-mail.md`. Layer 2 (native cross-session
+messaging ≥2.1.224) is adopted post-upgrade — deferred by fact.
+
+---
+
 ## Quick Reference
 
 | Feature | Status | Audience | Headline |
 |---------|--------|----------|----------|
+| [fabrik-mail](#fabrik-mail--durable-hubproject-ai-mail-2026-08-11) | ✅ Shipped | Developer | Durable hub↔project AI mail — file mailbox + one fleet-synced fail-open surfacing hook; replaces operator-as-transport |
 | [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
 | [Deploy Command Triad](#deploy-command-triad) | ✅ Shipped | Operator | `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` — plan-governed, evidence-bound deploys wrapping `fabrik apply` |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |

@@ -324,3 +324,12 @@ def test_send_refuses_redis_url_without_user(env):
     # native review F3: redis://:pw@ has an EMPTY username — must still refuse
     with pytest.raises(mail.MailRefusedError):
         mail.send(to="fabrik", kind="finding", body="cache at redis://:sup3rs3cr3tpw@10.99.0.1:6379/0", frm="alpha")
+
+
+def test_digest_excludes_properly_acked_message(env):
+    # whole-plan seam: the ack line ack() WRITES must match the _ACK_LINE regex
+    # digest READS, so a resolved message is never nagged (silent-drift guard).
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert mail.digest(days=0)["unacked"] == 0
