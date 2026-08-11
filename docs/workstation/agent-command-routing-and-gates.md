@@ -66,6 +66,18 @@ linear successor — resume the caller").
   stop.** Spec-review converges *then* halts for your sign-off (the design gate);
   release halts at Gate 2 (the deploy gate). An agent that auto-chained past
   either would be self-approving your decisions.
+- The review loop's round SHAPE (diff surfaces): **1 wide + k scoped + 1 wide** —
+  pass 1 sweeps the full class partition, middle passes re-check only each fix
+  diff + its callers/callees, and the closing pass is a FULL fresh sweep whose
+  FINDERS run in a non-author context (`62-using-subagents.md` § Role
+  separation; adjudication stays with the orchestrator). Ledger rows carry
+  `new:` (first-raised-this-round), and the **stall circuit-breaker** turns
+  measured non-progress into a verdict: 3 consecutive non-decreasing `new:`
+  rounds → `## BLOCKED: NON-CONVERGENCE` (re-ground the design; not a ceiling —
+  rounds stay unbounded while `new:` falls). Certification gauntlets keep
+  discovery-until-dry. Build-time twin: the Tier-2 advisory
+  `check_phase_tests.py` WARNs when an active plan window declares
+  Behavior-Contract rows and ships lock-owned source with zero test changes.
 - Reviews inside execution are never end-loaded: phase mode runs the full
   `/fabrik-review` at EVERY phase boundary (next phase starts only after its
   coverage-adjudicated exit) plus one over the whole-plan cumulative diff at
