@@ -26,7 +26,9 @@ Phase C (`.claude/hooks/mail_notify.py` surfacing hook + `.claude/settings.json`
 fleet prompt-block guard — + the `/opt/fabrik-mail` root; 18 hook tests, exit-0 red-on-revert proven +
 a Phase-C review pass: injection hardened (isprintable subject filter, bracketed fields, delimiter
 neutralization) and the review-fix — bounded per-file reads (no whole-body scan on ~46 repos each prompt),
-`re.fullmatch` name validation, a process-level fail-open subprocess regression).
+`re.fullmatch` name validation, a process-level fail-open subprocess regression) · Phase D
+(`docs/reference/fabrik-mail.md` conventions doc + `/fabrik-upstream` PROJECT-mode transport swap to
+`mail.py send` + the operator-relayed fabrik-lib provisioning-request appendix).
 
 ### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
 

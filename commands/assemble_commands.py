@@ -61,7 +61,7 @@ NEXT = {
     "fabrik-workflow-review": "the workflow artifact is converged — return to the ettw/mega step that produced it.",
     "fabrik-decommission": "none — a standalone hub-side runbook; operator runs `fabrik destroy` themselves when ready.",
     "fabrik-deploy-verify": "none — terminal; a FAIL's named route is the next action, never auto-chained.",
-    "fabrik-upstream": "PROJECT mode: relay proposal path(s) to the hub agent; HUB mode: none — a landed fix distributes on the next sync.",
+    "fabrik-upstream": "PROJECT mode: send the proposal to the hub (`mail.py send --to fabrik --kind request`); HUB mode: reply the disposition.",
 }
 
 

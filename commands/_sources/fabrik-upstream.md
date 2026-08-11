@@ -150,8 +150,12 @@ Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -- <the three files
 mode done; an uncommitted proposal is unfinished work under the same rule that governs every other task.
 
 Never touch the synced file itself, in any phase, for any reason — that boundary is the entire reason this
-command exists. End the run by naming the committed proposal path(s) and telling the operator to relay them
-to the hub `/opt/fabrik` agent; this command has no hub shell-out and cannot dispatch HUB mode itself.
+command exists. End the run by **sending the proposal to the hub via fabrik-mail** (`docs/reference/fabrik-mail.md`):
+name the committed proposal path(s) in the body and `python scripts/mail.py send --to fabrik --kind request
+--ack required` — or `--to fabrik-lib --kind upstream-feedback --ack required` when the proposal is a vendored
+fabrik-lib module fix. The explicit `--kind`/`--ack` preserve the proposal's durable, **acked** audit trail (a
+default `finding`/`ack:no` send would strip it). This replaces the old operator-relay hand-off — the hub's
+next session surfaces the mail automatically and runs HUB mode; no hub shell-out needed.
 
 ### Phase 3 — The round-trip: responding to a hub reply
 
@@ -237,7 +241,8 @@ HUB mode: <n> claims — <n> landed, <n> deferred, <n> refuted
 GATE: PROJECT mode → python scripts/final_gate.py --check --json, run AFTER staging the 3 files (this project's own synced gate) | HUB mode → python scripts/final_gate.py --json (/opt/fabrik's own gate) → success|failure
 ```
 
-Next command: PROJECT mode (including its Phase 3 round-trip) ends by relaying the proposal path(s) to the hub
-`/opt/fabrik` agent for HUB mode — no auto-dispatch, this command has no hub shell-out to do it itself. HUB
-mode ends at the reply-block — none in the pipeline; a landed fix distributes fleet-wide on the next sync, and
-a deferred claim's tracking location is its own next action.
+Next command: PROJECT mode (including its Phase 3 round-trip) ends by **`python scripts/mail.py send --to
+fabrik --kind request --ack required`** (proposal path(s) in the body) — the hub's next session surfaces the
+mail and runs HUB mode; no operator relay, no hub shell-out. HUB mode ends at the reply-block: send a
+`kind: reply` (`--re <id>`) back to the requester with the disposition — a landed fix distributes fleet-wide
+on the next sync, and a deferred claim's tracking location is its own next action.

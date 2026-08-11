@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_mail.py
+# AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md
 """fabrik-mail — durable hub↔project AI message store + protocol (stdlib-only).
 
 One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,archive}``

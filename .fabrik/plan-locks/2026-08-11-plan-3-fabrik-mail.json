@@ -16,7 +16,8 @@
     "docs/development/plans/2026-08-11-plan-3-fabrik-mail.md",
     "AGENTS-compact.md",
     ".windsurfrules",
-    "scripts/enforcement/check_print_ban.py"
+    "scripts/enforcement/check_print_ban.py",
+    "commands/assemble_commands.py"
   ],
   "branch": "master",
   "started_at": "2026-08-11T19:13:31+0000",

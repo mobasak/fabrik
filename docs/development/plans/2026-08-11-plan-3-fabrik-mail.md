@@ -178,7 +178,7 @@ to GREEN (the neutered state is never staged or committed).
 
 Closing sequence: (1) `python -m pytest tests/test_mail_notify.py -q` → green + `python -c "import json; man=open('scripts/fabrik_synced_manifest.py').read(); assert 'mail.py' in man and 'mail_notify.py' in man; assert 'mail_notify.py' in json.dumps(json.load(open('.claude/settings.json')))"` (both manifest rows present + the hook wired in settings); (2) `check_doc_sync.py` + `INDEX.md` rows for the two new files; (3) **`/fabrik-review`** (blast-radius class: the hook must be correct + fail-open for ALL ~46 repos) to exit; (4) commit (the ONE coupled commit).
 
-## Phase D — conventions doc + `/fabrik-upstream` transport swap + the fabrik-lib relay text
+## Phase D — conventions doc + `/fabrik-upstream` transport swap + the fabrik-lib relay text — ✅ EXECUTED 2026-08-11
 
 1. `docs/reference/fabrik-mail.md` — the protocol/format doc (message shape, tmp-then-O_EXCL rule, ack-per-
    kind table, the **reply-closure / mandated back-channel** — an `ack: required` message is acked in the

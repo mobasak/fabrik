@@ -546,6 +546,7 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [architecture.md](docs/reference/architecture.md) | System architecture, components, data flow |
+| [fabrik-mail.md](docs/reference/fabrik-mail.md) | fabrik-mail conventions — the hub↔project AI mail protocol: mailbox layout, message format, the tmp-then-O_EXCL publish + atomic-rename-claim + reply-closure rules, ack-per-kind table, digest predicate, trust model, the Layer-2 socket=notification/file=truth composition, and the operator-relayed fabrik-lib provisioning request (item 6). |
 | [stack.md](docs/archive/stack.md) | Coolify-era stack overview (archived 2026-07-20; live truth: agents-fabrik.md + PROJECT_CATALOG) |
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
 | [drivers.md](docs/reference/modules/drivers.md) | Fabrik driver API (DNS, GPU providers, registrars) |
@@ -597,6 +598,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | Document | Purpose |
 |----------|--------|
 | [2026-08-10-finder-shape-ab.md](docs/development/reviews/2026-08-10-finder-shape-ab.md) | Plan-2 Phase A decision record — the pinned-roster 3-arm finder-shape A/B (read-only vs tool-enabled vs find+verify): adjudication ledger with execution-verdicts, parallelism assert, CHOSEN SHAPE: arm 1 (no dispatch change). |
+| [2026-08-11-plan-2-stalled-midstream-resume-review.md](docs/development/reviews/2026-08-11-plan-2-stalled-midstream-resume-review.md) | Whole-plan review of the stalled-mid-stream auto-resume execution: 15-round ledger, requirements coverage, embedded gate success, shared-tree adjudications. |
 | [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
