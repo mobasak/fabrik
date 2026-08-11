@@ -213,7 +213,6 @@ def test_hanging_results_call_stays_bounded_and_advisory(monkeypatch, capsys):
     # would stall the ALWAYS-exit-0 advisory forever. It must be time-bounded and
     # degrade to "no survivors parsed", still exit 0.
     import subprocess as sp
-    import types
 
     monkeypatch.setenv("FABRIK_MUTMUT", "1")
     monkeypatch.setattr(cm, "mutmut_bin", lambda: "/usr/bin/mutmut")
