@@ -1,6 +1,8 @@
 # Plan — Review-loop overhaul: converge in ~3 rounds instead of ~8, without losing recall
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-11
+Whole-plan review: docs/development/reviews/2026-08-10-plan-2-review-loop-overhaul-review.md
+Completion: phases A-C landed (d1602d4a, 7869c699+9586e571, 3decca1a+ce196a1c) + Finish round fixes; full gate success 51/0.
 Owner: hub (command corpus fragments + enforcement)
 Operator directive (verbatim, 2026-08-10): "we need to be faster, make less mistakes" · "i dont want
 to lose functionality. also i dont want to lose time too." · "first review pass must be perfect"

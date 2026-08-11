@@ -52,7 +52,7 @@ def _repo(tmp_path: Path, given_rows: int = 2) -> tuple[Path, str]:
     locks.mkdir(parents=True)
     (locks / "p.json").write_text(json.dumps({
         "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/"],
+        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"],
     }))
     return repo, baseline
 
@@ -155,7 +155,7 @@ def test_deleted_test_does_not_satisfy_accompaniment(tmp_path: Path) -> None:
     locks.mkdir(parents=True)
     (locks / "p.json").write_text(json.dumps({
         "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/"]}))
+        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
     (repo / "src/app.py").write_text("A = 2\n")
     (t / "test_app.py").unlink()
     _git(repo, "add", "-A")
@@ -181,3 +181,23 @@ def test_absolute_plan_path_in_lock_is_confined(tmp_path: Path) -> None:
     rc, out = _run(repo)
     assert rc == 0, out
     assert "leaked" not in out and "WARNING" not in out, out
+
+
+def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> None:
+    # Review finding (whole-plan round): shared-master sibling commits inside the window must not
+    # count in EITHER direction — a sibling's untested .py must not WARN this plan, and a
+    # sibling's tests/ addition must not mask this plan's own zero-test gap.
+    repo, _ = _repo(tmp_path)  # owns src/ and tests/
+    # This plan ships behavior in its owned src/ with NO owned tests…
+    (repo / "src/app.py").write_text("A = 2\n")
+    # …while a SIBLING (outside owned_paths) ships an untested .py AND a test file.
+    sib = repo / "sibling"
+    sib.mkdir()
+    (sib / "worker.py").write_text("W = 1\n")
+    (sib / "test_worker.py").write_text("def test_w():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "mixed window: own behavior + sibling files")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    # The sibling's test file must NOT satisfy accompaniment for THIS plan's source change:
+    assert "WARNING" in out and "ZERO test changes" in out, out

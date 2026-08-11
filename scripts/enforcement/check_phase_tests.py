@@ -62,7 +62,10 @@ def _given_rows(plan_path: str) -> list[str]:
         return []
     if not p.is_file():
         return []
-    return [m.group(1).strip() for m in GIVEN_ROW_RE.finditer(p.read_text(encoding="utf-8", errors="replace"))]
+    return [
+        m.group(1).strip()
+        for m in GIVEN_ROW_RE.finditer(p.read_text(encoding="utf-8", errors="replace"))
+    ]
 
 
 def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
@@ -71,11 +74,26 @@ def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
         args.append("--diff-filter=d")  # a DELETED test must never satisfy test-accompaniment
     r = subprocess.run(
         [*args, f"{baseline}..HEAD"],
-        capture_output=True, text=True, cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
     )
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[:200])
     return [f for f in r.stdout.splitlines() if f.strip()]
+
+
+def _owned(path: str, owned_paths: list[str]) -> bool:
+    """Lock-scope filter — on the shared-master tree, SIBLING commits land inside the window
+    (review finding, live-verified: three tryton-crm commits sat in this plan's own window).
+    Without this filter a sibling's untested source misattributes a WARN to this plan, and a
+    sibling's unrelated tests/ addition masks this plan's real zero-test gap. An entry owns
+    exactly itself or, as a dir prefix, its subtree."""
+    for o in owned_paths:
+        o = o.rstrip("/")
+        if path == o or path.startswith(o + "/"):
+            return True
+    return False
 
 
 def _is_test(path: str) -> bool:
@@ -95,12 +113,17 @@ def main() -> int:
             rows = _given_rows(str(lock["plan"]))
             if not rows:
                 continue  # a plan with no declared behaviors is silent by construction
+            owned = [str(o) for o in (lock.get("owned_paths") or [])]
             files = _window_files(str(lock["baseline_commit"]))
+            if owned:  # a lock without owned_paths falls back to the whole window
+                files = [f for f in files if _owned(f, owned)]
             source = [f for f in files if _is_source(f)]
             # Tests count only when ADDED/MODIFIED — a window that DELETES its tests while
             # shipping behavior is exactly the failure this gate exists to catch (review finding,
             # live-reproduced: an unfiltered list let a test deletion silence the WARN).
             alive = _window_files(str(lock["baseline_commit"]), exclude_deleted=True)
+            if owned:
+                alive = [f for f in alive if _owned(f, owned)]
             tests = [f for f in alive if _is_test(f)]
             if not source:
                 continue  # docs-only window — no false positive
@@ -119,7 +142,9 @@ def main() -> int:
             if len(rows) > 12:
                 print(f"  … and {len(rows) - 12} more row(s)")
         if not warned:
-            print("PHASE-TESTS (advisory): OK — no active plan window shipping behavior without tests.")
+            print(
+                "PHASE-TESTS (advisory): OK — no active plan window shipping behavior without tests."
+            )
         return 0
     except Exception as e:  # noqa: BLE001 — advisory must never break a commit
         sys.stderr.write(f"PHASE-TESTS (advisory): fail-soft on error: {e}\n")

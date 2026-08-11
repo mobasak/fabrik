@@ -10,7 +10,8 @@ New Tier-2 advisory `check_phase_tests.py`: an ACTIVE plan lock's `baseline_comm
 that declares Behavior-Contract Given rows and touched source with ZERO test changes WARNs,
 listing the declared rows (whole-window by design — per-row coverage stays the phase-boundary
 review's; reuses `check_plan_tickets.GIVEN_ROW_RE`; always exits 0, fail-soft on every error
-path; 7 behavior tests, red-on-revert proven). `check_mutation.py` gains
+path; 9 behavior tests after the review round — red-on-revert proven, deleted-test and
+sibling-window regressions pinned). `check_mutation.py` gains
 `FABRIK_MUTMUT_SINCE` (committed-history window) and a `FABRIK_MUTMUT_WALL_CAP_S` hard wall cap
 (default 1200s, partial results on cap, still exit 0), wired to a new Sunday 05:00 cron
 (`FABRIK_MUTMUT=1 FABRIK_MUTMUT_SINCE="7 days ago" …`). Gate registered in

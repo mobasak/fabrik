@@ -1,5 +1,5 @@
 {
- "plan": "docs/development/plans/2026-08-10-plan-2-review-loop-overhaul.md",
+ "plan": "docs/development/plans/archived/2026-08-10-plan-2-review-loop-overhaul.md",
  "owned_paths": [
   "commands/_fragments/term-coverage.md",
   "commands/_fragments/term-edit.md",
@@ -17,7 +17,9 @@
  ],
  "branch": "master",
  "started_at": "2026-08-11T07:04:35.574075+00:00",
- "status": "active",
+ "status": "released",
  "baseline_commit": "6a0ce308ac9e340afae47e14feae2be124dbee6f",
- "baseline_gate": "success (0 red checks)"
+ "baseline_gate": "success (0 red checks)",
+ "completed_at": "2026-08-11T08:45:59.281819+00:00",
+ "final_commit": "ce196a1cae4448e6813d4cea53e1bec04d371af7"
 }

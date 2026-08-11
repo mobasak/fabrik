@@ -801,13 +801,22 @@ def run_consistency_checks(
         # Mutation testing (Behavior Contract substance-mechanical layer) — proves the new tests KILL
         # mutants, not just cover lines. Advisory + diff-scoped + OPT-IN (runs only when FABRIK_MUTMUT=1;
         # nightly/CI/on-demand, never per-PR blocking per 45-testing-strategy.md). Always exits 0.
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_mutation.py",
-                "Mutation (advisory, opt-in FABRIK_MUTMUT)",
-                advisory=True,
+        # The GATE is never the mutation invoker (the weekly cron / a direct call are) — strip a
+        # leaked FABRIK_MUTMUT for this one child: the gate's 120s outer timeout would SIGKILL only
+        # check_mutation.py itself while the session-detached `mutmut run` grandchild survives as an
+        # unbounded orphan on the shared box (review finding, mechanism live-reproduced).
+        _mutmut_leak = os.environ.pop("FABRIK_MUTMUT", None)
+        try:
+            results.append(
+                run_optional_check(
+                    "scripts/enforcement/check_mutation.py",
+                    "Mutation (advisory, opt-in FABRIK_MUTMUT)",
+                    advisory=True,
+                )
             )
-        )
+        finally:
+            if _mutmut_leak is not None:
+                os.environ["FABRIK_MUTMUT"] = _mutmut_leak
         # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
         # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
         # Advisory + fail-safe (always exits 0); the doc set is the registry SSOT.
