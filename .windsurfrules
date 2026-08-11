@@ -43,7 +43,7 @@ Listing a pack = you read it. Pure-planning = `PACKS: none`.
 | `DB_HOST=localhost` / `@localhost:` in env | `postgres-main:5432` / `redis-main:6379` (`localhost` = the container) |
 | edit outside ticket Scope | strict Scope only |
 | modify `pyproject.toml`/`requirements.txt`/`package.json`/lockfiles | only if ticket authorises |
-| files outside project tree | local project paths only |
+| files outside project tree | local project paths only — EXCEPT `/opt/fabrik-mail/` (operator-sanctioned fabrik-mail store: `mail.py`/`mail_notify.py` read+write the durable `<repo>/{inbox,archive}` mailboxes there) |
 | recreate `.venv` / replace existing Docker config | extend, don't replace |
 | `/tmp/` | project `.tmp/` |
 | new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` |

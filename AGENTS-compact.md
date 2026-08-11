@@ -132,7 +132,7 @@ Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); `git diff --cached --name-only` before commit; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
-| files outside project tree | local paths only |
+| files outside project tree | local paths only — EXCEPT `/opt/fabrik-mail/` (operator-sanctioned fabrik-mail store: `mail.py`/`mail_notify.py` read+write the durable `<repo>/{inbox,archive}` mailboxes there) |
 | bare `pip install` | `/opt/<project>/.venv/bin/pip install` (PEP 668) |
 | Alpine base image | `python:<stable>-slim-bookworm` / `node:<LTS>-bookworm-slim` |
 | Docker `ports:` exposure to host | route through Traefik (DOCKER-USER blocks raw ports) |

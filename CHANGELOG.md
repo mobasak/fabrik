@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fabrik-mail: durable hub↔project AI mail channel (2026-08-11)
+
+A neutral-path file mailbox (`/opt/fabrik-mail/<repo>/{inbox,archive}`) + `scripts/mail.py`
+(send/list/read/ack/requeue/digest — tmp-then-O_EXCL publish, hand-rolled Crockford-base32 ULID
+ids with no new dependency, machinery-presence recipient validation + star-topology enforcement,
+secret-refusal, 64 KB body cap, malformed-quarantine, hub-guarded Telegram digest via vendored
+`libs.alerting`) + one fleet-synced surfacing hook (`.claude/hooks/mail_notify.py` —
+sanitized+capped+delimited untrusted-input injection, catch-all-exit-0) wired in
+`.claude/settings.json` and carried fleet-wide by new `fabrik_synced_manifest.py` rows. Replaces
+the operator-as-transport pattern for cross-repo AI messages. `/opt/fabrik-mail/` is sanctioned as
+an outside-tree exception across the fleet-synced governance corpus; `/fabrik-upstream` PROJECT mode
+now routes via mail. Layer 2 (native cross-session messaging ≥2.1.224) is to be adopted after that
+Claude Code upgrade — deferred by fact (box at 2.1.219).
+
 ### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
 
 `~/.claude/bin/claude-stop-decider.py` (box surface, DR-versioned) now detects the

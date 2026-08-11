@@ -1,6 +1,6 @@
 # Plan — fabrik-mail: durable hub↔project AI mail
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Owner: hub (`/opt/fabrik`) · Source spec: `docs/superpowers/specs/2026-08-11-fabrik-mail-design.md` (CONVERGED, operator-approved 2026-08-11)
 Shape: **monolith** (5 sequential phases) — the work is one cohesive system built in a tight dependency
 chain with a HARD same-commit coupling (the hook + its `settings.json` wiring + both manifest rows MUST
@@ -68,14 +68,18 @@ the single branch avoids).
 fabrik-lib consult: `alerting` VENDORED (digest leg). No `🆕 fabrik-lib candidate` — `mail.py` is single-host
 hub infrastructure (projects consume the PROTOCOL, not the code; fails the ≥2-project-types reuse test).
 
-## Phase A — Governance sanction (synced surface; lands FIRST, before the root exists)
+## Phase A — Governance sanction (synced surface; lands FIRST, before the root exists) — ✅ EXECUTED 2026-08-11
 
 The outside-tree HARD STOP must sanction `/opt/fabrik-mail/` BEFORE any later step creates it.
 
-1. In BOTH `CLAUDE.md` (`:88`) and `templates/governance/CLAUDE.md` (`:68`), extend the
-   `| files outside project tree | local paths only |` HARD STOP row (or add an adjacent line) sanctioning
-   `/opt/fabrik-mail/` as the operator-approved exception (same class as `/run/fabrik-autoheal`) — the two
-   copies **grep-identical** on the added text.
+1. Extend the `| files outside project tree | local paths only |` HARD STOP row sanctioning
+   `/opt/fabrik-mail/` as the operator-approved exception across **all four fleet-synced encodings** of the
+   outside-tree law (Phase-A review F1 — shipping the exception in only the two CLAUDE.md copies leaves a
+   fleet-wide contradiction in the other two): `CLAUDE.md` (`:88`) + `templates/governance/CLAUDE.md` (`:68`)
+   — grep-identical on the added text — AND the two `GOVERNANCE_FILES` copies distributed verbatim to ~46
+   project roots: `AGENTS-compact.md` (`:135`) + `.windsurfrules` (`:46`, "local project paths only"),
+   adapting to each file's wording. (No `/run/fabrik-autoheal` analogy — F2: that is a remote-VPS tmpfs dir,
+   never itself a documented outside-tree exception; the row is self-sufficient.)
 2. CHANGELOG entry (`### Added — fabrik-mail …`).
 
 **Behavior Contract**
@@ -258,6 +262,8 @@ The consolidated roll-up of every phase's user-observable behaviors (★ = watch
 - `.pre-commit-config.yaml` (add `mail\.py` to the governance-sync trigger alternation — Phase C, Finding 1)
 - `CLAUDE.md`
 - `templates/governance/CLAUDE.md`
+- `AGENTS-compact.md` (Phase A — the outside-tree sanction's 3rd fleet-synced encoding, F1)
+- `.windsurfrules` (Phase A — the outside-tree sanction's 4th fleet-synced encoding, F1)
 - `commands/_sources/fabrik-upstream.md`
 - `docs/reference/fabrik-mail.md`
 - `tests/test_mail.py`
