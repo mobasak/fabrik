@@ -1,6 +1,7 @@
 # Stalled-mid-stream auto-resume — the mesh's missing death class
 
-Status: IN-PROGRESS
+Status: EXECUTED (2026-08-12 — all 12 steps + the 15-round step-9 review loop closed; review:
+`docs/development/reviews/2026-08-11-plan-2-stalled-midstream-resume-review.md`)
 Date: 2026-08-11
 Owner: hub session (operator-approved: "stalled-mid-stream auto-resume as one small plan — go")
 
@@ -99,7 +100,7 @@ this log — every log probe in this plan pins **`/usr/bin/grep`**. The revival 
 `docs/workstation/hooks-index.md` StopFailure row); it just never receives a death record for this
 class.
 
-## Phase A — detect the stalled tail, park it as a DEATH, prove it end-to-end
+## Phase A — detect the stalled tail, park it as a DEATH, prove it end-to-end ✅ EXECUTED
 
 **Interfaces — Consumes:** the transcript tail records (shape above); the existing `.errparked`
 death-record format (`claude-stop-decider.py:840-843`) and the armed self-watch consumer.
@@ -284,6 +285,35 @@ $ grep -n "stalled\|mid-stream" ~/.claude/bin/claude-stop-decider.py ~/.claude/b
 /home/ozgur/.claude/bin/claude-stop-decider.py:1165:        check("killed mid-stream", decide(t, "partial")[0], "parked")
 (two comment/fixture-name hits only — the ERROR CLASS itself is handled nowhere)
 ```
+
+### Execution evidence (2026-08-12, appended at EXECUTED flip)
+
+- Detection live: `~/.claude/bin/claude-stop-decider.py` — `_API_ERROR_STALL_PATTERNS` +
+  `_tail_is_stalled` (~:152-249), decide() stall branch after no-transcript / before waiter
+  probes, `busy-stalled-wait` 120s recheck row, `stalled-api-error` → `api_error_stalled <epoch>`
+  `.errparked` write in `_run_hook_inner`. Red baseline on the REAL incident transcript
+  (`busy-input`) → now `('stalled-api-error', 'stalled mid-stream tail')`; wire proven through
+  `_run_hook_inner` (record + selfwatch awk contract + `(stalled api error)` log + recheck-armed).
+- Step-9 review loop: 15 rounds (pool finders + native non-author closers), ~27 findings fixed,
+  EVERY fix watched RED first (or proven red-on-revert in a sandboxed copy); round 14 (non-author)
+  CLEAN on the closing delta; round 15 closed its one advisory (bool `delaySeconds`) red-first.
+- Final counts, all from THIS turn:
+
+```
+$ python3 ~/.claude/bin/claude-stop-decider.py --self-test | tail -1
+SELF-TEST: all green            # 78 checks (baseline 42 → +36)
+$ env -u CLAUDE_SOUND_AUTOROTATE bash ~/.claude/bin/claude-mesh-test.sh | tail -1
+mesh-test: 114 ok, 0 fail
+$ bash /opt/fabrik/scripts/dr_claude_backup.sh | tail -1
+[2026-08-11T21:03:57Z] committed + pushed: dr-claude: 20260811T210354Z
+$ python scripts/final_gate.py --check --json
+{"status": "success", "tier": 2, "passed": 45, "failed": 0, ...}
+```
+
+- Shared-tree note: one earlier gate run failed on `Hooks Index Fresh` — caused by a SIBLING's
+  staged-but-uncommitted `mail_notify.py` hook registration; resolved by documenting the LIVE hook
+  in `docs/workstation/hooks-index.md` (this plan's owned path). The sibling's CHANGELOG/INDEX
+  staged hunks were NOT bundled (their commit, not ours).
 
 ## Self-audit
 

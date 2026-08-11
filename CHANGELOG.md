@@ -46,7 +46,8 @@ death writes an `api_error_stalled <epoch>` record the already-armed self-watch 
 suppressed while the stall remains the tail (a sibling's Stop can never clear an
 unsurvived stall). 36 new self-test fixtures (watched RED first; suite 42→78 green);
 end-to-end wire proven through `_run_hook_inner` on the real incident's transcript. The
-step-9 review loop ran 15 rounds (pool finders + native non-author closers) and fixed
+step-9 review loop ran 16 rounds (pool finders + native non-author closers, sealed by a
+found:0/fixed:0 quiet pass) and fixed
 ~27 findings red-first — recovery discrimination for machine appends, the list-wrapped
 claude-vscode prose shape, wrapper marks from the CLI string table, and full class
 closure of the `X or default` truthy-wrong-type crash family (text leaves, containers,
