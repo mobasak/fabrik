@@ -59,8 +59,14 @@ A SEVENTH sweep confirmed the normalization was still narrower than the class: `
 entries now normalize through the SSOT `check_plan_tickets._norm_path` (the function that
 builds File-Scope tokens) with `.`-entries dropping to the whole-window fallback, and
 ownership matching is case-insensitive (over-scoping is toward warning).
-Final test census by execution: 51 across the three suites — 34 added or rewritten during
-the closing sweeps, 25 of them watched RED on pre-fix code via revert.
+An EIGHTH sweep confirmed nothing and yielded 3 adopted hardenings: the stall breaker now
+fires only on nonzero `new:` streaks (a healthy all-zero streak — zero fresh candidates
+while refutation-bait keeps `found` above 0 — is convergence, and the literal old wording
+would have BLOCKED it); the `mutmut results` call is time-bounded like every other
+subprocess in the runner; and the `_owned` docstring states both directions of the
+case-insensitivity tradeoff.
+Final test census by execution: 52 across the three suites — 35 added or rewritten during
+the closing sweeps, 26 of them watched RED on pre-fix code via revert.
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 

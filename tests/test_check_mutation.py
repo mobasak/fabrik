@@ -208,6 +208,33 @@ def test_negative_wall_cap_caps_immediately_and_stays_advisory(monkeypatch, caps
     assert "wall cap" in capsys.readouterr().out
 
 
+def test_hanging_results_call_stays_bounded_and_advisory(monkeypatch, capsys):
+    # Review finding: `mutmut results` was the one unguarded subprocess — a hang there
+    # would stall the ALWAYS-exit-0 advisory forever. It must be time-bounded and
+    # degrade to "no survivors parsed", still exit 0.
+    import subprocess as sp
+    import types
+
+    monkeypatch.setenv("FABRIK_MUTMUT", "1")
+    monkeypatch.setattr(cm, "mutmut_bin", lambda: "/usr/bin/mutmut")
+    monkeypatch.setattr(cm, "changed_python", lambda base=None: ["src/fabrik/x.py"])
+
+    class FakeProc:
+        pid = 9
+
+        def wait(self, timeout=None):
+            return 0
+
+    def hanging_run(cmd, **kw):
+        assert kw.get("timeout"), "results call must carry a timeout"
+        raise sp.TimeoutExpired(cmd, kw["timeout"])
+
+    monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
+    monkeypatch.setattr(cm.subprocess, "run", hanging_run)
+    assert cm.main() == 0
+    assert "no surviving mutants" in capsys.readouterr().out
+
+
 def test_unforeseen_exception_fails_soft(monkeypatch, capsys):
     # Review finding: run_optional_check marks a non-zero exit FAILED regardless of
     # advisory=True — an uncaught raise would flip the whole gate red. main() must catch

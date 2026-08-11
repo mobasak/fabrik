@@ -162,7 +162,15 @@ def _main() -> int:
             "results below (raise FABRIK_MUTMUT_WALL_CAP_S for a fuller run). Still advisory, "
             "still exit 0."
         )
-    res = subprocess.run([mutmut, "results"], capture_output=True, text=True, check=False).stdout
+    # Bounded like every other subprocess here — an unguarded hang (e.g. a corrupted
+    # results cache after the group-kill above) would defeat the ALWAYS-exit-0 design
+    # (review finding: the one unguarded call in an otherwise fully wall-capped script).
+    try:
+        res = subprocess.run(
+            [mutmut, "results"], capture_output=True, text=True, check=False, timeout=60
+        ).stdout
+    except subprocess.TimeoutExpired:
+        res = ""
     survivors = parse_survivors(res)
     if survivors:
         print(

@@ -162,7 +162,11 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     sibling's unrelated tests/ addition masks this plan's real zero-test gap. An entry owns
     exactly itself or, as a dir prefix, its subtree. Comparison is CASE-INSENSITIVE — a
     re-cased entry (`Src/` for `src/`) matched nothing and silenced the window (review
-    finding); over-scoping on a hypothetical case-colliding tree is toward warning."""
+    finding). Honest tradeoff, both directions: on a hypothetical case-COLLIDING tree
+    (`src/App/` and `src/app/` as distinct dirs) this can over-scope a WARN or
+    cross-attribute a sibling's test as accompaniment (a silence) — accepted: such trees
+    are themselves an error class in this fleet, and the typo'd-case lock is the real,
+    observed input."""
     p = path.lower()
     for o in owned_paths:
         o = o.rstrip("/").lower()
