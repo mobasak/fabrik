@@ -1,6 +1,6 @@
 # Stalled-mid-stream auto-resume — the mesh's missing death class
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-08-11
 Owner: hub session (operator-approved: "stalled-mid-stream auto-resume as one small plan — go")
 
