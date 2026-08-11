@@ -381,6 +381,26 @@ def test_uppercase_extension_source_still_warns(tmp_path: Path) -> None:
     assert "WARNING" in out and "ZERO test changes" in out, out
 
 
+def test_noncanonical_owned_entries_do_not_silence(tmp_path: Path) -> None:
+    # Review finding (live-reproduced three ways): `./src`, `.`, and `Src/` each matched
+    # zero git-emitted paths → false silence. `_norm_path` normalization + case-insensitive
+    # ownership + `.`-drop (whole-window) close the remaining variants.
+    for idx, hostile in enumerate((["./src", "tests/"], ["."], ["Src/", "tests/"])):
+        parent = tmp_path / f"case{idx}"
+        parent.mkdir()
+        repo, _ = _repo(parent)
+        lock = repo / ".fabrik/plan-locks/p.json"
+        d = json.loads(lock.read_text())
+        d["owned_paths"] = hostile
+        lock.write_text(json.dumps(d))
+        (repo / "src/app.py").write_text("A = 2\n")
+        _git(repo, "add", "src/app.py")
+        _git(repo, "commit", "-qm", f"behavior, no tests, owned={hostile}")
+        rc, out = _run(repo)
+        assert rc == 0, out
+        assert "WARNING" in out and "ZERO test changes" in out, (hostile, out)
+
+
 def test_non_list_owned_paths_falls_back_to_whole_window(tmp_path: Path) -> None:
     # An int owned_paths must degrade toward WARNING (whole-window fallback), never toward
     # silence or a run-wide abort.

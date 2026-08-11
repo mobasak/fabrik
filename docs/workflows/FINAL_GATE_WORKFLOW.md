@@ -283,7 +283,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
   - Validates Kilo CLI installation and configuration
 
 **Note:** `check_docs.py` ("Documentation") is NOT part of this list — it exists on disk but was removed
-from the gate (`final_gate.py`'s inline `check_docs.py` removal comment (line numbers deliberately not cited — they drift): hardcoded to `src/fabrik/`, dead in every scaffolded project). Its
+from the gate (per `final_gate.py`'s inline removal comment — hardcoded to `src/fabrik/`, dead in every scaffolded project; line numbers deliberately not cited, they drift). Its
 intent is covered by the Doc Sync Matrix (`check_doc_sync.py`, Tier 1+2) and `docs_updater.py --check` above.
 
 ### Phase 4: Sync Steps
@@ -425,7 +425,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_index_md.py` — was: verifies INDEX.md reflects current structure
 - `check_configuration_md.py` — was: ensures env vars documented in CONFIGURATION.md
 - `check_openapi_sync.py` — was: validates API docs match routes
-- `check_docs.py` — was: ensures required docs present (removed per inline comment `final_gate.py`'s inline `check_docs.py` removal comment (line numbers deliberately not cited — they drift): hardcoded to `src/fabrik/`, dead in every scaffolded project)
+- `check_docs.py` — was: ensures required docs present (removed per `final_gate.py`'s inline removal comment — hardcoded to `src/fabrik/`, dead in every scaffolded project; line numbers deliberately not cited, they drift)
 
 Do not delete these 5 files yourself — they are dead but undecided (kept for reference / possible future re-wiring).
 
@@ -772,7 +772,7 @@ API_KEY = os.getenv('API_KEY')
 
 #### check_docs.py
 
-**⚠️ NOT gate-wired** — removed from the gate per inline comment `final_gate.py`'s inline `check_docs.py` removal comment (line numbers deliberately not cited — they drift) ("hardcoded to `src/fabrik/`, dead in every scaffolded project"); the file still exists on disk. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
+**⚠️ NOT gate-wired** — removed from the gate per `final_gate.py`'s inline removal comment ("hardcoded to `src/fabrik/`, dead in every scaffolded project"; line numbers deliberately not cited, they drift); the file still exists on disk. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
 
 **Purpose (as written, dead):** Ensures all required documentation files are present.
 
@@ -846,7 +846,7 @@ API_KEY = os.getenv('API_KEY')
 
 **Purpose:** Governance files must be local copies, not symlinks.
 
-**Validates 8 governance paths** (`check_symlinks()`, `final_gate.py:988-1027`):
+**Validates 8 governance paths** (`check_symlinks()` in `final_gate.py` — line numbers deliberately not cited, they drift):
 - `AGENTS.md` — Local copy
 - `agents-fabrik.md` — Local copy (canonical agents doc, synced 2026-07-19)
 - `agents-fabrik-core.md` — Local copy (@import-ed platform core, synced 2026-07-19)

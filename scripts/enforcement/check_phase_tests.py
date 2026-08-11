@@ -160,10 +160,13 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     (review finding, live-verified: three tryton-crm commits sat in this plan's own window).
     Without this filter a sibling's untested source misattributes a WARN to this plan, and a
     sibling's unrelated tests/ addition masks this plan's real zero-test gap. An entry owns
-    exactly itself or, as a dir prefix, its subtree."""
+    exactly itself or, as a dir prefix, its subtree. Comparison is CASE-INSENSITIVE — a
+    re-cased entry (`Src/` for `src/`) matched nothing and silenced the window (review
+    finding); over-scoping on a hypothetical case-colliding tree is toward warning."""
+    p = path.lower()
     for o in owned_paths:
-        o = o.rstrip("/")
-        if path == o or path.startswith(o + "/"):
+        o = o.rstrip("/").lower()
+        if p == o or p.startswith(o + "/"):
             return True
     return False
 
@@ -218,12 +221,20 @@ def _check_lock(lock: dict) -> bool:
         # Any other type (int, dict, …) falls back to the whole window — toward warning,
         # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
         raw_owned = []
-    # Entries are fully NORMALIZED (stripped), and empty / slash-only entries drop: `[""]`
-    # matched nothing and silenced the whole window, and a padded `" src/ "` passed the
-    # truthy filter yet still matched nothing (review findings — the same hand-edit
-    # false-silence class, closed as a CLASS here, not variant-by-variant). An all-dropped
-    # list degrades to the whole-window fallback, toward warning.
-    owned = [str(o).strip() for o in raw_owned if str(o).strip().strip("/")]
+    # Entries are normalized through the SSOT `_norm_path` (check_plan_tickets — the very
+    # function that builds File-Scope tokens, so every form IT accepts is a real input
+    # shape here): strips padding, `./` prefixes, emphasis/backtick wraps, `/./`
+    # self-references. Empty, `.`, and slash-only entries drop — each matched NOTHING and
+    # silenced the whole window (review findings: `[""]`, `" src/ "`, `"./src"`, `"."` all
+    # live-reproduced false silences; `.` = repo root = the whole-window fallback anyway).
+    # An all-dropped list degrades to the whole-window fallback, toward warning.
+    from check_plan_tickets import _norm_path
+
+    owned = []
+    for o in raw_owned:
+        n = _norm_path(str(o))
+        if n and n != "." and n.strip("/"):
+            owned.append(n)
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)
     if owned:  # a lock without owned_paths falls back to the whole window

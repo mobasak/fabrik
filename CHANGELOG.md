@@ -54,8 +54,13 @@ hostile-`owned_paths` false-silence class AS A CLASS: entries are fully normaliz
 (stripped) with empty/slash-only entries dropped — `[""]` and a padded `" src/ "` each
 matched nothing and silenced real zero-test windows — and `_is_source`'s suffix check is
 now case-insensitive like `_is_test`'s (`src/APP.PY` was invisible to "source touched").
-Final test census by execution: 50 across the three suites — 33 added or rewritten during
-the closing sweeps, 24 of them watched RED on pre-fix code via revert.
+A SEVENTH sweep confirmed the normalization was still narrower than the class: `./src`,
+`.`, and a re-cased `Src/` each matched zero git-emitted paths (false silence) — owned
+entries now normalize through the SSOT `check_plan_tickets._norm_path` (the function that
+builds File-Scope tokens) with `.`-entries dropping to the whole-window fallback, and
+ownership matching is case-insensitive (over-scoping is toward warning).
+Final test census by execution: 51 across the three suites — 34 added or rewritten during
+the closing sweeps, 25 of them watched RED on pre-fix code via revert.
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 
@@ -63,7 +68,7 @@ New Tier-2 advisory `check_phase_tests.py`: an ACTIVE plan lock's `baseline_comm
 that declares Behavior-Contract Given rows and touched source with ZERO test changes WARNs,
 listing the declared rows (whole-window by design — per-row coverage stays the phase-boundary
 review's; reuses `check_plan_tickets.GIVEN_ROW_RE`; always exits 0, fail-soft on every error
-path; 20 behavior tests after the closing review sweeps — red-on-revert proven, deleted-test and
+path; 34 behavior tests after the closing review sweeps — red-on-revert proven, deleted-test and
 sibling-window regressions pinned). `check_mutation.py` gains
 `FABRIK_MUTMUT_SINCE` (committed-history window) and a `FABRIK_MUTMUT_WALL_CAP_S` hard wall cap
 (default 1200s, partial results on cap, still exit 0), wired to a new Sunday 05:00 cron
