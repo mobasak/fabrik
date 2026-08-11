@@ -553,3 +553,15 @@ question (fragments, not commands); whether the build-time test rule exists (it 
    `/fabrik-spec`) — deliberately out of this plan's File Scope. Resolution step: the review-side
    probe duty ships first and creates the pressure; wiring the authoring commands is a follow-up
    plan once the finding class proves its rate.
+6. **Finding-level confidence thresholds with learned suppression** (operator-adjudicated
+   2026-08-11: NOT built). Auto-discarding sub-threshold findings is the one industry pattern that
+   silently loses recall — against the no-functionality-loss constraint; the refute step does the
+   same filtering VISIBLY, and there is no finding-level survive/refute outcome data to learn a
+   threshold from yet. Re-open triggers, BOTH required: refute-time becomes a measured cost center
+   (pool-noise share of review wall-clock), AND the flywheel has accumulated per-finding
+   adjudication outcomes to calibrate against.
+7. **Periodic judge calibration** (operator-adjudicated 2026-08-11: follow-up, not here). Phase A's
+   anonymised adjudicated union IS the seed labeled ground-truth set; a follow-up plan periodizes
+   it — re-score the finder roster against labeled ground truth on roster change or quarterly —
+   once Phase A has produced the first corpus. Building the recurring machinery now serves no
+   phase of this plan.
