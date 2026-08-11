@@ -7,10 +7,12 @@
  ],
  "branch": "master",
  "started_at": "2026-08-11T21:16:32+0300",
- "status": "active",
+ "status": "paused",
  "baseline_commit": "595bd9145ec9f128f2297a9684ad97f02817e24d",
  "baseline_gate": {
   "status": "success",
   "red_checks": []
- }
+ },
+ "paused_reason": "quota: can@ weekly wall (resets Aug 17 13:00 TRT) killed the round-8 native finder mid step-9",
+ "resume_point": "Phase A steps 0-8 COMPLETE + committed (22df89ad). Step 9 review: rounds 1-7 done (23 findings fixed/refuted, all red-first; decider self-test 68/68; mesh harness 114/114; real-transcript verdict stalled-api-error; DR-pushed through 20260811T19xx). OWED: round-8 native finder on the round-7 delta (assistant-branch None-join, image/document has_input, headless crash-handler) \u2192 if clean, step 10 full gate \u2192 step 11 commit (CHANGELOG census may need refresh: fixtures now 68) \u2192 Finish (whole-plan review, EXECUTED flip, archive, push). Earliest account: ob@ Aug 12 15:00."
 }
