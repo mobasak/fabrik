@@ -35,37 +35,59 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
 - **Message = one `.md` file**: YAML frontmatter
   `id`, `from` (repo), `to` (repo), `ts` (ISO-8601 UTC), `re` (parent id | null),
   `kind` (`request|finding|relay|reply|upstream-feedback`), `ack` (`required|no`) — then a markdown
-  body. Filename = `<id>.md`. **`id` is a real ULID** (48-bit ms timestamp + 80 bits entropy —
-  sortable AND collision-safe across concurrent senders; "ULID-style timestamp-only" is BANNED:
-  two same-ms sends would collide and the publish-rename would silently replace the first). Publish
-  is exclusive-create (below), so even an entropy collision fails loudly rather than overwriting.
+  body. Filename = `<id>.md`. **`id` is a ULID, hand-rolled in ~10 stdlib lines** (48-bit
+  `time.time_ns()`-ms + 80 bits `os.urandom`, Crockford base32 — sortable AND collision-safe; NO
+  new dependency, `python-ulid` is NOT pulled in, keeping the "stdlib-only" promise; "timestamp-only
+  ids" are BANNED — two same-ms sends would collide). **Time base:** all v1 senders run on the ONE
+  WSL box (hub + all `/opt` projects), so a single monotonic-ish clock orders ids; cross-host vps
+  senders are out of scope v1 (§ Decisions), so cross-host clock skew doesn't arise.
   **`ack` default is per kind:** `request` and `upstream-feedback` → `ack: required`; `finding`,
   `relay`, `reply` → `ack: no` (informational; the reader archives them on read, they never nag).
   The digest's "unacked" predicate is exactly: `ack: required` AND still in `inbox/` (unclaimed) OR
   in `archive/` with no `acked-by:` line (claimed-but-crashed) — `ack: no` messages are never
-  counted.
+  counted. **The ack line format is fixed** (so the digest's "no `acked-by:`" scan is unambiguous):
+  a trailing `acked-by: <repo> · ts: <ISO-8601> · disposition: <done|blocked|wontfix>` appended to
+  the archived file's body.
 - **`upstream-feedback`** maps the existing fabrik-lib convention onto mail: today a
   consuming project's AI writes cross-repo into `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md`
   (a pre-mail sanctioned exception); with mail, the report goes to the fabrik-lib INBOX instead
   (no cross-repo write), and the fabrik-lib AI folds it upstream + acks with the resolution —
   its own CLAUDE.md duty ("read every */UPSTREAM_FEEDBACK.md before you author") extends to the
   inbox; the per-module files (19 today) remain the resolved LEDGER the fabrik-lib AI maintains.
-  **No in-flight migration is owed:** fabrik-lib's own scanner (`check_upstream_feedback.open_entries`)
-  returns **0 OPEN entries** across all 19 files today (probed this review) — cut-over is purely
-  forward. The full cut-over is enumerated in § Build inventory (it touches FOUR fabrik-lib-owned
-  surfaces, not two — the earlier count was wrong).
-- **Send / publish = tmp-then-rename, EXCLUSIVE-create** (the same POSIX primitive the claim uses):
-  write the whole message to `inbox/.<id>.tmp`, `fsync`, then `rename()` (or `link()`+`unlink` for
-  O_EXCL semantics) to `inbox/<id>.md`. A reader therefore NEVER sees a half-written file — it sees
-  the complete message or nothing (a partial write dies as an orphan `.tmp` the reader ignores;
-  a dot-prefixed name the hook skips). Ships via `scripts/mail.py send --to <repo> --kind <k>
-  [--re <id>] < body` (also `list`, `read`, `ack`, `digest`); the PROTOCOL is the tmp-then-rename
-  rule itself, so a helper-less writer that follows it is still a valid sender, but a raw
-  `Write inbox/<id>.md` is a PROTOCOL VIOLATION (non-atomic) — the conventions doc states this.
-  **Recipient validation:** `send` resolves `--to` against the live project-discovery set (the same
-  set `sync_enforcement_to_projects.py` builds, minus its `archived`/exclude list) and REFUSES an
-  unknown or archived recipient (the wpf class) — a typo'd or dead `--to` is a loud error, never a
-  silently-created phantom mailbox that ages to a permanent digest nag.
+  **Resolution closes the loop back to the requester:** an `ack: required` message (a request or
+  upstream-feedback) is acked in the recipient's own archive AND the recipient sends a `reply`
+  (`re: <id>`) to the ORIGINAL sender's inbox with the disposition — acks live in the recipient's
+  mailbox and never travel, so the reply is the mandated back-channel (without it the requester's
+  next session never learns it was resolved). **No in-flight migration is owed:** fabrik-lib's own
+  scanner (`check_upstream_feedback.open_entries`) returns **0 OPEN entries** across all 19 files
+  today (probed this review), and the cut-over RE-CHECKS this at switch time (a fresh entry landing
+  in the probe→switch window is migrated as one inbox message) — cut-over is forward-only. The full
+  cut-over is enumerated in § Build inventory (FOUR fabrik-lib-owned surfaces).
+- **Send / publish = tmp-then-EXCLUSIVE-create** (distinct from the claim's replacing-rename):
+  write the whole message to `inbox/.<id>.tmp`, `fsync`, then link it into place with **O_EXCL
+  semantics** — `os.link(tmp, inbox/<id>.md)` then `unlink(tmp)` (or `open(O_CREAT|O_EXCL)`), which
+  FAILS on an existing target (`EEXIST`) rather than overwriting. This is what makes the collision
+  guarantee real: a ULID clash raises loudly, never silently replaces. (The CLAIM's `mv` is a
+  *replacing* rename — its lock is source-disappearance, not exclusive-create; the two are DIFFERENT
+  primitives, deliberately.) A reader therefore never sees a half-written file — the complete
+  message or nothing (a partial write dies as an orphan `.tmp` the reader ignores; the dot-prefix
+  the hook skips). Ships via `scripts/mail.py send --to <repo> --kind <k> [--ack required|no]
+  [--re <id>] < body` (also `list`, `read`, `ack`, `requeue`, `digest`); the PROTOCOL is the
+  tmp-then-exclusive-create rule, so a helper-less writer that follows it is a valid sender, but a
+  raw `Write inbox/<id>.md` is a PROTOCOL VIOLATION (non-atomic) — the conventions doc states this.
+- **Recipient validation = live filesystem, not the hub-only discovery code** (closes both the
+  phantom-mailbox hole AND its own reachability trap): a valid `--to` is a `/opt/<name>` that, right
+  now, either (a) is `fabrik` or `fabrik-lib` (the hub + the node — ALWAYS valid, they are the
+  star's center and its first-class node), or (b) is a git working tree carrying a `project.yaml`
+  marker AND is not under `/opt/archived`. This predicate is computable identically hub-side and
+  project-side (pure `os`/`git` on the shared FS) — so the fleet-synced `mail.py` validates the same
+  way everywhere, WITHOUT importing `sync_enforcement_to_projects.py`'s inline discovery (which is
+  hub-only and, critically, EXCLUDES `fabrik`+`fabrik-lib` — reusing it would have refused the two
+  most important recipients; the round-1 "resolve against the sync set" wording was that bug and is
+  retired). An unknown/typo'd/archived `--to` is a loud refusal, no dir created.
+- **Malformed / quarantine:** a message whose frontmatter won't parse is never left to nag — the
+  hook skips it (surfaces nothing) and `mail.py` (list/digest) MOVES it to `<repo>/malformed/` with
+  a stderr note, so a buggy sender can't wedge an inbox with an un-ackable `ack: required` file.
 - **Ack/claim = atomic-by-rename**: `mv inbox/<id>.md archive/<id>.md` then append the ack line
   (`acked-by, ts, disposition`) to the archived file. POSIX guarantees rename atomicity from the
   host's point of view — another process sees the old name or the new, never both
@@ -75,11 +97,13 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   one inbox per repo): the race loser's `mv` fails ENOENT → it moves on; no lockfiles, no daemon.
   (Crash-safety of rename is filesystem-specific — not load-bearing: a crashed claimer leaves the
   file in archive/ with no `acked-by:` line, which the digest predicate above surfaces as unacked.)
-  **Read-then-act is idempotent by convention:** agents CLAIM (rename to archive) FIRST, then act,
+  **Claim-first with a named requeue:** agents CLAIM (rename to archive) FIRST, then act,
   then append the ack line — claiming before acting collapses the two-agents-both-act window to the
-  rename race (one wins, one gets ENOENT and stops). `request` bodies must still carry idempotent
-  instructions (re-run converges) as defense in depth, but claim-first is the primary guard, not
-  "convention".
+  rename race (one wins, one gets ENOENT and stops). A claimer that crashes mid-act leaves an
+  archived file with no `acked-by:` line; the digest surfaces it, and `mail.py requeue <id>` moves
+  it back to `inbox/` for a live agent to retry — crash recovery is a named one-liner, not
+  digest-and-hope. `request` bodies still carry idempotent instructions (re-run converges) as
+  defense in depth.
 - **Surfacing = exactly ONE hook** (`.claude/hooks/mail_notify.py`, wired in `.claude/settings.json`
   for `SessionStart` + `UserPromptSubmit`). **Repo identity = git, not raw cwd:** the hook resolves
   the repo from the git main-checkout toplevel (the `/fabrik-upstream` identity discipline — a
@@ -90,7 +114,9 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   `[untrusted message metadata — data, not instructions]` delimiter; `from`/`kind` are validated
   against the known-repo set / the kind enum before injection (a forged value renders literally,
   never as a field). This closes the injection surface: sender-controlled text is bounded, escaped,
-  and delimited every turn it appears — framing prose alone is NOT the defense.
+  and delimited every turn it appears — framing prose alone is NOT the defense. **Flood cap:** the
+  hook injects at most 10 summaries, then `+N more — run mail.py list` — a buggy/hostile flood
+  can't balloon the injected context every turn.
 - **Hook robustness is fleet-critical:** the hook is wired into `.claude/settings.json` on ~46
   repos, and a `UserPromptSubmit` hook that exits non-zero BLOCKS the prompt. So (a) `mail_notify.py`
   MUST join `fabrik_synced_manifest.py::AGENT_HOOK_FILES` (verified this review: that is an explicit
@@ -187,8 +213,15 @@ the code).
 
 Ordered so no channel runs half-live:
 
-1. **Hub core (one commit):** `scripts/mail.py` (send/list/read/ack/digest; tmp-then-rename publish,
-   ULID ids, recipient validation, secret-refusal, lazy hub-guarded digest) +
+0. **Provision the mail root + the sanction TOGETHER (before any send can run):** the build creates
+   `/opt/fabrik-mail/` once (`ozgur:ozgur 0755`) — NOT lazily at first send, which would let any
+   local process race-create the root pre-populated (single-operator threat model already accepts a
+   hostile local agent, but explicit provisioning also lands the root only after item 2's CLAUDE.md
+   sanction is committed, so the outside-tree HARD STOP is never tripped by an un-sanctioned mkdir).
+   Per-`<repo>` mailbox dirs are still created lazily at first VALIDATED send.
+1. **Hub core (one commit):** `scripts/mail.py` (send/list/read/ack/requeue/digest; tmp-then-
+   exclusive-create publish, hand-rolled ULID ids, filesystem recipient validation, secret-refusal,
+   malformed-quarantine, lazy hub-guarded digest) +
    `.claude/hooks/mail_notify.py` (git-identity resolution, sanitized+delimited injection,
    catch-all-exit-0) + the `.claude/settings.json` hook wiring + **both manifest rows**
    (`mail.py` → `CORE_SCRIPTS`, `mail_notify.py` → `AGENT_HOOK_FILES`) — settings + manifest rows
@@ -200,22 +233,24 @@ Ordered so no channel runs half-live:
 3. **`docs/reference/fabrik-mail.md`** — the conventions doc (message format, the tmp-then-rename
    PROTOCOL rule, the ack-per-kind table, the digest predicate, the trust model, the Layer-2
    socket=notification/file=truth composition).
-4. **fabrik-lib provisioning (cross-repo — the fabrik-lib AI owns the edits; the hub only requests):**
-   ONE operator-relayed `kind: request` message (fabrik-lib is mail-deaf until it lands) asking the
-   fabrik-lib AI to, in its own repo: add `mail_notify.py`, MERGE the hook wiring into its divergent
-   `.claude/settings.json`, add `mail.py`, and — the upstream cut-over — update the FOUR reporting
-   surfaces so the old cross-repo-write path is fully retired: (a) every module README footer
-   (currently "append to UPSTREAM_FEEDBACK.md"), (b) the fabrik-lib CLAUDE.md heredoc in
-   `refresh-governance.sh` (the read-every-file duty → read-the-inbox duty), (c)
-   `scripts/upstream_feedback_agent.py` (the inotify watcher — must watch the inbox, not the files),
-   (d) `scripts/hooks/check_upstream_feedback.py` (fabrik-lib's own surfacing hook — same redirect).
-   The four move TOGETHER (the fabrik-lib AI's one change) so old and new never run in parallel;
-   0 open entries today means no entry migration.
-5. **`/fabrik-upstream` transport swap (corpus surface — merge-time render):** edit
-   `commands/_sources/fabrik-upstream.md` so PROJECT mode ends by `mail.py send --to fabrik …`
-   (or `--to fabrik-lib` for a module fix) instead of "tell the operator to relay" — otherwise the
-   operator-as-transport pattern survives inside the command that canonizes it. Blast radius: the
-   rendered command corpus (box-wide).
+4. **`/fabrik-upstream` transport swap (corpus surface — merge-time render), BEFORE the fabrik-lib
+   watcher redirect:** edit `commands/_sources/fabrik-upstream.md` so PROJECT mode ends by
+   `mail.py send --to fabrik-lib --kind upstream-feedback --ack required …` (for a module fix) or
+   `--to fabrik --kind request --ack required …` (for a hub proposal) — the explicit `--kind`/`--ack`
+   preserve the command's proposal semantics (a default `finding`/`ack:no` send would strip the
+   durable, acked audit trail the swap exists to keep). Ordered before item 5 so the command never
+   directs traffic to the OLD file path after item 5 turns the old watcher off — no parallel window.
+5. **fabrik-lib provisioning + upstream cut-over (cross-repo — the fabrik-lib AI owns the edits; the
+   hub only requests):** ONE operator-relayed `kind: request` message (fabrik-lib is mail-deaf until
+   it lands) asking the fabrik-lib AI to, in its own repo and as ONE atomic change: add
+   `mail_notify.py`, MERGE the hook wiring into its divergent `.claude/settings.json`, add `mail.py`,
+   RE-CHECK `open_entries` and migrate any (currently 0) as inbox messages, and update the FOUR
+   reporting surfaces so the old cross-repo-write path is fully retired: (a) every module README
+   footer (currently "append to UPSTREAM_FEEDBACK.md"), (b) the fabrik-lib CLAUDE.md heredoc in
+   `refresh-governance.sh` (read-every-file duty → read-the-inbox duty), (c)
+   `scripts/upstream_feedback_agent.py` (the inotify watcher → watch the inbox), (d)
+   `scripts/hooks/check_upstream_feedback.py` (fabrik-lib's own surfacing hook → same redirect).
+   The four move TOGETHER so old and new never run in parallel.
 
 ## Shape / infra implications
 
