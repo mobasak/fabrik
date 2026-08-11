@@ -36,7 +36,7 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   `id`, `from` (repo), `to` (repo), `ts` (ISO-8601 UTC), `re` (parent id | null — an ADVISORY
   threading hint, never validated: a dangling/unknown `re:` is harmless, it just doesn't link),
   `kind` (`request|finding|relay|reply|upstream-feedback`), `ack` (`required|no`) — then a markdown
-  body. Filename = `<id>.md`. **`id` is a ULID, hand-rolled in ~10 stdlib lines** (48-bit
+  body. Filename = `<id>.md`. **`id` is a ULID, hand-rolled in ~10 stdlib lines** — 48-bit
   `time.time_ns()`-ms + 80 bits `os.urandom`, encoded MSB-first over a Crockford-base32 alphabet map
   `0123456789ABCDEFGHJKMNPQRSTVWXYZ` (ASCII-ascending, so lexical order == value order — the map is
   ~5 lines). **Do NOT use `base64.b32encode`:** its RFC-4648 alphabet `A–Z2–7` is NOT
@@ -95,7 +95,11 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   "resolve against the sync set" (which excluded fabrik/fabrik-lib) AND round-2's
   "git tree with `project.yaml`" (which diverged from the sync set — some synced dirs lack
   `project.yaml`, so they'd get the machinery yet be un-mailable, breaking the reply-closure to
-  them). An unknown/typo'd/hookless/archived `--to` is a loud refusal, no dir created.
+  them). An unknown/typo'd/hookless/archived `--to` is a loud refusal, no dir created. `send` runs
+  TWO checks, not one: this recipient-can-receive check AND the star-topology check (if BOTH `--from`
+  and `--to` are non-hub nodes — i.e. project→project, neither being `fabrik`/`fabrik-lib` — refuse;
+  route via the hub). Implementing only the first would silently allow the project↔project edges the
+  star forbids.
 - **Message size cap:** `send` REFUSES a body over 64 KB (nothing written) — a mail is a pointer, not
   a payload (large artifacts stay in their repo/at a path the message names). This bounds inbox
   growth, the injected context, and the `.tmp` write; no multi-MB dump can fill `/opt`.
@@ -227,15 +231,16 @@ the code).
 
 ## Build inventory (every named build item — the plan phases from this)
 
-Ordered so no channel runs half-live:
+Numbered in execution order — each item's precondition is satisfied by a lower-numbered one:
 
-0. **Provision the mail root + the sanction TOGETHER (before any send can run):** the build creates
-   `/opt/fabrik-mail/` once (`ozgur:ozgur 0755`) — NOT lazily at first send, which would let any
-   local process race-create the root pre-populated (single-operator threat model already accepts a
-   hostile local agent, but explicit provisioning also lands the root only after item 2's CLAUDE.md
-   sanction is committed, so the outside-tree HARD STOP is never tripped by an un-sanctioned mkdir).
-   Per-`<repo>` mailbox dirs are still created lazily at first VALIDATED send.
-1. **Hub core (one commit):** `scripts/mail.py` (send/list/read/ack/requeue/digest; tmp-then-
+1. **CLAUDE.md sanction FIRST (synced surface):** one sentence in BOTH `CLAUDE.md` copies
+   sanctioning `/opt/fabrik-mail/` as an outside-tree exception (§ Constraints digest) — a
+   governance-sync edit, blast-radius named. This lands BEFORE the root is created so the
+   outside-tree HARD STOP is never tripped by an un-sanctioned mkdir.
+2. **Provision the mail root** (`/opt/fabrik-mail/`, `ozgur:ozgur 0755`) once — NOT lazily at first
+   send (which would let any local process race-create it pre-populated). Per-`<repo>` mailbox dirs
+   are still created lazily at first VALIDATED send.
+3. **Hub core (one commit):** `scripts/mail.py` (send/list/read/ack/requeue/digest; tmp-then-
    exclusive-create publish, hand-rolled ULID ids, filesystem recipient validation, secret-refusal,
    malformed-quarantine, lazy hub-guarded digest) +
    `.claude/hooks/mail_notify.py` (git-identity resolution, sanitized+delimited injection,
@@ -243,20 +248,17 @@ Ordered so no channel runs half-live:
    (`mail.py` → `CORE_SCRIPTS`, `mail_notify.py` → `AGENT_HOOK_FILES`) — settings + manifest rows
    MUST be in this one commit (finding 1's fleet-wide prompt-block guard). Then a merge-master
    governance-sync distributes to the ~46 synced projects.
-2. **CLAUDE.md sanction (synced surface):** one sentence in BOTH `CLAUDE.md` copies sanctioning
-   `/opt/fabrik-mail/` as an outside-tree exception (§ Constraints digest) — a governance-sync edit,
-   blast-radius named.
-3. **`docs/reference/fabrik-mail.md`** — the conventions doc (message format, the tmp-then-rename
+4. **`docs/reference/fabrik-mail.md`** — the conventions doc (message format, the tmp-then-rename
    PROTOCOL rule, the ack-per-kind table, the digest predicate, the trust model, the Layer-2
    socket=notification/file=truth composition).
-4. **`/fabrik-upstream` transport swap (corpus surface — merge-time render), BEFORE the fabrik-lib
+5. **`/fabrik-upstream` transport swap (corpus surface — merge-time render), BEFORE the fabrik-lib
    watcher redirect:** edit `commands/_sources/fabrik-upstream.md` so PROJECT mode ends by
    `mail.py send --to fabrik-lib --kind upstream-feedback --ack required …` (for a module fix) or
    `--to fabrik --kind request --ack required …` (for a hub proposal) — the explicit `--kind`/`--ack`
    preserve the command's proposal semantics (a default `finding`/`ack:no` send would strip the
-   durable, acked audit trail the swap exists to keep). Ordered before item 5 so the command never
-   directs traffic to the OLD file path after item 5 turns the old watcher off — no parallel window.
-5. **fabrik-lib provisioning + upstream cut-over (cross-repo — the fabrik-lib AI owns the edits; the
+   durable, acked audit trail the swap exists to keep). Ordered before item 6 so the command never
+   directs traffic to the OLD file path after item 6 turns the old watcher off — no parallel window.
+6. **fabrik-lib provisioning + upstream cut-over (cross-repo — the fabrik-lib AI owns the edits; the
    hub only requests):** ONE operator-relayed `kind: request` message (fabrik-lib is mail-deaf until
    it lands) asking the fabrik-lib AI to, in its own repo and as ONE atomic change: add
    `mail_notify.py`, MERGE the hook wiring into its divergent `.claude/settings.json`, add `mail.py`,
@@ -319,14 +321,7 @@ III (env-overridable root), XI (hook/helper stdout only, no logfiles). `PORTS.md
   operator-relayed once (fabrik-lib is mail-deaf until the hook lands there) — after that
   fabrik-lib is a live node.
 
-Converged 2026-08-11: 4 passes. Passes 1–3 (light) raised 11 findings (socket-delivery mechanism,
-fabrik-lib as a node, upstream-feedback kind, sync-exclusion) — fixed. **Pass 4 = the full
-adversarial /fabrik-spec-review the operator demanded** (pool ×4 axes + native Opus, every grounded
-claim re-probed live): 8 CONFIRMED + 5 PLAUSIBLE findings, all fixed in one wave — the two delivery
-mechanisms were asserted WRONG (the hook needs an `AGENT_HOOK_FILES` row or it exit-2-blocks prompts
-fleet-wide; `refresh-governance.sh` cannot carry it, so fabrik-lib provisioning is a relayed request
-the fabrik-lib AI executes), send atomicity (tmp-then-rename), the injection surface (sanitize+cap+
-delimit), the trust model (single-operator, stated), recipient validation, ULID entropy, ack-per-kind
-+ the digest predicate, the four-surface cut-over (0 open entries → forward-only), and the
-`/fabrik-upstream` build item. Re-verified to a no-op in round N (below). Next on operator approval:
-/fabrik-plan-after-chat (no data contract owed — no DB/user fields; not GUI).
+Converged via `/fabrik-spec-review` to an md5-verified no-op round (full adversarial pass: OpenRouter
+pool ×4 axes + native Opus, every grounded claim re-probed against the live files). The convergence
+history is the git log of this file, not this doc. Next on operator approval:
+`/fabrik-plan-after-chat` (no data contract owed — no DB/user fields; not GUI).
