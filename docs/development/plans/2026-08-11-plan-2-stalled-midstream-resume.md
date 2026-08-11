@@ -51,28 +51,45 @@ Owner: hub session (operator-approved: "stalled-mid-stream auto-resume as one sm
 ## The grounded mechanism (Phase-1 evidence, captured this session)
 
 **The real transcript shape** (session `1970a0ff-…`, the live occurrence the operator manually
-"proceed"-ed; extracted 2026-08-11):
+"proceed"-ed; re-extracted with 1-based line numbers + timestamps 2026-08-11):
 
 ```
-[46227] type=assistant  stop_reason=end_turn       content=[thinking]
-[46228] type=assistant  stop_reason=stop_sequence  isApiErrorMessage=True
-        text='API Error: Response stalled mid-stream. The response above may be incomplete.'
-[46229] type=queue-operation
+line 46228: type=assistant        stop_reason=end_turn       ts=15:38:33
+line 46229: type=assistant        stop_reason=stop_sequence  isApiErrorMessage=True  ts=15:41:34
+            text='API Error: Response stalled mid-stream. The response above may be incomplete.'
+line 46230: type=queue-operation  ts=16:06:21   ← 25 min LATER — these belong to the operator's
+line 46231: type=queue-operation  ts=16:06:21     manual revival, not the stall
+line 46232: type=user 'proceed'   ts=16:06:22
 ```
+
+The 25-minute silent gap (15:41:34 → 16:06:21) IS the frozen window this plan closes.
 
 So detection needs NO fragile string-only match: the tail assistant record carries a dedicated
 **`isApiErrorMessage: true`** field. Detection = last assistant record has `isApiErrorMessage`
 truthy AND its text matches the stall class (`Response stalled mid-stream` — a module-constant
 pattern list, extensible to sibling incomplete-stream texts later).
 
-**Why nothing resumes today**: the stalled turn ends via a NORMAL Stop, and the mesh treats it as
-a healthy final rest — `_run_hook_inner` (`:667`, the Stop consequence layer) even CLEARS any
-prior death record on this path (`claude-stop-decider.py:697-704` "a normal Stop for this session
-means the last error-death has been survived — clear the death record"). The turn-death park path
-that writes `.errparked` + rings the error voice (`:840-843`, same function, "Death record so an
-armed self-watch wakes the pane") is never reached because `turn_dead` is False on this path and
-`decide()`'s tail classifier keys on `stop_reason` (`:111` "assistant + end_turn ⇒ candidate
-park", `:134`, `:340`) — `stop_sequence` + `isApiErrorMessage` is invisible to it. The revival machinery already exists and is armed
+**Why nothing resumes today (grounder-corrected, code-verified):** the stalled tail
+(`stop_reason=stop_sequence`, not `end_turn`) classifies as `assistant-mid`
+(`claude-stop-decider.py:142` "tool_use etc. — mid-work"), which `decide()` maps to
+**`busy-input` — a SILENT verdict** (`:544-545`), and `_arm_stale_recheck` **explicitly declines
+to arm any bridge for busy-input** (`:389-390` "a human is present, no bridge needed"). So at any
+Stop that evaluates the stalled transcript, the session is misclassified as
+waiting-for-human-input and every revival layer stands down. Two further code facts bind the
+design: (a) the `.errparked` write at `:840-843` is nested inside `if waker_lost:` (`:839`,
+computed from `recheck_run` at `:789-791`) — it NEVER fires on a fresh Stop, so the fix writes a
+NEW record (same `<class> <epoch>` line format — the self-watch's reader and the two existing
+writers, decider `:843` + `claude-sound.sh:146`, are format-verified compatible); (b) the
+survived-death cleanup (`:696-708`, in `_run_hook_inner` `:667`) clears `.errparked` on EVERY
+normal non-recheck Stop — including a `delegated` Stop while the main tail is still stalled — so
+the cleanup must be suppressed while the stalled record remains the main tail.
+
+**Named risk (unproven either way — probed at execution, step 0):** whether the Stop hook fires
+AT the stall moment at all. The stalled session has ZERO lines in `~/.claude/sound-debug.log`
+(grep-verified — the whole log holds no `1970a0ff` entry), so hook-at-stall behavior cannot be
+proven from history. If execution's live probe shows no Stop fires at (or after) a stall, the
+detection additionally hooks the self-watch poll path — a pre-authorized conditional step, not a
+mid-run question. The revival machinery already exists and is armed
 ("EVERY interactive session arms `claude-selfwatch.sh` via the ORIENT-ordered persistent Monitor" —
 `docs/workstation/hooks-index.md` StopFailure row); it just never receives a death record for this
 class.
@@ -81,16 +98,26 @@ class.
 
 **Interfaces — Consumes:** the transcript tail records (shape above); the existing `.errparked`
 death-record format (`claude-stop-decider.py:840-843`) and the armed self-watch consumer.
-**Produces:** a new `decide()` verdict class `stalled-api-error` + its `_run_hook_inner` routing
-to the existing death path (the `.errparked` record shape the self-watch already consumes); a
-module constant `_API_ERROR_STALL_PATTERNS: tuple[str, ...]`; fixtures in the decider's
-`--self-test` suite.
+**Produces:** a new tail state in `last_message_state` (`:134-142`) + a new `decide()` verdict
+class `stalled-api-error` + `_run_hook_inner` consequences (a NEW `api_error_stalled <epoch>`
+`.errparked` write — the format the self-watch already consumes — plus cleanup suppression while
+the stall remains the main tail); a module constant `_API_ERROR_STALL_PATTERNS: tuple[str, ...]`;
+fixtures in the decider's `--self-test` suite.
 
 Steps:
 
+0. **Hook-at-stall live probe (the named risk, self-service):** prove whether a Stop event fires
+   when a stall is on the tail — run the decider directly against a COPY of the real stalled
+   transcript (`1970a0ff-….jsonl` truncated at line 46229) and confirm the verdict path executes;
+   then check the live wiring fires the hook at all on this box (`grep -A3 '"Stop"'
+   ~/.claude/settings.json` + one observed Stop line in `~/.claude/sound-debug.log` from the
+   current session). If evidence shows Stops never fire post-stall in a frozen solo session, the
+   pre-authorized extension applies: the self-watch poll additionally greps the session
+   transcript's tail for the stall shape (a conditional step, decided by the probe — never a
+   mid-run question).
 1. **Preflight (toolchain + baseline):** `python3 ~/.claude/bin/claude-stop-decider.py --self-test`
-   → expect exit 0, all fixtures green (the suite exists: `claude-stop-decider.py:49,1197`). Capture
-   the fixture count as the baseline N.
+   → expect exit 0, all fixtures green (the suite exists: `claude-stop-decider.py:49,1197`;
+   baseline measured 2026-08-11: 42 green).
 2. **TDD — the risky behavior first, watched RED:** add fixture(s) to the `--self-test` suite BEFORE
    the fix, modeled on the real records above (assistant `stop_sequence` tail with
    `isApiErrorMessage: true` + the stall text, preceded by a thinking record, followed by
@@ -100,30 +127,36 @@ Steps:
    with exactly the new fixtures failing.
 
 **Behavior Contract (Phase A):**
-- **Given** a Stop whose transcript tail is the stalled-api-error shape, **When** `decide()` runs,
-  **Then** the verdict is a park-as-DEATH: `.errparked` is written for the session (error class
-  `api_error_stalled`) and the error voice (not the done chime) is selected
-  (`~/.claude/bin/claude-stop-decider.py:506` decide(), `:840` the death-record write).
+- **Given** a Stop whose transcript tail is the stalled-api-error shape, **When** the hook runs,
+  **Then** the verdict is `stalled-api-error` (never the silent `busy-input` of
+  `~/.claude/bin/claude-stop-decider.py:544-545`), a NEW `.errparked` record
+  `api_error_stalled <epoch>` is written, and the error voice (not the done chime) is selected.
 - **Given** the same tail WITHOUT `isApiErrorMessage` (an ordinary assistant text mentioning the
-  words mid-sentence), **When** `decide()` runs, **Then** the verdict is unchanged from today —
+  words mid-sentence), **When** the hook runs, **Then** the verdict is unchanged from today —
   no death record, no error ring (no false positives on prose that quotes the error).
-- **Given** a stalled-tail death record exists and the session later produces a NORMAL healthy
-  Stop, **When** `decide()` runs, **Then** the record clears exactly as `:697-704` does today
-  (the new class participates in the survived-death cleanup; no immortal markers).
-- **Given** the stalled-tail record is NOT the last entry (queue-operation records follow, as in
-  the real transcript), **When** the tail is scanned, **Then** detection still fires (the scan
-  finds the last ASSISTANT record, not the last line).
+- **Given** a stalled-tail death record exists and the session later produces a Stop whose tail
+  is a NEW healthy assistant record, **When** the hook runs, **Then** the record clears via the
+  survived-death cleanup (`:696-708`) exactly as today — no immortal markers.
+- **Given** a stalled-tail death record exists and a `delegated`/sibling Stop fires while the
+  MAIN tail is still the stalled record, **When** the hook runs, **Then** the record SURVIVES
+  (the cleanup is suppressed — an unsurvived stall is never cleared by a sibling's Stop).
+- **Given** the stalled-tail record is NOT the last transcript line (queue-operation records
+  follow, as in the real transcript), **When** the tail is scanned, **Then** detection still
+  fires (the scan finds the last ASSISTANT record, not the last line).
 3. **Implement the detection branch in `claude-stop-decider.py` (the ONLY edited surface), across
-   the REAL seam (grounder finding — the two mechanisms live in different functions):** `decide()`
-   (`:506`) owns the tail CLASSIFICATION — add a module constant
-   `_API_ERROR_STALL_PATTERNS = ("Response stalled mid-stream",)` and, in its tail scan, detect the
-   last ASSISTANT record with `isApiErrorMessage` truthy AND a pattern match → return a NEW verdict
-   class (`stalled-api-error`). `_run_hook_inner` (`:667`) owns the CONSEQUENCES — route the new
-   verdict to the existing death path (the `.errparked` write + error-ring selection at `:840-843`,
-   class `api_error_stalled`) INSTEAD of the normal-Stop survived-death cleanup at `:697-704` (the
-   cleanup must not fire on this verdict — that would clear the record the same event just created).
-   Fail-open both sides (any parse error → today's behavior). Gate:
-   `python3 ~/.claude/bin/claude-stop-decider.py --self-test; echo $?` → 0, N+4 fixtures green.
+   the REAL seam:** the tail classifier (`last_message_state`, `:134-142`) gains the stalled check
+   BEFORE its `assistant-mid` fallthrough — the last ASSISTANT record with `isApiErrorMessage`
+   truthy AND an `_API_ERROR_STALL_PATTERNS = ("Response stalled mid-stream",)` match → a NEW
+   state, which `decide()` (`:506`) maps to a NEW verdict class (`stalled-api-error`) instead of
+   the silent `busy-input` (`:544-545`). `_run_hook_inner` (`:667`) owns the CONSEQUENCES: on the
+   new verdict, (a) SUPPRESS the survived-death cleanup (`:696-708`) — and suppress it on ANY
+   verdict (incl. `delegated`) while the main tail still matches the stall pattern, so a sibling
+   subagent's Stop never clears an unsurvived stall record; (b) write a NEW `.errparked` record —
+   `api_error_stalled <epoch>`, the `<class> <epoch>` format the self-watch reads (do NOT reuse the
+   `:840-843` write: it is `waker_lost`-gated, `:839`, and never fires on a fresh Stop) — and
+   select the error-family ring. Fail-open everywhere (any parse error → today's behavior). Gate:
+   `python3 ~/.claude/bin/claude-stop-decider.py --self-test; echo $?` → 0, all fixtures green
+   (baseline 42 + the new rows' fixtures).
 4. **End-to-end wake proof (read-only on the consumers):** with a throwaway session id, write the
    fixture transcript to a temp path, run the decider on it, then verify the REAL consumer contract:
    the `.errparked` record parses by the same reader `claude-selfwatch.sh` polls (grep the marker
@@ -177,9 +210,10 @@ decider fixtures) · `claude-sound.sh` / `claude-selfwatch.sh` / `claude-autores
 ## Evidence
 
 Phase A:
-- `~/.claude/projects/-opt-fabrik/1970a0ff-….jsonl:46228` — the real stalled record:
+- `~/.claude/projects/-opt-fabrik/1970a0ff-….jsonl:46229` — the real stalled record (1-based):
   `type=assistant stop_reason=stop_sequence isApiErrorMessage=True` text `'API Error: Response
-  stalled mid-stream. The response above may be incomplete.'` (fenced extraction above).
+  stalled mid-stream. The response above may be incomplete.'` (fenced extraction above; an earlier
+  0-based extraction was off by one — corrected by the grounding round).
 - `~/.claude/bin/claude-stop-decider.py:697-704` — the normal-Stop survived-death cleanup that
   today CLEARS death records on exactly this path (why nothing resumes).
 - `~/.claude/bin/claude-stop-decider.py:840-843` — the `.errparked` death-record write + "an armed
@@ -209,9 +243,18 @@ $ grep -n "stalled\|mid-stream" ~/.claude/bin/claude-stop-decider.py ~/.claude/b
 
 ## Residual unknowns
 
-- RESOLVED (plan-time): the detectable signature (`isApiErrorMessage` + text), the insert point
-  (before `:697`), the revival wire (`.errparked` → armed self-watch).
-- OPEN (self-service, named resolution): the exact field format `claude-selfwatch.sh` reads from
-  `.errparked` — step 4 greps it read-only before the fixture asserts on it; no operator input needed.
-- OPEN (self-service): whether `claude-mesh-test.sh` embeds decider fixtures or only sound fixtures —
-  step 5 runs it and records the real total; either answer changes nothing structural.
+- RESOLVED (plan-time, grounder-corrected): the detectable signature (`isApiErrorMessage` + text,
+  real record at jsonl:46229); the real seam (`last_message_state` `:134-142` classify →
+  `decide()` `:544-545` verdict → `_run_hook_inner` `:667` consequences); the `.errparked` format
+  compatibility (`<class> <epoch>` — both existing writers verified); the busy-input
+  misclassification + declined bridge (`:389-390`) as today's true failure mode; the cleanup
+  suppression requirement (`:696-708` clears on sibling Stops).
+- OPEN (self-service, probe in step 0): whether the Stop hook fires at/after a stall in a frozen
+  SOLO session — the plan's own cited session has ZERO sound-debug lines, so history cannot prove
+  it; step 0's live probe decides, and the pre-authorized conditional (self-watch tail grep)
+  covers the negative outcome. Never a mid-run question.
+- OPEN (self-service): whether `claude-mesh-test.sh` embeds decider fixtures or only sound
+  fixtures — step 5 runs it and records the real total; either answer changes nothing structural.
+- REFUTED (grounder candidate): "File Scope must list CHANGELOG.md" — the plan grammar mandates
+  the OPPOSITE (governance shared-append surfaces stay OUT of File Scope in both shapes; locking
+  CHANGELOG would deadlock concurrent plans).
