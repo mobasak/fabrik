@@ -26,7 +26,24 @@ from pathlib import Path
 
 def changed_python(base: str | None = None) -> list[str]:
     """Committed changed ``.py`` (applied code) vs the merge-base with ``origin/master`` — excludes tests,
-    deleted files, and the canonical-owned vendored ``libs/``. Never the dirty worktree."""
+    deleted files, and the canonical-owned vendored ``libs/``. Never the dirty worktree.
+
+    ``FABRIK_MUTMUT_SINCE`` (e.g. ``"7 days ago"`` — the weekly cron sets it) switches the window to
+    committed history since that time instead of the merge-base diff."""
+    since = os.getenv("FABRIK_MUTMUT_SINCE")
+    if since:
+        out = subprocess.run(
+            ["git", "log", f"--since={since}", "--name-only", "--pretty=format:", "--diff-filter=d"],
+            capture_output=True,
+            text=True,
+        ).stdout
+        return sorted(
+            {
+                f
+                for f in out.splitlines()
+                if f.endswith(".py") and Path(f).exists() and not f.startswith(("tests/", "libs/"))
+            }
+        )
     if base is None:
         base = (
             subprocess.run(
@@ -70,10 +87,19 @@ def main() -> int:
     if not files:
         print("MUTATION (advisory): no changed applied Python — nothing to mutate.")
         return 0
+    cap_s = int(os.getenv("FABRIK_MUTMUT_WALL_CAP_S", "1200"))
     print(
-        f"MUTATION (advisory): running mutmut (incremental, diff-scoped) over {len(files)} changed file(s)…"
+        f"MUTATION (advisory): running mutmut (incremental, diff-scoped) over {len(files)} changed "
+        f"file(s), wall cap {cap_s}s… (mutmut 3.x has no --paths-to-mutate CLI; incremental mode is "
+        "the diff-scoper — it re-tests only changed functions)"
     )
-    subprocess.run(["mutmut", "run"], check=False)  # incremental → re-tests only changed functions
+    try:
+        subprocess.run(["mutmut", "run"], check=False, timeout=cap_s)
+    except subprocess.TimeoutExpired:
+        print(
+            f"MUTATION (advisory): wall cap {cap_s}s reached — partial results below "
+            "(raise FABRIK_MUTMUT_WALL_CAP_S for a fuller run). Still advisory, still exit 0."
+        )
     res = subprocess.run(["mutmut", "results"], capture_output=True, text=True, check=False).stdout
     survivors = parse_survivors(res)
     if survivors:

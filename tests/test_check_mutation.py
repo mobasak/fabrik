@@ -72,3 +72,44 @@ def test_changed_python_filters_tests_libs_and_nonpy(monkeypatch):
     monkeypatch.setattr(cm.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout=fake))
     monkeypatch.setattr(cm.Path, "exists", lambda self: True)
     assert cm.changed_python(base="somebase") == ["src/fabrik/a.py", "src/fabrik/d.py"]
+
+
+def test_wall_cap_timeout_is_advisory_not_fatal(monkeypatch, capsys):
+    # Given FABRIK_MUTMUT set and mutmut exceeding the wall cap, When main() runs, Then the cap is
+    # reported and the exit stays 0 (the staging guarantee survives the cap).
+    import subprocess as sp
+    import types
+
+    monkeypatch.setenv("FABRIK_MUTMUT", "1")
+    monkeypatch.setenv("FABRIK_MUTMUT_WALL_CAP_S", "1")
+    monkeypatch.setattr(cm.shutil, "which", lambda _: "/usr/bin/mutmut")
+    monkeypatch.setattr(cm, "changed_python", lambda base=None: ["src/fabrik/x.py"])
+
+    def fake_run(cmd, **kw):
+        if cmd[:2] == ["mutmut", "run"]:
+            raise sp.TimeoutExpired(cmd, kw.get("timeout", 1))
+        return types.SimpleNamespace(stdout="0 survived", returncode=0)
+
+    monkeypatch.setattr(cm.subprocess, "run", fake_run)
+    assert cm.main() == 0
+    out = capsys.readouterr().out
+    assert "wall cap" in out and "exit 0" in out
+
+
+def test_since_window_scopes_by_committed_history(monkeypatch):
+    # Given FABRIK_MUTMUT_SINCE, When changed_python runs, Then the git log --since window (deduped,
+    # filtered) is the scope — not the merge-base diff.
+    import types
+
+    monkeypatch.setenv("FABRIK_MUTMUT_SINCE", "7 days ago")
+    fake = "src/a.py\nsrc/a.py\ntests/test_a.py\nlibs/x.py\ndocs/d.md\nsrc/b.py\n\n"
+    captured: dict = {}
+
+    def fake_run(cmd, **kw):
+        captured["cmd"] = cmd
+        return types.SimpleNamespace(stdout=fake)
+
+    monkeypatch.setattr(cm.subprocess, "run", fake_run)
+    monkeypatch.setattr(cm.Path, "exists", lambda self: True)
+    assert cm.changed_python() == ["src/a.py", "src/b.py"]
+    assert "--since=7 days ago" in " ".join(captured["cmd"])

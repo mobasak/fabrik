@@ -808,6 +808,16 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
+        # Behavior-Contract test accompaniment — WARN when an ACTIVE plan-execution window
+        # (lock baseline..HEAD) declares Given rows and touched source with ZERO test changes.
+        # Whole-window by design; per-row coverage stays the phase-boundary review's. Always exits 0.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_phase_tests.py",
+                "Phase Tests (advisory, plan-window)",
+                advisory=True,
+            )
+        )
         # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
         # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
         # Advisory + fail-safe (always exits 0); the doc set is the registry SSOT.

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
+
+New Tier-2 advisory `check_phase_tests.py`: an ACTIVE plan lock's `baseline_commit..HEAD` window
+that declares Behavior-Contract Given rows and touched source with ZERO test changes WARNs,
+listing the declared rows (whole-window by design — per-row coverage stays the phase-boundary
+review's; reuses `check_plan_tickets.GIVEN_ROW_RE`; always exits 0, fail-soft on every error
+path; 7 behavior tests, red-on-revert proven). `check_mutation.py` gains
+`FABRIK_MUTMUT_SINCE` (committed-history window) and a `FABRIK_MUTMUT_WALL_CAP_S` hard wall cap
+(default 1200s, partial results on cap, still exit 0), wired to a new Sunday 05:00 cron
+(`FABRIK_MUTMUT=1 FABRIK_MUTMUT_SINCE="7 days ago" …`). Gate registered in
+`final_gate.py` Tier-2 (19 Tier-2-only / 37 total), rule stated in 45-testing-strategy § test
+accompaniment, env vars documented in CONFIGURATION.
+
 ### Changed — review-loop contract: wide→scoped→wide rounds, stall breaker, probe duty, role separation (2026-08-11)
 
 The two loop fragments (`term-coverage.md`, `term-edit.md`) now define the round SHAPE for

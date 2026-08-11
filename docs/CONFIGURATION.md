@@ -721,3 +721,16 @@ APPRISE_STATELESS_URLS=tgram://BOTTOKEN/CHATID  # set in /opt/apprise/.env
 - [.env.example](../.env.example) - Complete list of all environment variables
 - [SERVICES.md](SERVICES.md) - External services catalog
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common configuration issues
+
+### FABRIK_MUTMUT / FABRIK_MUTMUT_SINCE / FABRIK_MUTMUT_WALL_CAP_S — mutation-testing controls
+
+**What:** `FABRIK_MUTMUT=1` opts the advisory mutation runner
+(`scripts/enforcement/check_mutation.py`) into an actual mutmut run (unset = the per-commit gate
+prints a pointer and exits 0). `FABRIK_MUTMUT_SINCE` (e.g. `"7 days ago"`) switches the diff
+scope from the merge-base window to committed history since that time — the weekly cron sets it.
+`FABRIK_MUTMUT_WALL_CAP_S` (default `1200`) hard-caps the mutmut run's wall clock; on cap the
+runner reports partial results and still exits 0.
+
+**Why needed:** mutation runs are slow and noisy — the advisory stays opt-in and bounded so the
+weekly signal can never block or starve the box. Wired invoker: the Sunday 05:00 cron (see
+crontab), ahead of Monday's fleet doc audit.

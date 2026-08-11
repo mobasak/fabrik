@@ -218,3 +218,12 @@ Tests run against the **same backing services as production** — real PostgreSQ
 - [ ] No `print()` statements in test files.
 - [ ] Wire-contract assertions validate through the declared schema AND assert the key set — no raw `dict.get()`/`body.foo` value read standing in for a contract check (optional fields + `populate_by_name` make those pass green on a broken wire).
 - [ ] Every test this change adds/modifies was SEEN red (fail-first or neuter→red→restore→green).
+
+## Behavior-Contract test accompaniment (plan windows)
+
+A plan-execution window that ships user-observable behaviour shows its Behavior-Contract tests in
+the same window — the declared `- **Given** …` rows are a commitment, not decoration.
+Gate-observed: `check_phase_tests.py` WARNs (advisory, plan-window-scoped: an ACTIVE plan lock's
+`baseline_commit..HEAD` with declared rows, source changes, and zero test changes). Per-row
+coverage is the phase-boundary `/fabrik-review`'s to adjudicate; this pack is the rule the WARN
+cites — the always-loaded twin lives in `CLAUDE.md` § Completion Contract item 1.
