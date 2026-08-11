@@ -353,6 +353,90 @@ def test_non_list_owned_paths_falls_back_to_whole_window(tmp_path: Path) -> None
     assert "WARNING" in out and "ZERO test changes" in out, out
 
 
+def test_test_named_noncode_file_does_not_silence(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): `tests/test_report.json` — test-NAMED but not code —
+    # silenced a real zero-test WARN. Accompaniment requires a code suffix.
+    repo, _ = _repo(tmp_path)
+    (repo / "src/app.py").write_text("A = 2\n")
+    t = repo / "tests"
+    t.mkdir()
+    (t / "test_report.json").write_text('{"report": true}\n')
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "behavior + a test-named JSON artifact, ZERO real tests")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_pure_test_rename_does_not_silence(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): `git mv tests/test_app.py tests/test_x.py` (zero
+    # content change) satisfied accompaniment — a pure rename adds no coverage.
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@t")
+    _git(repo, "config", "user.name", "t")
+    plan_dir = repo / "docs/development/plans"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "p.md").write_text(
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+    (repo / "src").mkdir()
+    (repo / "src/app.py").write_text("A = 1\n")
+    t = repo / "tests"
+    t.mkdir()
+    (t / "test_app.py").write_text("def test_a():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "baseline with a test")
+    baseline = _git(repo, "rev-parse", "HEAD")
+    (repo / ".fabrik/plan-locks").mkdir(parents=True)
+    (repo / ".fabrik/plan-locks/p.json").write_text(json.dumps({
+        "plan": "docs/development/plans/p.md", "status": "active",
+        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "mv", "tests/test_app.py", "tests/test_app_renamed.py")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "ship behavior + RENAME the test, no content change")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_fenced_contract_label_not_counted(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): a ```-fenced illustrative `**Behavior Contract:**`
+    # block minted a declared row. Fenced prose never counts.
+    repo, _ = _repo(tmp_path, given_rows=0)
+    plan = repo / "docs/development/plans/p.md"
+    plan.write_text(
+        "# Plan\n\nStatus: IN-PROGRESS\n\nFor reference, the format looks like:\n\n"
+        "```\n**Behavior Contract (Phase A):**\n"
+        "- **Given** an EXAMPLE, **When** quoted, **Then** it must not count\n```\n"
+    )
+    _git(repo, "add", str(plan.relative_to(repo)))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "source change; plan's only contract text is fenced")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_colocated_and_case_variant_tests_count(tmp_path: Path) -> None:
+    # Review finding (live-reproduced false WARNs): a co-located `src/x.spec.ts` and a
+    # `Tests/`-cased dir are real test conventions — they must satisfy accompaniment.
+    repo, _ = _repo(tmp_path)
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = ["src/", "tests/", "Tests/"]
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    (repo / "src/app.spec.ts").write_text("test('a', () => {});\n")
+    (repo / "Tests").mkdir()
+    (repo / "Tests/test_app.py").write_text("def test_a():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "behavior + co-located spec + cased Tests dir")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
 def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> None:
     # Review finding (whole-plan round): shared-master sibling commits inside the window must not
     # count in EITHER direction — a sibling's untested .py must not WARN this plan, and a

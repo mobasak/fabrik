@@ -79,6 +79,10 @@ def _contract_regions(text: str) -> str:
     bullet/continuation block)."""
     import re
 
+    # Fenced code blocks are illustrative prose — a ```-quoted contract label/row must
+    # never mint a declared row (review finding, live-reproduced). Paired fences only;
+    # unbalanced markdown is left as-is (fail toward counting, i.e. toward the WARN).
+    text = re.sub(r"(?ms)^[ \t]*```.*?^[ \t]*```[ \t]*$", "", text)
     regions: list[str] = []
     heading_spans: list[tuple[int, int]] = []  # absolute offsets of heading regions
     for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):
@@ -105,7 +109,12 @@ def _contract_regions(text: str) -> str:
 def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
     args = ["git", "diff", "--name-only"]
     if exclude_deleted:
-        args.append("--diff-filter=d")  # a DELETED test must never satisfy test-accompaniment
+        # `d` — a DELETED test must never satisfy accompaniment; `r` (+ explicit rename
+        # detection) — a PURE RENAME of a pre-existing test adds no coverage and must not
+        # either (review finding, live-reproduced: `git mv` alone silenced the WARN).
+        # A renamed-AND-edited test is also excluded — under-counting is the WARN
+        # direction, and the advisory's reviewer adjudicates.
+        args += ["--diff-filter=dr", "--find-renames"]
     r = subprocess.run(
         [*args, f"{baseline}..HEAD"],
         capture_output=True,
@@ -130,23 +139,29 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     return False
 
 
+_CODE_TEST_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx")
+
+
 def _in_tests_tree(path: str) -> bool:
-    return "tests" in Path(path).parts[:-1]
+    # Case-insensitive: a `Tests/` dir is the same convention (review finding — the
+    # case-sensitive match produced a false WARN against a real accompanying test).
+    return "tests" in (p.lower() for p in Path(path).parts[:-1])
 
 
 def _is_test(path: str) -> bool:
-    """Counts as test ACCOMPANIMENT: a code-test-named file in a tests/ dir or at repo root.
-    Three-way split (review finding, live-reproduced: a `tests/data.json` fixture silenced the
-    WARN for a zero-test behavior window): code tests COUNT; test-adjacent files under tests/
-    (conftest, fixtures, data) neither count nor WARN; `scripts/test_connectivity.py`-style
-    utilities are ordinary source. The bare-name clause is root-only."""
+    """Counts as test ACCOMPANIMENT: a code-test-named CODE file in a tests/ dir, at repo
+    root, or a `.spec./.test.`-infixed file anywhere (the JS/TS co-location convention).
+    Three-way split (review findings, all live-reproduced): code tests COUNT; test-adjacent
+    files (conftest, fixtures, data — including test-NAMED non-code like
+    `tests/test_report.json`, which silenced a real WARN) neither count nor WARN;
+    `scripts/test_connectivity.py`-style diagnostic utilities are ordinary source. The
+    bare-name clause is root-only."""
     name = Path(path).name.lower()
-    is_test_named = (
-        name.startswith("test_")
-        or name.rsplit(".", 1)[0].endswith("_test")
-        or ".spec." in name
-        or ".test." in name
-    )
+    if not name.endswith(_CODE_TEST_SUFFIXES):
+        return False  # a test-named data/report artifact is not accompaniment
+    if ".spec." in name or ".test." in name:
+        return True  # co-located Jest-style tests are tests wherever they live
+    is_test_named = name.startswith("test_") or name.rsplit(".", 1)[0].endswith("_test")
     parts = Path(path).parts
     return is_test_named and (_in_tests_tree(path) or len(parts) == 1)
 

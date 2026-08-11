@@ -79,6 +79,8 @@ decision-record-not-cited-in-pack observation (the plan's conditional made the n
 | Pass 4 | orchestrator scoped verify of the Pass-3 fix diff: 7 new tests watched RED on reverted code, 31/31 green across three suites, tier counts re-derived by instrumented execution (18/38), cron-PATH fix proven under `env -i`, real-plan scoping probe (12/12 rows preserved) | 0 | 0 | 0 | 0 |
 | Pass 5 | CLOSING full fresh sweep #2, non-author: 2 pool units (deepseek-v3.2-exp scored 2 — both candidates refuted with a live killpg probe + a `""`-truthiness error; gemini-3-flash-preview scored 3 — CLEAN) + 1 native subagent (8 CONFIRMED + 1 PLAUSIBLE, all live-reproduced) | 11 | 11 | 9 | 2 |
 | Pass 6 | orchestrator scoped verify of the Pass-5 fix diff: 4 new tests watched RED on reverted code, 36/36 green, tier-3 count re-derived by execution (14), AST pins reject their own defeating mutants in-test, probe-duty render propagated to all 8 term-edit consumers | 0 | 0 | 0 | 0 |
+| Pass 7 | CLOSING full fresh sweep #3, non-author: 2 pool units (deepseek-v3.2-exp scored 4 — accurate CLEAN walk; gemini-3-flash-preview scored 2 — 2 diff-vs-file misreadings refuted against the live tree) + 1 native subagent (3 CONFIRMED live-reproduced + 3 PLAUSIBLE adopted) | 8 | 8 | 6 | 2 |
+| Pass 8 | orchestrator scoped verify of the Pass-7 fix diff: 4 new tests watched RED on reverted code, 40/40 green, real-plan scoping re-probed (12/12 rows survive the fence-strip), corpus re-rendered and propagation grepped | 0 | 0 | 0 | 0 |
 
 Pass 2's found: 0 close did NOT survive the closing sweep — the operator-demanded Pass 3 (the
 first live run of the new non-author closing-sweep contract) surfaced 15 candidates: 11 fixed

@@ -98,7 +98,11 @@ every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:632-
 The loop-closing round's **FINDER pass** runs in a context that did **not author the artifact** — a
 dispatched fresh subagent (pool or native), or a post-compaction session re-grounding from disk. An
 author's own quiet round never closes a review loop: the context that shaped the artifact is the one
-least able to see its gaps (an author re-reads intentions, not text). **Adjudication —
+least able to see its gaps (an author re-reads intentions, not text). **One sanctioned exception —
+the solo self-convergence loop:** a command whose loop dispatches NO finders anywhere (an author
+self-convergence pass, e.g. `/fabrik-ui-design`'s own convergence) closes with its own full fresh
+read — independence there is deferred to the PAIRED review command that follows it
+(`/fabrik-ui-design-review`), never silently skipped. **Adjudication —
 decide/refute/merge — stays with the orchestrator** (CLAUDE.md § Subagent fan-out: "the
 decide/refute/merge you own"); this rule governs who HUNTS last, never who adjudicates. The loop
 fragments' fresh/independent-round language defers to THIS definition of independent.

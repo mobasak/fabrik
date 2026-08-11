@@ -28,7 +28,14 @@ in-test), the gate-tier-3 count is 14 not 13, and the docs claimed `FABRIK_MUTMU
 inside the gate when the env-strip guard deliberately prevents exactly that (docs now state
 the strip; a real run is direct invocation or the Sunday cron only). Probe duty extended to
 the closing pass in `term-edit.md` (a pass-1-true probe can go stale via middle-pass edits).
-New pins across both waves: 18 tests (11 watched RED on pre-fix code via revert).
+A THIRD sweep confirmed 3 more + 3 adopted plausibles: a test-NAMED non-code file
+(`tests/test_report.json`) silenced the WARN (accompaniment now requires a code suffix), a
+pure `git mv` test rename gamed accompaniment (`--diff-filter=dr` + explicit rename
+detection), a ```-fenced illustrative contract label minted a declared row (fences stripped
+before scanning), co-located `.spec./.test.` files and a cased `Tests/` dir drew false WARNs
+(both are accompaniment now), the 62-pack now states the solo-self-convergence carve-out its
+pointer referenced, and the probe-duty sentence no longer says "RE-RUN" at first run.
+New pins across the three waves: 22 tests (15 watched RED on pre-fix code via revert).
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 
