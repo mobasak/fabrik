@@ -1,6 +1,6 @@
 # Plan — Review-loop overhaul: converge in ~3 rounds instead of ~8, without losing recall
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Owner: hub (command corpus fragments + enforcement)
 Operator directive (verbatim, 2026-08-10): "we need to be faster, make less mistakes" · "i dont want
 to lose functionality. also i dont want to lose time too." · "first review pass must be perfect"

@@ -1,0 +1,23 @@
+{
+ "plan": "docs/development/plans/2026-08-10-plan-2-review-loop-overhaul.md",
+ "owned_paths": [
+  "commands/_fragments/term-coverage.md",
+  "commands/_fragments/term-edit.md",
+  "commands/_fragments/subagents-core.md",
+  ".windsurf/rules/core/62-using-subagents.md",
+  ".windsurf/rules/core/45-testing-strategy.md",
+  "scripts/enforcement/check_phase_tests.py",
+  "scripts/enforcement/check_mutation.py",
+  "scripts/final_gate.py",
+  "tests/enforcement/test_phase_tests_gate.py",
+  "tests/test_check_mutation.py",
+  "docs/workflows/FINAL_GATE_WORKFLOW.md",
+  "docs/development/reviews/2026-08-10-finder-shape-ab.md",
+  "docs/CONFIGURATION.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-11T07:04:35.574075+00:00",
+ "status": "active",
+ "baseline_commit": "6a0ce308ac9e340afae47e14feae2be124dbee6f",
+ "baseline_gate": "success (0 red checks)"
+}
