@@ -13,11 +13,13 @@ $ git -C /opt/tryton-crm status --short        # (empty — clean)
 $ git -C /opt/tryton-crm log origin/mobasak/tryton-crm..HEAD --oneline   # (empty — pushed)
 ```
 
-The service `CHANGELOG.md [Unreleased]` describes what ships (first deploy of the full stack:
-tenant branding, role bundles, bridge tenant-resolution fixes — `/opt/tryton-crm/CHANGELOG.md:10-257`;
-the `[Unreleased]` section spans `:11-127`; its newest entry is "Turkish KDV configuration"
-(2026-08-11) and the SECOND entry is the design spec explicitly marked "Nothing here ships into the
-pending BHD deploy" — the shipping content is the accumulated CRM build beneath both).
+The service `CHANGELOG.md [Unreleased]` describes what ships — the accumulated first-deploy CRM
+build (tenant branding, role bundles, bridge tenant-resolution fixes). Ordinal-free by design
+(round 3: sibling commits move entry positions within minutes — twice already): the section's
+design/spec entries carry the marker "Nothing here ships into the pending BHD deploy" and ship
+nothing; everything beneath them is the deploying build. `/fabrik-deploy`'s Phase 0 re-proves
+release readiness FRESH at dispatch — this header records the authoring-time proof, not a
+dispatch-time claim.
 
 ## Context Ledger
 
@@ -165,20 +167,32 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    (`/opt/tryton-crm/compose.yaml:100-109` — service key, `container_name`, and any depends_on
    references; the spec now pins `GOTENBERG_URL: http://crm-gotenberg:3000`);
    (b) point the BRIDGE's compose healthcheck at the LIVENESS endpoint —
-   `compose.yaml:37` test URL `/health` → `/healthz` (`main.py:113-124` — always-200 liveness).
+   `compose.yaml:37` test URL `/health` → `/healthz` (`main.py:113-124` — always-200 liveness);
+   (c) make `trytond-worker` TOLERATE an unavailable/unauthorized DB at startup (round-3 finding,
+   REPRODUCED with the project's own image: the worker opens a real connection at startup —
+   `trytond/worker.py:84` → `:30 get_connection()` — and on the first-apply placeholder DSN dies in
+   `psycopg_pool.PoolTimeout` after 30s, exit 1, crash-looping under `restart: unless-stopped` so
+   `--wait` never settles even with (a)+(b) landed. Requirement, mechanism the project AI chooses:
+   a wait-for-DB entrypoint loop (stay alive while the DSN is unready) AND no DB-dependent
+   healthcheck on the worker service; production-correct anyway — a postgres-main restart must not
+   crash-loop the worker).
    Rationale (round-2 confirmed first-deploy DEADLOCK): the bridge's `/health` is READINESS —
    `proteus_client.ping` reads `res.user` AS `crm-bridge-svc` (`proteus_client.py:211-235`), a
    login S9 creates — so the bridge CANNOT be Docker-healthy before init+S9, `docker compose up -d
-   --wait` fails (`deployer_ssh.py:400`), the deployer raises, and the registrars (which create the
+   --wait` fails (`deployer_ssh.py:473` — the GIT-source deploy path this spec takes), the deployer raises, and the registrars (which create the
    `tryton` DB) NEVER RUN — S3 deadlocks by construction. Liveness is also the correct Docker
    semantic: restarting the bridge never fixes an unreachable trytond, and the healer would
    restart-storm it on every trytond blip. Readiness stays Gatus's job (the domain `/health`).
    Verify (fenced, before S1): `grep -c 'container_name: crm-gotenberg' /opt/tryton-crm/compose.yaml`
    → `1` AND `grep -c 'container_name: gotenberg$' /opt/tryton-crm/compose.yaml` → `0` AND
-   `grep -c 'healthz' /opt/tryton-crm/compose.yaml` → `≥1`, and the
-   project tree committed+pushed (S3 deploys from the remote). ANY count wrong → HALT — do NOT
-   proceed to S1. Retryable: yes (re-grep). Rollback: n/a (a verification gate).
-   THE PLAN STAYS DRAFT until this lands.
+   `grep -c 'healthz' /opt/tryton-crm/compose.yaml` → `≥1` (0 today — bridge :37 and gotenberg :113
+   both use `/health`, live-proven non-vacuous) AND the worker tolerance landed (grep the worker
+   block for its wait mechanism as the project AI names it in the relay reply — re-pinned at the
+   review's re-entry) AND committed+pushed, EXECUTABLY:
+   `git -C /opt/tryton-crm status --short` → empty AND
+   `git -C /opt/tryton-crm log origin/mobasak/tryton-crm..HEAD --oneline` → empty. ANY check wrong
+   → HALT — do NOT proceed to S1. Retryable: yes (re-grep). Rollback: n/a (a verification gate).
+   THE PLAN STAYS DRAFT until all three land.
 1. **S1 — pre-flight guards (A5 + from_env presence + cross-copy drift).** `[anywhere on hub]`
    Command: `grep -c '^TRYTOND_RPC_USER=crm-bridge-svc$' /opt/tryton-crm/.env && grep -c '^TRYTOND_RPC_USER=crm-bridge-svc$' /opt/fabrik/.env && for k in SERVICE_INTERNAL_SECRET_KEY CONSUMER_TOKENS TRYTOND_RPC_PASSWORD; do grep -l "^$k=" /opt/tryton-crm/.env /opt/fabrik/.env | head -1; done`
    Verify: first TWO outputs `1` (exact-value guard in BOTH copies — the project copy wins from_env,
@@ -186,7 +200,7 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    Rollback: none (read-only). FAIL → fix the `.env` source, re-run; a wrong RPC_USER is the
    admin-on-public-login launch blocker (spec `:47-49`).
 2. **S2 — activate the cloudflare resolver (staged → live).** Guard pre-check (makes the step
-   safe to re-run): `ssh vps "grep -c 'cloudflare:' /opt/traefik/traefik.yml"` → `1` means ALREADY
+   safe to re-run; the indented-key form cannot match a comment): `ssh vps "grep -c '^  cloudflare:' /opt/traefik/traefik.yml"` → `1` means ALREADY
    active → skip to verification.
    Command (TWO invocations; the token never appears on any command line — review F9-class fix: it
    is read from the hub `.env` into the pipe directly):
@@ -201,10 +215,12 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
 3. **S3 — the first apply (build + registrars).** Expected duration: minutes (image build; the 300s
    default died at M1 — the knob is `FABRIK_BUILD_TIMEOUT`, read at `src/fabrik/orchestrator/deployer_ssh.py:33`).
    Command (BACKGROUND it — >30s): `FABRIK_BUILD_TIMEOUT=1200 .venv/bin/fabrik apply --skip-health-check specs/services/tryton-crm.yaml`
-   (`--skip-health-check` — `cli.py:418` — skips ONLY the verifier's post-deploy `/health` probe,
-   which is readiness-shaped and legitimately 503 until S9/S11 on this first deploy; container
-   liveness still gates via compose `--wait` on the S0(b) `/healthz` healthcheck, and the S13
-   battery is the honest health gate.)
+   (`--skip-health-check` — `cli.py:418`, wired at `:528`, skips ONLY the verifier's post-deploy
+   `/health` probe (`verifier.py:62`), which is readiness-shaped and legitimately 503 until S11 on
+   this first deploy; container liveness still gates via compose `--wait` — `deployer_ssh.py:473`,
+   the GIT-source path — on the S0(b) `/healthz` healthcheck plus the S0(c) worker tolerance, and
+   the S13 battery is the honest health gate. S0(b)+(c)+this flag are jointly what make the first
+   apply completable.)
    Verify (fenced): apply output ends in success; then
    `ssh vps "sudo docker ps --filter name=tryton --format '{{.Names}} {{.Status}}'"` — tryton-crm,
    trytond, trytond-worker, crm-gotenberg all `Up`; the A1 outcome:
@@ -213,8 +229,9 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    `ssh vps "sudo grep -c '^REDIS_URL=' /opt/tryton-crm/.env"` → `1`; the registrar's DB really
    exists (guards S6 against a partial apply):
    `ssh vps "sudo docker exec postgres-main psql -U postgres -lqt"` — a `tryton` row present; and
-   the DNS record now exists: `dig @1.1.1.1 +short tryton-crm.vps1.ocoron.com` → `172.93.160.197`
-   (resolver pinned — the local cache holds the pre-apply NXDOMAIN negatively for minutes).
+   the DNS record now exists: `dig @kiki.ns.cloudflare.com +short tryton-crm.vps1.ocoron.com` →
+   `172.93.160.197` (AUTHORITATIVE NS — public resolvers, 1.1.1.1 included, negative-cache the
+   pre-apply NXDOMAIN for up to the SOA minimum ~30 min; the zone's own NS answers fresh).
    Retryable: yes (apply is re-runnable; `_is_placeholder` protects injected reals on re-apply).
    Rollback: none destructive needed pre-traffic — a failed apply leaves the prior state; a half-up
    stack: `ssh vps "sudo bash -c 'cd /opt/tryton-crm && docker compose down'"` (verify: the four
@@ -233,6 +250,11 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    Retryable: yes (now idempotent by the in-command guard). Rollback: restore the timestamped backup.
 4. **S4 — `window-open`** (the init in S6 runs 8–10 min against a ~190s worst-case time-to-unhealthy —
    review B3; the healer would restart trytond mid-init).
+   PRE-OPEN PROBE (round 3 — the open's `printf >` would silently truncate a foreign owner):
+   `ssh vps "sudo bash -c 'stat -c %Y /run/fabrik-autoheal/pause 2>/dev/null; cat /run/fabrik-autoheal/pause.owner 2>/dev/null'"` —
+   pause present with a FOREIGN first token and age <2h → the Phase-5 WAIT BOUND (re-probe every
+   60s up to 30 min, then halt — never write over a live foreign window); absent / ours / ≥2h-dead
+   → open:
    Command: `ssh vps "sudo bash -c 'mkdir -p /run/fabrik-autoheal && printf \"%s %s\n\" 2026-08-11-plan-deploy-tryton-crm \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause'"`
    (OWNER first, pause second — the authored ordering.) Verify (fenced):
    `ssh vps "sudo bash -c 'stat -c \"%n %Y\" /run/fabrik-autoheal/pause && date -u +%Y-%m-%dT%H:%M:%SZ && cat /run/fabrik-autoheal/pause.owner'"` —
@@ -260,8 +282,10 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    Command: `ssh vps "sudo docker restart trytond trytond-worker"`
    Verify (fenced): `ssh vps "sudo docker ps --filter name=trytond --format '{{.Names}} {{.Status}}'"` —
    PASS requires the literal `(healthy)` in BOTH Status strings (gates S9 — `Up` alone means the
-   healthcheck hasn't confirmed; wait out the 30s interval × retries); bridge `/health` 200 via
-   `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request;print(urllib.request.urlopen('http://localhost:8000/health').status)\""` → `200`.
+   healthcheck hasn't confirmed; wait out the 30s interval × retries); bridge LIVENESS `/healthz`
+   200 (round 3: `/health` readiness CANNOT pass before S11 — its ping authenticates as the
+   S9-created login with the S10-propagated password; battery probe 2 owns the `/health` 200) via
+   `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request;print(urllib.request.urlopen('http://localhost:8000/healthz').status)\""` → `200`.
    Retryable: yes. Rollback: none (restart is the fix, not a mutation).
 8. **S8 — `window-close`.**
    Command: `ssh vps "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] && grep -q \"^2026-08-11-plan-deploy-tryton-crm \" /run/fabrik-autoheal/pause.owner && rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERSHIP-LOST'"`
@@ -331,6 +355,11 @@ restart-cap (3 per 30 min window, `vps-autoheal.sh:22-23`), and the window keeps
 
 ## Phase 6 — Verification battery (the exit gate, run as S13)
 
+Table-cell command convention (round 3): a backslash-pipe (`\|`) inside a cell is the MARKDOWN
+escape for a literal shell pipe — strip the backslash when executing (grep-REGEX alternations like
+`'login\|tryton'` keep theirs: that backslash is BRE syntax, not markdown). `<now ISO>` in probe 3
+= `$(date -u +%Y-%m-%dT%H:%M:%SZ)` substituted hub-side when building the JSON body.
+
 | # | Probe | Command (hub-side) | PASS |
 |---|---|---|---|
 | 1 | Translations loaded (the project's OWN documented probe — `/opt/tryton-crm/docs/DEPLOYMENT.md:217-218`) | `ssh vps "sudo docker exec postgres-main psql -U postgres -d tryton -c \"select lang, count(*) from ir_translation where lang in ('tr','fa') and value<>'' group by lang;\""` | tr ≈ 7000+, fa ≈ 7200+ (a tr of 0 = the translatable step failed) |
@@ -375,7 +404,9 @@ report the deploy complete on a partial battery.
   (`src/tryton_crm/main.py:126-143`), so Gatus MAY flap red during S6 init and the S7 restart (the
   healer pause suppresses the HEALER, never Gatus). Per the fleet rule (silence alerts before
   >2-min downtime), the deploy session acknowledges/silences the tryton-crm Gatus alert for the
-  S4–S8 span — or accepts the bounded Telegram noise and says so in the ledger. First hours AFTER
+  FULL S3→S11 span (round 3: `/health` is 503 from first boot until S11 completes — the monitor is
+  red the whole choreography, not just S4–S8) — or accepts the bounded Telegram noise and says so
+  in the ledger. First hours AFTER
   the battery: no alerts expected; any `ContainerDown`/endpoint-red then is real.
 - Rollback decision rule: battery probe 3 (CRM write) or probe 6 (tenant TLS) failing after two
   fix attempts → halt protocol + route to review; the service is pre-launch (no tenant traffic to
@@ -444,14 +475,18 @@ gotenberg/gotenberg:8.32.0 running               # the F1 standalone collision, 
   corrected to authoritative truth; S3b added for the `generate` re-mint trap; the CHANGELOG cite
   refreshed (`[Unreleased]` :11-127, newest entry "Turkish KDV configuration" 2026-08-11; the
   'Nothing here ships' marker is the SECOND entry :42-50).
-- **BLOCKING unknown (the flip waits on it): S0 — the project-side compose rename
-  `gotenberg → crm-gotenberg`** (review F1; cross-repo — owner: the tryton-crm AI, relayed by the
-  operator; exact patch: rename the service key + `container_name` at `/opt/tryton-crm/compose.yaml:100-109`,
-  commit + push). Verify lands via S0's greps. Until it lands the plan stays DRAFT.
+- **BLOCKING unknown (the flip waits on it): S0 — THREE project-side compose/entrypoint edits**
+  (cross-repo — owner: the tryton-crm AI, relayed by the operator): (a) rename the service key +
+  `container_name` `gotenberg → crm-gotenberg` (`/opt/tryton-crm/compose.yaml:100-109`); (b) bridge
+  healthcheck test URL `/health` → `/healthz` (`compose.yaml:37`); (c) `trytond-worker` startup
+  tolerance for an unavailable DB (wait-loop entrypoint + no DB-dependent healthcheck — the exact
+  mechanism is the project AI's, named in the relay reply). Commit + push all three. Verify lands
+  via S0's greps + the git-clean/pushed checks. Until all three land the plan stays DRAFT.
 - Standing residuals (bounded): (e) the deprecated `specs/services/trytond.yaml.superseded` must
   never be applied (S3 names the stack spec explicitly); the Backrest restore path is stated but
   not drill-rehearsed (fleet DR posture item, not this deploy's scope).
-- Question bar: ONE batched operator item — relay the S0 compose-rename patch to the tryton-crm AI
-  (a cross-repo relay, not a design decision; the resolution is decided and pinned above).
+- Question bar: ONE batched operator item — relay S0's THREE project edits (rename + healthz
+  healthcheck + worker DB-wait tolerance) to the tryton-crm AI (a cross-repo relay, not a design
+  decision; the resolutions are decided and pinned above).
 
 Next command: /fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted.

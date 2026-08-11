@@ -86,7 +86,11 @@ secrets:
                                   # is CONSUMER_TOKENS only; still injected for parity/tooling
   - CONSUMER_TOKENS               # per-consumer M2M token JSON (trade-intelligence, whatsapp-agent) — token material, never a plain env
   - TRYTOND_RPC_USER              # dedicated least-privilege service login (crm-bridge-svc) — NEVER admin on a public-login product
-  - TRYTOND_RPC_PASSWORD          # proteus RPC credential for the bridge→trytond calls (pre-minted in the project handoff; create_rpc_service_user.py creates the login WITH it at init)
+  - TRYTOND_RPC_PASSWORD          # proteus RPC credential for the bridge→trytond calls. The
+                                  # pre-minted handoff value satisfies from_env PRESENCE only:
+                                  # create_rpc_service_user.py IGNORES it and GENERATES its own
+                                  # (printed once) — the deploy plan's S9→S10→S11 propagate the
+                                  # real value into both .env copies and re-apply
   from_file: {}
 resources:
   memory: 512M
