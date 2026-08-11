@@ -210,8 +210,8 @@ def test_negative_wall_cap_caps_immediately_and_stays_advisory(monkeypatch, caps
 
 def test_hanging_results_call_stays_bounded_and_advisory(monkeypatch, capsys):
     # Review finding: `mutmut results` was the one unguarded subprocess — a hang there
-    # would stall the ALWAYS-exit-0 advisory forever. It must be time-bounded and
-    # degrade to "no survivors parsed", still exit 0.
+    # would stall the ALWAYS-exit-0 advisory forever. It must be time-bounded and report
+    # survivor status UNKNOWN (a hang must never read as a pass), still exit 0.
     import subprocess as sp
 
     monkeypatch.setenv("FABRIK_MUTMUT", "1")

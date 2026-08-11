@@ -99,7 +99,7 @@ at a time — raise it to widen a big fan-out. Worker tools (**tools-enabled wor
 worker has none of these, it just returns text): `read_file · write_file · apply_patch · list_dir · grep ·
 run_command` (bwrap-sandboxed). (Prices + the per-kind best model are the flywheel's *output* — they live in
 `select.py`'s `_TABLE` + the synced `CODING_SUBAGENT_SELECTION.md`, never restated here; `pick_models(task_type)`
-returns them cheapest-that-clears-the-bar first — see § Approved pool models for why no roster lives in this pack.)
+returns them cheapest-that-clears-the-bar first — see § Pool model selection for why no roster lives in this pack.)
 
 ## Role separation (review loops) — who hunts LAST is never the author
 

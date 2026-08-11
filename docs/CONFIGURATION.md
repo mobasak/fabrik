@@ -223,9 +223,7 @@ Surviving mutants = a change to the covered code that failed **no** test → str
 
 **What:** `FABRIK_MUTMUT=1` opts the advisory mutation runner
 (`scripts/enforcement/check_mutation.py`) into an actual mutmut run **when invoked directly or by
-the cron** — routed through `final_gate.py` the flag is deliberately STRIPPED for this child
-(orphan protection: the gate's 120s timeout would kill only the runner, not the session-detached
-mutmut), so the per-commit gate always prints the pointer and exits 0 no matter what is set.
+the cron** (the gate-strip mechanics are in the section above — not restated here).
 `FABRIK_MUTMUT_SINCE` (e.g. `"7 days ago"`) switches the diff
 scope from the merge-base window to committed history since that time — the weekly cron sets it.
 `FABRIK_MUTMUT_WALL_CAP_S` (default `1200`) hard-caps the mutmut run's wall clock; on cap the
