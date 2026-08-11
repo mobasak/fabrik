@@ -13,8 +13,9 @@ $ git -C /opt/tryton-crm status --short        # (empty — clean)
 $ git -C /opt/tryton-crm log origin/mobasak/tryton-crm..HEAD --oneline   # (empty — pushed)
 ```
 
-The service `CHANGELOG.md [Unreleased]` describes what ships — the accumulated first-deploy CRM
-build (tenant branding, role bundles, bridge tenant-resolution fixes, VAT/KDV work). Ordinal- and
+What this first deploy ships = the **v0.1.0 cut** (tagged 2026-08-10 — tenant branding, role
+bundles and the bulk of the CRM build live under `## [0.1.0]`) **plus the `[Unreleased]` tail**
+(bridge tenant-resolution fixes, VAT/KDV work, and interleaved design-spec entries). Ordinal- and
 position-free by design (rounds 3-4: sibling commits move entries within minutes, and design-spec
 entries interleave with feature entries — no positional rule holds): design/spec entries describe
 plans and ship nothing by their own text (one carries the explicit marker "Nothing here ships into
@@ -75,7 +76,7 @@ Mesh addressing: n/a (hub-local — `postgres-main:5432`, never `10.99.0.1`).
   the stack's service+container rename to `crm-gotenberg` (PROJECT compose edit — the S0 relay
   precondition) + `GOTENBERG_URL: http://crm-gotenberg:3000` now declared in the spec
   (`specs/services/tryton-crm.yaml` env block, added by this review). The compose's own "no such
-  service exists anywhere on the fleet" comment (`compose.yaml:91-93`) was false when written.
+  service exists anywhere on the fleet" comment (`compose.yaml:90-91`) was false when written.
 - **A1 (placeholder key+value semantics) — the fix is IN the spec:** `TRYTOND_DATABASE_URI` is
   deliberately ABSENT; the placeholder lives under `DATABASE_URL` (`specs/services/tryton-crm.yaml:71-76`, the placeholder at `:76`),
   the key the postgres registrar injects and `_is_placeholder` (`src/fabrik/orchestrator/deployer_ssh.py:650`,
@@ -186,7 +187,10 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    semantic: restarting the bridge never fixes an unreachable trytond, and the healer would
    restart-storm it on every trytond blip. Readiness stays Gatus's job (the domain `/health`).
    Verify (fenced, before S1): `grep -c 'container_name: crm-gotenberg' /opt/tryton-crm/compose.yaml`
-   → `1` AND `grep -c 'container_name: gotenberg$' /opt/tryton-crm/compose.yaml` → `0` AND
+   → `1` AND `grep -c 'container_name: gotenberg$' /opt/tryton-crm/compose.yaml` → `0` AND the
+   SERVICE KEY too — `grep -c '^  crm-gotenberg:' /opt/tryton-crm/compose.yaml` → `1` AND
+   `grep -c '^  gotenberg:' /opt/tryton-crm/compose.yaml` → `0` (a container_name-only rename still
+   publishes the `gotenberg` network alias from the service name — the collision survives) AND
    `grep -c 'healthz' /opt/tryton-crm/compose.yaml` → `≥1` (0 today — bridge :37 and gotenberg :113
    both use `/health`, live-proven non-vacuous) AND the worker tolerance landed (grep the worker
    block for its wait mechanism as the project AI names it in the relay reply — re-pinned at the
@@ -224,8 +228,9 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    the S13 battery is the honest health gate. S0(b)+(c)+this flag are jointly what make the first
    apply completable.)
    Verify (fenced): apply output ends in success; then
-   `ssh vps "sudo docker ps --filter name=tryton --format '{{.Names}} {{.Status}}'"` — tryton-crm,
-   trytond, trytond-worker, crm-gotenberg all `Up`; the A1 outcome:
+   `ssh vps "sudo docker ps --format '{{.Names}} {{.Status}}' | grep -E 'tryton|crm-gotenberg'"` — tryton-crm,
+   trytond, trytond-worker, crm-gotenberg all `Up` (a `--filter name=tryton` can never show
+   crm-gotenberg — substring filter); the A1 outcome:
    `ssh vps "sudo grep -c '^DATABASE_URL=postgresql://placeholder' /opt/tryton-crm/.env"` → `0`
    (the registrar's real DSN replaced the placeholder) plus
    `ssh vps "sudo grep -c '^REDIS_URL=' /opt/tryton-crm/.env"` → `1`; the registrar's DB really
@@ -242,7 +247,7 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    `SecretsManager.get` resolves os.environ → hub `.env` → mint-fresh-never-persist; the hub `.env`
    has no `TRYTOND_ADMIN_PASSWORD` today, so S11 would mint a NEW value and desynchronize the DB
    (set at S6 from the S3 value) from every `.env`. Pin the S3-minted value NOW:
-   `if grep -q '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env; then echo PRE-EXISTING; else cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S) && ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env" >> /opt/fabrik/.env; fi`  # noqa — key-name grep/pipe form, no credential value in this document
+   `if grep -q '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env; then echo PRE-EXISTING; else mkdir -p backups && cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S) && ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env" >> /opt/fabrik/.env; fi`  # noqa — key-name grep/pipe form, no credential value in this document
    (the guard is IN the command — a blind re-run prints `PRE-EXISTING` and appends nothing, so no
    duplicate line is possible).
    Verify (fenced, count only): `grep -c '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env` → `1`, and
@@ -310,7 +315,7 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    script updates the existing login) — safe, but every re-run re-obligates S10; never re-run after
    S11 verified green. Rollback: none needed (an unused new password is inert until propagated).
 10. **S10 — propagate the credential to BOTH .env copies (A5: the PROJECT copy wins from_env).**
-    Command: `cp /opt/tryton-crm/.env backups/tryton-crm.env.backup.$(date +%Y%m%d-%H%M%S) && cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S)` then edit `TRYTOND_RPC_PASSWORD=<PASTE from S9>` in `/opt/tryton-crm/.env` AND `/opt/fabrik/.env` (hub-side files; the runbook v2 line named only the hub copy — the project copy is the one from_env actually reads first, so BOTH are written, project first).
+    Command: `mkdir -p backups && cp /opt/tryton-crm/.env backups/tryton-crm.env.backup.$(date +%Y%m%d-%H%M%S) && cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S)` then edit `TRYTOND_RPC_PASSWORD=<PASTE from S9>` in `/opt/tryton-crm/.env` AND `/opt/fabrik/.env` (hub-side files; the runbook v2 line named only the hub copy — the project copy is the one from_env actually reads first, so BOTH are written, project first).
     Verify (fenced, masked — `cmp -s`, never `diff`, so a MISMATCH prints nothing rather than both
     credential lines): `for f in /opt/tryton-crm/.env /opt/fabrik/.env; do grep -c "^TRYTOND_RPC_PASSWORD=" $f; done` → `1` `1` and
     `cmp -s <(grep '^TRYTOND_RPC_PASSWORD=' /opt/tryton-crm/.env) <(grep '^TRYTOND_RPC_PASSWORD=' /opt/fabrik/.env) && echo IDENTICAL || echo MISMATCH` → `IDENTICAL`.  # noqa — key-name grep/pipe form, no credential value in this document
@@ -373,7 +378,7 @@ escape for a literal shell pipe — strip the backslash when executing (grep-REG
 | 6 | ACME diagnostics FIRST (ordered BEFORE the TLS probes — a cert-pending state must never be misread as a routing failure) | `ssh vps "sudo docker logs traefik --since 30m 2>&1 \| grep -i 'acme\|cloudflare' \| tail -50"` | no unresolved errors; the wildcard cert issued via the `cloudflare` resolver |
 | 7 | Tenant TLS + login surface (executable form — the interactive GUI login is the operator's Phase-8 first-days smoke, not a battery gate) | `curl -fsSI https://bhdtrade.tojlo.com` then `curl -fsS https://bhdtrade.tojlo.com \| grep -ci 'login\|tryton'` | valid cert (SAN `*.tojlo.com`), 200, login markers ≥ 1 (on FAIL: probe 6's ACME read is already in hand — diagnose from it) |
 | 8 | Same-origin brand route | `curl -fsS https://bhdtrade.tojlo.com/brand/bhdtrade \| head -c 200` | 200, brand payload (`api/brand.py:39`) |
-| 9 | Monitoring green (forms proven live this review) | Gatus API via fabrik-net DNS: `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request;print(urllib.request.urlopen('http://gatus:8080/api/v1/endpoints/statuses',timeout=5).read().decode()[:2000])\""` — find BOTH `tryton-crm` (registrar) and `tryton-crm-tenant-cert` (S12) with latest result success; Prometheus: `ssh vps "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up{job=\"tryton-crm\"}'"` | both Gatus endpoints success; Prometheus value `"1"` |
+| 9 | Monitoring green (forms proven live this review) | Gatus API via fabrik-net DNS: `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request,json;d=json.load(urllib.request.urlopen('http://gatus:8080/api/v1/endpoints/statuses',timeout=5));print([(e['name'],e['results'][-1]['success']) for e in d if e['name'] in ('tryton-crm','tryton-crm-tenant-cert')])\""` — prints exactly the two endpoints' (name, success) tuples (the raw payload is ~350KB — a filter, never a slice); Prometheus: `ssh vps "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up{job=\"tryton-crm\"}'"` | both Gatus endpoints success; Prometheus value `"1"` |
 
 Any FAIL → the plan's rollback/retry path for the implicated step, else the halt protocol. Never
 report the deploy complete on a partial battery.
@@ -423,7 +428,8 @@ the LIVE service. **Mocked: nothing** (every probe is a real request/read; the p
 registry-row proofs).
 
 - **Given** the stack is applied and initialized, **When** the bridge's `/health` is fetched over
-  TLS, **Then** it returns 200 asserting real dependencies (probe 2).
+  TLS, **Then** it returns 200 asserting the trytond dependency — the app's designed readiness
+  scope (probe 2).
 - **Given** the S10 credential propagated, **When** one CRM activity is created via the bridge,
   **Then** it succeeds and the row is visible — the stale-Pool class cannot hide (probe 3).
 - **Given** module init completed, **When** translation counts are read, **Then** tr and fa each
@@ -454,7 +460,7 @@ gotenberg/gotenberg:8.32.0 running               # the F1 standalone collision, 
 ```
 
 - Spec: `specs/services/tryton-crm.yaml:71-76` (A1 fix, placeholder `:76`), `:49-51` (RPC_USER rationale), `:21` (redis note), `:62` `GOTENBERG_URL` (F1)
-- Compose: `/opt/tryton-crm/compose.yaml:144` (derivation), `:51,109,202` (memory limits), `:224-228` (HostRegexp + cloudflare resolver)
+- Compose: `/opt/tryton-crm/compose.yaml:144` (derivation), `:51,109,202,254` (memory limits), `:224-228` (HostRegexp + cloudflare resolver)
 - Init provenance: `/opt/tryton-crm/Dockerfile.trytond:45,49`
 - Script behavior: `/opt/tryton-crm/scripts/trytond/create_rpc_service_user.py:30,51,167`
 - Healer: `scripts/vps-autoheal.sh:44-48` (7200s), `:45` (PAUSED line)
@@ -475,8 +481,8 @@ gotenberg/gotenberg:8.32.0 running               # the F1 standalone collision, 
   block spelled against the live per-app format; S10's verify made leak-proof (`cmp -s`); the
   monitoring evidence re-grounded at the real driver paths; the DNS and backup-name evidence
   corrected to authoritative truth; S3b added for the `generate` re-mint trap; the CHANGELOG cite
-  refreshed (`[Unreleased]` :11-127, newest entry "Turkish KDV configuration" 2026-08-11; the
-  'Nothing here ships' marker is the SECOND entry :42-50).
+  refreshed (positions move under sibling commits — the marker entry is anchored by its TEXT, not
+  its position; see the header's position-free rule).
 - **BLOCKING unknown (the flip waits on it): S0 — THREE project-side compose/entrypoint edits**
   (cross-repo — owner: the tryton-crm AI, relayed by the operator): (a) rename the service key +
   `container_name` `gotenberg → crm-gotenberg` (`/opt/tryton-crm/compose.yaml:100-109`); (b) bridge
