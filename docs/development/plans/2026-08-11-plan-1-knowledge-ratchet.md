@@ -1,6 +1,6 @@
 # Plan — Knowledge-surface ratchet: LESSONS graduation status + AFCL stub retirement
 
-Status: DRAFT
+Status: CONVERGED
 Owner: hub (governance + scaffolder + fleet audit)
 Operator directive (verbatim, 2026-08-11): "adopt the graduation-status convention and/or the AFCL
 stub cleanup as a small follow-up plan, afterwards /fabrik-plan-review"
@@ -27,13 +27,15 @@ stub cleanup as a small follow-up plan, afterwards /fabrik-plan-review"
 - **Adopted fix 2 — AFCL stub retirement:** delete the never-appended stubs across the fleet
   (dry-run first, exact-match only), retire BOTH scaffolder emission sites and the template, and
   retire the doc-registry row as SSOT hygiene (verified this round: the row has NO live mechanical
-  consumer — see Phase B step 4). The 7 non-stub AFCLs (hub 6.4KB with real project-local findings,
-  brand-identiy-creator 3.5KB, and 5 others whose content diverged) are untouched; the file stays
+  consumer — see Phase B step 4). The 8 non-stub AFCLs — hub (6.4KB, real project-local findings,
+  outside the census by construction) plus the 7 diverged non-hub singletons (brand-identiy-creator
+  3.5KB, seo, tojlo-mail, trade-intelligence, tryton-crm, web-ecommerce-factory, youtube) — are
+  untouched; the file stays
   ALLOWED (`check_structure.py:42`) and the governance rule "read if exists; append friction
   findings" (`templates/governance/CLAUDE.md:25`) keeps working as create-on-first-friction.
 - **Rejected alternative:** making the sweep a per-commit gate — reading 26 repos per commit is a
   time sink against the no-time-loss constraint; the weekly `fleet_doc_audit.py` cron is the home.
-- **Cross-repo authorization:** the `--apply` run deletes + commits + pushes `AFCL.md` in ~19
+- **Cross-repo authorization:** the `--apply` run deletes + commits + pushes `AFCL.md` in ~31
   foreign repos. The CLAUDE.md cross-repo HARD STOP is satisfied by the operator directive above,
   recorded here verbatim; the script's matcher is scope-limited to byte-exact stubs so no living
   content is reachable.
@@ -54,7 +56,7 @@ parallel.**
 
 | Source | What binds | Grounded ref |
 |---|---|---|
-| `core/40-documentation.md` (ACTIVE, **EDITED by A §1 + B §3**) | doc rules canonical home; § LESSONS_LEARNT.md is where the Ratchet grammar lands; packs state rules present-tense, never change-history | `.windsurf/rules/core/40-documentation.md:24,128-130` |
+| `core/40-documentation.md` (ACTIVE, **EDITED by A §1 + B §5**) | doc rules canonical home; § LESSONS_LEARNT.md is where the Ratchet grammar lands; packs state rules present-tense, never change-history | `.windsurf/rules/core/40-documentation.md:24,128-134` |
 | `core/10-python.md` (ACTIVE) | the scripts' typing/env discipline; no logfile sinks (12-Factor XI) | pack § typing |
 | `core/45-testing-strategy.md` (ACTIVE) | test-per-behavior, watched-fail-first for the risky rows | pack § Behavior Contract |
 | `core/62-using-subagents.md` (ACTIVE) | pool-default dispatch for test authoring + review finders; native non-author closing round | pack § Dispatch policy |
@@ -98,8 +100,8 @@ parallel.**
 
 ## Phase A — LESSONS graduation status (convention + weekly sweep)
 
-**Interfaces — Consumes:** nothing. **Produces:** the `Ratchet:` grammar (consumed by Phase B's
-nothing — phases share only the `40-documentation.md` file, hence the serialization).
+**Interfaces — Consumes:** nothing. **Produces:** the `Ratchet:` grammar. No Phase-B consumer —
+the phases share only the `40-documentation.md` file, hence the serialization.
 
 Steps:
 
@@ -161,7 +163,7 @@ re-verify the pack edit reads correctly for a project repo before staging).
 **Interfaces — Consumes:** nothing from A (shared-file serialization only). **Produces:** a fleet
 with only living AFCLs; a scaffolder that never emits the stub.
 
-Steps (cleanup BEFORE emitter retirement — the matcher normalizes against the live template, and
+Steps (cleanup BEFORE emitter retirement — the matcher's forward arm reads the live template, and
 no cron invokes `fix_project` between the steps, so nothing regenerates mid-phase):
 
 1. **New `scripts/cleanup_afcl_stubs.py`** (with an `# AFTER-EDIT: tests/test_cleanup_afcl_stubs.py`
@@ -209,7 +211,7 @@ no cron invokes `fix_project` between the steps, so nothing regenerates mid-phas
 6. **Tests** (pool-authored per `/fabrik-generate-tests`, executor-curated):
    - `tests/test_scaffold_fix.py` — **REWRITE, do not merely extend**: the pre-existing
      `TestFixProjectAFCLPreservation` class (`:61`) contains `test_missing_afcl_is_created_from_template`
-     (`:82`) and the Case-2 half of `test_dry_run_reports_afcl_only_when_missing`, both asserting
+     (`:81`) and the Case-2 half of `test_dry_run_reports_afcl_only_when_missing`, both asserting
      the creation-when-missing behavior this phase REMOVES, both guarded by
      `AFCL_TEMPLATE.md exists()` — after step 3 deletes the template those guards go False and the
      tests become vacuous no-ops with docstrings describing removed behavior. Rewrite them into
@@ -267,7 +269,7 @@ Phase A) → `/fabrik-docs-review` → `python scripts/final_gate.py --check --j
 - `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md`
 - `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`
 
-(The ~19 foreign-repo `AFCL.md` deletions are the script's authorized runtime effect, not owned
+(The ~31 foreign-repo `AFCL.md` deletions are the script's authorized runtime effect, not owned
 paths — File Scope is hub-local by the gate's own out-of-repo ban. CHANGELOG/INDEX/docs
 README/FEATURES + `docs/LESSONS_LEARNT.md` stay OUT — shared-append surfaces.)
 
@@ -355,14 +357,20 @@ unassigned.
 **(b) Cross-phase signature consistency:** the phases share no Produces/Consumes — only the
 `40-documentation.md` file, declared as a serialization point (A then B).
 
-Not a fixed point yet: `/fabrik-plan-review` has not run.
+Review state: CONVERGED under `/fabrik-plan-review`, three passes — pass 1 (pool 2 units + native
+non-author grounder; 13 edits: census corrected 19→31 two-generation, registry rationale
+de-fabricated, hub CLAUDE.md de-listed as a trigger, three workflow docs into scope, test-rewrite
++ fixture-double specifics) · pass 2 (non-author wave verifier: all 7 corrections VERIFIED true;
+its 2 defects + the orchestrator's 7 remnants, 9 edits) · pass 3 (confirming full linear re-read:
+zero candidates, zero edits, md5 stable). The Pass Ledger with md5s lives in the review report per
+the termination contract; the Status flipped on pass 3's edit-free, md5-verified no-op.
 
 ## Residual unknowns
 
-**Resolved:** whether deletion breaks a gate (no — `check_structure` allows, `check_doc_stubs` has
-no AFCL detector; the one true consumer, `fleet_doc_audit` MISSING, is retired in B step 4);
-whether anything regenerates the stub (`fix_project` does — retired in B step 3); where the sweep
-runs (the existing Monday cron — no new invoker).
+**Resolved:** whether deletion breaks a gate (no — `check_structure` allows; the registry row has
+NO live mechanical consumer at all, so nothing false-alarms with or without it — its retirement in
+B step 4 is SSOT hygiene); whether anything regenerates the stub (`fix_project` does — retired in
+B step 3); where the sweep runs (the existing Monday cron — no new invoker).
 
 **Still open:**
 
