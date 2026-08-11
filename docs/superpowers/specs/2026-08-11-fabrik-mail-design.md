@@ -40,7 +40,11 @@ fetched 2026-08-11); live protocols (A2A, buses) assume always-on endpoints and 
   (a pre-mail sanctioned exception); with mail, the report goes to the fabrik-lib INBOX instead
   (no cross-repo write), and the fabrik-lib AI folds it upstream + acks with the resolution —
   its own CLAUDE.md duty ("read every */UPSTREAM_FEEDBACK.md before you author") extends to the
-  inbox; the per-module files remain the resolved LEDGER the fabrik-lib AI maintains.
+  inbox; the per-module files remain the resolved LEDGER the fabrik-lib AI maintains. **Cut-over is a
+  named BUILD item:** the switch is complete only when the two instruction surfaces also move —
+  the module README footers (they currently direct consumers to write the file) and the
+  fabrik-lib CLAUDE.md heredoc in `refresh-governance.sh` (it codifies the old flow); until
+  both are updated, the channels would run in parallel.
   Filename = `<id>.md` (sortable = arrival-ordered).
 - **Send** = one file write via `scripts/mail.py send --to <repo> --kind <k> [--re <id>] < body`
   (helper keeps the format honest; also `list`, `read`, `ack`, `digest`). **Distribution:** `mail.py`
