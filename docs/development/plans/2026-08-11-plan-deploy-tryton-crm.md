@@ -15,7 +15,9 @@ $ git -C /opt/tryton-crm log origin/mobasak/tryton-crm..HEAD --oneline   # (empt
 
 The service `CHANGELOG.md [Unreleased]` describes what ships (first deploy of the full stack:
 tenant branding, role bundles, bridge tenant-resolution fixes — `/opt/tryton-crm/CHANGELOG.md:10-257`;
-the newest entry is a design spec explicitly marked "Nothing here ships into the pending BHD deploy").
+the `[Unreleased]` section spans `:11-127`; its newest entry is "Turkish KDV configuration"
+(2026-08-11) and the SECOND entry is the design spec explicitly marked "Nothing here ships into the
+pending BHD deploy" — the shipping content is the accumulated CRM build beneath both).
 
 ## Context Ledger
 
@@ -98,6 +100,16 @@ Mesh addressing: n/a (hub-local — `postgres-main:5432`, never `10.99.0.1`).
 - **Registrar redis index:** `acquire_db_index` allocates a dedicated DB index
   (`src/fabrik/orchestrator/infrastructure.py:868-874`) — the spec's db0-collision concern
   (`specs/services/tryton-crm.yaml:21`) is handled by mechanism.
+- **First-deploy choreography truth (round 2):** the apply pipeline is secrets → DNS → deploy
+  (`up -d --wait`, raises on failure) → registrars → verifier (`orchestrator/__init__.py:154-186`) —
+  the `tryton` DB and env injections exist only AFTER a successful `--wait`, and the bridge's
+  readiness `/health` cannot pass before S9 (its ping authenticates as the S9-created login). S0(b)
+  (liveness healthcheck) + S3's `--skip-health-check` are what make the first apply completable;
+  the S13 battery is the honest readiness gate.
+- **Spec doc-truth corrections (this review):** `expose.internal_only` is a DEAD field (defined
+  `spec_loader.py:123`, read by no orchestrator code) and its comment now says so — the compose's
+  Traefik labels are the routing truth; the `SERVICE_INTERNAL_SECRET_KEY` comment now states the
+  production fail-closed truth (dev-allowlist only, `internal_auth.py:38-45`).
 - Cosmetic (no action): `fabrik plan`'s env preview prepends saas-skeleton template defaults
   (`NODE_ENV`, `NEXT_TELEMETRY_DISABLED`) — template noise, harmless to a python stack.
 
@@ -140,19 +152,33 @@ $ .venv/bin/fabrik plan specs/services/tryton-crm.yaml   (tail)
 ## Phase 4 — Ordered runbook (exact commands · per-step verification · rollback)
 
 Every command below is executable as written (stem + timestamps substituted; `<PASTE …>` marks the
-TWO operator-flowed credential-adjacent values — the S10 RPC password from S9's print, and probe 3's
-`org_id` from the operator's CONSUMER_TOKENS grant — never echoed into fenced output or the ledger).
+THREE operator-flowed credential-adjacent values — the S10 RPC password from S9's print, and probe
+3's `org_id` AND consumer token from the operator's CONSUMER_TOKENS grant — never echoed into
+fenced output or the ledger). Every grep-count verify in this runbook is judged by its PRINTED
+value, never by exit code (a correct `0` count exits nonzero — rc alone misreads success as failure).
 The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels per Phase 5).
 
-0. **S0 — BLOCKING PRECONDITION: the project compose gotenberg rename (review F1).** The
-   tryton-crm project must rename its in-stack service+container `gotenberg → crm-gotenberg`
+0. **S0 — BLOCKING PRECONDITION: TWO project-compose edits (reviews F1 + R2-deadlock).** The
+   tryton-crm project must land BOTH, in one relay (cross-repo — the operator relays to the
+   tryton-crm AI; the deploy session may not edit that repo):
+   (a) rename the in-stack service+container `gotenberg → crm-gotenberg`
    (`/opt/tryton-crm/compose.yaml:100-109` — service key, `container_name`, and any depends_on
-   references; the spec now pins `GOTENBERG_URL: http://crm-gotenberg:3000`). This is PROJECT-repo
-   work (cross-repo — the operator relays it to the tryton-crm AI; the deploy session may not edit
-   that repo). Verify (fenced, before S1): `grep -c 'container_name: crm-gotenberg' /opt/tryton-crm/compose.yaml`
-   → `1` AND `grep -c 'container_name: gotenberg$' /opt/tryton-crm/compose.yaml` → `0`, and the
-   project tree committed+pushed (S3 deploys from the remote). Retryable: yes (re-grep).
-   Rollback: n/a (a verification gate). THE PLAN STAYS DRAFT until this lands.
+   references; the spec now pins `GOTENBERG_URL: http://crm-gotenberg:3000`);
+   (b) point the BRIDGE's compose healthcheck at the LIVENESS endpoint —
+   `compose.yaml:37` test URL `/health` → `/healthz` (`main.py:113-124` — always-200 liveness).
+   Rationale (round-2 confirmed first-deploy DEADLOCK): the bridge's `/health` is READINESS —
+   `proteus_client.ping` reads `res.user` AS `crm-bridge-svc` (`proteus_client.py:211-235`), a
+   login S9 creates — so the bridge CANNOT be Docker-healthy before init+S9, `docker compose up -d
+   --wait` fails (`deployer_ssh.py:400`), the deployer raises, and the registrars (which create the
+   `tryton` DB) NEVER RUN — S3 deadlocks by construction. Liveness is also the correct Docker
+   semantic: restarting the bridge never fixes an unreachable trytond, and the healer would
+   restart-storm it on every trytond blip. Readiness stays Gatus's job (the domain `/health`).
+   Verify (fenced, before S1): `grep -c 'container_name: crm-gotenberg' /opt/tryton-crm/compose.yaml`
+   → `1` AND `grep -c 'container_name: gotenberg$' /opt/tryton-crm/compose.yaml` → `0` AND
+   `grep -c 'healthz' /opt/tryton-crm/compose.yaml` → `≥1`, and the
+   project tree committed+pushed (S3 deploys from the remote). ANY count wrong → HALT — do NOT
+   proceed to S1. Retryable: yes (re-grep). Rollback: n/a (a verification gate).
+   THE PLAN STAYS DRAFT until this lands.
 1. **S1 — pre-flight guards (A5 + from_env presence + cross-copy drift).** `[anywhere on hub]`
    Command: `grep -c '^TRYTOND_RPC_USER=crm-bridge-svc$' /opt/tryton-crm/.env && grep -c '^TRYTOND_RPC_USER=crm-bridge-svc$' /opt/fabrik/.env && for k in SERVICE_INTERNAL_SECRET_KEY CONSUMER_TOKENS TRYTOND_RPC_PASSWORD; do grep -l "^$k=" /opt/tryton-crm/.env /opt/fabrik/.env | head -1; done`
    Verify: first TWO outputs `1` (exact-value guard in BOTH copies — the project copy wins from_env,
@@ -174,7 +200,11 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    verify rollback: traefik `Up`, no `cloudflare:` in live traefik.yml, cf.env gone.
 3. **S3 — the first apply (build + registrars).** Expected duration: minutes (image build; the 300s
    default died at M1 — the knob is `FABRIK_BUILD_TIMEOUT`, read at `src/fabrik/orchestrator/deployer_ssh.py:33`).
-   Command (BACKGROUND it — >30s): `FABRIK_BUILD_TIMEOUT=1200 .venv/bin/fabrik apply specs/services/tryton-crm.yaml`
+   Command (BACKGROUND it — >30s): `FABRIK_BUILD_TIMEOUT=1200 .venv/bin/fabrik apply --skip-health-check specs/services/tryton-crm.yaml`
+   (`--skip-health-check` — `cli.py:418` — skips ONLY the verifier's post-deploy `/health` probe,
+   which is readiness-shaped and legitimately 503 until S9/S11 on this first deploy; container
+   liveness still gates via compose `--wait` on the S0(b) `/healthz` healthcheck, and the S13
+   battery is the honest health gate.)
    Verify (fenced): apply output ends in success; then
    `ssh vps "sudo docker ps --filter name=tryton --format '{{.Names}} {{.Status}}'"` — tryton-crm,
    trytond, trytond-worker, crm-gotenberg all `Up`; the A1 outcome:
@@ -183,7 +213,8 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    `ssh vps "sudo grep -c '^REDIS_URL=' /opt/tryton-crm/.env"` → `1`; the registrar's DB really
    exists (guards S6 against a partial apply):
    `ssh vps "sudo docker exec postgres-main psql -U postgres -lqt"` — a `tryton` row present; and
-   the DNS record now exists: `dig +short tryton-crm.vps1.ocoron.com` → `172.93.160.197`.
+   the DNS record now exists: `dig @1.1.1.1 +short tryton-crm.vps1.ocoron.com` → `172.93.160.197`
+   (resolver pinned — the local cache holds the pre-apply NXDOMAIN negatively for minutes).
    Retryable: yes (apply is re-runnable; `_is_placeholder` protects injected reals on re-apply).
    Rollback: none destructive needed pre-traffic — a failed apply leaves the prior state; a half-up
    stack: `ssh vps "sudo bash -c 'cd /opt/tryton-crm && docker compose down'"` (verify: the four
@@ -192,11 +223,14 @@ The maintenance window spans S4–S8 ONLY (`window-open`/`window-close` labels p
    `SecretsManager.get` resolves os.environ → hub `.env` → mint-fresh-never-persist; the hub `.env`
    has no `TRYTOND_ADMIN_PASSWORD` today, so S11 would mint a NEW value and desynchronize the DB
    (set at S6 from the S3 value) from every `.env`. Pin the S3-minted value NOW:
-   `cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S) && ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env" >> /opt/fabrik/.env`  # noqa — key-name grep/pipe form, no credential value in this document
+   `if grep -q '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env; then echo PRE-EXISTING; else cp /opt/fabrik/.env backups/fabrik.env.backup.$(date +%Y%m%d-%H%M%S) && ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env" >> /opt/fabrik/.env; fi`  # noqa — key-name grep/pipe form, no credential value in this document
+   (the guard is IN the command — a blind re-run prints `PRE-EXISTING` and appends nothing, so no
+   duplicate line is possible).
    Verify (fenced, count only): `grep -c '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env` → `1`, and
    `cmp -s <(ssh vps "sudo grep '^TRYTOND_ADMIN_PASSWORD=' /opt/tryton-crm/.env") <(grep '^TRYTOND_ADMIN_PASSWORD=' /opt/fabrik/.env) && echo IDENTICAL` → `IDENTICAL` (values never printed).  # noqa — key-name grep/pipe form, no credential value in this document
-   Retryable: yes (guard: if the hub key already exists and differs, STOP — that is a prior pin,
-   never append a duplicate; investigate before overwriting). Rollback: restore the timestamped backup.
+   On `PRE-EXISTING` + a `cmp` MISMATCH: STOP — a prior run's pin diverged from the remote;
+   investigate (the backups + the remote value decide), never overwrite blind.
+   Retryable: yes (now idempotent by the in-command guard). Rollback: restore the timestamped backup.
 4. **S4 — `window-open`** (the init in S6 runs 8–10 min against a ~190s worst-case time-to-unhealthy —
    review B3; the healer would restart trytond mid-init).
    Command: `ssh vps "sudo bash -c 'mkdir -p /run/fabrik-autoheal && printf \"%s %s\n\" 2026-08-11-plan-deploy-tryton-crm \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause'"`
@@ -301,13 +335,14 @@ restart-cap (3 per 30 min window, `vps-autoheal.sh:22-23`), and the window keeps
 |---|---|---|---|
 | 1 | Translations loaded (the project's OWN documented probe — `/opt/tryton-crm/docs/DEPLOYMENT.md:217-218`) | `ssh vps "sudo docker exec postgres-main psql -U postgres -d tryton -c \"select lang, count(*) from ir_translation where lang in ('tr','fa') and value<>'' group by lang;\""` | tr ≈ 7000+, fa ≈ 7200+ (a tr of 0 = the translatable step failed) |
 | 2 | Bridge health (real deps) | `curl -fsS https://tryton-crm.vps1.ocoron.com/health` | 200, body asserts deps |
-| 3 | **WRITE path** — party + activity through the bridge (catches stale-Pool B2; exercises the S10 RPC credential end-to-end) | two calls with `-H "X-Internal-Token: <the SERVICE_INTERNAL_SECRET_KEY value from the hub env, shell-substituted not pasted>"`: `curl -fsS -X POST "https://tryton-crm.vps1.ocoron.com/parties/upsert?org_id=<PASTE org_id from CONSUMER_TOKENS grant>" -H 'Content-Type: application/json' -d '{"external_id":"deploy-probe-2026-08-11","name":"Deploy Probe"}'` then `POST /activities/upsert?org_id=<same>` with `{"party_id":<from call 1>,"external_id":"deploy-probe-act-1","kind":"note","summary":"deploy battery probe","timestamp":"<now ISO>"}` (`src/tryton_crm/api/parties_write.py:47`, `api/activities.py:91`) | both 2xx; activity_id returned (the probe party is inert pre-launch data — note it in the ledger) |
+| 3 | **WRITE path** — party + activity through the bridge (catches stale-Pool B2; exercises the S10 RPC credential end-to-end). ⚠ Auth truth (round 2): `ENVIRONMENT=production` disables the shared-secret path — `_shared_secret_enabled()` fails closed outside the dev allowlist (`src/tryton_crm/internal_auth.py:38-45`), so the token MUST be a `CONSUMER_TOKENS` consumer token whose grant carries this org + `write` scope (`internal_auth.py:109-133`). All routes mount under `/internal/v1` (`api/__init__.py:26`) | two calls with `-H "X-Internal-Token: <PASTE consumer token from CONSUMER_TOKENS>"`: `curl -fsS -X POST "https://tryton-crm.vps1.ocoron.com/internal/v1/parties/upsert?org_id=<PASTE org_id from the same grant>" -H 'Content-Type: application/json' -d '{"org_id":"<same org_id>","org_name":"Deploy Probe Org","external_id":"deploy-probe-2026-08-11","name":"Deploy Probe","country":"TR","confidence":1.0}'` then `POST /internal/v1/activities/upsert?org_id=<same>` with `{"party_id":<party_id from call 1>,"external_id":"deploy-probe-act-1","kind":"note","summary":"deploy battery probe","timestamp":"<now ISO>","confidence":1.0}` (`api/parties_write.py:47,53`, `api/activities.py:91`, required fields per `schemas/write.py:56-69,102-113`; body org_id must equal the query per `assert_org_match`) | both 2xx; `activity_id` returned (the probe party is inert pre-launch data — note it in the ledger) |
+| 3b | **Fail-closed auth** — the write path REJECTS a bad token (the rubric's fail-closed mandate; a fail-open bridge would leak tenant data) | `curl -s -o /dev/null -w '%{http_code}' -X POST "https://tryton-crm.vps1.ocoron.com/internal/v1/parties/upsert?org_id=<same>" -H "X-Internal-Token: invalid-garbage" -H 'Content-Type: application/json' -d '{}'` | `401` (or `403`) — never 2xx/422 |
 | 4 | Queue drain (via postgres-main — the stack containers carry no psql; form proven live this review) | `ssh vps "sudo docker exec postgres-main psql -U postgres -d tryton -c \"SELECT count(*) FROM ir_queue WHERE dequeued_at IS NULL AND scheduled_at < now() - interval '5 min'\""` | `0` stuck rows |
 | 5 | Companion reachability (the RENAMED in-stack renderer — S0) | `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request;print(urllib.request.urlopen('http://crm-gotenberg:3000/health').status)\""` | 200 from inside the stack |
-| 6 | Tenant TLS + login surface (executable form — the interactive GUI login is the operator's Phase-8 first-days smoke, not a battery gate) | `curl -fsSI https://bhdtrade.tojlo.com` then `curl -fsS https://bhdtrade.tojlo.com \| grep -ci 'login\|tryton'` | valid cert (SAN `*.tojlo.com`), 200, login markers ≥ 1 |
-| 7 | Same-origin brand route | `curl -fsS https://bhdtrade.tojlo.com/brand/bhdtrade \| head -c 200` | 200, brand payload |
-| 8 | ACME diagnostics BEFORE blaming routing | `ssh vps "sudo docker logs traefik --since 30m 2>&1 \| grep -i 'acme\|cloudflare' \| tail -20"` | no unresolved errors; cert issued (read this BEFORE interpreting probe 6 failures) |
-| 9 | Monitoring green | Gatus: both endpoints green; Prometheus: `tryton-crm` target `up == 1` | green/up |
+| 6 | ACME diagnostics FIRST (ordered BEFORE the TLS probes — a cert-pending state must never be misread as a routing failure) | `ssh vps "sudo docker logs traefik --since 30m 2>&1 \| grep -i 'acme\|cloudflare' \| tail -20"` | no unresolved errors; the wildcard cert issued via the `cloudflare` resolver |
+| 7 | Tenant TLS + login surface (executable form — the interactive GUI login is the operator's Phase-8 first-days smoke, not a battery gate) | `curl -fsSI https://bhdtrade.tojlo.com` then `curl -fsS https://bhdtrade.tojlo.com \| grep -ci 'login\|tryton'` | valid cert (SAN `*.tojlo.com`), 200, login markers ≥ 1 (on FAIL: probe 6's ACME read is already in hand — diagnose from it) |
+| 8 | Same-origin brand route | `curl -fsS https://bhdtrade.tojlo.com/brand/bhdtrade \| head -c 200` | 200, brand payload (`api/brand.py:39`) |
+| 9 | Monitoring green | Gatus: BOTH endpoints green — the registrar's `tryton-crm` service monitor AND S12's `tryton-crm-tenant-cert`; Prometheus: the `tryton-crm` scrape target `up == 1` | green/up |
 
 Any FAIL → the plan's rollback/retry path for the implicated step, else the halt protocol. Never
 report the deploy complete on a partial battery.
@@ -364,10 +399,11 @@ registry-row proofs).
 - **Given** the compose stack network, **When** `crm-gotenberg`'s `/health` is fetched FROM the
   bridge container, **Then** 200 (probe 5).
 - **Given** the cloudflare resolver is active, **When** `bhdtrade.tojlo.com` is fetched, **Then**
-  TLS is valid (wildcard SAN) and login renders — with the ACME log read BEFORE interpreting any
-  failure (probes 6+8).
+  TLS is valid (wildcard SAN) and login renders — with the ACME log read FIRST (probes 6→7).
+- **Given** a garbage `X-Internal-Token`, **When** a write route is called, **Then** 401/403 —
+  the auth path fails CLOSED (probe 3b).
 - **Given** tenant routing, **When** `/brand/bhdtrade` is fetched same-origin, **Then** 200 with
-  brand payload (probe 7).
+  brand payload (probe 8).
 - **Given** the registrars ran, **When** Gatus and Prometheus are checked, **Then** both endpoints
   green and the scrape target `up` (probe 9).
 

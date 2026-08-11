@@ -22,7 +22,10 @@ shape:
   exposes_metrics: true       # GET /metrics now live (src/tryton_crm/main.py:53, direct route) → Prometheus scrape job
 expose:
   http: true
-  internal_only: true         # fabrik-net DNS only (tryton-crm:8000); TI + Tojlo call it internally
+  internal_only: true         # ⚠ DEAD FIELD (deploy-plan-review round 2): defined at
+                              # spec_loader.py:123 but read by NO orchestrator code — routing truth
+                              # is the compose's own Traefik labels (public bridge router + tenant
+                              # HostRegexp). Kept for history; do not trust it for reconciliation.
 source:
   type: git
   repository: git@github.com:mobasak/tryton-crm.git
@@ -78,7 +81,9 @@ secrets:
   #  auth path is SERVICE_INTERNAL_SECRET_KEY + CONSUMER_TOKENS below, both operator-supplied)
   - TRYTOND_ADMIN_PASSWORD    # Tryton admin bootstrap credential — minted, never hand-set
   from_env:
-  - SERVICE_INTERNAL_SECRET_KEY   # bridge accepts TI's shared token too (X-Internal-Token == either)
+  - SERVICE_INTERNAL_SECRET_KEY   # DEV-ONLY auth path: _shared_secret_enabled() fails closed when
+                                  # ENVIRONMENT=production (internal_auth.py:38-45) — prod M2M auth
+                                  # is CONSUMER_TOKENS only; still injected for parity/tooling
   - CONSUMER_TOKENS               # per-consumer M2M token JSON (trade-intelligence, whatsapp-agent) — token material, never a plain env
   - TRYTOND_RPC_USER              # dedicated least-privilege service login (crm-bridge-svc) — NEVER admin on a public-login product
   - TRYTOND_RPC_PASSWORD          # proteus RPC credential for the bridge→trytond calls (pre-minted in the project handoff; create_rpc_service_user.py creates the login WITH it at init)
