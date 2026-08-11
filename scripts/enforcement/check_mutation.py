@@ -99,6 +99,17 @@ def mutmut_bin() -> str | None:
 
 
 def main() -> int:
+    """Fail-soft wrapper — "ALWAYS exits 0" must hold even on an unforeseen raise
+    (review finding: `run_optional_check` marks a non-zero exit FAILED regardless of
+    `advisory=True`, so an uncaught exception here would flip the whole gate red)."""
+    try:
+        return _main()
+    except Exception as e:  # noqa: BLE001 — advisory must never break a commit
+        sys.stderr.write(f"MUTATION (advisory): fail-soft on error: {e}\n")
+        return 0
+
+
+def _main() -> int:
     mutmut = mutmut_bin()
     if mutmut is None:
         print("MUTATION (advisory): mutmut not installed — skipping (pip install 'mutmut>=3.6.0').")

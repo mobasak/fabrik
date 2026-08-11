@@ -30,12 +30,22 @@ the strip; a real run is direct invocation or the Sunday cron only). Probe duty 
 the closing pass in `term-edit.md` (a pass-1-true probe can go stale via middle-pass edits).
 A THIRD sweep confirmed 3 more + 3 adopted plausibles: a test-NAMED non-code file
 (`tests/test_report.json`) silenced the WARN (accompaniment now requires a code suffix), a
-pure `git mv` test rename gamed accompaniment (`--diff-filter=dr` + explicit rename
-detection), a ```-fenced illustrative contract label minted a declared row (fences stripped
-before scanning), co-located `.spec./.test.` files and a cased `Tests/` dir drew false WARNs
-(both are accompaniment now), the 62-pack now states the solo-self-convergence carve-out its
-pointer referenced, and the probe-duty sentence no longer says "RE-RUN" at first run.
-New pins across the three waves: 22 tests (15 watched RED on pre-fix code via revert).
+pure `git mv` test rename gamed accompaniment, a ```-fenced illustrative contract label
+minted a declared row (fences stripped before scanning), co-located `.spec./.test.` files
+and a cased `Tests/` dir drew false WARNs (both are accompaniment now), the 62-pack now
+states the solo-self-convergence carve-out its pointer referenced, and the probe-duty
+sentence no longer says "RE-RUN" at first run. A FOURTH sweep confirmed the gaming class
+was still open sideways and closed it precisely: window diffs now use `--name-status` +
+`--find-renames` + `--find-copies-harder` with PURE renames/copies (R100/C100) as no-ops in
+BOTH sets — a verbatim test copy no longer satisfies accompaniment, an edited rename
+(R<100, real new test content) counts again, and a pure source rename no longer draws a
+false WARN; `.sh` joined the code-test suffixes (this repo's own `tests/integration/*.sh`
+were invisible to accompaniment while counting as untested source); `~~~` tilde fences
+strip like backtick fences; `check_mutation.py` gained a fail-soft main wrapper (an
+uncaught raise would have flipped the gate red past `advisory=True`); and `term-edit.md`'s
+ledger TABLE template gained the `raised`/`new:` columns its prose already demanded.
+Final test census by execution: 46 across the three suites — 28 added or rewritten during
+the closing sweeps, 21 of them watched RED on pre-fix code via revert.
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 

@@ -437,6 +437,117 @@ def test_colocated_and_case_variant_tests_count(tmp_path: Path) -> None:
     assert rc == 0 and "WARNING" not in out, out
 
 
+def test_verbatim_test_copy_does_not_silence(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): `cp tests/test_x.py tests/test_x_copy.py` (verbatim,
+    # zero new assertions) satisfied accompaniment — the sibling git operation the pure-rename
+    # fix never covered. C100 copies are no-ops now.
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@t")
+    _git(repo, "config", "user.name", "t")
+    (repo / "docs/development/plans").mkdir(parents=True)
+    (repo / "docs/development/plans/p.md").write_text(
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+    (repo / "src").mkdir()
+    (repo / "src/app.py").write_text("A = 1\n")
+    t = repo / "tests"
+    t.mkdir()
+    body = "\n".join(f"def test_{i}():\n    assert {i} == {i}" for i in range(30))
+    (t / "test_app.py").write_text(body + "\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "baseline with a big test")
+    baseline = _git(repo, "rev-parse", "HEAD")
+    (repo / ".fabrik/plan-locks").mkdir(parents=True)
+    (repo / ".fabrik/plan-locks/p.json").write_text(json.dumps({
+        "plan": "docs/development/plans/p.md", "status": "active",
+        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (repo / "src/app.py").write_text("A = 2\n")
+    (t / "test_app_copy.py").write_text(body + "\n")  # verbatim copy, zero new coverage
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "ship behavior + verbatim COPY of the test")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_edited_rename_counts_as_accompaniment(tmp_path: Path) -> None:
+    # Review finding (live-reproduced false WARN): a rename that ALSO gained a genuinely new
+    # test function (R<100) was excluded wholesale by the pure-rename fix. Edited renames
+    # carry new content and must count.
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@t")
+    _git(repo, "config", "user.name", "t")
+    (repo / "docs/development/plans").mkdir(parents=True)
+    (repo / "docs/development/plans/p.md").write_text(
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+    (repo / "src").mkdir()
+    (repo / "src/app.py").write_text("A = 1\n")
+    t = repo / "tests"
+    t.mkdir()
+    body = "\n".join(f"def test_{i}():\n    assert {i} == {i}" for i in range(30))
+    (t / "test_app.py").write_text(body + "\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "baseline")
+    baseline = _git(repo, "rev-parse", "HEAD")
+    (repo / ".fabrik/plan-locks").mkdir(parents=True)
+    (repo / ".fabrik/plan-locks/p.json").write_text(json.dumps({
+        "plan": "docs/development/plans/p.md", "status": "active",
+        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "mv", "tests/test_app.py", "tests/test_app_renamed.py")
+    (t / "test_app_renamed.py").write_text(
+        body + "\ndef test_new_behavior():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "ship behavior + rename WITH a new test function")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_shell_test_in_tests_tree_counts(tmp_path: Path) -> None:
+    # Review finding (grounded in this repo's own tests/integration/*.sh): a `.sh` test was
+    # invisible to accompaniment AND counted as untested source.
+    repo, _ = _repo(tmp_path)
+    (repo / "src/app.py").write_text("A = 2\n")
+    t = repo / "tests"
+    t.mkdir()
+    (t / "test_smoke.sh").write_text("#!/bin/sh\nset -e\ntrue\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "behavior + a shell test")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_tilde_fenced_contract_label_not_counted(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): the fence-strip only covered ``` — a ~~~ tilde fence
+    # (equally valid CommonMark) still minted a declared row.
+    repo, _ = _repo(tmp_path, given_rows=0)
+    plan = repo / "docs/development/plans/p.md"
+    plan.write_text(
+        "# Plan\n\nStatus: IN-PROGRESS\n\nFormat reference:\n\n"
+        "~~~\n**Behavior Contract (Phase A):**\n"
+        "- **Given** an EXAMPLE, **When** tilde-quoted, **Then** it must not count\n~~~\n"
+    )
+    _git(repo, "add", str(plan.relative_to(repo)))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "source change; plan's only contract text is tilde-fenced")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_pure_source_rename_is_not_shipped_behavior(tmp_path: Path) -> None:
+    # Symmetric treatment: a pure `git mv src/app.py src/app2.py` (zero content change) is a
+    # refactor, not shipped behavior — it must not draw a WARN.
+    repo, _ = _repo(tmp_path)
+    _git(repo, "mv", "src/app.py", "src/app_renamed.py")
+    _git(repo, "commit", "-qm", "pure source rename only")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
 def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> None:
     # Review finding (whole-plan round): shared-master sibling commits inside the window must not
     # count in EITHER direction — a sibling's untested .py must not WARN this plan, and a

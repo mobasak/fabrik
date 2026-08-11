@@ -199,6 +199,18 @@ def test_negative_wall_cap_caps_immediately_and_stays_advisory(monkeypatch, caps
     assert "wall cap" in capsys.readouterr().out
 
 
+def test_unforeseen_exception_fails_soft(monkeypatch, capsys):
+    # Review finding: run_optional_check marks a non-zero exit FAILED regardless of
+    # advisory=True — an uncaught raise would flip the whole gate red. main() must catch
+    # everything and exit 0.
+    def boom():
+        raise OSError("TOCTOU: resolved binary vanished")
+
+    monkeypatch.setattr(cm, "mutmut_bin", boom)
+    assert cm.main() == 0
+    assert "fail-soft" in capsys.readouterr().err
+
+
 def test_since_window_scopes_by_committed_history(monkeypatch):
     # Given FABRIK_MUTMUT_SINCE, When changed_python runs, Then the git log --since window (deduped,
     # filtered) is the scope — not the merge-base diff.

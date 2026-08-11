@@ -79,10 +79,11 @@ def _contract_regions(text: str) -> str:
     bullet/continuation block)."""
     import re
 
-    # Fenced code blocks are illustrative prose — a ```-quoted contract label/row must
-    # never mint a declared row (review finding, live-reproduced). Paired fences only;
-    # unbalanced markdown is left as-is (fail toward counting, i.e. toward the WARN).
-    text = re.sub(r"(?ms)^[ \t]*```.*?^[ \t]*```[ \t]*$", "", text)
+    # Fenced code blocks are illustrative prose — a fence-quoted contract label/row must
+    # never mint a declared row (review findings, live-reproduced for ``` and for the
+    # equally-valid CommonMark ~~~ form; the backreference pairs like with like). Paired
+    # fences only; unbalanced markdown is left as-is (fail toward counting → the WARN).
+    text = re.sub(r"(?ms)^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$", "", text)
     regions: list[str] = []
     heading_spans: list[tuple[int, int]] = []  # absolute offsets of heading regions
     for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):
@@ -107,14 +108,22 @@ def _contract_regions(text: str) -> str:
 
 
 def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
-    args = ["git", "diff", "--name-only"]
+    """Window file list via `--name-status` with rename+copy detection. PURE renames and
+    PURE copies (R100/C100) are no-ops in BOTH sets — as accompaniment they add zero
+    coverage (review findings, live-reproduced: `git mv` alone, then a verbatim `cp` of an
+    existing test, each silenced a real WARN), and as source they are refactors, not
+    shipped behavior. An EDITED rename/copy (R/C below 100) carries new content and counts
+    normally (the earlier exclude-all-renames form drew a false WARN against a renamed
+    test that gained a genuinely new test function). `exclude_deleted` drops D rows — a
+    DELETED test never satisfies accompaniment; source deletions DO count (removing
+    behavior is a behavior change)."""
+    # --find-copies-harder, not --find-copies: plain copy detection only considers
+    # SOURCES MODIFIED in the same diff, so a verbatim copy of an untouched test still
+    # reported as A (probe-verified). Harder scans all files as sources — bounded cost
+    # on a plan window's modest diff, and the only form that actually catches the gaming.
+    args = ["git", "diff", "--name-status", "--find-renames", "--find-copies-harder"]
     if exclude_deleted:
-        # `d` — a DELETED test must never satisfy accompaniment; `r` (+ explicit rename
-        # detection) — a PURE RENAME of a pre-existing test adds no coverage and must not
-        # either (review finding, live-reproduced: `git mv` alone silenced the WARN).
-        # A renamed-AND-edited test is also excluded — under-counting is the WARN
-        # direction, and the advisory's reviewer adjudicates.
-        args += ["--diff-filter=dr", "--find-renames"]
+        args.append("--diff-filter=d")
     r = subprocess.run(
         [*args, f"{baseline}..HEAD"],
         capture_output=True,
@@ -123,7 +132,16 @@ def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
     )
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[:200])
-    return [f for f in r.stdout.splitlines() if f.strip()]
+    out: list[str] = []
+    for line in r.stdout.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        status = fields[0].strip()
+        if status in ("R100", "C100"):
+            continue  # pure rename/copy — no content change in the window
+        out.append(fields[-1].strip())  # R/C rows carry old+new; the NEW path is the live one
+    return out
 
 
 def _owned(path: str, owned_paths: list[str]) -> bool:
@@ -139,7 +157,7 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     return False
 
 
-_CODE_TEST_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx")
+_CODE_TEST_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx", ".sh")
 
 
 def _in_tests_tree(path: str) -> bool:

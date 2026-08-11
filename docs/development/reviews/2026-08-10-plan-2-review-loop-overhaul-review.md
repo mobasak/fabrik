@@ -81,6 +81,13 @@ decision-record-not-cited-in-pack observation (the plan's conditional made the n
 | Pass 6 | orchestrator scoped verify of the Pass-5 fix diff: 4 new tests watched RED on reverted code, 36/36 green, tier-3 count re-derived by execution (14), AST pins reject their own defeating mutants in-test, probe-duty render propagated to all 8 term-edit consumers | 0 | 0 | 0 | 0 |
 | Pass 7 | CLOSING full fresh sweep #3, non-author: 2 pool units (deepseek-v3.2-exp scored 4 — accurate CLEAN walk; gemini-3-flash-preview scored 2 — 2 diff-vs-file misreadings refuted against the live tree) + 1 native subagent (3 CONFIRMED live-reproduced + 3 PLAUSIBLE adopted) | 8 | 8 | 6 | 2 |
 | Pass 8 | orchestrator scoped verify of the Pass-7 fix diff: 4 new tests watched RED on reverted code, 40/40 green, real-plan scoping re-probed (12/12 rows survive the fence-strip), corpus re-rendered and propagation grepped | 0 | 0 | 0 | 0 |
+| Pass 9 | CLOSING full fresh sweep #4, non-author: 2 pool units (deepseek-v3.2-exp scored 1 — 8 raised, all refuted, several factually wrong; gemini-3-flash-preview scored 3 — found the ledger-template gap among 2 refuted) + 1 native subagent (3 CONFIRMED + 4 PLAUSIBLE, adversarially fuzzed with 10 throwaway repos) | 18 | 12 | 8 | 10 |
+| Pass 10 | orchestrator scoped verify of the Pass-9 fix diff: 6 new tests watched RED on reverted code; the copy fix's own regression test caught `--find-copies` not detecting untouched-source copies → corrected to `--find-copies-harder` by probe; 46/46 green, real-plan 12/12 rows, live hub run OK | 0 | 0 | 0 | 0 |
+
+Pass 9's `new:` count ROSE (8 → 12) after two falling rounds — one non-decreasing step, recorded
+honestly; the breaker arms only at 3 consecutive. The round's finds were qualitatively narrower
+(gaming vectors and format-variant edges, no live fail-opens in the core promise), and every fix
+landed with a watched-red regression test.
 
 Pass 2's found: 0 close did NOT survive the closing sweep — the operator-demanded Pass 3 (the
 first live run of the new non-author closing-sweep contract) surfaced 15 candidates: 11 fixed
