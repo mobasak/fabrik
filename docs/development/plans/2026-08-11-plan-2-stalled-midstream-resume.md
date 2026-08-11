@@ -65,14 +65,14 @@ So detection needs NO fragile string-only match: the tail assistant record carri
 truthy AND its text matches the stall class (`Response stalled mid-stream` — a module-constant
 pattern list, extensible to sibling incomplete-stream texts later).
 
-**Why nothing resumes today**: the stalled turn ends via a NORMAL Stop, and the decider's
-normal-Stop path treats it as a healthy final rest — it even CLEARS any prior death record
-(`claude-stop-decider.py:697-704` "a normal Stop for this session means the last error-death has
-been survived — clear the death record"). The turn-death park path that writes `.errparked` +
-rings the error voice (`:840-843` "Death record so an armed self-watch wakes the pane") is never
-reached because `turn_dead` is False on this path and the tail classifier keys on `stop_reason`
-(`:111` "assistant + end_turn ⇒ candidate park", `:134`, `:340`) — `stop_sequence` +
-`isApiErrorMessage` is invisible to it. The revival machinery already exists and is armed
+**Why nothing resumes today**: the stalled turn ends via a NORMAL Stop, and the mesh treats it as
+a healthy final rest — `_run_hook_inner` (`:667`, the Stop consequence layer) even CLEARS any
+prior death record on this path (`claude-stop-decider.py:697-704` "a normal Stop for this session
+means the last error-death has been survived — clear the death record"). The turn-death park path
+that writes `.errparked` + rings the error voice (`:840-843`, same function, "Death record so an
+armed self-watch wakes the pane") is never reached because `turn_dead` is False on this path and
+`decide()`'s tail classifier keys on `stop_reason` (`:111` "assistant + end_turn ⇒ candidate
+park", `:134`, `:340`) — `stop_sequence` + `isApiErrorMessage` is invisible to it. The revival machinery already exists and is armed
 ("EVERY interactive session arms `claude-selfwatch.sh` via the ORIENT-ordered persistent Monitor" —
 `docs/workstation/hooks-index.md` StopFailure row); it just never receives a death record for this
 class.
@@ -81,9 +81,10 @@ class.
 
 **Interfaces — Consumes:** the transcript tail records (shape above); the existing `.errparked`
 death-record format (`claude-stop-decider.py:840-843`) and the armed self-watch consumer.
-**Produces:** a new decider verdict branch `stalled-api-error -> parked (death)` writing the same
-`.errparked` record shape the self-watch already consumes; a module constant
-`_API_ERROR_STALL_PATTERNS: tuple[str, ...]`; fixtures in the decider's `--self-test` suite.
+**Produces:** a new `decide()` verdict class `stalled-api-error` + its `_run_hook_inner` routing
+to the existing death path (the `.errparked` record shape the self-watch already consumes); a
+module constant `_API_ERROR_STALL_PATTERNS: tuple[str, ...]`; fixtures in the decider's
+`--self-test` suite.
 
 Steps:
 
@@ -112,12 +113,16 @@ Steps:
 - **Given** the stalled-tail record is NOT the last entry (queue-operation records follow, as in
   the real transcript), **When** the tail is scanned, **Then** detection still fires (the scan
   finds the last ASSISTANT record, not the last line).
-3. **Implement the detection branch in `claude-stop-decider.py` (the ONLY edited surface):**
-   a module constant `_API_ERROR_STALL_PATTERNS = ("Response stalled mid-stream",)`; in `decide()`,
-   before the normal-Stop survived-death cleanup (`:697`), scan the tail's last assistant record —
-   `isApiErrorMessage` truthy AND any pattern in its text → return the park-as-death verdict reusing
-   the existing `.errparked` write + error-ring selection (`:840-843` shape, class
-   `api_error_stalled`); fail-open (any parse error → fall through to today's behavior). Gate:
+3. **Implement the detection branch in `claude-stop-decider.py` (the ONLY edited surface), across
+   the REAL seam (grounder finding — the two mechanisms live in different functions):** `decide()`
+   (`:506`) owns the tail CLASSIFICATION — add a module constant
+   `_API_ERROR_STALL_PATTERNS = ("Response stalled mid-stream",)` and, in its tail scan, detect the
+   last ASSISTANT record with `isApiErrorMessage` truthy AND a pattern match → return a NEW verdict
+   class (`stalled-api-error`). `_run_hook_inner` (`:667`) owns the CONSEQUENCES — route the new
+   verdict to the existing death path (the `.errparked` write + error-ring selection at `:840-843`,
+   class `api_error_stalled`) INSTEAD of the normal-Stop survived-death cleanup at `:697-704` (the
+   cleanup must not fire on this verdict — that would clear the record the same event just created).
+   Fail-open both sides (any parse error → today's behavior). Gate:
    `python3 ~/.claude/bin/claude-stop-decider.py --self-test; echo $?` → 0, N+4 fixtures green.
 4. **End-to-end wake proof (read-only on the consumers):** with a throwaway session id, write the
    fixture transcript to a temp path, run the decider on it, then verify the REAL consumer contract:
