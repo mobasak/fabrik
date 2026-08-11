@@ -18,6 +18,10 @@ an outside-tree exception across the fleet-synced governance corpus; `/fabrik-up
 now routes via mail. Layer 2 (native cross-session messaging ≥2.1.224) is to be adopted after that
 Claude Code upgrade — deferred by fact (box at 2.1.219).
 
+_Landing incrementally:_ Phase A (fleet governance sanction) · Phase B (`scripts/mail.py` store +
+protocol + 30 behavior/security tests — watched-fail-first on the risky invariants, plus a security-review
+pass hardening path-traversal on `to`/`repo`/`msg_id`, broadened secret-refusal, and digest ack-injection).
+
 ### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
 
 `~/.claude/bin/claude-stop-decider.py` (box surface, DR-versioned) now detects the

@@ -88,7 +88,7 @@ The outside-tree HARD STOP must sanction `/opt/fabrik-mail/` BEFORE any later st
 
 Closing sequence: (1) gate `diff <(grep -A1 'outside project tree' CLAUDE.md) <(grep -A1 'outside project tree' templates/governance/CLAUDE.md)` → identical added text; (2) `python scripts/enforcement/check_doc_sync.py` → exit 0; (3) **`/fabrik-review`** on the diff (governance-sync blast-radius = its own class — correct for all ~46 repos) to a coverage-adjudicated exit; (4) commit (explicit paths + trailers).
 
-## Phase B — `scripts/mail.py` (the store + protocol)
+## Phase B — `scripts/mail.py` (the store + protocol) — ✅ EXECUTED 2026-08-11
 
 One stdlib file with subcommands `send | list | read | ack | requeue | digest`, implementing the frozen spec:
 
