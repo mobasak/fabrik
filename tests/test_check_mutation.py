@@ -74,9 +74,9 @@ def test_changed_python_filters_tests_libs_and_nonpy(monkeypatch):
     assert cm.changed_python(base="somebase") == ["src/fabrik/a.py", "src/fabrik/d.py"]
 
 
-def test_wall_cap_timeout_is_advisory_not_fatal(monkeypatch, capsys):
-    # Given FABRIK_MUTMUT set and mutmut exceeding the wall cap, When main() runs, Then the cap is
-    # reported and the exit stays 0 (the staging guarantee survives the cap).
+def test_wall_cap_timeout_kills_group_and_stays_advisory(monkeypatch, capsys):
+    # Given FABRIK_MUTMUT set and mutmut exceeding the wall cap, When main() runs, Then the whole
+    # process GROUP is reaped (not just the direct child), the cap is reported, and exit stays 0.
     import subprocess as sp
     import types
 
@@ -84,16 +84,54 @@ def test_wall_cap_timeout_is_advisory_not_fatal(monkeypatch, capsys):
     monkeypatch.setenv("FABRIK_MUTMUT_WALL_CAP_S", "1")
     monkeypatch.setattr(cm.shutil, "which", lambda _: "/usr/bin/mutmut")
     monkeypatch.setattr(cm, "changed_python", lambda base=None: ["src/fabrik/x.py"])
+    killed: dict = {}
 
-    def fake_run(cmd, **kw):
-        if cmd[:2] == ["mutmut", "run"]:
-            raise sp.TimeoutExpired(cmd, kw.get("timeout", 1))
-        return types.SimpleNamespace(stdout="0 survived", returncode=0)
+    class FakeProc:
+        pid = 4242
+        calls = 0
 
-    monkeypatch.setattr(cm.subprocess, "run", fake_run)
+        def wait(self, timeout=None):
+            FakeProc.calls += 1
+            if FakeProc.calls == 1:
+                raise sp.TimeoutExpired(["mutmut", "run"], timeout)
+            return 0
+
+        def kill(self):
+            killed["direct"] = True
+
+    monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
+    monkeypatch.setattr(cm.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0))
+    monkeypatch.setattr(cm.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(cm.os, "killpg", lambda pgid, sig: killed.setdefault("group", (pgid, sig)))
     assert cm.main() == 0
     out = capsys.readouterr().out
     assert "wall cap" in out and "exit 0" in out
+    assert killed.get("group") == (4242, cm.signal.SIGKILL)
+
+
+def test_malformed_wall_cap_falls_back_to_default(monkeypatch, capsys):
+    # Given a malformed FABRIK_MUTMUT_WALL_CAP_S, When main() runs, Then it falls back to 1200 and
+    # never raises — an ALWAYS-exit-0 advisory must not fail the gate on a typo'd env var.
+    import types
+
+    monkeypatch.setenv("FABRIK_MUTMUT", "1")
+    monkeypatch.setenv("FABRIK_MUTMUT_WALL_CAP_S", "20m")
+    monkeypatch.setattr(cm.shutil, "which", lambda _: "/usr/bin/mutmut")
+    monkeypatch.setattr(cm, "changed_python", lambda base=None: ["src/fabrik/x.py"])
+
+    class FakeProc:
+        pid = 1
+
+        def wait(self, timeout=None):
+            assert timeout == 1200  # the fallback default, not a crash
+            return 0
+
+    monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
+    monkeypatch.setattr(cm.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0))
+    assert cm.main() == 0
+    assert "malformed FABRIK_MUTMUT_WALL_CAP_S" in capsys.readouterr().out
 
 
 def test_since_window_scopes_by_committed_history(monkeypatch):

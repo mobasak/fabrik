@@ -56,15 +56,21 @@ def _active_locks() -> list[dict]:
 def _given_rows(plan_path: str) -> list[str]:
     from check_plan_tickets import GIVEN_ROW_RE  # the SSOT regex — reuse, never re-derive
 
-    p = PROJECT_ROOT / plan_path
+    p = (PROJECT_ROOT / plan_path).resolve()
+    root = PROJECT_ROOT.resolve()
+    if not p.is_relative_to(root):  # confine: an absolute/.. plan path in a lock never escapes
+        return []
     if not p.is_file():
         return []
     return [m.group(1).strip() for m in GIVEN_ROW_RE.finditer(p.read_text(encoding="utf-8", errors="replace"))]
 
 
-def _window_files(baseline: str) -> list[str]:
+def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
+    args = ["git", "diff", "--name-only"]
+    if exclude_deleted:
+        args.append("--diff-filter=d")  # a DELETED test must never satisfy test-accompaniment
     r = subprocess.run(
-        ["git", "diff", "--name-only", f"{baseline}..HEAD"],
+        [*args, f"{baseline}..HEAD"],
         capture_output=True, text=True, cwd=PROJECT_ROOT,
     )
     if r.returncode != 0:
@@ -91,7 +97,11 @@ def main() -> int:
                 continue  # a plan with no declared behaviors is silent by construction
             files = _window_files(str(lock["baseline_commit"]))
             source = [f for f in files if _is_source(f)]
-            tests = [f for f in files if _is_test(f)]
+            # Tests count only when ADDED/MODIFIED — a window that DELETES its tests while
+            # shipping behavior is exactly the failure this gate exists to catch (review finding,
+            # live-reproduced: an unfiltered list let a test deletion silence the WARN).
+            alive = _window_files(str(lock["baseline_commit"]), exclude_deleted=True)
+            tests = [f for f in alive if _is_test(f)]
             if not source:
                 continue  # docs-only window — no false positive
             if tests:

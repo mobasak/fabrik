@@ -129,3 +129,55 @@ def test_broken_lock_json_fails_soft(tmp_path: Path) -> None:
     _git(repo, "commit", "-qm", "broken lock")
     rc, out = _run(repo)
     assert rc == 0, out  # an advisory never breaks a commit
+
+
+def test_deleted_test_does_not_satisfy_accompaniment(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): a window that DELETES a test while shipping source must
+    # WARN — a deleted tests/ path in the unfiltered diff must never count as accompaniment.
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@t")
+    _git(repo, "config", "user.name", "t")
+    plan_dir = repo / "docs/development/plans"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "p.md").write_text(
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+    (repo / "src").mkdir()
+    (repo / "src/app.py").write_text("A = 1\n")
+    t = repo / "tests"
+    t.mkdir()
+    (t / "test_app.py").write_text("def test_a():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "baseline with a test")
+    baseline = _git(repo, "rev-parse", "HEAD")
+    locks = repo / ".fabrik/plan-locks"
+    locks.mkdir(parents=True)
+    (locks / "p.json").write_text(json.dumps({
+        "plan": "docs/development/plans/p.md", "status": "active",
+        "baseline_commit": baseline, "owned_paths": ["src/"]}))
+    (repo / "src/app.py").write_text("A = 2\n")
+    (t / "test_app.py").unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "ship behavior, DELETE the test")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_absolute_plan_path_in_lock_is_confined(tmp_path: Path) -> None:
+    # Review finding: PROJECT_ROOT / "/abs/path" discards the root — a lock pointing outside the
+    # repo must be ignored, never read.
+    repo, _ = _repo(tmp_path)
+    outside = tmp_path / "outside.md"
+    outside.write_text("- **Given** leaked, **When** read, **Then** bad\n")
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["plan"] = str(outside)  # absolute, escapes the repo
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "source change")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "leaked" not in out and "WARNING" not in out, out

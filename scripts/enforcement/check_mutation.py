@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -87,18 +88,38 @@ def main() -> int:
     if not files:
         print("MUTATION (advisory): no changed applied Python — nothing to mutate.")
         return 0
-    cap_s = int(os.getenv("FABRIK_MUTMUT_WALL_CAP_S", "1200"))
+    try:
+        cap_s = int(os.getenv("FABRIK_MUTMUT_WALL_CAP_S", "1200"))
+    except ValueError:
+        # A malformed cap must never flip an ALWAYS-exit-0 advisory into a gate failure
+        # (review finding, live-reproduced: an uncaught ValueError exits non-zero and
+        # run_optional_check marks the check failed regardless of advisory=True).
+        print("MUTATION (advisory): malformed FABRIK_MUTMUT_WALL_CAP_S — using default 1200s.")
+        cap_s = 1200
     print(
         f"MUTATION (advisory): running mutmut (incremental, diff-scoped) over {len(files)} changed "
         f"file(s), wall cap {cap_s}s… (mutmut 3.x has no --paths-to-mutate CLI; incremental mode is "
         "the diff-scoper — it re-tests only changed functions)"
     )
+    # Own process group + group-kill on cap: subprocess.run's timeout kills only the DIRECT
+    # child, orphaning mutmut's per-mutant test workers on the shared box (review finding —
+    # the cap-heavy-local-jobs class). A group kill reaps the whole tree.
+    proc = subprocess.Popen(["mutmut", "run"], start_new_session=True)
     try:
-        subprocess.run(["mutmut", "run"], check=False, timeout=cap_s)
+        proc.wait(timeout=cap_s)
     except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
         print(
-            f"MUTATION (advisory): wall cap {cap_s}s reached — partial results below "
-            "(raise FABRIK_MUTMUT_WALL_CAP_S for a fuller run). Still advisory, still exit 0."
+            f"MUTATION (advisory): wall cap {cap_s}s reached — process group reaped, partial "
+            "results below (raise FABRIK_MUTMUT_WALL_CAP_S for a fuller run). Still advisory, "
+            "still exit 0."
         )
     res = subprocess.run(["mutmut", "results"], capture_output=True, text=True, check=False).stdout
     survivors = parse_survivors(res)

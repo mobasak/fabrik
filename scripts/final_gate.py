@@ -808,16 +808,6 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
-        # Behavior-Contract test accompaniment — WARN when an ACTIVE plan-execution window
-        # (lock baseline..HEAD) declares Given rows and touched source with ZERO test changes.
-        # Whole-window by design; per-row coverage stays the phase-boundary review's. Always exits 0.
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_phase_tests.py",
-                "Phase Tests (advisory, plan-window)",
-                advisory=True,
-            )
-        )
         # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
         # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
         # Advisory + fail-safe (always exits 0); the doc set is the registry SSOT.
@@ -1011,6 +1001,18 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_reusable_modules.py",
                 "Reusable Module Tagging",
+                advisory=True,
+            )
+        )
+        # Behavior-Contract test accompaniment — WARN when an ACTIVE plan-execution window
+        # (lock baseline..HEAD) declares Given rows and touched source with ZERO test changes.
+        # Whole-window by design; per-row coverage stays the phase-boundary review's. Always
+        # exits 0. Tier-2-ONLY (a review finding moved it here — the first registration landed
+        # in the shared tier-(1,2) block, polluting --lean and falsifying the doc's counts).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_phase_tests.py",
+                "Phase Tests (advisory, plan-window)",
                 advisory=True,
             )
         )

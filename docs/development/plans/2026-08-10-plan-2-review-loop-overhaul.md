@@ -352,7 +352,7 @@ text — each item marked found-verbatim or CHANGED-with-justification.
 Closing sequence: gate B → `check_doc_sync.py` → **`/fabrik-review` to a coverage-adjudicated
 exit** → commit.
 
-## Phase C — Enforce what is already mandated (and stage the risky one)
+## Phase C — Enforce what is already mandated (and stage the risky one) — ✅ EXECUTED 2026-08-11 (3decca1a + review-fix)
 
 **Interfaces — Consumes:** nothing from A/B. **Produces:** two gate behaviours the fleet inherits.
 
