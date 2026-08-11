@@ -5,7 +5,8 @@ declares behaviors but has added no tests.
 
 WHOLE-WINDOW by design (plan 2026-08-10-plan-2 Phase C; the per-phase form would require a
 phase-boundary mechanism no plan lock carries): the range is the ACTIVE plan lock's
-``baseline_commit..HEAD``; the rows are every bulleted ``- **Given**`` row in the locked plan
+``baseline_commit..HEAD``; the rows are the bulleted ``- **Given**`` rows inside the locked
+plan's Behavior-Contract regions — heading form and monolithic bold-label form both scoped
 (``GIVEN_ROW_RE`` reused from ``check_plan_tickets`` — never a second regex to drift); the
 assertion is the honest one a gate can prove — **if the locked plan declares >=1 Given row AND
 the window touched source files, the window must include >=1 test change**. The WARN lists the
@@ -35,7 +36,6 @@ PROJECT_ROOT = Path.cwd()
 LOCK_DIR = PROJECT_ROOT / ".fabrik" / "plan-locks"
 
 _DOC_SUFFIXES = (".md", ".rst", ".txt")
-_TEST_MARKERS = ("tests/", "test_")
 
 
 def _active_locks() -> list[dict]:
@@ -48,6 +48,8 @@ def _active_locks() -> list[dict]:
             d = json.loads(p.read_text(encoding="utf-8", errors="replace"))
         except Exception:
             continue
+        if not isinstance(d, dict):
+            continue  # valid-JSON-but-not-a-dict must skip THIS file, never abort the enumeration
         if d.get("status") == "active" and d.get("baseline_commit") and d.get("plan"):
             out.append(d)
     return out
@@ -62,10 +64,35 @@ def _given_rows(plan_path: str) -> list[str]:
         return []
     if not p.is_file():
         return []
-    return [
-        m.group(1).strip()
-        for m in GIVEN_ROW_RE.finditer(p.read_text(encoding="utf-8", errors="replace"))
-    ]
+    text = p.read_text(encoding="utf-8", errors="replace")
+    scoped = _contract_regions(text)
+    return [m.group(1).strip() for m in GIVEN_ROW_RE.finditer(scoped)]
+
+
+def _contract_regions(text: str) -> str:
+    """Behavior-Contract regions only — check_plan_tickets scopes GIVEN_ROW_RE to
+    `_section(scan, "Behavior Contract")` and an unscoped scan here would drift from it
+    (an illustrative Given bullet in prose would count as a declared row). Plans carry
+    the contract in TWO real forms, both scoped: the `## Behavior Contract` heading
+    section (ticket/spine form — region runs to the next heading) and the monolithic
+    form's `**Behavior Contract (…):**` bold label (region = its contiguous
+    bullet/continuation block)."""
+    import re
+
+    regions: list[str] = []
+    for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):
+        rest = text[m.end() :]
+        stop = re.search(r"(?m)^#{2,4}\s", rest)
+        regions.append(rest[: stop.start()] if stop else rest)
+    for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", text):
+        lines: list[str] = []
+        for line in text[m.end() :].splitlines():
+            if not line.strip() or re.match(r"^\s*[-*]\s", line) or re.match(r"^\s{2,}\S", line):
+                lines.append(line)
+                continue
+            break  # first prose/heading/label line ends the block
+        regions.append("\n".join(lines))
+    return "\n".join(regions)
 
 
 def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
@@ -97,7 +124,11 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
 
 
 def _is_test(path: str) -> bool:
-    return path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
+    # A tests/ dir anywhere on the path, or a root-level test_*.py. The bare-name clause is
+    # root-only: `scripts/test_connectivity.py` is a diagnostic utility, and letting it count
+    # as accompaniment would silently satisfy the WARN for an unrelated behavior change.
+    parts = Path(path).parts
+    return "tests" in parts[:-1] or (len(parts) == 1 and parts[0].startswith("test_"))
 
 
 def _is_source(path: str) -> bool:
@@ -113,7 +144,10 @@ def main() -> int:
             rows = _given_rows(str(lock["plan"]))
             if not rows:
                 continue  # a plan with no declared behaviors is silent by construction
-            owned = [str(o) for o in (lock.get("owned_paths") or [])]
+            raw_owned = lock.get("owned_paths") or []
+            if isinstance(raw_owned, str):  # a hand-edited scalar must scope, not iterate chars
+                raw_owned = [raw_owned]
+            owned = [str(o) for o in raw_owned]
             files = _window_files(str(lock["baseline_commit"]))
             if owned:  # a lock without owned_paths falls back to the whole window
                 files = [f for f in files if _owned(f, owned)]

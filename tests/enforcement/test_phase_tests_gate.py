@@ -183,6 +183,92 @@ def test_absolute_plan_path_in_lock_is_confined(tmp_path: Path) -> None:
     assert "leaked" not in out and "WARNING" not in out, out
 
 
+def test_string_owned_paths_scopes_not_chars(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): a hand-edited scalar `"owned_paths": "src/"` iterated
+    # CHARACTERS, matched nothing, and silently swallowed the WARN — fail-open on the gate's
+    # own core promise. A string must scope like a one-element list.
+    repo, _ = _repo(tmp_path)
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = "src/"  # scalar, not a list
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped, no tests, scalar owned_paths")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_non_dict_lock_json_does_not_abort_other_locks(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): one valid-JSON-but-not-a-dict lock file raised out of
+    # _active_locks and silently disabled checking for EVERY other active lock. The bad file
+    # must be skipped in isolation; the good lock's WARN must still fire.
+    repo, _ = _repo(tmp_path)
+    (repo / ".fabrik/plan-locks/aaa-bad.json").write_text("[]")  # sorts BEFORE p.json
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped, no tests, bad sibling lock")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+    assert "fail-soft" not in out, out
+
+
+def test_illustrative_given_outside_contract_not_counted(tmp_path: Path) -> None:
+    # Review finding: GIVEN_ROW_RE must be scoped to Behavior-Contract regions like its SSOT
+    # consumer (check_plan_tickets scopes to _section) — an illustrative Given bullet in prose
+    # must not mint a phantom declared row.
+    repo, _ = _repo(tmp_path, given_rows=0)
+    plan = repo / "docs/development/plans/p.md"
+    plan.write_text(
+        "# Plan\n\nStatus: IN-PROGRESS\n\n## Notes on the row format\n"
+        "- **Given** an EXAMPLE row, **When** quoted in prose, **Then** it must not count\n"
+    )
+    _git(repo, "add", str(plan.relative_to(repo)))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "source change; plan has only an illustrative row")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_bold_label_contract_form_counts(tmp_path: Path) -> None:
+    # Monolithic plans carry `**Behavior Contract (Phase X):**` bold labels, not ## headings
+    # (grounded against the real archived plan-2) — the label + its bullet block must count.
+    repo, _ = _repo(tmp_path, given_rows=0)
+    plan = repo / "docs/development/plans/p.md"
+    plan.write_text(
+        "# Plan\n\nStatus: IN-PROGRESS\n\n**Behavior Contract (Phase A):**\n"
+        "- **Given** s, **When** a, **Then** o\n\nClosing sequence: prose after the block.\n"
+    )
+    _git(repo, "add", str(plan.relative_to(repo)))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped under a bold-label contract, no tests")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_utility_script_named_test_is_not_accompaniment(tmp_path: Path) -> None:
+    # Review finding: `scripts/test_connectivity.py` (a diagnostic utility) must not silently
+    # satisfy the WARN — only tests/-dir files and root-level test_*.py count.
+    repo, _ = _repo(tmp_path)
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = ["src/", "tests/", "scripts/"]
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    (repo / "scripts").mkdir()
+    (repo / "scripts/test_connectivity.py").write_text("print('probe')\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "behavior + a utility script named test_*")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
 def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> None:
     # Review finding (whole-plan round): shared-master sibling commits inside the window must not
     # count in EITHER direction — a sibling's untested .py must not WARN this plan, and a

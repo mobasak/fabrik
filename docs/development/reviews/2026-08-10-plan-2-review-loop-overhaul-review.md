@@ -57,10 +57,10 @@ Scope: the plan's cumulative own-file diff, baseline 6a0ce308..HEAD, File-Scope 
 | No-functionality-loss (14 guarantees, rendered) | CLEAN (gate-B greps 4/8/12 re-verified; negatives pass; zero template residue) |
 | Fleet safety of synced surfaces (fragments, pack, enforcement) | FIXED(1) — the window is now lock-scope-filtered (owned_paths): sibling shared-master commits count in NEITHER direction (live-verified: 3 tryton-crm commits sat inside this plan's own window); regression test added |
 | fail-open vs fail-closed on every gate/guard | FIXED(1) — a leaked FABRIK_MUTMUT under the gate's 120s outer timeout could orphan the session-detached mutmut grandchild; the gate now strips the flag for that one child (mechanism live-reproduced by the finder; guard proven executed: child skips, parent env restored) |
-| cost/quota/limit accounting edges | CLEAN (cap fallback + group-kill shipped in Phase C review; malformed-cap and negative-cap paths pinned by tests) |
+| cost/quota/limit accounting edges | FIXED(2 in Pass 3) — Pass 2's "negative-cap pinned" was an overclaim (no such test existed; one added, watched red) and the Sunday cron's `shutil.which` lookup silently skipped every scheduled run under cron's bare PATH (live-reproduced; resolution now prefers the interpreter-sibling binary) |
 | boundary/sentinel/prefix collisions | CLEAN (owned-paths prefix matcher is dir-boundary-safe: `o + "/"`; absolute-path confinement pinned) |
 | behavior-without-a-test | FIXED(1) — CHANGELOG's "7 behavior tests" undercount corrected to 9 (the review-round additions); all 21 tests green |
-| Doc-truth of the four run-touched docs (CHANGELOG/CONFIGURATION/WORKFLOW/45-pack) | CLEAN (16/19/37 recounted true; cap default matches code; 45-pack WARN description matches the shipped message; CHANGELOG corrected) |
+| Doc-truth of the four run-touched docs (CHANGELOG/CONFIGURATION/WORKFLOW/45-pack) | FIXED(1 in Pass 3, overturning Pass 2's CLEAN) — "16/19/37 recounted true" was an eyeball recount that carried forward a pre-existing omission (`check_review_coverage.py` runs unconditionally too); INSTRUMENTED execution gives tier 1 = 18, tier 2 = **38**; WORKFLOW/CHANGELOG corrected, count now derived by running `run_consistency_checks`, never by enumerating call sites |
 
 Handoff (out-of-File-Scope, recorded — not silently dropped): `check_plan_tickets.py:2`'s
 AFTER-EDIT header should now also list `scripts/enforcement/check_phase_tests.py` (a new
@@ -75,5 +75,15 @@ decision-record-not-cited-in-pack observation (the plan's conditional made the n
 |---:|---|---:|---:|---:|---:|
 | Pass 1 | native non-author closing finder (whole-plan, cross-phase axes) + orchestrator requirements walk | 6 | 6 | 3 (+1 handoff recorded) | 2 |
 | Pass 2 | orchestrator confirming re-check of the fix diff (21/21 tests incl. 2 new regressions, lint clean, hub run OK, env-guard executed proof, corpus --check stable) | 0 | 0 | 0 | 0 |
+| Pass 3 | CLOSING full fresh sweep, non-author finders per the new contract: 2 pool units (deepseek-v3.2-exp scored 2, gemini-3-flash-preview scored 4) + 1 native subagent over the whole 6a0ce308..HEAD surface | 15 | 15 | 11 | 4 |
+| Pass 4 | orchestrator scoped verify of the Pass-3 fix diff: 7 new tests watched RED on reverted code, 31/31 green across three suites, tier counts re-derived by instrumented execution (18/38), cron-PATH fix proven under `env -i`, real-plan scoping probe (12/12 rows preserved) | 0 | 0 | 0 | 0 |
 
-Pass 2 raised zero candidates and made zero edits — the loop closes at found: 0.
+Pass 2's found: 0 close did NOT survive the closing sweep — the operator-demanded Pass 3 (the
+first live run of the new non-author closing-sweep contract) surfaced 15 candidates: 11 fixed
+(dead survivor-parse regex vs real mutmut 3.6 output; cron-PATH resolution; scalar-`owned_paths`
+fail-open; one bad lock aborting all lock checks; Given-row scoping to Behavior-Contract regions;
+utility-script accompaniment boundary; kill-race guard; negative-cap pin; registration-placement
+source pins; true check counts 18/38; test-count drift), 4 refuted (3 pool candidates disproved
+by reading the cited code; the double `git diff` per lock adjudicated deliberate — two ~10ms
+calls beat a rename-aware `--name-status` parser on risk). The loop closes only when a FRESH
+non-author closing round returns found: 0 — see the final pass row below.

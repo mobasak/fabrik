@@ -38,6 +38,36 @@ def test_parse_survivors_handles_survived_colon_n():
     assert cm.parse_survivors("Survived: 3") == 3
 
 
+def test_parse_survivors_real_mutmut36_per_mutant_lines():
+    # Review finding (installed-source grounded): mutmut 3.6's `results` prints ONE
+    # `    <mutant-id>: survived` line per survivor and NO aggregate — the per-line arm
+    # must count exactly the survived lines, never other statuses.
+    real = (
+        "    src.fabrik.app.compute__mutmut_1: survived\n"
+        "    src.fabrik.app.compute__mutmut_2: survived\n"
+        "    src.fabrik.app.compute__mutmut_3: no tests\n"
+    )
+    assert cm.parse_survivors(real) == 2
+    assert cm.parse_survivors("    src.fabrik.app.f__mutmut_9: timeout\n") == 0
+
+
+def test_mutmut_bin_prefers_interpreter_sibling(tmp_path, monkeypatch):
+    # Review finding (live-reproduced under cron's PATH): resolution must try the running
+    # interpreter's bin dir FIRST — cron pins .venv/bin/python but has no .venv on PATH.
+    fake_bin = tmp_path / "venvbin"
+    fake_bin.mkdir()
+    monkeypatch.setattr(cm.sys, "executable", str(fake_bin / "python"))
+    monkeypatch.setattr(cm.shutil, "which", lambda _: "/usr/bin/mutmut")
+    assert cm.mutmut_bin() == "/usr/bin/mutmut"  # no sibling yet → PATH fallback
+    sib = fake_bin / "mutmut"
+    sib.write_text("#!/bin/sh\n")
+    sib.chmod(0o755)
+    assert cm.mutmut_bin() == str(sib)  # sibling exists → wins over PATH
+    monkeypatch.setattr(cm.shutil, "which", lambda _: None)
+    sib.unlink()
+    assert cm.mutmut_bin() is None  # neither → honest absence
+
+
 def test_flag_unset_skips_advisory_in_gate():
     # Given FABRIK_MUTMUT unset (the per-commit gate), Then the runner skips with a pointer, exit 0.
     env = {k: v for k, v in os.environ.items() if k != "FABRIK_MUTMUT"}
@@ -48,8 +78,10 @@ def test_flag_unset_skips_advisory_in_gate():
     assert "skipped in the per-commit gate" in r.stdout
 
 
-def test_mutmut_absent_skips(monkeypatch, capsys):
+def test_mutmut_absent_skips(monkeypatch, capsys, tmp_path):
     # Given mutmut is not installed, Then the runner skips (exit 0) rather than erroring.
+    # (sys.executable is pointed at an empty dir so the interpreter-sibling arm is absent too.)
+    monkeypatch.setattr(cm.sys, "executable", str(tmp_path / "python"))
     monkeypatch.setattr(cm.shutil, "which", lambda _: None)
     assert cm.main() == 0
     assert "not installed" in capsys.readouterr().out
@@ -132,6 +164,39 @@ def test_malformed_wall_cap_falls_back_to_default(monkeypatch, capsys):
                         lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0))
     assert cm.main() == 0
     assert "malformed FABRIK_MUTMUT_WALL_CAP_S" in capsys.readouterr().out
+
+
+def test_negative_wall_cap_caps_immediately_and_stays_advisory(monkeypatch, capsys):
+    # Given a NEGATIVE cap, When main() runs, Then wait(timeout=-5) times out immediately,
+    # the group is reaped, and exit stays 0 — the advisory contract holds at the low boundary.
+    import subprocess as sp
+    import types
+
+    monkeypatch.setenv("FABRIK_MUTMUT", "1")
+    monkeypatch.setenv("FABRIK_MUTMUT_WALL_CAP_S", "-5")
+    monkeypatch.setattr(cm, "mutmut_bin", lambda: "/usr/bin/mutmut")
+    monkeypatch.setattr(cm, "changed_python", lambda base=None: ["src/fabrik/x.py"])
+    killed: dict = {}
+
+    class FakeProc:
+        pid = 77
+        calls = 0
+
+        def wait(self, timeout=None):
+            FakeProc.calls += 1
+            if FakeProc.calls == 1:
+                assert timeout == -5  # the parsed negative cap reaches wait un-mangled
+                raise sp.TimeoutExpired(["mutmut", "run"], timeout)
+            return 0
+
+    monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
+    monkeypatch.setattr(cm.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(stdout="", returncode=0))
+    monkeypatch.setattr(cm.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(cm.os, "killpg", lambda pgid, sig: killed.setdefault("group", (pgid, sig)))
+    assert cm.main() == 0
+    assert killed.get("group") == (77, cm.signal.SIGKILL)
+    assert "wall cap" in capsys.readouterr().out
 
 
 def test_since_window_scopes_by_committed_history(monkeypatch):

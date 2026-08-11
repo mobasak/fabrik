@@ -5087,3 +5087,21 @@ re-running green gates; every fix round is a NEW defect surface (three of the si
 bugs introduced-or-exposed by earlier fixes); and "the quiet exit round" must include an
 authoritative native pass, because the pool layers' quiet rounds carried factually-wrong
 refutation-bait that only line-level adjudication killed.
+
+## 108. The first live closing sweep overturned its own plan's found:0 — self-confirm passes and eyeball recounts are structurally blind (2026-08-11)
+
+Plan-2 shipped the new review-loop contract (1 wide + k scoped + 1 wide, non-author closing
+finders) and its own whole-plan review closed at found: 0 — via an orchestrator self-confirm
+pass. The operator asked one question ("have you run a /fabrik-review till you reach a no ops
+pass?") and the contract's OWN closing sweep, run properly with non-author finders, surfaced 15
+candidates: 11 real, including a survivor-count regex that was DEAD CODE against the installed
+mutmut's actual output (grounded only by reading the installed package source), a weekly cron
+whose `shutil.which` lookup could never see `.venv/bin` (the "wired invoker" doc claim was false
+in practice — proven under `env -i`), two fail-open paths in the brand-new gate, and a check
+count ("37") that three documents and one review verdict all repeated because every recount was
+an EYEBALL of call sites — instrumented execution said 38. Takeaways: (1) the author confirming
+their own fix diff is a verify pass, never a closing round — only a FRESH non-author sweep
+closes; (2) any count/claim a doc asserts about code must be derived by EXECUTING the code
+(instrument and count results), never by enumerating source sites; (3) "wired" means proven
+under the invoker's real environment (cron PATH ≠ shell PATH); (4) a tool-output parser is
+grounded only against the installed tool's source or live output, never its plausible format.

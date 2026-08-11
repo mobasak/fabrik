@@ -4,18 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — plan-2 closing sweep: mutation runner + phase-tests gate hardening (2026-08-11)
+
+The whole-plan CLOSING full fresh sweep (non-author finders, per the new loop contract) confirmed
+6 real defects, all fixed: `check_mutation.py` survivor parsing now counts mutmut 3.6's REAL
+per-mutant `<id>: survived` lines (the aggregate-only regex was dead code against the installed
+tool — grounded from its source) and resolves the `mutmut` binary NEXT TO the running interpreter
+before PATH (cron's bare PATH made the Sunday run silently skip — live-reproduced under `env -i`),
+plus a kill-race guard preserving the ALWAYS-exit-0 contract. `check_phase_tests.py` no longer
+fail-opens on a scalar `owned_paths` string (iterated characters, swallowed the WARN) or aborts
+ALL lock checking on one non-dict lock JSON; `GIVEN_ROW_RE` is now scoped to Behavior-Contract
+regions (both `##`-heading and monolithic `**bold-label**` forms — an illustrative Given bullet in
+prose no longer mints a phantom row), and a `scripts/test_*.py` diagnostic utility no longer
+counts as test accompaniment. Doc-truth: the gate's real check count is **38** (tier 1 = 18) by
+instrumented execution — the old "17/37" arithmetic dropped the unconditional
+`check_review_coverage.py`. New pins: 13 tests across the three suites (7 watched RED on the
+pre-fix code via revert; registration-placement + env-strip-guard source pins in
+`tests/enforcement/test_final_gate_registration.py`).
+
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 
 New Tier-2 advisory `check_phase_tests.py`: an ACTIVE plan lock's `baseline_commit..HEAD` window
 that declares Behavior-Contract Given rows and touched source with ZERO test changes WARNs,
 listing the declared rows (whole-window by design — per-row coverage stays the phase-boundary
 review's; reuses `check_plan_tickets.GIVEN_ROW_RE`; always exits 0, fail-soft on every error
-path; 9 behavior tests after the review round — red-on-revert proven, deleted-test and
+path; 15 behavior tests after the closing review sweep — red-on-revert proven, deleted-test and
 sibling-window regressions pinned). `check_mutation.py` gains
 `FABRIK_MUTMUT_SINCE` (committed-history window) and a `FABRIK_MUTMUT_WALL_CAP_S` hard wall cap
 (default 1200s, partial results on cap, still exit 0), wired to a new Sunday 05:00 cron
 (`FABRIK_MUTMUT=1 FABRIK_MUTMUT_SINCE="7 days ago" …`). Gate registered in
-`final_gate.py` Tier-2 (19 Tier-2-only / 37 total), rule stated in 45-testing-strategy § test
+`final_gate.py` Tier-2 (19 Tier-2-only / 38 total), rule stated in 45-testing-strategy § test
 accompaniment, env vars documented in CONFIGURATION.
 
 ### Changed — review-loop contract: wide→scoped→wide rounds, stall breaker, probe duty, role separation (2026-08-11)

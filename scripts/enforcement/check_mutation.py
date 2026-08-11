@@ -34,7 +34,14 @@ def changed_python(base: str | None = None) -> list[str]:
     since = os.getenv("FABRIK_MUTMUT_SINCE")
     if since:
         out = subprocess.run(
-            ["git", "log", f"--since={since}", "--name-only", "--pretty=format:", "--diff-filter=d"],
+            [
+                "git",
+                "log",
+                f"--since={since}",
+                "--name-only",
+                "--pretty=format:",
+                "--diff-filter=d",
+            ],
             capture_output=True,
             text=True,
         ).stdout
@@ -65,16 +72,35 @@ def changed_python(base: str | None = None) -> list[str]:
 
 
 def parse_survivors(results_text: str) -> int:
-    """Surviving-mutant count from ``mutmut results`` output (tolerant of `N survived` / `survived: N`
-    ordering). If no explicit count is present, report **0** — NEVER count lines that merely contain
-    the word "survived" (``no mutants survived`` must not read as one survivor → a false advisory
-    alarm). Under-reporting is the safe failure mode for an advisory signal."""
+    """Surviving-mutant count from ``mutmut results`` output. The REAL mutmut 3.6 format
+    (``mutmut/__main__.py`` ``results()``, read from the installed package — review finding:
+    the aggregate-only regex was dead code against it) prints one ``    <mutant-id>: survived``
+    line per survivor and never an aggregate — count those lines. Aggregate forms
+    (`N survived` / `survived: N`) stay as a fallback for other versions. A colon-less
+    ``no mutants survived`` matches neither arm — NEVER count mere word occurrences (a false
+    advisory alarm); under-reporting is the safe failure mode for an advisory signal."""
+    per_line = re.findall(r"(?m)^\s*\S+:\s*survived\s*$", results_text, re.IGNORECASE)
+    if per_line:
+        return len(per_line)
     m = re.search(r"(\d+)\s+survived|survived[:\s]+(\d+)", results_text, re.IGNORECASE)
     return int(m.group(1) or m.group(2)) if m else 0
 
 
+def mutmut_bin() -> str | None:
+    """Resolve mutmut NEXT TO the running interpreter first, PATH second. The Sunday cron
+    pins ``.venv/bin/python`` but inherits cron's bare PATH (no ``.venv/bin``), so a
+    ``shutil.which``-only lookup silently skipped every scheduled run (review finding,
+    live-reproduced under ``env -i``) — the sibling binary is the deterministic choice,
+    the same trap ``final_gate.py``'s absolute ``PYTHON`` reference already avoids."""
+    sib = Path(sys.executable).parent / "mutmut"
+    if sib.is_file() and os.access(sib, os.X_OK):
+        return str(sib)
+    return shutil.which("mutmut")
+
+
 def main() -> int:
-    if shutil.which("mutmut") is None:
+    mutmut = mutmut_bin()
+    if mutmut is None:
         print("MUTATION (advisory): mutmut not installed — skipping (pip install 'mutmut>=3.6.0').")
         return 0
     if not os.getenv("FABRIK_MUTMUT"):
@@ -104,14 +130,18 @@ def main() -> int:
     # Own process group + group-kill on cap: subprocess.run's timeout kills only the DIRECT
     # child, orphaning mutmut's per-mutant test workers on the shared box (review finding —
     # the cap-heavy-local-jobs class). A group kill reaps the whole tree.
-    proc = subprocess.Popen(["mutmut", "run"], start_new_session=True)
+    proc = subprocess.Popen([mutmut, "run"], start_new_session=True)
     try:
         proc.wait(timeout=cap_s)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
-            proc.kill()
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass  # exited inside the race window — already dead IS the goal state,
+                # and an uncaught raise here would break the ALWAYS-exit-0 contract
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
@@ -121,7 +151,7 @@ def main() -> int:
             "results below (raise FABRIK_MUTMUT_WALL_CAP_S for a fuller run). Still advisory, "
             "still exit 0."
         )
-    res = subprocess.run(["mutmut", "results"], capture_output=True, text=True, check=False).stdout
+    res = subprocess.run([mutmut, "results"], capture_output=True, text=True, check=False).stdout
     survivors = parse_survivors(res)
     if survivors:
         print(
