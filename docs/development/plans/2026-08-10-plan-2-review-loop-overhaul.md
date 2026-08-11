@@ -218,7 +218,7 @@ beginning `CHOSEN SHAPE:` naming the shape and the arm that justifies it.
 Closing sequence: run gate A → `python scripts/enforcement/check_doc_sync.py` → **`/fabrik-review` on
 Phase A's changed surface, run to its coverage-adjudicated exit** → commit with provenance trailers.
 
-## Phase B — Rewrite the loop contract in the two loop fragments
+## Phase B — Rewrite the loop contract in the two loop fragments — ✅ EXECUTED 2026-08-11 (7869c699 + review-fix)
 
 **Interfaces — Consumes:** Phase A's chosen VERIFY shape. **Produces:** the loop semantics every
 review command inherits.

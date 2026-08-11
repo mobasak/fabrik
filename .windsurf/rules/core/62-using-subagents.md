@@ -86,7 +86,7 @@ every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:632-
    DEFAULT for every gradeable read-only fan-out. **Separately (orthogonal to parallelism — a *don't-get-refused*
    requirement, NOT a shape condition):** a single-shot read-only worker on a **grounded** `task_type`
    (`review`/`docs`/`plan`) must ALSO set `allow_ungrounded=True` and INLINE the unit's content into `task`, or the
-   module refuses it up-front (`agent.py:248`, it would hallucinate). Non-grounded read-only workers
+   module refuses it up-front (`agent.py:351`, the fail-closed pre-flight — it would hallucinate). Non-grounded read-only workers
    (`research`/`spec`/`code`) parallelize on `tools_enabled=False` with no such attestation.
 2. **Tools-enabled fan-out (implementers, or graders that must read/write the tree themselves) →
    `tools_enabled=True` + DISJOINT `owned_paths` (one unit's files each).** Disjoint globs → parallel worktrees.
@@ -101,7 +101,7 @@ author's own quiet round never closes a review loop: the context that shaped the
 least able to see its gaps (an author re-reads intentions, not text). **Adjudication —
 decide/refute/merge — stays with the orchestrator** (CLAUDE.md § Subagent fan-out: "the
 decide/refute/merge you own"); this rule governs who HUNTS last, never who adjudicates. The loop
-fragments' "a fresh, independent round" defers to THIS definition of independent.
+fragments' fresh/independent-round language defers to THIS definition of independent.
 
 **Corollaries (verified against the module):** `pick_models(task_type, n=<K>)` for a K-model fan-out — the default
 is **`n=1`**, so you MUST pass `n` to get more than one model. Parallel groups run **`max_concurrency` (default 4)**
