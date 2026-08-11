@@ -132,7 +132,7 @@ Mesh addressing: n/a (hub-local — `postgres-main:5432`, never `10.99.0.1`).
   review B6 verified against lego source, traefik v2.11).
 - **DNS — live digs, re-verified authoritatively (review F3 corrected the first draft's false
   line):** `tryton-crm.vps1.ocoron.com` is **NXDOMAIN today** — no record, no wildcard under
-  `vps1.ocoron.com`; `fabrik apply` CREATES it (`src/fabrik/cli.py:622-638`, `dns.add_subdomain`),
+  `vps1.ocoron.com`; `fabrik apply` CREATES it (the orchestrator's `_provision_dns` — `src/fabrik/orchestrator/__init__.py:159` calling `:451-510`, `dns.add_subdomain`; the vps1 IP is in that path's own table, no `VPS_IP` env precondition),
   so the deploy is not blocked — S3's verification confirms the record post-apply. The tenant side
   IS live: `tojlo.com`, `*.tojlo.com`, `bhdtrade.tojlo.com` all → `172.93.160.197`; NS = Cloudflare
   (kiki/lex.ns.cloudflare.com) — consistent with the CF DNS-01 token path.
@@ -378,7 +378,7 @@ escape for a literal shell pipe — strip the backslash when executing (grep-REG
 | 6 | ACME diagnostics FIRST (ordered BEFORE the TLS probes — a cert-pending state must never be misread as a routing failure) | `ssh vps "sudo docker logs traefik --since 30m 2>&1 \| grep -i 'acme\|cloudflare' \| tail -50"` | no unresolved errors; the wildcard cert issued via the `cloudflare` resolver |
 | 7 | Tenant TLS + login surface (executable form — the interactive GUI login is the operator's Phase-8 first-days smoke, not a battery gate) | `curl -fsSI https://bhdtrade.tojlo.com` then `curl -fsS https://bhdtrade.tojlo.com \| grep -ci 'login\|tryton'` | valid cert (SAN `*.tojlo.com`), 200, login markers ≥ 1 (on FAIL: probe 6's ACME read is already in hand — diagnose from it) |
 | 8 | Same-origin brand route | `curl -fsS https://bhdtrade.tojlo.com/brand/bhdtrade \| head -c 200` | 200, brand payload (`api/brand.py:39`) |
-| 9 | Monitoring green (forms proven live this review) | Gatus API via fabrik-net DNS: `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request,json;d=json.load(urllib.request.urlopen('http://gatus:8080/api/v1/endpoints/statuses',timeout=5));print([(e['name'],e['results'][-1]['success']) for e in d if e['name'] in ('tryton-crm','tryton-crm-tenant-cert')])\""` — prints exactly the two endpoints' (name, success) tuples (the raw payload is ~350KB — a filter, never a slice); Prometheus: `ssh vps "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up{job=\"fabrik-tryton-crm\"}'"` — the registrar prefixes every job `fabrik-` (`drivers/prometheus.py:95,122-123`); an empty Gatus `results` list (a just-created S12 endpoint inside its first 5m interval) = not-yet-green, wait one interval — never index it | both Gatus endpoints success; Prometheus value `"1"` |
+| 9 | Monitoring green (forms proven live this review) | Gatus API via fabrik-net DNS: `ssh vps "sudo docker exec tryton-crm python3 -c \"import urllib.request,json;d=json.load(urllib.request.urlopen('http://gatus:8080/api/v1/endpoints/statuses',timeout=5));print([(e['name'],e['results'][-1]['success'] if e['results'] else None) for e in d if e['name'] in ('tryton-crm','tryton-crm-tenant-cert')])\""` — prints exactly the two endpoints' (name, success) tuples (the raw payload is ~350KB — a filter, never a slice); Prometheus: `ssh vps "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up{job=\"fabrik-tryton-crm\"}'"` — the registrar prefixes every job `fabrik-` (`drivers/prometheus.py:95,122-123`); a `None` in the output = an empty `results` list (a just-created S12 endpoint inside its first 5m interval) — not-yet-green, wait one interval and re-run | both Gatus endpoints success; Prometheus value `"1"` |
 
 Any FAIL → the plan's rollback/retry path for the implicated step, else the halt protocol. Never
 report the deploy complete on a partial battery.
@@ -457,7 +457,7 @@ $ ssh vps "ls -la /run/fabrik-autoheal/"      # healer live, no pause residue (o
 -rw-r--r--  1 root root    0 Aug 11 08:15 .lock
 $ ssh vps "sudo diff /opt/traefik/traefik.yml /opt/traefik/traefik.yml.staged"   # staged delta
 20c20  <     network: coolify   >     network: fabrik    (+ the cloudflare certresolver block)
-$ dig @1.1.1.1 tryton-crm.vps1.ocoron.com A   # NXDOMAIN — apply creates it (cli.py:622-638)
+$ dig @1.1.1.1 tryton-crm.vps1.ocoron.com A   # NXDOMAIN — apply creates it (_provision_dns, orchestrator/__init__.py:451-510)
 $ dig +short bhdtrade.tojlo.com               # 172.93.160.197 (wildcard *.tojlo.com live)
 $ ssh vps "sudo docker inspect gotenberg --format '{{.Config.Image}} {{.State.Status}}'"
 gotenberg/gotenberg:8.32.0 running               # the F1 standalone collision, live
