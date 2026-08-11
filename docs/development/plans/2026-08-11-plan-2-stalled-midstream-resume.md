@@ -35,7 +35,7 @@ Owner: hub session (operator-approved: "stalled-mid-stream auto-resume as one sm
 |---|---|---|
 | watched-fail-first for non-trivial behavior tests | core/45-testing-strategy.md § Behavior Contract | every new fixture is proven RED against the pre-fix decider (revert-run-restore) |
 | never break the sound/mesh production surface as a side effect | memory `feedback_dont_touch_the_sound_system` | ONLY `claude-stop-decider.py` is edited; `claude-sound.sh`/`claude-selfwatch.sh` stay READ-ONLY |
-| stdout-only logging (12-F XI) | core/55-observability.md | the decider logs via its existing sound-debug line writer — no new files |
+| stdout-only logging (12-F XI) | core/55-observability.md | scoped to app/service code, not box-side hook scripts — the decider's existing sound-debug appender is the established box-local pattern; this plan adds NO new log surface |
 | config via env, no groups (12-F III) | core/10-python.md | the stall-pattern list is a module constant (extensible), no new env surface |
 
 ## Global Constraints
@@ -147,8 +147,9 @@ Steps:
 - **Given** the stalled tail sits behind PENDING waiters (shell tasks / subagents / scheduled
   wakeups — the REAL incident's masking shape), **When** `decide()` runs, **Then** the verdict
   is `busy-stalled-wait` with a 120s stall recheck armed (never the masking
-  `busy-task`/`busy-subagent`), and a recheck that still sees the stalled tail escalates to the
-  death verdict regardless of remaining waiters.
+  `busy-task`/`busy-subagent`), and a recheck that still sees the stalled tail escalates to
+  the death verdict over remaining task/subagent waiters — while a pending WAKEUP defers death
+  (the scheduled wakeup is itself the revival; the stalled state re-arms until it clears).
 - **Given** the stalled-tail record is NOT the last transcript line (queue-operation records
   follow, as in the real transcript), **When** the tail is scanned, **Then** detection still
   fires (the scan finds the last ASSISTANT record, not the last line).
@@ -172,10 +173,14 @@ Steps:
      `verdict.startswith("busy")`, so a busy-prefixed name flows through the existing
      silent+recheck machinery with no gate change; its delay-table row = 120s.
    - **Recheck escalation:** on a recheck evaluation whose tail is STILL stalled, the verdict
-     escalates to `stalled-api-error` REGARDLESS of remaining waiters — the one 120s window is
-     the design's whole tolerance (without this, still-pending-but-not-stale waiters re-arm to
-     the depth cap and the fix would take ~6 min, not ≤~2). No `waker_provably_lost` wiring is
-     needed for this class: the stall record still being the tail IS the proof of loss.
+     escalates to `stalled-api-error` over remaining TASK/SUBAGENT waiters — their results
+     cannot revive a dead turn, and the one 120s window is the design's whole tolerance for them
+     (without this, still-pending-but-not-stale waiters re-arm to the depth cap: ~6 min, not
+     ≤~2). **A pending WAKEUP is the exception and DEFERS death entirely** — a `ScheduleWakeup`
+     is itself a revival mechanism that will re-enter the session; injecting a mesh revival
+     beside it is exactly the double-continuation this plan forbids (the stalled state simply
+     re-arms until the wakeup clears). No `waker_provably_lost` wiring is needed for this class:
+     the stall record still being the tail IS the proof of loss.
    - **Death consequences (`stalled-api-error`):** write a NEW `.errparked` record
      `api_error_stalled <epoch>` (the `<class> <epoch>` format both existing writers use; the
      existing write is `waker_lost`-gated and never fires on a fresh Stop — this is a SIBLING
