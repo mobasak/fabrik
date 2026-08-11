@@ -140,16 +140,19 @@ Steps:
 - **Given** a stalled-tail death record exists and the session later produces a Stop whose tail
   is a NEW healthy assistant record, **When** the hook runs, **Then** the record clears via the
   survived-death cleanup (`:696-708`) exactly as today — no immortal markers.
-- **Given** a stalled-tail death record exists and a sibling Stop (verdict `busy-task` or
-  `busy-subagent`) fires while the MAIN tail is still the stalled record, **When** the hook
-  runs, **Then** the record SURVIVES (the cleanup guard uses `_tail_is_stalled` — an unsurvived
-  stall is never cleared by a sibling's Stop).
+- **Given** a stalled-tail death record exists and a Stop fired by SIBLING activity (a
+  task/subagent completing) arrives while the MAIN tail is still the stalled record, **When**
+  the hook runs, **Then** the record SURVIVES — the cleanup guard uses `_tail_is_stalled`, and
+  the verdict on such a Stop is `busy-stalled-wait`/`stalled-api-error` per the precedence rule
+  (never a record-clearing normal verdict); an unsurvived stall is never cleared by a sibling's
+  Stop.
 - **Given** the stalled tail sits behind PENDING waiters (shell tasks / subagents / scheduled
   wakeups — the REAL incident's masking shape), **When** `decide()` runs, **Then** the verdict
   is `busy-stalled-wait` with a 120s stall recheck armed (never the masking
   `busy-task`/`busy-subagent`), and a recheck that still sees the stalled tail escalates to
   the death verdict over remaining task/subagent waiters — while a pending WAKEUP defers death
-  (the scheduled wakeup is itself the revival; the stalled state re-arms until it clears).
+  (the wakeup is itself the revival: re-arm within the depth budget, and beyond it the firing
+  wakeup re-enters the session, whose next still-stalled Stop takes the immediate-death path).
 - **Given** the stalled-tail record is NOT the last transcript line (queue-operation records
   follow, as in the real transcript), **When** the tail is scanned, **Then** detection still
   fires (the scan finds the last ASSISTANT record, not the last line).
@@ -176,10 +179,13 @@ Steps:
      escalates to `stalled-api-error` over remaining TASK/SUBAGENT waiters — their results
      cannot revive a dead turn, and the one 120s window is the design's whole tolerance for them
      (without this, still-pending-but-not-stale waiters re-arm to the depth cap: ~6 min, not
-     ≤~2). **A pending WAKEUP is the exception and DEFERS death entirely** — a `ScheduleWakeup`
-     is itself a revival mechanism that will re-enter the session; injecting a mesh revival
-     beside it is exactly the double-continuation this plan forbids (the stalled state simply
-     re-arms until the wakeup clears). No `waker_provably_lost` wiring is needed for this class:
+     ≤~2). **A pending WAKEUP is the exception and DEFERS death** — a `ScheduleWakeup` is itself
+     a revival mechanism that will re-enter the session; injecting a mesh revival beside it is
+     exactly the double-continuation this plan forbids. The deferral needs NO depth-cap
+     exemption (the existing `depth >= 3` cap at `:382` stands): within the depth budget the
+     stalled state re-arms; beyond it, the pending wakeup itself is the next evaluator — when
+     it fires the session re-enters, and a still-stalled next Stop (wakeup now consumed) takes
+     the immediate-death path. No `waker_provably_lost` wiring is needed for this class:
      the stall record still being the tail IS the proof of loss.
    - **Death consequences (`stalled-api-error`):** write a NEW `.errparked` record
      `api_error_stalled <epoch>` (the `<class> <epoch>` format both existing writers use; the
