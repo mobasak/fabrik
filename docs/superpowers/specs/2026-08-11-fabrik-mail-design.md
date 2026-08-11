@@ -221,7 +221,7 @@ No vendor APIs, no pricing, no rate limits — the build is stdlib + filesystem.
 | Capability | Verdict | Why |
 |---|---|---|
 | Message store + claim | **BUILD** (`scripts/mail.py`, hub-owned, stdlib-only) | no module covers file mailboxes; too infra-specific for fabrik-lib (hub tooling, not project code) — fails candidate test (a) |
-| Surfacing hook | **BUILD** (`.claude/hooks/mail_notify.py`) | extends the existing hub hook family; carriage = a NEW `AGENT_HOOK_FILES` manifest row (the pre-commit trigger is not carriage — finding 1), catch-all-exit-0 |
+| Surfacing hook | **BUILD** (`.claude/hooks/mail_notify.py`) | extends the existing hub hook family; carriage = a NEW `AGENT_HOOK_FILES` manifest row (the pre-commit trigger is not carriage), catch-all-exit-0 |
 | Digest → Telegram | **VENDOR** `fabrik-lib/alerting` | exactly its contract (SSH→Apprise→Telegram, never raises); hub-side only (lazy import + subcommand guard). Note: its dedup is per-process in-memory — inert under a one-shot daily cron, so the design does not lean on it |
 | Conventions | **BUILD** (doc) | `docs/reference/fabrik-mail.md` — allowlisted reference path |
 
@@ -246,7 +246,7 @@ Numbered in execution order — each item's precondition is satisfied by a lower
    `.claude/hooks/mail_notify.py` (git-identity resolution, sanitized+delimited injection,
    catch-all-exit-0) + the `.claude/settings.json` hook wiring + **both manifest rows**
    (`mail.py` → `CORE_SCRIPTS`, `mail_notify.py` → `AGENT_HOOK_FILES`) — settings + manifest rows
-   MUST be in this one commit (finding 1's fleet-wide prompt-block guard). Then a merge-master
+   MUST be in this one commit (a settings.json referencing a not-yet-landed hook exit-2-blocks every prompt fleet-wide). Then a merge-master
    governance-sync distributes to the ~46 synced projects.
 4. **`docs/reference/fabrik-mail.md`** — the conventions doc (message format, the tmp-then-rename
    PROTOCOL rule, the ack-per-kind table, the digest predicate, the trust model, the Layer-2
@@ -279,7 +279,7 @@ Numbered in execution order — each item's precondition is satisfied by a lower
 
 Not a deployed service: no scaffold type, no `specs/services/` spec, no container, no port, no
 Traefik — host tooling in the hub repo + the fabrik-lib-owned edits above. The mail ROOT
-`/opt/fabrik-mail/` is build-provisioned once (Build inventory item 0, NOT lazily); the per-repo
+`/opt/fabrik-mail/` is build-provisioned once (Build inventory item 2, NOT lazily); the per-repo
 `<repo>/{inbox,archive}` dirs under it are created lazily by `mail.py` at first send (`0755`) — but
 ONLY for a recipient that passed validation (no phantom dirs). 12-Factor:
 III (env-overridable root), XI (hook/helper stdout only, no logfiles). `PORTS.md`/compose untouched.
