@@ -50,8 +50,8 @@ Owner: hub session (operator-approved: "stalled-mid-stream auto-resume as one sm
 
 ## The grounded mechanism (Phase-1 evidence, captured this session)
 
-**The real transcript shape** (session `1970a0ff-…`, the live occurrence the operator manually
-"proceed"-ed; re-extracted with 1-based line numbers + timestamps 2026-08-11):
+**The real transcript shape** (session `1970a0ff-…`, the live occurrence of 2026-08-10 the operator manually
+"proceed"-ed; re-extracted with 1-based line numbers on 2026-08-11):
 
 ```
 line 46228: type=assistant        stop_reason=end_turn       ts=15:38:33
@@ -104,8 +104,8 @@ class.
 **Interfaces — Consumes:** the transcript tail records (shape above); the existing `.errparked`
 death-record format (`claude-stop-decider.py:840-843`) and the armed self-watch consumer.
 **Produces:** a shared helper `_tail_is_stalled(transcript) -> bool`; two new `decide()` verdict
-classes — `stalled-api-error` (death) and `stalled-api-error-waiting` (short-recheck, 120s row in
-`_arm_stale_recheck`'s delay table) — checked BEFORE the pending-waiter checks; `_run_hook_inner`
+classes — `stalled-api-error` (death) and `busy-stalled-wait` (busy-prefixed so the existing recheck gate arms it; 120s
+delay-table row) — checked BEFORE the pending-waiter probes (all three waiter types); `_run_hook_inner`
 consequences (a NEW `api_error_stalled <epoch>` `.errparked` write — the format the self-watch
 already consumes — cleanup-guard suppression via the same helper, dup-park suffix extension); a
 module constant `_API_ERROR_STALL_PATTERNS: tuple[str, ...]`; fixtures in the decider's
@@ -144,43 +144,47 @@ Steps:
   `busy-subagent`) fires while the MAIN tail is still the stalled record, **When** the hook
   runs, **Then** the record SURVIVES (the cleanup guard uses `_tail_is_stalled` — an unsurvived
   stall is never cleared by a sibling's Stop).
-- **Given** the stalled tail sits behind PENDING waiters (shell tasks / subagents — the REAL
-  incident's masking shape), **When** `decide()` runs, **Then** the verdict is
-  `stalled-api-error-waiting` with a 120s stall recheck armed (never the masking
+- **Given** the stalled tail sits behind PENDING waiters (shell tasks / subagents / scheduled
+  wakeups — the REAL incident's masking shape), **When** `decide()` runs, **Then** the verdict
+  is `busy-stalled-wait` with a 120s stall recheck armed (never the masking
   `busy-task`/`busy-subagent`), and a recheck that still sees the stalled tail escalates to the
-  death verdict.
+  death verdict regardless of remaining waiters.
 - **Given** the stalled-tail record is NOT the last transcript line (queue-operation records
   follow, as in the real transcript), **When** the tail is scanned, **Then** detection still
   fires (the scan finds the last ASSISTANT record, not the last line).
-3. **Implement the detection branch in `claude-stop-decider.py` (the ONLY edited surface), with
-   the PRECEDENCE the real incident demands:**
-   - **A shared helper `_tail_is_stalled(transcript) -> bool`**: last ASSISTANT record has
-     `isApiErrorMessage` truthy AND matches `_API_ERROR_STALL_PATTERNS = ("Response stalled
-     mid-stream",)` (module constant). One implementation, two call sites below — never two
-     drifting copies.
-   - **In `decide()` (`:506`), the stall check runs AFTER `no-transcript` but BEFORE the
-     pending-waiter checks (`pending_shell_tasks` `:518`, `pending_subagents` `:525`)** — the
-     masking fact above is the regression this ordering fixes. Verdict split: stalled tail with
-     **NO pending waiters** → `stalled-api-error` (immediate death); stalled tail **WITH pending
-     waiters** → `stalled-api-error-waiting` — a live waker might still revive the loop, so this
-     verdict arms a SHORT stall recheck instead of dying immediately: add it to
-     `_arm_stale_recheck`'s per-verdict delay table (`:389` — today `busy-input` maps to `None`;
-     the new verdict maps to 120s). On the recheck, the tail still stalled → `stalled-api-error`
-     (death). This cuts the real incident's 25-minute freeze to ≤~2 minutes without risking a
-     double-continuation against a genuinely live waker.
-   - **In `_run_hook_inner` (`:667`), the CONSEQUENCES:** (a) the survived-death cleanup
-     (`:696-708`) runs BEFORE `decide()` (`:714`) — grounder finding — so its guard uses the SAME
-     helper directly: `if not turn_dead and not recheck_run and not _tail_is_stalled(t):` — a
-     sibling's `busy-task`/`busy-subagent` Stop (the REAL verdicts in the incident window — note
-     `delegated` is a claude-sound.sh log marker, never a `decide()` verdict) can then never clear
-     an unsurvived stall record; (b) on the `stalled-api-error` verdict: write a NEW `.errparked`
-     record — `api_error_stalled <epoch>`, the `<class> <epoch>` format the self-watch reads (do
-     NOT reuse the `:840-843` write: it is `waker_lost`-gated, `:839`, and never fires on a fresh
-     Stop) — select the error-family ring, and extend the dup-park guard's special-cased suffixes
-     (`:801-824` handles `turn_dead`/`waker_lost` today) with the stalled class, mirroring the
-     `waker_lost` handling. Fail-open everywhere (any parse error → today's behavior). Gate:
-     `python3 ~/.claude/bin/claude-stop-decider.py --self-test; echo $?` → 0, all fixtures green
-     (baseline 42 + the new rows' fixtures).
+3. **Implement the detection branch in `claude-stop-decider.py` (the ONLY edited surface).**
+   The six Behavior-Contract fixtures below ARE the specification — the executor derives exact
+   placement from the live file and proves it by turning them green. The BINDING semantics + the
+   named integration points (re-grounded after the review's breaker fired on over-specified
+   line-level wiring):
+   - **One shared helper `_tail_is_stalled(transcript) -> bool`** (last ASSISTANT record:
+     `isApiErrorMessage` truthy AND an `_API_ERROR_STALL_PATTERNS = ("Response stalled
+     mid-stream",)` match), used by BOTH the verdict logic and the survived-death-cleanup guard
+     (the cleanup executes before `decide()` — its guard cannot use the verdict; use the helper
+     on `transcript`).
+   - **Precedence:** the stall check runs before the pending-waiter probes. ALL THREE waiter
+     types count for the split — `pending_shell_tasks`, `pending_subagents`, AND
+     `pending_wakeup` (a due `/loop` timer is a live waker; killing under it is the same
+     double-continuation risk).
+   - **The split:** stalled tail + NO pending waiter → verdict `stalled-api-error` (immediate
+     death). Stalled tail + any pending waiter → verdict **`busy-stalled-wait`** — the `busy`
+     prefix is LOAD-BEARING: the recheck arming call site is gated on
+     `verdict.startswith("busy")`, so a busy-prefixed name flows through the existing
+     silent+recheck machinery with no gate change; its delay-table row = 120s.
+   - **Recheck escalation:** on a recheck evaluation whose tail is STILL stalled, the verdict
+     escalates to `stalled-api-error` REGARDLESS of remaining waiters — the one 120s window is
+     the design's whole tolerance (without this, still-pending-but-not-stale waiters re-arm to
+     the depth cap and the fix would take ~6 min, not ≤~2). No `waker_provably_lost` wiring is
+     needed for this class: the stall record still being the tail IS the proof of loss.
+   - **Death consequences (`stalled-api-error`):** write a NEW `.errparked` record
+     `api_error_stalled <epoch>` (the `<class> <epoch>` format both existing writers use; the
+     existing write is `waker_lost`-gated and never fires on a fresh Stop — this is a SIBLING
+     branch, never a reuse); select the error-family ring the same way the `waker_lost` block
+     does (a sibling of those lines — the done-chime default must not play on a death); extend
+     the dup-park guard's special-cased suffixes with the stalled class, mirroring `waker_lost`.
+   - **Fail-open everywhere:** any parse error → today's behavior, exit contract unchanged.
+   Gate: `python3 ~/.claude/bin/claude-stop-decider.py --self-test; echo $?` → 0, all fixtures
+   green (baseline 42 + the six new rows' fixtures).
 4. **End-to-end wake proof (read-only on the consumers):** with a throwaway session id, write the
    fixture transcript to a temp path, run the decider on it, then verify the REAL consumer contract:
    the `.errparked` record parses by the same reader `claude-selfwatch.sh` polls (grep the marker
@@ -201,16 +205,17 @@ Steps:
 9. **`/fabrik-review` on this phase's changed surface — BLOCKING, run to its coverage-adjudicated
    exit** (every checklist class CLEAN/FIXED/REFUTED; the closing round's finders non-author per the
    round SHAPE; the changed surface = the decider diff + fixtures + doc rows).
-10. Commit the repo-side files (explicit paths + provenance trailers); the box-side decider edit is
+10. The FULL gate BEFORE any commit: `python scripts/final_gate.py --check --json` →
+    `"status":"success"` and `python scripts/enforcement/check_convergence.py` → green.
+11. Commit the repo-side files (explicit paths + provenance trailers); the box-side decider edit is
     DR-versioned by step 7, not git-committed (precedent: the quota-health plan).
 
-**Behavior Contract (Phase A):** the four Given/When/Then rows in step 2 — risk-ordered, the
+**Behavior Contract (Phase A):** the six Given/When/Then rows in step 2 — risk-ordered, the
 false-positive guard second (the class this mesh has bitten us with before is false BUSY/false
 ring, so the no-false-positive row is load-bearing, not decoration).
 
-Final step: `python scripts/final_gate.py --check --json` → `"status":"success"` and
-`python scripts/enforcement/check_convergence.py` → green. A green gate is necessary, not
-sufficient — the proof is the fixtures red→green and the end-to-end wire check in step 4.
+A green gate (step 10) is necessary, not sufficient — the proof is the fixtures red→green and
+the end-to-end wire check in step 4.
 
 ## Execution notes (subagents + parallelism)
 
