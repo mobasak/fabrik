@@ -5105,3 +5105,22 @@ closes; (2) any count/claim a doc asserts about code must be derived by EXECUTIN
 (instrument and count results), never by enumerating source sites; (3) "wired" means proven
 under the invoker's real environment (cron PATH ≠ shell PATH); (4) a tool-output parser is
 grounded only against the installed tool's source or live output, never its plausible format.
+
+## 109. Convergence came from closing CLASSES, not variants — and every fix wave is its own next defect surface (2026-08-11)
+
+Plan-2's closing loop needed ELEVEN non-author sweeps to reach a genuine no-op round. The
+hostile-`owned_paths` false-silence class alone surfaced five times (int → scalar string →
+`[""]` → `" src/ "` → `./src`/`.`/`Src/`) because each wave fixed the reported VARIANT; it
+died only when normalization was delegated to the SSOT (`_norm_path`, the function that
+builds the very tokens the field derives from) — the variant whack-a-mole was the signal
+that a class fix was owed. Second pattern, five occurrences: the fix itself opened the next
+finding (the rename fix missed copies; the copy fix used the wrong detection flag; the
+timeout fix degraded to a LYING success message; the relocation fix duplicated a paragraph
+and re-emitted a stale pointer; a mid-round Stop-hook commit shipped stale census counts).
+Takeaways: (1) the same field failing twice in different shapes = stop patching shapes,
+route the value through the canonical normalizer/SSOT; (2) budget the closing loop for
+fix-residue rounds — the last four rounds found ONLY residue of earlier fixes, and the
+no-op arrived exactly one round after a wave whose residue surface was near-nil (6 lines);
+(3) a degradation path must say UNKNOWN, never the success wording — a fail-soft that lies
+reads as a pass in every log forever; (4) every commit re-derives its own census counts in
+the SAME commit (three doc-drift findings were self-inflicted by mid-round commits).
