@@ -269,6 +269,90 @@ def test_utility_script_named_test_is_not_accompaniment(tmp_path: Path) -> None:
     assert "WARNING" in out and "ZERO test changes" in out, out
 
 
+def test_nested_bold_label_not_double_counted(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): a bold `**Behavior Contract:**` label nested inside a
+    # `## Behavior Contract` heading region was scanned twice — 2 distinct rows printed as 3.
+    repo, _ = _repo(tmp_path, given_rows=0)
+    plan = repo / "docs/development/plans/p.md"
+    plan.write_text(
+        "# Plan\n\nStatus: IN-PROGRESS\n\n## Behavior Contract\n\n"
+        "**Behavior Contract (Phase A):**\n"
+        "- **Given** s1, **When** a1, **Then** o1\n"
+        "- **Given** s2, **When** a2, **Then** o2\n\n## Next section\n"
+    )
+    _git(repo, "add", str(plan.relative_to(repo)))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior under nested contract forms, no tests")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "declares 2 Behavior-Contract row(s)" in out, out
+
+
+def test_test_adjacent_files_do_not_silence_the_warn(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): `tests/data.json` (a fixture) silenced the WARN for a
+    # zero-test behavior window. Test-ADJACENT files are not test accompaniment.
+    repo, _ = _repo(tmp_path)
+    (repo / "src/app.py").write_text("A = 2\n")
+    t = repo / "tests"
+    t.mkdir()
+    (t / "data.json").write_text('{"fixture": true}\n')
+    (t / "conftest.py").write_text("import pytest\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "behavior + fixture data + conftest, ZERO real tests")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_conftest_only_window_is_silent(tmp_path: Path) -> None:
+    # The flip side of the three-way split: test-adjacent files are not shipped behavior
+    # either — a conftest-only window must not draw a false WARN.
+    repo, _ = _repo(tmp_path)
+    t = repo / "tests"
+    t.mkdir()
+    (t / "conftest.py").write_text("import pytest\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "test-infrastructure only")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_hostile_lock_field_types_isolated_per_lock(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): a lock with `"owned_paths": 5` raised inside the loop
+    # and the outer except silently suppressed a SIBLING lock's real WARN. Hostile field types
+    # must be isolated per lock.
+    repo, _ = _repo(tmp_path)
+    locks = repo / ".fabrik/plan-locks"
+    # sorts BEFORE p.json; baseline is a dict → str() → git error → per-lock skip, not abort
+    (locks / "aaa-hostile.json").write_text(json.dumps({
+        "plan": "docs/development/plans/p.md", "status": "active",
+        "baseline_commit": {"x": 1}, "owned_paths": ["src/"]}))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped, no tests, hostile sibling lock")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+    assert "skipping malformed lock" in out, out
+
+
+def test_non_list_owned_paths_falls_back_to_whole_window(tmp_path: Path) -> None:
+    # An int owned_paths must degrade toward WARNING (whole-window fallback), never toward
+    # silence or a run-wide abort.
+    repo, _ = _repo(tmp_path)
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = 5
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped, no tests, int owned_paths")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
 def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> None:
     # Review finding (whole-plan round): shared-master sibling commits inside the window must not
     # count in EITHER direction — a sibling's untested .py must not WARN this plan, and a

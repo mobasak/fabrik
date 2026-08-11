@@ -18,9 +18,17 @@ regions (both `##`-heading and monolithic `**bold-label**` forms — an illustra
 prose no longer mints a phantom row), and a `scripts/test_*.py` diagnostic utility no longer
 counts as test accompaniment. Doc-truth: the gate's real check count is **38** (tier 1 = 18) by
 instrumented execution — the old "17/37" arithmetic dropped the unconditional
-`check_review_coverage.py`. New pins: 13 tests across the three suites (7 watched RED on the
-pre-fix code via revert; registration-placement + env-strip-guard source pins in
-`tests/enforcement/test_final_gate_registration.py`).
+`check_review_coverage.py`. A SECOND closing sweep over the fix wave confirmed 8 more (fixes
+open fixes): `tests/data.json`/conftest could silence the accompaniment WARN (three-way split
+now: code tests count, test-adjacent files neither count nor WARN), a type-hostile
+`owned_paths` int aborted ALL lock checking (per-lock fault isolation now), nested contract
+forms double-counted rows (span-tracked scoping), the positional registration pins were
+defeatable by live-simulated mutants (AST-semantic pins now, each rejecting its mutant
+in-test), the gate-tier-3 count is 14 not 13, and the docs claimed `FABRIK_MUTMUT=1` runs
+inside the gate when the env-strip guard deliberately prevents exactly that (docs now state
+the strip; a real run is direct invocation or the Sunday cron only). Probe duty extended to
+the closing pass in `term-edit.md` (a pass-1-true probe can go stale via middle-pass edits).
+New pins across both waves: 18 tests (11 watched RED on pre-fix code via revert).
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 
@@ -28,7 +36,7 @@ New Tier-2 advisory `check_phase_tests.py`: an ACTIVE plan lock's `baseline_comm
 that declares Behavior-Contract Given rows and touched source with ZERO test changes WARNs,
 listing the declared rows (whole-window by design — per-row coverage stays the phase-boundary
 review's; reuses `check_plan_tickets.GIVEN_ROW_RE`; always exits 0, fail-soft on every error
-path; 15 behavior tests after the closing review sweep — red-on-revert proven, deleted-test and
+path; 20 behavior tests after the closing review sweeps — red-on-revert proven, deleted-test and
 sibling-window regressions pinned). `check_mutation.py` gains
 `FABRIK_MUTMUT_SINCE` (committed-history window) and a `FABRIK_MUTMUT_WALL_CAP_S` hard wall cap
 (default 1200s, partial results on cap, still exit 0), wired to a new Sunday 05:00 cron

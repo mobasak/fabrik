@@ -157,8 +157,9 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Fast showstoppers only (syntax, secrets, schema sync, doc sync)
 
-**Phase 3: Repo Consistency (17 checks)** — `run_consistency_checks(tier=1)` (the `if tier in (1, 2):` block)
+**Phase 3: Repo Consistency (18 checks)** — `run_consistency_checks(tier=1)`: 16 in the `if tier in (1, 2):` block + 2 unconditional
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
+- **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally (the check every eyeball recount dropped — counts here are derived by instrumented execution)
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
 - **.env Updates (Secrets)** - `check_env_vars.py`
@@ -171,7 +172,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Doc Sync Matrix** - `check_doc_sync.py`
   - The single "update docs when code changes" gate — consolidates what `check_changelog.py` / `check_index_md.py` / `check_configuration_md.py` / `check_openapi_sync.py` used to check (those 5 scripts still exist on disk but are dead code, never invoked — see § All Checks Reference)
 - **Subagent Flywheel (pool-or-declare — BLOCKING)** - `check_subagent_flywheel.py` — fails the gate when a substantial code change ran zero pool subagent runs and carries no `NO-POOL:` declaration
-- **Mutation (advisory, opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(advisory)* — only runs when `FABRIK_MUTMUT=1`
+- **Mutation (advisory, opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(advisory)* — through the gate it ALWAYS prints the pointer and exits 0: `final_gate.py` deliberately strips `FABRIK_MUTMUT` for this one child (a set flag would start a session-detached mutmut the gate's 120s timeout then orphans). A real mutation run happens only by DIRECT invocation (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the Sunday 05:00 cron
 - **Doc stub fill (advisory)** - `check_doc_stubs.py` *(advisory)*
 - **Script Coupling Header** - `check_script_headers.py`
   - Each staged `scripts/**/*.py` declares, via a `# AFTER-EDIT:` header, the files to update when it changes (or `none`)
@@ -200,6 +201,11 @@ no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (
 **Phase 3: Repo Consistency** — inherits all **18** Tier-1 checks above (16 in the `tier in (1, 2)` block; TWO run unconditionally outside it: `check_convergence.py` AND `check_review_coverage.py` — the earlier "17/37" arithmetic silently dropped the second, a drift caught by the plan-2 closing review), **plus 19 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [advisory, plan-window]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **38 checks total**. (Counts verified 2026-08-11 by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 18, tier 2 → 38 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
 
 **The Tier-2-only checks:**
+- **Phase Tests (advisory, plan-window)** - `check_phase_tests.py` *(advisory)*
+  - WARNs when an ACTIVE plan lock's window declares Behavior-Contract rows and ships lock-owned source with zero test changes
+- **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; blocking)
+- **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking)
+- **Retired-Tech Tripwire** - `check_retired_terms.py` (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing)
 - **Stage-Skip Artifact Gate** - `check_stage_artifacts.py`
   - Spec freshness + FROZEN header shape for a stage that was skipped
 - **Hooks Index Fresh** - `check_hooks_index.py`
@@ -247,8 +253,9 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 
 **Purpose:** On-demand repo/system hygiene (no showstoppers)
 
-**Phase 3: Repo Consistency (13 checks)** — `run_consistency_checks` (the `tier >= 2` / Tier-3 selections)
+**Phase 3: Repo Consistency (14 checks)** — `run_consistency_checks` (the `tier >= 2` / Tier-3 selections; count verified by instrumented execution 2026-08-11 — the old "13" dropped the unconditional Coverage Checklist, the same bug as the tier-1/2 counts)
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
+- **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally
 - **Docker** - `check_docker.py`
   - Validates amd64 compatibility, No-Alpine base images, HEALTHCHECK presence
 - **Port Registration** - `check_ports.py`
@@ -258,10 +265,8 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 - **Dependencies Sync** - `check_deps_sync.py`
   - Ensures dependencies are properly documented
 - **Documentation Sprawl** - `check_doc_sprawl.py` (2026-07-20: new-file detection is HEAD-or-staged-rename — a merely-staged new .md no longer bypasses the allowlist)
-- **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; blocking)
-- **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking)
-- **Retired-Tech Tripwire** - `check_retired_terms.py` (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing)
   - Detects documentation sprawl and duplication
+  - (Doc Link Integrity, INDEX↔tree drift, and Retired-Tech Tripwire are registered in the `if tier == 2:` block — they are Tier-2-only, listed above, and do NOT run at Tier 3)
 - **Watchdog Scripts** - `check_watchdog.py`
   - Ensures watchdog monitoring scripts are present
 - **Health Endpoint** - `check_health.py`
@@ -394,7 +399,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_imports_resolvable.py` — Phantom-import guard (clean-checkout parity, advisory)
 - `check_lint_ratchet.py` — Repo-wide ruff count may only go down (advisory)
 - `check_subagent_flywheel.py` — Pool-or-declare subagent flywheel (BLOCKING)
-- `check_mutation.py` — Mutation testing (advisory, opt-in `FABRIK_MUTMUT=1`)
+- `check_mutation.py` — Mutation testing (advisory; a real run only via direct `FABRIK_MUTMUT=1` invocation or the Sunday cron — the gate strips the flag for its own child, orphan protection)
 - `check_doc_stubs.py` — Doc stub force-fill (advisory)
 - `check_script_headers.py` — Script `# AFTER-EDIT:` coupling header
 - `check_print_ban.py` — Bans `print()`/`console.log()` in production code

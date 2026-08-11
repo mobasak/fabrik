@@ -209,7 +209,7 @@ Every sysadmin script (VPS-side) invokes Claude through `scripts/sysadmin/claude
 
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
-The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory + opt-in** — it runs **only** when `FABRIK_MUTMUT=1` (diff-scoped + nightly/CI/on-demand, never a per-PR blocking gate per `45-testing-strategy.md`), mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.
+The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory** — but through the gate it **never actually mutates**: `final_gate.py` deliberately strips `FABRIK_MUTMUT` before invoking this one child (a set flag would start a session-detached mutmut that the gate's 120s outer timeout then orphans on the shared box) and restores it after, so a gate run always prints the pointer and exits 0 regardless of the flag. A REAL run happens only by **direct invocation** (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the **Sunday 05:00 cron** (diff-scoped + weekly, never a per-PR blocking gate per `45-testing-strategy.md`); it mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.
 
 ```bash
 pip install -e '.[dev]'                                        # installs mutmut>=3.6.0
@@ -725,8 +725,11 @@ APPRISE_STATELESS_URLS=tgram://BOTTOKEN/CHATID  # set in /opt/apprise/.env
 ### FABRIK_MUTMUT / FABRIK_MUTMUT_SINCE / FABRIK_MUTMUT_WALL_CAP_S — mutation-testing controls
 
 **What:** `FABRIK_MUTMUT=1` opts the advisory mutation runner
-(`scripts/enforcement/check_mutation.py`) into an actual mutmut run (unset = the per-commit gate
-prints a pointer and exits 0). `FABRIK_MUTMUT_SINCE` (e.g. `"7 days ago"`) switches the diff
+(`scripts/enforcement/check_mutation.py`) into an actual mutmut run **when invoked directly or by
+the cron** — routed through `final_gate.py` the flag is deliberately STRIPPED for this child
+(orphan protection: the gate's 120s timeout would kill only the runner, not the session-detached
+mutmut), so the per-commit gate always prints the pointer and exits 0 no matter what is set.
+`FABRIK_MUTMUT_SINCE` (e.g. `"7 days ago"`) switches the diff
 scope from the merge-base window to committed history since that time — the weekly cron sets it.
 `FABRIK_MUTMUT_WALL_CAP_S` (default `1200`) hard-caps the mutmut run's wall clock; on cap the
 runner reports partial results and still exits 0.

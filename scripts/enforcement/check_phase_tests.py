@@ -80,11 +80,18 @@ def _contract_regions(text: str) -> str:
     import re
 
     regions: list[str] = []
+    heading_spans: list[tuple[int, int]] = []  # absolute offsets of heading regions
     for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):
         rest = text[m.end() :]
         stop = re.search(r"(?m)^#{2,4}\s", rest)
-        regions.append(rest[: stop.start()] if stop else rest)
+        end = m.end() + (stop.start() if stop else len(rest))
+        heading_spans.append((m.start(), end))
+        regions.append(text[m.end() : end])
     for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", text):
+        # A bold label nested INSIDE a heading region is already captured above — scanning it
+        # again would double-count its rows (review finding, live-reproduced: 2 rows printed 3).
+        if any(s <= m.start() < e for s, e in heading_spans):
+            continue
         lines: list[str] = []
         for line in text[m.end() :].splitlines():
             if not line.strip() or re.match(r"^\s*[-*]\s", line) or re.match(r"^\s{2,}\S", line):
@@ -123,58 +130,92 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     return False
 
 
+def _in_tests_tree(path: str) -> bool:
+    return "tests" in Path(path).parts[:-1]
+
+
 def _is_test(path: str) -> bool:
-    # A tests/ dir anywhere on the path, or a root-level test_*.py. The bare-name clause is
-    # root-only: `scripts/test_connectivity.py` is a diagnostic utility, and letting it count
-    # as accompaniment would silently satisfy the WARN for an unrelated behavior change.
+    """Counts as test ACCOMPANIMENT: a code-test-named file in a tests/ dir or at repo root.
+    Three-way split (review finding, live-reproduced: a `tests/data.json` fixture silenced the
+    WARN for a zero-test behavior window): code tests COUNT; test-adjacent files under tests/
+    (conftest, fixtures, data) neither count nor WARN; `scripts/test_connectivity.py`-style
+    utilities are ordinary source. The bare-name clause is root-only."""
+    name = Path(path).name.lower()
+    is_test_named = (
+        name.startswith("test_")
+        or name.rsplit(".", 1)[0].endswith("_test")
+        or ".spec." in name
+        or ".test." in name
+    )
     parts = Path(path).parts
-    return "tests" in parts[:-1] or (len(parts) == 1 and parts[0].startswith("test_"))
+    return is_test_named and (_in_tests_tree(path) or len(parts) == 1)
 
 
 def _is_source(path: str) -> bool:
-    if _is_test(path) or path.lower().endswith(_DOC_SUFFIXES):
+    # The whole tests/ tree is excluded from "source" — test-adjacent files (conftest,
+    # fixtures, data) are neither accompaniment nor shipped behavior.
+    if _is_test(path) or _in_tests_tree(path) or path.lower().endswith(_DOC_SUFFIXES):
         return False
     return path.endswith((".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".sql"))
+
+
+def _check_lock(lock: dict) -> bool:
+    """One lock's whole-window check; True if it WARNed. Raises on hostile field types —
+    the caller isolates per lock."""
+    rows = _given_rows(str(lock["plan"]))
+    if not rows:
+        return False  # a plan with no declared behaviors is silent by construction
+    raw_owned = lock.get("owned_paths") or []
+    if isinstance(raw_owned, str):  # a hand-edited scalar must scope, not iterate chars
+        raw_owned = [raw_owned]
+    if not isinstance(raw_owned, (list, tuple)):
+        # Any other type (int, dict, …) falls back to the whole window — toward warning,
+        # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
+        raw_owned = []
+    owned = [str(o) for o in raw_owned]
+    baseline = str(lock["baseline_commit"])
+    files = _window_files(baseline)
+    if owned:  # a lock without owned_paths falls back to the whole window
+        files = [f for f in files if _owned(f, owned)]
+    source = [f for f in files if _is_source(f)]
+    # Tests count only when ADDED/MODIFIED — a window that DELETES its tests while
+    # shipping behavior is exactly the failure this gate exists to catch (review finding,
+    # live-reproduced: an unfiltered list let a test deletion silence the WARN).
+    alive = _window_files(baseline, exclude_deleted=True)
+    if owned:
+        alive = [f for f in alive if _owned(f, owned)]
+    tests = [f for f in alive if _is_test(f)]
+    if not source:
+        return False  # docs-only window — no false positive
+    if tests:
+        return False  # tests accompany the window — the gate's assertion holds
+    print(
+        f"WARNING: plan window {baseline[:8]}..HEAD "
+        f"({lock['plan']}) declares {len(rows)} Behavior-Contract row(s) and touched "
+        f"{len(source)} source file(s) with ZERO test changes. Per-row coverage is the "
+        "phase-boundary /fabrik-review's to adjudicate; a window that CLOSES like this "
+        "shipped behavior without tests."
+    )
+    for row in rows[:12]:
+        print(f"  declared: {row[:160]}")
+    if len(rows) > 12:
+        print(f"  … and {len(rows) - 12} more row(s)")
+    return True
 
 
 def main() -> int:
     try:
         warned = False
         for lock in _active_locks():
-            rows = _given_rows(str(lock["plan"]))
-            if not rows:
-                continue  # a plan with no declared behaviors is silent by construction
-            raw_owned = lock.get("owned_paths") or []
-            if isinstance(raw_owned, str):  # a hand-edited scalar must scope, not iterate chars
-                raw_owned = [raw_owned]
-            owned = [str(o) for o in raw_owned]
-            files = _window_files(str(lock["baseline_commit"]))
-            if owned:  # a lock without owned_paths falls back to the whole window
-                files = [f for f in files if _owned(f, owned)]
-            source = [f for f in files if _is_source(f)]
-            # Tests count only when ADDED/MODIFIED — a window that DELETES its tests while
-            # shipping behavior is exactly the failure this gate exists to catch (review finding,
-            # live-reproduced: an unfiltered list let a test deletion silence the WARN).
-            alive = _window_files(str(lock["baseline_commit"]), exclude_deleted=True)
-            if owned:
-                alive = [f for f in alive if _owned(f, owned)]
-            tests = [f for f in alive if _is_test(f)]
-            if not source:
-                continue  # docs-only window — no false positive
-            if tests:
-                continue  # tests accompany the window — the gate's assertion holds
-            warned = True
-            print(
-                f"WARNING: plan window {lock['baseline_commit'][:8]}..HEAD "
-                f"({lock['plan']}) declares {len(rows)} Behavior-Contract row(s) and touched "
-                f"{len(source)} source file(s) with ZERO test changes. Per-row coverage is the "
-                "phase-boundary /fabrik-review's to adjudicate; a window that CLOSES like this "
-                "shipped behavior without tests."
-            )
-            for row in rows[:12]:
-                print(f"  declared: {row[:160]}")
-            if len(rows) > 12:
-                print(f"  … and {len(rows) - 12} more row(s)")
+            try:
+                warned = _check_lock(lock) or warned
+            except Exception as e:  # noqa: BLE001 — ONE hostile lock must never suppress
+                # the WARN of every OTHER active lock (review finding, live-reproduced:
+                # `"owned_paths": 5` aborted the whole run and a sibling's WARN never fired)
+                sys.stderr.write(
+                    f"PHASE-TESTS (advisory): skipping malformed lock "
+                    f"({lock.get('plan', '?')}): {e}\n"
+                )
         if not warned:
             print(
                 "PHASE-TESTS (advisory): OK — no active plan window shipping behavior without tests."
