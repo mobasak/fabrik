@@ -121,7 +121,12 @@ def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
     # SOURCES MODIFIED in the same diff, so a verbatim copy of an untouched test still
     # reported as A (probe-verified). Harder scans all files as sources — bounded cost
     # on a plan window's modest diff, and the only form that actually catches the gaming.
-    args = ["git", "diff", "--name-status", "--find-renames", "--find-copies-harder"]
+    # -z (NUL records): git C-quotes/octal-escapes any path with a non-ASCII byte, tab,
+    # quote, or backslash under default core.quotepath — a quoted path matches no real
+    # file downstream, making it invisible to the gate in BOTH directions (review
+    # finding, live-reproduced: a real tests/test_café.py drew a false WARN and a
+    # src/wörker.py behavior window passed in false SILENCE). NUL output is never quoted.
+    args = ["git", "diff", "--name-status", "--find-renames", "--find-copies-harder", "-z"]
     if exclude_deleted:
         args.append("--diff-filter=d")
     r = subprocess.run(
@@ -133,14 +138,20 @@ def _window_files(baseline: str, *, exclude_deleted: bool = False) -> list[str]:
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[:200])
     out: list[str] = []
-    for line in r.stdout.splitlines():
-        if not line.strip():
+    toks = r.stdout.split("\0")
+    i = 0
+    while i < len(toks):
+        status = toks[i].strip()
+        if not status:
+            i += 1
             continue
-        fields = line.split("\t")
-        status = fields[0].strip()
+        n_paths = 2 if status[:1] in ("R", "C") else 1  # R/C records carry old + new
+        paths = [p for p in toks[i + 1 : i + 1 + n_paths] if p]
+        i += 1 + n_paths
         if status in ("R100", "C100"):
             continue  # pure rename/copy — no content change in the window
-        out.append(fields[-1].strip())  # R/C rows carry old+new; the NEW path is the live one
+        if paths:
+            out.append(paths[-1])  # the NEW path is the live one
     return out
 
 

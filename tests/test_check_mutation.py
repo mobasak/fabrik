@@ -68,9 +68,18 @@ def test_mutmut_bin_prefers_interpreter_sibling(tmp_path, monkeypatch):
     assert cm.mutmut_bin() is None  # neither → honest absence
 
 
-def test_flag_unset_skips_advisory_in_gate():
+def test_flag_unset_skips_advisory_in_gate(tmp_path):
     # Given FABRIK_MUTMUT unset (the per-commit gate), Then the runner skips with a pointer, exit 0.
+    # Hermetic (review finding: under a system interpreter with no venv mutmut, this test
+    # silently exercised the WRONG branch — mutmut-absent — and failed): a fake executable
+    # mutmut is prepended to PATH so binary resolution succeeds under ANY interpreter.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake = fake_bin / "mutmut"
+    fake.write_text("#!/bin/sh\nexit 0\n")
+    fake.chmod(0o755)
     env = {k: v for k, v in os.environ.items() if k != "FABRIK_MUTMUT"}
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
     r = subprocess.run(
         [sys.executable, str(CHECK)], capture_output=True, text=True, env=env, cwd=str(ROOT)
     )

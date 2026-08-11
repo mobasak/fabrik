@@ -44,8 +44,14 @@ were invisible to accompaniment while counting as untested source); `~~~` tilde 
 strip like backtick fences; `check_mutation.py` gained a fail-soft main wrapper (an
 uncaught raise would have flipped the gate red past `advisory=True`); and `term-edit.md`'s
 ledger TABLE template gained the `raised`/`new:` columns its prose already demanded.
-Final test census by execution: 46 across the three suites — 28 added or rewritten during
-the closing sweeps, 21 of them watched RED on pre-fix code via revert.
+A FIFTH sweep confirmed 1 more: git's default `core.quotepath` C-quoting made any
+non-ASCII/tab/quote filename INVISIBLE to the gate in both directions (a real
+`tests/test_café.py` drew a false WARN; a `src/wörker.py` behavior window passed in false
+silence) — window diffs now use NUL-record (`-z`) parsing, which git never quotes; and the
+flag-unset mutation test was made hermetic (a fake PATH mutmut), proven under system
+python where it previously exercised the wrong branch.
+Final test census by execution: 47 across the three suites — 30 added or rewritten during
+the closing sweeps, 22 of them watched RED on pre-fix code via revert.
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 

@@ -89,6 +89,9 @@ honestly; the breaker arms only at 3 consecutive. The round's finds were qualita
 (gaming vectors and format-variant edges, no live fail-opens in the core promise), and every fix
 landed with a watched-red regression test.
 
+| Pass 11 | CLOSING full fresh sweep #5, non-author: 2 pool units (gemini-3-flash-preview scored 4 — CLEAN, accurate verification; deepseek-v3.2-exp scored 3 — 1 raised, refuted by a live `Popen.wait(timeout=-5)` probe: TimeoutExpired in 0.000s, never blocks) + 1 native subagent (1 CONFIRMED: git path-quoting made non-ASCII files invisible BOTH directions incl. a false silence; 1 PLAUSIBLE: the pre-existing interpreter-dependent mutation test) | 3 | 2 | 2 | 1 |
+| Pass 12 | orchestrator scoped verify of the Pass-11 fix diff: NUL-record (`-z`) parsing replaces quoted-path splitting (watched RED), the flag-unset mutation test made hermetic (proven passing under system python where it previously failed), 47/47 green, real-plan 12/12 rows, live hub run OK | 0 | 0 | 0 | 0 |
+
 Pass 2's found: 0 close did NOT survive the closing sweep — the operator-demanded Pass 3 (the
 first live run of the new non-author closing-sweep contract) surfaced 15 candidates: 11 fixed
 (dead survivor-parse regex vs real mutmut 3.6 output; cron-PATH resolution; scalar-`owned_paths`

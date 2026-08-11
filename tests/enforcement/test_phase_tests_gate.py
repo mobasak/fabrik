@@ -548,6 +548,34 @@ def test_pure_source_rename_is_not_shipped_behavior(tmp_path: Path) -> None:
     assert rc == 0 and "WARNING" not in out, out
 
 
+def test_nonascii_paths_visible_in_both_directions(tmp_path: Path) -> None:
+    # Review finding (live-reproduced BOTH ways): git C-quotes non-ASCII paths under default
+    # core.quotepath, making them invisible — a real tests/test_café.py drew a false WARN and
+    # a src/wörker.py behavior window passed in false SILENCE. NUL-record parsing fixes both.
+    repo, _ = _repo(tmp_path)
+    # Direction 1: accompanying non-ASCII test must SILENCE the WARN.
+    (repo / "src/app.py").write_text("A = 2\n")
+    t = repo / "tests"
+    t.mkdir()
+    (t / "test_café.py").write_text("def test_c():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "behavior + non-ascii-named real test")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+    # Direction 2: a non-ASCII SOURCE file shipping without tests must WARN.
+    (repo / "src/wörker.py").write_text("W = 1\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "non-ascii behavior, no tests... but prior test still in window")
+    # New repo state for a clean window: use a fresh lock baseline at the previous commit.
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["baseline_commit"] = _git(repo, "rev-parse", "HEAD~1")
+    lock.write_text(json.dumps(d))
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
 def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> None:
     # Review finding (whole-plan round): shared-master sibling commits inside the window must not
     # count in EITHER direction — a sibling's untested .py must not WARN this plan, and a
