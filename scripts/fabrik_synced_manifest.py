@@ -35,6 +35,7 @@ CORE_SCRIPTS = [
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
     "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
+    "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/ack/requeue/digest)
 ]
 
 # Long Command Monitoring System → project ``scripts/`` (sourced from
@@ -106,6 +107,7 @@ AGENT_HOOK_FILES = [
     ".claude/hooks/final_gate_stop.py",
     ".claude/hooks/skill_router.py",
     ".claude/hooks/session_orient.py",  # SessionStart orientation: governance/memory/session-recall/mesh
+    ".claude/hooks/mail_notify.py",  # SessionStart + UserPromptSubmit: surface unread fabrik-mail (fail-open)
     ".windsurf/hooks.json",
 ]
 

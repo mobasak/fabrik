@@ -33,6 +33,7 @@ SKIP_PATTERNS = [
     ".venv/",
     "scripts/",
     "docs/",
+    ".claude/hooks/",  # Claude Code hooks inject context via stdout — print() IS their output
 ]
 
 PRODUCTION_PY_EXTENSIONS = {".py"}

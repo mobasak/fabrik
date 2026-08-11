@@ -20,7 +20,10 @@ Claude Code upgrade — deferred by fact (box at 2.1.219).
 
 _Landing incrementally:_ Phase A (fleet governance sanction) · Phase B (`scripts/mail.py` store +
 protocol + 30 behavior/security tests — watched-fail-first on the risky invariants, plus a security-review
-pass hardening path-traversal on `to`/`repo`/`msg_id`, broadened secret-refusal, and digest ack-injection).
+pass hardening path-traversal on `to`/`repo`/`msg_id`, broadened secret-refusal, and digest ack-injection) ·
+Phase C (`.claude/hooks/mail_notify.py` surfacing hook + `.claude/settings.json` wiring + both
+`fabrik_synced_manifest.py` carriage rows + the `.pre-commit-config.yaml` trigger — ONE commit, the
+fleet prompt-block guard — + the `/opt/fabrik-mail` root; 12 hook tests, exit-0 red-on-revert proven).
 
 ### Added — stalled-mid-stream auto-resume: the mesh's missing death class (2026-08-11)
 
@@ -36,8 +39,13 @@ defers death entirely (the wakeup IS the revival — racing it would double-cont
 death writes an `api_error_stalled <epoch>` record the already-armed self-watch consumes
 (auto-"RESUME" into the pane) and rings the error voice, with the survived-death cleanup
 suppressed while the stall remains the tail (a sibling's Stop can never clear an
-unsurvived stall). 8 new self-test fixtures (watched RED first; suite 42→50 green);
-end-to-end wire proven through `_run_hook_inner` on the real incident's transcript.
+unsurvived stall). 36 new self-test fixtures (watched RED first; suite 42→78 green);
+end-to-end wire proven through `_run_hook_inner` on the real incident's transcript. The
+step-9 review loop ran 15 rounds (pool finders + native non-author closers) and fixed
+~27 findings red-first — recovery discrimination for machine appends, the list-wrapped
+claude-vscode prose shape, wrapper marks from the CLI string table, and full class
+closure of the `X or default` truthy-wrong-type crash family (text leaves, containers,
+bool scalars) across every transcript-parsing site.
 Executed plan: `docs/development/plans/2026-08-11-plan-2-stalled-midstream-resume.md`.
 
 ### Fixed — plan-2 closing sweep: mutation runner + phase-tests gate hardening (2026-08-11)

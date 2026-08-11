@@ -15,6 +15,12 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_orient.py\"",
             "timeout": 10,
             "statusMessage": "Orienting: governance + memory + session-recall..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking fabrik-mail inbox..."
           }
         ]
       }
@@ -41,6 +47,12 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill_router.py\"",
             "timeout": 15,
             "statusMessage": "Routing to a /fabrik-* skill..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking fabrik-mail inbox..."
           }
         ]
       }

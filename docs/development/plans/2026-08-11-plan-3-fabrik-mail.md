@@ -136,7 +136,7 @@ Watched-fail-first: write the ULID-sort, O_EXCL, and star-refusal tests FIRST, r
 
 Closing sequence: (1) `python -m pytest tests/test_mail.py -q` → green; (2) `check_doc_sync.py`; (3) **`/fabrik-review`** on `scripts/mail.py` + tests to a coverage-adjudicated exit; (4) commit.
 
-## Phase C — the hook + its FULL wiring (ONE commit — the fleet prompt-block guard)
+## Phase C — the hook + its FULL wiring (ONE commit — the fleet prompt-block guard) — ✅ EXECUTED 2026-08-11
 
 `mail_notify.py` + `.claude/settings.json` + BOTH manifest rows land TOGETHER (a `settings.json` referencing
 a not-yet-carried hook exit-2-blocks every prompt on ~46 repos).
@@ -260,6 +260,7 @@ The consolidated roll-up of every phase's user-observable behaviors (★ = watch
 - `.claude/settings.json`
 - `scripts/fabrik_synced_manifest.py`
 - `.pre-commit-config.yaml` (add `mail\.py` to the governance-sync trigger alternation — Phase C, Finding 1)
+- `scripts/enforcement/check_print_ban.py` (Phase C prerequisite — skip `.claude/hooks/`: hooks inject via stdout, so `print()` is their output; fleet-correct)
 - `CLAUDE.md`
 - `templates/governance/CLAUDE.md`
 - `AGENTS-compact.md` (Phase A — the outside-tree sanction's 3rd fleet-synced encoding, F1)
