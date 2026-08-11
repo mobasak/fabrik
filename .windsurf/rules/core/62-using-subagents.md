@@ -93,6 +93,14 @@ every `tools_enabled=True` worker is routed through `disjoint()` (`agent.py:632-
    ⚠️ **`tools_enabled=True` + empty/overlapping `owned_paths` → one group → SERIAL — the #1 dispatch trap** (looks
    parallel, runs serial). If a read-only fan-out needs file reads, prefer shape 1 (inline) over shape 2.
 
+**Corollaries (verified against the module):** `pick_models(task_type, n=<K>)` for a K-model fan-out — the default
+is **`n=1`**, so you MUST pass `n` to get more than one model. Parallel groups run **`max_concurrency` (default 4)**
+at a time — raise it to widen a big fan-out. Worker tools (**tools-enabled workers only** — a read-only single-shot
+worker has none of these, it just returns text): `read_file · write_file · apply_patch · list_dir · grep ·
+run_command` (bwrap-sandboxed). (Prices + the per-kind best model are the flywheel's *output* — they live in
+`select.py`'s `_TABLE` + the synced `CODING_SUBAGENT_SELECTION.md`, never restated here; `pick_models(task_type)`
+returns them cheapest-that-clears-the-bar first — see § Approved pool models for why no roster lives in this pack.)
+
 ## Role separation (review loops) — who hunts LAST is never the author
 
 The loop-closing round's **FINDER pass** runs in a context that did **not author the artifact** — a
@@ -106,14 +114,6 @@ read — independence there is deferred to the PAIRED review command that follow
 decide/refute/merge — stays with the orchestrator** (CLAUDE.md § Subagent fan-out: "the
 decide/refute/merge you own"); this rule governs who HUNTS last, never who adjudicates. The loop
 fragments' fresh/independent-round language defers to THIS definition of independent.
-
-**Corollaries (verified against the module):** `pick_models(task_type, n=<K>)` for a K-model fan-out — the default
-is **`n=1`**, so you MUST pass `n` to get more than one model. Parallel groups run **`max_concurrency` (default 4)**
-at a time — raise it to widen a big fan-out. Worker tools (**tools-enabled workers only** — a read-only single-shot
-worker has none of these, it just returns text): `read_file · write_file · apply_patch · list_dir · grep ·
-run_command` (bwrap-sandboxed). (Prices + the per-kind best model are the flywheel's *output* — they live in
-`select.py`'s `_TABLE` + the synced `CODING_SUBAGENT_SELECTION.md`, never restated here; `pick_models(task_type)`
-returns them cheapest-that-clears-the-bar first — see § Approved pool models for why no roster lives in this pack.)
 
 **Per-command dispatch mode** (which shape each command's fan-out uses — pairs with the routing map above):
 

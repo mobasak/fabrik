@@ -6,10 +6,12 @@ Advisory diff-scoped mutation-testing runner (mutmut) — the Behavior Contract'
 Coverage proves a line ran; **mutation score** proves a test would FAIL if that line changed — the only
 mechanical signal that generated/after-the-fact tests actually catch regressions. Per
 `.windsurf/rules/core/45-testing-strategy.md` this is **advisory + diff-scoped, NOT a per-PR blocking gate**
-(full mutmut runs take minutes–hours and carry equivalent-mutant noise). So in the per-commit `final_gate`
-it is **opt-in**: it runs only when `FABRIK_MUTMUT=1` (nightly / CI / on-demand), mutates only the
-**committed** changed Python (applied code — never the dirty worktree), leans on mutmut's incremental mode
-for diff-scoping, and **ALWAYS exits 0** (advisory, never blocks).
+(full mutmut runs take minutes–hours and carry equivalent-mutant noise). Through the per-commit
+`final_gate` it NEVER actually mutates — the gate deliberately strips `FABRIK_MUTMUT` for this child
+(orphan protection under the gate's outer timeout) so a gate run always prints the pointer; a REAL run
+happens only by **direct invocation** (`FABRIK_MUTMUT=1 …`) or the **Sunday 05:00 cron**. It mutates only
+the **committed** changed Python (applied code — never the dirty worktree), leans on mutmut's incremental
+mode for diff-scoping, and **ALWAYS exits 0** (advisory, never blocks).
 
 Run it on changed code:  `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`
 """
@@ -170,7 +172,14 @@ def _main() -> int:
             [mutmut, "results"], capture_output=True, text=True, check=False, timeout=60
         ).stdout
     except subprocess.TimeoutExpired:
-        res = ""
+        # HONEST degradation (review finding: an empty res fell through to the verbatim
+        # "no surviving mutants" success wording — a hang must never read as a pass).
+        print(
+            "MUTATION (advisory): `mutmut results` timed out after 60s — survivor status "
+            "UNKNOWN (not a pass); inspect the cache manually with `mutmut results`. "
+            "Still advisory, still exit 0."
+        )
+        return 0
     survivors = parse_survivors(res)
     if survivors:
         print(

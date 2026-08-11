@@ -64,7 +64,13 @@ fires only on nonzero `new:` streaks (a healthy all-zero streak — zero fresh c
 while refutation-bait keeps `found` above 0 — is convergence, and the literal old wording
 would have BLOCKED it); the `mutmut results` call is time-bounded like every other
 subprocess in the runner; and the `_owned` docstring states both directions of the
-case-insensitivity tradeoff.
+case-insensitivity tradeoff. A NINTH sweep caught the honesty hole the eighth opened: a
+results-call hang degraded to the VERBATIM success wording ("no surviving mutants") — it
+now reports "survivor status UNKNOWN (not a pass)", with the pinning test inverted; the
+module docstring now states the gate-strip; the FABRIK_MUTMUT env block moved out from
+under `## See Also` to the Mutation section; § Role separation no longer splits the
+62-pack's Parallelism from its own Corollaries; term-edit's convergence clause carries
+the DONE-still-requires-quiet qualifier.
 Final test census by execution: 52 across the three suites — 35 added or rewritten during
 the closing sweeps, 26 of them watched RED on pre-fix code via revert.
 

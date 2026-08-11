@@ -231,7 +231,11 @@ def test_hanging_results_call_stays_bounded_and_advisory(monkeypatch, capsys):
     monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
     monkeypatch.setattr(cm.subprocess, "run", hanging_run)
     assert cm.main() == 0
-    assert "no surviving mutants" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    # HONEST degradation: a hang must report UNKNOWN, never the success wording
+    # (review finding: the first version of this very test pinned the lie).
+    assert "UNKNOWN" in out
+    assert "no surviving mutants" not in out
 
 
 def test_unforeseen_exception_fails_soft(monkeypatch, capsys):
