@@ -353,6 +353,34 @@ def test_empty_string_owned_entry_does_not_silence(tmp_path: Path) -> None:
     assert "WARNING" in out and "ZERO test changes" in out, out
 
 
+def test_whitespace_padded_owned_entry_does_not_silence(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): `" src/ "` passed the truthy filter but matched no
+    # real path — false silence. Entries are fully normalized now.
+    repo, _ = _repo(tmp_path)
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = [" src/ ", "tests/"]
+    lock.write_text(json.dumps(d))
+    (repo / "src/app.py").write_text("A = 2\n")
+    _git(repo, "add", "src/app.py")
+    _git(repo, "commit", "-qm", "behavior shipped, no tests, padded owned entry")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+def test_uppercase_extension_source_still_warns(tmp_path: Path) -> None:
+    # Review finding (live-reproduced): `src/APP.PY` was invisible to the case-sensitive
+    # source-suffix check — false silence via asymmetry with _is_test's lowercasing.
+    repo, _ = _repo(tmp_path)
+    (repo / "src/APP.PY").write_text("A = 2\n")
+    _git(repo, "add", "src/APP.PY")
+    _git(repo, "commit", "-qm", "uppercase-extension behavior, no tests")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "WARNING" in out and "ZERO test changes" in out, out
+
+
 def test_non_list_owned_paths_falls_back_to_whole_window(tmp_path: Path) -> None:
     # An int owned_paths must degrade toward WARNING (whole-window fallback), never toward
     # silence or a run-wide abort.

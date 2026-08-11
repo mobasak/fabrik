@@ -283,7 +283,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
   - Validates Kilo CLI installation and configuration
 
 **Note:** `check_docs.py` ("Documentation") is NOT part of this list — it exists on disk but was removed
-from the gate (`final_gate.py:926-928`: hardcoded to `src/fabrik/`, dead in every scaffolded project). Its
+from the gate (`final_gate.py`'s inline `check_docs.py` removal comment (line numbers deliberately not cited — they drift): hardcoded to `src/fabrik/`, dead in every scaffolded project). Its
 intent is covered by the Doc Sync Matrix (`check_doc_sync.py`, Tier 1+2) and `docs_updater.py --check` above.
 
 ### Phase 4: Sync Steps
@@ -425,7 +425,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_index_md.py` — was: verifies INDEX.md reflects current structure
 - `check_configuration_md.py` — was: ensures env vars documented in CONFIGURATION.md
 - `check_openapi_sync.py` — was: validates API docs match routes
-- `check_docs.py` — was: ensures required docs present (removed per inline comment `final_gate.py:926-928`: hardcoded to `src/fabrik/`, dead in every scaffolded project)
+- `check_docs.py` — was: ensures required docs present (removed per inline comment `final_gate.py`'s inline `check_docs.py` removal comment (line numbers deliberately not cited — they drift): hardcoded to `src/fabrik/`, dead in every scaffolded project)
 
 Do not delete these 5 files yourself — they are dead but undecided (kept for reference / possible future re-wiring).
 
@@ -772,7 +772,7 @@ API_KEY = os.getenv('API_KEY')
 
 #### check_docs.py
 
-**⚠️ NOT gate-wired** — removed from the gate per inline comment `final_gate.py:926-928` ("hardcoded to `src/fabrik/`, dead in every scaffolded project"); the file still exists on disk. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
+**⚠️ NOT gate-wired** — removed from the gate per inline comment `final_gate.py`'s inline `check_docs.py` removal comment (line numbers deliberately not cited — they drift) ("hardcoded to `src/fabrik/`, dead in every scaffolded project"); the file still exists on disk. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
 
 **Purpose (as written, dead):** Ensures all required documentation files are present.
 

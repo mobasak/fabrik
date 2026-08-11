@@ -49,9 +49,13 @@ non-ASCII/tab/quote filename INVISIBLE to the gate in both directions (a real
 `tests/test_café.py` drew a false WARN; a `src/wörker.py` behavior window passed in false
 silence) — window diffs now use NUL-record (`-z`) parsing, which git never quotes; and the
 flag-unset mutation test was made hermetic (a fake PATH mutmut), proven under system
-python where it previously exercised the wrong branch.
-Final test census by execution: 47 across the three suites — 30 added or rewritten during
-the closing sweeps, 22 of them watched RED on pre-fix code via revert.
+python where it previously exercised the wrong branch. A SIXTH sweep closed the
+hostile-`owned_paths` false-silence class AS A CLASS: entries are fully normalized
+(stripped) with empty/slash-only entries dropped — `[""]` and a padded `" src/ "` each
+matched nothing and silenced real zero-test windows — and `_is_source`'s suffix check is
+now case-insensitive like `_is_test`'s (`src/APP.PY` was invisible to "source touched").
+Final test census by execution: 50 across the three suites — 33 added or rewritten during
+the closing sweeps, 24 of them watched RED on pre-fix code via revert.
 
 ### Added — plan-window test-accompaniment gate + bounded weekly mutation run (2026-08-11)
 

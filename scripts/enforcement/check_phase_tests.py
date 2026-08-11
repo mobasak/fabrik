@@ -197,10 +197,12 @@ def _is_test(path: str) -> bool:
 
 def _is_source(path: str) -> bool:
     # The whole tests/ tree is excluded from "source" — test-adjacent files (conftest,
-    # fixtures, data) are neither accompaniment nor shipped behavior.
+    # fixtures, data) are neither accompaniment nor shipped behavior. Suffix check is
+    # case-insensitive like _is_test's (review finding: `src/APP.PY` was invisible to
+    # "source touched" — a false silence via the case asymmetry).
     if _is_test(path) or _in_tests_tree(path) or path.lower().endswith(_DOC_SUFFIXES):
         return False
-    return path.endswith((".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".sql"))
+    return path.lower().endswith((".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".sql"))
 
 
 def _check_lock(lock: dict) -> bool:
@@ -216,10 +218,12 @@ def _check_lock(lock: dict) -> bool:
         # Any other type (int, dict, …) falls back to the whole window — toward warning,
         # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
         raw_owned = []
-    # Empty / slash-only entries are dropped: `[""]` would match NOTHING and silence the
-    # whole window (review finding — false silence); an all-dropped list degrades to the
-    # whole-window fallback, toward warning.
-    owned = [str(o) for o in raw_owned if str(o).strip().strip("/")]
+    # Entries are fully NORMALIZED (stripped), and empty / slash-only entries drop: `[""]`
+    # matched nothing and silenced the whole window, and a padded `" src/ "` passed the
+    # truthy filter yet still matched nothing (review findings — the same hand-edit
+    # false-silence class, closed as a CLASS here, not variant-by-variant). An all-dropped
+    # list degrades to the whole-window fallback, toward warning.
+    owned = [str(o).strip() for o in raw_owned if str(o).strip().strip("/")]
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)
     if owned:  # a lock without owned_paths falls back to the whole window
