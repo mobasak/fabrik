@@ -25,8 +25,8 @@ wall); addresses are HARD (every role reachable by mail).
 
 | Role | Mandate | Default beat (single-writer surfaces) |
 |---|---|---|
-| **infra** | Development infrastructure + workstation | `commands/_sources` + skills, rule packs, `scripts/enforcement`, `.claude/hooks`, `~/.claude/bin` mesh, WSL/workstation docs, DR, session-recall |
-| **fleet** | VPS + deployment + inter-repo comms | `specs/services/*.yaml`, `fabrik apply`/redeploy, monitoring/Authelia/Gatus, `mail.py` + `/opt/fabrik-mail`, catalog |
+| **infra** | Development infrastructure + workstation + agent comms | `commands/_sources` + skills, rule packs, `scripts/enforcement`, `.claude/hooks`, `~/.claude/bin` mesh, WSL/workstation docs, DR, session-recall, **fabrik-mail** (`mail.py` + `mail_notify.py` + `/opt/fabrik-mail` — its surfaces are synced-manifest/hooks machinery and a box-local store, all infra-beat; fleet authored it, infra maintains it) |
+| **fleet** | VPS + deployment | `specs/services/*.yaml`, `fabrik apply`/redeploy, monitoring/Authelia/Gatus, catalog |
 | **review** | Standing author-blind reviewer + floater | No fixed surfaces. Runs non-author closing reviews for infra/fleet executions (invoked by mail); absorbs urgent unowned work |
 
 Rules:
@@ -46,7 +46,8 @@ Lean/Six-Sigma loop, DMAIC without ceremony. The review role audits the loop's o
 - **Measure (weekly pass, timeboxed ≤90 min):** mine the role's signal set.
   - infra signals: sound-debug.log Stop/death verdicts, gate failure history, AFCL.md,
     LESSONS_LEARNT recurrence, hook/MCP/tooling friction, governance drift, cron-miss log,
-    fabrik-mail findings tagged infra.
+    fabrik-mail findings tagged infra, mail-system health (store integrity, hook delivery,
+    unclaimed-message age).
   - fleet signals: deploy failures, `fabrik apply` skips, monitoring gaps (Gatus/Prometheus),
     VPS drift, DR run results, fabrik-mail findings from all repos.
 - **Analyze:** rank by recurrence × blast radius, with evidence (path:line / log excerpts).
@@ -65,10 +66,14 @@ Lean/Six-Sigma loop, DMAIC without ceremony. The review role audits the loop's o
    Unset → today's anonymous behavior; zero breakage.
 2. **Charters:** `docs/agents/<role>.md` (~40 lines: mandate, beat, kaizen section, escalation,
    the mail-is-data rule). CLAUDE.md is never forked.
-3. **Addresses:** `mail.py` gains `claim <id>` (rename-only lock; ack stays append-only) and
-   intra-repo sub-addressing `fabrik/<role>` — implements the fabrik-lib finding
-   01KZTGCCZHDPF2VY3GGPJ4KJYY; file-locked claiming mirrors Agent Teams' task-claim design.
-   Owner: fleet (mail.py is their beat). Handoff goes by mail.
+3. **Addresses — two layers, per the operator's recorded Layer-2 decision (now unblocked at
+   CC 2.1.228 ≥ 2.1.224):** intra-repo role-to-role = NATIVE cross-session messaging (live
+   sessions message each other directly; no fabrik-mail sub-addressing — building
+   `fabrik/<role>` would duplicate the native layer and is explicitly ruled out). fabrik-mail
+   stays repo-to-repo (durable, survives session restarts) — the shared claim-once inbox IS
+   the intra-repo queue. `mail.py` gains only `claim <id>` (rename-only lock; ack stays
+   append-only) — implements the fabrik-lib finding 01KZTGCCZHDPF2VY3GGPJ4KJYY; file-locked
+   claiming mirrors Agent Teams' task-claim design. Owner: infra (mail is infra's beat).
 4. **Provenance:** `Agent-Role:` trailer carries the role name (free-form field, no tooling
    change); history queryable per agent.
 5. **Optional later:** native cross-session messaging as a same-box ping channel; fabrik-mail
@@ -88,7 +93,8 @@ Lean/Six-Sigma loop, DMAIC without ceremony. The review role audits the loop's o
 
 1. This spec → operator review.
 2. Charters + kaizen-log stubs + SessionStart role hook (infra builds; ~1 phase plan).
-3. Mail `claim` + sub-addressing → mailed to fleet as a request citing the fabrik-lib finding.
+3. Mail `claim` verb → infra implements directly (mail is infra's beat), citing the fabrik-lib
+   finding; mail-system health joins infra's kaizen signal set.
 4. Operator relaunches windows with `CLAUDE_AGENT` set; trailers start carrying role names.
 5. First weekly kaizen pass each for infra and fleet; review audits both outputs.
 
