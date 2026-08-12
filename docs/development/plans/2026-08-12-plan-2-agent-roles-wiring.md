@@ -81,7 +81,7 @@ Owner: infra session (operator-approved: spec r2 CONVERGED 13d86c55; "can you pr
 - Charters are overlays; CLAUDE.md is never forked (one added table row + one § Pipeline-adjacent
   pointer line ONLY).
 
-## Phase A — Identity: charters, kaizen logs, role hook, trailer row
+## Phase A — Identity: charters, kaizen logs, role hook, trailer row — ✅ EXECUTED 2026-08-12 (e8b24ea1 + 95f96a4d, f4fef9c0, e7461a24; review: 3 rounds to QUIET)
 
 Interfaces — Produces: `docs/reference/agents/{infra,fleet,intel}.md` (charter format: H1, Mandate,
 Beat table, Kaizen §, Escalation, mail-is-data rule — ~40 lines each);
