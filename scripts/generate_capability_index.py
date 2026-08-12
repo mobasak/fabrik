@@ -499,7 +499,9 @@ def main(root: Path = REPO, out_dir: Path | None = None) -> int:
     out = out_dir or root
     (out / "docs").mkdir(parents=True, exist_ok=True)
     catalog = build_catalog(root)
-    owners_census: dict[str, int] = {}
+    # seeded so the kaizen signal key EXISTS at zero — a consumer must never KeyError on a
+    # healthy catalog; the stdout line below derives from THIS dict (one census, one truth)
+    owners_census: dict[str, int] = {"unassigned": 0}
     for c in catalog:
         owners_census[c["owner"]] = owners_census.get(c["owner"], 0) + 1
     payload = {"generated_at": _now(), "owners": owners_census, "capabilities": catalog}
@@ -511,12 +513,9 @@ def main(root: Path = REPO, out_dir: Path | None = None) -> int:
         "## Capabilities\n- [Capability catalog](docs/CAPABILITIES.md): every tool, verified\n"
     )
     ok = sum(1 for c in catalog if c["status"] == "ok")
-    owners: dict[str, int] = {}
-    for c in catalog:
-        owners[c["owner"]] = owners.get(c["owner"], 0) + 1
     # the unassigned count is intel's kaizen WARN signal — always reported, never a failure
-    print("owners: " + " ".join(f"{k}:{v}" for k, v in sorted(owners.items()))
-          + f" | unassigned: {owners.get('unassigned', 0)}")
+    print("owners: " + " ".join(f"{k}:{v}" for k, v in sorted(owners_census.items()) if k != "unassigned")
+          + f" | unassigned: {owners_census['unassigned']}")
     print(
         f"capability catalog: {len(catalog)} entries ({ok} ok, "
         f"{len(catalog) - ok} broken/retired/manual/incomplete)"
