@@ -299,11 +299,16 @@ def _append_ack_line(dst: Path, repo: str, disposition: str) -> None:
 
 
 def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
-    """Claim + resolve: rename inbox→archive (ENOENT loser stops), then append the ack line.
+    """Claim + resolve — EVERY resolve goes through a per-process rename-locked window.
 
-    On a message already ``claim``-ed (archived, NO ack line yet) the disposition is
-    appended in place; a message already RESOLVED (ack line present) still raises —
-    the double-ack race semantics are unchanged.
+    Unified after three closer rounds (C1/E1/E2): the direct append-at-path branch let a
+    requeue-then-re-claim interleave land a disposition on another agent's fresh claim, and
+    a shared window name + message-mtime age gate let a second acker steal a live window
+    (renames preserve mtime). Now: optional inbox→archive claim rename, then
+    archive/<id>.md → archive/<id>.md.resolving.<pid> (unique — no other process ever
+    targets it), ``utime`` stamps the WINDOW's open time, append, rename back. A concurrent
+    ack/claim/requeue during the window gets ENOENT (no archive/<id>.md exists). A message
+    already RESOLVED (ack line present) raises — the double-ack loser semantics hold.
     """
     _safe_id(msg_id)
     _safe_name(repo, "repo")
@@ -316,42 +321,31 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     dst = base / "archive" / f"{msg_id}.md"
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
-        os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
-        claimed_now = True
+        os.rename(src, dst)  # claim if still in inbox — the race lock (loser: ENOENT later)
     except FileNotFoundError:
-        claimed_now = False
-    if claimed_now:
-        # the append stays OUTSIDE the try (closer D2): its deliberately-loud
-        # FileNotFoundError (a requeue won the race) must propagate — swallowing it here
-        # could silently resolve ANOTHER agent's fresh re-claim via the fallback below
-        _append_ack_line(dst, repo, disposition)
-        return dst
-    # claimed-but-unresolved → resolve in place, RENAME-LOCKED like everything else here
-    # (closer C1: an exists+read check was a TOCTOU — two acks landed contradictory
-    # dispositions). The resolver renames archive/<id>.md → .resolving (one winner; the
-    # loser's ENOENT stops it — and a concurrent requeue mid-resolve ENOENTs too, loudly),
-    # appends, renames back. Already-RESOLVED (ack line present) → put it back untouched
-    # and stop, preserving the double-ack loser semantics. COOPERATIVE SEMANTICS
-    # (fabrik-mail.md): ack-ing a claimed id asserts the WORK IS DONE — never ack another
-    # agent's claim unless you are finishing it.
-    resolving = dst.with_suffix(".md.resolving")
-    # stale-orphan sweep (closer D1), AGE-GATED (own re-entrant pin caught the naive form
-    # defeating the C1 lock — a LIVE resolve window is milliseconds, a dead resolver's
-    # residue is forever): only a .resolving older than 60s with NO <id>.md is swept back.
-    # The file is complete (the append is the only mid-write instant), so the rename is safe.
+        pass
+    # stale-window sweep (closer D1, re-grounded per E1): windows are stamped with their
+    # OPEN time via utime below, so mtime here IS the window's age (a crash between rename
+    # and utime leaves the older message mtime → sweeps EARLIER, which is the safe
+    # direction: the file is complete, the append is the only mid-write instant). Only
+    # FileNotFoundError is tolerated (closer E3) — a real EACCES/ENOSPC must surface.
+    if not dst.exists():
+        for orphan in sorted(dst.parent.glob(f"{msg_id}.md.resolving.*")):
+            try:
+                if time.time() - orphan.stat().st_mtime > 60:
+                    os.rename(orphan, dst)
+                    break
+            except FileNotFoundError:
+                continue  # the live resolver finished mid-check — fine
+    win = dst.parent / f"{msg_id}.md.resolving.{os.getpid()}"
+    os.rename(dst, win)  # FileNotFoundError → unclaimed/absent/mid-window: the caller's error
+    os.utime(win)  # stamp the WINDOW's open time (E1: renames preserve the message's mtime)
     try:
-        if (not dst.exists() and resolving.exists()
-                and time.time() - resolving.stat().st_mtime > 60):
-            os.rename(resolving, dst)
-    except OSError:
-        pass  # the live resolver finished/renamed mid-check — proceed to the normal path
-    os.rename(dst, resolving)  # FileNotFoundError → not claimed either: the caller's error
-    try:
-        if _ACK_LINE.search(resolving.read_text(encoding="utf-8")):
+        if _ACK_LINE.search(win.read_text(encoding="utf-8")):
             raise FileNotFoundError(f"{msg_id} already resolved")
-        _append_ack_line(resolving, repo, disposition)
+        _append_ack_line(win, repo, disposition)
     finally:
-        os.rename(resolving, dst)
+        os.rename(win, dst)
     return dst
 
 
@@ -436,7 +430,7 @@ def digest(days: int = 3) -> dict:
                 if fm.get("ack") == "required" and _age_seconds(fm.get("ts", "")) >= threshold:
                     unacked += 1  # required, still unclaimed in inbox
         if archive.is_dir():
-            for f in sorted(archive.glob("*.md.resolving")):
+            for f in sorted(archive.glob("*.md.resolving*")):
                 # a stranded resolve window (closer D1) — the message is invisible to every
                 # verb until swept; surface it, never report a clean mailbox over it
                 unacked += 1

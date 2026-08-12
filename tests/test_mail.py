@@ -458,8 +458,11 @@ def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
     passed the exists+read check and appended CONTRADICTORY dispositions. Deterministic
     re-entrant pin: a second ack arriving INSIDE the first's append window must fail
     loudly — exactly one acked-by line survives."""
+    import os as _os, time as _time
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
+    _os.utime(p, (_time.time() - 300, _time.time() - 300))  # OLD message (closer E1: renames
+    # preserve mtime — the gate must measure the WINDOW's age, never the message's)
     mail.claim(msg_id=mid, repo="fabrik")
     real_append = mail._append_ack_line
     inner_raised = {}
@@ -486,7 +489,7 @@ def test_stale_resolving_orphan_is_swept_and_resolvable(env):
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
-    orphan = arch.with_suffix(".md.resolving")
+    orphan = arch.parent / f"{mid}.md.resolving.99999"
     arch.rename(orphan)  # the dead resolver's residue
     import os as _os, time as _time
     _os.utime(orphan, (_time.time() - 120, _time.time() - 120))  # older than the 60s gate
@@ -502,32 +505,36 @@ def test_digest_counts_stale_resolving_as_unacked(env):
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
-    arch.rename(arch.with_suffix(".md.resolving"))
+    arch.rename(arch.parent / f"{mid}.md.resolving.99999")
     d = mail.digest(days=1)
     assert d["unacked"] >= 1, d
 
 
-def test_append_race_never_resolves_anothers_fresh_claim(env, monkeypatch):
-    """Closer D2: requeue wins between ack's rename and append, then ANOTHER agent
-    re-claims — the original acker must FAIL LOUDLY, never silently resolve the fresh
-    claim (cooperative-semantics rule)."""
+def test_window_isolation_requeue_and_reclaim_both_locked_out(env, monkeypatch):
+    """Closer E2 (the fake-raise version proved nothing): with the unified per-process
+    resolve window, a REAL append runs while requeue AND a fresh re-claim both attempt to
+    interleave — both must ENOENT, the resolve lands exactly once on the original."""
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
-    arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
-    inbox = mail._mail_root() / "fabrik" / "inbox" / f"{mid}.md"
+    mail.claim(msg_id=mid, repo="fabrik")
     real_append = mail._append_ack_line
-    state = {}
+    probes = {}
 
-    def sabotage_then_reclaim(dst, repo, disposition):
-        if not state:
-            state["fired"] = True
-            arch.rename(inbox)   # the requeue wins the race…
-            inbox.rename(arch)   # …and a DIFFERENT agent immediately re-claims
-            raise FileNotFoundError("append lost the race")
+    def probing_append(dst, repo, disposition):
+        if not probes:
+            probes["requeue"] = probes["reclaim"] = "not-raised"
+            try:
+                mail.requeue(msg_id=mid, repo="fabrik")
+            except FileNotFoundError:
+                probes["requeue"] = "locked-out"
+            try:
+                mail.claim(msg_id=mid, repo="fabrik")
+            except FileNotFoundError:
+                probes["reclaim"] = "locked-out"
         return real_append(dst, repo, disposition)
 
-    monkeypatch.setattr(mail, "_append_ack_line", sabotage_then_reclaim)
-    with pytest.raises(FileNotFoundError):
-        mail.ack(msg_id=mid, repo="fabrik", disposition="done")
-    assert state.get("fired")
-    assert "acked-by:" not in arch.read_text()  # the fresh claim was NOT silently resolved
+    monkeypatch.setattr(mail, "_append_ack_line", probing_append)
+    out = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert probes == {"requeue": "locked-out", "reclaim": "locked-out"}, probes
+    text = out.read_text()
+    assert text.count("acked-by:") == 1 and "disposition: done" in text
