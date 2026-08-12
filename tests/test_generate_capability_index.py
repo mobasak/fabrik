@@ -113,7 +113,6 @@ def test_json_schema_9_keys(tmp_path) -> None:
     assert set(payload) == {"generated_at", "owners", "capabilities"}
     # the kaizen signal key must EXIST at zero — a consumer reading ["owners"]["unassigned"]
     # must never KeyError on a healthy catalog (closer round 3)
-    assert payload["owners"].get("unassigned") == 0 or payload["owners"]["unassigned"] > 0
     assert "unassigned" in payload["owners"]
     assert payload["capabilities"]
     keys = {"name", "kind", "summary", "invoke", "status", "owner", "defects", "doc_link",

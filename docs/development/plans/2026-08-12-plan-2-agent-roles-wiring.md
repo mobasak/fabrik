@@ -119,7 +119,7 @@ body inside a delimiter, exit 0 always); `.claude/settings.json` SessionStart en
    copy carries the hook and behaves as no-op (probe: `CLAUDE_AGENT= python3
    /opt/tryton-crm/.claude/hooks/agent_role.py` → empty, exit 0).
 
-## Phase B — Catalog ownership: the `owner:` field
+## Phase B — Catalog ownership: the `owner:` field — ✅ EXECUTED 2026-08-12 (c56bc175 + 495039f6, bc90dc1c, 5acb1850; review: pool + 4 native rounds to QUIET; census infra 290 · intel 105 · fleet 105 · external 66 · unassigned 0)
 
 Interfaces — Consumes: Phase A charters (the mapping mirrors their beat tables). Produces:
 `owner` key in every `capabilities.json` entry + an Owner column in `docs/CAPABILITIES.md`;
