@@ -1,29 +1,32 @@
 # AFTER-EDIT: tests/test_golden_parity.py, docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md
 """Phase A.1 — freeze the consumer contract as an executable regression oracle.
 
-This is the objective definition of "no functionality lost" for the catalog extraction: a
-snapshot of every artifact a live consumer reads, plus the exact DB queries the hub consumers
-issue, captured BEFORE anything moves. Phase B/C diff produced output against it.
+⛔⛔ DO NOT TRUST THIS ORACLE YET — BLOCKED 2026-08-12, awaiting an operator ruling. ⛔⛔
 
-Three artifact classes, and the split is load-bearing (get it wrong and B.3 parity
-false-flags on every run):
+Two independent review rounds established that the PLAN'S MECHANISM, not this code, is wrong:
 
-1. **Whole-file goldens** — files a generator writes end to end: the 6
-   ``docs/reference/kilo/*_SELECTION.md`` docs, the Traycer registry JSONs, and
-   ``KILO_MODEL_CAPABILITIES.md`` **with its injected ``EMBEDDING_CATALOG`` block STRIPPED**
-   (``generate_model_capabilities.py`` writes the base; ``embedding_export_markdown`` injects
-   into the live file afterwards, so the base is what the decoupled engine will emit).
-2. **Marker-body goldens** — only the text BETWEEN a marker pair, because the host file is
-   not engine-owned (hand-authored prose surrounds it). Hosts are NOT confined to
-   ``.windsurf/rules/ai/``.
-3. **DB queries** — the SQL live hub consumers run, so the contract covers the query shape,
-   not just its rendered output.
+  The plan (A.2 "assert sha256 == golden"; B.3 gate "byte-identical") assumes these artifacts
+  are stable between runs. They are NOT. They are LIVE AGGREGATES over a flywheel that gains
+  rows daily. Measured across two consecutive daily auto-commits (8b1f077c -> 400ca5bb), AFTER
+  normalisation, three artifacts still differ — and the diffs are real content:
+      ### research (n_total=274)  ->  (n_total=296)
+      glm-4.5-air  2.55 / $0.0017 / 67 runs  ->  2.57 / $0.0019 / 75 runs
+  A time-frozen byte-golden is therefore stale within 24 hours, permanently.
 
-⚠️ Volatile fields are normalised before hashing. These artifacts are rewritten by cron EVERY
-DAY and carry a date inside the frozen region (``Last refresh:`` in the selection docs,
-``last-refreshed:`` in every marker opener). Without normalisation the first verify after
-midnight reports drift on ~9 docs and 11 marker blocks for reasons that have nothing to do
-with the extraction.
+  Worse, patching it by normalising harder is self-defeating: to survive the churn you must
+  blank exactly the content the oracle exists to protect. The current _ISO_DT already does
+  this — it collapses openai/gpt-4o-2024-05-13, -2024-08-06 and -2024-11-20 into a single
+  string, so a genuine catalog regression between those models would pass green.
+
+  Also blocking regardless of the above: 4 of the 31 frozen keys are GITIGNORED
+  (kilo_47_agents_final.json, kilo_embeddings_final.json, kilo_openrouter_routes_final.json,
+  models_browser.html), so verify() returns 1 on any fresh clone, CI run, or worktree.
+
+The plan already contains the correct mechanism for a churning corpus — Phase C's SAME-MOMENT
+parallel-run diff (old engine vs new engine, same DB, same instant). Phase A's frozen-in-time
+byte-golden is the wrong shape for this data. Resolution is the operator's call; see the
+BLOCKED report. Until then this module is NOT a trustworthy gate.
+
 """
 
 from __future__ import annotations
