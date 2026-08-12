@@ -131,7 +131,6 @@
 - [scripts/enforcement/check_env_updates.py](INDEX.md): Enforce .env file population when secrets are mentioned.
 - [scripts/enforcement/check_hooks_index.py](INDEX.md): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
 - [scripts/enforcement/check_index_md.py](INDEX.md): Enforce INDEX.md existence and updates.
-- [scripts/enforcement/check_mutation.py](INDEX.md): AFTER-EDIT: docs/CONFIGURATION.md
 - [scripts/enforcement/check_no_host_ports.py](INDEX.md): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
 - [scripts/enforcement/check_opencode_json.py](INDEX.md): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
 - [scripts/enforcement/check_plans.py](INDEX.md): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
@@ -168,6 +167,7 @@
 - [scripts/kilo_docs_enforcer.py](INDEX.md): noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)
 - [scripts/kilo_terminal_runner.py](INDEX.md): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
 - [scripts/lint_fix_agent.py](INDEX.md): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
+- [scripts/mail.py](INDEX.md): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md
 - [scripts/migrate_db_rename.py](INDEX.md): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](INDEX.md): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](INDEX.md): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.

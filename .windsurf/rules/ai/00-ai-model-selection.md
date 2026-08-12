@@ -116,8 +116,8 @@ When the ranker (`suggest_model.py`) sees a locked-out row Pareto-beating the ac
 
 Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) are **peer gateways**. Either is valid — pick by per-model price (the bake-off browser shows the cheaper rate per row). DashScope, SiliconFlow, and ModelScope are direct-API gateways for specialist routes (e.g. `qwen-mt-turbo`, Hunyuan, Zhipu GLM direct).
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-11 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-11 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-12 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
 
 | Gateway | Active routable models | Notes |
 |---|---|---|

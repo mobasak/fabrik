@@ -1,6 +1,6 @@
 # Coding subagent selection
 
-**Generated:** 2026-08-11 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
+**Generated:** 2026-08-12 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
 
 Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
 
@@ -35,7 +35,7 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 15 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **A†** | 80% | 0.224 |
 | 16 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **A+†** | 92% | 0.224 |
 | 17 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.250 | 0.950 | — | — | — | 1430 | 163k | **C+** | — | 0.210 |
-| 18 | `deepseek/deepseek-chat-v3-0324` | ✅ | SiliconFlow | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | — | 0.182 |
+| 18 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | — | 0.182 |
 | 19 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | — | 0.172 |
 | 20 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 8k | **A†** | 83% | 0.163 |
 | 21 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.257 | 1.029 | — | — | — | 1337 | 163k | **C** | — | 0.160 |
@@ -57,8 +57,8 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 | 6 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 100% | 0.450 |
 | 7 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | — | 0.450 |
 | 8 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 98% | 0.443 |
-| 9 | `z-ai/glm-5.1` | ✅ | StreamLake | ✅ | — | 74 | 1.400 | 4.400 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.385 |
-| 10 | `z-ai/glm-5.2` | ✅ | INVALID_ID_5479 | ✅ | — | 147 | 0.760 | 2.420 | — | — | 44 | — | 1048k | **A+†** | 96% | 0.316 |
+| 9 | `z-ai/glm-5.1` | ✅ | GMICloud | ✅ | — | 74 | 1.400 | 4.400 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.385 |
+| 10 | `z-ai/glm-5.2` | ✅ | Decart | ✅ | — | 147 | 0.760 | 2.420 | — | — | 44 | — | 1048k | **A+†** | 96% | 0.316 |
 | 11 | `moonshotai/kimi-k2.7-code` | ✅ | DeepInfra | ✅ | — | 48 | 0.700 | 3.500 | — | — | 43 | — | 262k | **A+†** | 98% | 0.281 |
 | 12 | `moonshotai/kimi-k2.6` | ✅ | Chutes | ✅ | — | 40 | 0.950 | 4.000 | — | — | 44 | — | 262k | **A+†** | 98% | 0.275 |
 | 13 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 204k | **B** | — | 0.245 |
