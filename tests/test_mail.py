@@ -351,3 +351,15 @@ def test_ack_line_regex_matches_every_disposition(env):
         mid = p.name.removesuffix(".md")
         arch = mail.ack(msg_id=mid, repo="fabrik", disposition=disp)
         assert mail._ACK_LINE.search(arch.read_text()), disp
+
+
+def test_requeue_strips_stale_ack_line(env):
+    # fabrik-lib production finding: claim-via-ack asserts a disposition, and requeue must NOT
+    # carry that stale `acked-by: … done` marker back into the next reader's inbox.
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.ack(msg_id=mid, repo="fabrik", disposition="done")  # claim + (prematurely) assert done
+    back = mail.requeue(msg_id=mid, repo="fabrik")
+    assert back.parent.name == "inbox"
+    assert "acked-by:" not in back.read_text()  # stale claim marker stripped — a clean re-open
+    assert "do X" in back.read_text()            # body survives the strip

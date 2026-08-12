@@ -278,7 +278,12 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
 
 
 def requeue(msg_id: str, repo: str) -> Path:
-    """Move a claimed-but-unresolved message back to inbox for a live agent to re-process."""
+    """Move a claimed-but-unresolved message back to inbox for a live agent to re-process.
+
+    Strips any trailing ack/claim marker (`acked-by: … disposition: …`) so the re-opened
+    message never carries a STALE disposition into the next reader's inbox — the claim-before-
+    work pattern acks up front (the rename is the lock), and a requeue re-opens it cleanly.
+    """
     _safe_id(msg_id)
     _safe_name(repo, "repo")
     base = _mail_root() / repo
@@ -286,6 +291,10 @@ def requeue(msg_id: str, repo: str) -> Path:
     dst = base / "inbox" / f"{msg_id}.md"
     dst.parent.mkdir(parents=True, exist_ok=True)
     os.rename(src, dst)
+    text = dst.read_text(encoding="utf-8")
+    cleaned = _ACK_LINE.sub("", text).rstrip() + "\n"
+    if cleaned != text:
+        dst.write_text(cleaned, encoding="utf-8")
     return dst
 
 

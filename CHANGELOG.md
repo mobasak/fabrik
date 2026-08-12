@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — fabrik-mail: project-facing usage docs + multi-agent hardening (2026-08-12)
+
+Project AIs can now discover how to use fabrik-mail: a "you can message the hub, fabrik-lib, and sibling
+repos" section added to the fleet-distributed `templates/governance/CLAUDE.md` (send/read/ack/reply, star
+topology, reach `fabrik`/`fabrik-lib`). The hub `CLAUDE.md` now states the tree runs **3 concurrent Claude
+sessions** sharing one `fabrik` inbox (claim-before-work, coordinate via tree not intra-repo mail).
+Responding to a fabrik-lib production finding (its 3-agent node): `mail.py requeue` now **strips the stale
+`acked-by:` claim marker** so a re-opened message never carries a false `disposition: done`; the conventions
+doc gains a Concurrency section ruling that intra-repo agent-to-agent messaging is not a mail use case (the
+`<repo>` inbox is the shared queue). Item 6 is complete — fabrik-lib self-provisioned (commit e714514) and
+is a live mail node.
+
 ### Changed — mid-stream death detection extended to the CLI's whole error family (2026-08-12)
 
 `~/.claude/bin/claude-stop-decider.py` `_API_ERROR_STALL_PATTERNS` grew from the single
