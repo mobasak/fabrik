@@ -772,6 +772,9 @@ def main() -> int:
         "fabrik-lib",  # Reference implementation store (vendor, don't depend)
         "fabrik-libs",  # Legacy name, kept for safety
         "mt-router",  # Standalone copy at /opt/mt-router (reference already in fabrik-lib)
+        "fabrik-mail",  # fabrik-mail DATA store (<repo>/{inbox,archive} mailboxes) — NOT a project;
+        # syncing governance into it pollutes the mailbox root (the `is_dir()` discovery would
+        # otherwise adopt it). It is the operator-sanctioned neutral mail path, code lives in the hub.
     }
 
     # Discover projects

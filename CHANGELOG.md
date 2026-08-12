@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik-mail root excluded from governance-sync (2026-08-12)
+
+`/opt/fabrik-mail` (the mail DATA store) was being adopted as a "project" by
+`sync_enforcement_to_projects.py`'s `is_dir()` discovery and filled with the governance corpus
+(CLAUDE.md, AGENTS*, `.claude/`, `.windsurf/`, `scripts/`, `libs/`, `docs/`). Added `fabrik-mail`
+to the sync `exclude_folders` set (alongside `fabrik-lib`/`archived`) so the mailbox root is never
+a sync target, and cleaned the mis-synced files (preserving the live `fabrik-lib` inbox message).
+The spec intended the neutral path to be sync-immune; the exclusion makes it so.
+
 ### Added — fabrik-mail: durable hub↔project AI mail channel (2026-08-11)
 
 A neutral-path file mailbox (`/opt/fabrik-mail/<repo>/{inbox,archive}`) + `scripts/mail.py`
