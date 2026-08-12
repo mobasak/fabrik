@@ -104,6 +104,24 @@ unexecuted on 2026-08-12 — see § Plan reconciliation at the foot of this file
 2. Record the exact DB queries the live hub consumers run (from spec §2 grounding): `rank_task_subagents.py:335` (`SELECT id,quality_tier FROM agents…`), the coding-fallback read, `update_gateway_counts.py` counts. Store as `tests/golden/db_queries.json`.
 3. Gate: `python scripts/kilo-benchmarks/tests/capture_golden.py && python -c "import json,pathlib; m=json.load(open('scripts/kilo-benchmarks/tests/golden/manifest.json')); print(len(m),'artifacts snapshotted'); assert len(m)>=12; assert sum(1 for k in m if 'blocks/' in k)>=6, 'marker-block bodies missing'; assert any('KILO_MODEL_CAPABILITIES' in k for k in m)"` → **Expected:** ≥12 artifacts **including ≥6 `blocks/` marker bodies** (OPENROUTER_ROUTES + GATEWAY_COUNTS per pack, EMBEDDING_ROSTER/CATALOG/WINNERS, ROSTER) and the capabilities base — a bare count would pass while every marker block was silently missing.
 
+> ⚠️ **MECHANISM CHANGED 2026-08-12 (operator-directed, after two review rounds) — byte-identity
+> is replaced by STRUCTURAL equivalence here; byte-equality moves to Phase C where it belongs.**
+> A.2's original `sha256 == golden` and B.3's "byte-identical" gate both assume these artifacts
+> are stable between runs. They are not: they are live aggregates over a flywheel that gains rows
+> daily. Measured across two consecutive daily auto-commits (`8b1f077c` → `400ca5bb`), after
+> date-normalisation, three artifacts still differed on real content — `n_total 274→296`,
+> `glm-4.5-air 2.55/$0.0017/67 → 2.57/$0.0019/75`. A frozen-in-time byte-golden is therefore
+> permanently stale within 24 h, and normalising hard enough to survive the churn blanks the very
+> content the oracle protects (one attempt collapsed `gpt-4o-2024-05-13`, `-08-06` and `-11-20`
+> into one string). **The oracle now freezes inventory + shape** (artifact presence, marker
+> presence, markdown skeleton + table COLUMN contracts, JSON key schema) — stable across
+> regeneration, and still red on the failures that matter: an artifact no longer produced, a
+> marker no longer injected, a lost table column, a lost JSON field. Verified: 0 structural drift
+> across the same regeneration that produced 3 byte-drifts. **Byte-equality is still required and
+> still gated — in Phase C's same-moment parallel-run diff (old engine vs new engine, same DB,
+> same instant), which is the only comparison that is meaningful for churning data.** B.3's
+> "byte-identical" wording is superseded accordingly.
+
 **A.2 — Prove the harness reproduces live output (red-then-green on a no-op).**
 1. Write `test_golden_parity.py::test_selection_docs_match_current` — re-read the live docs, assert `sha256 == golden`. On a clean tree it is GREEN by construction (the golden IS the live output). Then **mutate one golden byte and assert the test goes RED** (proves the diff actually bites) → revert.
 2. Gate: `python -m pytest scripts/kilo-benchmarks/tests/test_golden_parity.py -v` → **Expected:** pass; the deliberate-mutation sub-case proves red-on-diff.

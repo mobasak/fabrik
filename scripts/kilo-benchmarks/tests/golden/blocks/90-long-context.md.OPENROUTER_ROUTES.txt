@@ -1,9 +1,0 @@
-
-*Auto-generated <DATE> (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
-
-| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
-|---|---|---|---|---|
-| P1 | `x-ai/grok-4.20` | $1.25 | 2000k | GA |
-| P2 | `openrouter/auto` | free | 2000k | free |
-
-To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
