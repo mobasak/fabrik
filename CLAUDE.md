@@ -148,6 +148,25 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 ```
 Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
+## UNIVERSAL governance markers (the drift contract)
+
+These rules are **universal** — they bind every repo on the box (hub · the ~46 synced projects · sync-excluded
+repos like `fabrik-lib`), whatever each repo's local governance customizes. Each has a **load-bearing anchor
+phrase that must survive rewording**: a sync-excluded repo's `scripts/enforcement/check_governance_drift.py`
+reads THIS hub file (`/opt/fabrik/CLAUDE.md`) and flags (advisory, never a hard fail) any anchor present here
+but missing from its own `CLAUDE.md` — turning silent governance drift into a gate warning BEFORE it poisons a
+shared tree (the fabrik-lib stale commit-push incident, 2026-08-12).
+
+- `commit-at-task-end` — anchor **COMMIT your own work NOW** — stage-and-stop poisons a shared-master tree with dirty WIP
+- `push-at-task-end` — anchor **PUSH it** — an unpushed task is off-box-unprotected
+- `explicit-pathspecs` — anchor **explicit pathspecs only** — never bundle a sibling's files into your commit
+- `provenance-trailers` — anchor **Agent Provenance Trailers** — git cannot otherwise attribute a commit to an agent
+- `no-force-push` — anchor **NEVER `--force`** — a force-push on a shared branch destroys sibling commits
+
+**Adding a universal rule:** write it in § EXIT / § HARD STOPS with its anchor, add a bullet here, and add the
+anchor to each sync-excluded repo's `check_governance_drift.py`. **Never reword an anchor in place** — detectors
+key on the exact substring; reword the surrounding prose freely, keep the anchor verbatim.
+
 ## Past sessions are searchable (session-recall)
 
 Full Claude Code history on this box is indexed locally. MCP tools: **`search_chats`** (keyword+substring,

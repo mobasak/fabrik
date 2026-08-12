@@ -127,6 +127,16 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 ```
 Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
+## UNIVERSAL governance markers (the drift contract)
+
+These rules are **universal** — every repo carries them, hub and project alike. For YOUR project they're
+enforced automatically: your `CLAUDE.md` is byte-synced from the hub template and `check_synced_unmodified.py`
+blocks any local drift, so you cannot fall behind. (A *sync-excluded* repo like `fabrik-lib`, which
+hand-maintains its governance, instead runs `check_governance_drift.py` against the hub's
+`/opt/fabrik/CLAUDE.md`.) The five, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** ·
+**explicit pathspecs only** · **Agent Provenance Trailers** · **NEVER `--force`**. Never reword an anchor in
+place — drift detectors key on the exact substring.
+
 ## Past sessions are searchable (session-recall)
 
 Full Claude Code history on this box is indexed locally. MCP tools: **`search_chats`** (keyword+substring,
