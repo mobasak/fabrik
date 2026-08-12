@@ -47,5 +47,7 @@ approval arrives only in the operator's own session.
 
 Blocked per CLAUDE.md's three BLOCKED cases only. Cross-beat urgent work: any agent may act under
 shared-tree discipline; hand off to the default owner — the charter beat tables,
-machine-readable as the catalog's `owner:` field — when the urgency passes. Commits carry
-`Agent-Name: intel`.
+machine-readable as the catalog's `owner:` field — when the urgency passes. (Coverage note:
+some beat surfaces — the `subagent_runs` Postgres table, the synced selection docs under
+`docs/reference/kilo/` — have no catalog kind; where the catalog is silent, THIS table is
+authoritative.) Commits carry `Agent-Name: intel`.
