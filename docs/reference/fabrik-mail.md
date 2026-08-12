@@ -49,10 +49,15 @@ ack: required|no
   Crockford alphabet `0123456789ABCDEFGHJKMNPQRSTVWXYZ` (ASCII-ascending → lexical order == value
   order). NOT `base64.b32encode` (its RFC-4648 `A–Z2–7` is not order-preserving). Ordering is
   best-effort under a monotonic clock; it is not a correctness invariant (claim/ack use `rename`).
-- **Claim/ack = atomic-by-rename.** `mail.py ack <id>` renames `inbox → archive` (the POSIX-atomic
-  rename IS the lock — the race loser gets `ENOENT` and stops), then appends a fixed ack line:
-  `acked-by: <repo> · ts: <ISO> · disposition: <done|blocked|wontfix>`. Claim FIRST, then act, then
-  ack — this collapses the two-agents-both-act window to the rename race.
+- **Claim/ack = atomic-by-rename.** `mail.py claim <id>` renames `inbox → archive` — the
+  POSIX-atomic rename IS the lock (the race loser gets `ENOENT` and stops) — and appends
+  NOTHING: the claimed file carries no disposition until the work is done (the honest
+  claim-first-then-work verb, fabrik-lib finding 2026-08-12). `mail.py ack <id>` resolves:
+  on an unclaimed message it renames+appends in one step; on a message you already
+  `claim`-ed it appends the ack line in place; on an already-RESOLVED message it still
+  refuses (double-ack loser semantics unchanged). Ack line:
+  `acked-by: <repo> · ts: <ISO> · disposition: <done|blocked|wontfix>`. Claim FIRST, then
+  act, then ack.
 - **Requeue crash recovery.** A claimer that crashes mid-act leaves an archived file with no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox —
   and **strips any trailing `acked-by:` claim marker**, so a re-opened message never carries a stale
@@ -111,9 +116,10 @@ they **all share the one `<repo>/inbox`** — identity is the repo basename, so 
 
 - **Shared awareness, no double-work.** Any session can pick up an inbox message; the atomic
   claim-rename makes double-resolution impossible (one session claims → `inbox → archive`, the loser
-  gets `ENOENT` and moves on). **Claim-before-work:** `ack` up front (the rename is the lock) so two
-  sessions never both burn a full run on the same message; if you claim then can't finish, `requeue`
-  (it strips your stale marker, re-opening the message cleanly for the next session).
+  gets `ENOENT` and moves on). **Claim-before-work:** `claim` up front (the rename is the lock — and
+  unlike the old ack-up-front pattern it asserts no premature disposition) so two sessions never both
+  burn a full run on the same message; `ack` when done; if you claim then can't finish, `requeue`
+  (it strips any stale marker, re-opening the message cleanly for the next session).
 - **No intra-repo addressing (ruling).** `--to <repo>` reaches *whichever* session of that repo picks
   it up, **not a specific one** — so to reach "the fabrik AIs" a sender mails `--to fabrik` and the
   session pool handles it. Agent-to-agent messaging *within* one repo is **not** a mail use case (a

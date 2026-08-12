@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — hub agent roles wired: charters, role hook, catalog ownership, mail claim, flywheel auto-0 (2026-08-12)
+
+Plan `2026-08-12-plan-2-agent-roles-wiring` (spec r2). Phase A: three agent charters +
+kaizen logs (`docs/reference/agents/`), the fleet-safe `agent_role.py` SessionStart hook
+(`CLAUDE_AGENT` → charter injection; role allowlist, realpath containment, loud 32KB
+truncation — 14 red-first tests), `Agent-Name` provenance trailer row, manifest carriage
+(a same-commit settings-without-hook fleet exposure was self-caught and healed by forced
+sync). Phase B: every catalog entry carries `owner:` (infra 290 · intel 105 · fleet 105 ·
+external 66 · unassigned seeded at 0 in the JSON census; path-scoped prefix matching; all
+nine kind defaults test-pinned). Phase C: mail `claim` verb (rename-only lock; ack resolves
+in place; requeue strips), digest alert leg fixed (repo-root sys.path seam), fleet gitignore
+blocks repaired via sync (fabrik-lib sync-excluded by design — local one-liner mailed),
+flywheel auto-0 for done-but-empty pool runs (error/capped stay NULL per the module's own
+invariant; grounded narrower than planned), `/fabrik-review` round-close now REQUIRES the
+`set_quality` back-fill, and the flywheel WARN documents why session-scoped ERROR waits on
+upstream session-stamping. Three queued mail findings dispositioned; upstream-feedback with
+the auto-0 diff + session-id request + false-zeros disclosure sent to fabrik-lib.
+
 ### Fixed — capability catalog made ownership-grade: stale-ok, mis-kinds, coverage (2026-08-12)
 
 Operator-ordered audit fixes before agent distinction derives from the catalog (5 red-first

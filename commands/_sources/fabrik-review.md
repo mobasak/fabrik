@@ -243,6 +243,12 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`f
   contract's conditions). This — not an empty pass — is the ONLY thing that ends the review and lets the
   caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
   BLOCKED-escalate it per the contract and keep looping on the rest.
+- **Every pool row this review dispatched is `set_quality`-scored — a round with unscored pool rows is
+  NOT closed.** The back-fill has the same rank as the refute step, per round, not "at the end":
+  dispatch guarantees the row, so a skipped back-fill leaks 100% of the time (measured 2026-08-12:
+  `done`-status rows sat at 40.9% scored — the single largest flywheel leak, and the scoring moment is
+  exactly when attention leaves the finders for the diff). Adjudicate → `set_quality` → only then the
+  round is closed. Zero pool dispatches this round (native-only for a secrets surface) → nothing owed.
 
 **The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
 first pass found" is not an exit — those classes return to UNCHECKED until a fresh round re-adjudicates them.

@@ -248,6 +248,15 @@ def record_agent_run(
         from .ledger import agent_record, write_receipt
 
         record = agent_record(spec, result)
+        # AUTO-0 for the one failure the other nets miss (2026-08-12, hub plan-2 C4): a run
+        # whose status is "done" but whose OUTPUT is empty/whitespace "succeeded" with nothing
+        # gradeable — success_rate doesn't see it, and record_run's error/capped NULL-coercion
+        # doesn't apply (status IS done). That empty output IS a 0-quality verdict. Only when
+        # the caller passed no score — an explicit judgment always wins.
+        if quality_score is None:
+            _txt = getattr(result, "text", None)
+            if str(record.get("status") or "") == "done" and isinstance(_txt, str) and not _txt.strip():
+                quality_score = 0.0
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
         return False
     ok = record_run(

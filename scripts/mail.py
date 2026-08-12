@@ -258,9 +258,32 @@ def send(
     return _publish(_mail_root() / to / "inbox", mid, content)
 
 
-# --- ack / requeue -----------------------------------------------------------
+# --- claim / ack / requeue ----------------------------------------------------
+def claim(msg_id: str, repo: str) -> Path:
+    """Claim WITHOUT resolving: the rename lock alone, no acked-by line.
+
+    The honest claim-first-then-work verb (fabrik-lib finding 01KZTGCCZH…): the atomic
+    inbox→archive rename is the race lock (the loser's ENOENT stops it — mirrors Agent
+    Teams' file-locked task claiming), and the file carries NO disposition until the
+    work is actually done (``ack`` appends it in place later; ``requeue`` re-opens).
+    """
+    _safe_id(msg_id)
+    _safe_name(repo, "repo")
+    base = _mail_root() / repo
+    src = base / "inbox" / f"{msg_id}.md"
+    dst = base / "archive" / f"{msg_id}.md"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
+    return dst
+
+
 def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
-    """Claim + resolve: rename inbox→archive (ENOENT loser stops), then append the ack line."""
+    """Claim + resolve: rename inbox→archive (ENOENT loser stops), then append the ack line.
+
+    On a message already ``claim``-ed (archived, NO ack line yet) the disposition is
+    appended in place; a message already RESOLVED (ack line present) still raises —
+    the double-ack race semantics are unchanged.
+    """
     _safe_id(msg_id)
     _safe_name(repo, "repo")
     if disposition not in DISPOSITIONS:
@@ -271,7 +294,12 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     src = base / "inbox" / f"{msg_id}.md"
     dst = base / "archive" / f"{msg_id}.md"
     dst.parent.mkdir(parents=True, exist_ok=True)
-    os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
+    try:
+        os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
+    except FileNotFoundError:
+        # claimed-but-unresolved → resolve in place; already-resolved → the loser still stops
+        if not (dst.exists() and not _ACK_LINE.search(dst.read_text(encoding="utf-8"))):
+            raise
     with open(dst, "a", encoding="utf-8") as fh:
         fh.write(f"\nacked-by: {repo} · ts: {_now_iso()} · disposition: {disposition}\n")
     return dst
@@ -405,6 +433,22 @@ def _is_hub_repo() -> bool:
     return (Path.cwd() / "scripts" / "fabrik_synced_manifest.py").is_file()
 
 
+def _import_alerting():
+    """Resolve the hub's vendored alerting module from a SCRIPT invocation.
+
+    ``python scripts/mail.py digest`` runs with ``sys.path[0] == scripts/`` — ``libs``
+    lives at the repo root, one level up — so the lazy import died as
+    ModuleNotFoundError and the operator's only visibility leg silently skipped
+    (fleet finding 01KZTMZ19…). Insert the repo root FIRST, then import.
+    """
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from libs.alerting import send_alert  # lazy: hub-only, vendored there
+
+    return send_alert
+
+
 def _deliver_digest(d: dict) -> None:
     """Hub-guarded, lazy alerting import. Project-side prints locally, never ImportErrors."""
     if d["unacked"] == 0 and d["quarantined"] == 0:
@@ -415,8 +459,7 @@ def _deliver_digest(d: dict) -> None:
     print(f"{title} — {body}")
     if _is_hub_repo():
         try:
-            from libs.alerting import send_alert  # lazy: hub-only, vendored there
-
+            send_alert = _import_alerting()
             send_alert(title, body, severity="warning")
         except Exception as exc:  # never let the digest crash on the alerting leg
             print(f"mail.py: digest alert delivery skipped ({exc})", file=sys.stderr)
@@ -439,6 +482,10 @@ def main(argv: list[str] | None = None) -> int:
     p_read = sub.add_parser("read", help="print a message")
     p_read.add_argument("id")
     p_read.add_argument("--repo")
+
+    p_claim = sub.add_parser("claim", help="claim WITHOUT resolving (rename lock only, no ack line)")
+    p_claim.add_argument("id")
+    p_claim.add_argument("--repo")
 
     p_ack = sub.add_parser("ack", help="claim + resolve a message")
     p_ack.add_argument("id")
@@ -465,6 +512,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
         elif args.cmd == "read":
             print(read_msg(args.id, args.repo or _current_repo()))
+        elif args.cmd == "claim":
+            print(claim(args.id, args.repo or _current_repo()))
         elif args.cmd == "ack":
             print(ack(args.id, args.repo or _current_repo(), disposition=args.disposition))
         elif args.cmd == "requeue":

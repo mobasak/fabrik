@@ -363,3 +363,69 @@ def test_requeue_strips_stale_ack_line(env):
     assert back.parent.name == "inbox"
     assert "acked-by:" not in back.read_text()  # stale claim marker stripped — a clean re-open
     assert "do X" in back.read_text()            # body survives the strip
+
+
+# ---------------------------------------------------------------------------
+# claim (plan 2026-08-12-plan-2 Phase C2 — fabrik-lib finding 01KZTGCCZH…)
+# ---------------------------------------------------------------------------
+def test_claim_moves_without_ack_line(env):
+    """claim = the rename lock ALONE — no acked-by/disposition line (the honest
+    claim-first-then-work verb; ack stays the resolve)."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    arch = mail.claim(msg_id=mid, repo="fabrik")
+    assert arch.exists() and not p.exists()
+    assert "acked-by:" not in arch.read_text()
+
+
+def test_claim_loser_gets_enoent(env):
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    with pytest.raises(FileNotFoundError):
+        mail.claim(msg_id=mid, repo="fabrik")  # the rename IS the lock
+
+
+def test_ack_after_claim_appends_in_place(env):
+    """A claimed (archived) message is resolvable: ack appends the disposition line
+    to the archived file without requiring it back in the inbox."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert "disposition: done" in arch.read_text()
+
+
+def test_requeue_after_claim_carries_no_stale_marker(env):
+    """claim → requeue → the re-opened message is marker-free (regression: the
+    _ACK_LINE strip covers the claim path too)."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    back = mail.requeue(msg_id=mid, repo="fabrik")
+    assert back.exists()
+    assert "acked-by:" not in back.read_text()
+
+
+def test_digest_alert_import_resolves_from_script_invocation(env, tmp_path):
+    """`python scripts/mail.py digest` runs with sys.path[0]=scripts/ — the lazy
+    `from libs.alerting import send_alert` must resolve via a repo-root sys.path insert,
+    never die as ModuleNotFoundError (fleet finding 01KZTMZ19…). Proven at the seam:
+    the hub-side import path must find libs/ from the script's parent-parent."""
+    import subprocess, sys as _sys, os as _os
+    repo_root = Path(mail.__file__).resolve().parent.parent
+    env_vars = {k: v for k, v in _os.environ.items() if k != "PYTHONPATH"}
+    probe = (
+        "import runpy, sys; sys.argv=['mail.py']; "
+        "m = runpy.run_path(r'%s'); "
+        "import types; "
+        "ok = True\n"
+        "try:\n"
+        "    m['_import_alerting']()\n"
+        "except ModuleNotFoundError as e:\n"
+        "    ok = False; print('MNFE:', e)\n"
+        "print('IMPORT_OK' if ok else 'IMPORT_DEAD')"
+    ) % (repo_root / "scripts" / "mail.py")
+    r = subprocess.run([_sys.executable, "-c", probe], capture_output=True, text=True,
+                       timeout=30, env=env_vars, cwd=str(repo_root))
+    assert "IMPORT_OK" in r.stdout, (r.stdout, r.stderr)

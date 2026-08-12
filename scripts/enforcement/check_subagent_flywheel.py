@@ -281,7 +281,13 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         return
     print(
         f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) ran but were never "
-        "scored+recorded (ledger − receipts) — each owes record_agent_run(spec, result):"
+        "scored+recorded (ledger − receipts) — each owes record_agent_run(spec, result). "
+        "A dispatch is guaranteed, the back-fill is not: skipped scoring is the flywheel's "
+        "single largest leak (done-rows measured 40.9% scored, 2026-08-12), and /fabrik-review's "
+        "round-close now REQUIRES the back-fill before a round counts as closed. (This stays "
+        "WARN-tier: ledger rows carry no session id, so an ERROR would red one session's gate "
+        "on a sibling's rows — escalation lands when the module stamps session identity, "
+        "requested upstream 2026-08-12.)"
     )
     for e in unrecorded:
         print(
