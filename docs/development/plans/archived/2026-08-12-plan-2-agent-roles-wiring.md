@@ -1,7 +1,8 @@
 # Plan — Hub agent-roles wiring (charters · role hook · catalog ownership · mail beat · flywheel)
 
-Status: IN-PROGRESS (execution started 2026-08-12; was CONVERGED r2 md5 b8ed8ceb — scoped+closing
-passes edit-free; supersedes r1 md5 4a31daa3)
+Status: EXECUTED 2026-08-12 (final commit 25645c73 + Finish; gate success 46/0 fresh in the
+finishing turn. Whole-plan review: docs/development/reviews/2026-08-12-plan-2-agent-roles-wiring-review.md
+— 13 rounds, closing round found: 0, fixed: 0)
 Date: 2026-08-12
 Owner: infra session (operator-approved: spec r2 CONVERGED 13d86c55; "can you proceed to
 /fabrik-plan-after-chat now?" = the go)

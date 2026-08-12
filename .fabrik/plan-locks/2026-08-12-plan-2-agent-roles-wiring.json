@@ -1,0 +1,39 @@
+{
+ "plan": "docs/development/plans/archived/2026-08-12-plan-2-agent-roles-wiring.md",
+ "owned_paths": [
+  "docs/development/plans/2026-08-12-plan-2-agent-roles-wiring.md",
+  "docs/development/reviews/2026-08-12-plan-2-agent-roles-wiring-review.md",
+  "docs/reference/agents/infra.md",
+  "docs/reference/agents/fleet.md",
+  "docs/reference/agents/intel.md",
+  "docs/reference/agents/kaizen-log-infra.md",
+  "docs/reference/agents/kaizen-log-fleet.md",
+  ".claude/hooks/agent_role.py",
+  ".claude/settings.json",
+  "CLAUDE.md",
+  "scripts/generate_capability_index.py",
+  "tests/test_generate_capability_index.py",
+  "tests/test_agent_role_hook.py",
+  "scripts/mail.py",
+  "scripts/sync_enforcement_to_projects.py",
+  "tests/test_mail.py",
+  "libs/subagents/pg_ledger.py",
+  "tests/test_pg_ledger_auto0.py",
+  "docs/reference/fabrik-mail.md",
+  "docs/CAPABILITIES.md",
+  "capabilities.json",
+  "commands/_sources/fabrik-review.md",
+  "scripts/enforcement/check_subagent_flywheel.py",
+  "tests/test_check_subagent_flywheel.py"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-12T14:10:32+03:00",
+ "status": "released",
+ "baseline_commit": "d347fe7a6001a6021e3207090189eca74bb76bee",
+ "baseline_gate": {
+  "status": "success",
+  "red_checks": []
+ },
+ "completed_at": "2026-08-12T17:20:00+03:00",
+ "final_commit": "25645c73"
+}
