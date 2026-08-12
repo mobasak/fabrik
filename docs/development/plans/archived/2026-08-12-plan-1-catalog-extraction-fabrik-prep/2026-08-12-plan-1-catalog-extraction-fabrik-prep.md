@@ -1,6 +1,26 @@
 # Catalog Extraction — fabrik-side preparation and safety instruments
 
-Status: CONVERGED
+> ## ⛔ SUPERSEDED 2026-08-12 — archived unexecuted. Do not execute this set.
+>
+> Superseded by **`docs/development/plans/archived/../2026-07-26-plan-1-ai-model-catalog-extraction.md`**
+> (the cross-repo monolith, phases A→E), which covers the same ground and more.
+>
+> **Why:** this set was authored before its own source plan was properly read, and it duplicated that
+> plan's Phase A and E.1 **less well**. The monolith's A.1 already carried the whole-file vs marker-body
+> golden split, the `EMBEDDING_CATALOG` strip, the correct `EMBEDDING_WINNERS`/`ROSTER` marker hosts, the
+> 6-doc `*_SELECTION.md` scoping and the `db_queries.json` capture — every one of which an independent
+> review had to add back into T01 here. T02 duplicated E.1's import-graph audit (the original, carrying all
+> 7 classification rules); T04 duplicated E.1 rule 7.
+>
+> **What survived:** only **T03** (the flywheel-safety gates) had no counterpart upstream. It is folded into
+> the monolith as **Phase A.0** and is delivered there. Nothing in this directory is owed.
+>
+> **Status is SUPERSEDED, not EXECUTED** — no ticket ever ran, no commit carries an `Agent-Task` trailer for
+> this set, and the Board is entirely ⬜. Retained for the review history, which is the useful part: the
+> 13 findings its own convergence round produced are recorded below.
+
+
+Status: SUPERSEDED
 
 **Spec:** [docs/superpowers/specs/2026-07-26-catalog-extraction-design.md](../../../superpowers/specs/2026-07-26-catalog-extraction-design.md) (CONVERGED 2026-08-12, D5 resolved)
 **Prior art:** [docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md](../2026-07-26-plan-1-ai-model-catalog-extraction.md) (HARDENED — 11 review rounds, ~62 fixes; its E.1 import-graph audit is inherited wholesale as T02, not re-derived)

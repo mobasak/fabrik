@@ -80,8 +80,8 @@ required, landed BEFORE any file moves:
    already uses. Gate: `grep -n 'rank_task_subagents' scripts/kilo-benchmarks/daily_refresh.sh` → **Expected:** no
    bare `|| echo … non-fatal` swallow on that invocation.
 
-*(These three are also delivered by the sibling prep set `2026-08-12-plan-1-catalog-extraction-fabrik-prep` T03 —
-run whichever lands first; do not implement twice. See § Plan reconciliation at the foot of this file.)*
+*(A.0 is the SOLE source of these three gates. The sibling prep set that also carried them was archived
+unexecuted on 2026-08-12 — see § Plan reconciliation at the foot of this file.)*
 
 ## Phase A — Freeze the contract (the golden-file regression oracle) · READ-ONLY (A.1–A.3) · runs in `/opt/fabrik`
 
@@ -414,8 +414,9 @@ Fixed-point claim: this plan carries the full grounding a fresh executor needs; 
 
 ## Plan reconciliation (2026-08-12)
 
-A sibling plan SET — `docs/development/plans/2026-08-12-plan-1-catalog-extraction-fabrik-prep/` (5 tickets,
-CONVERGED) — was authored before this plan was re-reviewed, and **overlaps it**:
+A sibling plan SET — now at
+`docs/development/plans/archived/2026-08-12-plan-1-catalog-extraction-fabrik-prep/` (5 tickets, **SUPERSEDED,
+archived unexecuted 2026-08-12**) — was authored before this plan was re-reviewed, and overlapped it:
 
 | Sibling ticket | Overlap with this plan | Disposition |
 |---|---|---|
@@ -425,5 +426,7 @@ CONVERGED) — was authored before this plan was re-reviewed, and **overlaps it*
 | T04 shared cost-JSON relocation | Duplicates E.1 rule 7 (`claude_p_cost.json` / `claude_price_ratios.json`). | **This plan wins; retire T04.** |
 | T05 integration receipts | Set-shape ceremony; this monolith uses per-phase closings instead. | Retire with the set. |
 
-**Recommendation:** this plan is the migration; the sibling set should be archived unexecuted once A.0 is
-accepted here. Operator decision — recorded, not actioned.
+**ACTIONED 2026-08-12 (operator-directed):** the sibling set was marked `Status: SUPERSEDED` and archived as a
+whole directory (spine + all 5 tickets travel together, per the plan-lifecycle rule). It is SUPERSEDED, not
+EXECUTED — no ticket ran, no commit carries an `Agent-Task` trailer for it, and its Board is entirely ⬜.
+T03's three gates live on here as **A.0**. This plan is now the single artifact for the migration.
