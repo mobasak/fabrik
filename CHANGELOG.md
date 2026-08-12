@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — capability catalog made ownership-grade: stale-ok, mis-kinds, coverage (2026-08-12)
+
+Operator-ordered audit fixes before agent distinction derives from the catalog (5 red-first
+tests, suites 29/29). (1) Stale-`ok` on retired stacks: `# RETIRED` markers applied to the 12
+adjudicated dead Kilo-CLI files (review/dispatch/consult/route/agents family incl. the `_bckp`
+copy; `kilo_model_sync.py` and `check_kilo_health.sh` stay live — cron + `final_gate.py:1111`)
+and to the `supabase` driver; `_enum_drivers` now honors retirement/manual markers BEFORE the
+import probe (org decisions beat mechanical "it imports"). (2) Mis-kinds: non-scaffold
+`templates/*/` dirs no longer emitted as `ok` "scripts" (10 folder-path rows incl.
+`.archive` removed; registry-only types like `wordpress` stay absent by disk-truth design).
+(3) Coverage: new `hook` (.claude/hooks) + `command` (commands/_sources, repo-deterministic
+status) kinds and 4 more scripts subdirs (kilo-benchmarks/bootstrap/audit/credit_fetchers) —
+catalog 427→565 entries, 376 ok / 15 retired / 174 manual / 0 broken; box-side `~/.claude/bin`
+deliberately excluded (machine-local; `docs/workstation/hooks-index.md` is its inventory).
+INDEX rows updated to the 9 surfaces.
+
 ### Changed — fabrik-mail: project-facing usage docs + multi-agent hardening (2026-08-12)
 
 Project AIs can now discover how to use fabrik-mail: a "you can message the hub, fabrik-lib, and sibling

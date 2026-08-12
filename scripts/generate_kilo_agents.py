@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# RETIRED 2026-07-19 — Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history — do not use.
 """
 Generate Kilo CLI Agent Scripts from kilo_agents.db
 
@@ -48,7 +49,7 @@ DISABLED_DIR = Path.home() / ".traycer" / "disabled-cli-agents"
 STATIC_HELPER_SCRIPTS: list[tuple[str, str]] = [
     ("coding-auto.sh", "coding-auto.sh"),  # auto-router for coding tickets
 ]
-OLLAMA_API = "http://localhost:11434"
+OLLAMA_API = "http://localhost:11434"  # noqa — RETIRED file, dead config, never runs
 
 # Model name normalization for filenames
 MODEL_NORMALIZE = {

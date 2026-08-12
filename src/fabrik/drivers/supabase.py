@@ -1,3 +1,4 @@
+# RETIRED as new-work default 2026-07-03 — Supabase retired org-wide (self-host: postgres-main + fastapi-user-auth). Legacy projects only (trade-intelligence until owner-managed migration).
 """
 Supabase Driver - Client for Supabase Auth and Database operations.
 

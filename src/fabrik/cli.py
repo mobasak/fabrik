@@ -1037,7 +1037,7 @@ def destroy(
     # when any state entry is data-bearing (postgres/redis/meilisearch).
     # Out-of-scope for composition with --partial — they are exclusive flags.
     if use_state:
-        from fabrik import state as state_module
+        import fabrik.state as state_module
         from fabrik.orchestrator.destroyer import destroy_from_state
 
         if partial:

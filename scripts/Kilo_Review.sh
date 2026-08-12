@@ -1,4 +1,5 @@
 #!/bin/bash
+# RETIRED 2026-07-19 — Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history — do not use.
 # Windsurf Cascade Wrapper - Code Review via Kilo CLI
 # Calls kilo_code_review.py with hardware-safe local agents
 #

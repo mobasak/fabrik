@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# RETIRED 2026-07-19 — Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history — do not use.
 # noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)
 """
 Kilo Documentation Enforcer - Professional-grade documentation enforcement.

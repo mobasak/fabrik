@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fabrik import state as state_module
+import fabrik.state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator.context import DeploymentContext

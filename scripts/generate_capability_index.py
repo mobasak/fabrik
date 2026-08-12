@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 
-Self-verifying, GENERATED (never hand-curated): enumerates every invokable capability across the 7
-surfaces (cli / driver / registrar / script / lib-module / scaffold / rules-pack), verifies each by the
+Self-verifying, GENERATED (never hand-curated): enumerates every invokable capability across the 9
+surfaces (cli / driver / registrar / script / lib-module / scaffold / rules-pack / hook / command), verifies each by the
 SAFEST probe available for that surface — CLI verbs run ``--help`` (exit 0); drivers/registrars/lib-modules
 import; scaffolds/rules dir/file-check; **scripts are classified by header inspection, never executed**
 (running an arbitrary script has side effects — one with no safe ``--help``/``--check`` probe is marked
@@ -29,9 +29,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 FABRIK_LIB = Path("/opt/fabrik-lib")
 
-KINDS = ("cli", "driver", "registrar", "script", "lib-module", "scaffold", "rules-pack")
+KINDS = ("cli", "driver", "registrar", "script", "lib-module", "scaffold", "rules-pack",
+         "hook", "command")
 _NON_MODULE_DIRS = {"docs", "docs-site", "node_modules", "scripts"}
-_SCRIPT_SUBDIRS = ("enforcement", "sysadmin", "utils", "probes", "aro-wake")
+_SCRIPT_SUBDIRS = ("enforcement", "sysadmin", "utils", "probes", "aro-wake",
+                   # ownership-coverage additions (2026-08-12): surfaces the agent-distinction
+                   # map must see. Still excluded on purpose: systemd (unit files, not
+                   # invokables), tests (internal), archive/.scratch/backups (dead).
+                   "kilo-benchmarks", "bootstrap", "audit", "credit_fetchers")
 # Markers are DIRECTIVES at the START of a comment/docstring line (matched line-prefixed, NOT as a raw
 # substring) — else this file's own marker tuples below would self-classify the generator as retired/manual.
 _RETIRED_MARKERS = ("DEPRECATED", "RETIRED")
@@ -211,11 +216,19 @@ def _enum_drivers(root: Path) -> list[dict]:
     for f in sorted(d.glob("*.py")):
         if f.stem == "__init__":
             continue
-        try:
-            __import__(f"fabrik.drivers.{f.stem}")
-            status = "ok"
-        except Exception:
-            status = "broken"
+        head = _read_head(f)
+        # Org retirement beats the mechanical probe (2026-08-12 — the stale-ok class: the
+        # supabase driver imported fine and read "ok" a month after the platform retired it).
+        if _line_starts_with(head, _RETIRED_MARKERS):
+            status = "retired"
+        elif _line_starts_with(head, _MANUAL_MARKERS):
+            status = "manual"
+        else:
+            try:
+                __import__(f"fabrik.drivers.{f.stem}")
+                status = "ok"
+            except Exception:
+                status = "broken"
         recs.append(
             _rec(
                 f.stem,
@@ -312,17 +325,66 @@ def _enum_scaffolds(root: Path) -> list[dict]:
     except Exception:
         scaffold_types = frozenset()
     recs = []
+    # Only registry types with a template dir are emitted — a bare templates/<helper>/ dir is
+    # not an invokable capability (the old kind='script' rows with a folder-path "invoke",
+    # incl. templates/.archive/, were catalog noise — 2026-08-12 fix). A registry type with
+    # NO template dir (e.g. wordpress, kept in SCAFFOLD_TYPES for deploy/shape only) is
+    # deliberately absent: the catalog reports disk-truth invokability.
     for d in sorted((root / "templates").glob("*/")):
         name = d.name
-        is_scaffold = name in scaffold_types
+        if name not in scaffold_types:
+            continue
         recs.append(
             _rec(
                 name,
-                "scaffold" if is_scaffold else "script",
-                "project scaffold" if is_scaffold else "build helper (not a scaffold type)",
-                f"fabrik scaffold --type {name}" if is_scaffold else f"templates/{name}/",
+                "scaffold",
+                "project scaffold",
+                f"fabrik scaffold --type {name}",
                 "ok",
                 doc_link="docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+            )
+        )
+    return recs
+
+
+def _enum_hooks(root: Path) -> list[dict]:
+    """Repo-level Claude Code hooks (.claude/hooks/*.py) — the enforcement-mesh surface the
+    agent-ownership map must cover (2026-08-12). Classified like scripts (markers + safe-probe
+    tokens), never executed. The BOX-side mesh (~/.claude/bin) is deliberately NOT catalogued:
+    it is machine-local state — regenerating on another checkout would drift the artifact —
+    and `docs/workstation/hooks-index.md` is its canonical inventory."""
+    recs = []
+    for f in sorted((root / ".claude" / "hooks").glob("*.py")):
+        status, summary = _classify_script(f)
+        recs.append(
+            _rec(
+                f.name,
+                "hook",
+                summary,
+                f"python3 .claude/hooks/{f.name}",
+                status,
+                doc_link="docs/workstation/hooks-index.md",
+            )
+        )
+    return recs
+
+
+def _enum_commands(root: Path) -> list[dict]:
+    """The command corpus (commands/_sources/*.md → box-wide /<name> skills). Summary is the
+    front-matter description; status is repo-deterministic — "ok" iff the source carries a
+    non-empty description (no $HOME probing: the rendered-install check is the renderer's
+    `--check`, not the catalog's)."""
+    recs = []
+    for f in sorted((root / "commands" / "_sources").glob("*.md")):
+        summary = _first_docline(_read_head(f))
+        recs.append(
+            _rec(
+                f.stem,
+                "command",
+                summary,
+                f"/{f.stem}",
+                "ok" if summary else "incomplete",
+                doc_link="CLAUDE.md",
             )
         )
     return recs
@@ -353,6 +415,8 @@ _ENUMERATORS = {
     "lib-module": _enum_lib_modules,
     "scaffold": _enum_scaffolds,
     "rules-pack": _enum_rules,
+    "hook": _enum_hooks,
+    "command": _enum_commands,
 }
 
 

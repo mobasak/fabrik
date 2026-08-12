@@ -63,8 +63,6 @@
 - [authelia](docs/SERVICES.md): Authelia access-control rule provisioning for the Coolify-managed container.
 - [backrest](docs/SERVICES.md): Backrest backup-plan provisioning — atomic under flock + jq on the VPS.
 - [cloudflare](docs/SERVICES.md): Cloudflare DNS Driver for Fabrik.
-- [compose_updater](docs/SERVICES.md): Compose YAML updater for Coolify-managed resources — LEGACY MODULE.
-- [coolify](docs/SERVICES.md): Coolify API Client - LEGACY driver, retained for archived CLI commands only.
 - [dns](docs/SERVICES.md): DNS Client - Wrapper for Site Provisioner service.
 - [gatus](docs/SERVICES.md): Gatus health-monitoring endpoint provisioning via SSH + scp.
 - [glitchtip](docs/SERVICES.md): GlitchTip error-tracking project provisioning (Sentry-compatible API).
@@ -81,7 +79,6 @@
 - [runpod](docs/SERVICES.md): RunPod REST API driver.
 - [seo](docs/SERVICES.md): SEO Client - Wrapper for the SEO keyword research and brief generation service.
 - [ssh](docs/SERVICES.md): SSH + SCP helpers for Fabrik VPS operations.
-- [supabase](docs/SERVICES.md): Supabase Driver - Client for Supabase Auth and Database operations.
 - [tco](docs/SERVICES.md): TCO Client - Wrapper for the Triggered Content Orchestration service.
 - [uptime_kuma](docs/SERVICES.md): Uptime Kuma driver for Fabrik.
 - [vast_provider](docs/SERVICES.md): Vast.ai driver — Phase 2 of the fabrik gpu rent plan.
@@ -101,16 +98,11 @@
 - [watchdog](AGENTS.md): watchdog registrar (auto-provisioned per spec shape)
 
 ## script
-- [.archive](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [_partials](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [governance](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [i18n-kit](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [modal](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [preplan](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [prompts](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [scaffold](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 - [scripts/audit_authelia_gates.py](INDEX.md): Weekly drift audit for Authelia gating on admin dashboards.
 - [scripts/audit_infra_vs_docs.py](INDEX.md): Probe-vs-doc audit for the VPS fleet.
+- [scripts/bootstrap/bootstrap-hub.sh](INDEX.md): bootstrap-hub.sh — Fabrik hub disaster-recovery bootstrap
+- [scripts/bootstrap/bootstrap-spoke-restore.sh](INDEX.md): bootstrap-spoke-restore.sh — Fabrik spoke disaster-recovery bootstrap
+- [scripts/bootstrap/bootstrap-vps.sh](INDEX.md): bootstrap-vps.sh — Fabrik W-Multi M1
 - [scripts/check_zed_extensions.py](INDEX.md): Gate: verify every Zed extension that settings.json depends on is installed.
 - [scripts/ci_fix_dispatcher.py](INDEX.md): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
 - [scripts/classify_services.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
@@ -152,19 +144,63 @@
 - [scripts/fleet_doc_audit.py](INDEX.md): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
 - [scripts/gather_envs.py](INDEX.md): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/generate_capability_index.py](INDEX.md): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
-- [scripts/generate_kilo_agents.py](INDEX.md): Generate Kilo CLI Agent Scripts from kilo_agents.db
 - [scripts/health_check_autonomous.py](INDEX.md): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 - [scripts/health_checker.py](INDEX.md): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
 - [scripts/health_summary.py](INDEX.md): Scan /opt/* project directories and report health status.
 - [scripts/inject_deploy_resources.py](INDEX.md): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
-- [scripts/kilo_auto_route.py](INDEX.md): Kilo auto-router — runtime entry point Traycer calls instead of role-pinned
-- [scripts/kilo_code_review.py](INDEX.md): Kilo-powered iterative code review with fix-and-revalidate loop.
-- [scripts/kilo_code_review_bckp.py](INDEX.md): Kilo-powered iterative code review with fix-and-revalidate loop.
-- [scripts/kilo_consult.py](INDEX.md): kilo_consult.py - Cascade consultation via Kilo CLI (Q&A only)
-- [scripts/kilo_cost_report.py](INDEX.md): Kilo Cost Report - Analyze Kilo usage and costs.
-- [scripts/kilo_cost_tracker.py](INDEX.md): Kilo Cost Tracker - Extract and analyze agent run costs.
-- [scripts/kilo_dispatch.py](INDEX.md): Kilo Dispatch — Cascade-to-Kilo CLI Bridge
-- [scripts/kilo_docs_enforcer.py](INDEX.md): noqa-file: template-generator  (prompt templates below carry example DATABASE_URL / curl snippets, not real secrets)
+- [scripts/kilo-benchmarks/add_perf_seconds_column.py](INDEX.md): AFTER-EDIT: none
+- [scripts/kilo-benchmarks/add_tbench_leaderboard_table.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/scrape_tbench_task_results.py
+- [scripts/kilo-benchmarks/add_tbench_task_results_table.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/microbench_terminal.py
+- [scripts/kilo-benchmarks/audit_direct_vendor_freshness.py](INDEX.md): Quarterly-audit helper: which direct-vendor rows have fresh scraper coverage?
+- [scripts/kilo-benchmarks/audit_ui_values.py](INDEX.md): Systematic audit of every value shown in models_browser.html.
+- [scripts/kilo-benchmarks/backfill_unknown_providers.py](INDEX.md): Phase 4 of the direct-vendor pricing plan.
+- [scripts/kilo-benchmarks/build_lcb_difficulty_manifest.py](INDEX.md): AFTER-EDIT: none (one-shot cache-warmer + manifest builder; consumed by microbench_coding_direct.py --difficulty)
+- [scripts/kilo-benchmarks/build_task_baselines.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py scripts/kilo-benchmarks/rank_coding_subagents.py libs/subagents/select.py
+- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](INDEX.md): Heartbeat check for daily_refresh.sh — fires an alert when stale.
+- [scripts/kilo-benchmarks/check_model_live.py](INDEX.md): Live-truth oracle for a specific model ID.
+- [scripts/kilo-benchmarks/correlated_prior.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/microbench_judged.py scripts/kilo-benchmarks/build_task_baselines.py
+- [scripts/kilo-benchmarks/derive_cheapest_gateway.py](INDEX.md): Derive `cheapest_gateway` and `cheapest_gateway_price` from `gateway_prices`.
+- [scripts/kilo-benchmarks/discover_hidden_openrouter_routes.py](INDEX.md): Discover OpenRouter routes hidden from the public catalog endpoint.
+- [scripts/kilo-benchmarks/dispatcher_bench.py](INDEX.md): AFTER-EDIT: dispatcher-bench/tasks/*.yaml (task schema), dispatcher-bench/accept/* (grader contract)
+- [scripts/kilo-benchmarks/embedding_models_db.py](INDEX.md): Embedding catalog scraper + DB schema for the embedding selection pipeline.
+- [scripts/kilo-benchmarks/embedding_pre_filter.py](INDEX.md): Per-role shortlist generator for the embedding pipeline.
+- [scripts/kilo-benchmarks/export_models_browser.py](INDEX.md): Generate a single-file HTML browser for ALL AI models in kilo_agents.db.
+- [scripts/kilo-benchmarks/export_traycer_registry.py](INDEX.md): Export the current `agent_roles` assignments as a JSON registry consumed by
+- [scripts/kilo-benchmarks/fetch_direct_vendor_prices.py](INDEX.md): Daily direct-vendor pricing scraper — Phase 1 deliverable.
+- [scripts/kilo-benchmarks/fetch_fal_prices.py](INDEX.md): Fetch per-model pricing from fal.ai's catalog API and merge into
+- [scripts/kilo-benchmarks/fetch_replicate_prices.py](INDEX.md): Fetch per-model pricing from Replicate by scraping `billingConfig` blobs
+- [scripts/kilo-benchmarks/manage_blocked.py](INDEX.md): Manage blocked agents in the Kilo agents database.
+- [scripts/kilo-benchmarks/microbench_coding.py](INDEX.md): Local coding benchmark runner — EvalPlus + libs.subagents composition.
+- [scripts/kilo-benchmarks/microbench_coding_direct.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/CODING_SUBAGENT_SELECTION.md | scripts/kilo-benchmarks/build_task_baselines.py
+- [scripts/kilo-benchmarks/microbench_coding_tier_snapshot.py](INDEX.md): Snapshot every agents row's derived quality_tier from derive_quality_v2.
+- [scripts/kilo-benchmarks/microbench_judged.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/TASK_SUBAGENT_SELECTION.md | scripts/kilo-benchmarks/build_task_baselines.py
+- [scripts/kilo-benchmarks/microbench_or_models.py](INDEX.md): Microbench every active OR-routed LLM model for output_tokens_per_sec + ttft_ms.
+- [scripts/kilo-benchmarks/microbench_review.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/build_task_baselines.py scripts/kilo-benchmarks/rank_task_subagents.py scripts/kilo-benchmarks/rank_coding_subagents.py
+- [scripts/kilo-benchmarks/microbench_specialty.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_microbench_specialty.py
+- [scripts/kilo-benchmarks/microbench_terminal.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_microbench_terminal.py docs/reference/terminal-bench-runner.md
+- [scripts/kilo-benchmarks/microbench_vision_describe.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/TASK_SUBAGENT_SELECTION.md (if a winner is promoted) | none else
+- [scripts/kilo-benchmarks/migrate_aggregator_columns.py](INDEX.md): Add aggregator-pricing columns to `agents` (idempotent).
+- [scripts/kilo-benchmarks/migrate_direct_vendor_pricing_columns.py](INDEX.md): Add 3 columns to `agents` for the direct-vendor pricing scraper.
+- [scripts/kilo-benchmarks/migrate_selector_columns.py](INDEX.md): Idempotent migration: add quality_tier + is_ga columns to `agents` and
+- [scripts/kilo-benchmarks/rank_candidate_signups.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/CANDIDATE_SIGNUPS.md
+- [scripts/kilo-benchmarks/rank_image_gen.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/IMAGE_GEN_SELECTION.md
+- [scripts/kilo-benchmarks/rank_stt.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/STT_SELECTION.md
+- [scripts/kilo-benchmarks/rank_translation.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/TRANSLATION_SELECTION.md
+- [scripts/kilo-benchmarks/rank_tts.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/TTS_SELECTION.md
+- [scripts/kilo-benchmarks/restore_wrongly_deprecated_direct_vendors.py](INDEX.md): Restore direct-vendor rows wrongly deprecated by verify_openrouter_catalog.py.
+- [scripts/kilo-benchmarks/role_selector.py](INDEX.md): Role-based agent selector.
+- [scripts/kilo-benchmarks/scrape_artificial_analysis.py](INDEX.md): Scrape model throughput + TTFT from artificialanalysis.ai/leaderboards/models.
+- [scripts/kilo-benchmarks/scrape_coding_benchmarks.py](INDEX.md): Scrape three public coding leaderboards and join into kilo_agents.db.
+- [scripts/kilo-benchmarks/scrape_gpu_prices.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_watchlist_and_gpu.py
+- [scripts/kilo-benchmarks/scrape_groq_speeds.py](INDEX.md): Scrape Groq's LPU tokens-per-second table from https://groq.com/pricing.
+- [scripts/kilo-benchmarks/scrape_modelscope_catalog.py](INDEX.md): AFTER-EDIT: docs/reference/kilo/AI_VENDOR_ACCESS.md scripts/kilo-benchmarks/models_browser.html
+- [scripts/kilo-benchmarks/scrape_openrouter_endpoints.py](INDEX.md): Scrape OpenRouter's per-model /endpoints API.
+- [scripts/kilo-benchmarks/scrape_openrouter_rankings.py](INDEX.md): Populate `weekly_rank` + `weekly_category` from OpenRouter's /rankings pages.
+- [scripts/kilo-benchmarks/scrape_tbench_task_results.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/add_tbench_leaderboard_table.py docs/reference/terminal-bench-runner.md
+- [scripts/kilo-benchmarks/seed_translation_and_stt.py](INDEX.md): Seed translation + STT capability data into kilo_agents.db.
+- [scripts/kilo-benchmarks/suggest_model.py](INDEX.md): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_suggest_model.py
+- [scripts/kilo-benchmarks/update_gateway_counts.py](INDEX.md): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
+- [scripts/kilo-benchmarks/verify_openrouter_catalog.py](INDEX.md): Verify every row in kilo_agents.db.agents against the live OpenRouter
 - [scripts/kilo_terminal_runner.py](INDEX.md): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
 - [scripts/lint_fix_agent.py](INDEX.md): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
 - [scripts/mail.py](INDEX.md): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md
@@ -188,8 +224,6 @@
 - [scripts/update_agents_toc.py](INDEX.md): Update AGENTS.md Table of Contents
 - [scripts/update_vps_docs.py](INDEX.md): AFTER-EDIT: none
 - [scripts/vps_sync.py](INDEX.md): Refresh VPS documentation from live state.
-- [spec-pipeline](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
-- [traycer](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md): build helper (not a scaffold type)
 
 ## lib-module
 - [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md): abuse-prevention
@@ -329,3 +363,35 @@
 - [saas/87-abuse-detection.md](.windsurf/rules/saas/87-abuse-detection.md): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
 - [saas/88-saas-launch-checklist.md](.windsurf/rules/saas/88-saas-launch-checklist.md): SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
 - [saas/95-multi-tenant-saas.md](.windsurf/rules/saas/95-multi-tenant-saas.md): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention
+
+## hook
+- [final_gate_stop.py](docs/workstation/hooks-index.md): Claude Code SessionStart + Stop hooks — enforce final_gate as the definition of done.
+
+## command
+- [design-review](CLAUDE.md): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/A
+- [fabrik-catchup](CLAUDE.md): Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge
+- [fabrik-data-contract](CLAUDE.md): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall
+- [fabrik-decommission](CLAUDE.md): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evid
+- [fabrik-deploy](CLAUDE.md): Execute a CONVERGED deployment plan — stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn —
+- [fabrik-deploy-plan](CLAUDE.md): Author a per-service DEPLOYMENT PLAN — stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unk
+- [fabrik-deploy-plan-review](CLAUDE.md): Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the
+- [fabrik-deploy-verify](CLAUDE.md): Post-`fabrik apply` certification, run hub-side from `/opt/fabrik` — DNS resolves (vs two sibling domains), the spec's health endpoint asserts real deps (`/heal
+- [fabrik-doc-converge](CLAUDE.md): Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENC
+- [fabrik-docs-review](CLAUDE.md): Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconciler
+- [fabrik-execute-plan](CLAUDE.md): Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) ins
+- [fabrik-features](CLAUDE.md): Converge docs/FEATURES.md to the COMPLETE, testable truth of the codebase — discover every shipped capability (routes, jobs, CLI, screens, integrations), reconc
+- [fabrik-generate-tests](CLAUDE.md): Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse)
+- [fabrik-plan-after-chat](CLAUDE.md): Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnab
+- [fabrik-plan-review](CLAUDE.md): Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagen
+- [fabrik-release](CLAUDE.md): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
+- [fabrik-repo-review](CLAUDE.md): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
+- [fabrik-review](CLAUDE.md): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
+- [fabrik-rules-review](CLAUDE.md): Read-only .windsurf/rules compliance gap audit — establish real stack + spec flags + ADR, fan out one subagent per applicable pack (parallel), refute false gaps
+- [fabrik-service-test](CLAUDE.md): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
+- [fabrik-spec](CLAUDE.md): Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra
+- [fabrik-spec-review](CLAUDE.md): Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→bu
+- [fabrik-ui-design](CLAUDE.md): Freeze a GUI project's UI/UX design — a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and
+- [fabrik-ui-design-review](CLAUDE.md): Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/
+- [fabrik-upstream](CLAUDE.md): Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-out
+- [fabrik-user-test](CLAUDE.md): End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — the UI/workflow QC engineer. Builds the element inve
+- [fabrik-workflow-review](CLAUDE.md): Force a Traycer-workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER `-fabrik` doers (ettw 00–06, mega 00/02/03; the `type` you

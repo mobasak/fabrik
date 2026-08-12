@@ -227,3 +227,58 @@ def test_probe_help_timeout_returns_false(monkeypatch) -> None:
 
     monkeypatch.setattr(subprocess, "run", _raise_timeout)
     assert gci._probe_help(["-m", "fabrik.cli", "whatever"]) is False
+
+
+# --- 2026-08-12 catalog-truth fixes (operator: agent distinction will derive from the catalog) -------
+
+
+def test_non_scaffold_template_dirs_not_emitted() -> None:
+    """A bare templates/<helper>/ dir is not an invokable capability — no entry at all (was: 10
+    kind='script' rows with a folder path as invoke, incl. templates/.archive/)."""
+    catalog = gci.build_catalog(REPO)
+    dir_invokes = [c for c in catalog if c["invoke"].startswith("templates/")]
+    assert dir_invokes == [], dir_invokes[:3]
+
+
+def test_hook_kind_covers_repo_claude_hooks() -> None:
+    """.claude/hooks/*.py are catalogued (kind='hook') — they are the enforcement-mesh surface an
+    ownership map must cover."""
+    catalog = gci.build_catalog(REPO)
+    hooks = {c["name"] for c in catalog if c["kind"] == "hook"}
+    assert "mail_notify.py" in hooks and "session_orient.py" in hooks, sorted(hooks)
+
+
+def test_command_kind_covers_sources_corpus() -> None:
+    """commands/_sources/*.md are catalogued (kind='command', invoke '/<stem>'), summary mined from
+    front-matter description — repo-deterministic (no $HOME probing)."""
+    catalog = gci.build_catalog(REPO)
+    cmds = {c["name"]: c for c in catalog if c["kind"] == "command"}
+    assert "fabrik-review" in cmds, sorted(cmds)[:8]
+    assert cmds["fabrik-review"]["invoke"] == "/fabrik-review"
+    assert "Adversarial code review" in cmds["fabrik-review"]["summary"]
+
+
+def test_driver_retired_marker_wins_over_import_probe(tmp_path, monkeypatch) -> None:
+    """A driver whose head carries a line-start RETIRED directive is 'retired' even though it
+    imports fine — org retirement must beat the mechanical probe (the stale-ok class)."""
+    drv = tmp_path / "src" / "fabrik" / "drivers"
+    drv.mkdir(parents=True)
+    (drv / "__init__.py").write_text("")
+    (drv / "deadstack.py").write_text('"""RETIRED 2026-07-19 — dead stack."""\n')
+    (drv / "livestack.py").write_text('"""A live driver."""\n')
+    recs = gci._enum_drivers(tmp_path)
+    by = {r["name"]: r["status"] for r in recs}
+    assert by["deadstack"] == "retired", by
+    # the marker must not LEAK to unmarked siblings; its import-probe status in a tmp tree is
+    # env-dependent (the real `fabrik` package is already cached), and probe semantics are
+    # covered by the real-repo tests above — so assert only the non-leak here
+    assert by["livestack"] != "retired", by
+
+
+def test_benchmark_and_ops_script_subdirs_scanned() -> None:
+    """scripts/{kilo-benchmarks,bootstrap,audit,credit_fetchers} are in scan scope — ownership
+    can't map surfaces the catalog can't see."""
+    catalog = gci.build_catalog(REPO)
+    paths = " ".join(c["invoke"] for c in catalog if c["kind"] == "script")
+    assert "scripts/kilo-benchmarks/" in paths, "kilo-benchmarks not scanned"
+    assert "scripts/bootstrap/" in paths or not (REPO / "scripts/bootstrap").is_dir()

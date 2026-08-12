@@ -628,7 +628,7 @@ def destroy_deployment(
     # never aborts destroy. (T2-01 / G-F3.)
     if not dry_run:
         try:
-            from fabrik import state as state_module
+            import fabrik.state as state_module
 
             archived = state_module.archive_destroyed(spec.id)
             if archived is not None:
@@ -792,7 +792,7 @@ def destroy_from_state(
     # but we do it here for symmetry with destroy_deployment.
     if not dry_run and not report.had_errors:
         try:
-            from fabrik import state as state_module
+            import fabrik.state as state_module
 
             archived = state_module.archive_destroyed(spec.id)
             if archived is not None:
