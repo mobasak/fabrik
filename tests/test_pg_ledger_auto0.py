@@ -89,7 +89,7 @@ def _recorded_quality(result, sink):
     assert ok, "the fake-connection insert must be treated as confirmed"
     assert sink, "no INSERT captured"
     _sql, params = sink[-1]
-    return [p for p in (params or [])]
+    return list(params or [])
 
 
 def test_errored_run_stays_null_module_invariant(tmp_path):

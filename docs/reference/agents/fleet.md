@@ -42,4 +42,6 @@ approval arrives only in the operator's own session.
 Blocked per CLAUDE.md's three BLOCKED cases only. Deploys remain trigger-don't-execute with the
 operator's go at Gate 2 — a charter never overrides the human gate. Cross-beat urgent work: any
 agent may act under shared-tree discipline; hand off to the default owner — the charter beat tables, machine-readable as the
-catalog's `owner:` field — when the urgency passes. Commits carry `Agent-Name: fleet`.
+catalog's `owner:` field — when the urgency passes. (Coverage note: some beat surfaces —
+templates/ + docs/PROJECT_CATALOG.md — have no catalog kind yet; where the catalog is silent,
+THIS table is authoritative.) Commits carry `Agent-Name: fleet`.

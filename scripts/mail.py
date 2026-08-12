@@ -458,10 +458,9 @@ def digest(days: int = 3) -> dict:
                 if fm.get("ack") == "required" and _age_seconds(fm.get("ts", "")) >= threshold:
                     unacked += 1  # required, still unclaimed in inbox
         if archive.is_dir():
-            for f in sorted(archive.glob("*.md.resolving*")):
-                # a stranded resolve window (closer D1) — the message is invisible to every
-                # verb until swept; surface it, never report a clean mailbox over it
-                unacked += 1
+            # stranded resolve windows (closer D1) — invisible to every verb until swept;
+            # surface them, never report a clean mailbox over an invisible message
+            unacked += sum(1 for _ in archive.glob("*.md.resolving*"))
             for f in sorted(archive.glob("*.md")):
                 text = f.read_text(encoding="utf-8", errors="replace")
                 fm = _parse(text)

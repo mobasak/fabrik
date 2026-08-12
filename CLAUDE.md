@@ -152,7 +152,7 @@ Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(traile
 
 These rules are **universal** — they bind every repo on the box (hub · the ~46 synced projects · sync-excluded
 repos like `fabrik-lib`), whatever each repo's local governance customizes. Each has a **load-bearing anchor
-phrase that must survive rewording**: a sync-excluded repo's `scripts/enforcement/check_governance_drift.py`
+phrase that must survive rewording**: a sync-excluded repo's `/opt/fabrik-lib/scripts/enforcement/check_governance_drift.py`
 reads THIS hub file (`/opt/fabrik/CLAUDE.md`) and flags (advisory, never a hard fail) any anchor present here
 but missing from its own `CLAUDE.md` — turning silent governance drift into a gate warning BEFORE it poisons a
 shared tree (the fabrik-lib stale commit-push incident, 2026-08-12).

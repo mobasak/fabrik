@@ -325,3 +325,10 @@ $ echo "${CLAUDE_CODE_MESSAGING_SOCKET:-EMPTY}"  → EMPTY   (CC 2.1.228; kill-s
   kaizen pass consumes it (no operator stop needed).
 - OPEN (external, non-blocking): the Layer-2 server-side flag — charters carry the fallback; the
   ListAgents probe is re-run at each session start until it passes (no plan step blocks on it).
+- OPEN (spec-r3 refinements, recorded per the Phase B review adjudication): P4 — `cli → fleet`
+  blankets 55 verbs including `fabrik dev`/`fabrik review`/`fabrik ai usage`, which the charters
+  place nearer infra's beat (per-verb attribution when it matters). P6 — `docs/CAPABILITIES.md`
+  renders `(owner: …)` only for `status == "ok"`, so the 189 broken/retired/manual entries — the
+  defect-triage set where ownership matters most — carry no owner in the human-facing catalog
+  (the JSON is complete; a triage-doc owner column rides `audit_capability_docs`). H6 — a
+  `_OWNER_PATH_PREFIXES` tier for un-catalogued beat surfaces (`templates/`, `docs/*.md` beats).

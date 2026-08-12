@@ -412,7 +412,9 @@ def test_digest_alert_import_resolves_from_script_invocation(env, tmp_path):
     `from libs.alerting import send_alert` must resolve via a repo-root sys.path insert,
     never die as ModuleNotFoundError (fleet finding 01KZTMZ19…). Proven at the seam:
     the hub-side import path must find libs/ from the script's parent-parent."""
-    import subprocess, sys as _sys, os as _os
+    import os as _os
+    import subprocess
+    import sys as _sys
     repo_root = Path(mail.__file__).resolve().parent.parent
     env_vars = {k: v for k, v in _os.environ.items() if k != "PYTHONPATH"}
     probe = (
@@ -458,7 +460,8 @@ def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
     passed the exists+read check and appended CONTRADICTORY dispositions. Deterministic
     re-entrant pin: a second ack arriving INSIDE the first's append window must fail
     loudly — exactly one acked-by line survives."""
-    import os as _os, time as _time
+    import os as _os
+    import time as _time
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     _os.utime(p, (_time.time() - 300, _time.time() - 300))  # OLD message (closer E1: renames
@@ -491,7 +494,8 @@ def test_stale_resolving_orphan_is_swept_and_resolvable(env):
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
     orphan = arch.parent / f"{mid}.md.resolving.99999"
     arch.rename(orphan)  # the dead resolver's residue
-    import os as _os, time as _time
+    import os as _os
+    import time as _time
     _os.utime(orphan, (_time.time() - 120, _time.time() - 120))  # older than the 60s gate
     out = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert out.exists() and "disposition: done" in out.read_text()
@@ -543,7 +547,8 @@ def test_window_isolation_requeue_and_reclaim_both_locked_out(env, monkeypatch):
 def test_multiple_stale_orphans_all_cleared(env):
     """Closer F1: two crashes on one id left N orphans — one recovered, the rest were
     PERMANENT digest noise. The sweep must recover one and clear the rest; digest clean."""
-    import os as _os, time as _time
+    import os as _os
+    import time as _time
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
@@ -565,7 +570,8 @@ def test_window_never_carries_stale_mtime(env, monkeypatch):
     """Closer F2 (two-syscall residual): between rename and utime the window carried the
     MESSAGE's old mtime — stealable. The stamp must land BEFORE the rename (it travels
     atomically), so no instant exists where a window file looks old."""
-    import os as _os, time as _time
+    import os as _os
+    import time as _time
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     _os.utime(p, (_time.time() - 300, _time.time() - 300))

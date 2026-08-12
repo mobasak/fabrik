@@ -43,4 +43,6 @@ approval arrives only in the operator's own session.
 
 Blocked per CLAUDE.md's three BLOCKED cases only. Cross-beat urgent work: any agent may act under
 shared-tree discipline; hand off to the default owner — the charter beat tables,
-machine-readable as the catalog's `owner:` field — when the urgency passes. Commits carry `Agent-Name: infra`.
+machine-readable as the catalog's `owner:` field — when the urgency passes. (Coverage
+note: some beat surfaces — templates/governance/ (the sync payload carve-out) — have no catalog kind yet; where the catalog is
+silent, THIS table is authoritative.) Commits carry `Agent-Name: infra`.
