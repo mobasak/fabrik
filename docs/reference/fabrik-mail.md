@@ -61,8 +61,13 @@ ack: required|no
   `ack`-ing a CLAIMED id asserts the work is DONE — never ack another agent's claim unless you
   are finishing it (taking over a crashed claim goes through `requeue` first). Two simultaneous
   fallback-acks can both append (a visible doubled line, never silent loss) — tolerated at this
-  volume; ack's append itself never CREATES (a requeue that won the race makes the late ack fail
-  loudly instead of leaving a stray archive file).
+  volume — CORRECTED same-day: the claimed-message resolve is now RENAME-LOCKED like every
+  other transition (`archive/<id>.md → .resolving → back`), so two concurrent fallback-acks
+  can no longer both land (the loser ENOENTs; a requeue mid-resolve ENOENTs loudly too); ack's
+  append itself never CREATES (a requeue that won the race makes the late ack fail loudly
+  instead of leaving a stray archive file). `send` REFUSES a body carrying a verbatim ack line
+  (it would make a claimed message permanently un-ackable and digest-invisible) — quote
+  resolved threads indented: `> acked-by: …`.
 - **Requeue crash recovery.** A claimer that crashes mid-act leaves an archived file with no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox —
   and **strips any trailing `acked-by:` claim marker**, so a re-opened message never carries a stale

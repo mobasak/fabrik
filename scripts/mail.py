@@ -157,6 +157,13 @@ def _valid_recipient(to: str) -> bool:
     return (_opt_root() / to / ".claude" / "hooks" / "mail_notify.py").is_file()
 
 
+def _body_has_bare_ack_line(body: str) -> bool:
+    """A body carrying a VERBATIM ack line would poison the claim/ack/digest scans (a
+    claimed message becomes permanently un-ackable and digest-invisible — closer C3).
+    Refuse at send; quoting a resolved thread is fine with an indent ("> acked-by: …")."""
+    return bool(_ACK_LINE.search(body))
+
+
 def _secret_level(body: str) -> str | None:
     for rx in _SECRET_HIGH:
         if rx.search(body):
@@ -234,6 +241,11 @@ def send(
         raise MailRefusedError(
             f"body over the 64 KB cap ({len(body.encode('utf-8'))} B) — a mail is a pointer, not a payload"
         )
+    if _body_has_bare_ack_line(body):
+        raise MailRefusedError(
+            "refusing send: body contains a VERBATIM ack line (it would poison claim/ack/digest "
+            "scans) — quote resolved threads with an indent: '> acked-by: …'"
+        )
     level = _secret_level(body)
     if level == "high":
         raise MailRefusedError(
@@ -305,15 +317,26 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
+        _append_ack_line(dst, repo, disposition)
+        return dst
     except FileNotFoundError:
-        # claimed-but-unresolved → resolve in place; already-resolved → the loser still stops.
-        # COOPERATIVE SEMANTICS (documented in fabrik-mail.md): within one repo the sessions
-        # share identity — ack-ing a claimed id asserts the WORK IS DONE; never ack another
-        # agent's claim unless you are finishing it. Two simultaneous fallback-acks can both
-        # append (visible as a doubled line, never silent loss) — tolerated at this volume.
-        if not (dst.exists() and not _ACK_LINE.search(dst.read_text(encoding="utf-8"))):
-            raise
-    _append_ack_line(dst, repo, disposition)
+        pass
+    # claimed-but-unresolved → resolve in place, RENAME-LOCKED like everything else here
+    # (closer C1: an exists+read check was a TOCTOU — two acks landed contradictory
+    # dispositions). The resolver renames archive/<id>.md → .resolving (one winner; the
+    # loser's ENOENT stops it — and a concurrent requeue mid-resolve ENOENTs too, loudly),
+    # appends, renames back. Already-RESOLVED (ack line present) → put it back untouched
+    # and stop, preserving the double-ack loser semantics. COOPERATIVE SEMANTICS
+    # (fabrik-mail.md): ack-ing a claimed id asserts the WORK IS DONE — never ack another
+    # agent's claim unless you are finishing it.
+    resolving = dst.with_suffix(".md.resolving")
+    os.rename(dst, resolving)  # FileNotFoundError → not claimed either: the caller's error
+    try:
+        if _ACK_LINE.search(resolving.read_text(encoding="utf-8")):
+            raise FileNotFoundError(f"{msg_id} already resolved")
+        _append_ack_line(resolving, repo, disposition)
+    finally:
+        os.rename(resolving, dst)
     return dst
 
 

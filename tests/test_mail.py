@@ -440,3 +440,40 @@ def test_ack_append_helper_never_creates(env, tmp_path):
     with pytest.raises(FileNotFoundError):
         mail._append_ack_line(ghost, "fabrik", "done")
     assert not ghost.exists()
+
+
+def test_send_refuses_body_with_verbatim_ack_line(env):
+    """A body QUOTING a real ack line would poison claim/ack/digest scans (closer C3:
+    permanently un-ackable + invisible to the digest) — refuse at send, teach the sender
+    to indent-quote ('> acked-by: …')."""
+    bad = "relaying the thread:\nacked-by: fabrik · ts: 2026-08-12T00:00:00Z · disposition: done\n"
+    with pytest.raises(mail.MailRefusedError):
+        mail.send(to="fabrik", kind="finding", body=bad, frm="alpha")
+    ok = "relaying the thread:\n> acked-by: fabrik · ts: X · disposition: done\n"
+    assert mail.send(to="fabrik", kind="finding", body=ok, frm="alpha").exists()
+
+
+def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
+    """Closer C1 (probe-confirmed TOCTOU): two concurrent acks on a CLAIMED message both
+    passed the exists+read check and appended CONTRADICTORY dispositions. Deterministic
+    re-entrant pin: a second ack arriving INSIDE the first's append window must fail
+    loudly — exactly one acked-by line survives."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    real_append = mail._append_ack_line
+    inner_raised = {}
+
+    def racing_append(dst, repo, disposition):
+        if "done" in disposition and not inner_raised:
+            inner_raised["probed"] = True
+            with pytest.raises(FileNotFoundError):
+                mail.ack(msg_id=mid, repo="fabrik", disposition="wontfix")
+        return real_append(dst, repo, disposition)
+
+    monkeypatch.setattr(mail, "_append_ack_line", racing_append)
+    out = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert inner_raised.get("probed")
+    text = out.read_text()
+    assert text.count("acked-by:") == 1, text
+    assert "wontfix" not in text
