@@ -20,25 +20,25 @@ Relocate the ~176-file AI-model-catalog **engine** (scrape → normalize → der
 - **Data store (CHANGED 2026-08-12 — operator decision, spec §7):** the engine's SQLite `kilo_agents.db` is **consolidated into Postgres inside the new repo**. This supersedes the earlier *relocation, not conversion*. Phase B still COPIES the `.db` (it is both the migration SOURCE and the Phase-A parity oracle); the conversion is a B-phase step, not a Phase-6 deferral. It also independently closes the gitignored-DB gap (`.gitignore:126` — a git-sourced deploy would never have received the file). The saas app schema (users/accounts) stays Phase-6, untouched.
 - **Fail-open floor is sacred:** `libs/subagents/select.py:479-483` (`table.get(task_type) or _TABLE[task_type]`) + the 14-day staleness gate (`:373`) mean a missing/stale selection doc degrades the fleet to the vendored `_TABLE`, never an outage. No step may weaken it.
 - **Shared master:** stage **explicit paths only** (never `git add -A`/`-a`), `git diff --cached --name-only` before every commit, `git fetch` + ff before push, never touch sibling-authored files.
-- **Engine = a scheduled WORKER, not a web service:** it deploys as a cron/worker container in `ai-model-catalog`'s compose (the scaffold already has a `worker` service at `compose.yaml:83`). The web tier (`app/`, `api/`) is Phase-6.
+- **Engine = a scheduled WORKER, not a web service (WSL-only, D5):** it runs as a **WSL cron job** from `/opt/ai-model-catalog/engine/`, exactly as it does in fabrik today. ~~it deploys as a cron/worker container in `ai-model-catalog`'s compose~~ — containerisation moved to the later VPS spec (the scaffold already has a `worker` service at `compose.yaml:83`). The web tier (`app/`, `api/`) is Phase-6.
 - **⚠️ DELIVERY TRANSPORT — the producing engine runs on the WSL hub box, NOT the VPS container (G3, resolved here so no phase assumes filesystem adjacency it lacks).** `deliver_to_fabrik.py` uses local-FS `_atomic_copy` from `/opt/ai-model-catalog/engine/out/` → `/opt/fabrik/...`; that is only valid because **both repos are on the same WSL box**, which is where the daily consumer chain (`daily_refresh.sh` cron) already runs. The **E.4 VPS deployment is the product/worker tier** (it exercises the engine in-container + serves Phase-6), and it **does NOT deliver to fabrik** — a container on vps1 cannot write `/opt/fabrik` on the WSL box. If delivery must later move to the deployed container, the transport becomes **publish-to-git** (engine commits `out/` to the `ai-model-catalog` repo; fabrik's `deliver` step becomes a `git pull` + copy) — that is the "(or fetch)" branch in D.1 and is **Phase-6 scope, not this plan**. No step in A–E may assume the VPS container has access to fabrik's filesystem.
 - **Vendor, don't import (lifecycle boundary):** the engine takes its **own vendored copy** of `libs/subagents/`, `libs/web_scrape/`, `alerting/`; fabrik keeps `libs/subagents` from `/opt/fabrik-lib`. No shared file between the moved engine and fabrik.
 - **12-Factor (binding):** logs → unbuffered **stdout** — because Phase B.4/E.4 stand up the engine as a **deployed worker container**, its `cache/update.log` file-write must become stdout-only **in Phase B (B.2f), before the container is wired**, not deferred (a deployed container writing a logfile is an active XI violation — Promtail→Loki owns routing). **The app writes NO logfile in any environment** — an operator wanting a local file redirects at the invocation layer (`daily_refresh.sh >> /var/log/… 2>&1` in cron), which is outside the app and 12F-legal; **no migrations from web startup** (XII, n/a — SQLite); **same backing services dev/prod** (X — SQLite is the catalog store in both; the flywheel is Postgres in both); config = env vars, no secrets in code (III); backing services by DSN not code (IV — the flywheel DSN).
 - **Deploy = trigger, not execute** — no `fabrik …` gate anywhere (hub-only CLI); every gate is a runnable `python`/`pytest`/`grep`/`sqlite3` assert from WSL dev.
-- **DB/infra invariants:** `postgres-main:5432`, `redis-main:6379`, external `fabrik` network, per-service `deploy.resources.limits.memory`, no host `ports:`, Traefik routes, stable container DNS.
+- **DB/infra invariants — ⚠️ NOT APPLICABLE under D5 (WSL-only); retained for the VPS spec.** In particular `postgres-main` is affirmatively WRONG for this plan: spec §4's probe shows the flywheel is on the WSL host's LOCAL socket, and the catalog store (B.2g) is the WSL local Postgres. ~~`postgres-main:5432`, `redis-main:6379`, external `fabrik` network, per-service `deploy.resources.limits.memory`, no host `ports:`, Traefik routes, stable container DNS.
 
 ## Context Ledger
 
 | Source | What binds | Grounded ref |
 |---|---|---|
 | `.windsurf/rules/core/75-workers-jobs.md` (ACTIVE) | the engine IS a batch worker — idempotency, orphan-sweep, pause-state discipline apply to the relocated pipeline | `select_rules.py` ACTIVE |
-| `.windsurf/rules/core/25-data-postgres.md` (ACTIVE) | migration discipline — but the engine store is SQLite; the only Postgres is the read-only flywheel DSN | ACTIVE |
-| `.windsurf/rules/core/55-observability.md` (ACTIVE) | stdout-only logs; the engine's `update.log` is a known deviation flagged for Phase-6 | ACTIVE |
+| `.windsurf/rules/core/25-data-postgres.md` (ACTIVE) | **NOW FULLY BINDING (corrected 2026-08-12):** B.2g performs a real SQLite→Postgres migration, so this pack's migration discipline governs the catalog store itself. The earlier text discharged an ACTIVE pack at exactly the moment a genuine Postgres migration entered scope. ~~migration discipline — but the engine store is SQLite; the only Postgres is the read-only flywheel DSN | ACTIVE |
+| `.windsurf/rules/core/55-observability.md` (ACTIVE) | stdout-only logs. ⚠️ **Note the internal inconsistency (2026-08-12):** B.2f REMOVES the `update.log` write in Phase B, while this row called it a deviation deferred to Phase-6. B.2f wins — but since D5 removed the container that justified it, the removal is now an unforced behaviour change to a working WSL cron pipeline: **flag it for the operator rather than shipping it silently.** ~~the engine's `update.log` is a known deviation flagged for Phase-6 | ACTIVE |
 | `.windsurf/rules/core/45-testing-strategy.md` (ACTIVE) | Behavior Contract per phase; the 64 engine test files (50 in-tree + 14 repo-root `tests/kilo_benchmarks/`) port + run | ACTIVE |
 | `.windsurf/rules/core/62-using-subagents.md` (ACTIVE) | pool-default fan-out for the per-phase review finders + parallel grounders | ACTIVE |
 | `.windsurf/rules/core/40-documentation.md` (ACTIVE) | Doc Sync Matrix — CHANGELOG/INDEX/SERVICES/PROJECT_CATALOG updates are phase-owned | ACTIVE |
 | `fabrik-lib` — `libs/subagents/` | **STAYS a shared `fabrik-lib` module** (canonical `/opt/fabrik-lib/subagents`); fabrik's `pick_models` + the fleet depend on it. The engine **vendors its own copy** (lifecycle split). Real API: `pick_models(task_type)`, `fanout(...)`, `record_agent_run`. | `libs/subagents/select.py`, `agent.py`, `pg_ledger.py` |
-| `AGENTS.md` / `agents-fabrik.md` — hub deploy model | `fabrik apply specs/services/ai-model-catalog.yaml` (hub-side) deploys the project; the VPS `git pull`s from `mobasak/ai-model-catalog` | `agents-fabrik-core.md` |
+| `AGENTS.md` / `agents-fabrik.md` — hub deploy model | **OUT OF SCOPE (D5)** — no deploy in this plan. Retained for the VPS spec: ~~`fabrik apply specs/services/ai-model-catalog.yaml` (hub-side) deploys the project; the VPS `git pull`s from `mobasak/ai-model-catalog` | `agents-fabrik-core.md` |
 | `specs/services/ai-model-catalog.yaml` `shape:` | `needs_database: true` · `needs_cache: true` · `exposes_metrics: true`, `source.type: git` — the deployed target; the engine-worker rides this spec | read the `shape:` block (inspection, not `fabrik plan`) |
 | The consumer contract (spec §2) | the 6 output classes fabrik+fleet consume — the golden-file oracle of Phase 0 | spec §2 |
 
@@ -50,7 +50,7 @@ Relocate the ~176-file AI-model-catalog **engine** (scrape → normalize → der
 2. **Golden-file parity** *(the "no functionality lost" oracle)*: every **engine-produced** artifact (selection docs, rule-pack marker blocks, `kilo_47_agents_final.json`, `KILO_MODEL_CAPABILITIES.md` + its EMBEDDING_CATALOG block, `models_browser.html`) is **byte-identical** from the relocated engine vs the Phase-0 baseline. **NOT** `docs/CAPABILITIES.md`/`capabilities.json`/`llms.txt` — those are produced by `scripts/generate_capability_index.py` (`:406-407`, catalogs fabrik-lib, lives OUTSIDE `kilo-benchmarks/`), a **retained fabrik consumer** that STAYS (Phase D), not an engine output.
 3. **No live consumer breaks**: the spec §2 consumer manifest (pick_models, rank_task_subagents coding-fallback, the doc-presence gates, the Traycer chain) all resolve against the delivered artifacts.
 4. **Zero residue**: after Phase 4, `grep -r "kilo-benchmarks"` in `/opt/fabrik` returns only the intended consumer/distribution references; the dead Kilo/Cascade scripts + their sync-manifest/watch propagation are gone.
-5. **Flywheel DSN**: the deployed engine reads `fabrik_analytics.subagent_runs` over a network DSN, or fail-opens (`rank_task_subagents.py:179` stub) — never breaks fabrik.
+5. **Flywheel integrity (REPLACED 2026-08-12 — the deployed/network-DSN form retired with E.4)**: from the RELOCATED repo the read still returns `state=="ok"` with a NON-EMPTY row set, and a broken read still exits 1 (`rank_task_subagents.py:1374`) AND fires an alert rather than being swallowed at `daily_refresh.sh:423`. Fail-open stub returns are `:213`/`:216` — never breaks fabrik.
 6. **Rollback holds**: until Phase 4, fabrik's own engine still runs; reverting = "turn delivery off."
 
 Trivia skipped: exact worker-container image tag, log-line wording, `--help` text.
@@ -145,16 +145,31 @@ run whichever lands first; do not implement twice. See § Plan reconciliation at
 3. Gate: `python -m pytest engine/tests/test_no_fabrik_paths.py -v` → **Expected:** pass; `grep -rE "cache/update\.log|>> .*\.log" engine/ | grep -v LOG_TO_STDOUT` → **Expected:** no unconditional in-container logfile write.
 4. Gate (no-clobber isolation): `.venv/bin/python -m pytest engine/tests/test_output_root_isolation.py` — asserts a producer run writes **only** under `engine/out/` (mirrored + `blocks/`) and leaves `/opt/ai-model-catalog/.windsurf/rules/ai` **byte-unchanged**. → **Expected:** pass.
 
+**B.2g — SQLite → Postgres conversion (NEW 2026-08-12; the step Global Constraints promises).** The
+data-store decision is only real if a step performs it. Deliverables: (1) schema DDL for the catalog store in the
+new repo's Postgres (`server/db/`), derived from the live SQLite schema (`sqlite3 kilo_agents.db .schema`);
+(2) a one-shot idempotent migrate script; (3) repoint the engine's ~40 `DB_PATH = Path(__file__).parent /
+"kilo_agents.db"` readers at a `CATALOG_DSN` env. **Gate (equality, not vibes):** row counts per table match
+between source SQLite and target Postgres, and `SELECT count(*) FROM agents` matches the pre-conversion 909.
+⚠️ **B.3's parity oracle must then run the producers against the POSTGRES store** — running it against the
+un-converted SQLite would prove nothing about the conversion, which is the whole point of the oracle.
+
 **B.3 — Standalone green + byte-identical parity (behavior 2 — the flagship of this phase).**
 1. `cd /opt/ai-model-catalog/engine && python -m venv .venv && .venv/bin/pip install -e .` (toolchain preflight: `.venv/bin/python --version` → 3.11+; `which sqlite3`).
 2. Run the artifact producers only (no live scrapes — feed the copied `kilo_agents.db`; `OUTPUT_ROOT=engine/out`): the file producers write `engine/out/<fabrik-relative>`, the injector producers emit `engine/out/blocks/*.txt` + `manifest.json` (per B.2e). **Assert the refactor actually took (else B.3 parity fails confusingly on the one hybrid file):** `grep -c "EMBEDDING_CATALOG" engine/out/docs/reference/kilo/KILO_MODEL_CAPABILITIES.md` → **Expected: 0** — the engine emits the **base**; the block lives only in `engine/out/blocks/`. A non-zero count means an injector still injects in-producer (B.2e incomplete), not a parity bug.
 3. Write `engine/tests/test_parity_vs_fabrik_golden.py` — diff `engine/out/**` vs `/opt/fabrik/scripts/kilo-benchmarks/tests/golden/**` by sha256, matching the A.1 split: **whole-file goldens** vs the engine's whole-file outputs (for `KILO_MODEL_CAPABILITIES.md` both sides are the **base** — engine/out never injects `EMBEDDING_CATALOG`, and the golden was captured block-stripped, #10), and **block-body goldens** vs `engine/out/blocks/*.txt`. Run → **Expected: byte-identical** per class (same DB + same code = same output). Any diff = a decoupling bug (a path/env leaked into content) → fix.
 4. Gate: `.venv/bin/python -m pytest engine/tests/test_parity_vs_fabrik_golden.py engine/tests/ -v` → **Expected:** all 64 ported test files (50 in-tree + 14 from `tests/kilo_benchmarks/`) + parity pass.
 
-**B.4 — Compose worker wiring + image deps.**
+**B.4 — ⛔ DELETED (D5, 2026-08-12): compose worker wiring + image deps served the retired container only.** Its `psql`-in-Dockerfile mandate also contradicted B.2c's DO-NOT-REWRITE. Retained heading for traceability; no step here executes. Original text follows for the VPS spec: ~~Compose worker wiring + image deps.~~
 1. Toolchain preflight: `which docker` → **Expected:** `/usr/bin/docker` (present in WSL dev). Add the engine as a scheduled-worker service in `compose.yaml` (memory limit, `PYTHONUNBUFFERED=1`, `fabrik` network, no host ports); `docker compose -f compose.yaml config -q` (CLI-only, no daemon needed) → **Expected:** valid.
 1a. **MANDATORY Dockerfile update — 12-Factor II (G1): the engine shells out to `psql`** (`rank_task_subagents.py:185-191`, the flywheel read B.2c repoints to `psql "$FLYWHEEL_DSN"`). Per `30-ops` ("any binary the app shells out to MUST be `apt-get install`-ed AND version-pinned in the Dockerfile, with a `shutil.which()` startup probe"), the worker image MUST `apt-get install` a pinned `postgresql-client` **and** the engine must `shutil.which("psql")`-probe at startup and fail fast (or take the documented fail-open path) if absent — otherwise the E.4-deployed container works in WSL dev and dies in prod, the exact II failure mode. Also install the engine's `pyproject.toml` deps into the image. Gate: `grep -E "postgresql-client" server/Dockerfile` → **Expected:** a pinned install line; `docker compose config -q` still valid.
 2. Gate: `grep -A6 "engine" compose.yaml | grep -E "limits:|memory:|PYTHONUNBUFFERED"` → **Expected:** all present.
+
+**B.4a — Flywheel positive-proof, POST-MOVE (spec §7 gate 1, which A.0 cannot satisfy).** A.0 proves the read
+works in fabrik, which was never in doubt; the spec requires the assert *from the relocated repo under the real
+invocation context*. Gate, run from `/opt/ai-model-catalog/engine/` as the cron user/shell:
+`.venv/bin/python -c "from rank_task_subagents import _query_rows; s,r=_query_rows(); assert s=='ok' and r, (s,len(r))"`
+→ **Expected:** exit 0. A failure is BLOCKING — never a skip.
 
 **B.5 — Doc + spec updates.** `ai-model-catalog` `CHANGELOG.md`; `docs/SERVICES.md`+`docs/OPERATIONS.md` (new worker service — Doc Sync Matrix); confirm `specs/services/ai-model-catalog.yaml` `shape.needs_database:true` already covers the SQLite/worker (no flag change — SQLite isn't the shape DB; note it).
 
@@ -169,6 +184,16 @@ run whichever lands first; do not implement twice. See § Plan reconciliation at
 **Deliverable:** `ai-model-catalog` **delivers** the produced bundle into fabrik's consumed paths; both engines run in parallel for ≥1 week; a daily diff proves zero divergence. Fabrik is still on its own engine — nothing has broken.
 
 **Files:**
+⚠️ **S1a (2026-08-12) — the Postgres conversion orphans TWO retained fabrik consumers that read the SQLite
+file directly, and both STAY in fabrik:** `scripts/generate_kilo_agents.py:33,39` (`import sqlite3`;
+`DB_PATH = .../kilo-benchmarks/kilo_agents.db`) and the rule-6 carve-out `scripts/kilo-benchmarks/db_models.py:16,20`,
+which `scripts/kilo_auto_route.py:55-62` imports via `sys.path.insert` and `coding-auto.sh:32` execs by absolute
+path. After conversion the engine has no SQLite file to emit, so mode (c) below would deliver a **frozen** `.db`
+(silent staleness in Traycer agent regeneration + the coding router) or Phase E deletes it and `kilo_auto_route`
+dies at import. **Contract: the engine exports a SQLite SNAPSHOT of the Postgres catalog store to
+`engine/out/kilo_agents.db` as an explicit delivery artifact.** Gate: after a delivery,
+`sqlite3 <delivered.db> "SELECT count(*) FROM agents"` matches the Postgres count.
+
 - CREATE (ai-model-catalog) `engine/deliver_to_fabrik.py` — three delivery modes: (a) **copies** the file artifacts `engine/out/<rel>` → fabrik's `docs/reference/kilo/` (selection docs + `KILO_MODEL_CAPABILITIES.md` **base**, see #10), `scripts/kilo_47_agents_final.json`, and `scripts/kilo-benchmarks/models_browser.html` (#11 — its retained fabrik home, carved out of the Phase-E delete) (reuse the `_atomic_copy` pattern from `sync_enforcement_to_projects.py:278`) — **NOT** `CAPABILITIES.md`/`capabilities.json` (fabrik's own `generate_capability_index.py` still produces those locally, Phase D — delivering them would collide with a live producer); (b) **injects** each `engine/out/blocks/<host>.<MARKER>.txt` into its live host file via marker-replace — the full host set (grep-grounded): the `.windsurf/rules/ai/*.md` packs for OPENROUTER_ROUTES/GATEWAY_COUNTS; **three** hosts for the `EMBEDDING_ROSTER/CATALOG/WINNERS` blocks — `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md`, `docs/reference/kilo/KILO_MODEL_CAPABILITIES.md`, and **`.windsurf/rules/core/65-rag-search.md`** (`embedding_export_markdown.py:40-42`; ⚠️ the last is a **CORE** rule pack — higher blast than ai/); and `KILO_AGENT_SELECTION_GUIDE.md` for `ROSTER` (`generate_selection_guide_roster.py:21`) — the marker-injection the four injector producers used to do in-producer now runs fabrik-side HERE (the engine only emits block bodies). **Ordering (#10):** for the hybrid `KILO_MODEL_CAPABILITIES.md` (whole-file base + injected `EMBEDDING_CATALOG`), mode (a) copies the base FIRST, then mode (b) injects the `EMBEDDING_CATALOG` block into it — so (a) must precede (b) for that file; (c) **copies `engine/out/kilo_agents.db` → fabrik `scripts/kilo-benchmarks/kilo_agents.db`** (F1 — fabrik's retained `generate_kilo_agents.py:38` reads this DB directly via `sqlite3.connect`; without the delivered DB, Phase E's delete of the engine copy silently breaks Traycer CLI-agent regeneration).
 - CREATE (ai-model-catalog) `engine/tests/test_deliver_injection.py` (F4) — the marker-injection is high-blast **new** code (it writes into LIVE fabrik packs/docs); it must port + prove the hardened edge cases the 4 origin injectors carry: **idempotent** (inject twice → identical), **replace-not-duplicate** on a valid START/END pair, and **orphan/dangling-marker self-heal** (`category_export_markdown._replace_or_append_markers:191`, `embedding_export_markdown._replace_between_markers:209-245`). Red-then-green each. **Blast note:** one host is a CORE pack (`65-rag-search.md`), so a bad inject corrupts a fleet-synced rule — this test is not optional.
 - CREATE (fabrik) `scripts/kilo-benchmarks/tests/test_parallel_run_diff.py` — daily diff: delivered bundle vs fabrik-self-produced.
@@ -178,6 +203,14 @@ run whichever lands first; do not implement twice. See § Plan reconciliation at
 
 ### Steps
 **C.1 — Build the deliver step.** `deliver_to_fabrik.py --dry-run` prints the planned copies; `--apply` writes them (atomic). **⚠️ It MUST take `--target-root <dir>` (default `/opt/fabrik`) — N3:** every copy AND every marker-injection resolves under that root, so C.2's parallel-run can deliver into `/tmp/deliver-shadow/` **without touching a single live fabrik path** (mode b writes into rule packs incl. the CORE `65-rag-search.md` — injecting those live during the safety window would defeat Phase C's whole purpose and Behavior 6's rollback guarantee). D.1's "point it at fabrik's real consumed paths" = dropping the flag / passing `--target-root /opt/fabrik`. Gate: `python engine/deliver_to_fabrik.py --dry-run --target-root /tmp/deliver-shadow | grep -c "docs/reference/kilo"` → **Expected:** ≥6 (the real selection-doc count, R10-2), and **every printed destination starts with `/tmp/deliver-shadow`** (assert no `/opt/fabrik` path appears: `… --dry-run --target-root /tmp/deliver-shadow | grep -c "^/opt/fabrik"` → **Expected: 0**).
+⚠️ **S1d (2026-08-12) — the parallel-run gate can pass TRIVIALLY.** `daily_refresh.sh:92-96` guards on
+`LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"` and `exit 0`s if it exists. Under WSL-only BOTH engines run on
+the SAME box and share that path, so whichever runs second exits 0 having produced nothing — and
+`test_parallel_run_diff.py` then diffs a STALE shadow bundle against fabrik-live and can go GREEN while the
+relocated engine never ran at all. **Fix before C.2 runs:** namespace the engine copy's lockfile
+(`/tmp/.amc_engine_daily_$(date -u +%F)`), and add a C.2 gate asserting the shadow bundle's mtime advanced that
+day — `test $(date -u +%F) = $(date -u -r engine/out/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md +%F)`.
+
 **C.2 — Parallel-run (behavior 3, real-world).** Keep fabrik's `daily_refresh` running its engine; run ai-model-catalog's engine → deliver into a **shadow dir** (`/tmp/deliver-shadow/`, not fabrik's live paths yet). Daily for **≥7 days incl. a Sunday** (microbench day), diff shadow vs fabrik-live. Gate: `python -m pytest scripts/kilo-benchmarks/tests/test_parallel_run_diff.py` → **Expected:** zero diff across the window.
 **C.3 — Behavior Contract:** behavior 3 (no consumer divergence) proven over a full week including the Sunday specialty-bench; **+ the deliver-injection idempotency/self-heal contract** (`test_deliver_injection.py`, F4) — inject-twice-identical, replace-not-duplicate, orphan-marker self-heal — since the marker-replace logic is re-implemented fabrik-side and writes into live packs; **+ behavior 6 (ROLLBACK — N4: it was declared in the master contract but owned by no phase).** C owns it because C is the safety window: prove "reverting = turn delivery off" by asserting fabrik's own engine still produces independently — gates (the artifact oracle alone proves nothing about the CONSUMER — prove both): (i) with delivery disabled (no `--apply` that day), `python -m pytest scripts/kilo-benchmarks/tests/test_golden_parity.py` → **Expected:** still green from fabrik's own producers; (ii) **the consumers still resolve** — `python -c "import sys; sys.path.insert(0,'libs'); from subagents.select import pick_models; print(pick_models('code')[:3])"` → same top-3 as baseline, AND `python scripts/kilo_auto_route.py --help` (the Traycer coding dispatch path) exits 0; (iii) **nothing live was touched all window** — `--target-root /tmp/deliver-shadow` means `git status --porcelain docs/reference/kilo/ .windsurf/rules/` → **Expected: empty** apart from fabrik's own daily_refresh output. Together these prove "reverting = turn delivery off" leaves fabrik fully self-sufficient.
 
@@ -286,9 +319,10 @@ for e in ENTRY:                            # any '<name>.json'/'.yaml'/'.txt' li
 **E.2 — Excise (TWO separate deletions — different directories, N3).** (i) `git rm -r scripts/kilo-benchmarks/<engine files>` (keeping the rule-1/2/6/7 remnant); (ii) `git rm scripts/{kilo_docs_enforcer.py,kilo_code_review.py,kilo_code_review_bckp.py,kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh} scripts/Local_*.sh scripts/Kilo_Review.sh` — **top-level paths**, which (i)'s recursive delete never touches. Then purge the sync-manifest/watch patterns. Gates: (a) reference purge — `grep -rc "kilo_code_review\|kilo_docs_enforcer" scripts/fabrik_synced_manifest.py .pre-commit-config.yaml` → **Expected: 0**; (b) **positive-deletion proof (the (a) gate only proves the manifest stopped naming them, never that the files are gone)** — `ls scripts/kilo_docs_enforcer.py scripts/kilo_code_review.py scripts/kilo_cost_report.py scripts/mcp_kilo_server.py 2>&1 | grep -c 'No such file'` → **Expected: 4**.
 **E.3 — Full gate + subagent-pool smoke (behavior 4).** `python scripts/final_gate.py --json` → `"success"` (baseline-attributed); run a real `/fabrik-review` finder round end-to-end to prove fabrik's brain still works headless.
 **E.4 — ⛔ RETIRED (D5, 2026-08-12): deploy + network flywheel DSN are OUT OF SCOPE.** The probe this step planned has already been RUN (spec §4): `fabrik_analytics` sits on the WSL workstation's local socket, `listen_addresses=localhost`, **not** on `postgres-main`, and that box is not on the WireGuard mesh — so *provision a network-reachable read-only DSN* had no target. Retained verbatim below as the hand-off brief for the separate VPS-deployment spec:
-1. **Probe the flywheel's true host** (spec §4 — the DSN is host-less today): on the hub `psql "$SUBAGENT_RUNS_DSN" -c '\conninfo'` → record the physical instance.
-2. Commit + push `ai-model-catalog`; **hand off to the operator** for hub-side `fabrik apply specs/services/ai-model-catalog.yaml` (deploy = trigger-not-execute; the plan does NOT self-deploy).
-3. Provision a **network-reachable read-only DSN** to that instance; point `rank_task_subagents` at it; confirm `SELECT` works from the deployed worker (or fail-opens). Gate: `psql "$FLYWHEEL_DSN" -c "SELECT count(*) FROM subagent_runs"` from the deploy context → **Expected:** a count, or a clean fail-open stub.
+> *(The three original numbered steps — probe the flywheel host, `fabrik apply`, and provision a
+> network-reachable read-only DSN — are DELETED here rather than left as imperatives a skim could
+> execute. They belong to the VPS-deployment spec, together with spec §4's already-recorded probe
+> output, which resolved the host question this step was created to answer.)*
 **E.5 — Behavior Contract:** behavior 4 (residue). *(Behavior 5, the flywheel DSN, moves to the VPS spec together with E.4.)*
 
 **E.closing:** run the **whole-plan `/fabrik-review`** over the cumulative diff (→ no-op); `final_gate --json` green (fresh) in both repos; `check_convergence.py` green; `/fabrik-docs-review` on the touched docs; commit (`Agent-Phase: E`) + flip plan `Status: IN-PROGRESS → EXECUTED <date>`; archive the plan to `docs/development/plans/archived/`.
@@ -332,7 +366,7 @@ for e in ENTRY:                            # any '<name>.json'/'.yaml'/'.txt' li
 
 ### Phase E grounded in
 - Dead-script inventory + non-propagation: spec §3c; `fabrik_synced_manifest.py:29-30`, `watch_enforcement_changes.sh:49-50`, git `55a53b9a` "retired Kilo/Cascade triad".
-- Flywheel host-less DSN: spec §4 (`SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics`, `rank_task_subagents.py:179` fail-open, `:187-191` sudo-psql).
+- Flywheel host-less DSN: spec §4 (`SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics`, `rank_task_subagents.py:213`/`:216` fail-open, `:187-191` sudo-psql).
 
 ## Self-audit
 
@@ -348,7 +382,7 @@ for e in ENTRY:                            # any '<name>.json'/'.yaml'/'.txt' li
 - Flywheel read-only DSN (D2) → **SUPERSEDED by D5 (2026-08-12)**: the probe was run and found no network-reachable instance; the flywheel does not move and the read is unchanged. E.4 retired.
 - Fold dead-residue purge (D3) → Phase E.2.
 - Single plan, review per boundary (D4) → this plan, `/fabrik-review` in every phase's closing.
-- SQLite stays / engine=worker (spec §4) → Global Constraints + Phase B.4.
+- Catalog store → **Postgres** (operator 2026-08-12) → Global Constraints + **B.2g**. *(B.4 is deleted; the old "SQLite stays / engine=worker" mapping is superseded.)*
 
 ### (b) Cross-phase signature consistency
 - `capture_golden.GOLDEN_DIR` (A) ← consumed by `test_parity_vs_fabrik_golden` (B) + `test_parallel_run_diff` (C). Names match.
@@ -362,13 +396,13 @@ Fixed-point claim: this plan carries the full grounding a fresh executor needs; 
 ## Residual unknowns
 
 ### Resolved during drafting
-1. **Engine target dir** — `engine/` in ai-model-catalog (convention; the scaffold's `worker` service hosts it). RESOLVED.
+1. **Engine target dir** — `engine/` in ai-model-catalog. **REASON CORRECTED 2026-08-12:** not "the scaffold's `worker` service hosts it" (that service is the retired container). Under WSL-only **no build context binds the engine at all**, so a top-level `engine/` is correct and keeps the 101-script flat tree out of the scaffold's `server/src/ai_model_catalog` package namespace. The later VPS spec re-decides. RESOLVED.
 2. **SQLite vs Postgres** — CHANGED 2026-08-12 (operator, spec §7): **consolidated into Postgres in the new repo.** RESOLVED the other way; see Global Constraints.
 3. **Deliver mechanism** — reuse `_atomic_copy` from `sync_enforcement`. RESOLVED.
 
 ### Still-open (each self-service)
 1. **[SELF-SERVICE — Phase B.2]** Exact set of `/opt/fabrik` string literals to rewrite. Resolution: `test_no_fabrik_paths.py`'s grep enumerates them; fix each; the test gates it. No stop.
-2. **[SELF-SERVICE — Phase E.4]** The flywheel's true physical host (DSN is host-less). Resolution: `psql "$SUBAGENT_RUNS_DSN" -c '\conninfo'` on the hub — a one-command probe, executor runs it. Fail-open covers a miss.
+2. **RESOLVED 2026-08-12 — no longer a residual.** The flywheel's physical host was PROBED and recorded in spec §4 (WSL local socket, `listen_addresses=localhost`, not on `postgres-main`, box not on the WireGuard mesh). E.4 is retired. Original text: ~~[SELF-SERVICE — Phase E.4] … Resolution:~~ `psql "$SUBAGENT_RUNS_DSN" -c '\conninfo'` on the hub — a one-command probe, executor runs it. Fail-open covers a miss.
 3. **[SELF-SERVICE — Phase E]** Whether any /opt project (beyond fabrik) imports the engine directly. Resolution: E.1's fleet-wide grep; extend the delete-guard to any hit. No stop.
 
 ## Handoff
