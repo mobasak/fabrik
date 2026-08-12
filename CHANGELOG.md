@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail root excluded from governance-sync (2026-08-12)
+### Changed — mid-stream death detection extended to the CLI's whole error family (2026-08-12)
+
+`~/.claude/bin/claude-stop-decider.py` `_API_ERROR_STALL_PATTERNS` grew from the single
+operator-reported pattern to all five members of the CLI's mid-stream death family, extracted
+verbatim from the 2.1.219 binary's string table (one construction site): `Response stalled
+mid-stream` · `Server error mid-response` · `Connection closed mid-response` · `Response stalled
+while thinking` · `Connection closed while thinking`. Transcript sweep showed connection-closed is
+~3× more frequent than the stalled pattern; forensics proved it fires StopFailure (`server_error`)
+so Layer 1 heal-at-death already caught it — tail-detection now doubles the loud variants
+harmlessly (dup-park guarded) and is the only net for the silent ones. 4 new red-first fixtures
+(suite 78→82 green, all watched fail as `busy-input` — the exact masking verdict — before the
+tuple edit); mesh harness 114/114; DR-pushed. `docs/workstation/hooks-index.md` Stop row updated
+to name the family.
 
 `/opt/fabrik-mail` (the mail DATA store) was being adopted as a "project" by
 `sync_enforcement_to_projects.py`'s `is_dir()` discovery and filled with the governance corpus
