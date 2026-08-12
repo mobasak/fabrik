@@ -420,7 +420,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # timeout → empty list → stub emitted with same date bump so the "Last refresh"
   # header alerts an operator watching for stale content).
   _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
-    || echo "[daily_refresh] rank_task_subagents failed (non-fatal)"
+    || { echo "[daily_refresh] rank_task_subagents FAILED — flywheel read broken or aggregation error"; "$VENV_PY" -c "from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title='daily_refresh.sh: rank_task_subagents FAILED — flywheel read broken', body='rank_task_subagents.py exited non-zero. Per its contract that means the flywheel read is BROKEN (state=error), NOT merely empty — a stub TASK_SUBAGENT_SELECTION.md has been published and will be fleet-synced to the vendored pick_models copies, which then fall back to the baked-in _TABLE. Investigate the postgres/sudo path on this host.', severity='critical')" 2>/dev/null || true; }
 
   # Per-task specialty rankers (best-model-suggester Phase B). Emit
   # {TTS,STT,TRANSLATION,IMAGE_GEN}_SELECTION.md via Pareto rank on

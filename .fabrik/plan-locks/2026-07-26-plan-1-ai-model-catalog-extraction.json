@@ -1,0 +1,29 @@
+{
+ "plan": "2026-07-26-plan-1-ai-model-catalog-extraction",
+ "owned_paths": [
+  "scripts/kilo-benchmarks/",
+  "tests/kilo_benchmarks/",
+  "scripts/run_kilo_workflow.sh",
+  "scripts/generate_kilo_agents.py",
+  "scripts/wsl_startup_hook.sh",
+  "scripts/fabrik_synced_manifest.py",
+  ".pre-commit-config.yaml",
+  "scripts/watch_enforcement_changes.sh",
+  "scripts/claude_p_cost.json",
+  "scripts/claude_price_ratios.json",
+  "docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-12T19:26:34.178660+03:00",
+ "status": "active",
+ "baseline_commit": "b34373470c581aa0c6cb033680dade9ab965f7b0",
+ "baseline_gate": {
+  "tier": "lean",
+  "status": "success",
+  "passed": 22,
+  "failed": 0,
+  "known_red_full_tier": [
+   "mypy: fabrik.state attr-defined x4 \u2014 PRE-EXISTING, owner: src/fabrik/*.py (sibling)"
+  ]
+ }
+}
