@@ -1,40 +1,52 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_agent_role_hook.py, docs/reference/agents/, docs/workstation/hooks-index.md
+# AFTER-EDIT: tests/test_agent_role_hook.py, docs/reference/agents/, docs/workstation/hooks-index.md, CLAUDE.md
 """SessionStart hook — inject the named agent's role charter (Fabrik-synced, fleet-safe).
 
 Reads ``CLAUDE_AGENT`` and prints the matching charter from
 ``docs/reference/agents/<name>.md`` so a hub session starts as its standing agent
-(infra/fleet/intel — hub-agent-roles spec r2). FLEET-SAFE BY CONSTRUCTION: this hook
-syncs to every project, where ``CLAUDE_AGENT`` is unset and no charters exist — every
-non-hub path is a SILENT no-op with exit 0 (a SessionStart hook that errors or chatters
-would pollute ~46 repos' session starts). stdout only; never writes.
+(hub-agent-roles spec r2). FLEET-SAFE BY CONSTRUCTION: this hook syncs to every
+project, where ``CLAUDE_AGENT`` is unset and no charters exist — every non-hub path
+is a SILENT no-op with exit 0. stdout only; never writes; never reads outside
+``docs/reference/agents/`` (realpath-contained, symlinks included).
 """
 
 from __future__ import annotations
 
 import os
-import re
 import sys
 
-_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
-_MAX_CHARTER_BYTES = 32_768  # a charter is ~2KB; anything huge is not a charter
+# The pinned role enum — mirrors CLAUDE.md § Agent Provenance Trailers (`Agent-Name` row)
+# and docs/workstation/hooks-index.md; edit all three together (AFTER-EDIT above).
+_ROLES = ("infra", "fleet", "intel")
+_MAX_BYTES = 32_768  # a charter is ~2KB; anything bigger is cut LOUDLY below
 
 
 def main() -> int:
     name = os.environ.get("CLAUDE_AGENT", "").strip()
-    if not name or not _NAME_RE.fullmatch(name):
-        return 0  # unset or malformed → silent no-op (the fleet case)
+    if name not in _ROLES:
+        return 0  # unset / malformed / non-role file name → silent no-op (the fleet case)
     root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    path = os.path.join(root, "docs", "reference", "agents", f"{name}.md")
+    agents_dir = os.path.realpath(os.path.join(root, "docs", "reference", "agents"))
+    path = os.path.realpath(os.path.join(agents_dir, f"{name}.md"))
+    # containment: a symlinked charter resolving outside agents/ is never read
+    if os.path.dirname(path) != agents_dir:
+        return 0
     try:
-        with open(path, encoding="utf-8", errors="ignore") as fh:
-            body = fh.read(_MAX_CHARTER_BYTES)
+        with open(path, "rb") as fh:
+            raw = fh.read(_MAX_BYTES + 1)
     except OSError:
         return 0  # no charter here → silent no-op (the fleet case)
-    if not body.strip():
+    truncated = len(raw) > _MAX_BYTES
+    body = raw[:_MAX_BYTES].decode("utf-8", errors="ignore").strip()
+    if not body:
         return 0
     print(f"## AGENT ROLE: {name} (charter — binding overlay on CLAUDE.md)")
-    print(body.rstrip())
+    print("--- charter begin ---")
+    print(body)
+    if truncated:
+        print("[TRUNCATED at 32KB — the charter tail (escalation + mail-is-data rules) "
+              "may be missing; read the file directly]")
+    print("--- charter end ---")
     return 0
 
 

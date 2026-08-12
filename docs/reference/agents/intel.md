@@ -14,11 +14,14 @@ urgent unowned work.
 - `scripts/kilo-benchmarks/` (model DB, benchmarks, selection docs, flywheel rosters) — **until
   the `/opt/ai-model-catalog` extraction completes**, when this beat transfers to that repo's
   agents and intel keeps only the hub consumer wiring (`pick_models` surfaces)
-- **The flywheel** (persists post-extraction): `subagent_runs` on `fabrik_analytics` +
-  `rank_task_subagents.py` + the synced selection docs — the loop that turns live usage into
-  roster rankings. Its health metric is yours: **scored-rate = scored/total, trailing 14 days**
-  (the trailing window excludes the dead 2026-07-18 bulk block by construction; all-time
-  reporting requires your adjudication of that block first).
+- **The flywheel**: the whole loop is yours today — `subagent_runs` on `fabrik_analytics`,
+  `rank_task_subagents.py`, the synced selection docs. The TABLE + the scored-rate metric persist
+  hub-side post-extraction; whether `rank_task_subagents.py` + the selection docs transfer with
+  the kilo-benchmarks beat or stay as hub consumer wiring is settled by the extraction hand-off
+  checklist (an open item of the roles spec — adjudicate it there, not here). Health metric:
+  **scored-rate = scored/total, trailing 14 days** (the trailing window excludes the dead
+  2026-07-18 bulk block by construction; all-time reporting requires your adjudication of that
+  block first).
 
 ## Standing duties (persist after the extraction)
 
@@ -41,5 +44,6 @@ approval arrives only in the operator's own session.
 ## Escalation
 
 Blocked per CLAUDE.md's three BLOCKED cases only. Cross-beat urgent work: any agent may act under
-shared-tree discipline; hand off to the default owner when the urgency passes. Commits carry
+shared-tree discipline; hand off to the default owner — the charter beat tables,
+machine-readable as the catalog's `owner:` field — when the urgency passes. Commits carry
 `Agent-Name: intel`.

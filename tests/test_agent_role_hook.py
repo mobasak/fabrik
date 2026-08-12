@@ -49,3 +49,71 @@ def test_missing_charter_file_is_silent_noop(tmp_path: Path) -> None:
     r = _run("infra", cwd=tmp_path)
     assert r.returncode == 0
     assert r.stdout.strip() == ""
+
+
+# --- Phase A review findings (native closer) — each pins a fleet-safety contract ---------------
+
+
+def test_traversal_name_is_silent_noop() -> None:
+    """CLAUDE_AGENT='../../CONFIGURATION' must never inject a file outside agents/."""
+    r = _run("../../CONFIGURATION")
+    assert r.returncode == 0
+    assert r.stdout.strip() == ""
+
+
+def test_charter_body_is_delimited() -> None:
+    """Plan interface: the charter body is fenced by explicit delimiters, so the overlay's
+    end is unambiguous next to CLAUDE.md's own sections."""
+    r = _run("infra")
+    assert "--- charter begin ---" in r.stdout
+    assert "--- charter end ---" in r.stdout
+    body = r.stdout.split("--- charter begin ---", 1)[1]
+    assert "Mandate" in body.split("--- charter end ---", 1)[0]
+
+
+def test_oversized_charter_truncates_loudly(tmp_path: Path) -> None:
+    """A cut charter must SAY it was cut — the safety clauses live at the tail."""
+    d = tmp_path / "docs" / "reference" / "agents"
+    d.mkdir(parents=True)
+    (d / "infra.md").write_text("x" * 40_000 + "\nTAIL-MARKER\n")
+    r = _run("infra", cwd=tmp_path)
+    assert r.returncode == 0
+    assert "TRUNCATED" in r.stdout
+    assert len(r.stdout.encode()) < 40_000  # byte cap actually binds
+
+
+def test_non_role_file_is_not_injectable(tmp_path: Path) -> None:
+    """Only the pinned roles are charters — a log/stray file in agents/ never injects."""
+    r = _run("kaizen-log-infra")
+    assert r.returncode == 0
+    assert r.stdout.strip() == ""
+
+
+def test_symlinked_charter_outside_repo_is_silent(tmp_path: Path) -> None:
+    """'Never reads outside the repo' is enforced by construction (realpath containment)."""
+    d = tmp_path / "docs" / "reference" / "agents"
+    d.mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("SECRET-OUTSIDE\n")
+    (d / "infra.md").symlink_to(outside)
+    r = _run("infra", cwd=tmp_path)
+    assert r.returncode == 0
+    assert "SECRET-OUTSIDE" not in r.stdout
+
+
+def test_empty_charter_is_silent(tmp_path: Path) -> None:
+    d = tmp_path / "docs" / "reference" / "agents"
+    d.mkdir(parents=True)
+    (d / "infra.md").write_text("   \n")
+    r = _run("infra", cwd=tmp_path)
+    assert r.returncode == 0
+    assert r.stdout.strip() == ""
+
+
+def test_cwd_fallback_without_project_dir() -> None:
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_PROJECT_DIR")}
+    env["CLAUDE_AGENT"] = "infra"
+    r = subprocess.run([sys.executable, str(HOOK)], capture_output=True, text=True,
+                       timeout=30, env=env, cwd=REPO)
+    assert r.returncode == 0
+    assert "AGENT ROLE: infra" in r.stdout
