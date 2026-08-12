@@ -1,5 +1,17 @@
 {
+ "rank_task_subagents.flywheel": "SELECT task_type, model,\n       COUNT(*) AS n,\n       AVG(cost_usd) AS avg_cost,\n       AVG(quality_score) AS avg_quality,\n       SUM(CASE WHEN status='done' THEN 1.0 ELSE 0.0 END) / COUNT(*) AS success_rate\nFROM subagent_runs\nWHERE ts > NOW() - INTERVAL '90 days'\nGROUP BY task_type, model\nHAVING COUNT(*) >= 3",
  "rank_task_subagents.quality_tier": "SELECT id, quality_tier FROM agents WHERE quality_tier IS NOT NULL",
- "rank_task_subagents.flywheel": "SELECT task_type, model, count(*), avg(quality_score), avg(cost_usd), avg(latency_s) FROM subagent_runs GROUP BY task_type, model",
- "update_gateway_counts.counts": "SELECT gateway, count(*) FROM agents GROUP BY gateway"
+ "update_gateway_counts.00": "SELECT count(*) FROM agents WHERE has_reasoning=1 AND status='active'",
+ "update_gateway_counts.01": "SELECT count(*) FROM agents WHERE has_tools=1 AND status='active'",
+ "update_gateway_counts.02": "SELECT count(*) FROM agents WHERE has_vision=1 AND status='active'",
+ "update_gateway_counts.03": "SELECT count(*) FROM agents WHERE is_stt_capable=1 AND status='active'",
+ "update_gateway_counts.04": "SELECT count(*) FROM agents WHERE is_translation_capable=1 AND status='active'",
+ "update_gateway_counts.05": "SELECT count(*) FROM agents WHERE via_dashscope=1 AND status='active'",
+ "update_gateway_counts.06": "SELECT count(*) FROM agents WHERE via_kilo=1 AND (via_openrouter IS NULL OR via_openrouter=0) AND status='active'",
+ "update_gateway_counts.07": "SELECT count(*) FROM agents WHERE via_kilo=1 AND status='active'",
+ "update_gateway_counts.08": "SELECT count(*) FROM agents WHERE via_modelscope=1 AND status='active'",
+ "update_gateway_counts.09": "SELECT count(*) FROM agents WHERE via_openrouter=1 AND (via_kilo IS NULL OR via_kilo=0) AND status='active'",
+ "update_gateway_counts.10": "SELECT count(*) FROM agents WHERE via_openrouter=1 AND status='active'",
+ "update_gateway_counts.11": "SELECT count(*) FROM agents WHERE via_openrouter=1 AND via_kilo=1 AND status='active'",
+ "update_gateway_counts.12": "SELECT count(*) FROM agents WHERE via_siliconflow=1 AND status='active'"
 }

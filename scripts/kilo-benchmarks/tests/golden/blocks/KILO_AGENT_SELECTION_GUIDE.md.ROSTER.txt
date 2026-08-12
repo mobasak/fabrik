@@ -1,6 +1,6 @@
 
 
-*Auto-generated on 2026-08-12 from `assignments.json` + `kilo_agents.db`.*
+*Auto-generated on <DATE> from `assignments.json` + `kilo_agents.db`.*
 
 ### coding — General coding — routed here when ticket isn't classified yet
 

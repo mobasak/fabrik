@@ -123,13 +123,46 @@ def test_the_alert_can_actually_fire_not_just_exist():
         )
 
 
-def test_alerting_is_enabled_once_dotenv_is_loaded():
-    """End-to-end: with .env loaded the way the fixed invocation loads it, alerting is live."""
-    from dotenv import load_dotenv
+def test_alerting_is_enabled_once_dotenv_is_loaded(monkeypatch):
+    """End-to-end: with the alert's env present, alerting reports itself live.
 
-    load_dotenv(SCRIPT_DIR.parents[1] / ".env", override=False)
+    ⚠️ Does NOT call load_dotenv on the real .env. That would load all 447 lines into
+    os.environ for the whole pytest session, and six sibling modules in this directory branch
+    on OPENROUTER_API_KEY / ANTHROPIC_API_KEY — a full-suite run would wake key-gated paths
+    that were previously skipped, potentially making live metered calls. It would also couple
+    the assertion to THIS box's .env, so the test reds for environmental reasons once Phase B
+    copies tests/ into the engine repo. Inject just the one key instead.
+    """
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token-not-a-real-secret")
     import alerting
 
     assert alerting._is_enabled(), (
-        "alerting reports itself DISABLED even with .env loaded — the un-mute would be a no-op"
+        "alerting reports DISABLED even with TELEGRAM_BOT_TOKEN present — the un-mute is a no-op"
     )
+
+
+def test_broken_read_does_not_overwrite_a_good_doc(monkeypatch, tmp_path):
+    """THE REAL GUARD: a broken read must not publish the stub over yesterday's good doc.
+
+    Alerting alone is fail-open with a receipt — daily_refresh git-commits and pushes whatever
+    main() wrote, fleet-syncing it to 49 vendored pick_models copies.
+    """
+    good = tmp_path / "TASK_SUBAGENT_SELECTION.md"
+    good.write_text("GOOD CONTENT FROM YESTERDAY", encoding="utf-8")
+    monkeypatch.setattr(rts, "OUTPUT_PATH", good)
+    monkeypatch.setattr(rts, "_query_rows", lambda: ("error", []))
+    monkeypatch.setattr(rts, "render", lambda *a, **k: "AGGREGATION FAILED stub")
+    assert rts.main() == 1
+    assert good.read_text() == "GOOD CONTENT FROM YESTERDAY", (
+        "the broken-read stub overwrote a good doc — it will be committed and fleet-synced"
+    )
+
+
+def test_first_run_still_writes_when_no_doc_exists(monkeypatch, tmp_path):
+    """The mirror: an ABSENT doc is worse than a labelled stub, so a first run still writes."""
+    missing = tmp_path / "TASK_SUBAGENT_SELECTION.md"
+    monkeypatch.setattr(rts, "OUTPUT_PATH", missing)
+    monkeypatch.setattr(rts, "_query_rows", lambda: ("error", []))
+    monkeypatch.setattr(rts, "render", lambda *a, **k: "AGGREGATION FAILED stub")
+    assert rts.main() == 1
+    assert missing.exists(), "first run must still emit the labelled stub"

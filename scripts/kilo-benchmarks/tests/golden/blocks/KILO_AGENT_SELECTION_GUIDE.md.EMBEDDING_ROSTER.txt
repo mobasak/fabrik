@@ -1,5 +1,5 @@
 
-*Auto-generated on 2026-08-12 (UTC) from `embedding_roles` + `embedding_role_configs.yaml`. Edits between the markers will be overwritten on the next daily run.*
+*Auto-generated on <DATE> (UTC) from `embedding_roles` + `embedding_role_configs.yaml`. Edits between the markers will be overwritten on the next daily run.*
 
 **Selection algorithm** (see `embedding_selector.select_for_role`): apply hard floors, sort survivors by `input_cost_per_m ASC`, `quality_tier DESC`, `context_window_k DESC`, `id ASC`, take top-N where N = `slots`. Pinned winners also persisted in `embedding_roles` (SQLite), `embedding_assignments.json`, `kilo_embeddings_final.json` (Traycer), and `embedding_roles_history` (one snapshot per UTC day).
 

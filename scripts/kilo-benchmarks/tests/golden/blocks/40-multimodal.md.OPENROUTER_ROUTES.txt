@@ -1,5 +1,5 @@
 
-*Auto-generated 2026-08-12 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+*Auto-generated <DATE> (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

@@ -1,5 +1,5 @@
 
-*Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
+*Live gateway counts (active models, <DATE> UTC; auto-refreshed from `kilo_agents.db`):*
 
 code-tagged across all gateways: **63**
 

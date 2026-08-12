@@ -69,7 +69,9 @@ def test_volatile_date_is_normalized_not_drift():
     """
     a = "Last refresh: 2026-08-12\nrows: 5\n"
     b = "Last refresh: 2026-09-01\nrows: 5\n"
-    assert cg.sha(a) == cg.sha(b), "the volatile date leaks into the hash — verify will false-flag daily"
+    assert cg.sha(a) == cg.sha(b), (
+        "the volatile date leaks into the hash — verify will false-flag daily"
+    )
 
     c = "<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-12 -->x"
     d = "<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-12-31 -->x"
@@ -109,3 +111,66 @@ def test_db_queries_are_captured():
     q = json.loads(cg.DB_QUERIES.read_text())
     assert q, "db_queries.json is empty"
     assert any("subagent_runs" in v for v in q.values()), "the flywheel query is not recorded"
+
+
+def test_date_bump_over_the_real_corpus_produces_zero_drift():
+    """The test the synthetic version should have been.
+
+    An earlier revision asserted normalisation using hand-written strings the pipeline never
+    emits ("Last refresh: ..." at line-start, and a marker OPENER — which extract_block
+    excludes by construction). Both passed while 23 of 29 real goldens still embedded a date,
+    so the oracle would have gone RED on the next cron run. This drives the REAL artifacts.
+    """
+    import re as _re
+
+    def bump(text: str) -> str:
+        text = _re.sub(r"\d{4}-\d{2}-\d{2}", "2099-12-31", text)
+        return _re.sub(r"\d{2}:\d{2}:\d{2}(\.\d+)?", "23:59:59.999999", text)
+
+    still = []
+    for rel in cg.SELECTION_DOCS + cg.REGISTRY_JSONS + cg.OTHER_ENGINE_OUTPUTS:
+        f = cg.FABRIK_ROOT / rel
+        if not f.exists():
+            continue
+        raw = f.read_text(encoding="utf-8", errors="replace")
+        if cg.sha(raw) != cg.sha(bump(raw)):
+            still.append(rel)
+    for host in cg.ai_pack_hosts():
+        text = host.read_text(encoding="utf-8")
+        for marker in cg.AI_PACK_MARKERS:
+            body = cg.extract_block(text, marker)
+            if body is not None and cg.sha(body) != cg.sha(bump(body)):
+                still.append(f"{host.name}.{marker}")
+    assert not still, f"these REAL artifacts still drift on a pure date bump: {still}"
+
+
+def test_bare_invocation_refuses_to_refreeze():
+    """A destructive default on an oracle is a trap: hit DRIFT, re-run 'the gate', and the
+    drifted state gets blessed as the new contract with exit 0."""
+    import subprocess
+
+    r = subprocess.run(
+        [__import__("sys").executable, str(cg.__file__)],
+        capture_output=True,
+        text=True,
+        cwd=str(cg.FABRIK_ROOT),
+    )
+    assert r.returncode == 2, "a bare invocation must REFUSE, not silently re-freeze"
+    assert "--snapshot" in r.stderr
+
+
+def test_kilo_all_models_is_not_frozen():
+    """It is produced by the repo-root kilo_model_sync.py, which does not move with the
+    engine — freezing it would put a permanently unmatchable key in the contract."""
+    assert not any("kilo_all_models" in f for f in cg.REGISTRY_JSONS)
+
+
+def test_db_queries_match_source_not_prose():
+    """db_queries.json is extracted from source, so it cannot drift into fiction."""
+    import json as _json
+
+    q = _json.loads(cg.DB_QUERIES.read_text())
+    fw = q.get("rank_task_subagents.flywheel", "")
+    assert "INTERVAL" in fw, "the 90-day window is missing — this is not the real query"
+    assert "HAVING" in fw, "the MIN_RUNS HAVING clause is missing"
+    assert "success_rate" in fw, "the success_rate expression is missing"

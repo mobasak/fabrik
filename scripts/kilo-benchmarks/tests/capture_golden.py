@@ -56,9 +56,17 @@ SELECTION_DOCS = [
 ]
 REGISTRY_JSONS = [
     "scripts/kilo_47_agents_final.json",
-    "scripts/kilo_all_models.json",
+    # NOT kilo_all_models.json: produced by scripts/kilo_model_sync.py — a REPO-ROOT script
+    # that does not move with the engine, so it can never appear in engine/out/. Freezing it
+    # would put a permanently unmatchable key in the extraction contract.
     "scripts/kilo_embeddings_final.json",
     "scripts/kilo_openrouter_routes_final.json",
+]
+# Engine-produced, auto-committed daily by daily_refresh.sh — named in plan A.1/B.3.
+OTHER_ENGINE_OUTPUTS = [
+    "scripts/kilo-benchmarks/models_browser.html",
+    "docs/reference/kilo/CANDIDATE_SIGNUPS.md",
+    "docs/traycer/kilo_selected_agents.md",
 ]
 # Hashed with EMBEDDING_CATALOG stripped — see module docstring.
 CAPABILITIES_DOC = "docs/reference/kilo/KILO_MODEL_CAPABILITIES.md"
@@ -74,18 +82,36 @@ MARKER_HOSTS: list[tuple[str, str]] = [
 AI_PACK_MARKERS = ("GATEWAY_COUNTS", "OPENROUTER_ROUTES")
 
 # ── volatile-field normalisation ─────────────────────────────────────────────
-_VOLATILE = (
-    re.compile(r"^(Last refresh:).*$", re.M),
-    re.compile(r"(last-refreshed:\s*)\d{4}-\d{2}-\d{2}"),
-    re.compile(r"^(_?Generated:).*$", re.M),
+# ⚠️ Normalise ISO-8601 dates/timestamps GENERICALLY, not by named field.
+#
+# A field-name-anchored approach was tried and was a near-total no-op: the live corpus writes
+# its generation stamp in at least five shapes this pipeline actually emits —
+#   **Generated:** 2026-08-12            (bold, so a `^Generated:` anchor never matches)
+#   **Auto-generated:** 2026-08-12
+#   "generated_at": "2026-08-12T03:15:26Z"
+#   "timestamp": "2026-08-12T11:59:04.321496"   (microseconds — changes on EVERY run)
+#   *Live gateway counts (active models, 2026-08-12 UTC; ...)*   (inside a marker BODY)
+# and the `last-refreshed:` stamp lives in the marker's START comment, which extract_block()
+# excludes by construction — so a body-targeted regex for it can never fire at all.
+# Result: 23 of 29 goldens still embedded a date and the oracle would have gone RED on the
+# next cron run, for reasons with nothing to do with the extraction.
+#
+# TRADE-OFF, stated deliberately: this blanks EVERY ISO-8601 date/datetime, so a genuine
+# content change that is *only* a date (e.g. a model's release date shifting) would be
+# normalised away. That is the accepted cost — a daily-false-RED oracle is worthless, and
+# every date in these generated artifacts is a generation stamp. Non-date content changes are
+# still caught (see test_real_content_change_is_still_drift).
+_ISO_DT = re.compile(
+    r"\d{4}-\d{2}-\d{2}"  # 2026-08-12
+    r"(?:[T ]\d{2}:\d{2}:\d{2}"  # optional T03:15:26 / space-separated
+    r"(?:\.\d+)?"  # optional .321496
+    r"(?:Z|[+-]\d{2}:?\d{2})?)?"  # optional Z / +03:00
 )
 
 
 def normalize(text: str) -> str:
-    """Strip fields that change daily but carry no contract meaning."""
-    for pat in _VOLATILE:
-        text = pat.sub(lambda m: m.group(1) + " <NORMALIZED>", text)
-    return text
+    """Blank every generation stamp so only real content differences survive."""
+    return _ISO_DT.sub("<DATE>", text)
 
 
 def sha(text: str) -> str:
@@ -122,12 +148,12 @@ def snapshot() -> dict[str, str]:
     BLOCKS_DIR.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, str] = {}
 
-    for rel in SELECTION_DOCS + REGISTRY_JSONS:
+    for rel in SELECTION_DOCS + REGISTRY_JSONS + OTHER_ENGINE_OUTPUTS:
         f = FABRIK_ROOT / rel
         if not f.exists():
             print(f"[capture_golden] MISSING (recorded as absent): {rel}", file=sys.stderr)
             continue
-        manifest[rel] = sha(f.read_text(encoding="utf-8"))
+        manifest[rel] = sha(f.read_text(encoding="utf-8", errors="replace"))
 
     cap = FABRIK_ROOT / CAPABILITIES_DOC
     if cap.exists():
@@ -164,19 +190,33 @@ def snapshot() -> dict[str, str]:
 
 
 def _db_queries() -> dict[str, str]:
-    """The exact SQL live hub consumers issue (spec §2 grounding, Phase A.1 step 2)."""
-    return {
-        "rank_task_subagents.quality_tier": (
-            "SELECT id, quality_tier FROM agents WHERE quality_tier IS NOT NULL"
-        ),
-        "rank_task_subagents.flywheel": (
-            "SELECT task_type, model, count(*), avg(quality_score), avg(cost_usd), avg(latency_s) "
-            "FROM subagent_runs GROUP BY task_type, model"
-        ),
-        "update_gateway_counts.counts": (
-            "SELECT gateway, count(*) FROM agents GROUP BY gateway"
-        ),
-    }
+    """The exact SQL live hub consumers issue — read from the MODULE, never hand-typed.
+
+    Importing gives the f-string-INTERPOLATED query (real table name, real 90-day window,
+    real MIN_RUNS), which a regex over source cannot: it would capture the literal
+    ``FROM {TABLE}``. A hand-typed copy is worse still — the first version of this file
+    recorded a flywheel query with the wrong columns, no window and no HAVING, and the test
+    only checked that "subagent_runs" appeared somewhere, so the fiction passed.
+    """
+    out: dict[str, str] = {}
+    if str(SCRIPT_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR))
+    try:
+        import rank_task_subagents as _rts
+
+        out["rank_task_subagents.flywheel"] = _rts.QUERY
+    except Exception as exc:  # noqa: BLE001 — the oracle must not die on an import problem
+        out["rank_task_subagents.flywheel"] = f"<UNAVAILABLE: {type(exc).__name__}: {exc}>"
+
+    rts_src = (SCRIPT_DIR / "rank_task_subagents.py").read_text(encoding="utf-8")
+    m = re.search(r'"(SELECT id, quality_tier FROM agents[^"]*)"', rts_src)
+    if m:
+        out["rank_task_subagents.quality_tier"] = m.group(1)
+
+    ugc = (SCRIPT_DIR / "update_gateway_counts.py").read_text(encoding="utf-8")
+    for i, q in enumerate(sorted(set(re.findall(r'"(SELECT count\(\*\) FROM [^"]+)"', ugc)))):
+        out[f"update_gateway_counts.{i:02d}"] = q
+    return out
 
 
 def verify() -> int:
@@ -193,9 +233,11 @@ def verify() -> int:
             drift.append(f"MISSING: {key}")
         elif got != want:
             drift.append(f"DRIFT:   {key}")
-    for key in live:
-        if key not in golden:
-            drift.append(f"NEW:     {key}")
+    added = [k for k in live if k not in golden]
+    for key in added:
+        # An ADDITION is not a loss of functionality — a new rule pack, or a marker first
+        # appearing in an existing host, must not red the oracle. Report, don't fail.
+        print(f"[capture_golden] NEW (not drift): {key}", file=sys.stderr)
     if drift:
         print("[capture_golden] contract drift detected:", file=sys.stderr)
         for d in drift:
@@ -208,10 +250,10 @@ def verify() -> int:
 def snapshot_hashes() -> dict[str, str]:
     """Hash live artifacts WITHOUT writing goldens (the verify side)."""
     live: dict[str, str] = {}
-    for rel in SELECTION_DOCS + REGISTRY_JSONS:
+    for rel in SELECTION_DOCS + REGISTRY_JSONS + OTHER_ENGINE_OUTPUTS:
         f = FABRIK_ROOT / rel
         if f.exists():
-            live[rel] = sha(f.read_text(encoding="utf-8"))
+            live[rel] = sha(f.read_text(encoding="utf-8", errors="replace"))
     cap = FABRIK_ROOT / CAPABILITIES_DOC
     if cap.exists():
         live[CAPABILITIES_DOC] = sha(
@@ -240,9 +282,21 @@ def main() -> int:
     args = ap.parse_args()
     if args.verify:
         return verify()
+    if not args.snapshot:
+        # A destructive default on an oracle is a trap: someone hits DRIFT, re-runs "the
+        # gate", and the drifted state is blessed as the new contract with exit 0.
+        print(
+            "[capture_golden] refusing to re-freeze without --snapshot.\n"
+            "  --verify   diff live artifacts against the frozen contract\n"
+            "  --snapshot OVERWRITE the contract with current state (destructive)",
+            file=sys.stderr,
+        )
+        return 2
     m = snapshot()
     blocks = sum(1 for k in m if k.startswith("blocks/"))
-    print(f"[capture_golden] snapshotted {len(m)} artifacts ({blocks} marker bodies) -> {GOLDEN_DIR}")
+    print(
+        f"[capture_golden] snapshotted {len(m)} artifacts ({blocks} marker bodies) -> {GOLDEN_DIR}"
+    )
     return 0
 
 

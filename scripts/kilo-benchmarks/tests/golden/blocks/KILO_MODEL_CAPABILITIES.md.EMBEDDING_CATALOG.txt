@@ -1,5 +1,5 @@
 
-*Auto-generated on 2026-08-12 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 34 models.***
+*Auto-generated on <DATE> (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 34 models.***
 
 | Provider | Model | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned | GA | Status |
 |---|---|---|---|---|---|---|---|---|---|

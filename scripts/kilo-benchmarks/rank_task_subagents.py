@@ -1367,6 +1367,21 @@ def _atomic_write(path: Path, content: str) -> None:
 def main() -> int:
     state, rows = _query_rows()
     md = render(rows, state=state)
+    # ⚠️ DO NOT overwrite a good doc with the broken-read stub (Phase A.0, 2026-08-12).
+    # Alerting on a broken read is necessary but NOT sufficient: writing the stub first means
+    # daily_refresh.sh then git-commits and pushes it (:552/:576/:584), fleet-syncing a
+    # 5-line "AGGREGATION FAILED" placeholder to the 49 vendored pick_models copies, which
+    # then fall back to the baked-in _TABLE. The alert would arrive AFTER the poisoning
+    # completed — fail-open with a receipt. Yesterday's good doc is strictly better than a
+    # stub, so on a BROKEN read we keep it and exit non-zero. First run (no doc yet) still
+    # writes the stub, because an absent doc is worse than a labelled one.
+    if state == "error" and OUTPUT_PATH.exists():
+        print(
+            f"[rank_task_subagents] read BROKEN — KEEPING the existing {OUTPUT_PATH.name} "
+            "rather than publishing the failure stub (it would be fleet-synced)",
+            file=sys.stderr,
+        )
+        return 1
     _atomic_write(OUTPUT_PATH, md)
     print(f"wrote {OUTPUT_PATH} (state={state}, {len(rows)} rows aggregated)")
     # Exit non-zero on real aggregation failure so daily_refresh.sh's `|| echo "failed"`
