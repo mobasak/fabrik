@@ -17,7 +17,7 @@ Parallel: ⛓️
 Complexity: native
 Integration: true
 Gate: python scripts/final_gate.py --check --json
-Docs: CHANGELOG.md, INDEX.md, docs/LESSONS_LEARNT.md, docs/TROUBLESHOOTING.md — orchestrator-applied via Deltas
+Docs: CHANGELOG.md, INDEX.md, docs/LESSONS_LEARNT.md — orchestrator-applied via Deltas (TROUBLESHOOTING.md is T03's row, not duplicated here)
 
 ## Touches
 - docs/development/reviews/2026-08-12-plan-1-catalog-extraction-fabrik-prep-review.md
@@ -29,6 +29,11 @@ Docs: CHANGELOG.md, INDEX.md, docs/LESSONS_LEARNT.md, docs/TROUBLESHOOTING.md �
 - **Given** the docs touched by this set, **When** `/fabrik-docs-review` runs to its fixed point, **Then** it converges with no remaining doc-vs-code drift (docs/superpowers/specs/2026-07-26-catalog-extraction-design.md:1)
 
 ## Context Files
+- scripts/catalog_contract_snapshot.py
+- scripts/catalog_contract_audit.py
+- tests/catalog_contract/test_snapshot.py
+- tests/catalog_contract/test_audit.py
+- scripts/enforcement/check_convergence.py
 - docs/superpowers/specs/2026-07-26-catalog-extraction-design.md
 - .windsurf/rules/core/40-documentation.md
 - .windsurf/rules/core/50-code-review.md

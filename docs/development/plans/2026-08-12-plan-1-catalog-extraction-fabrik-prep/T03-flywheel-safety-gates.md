@@ -40,7 +40,7 @@ Depends: —
 Parallel: ⚡
 Complexity: native
 Gate: python -m pytest tests/catalog_contract/test_flywheel_safety.py -q
-Docs: docs/TROUBLESHOOTING.md (recurring symptom: silent stub selection doc) — orchestrator-applied via Deltas
+Docs: docs/TROUBLESHOOTING.md (recurring symptom: silent stub selection doc) — sole owner of this row; T05 does not duplicate it
 
 ## Touches
 - scripts/kilo-benchmarks/daily_refresh.sh — PRIMARY PATH
@@ -48,8 +48,9 @@ Docs: docs/TROUBLESHOOTING.md (recurring symptom: silent stub selection doc) —
 
 ## Behavior Contract
 - **Given** the flywheel read fails (psql/sudo unavailable), **When** `rank_task_subagents` runs, **Then** it emits the distinct broken stub and returns exit 1 rather than an empty-but-healthy result (scripts/kilo-benchmarks/rank_task_subagents.py:1374)
-- **Given** the ranker returns exit 1, **When** `daily_refresh.sh` invokes it, **Then** the failure is surfaced (non-zero propagated or an alert fired) and is NOT swallowed into a log line (scripts/kilo-benchmarks/daily_refresh.sh:423)
+- **Given** the ranker returns exit 1, **When** `daily_refresh.sh` invokes it, **Then** an alert is fired on the same channel `check_daily_refresh_freshness.py` uses — propagating a non-zero exit is NOT sufficient (scripts/kilo-benchmarks/check_daily_refresh_freshness.py:1)
 - **Given** a healthy flywheel, **When** the positive-proof probe runs, **Then** it asserts state `ok` AND a non-empty row set, failing if rows are empty (scripts/kilo-benchmarks/rank_task_subagents.py:175)
+- **Given** the probe cannot reach the database at all (no passwordless sudo / no psql), **When** it runs, **Then** it FAILS loudly and never reports success or skips (docs/superpowers/specs/2026-07-26-catalog-extraction-design.md:240)
 - **Given** the flywheel is genuinely empty but reachable, **When** the ranker runs, **Then** it exits 0 and does NOT emit the broken-read stub (scripts/kilo-benchmarks/rank_task_subagents.py:1114)
 - **Given** the un-muting change, **When** an unrelated non-fatal step fails in the same run, **Then** the run's other `|| echo` non-fatal steps keep their existing behaviour (scripts/kilo-benchmarks/daily_refresh.sh:115)
 
@@ -60,3 +61,4 @@ Docs: docs/TROUBLESHOOTING.md (recurring symptom: silent stub selection doc) —
 - docs/superpowers/specs/2026-07-26-catalog-extraction-design.md
 - scripts/kilo-benchmarks/rank_task_subagents.py
 - libs/subagents/select.py
+- scripts/kilo-benchmarks/check_daily_refresh_freshness.py

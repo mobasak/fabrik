@@ -1,6 +1,6 @@
 # Catalog Extraction — fabrik-side preparation and safety instruments
 
-Status: DRAFT
+Status: CONVERGED
 
 **Spec:** [docs/superpowers/specs/2026-07-26-catalog-extraction-design.md](../../../superpowers/specs/2026-07-26-catalog-extraction-design.md) (CONVERGED 2026-08-12, D5 resolved)
 **Prior art:** [docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md](../2026-07-26-plan-1-ai-model-catalog-extraction.md) (HARDENED — 11 review rounds, ~62 fixes; its E.1 import-graph audit is inherited wholesale as T02, not re-derived)
@@ -88,25 +88,30 @@ Serialized: scripts/kilo-benchmarks/daily_refresh.sh — T01, T03
 
 ## Behavior Contract
 
-- **Given** the live fabrik tree, **When** `catalog_contract_snapshot.py --snapshot` runs, **Then** it writes a golden for each of the 12 `docs/reference/kilo/*.md` selection docs, the 4 `scripts/kilo_*.json` registries, and the marker blocks of the 8 `.windsurf/rules/ai/*.md` packs (docs/reference/kilo/TASK_SUBAGENT_SELECTION.md:1)
-- **Given** goldens captured from an unchanged tree, **When** `--verify` runs, **Then** it reports zero drift and exits 0 (scripts/catalog_contract_snapshot.py:1)
-- **Given** a single consumed output has been mutated, **When** `--verify` runs, **Then** it names that exact file in its output and exits non-zero (scripts/catalog_contract_snapshot.py:1)
-- **Given** a consumed output is missing entirely, **When** `--verify` runs, **Then** it reports the absence as drift rather than skipping it silently (scripts/catalog_contract_snapshot.py:1)
-- **Given** a rule pack whose marker block moved position but whose block CONTENT is unchanged, **When** `--verify` runs, **Then** it reports no drift (the block, not the byte offset, is the contract) (.windsurf/rules/ai/00-ai-model-selection.md:1)
-- **Given** the canary wiring, **When** `daily_refresh.sh` runs, **Then** it invokes `catalog_contract_snapshot.py --verify` and reports drift without aborting the run (scripts/kilo-benchmarks/daily_refresh.sh:115)
+- **Given** the live fabrik tree, **When** `--snapshot` runs, **Then** it writes whole-file goldens for the 10 engine-written `docs/reference/kilo/*.md` docs and the 4 `scripts/kilo_*.json` registries, and marker-body goldens for all 11 `(host, MARKER)` pairs including the three non-`ai/` hosts (docs/reference/kilo/TASK_SUBAGENT_SELECTION.md:1)
+- **Given** a golden whose ONLY difference is a volatile date stamp (`Last refresh:` or `last-refreshed:`), **When** `--verify` runs, **Then** it reports NO drift (scripts/kilo-benchmarks/rank_task_subagents.py:1107)
+- **Given** an unchanged tree the day AFTER snapshotting, **When** `--verify` runs, **Then** it reports zero drift and exits 0 (.windsurf/rules/ai/00-ai-model-selection.md:119)
+- **Given** a consumed output mutated in a non-volatile field, **When** `--verify` runs, **Then** it names that exact artifact and exits non-zero (scripts/catalog_contract_snapshot.py:1)
+- **Given** a consumed output missing entirely, **When** `--verify` runs, **Then** it reports the absence as drift rather than skipping it silently (scripts/catalog_contract_snapshot.py:1)
+- **Given** a marker host whose hand-authored prose OUTSIDE the markers changed, **When** `--verify` runs, **Then** it reports no drift for that marker body (the block, not the file, is the contract) (.windsurf/rules/core/65-rag-search.md:134)
+- **Given** the hand-authored `AGGREGATOR_ROADMAP.md` or `BENCHMARK_SOURCES.md` is edited, **When** `--verify` runs, **Then** it reports no drift (they are excluded — zero writers, absent from `daily_refresh.sh`) (scripts/kilo-benchmarks/daily_refresh.sh:551)
+- **Given** the harness runs, **When** `--snapshot` captures the contract, **Then** it also records the exact DB queries the live hub consumers issue, satisfying the spec's Phase-0 requirement (docs/superpowers/specs/2026-07-26-catalog-extraction-design.md:166)
 - **Given** `scripts/kilo_auto_route.py` inserts the engine dir on `sys.path` and then bare-imports, **When** the audit runs, **Then** `classify_ticket`, `db_models` and `kilo_telemetry` are reported as rule-6 RETAIN nodes (scripts/kilo_auto_route.py:55)
 - **Given** a retained consumer that resolves an engine-resident data file by path, **When** the audit runs, **Then** it is reported as a rule-7 RELOCATE node (scripts/claude_p_cost.py:53)
 - **Given** a reached node matching none of the 7 rules, **When** the audit runs, **Then** the tool prints that node and exits non-zero (scripts/catalog_contract_audit.py:1)
 - **Given** a node reachable ONLY via `sys.path.insert` + bare import, **When** the audit runs, **Then** it appears in the graph (a path-grep baseline would miss it) (scripts/kilo_auto_route.py:55)
-- **Given** the audit completes with every node classified, **When** it exits, **Then** it emits a machine-readable classification per node for the later excise plan to consume (scripts/catalog_contract_audit.py:1)
+- **Given** the audit completes with every node classified, **When** it exits, **Then** it writes `scripts/catalog-contract-audit.json` with one record per node (path, rule, verdict) for the later excise plan to consume (scripts/catalog_contract_audit.py:1)
+- **Given** a rule-7 data-file dep whose consumer-dir copy already exists, **When** the audit runs, **Then** it is emitted as rule-7 SATISFIED rather than an open RELOCATE (scripts/claude_p_cost.py:53)
 - **Given** the flywheel read fails (psql/sudo unavailable), **When** `rank_task_subagents` runs, **Then** it emits the distinct broken stub and returns exit 1 rather than an empty-but-healthy result (scripts/kilo-benchmarks/rank_task_subagents.py:1374)
-- **Given** the ranker returns exit 1, **When** `daily_refresh.sh` invokes it, **Then** the failure is surfaced (non-zero propagated or an alert fired) and is NOT swallowed into a log line (scripts/kilo-benchmarks/daily_refresh.sh:423)
+- **Given** the ranker returns exit 1, **When** `daily_refresh.sh` invokes it, **Then** an alert is fired on the same channel `check_daily_refresh_freshness.py` uses — propagating a non-zero exit is NOT sufficient (scripts/kilo-benchmarks/check_daily_refresh_freshness.py:1)
 - **Given** a healthy flywheel, **When** the positive-proof probe runs, **Then** it asserts state `ok` AND a non-empty row set, failing if rows are empty (scripts/kilo-benchmarks/rank_task_subagents.py:175)
+- **Given** the probe cannot reach the database at all (no passwordless sudo / no psql), **When** it runs, **Then** it FAILS loudly and never reports success or skips (docs/superpowers/specs/2026-07-26-catalog-extraction-design.md:240)
 - **Given** the flywheel is genuinely empty but reachable, **When** the ranker runs, **Then** it exits 0 and does NOT emit the broken-read stub (scripts/kilo-benchmarks/rank_task_subagents.py:1114)
 - **Given** the un-muting change, **When** an unrelated non-fatal step fails in the same run, **Then** the run's other `|| echo` non-fatal steps keep their existing behaviour (scripts/kilo-benchmarks/daily_refresh.sh:115)
 - **Given** the copies exist at `scripts/`, **When** `claude_p_cost.py._find()` resolves either name, **Then** it returns the `scripts/` path, not the `kilo-benchmarks/` fallback (scripts/claude_p_cost.py:53)
 - **Given** the `scripts/kilo-benchmarks/` originals are absent (simulating post-excise), **When** `cached_amortized_per_mtok()` runs, **Then** it returns the real rate and never the `$0.093/M` fail-soft anchor (scripts/claude_p_cost.py:97)
-- **Given** the copy has been made, **When** the engine's own readers run, **Then** they still resolve their `_HERE`-relative originals unchanged (scripts/kilo-benchmarks/derive_cost.py:24)
+- **Given** the copy has been made, **When** the engine's own readers run, **Then** they still resolve their `_HERE`-relative originals unchanged (scripts/kilo-benchmarks/derive_cost.py:23)
+- **Given** the copies exist, **When** `python scripts/claude_p_cost.py --refresh` runs, **Then** the ticket documents which copy it writes and how the engine's copy stays valid for the migration window (scripts/claude_p_cost.py:157)
 - **Given** the two copies, **When** their contents are compared to the originals, **Then** they are byte-identical at copy time (scripts/kilo-benchmarks/claude_p_cost.json:1)
 - **Given** all four work tickets merged, **When** the oracle's `--verify` runs, **Then** it reports zero drift, proving no ticket silently changed a consumed output (scripts/catalog_contract_snapshot.py:1)
 - **Given** all four work tickets merged, **When** the audit runs, **Then** every node is classified and the relocated cost JSONs appear as satisfied rule-7 nodes (scripts/catalog_contract_audit.py:1)
@@ -149,6 +154,7 @@ Serialized: scripts/kilo-benchmarks/daily_refresh.sh — T01, T03
 
 - scripts/catalog_contract_snapshot.py
 - scripts/catalog_contract_audit.py
+- scripts/catalog-contract-audit.json
 - scripts/catalog-contract-goldens/
 - scripts/claude_p_cost.json
 - scripts/claude_price_ratios.json
@@ -247,7 +253,36 @@ and T05's) and the audit's per-node classification (produced by T02's fifth beha
 second). Both seam tests are named in `## Interfaces`, owned by the producer's test file and listed in T05's
 Context Files. No name appears in one ticket and differently in another.
 
-**Fixed-point claim:** not yet — this is the DRAFT that `/fabrik-plan-review` must converge.
+**Independent review round (2026-08-12).** A native Opus reviewer in a non-author context read the spine and
+all five tickets and raised 14 candidates; I re-verified each against live code before acting. **Confirmed and
+fixed (8):** the golden set was defined over files a cron rewrites *daily* with an embedded date stamp
+(`rank_task_subagents.py:1107`, marker openers carrying `last-refreshed:`, commits on 08-06…08-12), making
+zero-drift unachievable — normalization is now a contract row; three engine-produced marker blocks sat outside
+the declared `ai/*` scope (`65-rag-search.md:134` `EMBEDDING_WINNERS`, `KILO_MODEL_CAPABILITIES.md:760`
+`EMBEDDING_CATALOG`, `KILO_AGENT_SELECTION_GUIDE.md:23,:81`); T03's *"non-zero propagated OR alert"*
+disjunction was a **no-op fix** — `daily_refresh.sh` has no `set -e`, redirects to a logfile, and the crontab
+has no MAILTO, so propagation surfaces to nobody (now pinned to an alert on the
+`check_daily_refresh_freshness.py` channel); T05 asserted a rule-7 *SATISFIED* predicate T02 never promised
+(row added); T05's Context Files reached none of the artifacts its own Scope tells it to run (5 paths added);
+T04's copy silently redirects `refresh()`'s write target and freezes the engine copy (now owned explicitly);
+my `derive_cost.py:24` cite was wrong — line 24 is a `$HOME` path, the real readers are `:23` and `:234`; and
+`AUTO-GENERATED` is named in T01's Scope but appears in **0** of the `ai/*` packs. **Refuted in part (1):** the
+claim that three `docs/reference/kilo/` docs are hand-authored — measured, only `AGGREGATOR_ROADMAP.md` and
+`BENCHMARK_SOURCES.md` have zero writers; `AI_VENDOR_ACCESS.md` has 2. The principle (a glob count is not the
+engine's output set) was adopted; the detail was corrected.
+
+**Two deliberate exclusions, stated so a reviewer can tell reasoned omission from oversight:**
+`capabilities.json` is named in the spec's Phase-0 snapshot list but is **correctly excluded** — its producer
+`scripts/generate_capability_index.py` AST-walks fabrik's own code and never reads `kilo_agents.db`, matching
+the spec's own 2026-08-12 correction that these are fabrik-local, not engine outputs.
+`scripts/kilo-benchmarks/models_browser.html` (3.8 MB) is an engine output but is **not** in the frozen set:
+it is a generated HTML view of the same catalog rows the selection docs already freeze, so it adds mass
+without adding contract coverage.
+
+**Fixed-point claim: reached.** The closing pass re-ran every embedded probe (all reproduce), re-verified every
+cite added during the review round at its exact line, made ZERO edits and raised ZERO candidates, with an
+identical combined-set hash at start and end (`40f015e0…`). `check_plan_tickets --plan-dir` exits 0 with zero
+WARNs. Status flipped DRAFT → CONVERGED on that evidence.
 
 ## Residual unknowns
 
