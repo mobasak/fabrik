@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-12T06:15:00.229163
+**Last Updated:** 2026-08-12T10:53:53.342329
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -25,7 +25,7 @@
 | 16 | **qwen3.7-max** | qwen | 1505 | ~ | $1.48 | $4.42 | 1000K |  | ✓ | ✓ | 2 | 408 | ✅ |
 | 17 | **claude-sonnet-4.6** | anthropic | 1500 | 53.4 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 125 | ✅ |
 | 18 | **claude-opus-4.5** | anthropic | 1496 | 63.1 | $5.00 | $25.00 | 200K | ✓ | ✓ | ✓ | 3 | 75 | ✅ |
-| 19 | **deepseek-v4-pro** | deepseek | 1491 | ~ | $0.64 | $1.29 | 1048K |  | ✓ | ✓ | 2 | 1322 | ✅ |
+| 19 | **deepseek-v4-pro** | deepseek | 1491 | ~ | $0.63 | $1.26 | 1048K |  | ✓ | ✓ | 2 | 1349 | ✅ |
 | 20 | **mimo-v2.5-pro** | xiaomi | 1485 | ~ | $0.43 | $0.87 | 1050K |  | ✓ | ✓ | 2 | 1951 | ✅ |
 | 21 | **minimax-m3** | minimax | 1485 | ~ | $0.30 | $1.20 | 1048K | ✓ | ✓ | ✓ | 2 | 1523 | ✅ |
 | 22 | **qwen3.6-plus** | qwen | 1482 | ~ | $0.33 | $1.95 | 1000K | ✓ | ✓ | ✓ | 2 | 960 | ✅ |
@@ -45,9 +45,9 @@
 | 36 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 204K |  | ✓ | ✓ | 2 | 1034 | ✅ |
 | 37 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.12 | $0.40 | 262K | ✓ | ✓ | ✓ | 1 | 4424 | ✅ |
 | 38 | **gemma-4-26b-a4b-it:free** | google | 1460 | ~ | $0 | $0 | 262K | ✓ | ✓ | ✓ | 1 | 1460 | ✅ |
-| 39 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.50 | $2.00 | 204K |  | ✓ | ✓ | 2 | 897 | ✅ |
+| 39 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.55 | $2.20 | 204K |  | ✓ | ✓ | 2 | 816 | ✅ |
 | 40 | **qwen3-235b-a22b-2507** | qwen | 1457 | ~ | $0.09 | $0.55 | 262K |  | ✓ |  | 1 | 3349 | ✅ |
-| 41 | **qwen3-vl-235b-a22b-instruct** | qwen | 1457 | ~ | $0.21 | $1.90 | 262K | ✓ | ✓ |  | 2 | 986 | ✅ |
+| 41 | **qwen3-vl-235b-a22b-instruct** | qwen | 1457 | ~ | $0.26 | $1.04 | 262K | ✓ | ✓ |  | 2 | 1724 | ✅ |
 | 42 | **qwen3-next-80b-a3b-instruct** | qwen | 1456 | ~ | $0.09 | $1.10 | 262K |  | ✓ |  | 2 | 1718 | ✅ |
 | 43 | **nemotron-3-ultra-550b-a55b** | nvidia | 1452 | ~ | $0.60 | $3.60 | 512K |  | ✓ | ✓ | 2 | 509 | ✅ |
 | 44 | **nemotron-3-ultra-550b-a55b:free** | nvidia | 1452 | ~ | $0 | $0 | 1000K |  | ✓ | ✓ | 1 | 1452 | ✅ |

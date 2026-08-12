@@ -28,7 +28,7 @@ The code frontier (qwen3.7-max, glm-5.2, grok-4.3, claude-code-tier Sonnet/Opus,
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-12 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
 
-code-tagged across all gateways: **62**
+code-tagged across all gateways: **63**
 
 See the Coding tab in the bake-off browser; sort by Best Code descending to compare SWE-bench + Aider + DA-code signals per row.
 <!-- GATEWAY_COUNTS:END -->

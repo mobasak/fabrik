@@ -1,1 +1,69 @@
-{"status": "skipped", "reason": "jscpd not installed"}
+{
+  "status": "pass",
+  "duplicated_lines": 2543,
+  "percentage": 2.43,
+  "threshold": 7.0,
+  "duplicate_count": 82,
+  "duplicates": [
+    {
+      "lines": 27,
+      "tokens": 87,
+      "firstFile": "scripts/Local_Coder_qwen32b.sh",
+      "secondFile": "scripts/Local_Documentator_llama3.1-8b.sh"
+    },
+    {
+      "lines": 27,
+      "tokens": 87,
+      "firstFile": "scripts/Local_Coder_qwen32b.sh",
+      "secondFile": "scripts/Local_Fixer_ds16b.sh"
+    },
+    {
+      "lines": 986,
+      "tokens": 6343,
+      "firstFile": "scripts/aro-wake/claude_rotate.py",
+      "secondFile": "scripts/sysadmin/claude_rotate.py"
+    },
+    {
+      "lines": 15,
+      "tokens": 96,
+      "firstFile": "scripts/audit/03-security.sh",
+      "secondFile": "scripts/sysadmin/proactive-check.sh"
+    },
+    {
+      "lines": 11,
+      "tokens": 54,
+      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
+      "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
+    },
+    {
+      "lines": 17,
+      "tokens": 95,
+      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
+      "secondFile": "scripts/bootstrap/bootstrap-vps.sh"
+    },
+    {
+      "lines": 14,
+      "tokens": 75,
+      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
+      "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
+    },
+    {
+      "lines": 12,
+      "tokens": 156,
+      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
+      "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
+    },
+    {
+      "lines": 14,
+      "tokens": 112,
+      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
+      "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
+    },
+    {
+      "lines": 42,
+      "tokens": 463,
+      "firstFile": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+      "secondFile": "scripts/bootstrap/bootstrap-vps.sh"
+    }
+  ]
+}

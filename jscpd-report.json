@@ -1,0 +1,3045 @@
+{
+  "duplicates": [
+    {
+      "firstFile": {
+        "end": 42,
+        "endLoc": {
+          "column": 8,
+          "line": 42,
+          "position": 995
+        },
+        "name": "scripts/Local_Coder_qwen32b.sh",
+        "start": 16,
+        "startLoc": {
+          "column": 0,
+          "line": 16,
+          "position": 415
+        }
+      },
+      "format": "bash",
+      "fragment": "if [ ! -x \"$CLI_AGENT\" ]; then\n    echo \"ERROR: CLI agent not found: $CLI_AGENT\" >&2\n    echo \"Run: python scripts/generate_kilo_agents.py to create CLI agents\" >&2\n    exit 1\nfi\n\n# Parse --dry-run flag before reading prompt\nDRY_RUN=\"\"\nARGS=()\nfor arg in \"$@\"; do\n    if [ \"$arg\" = \"--dry-run\" ]; then\n        DRY_RUN=\"--dry-run\"\n    else\n        ARGS+=(\"$arg\")\n    fi\ndone\n\n# Read prompt from remaining arguments or stdin\nif [ ${#ARGS[@]} -gt 0 ]; then\n    PROMPT=\"${ARGS[*]}\"\nelse\n    PROMPT=$(cat)\nfi\n\nif [ -z \"$PROMPT\" ]; then\n    echo \"ERROR: No prompt provided\" >&2\n    echo \"Usage: fabrik-coder.sh \\\"your prompt here\\\"\" >&2",
+      "lines": 27,
+      "secondFile": {
+        "end": 43,
+        "endLoc": {
+          "column": 8,
+          "line": 43,
+          "position": 1100
+        },
+        "name": "scripts/Local_Documentator_llama3.1-8b.sh",
+        "start": 17,
+        "startLoc": {
+          "column": 0,
+          "line": 17,
+          "position": 520
+        }
+      },
+      "tokens": 87
+    },
+    {
+      "firstFile": {
+        "end": 42,
+        "endLoc": {
+          "column": 8,
+          "line": 42,
+          "position": 995
+        },
+        "name": "scripts/Local_Coder_qwen32b.sh",
+        "start": 16,
+        "startLoc": {
+          "column": 0,
+          "line": 16,
+          "position": 415
+        }
+      },
+      "format": "bash",
+      "fragment": "if [ ! -x \"$CLI_AGENT\" ]; then\n    echo \"ERROR: CLI agent not found: $CLI_AGENT\" >&2\n    echo \"Run: python scripts/generate_kilo_agents.py to create CLI agents\" >&2\n    exit 1\nfi\n\n# Parse --dry-run flag before reading prompt\nDRY_RUN=\"\"\nARGS=()\nfor arg in \"$@\"; do\n    if [ \"$arg\" = \"--dry-run\" ]; then\n        DRY_RUN=\"--dry-run\"\n    else\n        ARGS+=(\"$arg\")\n    fi\ndone\n\n# Read prompt from remaining arguments or stdin\nif [ ${#ARGS[@]} -gt 0 ]; then\n    PROMPT=\"${ARGS[*]}\"\nelse\n    PROMPT=$(cat)\nfi\n\nif [ -z \"$PROMPT\" ]; then\n    echo \"ERROR: No prompt provided\" >&2\n    echo \"Usage: fabrik-coder.sh \\\"your prompt here\\\"\" >&2",
+      "lines": 27,
+      "secondFile": {
+        "end": 42,
+        "endLoc": {
+          "column": 8,
+          "line": 42,
+          "position": 1007
+        },
+        "name": "scripts/Local_Fixer_ds16b.sh",
+        "start": 16,
+        "startLoc": {
+          "column": 0,
+          "line": 16,
+          "position": 427
+        }
+      },
+      "tokens": 87
+    },
+    {
+      "firstFile": {
+        "end": 986,
+        "endLoc": {
+          "column": 28,
+          "line": 986,
+          "position": 50776
+        },
+        "name": "scripts/aro-wake/claude_rotate.py",
+        "start": 1,
+        "startLoc": {
+          "column": 0,
+          "line": 1,
+          "position": 0
+        }
+      },
+      "format": "python",
+      "fragment": "#!/usr/bin/env python3\n# AFTER-EDIT: scripts/sysadmin/bot.py, scripts/aro-wake/main.py, scripts/sysadmin/claude_rotate.py, scripts/aro-wake/claude_rotate.py\n# NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/\n# (separate rsync trees + venvs on each host — no shared import). Keep the two copies identical.\n\"\"\"Claude Code CLI usage-limit detection + bounded account rotation.\n\nSelf-contained, stdlib-only. Vendored BYTE-IDENTICAL into both ``scripts/sysadmin/``\nand ``scripts/aro-wake/`` (separate rsync trees + separate venvs on each host — no\nshared import path exists), so this file must never import a sibling.\n\nWhen a ``claude -p`` call reports a usage/quota limit OR a ``401`` auth failure, rotate the\n*active* account to another snapshot and retry (bounded by the account count). A usage-limit\nrotates silently (routine quota exhaustion); a ``401`` (the active account's login token is\ndead) ALSO fires a best-effort Telegram alert — configured via ``TELEGRAM_BOT_TOKEN`` /\n``TELEGRAM_OWNER_ID`` (env, or parsed from ``/opt/fabrik/.env.sysadmin``) — so the operator\nknows an account's credentials died. Rotating to a valid standby recovers a 401 the account's\nown token-refresh could not; if every account is dead the alert says so and the call gives up.\n\nSecurity (``core/35-security-auth``): ``~/.claude/*.credentials.json`` are ``chmod 600``\nand are **never logged, printed, or returned**. Rotation swaps whole files\n(``os.replace`` — atomic) between the ``manager-accounts/<org>/.credentials.json``\nsnapshots and the active ``~/.claude/.credentials.json``. To tell accounts apart / detect a\nusable account it reads the non-secret ``organizationUuid`` AND compares OAuth access tokens\n**in memory** — newer Claude Code creds keep the org in ``~/.claude.json`` so\n``.credentials.json`` has *no* ``organizationUuid``, and account identity/validity must not\ndepend on it. A token is never logged, printed, or returned to a caller.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport fcntl\nimport json\nimport os\nimport re\nimport select\nimport subprocess\nimport sys\nimport time\nimport urllib.parse\nimport urllib.request\nfrom collections.abc import Callable\nfrom pathlib import Path\n\nCLAUDE_DIR = Path.home() / \".claude\"\nACTIVE_CREDS = CLAUDE_DIR / \".credentials.json\"\nACCOUNTS_DIR = CLAUDE_DIR / \"manager-accounts\"\n_CRED_MARGIN_S = 300  # never hand over a token that dies mid-switch\nBACKUP_CREDS = CLAUDE_DIR / \".credentials.json.prev\"  # single rolling backup of outgoing active\nROTATE_LOCK = CLAUDE_DIR / \".claude-rotate.lock\"\n# Dir-NAME of the currently-active snapshot, written on every install. Org-independent identity:\n# the only reliable \"which account is active\" signal for newer creds that carry no organizationUuid.\nACTIVE_MARKER = CLAUDE_DIR / \".active-account\"\n# 401 Telegram alerts are DEBOUNCED to once per this window PER HOST (shared across all callers on\n# the host) — a persistently-dead account must not flood Telegram from every 15-min cron × N hosts.\nALERT_STATE = CLAUDE_DIR / \".last-401-alert\"\n_ALERT_DEBOUNCE_S = 12 * 3600\n\n# Quota / usage-limit signal (case-insensitive). PURE alternation — no literal spaces\n# around '|'. Grounded verbatim (claude-auto-retry README + Anthropic errors docs,\n# 2026-07-07): weekly / session / Opus / N-hour / \"out of extra usage\" variants.\n# NB: the \"hit your … limit\" branch omits the leading \"you've\" on purpose — the real\n# render's apostrophe is sometimes typographic (U+2019), so anchoring on \"hit your\"\n# matches \"You've hit your weekly limit\" regardless of the quote character.\n_USAGE_LIMIT_RE = re.compile(\n    r\"usage limit reached\"\n    r\"|hit your (?:weekly|session|opus|[0-9]+-hour) limit\"\n    r\"|[0-9]+-hour limit reached\"\n    r\"|out of extra usage\"\n    r\"|limit\\s*·\\s*resets\",\n    re.IGNORECASE,\n)\n\n\ndef is_usage_limit(text: str) -> bool:\n    \"\"\"True iff *text* carries a Claude usage/quota-limit signal (→ rotate + retry).\"\"\"\n    return bool(text) and bool(_USAGE_LIMIT_RE.search(text))\n\n\ndef is_auth_401(text: str) -> bool:\n    \"\"\"True iff *text* is a dead-creds auth failure (→ rotate to a standby + alert).\n\n    Two renders qualify:\n    (a) a standalone ``401`` alongside auth wording — neither a bare ``line 401``\n        nor a ``401`` buried inside a larger number (``14012``) matches;\n    (b) the CLI's expired-OAuth render (\"OAuth session expired and could not be\n        refreshed\") — it carries NO \"401\", which left the keepalive stuck on FAIL\n        with no rotation (live-hit 2026-08-03: a re-login on the manager box\n        revoked the fleet's copied refresh token mid-window).\n    Both mean the ACTIVE account's creds are dead; rotating to a valid standby\n    recovers either.\n    \"\"\"\n    low = text.lower()\n    if \"oauth session expired\" in low:\n        return True\n    if not re.search(r\"\\b401\\b\", text):\n        return False\n    return \"authentication\" in low or \"credential\" in low\n\n\ndef _read_org(creds_path: Path) -> str | None:\n    \"\"\"Return the non-secret ``organizationUuid`` from a creds file, or None. Never emits tokens.\"\"\"\n    try:\n        with open(creds_path) as fh:\n            return json.load(fh).get(\"organizationUuid\")\n    except (OSError, ValueError):\n        return None\n\n\ndef _access_token_from(data: str | bytes) -> str | None:\n    \"\"\"The OAuth access token inside a creds JSON blob (``claudeAiOauth.accessToken``), or None\n    if it doesn't parse / has no token. Used ONLY to detect a usable account and to tell two\n    accounts apart — the token is compared in memory and is NEVER logged, printed, or returned\n    to a CLI caller. This — not ``organizationUuid`` (absent in newer creds) — is the identity\n    and validity signal.\"\"\"\n    try:\n        oauth = json.loads(data).get(\"claudeAiOauth\")\n    except (ValueError, TypeError, AttributeError):\n        return None\n    if not isinstance(oauth, dict):\n        return None\n    tok = oauth.get(\"accessToken\")\n    return tok if isinstance(tok, str) and tok else None\n\n\ndef _read_access_token(creds_path: Path) -> str | None:\n    \"\"\"``_access_token_from`` for a file on disk (or None if unreadable). Never emits the token.\"\"\"\n    try:\n        return _access_token_from(Path(creds_path).read_bytes())\n    except OSError:\n        return None\n\n\ndef _list_accounts() -> list[Path]:\n    \"\"\"Manager-account snapshot dirs that hold a ``.credentials.json`` (sorted, stable order).\n    Fail-soft: an unreadable/inaccessible ``manager-accounts`` (a rare permission mishap) yields no\n    snapshots rather than raising — this runs inside ``run_claude``/``_active_account`` on every\n    call, and an escaping OSError would be mislabeled by ``main()`` as an exec failure (126) and\n    discard a perfectly good claude result.\"\"\"\n    try:\n        if not ACCOUNTS_DIR.is_dir():\n            return []\n        return sorted(\n            d for d in ACCOUNTS_DIR.iterdir() if d.is_dir() and (d / \".credentials.json\").is_file()\n        )\n    except OSError:\n        # Covers the initial is_dir() stat AND iterdir + per-entry is_dir/is_file: an unsearchable\n        # dir/parent or a bad symlink (EACCES/ELOOP, which pathlib re-raises) yields no snapshots\n        # rather than an OSError that main() would mislabel 126 and discard a good claude result.\n        return []\n\n\ndef _active_account() -> Path | None:\n    \"\"\"The snapshot dir that is currently active, or None — a PURE read (no side effects, so no\n    lock-free marker write can race the under-lock one and leave a stale marker). Identity resolves\n    by, in order: (1) an access-token match against the LIVE active creds — the freshest signal, so\n    it beats a marker left stale by an external ``claude auth login``/switch while the new token is\n    fresh; (2) the ``.active-account`` marker — written under the rotation lock on every install\n    (``_activate_snapshot``), authoritative for any account THIS tool activated and durable across\n    the in-place token refresh that drifts the live token off the frozen snapshot; (3) an\n    ``organizationUuid`` match — old-format creds (org is stable across token refresh), which is how\n    a never-rotated old-format active (the fleet's bootstrap mob@) is identified with no marker.\n    Never emits token bytes.\n\n    Order matters: both signals read from the LIVE active creds (token, org) come BEFORE the\n    persisted marker, so a marker left stale by an out-of-band ``claude auth login`` can never\n    shadow the true identity of an old-format active (its org is read live and is authoritative).\n    The marker is the last resort — used only for a newer no-org account this tool installed, whose\n    live token has since drifted off the frozen snapshot.\"\"\"\n    accounts = _list_accounts()\n    # (1) access-token match — the freshest live signal.\n    active_tok = _read_access_token(ACTIVE_CREDS)\n    if active_tok is not None:\n        hit = next(\n            (a for a in accounts if _read_access_token(a / \".credentials.json\") == active_tok), None\n        )\n        if hit is not None:\n            return hit\n    # (2) organizationUuid match — read LIVE (authoritative, never stale); org never drifts across\n    #     a token refresh. Trusted ONLY when it identifies EXACTLY ONE snapshot: if two snapshots\n    #     share an org (two accounts in one Team/Enterprise org, or a duplicated capture) the match\n    #     is ambiguous, so fall through to the marker rather than guess the sorted-first snapshot.\n    active_org = _read_org(ACTIVE_CREDS)\n    if active_org is not None:\n        org_hits = [a for a in accounts if _read_org(a / \".credentials.json\") == active_org]\n        if len(org_hits) == 1:\n            return org_hits[0]\n    # (3) marker — last resort for a newer no-org account THIS tool installed (set under the lock\n    #     in _activate_snapshot) once its live token has drifted off the frozen snapshot.\n    try:\n        marked = ACTIVE_MARKER.read_text().strip()\n    except (OSError, ValueError):\n        # ValueError covers UnicodeDecodeError — a truncated/corrupt or non-UTF-8 .active-account\n        # (e.g. LANG=C reading a non-ASCII name, or external corruption). _active_account runs on\n        # EVERY run_claude call, so an undecodable marker must degrade to \"no marker\", never raise\n        # and crash the whole claude path. (Matches the _telegram_config guard.)\n        marked = \"\"\n    if marked:\n        hit = next((a for a in accounts if a.name == marked), None)\n        if hit is not None:\n            return hit\n    return None\n\n\ndef _secure_write(dst: Path, data: bytes) -> None:\n    \"\"\"Create *dst* FRESH at mode 0600 and write *data* — no world-readable window and no\n    symlink follow. Any pre-existing file/symlink at *dst* is removed first, then created\n    with ``O_CREAT|O_EXCL|O_NOFOLLOW`` so an attacker-planted symlink at the predictable\n    path cannot redirect the credential bytes (the open fails closed instead). Unlike\n    ``shutil.copy2`` (which opens the dest at umask 0644 and only chmods *after* writing),\n    the bytes are never on disk group/world-readable, even briefly.\n    \"\"\"\n    try:\n        os.unlink(dst)  # clear a stale file OR an attacker symlink at the fixed path\n    except FileNotFoundError:\n        pass\n    fd = os.open(str(dst), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)\n    try:\n        # os.write (raw write(2)) may short-write — loop until ALL bytes land, else a\n        # truncated creds blob could be atomically installed and brick the active account.\n        view = memoryview(data)\n        written = 0\n        while written < len(view):\n            written += os.write(fd, view[written:])\n        # fsync the FILE DATA before the caller's os.replace so a power loss can't leave the\n        # active inode naming unwritten blocks (a zero-length/garbage creds file). The caller\n        # (_activate_snapshot) additionally fsyncs the CONTAINING DIRECTORY after os.replace so\n        # the rename itself is durable — together the swap is genuinely power-loss-safe.\n        os.fsync(fd)\n    finally:\n        os.close(fd)\n\n\ndef _stale_snapshot_reason(blob: bytes, now: float | None = None) -> str | None:\n    \"\"\"Why this snapshot must NOT be installed as the active account, or None if it is safe.\n\n    Token PRESENCE is not usability. Refresh tokens here are SINGLE-USE and four boxes share\n    three accounts, so a snapshot whose access token has already expired can only be revived by\n    a refresh whose token another box may have already consumed — installing it lands the\n    operator on \"OAuth session expired and could not be refreshed\" and a re-login prompt.\n\n    LIVE INCIDENT 2026-08-10 14:37: mob@ hit its weekly wall, the picker ranked can@ first\n    (never walled), and can@'s snapshot was a month old. The switch installed a dead credential\n    and logged the operator out mid-session. A rotation target must be usable WITHOUT a refresh.\n\n    Escape hatch: CLAUDE_ROTATE_ALLOW_STALE=1 (an operator who knows the snapshot is fine).\n    Never emits token bytes.\n    \"\"\"\n    if os.getenv(\"CLAUDE_ROTATE_ALLOW_STALE\") == \"1\":\n        return None\n    now = now if now is not None else time.time()\n    try:\n        oauth = json.loads(blob.decode(\"utf-8\")).get(\"claudeAiOauth\") or {}\n        if not isinstance(oauth, dict):\n            return \"credentials are malformed (claudeAiOauth is not an object)\"\n    except (ValueError, AttributeError, TypeError):\n        # UnicodeDecodeError subclasses ValueError. AttributeError/TypeError cover a payload that\n        # is valid JSON but not the expected shape (`123`, `[]`, or a string `claudeAiOauth`) —\n        # today `_access_token_from` pre-screens those, but this function is module-level and\n        # documented as the authoritative guard, so the next caller without that pre-screen must\n        # not crash the rotation path (review finding).\n        return None\n\n    def _left(v):\n        if not isinstance(v, (int, float)):\n            return None\n        return (v / 1000 if v > 1e11 else v) - now\n\n    if not oauth.get(\"refreshToken\"):\n        # No refresh token at all: the moment the access token lapses there is no way back, and\n        # the picker already refused this shape. Two layers disagreeing about one credential is\n        # the class that caused the incident (review finding F6).\n        return \"credentials carry no refresh token — nothing to renew with\"\n    refresh_left = _left(oauth.get(\"refreshTokenExpiresAt\"))\n    if refresh_left is not None and refresh_left <= 0:\n        return f\"refresh token expired {abs(refresh_left) / 3600:.0f}h ago\"\n    # NOT a disqualifier: an expired ACCESS token is the NORMAL state of a standby. Only the\n    # active account self-refreshes, so a standby's `expiresAt` is frozen at capture and goes stale\n    # within ~8-12h — while a weekly wall arrives ~2.x days later. Disqualifying on it meant that\n    # by the time rotation was needed, EVERY standby looked dead and rotation was structurally\n    # impossible (review finding, and the mirror failure of the bug this guard exists to fix).\n    # The live incident is caught by the refresh-token clause above on its own: can@'s month-old\n    # snapshot had an EXPIRED refresh token, which is what \"could not be refreshed\" means.\n    # A live access token is a PREFERENCE, applied by ranking in the picker — never a filter.\n    access_left = _left(oauth.get(\"expiresAt\"))\n    if access_left is None:\n        # FAIL CLOSED. A missing expiry field does not mean \"still valid\" — it means we CANNOT\n        # PROVE it authenticates, and an unprovable credential is exactly what logged the operator\n        # out. This also removes a cross-layer divergence: the picker (claude-quota.py\n        # credentials_usable) already treats a missing field as unusable, and two layers\n        # disagreeing about the same credential is the defect class that caused the incident\n        # (found independently by review; carried as a self-finding first).\n        # Cost asymmetry decides the direction: refusing costs a WAIT for the reset clock;\n        # allowing costs a logged-out operator at the keyboard. CLAUDE_ROTATE_ALLOW_STALE=1\n        # overrides for a legacy snapshot an operator knows is good.\n        return \"credentials carry no expiry metadata — cannot prove they still authenticate\"\n    return None\n\n\ndef _activate_snapshot(\n    target: Path | None = None,\n    selector: Callable[[], Path | None] | None = None,\n) -> str | None:\n    \"\"\"Atomically install a snapshot as the active creds. Serialized via flock so ``bot.py``,\n    ``aro-wake`` and a manual ``--switch`` (independent processes, same host) can't race the\n    active file. Pass a fixed *target* (manual switch) OR a *selector* callback that picks the\n    target **while the lock is held** — the selector runs under the lock so it sees the live\n    active account and a concurrent rotation can't make two processes pick the same target,\n    clobber the ``.prev`` backup, or report a phantom rotation. Backs the outgoing active up\n    to ``.credentials.json.prev`` first (fresh 0600, no symlink follow), then ``os.replace``\n    (atomic; ``.tmp`` is in the same dir → same filesystem). Returns the installed account's\n    dir name, or None on no target / ANY filesystem error — installing a snapshot is *optional*\n    recovery, so a transient FS/symlink error must fail SOFT (never crash the caller). The only\n    mutation of the live active file is the final atomic replace, so a failure before it leaves\n    the active creds intact. Never logs token bytes.\n    \"\"\"\n    try:\n        lock_fd = os.open(str(ROTATE_LOCK), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)\n    except OSError:\n        return None  # fail-soft: can't take the lock → skip\n    tmp = ACTIVE_CREDS.with_name(ACTIVE_CREDS.name + \".tmp\")\n    try:\n        fcntl.flock(lock_fd, fcntl.LOCK_EX)\n        if selector is not None:  # pick the target UNDER the lock (race-safe)\n            target = selector()\n        if target is None:\n            return None\n        # Read both payloads before mutating anything; the live file is only touched by\n        # the atomic os.replace at the end.\n        active_bytes = ACTIVE_CREDS.read_bytes() if ACTIVE_CREDS.exists() else None\n        target_bytes = (target / \".credentials.json\").read_bytes()\n        # Never install unreadable creds as the active account. An empty/0-byte/non-JSON snapshot,\n        # or one with no OAuth access token (interrupted capture, partial fleet-sync, or a target\n        # corrupted AFTER the selector read it — a TOCTOU the lock can't cover for an external\n        # writer) would otherwise be atomically swapped in and BRICK auth. Validity is the presence\n        # of a usable TOKEN — NOT organizationUuid, which newer creds legitimately omit (keying on\n        # org here would wrongly reject a valid new-format account). Refuse fail-soft otherwise,\n        # leaving BOTH active and .prev intact. Guards the EXPLICIT --switch/--next path too.\n        # Diagnostic names the dir only, never token bytes.\n        if _access_token_from(target_bytes) is None:\n            sys.stderr.write(\n                f\"refusing to activate {target.name}: unreadable/corrupt credentials\\n\"\n            )\n            return None\n        stale = _stale_snapshot_reason(target_bytes)\n        if stale is not None:\n            # Fail-soft and STAY PUT: a walled-but-authenticated session is recoverable by\n            # waiting for the reset clock; a logged-out one needs the operator at the keyboard.\n            sys.stderr.write(\n                f\"refusing to activate {target.name}: {stale}. \"\n                \"Re-authenticate that account, or set CLAUDE_ROTATE_ALLOW_STALE=1 to override.\\n\"\n            )\n            return None\n        # Single rolling backup of the outgoing active (satisfies the backup-before-swap rule).\n        if active_bytes is not None:\n            _secure_write(BACKUP_CREDS, active_bytes)\n        _secure_write(tmp, target_bytes)\n        os.replace(str(tmp), str(ACTIVE_CREDS))  # atomic swap (0600 mode carried from tmp)\n        # Record which account is now active BY DIR NAME (org-independent) so the next rotation can\n        # identify the active account even when its creds carry no organizationUuid. Best-effort —\n        # a marker-write failure must not fail an already-completed swap (token-match still recovers).\n        try:\n            _secure_write(ACTIVE_MARKER, target.name.encode())\n        except OSError:\n            pass\n        # fsync the CONTAINING DIRECTORY so the rename (directory-entry update) is also\n        # crash-durable, not just the file data (_secure_write already fsync'd that). Together\n        # they make the swap genuinely power-loss-safe. Best-effort — a fsync failure here does\n        # not undo a successful replace, so it must not fail the rotation.\n        try:\n            dir_fd = os.open(str(ACTIVE_CREDS.parent), os.O_RDONLY)\n            try:\n                os.fsync(dir_fd)\n            finally:\n                os.close(dir_fd)\n        except OSError:\n            pass\n        return target.name\n    except OSError:\n        # fail-soft on any FS error — active creds are left untouched. Clean up a leftover\n        # tmp creds copy (e.g. a failure at os.replace) so no stray token file lingers.\n        try:\n            os.unlink(tmp)\n        except OSError:\n            pass\n        return None\n    finally:\n        try:\n            fcntl.flock(lock_fd, fcntl.LOCK_UN)\n        finally:\n            os.close(lock_fd)\n\n\ndef _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:\n    \"\"\"Rotate the active account to another snapshot: pick the first snapshot that is NOT in\n    *avoid*, is a USABLE account (has an OAuth token — so an empty/0-byte/tokenless snapshot is\n    skipped rather than installed, which would brick auth), and is a DIFFERENT account than the\n    live active one. \"Different\" is judged by dir NAME (via the marker/token/org identity in\n    ``_active_account``) AND by token bytes — NOT by ``organizationUuid``, which newer creds omit\n    (keying on org made a valid no-org account invisible → rotation found no target). With 3+\n    accounts, successive calls with a growing *avoid* set walk each other account exactly once.\n    Selection runs **inside the install lock** (via the selector), so two concurrent rotations\n    can't both target the same account, over-write the ``.prev`` backup, or report a phantom\n    no-op rotation. Returns the new account's dir name, or None when there is no eligible target\n    or the install fails (fail-soft). Never emits token bytes.\n    \"\"\"\n    accounts = _list_accounts()\n    if len(accounts) < 2:\n        return None\n\n    def _select() -> Path | None:\n        active = _active_account()  # re-resolve the live active account — under the lock\n        active_name = active.name if active is not None else None\n        active_tok = _read_access_token(ACTIVE_CREDS)\n        for acc in accounts:\n            if acc.name in avoid:\n                continue\n            tok = _read_access_token(acc / \".credentials.json\")\n            if tok is None:  # corrupt / empty / tokenless — never install\n                continue\n            # …and skip one the installer would REFUSE, so a healthy account later in the sort is\n            # still reached. Without this the first stale candidate ended rotation entirely: the\n            # installer refused it, `run_claude` saw None and broke out, and a fresh standby one\n            # index later was never tried (review finding — the mirror of the logout bug: pre-fix\n            # it rotated to a dead account, post-fix it rotated NOWHERE). Matters most on the VPS\n            # fleet, where this is the ONLY rotation path (no claude-quota.py picker there).\n            try:\n                if _stale_snapshot_reason((acc / \".credentials.json\").read_bytes()) is not None:\n                    continue\n            except OSError:\n                continue\n            if acc.name == active_name:  # the account we're rotating away FROM\n                continue\n            if active_tok is not None and tok == active_tok:  # same account under a different dir\n                continue\n            return acc\n        return None\n\n    return _activate_snapshot(selector=_select)\n\n\ndef _read_piped_stdin(max_wait_s: float = 2.0) -> str | None:\n    \"\"\"Read piped stdin ONCE (so a rotation retry can be re-supplied the same context).\n    Returns None for a tty, an absent/closed stdin, or a fd that never has data ready. The\n    read is BOUNDED by *max_wait_s* total — a fd that yields partial data but never EOFs\n    (e.g. a manual ``ssh host 'sudo bash …'`` without ``-t``) returns what arrived rather\n    than blocking forever. The real callers feed an eagerly-materialized, EOF-terminated fd\n    (heredoc ``<<<``, a file ``<``, or /dev/null), so they read in full in milliseconds.\n    \"\"\"\n    try:\n        stdin = sys.stdin\n        if stdin is None or stdin.isatty():\n            return None\n        fd = stdin.fileno()\n    except (AttributeError, OSError, ValueError):\n        return None\n    deadline = time.monotonic() + max_wait_s\n    chunks: list[bytes] = []\n    try:\n        while True:\n            remaining = deadline - time.monotonic()\n            if remaining <= 0:\n                break  # bounded — never block past the budget\n            if not select.select([fd], [], [], min(remaining, 0.2))[0]:\n                if chunks:\n                    continue  # partial data but a producer gap → keep polling to the deadline\n                return None  # nothing ever ready → not a piped caller\n            block = os.read(fd, 65536)\n            if not block:\n                break  # EOF\n            chunks.append(block)\n    except (OSError, ValueError):\n        pass\n    if not chunks:\n        return None\n    return b\"\".join(chunks).decode(\"utf-8\", errors=\"replace\")\n\n\ndef _hostname() -> str:\n    \"\"\"This host's name for an alert label (non-secret). '?' if unavailable.\"\"\"\n    try:\n        return os.uname().nodename\n    except (AttributeError, OSError):\n        return \"?\"\n\n\ndef _should_alert_401() -> bool:\n    \"\"\"True at most once per ``_ALERT_DEBOUNCE_S`` per host — rate-limits the 401 Telegram alert so a\n    persistently-dead account can't flood the operator (every 15-min cron + hourly keepalive + bot,\n    ×N hosts, each hitting the same 401, otherwise sends hundreds/day). The window is shared across\n    all callers on the host via a single state file. Fail-OPEN on any error (a rare alert beats a\n    swallowed one); records the send time so the next caller within the window stays quiet.\"\"\"\n    try:\n        last = float(ALERT_STATE.read_text().strip())\n    except (OSError, ValueError):\n        last = 0.0\n    if time.time() - last < _ALERT_DEBOUNCE_S:\n        return False\n    try:\n        ALERT_STATE.write_text(str(time.time()))\n    except OSError:\n        pass\n    return True\n\n\nENV_SYSADMIN = Path(\n    \"/opt/fabrik/.env.sysadmin\"\n)  # fleet sysadmin env (ozgur-readable) — token fallback\n\n\ndef _telegram_config() -> tuple[str, str] | None:\n    \"\"\"``(bot_token, owner_chat_id)`` for the 401 alert — from the environment, else parsed from\n    ``/opt/fabrik/.env.sysadmin`` (the fleet's sysadmin env; ``claude-run.sh`` runs us under\n    ``sudo -u ozgur`` which resets the environment, so the file is the real source on the fleet).\n    None if unconfigured (e.g. the WSL dev box) so the alert simply no-ops. The token is a secret:\n    it is used only in the request URL, never logged.\"\"\"\n    tok = os.environ.get(\"TELEGRAM_BOT_TOKEN\")\n    chat = os.environ.get(\"TELEGRAM_OWNER_ID\")\n    if not (tok and chat):\n        try:\n            for raw in ENV_SYSADMIN.read_text().splitlines():\n                line = raw.strip()\n                if not line or line.startswith(\"#\") or \"=\" not in line:\n                    continue\n                key, _, val = line.partition(\"=\")\n                val = val.strip().strip('\"').strip(\"'\")\n                if key.strip() == \"TELEGRAM_BOT_TOKEN\" and not tok:\n                    tok = val\n                elif key.strip() == \"TELEGRAM_OWNER_ID\" and not chat:\n                    chat = val\n        except (OSError, ValueError):\n            # ValueError covers UnicodeDecodeError from read_text() on a non-UTF-8 .env.sysadmin\n            # (corrupted write / a pasted smart-quote) — a config read must never raise into the\n            # 401 alert path and abort rotation; an undecodable file simply yields no config.\n            pass\n    return (tok, chat) if tok and chat else None\n\n\ndef _notify_telegram(text: str) -> bool:\n    \"\"\"Best-effort Telegram alert via the Bot API (stdlib urllib). FAIL-SOFT: a missing config or\n    any network/HTTP error is swallowed (returns False) — an alert must NEVER break rotation. The\n    bot token appears only in the request URL; neither it nor the response body is ever logged.\"\"\"\n    try:\n        # The config read is INSIDE the try too (belt-and-suspenders): _telegram_config already\n        # guards its file read, but nothing that runs before the network call may escape this path.\n        cfg = _telegram_config()\n        if cfg is None:\n            sys.stderr.write(\n                \"claude_rotate: 401 alert skipped — no TELEGRAM_BOT_TOKEN/OWNER_ID configured\\n\"\n            )\n            return False\n        tok, chat = cfg\n        data = urllib.parse.urlencode({\"chat_id\": chat, \"text\": text}).encode()\n        req = urllib.request.Request(\n            f\"https://api.telegram.org/bot{tok}/sendMessage\", data=data, method=\"POST\"\n        )\n        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (fixed https host)\n            return 200 <= resp.status < 300\n    except Exception:  # noqa: BLE001\n        # An alert MUST NEVER break rotation, so swallow EVERYTHING — not just OSError/ValueError.\n        # http.client.HTTPException (BadStatusLine / IncompleteRead / InvalidURL from a\n        # captive-portal/proxy/malformed-token) is NOT an OSError subclass and would otherwise\n        # escape and abort the retry. Emit a GENERIC line only — never str(e), which for an\n        # InvalidURL embeds the full request URL (and thus the bot token).\n        sys.stderr.write(\n            \"claude_rotate: 401 Telegram alert failed to send (best-effort, ignored)\\n\"\n        )\n        return False\n\n\ndef run_claude(\n    argv: list[str], timeout: int, cwd: str, env: dict[str, str], buffer_stdin: bool = False\n) -> subprocess.CompletedProcess:\n    \"\"\"Run ``claude`` (*argv*). On a usage-limit signal OR a 401 auth failure, rotate to another\n    account and retry — walking through **each OTHER account at most once** (N-account support:\n    mob/ob/can/…). Bounded by the account count, so it can never loop. A 401 (the active account's\n    login token is dead) additionally fires a one-shot best-effort Telegram alert (:func:`_notify_\n    telegram`) with the outcome — rotating to a valid standby recovers a 401 the account's own\n    refresh could not; if no working standby remains the alert says so and the call gives up.\n    Returns the (possibly retried) result of the last attempt.\n\n    Wall time: each attempt gets the full *timeout*, so worst case is ``(1 + rotations) *\n    timeout``. In practice a usage-limit render returns fast (the retry cost is ~the next\n    call, not a timeout), so this only extends time on a genuine per-attempt hang — and\n    ``rotations`` is bounded by the (small) account count, so the total stays bounded.\n\n    *buffer_stdin*: when True (the CLI passthrough — ``main()`` → ``claude-run.sh`` →\n    stdin-piping sysadmin scripts), piped stdin is buffered ONCE via :func:`_read_piped_stdin`\n    and re-supplied on every attempt — otherwise the first attempt reads the fd to EOF and a\n    rotation retry (the very case rotation exists for) would run with EMPTY stdin, losing the\n    context. Direct callers (``bot.py`` / ``aro-wake`` — argv-based, systemd /dev/null stdin)\n    leave it False, so their shared process stdin is never touched (no cross-thread read, no\n    behavior change).\n    \"\"\"\n    stdin_data = _read_piped_stdin() if buffer_stdin else None\n    # Pin subprocess I/O to UTF-8 with errors=\"replace\" (NOT text=True, which re-encodes stdin with\n    # the LOCALE's encoding + STRICT errors): _read_piped_stdin decoded leniently, so under a\n    # non-UTF-8 locale (LANG=C) a strict re-encode of any non-ASCII byte would raise UnicodeEncodeError\n    # — a ValueError that escapes main()'s OSError/TimeoutExpired handlers. UTF-8/replace is symmetric\n    # with the decode and locale-independent; claude's own I/O is UTF-8.\n    result = subprocess.run(\n        argv,\n        capture_output=True,\n        encoding=\"utf-8\",\n        errors=\"replace\",\n        timeout=timeout,\n        cwd=cwd,\n        env=env,\n        input=stdin_data,\n    )\n    accounts = _list_accounts()\n    start = _active_account()\n    tried: set[str] = {start.name} if start else set()\n    # Each OTHER account tried at most once. When the active creds match no snapshot\n    # (start is None — e.g. an account whose snapshot isn't captured yet), ALL snapshots\n    # are valid targets, so the bound is N, not N-1.\n    max_rotations = max(0, len(accounts) - (1 if start else 0))\n    rotations = 0\n    died_account: str | None = None  # the FIRST account whose creds 401'd (dead), for the alert\n    last_target: str | None = None  # the last account we rotated TO\n    while True:\n        combined = (result.stdout or \"\") + \"\\n\" + (result.stderr or \"\")\n        # Rotate on the usage-limit signal OR a 401, REGARDLESS of exit code / output format.\n        # Never missing a real limit/401 is this feature's core guarantee, and Claude's exit code\n        # is not reliably known — gating on `returncode != 0` (or on \"is it valid JSON\") would risk\n        # silently failing to recover. The cost is a bounded, self-correcting false-positive: a\n        # *successful* answer that merely quotes a limit/401 phrase triggers up to N-1 wasted\n        # rotations (and, for a 401, a spurious alert) — bounded by the account count, standbys stay\n        # valid, the operator still gets an answer. The keepalive ping never quotes such phrases; a\n        # sysadmin analysis or operator chat could (accepted, same class as the usage-limit case).\n        is_limit = is_usage_limit(combined)\n        is_401 = is_auth_401(combined)\n        if not is_limit and not is_401:\n            break  # success or a non-rotatable error\n        if is_401 and died_account is None:\n            # Record the account that died BEFORE rotating, so the alert names it (not the target).\n            d = _active_account()\n            died_account = d.name if d is not None else \"?\"\n        new_account = (\n            _rotate_active_account(avoid=frozenset(tried)) if rotations < max_rotations else None\n        )\n        if new_account is None:\n            break  # no untried account left → give up (all exhausted / <2 accounts)\n        last_target = new_account\n        tried.add(new_account)\n        rotations += 1\n        result = subprocess.run(\n            argv,\n            capture_output=True,\n            encoding=\"utf-8\",\n            errors=\"replace\",\n            timeout=timeout,\n            cwd=cwd,\n            env=env,\n            input=stdin_data,\n        )\n    # A 401 (dead creds) alerts AFTER the loop, reflecting the ACTUAL final outcome — never an\n    # optimistic mid-loop guess, since a standby we rotated to may itself be dead. Recovery = the\n    # final attempt is no longer a 401 (nor a limit). DEBOUNCED per host (_should_alert_401) so a\n    # persistently-dead fleet doesn't flood Telegram. Best-effort; never raises (see _notify_telegram).\n    if died_account is not None and _should_alert_401():\n        final = (result.stdout or \"\") + \"\\n\" + (result.stderr or \"\")\n        host = _hostname()\n        if last_target is not None and not is_auth_401(final) and not is_usage_limit(final):\n            _notify_telegram(\n                f\"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — \"\n                f\"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)\"\n            )\n        else:\n            _notify_telegram(\n                f\"🚨 Claude 401 on {host}: NO working Claude account — all credentials are dead. \"\n                f\"Re-capture a fresh account (claude auth login / claude-manager). (alerts quiet ~12h)\"\n            )\n    return result\n\n\ndef _account_email(acc: Path) -> str:\n    \"\"\"Best-effort account label from the (non-secret, world-readable) profile.json. No tokens.\n    Tolerates a missing / malformed / non-object profile.json (returns \"?\", never raises).\"\"\"\n    try:\n        prof = json.loads((acc / \"profile.json\").read_text())\n    except (OSError, ValueError):\n        return \"?\"\n    if not isinstance(prof, dict):\n        return \"?\"\n    inner = prof.get(\"account\", prof)\n    if not isinstance(inner, dict):\n        inner = prof\n    return inner.get(\"email_address\") or inner.get(\"emailAddress\") or prof.get(\"email\") or \"?\"\n\n\ndef _find_account(name: str) -> Path | None:\n    \"\"\"Resolve *name* to a snapshot dir by exact dir name, exact email, or an **unambiguous**\n    dir-name prefix (so ``--switch can`` finds ``can-ocoron-com-s-organization``). An empty\n    name, or a prefix that matches more than one account, resolves to None — never an\n    arbitrary pick (which would silently switch to the wrong identity).\"\"\"\n    if not name:\n        return None\n    accounts = _list_accounts()\n    exact = next((a for a in accounts if a.name == name), None)\n    if exact is not None:\n        return exact\n    # Email branch: never resolve the \"?\" sentinel (profile-less accounts), and require a\n    # UNIQUE match — an ambiguous email must not silently pick an arbitrary identity.\n    if name != \"?\":\n        by_email = [a for a in accounts if _account_email(a) == name]\n        if len(by_email) == 1:\n            return by_email[0]\n        if len(by_email) > 1:\n            return None\n    prefix_matches = [a for a in accounts if a.name.startswith(name)]\n    return prefix_matches[0] if len(prefix_matches) == 1 else None\n\n\ndef _cmd_list() -> int:\n    active = _active_account()\n    active_name = active.name if active else None\n    accounts = _list_accounts()\n    if not accounts:\n        sys.stderr.write(f\"no account snapshots under {ACCOUNTS_DIR}\\n\")\n        return 1\n    for acc in accounts:\n        mark = \"* \" if acc.name == active_name else \"  \"\n        sys.stdout.write(f\"{mark}{acc.name}  ({_account_email(acc)})\\n\")\n    if active_name is None:\n        sys.stdout.write(\n            \"(active creds match no snapshot — capture the account via the claude-manager extension)\\n\"\n        )\n    return 0\n\n\ndef _reload_hint() -> None:\n    sys.stdout.write(\n        \"Reload the VS Code workspace to pick it up \"\n        \"(Ctrl/Cmd+Shift+P → 'Developer: Reload Window'). No restart needed.\\n\"\n    )\n\n\ndef _cmd_switch(name: str) -> int:\n    target = _find_account(name)\n    if target is None:\n        sys.stderr.write(f\"no account matching {name!r} — run `--list` to see options\\n\")\n        return 1\n    if _activate_snapshot(target):\n        sys.stdout.write(\n            f\"switched active Claude account → {target.name} ({_account_email(target)})\\n\"\n        )\n        _reload_hint()\n        return 0\n    sys.stderr.write(\n        \"switch failed (unreadable creds, or the snapshot cannot authenticate — see above) — active account unchanged\\n\"\n    )\n    return 1\n\n\ndef _cmd_next() -> int:\n    new_account = _rotate_active_account()\n    if new_account:\n        match = _find_account(new_account)  # may be None if the snapshot vanished post-rotation\n        email = _account_email(match) if match is not None else \"?\"\n        sys.stdout.write(f\"rotated active Claude account → {new_account} ({email})\\n\")\n        _reload_hint()\n        return 0\n    sys.stderr.write(\"no other account to rotate to (need ≥2 snapshots) — run `--list`\\n\")\n    return 1\n\n\ndef _cred_generation(data: bytes) -> int:\n    \"\"\"The credential's own generation marker: `claudeAiOauth.expiresAt` (ms epoch), or 0\n    when absent/unparseable. Used to refuse a REGRESSION — a newer snapshot is never\n    overwritten by an older live file.\"\"\"\n    try:\n        oauth = json.loads(data).get(\"claudeAiOauth\")\n        val = oauth.get(\"expiresAt\") if isinstance(oauth, dict) else None\n        return int(val) if isinstance(val, (int, float)) else 0\n    except (ValueError, TypeError, AttributeError):\n        return 0\n\n\ndef _cred_generation_of(path: Path) -> int:\n    try:\n        return _cred_generation(path.read_bytes())\n    except OSError:\n        return 0\n\n\ndef _cmd_capture_current() -> int:\n    \"\"\"Snapshot the LIVE credentials into the ACTIVE account's dir (plan 2026-08-10-plan-1).\n\n    Why: a stored snapshot drifts off the live token every time Claude refreshes it. A restore\n    of a stale snapshot installs a superseded refresh token, which the server rejects — the\n    live 2026-08-10 12:05 \"OAuth session expired and could not be refreshed\" incident, whose\n    snapshot was 1.5 days old. Keeping the snapshot equal to the live token makes that restore\n    impossible.\n\n    Atomic (tmp + ``os.replace``, mirroring ``_activate_snapshot``) so a crash mid-write can\n    never leave a truncated snapshot — ``_secure_write`` alone unlinks then recreates. MONOTONE\n    in the practical sense: identical content is a no-op (no churn, no mtime bump). Never emits\n    token bytes.\n    \"\"\"\n    live_tok = _read_access_token(ACTIVE_CREDS)\n    if live_tok is None:\n        sys.stderr.write(\n            \"claude_rotate: live credentials carry no access token — nothing to capture\\n\"\n        )\n        return 1\n    target = _active_account()\n    if target is None:\n        sys.stderr.write(\"claude_rotate: cannot resolve the active account — capture skipped\\n\")\n        return 1\n    # ⚠ RESIDUAL, deliberately accepted (review 2026-08-10): when the live token matches\n    # no snapshot, identity falls back to the `.active-account` marker — and a legitimate\n    # token REFRESH is indistinguishable from an out-of-band `claude auth login` as a\n    # DIFFERENT account. Refusing marker-resolved captures would block the primary use\n    # case (a refreshed token no longer matching its snapshot IS the drift we exist to\n    # capture), so capture proceeds and the `.prev` rolling backup below is the recovery\n    # path for a mis-capture. Documented in the plan's residuals, not silently ignored.\n\n    dst = target / \".credentials.json\"\n    try:\n        live_bytes = ACTIVE_CREDS.read_bytes()\n    except OSError as e:\n        sys.stderr.write(f\"claude_rotate: cannot read live credentials: {e.strerror}\\n\")\n        return 1\n    try:\n        if dst.is_file() and dst.read_bytes() == live_bytes:\n            return 0  # already in sync — never churn the file\n    except OSError:\n        pass\n    # Collision-proof tmp name (pid alone can repeat across namespaces/recycling).\n    # MONOTONE (the plan's word, now enforced): refuse to regress a snapshot. `expiresAt`\n    # is the credential's own generation marker — a live file rolled back to an older\n    # token must never stamp over a newer stored one (review finding: the previous code\n    # only skipped IDENTICAL content, which is idempotency, not monotonicity).\n    if _cred_generation(live_bytes) < _cred_generation_of(dst):\n        sys.stderr.write(\n            f\"claude_rotate: live credentials are OLDER than {target.name}'s snapshot —\"\n            \" refusing to regress it (capture skipped)\\n\"\n        )\n        return 1\n    tmp = dst.with_name(f\"{dst.name}.tmp{os.getpid()}.{time.monotonic_ns():x}\")\n    lock_fd = None\n    try:\n        # Hold the rotation lock: without it a concurrent _activate_snapshot can land\n        # between our identity resolution and this write, so `target` and the live bytes\n        # would name two different accounts (review finding).\n        try:\n            lock_fd = os.open(str(ROTATE_LOCK), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)\n            fcntl.flock(lock_fd, fcntl.LOCK_EX)\n        except OSError:\n            lock_fd = None  # best-effort: os.replace still keeps readers atomic\n        # Roll the OUTGOING snapshot aside first — a capture must never be the operation\n        # that loses a usable credential (mirrors _activate_snapshot's BACKUP_CREDS).\n        if dst.is_file():\n            try:\n                _secure_write(dst.with_name(dst.name + \".prev\"), dst.read_bytes())\n            except OSError:\n                pass  # best-effort backup; never block the capture itself\n        _secure_write(tmp, live_bytes)\n        os.replace(tmp, dst)  # atomic swap: a reader sees old-or-new, never a torn file\n    except OSError as e:\n        try:\n            tmp.unlink(missing_ok=True)\n        except OSError:\n            pass\n        sys.stderr.write(f\"claude_rotate: capture failed: {e.strerror}\\n\")\n        return 1\n    finally:\n        if lock_fd is not None:\n            try:\n                fcntl.flock(lock_fd, fcntl.LOCK_UN)\n                os.close(lock_fd)\n            except OSError:\n                pass\n    print(f\"captured live credentials into {target.name}\")\n    return 0\n\n\ndef _cmd_drift_check() -> int:\n    \"\"\"Capture ONLY when the live token has diverged from the stored snapshot.\n\n    The hourly/SessionStart trigger: read-only and silent in the common case, so it can run on\n    every session start without cost. Always exits 0 — a drift-check must never fail a hook.\n    \"\"\"\n    live_tok = _read_access_token(ACTIVE_CREDS)\n    target = _active_account()\n    if live_tok is None or target is None:\n        return 0  # nothing resolvable to compare — quiet no-op\n    # Compare the WHOLE credential blob, never just the access token: the live incident\n    # (2026-08-10) was a stale REFRESH token, and the refresh token rotates independently\n    # of the short-lived access token — an accessToken-only compare would see \"in sync\"\n    # while the snapshot carried a dead refresh token (review finding).\n    try:\n        if (target / \".credentials.json\").read_bytes() == ACTIVE_CREDS.read_bytes():\n            return 0  # byte-identical — genuinely in sync\n    except OSError:\n        pass  # unreadable either side → fall through to capture (fail toward freshness)\n    if _cmd_capture_current() != 0:\n        # Never fail a hook, but never hide a failed capture either: the cron log is the\n        # only place an operator would ever see this (review finding).\n        sys.stderr.write(\"claude_rotate: drift detected but capture FAILED — snapshot is stale\\n\")\n    return 0\n\n\ndef main(argv: list[str] | None = None) -> int:\n    \"\"\"CLI. Two modes:\n\n    Auto-rotation passthrough (for the keepalive shim / any wrapper):\n        ``python3 claude_rotate.py claude -p ping`` → runs claude, rotates on usage-limit,\n        passes output + returncode through.\n\n    Manual account management on WSL (switch the active account, then reload the VS Code\n    workspace — no VS Code restart):\n        ``python3 claude_rotate.py --list``            list accounts, mark the active one\n        ``python3 claude_rotate.py --switch <name>``   set active to a named account/email/prefix\n        ``python3 claude_rotate.py --next``            cycle to the next other account\n        ``python3 claude_rotate.py --capture-current`` snapshot the live creds into the active\n                                                       account (keeps the store un-stale)\n        ``python3 claude_rotate.py --drift-check``     capture only if the live token diverged\n    \"\"\"\n    args = list(sys.argv[1:] if argv is None else argv)\n    if not args:\n        sys.stderr.write(\n            \"usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current\"\n            \" | --drift-check | <claude> args...]\\n\"\n        )\n        return 2\n    if args[0] == \"--list\":\n        return _cmd_list()\n    if args[0] == \"--switch\":\n        if len(args) < 2:\n            sys.stderr.write(\"usage: claude_rotate.py --switch <account-name-or-email>\\n\")\n            return 2\n        return _cmd_switch(args[1])\n    if args[0] == \"--next\":\n        return _cmd_next()\n    if args[0] == \"--capture-current\":\n        return _cmd_capture_current()\n    if args[0] == \"--drift-check\":\n        return _cmd_drift_check()\n    env = os.environ.copy()\n    env.setdefault(\"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC\", \"1\")\n    try:\n        timeout = int(os.environ.get(\"CLAUDE_ROTATE_TIMEOUT\", \"120\"))\n    except ValueError:\n        timeout = 120\n    if timeout <= 0:\n        timeout = 120\n    # Resolve cwd defensively OUTSIDE the run_claude try: os.getcwd() raises if the process's cwd\n    # was unlinked mid-run, and we don't want that mislabeled as a claude exec failure below. Fall\n    # back to \"/\" (always traversable) — claude-run.sh already cd's to a valid dir, so this is a race\n    # backstop. Keeping it out of the try is what makes the \"only a spawn OSError\" comment below true.\n    try:\n        cwd = os.getcwd()\n    except OSError:\n        cwd = \"/\"\n    # CLI passthrough (claude-run.sh → stdin-piping sysadmin scripts): buffer stdin so a\n    # rotation retry re-supplies the piped context. Convert the subprocess failure modes into clean\n    # exits — the service callers (bot.py/aro-wake) catch these, but the cron/keepalive path is\n    # main(), where an uncaught FileNotFoundError (claude bin absent on a mis-provisioned host) or\n    # TimeoutExpired (a hung attempt) would otherwise dump a traceback into the cron log.\n    try:\n        result = run_claude(args, timeout=timeout, cwd=cwd, env=env, buffer_stdin=True)\n    except FileNotFoundError:\n        sys.stderr.write(f\"claude_rotate: claude binary not found: {args[0]!r}\\n\")\n        return 127\n    except OSError as e:\n        # Other spawn-time failures for the SAME mis-provisioned-host class: PermissionError (claude\n        # rsync'd without the exec bit), IsADirectoryError, or \"Exec format error\" (wrong arch/bad\n        # shebang). run_claude's own internals guard their OSErrors, so the only OSError that reaches\n        # here is subprocess.run's spawn failure → the child never ran; exit 126, don't traceback.\n        sys.stderr.write(\n            f\"claude_rotate: cannot execute {args[0]!r}: {e.strerror or 'exec error'}\\n\"\n        )\n        return 126\n    except subprocess.TimeoutExpired:\n        sys.stderr.write(f\"claude_rotate: claude timed out after {timeout}s\\n\")\n        return 124\n    if result.stdout:\n        sys.stdout.write(result.stdout)\n    if result.stderr:\n        sys.stderr.write(result.stderr)\n    return result.returncode\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())",
+      "lines": 986,
+      "secondFile": {
+        "end": 986,
+        "endLoc": {
+          "column": 28,
+          "line": 986,
+          "position": 50776
+        },
+        "name": "scripts/sysadmin/claude_rotate.py",
+        "start": 1,
+        "startLoc": {
+          "column": 0,
+          "line": 1,
+          "position": 0
+        }
+      },
+      "tokens": 6343
+    },
+    {
+      "firstFile": {
+        "end": 41,
+        "endLoc": {
+          "column": 25,
+          "line": 41,
+          "position": 1632
+        },
+        "name": "scripts/audit/03-security.sh",
+        "start": 27,
+        "startLoc": {
+          "column": 223,
+          "line": 27,
+          "position": 1056
+        }
+      },
+      "format": "bash",
+      "fragment": "for domain in ocoron.com www.ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com backup.vps1.ocoron.com coolify.vps1.ocoron.com images.vps1.ocoron.com search.vps1.ocoron.com auth.vps1.ocoron.com; do\n  expiry=$(echo | timeout 5 openssl s_client -servername \"$domain\" -connect \"$domain\":443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)\n  if [ -n \"$expiry\" ]; then\n    echo \"$domain: expires $expiry\"\n  else\n    echo \"$domain: CERT CHECK FAILED\"\n  fi\ndone\n\necho \"\"\necho \"========== SSH SECURITY ==========\"\necho \"--- sshd config ---\"\nsudo sshd -T 2>/dev/null | grep -E \"passwordauthentication|permitrootlogin|pubkeyauthentication|maxauthtries|port\" || echo \"sshd -T failed\"\necho \"--- failed password attempts (7 days) ---\"\nsudo journalctl -u ssh --since \"7 days ago\" 2>/dev/null | grep -c \"Failed password\" || echo \"0\"",
+      "lines": 15,
+      "secondFile": {
+        "end": 171,
+        "endLoc": {
+          "column": 55,
+          "line": 171,
+          "position": 8254
+        },
+        "name": "scripts/sysadmin/proactive-check.sh",
+        "start": 166,
+        "startLoc": {
+          "column": 22,
+          "line": 166,
+          "position": 7926
+        }
+      },
+      "tokens": 96
+    },
+    {
+      "firstFile": {
+        "end": 477,
+        "endLoc": {
+          "column": 30,
+          "line": 477,
+          "position": 24101
+        },
+        "name": "scripts/bootstrap/bootstrap-hub.sh",
+        "start": 467,
+        "startLoc": {
+          "column": 4,
+          "line": 467,
+          "position": 23709
+        }
+      },
+      "format": "bash",
+      "fragment": "    local pubkey=\"\"\n    if ! $DRY_RUN; then\n        local candidates=(\n            \"${HOME}/.ssh/id_ed25519.pub\"\n            \"${HOME}/.ssh/id_ecdsa.pub\"\n            \"${HOME}/.ssh/id_rsa.pub\"\n        )\n        local ssh_g_identity\n        ssh_g_identity=$(ssh -G \"${REMOTE}\" 2>/dev/null | awk '/^identityfile / {print $2}' | head -3)\n        while IFS= read -r f; do\n            f=\"${f/#\\~/$HOME}\"",
+      "lines": 11,
+      "secondFile": {
+        "end": 326,
+        "endLoc": {
+          "column": 51,
+          "line": 326,
+          "position": 15728
+        },
+        "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+        "start": 321,
+        "startLoc": {
+          "column": 4,
+          "line": 321,
+          "position": 15392
+        }
+      },
+      "tokens": 54
+    },
+    {
+      "firstFile": {
+        "end": 490,
+        "endLoc": {
+          "column": 15,
+          "line": 490,
+          "position": 24475
+        },
+        "name": "scripts/bootstrap/bootstrap-hub.sh",
+        "start": 474,
+        "startLoc": {
+          "column": 8,
+          "line": 474,
+          "position": 23914
+        }
+      },
+      "format": "bash",
+      "fragment": "        local ssh_g_identity\n        ssh_g_identity=$(ssh -G \"${REMOTE}\" 2>/dev/null | awk '/^identityfile / {print $2}' | head -3)\n        while IFS= read -r f; do\n            f=\"${f/#\\~/$HOME}\"\n            [[ -n \"$f\" ]] && candidates+=(\"${f}.pub\")\n        done <<<\"$ssh_g_identity\"\n\n        for candidate in \"${candidates[@]}\"; do\n            if [[ -f \"$candidate\" ]]; then\n                pubkey=$(cat \"$candidate\")\n                log \"  using key: ${candidate}\"\n                break\n            fi\n        done\n\n        if [[ -z \"$pubkey\" ]]; then\n            err \"step_00: no public key found in: ${candidates[*]}\"",
+      "lines": 17,
+      "secondFile": {
+        "end": 291,
+        "endLoc": {
+          "column": 15,
+          "line": 291,
+          "position": 11875
+        },
+        "name": "scripts/bootstrap/bootstrap-vps.sh",
+        "start": 275,
+        "startLoc": {
+          "column": 8,
+          "line": 275,
+          "position": 11314
+        }
+      },
+      "tokens": 95
+    },
+    {
+      "firstFile": {
+        "end": 549,
+        "endLoc": {
+          "column": 51,
+          "line": 549,
+          "position": 26778
+        },
+        "name": "scripts/bootstrap/bootstrap-hub.sh",
+        "start": 536,
+        "startLoc": {
+          "column": 8,
+          "line": 536,
+          "position": 26386
+        }
+      },
+      "format": "bash",
+      "fragment": "        mkdir -p /etc/ssh/sshd_config.d\n        cat > /etc/ssh/sshd_config.d/99-fabrik-hardening.conf <<EOF\nPermitRootLogin no\nPasswordAuthentication no\nPubkeyAuthentication yes\nEOF\n        chmod 644 /etc/ssh/sshd_config.d/99-fabrik-hardening.conf\n        sshd -t && systemctl reload ssh\n    \"'\n    ok \"step_01 done\"\n}\n\nstep_02_install_packages() {\n    log \"step_02: install OS packages ($(elapsed))\"",
+      "lines": 14,
+      "secondFile": {
+        "end": 370,
+        "endLoc": {
+          "column": 51,
+          "line": 370,
+          "position": 17606
+        },
+        "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+        "start": 357,
+        "startLoc": {
+          "column": 8,
+          "line": 357,
+          "position": 17214
+        }
+      },
+      "tokens": 75
+    },
+    {
+      "firstFile": {
+        "end": 772,
+        "endLoc": {
+          "column": 10,
+          "line": 772,
+          "position": 38337
+        },
+        "name": "scripts/bootstrap/bootstrap-hub.sh",
+        "start": 761,
+        "startLoc": {
+          "column": 8,
+          "line": 761,
+          "position": 37654
+        }
+      },
+      "format": "bash",
+      "fragment": "        if [ -s /tmp/preboot-keys/ozgur.authkeys ]; then\n            cat /home/ozgur/.ssh/authorized_keys /tmp/preboot-keys/ozgur.authkeys 2>/dev/null \\\n                | awk \\\"NF && !seen[\\\\\\$0]++\\\" \\\n                > /home/ozgur/.ssh/authorized_keys.merged\n            mv /home/ozgur/.ssh/authorized_keys.merged /home/ozgur/.ssh/authorized_keys\n        fi\n        if [ -s /tmp/preboot-keys/root.authkeys ]; then\n            cat /root/.ssh/authorized_keys /tmp/preboot-keys/root.authkeys 2>/dev/null \\\n                | awk \\\"NF && !seen[\\\\\\$0]++\\\" \\\n                > /root/.ssh/authorized_keys.merged\n            mv /root/.ssh/authorized_keys.merged /root/.ssh/authorized_keys\n        fi",
+      "lines": 12,
+      "secondFile": {
+        "end": 481,
+        "endLoc": {
+          "column": 10,
+          "line": 481,
+          "position": 23233
+        },
+        "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+        "start": 470,
+        "startLoc": {
+          "column": 8,
+          "line": 470,
+          "position": 22550
+        }
+      },
+      "tokens": 156
+    },
+    {
+      "firstFile": {
+        "end": 1426,
+        "endLoc": {
+          "column": 6,
+          "line": 1426,
+          "position": 71161
+        },
+        "name": "scripts/bootstrap/bootstrap-hub.sh",
+        "start": 1413,
+        "startLoc": {
+          "column": 4,
+          "line": 1413,
+          "position": 70379
+        }
+      },
+      "format": "bash",
+      "fragment": "    if $DRY_RUN; then\n        dim \"    [dry-run] would scp fabrik-compose-boot.{sh,service} + enable the boot unit\"\n        return 0\n    fi\n    scp -q -o StrictHostKeyChecking=accept-new \\\n        \"${SCRIPT_DIR}/../systemd/fabrik-compose-boot.sh\" \\\n        \"${SCRIPT_DIR}/../systemd/fabrik-compose-boot.service\" \\\n        \"${EFFECTIVE_REMOTE}:/tmp/\"\n    remote 'sudo install -m 755 -o root -g root /tmp/fabrik-compose-boot.sh /usr/local/bin/fabrik-compose-boot.sh && \\\n        sudo install -m 644 -o root -g root /tmp/fabrik-compose-boot.service /etc/systemd/system/fabrik-compose-boot.service && \\\n        sudo systemctl daemon-reload && \\\n        sudo systemctl enable fabrik-compose-boot.service && \\\n        rm -f /tmp/fabrik-compose-boot.sh /tmp/fabrik-compose-boot.service'\n    ok \"step_15b done — fabrik-compose-boot.service enabled for boot\"",
+      "lines": 14,
+      "secondFile": {
+        "end": 928,
+        "endLoc": {
+          "column": 6,
+          "line": 928,
+          "position": 44971
+        },
+        "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+        "start": 915,
+        "startLoc": {
+          "column": 4,
+          "line": 915,
+          "position": 44189
+        }
+      },
+      "tokens": 112
+    },
+    {
+      "firstFile": {
+        "end": 603,
+        "endLoc": {
+          "column": 22,
+          "line": 603,
+          "position": 29111
+        },
+        "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+        "start": 562,
+        "startLoc": {
+          "column": 0,
+          "line": 562,
+          "position": 27158
+        }
+      },
+      "format": "bash",
+      "fragment": "# Run at boot by iptables-docker-user.service (After=docker.service). Idempotent.\niptables -C DOCKER-USER -i ${FABRIK_MESH_IFACE} -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER -i ${FABRIK_MESH_IFACE} -j ACCEPT\niptables -C DOCKER-USER -i ${public_iface} -p tcp -m multiport --dports ${mesh_ports_csv} -j DROP 2>/dev/null || iptables -I DOCKER-USER -i ${public_iface} -p tcp -m multiport --dports ${mesh_ports_csv} -j DROP\nEOF\n\n    cat > \"${tmpdir}/rm-docker-user-rules.sh\" <<EOF\n#!/bin/bash\niptables -D DOCKER-USER -i ${FABRIK_MESH_IFACE} -j ACCEPT 2>/dev/null || true\niptables -D DOCKER-USER -i ${public_iface} -p tcp -m multiport --dports ${mesh_ports_csv} -j DROP 2>/dev/null || true\nEOF\n\n    cat > \"${tmpdir}/iptables-docker-user.service\" <<'EOF'\n[Unit]\nDescription=Docker-User iptables rules (block external access to internal ports)\nAfter=docker.service\nRequires=docker.service\n\n[Service]\nType=oneshot\nExecStart=/etc/iptables/add-docker-user-rules.sh\nExecStop=/etc/iptables/rm-docker-user-rules.sh\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\n    scp -q -o StrictHostKeyChecking=accept-new \\\n        \"${tmpdir}/add-docker-user-rules.sh\" \\\n        \"${tmpdir}/rm-docker-user-rules.sh\" \\\n        \"${tmpdir}/iptables-docker-user.service\" \\\n        \"${EFFECTIVE_REMOTE}:/tmp/\"\n\n    remote 'sudo mkdir -p /etc/iptables && \\\n        sudo install -m 755 -o root -g root /tmp/add-docker-user-rules.sh /etc/iptables/add-docker-user-rules.sh && \\\n        sudo install -m 755 -o root -g root /tmp/rm-docker-user-rules.sh /etc/iptables/rm-docker-user-rules.sh && \\\n        sudo install -m 644 -o root -g root /tmp/iptables-docker-user.service /etc/systemd/system/iptables-docker-user.service && \\\n        sudo systemctl daemon-reload && \\\n        sudo systemctl enable --now iptables-docker-user.service && \\\n        rm -f /tmp/add-docker-user-rules.sh /tmp/rm-docker-user-rules.sh /tmp/iptables-docker-user.service'\n\n    rm -rf \"${tmpdir}\"",
+      "lines": 42,
+      "secondFile": {
+        "end": 670,
+        "endLoc": {
+          "column": 22,
+          "line": 670,
+          "position": 29128
+        },
+        "name": "scripts/bootstrap/bootstrap-vps.sh",
+        "start": 629,
+        "startLoc": {
+          "column": 0,
+          "line": 629,
+          "position": 27175
+        }
+      },
+      "tokens": 463
+    },
+    {
+      "firstFile": {
+        "end": 589,
+        "endLoc": {
+          "column": 10,
+          "line": 589,
+          "position": 28237
+        },
+        "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+        "start": 573,
+        "startLoc": {
+          "column": 51,
+          "line": 573,
+          "position": 27903
+        }
+      },
+      "format": "bash",
+      "fragment": "    cat > \"${tmpdir}/iptables-docker-user.service\" <<'EOF'\n[Unit]\nDescription=Docker-User iptables rules (block external access to internal ports)\nAfter=docker.service\nRequires=docker.service\n\n[Service]\nType=oneshot\nExecStart=/etc/iptables/add-docker-user-rules.sh\nExecStop=/etc/iptables/rm-docker-user-rules.sh\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\n    scp -q -o StrictHostKeyChecking=accept-new \\",
+      "lines": 17,
+      "secondFile": {
+        "end": 80,
+        "endLoc": {
+          "column": 6,
+          "line": 80,
+          "position": 3752
+        },
+        "name": "scripts/sysadmin/install-docker-user-rules.sh",
+        "start": 64,
+        "startLoc": {
+          "column": 42,
+          "line": 64,
+          "position": 3422
+        }
+      },
+      "tokens": 86
+    },
+    {
+      "firstFile": {
+        "end": 196,
+        "endLoc": {
+          "column": 59,
+          "line": 196,
+          "position": 7116
+        },
+        "name": "scripts/container_images.py",
+        "start": 186,
+        "startLoc": {
+          "column": 33,
+          "line": 186,
+          "position": 6650
+        }
+      },
+      "format": "python",
+      "fragment": "            manifest = resp.json()\n\n            architectures = []\n            if manifest.get(\"mediaType\") in [\n                \"application/vnd.docker.distribution.manifest.list.v2+json\",\n                \"application/vnd.oci.image.index.v1+json\",\n            ]:\n                for m in manifest.get(\"manifests\", []):\n                    platform = m.get(\"platform\", {})\n                    arch = platform.get(\"architecture\", \"unknown\")\n                    os_name = platform.get(\"os\", \"unknown\")",
+      "lines": 11,
+      "secondFile": {
+        "end": 261,
+        "endLoc": {
+          "column": 59,
+          "line": 261,
+          "position": 9661
+        },
+        "name": "scripts/container_images.py",
+        "start": 251,
+        "startLoc": {
+          "column": 58,
+          "line": 251,
+          "position": 9195
+        }
+      },
+      "tokens": 64
+    },
+    {
+      "firstFile": {
+        "end": 50,
+        "endLoc": {
+          "column": 10,
+          "line": 50,
+          "position": 2423
+        },
+        "name": "scripts/dashboard_server.py",
+        "start": 40,
+        "startLoc": {
+          "column": 84,
+          "line": 40,
+          "position": 1718
+        }
+      },
+      "format": "python",
+      "fragment": "    <select id=\"fcat\" aria-label=\"Category\"><option value=\"\">All categories</option></select>\n    <select id=\"fcost\" aria-label=\"Cost\"><option value=\"\">All costs</option>\n      <option>free</option><option>freemium</option><option>paid</option><option>self-host</option>\n      <option value=\"?\">? (triage)</option></select>\n  </div>\n  <div class=\"tablewrap\"><table id=\"t\"><thead><tr>\n    <th data-k=\"provider\">Provider</th><th data-k=\"category\">Category</th><th data-k=\"cost\">Cost</th>\n    <th data-k=\"status\">Status</th><th data-k=\"credit\">Credit</th><th data-k=\"renews\">Renews</th>\n    <th data-k=\"price\">Price</th><th data-k=\"keys\" class=\"num\">Keys</th><th data-k=\"account\">Account</th>\n    <th data-k=\"projects\">Used by</th></tr></thead><tbody id=\"tb\"></tbody></table></div>\n  <footer>Live view of the fabrik_services registry · auto-refresh 30s · no secret values</footer>",
+      "lines": 11,
+      "secondFile": {
+        "end": 196,
+        "endLoc": {
+          "column": 10,
+          "line": 196,
+          "position": 11589
+        },
+        "name": "scripts/gen_dashboard.py",
+        "start": 186,
+        "startLoc": {
+          "column": 94,
+          "line": 186,
+          "position": 10884
+        }
+      },
+      "tokens": 264
+    },
+    {
+      "firstFile": {
+        "end": 379,
+        "endLoc": {
+          "column": 53,
+          "line": 379,
+          "position": 13188
+        },
+        "name": "scripts/docs_updater.py",
+        "start": 369,
+        "startLoc": {
+          "column": 8,
+          "line": 369,
+          "position": 12773
+        }
+      },
+      "format": "python",
+      "fragment": "        output_queue: Queue[Any] = Queue()\n        stdout_thread = threading.Thread(\n            target=_stream_reader, args=(process.stdout, output_queue, \"stdout\")\n        )\n        stderr_thread = threading.Thread(\n            target=_stream_reader, args=(process.stderr, output_queue, \"stderr\")\n        )\n        stdout_thread.start()\n        stderr_thread.start()\n\n        # Collect output while polling ProcessMonitor",
+      "lines": 11,
+      "secondFile": {
+        "end": 1339,
+        "endLoc": {
+          "column": 20,
+          "line": 1339,
+          "position": 48237
+        },
+        "name": "scripts/docs_updater.py",
+        "start": 1329,
+        "startLoc": {
+          "column": 8,
+          "line": 1329,
+          "position": 47855
+        }
+      },
+      "tokens": 64
+    },
+    {
+      "firstFile": {
+        "end": 421,
+        "endLoc": {
+          "column": 75,
+          "line": 421,
+          "position": 14684
+        },
+        "name": "scripts/docs_updater.py",
+        "start": 393,
+        "startLoc": {
+          "column": 12,
+          "line": 393,
+          "position": 13634
+        }
+      },
+      "format": "python",
+      "fragment": "            if monitor and (time.time() - start_time) % 30 < 1:\n                diagnosis = monitor.analyze()\n                if diagnosis[\"state\"] in (\"LIKELY_STUCK\", \"CONFIRMED_STUCK\"):\n                    print(f\"⚠️ ProcessMonitor: {diagnosis['reason']}\", file=sys.stderr)\n\n            try:\n                name, line = output_queue.get(timeout=1.0)\n                if line is None:\n                    streams_closed += 1\n                elif name == \"stdout\":\n                    stdout_lines.append(line)\n                    if monitor:\n                        monitor.record_activity()\n                else:\n                    stderr_lines.append(line)\n            except Empty:\n                continue\n\n        stdout_thread.join(timeout=5)\n        stderr_thread.join(timeout=5)\n        process.wait()\n\n        stdout = \"\".join(stdout_lines)\n        stderr = \"\".join(stderr_lines)\n\n        if process.returncode != 0:\n            return {\n                \"success\": False,\n                \"result\": f\"Exit code {process.returncode}: {stderr[:500]}\",",
+      "lines": 29,
+      "secondFile": {
+        "end": 1376,
+        "endLoc": {
+          "column": 97,
+          "line": 1376,
+          "position": 49604
+        },
+        "name": "scripts/docs_updater.py",
+        "start": 1350,
+        "startLoc": {
+          "column": 12,
+          "line": 1350,
+          "position": 48587
+        }
+      },
+      "tokens": 157
+    },
+    {
+      "firstFile": {
+        "end": 438,
+        "endLoc": {
+          "column": 3,
+          "line": 438,
+          "position": 15131
+        },
+        "name": "scripts/docs_updater.py",
+        "start": 425,
+        "startLoc": {
+          "column": 8,
+          "line": 425,
+          "position": 14732
+        }
+      },
+      "format": "python",
+      "fragment": "        try:\n            output = json.loads(stdout.strip())\n            return {\n                \"success\": not output.get(\"is_error\", False),\n                \"result\": output.get(\"result\", \"\")[:2000],\n            }\n        except json.JSONDecodeError:\n            return {\"success\": True, \"result\": stdout[:2000]}\n\n    except Exception as e:\n        return {\"success\": False, \"result\": str(e)[:500]}\n\n\ndef process_batch(tasks: list[dict[str, Any]]) -> None:",
+      "lines": 14,
+      "secondFile": {
+        "end": 1391,
+        "endLoc": {
+          "column": 3,
+          "line": 1391,
+          "position": 50014
+        },
+        "name": "scripts/docs_updater.py",
+        "start": 1378,
+        "startLoc": {
+          "column": 8,
+          "line": 1378,
+          "position": 49615
+        }
+      },
+      "tokens": 86
+    },
+    {
+      "firstFile": {
+        "end": 76,
+        "endLoc": {
+          "column": 3,
+          "line": 76,
+          "position": 2020
+        },
+        "name": "scripts/enforcement/check_changelog.py",
+        "start": 63,
+        "startLoc": {
+          "column": 64,
+          "line": 63,
+          "position": 1725
+        }
+      },
+      "format": "python",
+      "fragment": "SIGNIFICANT_FILES = {\"Dockerfile\", \"compose.yaml\", \"compose.yml\"}\n\n\ndef get_staged_files() -> list[str]:\n    \"\"\"Get list of staged files.\"\"\"\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--cached\", \"--name-only\"],\n        capture_output=True,\n        text=True,\n    )\n    return result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n\ndef get_staged_diff_stats() -> int:",
+      "lines": 14,
+      "secondFile": {
+        "end": 52,
+        "endLoc": {
+          "column": 3,
+          "line": 52,
+          "position": 1079
+        },
+        "name": "scripts/enforcement/check_print_ban.py",
+        "start": 39,
+        "startLoc": {
+          "column": 56,
+          "line": 39,
+          "position": 784
+        }
+      },
+      "tokens": 65
+    },
+    {
+      "firstFile": {
+        "end": 40,
+        "endLoc": {
+          "column": 3,
+          "line": 40,
+          "position": 998
+        },
+        "name": "scripts/enforcement/check_compose_services.py",
+        "start": 14,
+        "startLoc": {
+          "column": 0,
+          "line": 14,
+          "position": 392
+        }
+      },
+      "format": "python",
+      "fragment": "Exit codes:\n    0 - Pass (always - warnings only)\n\"\"\"\n\nimport re\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n\ndef get_staged_files() -> list[str]:\n    \"\"\"Get list of staged files.\"\"\"\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--name-only\", \"--cached\", \"HEAD\"],\n        capture_output=True,\n        text=True,\n    )\n    if result.returncode != 0:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--name-only\", \"--cached\"],\n            capture_output=True,\n            text=True,\n        )\n    return result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n\ndef get_new_services(filepath: str) -> set[str]:",
+      "lines": 27,
+      "secondFile": {
+        "end": 40,
+        "endLoc": {
+          "column": 3,
+          "line": 40,
+          "position": 952
+        },
+        "name": "scripts/enforcement/check_test_coverage.py",
+        "start": 14,
+        "startLoc": {
+          "column": 0,
+          "line": 14,
+          "position": 346
+        }
+      },
+      "tokens": 123
+    },
+    {
+      "firstFile": {
+        "end": 40,
+        "endLoc": {
+          "column": 3,
+          "line": 40,
+          "position": 998
+        },
+        "name": "scripts/enforcement/check_compose_services.py",
+        "start": 24,
+        "startLoc": {
+          "column": 0,
+          "line": 24,
+          "position": 513
+        }
+      },
+      "format": "python",
+      "fragment": "def get_staged_files() -> list[str]:\n    \"\"\"Get list of staged files.\"\"\"\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--name-only\", \"--cached\", \"HEAD\"],\n        capture_output=True,\n        text=True,\n    )\n    if result.returncode != 0:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--name-only\", \"--cached\"],\n            capture_output=True,\n            text=True,\n        )\n    return result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n\ndef get_new_services(filepath: str) -> set[str]:",
+      "lines": 17,
+      "secondFile": {
+        "end": 60,
+        "endLoc": {
+          "column": 3,
+          "line": 60,
+          "position": 1376
+        },
+        "name": "scripts/enforcement/check_env_example.py",
+        "start": 44,
+        "startLoc": {
+          "column": 0,
+          "line": 44,
+          "position": 891
+        }
+      },
+      "tokens": 99
+    },
+    {
+      "firstFile": {
+        "end": 40,
+        "endLoc": {
+          "column": 3,
+          "line": 40,
+          "position": 998
+        },
+        "name": "scripts/enforcement/check_compose_services.py",
+        "start": 24,
+        "startLoc": {
+          "column": 0,
+          "line": 24,
+          "position": 513
+        }
+      },
+      "format": "python",
+      "fragment": "def get_staged_files() -> list[str]:\n    \"\"\"Get list of staged files.\"\"\"\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--name-only\", \"--cached\", \"HEAD\"],\n        capture_output=True,\n        text=True,\n    )\n    if result.returncode != 0:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--name-only\", \"--cached\"],\n            capture_output=True,\n            text=True,\n        )\n    return result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n\ndef get_new_services(filepath: str) -> set[str]:",
+      "lines": 17,
+      "secondFile": {
+        "end": 55,
+        "endLoc": {
+          "column": 3,
+          "line": 55,
+          "position": 1308
+        },
+        "name": "scripts/enforcement/check_openapi_sync.py",
+        "start": 39,
+        "startLoc": {
+          "column": 0,
+          "line": 39,
+          "position": 823
+        }
+      },
+      "tokens": 99
+    },
+    {
+      "firstFile": {
+        "end": 97,
+        "endLoc": {
+          "column": 23,
+          "line": 97,
+          "position": 3299
+        },
+        "name": "scripts/enforcement/check_configuration_md.py",
+        "start": 75,
+        "startLoc": {
+          "column": 35,
+          "line": 75,
+          "position": 2673
+        }
+      },
+      "format": "python",
+      "fragment": "    \"\"\"Run CONFIGURATION.md check.\"\"\"\n    repo_root = Path.cwd()\n\n    # Get changed files from git\n    import subprocess\n\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--name-only\", \"--cached\", \"HEAD\"],\n        capture_output=True,\n        text=True,\n        cwd=repo_root,\n    )\n    # Handle repos without HEAD (initial commit)\n    if result.returncode != 0:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--name-only\", \"--cached\"],\n            capture_output=True,\n            text=True,\n            cwd=repo_root,\n        )\n    changed_files = result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n    success, messages = check_configuration_md(repo_root, changed_files)",
+      "lines": 23,
+      "secondFile": {
+        "end": 74,
+        "endLoc": {
+          "column": 23,
+          "line": 74,
+          "position": 2564
+        },
+        "name": "scripts/enforcement/check_env_updates.py",
+        "start": 52,
+        "startLoc": {
+          "column": 31,
+          "line": 52,
+          "position": 1938
+        }
+      },
+      "tokens": 109
+    },
+    {
+      "firstFile": {
+        "end": 97,
+        "endLoc": {
+          "column": 23,
+          "line": 97,
+          "position": 3299
+        },
+        "name": "scripts/enforcement/check_configuration_md.py",
+        "start": 75,
+        "startLoc": {
+          "column": 35,
+          "line": 75,
+          "position": 2673
+        }
+      },
+      "format": "python",
+      "fragment": "    \"\"\"Run CONFIGURATION.md check.\"\"\"\n    repo_root = Path.cwd()\n\n    # Get changed files from git\n    import subprocess\n\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--name-only\", \"--cached\", \"HEAD\"],\n        capture_output=True,\n        text=True,\n        cwd=repo_root,\n    )\n    # Handle repos without HEAD (initial commit)\n    if result.returncode != 0:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--name-only\", \"--cached\"],\n            capture_output=True,\n            text=True,\n            cwd=repo_root,\n        )\n    changed_files = result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n    success, messages = check_configuration_md(repo_root, changed_files)",
+      "lines": 23,
+      "secondFile": {
+        "end": 84,
+        "endLoc": {
+          "column": 23,
+          "line": 84,
+          "position": 2506
+        },
+        "name": "scripts/enforcement/check_readme_md.py",
+        "start": 62,
+        "startLoc": {
+          "column": 28,
+          "line": 62,
+          "position": 1880
+        }
+      },
+      "tokens": 109
+    },
+    {
+      "firstFile": {
+        "end": 358,
+        "endLoc": {
+          "column": 20,
+          "line": 358,
+          "position": 18139
+        },
+        "name": "scripts/enforcement/check_convergence.py",
+        "start": 342,
+        "startLoc": {
+          "column": 69,
+          "line": 342,
+          "position": 17704
+        }
+      },
+      "format": "python",
+      "fragment": "    rename similarity — closing the delete+add / renames-off escape.\n    \"\"\"\n    try:\n        out = subprocess.run(\n            [\"git\", \"status\", \"--porcelain\", \"--untracked-files=all\", \"--\", PLANS_DIR],\n            cwd=root,\n            capture_output=True,\n            text=True,\n            timeout=15,\n        ).stdout\n    except Exception:\n        return []\n    seen: set[str] = set()\n    targets: list[Path] = []\n    for line in out.splitlines():\n        if line[:2] == \"??\":\n            continue  # untracked in-flight draft — checked at staging (see _changed_md)",
+      "lines": 17,
+      "secondFile": {
+        "end": 407,
+        "endLoc": {
+          "column": 20,
+          "line": 407,
+          "position": 20295
+        },
+        "name": "scripts/enforcement/check_convergence.py",
+        "start": 392,
+        "startLoc": {
+          "column": 78,
+          "line": 392,
+          "position": 19865
+        }
+      },
+      "tokens": 89
+    },
+    {
+      "firstFile": {
+        "end": 74,
+        "endLoc": {
+          "column": 26,
+          "line": 74,
+          "position": 1861
+        },
+        "name": "scripts/enforcement/check_env_example.py",
+        "start": 63,
+        "startLoc": {
+          "column": 4,
+          "line": 63,
+          "position": 1518
+        }
+      },
+      "format": "python",
+      "fragment": "    try:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--cached\", filepath],\n            capture_output=True,\n            text=True,\n        )\n        diff_content = result.stdout\n\n        added_lines = [line for line in diff_content.split(\"\\n\") if line.startswith(\"+\")]\n\n        for line in added_lines:\n            for pattern in ENV_VAR_PATTERNS:",
+      "lines": 12,
+      "secondFile": {
+        "end": 68,
+        "endLoc": {
+          "column": 26,
+          "line": 68,
+          "position": 1758
+        },
+        "name": "scripts/enforcement/check_openapi_sync.py",
+        "start": 57,
+        "startLoc": {
+          "column": 4,
+          "line": 57,
+          "position": 1415
+        }
+      },
+      "tokens": 61
+    },
+    {
+      "firstFile": {
+        "end": 139,
+        "endLoc": {
+          "column": 34,
+          "line": 139,
+          "position": 5820
+        },
+        "name": "scripts/enforcement/check_env_vars.py",
+        "start": 125,
+        "startLoc": {
+          "column": 63,
+          "line": 125,
+          "position": 5322
+        }
+      },
+      "format": "python",
+      "fragment": "    the diff, NOT the whole repo, so only new changes are gated.\"\"\"\n    import subprocess\n\n    files: set[str] = set()\n    for cmd in (\n        [\"git\", \"diff\", \"--name-only\"],\n        [\"git\", \"diff\", \"--staged\", \"--name-only\"],\n        [\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n    ):\n        try:\n            out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout\n            files.update(out.splitlines())\n        except (subprocess.CalledProcessError, FileNotFoundError):\n            pass\n    return [f for f in files if f]",
+      "lines": 15,
+      "secondFile": {
+        "end": 194,
+        "endLoc": {
+          "column": 34,
+          "line": 194,
+          "position": 10149
+        },
+        "name": "scripts/enforcement/check_secrets.py",
+        "start": 180,
+        "startLoc": {
+          "column": 22,
+          "line": 180,
+          "position": 9651
+        }
+      },
+      "tokens": 103
+    },
+    {
+      "firstFile": {
+        "end": 327,
+        "endLoc": {
+          "column": 79,
+          "line": 327,
+          "position": 13539
+        },
+        "name": "scripts/enforcement/check_no_host_ports.py",
+        "start": 313,
+        "startLoc": {
+          "column": 91,
+          "line": 313,
+          "position": 12904
+        }
+      },
+      "format": "python",
+      "fragment": "    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else \"\")\n    parser.add_argument(\n        \"--templates-dir\",\n        type=Path,\n        default=Path(__file__).resolve().parent.parent.parent / \"templates\",\n        help=\"Directory to scan recursively for compose.yaml.j2 files \"\n        \"(defaults to the repo's templates/ directory).\",\n    )\n    args = parser.parse_args(argv)\n\n    templates_dir: Path = args.templates_dir\n    if not templates_dir.is_dir():\n        # A project with no templates/ dir (every non-fabrik project) has no\n        # template compose files to scan — a valid state, not a violation.\n        # Skip with exit 0 so final_gate's run_optional_check passes; only real",
+      "lines": 15,
+      "secondFile": {
+        "end": 281,
+        "endLoc": {
+          "column": 79,
+          "line": 281,
+          "position": 11451
+        },
+        "name": "scripts/enforcement/check_traefik_labels.py",
+        "start": 267,
+        "startLoc": {
+          "column": 4,
+          "line": 267,
+          "position": 10816
+        }
+      },
+      "tokens": 62
+    },
+    {
+      "firstFile": {
+        "end": 344,
+        "endLoc": {
+          "column": 20,
+          "line": 344,
+          "position": 14004
+        },
+        "name": "scripts/enforcement/check_no_host_ports.py",
+        "start": 329,
+        "startLoc": {
+          "column": 8,
+          "line": 329,
+          "position": 13605
+        }
+      },
+      "format": "python",
+      "fragment": "        print(f\"[skip] no templates/ dir at {templates_dir} — nothing to check\")\n        return 0\n\n    all_violations: list[Violation] = []\n    for path in sorted(templates_dir.rglob(\"compose.yaml.j2\")):\n        all_violations.extend(scan_template(path))\n\n    if all_violations:\n        print(_format_report(all_violations))\n        return 1\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())",
+      "lines": 16,
+      "secondFile": {
+        "end": 298,
+        "endLoc": {
+          "column": 20,
+          "line": 298,
+          "position": 11912
+        },
+        "name": "scripts/enforcement/check_traefik_labels.py",
+        "start": 283,
+        "startLoc": {
+          "column": 8,
+          "line": 283,
+          "position": 11513
+        }
+      },
+      "tokens": 66
+    },
+    {
+      "firstFile": {
+        "end": 55,
+        "endLoc": {
+          "column": 3,
+          "line": 55,
+          "position": 1308
+        },
+        "name": "scripts/enforcement/check_openapi_sync.py",
+        "start": 35,
+        "startLoc": {
+          "column": 27,
+          "line": 35,
+          "position": 817
+        }
+      },
+      "format": "python",
+      "fragment": "    \"docs/reference/api.md\",\n]\n\n\ndef get_staged_files() -> list[str]:\n    \"\"\"Get list of staged files.\"\"\"\n    result = subprocess.run(\n        [\"git\", \"diff\", \"--name-only\", \"--cached\", \"HEAD\"],\n        capture_output=True,\n        text=True,\n    )\n    if result.returncode != 0:\n        result = subprocess.run(\n            [\"git\", \"diff\", \"--name-only\", \"--cached\"],\n            capture_output=True,\n            text=True,\n        )\n    return result.stdout.strip().split(\"\\n\") if result.stdout.strip() else []\n\n\ndef has_new_routes(filepath: str) -> bool:",
+      "lines": 21,
+      "secondFile": {
+        "end": 76,
+        "endLoc": {
+          "column": 3,
+          "line": 76,
+          "position": 1648
+        },
+        "name": "scripts/enforcement/check_schema_sync.py",
+        "start": 56,
+        "startLoc": {
+          "column": 40,
+          "line": 56,
+          "position": 1157
+        }
+      },
+      "tokens": 101
+    },
+    {
+      "firstFile": {
+        "end": 323,
+        "endLoc": {
+          "column": 3,
+          "line": 323,
+          "position": 11409
+        },
+        "name": "scripts/final_gate.py",
+        "start": 311,
+        "startLoc": {
+          "column": 37,
+          "line": 311,
+          "position": 11042
+        }
+      },
+      "format": "python",
+      "fragment": "                path.write_text(fixed, encoding=\"utf-8\")\n                files_fixed += 1\n        except UnicodeDecodeError:\n            continue  # Skip binary/non-UTF8 files\n        except Exception as e:\n            errors.append(f\"{f}: {e}\")\n\n    if errors:\n        return False, \"\\n\".join(errors), files_fixed\n    return True, f\"({files_fixed} files fixed)\" if files_fixed else \"\", files_fixed\n\n\ndef fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:",
+      "lines": 13,
+      "secondFile": {
+        "end": 352,
+        "endLoc": {
+          "column": 3,
+          "line": 352,
+          "position": 12525
+        },
+        "name": "scripts/final_gate.py",
+        "start": 340,
+        "startLoc": {
+          "column": 49,
+          "line": 340,
+          "position": 12158
+        }
+      },
+      "tokens": 52
+    },
+    {
+      "firstFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 55,
+          "line": 58,
+          "position": 2123
+        },
+        "name": "scripts/fix_balanced_tier_agents.py",
+        "start": 11,
+        "startLoc": {
+          "column": 43,
+          "line": 11,
+          "position": 302
+        }
+      },
+      "format": "python",
+      "fragment": "    python scripts/fix_balanced_tier_agents.py\n\"\"\"\n\nimport re\nfrom pathlib import Path\n\n\ndef generate_self_review_section() -> str:\n    \"\"\"Generate the self-review implementation for agent scripts.\"\"\"\n    return \"\"\"# ==============================================================================\n# STEP 2.5: SELF-REVIEW (MANDATORY)\n# ==============================================================================\n# Agent performs structured self-review before running gates.\n# This catches obvious issues early and provides context for Kilo review.\n# ==============================================================================\n\nif [ $EXIT_CODE -eq 0 ]; then\n    # Detect changed files\n    CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | tr '\\\\n' ' ')\n\n    if [ -n \"$CHANGED_FILES\" ]; then\n        echo \"\" >&2\n        echo \"============================================================\" >&2\n        echo \"STEP 2.5: SELF-REVIEW\" >&2\n        echo \"============================================================\" >&2\n\n        # Prepare self-review prompt\n        SELF_REVIEW_PROMPT=\"You just implemented this task:\n\n$PROMPT\n\nFiles you changed:\n$CHANGED_FILES\n\nNow perform a structured self-review. Re-read the task and check your implementation.\n\nOutput ONLY this exact format (no extra text):\n\nSELF-REVIEW COMPLETE:\n✓ All spec requirements implemented: [Yes/No + brief details]\n✓ Edge cases handled: [list specific edge cases you considered, or 'N/A']\n✓ Env vars documented: [list any new env vars added to .env.example, or 'N/A']\n✓ DB changes documented: [list any schema/migration changes, or 'N/A']\n⚠ Potential issues: [list any concerns you identified, or 'None identified']\"\n\n        [ \"$KILO_DEBUG\" = \"1\" ] && echo \"[DEBUG] Running self-review with same model...\" >&2\n\n        # Run self-review with same model (fast, cheap)",
+      "lines": 48,
+      "secondFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 55,
+          "line": 58,
+          "position": 2113
+        },
+        "name": "scripts/fix_economy_tier_agents.py",
+        "start": 11,
+        "startLoc": {
+          "column": 42,
+          "line": 11,
+          "position": 292
+        }
+      },
+      "tokens": 239
+    },
+    {
+      "firstFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 55,
+          "line": 58,
+          "position": 2123
+        },
+        "name": "scripts/fix_balanced_tier_agents.py",
+        "start": 15,
+        "startLoc": {
+          "column": 0,
+          "line": 15,
+          "position": 321
+        }
+      },
+      "format": "python",
+      "fragment": "from pathlib import Path\n\n\ndef generate_self_review_section() -> str:\n    \"\"\"Generate the self-review implementation for agent scripts.\"\"\"\n    return \"\"\"# ==============================================================================\n# STEP 2.5: SELF-REVIEW (MANDATORY)\n# ==============================================================================\n# Agent performs structured self-review before running gates.\n# This catches obvious issues early and provides context for Kilo review.\n# ==============================================================================\n\nif [ $EXIT_CODE -eq 0 ]; then\n    # Detect changed files\n    CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | tr '\\\\n' ' ')\n\n    if [ -n \"$CHANGED_FILES\" ]; then\n        echo \"\" >&2\n        echo \"============================================================\" >&2\n        echo \"STEP 2.5: SELF-REVIEW\" >&2\n        echo \"============================================================\" >&2\n\n        # Prepare self-review prompt\n        SELF_REVIEW_PROMPT=\"You just implemented this task:\n\n$PROMPT\n\nFiles you changed:\n$CHANGED_FILES\n\nNow perform a structured self-review. Re-read the task and check your implementation.\n\nOutput ONLY this exact format (no extra text):\n\nSELF-REVIEW COMPLETE:\n✓ All spec requirements implemented: [Yes/No + brief details]\n✓ Edge cases handled: [list specific edge cases you considered, or 'N/A']\n✓ Env vars documented: [list any new env vars added to .env.example, or 'N/A']\n✓ DB changes documented: [list any schema/migration changes, or 'N/A']\n⚠ Potential issues: [list any concerns you identified, or 'None identified']\"\n\n        [ \"$KILO_DEBUG\" = \"1\" ] && echo \"[DEBUG] Running self-review with same model...\" >&2\n\n        # Run self-review with same model (fast, cheap)",
+      "lines": 44,
+      "secondFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 55,
+          "line": 59,
+          "position": 2274
+        },
+        "name": "scripts/implement_self_review_workflow.py",
+        "start": 16,
+        "startLoc": {
+          "column": 0,
+          "line": 16,
+          "position": 472
+        }
+      },
+      "tokens": 233
+    },
+    {
+      "firstFile": {
+        "end": 144,
+        "endLoc": {
+          "column": 6,
+          "line": 144,
+          "position": 5382
+        },
+        "name": "scripts/fix_balanced_tier_agents.py",
+        "start": 60,
+        "startLoc": {
+          "column": 8,
+          "line": 60,
+          "position": 2194
+        }
+      },
+      "format": "python",
+      "fragment": "        SELF_REVIEW_OUTPUT=$(timeout 120 kilo run --format text --model \"${KILO_MODEL}\" --variant minimal \"$SELF_REVIEW_PROMPT\" 2>&1 || echo \"SELF-REVIEW FAILED: Timeout or error\")\n\n        [ \"$KILO_DEBUG\" = \"1\" ] && echo \"[DEBUG] Self-review complete\" >&2\n        echo \"$SELF_REVIEW_OUTPUT\" >&2\n\n        # ==============================================================================\n        # STEPS 3-5: AUTO-REVIEW WORKFLOW (MANDATORY)\n        # ==============================================================================\n        # Runs final_gate + kilo review + final_gate again\n        # Agent fixes issues in loop until PASS\n        # ==============================================================================\n\n        echo \"\" >&2\n        echo \"============================================================\" >&2\n        echo \"STEPS 3-5: AUTO-REVIEW WORKFLOW\" >&2\n        echo \"============================================================\" >&2\n\n        python /opt/fabrik/scripts/traycer_agent_review.py \\\\\n            --task \"$PROMPT\" \\\\\n            --files $CHANGED_FILES \\\\\n            --self-review \"$SELF_REVIEW_OUTPUT\" \\\\\n            --session-id \"$SESSION_ID\" \\\\\n            --output json\n\n        REVIEW_EXIT=$?\n\n        if [ $REVIEW_EXIT -eq 0 ]; then\n            echo \"[SUCCESS] Auto-review workflow PASSED\" >&2\n        else\n            echo \"[FAILED] Auto-review workflow FAILED (exit code: $REVIEW_EXIT)\" >&2\n            echo \"[ACTION] Review issues above and fix before committing\" >&2\n            EXIT_CODE=$REVIEW_EXIT\n        fi\n    else\n        [ \"$KILO_DEBUG\" = \"1\" ] && echo \"[DEBUG] No changed files, skipping self-review and auto-review\" >&2\n    fi\nfi\"\"\"\n\n\ndef extract_model_from_agent(content: str) -> str:\n    \"\"\"Extract model name from agent script.\"\"\"\n    match = re.search(r\"--model\\s+(\\S+)\", content)\n    return match.group(1) if match else \"kilo/auto\"\n\n\ndef update_agent_script(agent_file: Path, output_dir: Path) -> bool:\n    \"\"\"Copy and update agent script with self-review implementation.\"\"\"\n\n    content = agent_file.read_text()\n\n    # Extract model for self-review\n    model = extract_model_from_agent(content)\n\n    # Check if already has modern structure\n    if \"STEP 2.5: SELF-REVIEW\" in content:\n        return False  # Already updated\n\n    # Find insertion point (before final exit)\n    exit_match = re.search(r\"# Capture exit code and exit explicitly\\nexit \\$EXIT_CODE\", content)\n    if not exit_match:\n        # Try alternate pattern\n        exit_match = re.search(r\"exit \\$EXIT_CODE\\s*$\", content)\n\n    if not exit_match:\n        print(f\"  ⚠️  Could not find exit point in {agent_file.name}\")\n        return False\n\n    # Insert model environment variable at top of self-review section\n    self_review_code = (\n        f'# Store model for self-review\\nKILO_MODEL=\"{model}\"\\n\\n' + generate_self_review_section()\n    )\n\n    # Replace exit with self-review + exit\n    new_content = content[: exit_match.start()] + self_review_code + \"\\n\\nexit $EXIT_CODE\\n\"\n\n    # Write to output directory\n    output_file = output_dir / agent_file.name\n    output_file.write_text(new_content)\n    output_file.chmod(0o755)\n\n    return True\n\n\ndef main():\n    \"\"\"Fix all balanced tier agents.\"\"\"",
+      "lines": 85,
+      "secondFile": {
+        "end": 144,
+        "endLoc": {
+          "column": 6,
+          "line": 144,
+          "position": 5371
+        },
+        "name": "scripts/fix_economy_tier_agents.py",
+        "start": 60,
+        "startLoc": {
+          "column": 8,
+          "line": 60,
+          "position": 2183
+        }
+      },
+      "tokens": 343
+    },
+    {
+      "firstFile": {
+        "end": 99,
+        "endLoc": {
+          "column": 3,
+          "line": 99,
+          "position": 3880
+        },
+        "name": "scripts/fix_balanced_tier_agents.py",
+        "start": 60,
+        "startLoc": {
+          "column": 88,
+          "line": 60,
+          "position": 2274
+        }
+      },
+      "format": "python",
+      "fragment": "        SELF_REVIEW_OUTPUT=$(timeout 120 kilo run --format text --model \"${KILO_MODEL}\" --variant minimal \"$SELF_REVIEW_PROMPT\" 2>&1 || echo \"SELF-REVIEW FAILED: Timeout or error\")\n\n        [ \"$KILO_DEBUG\" = \"1\" ] && echo \"[DEBUG] Self-review complete\" >&2\n        echo \"$SELF_REVIEW_OUTPUT\" >&2\n\n        # ==============================================================================\n        # STEPS 3-5: AUTO-REVIEW WORKFLOW (MANDATORY)\n        # ==============================================================================\n        # Runs final_gate + kilo review + final_gate again\n        # Agent fixes issues in loop until PASS\n        # ==============================================================================\n\n        echo \"\" >&2\n        echo \"============================================================\" >&2\n        echo \"STEPS 3-5: AUTO-REVIEW WORKFLOW\" >&2\n        echo \"============================================================\" >&2\n\n        python /opt/fabrik/scripts/traycer_agent_review.py \\\\\n            --task \"$PROMPT\" \\\\\n            --files $CHANGED_FILES \\\\\n            --self-review \"$SELF_REVIEW_OUTPUT\" \\\\\n            --session-id \"$SESSION_ID\" \\\\\n            --output json\n\n        REVIEW_EXIT=$?\n\n        if [ $REVIEW_EXIT -eq 0 ]; then\n            echo \"[SUCCESS] Auto-review workflow PASSED\" >&2\n        else\n            echo \"[FAILED] Auto-review workflow FAILED (exit code: $REVIEW_EXIT)\" >&2\n            echo \"[ACTION] Review issues above and fix before committing\" >&2\n            EXIT_CODE=$REVIEW_EXIT\n        fi\n    else\n        [ \"$KILO_DEBUG\" = \"1\" ] && echo \"[DEBUG] No changed files, skipping self-review and auto-review\" >&2\n    fi\nfi\"\"\"\n\n\ndef extract_model_from_agent(content: str) -> str:",
+      "lines": 40,
+      "secondFile": {
+        "end": 99,
+        "endLoc": {
+          "column": 3,
+          "line": 99,
+          "position": 3979
+        },
+        "name": "scripts/implement_self_review_workflow.py",
+        "start": 60,
+        "startLoc": {
+          "column": 98,
+          "line": 60,
+          "position": 2373
+        }
+      },
+      "tokens": 156
+    },
+    {
+      "firstFile": {
+        "end": 186,
+        "endLoc": {
+          "column": 10,
+          "line": 186,
+          "position": 6603
+        },
+        "name": "scripts/fix_balanced_tier_agents.py",
+        "start": 169,
+        "startLoc": {
+          "column": 37,
+          "line": 169,
+          "position": 6087
+        }
+      },
+      "format": "python",
+      "fragment": "    for agent_file in balanced_agents:\n        print(f\"Processing: {agent_file.name}\")\n\n        if update_agent_script(agent_file, output_dir):\n            print(\"  ✅ Updated with self-review workflow\")\n            updated_count += 1\n        else:\n            print(\"  ⏭️  Already updated or couldn't update\")\n            skipped_count += 1\n\n    print()\n    print(\"=\" * 60)\n    print(f\"✅ Updated: {updated_count} agents\")\n    print(f\"⏭️  Skipped: {skipped_count} agents\")\n    print()\n    print(f\"Output: {output_dir}\")\n    print()\n    print(\"Balanced tier agents ready for testing\")",
+      "lines": 18,
+      "secondFile": {
+        "end": 186,
+        "endLoc": {
+          "column": 10,
+          "line": 186,
+          "position": 6583
+        },
+        "name": "scripts/fix_economy_tier_agents.py",
+        "start": 169,
+        "startLoc": {
+          "column": 36,
+          "line": 169,
+          "position": 6067
+        }
+      },
+      "tokens": 64
+    },
+    {
+      "firstFile": {
+        "end": 550,
+        "endLoc": {
+          "column": 8,
+          "line": 550,
+          "position": 22834
+        },
+        "name": "scripts/generate_kilo_agents.py",
+        "start": 527,
+        "startLoc": {
+          "column": 12,
+          "line": 527,
+          "position": 21828
+        }
+      },
+      "format": "python",
+      "fragment": "            LOCKFILE=\"/opt/.fabrik_agent.lock\"\n            (\n                flock -x 200\n\n                VRAM_BASELINE=1500\n                while true; do\n                    LOADED_MODEL=$(ollama ps | tail -n +2 | awk '{{print $1}}')\n                    if [ -z \"$LOADED_MODEL\" ]; then\n                        CURRENT_VRAM=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | tr -d '[:space:]')\n                        if [ \"$CURRENT_VRAM\" -lt \"$VRAM_BASELINE\" ]; then break; fi\n                    else\n                        GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | tr -d '[:space:]')\n                        [ \"$GPU_UTIL\" -lt 2 ] && sleep 2 || sleep 5\n                    fi\n                    sleep 5\n                done\n\n            OLLAMA_KEEP_ALIVE=0 timeout \"$TIMEOUT\" ollama run {api_id} \\\\\n                    \"$PROMPT\" > \"$OUTPUT_FILE\" 2>&1\n        ) 200>\"$LOCKFILE\"\n        EXIT_CODE=$?\n        OUTPUT=$(cat \"$OUTPUT_FILE\")\n        fi\n    else",
+      "lines": 24,
+      "secondFile": {
+        "end": 576,
+        "endLoc": {
+          "column": 4,
+          "line": 576,
+          "position": 23938
+        },
+        "name": "scripts/generate_kilo_agents.py",
+        "start": 553,
+        "startLoc": {
+          "column": 8,
+          "line": 553,
+          "position": 22996
+        }
+      },
+      "tokens": 168
+    },
+    {
+      "firstFile": {
+        "end": 827,
+        "endLoc": {
+          "column": 26,
+          "line": 827,
+          "position": 34247
+        },
+        "name": "scripts/generate_kilo_agents.py",
+        "start": 810,
+        "startLoc": {
+          "column": 12,
+          "line": 810,
+          "position": 33537
+        }
+      },
+      "format": "python",
+      "fragment": "            for agent in agents:\n                role = agent[\"role\"]\n                priority = agent[\"priority\"]\n                model_normalized = normalize_model_name(agent[\"api_id\"])\n\n                # Handle variant assignment\n                if agent.get(\"model_type\") == \"local\":\n                    variant = \"local\"\n                else:\n                    variant = agent.get(\"variant\", VARIANT_BY_PRIORITY.get(priority, \"high\"))\n\n                output_encoded = (\n                    encode_price(agent[\"output_price\"]) if agent.get(\"output_price\") else \"0000\"\n                )\n                ppd = agent[\"ppd\"] or 0\n                ppd_str = f\"{int(ppd):03d}\" if ppd else \"---\"\n\n                filename = f\"{role}-{priority}-{model_normalized}-{variant}-o{output_encoded}-ppd{ppd_str}.sh\"",
+      "lines": 18,
+      "secondFile": {
+        "end": 915,
+        "endLoc": {
+          "column": 22,
+          "line": 915,
+          "position": 37811
+        },
+        "name": "scripts/generate_kilo_agents.py",
+        "start": 898,
+        "startLoc": {
+          "column": 8,
+          "line": 898,
+          "position": 37157
+        }
+      },
+      "tokens": 98
+    },
+    {
+      "firstFile": {
+        "end": 179,
+        "endLoc": {
+          "column": 127,
+          "line": 179,
+          "position": 6959
+        },
+        "name": "scripts/implement_self_review_workflow.py",
+        "start": 153,
+        "startLoc": {
+          "column": 4,
+          "line": 153,
+          "position": 5861
+        }
+      },
+      "format": "python",
+      "fragment": "    # Validate self-review is not placeholder or failed\n    if \"Agent completed implementation\" in args.self_review:\n        result = {\n            \"workflow\": \"traycer_agent_auto_review\",\n            \"error\": \"Self-review is placeholder. Agent must perform actual self-review.\",\n            \"exit_code\": 2,\n        }\n        if args.output == \"json\":\n            print(json.dumps(result, indent=2))\n        else:\n            print(\"❌ ERROR: Self-review is placeholder\", file=sys.stderr)\n        return 2\n\n    if \"SELF-REVIEW FAILED\" in args.self_review:\n        result = {\n            \"workflow\": \"traycer_agent_auto_review\",\n            \"error\": \"Self-review failed (timeout or error). Cannot proceed.\",\n            \"exit_code\": 2,\n        }\n        if args.output == \"json\":\n            print(json.dumps(result, indent=2))\n        else:\n            print(\"❌ ERROR: Self-review failed\", file=sys.stderr)\n        return 2\n\n    # Validate self-review has required format\n    required_markers = [\"✓ All spec requirements\", \"✓ Edge cases\", \"✓ Env vars\", \"✓ DB changes\", \"⚠ Potential issues\"]",
+      "lines": 27,
+      "secondFile": {
+        "end": 248,
+        "endLoc": {
+          "column": 30,
+          "line": 248,
+          "position": 7542
+        },
+        "name": "scripts/traycer_agent_review.py",
+        "start": 217,
+        "startLoc": {
+          "column": 4,
+          "line": 217,
+          "position": 6403
+        }
+      },
+      "tokens": 130
+    },
+    {
+      "firstFile": {
+        "end": 1919,
+        "endLoc": {
+          "column": 17,
+          "line": 1919,
+          "position": 66922
+        },
+        "name": "scripts/kilo_code_review.py",
+        "start": 1909,
+        "startLoc": {
+          "column": 12,
+          "line": 1909,
+          "position": 66688
+        }
+      },
+      "format": "python",
+      "fragment": "            path = os.path.abspath(path)\n            if os.path.isfile(path) and os.access(path, os.X_OK):\n                return path\n    return None\n\n\ndef build_kilo_command(\n    kilo_path: str,\n    model: str,\n    agent: str,\n    variant: str,",
+      "lines": 11,
+      "secondFile": {
+        "end": 863,
+        "endLoc": {
+          "column": 17,
+          "line": 863,
+          "position": 30431
+        },
+        "name": "scripts/kilo_docs_enforcer.py",
+        "start": 853,
+        "startLoc": {
+          "column": 12,
+          "line": 853,
+          "position": 30197
+        }
+      },
+      "tokens": 54
+    },
+    {
+      "firstFile": {
+        "end": 1953,
+        "endLoc": {
+          "column": 84,
+          "line": 1953,
+          "position": 68317
+        },
+        "name": "scripts/kilo_code_review.py",
+        "start": 1942,
+        "startLoc": {
+          "column": 67,
+          "line": 1942,
+          "position": 67957
+        }
+      },
+      "format": "python",
+      "fragment": "        raise ValueError(f\"Invalid session_id format: {session_id}\")\n\n    args = [kilo_path, \"run\", \"--format\", \"json\", \"--auto\"]\n    args.extend([\"--model\", cli_model])\n\n    if variant and variant in VALID_VARIANTS:\n        args.extend([\"--variant\", variant])\n\n    if agent and agent in VALID_AGENTS:\n        args.extend([\"--agent\", agent])\n\n    # Only pass --session for REAL Kilo sessions (returned from previous Kilo calls)",
+      "lines": 12,
+      "secondFile": {
+        "end": 887,
+        "endLoc": {
+          "column": 6,
+          "line": 887,
+          "position": 31249
+        },
+        "name": "scripts/kilo_docs_enforcer.py",
+        "start": 876,
+        "startLoc": {
+          "column": 50,
+          "line": 876,
+          "position": 30967
+        }
+      },
+      "tokens": 58
+    },
+    {
+      "firstFile": {
+        "end": 2271,
+        "endLoc": {
+          "column": 78,
+          "line": 2271,
+          "position": 80860
+        },
+        "name": "scripts/kilo_code_review.py",
+        "start": 2133,
+        "startLoc": {
+          "column": 0,
+          "line": 2133,
+          "position": 75902
+        }
+      },
+      "format": "python",
+      "fragment": "def _monitor_process(\n    proc: Any,\n    idle_timeout: float,\n    hard_timeout: float,\n    poll_interval: float,\n    stream_output: bool = False,\n) -> tuple[bytes, bytes, int]:\n    \"\"\"\n    Monitor subprocess with liveness checking and optional streaming.\n\n    Uses reader threads to avoid blocking on pipe reads.\n    Tracks BOTH stdout AND stderr growth to detect progress.\n\n    Args:\n        proc: subprocess.Popen instance\n        idle_timeout: seconds without output before killing\n        hard_timeout: absolute max seconds before killing\n        poll_interval: seconds between health checks\n        stream_output: if True, stream JSONL text events to stderr in real-time\n\n    Returns:\n        (stdout_bytes, stderr_bytes, returncode)\n\n    Raises:\n        TimeoutError: if idle or hard timeout exceeded\n    \"\"\"\n    import queue\n    import threading\n\n    stdout_queue: queue.Queue[tuple[str, Any]] = queue.Queue()\n    stderr_queue: queue.Queue[tuple[str, Any]] = queue.Queue()\n\n    def reader_thread(stream: Any, q: queue.Queue[tuple[str, Any]]) -> None:\n        \"\"\"Read stream in chunks, push to queue.\"\"\"\n        try:\n            while True:\n                chunk = stream.read(8192)\n                if not chunk:\n                    break\n                q.put((\"data\", chunk))\n        except Exception as e:\n            q.put((\"error\", e))\n        finally:\n            q.put((\"eof\", None))\n\n    # Start reader threads\n    stdout_thread = threading.Thread(target=reader_thread, args=(proc.stdout, stdout_queue))\n    stderr_thread = threading.Thread(target=reader_thread, args=(proc.stderr, stderr_queue))\n    stdout_thread.daemon = True\n    stderr_thread.daemon = True\n    stdout_thread.start()\n    stderr_thread.start()\n\n    # Monitor loop\n    start_time = time.time()\n    last_output_time = start_time\n    stdout_chunks = []\n    stderr_chunks = []\n    text_buffer = \"\"  # For streaming text extraction\n\n    while proc.poll() is None:\n        time.sleep(poll_interval)\n\n        got_output = False\n\n        # Drain stdout queue\n        while not stdout_queue.empty():\n            msg_type, data = stdout_queue.get_nowait()\n            if msg_type == \"data\":\n                stdout_chunks.append(data)\n                got_output = True\n\n                # Stream text events in real-time (extract from JSONL)\n                if stream_output:\n                    text_buffer += data.decode(\"utf-8\", errors=\"replace\")\n                    # Parse complete JSONL lines\n                    while \"\\n\" in text_buffer:\n                        line, text_buffer = text_buffer.split(\"\\n\", 1)\n                        if line.strip():\n                            try:\n                                obj = json.loads(line)\n                                # Extract and print text events\n                                if obj.get(\"type\") == \"text\":\n                                    text = obj.get(\"text\", \"\") or obj.get(\"part\", {}).get(\n                                        \"text\", \"\"\n                                    )\n                                    if text:\n                                        print(text, end=\"\", file=sys.stderr, flush=True)\n                            except json.JSONDecodeError:\n                                pass  # Not valid JSON, skip\n\n        # Drain stderr queue - ALSO counts as progress\n        while not stderr_queue.empty():\n            msg_type, data = stderr_queue.get_nowait()\n            if msg_type == \"data\":\n                stderr_chunks.append(data)\n                got_output = True  # stderr counts as progress too\n\n        if got_output:\n            last_output_time = time.time()\n\n        # Check timeouts\n        elapsed = time.time() - start_time\n        idle = time.time() - last_output_time\n\n        if idle > idle_timeout:\n            proc.kill()\n            proc.wait()\n            if stream_output:\n                print(f\"\\n[TIMEOUT] Idle: no output for {idle:.0f}s\", file=sys.stderr)\n            raise TimeoutError(f\"Idle timeout: no output for {idle:.0f}s (limit {idle_timeout}s)\")\n\n        if elapsed > hard_timeout:\n            proc.kill()\n            proc.wait()\n            if stream_output:\n                print(f\"\\n[TIMEOUT] Hard limit: {elapsed:.0f}s\", file=sys.stderr)\n            raise TimeoutError(\n                f\"Hard timeout: total runtime {elapsed:.0f}s (limit {hard_timeout}s)\"\n            )\n\n    # Collect remaining output\n    stdout_thread.join(timeout=2)\n    stderr_thread.join(timeout=2)\n\n    while not stdout_queue.empty():\n        msg_type, data = stdout_queue.get_nowait()\n        if msg_type == \"data\":\n            stdout_chunks.append(data)\n\n    while not stderr_queue.empty():\n        msg_type, data = stderr_queue.get_nowait()\n        if msg_type == \"data\":\n            stderr_chunks.append(data)\n\n    if stream_output:\n        print(\"\", file=sys.stderr)  # Newline after streaming\n\n    return (b\"\".join(stdout_chunks), b\"\".join(stderr_chunks), proc.returncode)",
+      "lines": 139,
+      "secondFile": {
+        "end": 1098,
+        "endLoc": {
+          "column": 78,
+          "line": 1098,
+          "position": 38284
+        },
+        "name": "scripts/kilo_docs_enforcer.py",
+        "start": 960,
+        "startLoc": {
+          "column": 0,
+          "line": 960,
+          "position": 33326
+        }
+      },
+      "tokens": 755
+    },
+    {
+      "firstFile": {
+        "end": 2384,
+        "endLoc": {
+          "column": 74,
+          "line": 2384,
+          "position": 84732
+        },
+        "name": "scripts/kilo_code_review.py",
+        "start": 2374,
+        "startLoc": {
+          "column": 12,
+          "line": 2374,
+          "position": 84267
+        }
+      },
+      "format": "python",
+      "fragment": "            if returncode in RETRYABLE_EXIT_CODES and attempt < MAX_RETRIES - 1:\n                wait_time = 2**attempt\n                print(\n                    f\"⏳ Kilo transient failure (exit {returncode}). Retrying in {wait_time}s...\",\n                    file=sys.stderr,\n                )\n                await asyncio.sleep(wait_time)\n                continue\n\n            if returncode != 0:\n                error_msg = stderr.decode(\"utf-8\", errors=\"replace\")[:200]",
+      "lines": 11,
+      "secondFile": {
+        "end": 1182,
+        "endLoc": {
+          "column": 74,
+          "line": 1182,
+          "position": 40945
+        },
+        "name": "scripts/kilo_docs_enforcer.py",
+        "start": 1172,
+        "startLoc": {
+          "column": 12,
+          "line": 1172,
+          "position": 40480
+        }
+      },
+      "tokens": 59
+    },
+    {
+      "firstFile": {
+        "end": 2814,
+        "endLoc": {
+          "column": 3,
+          "line": 2814,
+          "position": 99707
+        },
+        "name": "scripts/kilo_code_review.py",
+        "start": 2797,
+        "startLoc": {
+          "column": 78,
+          "line": 2797,
+          "position": 99258
+        }
+      },
+      "format": "python",
+      "fragment": "            [git_path, \"diff\", \"--cached\", \"--name-only\", \"--diff-filter=ACMR\"],\n            capture_output=True,\n            text=True,\n            check=True,\n        )\n        git_root = get_git_root() or Path.cwd()\n        output = result.stdout.strip()\n        if not output:\n            return []\n        files = output.split(\"\\n\")\n        return [\n            git_root / f for f in files if f and any(f.endswith(ext) for ext in CODE_EXTENSIONS)\n        ]\n    except subprocess.CalledProcessError:\n        return []\n\n\ndef get_changed_files() -> list[Path]:",
+      "lines": 18,
+      "secondFile": {
+        "end": 2840,
+        "endLoc": {
+          "column": 3,
+          "line": 2840,
+          "position": 100522
+        },
+        "name": "scripts/kilo_code_review.py",
+        "start": 2823,
+        "startLoc": {
+          "column": 74,
+          "line": 2823,
+          "position": 100073
+        }
+      },
+      "tokens": 85
+    },
+    {
+      "firstFile": {
+        "end": 322,
+        "endLoc": {
+          "column": 25,
+          "line": 322,
+          "position": 10932
+        },
+        "name": "scripts/kilo_terminal_runner.py",
+        "start": 311,
+        "startLoc": {
+          "column": 62,
+          "line": 311,
+          "position": 10569
+        }
+      },
+      "format": "python",
+      "fragment": "    \"\"\"Run command via PTY, streaming to UI and capture file.\"\"\"\n    import pexpect\n\n    child = pexpect.spawn(command[0], command[1:], encoding=None, timeout=None)\n    display = DisplayHandler()\n    capture = StreamingSanitizer()\n\n    with open(raw_output_path, \"w\", encoding=\"utf-8\") as f:\n        while True:\n            try:\n                chunk = child.read_nonblocking(size=4096, timeout=0.1)\n                if chunk:",
+      "lines": 12,
+      "secondFile": {
+        "end": 378,
+        "endLoc": {
+          "column": 25,
+          "line": 378,
+          "position": 13153
+        },
+        "name": "scripts/kilo_terminal_runner.py",
+        "start": 367,
+        "startLoc": {
+          "column": 59,
+          "line": 367,
+          "position": 12790
+        }
+      },
+      "tokens": 74
+    },
+    {
+      "firstFile": {
+        "end": 338,
+        "endLoc": {
+          "column": 76,
+          "line": 338,
+          "position": 11858
+        },
+        "name": "scripts/kilo_terminal_runner.py",
+        "start": 328,
+        "startLoc": {
+          "column": 44,
+          "line": 328,
+          "position": 11211
+        }
+      },
+      "format": "python",
+      "fragment": "                        f.write(capture_text)\n                        f.flush()\n            except pexpect.TIMEOUT:\n                # Flush incomplete line buffer on idle so output file stays current\n                if capture.line_buffer and len(capture.line_buffer) > capture.partial_written:\n                    new_chars = \"\".join(capture.line_buffer[capture.partial_written :])\n                    f.write(new_chars)\n                    f.flush()\n                    capture.partial_written = len(capture.line_buffer)\n                # Check if process exited - use eof() which is more reliable than isalive()\n                # isalive() can return True if child processes still running",
+      "lines": 11,
+      "secondFile": {
+        "end": 395,
+        "endLoc": {
+          "column": 18,
+          "line": 395,
+          "position": 14018
+        },
+        "name": "scripts/kilo_terminal_runner.py",
+        "start": 385,
+        "startLoc": {
+          "column": 35,
+          "line": 385,
+          "position": 13429
+        }
+      },
+      "tokens": 66
+    },
+    {
+      "firstFile": {
+        "end": 196,
+        "endLoc": {
+          "column": 23,
+          "line": 196,
+          "position": 5040
+        },
+        "name": "scripts/mcp_kilo_server.py",
+        "start": 183,
+        "startLoc": {
+          "column": 28,
+          "line": 183,
+          "position": 4723
+        }
+      },
+      "format": "python",
+      "fragment": "        agent=\"orchestrator\",\n        strategy=strategy,\n        files=files or [],\n        output_format=\"json\",\n    )\n\n    if result[\"success\"]:\n        return result[\"output\"]\n    else:\n        return json.dumps(\n            {\n                \"error\": result[\"error\"],\n                \"exit_code\": result[\"exit_code\"],\n                \"tool\": \"kilo_review\",",
+      "lines": 14,
+      "secondFile": {
+        "end": 247,
+        "endLoc": {
+          "column": 23,
+          "line": 247,
+          "position": 6287
+        },
+        "name": "scripts/mcp_kilo_server.py",
+        "start": 234,
+        "startLoc": {
+          "column": 19,
+          "line": 234,
+          "position": 5970
+        }
+      },
+      "tokens": 52
+    },
+    {
+      "firstFile": {
+        "end": 196,
+        "endLoc": {
+          "column": 23,
+          "line": 196,
+          "position": 5040
+        },
+        "name": "scripts/mcp_kilo_server.py",
+        "start": 183,
+        "startLoc": {
+          "column": 28,
+          "line": 183,
+          "position": 4723
+        }
+      },
+      "format": "python",
+      "fragment": "        agent=\"orchestrator\",\n        strategy=strategy,\n        files=files or [],\n        output_format=\"json\",\n    )\n\n    if result[\"success\"]:\n        return result[\"output\"]\n    else:\n        return json.dumps(\n            {\n                \"error\": result[\"error\"],\n                \"exit_code\": result[\"exit_code\"],\n                \"tool\": \"kilo_review\",",
+      "lines": 14,
+      "secondFile": {
+        "end": 298,
+        "endLoc": {
+          "column": 23,
+          "line": 298,
+          "position": 7517
+        },
+        "name": "scripts/mcp_kilo_server.py",
+        "start": 285,
+        "startLoc": {
+          "column": 20,
+          "line": 285,
+          "position": 7200
+        }
+      },
+      "tokens": 52
+    },
+    {
+      "firstFile": {
+        "end": 196,
+        "endLoc": {
+          "column": 23,
+          "line": 196,
+          "position": 5040
+        },
+        "name": "scripts/mcp_kilo_server.py",
+        "start": 183,
+        "startLoc": {
+          "column": 28,
+          "line": 183,
+          "position": 4723
+        }
+      },
+      "format": "python",
+      "fragment": "        agent=\"orchestrator\",\n        strategy=strategy,\n        files=files or [],\n        output_format=\"json\",\n    )\n\n    if result[\"success\"]:\n        return result[\"output\"]\n    else:\n        return json.dumps(\n            {\n                \"error\": result[\"error\"],\n                \"exit_code\": result[\"exit_code\"],\n                \"tool\": \"kilo_review\",",
+      "lines": 14,
+      "secondFile": {
+        "end": 348,
+        "endLoc": {
+          "column": 23,
+          "line": 348,
+          "position": 8729
+        },
+        "name": "scripts/mcp_kilo_server.py",
+        "start": 335,
+        "startLoc": {
+          "column": 23,
+          "line": 335,
+          "position": 8412
+        }
+      },
+      "tokens": 52
+    },
+    {
+      "firstFile": {
+        "end": 23,
+        "endLoc": {
+          "column": 23,
+          "line": 23,
+          "position": 777
+        },
+        "name": "scripts/rund",
+        "start": 13,
+        "startLoc": {
+          "column": 0,
+          "line": 13,
+          "position": 487
+        }
+      },
+      "format": "bash",
+      "fragment": "# NOTE: -e intentionally omitted; errors handled with || true\nset -uo pipefail\n\nNAME=\"\"\nTIMEOUT=\"\"\nwhile [ $# -gt 0 ]; do\n    case \"$1\" in\n        --name)    NAME=\"${2:-}\"; shift 2 ;;\n        --timeout) TIMEOUT=\"${2:-}\"; shift 2 ;;\n        --)        shift; break ;;\n        --*)       echo \"rund: unknown flag $1\" >&2; exit 2 ;;",
+      "lines": 11,
+      "secondFile": {
+        "end": 18,
+        "endLoc": {
+          "column": 23,
+          "line": 18,
+          "position": 583
+        },
+        "name": "scripts/rundsh",
+        "start": 8,
+        "startLoc": {
+          "column": 0,
+          "line": 8,
+          "position": 293
+        }
+      },
+      "tokens": 55
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 46,
+          "line": 59,
+          "position": 1878
+        },
+        "name": "scripts/rund",
+        "start": 49,
+        "startLoc": {
+          "column": 0,
+          "line": 49,
+          "position": 1547
+        }
+      },
+      "format": "bash",
+      "fragment": "pid=$!\necho \"$pid\" > \"${JOB}.pid\"\n\nfor _ in 1 2 3; do\n    sid=\"$(ps -o sid= -p \"$pid\" 2>/dev/null | tr -d ' ' || echo \"\")\"\n    pgid=\"$(ps -o pgid= -p \"$pid\" 2>/dev/null | tr -d ' ' || echo \"\")\"\n    [ -n \"$sid\" ] && break\n    sleep 0.05\ndone\n[ -n \"$sid\" ] && echo \"$sid\" > \"${JOB}.sid\"\n[ -n \"$pgid\" ] && echo \"$pgid\" > \"${JOB}.pgid\"",
+      "lines": 11,
+      "secondFile": {
+        "end": 57,
+        "endLoc": {
+          "column": 46,
+          "line": 57,
+          "position": 1660
+        },
+        "name": "scripts/rundsh",
+        "start": 47,
+        "startLoc": {
+          "column": 0,
+          "line": 47,
+          "position": 1329
+        }
+      },
+      "tokens": 63
+    },
+    {
+      "firstFile": {
+        "end": 73,
+        "endLoc": {
+          "column": 71,
+          "line": 73,
+          "position": 2336
+        },
+        "name": "scripts/rund",
+        "start": 62,
+        "startLoc": {
+          "column": 0,
+          "line": 62,
+          "position": 1943
+        }
+      },
+      "format": "bash",
+      "fragment": "if [ -n \"$TIMEOUT\" ]; then\n    echo \"$TIMEOUT\" > \"${JOB}.timeout\"\n    SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n    nohup setsid bash -c \"\n        sleep $TIMEOUT\n        [ -f '${JOB}.rc' ] && exit 0\n        : > '${JOB}.timed-out'\n        '${SCRIPT_DIR}/runk' '${JOB}' >/dev/null 2>&1 || true\n    \" >/dev/null 2>&1 &\nfi\n\n# Track newest job for runlast (survives concurrent runs by symlinking)",
+      "lines": 12,
+      "secondFile": {
+        "end": 70,
+        "endLoc": {
+          "column": 2,
+          "line": 70,
+          "position": 1986
+        },
+        "name": "scripts/rundsh",
+        "start": 59,
+        "startLoc": {
+          "column": 0,
+          "line": 59,
+          "position": 1662
+        }
+      },
+      "tokens": 58
+    },
+    {
+      "firstFile": {
+        "end": 74,
+        "endLoc": {
+          "column": 8,
+          "line": 74,
+          "position": 3046
+        },
+        "name": "scripts/sync_gatus_to_vps.sh",
+        "start": 64,
+        "startLoc": {
+          "column": 0,
+          "line": 64,
+          "position": 2515
+        }
+      },
+      "format": "bash",
+      "fragment": "# --- diff mode ---------------------------------------------------------------\nif [[ \"${MODE}\" == \"diff\" ]]; then\n    drift=0\n    for rel in \"${LOCAL_FILES[@]}\"; do\n        local_md5=$(md5sum \"${LOCAL_DIR}/${rel}\" | awk '{print $1}')\n        remote_md5=$(ssh \"${SSH_HOST}\" \"sudo md5sum '${REMOTE_DIR}/${rel}' 2>/dev/null | awk '{print \\$1}'\" || echo \"MISSING\")\n        if [[ \"${local_md5}\" != \"${remote_md5}\" ]]; then\n            echo \"DRIFT  ${rel}  local=${local_md5}  vps1=${remote_md5}\"\n            drift=1\n        fi\n    done",
+      "lines": 11,
+      "secondFile": {
+        "end": 97,
+        "endLoc": {
+          "column": 8,
+          "line": 97,
+          "position": 4327
+        },
+        "name": "scripts/sync_prometheus_to_vps.sh",
+        "start": 87,
+        "startLoc": {
+          "column": 0,
+          "line": 87,
+          "position": 3796
+        }
+      },
+      "tokens": 61
+    },
+    {
+      "firstFile": {
+        "end": 108,
+        "endLoc": {
+          "column": 8,
+          "line": 108,
+          "position": 4178
+        },
+        "name": "scripts/sync_gatus_to_vps.sh",
+        "start": 80,
+        "startLoc": {
+          "column": 12,
+          "line": 80,
+          "position": 3397
+        }
+      },
+      "format": "bash",
+      "fragment": "            drift=1\n        fi\n    done\n    if (( drift == 0 )); then\n        echo \"in sync (${#LOCAL_FILES[@]} files)\"\n    fi\n    exit \"${drift}\"\nfi\n\n# --- push mode ---------------------------------------------------------------\nchanged=()\nfor rel in \"${LOCAL_FILES[@]}\"; do\n    local_md5=$(md5sum \"${LOCAL_DIR}/${rel}\" | awk '{print $1}')\n    remote_md5=$(ssh \"${SSH_HOST}\" \"sudo md5sum '${REMOTE_DIR}/${rel}' 2>/dev/null | awk '{print \\$1}'\" || echo \"MISSING\")\n    if [[ \"${local_md5}\" != \"${remote_md5}\" ]]; then\n        changed+=(\"${rel}\")\n    fi\ndone\n\nif (( ${#changed[@]} == 0 )); then\n    echo \"no changes (${#LOCAL_FILES[@]} files in sync)\"\n    exit 0\nfi\n\necho \"pushing ${#changed[@]} changed file(s):\"\nfor rel in \"${changed[@]}\"; do echo \"  ${rel}\"; done\n\nif $DRY_RUN; then\n    echo \"[dry-run] no scp, no restart\"",
+      "lines": 29,
+      "secondFile": {
+        "end": 123,
+        "endLoc": {
+          "column": 8,
+          "line": 123,
+          "position": 5081
+        },
+        "name": "scripts/sync_prometheus_to_vps.sh",
+        "start": 95,
+        "startLoc": {
+          "column": 12,
+          "line": 95,
+          "position": 4300
+        }
+      },
+      "tokens": 103
+    },
+    {
+      "firstFile": {
+        "end": 52,
+        "endLoc": {
+          "column": 3,
+          "line": 52,
+          "position": 1606
+        },
+        "name": "scripts/sync_schema_to_projects.py",
+        "start": 17,
+        "startLoc": {
+          "column": 18,
+          "line": 17,
+          "position": 364
+        }
+      },
+      "format": "python",
+      "fragment": "SCHEMA_TEMPLATE = \"\"\"-- Database Schema\n-- Project: {name}\n-- Last Updated: {today}\n--\n-- This file tracks all database schema changes.\n-- Agents MUST update this file when making database changes.\n--\n-- Usage:\n--   - Add new tables/columns with CREATE statements\n--   - Document changes with comments including date\n--   - Keep this file as the source of truth for DB structure\n\n-- =============================================================================\n-- TABLES\n-- =============================================================================\n\n-- Example:\n-- CREATE TABLE IF NOT EXISTS users (\n--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n--     email VARCHAR(255) UNIQUE NOT NULL,\n--     created_at TIMESTAMPTZ DEFAULT NOW(),\n--     updated_at TIMESTAMPTZ DEFAULT NOW()\n-- );\n\n-- =============================================================================\n-- INDEXES\n-- =============================================================================\n\n-- Example:\n-- CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);\n\n-- =============================================================================\n-- CHANGE LOG\n-- =============================================================================\n-- {today}: Initial schema created\n\"\"\"",
+      "lines": 36,
+      "secondFile": {
+        "end": 1370,
+        "endLoc": {
+          "column": 3,
+          "line": 1370,
+          "position": 54912
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 1335,
+        "startLoc": {
+          "column": 9,
+          "line": 1335,
+          "position": 53670
+        }
+      },
+      "tokens": 650
+    },
+    {
+      "firstFile": {
+        "end": 103,
+        "endLoc": {
+          "column": 86,
+          "line": 103,
+          "position": 3875
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 92,
+        "startLoc": {
+          "column": 67,
+          "line": 92,
+          "position": 3532
+        }
+      },
+      "format": "python",
+      "fragment": "        _cp(stdout=\"You've hit your session limit · resets 3:45pm\", rc=1),\n        _cp(stdout='{\"result\":\"ok\"}', rc=0),\n    ]\n    calls = []\n\n    def fake_run(argv, **kw):\n        calls.append(kw)\n        return outputs[len(calls) - 1]\n\n    rotations = []\n    monkeypatch.setattr(claude_rotate.subprocess, \"run\", fake_run)\n    monkeypatch.setattr(claude_rotate, \"_list_accounts\", lambda: _accounts(\"mob\", \"ob\"))",
+      "lines": 12,
+      "secondFile": {
+        "end": 488,
+        "endLoc": {
+          "column": 86,
+          "line": 488,
+          "position": 23303
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 477,
+        "startLoc": {
+          "column": 64,
+          "line": 477,
+          "position": 22960
+        }
+      },
+      "tokens": 79
+    },
+    {
+      "firstFile": {
+        "end": 113,
+        "endLoc": {
+          "column": 55,
+          "line": 113,
+          "position": 4366
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 95,
+        "startLoc": {
+          "column": 12,
+          "line": 95,
+          "position": 3604
+        }
+      },
+      "format": "python",
+      "fragment": "    calls = []\n\n    def fake_run(argv, **kw):\n        calls.append(kw)\n        return outputs[len(calls) - 1]\n\n    rotations = []\n    monkeypatch.setattr(claude_rotate.subprocess, \"run\", fake_run)\n    monkeypatch.setattr(claude_rotate, \"_list_accounts\", lambda: _accounts(\"mob\", \"ob\"))\n    monkeypatch.setattr(claude_rotate, \"_active_account\", lambda: _accounts(\"mob\")[0])\n    monkeypatch.setattr(claude_rotate, \"_rotate_active_account\", _walk_rotator([\"ob\"], rotations))\n\n    r = claude_rotate.run_claude(\n        [\"claude\", \"-p\", \"hi\"], timeout=120, cwd=\"/opt/fabrik\", env={\"X\": \"1\"}\n    )\n\n    assert r.returncode == 0 and \"ok\" in r.stdout\n    assert len(rotations) == 1, \"exactly one rotation to the other account\"\n    assert len(calls) == 2, \"original call + one retry\"",
+      "lines": 19,
+      "secondFile": {
+        "end": 548,
+        "endLoc": {
+          "column": 31,
+          "line": 548,
+          "position": 25795
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 532,
+        "startLoc": {
+          "column": 24,
+          "line": 532,
+          "position": 25029
+        }
+      },
+      "tokens": 159
+    },
+    {
+      "firstFile": {
+        "end": 150,
+        "endLoc": {
+          "column": 98,
+          "line": 150,
+          "position": 5956
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 140,
+        "startLoc": {
+          "column": 59,
+          "line": 140,
+          "position": 5656
+        }
+      },
+      "format": "python",
+      "fragment": "        _cp(stderr=\"401 Invalid authentication credentials\", rc=1),\n        _cp(stdout='{\"result\":\"ok\"}', rc=0),\n    ]\n    calls, alerts = [], []\n\n    def fake_run(argv, **kw):\n        calls.append(kw)\n        return outputs[len(calls) - 1]\n\n    rotations = []\n    # Use NON-colliding account names (\"primary\"/\"standby\") so the assertions actually distinguish",
+      "lines": 11,
+      "secondFile": {
+        "end": 539,
+        "endLoc": {
+          "column": 15,
+          "line": 539,
+          "position": 25162
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 529,
+        "startLoc": {
+          "column": 97,
+          "line": 529,
+          "position": 24945
+        }
+      },
+      "tokens": 57
+    },
+    {
+      "firstFile": {
+        "end": 662,
+        "endLoc": {
+          "column": 68,
+          "line": 662,
+          "position": 30605
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 651,
+        "startLoc": {
+          "column": 57,
+          "line": 651,
+          "position": 30169
+        }
+      },
+      "format": "python",
+      "fragment": "    monkeypatch.setattr(claude_rotate.sys, \"stdin\", _Tty())\n    seen = []\n\n    def fake_run(argv, **kw):\n        seen.append(kw.get(\"input\"))\n        return _cp(stdout=\"ok\", rc=0)\n\n    monkeypatch.setattr(claude_rotate.subprocess, \"run\", fake_run)\n    monkeypatch.setattr(claude_rotate, \"_list_accounts\", lambda: _accounts(\"mob\", \"ob\"))\n    monkeypatch.setattr(claude_rotate, \"_active_account\", lambda: _accounts(\"mob\")[0])\n\n    claude_rotate.run_claude([\"claude\"], timeout=1, cwd=\"/x\", env={}, buffer_stdin=True)",
+      "lines": 12,
+      "secondFile": {
+        "end": 727,
+        "endLoc": {
+          "column": 68,
+          "line": 727,
+          "position": 33418
+        },
+        "name": "scripts/sysadmin/test_claude_rotate.py",
+        "start": 716,
+        "startLoc": {
+          "column": 71,
+          "line": 716,
+          "position": 32982
+        }
+      },
+      "tokens": 105
+    },
+    {
+      "firstFile": {
+        "end": 156,
+        "endLoc": {
+          "column": 23,
+          "line": 156,
+          "position": 6996
+        },
+        "name": "scripts/sysadmin/test_sync_accounts.py",
+        "start": 142,
+        "startLoc": {
+          "column": 63,
+          "line": 142,
+          "position": 6486
+        }
+      },
+      "format": "python",
+      "fragment": "    (bindir / \"scp\").write_text(\"#!/usr/bin/env bash\\nexit 7\\n\")\n    (bindir / \"ssh\").chmod(0o755)\n    (bindir / \"scp\").chmod(0o755)\n    claude_dir = _make_claude_dir(tmp_path)\n    env = {\n        **os.environ,\n        \"DRY_RUN\": \"0\",\n        \"PATH\": f\"{bindir}:{os.environ['PATH']}\",\n        \"CLAUDE_DIR\": str(claude_dir),\n        \"CLAUDE_FLEET_HOSTS\": \"vps\",\n        \"CLAUDE_FLEET_SYNC_LOG\": str(tmp_path / \"sync.log\"),\n    }\n    r = subprocess.run([\"bash\", str(SCRIPT)], env=env, capture_output=True, text=True)\n    combined = r.stdout + r.stderr\n    assert r.returncode != 0, \"scp failure must yield a non-zero exit\"",
+      "lines": 15,
+      "secondFile": {
+        "end": 183,
+        "endLoc": {
+          "column": 23,
+          "line": 183,
+          "position": 8385
+        },
+        "name": "scripts/sysadmin/test_sync_accounts.py",
+        "start": 169,
+        "startLoc": {
+          "column": 63,
+          "line": 169,
+          "position": 7875
+        }
+      },
+      "tokens": 108
+    },
+    {
+      "firstFile": {
+        "end": 225,
+        "endLoc": {
+          "column": 47,
+          "line": 225,
+          "position": 10543
+        },
+        "name": "scripts/sysadmin/test_sync_accounts.py",
+        "start": 215,
+        "startLoc": {
+          "column": 4,
+          "line": 215,
+          "position": 10152
+        }
+      },
+      "format": "python",
+      "fragment": "    env = {\n        **os.environ,\n        \"DRY_RUN\": \"1\",\n        \"CLAUDE_DIR\": str(claude_dir),\n        \"CLAUDE_FLEET_HOSTS\": \"vps\",\n        \"CLAUDE_FLEET_SYNC_LOG\": str(tmp_path / \"sync.log\"),\n        \"SYNC_ACTIVE\": \"auto\",\n    }\n    r = subprocess.run([\"bash\", str(SCRIPT)], env=env, capture_output=True, text=True)\n    assert r.returncode == 0\n    assert \"SYNC_ACTIVE=auto → 1\" in r.stderr  # guard resolved to ON",
+      "lines": 11,
+      "secondFile": {
+        "end": 245,
+        "endLoc": {
+          "column": 47,
+          "line": 245,
+          "position": 11506
+        },
+        "name": "scripts/sysadmin/test_sync_accounts.py",
+        "start": 235,
+        "startLoc": {
+          "column": 4,
+          "line": 235,
+          "position": 11115
+        }
+      },
+      "tokens": 78
+    },
+    {
+      "firstFile": {
+        "end": 245,
+        "endLoc": {
+          "column": 10,
+          "line": 245,
+          "position": 11469
+        },
+        "name": "scripts/sysadmin/test_sync_accounts.py",
+        "start": 234,
+        "startLoc": {
+          "column": 91,
+          "line": 234,
+          "position": 11109
+        }
+      },
+      "format": "python",
+      "fragment": "    (claude_dir / \".credentials.json\").write_text('{\"claudeAiOauth\": {\"accessToken\": \"x\"}}')\n    env = {\n        **os.environ,\n        \"DRY_RUN\": \"1\",\n        \"CLAUDE_DIR\": str(claude_dir),\n        \"CLAUDE_FLEET_HOSTS\": \"vps\",\n        \"CLAUDE_FLEET_SYNC_LOG\": str(tmp_path / \"sync.log\"),\n        \"SYNC_ACTIVE\": \"auto\",\n    }\n    r = subprocess.run([\"bash\", str(SCRIPT)], env=env, capture_output=True, text=True)\n    assert r.returncode == 0\n    assert \"SYNC_ACTIVE=auto → 1\" in r.stderr",
+      "lines": 12,
+      "secondFile": {
+        "end": 262,
+        "endLoc": {
+          "column": 10,
+          "line": 262,
+          "position": 12165
+        },
+        "name": "scripts/sysadmin/test_sync_accounts.py",
+        "start": 251,
+        "startLoc": {
+          "column": 93,
+          "line": 251,
+          "position": 11805
+        }
+      },
+      "tokens": 74
+    },
+    {
+      "firstFile": {
+        "end": 97,
+        "endLoc": {
+          "column": 2,
+          "line": 97,
+          "position": 4200
+        },
+        "name": "scripts/systemd/README.md:markdown",
+        "start": 86,
+        "startLoc": {
+          "column": 0,
+          "line": 86,
+          "position": 3566
+        }
+      },
+      "format": "markdown",
+      "fragment": "",
+      "lines": 12,
+      "secondFile": {
+        "end": 97,
+        "endLoc": {
+          "column": 3,
+          "line": 97,
+          "position": 4201
+        },
+        "name": "scripts/systemd/README.md:markdown",
+        "start": 86,
+        "startLoc": {
+          "column": 1,
+          "line": 86,
+          "position": 3567
+        }
+      },
+      "tokens": 623
+    },
+    {
+      "firstFile": {
+        "end": 67,
+        "endLoc": {
+          "column": 70,
+          "line": 67,
+          "position": 1616
+        },
+        "name": "scripts/test_process_monitor.py",
+        "start": 57,
+        "startLoc": {
+          "column": 0,
+          "line": 57,
+          "position": 1358
+        }
+      },
+      "format": "python",
+      "fragment": "print(\"Done\")\n\"\"\"\n\n    proc = subprocess.Popen(\n        [\"python3\", \"-c\", script],\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n        stdin=subprocess.DEVNULL,\n    )\n\n    monitor = ProcessMonitor(proc, warn_threshold=5, check_interval=2)",
+      "lines": 11,
+      "secondFile": {
+        "end": 153,
+        "endLoc": {
+          "column": 74,
+          "line": 153,
+          "position": 4013
+        },
+        "name": "scripts/test_process_monitor.py",
+        "start": 143,
+        "startLoc": {
+          "column": 0,
+          "line": 143,
+          "position": 3727
+        }
+      },
+      "tokens": 53
+    },
+    {
+      "firstFile": {
+        "end": 112,
+        "endLoc": {
+          "column": 13,
+          "line": 112,
+          "position": 3968
+        },
+        "name": "scripts/tests/test_registry_sync.py",
+        "start": 102,
+        "startLoc": {
+          "column": 28,
+          "line": 102,
+          "position": 3644
+        }
+      },
+      "format": "python",
+      "fragment": "    and a full registry wipe.\"\"\"\n    try:\n        rdb.connect().close()\n    except Exception:  # noqa: BLE001\n        pytest.skip(\"local fabrik_services PG not reachable\")\n    conn = rdb.connect()\n    with conn, conn.cursor() as cur:\n        cur.execute(\"SELECT count(*) FROM services\")\n        before = cur.fetchone()[0]\n    conn.close()\n    if before == 0:",
+      "lines": 11,
+      "secondFile": {
+        "end": 139,
+        "endLoc": {
+          "column": 13,
+          "line": 139,
+          "position": 5154
+        },
+        "name": "scripts/tests/test_registry_sync.py",
+        "start": 129,
+        "startLoc": {
+          "column": 91,
+          "line": 129,
+          "position": 4830
+        }
+      },
+      "tokens": 65
+    },
+    {
+      "firstFile": {
+        "end": 113,
+        "endLoc": {
+          "column": 19,
+          "line": 113,
+          "position": 3994
+        },
+        "name": "scripts/tests/test_registry_sync.py",
+        "start": 102,
+        "startLoc": {
+          "column": 28,
+          "line": 102,
+          "position": 3644
+        }
+      },
+      "format": "python",
+      "fragment": "    and a full registry wipe.\"\"\"\n    try:\n        rdb.connect().close()\n    except Exception:  # noqa: BLE001\n        pytest.skip(\"local fabrik_services PG not reachable\")\n    conn = rdb.connect()\n    with conn, conn.cursor() as cur:\n        cur.execute(\"SELECT count(*) FROM services\")\n        before = cur.fetchone()[0]\n    conn.close()\n    if before == 0:\n        pytest.skip(\"registry empty — wipe guard unobservable\")",
+      "lines": 12,
+      "secondFile": {
+        "end": 208,
+        "endLoc": {
+          "column": 20,
+          "line": 208,
+          "position": 8686
+        },
+        "name": "scripts/tests/test_registry_sync.py",
+        "start": 197,
+        "startLoc": {
+          "column": 86,
+          "line": 197,
+          "position": 8335
+        }
+      },
+      "tokens": 72
+    },
+    {
+      "firstFile": {
+        "end": 352,
+        "endLoc": {
+          "column": 27,
+          "line": 352,
+          "position": 11146
+        },
+        "name": "scripts/traycer_agent_review.py",
+        "start": 342,
+        "startLoc": {
+          "column": 15,
+          "line": 342,
+          "position": 10764
+        }
+      },
+      "format": "python",
+      "fragment": "        result = {\n            \"workflow\": \"traycer_agent_auto_review\",\n            \"coder_session_id\": args.session_id,\n            \"task\": args.task,\n            \"files\": [str(f) for f in changed_files],\n            \"steps\": {\n                \"self_review\": self_review,\n                \"pre_kilo\": pre_kilo,\n                \"kilo_review\": kilo_review,\n            },\n            \"final_status\": \"ERROR_KILO\",",
+      "lines": 11,
+      "secondFile": {
+        "end": 408,
+        "endLoc": {
+          "column": 23,
+          "line": 408,
+          "position": 13014
+        },
+        "name": "scripts/traycer_agent_review.py",
+        "start": 398,
+        "startLoc": {
+          "column": 27,
+          "line": 398,
+          "position": 12672
+        }
+      },
+      "tokens": 50
+    },
+    {
+      "firstFile": {
+        "end": 93,
+        "endLoc": {
+          "column": 82,
+          "line": 93,
+          "position": 5596
+        },
+        "name": "scripts/wsl_startup_hook.sh",
+        "start": 65,
+        "startLoc": {
+          "column": 0,
+          "line": 65,
+          "position": 4233
+        }
+      },
+      "format": "bash",
+      "fragment": "# --- Log rotation (keep logs under 500KB, 1 backup) ---\nMAX_LOG_SIZE=512000  # 500KB\nfor logfile in \"$LOG_FILE\" \"$ENV_WATCHER_LOG\"; do\n    if [ -f \"$logfile\" ] && [ \"$(stat -c%s \"$logfile\" 2>/dev/null || echo 0)\" -gt \"$MAX_LOG_SIZE\" ]; then\n        mv \"$logfile\" \"${logfile}.1\"\n        echo \"[$(date '+%Y-%m-%d %H:%M:%S')] Log rotated\" > \"$logfile\"\n    fi\ndone\n\n# --- Persistent process: env watcher (runs continuously, not daily) ---\n# Start only if not already running\nif ! pgrep -f \"watch_env_changes.sh\" > /dev/null 2>&1; then\n    mkdir -p \"$FABRIK_ROOT/.tmp\"\n    nohup bash \"$ENV_WATCHER_SCRIPT\" >> \"$ENV_WATCHER_LOG\" 2>&1 &\nfi\n\n# --- Daily pipeline (runs once per WSL boot day) ---\n# Run update if not already run today\nif [ ! -f \"$LOCK_FILE\" ]; then\n    touch \"$LOCK_FILE\"\n    mkdir -p \"$(dirname \"$LOG_FILE\")\"\n    # Run full pipeline in background (chained to ensure order)\n    # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions\n    nohup bash -c \"\n        echo '' >> $LOG_FILE\n        echo '=== Fabrik Daily Pipeline — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE\n        cd $FABRIK_ROOT && $VENV_PYTHON $SYNC_PROJECTS_SCRIPT >> $LOG_FILE 2>&1 && \\\n        cd $FABRIK_ROOT && bash $CASCADE_BACKUP_SCRIPT >> $LOG_FILE 2>&1 ; \\\n        cd $FABRIK_ROOT && $VENV_PYTHON $HEALTH_SUMMARY_SCRIPT >> $LOG_FILE 2>&1 ;",
+      "lines": 29,
+      "secondFile": {
+        "end": 61,
+        "endLoc": {
+          "column": 82,
+          "line": 61,
+          "position": 2932
+        },
+        "name": "scripts/wsl_startup_hook.sh.before-kilo-disable",
+        "start": 33,
+        "startLoc": {
+          "column": 0,
+          "line": 33,
+          "position": 1569
+        }
+      },
+      "tokens": 176
+    },
+    {
+      "firstFile": {
+        "end": 56,
+        "endLoc": {
+          "column": 47,
+          "line": 56,
+          "position": 1519
+        },
+        "name": "src/fabrik/cli.py",
+        "start": 43,
+        "startLoc": {
+          "column": 18,
+          "line": 43,
+          "position": 1189
+        }
+      },
+      "format": "python",
+      "fragment": "    parts = domain.split(\".\")\n    if len(parts) < 3:\n        return None\n\n    base_parts = 2\n    if (\n        len(parts) >= 4\n        and len(parts[-1]) == 2\n        and parts[-2] in {\"co\", \"com\", \"net\", \"org\", \"gov\", \"ac\"}\n    ):\n        base_parts = 3\n\n    subdomain = \".\".join(parts[:-base_parts])\n    base_domain = \".\".join(parts[-base_parts:])",
+      "lines": 14,
+      "secondFile": {
+        "end": 147,
+        "endLoc": {
+          "column": 47,
+          "line": 147,
+          "position": 5594
+        },
+        "name": "src/fabrik/orchestrator/destroyer.py",
+        "start": 136,
+        "startLoc": {
+          "column": 16,
+          "line": 136,
+          "position": 5266
+        }
+      },
+      "tokens": 90
+    },
+    {
+      "firstFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 21,
+          "line": 58,
+          "position": 1542
+        },
+        "name": "src/fabrik/cli.py",
+        "start": 47,
+        "startLoc": {
+          "column": 4,
+          "line": 47,
+          "position": 1249
+        }
+      },
+      "format": "python",
+      "fragment": "    base_parts = 2\n    if (\n        len(parts) >= 4\n        and len(parts[-1]) == 2\n        and parts[-2] in {\"co\", \"com\", \"net\", \"org\", \"gov\", \"ac\"}\n    ):\n        base_parts = 3\n\n    subdomain = \".\".join(parts[:-base_parts])\n    base_domain = \".\".join(parts[-base_parts:])\n\n    if not subdomain:",
+      "lines": 12,
+      "secondFile": {
+        "end": 480,
+        "endLoc": {
+          "column": 25,
+          "line": 480,
+          "position": 21080
+        },
+        "name": "src/fabrik/orchestrator/__init__.py",
+        "start": 469,
+        "startLoc": {
+          "column": 8,
+          "line": 469,
+          "position": 20751
+        }
+      },
+      "tokens": 79
+    },
+    {
+      "firstFile": {
+        "end": 753,
+        "endLoc": {
+          "column": 10,
+          "line": 753,
+          "position": 28069
+        },
+        "name": "src/fabrik/cli.py",
+        "start": 737,
+        "startLoc": {
+          "column": 37,
+          "line": 737,
+          "position": 27260
+        }
+      },
+      "format": "python",
+      "fragment": "    click.echo(\"🐳 Coolify status:\")\n    try:\n        from fabrik.drivers.coolify import CoolifyClient\n\n        coolify = CoolifyClient()\n        apps = coolify.list_applications()\n        # G-G1 (T1-02): Coolify-deployed Fabrik services are registered with a\n        # `fabrik-` prefix on the application name (e.g. spec.id=\"proxy\" → app\n        # name=\"fabrik-proxy\"). The pre-fix single-variant lookup returned\n        # \"Found in Coolify: None\" for every fabrik-prefixed app. The\n        # startswith guard prevents `fabrik-fabrik-proxy` double-prefix when\n        # the spec.id is already prefixed (e.g. fabrik-citation-verifier).\n        candidates = [spec.id]\n        if not spec.id.startswith(\"fabrik-\"):\n            candidates.append(f\"fabrik-{spec.id}\")\n        matching = [a for a in apps if a.get(\"name\") in candidates]\n        if matching:",
+      "lines": 17,
+      "secondFile": {
+        "end": 812,
+        "endLoc": {
+          "column": 10,
+          "line": 812,
+          "position": 30608
+        },
+        "name": "src/fabrik/cli.py",
+        "start": 794,
+        "startLoc": {
+          "column": 15,
+          "line": 794,
+          "position": 29797
+        }
+      },
+      "tokens": 73
+    },
+    {
+      "firstFile": {
+        "end": 3544,
+        "endLoc": {
+          "column": 20,
+          "line": 3544,
+          "position": 128992
+        },
+        "name": "src/fabrik/cli.py",
+        "start": 3531,
+        "startLoc": {
+          "column": 4,
+          "line": 3531,
+          "position": 128537
+        }
+      },
+      "format": "python",
+      "fragment": "    \"\"\"\n    from fabrik.orchestrator import gpu_rent as gpu_rent_mod\n    from fabrik.orchestrator import gpu_state\n\n    sess = gpu_state.get_session(session_or_resource_id)\n    if sess is None:\n        for sid, rec in gpu_state.load_state()[\"sessions\"].items():\n            if rec[\"resource_id\"] == session_or_resource_id:\n                sess = rec\n                session_or_resource_id = sid\n                break\n\n    if sess is None:\n        click.echo(f\"✗ no session or resource matches {session_or_resource_id!r}\", err=True)",
+      "lines": 14,
+      "secondFile": {
+        "end": 3594,
+        "endLoc": {
+          "column": 20,
+          "line": 3594,
+          "position": 130958
+        },
+        "name": "src/fabrik/cli.py",
+        "start": 3582,
+        "startLoc": {
+          "column": 4,
+          "line": 3582,
+          "position": 130504
+        }
+      },
+      "tokens": 73
+    },
+    {
+      "firstFile": {
+        "end": 232,
+        "endLoc": {
+          "column": 29,
+          "line": 232,
+          "position": 7067
+        },
+        "name": "src/fabrik/drivers/cloudflare.py",
+        "start": 219,
+        "startLoc": {
+          "column": 36,
+          "line": 219,
+          "position": 6729
+        }
+      },
+      "format": "python",
+      "fragment": "        \"\"\"Create a new DNS record.\"\"\"\n        data = {\n            \"type\": record_type,\n            \"name\": name,\n            \"content\": content,\n            \"ttl\": ttl,\n            \"proxied\": proxied,\n        }\n        if priority is not None:\n            data[\"priority\"] = priority\n        if comment:\n            data[\"comment\"] = comment\n\n        return self._request(\"POST\", f\"/zones/{zone_id}/dns_records\", json=data)",
+      "lines": 14,
+      "secondFile": {
+        "end": 259,
+        "endLoc": {
+          "column": 29,
+          "line": 259,
+          "position": 7801
+        },
+        "name": "src/fabrik/drivers/cloudflare.py",
+        "start": 246,
+        "startLoc": {
+          "column": 42,
+          "line": 246,
+          "position": 7463
+        }
+      },
+      "tokens": 51
+    },
+    {
+      "firstFile": {
+        "end": 166,
+        "endLoc": {
+          "column": 63,
+          "line": 166,
+          "position": 5568
+        },
+        "name": "src/fabrik/drivers/coolify.py",
+        "start": 134,
+        "startLoc": {
+          "column": 4,
+          "line": 134,
+          "position": 4204
+        }
+      },
+      "format": "python",
+      "fragment": "    def _request_via_ssh(\n        self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None\n    ) -> dict[str, Any]:\n        \"\"\"Proxy an HTTP request through SSH to bypass Traefik IP allowlist.\"\"\"\n        header_args = \" \".join(f'-H \"{k}: {v}\"' for k, v in self._headers.items())\n        data_arg = \"\"\n        if body is not None:\n            escaped = json.dumps(body).replace(\"'\", \"'\\\\''\")\n            data_arg = f\"-d '{escaped}'\"\n        # Append query params to URL if present\n        if params:\n            from urllib.parse import urlencode\n\n            query_string = urlencode(params)\n            url = f\"{url}?{query_string}\"\n        cmd = f\"curl -s -X {method} {header_args} {data_arg} '{url}'\"\n        result = subprocess.run(\n            [\"ssh\", self.ssh_host, cmd],\n            capture_output=True,\n            text=True,\n            timeout=int(self.timeout),\n            check=False,\n        )\n        if result.returncode != 0:\n            msg = f\"SSH proxy request failed: {result.stderr.strip()}\"\n            raise RuntimeError(msg)\n        try:\n            return json.loads(result.stdout)\n        except json.JSONDecodeError as exc:\n            msg = f\"SSH proxy returned non-JSON: {result.stdout[:200]}\"\n            raise RuntimeError(msg) from exc\n\n    def _request(self, method: str, endpoint: str, **kwargs) -> Any:",
+      "lines": 33,
+      "secondFile": {
+        "end": 211,
+        "endLoc": {
+          "column": 63,
+          "line": 211,
+          "position": 8064
+        },
+        "name": "src/fabrik/drivers/dns.py",
+        "start": 179,
+        "startLoc": {
+          "column": 4,
+          "line": 179,
+          "position": 6700
+        }
+      },
+      "tokens": 222
+    },
+    {
+      "firstFile": {
+        "end": 125,
+        "endLoc": {
+          "column": 92,
+          "line": 125,
+          "position": 3926
+        },
+        "name": "src/fabrik/drivers/r2.py",
+        "start": 107,
+        "startLoc": {
+          "column": 8,
+          "line": 107,
+          "position": 3240
+        }
+      },
+      "format": "python",
+      "fragment": "        string_to_sign = \"\\n\".join(\n            [\n                \"AWS4-HMAC-SHA256\",\n                amz_date,\n                credential_scope,\n                hashlib.sha256(canonical_request.encode()).hexdigest(),\n            ]\n        )\n\n        # Signing key\n        def sign(key: bytes, msg: str) -> bytes:\n            return hmac.new(key, msg.encode(), hashlib.sha256).digest()\n\n        k_date = sign(f\"AWS4{self.secret_access_key}\".encode(), date_stamp)\n        k_region = sign(k_date, self.region)\n        k_service = sign(k_region, \"s3\")\n        k_signing = sign(k_service, \"aws4_request\")\n\n        signature = hmac.new(k_signing, string_to_sign.encode(), hashlib.sha256).hexdigest()",
+      "lines": 19,
+      "secondFile": {
+        "end": 240,
+        "endLoc": {
+          "column": 92,
+          "line": 240,
+          "position": 7744
+        },
+        "name": "src/fabrik/drivers/r2.py",
+        "start": 222,
+        "startLoc": {
+          "column": 8,
+          "line": 222,
+          "position": 7058
+        }
+      },
+      "tokens": 128
+    },
+    {
+      "firstFile": {
+        "end": 90,
+        "endLoc": {
+          "column": 29,
+          "line": 90,
+          "position": 2710
+        },
+        "name": "src/fabrik/drivers/uptime_kuma.py",
+        "start": 76,
+        "startLoc": {
+          "column": 69,
+          "line": 76,
+          "position": 2362
+        }
+      },
+      "format": "python",
+      "fragment": "            retries: Number of retries before marking down (default 3)\n\n        Returns:\n            Monitor info dict\n        \"\"\"\n        api = self._get_api()\n\n        # Check if already exists\n        existing = api.get_monitors()\n        for m in existing:\n            if m[\"name\"] == name:\n                return {\"status\": \"exists\", \"monitor\": m}\n\n        result = api.add_monitor(\n            type=MonitorType.HTTP,",
+      "lines": 15,
+      "secondFile": {
+        "end": 127,
+        "endLoc": {
+          "column": 29,
+          "line": 127,
+          "position": 3711
+        },
+        "name": "src/fabrik/drivers/uptime_kuma.py",
+        "start": 113,
+        "startLoc": {
+          "column": 59,
+          "line": 113,
+          "position": 3363
+        }
+      },
+      "tokens": 57
+    },
+    {
+      "firstFile": {
+        "end": 221,
+        "endLoc": {
+          "column": 61,
+          "line": 221,
+          "position": 9863
+        },
+        "name": "src/fabrik/orchestrator/__init__.py",
+        "start": 207,
+        "startLoc": {
+          "column": 12,
+          "line": 207,
+          "position": 9084
+        }
+      },
+      "format": "python",
+      "fragment": "            if ctx.created_resources and not keep_on_failure:\n                self._transition(ctx, DeploymentState.ROLLING_BACK)\n                errors = self.rollback_manager.rollback(ctx)\n                if errors:\n                    self._transition(ctx, DeploymentState.FAILED)\n                else:\n                    self._transition(ctx, DeploymentState.ROLLED_BACK)\n            else:\n                if keep_on_failure and ctx.created_resources:\n                    logger.warning(\n                        \"keep_on_failure=True; skipping rollback of %d resource(s) \"\n                        \"so they can be inspected. Manual cleanup required.\",\n                        len(ctx.created_resources),\n                    )\n                self._transition(ctx, DeploymentState.FAILED)",
+      "lines": 15,
+      "secondFile": {
+        "end": 242,
+        "endLoc": {
+          "column": 61,
+          "line": 242,
+          "position": 10875
+        },
+        "name": "src/fabrik/orchestrator/__init__.py",
+        "start": 228,
+        "startLoc": {
+          "column": 12,
+          "line": 228,
+          "position": 10096
+        }
+      },
+      "tokens": 87
+    },
+    {
+      "firstFile": {
+        "end": 568,
+        "endLoc": {
+          "column": 17,
+          "line": 568,
+          "position": 22049
+        },
+        "name": "src/fabrik/orchestrator/gpu_rent.py",
+        "start": 556,
+        "startLoc": {
+          "column": 12,
+          "line": 556,
+          "position": 21670
+        }
+      },
+      "format": "python",
+      "fragment": "            )\n        ep = client.create_endpoint(\n            template_id=template_id,\n            name=name,\n            workers_min=workers_min,\n            workers_max=workers_max,\n            idle_timeout=idle_timeout,\n            flashboot=flashboot,\n            model=model,\n        )\n        ep[\"_fabrik_reuse\"] = False\n        ep[\"_fabrik_session_id\"] = session_id\n        return ep",
+      "lines": 13,
+      "secondFile": {
+        "end": 588,
+        "endLoc": {
+          "column": 17,
+          "line": 588,
+          "position": 22770
+        },
+        "name": "src/fabrik/orchestrator/gpu_rent.py",
+        "start": 576,
+        "startLoc": {
+          "column": 12,
+          "line": 576,
+          "position": 22391
+        }
+      },
+      "tokens": 50
+    },
+    {
+      "firstFile": {
+        "end": 824,
+        "endLoc": {
+          "column": 42,
+          "line": 824,
+          "position": 31151
+        },
+        "name": "src/fabrik/orchestrator/gpu_rent.py",
+        "start": 795,
+        "startLoc": {
+          "column": 4,
+          "line": 795,
+          "position": 30105
+        }
+      },
+      "format": "python",
+      "fragment": "    try:\n        if kind == \"serverless\":\n            resource = _create_serverless_endpoint(\n                client,\n                session_id=session_id,\n                workload=workload,\n                max_lifetime_hours=max_lifetime_hours,\n                template_id=template_id,\n                workers_min=workers_min,\n                workers_max=workers_max,\n                idle_timeout=idle_timeout,\n                flashboot=flashboot,\n                provider=provider,\n                model=model,\n            )\n        else:\n            resource = _create_pod(\n                client,\n                session_id=session_id,\n                kind=kind,\n                workload=workload,\n                max_lifetime_hours=max_lifetime_hours,\n                image_name=image_name,\n                cloud_type=cloud_type,\n                interruptible=interruptible,\n                provider=provider,\n                report=report,\n            )\n        report[\"resource_id\"] = resource[\"id\"]\n        report[\"checks\"][\"created\"] = True",
+      "lines": 30,
+      "secondFile": {
+        "end": 1042,
+        "endLoc": {
+          "column": 42,
+          "line": 1042,
+          "position": 39279
+        },
+        "name": "src/fabrik/orchestrator/gpu_rent.py",
+        "start": 1013,
+        "startLoc": {
+          "column": 4,
+          "line": 1013,
+          "position": 38233
+        }
+      },
+      "tokens": 118
+    },
+    {
+      "firstFile": {
+        "end": 909,
+        "endLoc": {
+          "column": 13,
+          "line": 909,
+          "position": 34694
+        },
+        "name": "src/fabrik/orchestrator/gpu_rent.py",
+        "start": 894,
+        "startLoc": {
+          "column": 32,
+          "line": 894,
+          "position": 34197
+        }
+      },
+      "format": "python",
+      "fragment": "        elif keep and destroy_id:\n            report[\"checks\"][\"kept_for_inspection\"] = True\n\n        report[\"ended_at\"] = datetime.now(UTC).isoformat()\n        write_report(report)\n\n        if resource is not None and cost_actual > 0:\n            _record_actual_cost(\n                tracker,\n                session_id=session_id,\n                kind=kind,\n                workload=workload,\n                provider=provider,\n                wall_clock_seconds=wall,\n                cost_actual_usd=cost_actual,\n            )",
+      "lines": 16,
+      "secondFile": {
+        "end": 1098,
+        "endLoc": {
+          "column": 13,
+          "line": 1098,
+          "position": 41478
+        },
+        "name": "src/fabrik/orchestrator/gpu_rent.py",
+        "start": 1084,
+        "startLoc": {
+          "column": 42,
+          "line": 1084,
+          "position": 40982
+        }
+      },
+      "tokens": 68
+    },
+    {
+      "firstFile": {
+        "end": 1637,
+        "endLoc": {
+          "column": 5,
+          "line": 1637,
+          "position": 66015
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 1605,
+        "startLoc": {
+          "column": 17,
+          "line": 1605,
+          "position": 64438
+        }
+      },
+      "format": "python",
+      "fragment": "    (package_dir / \"middleware.py\").write_text(\n        f'\"\"\"Correlation ID middleware for {name}.\\n'\n        f\"\\n\"\n        f\"Binds X-Request-ID to structlog context via contextvars.\\n\"\n        f\"Usage: app.add_middleware(CorrelationMiddleware)\\n\"\n        f'\"\"\"\\n'\n        f\"\\n\"\n        f\"import uuid\\n\"\n        f\"from contextvars import ContextVar\\n\"\n        f\"\\n\"\n        f\"import structlog\\n\"\n        f\"from starlette.middleware.base import BaseHTTPMiddleware\\n\"\n        f\"from starlette.requests import Request\\n\"\n        f\"from starlette.responses import Response\\n\"\n        f\"\\n\"\n        f'correlation_id: ContextVar[str] = ContextVar(\"correlation_id\", default=\"\")\\n'\n        f\"\\n\"\n        f\"\\n\"\n        f\"class CorrelationMiddleware(BaseHTTPMiddleware):\\n\"\n        f'    \"\"\"Attach X-Request-ID to every request and bind to structlog context.\"\"\"\\n'\n        f\"\\n\"\n        f\"    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001\\n\"\n        f'        \"\"\"Process request with correlation ID.\"\"\"\\n'\n        f'        req_id = request.headers.get(\"X-Request-ID\", str(uuid.uuid4()))\\n'\n        f\"        correlation_id.set(req_id)\\n\"\n        f\"        structlog.contextvars.bind_contextvars(correlation_id=req_id)\\n\"\n        f\"        try:\\n\"\n        f\"            response = await call_next(request)\\n\"\n        f'            response.headers[\"X-Request-ID\"] = req_id\\n'\n        f\"            return response  # type: ignore[no-any-return]\\n\"\n        f\"        finally:\\n\"\n        f'            structlog.contextvars.unbind_contextvars(\"correlation_id\")\\n'\n    )",
+      "lines": 33,
+      "secondFile": {
+        "end": 4610,
+        "endLoc": {
+          "column": 5,
+          "line": 4610,
+          "position": 191165
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 4578,
+        "startLoc": {
+          "column": 20,
+          "line": 4578,
+          "position": 189588
+        }
+      },
+      "tokens": 69
+    },
+    {
+      "firstFile": {
+        "end": 1830,
+        "endLoc": {
+          "column": 88,
+          "line": 1830,
+          "position": 74337
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 1815,
+        "startLoc": {
+          "column": 16,
+          "line": 1815,
+          "position": 73492
+        }
+      },
+      "format": "python",
+      "fragment": "                create_result = subprocess.run(\n                    [\"sudo\", \"-u\", \"postgres\", \"psql\", \"-c\", f\"CREATE DATABASE {db_name_dev};\"],\n                    capture_output=True,\n                    timeout=5,\n                )\n                if create_result.returncode == 0:\n                    click.echo(f\"✅ Created PostgreSQL database: {db_name_dev}\")\n                else:\n                    click.echo(\"⚠️  Could not create database. Run manually:\")\n                    click.echo(f\"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'\")\n            else:\n                click.echo(f\"✅ PostgreSQL database exists: {db_name_dev}\")\n\n        except Exception:\n            click.echo(\"⚠️  Database auto-creation failed. Create manually:\")\n            click.echo(f\"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'\")",
+      "lines": 16,
+      "secondFile": {
+        "end": 4916,
+        "endLoc": {
+          "column": 88,
+          "line": 4916,
+          "position": 202487
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 4901,
+        "startLoc": {
+          "column": 16,
+          "line": 4901,
+          "position": 201642
+        }
+      },
+      "tokens": 85
+    },
+    {
+      "firstFile": {
+        "end": 3398,
+        "endLoc": {
+          "column": 3,
+          "line": 3398,
+          "position": 140481
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 3386,
+        "startLoc": {
+          "column": 7,
+          "line": 3386,
+          "position": 140143
+        }
+      },
+      "format": "python",
+      "fragment": "export const logger = pino({\n  level: process.env.LOG_LEVEL || 'info',\n  name: process.env.SERVICE_NAME || '{name}',\n  timestamp: pino.stdTimeFunctions.isoTime,\n  redact: [\n    'req.headers.authorization',\n    'req.headers[\"x-internal-token\"]',\n    'req.body.password',\n    'req.body.token',\n    '*.access_token',\n    '*.refresh_token',\n  ],\n});",
+      "lines": 13,
+      "secondFile": {
+        "end": 3571,
+        "endLoc": {
+          "column": 3,
+          "line": 3571,
+          "position": 147023
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 3559,
+        "startLoc": {
+          "column": 0,
+          "line": 3559,
+          "position": 146685
+        }
+      },
+      "tokens": 56
+    },
+    {
+      "firstFile": {
+        "end": 4721,
+        "endLoc": {
+          "column": 9,
+          "line": 4721,
+          "position": 195297
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 4707,
+        "startLoc": {
+          "column": 9,
+          "line": 4707,
+          "position": 194954
+        }
+      },
+      "format": "python",
+      "fragment": "        f\"\"\"FROM python:3.12-slim-bookworm AS builder\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\nFROM python:3.12-slim-bookworm\nWORKDIR /app\n\n# Install curl for healthcheck\nRUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*\n\nENV PYTHONPATH=/app/server/src\nENV PORT=8000\n\nEXPOSE ${{PORT}}",
+      "lines": 15,
+      "secondFile": {
+        "end": 5077,
+        "endLoc": {
+          "column": 9,
+          "line": 5077,
+          "position": 209139
+        },
+        "name": "src/fabrik/scaffold.py",
+        "start": 5063,
+        "startLoc": {
+          "column": 8,
+          "line": 5063,
+          "position": 208796
+        }
+      },
+      "tokens": 82
+    }
+  ],
+  "statistics": {
+    "detectionDate": "2026-08-11T12:52:58.066Z",
+    "formats": {
+      "bash": {
+        "clones": 16,
+        "duplicatedLines": 283,
+        "duplicatedTokens": 1827,
+        "lines": 10671,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 2.6520476056602007,
+        "percentageTokens": 3.9606321403021965,
+        "sources": 74,
+        "tokens": 46129
+      },
+      "markdown": {
+        "clones": 1,
+        "duplicatedLines": 11,
+        "duplicatedTokens": 623,
+        "lines": 391,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 2.813299232736573,
+        "percentageTokens": 43.96612561750177,
+        "sources": 3,
+        "tokens": 1417
+      },
+      "python": {
+        "clones": 65,
+        "duplicatedLines": 2249,
+        "duplicatedTokens": 13792,
+        "lines": 92775,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 2.4241444354621398,
+        "percentageTokens": 2.7769835740777284,
+        "sources": 223,
+        "tokens": 496654
+      },
+      "text": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 276,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 1147
+      },
+      "txt": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 368,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 14454
+      },
+      "yaml": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 54,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 110
+      }
+    },
+    "total": {
+      "clones": 82,
+      "duplicatedLines": 2543,
+      "duplicatedTokens": 16242,
+      "lines": 104535,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 2.432678050413737,
+      "percentageTokens": 2.900818165744199,
+      "sources": 304,
+      "tokens": 559911
+    }
+  }
+}

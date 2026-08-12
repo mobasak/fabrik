@@ -5,7 +5,7 @@
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Total projects: 48 -->
+<!-- Total projects: 50 -->
 
 ### Production Services (3 projects)
 
@@ -47,7 +47,7 @@
 | **web-ecommerce-factory** | AI web-agency control plane: multi-tenant chat SaaS (login to chat to agent scoped to a custome... | Python | 🔨 Development | - | ✅ Current |
 | **whatsapp-agent** | WhatsApp channel agent for the tryton-crm bridge: FastAPI middleware (M2M to the CRM hub) + sel... | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (15 projects)
+### Planning/Research (17 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -59,11 +59,13 @@
 | **fabrik-dr-store** | Plain mirror of `/opt/fabrik/.env` from the dev WSL machine. | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **fabrik-lib-account** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **fabrik-lib-review** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
+| **fabrik-mail** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
 | **logo-export** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | https://marketing-argument-generator.vps1.ocoron.com | ✅ Current |
+| **scratch_bhd** | **Created:** 2026-07-26 · **Status:** pre-build (spec/content next) · **Deploy:** later, when r... | Node.js | 🔨 Development | - | ⚠️ No project.yaml |
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 

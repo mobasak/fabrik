@@ -121,13 +121,13 @@ Kilo CLI (`kilo run kilo/<provider>/<model>`) and OpenRouter (`https://openroute
 
 | Gateway | Active routable models | Notes |
 |---|---|---|
-| **OpenRouter** | 376 | of which **341** dual-routed with Kilo, **35** OR-only |
-| **Kilo CLI** | 341 | of which **341** dual-routed with OR, **0** Kilo-only |
+| **OpenRouter** | 380 | of which **345** dual-routed with Kilo, **35** OR-only |
+| **Kilo CLI** | 345 | of which **345** dual-routed with OR, **0** Kilo-only |
 | **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
 | **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
 | **ModelScope** (direct) | 32 | Zhipu GLM direct (4) + Tencent Hunyuan Hy3 (1) + 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap |
 
-Capability counts (any-gateway): reasoning **243** · tools/function-calling **311** · vision-input **212** · translation-scored **9** · STT-capable **34**.
+Capability counts (any-gateway): reasoning **243** · tools/function-calling **312** · vision-input **211** · translation-scored **9** · STT-capable **28**.
 <!-- GATEWAY_COUNTS:END -->
 
 For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / Cybersecurity / Bio-Healthcare / Edge / Governance / Generative design) use domain tools, not gateway LLMs.

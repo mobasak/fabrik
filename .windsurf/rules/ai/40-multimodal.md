@@ -28,7 +28,7 @@ Both gateways carry the major multimodal frontier (Claude / GPT-4o / Gemini) at 
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-12 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
 
-vision-input across all gateways: **212**
+vision-input across all gateways: **211**
 
 Multimodal overlaps with Vision (category 2) — see the Audio/Vision tab in the bake-off browser for the audio-in subset.
 <!-- GATEWAY_COUNTS:END -->

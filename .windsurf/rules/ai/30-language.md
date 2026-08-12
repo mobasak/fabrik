@@ -33,7 +33,7 @@ Pick the **cheaper gateway per model** — the bake-off browser shows the per-ro
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-12 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
 
-language-tagged (any gateway): **157**
+language-tagged (any gateway): **154**
 translation-scored (any gateway): **9**
 
 Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser).
@@ -50,7 +50,7 @@ Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR,
 |---|---|---|---|---|
 | P1 | `openrouter/fusion` | free | 1000k | free |
 | P2 | `inclusionai/ling-3.0-flash` | $0.02 | 262k | GA |
-| P3 | `openai/gpt-oss-20b` | $0.03 | 131k | GA |
+| P3 | `openai/gpt-oss-120b` | $0.03 | 131k | GA |
 
 To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
 <!-- OPENROUTER_ROUTES:END -->

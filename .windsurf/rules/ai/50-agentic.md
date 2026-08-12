@@ -29,7 +29,7 @@ The major frontier (o3, Claude reasoning, Gemini 3.x Pro thinking, GLM-5.2) is o
 *Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
 
 reasoning-capable across all gateways: **243**
-tool/function-calling across all gateways: **311**
+tool/function-calling across all gateways: **312**
 
 All major frontier reasoning models (o3, Claude reasoning, Gemini 3.x thinking, GLM-5.2) are on both Kilo and OpenRouter — pick the cheaper rate per model.
 <!-- GATEWAY_COUNTS:END -->
