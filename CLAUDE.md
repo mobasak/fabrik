@@ -130,6 +130,7 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 | Trailer | Values | When |
 |---|---|---|
 | `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` | every AI commit |
+| `Agent-Name` | `infra` · `fleet` · `intel` | hub sessions once the operator sets `CLAUDE_AGENT` (charters: `docs/reference/agents/`) |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
 | `Agent-Context` | short description of what the agent did | every AI commit |

@@ -598,6 +598,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | Document | Purpose |
 |----------|--------|
 | [2026-08-10-finder-shape-ab.md](docs/development/reviews/2026-08-10-finder-shape-ab.md) | Plan-2 Phase A decision record — the pinned-roster 3-arm finder-shape A/B (read-only vs tool-enabled vs find+verify): adjudication ledger with execution-verdicts, parallelism assert, CHOSEN SHAPE: arm 1 (no dispatch change). |
+| [agents/](docs/reference/agents/) | Agent role charters (infra · fleet · intel — hub-agent-roles spec r2) + weekly kaizen logs; injected at SessionStart by `.claude/hooks/agent_role.py` when `CLAUDE_AGENT` names the session |
 | [2026-08-11-plan-2-stalled-midstream-resume-review.md](docs/development/reviews/2026-08-11-plan-2-stalled-midstream-resume-review.md) | Whole-plan review of the stalled-mid-stream auto-resume execution: 15-round ledger, requirements coverage, embedded gate success, shared-tree adjudications. |
 | [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |

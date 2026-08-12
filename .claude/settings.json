@@ -18,6 +18,12 @@
           },
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent_role.py\"",
+            "timeout": 10,
+            "statusMessage": "Loading agent role charter..."
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
             "timeout": 10,
             "statusMessage": "Checking fabrik-mail inbox..."

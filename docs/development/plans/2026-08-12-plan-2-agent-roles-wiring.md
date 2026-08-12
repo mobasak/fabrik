@@ -1,9 +1,7 @@
 # Plan — Hub agent-roles wiring (charters · role hook · catalog ownership · mail beat · flywheel)
 
-Status: CONVERGED (2026-08-12 r2 — re-converged after intel's verified flywheel analysis
-(C4 honest scoping + C4b structural fix + data-side split to intel); scoped pass + closing pass
-edit-free with probes re-run, md5 b8ed8ceb8db32787bcf410481053bf90 start==end; supersedes r1
-md5 4a31daa3)
+Status: IN-PROGRESS (execution started 2026-08-12; was CONVERGED r2 md5 b8ed8ceb — scoped+closing
+passes edit-free; supersedes r1 md5 4a31daa3)
 Date: 2026-08-12
 Owner: infra session (operator-approved: spec r2 CONVERGED 13d86c55; "can you proceed to
 /fabrik-plan-after-chat now?" = the go)
