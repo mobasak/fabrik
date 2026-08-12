@@ -1,8 +1,9 @@
 # Plan — Connection-failure auto-resume (the sibling class the mid-stream plan missed)
 
-Status: CONVERGED (2026-08-12 — /fabrik-plan-review: 3-pass loop, pass 1 caught the red-baseline
-defect (full transcript recovered → truncate at 36370), closing pass edit-free + probes re-run,
-md5 d5e957fd5b4f2b6726f2bb4954885134 start==end)
+Status: EXECUTED 2026-08-12 (decider DR-versioned; suite 82→94 red-first, mesh 114/114, DR
+20260812T211418Z, gate 46/0 fresh. Whole-plan review:
+docs/development/reviews/2026-08-12-plan-3-connection-failure-resume-review.md — pool+native closer
+CLEAN, verified against 5094 live records)
 Date: 2026-08-12
 Owner: infra session (operator-approved this turn: "havent you implemented this?" + both
 recommended scope answers — whole connection-failure family + fold in the arming check)
@@ -73,7 +74,7 @@ recommended scope answers — whole connection-failure family + fold in the armi
   decider change. The repo-side commit carries only the hooks-index/CHANGELOG doc rows + this plan +
   the review artifact (the decider itself is DR-versioned, per the mid-stream precedent).
 
-## Phase A — detect the connection-failure death, route it into the existing revival, prove it
+## Phase A — detect the connection-failure death, route it into the existing revival, prove it — ✅ EXECUTED 2026-08-12
 
 Interfaces — Produces: a new no-role branch in `_tail_is_stalled` (`type=system`/`subtype=api_error`
 + `error.connection.code` present + `retryAttempt == maxRetries` → death, returning True) that

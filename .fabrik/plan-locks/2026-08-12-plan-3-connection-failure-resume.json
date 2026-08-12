@@ -1,0 +1,18 @@
+{
+ "plan": "docs/development/plans/archived/2026-08-12-plan-3-connection-failure-resume.md",
+ "owned_paths": [
+  "docs/development/plans/2026-08-12-plan-3-connection-failure-resume.md",
+  "docs/development/reviews/2026-08-12-plan-3-connection-failure-resume-review.md",
+  "docs/workstation/hooks-index.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-12T23:51:42+03:00",
+ "status": "released",
+ "baseline_commit": "6879959d3eb591dedfeb93e57fe330f5263a0003",
+ "baseline_gate": {
+  "status": "success",
+  "red_checks": []
+ },
+ "completed_at": "2026-08-13T00:15:00+03:00",
+ "final_commit": "5c8a322b"
+}

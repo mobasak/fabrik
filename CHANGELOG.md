@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — connection-failure auto-resume: the ENOTIMP-family sibling of the mid-stream class (2026-08-12)
+
+`~/.claude/bin/claude-stop-decider.py` (box surface, DR-versioned) now detects the CLI's
+connection-failure death class — a no-role `type=system`/`subtype=api_error` record whose retries
+are exhausted (`retryAttempt == maxRetries`) with a connection code present. Grounded from a LIVE
+incident (`/opt/iterative_image_editor` session 35204643, "Unable to connect to API (ENOTIMP)",
+retries 10/10 at the transcript's death moment — the operator had to type "proceed" manually). The
+`_tail_is_stalled` walk previously skipped no-role system records entirely; a new branch classifies
+them by the STRUCTURAL exhausted-retries key (covering ENOTIMP/ECONNRESET/ECONNREFUSED/ETIMEDOUT/
+ENOTFOUND — not a string allowlist that rots), routing into the SAME `stalled-api-error` verdict +
+`api_error_stalled` `.errparked` revival the mid-stream family uses (no new layer). A still-retrying
+`api_error` is NOT a death; recovery-discrimination (real operator input after the record) suppresses
+it — proven load-bearing by the real transcript (the manual proceed at line 36371 keeps the
+recovered session non-death). 11 new self-test fixtures (watched RED first; suite 82→93), E2E wire
+proven through `_run_hook_inner`, mesh harness 114/114. Executed plan:
+`docs/development/plans/2026-08-12-plan-3-connection-failure-resume.md`. (Arming-gap finding: the
+self-watch that consumes the death record is armed ADVISORILY — `session_orient.py` instructs the
+agent to call Monitor; a session that never complied, like 35204643, has no watch to fire regardless
+of detection. Recorded as a follow-up; not decider-adjacent.)
+
 ### Added — hub agent roles wired: charters, role hook, catalog ownership, mail claim, flywheel auto-0 (2026-08-12)
 
 Plan `2026-08-12-plan-2-agent-roles-wiring` (spec r2). Phase A: three agent charters +
