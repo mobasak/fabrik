@@ -1,7 +1,9 @@
 # Plan — Hub agent-roles wiring (charters · role hook · catalog ownership · mail beat · flywheel)
 
-Status: CONVERGED (2026-08-12 — /fabrik-plan-review: 4-pass loop, closing full pass edit-free +
-probes re-run, md5 4a31daa3564ccc3dac0588c87631be05 start==end)
+Status: CONVERGED (2026-08-12 r2 — re-converged after intel's verified flywheel analysis
+(C4 honest scoping + C4b structural fix + data-side split to intel); scoped pass + closing pass
+edit-free with probes re-run, md5 b8ed8ceb8db32787bcf410481053bf90 start==end; supersedes r1
+md5 4a31daa3)
 Date: 2026-08-12
 Owner: infra session (operator-approved: spec r2 CONVERGED 13d86c55; "can you proceed to
 /fabrik-plan-after-chat now?" = the go)
@@ -25,6 +27,11 @@ Owner: infra session (operator-approved: spec r2 CONVERGED 13d86c55; "can you pr
 - **Queued findings this plan lands (all claimed or claim-on-execute):** mail digest sys.path
   (fleet's 01KZTMZ193HTV6P3SGNKB8NVJW — accepted by infra in-thread); mail.py re-fork
   (fabrik-lib's 01KZTKMFQN6EH5X4JECQTPQZX1); claim verb (fabrik-lib's 01KZTGCCZHDPF2VY3GGPJ4KJYY).
+- **Intel's flywheel analysis (operator-relayed, VERIFIED by query this session):** the 30% is
+  three problems — a dead 07-18 bulk block (2,727 rows, 0%, one project one day; excluded ⇒ real
+  rate 52.2%), the done-row back-fill asymmetry (2,413 @ 40.9% — the real leak), and the ~274
+  mechanically-failed rows (the auto-0 target). Adopted: honest scoping (C4), the structural
+  round-close + gate escalation (C4b), data-side work split to intel.
 - **Rejected:** hard permission walls; `fabrik/<role>` mail sub-addressing; a 4th "review" seat;
   gate-enforced beats; per-call budget caps on the pool.
 
@@ -175,17 +182,34 @@ mechanically-failed pool runs.
    resolves (repo-root inserted on `sys.path` before the lazy import at :418) instead of
    `ModuleNotFoundError`. Watch RED → insert the two-line root-insert guard → green. Reply
    disposition to fleet's 01KZTMZ19… by mail.
-4. **Red-first — flywheel auto-0:** test in a new `tests/test_pg_ledger_auto0.py` (hub-side, no
-   DSN needed — assert via the JSONL outbox path): a result whose `status` is errored OR whose
-   `text` is empty/whitespace records `quality_score=0.0` when the caller passed `None`; a healthy
-   result with `quality_score=None` stays `None` (unscored ≠ bad). Watch RED → implement in
+4. **Red-first — flywheel auto-0 (honestly scoped per intel's verified analysis):** targets
+   error(157)+capped(117)+empty-output rows ≈ 274 all-time — correct and cheap, NOT the headline
+   fix. Test in a new `tests/test_pg_ledger_auto0.py` (hub-side, no DSN needed — assert via the
+   JSONL outbox path): a result whose `status` is errored/capped OR whose `text` is
+   empty/whitespace records `quality_score=0.0` when the caller passed `None`; a healthy result
+   with `quality_score=None` stays `None` (unscored ≠ bad). Watch RED → implement in
    `record_agent_run` (the wrapper — never the raw `record_run`) → green. **Upstream-feedback by
-   mail to fabrik-lib** (`--kind upstream-feedback`): the diff + rationale, so the canonical module
-   gains it (never write into `/opt/fabrik-lib`).
+   mail to fabrik-lib** (`--kind upstream-feedback`): the auto-0 diff + the fanout scorer-handle
+   proposal (fanout returns a handle the merge step must consume — the module-side half of the
+   asymmetry fix; canonical module is theirs, never write into `/opt/fabrik-lib`).
+4b. **Red-first — the STRUCTURAL fix (the real leak: done-rows never back-filled — dispatch is
+   guaranteed, scoring is best-effort; verified: done=2,413 @ 40.9%):** two machinery edits on
+   infra's beat: (i) `commands/_sources/fabrik-review.md` — the round-close contract gains a
+   REQUIRED step: "back-fill `set_quality` for every pool row this round dispatched — a round
+   with unscored pool rows is NOT closed" (same rank as the refute step); re-render the corpus
+   from merged master post-commit (§ Merge-time render — never from a worktree). (ii)
+   `scripts/enforcement/check_subagent_flywheel.py` — escalate WARN → session-scoped ERROR: the
+   CURRENT session's ledger rows unscored and older than 30 min red the gate (fleet-synced
+   surface; red-first test in the check's existing test file or a new
+   `tests/test_check_subagent_flywheel.py`; intel's own two leaks today are the evidence the WARN
+   doesn't bite). Historical data work is explicitly NOT this plan's: the 07-18 dead block
+   (2,727 rows, one project, one day — verified) adjudication + intel's own 21-row back-fill are
+   INTEL's, on the analytics DB (their beat); the plan's trailing-14d metric is immune to the
+   block by construction.
 5. Docs: CHANGELOG entry (whole plan, one entry); `docs/reference/fabrik-mail.md` § verbs gains
    `claim`; INDEX row for the new test file; intel charter already carries scored-rate (Phase A).
 6. Gate: `python -m pytest tests/test_mail.py tests/test_mail_notify.py
-   tests/test_pg_ledger_auto0.py -q` green.
+   tests/test_pg_ledger_auto0.py tests/test_check_subagent_flywheel.py -q` green.
 7. `/fabrik-review` on Phase C's changed surface — BLOCKING, coverage-adjudicated exit (same shape
    as Phase A step 8).
 8. **Final whole-plan step:** `python scripts/final_gate.py --check --json` → `"status":"success"`
@@ -222,6 +246,9 @@ parallel (disjoint files). Merge/dedupe happens in this session at each phase's 
 - tests/test_agent_role_hook.py
 - scripts/mail.py
 - scripts/sync_enforcement_to_projects.py
+- commands/_sources/fabrik-review.md
+- scripts/enforcement/check_subagent_flywheel.py
+- tests/test_check_subagent_flywheel.py
 - tests/test_mail.py
 - libs/subagents/pg_ledger.py
 - tests/test_pg_ledger_auto0.py
@@ -258,6 +285,12 @@ Phase-C grounding:
 ```
 $ SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics … SELECT count(*) FROM subagent_runs …
 rows/min/max: (6282, 2026-07-06, 2026-08-12) · scored: 1857 · last 14d: 880
+```
+- Flywheel decomposition (drives C4/C4b — intel's numbers verified):
+```
+$ SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics … GROUP BY status …
+(empty) 2727 0.0% · done 2413 40.9% · scored 860 100% · error 157 1.9% · capped 117 3.4%
+empty-status block: (2727, 2026-07-18, 2026-07-18, 1 project) · last 7d: 0 · excl-rate: 52.2%
 ```
 - Re-fork root cause (drives C1):
 ```
