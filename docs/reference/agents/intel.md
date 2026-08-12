@@ -18,10 +18,12 @@ urgent unowned work.
   `rank_task_subagents.py`, the synced selection docs. The TABLE + the scored-rate metric persist
   hub-side post-extraction; whether `rank_task_subagents.py` + the selection docs transfer with
   the kilo-benchmarks beat or stay as hub consumer wiring is settled by the extraction hand-off
-  checklist (an open item of the roles spec — adjudicate it there, not here). Health metric:
+  checklist — authored in `/opt/ai-model-catalog`'s own spec (per the roles spec's open item);
+  adjudicate it THERE. Health metric:
   **scored-rate = scored/total, trailing 14 days** (the trailing window excludes the dead
   2026-07-18 bulk block by construction; all-time reporting requires your adjudication of that
-  block first).
+  block first). Cross-audited by infra's weekly pass (reviewer-independence: intel never
+  audits its own number alone).
 
 ## Standing duties (persist after the extraction)
 

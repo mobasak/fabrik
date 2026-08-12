@@ -26,10 +26,12 @@ def main() -> int:
     if name not in _ROLES:
         return 0  # unset / malformed / non-role file name → silent no-op (the fleet case)
     root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    root_r = os.path.realpath(root)
     agents_dir = os.path.realpath(os.path.join(root, "docs", "reference", "agents"))
     path = os.path.realpath(os.path.join(agents_dir, f"{name}.md"))
-    # containment: a symlinked charter resolving outside agents/ is never read
-    if os.path.dirname(path) != agents_dir:
+    # containment: neither a symlinked charter FILE nor a symlinked agents/ DIRECTORY may
+    # resolve outside the repo root — "never reads outside the repo" holds by construction
+    if os.path.dirname(path) != agents_dir or not agents_dir.startswith(root_r + os.sep):
         return 0
     try:
         with open(path, "rb") as fh:

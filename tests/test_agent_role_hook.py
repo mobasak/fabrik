@@ -82,7 +82,7 @@ def test_oversized_charter_truncates_loudly(tmp_path: Path) -> None:
     assert len(r.stdout.encode()) < 40_000  # byte cap actually binds
 
 
-def test_non_role_file_is_not_injectable(tmp_path: Path) -> None:
+def test_non_role_file_is_not_injectable() -> None:
     """Only the pinned roles are charters — a log/stray file in agents/ never injects."""
     r = _run("kaizen-log-infra")
     assert r.returncode == 0
@@ -117,3 +117,46 @@ def test_cwd_fallback_without_project_dir() -> None:
                        timeout=30, env=env, cwd=REPO)
     assert r.returncode == 0
     assert "AGENT ROLE: infra" in r.stdout
+
+
+# --- round-2 closer findings ------------------------------------------------------------------
+
+
+def test_roles_allowlist_matches_claude_md_row() -> None:
+    """The _ROLES tuple and CLAUDE.md's Agent-Name row must never drift (the extension trap:
+    a 4th role added everywhere except _ROLES would silently no-op its charter)."""
+    import re
+
+    claude_md = (REPO / "CLAUDE.md").read_text()
+    m = re.search(r"^\| `Agent-Name` \| (.+?) \|", claude_md, re.M)
+    assert m, "Agent-Name row missing from CLAUDE.md provenance table"
+    row_roles = set(re.findall(r"`([a-z-]+)`", m.group(1)))
+    hook_src = HOOK.read_text()
+    hm = re.search(r"_ROLES = \(([^)]*)\)", hook_src)
+    assert hm
+    hook_roles = set(re.findall(r'"([a-z-]+)"', hm.group(1)))
+    assert hook_roles == row_roles, (hook_roles, row_roles)
+
+
+def test_symlinked_agents_directory_is_contained(tmp_path: Path) -> None:
+    """A symlinked agents/ DIRECTORY resolving outside the repo root is never read."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "infra.md").write_text("SECRET-DIR-BODY\n")
+    repo = tmp_path / "repo"
+    (repo / "docs" / "reference").mkdir(parents=True)
+    (repo / "docs" / "reference" / "agents").symlink_to(outside, target_is_directory=True)
+    r = _run("infra", cwd=repo)
+    assert r.returncode == 0
+    assert "SECRET-DIR-BODY" not in r.stdout
+
+
+def test_truncation_binds_in_bytes_for_multibyte(tmp_path: Path) -> None:
+    """A CJK charter must be capped in BYTES (the old char-read emitted 3x the cap)."""
+    d = tmp_path / "docs" / "reference" / "agents"
+    d.mkdir(parents=True)
+    (d / "infra.md").write_text("世" * 40_000, encoding="utf-8")  # 3 bytes/char
+    r = _run("infra", cwd=tmp_path)
+    assert r.returncode == 0
+    assert "TRUNCATED" in r.stdout
+    assert len(r.stdout.encode()) < 33_500  # cap + banner/fence margin only

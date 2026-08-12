@@ -26,7 +26,9 @@ in-pass; larger become specs or mailed handoffs — no silent TODOs) → control
 regression guard; next pass verifies the metric moved). Signals: sound-debug.log Stop/death
 verdicts · gate failure history · AFCL.md · LESSONS_LEARNT recurrence · hook/MCP/tooling
 friction · governance drift · cron-miss log · mail findings tagged infra · mail-system health
-(store integrity, hook delivery, unclaimed-message age). Log: one row per pass in
+(store integrity, hook delivery, unclaimed-message age) · flywheel scored-rate (the
+CROSS-AUDIT of intel's own health metric — its enforcement, `check_subagent_flywheel.py`, is
+infra's beat; intel audits infra+fleet, infra's pass watches intel's number). Log: one row per pass in
 `docs/reference/agents/kaizen-log-infra.md`.
 
 ## Comms

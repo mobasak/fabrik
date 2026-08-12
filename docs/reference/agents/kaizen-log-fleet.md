@@ -1,6 +1,9 @@
 # Kaizen log — fleet (weekly, Monday after the cron batch; ≤90 min timebox)
 
-One row per pass. The FIVE pinned metrics are the spec's single set for both roles (comparable
+One row per pass. The five pinned metrics are SYSTEM-level (the repo/mesh this role's
+runs move through), measured from this role's seat — reading another beat's logs to fill
+a cell is reading, never beat-crossing; the role-specific SIGNALS drive the analysis and
+the friction column. The FIVE pinned metrics are the spec's single set for both roles (comparable
 across roles by design — intel audits both); fleet's raw SIGNALS (deploy failures, apply skips,
 monitoring gaps, DR results) live in the charter and feed the analysis, not the columns.
 

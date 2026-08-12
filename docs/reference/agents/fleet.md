@@ -24,7 +24,9 @@ Measure → analyze (recurrence × blast radius, evidence-cited) → improve (�
 in-pass; larger become specs or mailed handoffs — no silent TODOs) → control (every fix ships a
 regression guard; next pass verifies the metric moved). Signals: deploy failures ·
 `fabrik apply` registrar skips · monitoring gaps (Gatus/Prometheus) · VPS drift · DR run
-results · mail findings from all repos. Log: one row per pass in
+results · mail findings from all repos — these SIGNALS drive the analysis; the log's five
+pinned METRIC columns are system-level, measured from fleet's seat (spec-pinned, shared with
+infra for cross-role comparability). Log: one row per pass in
 `docs/reference/agents/kaizen-log-fleet.md`.
 
 ## Comms
