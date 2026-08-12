@@ -329,17 +329,39 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     # and utime leaves the older message mtime → sweeps EARLIER, which is the safe
     # direction: the file is complete, the append is the only mid-write instant). Only
     # FileNotFoundError is tolerated (closer E3) — a real EACCES/ENOSPC must surface.
-    if not dst.exists():
-        for orphan in sorted(dst.parent.glob(f"{msg_id}.md.resolving.*")):
+    # Sweep ALL stale orphans (closer F1: N crashes → N windows; recovering one and leaving
+    # the rest made permanent digest noise): the newest stale one is recovered when <id>.md
+    # is missing, every other stale one is UNLINKED (they are pre-append copies of the same
+    # message — redundant once one survives). Only FileNotFoundError is tolerated (E3).
+    stale: list[Path] = []
+    for orphan in dst.parent.glob(f"{msg_id}.md.resolving.*"):
+        try:
+            if time.time() - orphan.stat().st_mtime > 60:
+                stale.append(orphan)
+        except FileNotFoundError:
+            continue  # the live resolver finished mid-check — fine
+    stale.sort(key=lambda o: o.stat().st_mtime if o.exists() else 0)
+    if stale:
+        newest = stale.pop()
+        if dst.exists():
+            stale.append(newest)  # already resolved elsewhere — the orphan is redundant too
+        else:
+            os.rename(newest, dst)
+        for o in stale:
             try:
-                if time.time() - orphan.stat().st_mtime > 60:
-                    os.rename(orphan, dst)
-                    break
+                os.unlink(o)
             except FileNotFoundError:
-                continue  # the live resolver finished mid-check — fine
+                pass
     win = dst.parent / f"{msg_id}.md.resolving.{os.getpid()}"
+    # stamp BEFORE the rename (closer F2): the fresh mtime travels with the rename
+    # atomically, so no instant exists where a window file carries the message's old mtime
+    # (rename-then-stamp left a two-syscall theft window). FileNotFoundError here means
+    # unclaimed/absent/mid-window — the caller's error, raised by the rename below anyway.
+    try:
+        os.utime(dst)
+    except FileNotFoundError:
+        pass
     os.rename(dst, win)  # FileNotFoundError → unclaimed/absent/mid-window: the caller's error
-    os.utime(win)  # stamp the WINDOW's open time (E1: renames preserve the message's mtime)
     try:
         if _ACK_LINE.search(win.read_text(encoding="utf-8")):
             raise FileNotFoundError(f"{msg_id} already resolved")

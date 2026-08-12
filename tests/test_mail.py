@@ -538,3 +538,46 @@ def test_window_isolation_requeue_and_reclaim_both_locked_out(env, monkeypatch):
     assert probes == {"requeue": "locked-out", "reclaim": "locked-out"}, probes
     text = out.read_text()
     assert text.count("acked-by:") == 1 and "disposition: done" in text
+
+
+def test_multiple_stale_orphans_all_cleared(env):
+    """Closer F1: two crashes on one id left N orphans — one recovered, the rest were
+    PERMANENT digest noise. The sweep must recover one and clear the rest; digest clean."""
+    import os as _os, time as _time
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
+    o1 = arch.parent / f"{mid}.md.resolving.1111"
+    o2 = arch.parent / f"{mid}.md.resolving.2222"
+    import shutil
+    shutil.copy(arch, o1)
+    arch.rename(o2)
+    for o in (o1, o2):
+        _os.utime(o, (_time.time() - 300, _time.time() - 300))
+    out = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert out.exists() and out.read_text().count("acked-by:") == 1
+    assert not o1.exists() and not o2.exists(), "stale orphans must not outlive the resolve"
+    assert mail.digest(days=0)["unacked"] == 0
+
+
+def test_window_never_carries_stale_mtime(env, monkeypatch):
+    """Closer F2 (two-syscall residual): between rename and utime the window carried the
+    MESSAGE's old mtime — stealable. The stamp must land BEFORE the rename (it travels
+    atomically), so no instant exists where a window file looks old."""
+    import os as _os, time as _time
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    _os.utime(p, (_time.time() - 300, _time.time() - 300))
+    mail.claim(msg_id=mid, repo="fabrik")
+    real_rename = _os.rename
+    seen = {}
+
+    def checking_rename(src, dst_, *a, **k):
+        if ".resolving." in str(dst_):
+            seen["window_src_age"] = _time.time() - _os.stat(src).st_mtime
+        return real_rename(src, dst_, *a, **k)
+
+    monkeypatch.setattr(mail.os, "rename", checking_rename)
+    mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert seen and seen["window_src_age"] < 5, seen
