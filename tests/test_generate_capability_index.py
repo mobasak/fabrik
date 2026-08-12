@@ -110,7 +110,7 @@ def test_script_with_no_safe_probe_is_manual_not_broken(tmp_path) -> None:
 def test_json_schema_9_keys(tmp_path) -> None:
     gci.main(REPO, out_dir=tmp_path)
     payload = json.loads((tmp_path / "capabilities.json").read_text())
-    assert set(payload) == {"generated_at", "capabilities"}
+    assert set(payload) == {"generated_at", "owners", "capabilities"}
     assert payload["capabilities"]
     keys = {"name", "kind", "summary", "invoke", "status", "owner", "defects", "doc_link",
             "verified_at"}
@@ -301,6 +301,12 @@ def test_owner_spot_anchors_match_the_beat_tables() -> None:
     assert by[("hook", "mail_notify.py")] == "infra"
     assert by[("scaffold", "python-api")] == "fleet"
     assert by[("lib-module", "subagents")] == "external:fabrik-lib"
+    # every kind default pinned (closer P2: five were swappable with the suite green)
+    assert gci._owner("cli", "fabrik apply") == "fleet"
+    assert gci._owner("driver", "from fabrik.drivers.x import ...") == "fleet"
+    assert gci._owner("registrar", "specs/services/x.yaml") == "fleet"
+    assert gci._owner("command", "/fabrik-review") == "infra"
+    assert gci._owner("rules-pack", ".windsurf/rules/core/10-python.md") == "infra"
     intel_scripts = [c for c in catalog if c["kind"] == "script"
                      and c["invoke"].find("scripts/kilo-benchmarks/") != -1]
     assert intel_scripts and all(c["owner"] == "intel" for c in intel_scripts)
@@ -314,19 +320,18 @@ def test_unmatched_entry_falls_to_unassigned() -> None:
     assert rec["owner"] == "unassigned"
 
 
-def test_capabilities_md_renders_owner() -> None:
-    import subprocess, sys as _sys
-    r = subprocess.run([_sys.executable, str(REPO / "scripts/generate_capability_index.py"),
-                        "--check"], capture_output=True, text=True, timeout=600, cwd=str(REPO))
-    assert r.returncode == 0
-    md = (REPO / "docs" / "CAPABILITIES.md").read_text()
-    assert "owner: infra" in md or "· infra ·" in md or "(infra)" in md
+def test_capabilities_md_renders_owner(tmp_path) -> None:
+    """Sandboxed render (NEVER writes into the live tree — shared-master hazard, closer P1):
+    the MD rows carry the exact `(owner: <role>)` marker."""
+    gci.main(REPO, out_dir=tmp_path)
+    md = (tmp_path / "docs" / "CAPABILITIES.md").read_text()
+    assert "(owner: infra)" in md and "(owner: fleet)" in md and "(owner: intel)" in md
 
 
 def test_owner_prefix_is_path_scoped_not_substring() -> None:
     """A filename merely CONTAINING a prefix string is not under that directory — the
     match must bind at the path token, not anywhere in the invoke (pool finder, Phase B)."""
     assert gci._owner("script", "python scripts/credit_fetchers_tool.py") == "infra"
-    assert gci._owner("script", "python scripts/credit_fetchers/fetch.py") == "intel"
+    assert gci._owner("script", "python scripts/credit_fetchers/fetch.py") == "infra"
     assert gci._owner("script", "bash scripts/vps_apply_limits.sh") == "fleet"
     assert gci._owner("script", "python scripts/tool.py --note scripts/vps_hint") == "infra"

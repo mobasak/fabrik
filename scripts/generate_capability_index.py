@@ -163,7 +163,7 @@ _OWNER_SCRIPT_PREFIXES = (
     ("scripts/enforcement/", "infra"), ("scripts/sysadmin/", "infra"),
     ("scripts/utils/", "infra"), ("scripts/probes/", "infra"),
     ("scripts/aro-wake/", "infra"), ("scripts/bootstrap/", "infra"),
-    ("scripts/audit/", "infra"), ("scripts/credit_fetchers/", "intel"),
+    ("scripts/audit/", "infra"), ("scripts/credit_fetchers/", "infra"),  # provider-account plumbing — coupled to registry_sync/refresh_service_inventory (both infra)
     ("scripts/vps_", "fleet"),  # deploy-facing exceptions, named per the plan
 )
 
@@ -499,7 +499,10 @@ def main(root: Path = REPO, out_dir: Path | None = None) -> int:
     out = out_dir or root
     (out / "docs").mkdir(parents=True, exist_ok=True)
     catalog = build_catalog(root)
-    payload = {"generated_at": _now(), "capabilities": catalog}
+    owners_census: dict[str, int] = {}
+    for c in catalog:
+        owners_census[c["owner"]] = owners_census.get(c["owner"], 0) + 1
+    payload = {"generated_at": _now(), "owners": owners_census, "capabilities": catalog}
     (out / "capabilities.json").write_text(json.dumps(payload, indent=2) + "\n")
     (out / "docs" / "CAPABILITIES.md").write_text(render_llms_txt(catalog))
     (out / "llms.txt").write_text(

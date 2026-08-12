@@ -1,5 +1,11 @@
 {
-  "generated_at": "2026-08-12T11:52:52+00:00",
+  "generated_at": "2026-08-12T12:02:50+00:00",
+  "owners": {
+    "fleet": 105,
+    "infra": 290,
+    "intel": 105,
+    "external:fabrik-lib": 66
+  },
   "capabilities": [
     {
       "name": "fabrik ai usage",
@@ -10,7 +16,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:32+00:00"
+      "verified_at": "2026-08-12T12:02:28+00:00"
     },
     {
       "name": "fabrik app-logs",
@@ -21,7 +27,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:32+00:00"
+      "verified_at": "2026-08-12T12:02:29+00:00"
     },
     {
       "name": "fabrik apply",
@@ -32,7 +38,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:33+00:00"
+      "verified_at": "2026-08-12T12:02:29+00:00"
     },
     {
       "name": "fabrik audit-registrars",
@@ -43,7 +49,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:33+00:00"
+      "verified_at": "2026-08-12T12:02:29+00:00"
     },
     {
       "name": "fabrik content",
@@ -54,7 +60,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:33+00:00"
+      "verified_at": "2026-08-12T12:02:30+00:00"
     },
     {
       "name": "fabrik destroy",
@@ -65,7 +71,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:34+00:00"
+      "verified_at": "2026-08-12T12:02:30+00:00"
     },
     {
       "name": "fabrik dev",
@@ -76,7 +82,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:34+00:00"
+      "verified_at": "2026-08-12T12:02:31+00:00"
     },
     {
       "name": "fabrik domain buy",
@@ -87,7 +93,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:35+00:00"
+      "verified_at": "2026-08-12T12:02:31+00:00"
     },
     {
       "name": "fabrik domain check",
@@ -98,7 +104,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:35+00:00"
+      "verified_at": "2026-08-12T12:02:31+00:00"
     },
     {
       "name": "fabrik domain integrations",
@@ -109,7 +115,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:35+00:00"
+      "verified_at": "2026-08-12T12:02:32+00:00"
     },
     {
       "name": "fabrik domain provision",
@@ -120,7 +126,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:36+00:00"
+      "verified_at": "2026-08-12T12:02:32+00:00"
     },
     {
       "name": "fabrik domain ready",
@@ -131,7 +137,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:36+00:00"
+      "verified_at": "2026-08-12T12:02:33+00:00"
     },
     {
       "name": "fabrik domain sitemap",
@@ -142,7 +148,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:36+00:00"
+      "verified_at": "2026-08-12T12:02:33+00:00"
     },
     {
       "name": "fabrik domain zones",
@@ -153,7 +159,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:37+00:00"
+      "verified_at": "2026-08-12T12:02:33+00:00"
     },
     {
       "name": "fabrik export",
@@ -164,7 +170,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:37+00:00"
+      "verified_at": "2026-08-12T12:02:34+00:00"
     },
     {
       "name": "fabrik fix",
@@ -175,7 +181,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:37+00:00"
+      "verified_at": "2026-08-12T12:02:34+00:00"
     },
     {
       "name": "fabrik gpu compare",
@@ -186,7 +192,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:38+00:00"
+      "verified_at": "2026-08-12T12:02:35+00:00"
     },
     {
       "name": "fabrik gpu destroy",
@@ -197,7 +203,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:38+00:00"
+      "verified_at": "2026-08-12T12:02:35+00:00"
     },
     {
       "name": "fabrik gpu history",
@@ -208,7 +214,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:38+00:00"
+      "verified_at": "2026-08-12T12:02:36+00:00"
     },
     {
       "name": "fabrik gpu list",
@@ -219,7 +225,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:39+00:00"
+      "verified_at": "2026-08-12T12:02:36+00:00"
     },
     {
       "name": "fabrik gpu pause",
@@ -230,7 +236,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:39+00:00"
+      "verified_at": "2026-08-12T12:02:36+00:00"
     },
     {
       "name": "fabrik gpu reconcile",
@@ -241,7 +247,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:40+00:00"
+      "verified_at": "2026-08-12T12:02:37+00:00"
     },
     {
       "name": "fabrik gpu rent",
@@ -252,7 +258,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:40+00:00"
+      "verified_at": "2026-08-12T12:02:37+00:00"
     },
     {
       "name": "fabrik gpu resume",
@@ -263,7 +269,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:41+00:00"
+      "verified_at": "2026-08-12T12:02:38+00:00"
     },
     {
       "name": "fabrik gpu status",
@@ -274,7 +280,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:41+00:00"
+      "verified_at": "2026-08-12T12:02:38+00:00"
     },
     {
       "name": "fabrik import",
@@ -285,7 +291,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:41+00:00"
+      "verified_at": "2026-08-12T12:02:39+00:00"
     },
     {
       "name": "fabrik logs",
@@ -296,7 +302,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:42+00:00"
+      "verified_at": "2026-08-12T12:02:39+00:00"
     },
     {
       "name": "fabrik new",
@@ -307,7 +313,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:42+00:00"
+      "verified_at": "2026-08-12T12:02:39+00:00"
     },
     {
       "name": "fabrik plan",
@@ -318,7 +324,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:42+00:00"
+      "verified_at": "2026-08-12T12:02:40+00:00"
     },
     {
       "name": "fabrik preplan new",
@@ -329,7 +335,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:43+00:00"
+      "verified_at": "2026-08-12T12:02:40+00:00"
     },
     {
       "name": "fabrik projects",
@@ -340,7 +346,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:43+00:00"
+      "verified_at": "2026-08-12T12:02:40+00:00"
     },
     {
       "name": "fabrik reconcile-all",
@@ -351,7 +357,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:44+00:00"
+      "verified_at": "2026-08-12T12:02:41+00:00"
     },
     {
       "name": "fabrik redeploy",
@@ -362,7 +368,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:44+00:00"
+      "verified_at": "2026-08-12T12:02:41+00:00"
     },
     {
       "name": "fabrik review",
@@ -373,7 +379,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:44+00:00"
+      "verified_at": "2026-08-12T12:02:41+00:00"
     },
     {
       "name": "fabrik scaffold",
@@ -384,7 +390,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:45+00:00"
+      "verified_at": "2026-08-12T12:02:42+00:00"
     },
     {
       "name": "fabrik scan",
@@ -395,7 +401,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:45+00:00"
+      "verified_at": "2026-08-12T12:02:42+00:00"
     },
     {
       "name": "fabrik seo briefs-list",
@@ -406,7 +412,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:45+00:00"
+      "verified_at": "2026-08-12T12:02:43+00:00"
     },
     {
       "name": "fabrik seo job-create",
@@ -417,7 +423,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:46+00:00"
+      "verified_at": "2026-08-12T12:02:43+00:00"
     },
     {
       "name": "fabrik seo job-run",
@@ -428,7 +434,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:46+00:00"
+      "verified_at": "2026-08-12T12:02:44+00:00"
     },
     {
       "name": "fabrik seo site-register",
@@ -439,7 +445,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:47+00:00"
+      "verified_at": "2026-08-12T12:02:44+00:00"
     },
     {
       "name": "fabrik status",
@@ -450,7 +456,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:47+00:00"
+      "verified_at": "2026-08-12T12:02:44+00:00"
     },
     {
       "name": "fabrik templates",
@@ -461,7 +467,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:47+00:00"
+      "verified_at": "2026-08-12T12:02:45+00:00"
     },
     {
       "name": "fabrik validate",
@@ -472,7 +478,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:48+00:00"
+      "verified_at": "2026-08-12T12:02:45+00:00"
     },
     {
       "name": "fabrik validate-deploy",
@@ -483,7 +489,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:48+00:00"
+      "verified_at": "2026-08-12T12:02:46+00:00"
     },
     {
       "name": "fabrik verify",
@@ -494,7 +500,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:48+00:00"
+      "verified_at": "2026-08-12T12:02:46+00:00"
     },
     {
       "name": "fabrik vps-sync",
@@ -505,7 +511,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:49+00:00"
+      "verified_at": "2026-08-12T12:02:46+00:00"
     },
     {
       "name": "fabrik vultr cleanup",
@@ -516,7 +522,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:49+00:00"
+      "verified_at": "2026-08-12T12:02:47+00:00"
     },
     {
       "name": "fabrik vultr cost",
@@ -527,7 +533,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:49+00:00"
+      "verified_at": "2026-08-12T12:02:47+00:00"
     },
     {
       "name": "fabrik vultr destroy",
@@ -538,7 +544,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:50+00:00"
+      "verified_at": "2026-08-12T12:02:47+00:00"
     },
     {
       "name": "fabrik vultr drill",
@@ -549,7 +555,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:50+00:00"
+      "verified_at": "2026-08-12T12:02:48+00:00"
     },
     {
       "name": "fabrik vultr drill-history",
@@ -560,7 +566,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:50+00:00"
+      "verified_at": "2026-08-12T12:02:48+00:00"
     },
     {
       "name": "fabrik vultr list",
@@ -571,7 +577,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:51+00:00"
+      "verified_at": "2026-08-12T12:02:49+00:00"
     },
     {
       "name": "fabrik vultr provision",
@@ -582,7 +588,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:51+00:00"
+      "verified_at": "2026-08-12T12:02:49+00:00"
     },
     {
       "name": "fabrik vultr reconcile",
@@ -593,7 +599,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:51+00:00"
+      "verified_at": "2026-08-12T12:02:49+00:00"
     },
     {
       "name": "fabrik vultr status",
@@ -604,7 +610,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "authelia",
@@ -615,7 +621,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "backrest",
@@ -626,7 +632,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "cloudflare",
@@ -637,7 +643,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "compose_updater",
@@ -650,7 +656,7 @@
         "retired"
       ],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "coolify",
@@ -663,7 +669,7 @@
         "retired"
       ],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "dns",
@@ -674,7 +680,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "gatus",
@@ -685,7 +691,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "glitchtip",
@@ -696,7 +702,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "grafana",
@@ -707,7 +713,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "image_broker",
@@ -718,7 +724,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "locks",
@@ -729,7 +735,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "meilisearch",
@@ -740,7 +746,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "modal_provider",
@@ -751,7 +757,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "postgres",
@@ -762,7 +768,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "preflight",
@@ -773,7 +779,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "prometheus",
@@ -784,7 +790,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "r2",
@@ -795,7 +801,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "redis",
@@ -806,7 +812,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "runpod",
@@ -817,7 +823,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "seo",
@@ -828,7 +834,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ssh",
@@ -839,7 +845,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "supabase",
@@ -852,7 +858,7 @@
         "retired"
       ],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "tco",
@@ -863,7 +869,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "uptime_kuma",
@@ -874,7 +880,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "vast_provider",
@@ -885,7 +891,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "vultr",
@@ -896,7 +902,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "watchdog",
@@ -907,7 +913,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "postgres",
@@ -918,7 +924,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "redis",
@@ -929,7 +935,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "gatus",
@@ -940,7 +946,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "backrest",
@@ -951,7 +957,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "glitchtip",
@@ -962,7 +968,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "grafana",
@@ -973,7 +979,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "authelia",
@@ -984,7 +990,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "meilisearch",
@@ -995,7 +1001,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "prometheus",
@@ -1006,7 +1012,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "watchdog",
@@ -1017,7 +1023,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/Kilo_Review.sh",
@@ -1030,7 +1036,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/Local_Coder_qwen32b.sh",
@@ -1041,7 +1047,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/Local_Documentator_llama3.1-8b.sh",
@@ -1052,7 +1058,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/Local_Fixer_ds16b.sh",
@@ -1063,7 +1069,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/Local_Review_llama70b.sh",
@@ -1074,7 +1080,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/__init__.py",
@@ -1085,7 +1091,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/aro-wake/claude_rotate.py",
@@ -1096,7 +1102,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/aro-wake/main.py",
@@ -1107,7 +1113,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/01-full-system.sh",
@@ -1118,7 +1124,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/02-container-health.sh",
@@ -1129,7 +1135,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/03-security.sh",
@@ -1140,7 +1146,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/04-performance.sh",
@@ -1151,7 +1157,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/05-observability.sh",
@@ -1162,7 +1168,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/06-backup.sh",
@@ -1173,7 +1179,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit/08-hardening-verify.sh",
@@ -1184,7 +1190,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit_all_projects.py",
@@ -1195,7 +1201,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit_all_registrars.py",
@@ -1206,7 +1212,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit_authelia_gates.py",
@@ -1217,7 +1223,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit_capability_docs.py",
@@ -1228,7 +1234,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit_envs.py",
@@ -1239,7 +1245,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/audit_infra_vs_docs.py",
@@ -1250,7 +1256,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/backfill_ci.py",
@@ -1261,7 +1267,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-config.sh",
@@ -1272,7 +1278,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-hub.sh",
@@ -1283,7 +1289,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
@@ -1294,7 +1300,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-vps.sh",
@@ -1305,7 +1311,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/check_ai_pack_freshness.py",
@@ -1316,7 +1322,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/check_kilo_health.sh",
@@ -1327,7 +1333,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/check_zed_extensions.py",
@@ -1338,7 +1344,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/ci_fix_dispatcher.py",
@@ -1349,7 +1355,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/classify_services.py",
@@ -1360,7 +1366,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/claude_p_cost.py",
@@ -1371,7 +1377,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/coding-auto.sh",
@@ -1382,7 +1388,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/container_images.py",
@@ -1393,7 +1399,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/create_pg_dev_db.sh",
@@ -1404,7 +1410,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/credit_fetchers/__init__.py",
@@ -1412,10 +1418,10 @@
       "summary": "AFTER-EDIT: scripts/registry_sync.py scripts/refresh_service_inventory.py",
       "invoke": "python scripts/credit_fetchers/__init__.py",
       "status": "manual",
-      "owner": "intel",
+      "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/dashboard_server.py",
@@ -1426,7 +1432,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/declare_subscription.py",
@@ -1437,7 +1443,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/deploy_doc_policy.py",
@@ -1448,7 +1454,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/dev_tracker.py",
@@ -1459,7 +1465,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/distribute_subagents.sh",
@@ -1470,7 +1476,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/doc_reconcile.py",
@@ -1481,7 +1487,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/docs_updater.py",
@@ -1492,7 +1498,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/dr_claude_backup.sh",
@@ -1503,7 +1509,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/dr_env_backup.sh",
@@ -1514,7 +1520,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/dr_env_recovery_test.sh",
@@ -1525,7 +1531,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/dr_env_watcher_loop.sh",
@@ -1536,7 +1542,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/__init__.py",
@@ -1547,7 +1553,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/_doc_registry.py",
@@ -1558,7 +1564,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_android_env.py",
@@ -1569,7 +1575,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_changelog.py",
@@ -1580,7 +1586,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_compose_services.py",
@@ -1591,7 +1597,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_configuration_md.py",
@@ -1602,7 +1608,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_convergence.py",
@@ -1613,7 +1619,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_deps_sync.py",
@@ -1624,7 +1630,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_index.py",
@@ -1635,7 +1641,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_links.py",
@@ -1646,7 +1652,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_sprawl.py",
@@ -1657,7 +1663,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_stubs.py",
@@ -1668,7 +1674,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_sync.py",
@@ -1679,7 +1685,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_docker.py",
@@ -1690,7 +1696,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_docs.py",
@@ -1701,7 +1707,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_duplicates.py",
@@ -1712,7 +1718,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_contract.py",
@@ -1723,7 +1729,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_example.py",
@@ -1734,7 +1740,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_updates.py",
@@ -1745,7 +1751,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_vars.py",
@@ -1756,7 +1762,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_health.py",
@@ -1767,7 +1773,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_hooks_index.py",
@@ -1778,7 +1784,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_imports_resolvable.py",
@@ -1789,7 +1795,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_index_md.py",
@@ -1800,7 +1806,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_lint_ratchet.py",
@@ -1811,7 +1817,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_mutation.py",
@@ -1822,7 +1828,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_no_host_ports.py",
@@ -1833,7 +1839,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_openapi_sync.py",
@@ -1844,7 +1850,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_opencode_json.py",
@@ -1855,7 +1861,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_phase_tests.py",
@@ -1866,7 +1872,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_plan_quality.py",
@@ -1877,7 +1883,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_plan_tickets.py",
@@ -1888,7 +1894,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_plans.py",
@@ -1899,7 +1905,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_ports.py",
@@ -1910,7 +1916,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_print_ban.py",
@@ -1921,7 +1927,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_readme_md.py",
@@ -1932,7 +1938,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_retired_terms.py",
@@ -1943,7 +1949,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_reusable_modules.py",
@@ -1954,7 +1960,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_review_coverage.py",
@@ -1965,7 +1971,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_rule_size.py",
@@ -1976,7 +1982,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_schema_sync.py",
@@ -1987,7 +1993,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_script_headers.py",
@@ -1998,7 +2004,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_secrets.py",
@@ -2009,7 +2015,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_spec_db_match.py",
@@ -2020,7 +2026,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_stage_artifacts.py",
@@ -2031,7 +2037,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_structure.py",
@@ -2042,7 +2048,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_subagent_flywheel.py",
@@ -2053,7 +2059,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_sync_trigger_coverage.py",
@@ -2064,7 +2070,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_synced_unmodified.py",
@@ -2075,7 +2081,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_test_coverage.py",
@@ -2086,7 +2092,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_test_proposal.py",
@@ -2097,7 +2103,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_traefik_labels.py",
@@ -2108,7 +2114,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_traycer_chain.py",
@@ -2119,7 +2125,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_undeclared_imports.py",
@@ -2130,7 +2136,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_user_guide.py",
@@ -2141,7 +2147,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_vps_docs.py",
@@ -2152,7 +2158,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/check_watchdog.py",
@@ -2163,7 +2169,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/enforcement/validate_conventions.py",
@@ -2174,7 +2180,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/epic_order.py",
@@ -2185,7 +2191,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/fabrik_synced_manifest.py",
@@ -2196,7 +2202,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/final_gate.py",
@@ -2207,7 +2213,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/fix_balanced_tier_agents.py",
@@ -2218,7 +2224,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/fix_economy_tier_agents.py",
@@ -2229,7 +2235,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/fix_traycer_agents.py",
@@ -2240,7 +2246,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/fleet_doc_audit.py",
@@ -2251,7 +2257,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/gather_envs.py",
@@ -2262,7 +2268,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/gen_dashboard.py",
@@ -2273,7 +2279,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/generate_capability_index.py",
@@ -2284,7 +2290,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/generate_kilo_agents.py",
@@ -2297,7 +2303,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/generate_vps_inventory.py",
@@ -2308,7 +2314,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/health_check_autonomous.py",
@@ -2319,7 +2325,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/health_checker.py",
@@ -2330,7 +2336,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/health_summary.py",
@@ -2341,7 +2347,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/implement_self_review_workflow.py",
@@ -2352,7 +2358,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/inject_deploy_resources.py",
@@ -2363,7 +2369,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/add_perf_seconds_column.py",
@@ -2374,7 +2380,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/add_tbench_leaderboard_table.py",
@@ -2385,7 +2391,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/add_tbench_task_results_table.py",
@@ -2396,7 +2402,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/agent_selector.py",
@@ -2407,7 +2413,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/apply_subagent_runs_ddl.sh",
@@ -2418,7 +2424,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/audit_direct_vendor_freshness.py",
@@ -2429,7 +2435,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/audit_pipeline.py",
@@ -2440,7 +2446,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/audit_ui_values.py",
@@ -2451,7 +2457,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/backfill_unknown_providers.py",
@@ -2462,7 +2468,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/blocked_writes.py",
@@ -2473,7 +2479,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/build_lcb_difficulty_manifest.py",
@@ -2484,7 +2490,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/build_task_baselines.py",
@@ -2495,7 +2501,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/category_export_markdown.py",
@@ -2506,7 +2512,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/category_route_mapper.py",
@@ -2517,7 +2523,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/category_selector.py",
@@ -2528,7 +2534,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/check_daily_refresh_freshness.py",
@@ -2539,7 +2545,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/check_model_live.py",
@@ -2550,7 +2556,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/classify_ai_category.py",
@@ -2561,7 +2567,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/classify_ticket.py",
@@ -2572,7 +2578,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/claude_p.py",
@@ -2583,7 +2589,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/compute_assignments.py",
@@ -2594,7 +2600,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/correlated_prior.py",
@@ -2605,7 +2611,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/daily_refresh.sh",
@@ -2616,7 +2622,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/dataset_freshness.py",
@@ -2627,7 +2633,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/db_models.py",
@@ -2638,7 +2644,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/derive_cheapest_gateway.py",
@@ -2649,7 +2655,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/derive_cost.py",
@@ -2660,7 +2666,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/derive_quality_v2.py",
@@ -2671,7 +2677,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/discover_hidden_openrouter_routes.py",
@@ -2682,7 +2688,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/discover_kilo_agents.py",
@@ -2693,7 +2699,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/dispatcher_bench.py",
@@ -2704,7 +2710,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/docs_grader.py",
@@ -2715,7 +2721,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/embedding_export_markdown.py",
@@ -2726,7 +2732,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/embedding_models_db.py",
@@ -2737,7 +2743,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/embedding_pre_filter.py",
@@ -2748,7 +2754,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/embedding_role_mapper.py",
@@ -2759,7 +2765,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/embedding_selector.py",
@@ -2770,7 +2776,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/export_models_browser.py",
@@ -2781,7 +2787,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/export_traycer_registry.py",
@@ -2792,7 +2798,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/fetch_direct_vendor_prices.py",
@@ -2803,7 +2809,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/fetch_fal_prices.py",
@@ -2814,7 +2820,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/fetch_replicate_prices.py",
@@ -2825,7 +2831,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/generate_model_capabilities.py",
@@ -2836,7 +2842,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/generate_selection_guide_roster.py",
@@ -2847,7 +2853,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/kilo_agents_db.py",
@@ -2858,7 +2864,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/kilo_telemetry.py",
@@ -2869,7 +2875,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/llm_selector.py",
@@ -2880,7 +2886,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/manage_blocked.py",
@@ -2891,7 +2897,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_coding.py",
@@ -2902,7 +2908,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_coding_direct.py",
@@ -2913,7 +2919,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_coding_tier_snapshot.py",
@@ -2924,7 +2930,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_judged.py",
@@ -2935,7 +2941,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_or_models.py",
@@ -2946,7 +2952,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_review.py",
@@ -2957,7 +2963,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_specialty.py",
@@ -2968,7 +2974,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_terminal.py",
@@ -2979,7 +2985,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/microbench_vision_describe.py",
@@ -2990,7 +2996,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/migrate_aggregator_columns.py",
@@ -3001,7 +3007,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/migrate_ai_category_table.py",
@@ -3012,7 +3018,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/migrate_direct_vendor_pricing_columns.py",
@@ -3023,7 +3029,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/migrate_or_richer_extraction.py",
@@ -3034,7 +3040,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/migrate_roles_v2.py",
@@ -3045,7 +3051,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/migrate_selector_columns.py",
@@ -3056,7 +3062,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/mine_docs_corpus.py",
@@ -3067,7 +3073,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/ms_enrich.py",
@@ -3078,7 +3084,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/openrouter_complete.py",
@@ -3089,7 +3095,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/post_filter.py",
@@ -3100,7 +3106,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/pre_filter.py",
@@ -3111,7 +3117,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/process.py",
@@ -3122,7 +3128,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/process_v2.py",
@@ -3133,7 +3139,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_candidate_signups.py",
@@ -3144,7 +3150,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_coding_subagents.py",
@@ -3155,7 +3161,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_image_gen.py",
@@ -3166,7 +3172,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_stt.py",
@@ -3177,7 +3183,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_task_subagents.py",
@@ -3188,7 +3194,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_translation.py",
@@ -3199,7 +3205,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_tts.py",
@@ -3210,7 +3216,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/research_grader.py",
@@ -3221,7 +3227,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/restore_wrongly_deprecated_direct_vendors.py",
@@ -3232,7 +3238,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/role_mapper.py",
@@ -3243,7 +3249,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/role_selector.py",
@@ -3254,7 +3260,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_artificial_analysis.py",
@@ -3265,7 +3271,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_benchlm.py",
@@ -3276,7 +3282,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_benchmarks.py",
@@ -3287,7 +3293,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_coding_benchmarks.py",
@@ -3298,7 +3304,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_gpu_prices.py",
@@ -3309,7 +3315,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_groq_speeds.py",
@@ -3320,7 +3326,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_modelscope_catalog.py",
@@ -3331,7 +3337,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_openrouter_endpoints.py",
@@ -3342,7 +3348,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_openrouter_rankings.py",
@@ -3353,7 +3359,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_siliconflow_catalog.py",
@@ -3364,7 +3370,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/scrape_tbench_task_results.py",
@@ -3375,7 +3381,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/seed_direct_vendors.py",
@@ -3386,7 +3392,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/seed_specialty_catalog.py",
@@ -3397,7 +3403,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/seed_translation_and_stt.py",
@@ -3408,7 +3414,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/seed_watchlist_and_gpu.py",
@@ -3419,7 +3425,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/selector.py",
@@ -3430,7 +3436,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/setup_lcb_grader.sh",
@@ -3441,7 +3447,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/specialty_pricing.py",
@@ -3452,7 +3458,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/structural_grader.py",
@@ -3463,7 +3469,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/suggest_model.py",
@@ -3474,7 +3480,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh",
@@ -3485,7 +3491,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/update_gateway_counts.py",
@@ -3496,7 +3502,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/update_kilo_benchmarks.py",
@@ -3507,7 +3513,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/verify_openrouter_catalog.py",
@@ -3518,7 +3524,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_agent_health.sh",
@@ -3531,7 +3537,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_auto_route.py",
@@ -3544,7 +3550,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_code_review.py",
@@ -3557,7 +3563,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_code_review_bckp.py",
@@ -3570,7 +3576,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_consult.py",
@@ -3583,7 +3589,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_cost_report.py",
@@ -3596,7 +3602,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_cost_tracker.py",
@@ -3609,7 +3615,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_dispatch.py",
@@ -3622,7 +3628,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_docs_enforcer.py",
@@ -3635,7 +3641,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_model_sync.py",
@@ -3646,7 +3652,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_model_sync_startup.sh",
@@ -3659,7 +3665,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/kilo_terminal_runner.py",
@@ -3670,7 +3676,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/lint_fix_agent.py",
@@ -3681,7 +3687,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/mail.py",
@@ -3692,7 +3698,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/mcp_kilo_server.py",
@@ -3703,7 +3709,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/migrate_db_rename.py",
@@ -3714,7 +3720,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/probes/glitchtip_probe.sh",
@@ -3725,7 +3731,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/probes/glitchtip_webhook_capture.py",
@@ -3736,7 +3742,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/probes/grafana_token_check.sh",
@@ -3747,7 +3753,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/process_monitor.py",
@@ -3758,7 +3764,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/proof_run.py",
@@ -3769,7 +3775,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/provision_glitchtip_project.sh",
@@ -3780,7 +3786,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/provision_grafana.sh",
@@ -3791,7 +3797,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/provision_watchdog_ro.py",
@@ -3802,7 +3808,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/refresh_service_inventory.py",
@@ -3813,7 +3819,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/registry_db.py",
@@ -3824,7 +3830,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/registry_sync.py",
@@ -3835,7 +3841,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/release_cut.py",
@@ -3846,7 +3852,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/review_rubric.py",
@@ -3857,7 +3863,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/run_kilo_workflow.sh",
@@ -3868,7 +3874,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/seed_real_ports.py",
@@ -3879,7 +3885,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/select_rules.py",
@@ -3890,7 +3896,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/setup_model_updates.sh",
@@ -3901,7 +3907,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/snapshot_vps_state.py",
@@ -3912,7 +3918,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync-vps-sysadmin.sh",
@@ -3923,7 +3929,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_cascade_backup.sh",
@@ -3934,7 +3940,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_enforcement_to_projects.py",
@@ -3945,7 +3951,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_extensions.sh",
@@ -3956,7 +3962,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_gatus_to_vps.sh",
@@ -3967,7 +3973,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_projects.py",
@@ -3978,7 +3984,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_prometheus_to_vps.sh",
@@ -3989,7 +3995,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sync_schema_to_projects.py",
@@ -4000,7 +4006,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/bot.py",
@@ -4011,7 +4017,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/claude-keepalive-rotate.sh",
@@ -4022,7 +4028,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/claude-run.sh",
@@ -4033,7 +4039,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/claude_rotate.py",
@@ -4044,7 +4050,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/daily-digest.sh",
@@ -4055,7 +4061,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/detect_reversals.py",
@@ -4066,7 +4072,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/ensure-apprise-alerts-config.sh",
@@ -4077,7 +4083,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/export_claude_state.sh",
@@ -4088,7 +4094,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/fabrik-alert-canary.sh",
@@ -4099,7 +4105,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/install-docker-user-rules.sh",
@@ -4110,7 +4116,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/keepalive-status.sh",
@@ -4121,7 +4127,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/monthly-backup-verify.sh",
@@ -4132,7 +4138,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/morning-report.sh",
@@ -4143,7 +4149,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/proactive-check.sh",
@@ -4154,7 +4160,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/send-telegram.sh",
@@ -4165,7 +4171,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/sync-claude-accounts-to-fleet.sh",
@@ -4176,7 +4182,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/test_bot_rotation_wire.py",
@@ -4187,7 +4193,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/test_claude_rotate.py",
@@ -4198,7 +4204,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/test_claude_run.py",
@@ -4209,7 +4215,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/test_keepalive_status.py",
@@ -4220,7 +4226,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/test_sync_accounts.py",
@@ -4231,7 +4237,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly-maintenance.sh",
@@ -4242,7 +4248,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly-security.sh",
@@ -4253,7 +4259,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/test_process_monitor.py",
@@ -4264,7 +4270,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/traycer_agent_review.py",
@@ -4275,7 +4281,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/traycer_mirror.py",
@@ -4286,7 +4292,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/traycer_write_report.py",
@@ -4297,7 +4303,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/update_agents_toc.py",
@@ -4308,7 +4314,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/update_vps_docs.py",
@@ -4319,7 +4325,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/utils/__init__.py",
@@ -4330,7 +4336,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/utils/subprocess_helper.py",
@@ -4341,7 +4347,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/vps-autoheal.sh",
@@ -4352,7 +4358,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/vps_apply_limits.sh",
@@ -4363,7 +4369,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/vps_sync.py",
@@ -4374,7 +4380,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/vultr_weekly_maintenance.sh",
@@ -4385,7 +4391,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/watch_enforcement_changes.sh",
@@ -4396,7 +4402,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/watch_env_changes.sh",
@@ -4407,7 +4413,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/watchdog.sh",
@@ -4418,7 +4424,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/wip_backup.sh",
@@ -4429,7 +4435,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "scripts/wsl_startup_hook.sh",
@@ -4440,7 +4446,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "abuse-prevention",
@@ -4451,7 +4457,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/abuse-prevention/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "account",
@@ -4462,7 +4468,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/account/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "adaptive-dispatch",
@@ -4473,7 +4479,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/adaptive-dispatch/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai-consult",
@@ -4484,7 +4490,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ai-consult/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "alerting",
@@ -4495,7 +4501,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/alerting/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "api-auth",
@@ -4506,7 +4512,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-auth/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "api-quota",
@@ -4517,7 +4523,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-quota/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "api-smoke-test",
@@ -4528,7 +4534,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-smoke-test/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "app-audit-log",
@@ -4539,7 +4545,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/app-audit-log/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "async-http-client",
@@ -4550,7 +4556,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/async-http-client/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "authored-list",
@@ -4561,7 +4567,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/authored-list/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "captcha-solve",
@@ -4572,7 +4578,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/captcha-solve/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "chrome-ext-billing-kit",
@@ -4583,7 +4589,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/chrome-ext-billing-kit/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "claude-evaluator",
@@ -4594,7 +4600,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/claude-evaluator/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "concurrency-throttle",
@@ -4605,7 +4611,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/concurrency-throttle/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "cookie-consent",
@@ -4616,7 +4622,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cookie-consent/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "cost-budget",
@@ -4627,7 +4633,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cost-budget/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "credits",
@@ -4638,7 +4644,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/credits/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "cursor-pagination",
@@ -4649,7 +4655,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cursor-pagination/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "db-pool",
@@ -4660,7 +4666,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/db-pool/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "doc-convert",
@@ -4671,7 +4677,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-convert/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "doc-crawl",
@@ -4682,7 +4688,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-crawl/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "doc-translate",
@@ -4693,7 +4699,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-translate/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "docx-io",
@@ -4704,7 +4710,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/docx-io/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "email-templates",
@@ -4715,7 +4721,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/email-templates/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "email-transport",
@@ -4726,7 +4732,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/email-transport/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "expo-push",
@@ -4737,7 +4743,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/expo-push/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fastapi-user-auth",
@@ -4748,7 +4754,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/fastapi-user-auth/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "file-cache",
@@ -4759,7 +4765,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/file-cache/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "gdpr-data-rights",
@@ -4770,7 +4776,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/gdpr-data-rights/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "gpu-rent",
@@ -4781,7 +4787,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/gpu-rent/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "health-probe",
@@ -4792,7 +4798,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/health-probe/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "i18n",
@@ -4803,7 +4809,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/i18n/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "info-tooltip",
@@ -4814,7 +4820,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/info-tooltip/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "job-queue",
@@ -4825,7 +4831,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/job-queue/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "legal-pages",
@@ -4836,7 +4842,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/legal-pages/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "llm-dispatch",
@@ -4847,7 +4853,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/llm-dispatch/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "llm-visibility-probe",
@@ -4858,7 +4864,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/llm-visibility-probe/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-config",
@@ -4869,7 +4875,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/mobile-config/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mt-router",
@@ -4880,7 +4886,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/mt-router/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "oauth-login",
@@ -4891,7 +4897,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/oauth-login/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "observability",
@@ -4902,7 +4908,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/observability/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ocr",
@@ -4913,7 +4919,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ocr/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "pause-state",
@@ -4924,7 +4930,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/pause-state/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "payments",
@@ -4935,7 +4941,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/payments/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "pdf-extract",
@@ -4946,7 +4952,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/pdf-extract/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "proxy-pool",
@@ -4957,7 +4963,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/proxy-pool/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "rag",
@@ -4968,7 +4974,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rag/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "request-metering",
@@ -4979,7 +4985,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/request-metering/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "revenuecat-entitlements",
@@ -4990,7 +4996,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/revenuecat-entitlements/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "rn-analytics-kit",
@@ -5001,7 +5007,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-analytics-kit/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "rn-auth-kit",
@@ -5012,7 +5018,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-auth-kit/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "rn-billing-kit",
@@ -5023,7 +5029,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-billing-kit/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "rn-compliance-kit",
@@ -5034,7 +5040,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-compliance-kit/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "rn-media-kit",
@@ -5045,7 +5051,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-media-kit/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "speech-detect",
@@ -5056,7 +5062,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/speech-detect/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "storage",
@@ -5067,7 +5073,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/storage/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "subagents",
@@ -5078,7 +5084,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/subagents/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "tenancy",
@@ -5089,7 +5095,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/tenancy/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ui-inventory",
@@ -5100,7 +5106,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ui-inventory/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ui-verify",
@@ -5111,7 +5117,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ui-verify/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "watchdog",
@@ -5122,7 +5128,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/watchdog/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "web-scrape",
@@ -5133,7 +5139,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/web-scrape/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "web-tools",
@@ -5144,7 +5150,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/web-tools/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "webhooks",
@@ -5155,7 +5161,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/webhooks/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "xlsx-io",
@@ -5166,7 +5172,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/xlsx-io/README.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "chrome-extension",
@@ -5177,7 +5183,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "desktop-app",
@@ -5188,7 +5194,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "docusaurus",
@@ -5199,7 +5205,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "file-api",
@@ -5210,7 +5216,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "file-worker",
@@ -5221,7 +5227,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app",
@@ -5232,7 +5238,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "node-api",
@@ -5243,7 +5249,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "python-api",
@@ -5254,7 +5260,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "python-api-gpu",
@@ -5265,7 +5271,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "saas-skeleton",
@@ -5276,7 +5282,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "static-site",
@@ -5287,7 +5293,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/00-ai-model-selection.md",
@@ -5298,7 +5304,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/00-ai-model-selection.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/10-speech-audio.md",
@@ -5309,7 +5315,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/10-speech-audio.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/20-vision.md",
@@ -5320,7 +5326,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/20-vision.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/25-3d-generation.md",
@@ -5331,7 +5337,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/25-3d-generation.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/30-language.md",
@@ -5342,7 +5348,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/30-language.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/40-multimodal.md",
@@ -5353,7 +5359,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/40-multimodal.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/50-agentic.md",
@@ -5364,7 +5370,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/50-agentic.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/60-code.md",
@@ -5375,7 +5381,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/60-code.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/70-data-predictive.md",
@@ -5386,7 +5392,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/70-data-predictive.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/80-specialized-domains.md",
@@ -5397,7 +5403,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/80-specialized-domains.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "ai/90-long-context.md",
@@ -5408,7 +5414,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/90-long-context.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "chrome-ext/00-domain-chrome-ext.md",
@@ -5419,7 +5425,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/00-domain-chrome-ext.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "chrome-ext/70-chrome-ext.md",
@@ -5430,7 +5436,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/70-chrome-ext.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "chrome-ext/89-extension-launch-checklist.md",
@@ -5441,7 +5447,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/89-extension-launch-checklist.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/10-python.md",
@@ -5452,7 +5458,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/10-python.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/12-node.md",
@@ -5463,7 +5469,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/12-node.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/15-api-contracts.md",
@@ -5474,7 +5480,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/15-api-contracts.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/20-typescript.md",
@@ -5485,7 +5491,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/20-typescript.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/25-data-postgres.md",
@@ -5496,7 +5502,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/25-data-postgres.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/30-ops.md",
@@ -5507,7 +5513,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/30-ops.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/35-security-auth.md",
@@ -5518,7 +5524,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/35-security-auth.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/40-documentation.md",
@@ -5529,7 +5535,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/40-documentation.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/42-docusaurus.md",
@@ -5540,7 +5546,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/42-docusaurus.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/45-testing-strategy.md",
@@ -5551,7 +5557,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/45-testing-strategy.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/50-code-review.md",
@@ -5562,7 +5568,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/50-code-review.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/55-observability.md",
@@ -5573,7 +5579,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/55-observability.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/57-external-data-sourcing.md",
@@ -5584,7 +5590,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/57-external-data-sourcing.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/58-resilience.md",
@@ -5595,7 +5601,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/58-resilience.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/60-watchdog.md",
@@ -5606,7 +5612,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/60-watchdog.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/62-using-subagents.md",
@@ -5617,7 +5623,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/62-using-subagents.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/65-rag-search.md",
@@ -5628,7 +5634,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/65-rag-search.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/66-rag-chunking.md",
@@ -5639,7 +5645,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/66-rag-chunking.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/67-file-api.md",
@@ -5650,7 +5656,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/67-file-api.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/75-workers-jobs.md",
@@ -5661,7 +5667,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/75-workers-jobs.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/76-gpu-workers.md",
@@ -5672,7 +5678,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/76-gpu-workers.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/85-payments-billing.md",
@@ -5683,7 +5689,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/85-payments-billing.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/86-email-templates.md",
@@ -5694,7 +5700,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/86-email-templates.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/90-bootstrap-scripts.md",
@@ -5705,7 +5711,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/90-bootstrap-scripts.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/app-audit-log.md",
@@ -5716,7 +5722,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/app-audit-log.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/cost-budget.md",
@@ -5727,7 +5733,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/cost-budget.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/ocoron-design-system.md",
@@ -5738,7 +5744,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/ocoron-design-system.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/self-healing.md",
@@ -5749,7 +5755,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/self-healing.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "core/tojlo-design-system.md",
@@ -5760,7 +5766,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/tojlo-design-system.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "desktop-app/00-domain-desktop-app.md",
@@ -5771,7 +5777,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/desktop-app/00-domain-desktop-app.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "desktop-app/72-desktop.md",
@@ -5782,7 +5788,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/desktop-app/72-desktop.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app/00-domain-mobile-app.md",
@@ -5793,7 +5799,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/00-domain-mobile-app.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app/80-mobile.md",
@@ -5804,7 +5810,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/80-mobile.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app/81-mobile-billing.md",
@@ -5815,7 +5821,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/81-mobile-billing.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app/89-mobile-launch-checklist.md",
@@ -5826,7 +5832,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/89-mobile-launch-checklist.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app/ocoron-mobile-design-system.md",
@@ -5837,7 +5843,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/ocoron-mobile-design-system.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mobile-app/tojlo-mobile-design-system.md",
@@ -5848,7 +5854,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/tojlo-mobile-design-system.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "saas/00-domain-saas.md",
@@ -5859,7 +5865,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/00-domain-saas.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "saas/60-saas-ui.md",
@@ -5870,7 +5876,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/60-saas-ui.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "saas/87-abuse-detection.md",
@@ -5881,7 +5887,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/87-abuse-detection.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "saas/88-saas-launch-checklist.md",
@@ -5892,7 +5898,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/88-saas-launch-checklist.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "saas/95-multi-tenant-saas.md",
@@ -5903,7 +5909,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/95-multi-tenant-saas.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "agent_role.py",
@@ -5914,7 +5920,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "final_gate_stop.py",
@@ -5925,7 +5931,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "mail_notify.py",
@@ -5936,7 +5942,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "session_orient.py",
@@ -5947,7 +5953,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "skill_router.py",
@@ -5958,7 +5964,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "design-review",
@@ -5969,7 +5975,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-catchup",
@@ -5980,7 +5986,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-data-contract",
@@ -5991,7 +5997,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-decommission",
@@ -6002,7 +6008,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-deploy-plan-review",
@@ -6013,7 +6019,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-deploy-plan",
@@ -6024,7 +6030,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-deploy-verify",
@@ -6035,7 +6041,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-deploy",
@@ -6046,7 +6052,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-doc-converge",
@@ -6057,7 +6063,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-docs-review",
@@ -6068,7 +6074,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-execute-plan",
@@ -6079,7 +6085,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-features",
@@ -6090,7 +6096,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-generate-tests",
@@ -6101,7 +6107,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-plan-after-chat",
@@ -6112,7 +6118,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-plan-review",
@@ -6123,7 +6129,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-release",
@@ -6134,7 +6140,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-repo-review",
@@ -6145,7 +6151,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-review",
@@ -6156,7 +6162,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-rules-review",
@@ -6167,7 +6173,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-service-test",
@@ -6178,7 +6184,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-spec-review",
@@ -6189,7 +6195,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-spec",
@@ -6200,7 +6206,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-ui-design-review",
@@ -6211,7 +6217,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-ui-design",
@@ -6222,7 +6228,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-upstream",
@@ -6233,7 +6239,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-user-test",
@@ -6244,7 +6250,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     },
     {
       "name": "fabrik-workflow-review",
@@ -6255,7 +6261,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-08-12T11:52:52+00:00"
+      "verified_at": "2026-08-12T12:02:50+00:00"
     }
   ]
 }
