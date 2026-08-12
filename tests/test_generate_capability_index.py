@@ -107,12 +107,13 @@ def test_script_with_no_safe_probe_is_manual_not_broken(tmp_path) -> None:
 # --- Behavior 6: capabilities.json is valid against the 8-key schema ---------------------------------
 
 
-def test_json_schema_8_keys(tmp_path) -> None:
+def test_json_schema_9_keys(tmp_path) -> None:
     gci.main(REPO, out_dir=tmp_path)
     payload = json.loads((tmp_path / "capabilities.json").read_text())
     assert set(payload) == {"generated_at", "capabilities"}
     assert payload["capabilities"]
-    keys = {"name", "kind", "summary", "invoke", "status", "defects", "doc_link", "verified_at"}
+    keys = {"name", "kind", "summary", "invoke", "status", "owner", "defects", "doc_link",
+            "verified_at"}
     for rec in payload["capabilities"]:
         assert set(rec) == keys, set(rec) ^ keys
         assert rec["status"] in {"ok", "broken", "retired", "manual"}
@@ -282,3 +283,41 @@ def test_benchmark_and_ops_script_subdirs_scanned() -> None:
     paths = " ".join(c["invoke"] for c in catalog if c["kind"] == "script")
     assert "scripts/kilo-benchmarks/" in paths, "kilo-benchmarks not scanned"
     assert "scripts/bootstrap/" in paths or not (REPO / "scripts/bootstrap").is_dir()
+
+
+# --- Phase B (agent-roles wiring): the owner field --------------------------------------------
+
+
+def test_every_entry_carries_a_valid_owner() -> None:
+    catalog = gci.build_catalog(REPO)
+    valid = {"infra", "fleet", "intel", "external:fabrik-lib", "unassigned"}
+    bad = [(c["kind"], c["name"], c.get("owner")) for c in catalog if c.get("owner") not in valid]
+    assert bad == [], bad[:5]
+
+
+def test_owner_spot_anchors_match_the_beat_tables() -> None:
+    catalog = gci.build_catalog(REPO)
+    by = {(c["kind"], c["name"]): c["owner"] for c in catalog}
+    assert by[("hook", "mail_notify.py")] == "infra"
+    assert by[("scaffold", "python-api")] == "fleet"
+    assert by[("lib-module", "subagents")] == "external:fabrik-lib"
+    intel_scripts = [c for c in catalog if c["kind"] == "script"
+                     and c["invoke"].find("scripts/kilo-benchmarks/") != -1]
+    assert intel_scripts and all(c["owner"] == "intel" for c in intel_scripts)
+    enf = [c for c in catalog if c["kind"] == "script"
+           and "scripts/enforcement/" in c["invoke"]]
+    assert enf and all(c["owner"] == "infra" for c in enf)
+
+
+def test_unmatched_entry_falls_to_unassigned() -> None:
+    rec = gci._rec("mystery", "brand-new-kind", "?", "invoke mystery", "ok")
+    assert rec["owner"] == "unassigned"
+
+
+def test_capabilities_md_renders_owner() -> None:
+    import subprocess, sys as _sys
+    r = subprocess.run([_sys.executable, str(REPO / "scripts/generate_capability_index.py"),
+                        "--check"], capture_output=True, text=True, timeout=600, cwd=str(REPO))
+    assert r.returncode == 0
+    md = (REPO / "docs" / "CAPABILITIES.md").read_text()
+    assert "owner: infra" in md or "· infra ·" in md or "(infra)" in md

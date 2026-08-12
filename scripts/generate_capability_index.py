@@ -149,6 +149,34 @@ def _probe_help(argv: list[str], python: str = sys.executable) -> bool:
         return False
 
 
+# Agent-ownership mapping (hub-agent-roles spec r2 Wiring 5; mirrors the charter beat
+# tables in docs/reference/agents/ — edit together). kind-level defaults first, then
+# script path-prefix overrides; anything unmatched is "unassigned" (a kaizen WARN
+# signal for intel, never a crash).
+_OWNER_KIND_DEFAULTS = {
+    "hook": "infra", "command": "infra", "rules-pack": "infra",
+    "cli": "fleet", "driver": "fleet", "registrar": "fleet", "scaffold": "fleet",
+    "lib-module": "external:fabrik-lib",
+}
+_OWNER_SCRIPT_PREFIXES = (
+    ("scripts/kilo-benchmarks/", "intel"),
+    ("scripts/enforcement/", "infra"), ("scripts/sysadmin/", "infra"),
+    ("scripts/utils/", "infra"), ("scripts/probes/", "infra"),
+    ("scripts/aro-wake/", "infra"), ("scripts/bootstrap/", "infra"),
+    ("scripts/audit/", "infra"), ("scripts/credit_fetchers/", "intel"),
+    ("scripts/vps_", "fleet"),  # deploy-facing exceptions, named per the plan
+)
+
+
+def _owner(kind: str, invoke: str) -> str:
+    if kind == "script":
+        for prefix, who in _OWNER_SCRIPT_PREFIXES:
+            if prefix in invoke:
+                return who
+        return "infra"  # remainder scripts default to the machinery beat
+    return _OWNER_KIND_DEFAULTS.get(kind, "unassigned")
+
+
 def _rec(
     name: str, kind: str, summary: str, invoke: str, status: str, doc_link: str | None = None
 ) -> dict:
@@ -165,6 +193,7 @@ def _rec(
         "summary": summary,
         "invoke": invoke,
         "status": status,
+        "owner": _owner(kind, invoke),
         "defects": defects,
         "doc_link": doc_link,
         "verified_at": _now(),
@@ -457,7 +486,7 @@ def render_llms_txt(catalog: list[dict]) -> str:
         lines.append(f"## {kind}")
         for c in sorted(items, key=lambda x: x["name"]):
             link = c["doc_link"] or "#"
-            lines.append(f"- [{c['name']}]({link}): {c['summary'] or c['invoke']}")
+            lines.append(f"- [{c['name']}]({link}) (owner: {c['owner']}): {c['summary'] or c['invoke']}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -475,6 +504,12 @@ def main(root: Path = REPO, out_dir: Path | None = None) -> int:
         "## Capabilities\n- [Capability catalog](docs/CAPABILITIES.md): every tool, verified\n"
     )
     ok = sum(1 for c in catalog if c["status"] == "ok")
+    owners: dict[str, int] = {}
+    for c in catalog:
+        owners[c["owner"]] = owners.get(c["owner"], 0) + 1
+    # the unassigned count is intel's kaizen WARN signal — always reported, never a failure
+    print("owners: " + " ".join(f"{k}:{v}" for k, v in sorted(owners.items()))
+          + f" | unassigned: {owners.get('unassigned', 0)}")
     print(
         f"capability catalog: {len(catalog)} entries ({ok} ok, "
         f"{len(catalog) - ok} broken/retired/manual/incomplete)"
