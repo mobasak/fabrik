@@ -1,0 +1,6 @@
+
+*Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
+
+vision-input across all gateways: **211**
+
+These are vision *understanding* models. Image *generation* (Recraft / FLUX) is not gateway-routed.

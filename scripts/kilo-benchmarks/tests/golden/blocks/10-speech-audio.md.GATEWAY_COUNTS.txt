@@ -1,0 +1,6 @@
+
+*Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
+
+STT-capable across all gateways: **28**
+
+Direct-vendor specialists (Soniox, Whisper API, gpt-4o-transcribe, Deepgram) are NOT in this DB — they live in their own `stt_quality` JSON and the bake-off browser's Audio/Vision tab. Gateway LLMs are last-resort.

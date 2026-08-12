@@ -1,0 +1,12 @@
+
+*Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
+
+| Gateway | Active routable models | Notes |
+|---|---|---|
+| **OpenRouter** | 380 | of which **345** dual-routed with Kilo, **35** OR-only |
+| **Kilo CLI** | 345 | of which **345** dual-routed with OR, **0** Kilo-only |
+| **DashScope** (direct) | 1 | specialist routes (e.g. `qwen-mt-turbo`) |
+| **SiliconFlow** (direct) | 41 | specialist routes (e.g. Hunyuan) |
+| **ModelScope** (direct) | 32 | Zhipu GLM direct (4) + Tencent Hunyuan Hy3 (1) + 27 Qwen/DeepSeek/MiniMax/Kimi/stepfun/moonshotai/nex-agi active overlap |
+
+Capability counts (any-gateway): reasoning **243** · tools/function-calling **312** · vision-input **211** · translation-scored **9** · STT-capable **28**.

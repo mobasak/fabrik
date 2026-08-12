@@ -1,0 +1,6 @@
+
+*Live gateway counts (active models, 2026-08-12 UTC; auto-refreshed from `kilo_agents.db`):*
+
+code-tagged across all gateways: **63**
+
+See the Coding tab in the bake-off browser; sort by Best Code descending to compare SWE-bench + Aider + DA-code signals per row.

@@ -1,0 +1,5 @@
+{
+ "rank_task_subagents.quality_tier": "SELECT id, quality_tier FROM agents WHERE quality_tier IS NOT NULL",
+ "rank_task_subagents.flywheel": "SELECT task_type, model, count(*), avg(quality_score), avg(cost_usd), avg(latency_s) FROM subagent_runs GROUP BY task_type, model",
+ "update_gateway_counts.counts": "SELECT gateway, count(*) FROM agents GROUP BY gateway"
+}

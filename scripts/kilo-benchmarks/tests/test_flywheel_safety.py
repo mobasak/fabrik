@@ -17,11 +17,8 @@ separate operational gate (A.0 gate 1 / B.4a), deliberately not a unit test.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
-
-import pytest
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPT_DIR) not in sys.path:
@@ -116,8 +113,7 @@ def test_the_alert_can_actually_fire_not_just_exist():
     """
     sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
     alert_lines = [
-        ln for ln in sh.splitlines()
-        if "send_alert" in ln and "rank_task_subagents" in ln.lower()
+        ln for ln in sh.splitlines() if "send_alert" in ln and "rank_task_subagents" in ln.lower()
     ]
     assert alert_lines, "the rank_task_subagents failure path must fire an alert"
     for ln in alert_lines:
