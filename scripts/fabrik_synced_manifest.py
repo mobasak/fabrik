@@ -108,6 +108,7 @@ AGENT_HOOK_FILES = [
     ".claude/hooks/skill_router.py",
     ".claude/hooks/session_orient.py",  # SessionStart orientation: governance/memory/session-recall/mesh
     ".claude/hooks/mail_notify.py",  # SessionStart + UserPromptSubmit: surface unread fabrik-mail (fail-open)
+    ".claude/hooks/agent_role.py",  # SessionStart: inject the named agent's charter (fleet-safe silent no-op)
     ".windsurf/hooks.json",
 ]
 
