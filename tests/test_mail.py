@@ -429,3 +429,14 @@ def test_digest_alert_import_resolves_from_script_invocation(env, tmp_path):
     r = subprocess.run([_sys.executable, "-c", probe], capture_output=True, text=True,
                        timeout=30, env=env_vars, cwd=str(repo_root))
     assert "IMPORT_OK" in r.stdout, (r.stdout, r.stderr)
+
+
+def test_ack_append_helper_never_creates(env, tmp_path):
+    """The ack-line append must FAIL LOUDLY if the archived file vanished between ack's
+    rename and its append (a concurrent requeue won the race) — never silently create an
+    archive file holding only an ack line (pool finding, Phase C review). Guarded at the
+    append seam: no O_CREAT."""
+    ghost = tmp_path / "gone.md"
+    with pytest.raises(FileNotFoundError):
+        mail._append_ack_line(ghost, "fabrik", "done")
+    assert not ghost.exists()

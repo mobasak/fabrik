@@ -57,7 +57,12 @@ ack: required|no
   `claim`-ed it appends the ack line in place; on an already-RESOLVED message it still
   refuses (double-ack loser semantics unchanged). Ack line:
   `acked-by: <repo> · ts: <ISO> · disposition: <done|blocked|wontfix>`. Claim FIRST, then
-  act, then ack.
+  act, then ack. **Cooperative-ack rule:** within one repo the sessions share identity, so
+  `ack`-ing a CLAIMED id asserts the work is DONE — never ack another agent's claim unless you
+  are finishing it (taking over a crashed claim goes through `requeue` first). Two simultaneous
+  fallback-acks can both append (a visible doubled line, never silent loss) — tolerated at this
+  volume; ack's append itself never CREATES (a requeue that won the race makes the late ack fail
+  loudly instead of leaving a stray archive file).
 - **Requeue crash recovery.** A claimer that crashes mid-act leaves an archived file with no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox —
   and **strips any trailing `acked-by:` claim marker**, so a re-opened message never carries a stale

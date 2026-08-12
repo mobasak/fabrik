@@ -277,6 +277,15 @@ def claim(msg_id: str, repo: str) -> Path:
     return dst
 
 
+def _append_ack_line(dst: Path, repo: str, disposition: str) -> None:
+    """Append the ack line WITHOUT O_CREAT — if the archived file vanished between ack's
+    rename and this append (a concurrent requeue won the race), fail LOUDLY instead of
+    silently creating an archive file that holds only an ack line."""
+    fd = os.open(dst, os.O_WRONLY | os.O_APPEND)  # FileNotFoundError if requeued meanwhile
+    with os.fdopen(fd, "a", encoding="utf-8") as fh:
+        fh.write(f"\nacked-by: {repo} · ts: {_now_iso()} · disposition: {disposition}\n")
+
+
 def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     """Claim + resolve: rename inbox→archive (ENOENT loser stops), then append the ack line.
 
@@ -297,11 +306,14 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     try:
         os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
     except FileNotFoundError:
-        # claimed-but-unresolved → resolve in place; already-resolved → the loser still stops
+        # claimed-but-unresolved → resolve in place; already-resolved → the loser still stops.
+        # COOPERATIVE SEMANTICS (documented in fabrik-mail.md): within one repo the sessions
+        # share identity — ack-ing a claimed id asserts the WORK IS DONE; never ack another
+        # agent's claim unless you are finishing it. Two simultaneous fallback-acks can both
+        # append (visible as a doubled line, never silent loss) — tolerated at this volume.
         if not (dst.exists() and not _ACK_LINE.search(dst.read_text(encoding="utf-8"))):
             raise
-    with open(dst, "a", encoding="utf-8") as fh:
-        fh.write(f"\nacked-by: {repo} · ts: {_now_iso()} · disposition: {disposition}\n")
+    _append_ack_line(dst, repo, disposition)
     return dst
 
 

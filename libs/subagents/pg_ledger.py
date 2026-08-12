@@ -255,7 +255,13 @@ def record_agent_run(
         # the caller passed no score — an explicit judgment always wins.
         if quality_score is None:
             _txt = getattr(result, "text", None)
-            if str(record.get("status") or "") == "done" and isinstance(_txt, str) and not _txt.strip():
+            _diff = getattr(result, "diff", None)
+            # a write-mode unit's value IS its diff — empty text + a real diff is HEALTHY
+            if (
+                str(record.get("status") or "") == "done"
+                and isinstance(_txt, str) and not _txt.strip()
+                and not (isinstance(_diff, str) and _diff.strip())
+            ):
                 quality_score = 0.0
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
         return False

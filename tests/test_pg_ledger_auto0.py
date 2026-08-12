@@ -117,3 +117,11 @@ def test_healthy_unscored_stays_null(tmp_path):
     sink = []
     params = _recorded_quality(_Result(status="done", text="a real finding"), sink)
     assert 0.0 not in params, ("healthy unscored must stay NULL — unscored != bad", params)
+
+
+def test_write_unit_with_diff_but_empty_text_stays_null(tmp_path):
+    """A mode='write' coder's value IS its diff — empty text with a real diff is HEALTHY,
+    never auto-0 (self-caught during the Phase C review round)."""
+    sink = []
+    params = _recorded_quality(_Result(status="done", text="", diff="+ real change\n"), sink)
+    assert 0.0 not in params, params
