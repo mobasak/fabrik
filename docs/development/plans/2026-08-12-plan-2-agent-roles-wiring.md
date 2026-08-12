@@ -145,7 +145,7 @@ wins, fallback `"unassigned"`).
    as Phase A step 8).
 6. Commit Phase B (explicit paths + trailers).
 
-## Phase C — Mail beat + flywheel record layer
+## Phase C — Mail beat + flywheel record layer — ✅ EXECUTED 2026-08-12 (33c3dad7, e1027a00, ed9a712f, 6ab199ef, 394e96a2, 86223d3d; review: pool + 5 native rounds to QUIET — the resolve converged to unified per-process rename-locked windows)
 
 Interfaces — Consumes: `_ACK_LINE`/DISPOSITIONS SSOT (`mail.py:56-84`), `record_agent_run`
 (`pg_ledger.py:211`). Produces: `mail.py claim <id>` verb (rename-only inbox→archive lock, NO

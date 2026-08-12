@@ -340,7 +340,13 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
                 stale.append(orphan)
         except FileNotFoundError:
             continue  # the live resolver finished mid-check — fine
-    stale.sort(key=lambda o: o.stat().st_mtime if o.exists() else 0)
+    def _mtime_or_zero(o: Path) -> float:
+        try:
+            return o.stat().st_mtime
+        except FileNotFoundError:
+            return 0.0  # swept by a concurrent acker mid-sort — uniform ENOENT tolerance
+
+    stale.sort(key=_mtime_or_zero)
     if stale:
         newest = stale.pop()
         if dst.exists():
