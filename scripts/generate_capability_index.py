@@ -170,8 +170,12 @@ _OWNER_SCRIPT_PREFIXES = (
 
 def _owner(kind: str, invoke: str) -> str:
     if kind == "script":
+        # bind at the PATH TOKEN, not anywhere in the invoke: "python scripts/x.py" → the
+        # scripts/… token must START WITH the prefix (a filename merely containing the
+        # prefix text, or an argument echoing it, must not match — pool finder, Phase B)
+        path = next((tok for tok in invoke.split() if tok.startswith("scripts/")), "")
         for prefix, who in _OWNER_SCRIPT_PREFIXES:
-            if prefix in invoke:
+            if path.startswith(prefix):
                 return who
         return "infra"  # remainder scripts default to the machinery beat
     return _OWNER_KIND_DEFAULTS.get(kind, "unassigned")

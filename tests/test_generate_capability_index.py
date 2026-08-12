@@ -321,3 +321,12 @@ def test_capabilities_md_renders_owner() -> None:
     assert r.returncode == 0
     md = (REPO / "docs" / "CAPABILITIES.md").read_text()
     assert "owner: infra" in md or "· infra ·" in md or "(infra)" in md
+
+
+def test_owner_prefix_is_path_scoped_not_substring() -> None:
+    """A filename merely CONTAINING a prefix string is not under that directory — the
+    match must bind at the path token, not anywhere in the invoke (pool finder, Phase B)."""
+    assert gci._owner("script", "python scripts/credit_fetchers_tool.py") == "infra"
+    assert gci._owner("script", "python scripts/credit_fetchers/fetch.py") == "intel"
+    assert gci._owner("script", "bash scripts/vps_apply_limits.sh") == "fleet"
+    assert gci._owner("script", "python scripts/tool.py --note scripts/vps_hint") == "infra"
