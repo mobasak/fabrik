@@ -317,10 +317,15 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
+        claimed_now = True
+    except FileNotFoundError:
+        claimed_now = False
+    if claimed_now:
+        # the append stays OUTSIDE the try (closer D2): its deliberately-loud
+        # FileNotFoundError (a requeue won the race) must propagate — swallowing it here
+        # could silently resolve ANOTHER agent's fresh re-claim via the fallback below
         _append_ack_line(dst, repo, disposition)
         return dst
-    except FileNotFoundError:
-        pass
     # claimed-but-unresolved → resolve in place, RENAME-LOCKED like everything else here
     # (closer C1: an exists+read check was a TOCTOU — two acks landed contradictory
     # dispositions). The resolver renames archive/<id>.md → .resolving (one winner; the
@@ -330,6 +335,16 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     # (fabrik-mail.md): ack-ing a claimed id asserts the WORK IS DONE — never ack another
     # agent's claim unless you are finishing it.
     resolving = dst.with_suffix(".md.resolving")
+    # stale-orphan sweep (closer D1), AGE-GATED (own re-entrant pin caught the naive form
+    # defeating the C1 lock — a LIVE resolve window is milliseconds, a dead resolver's
+    # residue is forever): only a .resolving older than 60s with NO <id>.md is swept back.
+    # The file is complete (the append is the only mid-write instant), so the rename is safe.
+    try:
+        if (not dst.exists() and resolving.exists()
+                and time.time() - resolving.stat().st_mtime > 60):
+            os.rename(resolving, dst)
+    except OSError:
+        pass  # the live resolver finished/renamed mid-check — proceed to the normal path
     os.rename(dst, resolving)  # FileNotFoundError → not claimed either: the caller's error
     try:
         if _ACK_LINE.search(resolving.read_text(encoding="utf-8")):
@@ -421,6 +436,10 @@ def digest(days: int = 3) -> dict:
                 if fm.get("ack") == "required" and _age_seconds(fm.get("ts", "")) >= threshold:
                     unacked += 1  # required, still unclaimed in inbox
         if archive.is_dir():
+            for f in sorted(archive.glob("*.md.resolving")):
+                # a stranded resolve window (closer D1) — the message is invisible to every
+                # verb until swept; surface it, never report a clean mailbox over it
+                unacked += 1
             for f in sorted(archive.glob("*.md")):
                 text = f.read_text(encoding="utf-8", errors="replace")
                 fm = _parse(text)

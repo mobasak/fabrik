@@ -67,7 +67,10 @@ ack: required|no
   append itself never CREATES (a requeue that won the race makes the late ack fail loudly
   instead of leaving a stray archive file). `send` REFUSES a body carrying a verbatim ack line
   (it would make a claimed message permanently un-ackable and digest-invisible) — quote
-  resolved threads indented: `> acked-by: …`.
+  resolved threads indented: `> acked-by: …`. A resolver killed mid-window leaves
+  `<id>.md.resolving` — the digest counts it as unacked (never a clean mailbox over an
+  invisible message) and the next `ack` sweeps it back once it is >60s old (age-gated so a
+  LIVE resolve window is never stolen).
 - **Requeue crash recovery.** A claimer that crashes mid-act leaves an archived file with no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox —
   and **strips any trailing `acked-by:` claim marker**, so a re-opened message never carries a stale

@@ -477,3 +477,57 @@ def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
     text = out.read_text()
     assert text.count("acked-by:") == 1, text
     assert "wontfix" not in text
+
+
+def test_stale_resolving_orphan_is_swept_and_resolvable(env):
+    """Closer D1: a resolver killed mid-window (SIGKILL/OOM) leaves <id>.md.resolving —
+    invisible to ack/claim/requeue/read/digest. ack must sweep the orphan back and resolve."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
+    orphan = arch.with_suffix(".md.resolving")
+    arch.rename(orphan)  # the dead resolver's residue
+    import os as _os, time as _time
+    _os.utime(orphan, (_time.time() - 120, _time.time() - 120))  # older than the 60s gate
+    out = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert out.exists() and "disposition: done" in out.read_text()
+    assert not arch.with_suffix(".md.resolving").exists()
+
+
+def test_digest_counts_stale_resolving_as_unacked(env):
+    """Closer D1 (visibility half): a stranded .resolving file must show in the digest,
+    never report a clean mailbox while a message is invisible."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
+    arch.rename(arch.with_suffix(".md.resolving"))
+    d = mail.digest(days=1)
+    assert d["unacked"] >= 1, d
+
+
+def test_append_race_never_resolves_anothers_fresh_claim(env, monkeypatch):
+    """Closer D2: requeue wins between ack's rename and append, then ANOTHER agent
+    re-claims — the original acker must FAIL LOUDLY, never silently resolve the fresh
+    claim (cooperative-semantics rule)."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
+    inbox = mail._mail_root() / "fabrik" / "inbox" / f"{mid}.md"
+    real_append = mail._append_ack_line
+    state = {}
+
+    def sabotage_then_reclaim(dst, repo, disposition):
+        if not state:
+            state["fired"] = True
+            arch.rename(inbox)   # the requeue wins the race…
+            inbox.rename(arch)   # …and a DIFFERENT agent immediately re-claims
+            raise FileNotFoundError("append lost the race")
+        return real_append(dst, repo, disposition)
+
+    monkeypatch.setattr(mail, "_append_ack_line", sabotage_then_reclaim)
+    with pytest.raises(FileNotFoundError):
+        mail.ack(msg_id=mid, repo="fabrik", disposition="done")
+    assert state.get("fired")
+    assert "acked-by:" not in arch.read_text()  # the fresh claim was NOT silently resolved
