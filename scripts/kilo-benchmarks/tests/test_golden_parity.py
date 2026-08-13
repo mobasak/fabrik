@@ -1079,27 +1079,131 @@ def test_the_oracle_version_tracks_the_marker_shape():
     """
     assert set(cg.marker_shape("")) == {"chars", "rows", "live_counts", f"{cg.SECTION_KEY} nums"}
     assert cg.ORACLE_VERSION == 4, (
-        "marker_shape's key set and ORACLE_VERSION disagree — bump the version and update "
-        "this assertion together, or a stale golden silently skips the new invariant"
+        "ORACLE_VERSION changed. If the MARKER key set above changed with it, update this "
+        "assertion. If the bump was for another shape format (html/json/md), just update the "
+        "number — the coupling asserted here is only to marker_shape."
     )
 
 
-def test_snapshot_warns_about_inert_marker_magnitudes(capsys):
+def test_snapshot_warns_about_inert_marker_magnitudes(tmp_path, monkeypatch, capsys):
     """The freeze-time 'can never red again' warning covered artifacts only.
 
-    Round 9 froze `live_counts: 0` into 12 of 18 markers (route blocks carry no bold or
-    whole-cell integers, by design). `magnitudes_ok` skips any key frozen at 0, so those are
-    permanently inert — which is a legitimate choice, but the operator must be told at the
-    moment it is made.
+    ⚠️ This test previously took `capsys`, never called `snapshot()` and never read stderr —
+    deleting the entire warning loop left the whole suite green. It asserted a property of
+    `observe()` while wearing this test's name. It now drives `snapshot()` for real, into
+    tmp_path so the repo golden is never touched.
+
+    Measured against the golden it describes: 10 of 18 markers freeze `live_counts: 0` — 7
+    route blocks (no bold or whole-cell integers, by design) plus EMBEDDING_WINNERS,
+    EMBEDDING_ROSTER and EMBEDDING_CATALOG, which are inert for the same reason without being
+    route blocks. (An earlier docstring said "12 of 18 … route blocks", which was wrong on
+    both counts.)
     """
-    obs = cg.observe()
+    monkeypatch.setattr(cg, "GOLDEN_DIR", tmp_path)
+    monkeypatch.setattr(cg, "MANIFEST", tmp_path / "structure.json")
+    monkeypatch.setattr(cg, "DB_QUERIES", tmp_path / "db_queries.json")
+    obs = cg.snapshot()
+    err = capsys.readouterr().err
+
     inert = [
         k
         for k, v in obs["markers"].items()
         if isinstance(v, dict) and any(n == 0 for n in v.values())
     ]
     assert inert, "no inert marker magnitudes — this test no longer measures anything"
-    # Every marker must still retain at least one LIVE magnitude, or it is unguarded.
-    for key, mag in obs["markers"].items():
-        if isinstance(mag, dict):
-            assert any(n > 0 for n in mag.values()), f"{key} has no live magnitude at all"
+    assert "freezing EMPTY marker magnitudes" in err, (
+        "snapshot() froze permanently-inert marker magnitudes without telling the operator"
+    )
+    # NOT asserted here: a raw-NUL leak. These keys are printed inside a list, and Python's
+    # list repr escapes the sentinel — unlike verify()'s drift lines, which concatenate a bare
+    # string and DO leak it (see test_drift_output_is_greppable). The `.replace` in snapshot()
+    # is readability, not a leak guard; asserting otherwise would be a test that cannot fail.
+    assert cg.MANIFEST.exists() and cg.DB_QUERIES.exists(), "snapshot wrote no golden"
+
+
+def test_every_marker_retains_a_live_husk_signal():
+    """`chars` does not count.
+
+    The module's own measurement is that total data loss retained 53-100% of the characters
+    in 15 of 18 markers, and 53% > COLLAPSE_RATIO — so a marker whose only non-zero magnitude
+    is `chars` is unguarded against a total husk. The previous form of this assertion counted
+    `chars`, which is > 0 for any non-empty block, so it could never fail.
+    """
+    for key, mag in cg.observe()["markers"].items():
+        if not isinstance(mag, dict):
+            continue
+        live = {k: n for k, n in mag.items() if k != "chars" and n > 0}
+        assert live, f"{key} has no husk signal beyond chars — it is unguarded"
+
+
+def test_a_capability_only_gateway_husk_is_drift():
+    """The MIRROR of the husk round 9 added live_counts to catch — which it did not cover.
+
+    The five `with_*` capability columns going to zero while the gateway columns still
+    populate left live_counts at 9 of 13, inside `_min_allowed(13) = 6.5`. So the oracle
+    passed a block reading "reasoning **0** · tools **0** · vision **0**", which
+    daily_refresh.sh fleet-syncs to ~46 repos. A POSITION count needs an absolute allowance,
+    not a ratio.
+    """
+    import importlib.util
+
+    src = cg.SCRIPT_DIR / "update_gateway_counts.py"
+    if not src.exists():
+        pytest.skip("gateway renderer absent (engine excised)")
+    spec = importlib.util.spec_from_file_location("_ugc11", src)
+    ugc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ugc)
+
+    keys = sorted(set(re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text())))
+    healthy = {k: 200 + i * 37 for i, k in enumerate(keys)}
+    caps_dead = {k: (0 if k.startswith("with_") else v) for k, v in healthy.items()}
+
+    base = cg.marker_shape(ugc.render_block("master", healthy, "2026-01-01"))
+    husk = cg.marker_shape(ugc.render_block("master", caps_dead, "2026-01-01"))
+    assert husk["rows"] == base["rows"], "this husk keeps every row"
+    assert husk[f"{cg.SECTION_KEY} nums"] > 0, "...and a non-zero integer sum"
+    ok, why = cg.magnitudes_ok(base, husk)
+    assert not ok, "every capability count zeroed but the marker reads as healthy"
+    assert "live_counts" in why, why
+
+
+def test_one_position_of_count_churn_is_still_tolerated():
+    """The paired stability assertion for the absolute allowance.
+
+    Over 727 real consecutive marker pairs `live_counts` fell exactly twice, both 14 -> 13.
+    """
+    assert cg.magnitudes_ok({"live_counts": 14}, {"live_counts": 13})[0]
+    assert not cg.magnitudes_ok({"live_counts": 14}, {"live_counts": 12})[0]
+
+
+def test_a_golden_missing_a_section_refuses_to_run(monkeypatch, tmp_path):
+    """Tolerant `.get` alone turned a truncated golden from a crash into
+    `OK — 28 contract elements intact` — strictly worse, because the crash at least surfaced.
+    Both halves are needed: tolerant reads so verify() cannot raise, this guard so it cannot
+    lie about how much it checked."""
+    for section in ("artifacts", "markers", "db_queries"):
+        g = json.loads(cg.MANIFEST.read_text())
+        g.pop(section)
+        stale = tmp_path / f"{section}.json"
+        stale.write_text(json.dumps(g))
+        monkeypatch.setattr(cg, "MANIFEST", stale)
+        assert cg.verify() == 2, f"a golden missing '{section}' must refuse, not check less"
+
+
+def test_a_golden_with_a_stale_html_key_set_refuses_to_run(monkeypatch, tmp_path):
+    """The marker key-set guard's sibling.
+
+    `html_shape`'s magnitude key set is fixed ({tr, payload_bytes}), so adding a third without
+    a version bump would be silently skipped exactly as `live_counts` was — `magnitudes_ok`
+    iterates the GOLDEN's keys, and `shape_drift` pops `magnitudes` before comparing the rest,
+    so nothing else would red.
+    """
+    g = json.loads(cg.MANIFEST.read_text())
+    html = [r for r, a in g["artifacts"].items() if r.endswith(".html") and a.get("present")]
+    if not html:
+        pytest.skip("no html artifact present locally")
+    g["artifacts"][html[0]]["shape"]["magnitudes"].pop("payload_bytes", None)
+    stale = tmp_path / "structure.json"
+    stale.write_text(json.dumps(g))
+    monkeypatch.setattr(cg, "MANIFEST", stale)
+    assert cg.verify() == 2, "a stale html magnitude key set must refuse, not silently skip"

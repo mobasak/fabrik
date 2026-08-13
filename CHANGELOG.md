@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 11: the capability half of the gateway husk, and a test that never called what it was named for (2026-08-13)
+
+Round 11 confirmed round 10 broke nothing — 0 detection regressions vs round 9 across 549
+artifact and 727 marker pairs with empty symmetric differences in all four directions, and a
+fresh `--snapshot` in a mirror produced a byte-identical golden. Two confirmed defects:
+
+- **The MIRROR of round 9's own finding was never covered.** Round 9 added `live_counts`
+  because "a sum cannot see a partial husk", and pinned it with a test that zeroes the
+  *gateway* columns. The complementary husk — the five `with_*` **capability** columns going
+  to zero while the gateway columns still populate — passed green: `live_counts` fell 13 → 9,
+  inside `_min_allowed(13) = 6.5`. The ratio destroyed the very property `live_counts` was
+  added for. A position count now gets an absolute one-position allowance; measured cost over
+  727 real marker pairs is **zero** false-reds (`live_counts` fell twice in all of history,
+  both 14 → 13). Both husk halves are now caught and both are pinned.
+- **`test_snapshot_warns_about_inert_marker_magnitudes` never called `snapshot()`**, never
+  read stderr, and asserted a property of `observe()` instead — deleting the entire warning
+  loop left the suite green, while the round-10 commit claimed coverage. It now drives
+  `snapshot()` into a tmp dir (the repo golden is never touched).
+- The round-10 entry above said "12 of 18 markers"; it is **10**, and 3 of them are not route
+  blocks. Corrected in place — a claim without proof inside the artifact documenting a review
+  round is exactly what this loop exists to prevent.
+- A truncated golden crashed `verify()` with `KeyError`. Making the reads tolerant alone was
+  *worse* — it turned the crash into `OK — 28 contract elements intact`. Both halves shipped:
+  tolerant reads so it cannot raise, plus a missing-section guard so it cannot lie about how
+  much it checked. A marker frozen as `None` no longer counts toward "elements intact" either.
+- The key-set guard now covers `html_shape`'s fixed magnitude keys too — the same silent-skip
+  the marker guard was added for.
+- Two honesty corrections: the "at least one live magnitude" floor counted `chars`, which is
+  >0 for any non-empty block and therefore could never fail (the module's own measurement is
+  that total data loss retains 53–100% of characters); and the freeze-time warning's
+  `.replace` is readability, **not** a NUL-leak guard — Python's list repr already escapes the
+  sentinel, unlike `verify()`'s drift lines. An assertion that cannot fail was removed rather
+  than kept for appearances.
+
 ### Fixed — catalog-extraction Phase A round 10: the version gate missed a same-version format change, again (2026-08-13)
 
 Round 10 confirmed round 9 broke nothing reproducible — 0 detection regressions across 549 +
@@ -24,10 +58,11 @@ fixes red-on-revert. One finding, and it is a repeat:
   the emitted key set, so the next magnitude added fails at authoring time rather than in
   production.
 - The freeze-time "these can never red again" warning covered artifacts only, while round 9
-  froze `live_counts: 0` into 12 of 18 markers (route blocks carry no bold or whole-cell
-  integers, by design). That is a legitimate choice the operator was never told about; it is
-  now reported at `--snapshot`, and a test asserts every marker still retains at least one
-  live magnitude.
+  froze `live_counts: 0` into **10** of 18 markers — 7 route blocks (no bold or whole-cell
+  integers, by design) plus EMBEDDING_WINNERS, EMBEDDING_ROSTER and EMBEDDING_CATALOG, which
+  are inert for the same reason without being route blocks. (This entry originally said
+  "12 of 18 … route blocks", wrong on both counts — corrected in round 11.) That is a
+  legitimate choice the operator was never told about; it is now reported at `--snapshot`.
 
 ### Added — quota rotation v2: preemptive 4-account pool with graceful drain (2026-08-13)
 

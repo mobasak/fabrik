@@ -187,10 +187,16 @@ def magnitudes_ok(want: dict, got: dict, may_empty: bool = False) -> tuple[bool,
             continue
         if wn == 0:
             continue
-        # A queue that drains is not a collapse — the exemption has to cover the aggregate
-        # too, or the artifact it exists for still false-reds (measured: CANDIDATE_SIGNUPS.md
-        # 6 -> 2 rows in one real commit pair). Growth is still checked.
-        if not may_empty and gn < _min_allowed(wn):
+        # `live_counts` counts POSITIONS still carrying data, so it gets an absolute
+        # one-position allowance rather than the ratio. The ratio destroyed the very property
+        # it was added for: at wn=13 the floor is 6.5, so the mirror of the husk it was
+        # written to catch — the five `with_*` capability columns going to zero while the
+        # gateway columns still populate — survived at 9 and passed green, fleet-syncing a
+        # block reading "reasoning **0** · tools **0** · vision **0**" to ~46 repos. Measured
+        # cost of the stricter rule over 727 real marker pairs: ZERO false-reds (live_counts
+        # fell twice in all of history, both 14 -> 13).
+        floor = wn - 1 if key == "live_counts" else _min_allowed(wn)
+        if not may_empty and gn < floor:
             return False, f"COLLAPSE {key}: {wn} -> {gn}"
         if gn > wn * FANOUT_CEILING:
             return False, f"FAN-OUT {key}: {wn} -> {gn} (duplication?)"
@@ -641,7 +647,37 @@ def verify() -> int:
             file=sys.stderr,
         )
         return 2
+    # The same silent-skip applies to any FIXED magnitude key set. html_shape's is fixed
+    # ({tr, payload_bytes}); md/json magnitudes are data-derived, so only these two are
+    # checkable this way.
+    expected_html = set(html_shape("")["magnitudes"])
+    stale_html = [
+        rel
+        for rel, a in want.get("artifacts", {}).items()
+        if rel.endswith(".html")
+        and a.get("present")
+        and set((a.get("shape") or {}).get("magnitudes") or {}) != expected_html
+    ]
+    if stale_html:
+        print(
+            f"[capture_golden] golden stores {len(stale_html)} html artifact(s) with a stale "
+            f"magnitude key set — invariants would be SKIPPED. Re-freeze with --snapshot.",
+            file=sys.stderr,
+        )
+        return 2
     expected_keys = set(marker_shape(""))
+    # A golden missing a whole SECTION must refuse, not quietly check less. Tolerant `.get`
+    # alone turned a truncated file from a crash into `OK — 28 contract elements intact`,
+    # which is strictly worse: the crash at least surfaced. Both halves are needed — the
+    # tolerant reads keep verify() from raising, this guard keeps it from lying.
+    missing_sections = [s for s in ("artifacts", "markers", "db_queries") if s not in want]
+    if missing_sections:
+        print(
+            f"[capture_golden] golden is missing section(s) {missing_sections} — it would "
+            "silently check less than the full contract. Re-freeze with --snapshot.",
+            file=sys.stderr,
+        )
+        return 2
     stale_markers = [
         k
         for k, v in want.get("markers", {}).items()
@@ -664,7 +700,7 @@ def verify() -> int:
     # PRODUCED". daily_refresh.sh sets this; a laptop/CI clone does not.
     require_local = os.environ.get("ORACLE_REQUIRE_LOCAL_ARTIFACTS") == "1"
 
-    for rel, w in want["artifacts"].items():
+    for rel, w in want.get("artifacts", {}).items():
         g = got["artifacts"].get(rel)
         if g is None:
             drift.append(f"ARTIFACT DROPPED FROM THE CONTRACT: {rel}")
@@ -714,7 +750,7 @@ def verify() -> int:
             # emitting 15 spurious QUERY CHANGED/GONE lines.
             drift.append(f"QUERY CHANGED: {key}")
 
-    for key, want_m in want["markers"].items():
+    for key, want_m in want.get("markers", {}).items():
         got_m = got["markers"].get(key, "absent")
         if want_m is None:
             continue
@@ -725,13 +761,13 @@ def verify() -> int:
         if not ok:
             drift.append(f"MARKER {why}: {key}")
     for key in got["markers"]:
-        if key not in want["markers"]:
+        if key not in want.get("markers", {}):
             print(f"[capture_golden] NEW marker (addition, not drift): {key}", file=sys.stderr)
     # Symmetry with markers: an artifact added to SELECTION_DOCS/REGISTRY_JSONS/OTHER_OUTPUTS
     # without re-snapshotting is simply absent from `want` and was therefore unprotected with
     # no signal at all. Not drift — but it must not be silent.
     for rel in got["artifacts"]:
-        if rel not in want["artifacts"]:
+        if rel not in want.get("artifacts", {}):
             print(
                 f"[capture_golden] NEW artifact NOT YET FROZEN (unprotected): {rel} "
                 "— re-run --snapshot to bring it under the contract",
@@ -746,11 +782,17 @@ def verify() -> int:
         for d in drift:
             print("   " + d.replace(SECTION_KEY, "section"), file=sys.stderr)
         return 1
-    n = len(want["artifacts"]) + len(want["markers"]) + len(want.get("db_queries", {}))
+    arts = want.get("artifacts", {})
+    marks = want.get("markers", {})
+    # A marker frozen as None was never observed at freeze time, so it is checked by nothing —
+    # counting it as "intact" overstates coverage. Report it separately instead.
+    inert = sum(1 for v in marks.values() if v is None)
+    n = len(arts) + len(marks) - inert + len(want.get("db_queries", {}))
+    suffix = f", {inert} marker(s) UNFROZEN (absent at snapshot)" if inert else ""
     print(
         f"[capture_golden] OK — {n} contract elements intact "
-        f"({len(want['artifacts'])} artifacts, {len(want['markers'])} markers, "
-        f"{len(want.get('db_queries', {}))} queries)"
+        f"({len(arts)} artifacts, {len(marks) - inert} markers, "
+        f"{len(want.get('db_queries', {}))} queries){suffix}"
     )
     return 0
 
