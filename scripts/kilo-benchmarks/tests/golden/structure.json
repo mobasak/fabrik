@@ -4,8 +4,9 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "#|Kind|Model / SKU|Provider|Price (context)|Signup trigger :: ROWS": 1,
      "#|Kind|Model / SKU|Provider|Price (context)|Signup trigger :: TABLES": 1,
-     "Candidate Signups \u2014 Watch-list vendors not currently reachable :: #|Kind|Model / SKU|Provider|Price (context)|Signup trigger": 1
+     "\u00a7 Candidate Signups \u2014 Watch-list vendors not currently reachable :: #|Kind|Model / SKU|Provider|Price (context)|Signup trigger": 1
     },
     "skeleton": [
      "# Candidate Signups \u2014 Watch-list vendors not currently reachable"
@@ -26,15 +27,19 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "#|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score :: ROWS": 44,
      "#|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score :: TABLES": 2,
-     "API call recipes (OpenRouter) :: Model|Extra body params": 4,
-     "Candidates not yet benched by us :: Model|In $/M|Out $/M|db_tps|Ctx|Arena|Reason|Score (provisional)": 11,
-     "Excluded from the pool :: Model|Reason": 1,
+     "Model|Extra body params :: ROWS": 4,
      "Model|Extra body params :: TABLES": 1,
+     "Model|In $/M|Out $/M|db_tps|Ctx|Arena|Reason|Score (provisional) :: ROWS": 11,
      "Model|In $/M|Out $/M|db_tps|Ctx|Arena|Reason|Score (provisional) :: TABLES": 1,
+     "Model|Reason :: ROWS": 1,
      "Model|Reason :: TABLES": 1,
-     "code :: #|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score": 24,
-     "code-onrequest :: #|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score": 20
+     "\u00a7 API call recipes (OpenRouter) :: Model|Extra body params": 4,
+     "\u00a7 Candidates not yet benched by us :: Model|In $/M|Out $/M|db_tps|Ctx|Arena|Reason|Score (provisional)": 11,
+     "\u00a7 Excluded from the pool :: Model|Reason": 1,
+     "\u00a7 code :: #|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score": 24,
+     "\u00a7 code-onrequest :: #|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score": 20
     },
     "skeleton": [
      "# Coding subagent selection",
@@ -89,8 +94,9 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "#|Model|Provider|Cost @100 images (USD)|quality_elo :: ROWS": 3,
      "#|Model|Provider|Cost @100 images (USD)|quality_elo :: TABLES": 1,
-     "Image-Gen Selection \u2014 Pareto-ranked at 100 images :: #|Model|Provider|Cost @100 images (USD)|quality_elo": 3
+     "\u00a7 Image-Gen Selection \u2014 Pareto-ranked at 100 images :: #|Model|Provider|Cost @100 images (USD)|quality_elo": 3
     },
     "skeleton": [
      "# Image-Gen Selection \u2014 Pareto-ranked at 100 images"
@@ -110,76 +116,80 @@
    "present": true,
    "shape": {
     "magnitudes": {
-     "AI21 <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "AION-LABS <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "ALLENAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "AMAZON <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
-     "ANTHRACITE-ORG <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "ANTHROPIC <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 19,
-     "ARCEE-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "ASSEMBLYAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "BAIDU <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "BFL <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 7,
-     "BYTEDANCE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "BYTEDANCE-SEED <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "COGNITIVECOMPUTATIONS <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "COHERE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
-     "Capability Summary :: Capability|Count|%": 4,
+     "Capability|Count|% :: ROWS": 4,
      "Capability|Count|% :: TABLES": 1,
-     "DEEPCOGITO <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "DEEPGRAM <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "DEEPSEEK <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 12,
-     "ELEVENLABS <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "GOOGLE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 31,
-     "GRYPHE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "IBM-GRANITE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "INCEPTION <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "INCLUSIONAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
+     "Icon|Meaning :: ROWS": 3,
      "Icon|Meaning :: TABLES": 1,
-     "KWAIPILOT <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
-     "Legend :: Icon|Meaning": 3,
-     "MANCER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "MEITUAN <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "META <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
-     "META-LLAMA <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
-     "MICROSOFT <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "MINIMAX <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
-     "MISTRALAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 18,
-     "MOONSHOTAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
-     "MORPH <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "Model|Input/M|Output/M|Context|Caps|ELO|TBench :: ROWS": 401,
      "Model|Input/M|Output/M|Context|Caps|ELO|TBench :: TABLES": 63,
-     "NEX-AGI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "NOUSRESEARCH <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "NVIDIA <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 11,
-     "OPENAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 89,
-     "OPENROUTER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
-     "PERCEPTRON <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "PERPLEXITY <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
-     "POOLSIDE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "Pricing Tiers :: Tier|Input $/M|Use Case": 6,
-     "QWEN <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 50,
-     "REKAAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "RELACE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "SAKANA <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
-     "SAO10K <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
-     "STABILITY <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "STEPFUN <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "TENCENT <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
-     "THEDRUMMER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "THINKINGMACHINES <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "Tier|Input $/M|Use Case :: ROWS": 6,
      "Tier|Input $/M|Use Case :: TABLES": 1,
-     "UNDI95 <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "UPSTAGE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "WRITER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "X-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
-     "XIAOMI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "Z-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 13,
-     "~ANTHROPIC <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
-     "~DEEPSEEK <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "~GOOGLE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "~MOONSHOTAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
-     "~OPENAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
-     "~X-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1
+     "\u00a7 AI21 <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 AION-LABS <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 ALLENAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 AMAZON <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
+     "\u00a7 ANTHRACITE-ORG <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 ANTHROPIC <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 19,
+     "\u00a7 ARCEE-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 ASSEMBLYAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 BAIDU <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 BFL <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 7,
+     "\u00a7 BYTEDANCE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 BYTEDANCE-SEED <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 COGNITIVECOMPUTATIONS <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 COHERE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
+     "\u00a7 Capability Summary :: Capability|Count|%": 4,
+     "\u00a7 DEEPCOGITO <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 DEEPGRAM <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 DEEPSEEK <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 12,
+     "\u00a7 ELEVENLABS <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 GOOGLE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 31,
+     "\u00a7 GRYPHE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 IBM-GRANITE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 INCEPTION <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 INCLUSIONAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
+     "\u00a7 KWAIPILOT <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "\u00a7 Legend :: Icon|Meaning": 3,
+     "\u00a7 MANCER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 MEITUAN <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 META <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "\u00a7 META-LLAMA <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
+     "\u00a7 MICROSOFT <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 MINIMAX <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
+     "\u00a7 MISTRALAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 18,
+     "\u00a7 MOONSHOTAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
+     "\u00a7 MORPH <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 NEX-AGI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 NOUSRESEARCH <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 NVIDIA <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 11,
+     "\u00a7 OPENAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 89,
+     "\u00a7 OPENROUTER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 8,
+     "\u00a7 PERCEPTRON <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 PERPLEXITY <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
+     "\u00a7 POOLSIDE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 Pricing Tiers :: Tier|Input $/M|Use Case": 6,
+     "\u00a7 QWEN <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 50,
+     "\u00a7 REKAAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 RELACE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 SAKANA <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "\u00a7 SAO10K <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "\u00a7 STABILITY <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 STEPFUN <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 TENCENT <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "\u00a7 THEDRUMMER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 THINKINGMACHINES <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 3,
+     "\u00a7 UNDI95 <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 UPSTAGE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 WRITER <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 X-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 5,
+     "\u00a7 XIAOMI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 Z-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 13,
+     "\u00a7 ~ANTHROPIC <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 4,
+     "\u00a7 ~DEEPSEEK <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 ~GOOGLE <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 ~MOONSHOTAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1,
+     "\u00a7 ~OPENAI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 2,
+     "\u00a7 ~X-AI <N> :: Model|Input/M|Output/M|Context|Caps|ELO|TBench": 1
     },
     "skeleton": [
      "# Kilo Model Capabilities Reference",
@@ -219,8 +229,9 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "#|Model|Provider|Cost @60 min (USD)|quality_elo :: ROWS": 1,
      "#|Model|Provider|Cost @60 min (USD)|quality_elo :: TABLES": 1,
-     "STT Selection \u2014 Pareto-ranked at 60 minutes :: #|Model|Provider|Cost @60 min (USD)|quality_elo": 1
+     "\u00a7 STT Selection \u2014 Pareto-ranked at 60 minutes :: #|Model|Provider|Cost @60 min (USD)|quality_elo": 1
     },
     "skeleton": [
      "# STT Selection \u2014 Pareto-ranked at 60 minutes"
@@ -240,23 +251,29 @@
    "present": true,
    "shape": {
     "magnitudes": {
-     "Coders \u2014 6 selected (by tier) :: model|grade|pass@1|$/1k|$/run|p50 s": 6,
-     "Full coding benchmark results \u2014 LiveCodeBench pass@1 (display only; not parsed for routing) :: model|grade|pass@1|score5|$/1k|$/run|p50 s|tok/s|value|family|n_graded|n_err|eligible|tier": 57,
-     "Full review benchmark results \u2014 all measured columns (display only; not parsed for routing) :: model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl|eligible": 61,
-     "HARD review benchmark \u2014 hand-planted subtle logic bugs (diagnostic only; NOT comparable with the table above, never parsed for routing) :: model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl": 4,
-     "Reviewers \u2014 8 selected :: model|grade|score5|recall|$/1k|$/run|p50 s": 8,
-     "code (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 6,
-     "docs (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 5,
+     "model|grade|pass@1|$/1k|$/run|p50 s :: ROWS": 6,
      "model|grade|pass@1|$/1k|$/run|p50 s :: TABLES": 2,
+     "model|grade|pass@1|score5|$/1k|$/run|p50 s|tok/s|value|family|n_graded|n_err|eligible|tier :: ROWS": 57,
      "model|grade|pass@1|score5|$/1k|$/run|p50 s|tok/s|value|family|n_graded|n_err|eligible|tier :: TABLES": 1,
+     "model|grade|score5|recall|$/1k|$/run|p50 s :: ROWS": 8,
      "model|grade|score5|recall|$/1k|$/run|p50 s :: TABLES": 1,
+     "model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl :: ROWS": 4,
      "model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl :: TABLES": 1,
+     "model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl|eligible :: ROWS": 61,
      "model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl|eligible :: TABLES": 1,
-     "plan (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 1,
+     "rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n :: ROWS": 21,
      "rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n :: TABLES": 6,
-     "research (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 4,
-     "review (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 4,
-     "spec (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 1
+     "\u00a7 Coders \u2014 6 selected (by tier) :: model|grade|pass@1|$/1k|$/run|p50 s": 6,
+     "\u00a7 Full coding benchmark results \u2014 LiveCodeBench pass@1 (display only; not parsed for routing) :: model|grade|pass@1|score5|$/1k|$/run|p50 s|tok/s|value|family|n_graded|n_err|eligible|tier": 57,
+     "\u00a7 Full review benchmark results \u2014 all measured columns (display only; not parsed for routing) :: model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl|eligible": 61,
+     "\u00a7 HARD review benchmark \u2014 hand-planted subtle logic bugs (diagnostic only; NOT comparable with the table above, never parsed for routing) :: model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl": 4,
+     "\u00a7 Reviewers \u2014 8 selected :: model|grade|score5|recall|$/1k|$/run|p50 s": 8,
+     "\u00a7 code (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 6,
+     "\u00a7 docs (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 5,
+     "\u00a7 plan (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 1,
+     "\u00a7 research (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 4,
+     "\u00a7 review (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 4,
+     "\u00a7 spec (<N>) :: rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 1
     },
     "skeleton": [
      "## \u2705 Selected subagents \u2014 the gate shortlists (`pick_models` picks from these)",
@@ -346,8 +363,9 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "#|Model|Provider|Cost @100 000 chars (USD)|quality_elo :: ROWS": 1,
      "#|Model|Provider|Cost @100 000 chars (USD)|quality_elo :: TABLES": 1,
-     "Translation Selection \u2014 Pareto-ranked at 100 000 chars :: #|Model|Provider|Cost @100 000 chars (USD)|quality_elo": 1
+     "\u00a7 Translation Selection \u2014 Pareto-ranked at 100 000 chars :: #|Model|Provider|Cost @100 000 chars (USD)|quality_elo": 1
     },
     "skeleton": [
      "# Translation Selection \u2014 Pareto-ranked at 100 000 chars"
@@ -367,8 +385,9 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "#|Model|Provider|Cost @100 000 chars (USD)|quality_elo :: ROWS": 1,
      "#|Model|Provider|Cost @100 000 chars (USD)|quality_elo :: TABLES": 1,
-     "TTS Selection \u2014 Pareto-ranked at 100 000 chars :: #|Model|Provider|Cost @100 000 chars (USD)|quality_elo": 1
+     "\u00a7 TTS Selection \u2014 Pareto-ranked at 100 000 chars :: #|Model|Provider|Cost @100 000 chars (USD)|quality_elo": 1
     },
     "skeleton": [
      "# TTS Selection \u2014 Pareto-ranked at 100 000 chars"
@@ -388,8 +407,9 @@
    "present": true,
    "shape": {
     "magnitudes": {
+     "Rank|Model|Provider|Elo|TBench%|In$/M|Out$/M|Ctx|Vision|Tools|Agentic|Tier|$/Perf|Status :: ROWS": 60,
      "Rank|Model|Provider|Elo|TBench%|In$/M|Out$/M|Ctx|Vision|Tools|Agentic|Tier|$/Perf|Status :: TABLES": 1,
-     "Top 60 Agents Ranked by Chatbot Arena Elo :: Rank|Model|Provider|Elo|TBench%|In$/M|Out$/M|Ctx|Vision|Tools|Agentic|Tier|$/Perf|Status": 60
+     "\u00a7 Top 60 Agents Ranked by Chatbot Arena Elo :: Rank|Model|Provider|Elo|TBench%|In$/M|Out$/M|Ctx|Vision|Tools|Agentic|Tier|$/Perf|Status": 60
     },
     "skeleton": [
      "# Kilo Agents Master Table",
@@ -863,24 +883,24 @@
   "update_gateway_counts.12": "SELECT count(*) FROM agents WHERE via_siliconflow=1 AND status='active'"
  },
  "markers": {
-  ".windsurf/rules/ai/00-ai-model-selection.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/10-speech-audio.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/10-speech-audio.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/ai/20-vision.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/20-vision.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/ai/30-language.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/30-language.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/ai/40-multimodal.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/40-multimodal.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/ai/50-agentic.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/50-agentic.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/ai/60-code.md::GATEWAY_COUNTS": true,
-  ".windsurf/rules/ai/60-code.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/ai/90-long-context.md::OPENROUTER_ROUTES": true,
-  ".windsurf/rules/core/65-rag-search.md::EMBEDDING_WINNERS": true,
-  "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::EMBEDDING_ROSTER": true,
-  "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::ROSTER": true,
-  "docs/reference/kilo/KILO_MODEL_CAPABILITIES.md::EMBEDDING_CATALOG": true
+  ".windsurf/rules/ai/00-ai-model-selection.md::GATEWAY_COUNTS": 769,
+  ".windsurf/rules/ai/10-speech-audio.md::GATEWAY_COUNTS": 349,
+  ".windsurf/rules/ai/10-speech-audio.md::OPENROUTER_ROUTES": 480,
+  ".windsurf/rules/ai/20-vision.md::GATEWAY_COUNTS": 236,
+  ".windsurf/rules/ai/20-vision.md::OPENROUTER_ROUTES": 527,
+  ".windsurf/rules/ai/30-language.md::GATEWAY_COUNTS": 327,
+  ".windsurf/rules/ai/30-language.md::OPENROUTER_ROUTES": 587,
+  ".windsurf/rules/ai/40-multimodal.md::GATEWAY_COUNTS": 257,
+  ".windsurf/rules/ai/40-multimodal.md::OPENROUTER_ROUTES": 527,
+  ".windsurf/rules/ai/50-agentic.md::GATEWAY_COUNTS": 348,
+  ".windsurf/rules/ai/50-agentic.md::OPENROUTER_ROUTES": 579,
+  ".windsurf/rules/ai/60-code.md::GATEWAY_COUNTS": 263,
+  ".windsurf/rules/ai/60-code.md::OPENROUTER_ROUTES": 579,
+  ".windsurf/rules/ai/90-long-context.md::OPENROUTER_ROUTES": 523,
+  ".windsurf/rules/core/65-rag-search.md::EMBEDDING_WINNERS": 695,
+  "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::EMBEDDING_ROSTER": 2172,
+  "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::ROSTER": 3313,
+  "docs/reference/kilo/KILO_MODEL_CAPABILITIES.md::EMBEDDING_CATALOG": 4015
  },
  "oracle_version": 2
 }

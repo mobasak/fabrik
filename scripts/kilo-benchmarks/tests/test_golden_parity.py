@@ -249,7 +249,7 @@ def test_an_entirely_empty_table_is_drift():
     a = "# D\n\n## S\n\n| m | s |\n|---|---|\n| x | 1 |\n| y | 2 |\n"
     b = "# D\n\n## S\n\n| m | s |\n|---|---|\n"
     assert not cg.shapes_equal(cg.md_shape(a), cg.md_shape(b)), "an emptied table must be drift"
-    assert cg.md_shape(b)["magnitudes"]["S :: m|s"] == 0
+    assert cg.md_shape(b)["magnitudes"][f"{cg.SECTION_KEY} S :: m|s"] == 0
 
 
 def _rows(n: int) -> str:
@@ -407,11 +407,15 @@ def test_tiny_collections_tolerate_ordinary_churn():
     assert cg.magnitudes_ok({"t": 1}, {"t": 5})[0], "growth on a tiny collection is not drift"
     # One item of churn is cheap at every size...
     assert cg.magnitudes_ok({"t": 3}, {"t": 2})[0], "3 -> 2 is one item of churn"
-    assert cg.magnitudes_ok({"t": 1}, {"t": 0})[0], "a 1-row queue emptying is its end-state"
     # ...but losing MOST of a small collection is not. A flat floor tolerated 3 -> 1, which is
     # the registry-truncation case json_shape exists to catch.
     assert not cg.magnitudes_ok({"t": 3}, {"t": 1})[0], "3 -> 1 must be drift"
     assert not cg.magnitudes_ok({"t": 2}, {"t": 0})[0], "2 -> 0 must be drift"
+    # A collection emptying ENTIRELY is drift at every size — including n=1, which the
+    # `min(wn-1, ...)` form silently exempted for 25 collections.
+    assert not cg.magnitudes_ok({"t": 1}, {"t": 0})[0], "1 -> 0 is a total loss"
+    # ...unless the artifact is a queue whose end-state is empty.
+    assert cg.magnitudes_ok({"t": 1}, {"t": 0}, may_empty=True)[0]
 
 
 def test_large_collection_growth_survives_a_long_extraction():
@@ -436,8 +440,11 @@ def test_adjacent_tables_are_keyed_separately():
     second = "| c | d |\n|---|---|\n| 7 | 8 |\n| 9 | 0 |\n| 1 | 1 |\n"
     doc = "# D\n\n## S\n\n" + first + second
     shape = cg.md_shape(doc)
-    rows = {k: v for k, v in shape["magnitudes"].items() if "TABLES" not in k}
-    assert rows == {"S :: a|b": 3, "S :: c|d": 3}, shape["magnitudes"]
+    rows = {k: v for k, v in shape["magnitudes"].items() if k.startswith(cg.SECTION_KEY)}
+    assert rows == {
+        f"{cg.SECTION_KEY} S :: a|b": 3,
+        f"{cg.SECTION_KEY} S :: c|d": 3,
+    }, shape["magnitudes"]
     gutted = "# D\n\n## S\n\n" + first + "| c | d |\n|---|---|\n"
     assert not cg.shapes_equal(shape, cg.md_shape(gutted)), "second table gutted, still green"
 
@@ -452,13 +459,12 @@ def test_magnitude_keys_match_the_table_inventory_on_every_real_artifact():
         cols = {"|".join(c) for c in shape["table_columns"]}
         # Every column contract must have a TABLES count, and every row-count key must end in
         # a known contract. (Keys are section-scoped, so they are a superset of the contracts.)
-        assert {f"{c} :: TABLES" for c in cols} <= set(shape["magnitudes"]), (
-            f"{rel}: a column contract has no table count"
-        )
+        for suffix in (":: TABLES", ":: ROWS"):
+            assert {f"{c} {suffix}" for c in cols} <= set(shape["magnitudes"]), (
+                f"{rel}: a column contract is missing its {suffix} aggregate"
+            )
         for key in shape["magnitudes"]:
-            if key.endswith(":: TABLES"):
-                continue
-            assert any(key.endswith(f":: {c}") or key == c for c in cols), (
+            assert any(key.endswith(f":: {c}") or key.startswith(f"{c} ::") for c in cols), (
                 f"{rel}: magnitude key {key!r} matches no column contract"
             )
 
@@ -546,7 +552,11 @@ def test_routing_sections_are_keyed_separately_from_each_other():
     if not doc.exists() or "AGGREGATION FAILED" in doc.read_text():
         pytest.skip("selection doc absent or is the failure stub")
     real = doc.read_text()
-    keys = [k for k in cg.md_shape(real)["magnitudes"] if "shrunk_q" in k and "TABLES" not in k]
+    keys = [
+        k
+        for k in cg.md_shape(real)["magnitudes"]
+        if "shrunk_q" in k and k.startswith(cg.SECTION_KEY)
+    ]
     assert len(keys) >= 6, f"routing sections collapsed into {len(keys)} key(s): {keys}"
 
     gutted, section, in_sep = [], None, False
@@ -564,7 +574,9 @@ def test_routing_sections_are_keyed_separately_from_each_other():
             in_sep = False
         gutted.append(ln)
     why = cg.shape_drift(cg.md_shape(real), cg.md_shape("".join(gutted)))
-    assert "COLLAPSE" in why, f"4 of 6 routing sections emptied but not caught: {why!r}"
+    assert "EMPTIED" in why or "COLLAPSE" in why, (
+        f"4 of 6 routing sections emptied but not caught: {why!r}"
+    )
 
 
 def test_wholesale_section_removal_is_caught_by_the_table_count():
@@ -612,7 +624,11 @@ def test_small_collections_catch_a_truncation_to_one():
     assert not cg.magnitudes_ok({"r": 2}, {"r": 0})[0], "2 -> 0 must be drift"
     # ...while a single item of churn stays cheap at every size.
     assert cg.magnitudes_ok({"r": 3}, {"r": 2})[0]
-    assert cg.magnitudes_ok({"r": 1}, {"r": 0})[0], "a 1-row queue emptying is its end-state"
+    # 1 -> 0 is a TOTAL loss, not churn: `min(wn-1, ...)` evaluated to 0 at wn=1 and so
+    # exempted 25 collections — including the plan/spec routing shortlists and the only data
+    # table in STT/TTS/TRANSLATION_SELECTION.md. Only a declared queue may empty.
+    assert not cg.magnitudes_ok({"r": 1}, {"r": 0})[0], "1 -> 0 is a total loss"
+    assert cg.magnitudes_ok({"r": 1}, {"r": 0}, may_empty=True)[0]
 
 
 def test_the_fanout_ceiling_is_load_bearing():
@@ -652,6 +668,16 @@ def test_one_unavailable_query_does_not_mask_a_loss_in_another_module(monkeypatc
 
 def test_strict_mode_actually_runs_green_on_this_box(monkeypatch):
     """Nothing in the suite ever ran the mode production runs — every test delenv'd it."""
+    # Strict mode treats the 4 gitignored artifacts' absence as NO LONGER PRODUCED, which is
+    # correct on the box that produces them and wrong anywhere else. Phase B copies tests/ into
+    # the engine repo, so guard rather than red for environmental reasons there.
+    missing = [
+        rel
+        for rel in cg.REGISTRY_JSONS + cg.OTHER_OUTPUTS
+        if not (cg.FABRIK_ROOT / rel).exists()
+    ]
+    if missing:
+        pytest.skip(f"not the pipeline host — locally-produced artifacts absent: {missing}")
     monkeypatch.setenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", "1")
     assert cg.verify() == 0, "the production invocation reds on the pipeline host"
 
@@ -680,3 +706,96 @@ def test_the_oracle_runs_before_the_fleet_sync():
         f"the oracle runs at line {oracle + 1}, AFTER the fleet sync at {sync + 1} — drift "
         "would be distributed to ~46 repos before the operator is told"
     )
+
+
+def test_a_loose_separator_does_not_swallow_the_next_table():
+    """Round 5 tightened the table-boundary separator to `-{3,}` and shipped no test for it.
+
+    The loose `[\\s:|-]+` pattern also matches a DATA row of dashes or blanks, which splits a
+    live table in two and freezes the real one at 0 rows. Every renderer in this tree emits
+    `|---`, but `.windsurf/rules/ai/25-3d-generation.md` proves 2-dash separators occur, so a
+    future renderer emitting `|:-:|--:|` would silently drop a whole table from magnitudes.
+    """
+    doc = (
+        "# D\n\n## S\n\n| a | b |\n|---|---|\n"
+        "| 1 | 2 |\n| - | - |\n| 3 | 4 |\n| 5 | 6 |\n"
+    )
+    rows = {
+        k: v for k, v in cg.md_shape(doc)["magnitudes"].items() if k.startswith(cg.SECTION_KEY)
+    }
+    assert rows == {f"{cg.SECTION_KEY} S :: a|b": 4}, (
+        f"a dashes-only DATA row split the table: {rows}"
+    )
+
+
+def test_an_emptied_marker_block_is_drift(monkeypatch):
+    """18 of the 46 contract elements were presence-only booleans.
+
+    `extract_block` returns "" for an emptied block, and "" is not None — so an injector that
+    still writes its START/END fences with nothing between them read as fully intact. That is
+    39% of the contract (ROSTER, EMBEDDING_ROSTER, EMBEDDING_CATALOG, EMBEDDING_WINNERS and
+    14 ai-pack blocks) with no husk protection at all.
+    """
+    real = cg.observe
+
+    def emptied():
+        o = real()
+        key = next(k for k, v in o["markers"].items() if v > 0)
+        o["markers"][key] = 0
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", emptied)
+    assert cg.verify() == 1, "a marker whose payload was emptied still read as injected"
+
+
+def test_marker_content_churn_is_not_drift(monkeypatch):
+    """The paired stability assertion: marker payloads are regenerated nightly."""
+    real = cg.observe
+
+    def churned():
+        o = real()
+        o["markers"] = {k: (int(v * 1.08) if v > 0 else v) for k, v in o["markers"].items()}
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", churned)
+    assert cg.verify() == 0, "ordinary marker-payload churn must not red the oracle"
+
+
+def test_the_may_empty_exemption_is_wired_to_the_real_artifact(monkeypatch):
+    """MAY_EMPTY is consulted in verify(), not in magnitudes_ok's signature.
+
+    A test that passes `may_empty=True` by hand proves the parameter works, not that the
+    exemption reaches the artifact it exists for — measured, CANDIDATE_SIGNUPS.md drained
+    6 -> 2 rows in one real commit pair and would otherwise red the nightly oracle.
+    """
+    assert "docs/reference/kilo/CANDIDATE_SIGNUPS.md" in cg.MAY_EMPTY
+    real = cg.observe
+
+    def drained():
+        o = real()
+        a = o["artifacts"]["docs/reference/kilo/CANDIDATE_SIGNUPS.md"]
+        if not a.get("present"):
+            return o
+        a["shape"]["magnitudes"] = dict.fromkeys(a["shape"]["magnitudes"], 0)
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", drained)
+    assert cg.verify() == 0, "the signup queue draining must not red the oracle"
+
+
+def test_marker_sizes_are_observed_not_just_presence():
+    """Guards the OBSERVER half of the marker fix.
+
+    verify()'s comparison can distinguish emptied-from-present only if observe() records a
+    SIZE; if it reverts to a boolean the whole check silently degrades, and a verify()-level
+    test alone would not notice.
+    """
+    markers = cg.observe()["markers"]
+    assert markers, "no markers observed"
+    assert not all(v in (0, 1, True, False) for v in markers.values()), (
+        "markers look boolean — an emptied block would read as injected"
+    )
+    assert any(v > 1 for v in markers.values())

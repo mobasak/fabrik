@@ -127,7 +127,7 @@ def check_selection_doc(
 ) -> dict[str, object]:
     """Is the ranker's OUTPUT actually being refreshed? Pure function.
 
-    status: "fresh" | "stale" | "stub" | "missing" | "undated"
+    status: "fresh" | "stale" | "stub" | "missing" | "undated" | "future"
     """
     now = now or _now_utc()
     if not doc.exists():

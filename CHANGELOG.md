@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 6: total data loss was undetectable in 25 collections and all 18 markers (2026-08-13)
+
+Round-6 review found that round 5's own tolerance rule had an off-by-one that disabled the
+check exactly where it mattered most, and that section keying created a new bypass:
+
+- **`min(wn - 1, wn * 0.5)` evaluates to 0 at wn=1**, so any collection frozen at one row
+  could go to zero with no complaint — 25 collections, including the `plan` and `spec`
+  routing shortlists and the **only** data table in `STT_SELECTION.md`,
+  `TTS_SELECTION.md` and `TRANSLATION_SELECTION.md`. Reproduced: deleting every data row from
+  those three docs was **green**. The n=1 tolerance had been justified solely by
+  `CANDIDATE_SIGNUPS.md` being a queue, then applied to every 1-row ranker output. The floor
+  is now 1 (a collection emptying entirely is drift at every size) with a declared `MAY_EMPTY`
+  exemption for the one artifact that legitimately drains.
+- **A cosmetic heading reformat unguarded everything beneath it.** Section keys embed the
+  heading and a vanished key is tolerated (so a delisted provider is not a false red), so
+  changing `### OPENAI (89 models)` to `### OPENAI — 89 models` moved **57 of 70 keys** at
+  once; combined with emptied tables that hid 401 rows. Fixed by adding a heading-independent
+  per-contract `:: ROWS` aggregate: sections catch husks, aggregates catch proportional loss
+  and survive both reformats and provider churn.
+- **18 of the 46 contract elements were presence-only booleans.** `extract_block` returns `""`
+  for an emptied block and `"" is not None`, so an injector still writing its START/END fences
+  with an empty payload read as fully intact — the ROSTER, EMBEDDING_ROSTER,
+  EMBEDDING_CATALOG, EMBEDDING_WINNERS and 14 ai-pack blocks, 39% of the contract, had no husk
+  protection at all. Markers now record payload size.
+- The `-{3,}` separator fix from round 5 shipped with **no test** — the same defect round 5
+  raised against round 4. Covered now, along with the marker observer and the `MAY_EMPTY`
+  wiring (two reverts initially passed because the tests exercised the comparison logic rather
+  than the observer; both halves are now pinned).
+- `test_strict_mode_actually_runs_green_on_this_box` would have red on a fresh clone once
+  Phase B copies `tests/` into the engine repo; it now skips off the pipeline host.
+
+Verified across **238 real consecutive commit pairs** of the frozen markdown artifacts: **0
+magnitude false-reds** (the last one, the signup queue draining 6 → 2, is now covered by the
+exemption), while total loss, partial husks and emptied markers are all caught.
+
 ### Fixed — catalog-extraction Phase A round 5: the round-4 floor traded a false-red for a false-green (2026-08-13)
 
 Round-5 review quantified what round 4's `SMALL_N=10` floor actually cost, and it was worse

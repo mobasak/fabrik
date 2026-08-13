@@ -117,12 +117,28 @@ COLLAPSE_RATIO = 0.5
 FANOUT_CEILING = 10.0
 
 
+# Artifacts whose tables may LEGITIMATELY empty. Exactly one: a signup-candidate queue whose
+# natural end-state is zero (measured churning 2 -> 1 in-window). The n=1 tolerance was
+# originally justified by this file alone and then applied to every 1-row collection — which
+# silently exempted 25 collections, including the `plan` and `spec` routing shortlists and the
+# ONLY data table in STT/TTS/TRANSLATION_SELECTION.md, from total-loss detection.
+MAY_EMPTY = frozenset({"docs/reference/kilo/CANDIDATE_SIGNUPS.md"})
+
+# Prefix marking a per-section row count in a magnitudes dict (see _rows_per_table).
+SECTION_KEY = "\u00a7"
+
+
 def _min_allowed(wn: int) -> float:
-    """Smallest size that is still ordinary churn rather than a collapse."""
-    return min(wn - 1, wn * COLLAPSE_RATIO)
+    """Smallest size that is still ordinary churn rather than a collapse.
+
+    Never below 1: a collection emptying ENTIRELY is the husk this oracle exists to catch, at
+    every size. (`min(wn - 1, ...)` alone evaluates to 0 at wn=1, which turned the check off
+    for the 25 collections frozen at one row.)
+    """
+    return max(1.0, min(wn - 1, wn * COLLAPSE_RATIO))
 
 
-def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
+def magnitudes_ok(want: dict, got: dict, may_empty: bool = False) -> tuple[bool, str]:
     """Compare per-collection sizes. Returns (ok, reason).
 
     PER-COLLECTION, not per-document, and keyed per SECTION — both distinctions were earned
@@ -134,6 +150,18 @@ def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
     while the total stayed above threshold. Only section-keyed sizes actually catch it.
     """
     for key, wn in want.items():
+        if key.startswith(SECTION_KEY):
+            # A per-SECTION count. Only total emptying counts here, because a section's size
+            # is genuinely volatile: measured across 351 real commit pairs, `### X-AI` went
+            # 15 -> 4 models in one day. Proportional loss is judged on the per-contract
+            # `:: ROWS` aggregate instead, which is stable across that churn AND survives a
+            # heading reformat (which changes every section key at once).
+            gn = got.get(key)
+            if gn is None or wn == 0:
+                continue
+            if gn == 0 and not may_empty:
+                return False, f"EMPTIED {key}: {wn} -> 0"
+            continue
         gn = got.get(key)
         if gn is None:
             # A section that vanished ENTIRELY is upstream catalog churn, not extraction
@@ -147,7 +175,10 @@ def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
             continue
         if wn == 0:
             continue
-        if gn < _min_allowed(wn):
+        # A queue that drains is not a collapse — the exemption has to cover the aggregate
+        # too, or the artifact it exists for still false-reds (measured: CANDIDATE_SIGNUPS.md
+        # 6 -> 2 rows in one real commit pair). Growth is still checked.
+        if not may_empty and gn < _min_allowed(wn):
             return False, f"COLLAPSE {key}: {wn} -> {gn}"
         if gn > wn * FANOUT_CEILING:
             return False, f"FAN-OUT {key}: {wn} -> {gn} (duplication?)"
@@ -159,7 +190,7 @@ def shapes_equal(want: dict, got: dict) -> bool:
     return not shape_drift(want, got)
 
 
-def shape_drift(want: dict, got: dict) -> str:
+def shape_drift(want: dict, got: dict, may_empty: bool = False) -> str:
     """The reason `want` and `got` differ, or "" when they agree."""
     w, g = dict(want), dict(got)
     wm, gm = w.pop("magnitudes", None), g.pop("magnitudes", None)
@@ -169,7 +200,7 @@ def shape_drift(want: dict, got: dict) -> str:
     # ORACLE_VERSION, so reaching here with a missing side means a hand-built shape in a test.
     if wm is None or gm is None:
         return ""
-    ok, why = magnitudes_ok(wm, gm)
+    ok, why = magnitudes_ok(wm, gm, may_empty=may_empty)
     return "" if ok else why
 
 
@@ -243,7 +274,11 @@ def _rows_per_table(text: str) -> dict[str, int]:
         head = re.match(r"^\|(.+?)\|[ \t]*$", lines[i])
         if head and re.match(r"^\|[\s:|-]+\|[ \t]*$", lines[i + 1]):
             cols = "|".join(c.strip().strip("*`") for c in head.group(1).split("|"))
-            key = f"{section} :: {cols}" if section else cols
+            # The `§ ` sentinel marks a PER-SECTION count, which is judged differently from
+            # every other magnitude (emptying only, not proportionally). Inferring the kind
+            # from the key text instead misclassified json paths and html payload_bytes as
+            # section keys and silently turned their proportional checks off.
+            key = f"{SECTION_KEY} {section} :: {cols}" if section else cols
             j = i + 2
             # Stop at the next table's header. Without this, a table not separated by a blank
             # line swallowed its neighbour's header + separator + rows: the count was inflated
@@ -263,6 +298,11 @@ def _rows_per_table(text: str) -> dict[str, int]:
             # removed WHOLESALE — e.g. 4 of the 6 routing shortlists deleted outright rather
             # than emptied, which would otherwise slip through as 4 tolerated disappearances.
             sizes[f"{cols} :: TABLES"] = sizes.get(f"{cols} :: TABLES", 0) + 1
+            # Total rows across every table sharing this contract. Section keys embed the
+            # heading, so a cosmetic heading reformat moves all of them at once and — since a
+            # vanished key is tolerated — would silently unguard everything beneath it
+            # (measured: 57 of 70 keys, 401 rows). This aggregate is heading-independent.
+            sizes[f"{cols} :: ROWS"] = sizes.get(f"{cols} :: ROWS", 0) + (j - i - 2)
             i = j
             continue
         i += 1
@@ -432,14 +472,21 @@ def observe() -> dict:
     markers: dict[str, bool] = {}
     for rel, marker in MARKER_HOSTS:
         text = _read(rel)
-        markers[f"{rel}::{marker}"] = bool(text and extract_block(text, marker) is not None)
+        block = extract_block(text, marker) if text else None
+        # SIZE, not a boolean. `extract_block` returns "" for an emptied block, which is
+        # `is not None`, so an injector that still writes its START/END fences with nothing
+        # between them read as fully intact — 18 of the 46 contract elements (the ROSTER,
+        # EMBEDDING_ROSTER, EMBEDDING_CATALOG, EMBEDDING_WINNERS and 14 ai-pack blocks) had
+        # no husk protection at all.
+        markers[f"{rel}::{marker}"] = -1 if block is None else len(block.strip())
     for host in ai_pack_hosts():
         # errors="replace" mirrors _read: a non-UTF-8 byte in any fleet-synced ai/*.md must
         # report drift, never crash the gate.
         text = host.read_text(encoding="utf-8", errors="replace")
         for marker in AI_PACK_MARKERS:
-            if extract_block(text, marker) is not None:
-                markers[f".windsurf/rules/ai/{host.name}::{marker}"] = True
+            block = extract_block(text, marker)
+            if block is not None:
+                markers[f".windsurf/rules/ai/{host.name}::{marker}"] = len(block.strip())
 
     return {
         "oracle_version": ORACLE_VERSION,
@@ -505,7 +552,9 @@ def verify() -> int:
             # Calling the boolean shapes_equal here threw that away and printed a generic
             # "SHAPE CHANGED", so an operator could not tell a data collapse from a renderer
             # edit — the single most useful thing the oracle knows.
-            why = shape_drift(w.get("shape", {}), g.get("shape", {}))
+            why = shape_drift(
+                w.get("shape", {}), g.get("shape", {}), may_empty=rel in MAY_EMPTY
+            )
             if why:
                 drift.append(f"{rel}: {why}")
 
@@ -538,9 +587,14 @@ def verify() -> int:
             # emitting 15 spurious QUERY CHANGED/GONE lines.
             drift.append(f"QUERY CHANGED: {key}")
 
-    for key, present in want["markers"].items():
-        if present and not got["markers"].get(key):
+    for key, want_size in want["markers"].items():
+        got_size = got["markers"].get(key, -1)
+        if want_size >= 0 and got_size < 0:
             drift.append(f"MARKER NO LONGER INJECTED: {key}")
+        elif want_size > 0 and got_size == 0:
+            drift.append(f"MARKER EMPTIED (fences still written, payload gone): {key}")
+        elif want_size > 0 and got_size < _min_allowed(want_size):
+            drift.append(f"MARKER COLLAPSED: {key} — {want_size} -> {got_size} chars")
     for key in got["markers"]:
         if key not in want["markers"]:
             print(f"[capture_golden] NEW marker (addition, not drift): {key}", file=sys.stderr)
