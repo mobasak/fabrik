@@ -818,12 +818,27 @@ Ocoron supports three density modes. Users select their preference in workspace 
 - Success indicator: green checkmark icon inline (right side of input) after correction. Do not turn the entire border green — it is too noisy.
 - Summary of errors: if >2 errors on submit, show a dismissible banner at the top of the form listing all errors with anchor links to each field.
 
-### Save Behavior
+### Save Behavior — draft persistence is CONTINUOUS and restore is AUTOMATIC (every GUI type)
 
-- Forms auto-save drafts to `localStorage` every 30 seconds. Restore on page revisit with a "Restore draft?" prompt.
+- **Nothing the user typed — and nothing the AI generated for them — is ever lost.** Every form,
+  wizard, editor, and AI-populated surface persists its full working state to durable browser
+  storage (`localStorage`/IndexedDB) **continuously on change** (debounce ≤1s per keystroke, and
+  flush on `blur`/`visibilitychange`/`pagehide`) — never on a fixed 30s timer, which loses up to
+  30s of work on a crash.
+- **Restore is automatic and silent** on ANY return path — refresh, Back/Forward, reopened tab,
+  a tab left open for days, browser or laptop crash: the user continues exactly where they left
+  off, down to the last letter in the last field. No "Restore draft?" prompt — the draft simply
+  IS the page state.
+- **The draft clears on exactly one event: the entity is successfully created/submitted** (or
+  the user explicitly discards it via a labeled control). Navigation, timeouts, and errors never
+  clear it. Key drafts per entity+user (e.g. `draft:<entity>:<id|new>`) so parallel drafts don't
+  collide, and version the schema so a stale draft from an older shape degrades to a partial
+  restore, never a crash.
 - Explicit save: primary button at the bottom-right of the form. Label: "Save" (not "Submit" unless it's a submission workflow).
 - Optimistic save: show success immediately, revert on server error with a toast.
-- Dirty state: if the user navigates away with unsaved changes, show a browser-level confirmation dialog.
+- Dirty state: with continuous persistence a navigate-away confirm is unnecessary for DRAFT
+  safety (the state survives regardless); use a browser-level confirm only where leaving has a
+  side effect beyond the draft (e.g. abandoning a payment in flight).
 
 ### Wizards (Multi-Step Forms)
 
