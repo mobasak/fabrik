@@ -90,6 +90,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | API/SDK/CLI changed | `docs/QUICKSTART.md` |
 | New port allocated | `PORTS.md` |
 | Feature shipped | `docs/FEATURES.md` |
+| New subsystem / standalone service / box-local system | a DEDICATED doc — `docs/reference/<name>.md` (box-local → `docs/workstation/<name>.md`) — **grep/`ls` first that it doesn't already exist** (extend the existing one, never a second), then add its `INDEX.md` row. A `FEATURES`/`CHANGELOG` entry is NOT a substitute for the subsystem's own reference doc |
 | Schema migration | Alembic + `db/schema.sql` |
 | DB field / enum / model changed | re-freeze `docs/data-contract.md` (via `/fabrik-data-contract`) — gate-WARN'd by `check_schema_sync.py` |
 | Screen / flow / UI changed (GUI projects) | re-freeze `docs/ui-design.md` (via `/fabrik-ui-design`) |
