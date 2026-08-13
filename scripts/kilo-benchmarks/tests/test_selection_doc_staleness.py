@@ -56,6 +56,18 @@ def test_an_undated_doc_is_not_silently_fresh(tmp_path):
     assert chk.check_selection_doc(d, now=NOW)["status"] == "undated"
 
 
+def test_a_far_future_stamp_is_not_silently_fresh(tmp_path):
+    """select.py's 14-day gate reads this same date, so a bogus future stamp would make the
+    doc look permanently fresh to every vendored pick_models. Local-vs-UTC skew (up to ~1 day)
+    is still tolerated."""
+    assert chk.check_selection_doc(_doc(tmp_path, "Last refresh: 2099-01-01\n"), now=NOW)[
+        "status"
+    ] == "future"
+    assert chk.check_selection_doc(_doc(tmp_path, "Last refresh: 2026-08-14\n"), now=NOW)[
+        "status"
+    ] == "fresh", "ordinary local-vs-UTC skew must stay fresh"
+
+
 def test_a_missing_doc_does_not_alert(tmp_path):
     """A fresh clone / first run is not a failure — the mirror assertion."""
     r = chk.check_selection_doc(tmp_path / "nope.md", now=NOW)
@@ -99,9 +111,20 @@ def test_the_whole_cli_survives_every_state(tmp_path, monkeypatch):
     The crash surfaced only through main(); daily_refresh.sh swallows a non-zero exit into a
     logfile with no MAILTO, so an exception here is invisible in production.
     """
+    # Only the pipeline heartbeat is stubbed. maybe_alert_selection_doc is deliberately NOT
+    # mocked — mocking it removed the exact call that raised, making this test decorative.
+    # `alerting` is stubbed instead, so the real body-building code runs.
     monkeypatch.setattr(chk, "maybe_alert", lambda *_a, **_k: False)
-    monkeypatch.setattr(chk, "maybe_alert_selection_doc", lambda *_a, **_k: False)
-    for body in ("Last refresh: 2026-07-20\n", "AGGREGATION FAILED\n", "# no date\n"):
+    mod = type(sys)("alerting")
+    mod.send_alert = lambda **kw: True
+    monkeypatch.setitem(sys.modules, "alerting", mod)
+    for body in (
+        "Last refresh: 2026-07-20\n",
+        "AGGREGATION FAILED\n",
+        "# no date\n",
+        "Last refresh: 2099-01-01\n",
+    ):
         doc = _doc(tmp_path, body)
-        monkeypatch.setattr(sys, "argv", ["x", "--selection-doc", str(doc), "--quiet"])
+        # NOT --quiet: the print path formats age_days and was itself untested.
+        monkeypatch.setattr(sys, "argv", ["x", "--selection-doc", str(doc)])
         assert chk.main() == 0

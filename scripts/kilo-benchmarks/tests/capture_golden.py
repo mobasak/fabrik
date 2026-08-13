@@ -82,7 +82,11 @@ MARKER_HOSTS: list[tuple[str, str]] = [
 AI_PACK_MARKERS = ("GATEWAY_COUNTS", "OPENROUTER_ROUTES")
 
 # Values churn daily; structure does not. Blank only what appears INSIDE a heading.
-_VOLATILE_IN_HEADING = re.compile(r"\d{4}-\d{2}-\d{2}|n_total=\d+|\(\d+\)")
+# `\(\d+[^)]*\)` covers BOTH `(12)` and `(87 models)`. The bare-`(\d+)` form was not enough:
+# once headings became part of the magnitude key, `### OPENAI (87 models)` -> `(88 models)`
+# changed the key overnight and reported "collection disappeared" — a false red on pure
+# catalog growth, which is the fastest way to get an oracle ignored.
+_VOLATILE_IN_HEADING = re.compile(r"\d{4}-\d{2}-\d{2}|n_total=\d+|\(\d+[^)]*\)")
 
 
 def _strip_volatile(s: str) -> str:
@@ -95,45 +99,55 @@ def _strip_volatile(s: str) -> str:
 # verify() refuses to run against a mismatched version instead.
 ORACLE_VERSION = 2
 
-# A collection may lose this fraction before we call it a collapse, or multiply by this
-# factor before we call it a fan-out. Measured daily churn on the LARGE tables is ~8%
-# (n_total 274 -> 296); a real extraction failure emptied 181 rows to 24 (-87%).
+# How much a collection may shrink before we call it a collapse. Two regimes in one line:
+#   min_allowed = min(wn - 1, wn * COLLAPSE_RATIO)
+# Large collections get the ratio (measured daily churn on the big tables is ~8%; a real
+# extraction failure was -87%). Small ones get an absolute allowance of exactly ONE item,
+# because a ratio is meaningless at n=3 — but "meaningless" is not "disable it". A flat floor
+# was tried and was strictly worse: at SMALL_N=10 it left 41 of 65 frozen collections (63%)
+# and 7 of 13 artifacts protected against nothing but total emptying, which re-opened the very
+# case json_shape exists to catch (kilo_47_agents_final.json's 13 role LISTS are all 1-5
+# entries, so truncating all of them — 40 assignments -> 13, a 67% loss — read as green).
+# Under the scaling rule: n=1 tolerates 1->0 (CANDIDATE_SIGNUPS.md is a queue whose natural
+# end-state is empty, and it has already churned 2 -> 1 in-window), n=2 catches 2->0, and
+# n>=3 catches a truncation-to-one. Growth stays cheap up to FANOUT_CEILING: Phase A freezes
+# this contract for the whole B->E extraction and models_browser.html grew 1.41x in 26 days,
+# so a tight ceiling would red on pure catalog growth.
 COLLAPSE_RATIO = 0.5
 FANOUT_CEILING = 10.0
 
-# ...but a ratio is meaningless on a small collection, and 20+ frozen collections are tiny
-# (CANDIDATE_SIGNUPS.md = 1 row; kilo_embeddings_final.json `$.roles.code_embedding` = 1;
-# the STT/TTS/TRANSLATION tables = 1). At n=1 the band [0.5, 4.0] calls an emptied signup
-# queue a COLLAPSE and a 5th candidate a FAN-OUT — both ordinary churn, and CANDIDATE_SIGNUPS
-# has already halved 2 -> 1 in-window. A false-red oracle gets ignored, which is exactly the
-# failure mode this whole safety net exists to avoid. Below the floor only TOTAL loss counts,
-# and growth is never drift (catalog growth is the norm: models_browser.html's row count grew
-# 1.41x in 26 days, so any ceiling would trip on pure growth during a months-long extraction).
-SMALL_N = 10
+
+def _min_allowed(wn: int) -> float:
+    """Smallest size that is still ordinary churn rather than a collapse."""
+    return min(wn - 1, wn * COLLAPSE_RATIO)
 
 
 def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
-    """Compare per-collection sizes by RATIO. Returns (ok, reason).
+    """Compare per-collection sizes. Returns (ok, reason).
 
-    PER-COLLECTION, not per-document — that distinction is the whole point. A single
-    doc-wide row count is nearly useless: in TASK_SUBAGENT_SELECTION.md the routing tables
-    `pick_models` actually consumes are 35 of 157 rows, and the two tables labelled
-    "display only; not parsed for routing" are 122. Emptying EVERY routing table leaves
-    122/157 = 78% of rows — comfortably inside any doc-wide tolerance — so the husk that
-    breaks routing passed green. Keyed sizes catch it; a scalar cannot.
+    PER-COLLECTION, not per-document, and keyed per SECTION — both distinctions were earned
+    the hard way. A doc-wide row count was nearly useless: in TASK_SUBAGENT_SELECTION.md the
+    routing tables `pick_models` consumes are 35 of 157 rows and the "display only" tables are
+    122, so emptying every routing table left 78% of rows and passed green. Keying by column
+    contract alone was not enough either: all six `### <task_type>` shortlists share one
+    contract, so they summed into a single 21-row bucket and four of the six could be emptied
+    while the total stayed above threshold. Only section-keyed sizes actually catch it.
     """
     for key, wn in want.items():
         gn = got.get(key)
         if gn is None:
-            return False, f"collection disappeared: {key}"
+            # A section that vanished ENTIRELY is upstream catalog churn, not extraction
+            # failure: measured over 24 consecutive daily commits of KILO_MODEL_CAPABILITIES.md
+            # the only key losses were INFLECTION and UNKNOWN being delisted. The husk failure
+            # this oracle exists to catch behaves differently — the renderer still runs, so the
+            # section and its headers survive and the table EMPTIES, which trips COLLAPSE
+            # below. Wholesale removal is covered instead by the `:: TABLES` count per column
+            # contract, so losing 4 of 6 routing sections is still caught without false-reding
+            # every delisted provider.
+            continue
         if wn == 0:
             continue
-        if wn < SMALL_N:
-            # Too small to reason about proportionally — only total loss is unambiguous.
-            if gn == 0:
-                return False, f"EMPTIED {key}: {wn} -> 0"
-            continue
-        if gn < wn * COLLAPSE_RATIO:
+        if gn < _min_allowed(wn):
             return False, f"COLLAPSE {key}: {wn} -> {gn}"
         if gn > wn * FANOUT_CEILING:
             return False, f"FAN-OUT {key}: {wn} -> {gn} (duplication?)"
@@ -207,29 +221,48 @@ def md_shape(text: str) -> dict:
 
 
 def _rows_per_table(text: str) -> dict[str, int]:
-    """Row count PER TABLE, keyed by the table's column contract.
+    """Row count PER TABLE, keyed by ENCLOSING SECTION + column contract.
 
-    Keyed by columns rather than by the enclosing heading because headings carry volatile
-    counts (`### OPENAI (87 models)`) and get renamed; the column contract is the stable
-    identity. Tables sharing a column contract are summed.
+    The section prefix is load-bearing, not decoration. Keyed by columns alone, the six
+    `### <task_type>` shortlists in TASK_SUBAGENT_SELECTION.md share one column contract and
+    were summed into a single 21-row bucket — so four of the six routing sections
+    `pick_models` consumes (plan, spec, research, review) could be emptied entirely and the
+    total, 11, stayed above the collapse threshold. The oracle printed OK while every vendored
+    copy silently fell back to the baked-in `_TABLE`. That is the exact class this module
+    claims to catch. Headings are volatile-stripped (`### OPENAI (87 models)`) so ordinary
+    count churn does not change the key.
     """
     sizes: dict[str, int] = {}
     lines = text.splitlines()
+    section = ""
     i = 0
     while i < len(lines) - 1:
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*$", lines[i])
+        if heading:
+            section = _strip_volatile(heading.group(2))
         head = re.match(r"^\|(.+?)\|[ \t]*$", lines[i])
         if head and re.match(r"^\|[\s:|-]+\|[ \t]*$", lines[i + 1]):
-            key = "|".join(c.strip().strip("*`") for c in head.group(1).split("|"))
+            cols = "|".join(c.strip().strip("*`") for c in head.group(1).split("|"))
+            key = f"{section} :: {cols}" if section else cols
             j = i + 2
             # Stop at the next table's header. Without this, a table not separated by a blank
             # line swallowed its neighbour's header + separator + rows: the count was inflated
             # by 2 + the neighbour's rows AND the neighbour was never keyed, so gutting it was
             # silently green. Live docs are clean today; one renderer change opens the hole.
             while j < len(lines) and lines[j].startswith("|"):
-                if j + 1 < len(lines) and re.match(r"^\|[\s:|-]+\|[ \t]*$", lines[j + 1]):
+                # Require a REAL separator (>=3 dashes in a cell). `| - | - |` and a row of
+                # blank cells both match the loose pattern, which would split a live table in
+                # two and freeze the real one at 0 rows — and a collection frozen at 0 is
+                # skipped forever by magnitudes_ok.
+                if j + 1 < len(lines) and re.match(r"^\|[\s:|-]*-{3,}[\s:|-]*\|[ \t]*$", lines[j + 1]):
                     break
                 j += 1
             sizes[key] = sizes.get(key, 0) + (j - i - 2)
+            # How many tables share this column contract. Section keys alone tolerate a
+            # vanished section (catalog churn); this catches the case where sections are
+            # removed WHOLESALE — e.g. 4 of the 6 routing shortlists deleted outright rather
+            # than emptied, which would otherwise slip through as 4 tolerated disappearances.
+            sizes[f"{cols} :: TABLES"] = sizes.get(f"{cols} :: TABLES", 0) + 1
             i = j
             continue
         i += 1
@@ -483,9 +516,17 @@ def verify() -> int:
     for key, wq in want.get("db_queries", {}).items():
         gq = got["db_queries"].get(key)
         if gq is None:
-            # Same Phase-E tolerance: a golden entry whose whole family went UNAVAILABLE is
-            # an excised engine, not a lost consumer query.
-            if any("UNAVAILABLE" in str(v) for v in got["db_queries"].values()):
+            # Phase-E tolerance, scoped to the OWNING MODULE. A global `any(...)` meant one
+            # unavailable query suppressed GONE for all 15 — so a genuinely dropped consumer
+            # query in a module that is still fully present became invisible whenever any
+            # other module happened to be unreadable (including a sibling's mid-edit
+            # SyntaxError, since the import guard is `except Exception`).
+            family = key.split(".")[0]
+            if any(
+                "UNAVAILABLE" in str(v)
+                for k, v in got["db_queries"].items()
+                if k.split(".")[0] == family
+            ):
                 continue
             drift.append(f"QUERY GONE: {key}")
         elif gq != wq and "UNAVAILABLE" not in str(gq):

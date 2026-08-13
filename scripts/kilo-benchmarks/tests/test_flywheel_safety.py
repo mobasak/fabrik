@@ -184,3 +184,31 @@ def test_a_stub_on_disk_is_not_worth_preserving(monkeypatch, tmp_path):
     assert "today's stub" in stub.read_text(), (
         "a stub was preserved as if it were a good doc — the guard needs stub detection"
     )
+
+
+def test_an_unreadable_doc_does_not_skip_the_keep_guard(monkeypatch, tmp_path):
+    """Round-4 fix #8 had no test at all.
+
+    An OSError from the stub-detection read (permissions, or a race with daily_refresh's git
+    commit) raised out of main() BEFORE the keep-guard ran — skipping the very protection the
+    block exists to apply, so the stub would be published over yesterday's good doc.
+    """
+    doc = tmp_path / "TASK_SUBAGENT_SELECTION.md"
+    doc.write_text("GOOD CONTENT FROM YESTERDAY", encoding="utf-8")
+    monkeypatch.setattr(rts, "OUTPUT_PATH", doc)
+    monkeypatch.setattr(rts, "_query_rows", lambda: ("error", []))
+    monkeypatch.setattr(rts, "render", lambda *a, **k: "AGGREGATION FAILED stub")
+
+    real_read = type(doc).read_text
+
+    def boom(self, *a, **k):
+        if self == doc:
+            raise PermissionError("simulated")
+        return real_read(self, *a, **k)
+
+    monkeypatch.setattr(type(doc), "read_text", boom)
+    assert rts.main() == 1
+    monkeypatch.undo()
+    assert doc.read_text() == "GOOD CONTENT FROM YESTERDAY", (
+        "an unreadable doc skipped the keep-guard and the stub was published over it"
+    )

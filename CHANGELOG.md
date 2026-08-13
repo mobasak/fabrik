@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 5: the round-4 floor traded a false-red for a false-green (2026-08-13)
+
+Round-5 review quantified what round 4's `SMALL_N=10` floor actually cost, and it was worse
+than the problem it solved:
+
+- **63% of the contract was unprotected.** 41 of 65 frozen collections sat below the floor,
+  and 7 of 13 artifacts had *no* collection at or above it — including every one of
+  `STT/TTS/TRANSLATION/IMAGE_GEN_SELECTION.md`. Worst of all it re-opened the exact case
+  `json_shape` was written to close: `kilo_47_agents_final.json`'s 13 role lists are all 1–5
+  entries, so truncating every one of them (40 assignments → 13, a **67% loss**) read as
+  green. Replaced with a rule that scales — `min(wn - 1, wn * COLLAPSE_RATIO)` — so one item
+  of churn is cheap at any size while `3 → 1` and `2 → 0` are drift.
+- **Four of the six routing sections could be emptied, green.** All six `### <task_type>`
+  shortlists share one column contract, so keying by contract summed them into a single
+  21-row bucket; emptying `plan`, `spec`, `research` and `review` left 11 and passed. Every
+  vendored `pick_models` would have fallen back to the baked-in `_TABLE` while the oracle
+  certified "no functionality lost". Magnitudes are now keyed by **enclosing section** +
+  contract, which matches exactly what the consumer parses (code 6, docs 5, plan 1,
+  research 4, review 4, spec 1).
+- Section keying created its own false-red risk, caught by the churn test before it shipped:
+  `### OPENAI (87 models)` was not volatile-stripped (the pattern only handled `(87)`), so
+  tomorrow's 88th model changed the key. Widened, and verified over **24 consecutive daily
+  commits** of the churniest doc: 0 false reds, down from 2.
+- A section vanishing entirely is now tolerated (measured: the only real key losses in that
+  window were INFLECTION and UNKNOWN being delisted — catalog churn, not extraction failure),
+  because the husk failure mode leaves headers and empties tables. Wholesale removal is
+  covered instead by a per-contract `:: TABLES` count.
+- **One unavailable query suppressed `QUERY GONE` for all 15** — a global `any()`. Now scoped
+  to the owning module, so a dropped query in a module that is still present is caught.
+- The fan-out ceiling, the json depth-cutoff fix and the `OSError` guard had **no tests at
+  all**, so the previous entry's claim that every fix was proven red-on-revert was false for
+  three of eight. All now covered; ten fixes proven red-on-revert this round.
+- The oracle ran *after* `sync_enforcement_to_projects.py`, so drift would have been pushed
+  to ~46 project repos and alerted afterwards. Moved above it.
+- A far-future stamp read as permanently "fresh" (`select.py`'s 14-day gate trusts the same
+  line); ordinary local-vs-UTC skew is still tolerated. A separator-looking data row
+  (`| - | - |`) could split a live table and freeze the real one at 0 rows — a collection
+  frozen at 0 is skipped forever. `test_the_whole_cli_survives_every_state` mocked away the
+  very call that crashed, making it decorative.
+
 ### Fixed — catalog-extraction Phase A round 4: the oracle now actually RUNS in production, and the flywheel alert no longer crashes (2026-08-13)
 
 Round-4 review of the round-3 fixes. Two of those fixes did not work as shipped, and the

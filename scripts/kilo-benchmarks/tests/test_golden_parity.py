@@ -249,7 +249,7 @@ def test_an_entirely_empty_table_is_drift():
     a = "# D\n\n## S\n\n| m | s |\n|---|---|\n| x | 1 |\n| y | 2 |\n"
     b = "# D\n\n## S\n\n| m | s |\n|---|---|\n"
     assert not cg.shapes_equal(cg.md_shape(a), cg.md_shape(b)), "an emptied table must be drift"
-    assert cg.md_shape(b)["magnitudes"] == {"m|s": 0}
+    assert cg.md_shape(b)["magnitudes"]["S :: m|s"] == 0
 
 
 def _rows(n: int) -> str:
@@ -404,11 +404,14 @@ def test_tiny_collections_tolerate_ordinary_churn():
     as COLLAPSE and a 5th candidate as FAN-OUT — both ordinary churn. A false-red oracle gets
     ignored, which is the failure mode this whole safety net exists to avoid.
     """
-    one, five = {"t": 1}, {"t": 5}
-    assert cg.magnitudes_ok(one, five)[0], "growth on a tiny collection must not be drift"
-    assert cg.magnitudes_ok({"t": 3}, {"t": 1})[0], "3 -> 1 on a tiny collection is churn"
-    # ...but total loss is unambiguous at any size.
-    assert not cg.magnitudes_ok(one, {"t": 0})[0], "a tiny collection emptying IS drift"
+    assert cg.magnitudes_ok({"t": 1}, {"t": 5})[0], "growth on a tiny collection is not drift"
+    # One item of churn is cheap at every size...
+    assert cg.magnitudes_ok({"t": 3}, {"t": 2})[0], "3 -> 2 is one item of churn"
+    assert cg.magnitudes_ok({"t": 1}, {"t": 0})[0], "a 1-row queue emptying is its end-state"
+    # ...but losing MOST of a small collection is not. A flat floor tolerated 3 -> 1, which is
+    # the registry-truncation case json_shape exists to catch.
+    assert not cg.magnitudes_ok({"t": 3}, {"t": 1})[0], "3 -> 1 must be drift"
+    assert not cg.magnitudes_ok({"t": 2}, {"t": 0})[0], "2 -> 0 must be drift"
 
 
 def test_large_collection_growth_survives_a_long_extraction():
@@ -427,11 +430,15 @@ def test_adjacent_tables_are_keyed_separately():
     The count was inflated by 2 + the neighbour's rows AND the neighbour was never keyed, so
     gutting the second table was silently green.
     """
-    doc = "# D\n\n## S\n\n| a | b |\n|---|---|\n| 1 | 2 |\n| c | d |\n|---|---|\n| 3 | 4 |\n"
+    # 3 rows each: enough that emptying one is unambiguous (a 1-row collection emptying is
+    # deliberately tolerated — see test_tiny_collections_tolerate_ordinary_churn).
+    first = "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n"
+    second = "| c | d |\n|---|---|\n| 7 | 8 |\n| 9 | 0 |\n| 1 | 1 |\n"
+    doc = "# D\n\n## S\n\n" + first + second
     shape = cg.md_shape(doc)
-    assert set(shape["magnitudes"]) == {"a|b", "c|d"}, shape["magnitudes"]
-    assert shape["magnitudes"] == {"a|b": 1, "c|d": 1}
-    gutted = "# D\n\n## S\n\n| a | b |\n|---|---|\n| 1 | 2 |\n| c | d |\n|---|---|\n"
+    rows = {k: v for k, v in shape["magnitudes"].items() if "TABLES" not in k}
+    assert rows == {"S :: a|b": 3, "S :: c|d": 3}, shape["magnitudes"]
+    gutted = "# D\n\n## S\n\n" + first + "| c | d |\n|---|---|\n"
     assert not cg.shapes_equal(shape, cg.md_shape(gutted)), "second table gutted, still green"
 
 
@@ -443,7 +450,17 @@ def test_magnitude_keys_match_the_table_inventory_on_every_real_artifact():
             continue
         shape = cg.md_shape(text)
         cols = {"|".join(c) for c in shape["table_columns"]}
-        assert set(shape["magnitudes"]) == cols, f"{rel}: keyset mismatch"
+        # Every column contract must have a TABLES count, and every row-count key must end in
+        # a known contract. (Keys are section-scoped, so they are a superset of the contracts.)
+        assert {f"{c} :: TABLES" for c in cols} <= set(shape["magnitudes"]), (
+            f"{rel}: a column contract has no table count"
+        )
+        for key in shape["magnitudes"]:
+            if key.endswith(":: TABLES"):
+                continue
+            assert any(key.endswith(f":: {c}") or key == c for c in cols), (
+                f"{rel}: magnitude key {key!r} matches no column contract"
+            )
 
 
 def test_verify_names_the_collection_that_collapsed(monkeypatch, capsys):
@@ -474,7 +491,8 @@ def test_an_excised_engine_does_not_produce_spurious_query_drift(monkeypatch):
 
     def excised():
         o = real()
-        o["db_queries"] = {"rank_task_subagents.flywheel": "<UNAVAILABLE: FileNotFoundError>"}
+        # Every family degrades together when the engine dir is gone.
+        o["db_queries"] = dict.fromkeys(o["db_queries"], "<UNAVAILABLE: FileNotFoundError>")
         return o
 
     monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
@@ -513,4 +531,152 @@ def test_the_oracle_has_a_production_caller():
     )
     assert "ORACLE_REQUIRE_LOCAL_ARTIFACTS=1" in line, (
         "the pipeline host must run the oracle STRICT, or gitignored artifact loss is invisible"
+    )
+
+
+# ── round-5 fixes ────────────────────────────────────────────────────────────
+def test_routing_sections_are_keyed_separately_from_each_other():
+    """All six `### <task_type>` shortlists share ONE column contract.
+
+    Keyed by contract alone they summed into a single 21-row bucket, so four of the six
+    sections pick_models consumes could be emptied while the total stayed above threshold —
+    the oracle printed OK while every vendored copy fell back to the baked-in _TABLE.
+    """
+    doc = cg.FABRIK_ROOT / "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+    if not doc.exists() or "AGGREGATION FAILED" in doc.read_text():
+        pytest.skip("selection doc absent or is the failure stub")
+    real = doc.read_text()
+    keys = [k for k in cg.md_shape(real)["magnitudes"] if "shrunk_q" in k and "TABLES" not in k]
+    assert len(keys) >= 6, f"routing sections collapsed into {len(keys)} key(s): {keys}"
+
+    gutted, section, in_sep = [], None, False
+    for ln in real.splitlines(keepends=True):
+        head = re.match(r"^###\s+(\w+)", ln)
+        if head:
+            section, in_sep = head.group(1), False
+        if re.match(r"^\|[\s:|-]*-{3,}", ln):
+            in_sep = True
+            gutted.append(ln)
+            continue
+        if in_sep and section in {"plan", "spec", "research", "review"} and ln.startswith("|"):
+            continue
+        if not ln.startswith("|"):
+            in_sep = False
+        gutted.append(ln)
+    why = cg.shape_drift(cg.md_shape(real), cg.md_shape("".join(gutted)))
+    assert "COLLAPSE" in why, f"4 of 6 routing sections emptied but not caught: {why!r}"
+
+
+def test_wholesale_section_removal_is_caught_by_the_table_count():
+    """The complement: sections DELETED rather than emptied.
+
+    A vanished section is tolerated (a delisted provider is catalog churn — measured over 24
+    consecutive daily commits, the only key losses were INFLECTION and UNKNOWN). The `::
+    TABLES` count per column contract is what stops that tolerance from swallowing a
+    wholesale removal.
+    """
+    six = "# D\n\n" + "".join(
+        f"## S{i}\n\n| m | s |\n|---|---|\n| x | 1 |\n| y | 2 |\n\n" for i in range(6)
+    )
+    two = "# D\n\n" + "".join(
+        f"## S{i}\n\n| m | s |\n|---|---|\n| x | 1 |\n| y | 2 |\n\n" for i in range(2)
+    )
+    assert cg.md_shape(six)["magnitudes"]["m|s :: TABLES"] == 6
+    assert not cg.shapes_equal(cg.md_shape(six), cg.md_shape(two))
+
+
+def test_a_delisted_provider_section_is_not_drift():
+    """The false-red this tolerance exists to prevent — measured on real history."""
+    keep = "# D\n\n## Providers\n\n### OPENAI (87 models)\n\n| m | s |\n|---|---|\n| x | 1 |\n\n"
+    both = keep + "### INFLECTION (2 models)\n\n| m | s |\n|---|---|\n| y | 2 |\n\n"
+    assert cg.shapes_equal(cg.md_shape(both), cg.md_shape(keep)), (
+        "a delisted provider must not red the oracle"
+    )
+
+
+def test_a_growing_provider_count_does_not_change_the_key():
+    """`### OPENAI (87 models)` -> `(88 models)` must not read as a vanished collection."""
+    a = "# D\n\n### OPENAI (87 models)\n\n| m | s |\n|---|---|\n| x | 1 |\n"
+    b = "# D\n\n### OPENAI (88 models)\n\n| m | s |\n|---|---|\n| x | 1 |\n"
+    assert set(cg.md_shape(a)["magnitudes"]) == set(cg.md_shape(b)["magnitudes"])
+
+
+def test_small_collections_catch_a_truncation_to_one():
+    """The flat SMALL_N floor left 41 of 65 collections (63%) protected against nothing.
+
+    kilo_47_agents_final.json's 13 role LISTS are all 1-5 entries, so a floor at 10 re-opened
+    the exact case json_shape was written to close (40 assignments -> 13, a 67% loss).
+    """
+    assert not cg.magnitudes_ok({"r": 3}, {"r": 1})[0], "3 -> 1 must be drift"
+    assert not cg.magnitudes_ok({"r": 5}, {"r": 1})[0], "5 -> 1 must be drift"
+    assert not cg.magnitudes_ok({"r": 2}, {"r": 0})[0], "2 -> 0 must be drift"
+    # ...while a single item of churn stays cheap at every size.
+    assert cg.magnitudes_ok({"r": 3}, {"r": 2})[0]
+    assert cg.magnitudes_ok({"r": 1}, {"r": 0})[0], "a 1-row queue emptying is its end-state"
+
+
+def test_the_fanout_ceiling_is_load_bearing():
+    """Round 4 raised the ceiling 4.0 -> 10.0 and nothing tested it, so the claim that every
+    fix was proven red-on-revert was false for this one."""
+    assert cg.magnitudes_ok({"t": 100}, {"t": 900})[0], "9x growth is tolerated"
+    assert not cg.magnitudes_ok({"t": 100}, {"t": 1100})[0], "11x is duplication, not growth"
+
+
+def test_json_sizes_are_recorded_below_the_schema_depth_cutoff():
+    """Round 4 moved the size recording above the depth-3 return; nothing covered it."""
+    deep = {"a": {"b": {"c": {"d": list(range(100))}}}}
+    small = {"a": {"b": {"c": {"d": list(range(2))}}}}
+    assert not cg.shapes_equal(cg.json_shape(json.dumps(deep)), cg.json_shape(json.dumps(small))), (
+        "a collection deeper than the schema cutoff is unmeasurable"
+    )
+
+
+def test_one_unavailable_query_does_not_mask_a_loss_in_another_module(monkeypatch):
+    """The Phase-E tolerance was a global any(), so ONE unavailable query suppressed
+    QUERY GONE for all 15 — including a genuinely dropped query in a module still present."""
+    real = cg.observe
+
+    def mixed():
+        o = real()
+        o["db_queries"]["rank_task_subagents.flywheel"] = "<UNAVAILABLE: FileNotFoundError>"
+        for k in list(o["db_queries"]):
+            if k.startswith("update_gateway_counts."):
+                del o["db_queries"][k]
+                break
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", mixed)
+    assert cg.verify() == 1, "a lost query in a present module was masked by an unrelated one"
+
+
+def test_strict_mode_actually_runs_green_on_this_box(monkeypatch):
+    """Nothing in the suite ever ran the mode production runs — every test delenv'd it."""
+    monkeypatch.setenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", "1")
+    assert cg.verify() == 0, "the production invocation reds on the pipeline host"
+
+
+def test_the_oracle_runs_before_the_fleet_sync():
+    """Ordering is the whole value here.
+
+    Run after `sync_enforcement_to_projects.py`, a marker that stopped being injected or a doc
+    collapsed to a husk is pushed to ~46 project repos and THEN alerted. The oracle is
+    advisory by design (it must never abort a healthy refresh), so placement is the only lever
+    that puts the alert ahead of the blast radius.
+    """
+    sh = (cg.SCRIPT_DIR / "daily_refresh.sh").read_text()
+    lines = sh.splitlines()
+    oracle = next(
+        i
+        for i, ln in enumerate(lines)
+        if "capture_golden.py" in ln and "--verify" in ln and not ln.lstrip().startswith("#")
+    )
+    sync = next(
+        i
+        for i, ln in enumerate(lines)
+        if "sync_enforcement_to_projects.py" in ln and not ln.lstrip().startswith("#")
+    )
+    assert oracle < sync, (
+        f"the oracle runs at line {oracle + 1}, AFTER the fleet sync at {sync + 1} — drift "
+        "would be distributed to ~46 repos before the operator is told"
     )

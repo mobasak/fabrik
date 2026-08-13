@@ -143,9 +143,19 @@ def check_selection_doc(
         return {"status": "undated", "age_days": None, "threshold_days": max_age_days}
     stamped = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=UTC)
     # rank_task_subagents stamps date.today() (LOCAL; this box is UTC+3) and we parse as UTC,
-    # so a doc written after 21:00 UTC reads as up to a day in the future. Clamp at 0: a
-    # future stamp is "fresh", never a negative age in the operator-facing output.
-    age_days = max(0.0, (now - stamped).total_seconds() / 86400.0)
+    # so a doc written after 21:00 UTC legitimately reads up to a day in the future. Tolerate
+    # exactly that much. Beyond it the stamp is bogus (clock skew, a forged date, a hand-edit)
+    # and must NOT read as "refreshed today" — select.py's staleness gate trusts this same
+    # date, so a far-future stamp silences both legs forever.
+    raw_age = (now - stamped).total_seconds() / 86400.0
+    if raw_age < -1.5:
+        return {
+            "status": "future",
+            "age_days": raw_age,
+            "stamped": m.group(1),
+            "threshold_days": max_age_days,
+        }
+    age_days = max(0.0, raw_age)
     return {
         "status": "stale" if age_days > max_age_days else "fresh",
         "age_days": age_days,
@@ -177,6 +187,13 @@ def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
         body = (
             "TASK_SUBAGENT_SELECTION.md is the AGGREGATION FAILED stub — the flywheel read "
             "has never succeeded on this host. pick_models is running on the baked-in _TABLE."
+        )
+    elif status == "future":
+        body = (
+            f"TASK_SUBAGENT_SELECTION.md is stamped {result.get('stamped')}, which is "
+            f"{abs(float(result['age_days'] or 0)):.1f} days in the FUTURE. Clock skew or a "
+            "hand-edited date. select.py's 14-day staleness gate reads this same line, so a "
+            "future stamp makes the doc look permanently fresh to every vendored pick_models."
         )
     elif status == "undated":
         body = (
