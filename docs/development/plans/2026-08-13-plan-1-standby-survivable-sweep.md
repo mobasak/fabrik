@@ -228,9 +228,11 @@ Gates (runnable): mesh harness exit 0 with new count stated · `pytest tests/ -k
   `CLAUDE_CONFIG_DIR=$HOME/.claude-youtube-headless` — a `HOME`-derived state dir keeps its
   markers in the default tree (same as today's /tmp behavior, but now persistent); harmless
   until youtube adopts the export, noted in its mail handoff.
-- **Leg B scan bound:** ≤20 transcripts, each behind `timeout 20`, only on a `vm-cut` boot —
-  worst case ~7 min once per cut, zero cost on normal boots; notify suppression is per-session
-  30-min via the existing `.notified` stamps.
+- **Leg B scan bound (as executed):** gated on a FRESH boot (lock dir absent — cron-restart
+  re-fires skip it, closing the re-notify window); ≤20 transcripts, subagent sidecars excluded,
+  each behind `timeout 20`; sids Leg A just resumed are excluded (two-writer guard); notify
+  suppression is a PERSISTENT 24h per-sid stamp in the state dir (the lock-dir `.notified`
+  stamps die with the VM — 13 bounce boots must not storm).
 
 ## File Scope
 
