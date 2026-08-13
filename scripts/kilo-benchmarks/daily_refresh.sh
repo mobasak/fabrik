@@ -415,10 +415,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   # Task-subagent ranking → docs/reference/kilo/TASK_SUBAGENT_SELECTION.md.
   # Reads fleet-wide subagent_runs on fabrik_analytics; emits per-task ranking.
-  # Empty pool → stub file with "No aggregated runs yet". Fail-soft by design
-  # (mirrors rank_coding_subagents discipline; DB down / sudo -n misconfig /
-  # timeout → empty list → stub emitted with same date bump so the "Last refresh"
-  # header alerts an operator watching for stale content).
+  # Empty pool (state=ok, 0 rows) → stub file with "No aggregated runs yet"; exits 0.
+  # A BROKEN read (state=error: DB down / sudo -n misconfig / timeout) does NOT emit the
+  # failure stub and does NOT bump "Last refresh" — the existing good doc is KEPT and the
+  # ranker exits 1. That inversion is deliberate (Phase A.0): the stub would be committed
+  # and fleet-synced to the 49 vendored pick_models copies, and its fresh date would forge
+  # past select.py's 14-day staleness gate. The alert below is the operator signal.
   _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
     || { echo "[daily_refresh] rank_task_subagents FAILED — see above; the existing selection doc was KEPT"; "$VENV_PY" -c "import sys; sys.path.insert(0, '$KB'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title='daily_refresh.sh: rank_task_subagents exited non-zero', body='rank_task_subagents.py exited non-zero. Most likely the flywheel read is BROKEN (state=error) — in that case the previous TASK_SUBAGENT_SELECTION.md was deliberately KEPT rather than overwritten with the failure stub, so the fleet is on yesterday-good, not poisoned. It can also mean render/write failed (disk, permissions). Check the run log, then the postgres/sudo path on this host.', severity='critical')" 2>&1 || true; }
 

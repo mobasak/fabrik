@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A: the golden oracle now measures VOLUME per collection, not per document (2026-08-13)
+
+Round-3 review of the Phase-A safety net found the magnitude invariant added in round 2 was
+close to useless, and three sibling holes. All confirmed by executed reproduction against the
+real artifacts, all fixed, each proven red-on-revert:
+
+- **Per-collection magnitudes.** `data_rows` was one integer per document, so in
+  `TASK_SUBAGENT_SELECTION.md` — where the routing tables `pick_models` actually consumes are
+  35 of 157 rows and the tables marked "display only" are 122 — emptying *every routing table*
+  left 78% of rows and passed GREEN. Replaced with a per-table map keyed by column contract.
+- **`json_shape` had no magnitude at all**: `walk` renders a list as one element regardless of
+  length, so truncating every collection (a registry going 40 assignments → 13) was
+  byte-identical. Now records container sizes.
+- **`html_shape` could not see data loss at all**: `models_browser.html` renders from a 3.7MB
+  `id="payload"` blob, not markup, so emptying it left every markup-derived field identical.
+  Now measures the blob.
+- **A stale golden silently disabled the checks** while `verify()` printed "OK — N contract
+  elements intact". Added `ORACLE_VERSION`; a version mismatch exits 2 instead of passing.
+- **15 frozen SQL queries were compared by nothing** — `verify()` never read `db_queries`, so
+  `WINDOW_DAYS`, `MIN_RUNS`, the `HAVING` clause or the table name could all change unnoticed.
+- **`absent-by-gitignore` exempted 4 of 13 artifacts** from "NO LONGER PRODUCED". Now gated by
+  `ORACLE_REQUIRE_LOCAL_ARTIFACTS=1` so the pipeline host is strict and fresh clones stay green.
+- Bounded growth too (a join fan-out emitting every row 10× was "fine"); `_is_gitignored` and
+  the ai-pack read no longer crash the gate on a missing `git` or a non-UTF-8 byte.
+
+Also closes two fail-open holes in the A.0 flywheel guard itself:
+
+- **The keep-yesterday's-doc guard preserved a *stub* forever.** After a first-run failure the
+  stub is on disk, so every later broken read kept it while the alert claimed "the fleet is on
+  yesterday-good, not poisoned" — the opposite of the truth. Now stub-aware.
+- **A permanently broken flywheel was silent and unbounded.** `daily_refresh.sh` writes its
+  success timestamp even when the ranker exits non-zero, so the heartbeat stayed green while
+  the fleet drifted onto an ever-staler doc; past `select.py`'s 14-day gate every vendored
+  `pick_models` falls back to the baked-in `_TABLE`. `check_daily_refresh_freshness.py` now
+  watches the doc's own `Last refresh:` date (and detects the stub / an undated doc).
+
+Test-quality fixes in the same pass: the real-artifact churn test passed vacuously once its
+hard-coded shas stopped resolving; the missing-engine test could not catch its own revert (the
+import resolved via a sibling's `sys.path` entry) and leaked a bogus dir into the session.
+
 ### Added — standby-survivable resume sweep: persistent markers + cut-session notify (2026-08-13)
 
 Executes `docs/development/plans/2026-08-13-plan-1-standby-survivable-sweep.md` (the Modern

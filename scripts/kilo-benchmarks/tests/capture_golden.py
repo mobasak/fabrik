@@ -36,7 +36,9 @@ but one working copy.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -87,10 +89,72 @@ def _strip_volatile(s: str) -> str:
     return _VOLATILE_IN_HEADING.sub("<N>", s)
 
 
+# ⚠️ Bumped whenever the SHAPE FORMAT changes. A golden frozen by an older observer lacks
+# the newer invariants, and `shapes_equal` would silently skip them while `verify()` printed
+# OK — a strictly worse failure than no oracle, because it certifies what it never checked.
+# verify() refuses to run against a mismatched version instead.
+ORACLE_VERSION = 2
+
+# A collection may lose this fraction before we call it a collapse, or multiply by this
+# factor before we call it a fan-out. Measured daily churn is ~8% (n_total 274 -> 296) and
+# per-table churn was 0 and +6 rows; a real extraction failure emptied 181 rows to 24 (-87%).
+# Both bounds sit an order of magnitude away from normal churn.
+COLLAPSE_RATIO = 0.5
+FANOUT_CEILING = 4.0
+
+
+def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
+    """Compare per-collection sizes by RATIO. Returns (ok, reason).
+
+    PER-COLLECTION, not per-document — that distinction is the whole point. A single
+    doc-wide row count is nearly useless: in TASK_SUBAGENT_SELECTION.md the routing tables
+    `pick_models` actually consumes are 35 of 157 rows, and the two tables labelled
+    "display only; not parsed for routing" are 122. Emptying EVERY routing table leaves
+    122/157 = 78% of rows — comfortably inside any doc-wide tolerance — so the husk that
+    breaks routing passed green. Keyed sizes catch it; a scalar cannot.
+    """
+    for key, wn in want.items():
+        gn = got.get(key)
+        if gn is None:
+            return False, f"collection disappeared: {key}"
+        if wn == 0:
+            continue
+        if gn < wn * COLLAPSE_RATIO:
+            return False, f"COLLAPSE {key}: {wn} -> {gn}"
+        if gn > wn * FANOUT_CEILING:
+            return False, f"FAN-OUT {key}: {wn} -> {gn} (duplication?)"
+    return True, ""
+
+
+def shapes_equal(want: dict, got: dict) -> bool:
+    """Structure must match exactly; collection SIZES only within a ratio band."""
+    return not shape_drift(want, got)
+
+
+def shape_drift(want: dict, got: dict) -> str:
+    """The reason `want` and `got` differ, or "" when they agree."""
+    w, g = dict(want), dict(got)
+    wm, gm = w.pop("magnitudes", None), g.pop("magnitudes", None)
+    if w != g:
+        return "structure changed"
+    # A golden frozen before magnitudes existed must not silently pass; verify() gates on
+    # ORACLE_VERSION, so reaching here with a missing side means a hand-built shape in a test.
+    if wm is None or gm is None:
+        return ""
+    ok, why = magnitudes_ok(wm, gm)
+    return "" if ok else why
+
+
 def _is_gitignored(rel: str) -> bool:
-    r = subprocess.run(
-        ["git", "-C", str(FABRIK_ROOT), "check-ignore", "-q", rel], capture_output=True
-    )
+    # Phase B copies tests/ into the engine repo; `git` may be absent or the tree not yet a
+    # repo. Crashing the gate is strictly worse than reporting drift, so fail to "not ignored"
+    # (fail-CLOSED: the artifact reads as MISSING and reds loudly).
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(FABRIK_ROOT), "check-ignore", "-q", rel], capture_output=True
+        )
+    except OSError:
+        return False
     return r.returncode == 0
 
 
@@ -111,37 +175,97 @@ def md_shape(text: str) -> dict:
     # count (data), but the set of column contracts is the real interface. Losing a column is
     # exactly what "functionality lost" looks like.
     cols = sorted({tuple(c.strip().strip("*`") for c in row.split("|")) for row in headers})
+    # ⚠️ MAGNITUDE, not just shape (added 2026-08-12 after self-testing the redesign).
+    # Structure alone is TOO WEAK: deleting every data row from TASK_SUBAGENT_SELECTION.md
+    # (181 rows -> 24) left skeleton and columns byte-identical, so the oracle would have
+    # certified "no functionality lost" for an extraction that emitted a correct-looking
+    # husk with zero data — the single most likely extraction failure (engine copied, DB
+    # wiring wrong). Row count is recorded in coarse BUCKETS so ordinary churn cannot move
+    # it: measured daily drift is ~8% (n_total 274 -> 296), while a collapse is -87%.
+    # Bucketing by powers of ~1.5 tolerates a 50% swing and still catches an order of
+    # magnitude. A doc that legitimately grows past a bucket edge is a one-line re-freeze;
+    # a doc that silently empties is caught the first time.
     return {
         "skeleton": [f"{h} {_strip_volatile(s)}" for h, s in skeleton],
         "table_columns": [list(c) for c in cols],
+        "magnitudes": _rows_per_table(text),
     }
 
 
+def _rows_per_table(text: str) -> dict[str, int]:
+    """Row count PER TABLE, keyed by the table's column contract.
+
+    Keyed by columns rather than by the enclosing heading because headings carry volatile
+    counts (`### OPENAI (87 models)`) and get renamed; the column contract is the stable
+    identity. Tables sharing a column contract are summed.
+    """
+    sizes: dict[str, int] = {}
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines) - 1:
+        head = re.match(r"^\|(.+?)\|[ \t]*$", lines[i])
+        if head and re.match(r"^\|[\s:|-]+\|[ \t]*$", lines[i + 1]):
+            key = "|".join(c.strip().strip("*`") for c in head.group(1).split("|"))
+            j = i + 2
+            while j < len(lines) and lines[j].startswith("|"):
+                j += 1
+            sizes[key] = sizes.get(key, 0) + (j - i - 2)
+            i = j
+            continue
+        i += 1
+    return sizes
+
+
 def json_shape(text: str) -> dict:
-    """Key schema of a JSON artifact — keys and container types, never values."""
+    """Key schema of a JSON artifact — keys and container types, never values.
+
+    `magnitudes` carries container LENGTHS because the schema alone cannot see them: `walk`
+    renders a list as `[walk(o[0])]`, one element regardless of length, so truncating every
+    list to a single entry (a registry going 40 assignments -> 13) produced a byte-identical
+    schema. Dropping a whole key was caught; shrinking every collection was not.
+    """
     try:
         data = json.loads(text)
     except ValueError as exc:
         return {"parse_error": type(exc).__name__}
 
-    def walk(o, depth=0):
+    sizes: dict[str, int] = {}
+
+    def walk(o, depth=0, path="$"):
         if depth > 3:
             return "..."
         if isinstance(o, dict):
-            return {k: walk(v, depth + 1) for k, v in sorted(o.items())[:40]}
+            sizes[path] = len(o)
+            return {k: walk(v, depth + 1, f"{path}.{k}") for k, v in sorted(o.items())[:40]}
         if isinstance(o, list):
-            return [walk(o[0], depth + 1)] if o else []
+            sizes[path] = len(o)
+            return [walk(o[0], depth + 1, f"{path}[]")] if o else []
         return type(o).__name__
 
-    return {"schema": walk(data)}
+    return {"schema": walk(data), "magnitudes": sizes}
 
 
 def html_shape(text: str) -> dict:
-    """Coarse shape for the generated browser page."""
+    """Coarse shape for the generated browser page.
+
+    `data_rows` deliberately reuses md_shape's field name so shapes_equal applies the SAME
+    collapse ratio here. Measured: blanking the 3.7MB embedded JS payload does change
+    `id_attrs` — but only because the blob happens to contain `id="` substrings. That is
+    luck, not a contract. The row count makes the catch intentional.
+    """
+    payload = re.search(r'<script[^>]*id="payload"[^>]*>(.*?)</script>', text, re.S)
     return {
         "has_table": "<table" in text,
         "script_blocks": text.count("<script"),
         "id_attrs": sorted(set(re.findall(r'id="([a-zA-Z0-9_-]+)"', text)))[:40],
+        "magnitudes": {
+            "tr": text.count("<tr"),
+            # The models are rendered client-side from this blob, NOT from markup: the page
+            # is 3.86 MB but holds only 157 literal `<tr`. Emptying the blob is a total data
+            # loss that leaves every markup-derived field identical, so the blob's own size
+            # is the only honest magnitude here.
+            "payload_bytes": len(payload.group(1)) if payload else 0,
+        },
     }
 
 
@@ -191,14 +315,27 @@ def _db_queries() -> dict[str, str]:
     so an unguarded read here would crash the oracle post-excise.
     """
     out: dict[str, str] = {}
-    if str(SCRIPT_DIR) not in sys.path:
-        sys.path.insert(0, str(SCRIPT_DIR))
+    # Load from the FILE under SCRIPT_DIR, not by module name. A bare `import
+    # rank_task_subagents` resolves through whatever is already on sys.path — sibling test
+    # modules put the real engine dir there — so the engine looked present even when
+    # SCRIPT_DIR pointed nowhere, and the missing-engine guard could not be tested (nor could
+    # it catch its own revert). sys.path is restored so a bogus dir never leaks into the
+    # rest of the session.
+    _saved_path = list(sys.path)
     try:
-        import rank_task_subagents as _rts
-
+        sys.path.insert(0, str(SCRIPT_DIR))
+        spec = importlib.util.spec_from_file_location(
+            "_oracle_rts", SCRIPT_DIR / "rank_task_subagents.py"
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError("no engine module")
+        _rts = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_rts)
         out["rank_task_subagents.flywheel"] = _rts.QUERY
     except Exception as exc:  # noqa: BLE001 — the oracle must survive a missing engine
         out["rank_task_subagents.flywheel"] = f"<UNAVAILABLE: {type(exc).__name__}>"
+    finally:
+        sys.path[:] = _saved_path
     try:
         src = (SCRIPT_DIR / "rank_task_subagents.py").read_text(encoding="utf-8")
         m = re.search(r'"(SELECT id, quality_tier FROM agents[^"]*)"', src)
@@ -240,17 +377,35 @@ def observe() -> dict:
         text = _read(rel)
         markers[f"{rel}::{marker}"] = bool(text and extract_block(text, marker) is not None)
     for host in ai_pack_hosts():
-        text = host.read_text(encoding="utf-8")
+        # errors="replace" mirrors _read: a non-UTF-8 byte in any fleet-synced ai/*.md must
+        # report drift, never crash the gate.
+        text = host.read_text(encoding="utf-8", errors="replace")
         for marker in AI_PACK_MARKERS:
             if extract_block(text, marker) is not None:
                 markers[f".windsurf/rules/ai/{host.name}::{marker}"] = True
 
-    return {"artifacts": artifacts, "markers": markers, "db_queries": _db_queries()}
+    return {
+        "oracle_version": ORACLE_VERSION,
+        "artifacts": artifacts,
+        "markers": markers,
+        "db_queries": _db_queries(),
+    }
 
 
 def snapshot() -> dict:
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     obs = observe()
+    # A collection frozen at 0 can never be ratio-compared again (0 * anything == 0), so
+    # re-freezing while the pipeline is broken silently bakes in a dead check. --snapshot is
+    # the only writer and nothing else validates the observed state, so say it out loud.
+    for rel, a in sorted(obs["artifacts"].items()):
+        empties = [k for k, n in (a.get("shape", {}).get("magnitudes") or {}).items() if n == 0]
+        if empties:
+            print(
+                f"[capture_golden] ⚠️  freezing EMPTY collections in {rel}: {empties} — "
+                "if the pipeline is broken, fix it before freezing; these can never red again",
+                file=sys.stderr,
+            )
     MANIFEST.write_text(json.dumps(obs, indent=1, sort_keys=True), encoding="utf-8")
     DB_QUERIES.write_text(json.dumps(obs["db_queries"], indent=1), encoding="utf-8")
     return obs
@@ -261,19 +416,56 @@ def verify() -> int:
         print("[capture_golden] no structure.json — run --snapshot first", file=sys.stderr)
         return 2
     want = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    if want.get("oracle_version") != ORACLE_VERSION:
+        print(
+            f"[capture_golden] golden was frozen by oracle v{want.get('oracle_version')}, "
+            f"this is v{ORACLE_VERSION} — its invariants would be SKIPPED, not checked. "
+            "Re-freeze with --snapshot.",
+            file=sys.stderr,
+        )
+        return 2
     got = observe()
     drift: list[str] = []
+
+    # On the box that RUNS the pipeline, a gitignored artifact that stopped being produced is
+    # the headline failure — not an absent checkout. 4 of 13 artifacts are gitignored, so the
+    # fresh-clone tolerance below silently exempts 31% of the inventory from "NO LONGER
+    # PRODUCED". daily_refresh.sh sets this; a laptop/CI clone does not.
+    require_local = os.environ.get("ORACLE_REQUIRE_LOCAL_ARTIFACTS") == "1"
 
     for rel, w in want["artifacts"].items():
         g = got["artifacts"].get(rel)
         if g is None:
             drift.append(f"ARTIFACT DROPPED FROM THE CONTRACT: {rel}")
             continue
-        if w.get("present") and not g.get("present") and g.get("reason") != "absent-by-gitignore":
+        if w.get("present") and not g.get("present"):
+            if g.get("reason") == "absent-by-gitignore" and not require_local:
+                continue
             drift.append(f"NO LONGER PRODUCED: {rel}")
             continue
-        if w.get("present") and g.get("present") and w.get("shape") != g.get("shape"):
-            drift.append(f"SHAPE CHANGED: {rel}")
+        if w.get("present") and g.get("present"):
+            ws, gs = w.get("shape", {}), g.get("shape", {})
+            if not shapes_equal(ws, gs):
+                if (
+                    ws.get("data_rows")
+                    and gs.get("data_rows", 0) < ws["data_rows"] * COLLAPSE_RATIO
+                ):
+                    drift.append(
+                        f"DATA COLLAPSE: {rel} — {ws['data_rows']} rows -> {gs.get('data_rows', 0)}"
+                    )
+                else:
+                    drift.append(f"SHAPE CHANGED: {rel}")
+
+    # The SQL the live hub consumers issue. snapshot() froze these into both structure.json
+    # and db_queries.json, but nothing ever compared them — so WINDOW_DAYS, MIN_RUNS, the
+    # HAVING clause or the table name could all change and the oracle stayed green, defeating
+    # the module's stated purpose ("read live, so it cannot drift into fiction").
+    for key, wq in want.get("db_queries", {}).items():
+        gq = got["db_queries"].get(key)
+        if gq is None:
+            drift.append(f"QUERY GONE: {key}")
+        elif gq != wq and "UNAVAILABLE" not in str(wq):
+            drift.append(f"QUERY CHANGED: {key}")
 
     for key, present in want["markers"].items():
         if present and not got["markers"].get(key):
@@ -281,6 +473,16 @@ def verify() -> int:
     for key in got["markers"]:
         if key not in want["markers"]:
             print(f"[capture_golden] NEW marker (addition, not drift): {key}", file=sys.stderr)
+    # Symmetry with markers: an artifact added to SELECTION_DOCS/REGISTRY_JSONS/OTHER_OUTPUTS
+    # without re-snapshotting is simply absent from `want` and was therefore unprotected with
+    # no signal at all. Not drift — but it must not be silent.
+    for rel in got["artifacts"]:
+        if rel not in want["artifacts"]:
+            print(
+                f"[capture_golden] NEW artifact NOT YET FROZEN (unprotected): {rel} "
+                "— re-run --snapshot to bring it under the contract",
+                file=sys.stderr,
+            )
 
     if drift:
         print("[capture_golden] CONTRACT DRIFT:", file=sys.stderr)

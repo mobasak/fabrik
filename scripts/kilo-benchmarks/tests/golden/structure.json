@@ -3,6 +3,9 @@
   "docs/reference/kilo/CANDIDATE_SIGNUPS.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "#|Kind|Model / SKU|Provider|Price (context)|Signup trigger": 1
+    },
     "skeleton": [
      "# Candidate Signups \u2014 Watch-list vendors not currently reachable"
     ],
@@ -21,6 +24,12 @@
   "docs/reference/kilo/CODING_SUBAGENT_SELECTION.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "#|Model|OR|OR_prov|Reason|Bench|db_tps|In $/M|Out $/M|SWE|Aider|AA|Arena|Ctx|Doc\u2194Code|pass@1|Score": 44,
+     "Model|Extra body params": 4,
+     "Model|In $/M|Out $/M|db_tps|Ctx|Arena|Reason|Score (provisional)": 11,
+     "Model|Reason": 1
+    },
     "skeleton": [
      "# Coding subagent selection",
      "## Ranked table",
@@ -73,6 +82,9 @@
   "docs/reference/kilo/IMAGE_GEN_SELECTION.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "#|Model|Provider|Cost @100 images (USD)|quality_elo": 3
+    },
     "skeleton": [
      "# Image-Gen Selection \u2014 Pareto-ranked at 100 images"
     ],
@@ -90,6 +102,12 @@
   "docs/reference/kilo/KILO_MODEL_CAPABILITIES.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "Capability|Count|%": 4,
+     "Icon|Meaning": 3,
+     "Model|Input/M|Output/M|Context|Caps|ELO|TBench": 401,
+     "Tier|Input $/M|Use Case": 6
+    },
     "skeleton": [
      "# Kilo Model Capabilities Reference",
      "## Capability Summary",
@@ -127,6 +145,9 @@
   "docs/reference/kilo/STT_SELECTION.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "#|Model|Provider|Cost @60 min (USD)|quality_elo": 1
+    },
     "skeleton": [
      "# STT Selection \u2014 Pareto-ranked at 60 minutes"
     ],
@@ -144,6 +165,14 @@
   "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "model|grade|pass@1|$/1k|$/run|p50 s": 6,
+     "model|grade|pass@1|score5|$/1k|$/run|p50 s|tok/s|value|family|n_graded|n_err|eligible|tier": 57,
+     "model|grade|score5|recall|$/1k|$/run|p50 s": 8,
+     "model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl": 4,
+     "model|grade|score5|recall|prec|$/1k|$/M-out|$/run|\u2461total$|p50 s|tok/s|n_mut|n_ctrl|eligible": 61,
+     "rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|n": 21
+    },
     "skeleton": [
      "## \u2705 Selected subagents \u2014 the gate shortlists (`pick_models` picks from these)",
      "## Full review benchmark results \u2014 all measured columns (display only; not parsed for routing)",
@@ -231,6 +260,9 @@
   "docs/reference/kilo/TRANSLATION_SELECTION.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "#|Model|Provider|Cost @100 000 chars (USD)|quality_elo": 1
+    },
     "skeleton": [
      "# Translation Selection \u2014 Pareto-ranked at 100 000 chars"
     ],
@@ -248,6 +280,9 @@
   "docs/reference/kilo/TTS_SELECTION.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "#|Model|Provider|Cost @100 000 chars (USD)|quality_elo": 1
+    },
     "skeleton": [
      "# TTS Selection \u2014 Pareto-ranked at 100 000 chars"
     ],
@@ -265,6 +300,9 @@
   "docs/traycer/kilo_selected_agents.md": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "Rank|Model|Provider|Elo|TBench%|In$/M|Out$/M|Ctx|Vision|Tools|Agentic|Tier|$/Perf|Status": 60
+    },
     "skeleton": [
      "# Kilo Agents Master Table",
      "## Top 60 Agents Ranked by Chatbot Arena Elo",
@@ -323,12 +361,47 @@
      "thead-row",
      "tiers"
     ],
+    "magnitudes": {
+     "payload_bytes": 3708025,
+     "tr": 157
+    },
     "script_blocks": 2
    }
   },
   "scripts/kilo_47_agents_final.json": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "$": 9,
+     "$.fleet_size_summary": 13,
+     "$.roles": 13,
+     "$.roles.coding_complex": 2,
+     "$.roles.coding_complex[]": 15,
+     "$.roles.coding_simple": 4,
+     "$.roles.coding_simple[]": 15,
+     "$.roles.documentation": 5,
+     "$.roles.documentation[]": 15,
+     "$.roles.fixing": 5,
+     "$.roles.fixing[]": 15,
+     "$.roles.openrouter:agentic": 3,
+     "$.roles.openrouter:agentic[]": 15,
+     "$.roles.openrouter:code": 3,
+     "$.roles.openrouter:code[]": 15,
+     "$.roles.openrouter:language": 3,
+     "$.roles.openrouter:language[]": 15,
+     "$.roles.openrouter:long-context": 2,
+     "$.roles.openrouter:long-context[]": 15,
+     "$.roles.openrouter:multimodal": 2,
+     "$.roles.openrouter:multimodal[]": 15,
+     "$.roles.openrouter:speech-audio": 1,
+     "$.roles.openrouter:speech-audio[]": 15,
+     "$.roles.openrouter:vision": 2,
+     "$.roles.openrouter:vision[]": 15,
+     "$.roles.reviewing": 5,
+     "$.roles.reviewing[]": 15,
+     "$.roles.testing": 3,
+     "$.roles.testing[]": 15
+    },
     "schema": {
      "assignment_method": "str",
      "classifier": "str",
@@ -607,6 +680,13 @@
   "scripts/kilo_embeddings_final.json": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "$": 2,
+     "$.roles": 3,
+     "$.roles.code_embedding": 1,
+     "$.roles.frontier_reference": 2,
+     "$.roles.multilingual_primary": 2
+    },
     "schema": {
      "generated_at": "str",
      "roles": {
@@ -628,6 +708,17 @@
   "scripts/kilo_openrouter_routes_final.json": {
    "present": true,
    "shape": {
+    "magnitudes": {
+     "$": 2,
+     "$.categories": 7,
+     "$.categories.agentic": 3,
+     "$.categories.code": 3,
+     "$.categories.language": 3,
+     "$.categories.long-context": 2,
+     "$.categories.multimodal": 2,
+     "$.categories.speech-audio": 1,
+     "$.categories.vision": 2
+    },
     "schema": {
      "categories": {
       "agentic": {
@@ -702,5 +793,6 @@
   "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::EMBEDDING_ROSTER": true,
   "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::ROSTER": true,
   "docs/reference/kilo/KILO_MODEL_CAPABILITIES.md::EMBEDDING_CATALOG": true
- }
+ },
+ "oracle_version": 2
 }

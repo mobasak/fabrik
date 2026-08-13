@@ -637,9 +637,9 @@ def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
     """A6 fix: main() must exit 1 on state='error' so daily_refresh.sh's `|| echo failed`
     fires only on real failures, and 0 on healthy state='ok' (whether or not rows exist).
 
-    Also asserts OUTPUT_PATH is actually WRITTEN (Finder B#5) — a regression in
-    `_atomic_write` (swapped `os.replace(tmp, path)` args, path.parent race) would
-    still return the right exit code but leave the target unwritten or deleted.
+    Also asserts OUTPUT_PATH is actually WRITTEN on the healthy path (Finder B#5) — a
+    regression in `_atomic_write` (swapped `os.replace(tmp, path)` args, path.parent race)
+    would still return the right exit code but leave the target unwritten or deleted.
 
     Isolates from real CODING file so 'No aggregated runs yet' stub is emitted
     cleanly for the state=ok+empty-rows case.
@@ -659,12 +659,22 @@ def test_main_exit_code_reflects_state(monkeypatch, tmp_path) -> None:
     assert "No aggregated runs yet" in ok_content
     assert "AGGREGATION FAILED" not in ok_content
 
+    # A BROKEN read must NOT overwrite the good doc that the state='ok' run above wrote
+    # (Phase A.0). The stub would be git-committed and fleet-synced to the 49 vendored
+    # pick_models copies, and its fresh "Last refresh" date would forge past select.py's
+    # 14-day staleness gate — fail-open with a receipt. Exit code stays 1 either way.
     monkeypatch.setattr(rank_task_subagents, "_query_rows", lambda: ("error", []))
     assert rank_task_subagents.main() == 1
-    assert out_path.exists(), "main() with state='error' must ALSO write OUTPUT_PATH"
-    err_content = out_path.read_text()
-    assert "AGGREGATION FAILED" in err_content
-    assert "No aggregated runs yet" not in err_content
+    assert out_path.exists(), "main() must never DELETE OUTPUT_PATH"
+    kept = out_path.read_text()
+    assert kept == ok_content, "a broken read overwrote the previous good doc"
+    assert "AGGREGATION FAILED" not in kept
+
+    # ...but an absent doc still gets the labelled stub (absent is worse than labelled),
+    # and a doc that is ALREADY a stub is not worth preserving.
+    out_path.unlink()
+    assert rank_task_subagents.main() == 1
+    assert "AGGREGATION FAILED" in out_path.read_text(), "first run must emit the stub"
 
 
 def test_coding_fallback_skips_on_request_tier_regression(tmp_path) -> None:

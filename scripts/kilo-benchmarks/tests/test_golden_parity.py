@@ -13,6 +13,7 @@ the pipeline never emits, and stayed green while 23 of 29 artifacts still drifte
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -51,16 +52,21 @@ def test_verify_is_green_on_the_live_tree():
 
 def test_structure_survives_a_real_daily_regeneration():
     """THE test the byte-oracle failed — real artifacts from two consecutive daily commits."""
-    drifted = []
+    drifted, compared = [], 0
     for rel in cg.SELECTION_DOCS + [cg.CAPABILITIES_DOC]:
         a, b = _at(DAY_A, rel), _at(DAY_B, rel)
         if not a or not b:
             continue
+        compared += 1
         if rel == cg.CAPABILITIES_DOC:
             a = cg.strip_marker(a, "EMBEDDING_CATALOG")
             b = cg.strip_marker(b, "EMBEDDING_CATALOG")
-        if cg.md_shape(a) != cg.md_shape(b):
+        if not cg.shapes_equal(cg.md_shape(a), cg.md_shape(b)):
             drifted.append(rel)
+    # Without this the test passes VACUOUSLY the moment the shas stop resolving — a shallow
+    # clone, or Phase B copying tests/ into the engine repo (its explicit design goal). That
+    # is the same silently-green pattern this test was written to replace.
+    assert compared >= 6, f"only {compared} real day-over-day pairs resolved — test is vacuous"
     assert not drifted, f"structure churns day-over-day (the byte-oracle's fatal flaw): {drifted}"
 
 
@@ -68,14 +74,14 @@ def test_a_new_provider_section_is_not_drift():
     """Catalog growth is not lost functionality. Measured: 66 -> 68 `###` headings in one day."""
     base = "# Doc\n\n## Providers\n\n### OPENAI (87 models)\n\n### GOOGLE (30 models)\n"
     grown = base + "\n### DEEPGRAM (2 models)\n\n### ASSEMBLYAI (1 models)\n"
-    assert cg.md_shape(base) == cg.md_shape(grown)
+    assert cg.shapes_equal(cg.md_shape(base), cg.md_shape(grown))
 
 
 def test_changing_values_is_not_drift():
     """Scores, counts and prices move every night; none of them is a contract change."""
     a = "# D\n\n## S\n\n| model | score | n |\n|---|---|---|\n| glm | 2.55 | 67 |\n"
     b = "# D\n\n## S\n\n| model | score | n |\n|---|---|---|\n| glm | 2.57 | 75 |\n"
-    assert cg.md_shape(a) == cg.md_shape(b)
+    assert cg.shapes_equal(cg.md_shape(a), cg.md_shape(b))
 
 
 # ── it must still bite ───────────────────────────────────────────────────────
@@ -83,13 +89,13 @@ def test_a_lost_table_column_is_drift():
     """Losing a column is exactly what 'functionality lost' looks like."""
     a = "# D\n\n## S\n\n| model | score | cost |\n|---|---|---|\n| x | 1 | 2 |\n"
     b = "# D\n\n## S\n\n| model | score |\n|---|---|\n| x | 1 |\n"
-    assert cg.md_shape(a) != cg.md_shape(b)
+    assert not cg.shapes_equal(cg.md_shape(a), cg.md_shape(b))
 
 
 def test_a_lost_section_is_drift():
     a = "# D\n\n## Rankings\n\n## Methodology\n"
     b = "# D\n\n## Rankings\n"
-    assert cg.md_shape(a) != cg.md_shape(b)
+    assert not cg.shapes_equal(cg.md_shape(a), cg.md_shape(b))
 
 
 def test_a_lost_json_field_is_drift():
@@ -174,16 +180,28 @@ def test_db_queries_come_from_the_module_not_prose():
     assert "INTERVAL" in fw and "HAVING" in fw, "the real window/HAVING clauses are missing"
 
 
-def test_db_queries_survive_a_missing_engine():
+def test_db_queries_survive_a_missing_engine(monkeypatch):
     """Phase E deletes the engine scripts while RETAINING tests/golden/** — the oracle must
-    not crash afterwards."""
-    real_dir = cg.SCRIPT_DIR
-    try:
-        cg.SCRIPT_DIR = Path("/nonexistent-engine-dir")
-        q = cg._db_queries()
-        assert any("UNAVAILABLE" in v for v in q.values())
-    finally:
-        cg.SCRIPT_DIR = real_dir
+    not crash afterwards.
+
+    Asserts the FLYWHEEL key specifically. `any("UNAVAILABLE" ...)` was satisfied by the two
+    file-read guards alone, so it stayed green even with the import guard removed — it did
+    not catch its own revert. `rank_task_subagents` is also evicted from sys.modules, since a
+    full-suite run leaves it imported and the import then succeeds regardless of SCRIPT_DIR.
+    """
+    monkeypatch.setattr(cg, "SCRIPT_DIR", Path("/nonexistent-engine-dir"))
+    monkeypatch.delitem(sys.modules, "rank_task_subagents", raising=False)
+    # Reproduce the condition deterministically instead of depending on test ORDER: sibling
+    # test modules put the real engine dir on sys.path, which is what let a bare
+    # `import rank_task_subagents` succeed while SCRIPT_DIR pointed nowhere. Without this the
+    # revert is only caught in a full-suite run and passes when the test runs alone.
+    monkeypatch.syspath_prepend(str(cg.FABRIK_ROOT / "scripts/kilo-benchmarks"))
+    before = list(sys.path)
+    q = cg._db_queries()
+    assert "UNAVAILABLE" in q.get("rank_task_subagents.flywheel", ""), (
+        "the import guard is not what produced the fallback — this test cannot catch its revert"
+    )
+    assert sys.path == before, "_db_queries leaked a bogus dir onto sys.path for the session"
 
 
 def test_hand_authored_docs_are_excluded():
@@ -192,3 +210,174 @@ def test_hand_authored_docs_are_excluded():
     assert not any("kilo_all_models" in f for f in frozen), (
         "produced by the repo-root kilo_model_sync.py — it never moves with the engine"
     )
+
+
+def test_gutted_tables_are_drift_even_with_perfect_structure():
+    """Total gutting: every data row deleted, headings and column headers intact.
+
+    This is the EASY half. The realistic failure is partial — only the routing tables
+    emptied — which a doc-wide row count misses entirely; that is covered by
+    test_partial_gutting_of_only_the_routing_tables_is_drift, and it is the case that
+    actually drove magnitudes from a scalar to a per-table map.
+
+    Deleting every data row while keeping headings and column headers left skeleton and
+    columns byte-identical (measured: TASK_SUBAGENT_SELECTION.md 181 rows -> 24). Without a
+    magnitude invariant the oracle would certify "no functionality lost" for an extraction
+    that emitted a correct-looking husk with zero data — the most likely extraction failure
+    of all (engine copied, DB wiring wrong).
+    """
+    import re as _re
+
+    doc = cg.FABRIK_ROOT / "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+    if not doc.exists():
+        pytest.skip("selection doc absent")
+    real = doc.read_text()
+    if "AGGREGATION FAILED" in real:
+        pytest.skip("selection doc is the failure stub — nothing to gut (pipeline is broken)")
+    gutted = _re.sub(r"(\|[^\n]*\|\n\|[\s:|-]+\|\n)(?:\|[^\n]*\|\n)+", r"\1", real)
+    assert not cg.shapes_equal(cg.md_shape(real), cg.md_shape(gutted)), (
+        "a doc stripped of every data row still matches — the oracle is too weak"
+    )
+
+
+def test_an_entirely_empty_table_is_drift():
+    a = "# D\n\n## S\n\n| m | s |\n|---|---|\n| x | 1 |\n| y | 2 |\n"
+    b = "# D\n\n## S\n\n| m | s |\n|---|---|\n"
+    assert not cg.shapes_equal(cg.md_shape(a), cg.md_shape(b)), "an emptied table must be drift"
+    assert cg.md_shape(b)["magnitudes"] == {"m|s": 0}
+
+
+def _rows(n: int) -> str:
+    return "# D\n\n## S\n\n| m | s |\n|---|---|\n" + "| x | 1 |\n" * n
+
+
+def test_magnitude_tolerates_ordinary_growth():
+    """Churn moves counts ~8% (n_total 274 -> 296); the band must not react to that."""
+    assert cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(108)))  # +8%, real churn
+    assert cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(130)))  # +30%
+    assert cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(70)))  # -30% shrink
+    # ...but unbounded growth is not "fine": a join fan-out emitting every row 10x is drift.
+    assert not cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(1000)))
+
+
+def test_magnitude_catches_an_order_of_magnitude_loss():
+    assert not cg.shapes_equal(cg.md_shape(_rows(180)), cg.md_shape(_rows(20)))
+
+
+def test_html_payload_collapse_is_drift():
+    """The browser page is 3.8MB of embedded model data; the skeleton is 95KB of it.
+
+    Without a row count the catch is incidental — it only fires because the payload happens
+    to contain `id="` substrings. Assert the DESIGNED invariant instead.
+    """
+    page = cg.FABRIK_ROOT / "scripts/kilo-benchmarks/models_browser.html"
+    if not page.exists():
+        pytest.skip("models_browser.html is gitignored and absent in this tree")
+    real = page.read_text(errors="replace")
+    m = re.search(r'(<script[^>]*id="payload"[^>]*>)(.*?)(</script>)', real, re.S)
+    assert m, "the page no longer carries an id=payload blob — html_shape must be re-derived"
+    blanked = real[: m.start(2)] + "[]" + real[m.end(2) :]
+    assert not cg.shapes_equal(cg.html_shape(real), cg.html_shape(blanked)), (
+        "emptying the 3.7MB model payload left the shape identical — the page renders from "
+        "this blob, not from markup, so no markup-derived field can see the data loss"
+    )
+
+
+def test_html_row_growth_is_not_drift():
+    """New models land as new rows every night — growth must not red the oracle."""
+    def page(n: int) -> str:
+        return (
+            '<html><script id="payload">' + "x" * n + "</script><table>"
+            + "<tr><td>x</td></tr>" * 100 + "</table></html>"
+        )
+
+    assert cg.shapes_equal(cg.html_shape(page(10_000)), cg.html_shape(page(13_000)))
+
+
+# ── the invariants must be ON, not merely present ────────────────────────────
+def test_a_stale_golden_refuses_to_verify_instead_of_passing(monkeypatch, tmp_path):
+    """A golden frozen by an older observer lacks the newer invariants.
+
+    `shapes_equal` skips a magnitude side it cannot find, so an old golden made verify()
+    print "OK — N contract elements intact" for a doc gutted to zero rows: the check was
+    silently OFF while claiming to be on. Worse than no oracle. Must exit 2, not 0.
+    """
+    old = json.loads(cg.MANIFEST.read_text())
+    old["oracle_version"] = cg.ORACLE_VERSION - 1
+    stale = tmp_path / "structure.json"
+    stale.write_text(json.dumps(old))
+    monkeypatch.setattr(cg, "MANIFEST", stale)
+    assert cg.verify() == 2, "a stale golden must refuse to run, never report OK"
+
+
+def test_a_changed_db_query_is_drift(monkeypatch):
+    """15 SQL queries were frozen into the golden and compared by nothing.
+
+    Changing WINDOW_DAYS, MIN_RUNS, the HAVING clause or the table name left the oracle
+    green — defeating the module's stated purpose (read live so it cannot drift into fiction).
+    """
+    real = cg.observe
+
+    def tampered():
+        o = real()
+        k = next(iter(o["db_queries"]))
+        o["db_queries"][k] = "SELECT 1 -- rewritten"
+        return o
+
+    monkeypatch.setattr(cg, "observe", tampered)
+    assert cg.verify() == 1, "a rewritten consumer query must RED the oracle"
+
+
+def test_gitignored_artifact_loss_is_drift_on_the_pipeline_host(monkeypatch):
+    """The PAIRED loss assertion the fresh-clone tolerance was missing.
+
+    4 of 13 artifacts are gitignored, so `absent-by-gitignore` exempted 31% of the inventory
+    from "NO LONGER PRODUCED" — precisely the headline class the oracle exists to catch. On
+    the box that RUNS the pipeline, absence means it stopped being produced.
+    """
+    real = cg.observe
+
+    def stopped():
+        o = real()
+        o["artifacts"]["scripts/kilo_47_agents_final.json"] = {
+            "present": False,
+            "reason": "absent-by-gitignore",
+        }
+        return o
+
+    monkeypatch.setattr(cg, "observe", stopped)
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    assert cg.verify() == 0, "a fresh clone must stay green"
+    monkeypatch.setenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", "1")
+    assert cg.verify() == 1, "on the pipeline host a gitignored artifact's loss IS drift"
+
+
+def test_partial_gutting_of_only_the_routing_tables_is_drift():
+    """The v1 magnitude invariant's real failure, closed.
+
+    A doc-wide row count is nearly useless here: the routing tables `pick_models` consumes
+    are 35 of 157 rows, and the tables labelled "display only; not parsed for routing" are
+    122. Emptying EVERY routing table left 78% of rows — inside any doc-wide tolerance — so
+    the husk that breaks routing passed green.
+    """
+    doc = cg.FABRIK_ROOT / "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+    if not doc.exists() or "AGGREGATION FAILED" in doc.read_text():
+        pytest.skip("selection doc absent or is the failure stub")
+    real = doc.read_text()
+    cut = real.find("## Full review benchmark results")
+    assert cut > 0, "the display-only section moved — re-derive this test's split point"
+    gutted = re.sub(r"(\|[^\n]*\|\n\|[\s:|-]+\|\n)(?:\|[^\n]*\|\n)+", r"\1", real[:cut]) + real[cut:]
+    assert not cg.shapes_equal(cg.md_shape(real), cg.md_shape(gutted)), (
+        "every routing table emptied but the oracle is green — magnitudes are not per-table"
+    )
+
+
+def test_json_list_truncation_is_drift():
+    """`walk` renders a list as one element regardless of length, so shrinking every
+    collection (a registry going 40 assignments -> 13) was byte-identical in the schema.
+    Dropping a whole key was caught; shrinking every collection was not."""
+    a = json.dumps({"roles": {"coding": [{"m": "x"}] * 40}})
+    b = json.dumps({"roles": {"coding": [{"m": "x"}] * 13}})
+    assert not cg.shapes_equal(cg.json_shape(a), cg.json_shape(b))
+    grown = json.dumps({"roles": {"coding": [{"m": "x"}] * 44}})
+    assert cg.shapes_equal(cg.json_shape(a), cg.json_shape(grown)), "growth is not drift"

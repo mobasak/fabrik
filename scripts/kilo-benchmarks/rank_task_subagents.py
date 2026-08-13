@@ -1375,7 +1375,14 @@ def main() -> int:
     # completed — fail-open with a receipt. Yesterday's good doc is strictly better than a
     # stub, so on a BROKEN read we keep it and exit non-zero. First run (no doc yet) still
     # writes the stub, because an absent doc is worse than a labelled one.
-    if state == "error" and OUTPUT_PATH.exists():
+    # "Keep the existing doc" is only correct if the existing doc is GOOD. After a first-run
+    # failure the stub IS on disk, so every later broken run would preserve the stub forever
+    # while the alert claims "the fleet is on yesterday-good, not poisoned" — the opposite of
+    # the truth. A stub is not worth protecting: re-write it (same content, honest date).
+    existing_is_stub = OUTPUT_PATH.exists() and "AGGREGATION FAILED" in OUTPUT_PATH.read_text(
+        encoding="utf-8", errors="replace"
+    )
+    if state == "error" and OUTPUT_PATH.exists() and not existing_is_stub:
         print(
             f"[rank_task_subagents] read BROKEN — KEEPING the existing {OUTPUT_PATH.name} "
             "rather than publishing the failure stub (it would be fleet-synced)",

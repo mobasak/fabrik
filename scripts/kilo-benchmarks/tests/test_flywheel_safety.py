@@ -166,3 +166,21 @@ def test_first_run_still_writes_when_no_doc_exists(monkeypatch, tmp_path):
     monkeypatch.setattr(rts, "render", lambda *a, **k: "AGGREGATION FAILED stub")
     assert rts.main() == 1
     assert missing.exists(), "first run must still emit the labelled stub"
+
+
+def test_a_stub_on_disk_is_not_worth_preserving(monkeypatch, tmp_path):
+    """The keep-guard's blind spot: "keep the existing doc" is only right if it is GOOD.
+
+    After a first-run failure the stub IS on disk, so every later broken run would preserve
+    it forever while daily_refresh.sh's alert body asserts "the fleet is on yesterday-good,
+    not poisoned" — the exact opposite of the truth.
+    """
+    stub = tmp_path / "TASK_SUBAGENT_SELECTION.md"
+    stub.write_text("AGGREGATION FAILED — yesterday's stub", encoding="utf-8")
+    monkeypatch.setattr(rts, "OUTPUT_PATH", stub)
+    monkeypatch.setattr(rts, "_query_rows", lambda: ("error", []))
+    monkeypatch.setattr(rts, "render", lambda *a, **k: "AGGREGATION FAILED — today's stub")
+    assert rts.main() == 1
+    assert "today's stub" in stub.read_text(), (
+        "a stub was preserved as if it were a good doc — the guard needs stub detection"
+    )

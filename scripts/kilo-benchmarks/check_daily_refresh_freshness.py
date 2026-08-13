@@ -30,6 +30,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -49,6 +50,17 @@ if str(SCRIPT_DIR) not in sys.path:
 
 TIMESTAMP_FILE_DEFAULT = SCRIPT_DIR / "cache" / "daily_refresh_last_success.txt"
 MAX_AGE_HOURS_DEFAULT = 36
+
+# The ranker's own output doc. Watching ONLY daily_refresh_last_success.txt leaves a hole:
+# daily_refresh.sh writes that timestamp even when rank_task_subagents exits non-zero (its
+# call site ends `|| true` and the script has no `set -e`), and since Phase A.0 a BROKEN
+# flywheel read deliberately KEEPS the previous doc rather than overwriting it. So a
+# permanently broken flywheel is invisible to the heartbeat while the fleet drifts onto an
+# ever-staler selection doc. Past select.py's 14-day staleness gate every vendored
+# pick_models silently falls back to the baked-in _TABLE — so alert well before that.
+SELECTION_DOC_DEFAULT = SCRIPT_DIR.parents[1] / "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+DOC_MAX_AGE_DAYS_DEFAULT = 3
+_DOC_DATE = re.compile(r"^Last refresh:\s*(\d{4}-\d{2}-\d{2})", re.M)
 
 
 def _now_utc() -> datetime:
@@ -108,6 +120,77 @@ def check(
     }
 
 
+def check_selection_doc(
+    doc: Path = SELECTION_DOC_DEFAULT,
+    max_age_days: int = DOC_MAX_AGE_DAYS_DEFAULT,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    """Is the ranker's OUTPUT actually being refreshed? Pure function.
+
+    status: "fresh" | "stale" | "stub" | "missing" | "undated"
+    """
+    now = now or _now_utc()
+    if not doc.exists():
+        return {"status": "missing", "age_days": None, "threshold_days": max_age_days}
+    try:
+        text = doc.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {"status": "missing", "age_days": None, "threshold_days": max_age_days}
+    if "AGGREGATION FAILED" in text:
+        return {"status": "stub", "age_days": None, "threshold_days": max_age_days}
+    m = _DOC_DATE.search(text)
+    if not m:
+        return {"status": "undated", "age_days": None, "threshold_days": max_age_days}
+    stamped = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=UTC)
+    age_days = (now - stamped).total_seconds() / 86400.0
+    return {
+        "status": "stale" if age_days > max_age_days else "fresh",
+        "age_days": age_days,
+        "stamped": m.group(1),
+        "threshold_days": max_age_days,
+    }
+
+
+def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
+    """Fire an alert when the ranker's output has stopped being refreshed."""
+    if result["status"] in ("fresh", "missing"):
+        return False
+    bodies = {
+        "stale": (
+            f"TASK_SUBAGENT_SELECTION.md is stamped {result.get('stamped')} "
+            f"({result.get('age_days', 0):.1f} days old > {result['threshold_days']}d). "
+            "daily_refresh.sh may still be 'succeeding' while rank_task_subagents fails: a "
+            "BROKEN flywheel read keeps the previous doc by design, so the heartbeat stays "
+            "green. Past 14 days select.py treats it as stale and every vendored pick_models "
+            "falls back to the baked-in _TABLE. Check the postgres/sudo path on this host."
+        ),
+        "stub": (
+            "TASK_SUBAGENT_SELECTION.md is the AGGREGATION FAILED stub — the flywheel read "
+            "has never succeeded on this host. pick_models is running on the baked-in _TABLE."
+        ),
+        "undated": (
+            "TASK_SUBAGENT_SELECTION.md has no parseable 'Last refresh:' line, so its "
+            "staleness cannot be checked. The renderer may have changed."
+        ),
+    }
+    try:
+        from alerting import send_alert  # type: ignore[import-not-found]
+    except ImportError:
+        print(f"[heartbeat] selection doc {result['status']} (alerting unavailable)", file=sys.stderr)
+        return False
+    try:
+        return bool(
+            send_alert(
+                title=f"TASK_SUBAGENT_SELECTION.md is {result['status']}",
+                body=bodies[str(result["status"])],
+                severity="critical",
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — never break the refresh pipeline
+        print(f"[heartbeat] alert failed: {type(exc).__name__}", file=sys.stderr)
+        return False
+
+
 def maybe_alert(result: dict[str, object]) -> bool:
     """Fire an alert if the result is stale. Returns True if alert was sent."""
     if result["status"] != "stale":
@@ -155,6 +238,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timestamp-file", type=Path, default=TIMESTAMP_FILE_DEFAULT)
     parser.add_argument("--max-age-hours", type=int, default=MAX_AGE_HOURS_DEFAULT)
+    parser.add_argument("--selection-doc", type=Path, default=SELECTION_DOC_DEFAULT)
+    parser.add_argument("--doc-max-age-days", type=int, default=DOC_MAX_AGE_DAYS_DEFAULT)
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -178,6 +263,16 @@ def main() -> int:
     fired = maybe_alert(result)
     if fired and not args.quiet:
         print("[heartbeat] alert fired")
+
+    # Second, independent leg: is the ranker's OUTPUT actually being refreshed? The heartbeat
+    # above can be green while this is stale (see SELECTION_DOC_DEFAULT).
+    doc_result = check_selection_doc(args.selection_doc, args.doc_max_age_days)
+    if not args.quiet:
+        age = doc_result.get("age_days")
+        detail = f"{age:.1f}d" if isinstance(age, float) else str(doc_result["status"])
+        print(f"[heartbeat] selection doc: {doc_result['status']} ({detail})")
+    if maybe_alert_selection_doc(doc_result) and not args.quiet:
+        print("[heartbeat] selection-doc alert fired")
     return 0
 
 
