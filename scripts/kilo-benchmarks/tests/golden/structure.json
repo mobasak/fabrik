@@ -884,93 +884,111 @@
  },
  "markers": {
   ".windsurf/rules/ai/00-ai-model-selection.md::GATEWAY_COUNTS": {
-   "\u0000 nums": 1551,
+   "\u0000 nums": 2358,
    "chars": 769,
+   "live_counts": 13,
    "rows": 5
   },
   ".windsurf/rules/ai/10-speech-audio.md::GATEWAY_COUNTS": {
    "\u0000 nums": 28,
    "chars": 349,
+   "live_counts": 1,
    "rows": 0
   },
   ".windsurf/rules/ai/10-speech-audio.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 480,
+   "live_counts": 0,
    "rows": 1
   },
   ".windsurf/rules/ai/20-vision.md::GATEWAY_COUNTS": {
    "\u0000 nums": 213,
    "chars": 236,
+   "live_counts": 1,
    "rows": 0
   },
   ".windsurf/rules/ai/20-vision.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 527,
+   "live_counts": 0,
    "rows": 2
   },
   ".windsurf/rules/ai/30-language.md::GATEWAY_COUNTS": {
    "\u0000 nums": 165,
    "chars": 327,
+   "live_counts": 2,
    "rows": 0
   },
   ".windsurf/rules/ai/30-language.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 587,
+   "live_counts": 0,
    "rows": 3
   },
   ".windsurf/rules/ai/40-multimodal.md::GATEWAY_COUNTS": {
    "\u0000 nums": 213,
    "chars": 257,
+   "live_counts": 1,
    "rows": 0
   },
   ".windsurf/rules/ai/40-multimodal.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 527,
+   "live_counts": 0,
    "rows": 2
   },
   ".windsurf/rules/ai/50-agentic.md::GATEWAY_COUNTS": {
    "\u0000 nums": 568,
    "chars": 348,
+   "live_counts": 2,
    "rows": 0
   },
   ".windsurf/rules/ai/50-agentic.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 579,
+   "live_counts": 0,
    "rows": 3
   },
   ".windsurf/rules/ai/60-code.md::GATEWAY_COUNTS": {
    "\u0000 nums": 65,
    "chars": 263,
+   "live_counts": 1,
    "rows": 0
   },
   ".windsurf/rules/ai/60-code.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 579,
+   "live_counts": 0,
    "rows": 3
   },
   ".windsurf/rules/ai/90-long-context.md::OPENROUTER_ROUTES": {
    "\u0000 nums": 0,
    "chars": 523,
+   "live_counts": 0,
    "rows": 2
   },
   ".windsurf/rules/core/65-rag-search.md::EMBEDDING_WINNERS": {
    "\u0000 nums": 0,
    "chars": 695,
+   "live_counts": 0,
    "rows": 5
   },
   "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::EMBEDDING_ROSTER": {
    "\u0000 nums": 0,
    "chars": 2172,
+   "live_counts": 0,
    "rows": 5
   },
   "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::ROSTER": {
-   "\u0000 nums": 0,
+   "\u0000 nums": 22341,
    "chars": 3313,
+   "live_counts": 15,
    "rows": 15
   },
   "docs/reference/kilo/KILO_MODEL_CAPABILITIES.md::EMBEDDING_CATALOG": {
    "\u0000 nums": 0,
    "chars": 4015,
+   "live_counts": 0,
    "rows": 34
   }
  },

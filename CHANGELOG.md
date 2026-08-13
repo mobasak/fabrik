@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 9: a partial gateway husk, and a real false-red between two daily commits (2026-08-13)
+
+Round 9 confirmed round 8 broke nothing (all five fixes red-on-revert proven, 726 real marker
+pairs / 0 false-reds) and found one miss carried over from round 7 plus three smaller items:
+
+- **A PARTIAL gateway husk read as healthy.** The master table renders its primary column as a
+  **plain** cell — `| **OpenRouter** | {or_total:,} |`, where the bold is the *label*, not the
+  number. So losing the `via_*` flags (a schema rename, or an ingest step not ported) while the
+  capability counts still populate left the bold sum at 818 of 1551 and passed. That is exactly
+  the "Kilo has 235 models" staleness `update_gateway_counts` exists to prevent. A sum can only
+  detect *total* emptying, so magnitudes now also carry **`live_counts`** — how many data
+  positions still hold a non-zero value — which falls 14 → 5 on that husk and does not move at
+  all when counts merely change value. Whole-cell integers (`| 384 |`) join the bold spans as
+  data; prose constants stay excluded because they always sit inside a longer sentence.
+- **`\[\d,]+` matches a bare comma**, so a bold delimiter would have raised `ValueError` out
+  of `verify()` — the same crash-instead-of-exit class this module has now fixed three times.
+  Guarded.
+- **A genuine false-red between two consecutive daily auto-commits.**
+  `rank_task_subagents._full_review_hard_results_table()` returns `[]` — no heading, no table —
+  when its metrics are absent, and 3 of the 4 frozen `##` sections in
+  `TASK_SUBAGENT_SELECTION.md` are conditional that way. Exact skeleton equality red-flagged
+  the real pair `8b263799 → 69acc2b0`. Since the golden is frozen for the whole B→E window and
+  an operator hand-running `microbench_review.py --hard` flips those sections on, this would
+  have fired repeatedly. Structure is now compared by **containment**: an added section or
+  column contract is growth, a removed one is loss — the same tolerance `###` provider sections
+  already had. Full sweep: 245 real pairs, 22+ reds → **7**, all traced to genuine renderer
+  commits.
+- `test_a_free_priced_routes_block_is_not_a_husk` had no anti-vacuity guard: its `re.sub` is the
+  identity once every live route is free, at which point it asserts a block equals itself. It is
+  substantive today and one data-day from being dead.
+
 ### Fixed — catalog-extraction Phase A round 8: the marker count signal was defeated by prose, and false-fired on free prices (2026-08-13)
 
 Round 7 replaced the marker character-count with "rows + the sum of the payload's integers"

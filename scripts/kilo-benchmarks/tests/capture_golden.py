@@ -195,11 +195,36 @@ def shapes_equal(want: dict, got: dict) -> bool:
     return not shape_drift(want, got)
 
 
+def _as_keys(value) -> set:
+    """Hashable set view of a skeleton / table_columns field."""
+    if value is None:
+        return set()
+    out = set()
+    for item in value:
+        out.add(tuple(item) if isinstance(item, list) else item)
+    return out
+
+
 def shape_drift(want: dict, got: dict, may_empty: bool = False) -> str:
     """The reason `want` and `got` differ, or "" when they agree."""
     w, g = dict(want), dict(got)
     wm, gm = w.pop("magnitudes", None), g.pop("magnitudes", None)
-    if w != g:
+    # Structure is compared by CONTAINMENT, not equality: an ADDED section or column contract
+    # is growth, a REMOVED one is lost functionality. Exact equality made a real day-over-day
+    # pair red — `rank_task_subagents._full_review_hard_results_table()` returns [] (no heading,
+    # no table) when its metrics table is empty, and 3 of the 4 frozen `##` sections in
+    # TASK_SUBAGENT_SELECTION.md are conditional that way. An operator hand-running
+    # `microbench_review.py --hard` flips them on, and the golden is frozen for the whole
+    # B->E window. This mirrors the tolerance `###` provider sections already have.
+    for field in ("skeleton", "table_columns"):
+        if field not in w and field not in g:
+            continue
+        lost = _as_keys(w.get(field)) - _as_keys(g.get(field))
+        if lost:
+            return f"{field} LOST: {sorted(lost)[:2]}"
+    rest_w = {k: v for k, v in w.items() if k not in ("skeleton", "table_columns")}
+    rest_g = {k: v for k, v in g.items() if k not in ("skeleton", "table_columns")}
+    if rest_w != rest_g:
         return "structure changed"
     # A golden frozen before magnitudes existed must not silently pass; verify() gates on
     # ORACLE_VERSION, so reaching here with a missing side means a hand-built shape in a test.
@@ -346,6 +371,16 @@ def json_shape(text: str) -> dict:
     return {"schema": walk(data), "magnitudes": sizes}
 
 
+def _as_int(raw: str) -> int:
+    r"""Parse a thousands-separated integer, tolerating junk.
+
+    `[\d,]+` matches a bare `,`, and an unguarded int() would raise a traceback out of
+    verify() — the failure mode this module keeps having to fix. A bold delimiter is not data.
+    """
+    digits = raw.replace(",", "")
+    return int(digits) if digits.isdigit() else 0
+
+
 def marker_shape(block: str) -> dict:
     """Magnitudes for an injected marker payload.
 
@@ -373,9 +408,34 @@ def marker_shape(block: str) -> dict:
     # husk alarm. The renderers emit every count as `**{n:,}**` (see update_gateway_counts._kv)
     # and never bold their prose, so bolding is the data/boilerplate separator. Route blocks
     # carry no bold numbers at all — they freeze at 0, are skipped, and are covered by `rows`.
-    nums = sum(int(n.replace(",", "")) for n in re.findall(r"\*\*([\d,]+)\*\*", stripped))
+    # DATA integers: bold spans (`**{n:,}**`) and cells that are ENTIRELY a number
+    # (`| 384 |`). Bold alone was not enough — the master gateway table renders its primary
+    # column as a plain cell (`| **OpenRouter** | {or_total:,} | ...`), the bold being the
+    # LABEL. Whole-cell matching picks that up while still excluding prose constants, which
+    # always sit inside a longer sentence ("+ 27 Qwen/...", "Zhipu GLM direct (4)").
+    data_nums: list[int] = []
+    for raw in re.findall(r"\*\*([\d,]+)\*\*", stripped):
+        data_nums.append(_as_int(raw))
+    for line in stripped.splitlines():
+        if not line.startswith("|"):
+            continue
+        for cell in line.split("|")[1:-1]:
+            cell = cell.strip()
+            if cell and re.fullmatch(r"[\d,]+", cell):
+                data_nums.append(_as_int(cell))
+    nums = sum(data_nums)
+    # How many data points still CARRY data. A sum cannot see a partial husk: zeroing the five
+    # gateway cells left the capability counts intact, so the total only fell 1551 -> 818 and
+    # passed. This counts positions rather than magnitude, so losing a subset is visible, while
+    # ordinary movement (a count changing value) does not move it at all.
+    live = sum(1 for n in data_nums if n > 0)
     # Keyed as a SECTION magnitude: only its disappearance counts, never its movement.
-    return {"chars": len(block.strip()), "rows": rows, f"{SECTION_KEY} nums": nums}
+    return {
+        "chars": len(block.strip()),
+        "rows": rows,
+        "live_counts": live,
+        f"{SECTION_KEY} nums": nums,
+    }
 
 
 def html_shape(text: str) -> dict:

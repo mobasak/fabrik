@@ -862,7 +862,10 @@ def test_a_free_priced_routes_block_is_not_a_husk():
     are already live free routes — so a healthy block can legitimately render with zero price
     digits. Summing every integer made that fire the husk alarm on intact rows and columns.
     """
-    for rel, marker in [(f".windsurf/rules/ai/{h.name}", "OPENROUTER_ROUTES") for h in cg.ai_pack_hosts()]:
+    checked = 0
+    for rel, marker in [
+        (f".windsurf/rules/ai/{h.name}", "OPENROUTER_ROUTES") for h in cg.ai_pack_hosts()
+    ]:
         host = cg.FABRIK_ROOT / rel
         if not host.exists():
             continue
@@ -870,8 +873,14 @@ def test_a_free_priced_routes_block_is_not_a_husk():
         if not block:
             continue
         free = re.sub(r"\$\d[\d.]*", "free", block)
+        if free == block:
+            continue  # already all-free; nothing to prove from this one
+        checked += 1
         ok, why = cg.magnitudes_ok(cg.marker_shape(block), cg.marker_shape(free))
         assert ok, f"{rel}: a healthy free-priced block read as a husk: {why}"
+    # Anti-vacuity: the sub is the identity once every live route is free, at which point this
+    # asserts a block equals itself. Its sibling has this guard; this one did not.
+    assert checked >= 3, f"only {checked} priced route blocks exercised — test is vacuous"
 
 
 def test_marker_count_churn_is_not_drift():
@@ -973,3 +982,69 @@ def test_volatile_stripping_cannot_span_lines():
     # md_shape applies it per-heading, so it cannot span there — assert that too.
     doc = "# D (2 things\n\n## Real Section\n\n| m | s |\n|---|---|\n| x | 1 |\n\n## Other )\n"
     assert "Real Section" in " ".join(cg.md_shape(doc)["skeleton"])
+
+
+# ── round-9 fixes ────────────────────────────────────────────────────────────
+def test_a_partial_gateway_husk_is_drift():
+    """A SUM cannot see a partial husk — this is why `live_counts` exists.
+
+    The master gateway table renders its primary column as a PLAIN cell
+    (`| **OpenRouter** | {or_total:,} |` — the bold is the label), so losing only the `via_*`
+    flags while the capability counts still populate left the bold sum at 818/1551 and passed.
+    That is the exact "Kilo has 235 models" staleness this script exists to prevent.
+    """
+    import importlib.util
+
+    src = cg.SCRIPT_DIR / "update_gateway_counts.py"
+    if not src.exists():
+        pytest.skip("gateway renderer absent (engine excised)")
+    spec = importlib.util.spec_from_file_location("_ugc9", src)
+    ugc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ugc)
+
+    keys = sorted(set(re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text())))
+    healthy = {k: 200 + i * 37 for i, k in enumerate(keys)}
+    partial = dict(healthy)
+    for k in keys:
+        if k.startswith(("or_", "kilo_", "dashscope", "siliconflow", "modelscope")):
+            partial[k] = 0
+
+    base = cg.marker_shape(ugc.render_block("master", healthy, "2026-01-01"))
+    husk = cg.marker_shape(ugc.render_block("master", partial, "2026-01-01"))
+    assert husk["rows"] == base["rows"], "this husk deliberately keeps every row"
+    assert husk[f"{cg.SECTION_KEY} nums"] > 0, "...and a non-zero integer sum"
+    ok, why = cg.magnitudes_ok(base, husk)
+    assert not ok, "every gateway count lost but the marker reads as healthy"
+    assert "live_counts" in why, why
+
+
+def test_a_bold_delimiter_does_not_crash_the_oracle():
+    """`[\\d,]+` matches a bare comma; an unguarded int() raised out of verify()."""
+    assert cg.marker_shape("x **,** y")["live_counts"] == 0
+    assert cg.marker_shape("| a |\n|---|\n| **1,234** |\n")[f"{cg.SECTION_KEY} nums"] == 1234
+
+
+def test_an_added_section_is_growth_but_a_removed_one_is_loss():
+    """Three of the four frozen `##` sections in TASK_SUBAGENT_SELECTION.md are data-
+    conditional — `_full_review_hard_results_table()` returns [] when its metrics are absent —
+    so exact skeleton equality red-flagged a real pair of consecutive daily auto-commits. The
+    golden is frozen for the whole B->E window, so that would have fired repeatedly.
+    """
+    base = "# D\n\n## Rankings\n\n| m | s |\n|---|---|\n| x | 1 |\n"
+    grown = base + "\n## HARD benchmark\n\n| m | s |\n|---|---|\n| y | 2 |\n"
+    assert not cg.shape_drift(cg.md_shape(base), cg.md_shape(grown)), "an added section is growth"
+    assert cg.shape_drift(cg.md_shape(grown), cg.md_shape(base)), "a removed section is loss"
+
+
+def test_the_real_conditional_section_pair_is_green():
+    """Grounded in the exact commits, not a synthetic doc."""
+    rel = "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"
+    a, b = _at("8b263799", rel), _at("69acc2b0", rel)
+    if not a or not b:
+        pytest.skip("historical revisions unavailable (shallow clone)")
+    assert not cg.shape_drift(cg.md_shape(a), cg.md_shape(b)), (
+        "two consecutive daily auto-commits still report drift"
+    )
+    assert cg.shape_drift(cg.md_shape(b), cg.md_shape(a)), (
+        "...but losing that section must still be caught"
+    )
