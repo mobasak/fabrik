@@ -10,7 +10,6 @@ CLAUDE_MESH_AUTONOMOUS=1 into its worker env so session_orient.py drops the pers
 from __future__ import annotations
 
 import importlib.util
-import subprocess
 import sys
 from pathlib import Path
 

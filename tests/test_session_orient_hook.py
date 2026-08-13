@@ -248,13 +248,37 @@ def test_unwritable_state_dir_is_fail_open(tmp_path: Path) -> None:
     proj = tmp_path / "opt" / "auto4"
     proj.mkdir(parents=True)
     try:
-        rc, _ = _run(proj, tmp_path,
-                     json.dumps({"cwd": str(proj), "session_id": "sid-ro"}),
-                     extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
-                                "MESH_STATE_DIR": str(state)})
+        rc, out = _run(proj, tmp_path,
+                       json.dumps({"cwd": str(proj), "session_id": "sid-ro"}),
+                       extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
+                                  "MESH_STATE_DIR": str(state)})
     finally:
         state.chmod(0o700)
     assert rc == 0
+    # fail-open means "never blocks AND still orients" — a swallowed OSError that also
+    # swallowed the ORIENT block would silently strip governance from every autonomous
+    # session (closer F13)
+    assert "ORIENT" in out
+
+
+def test_state_dir_defaults_agree_writer_and_sweep() -> None:
+    """The writer (session_orient.py) and the consumer (claude-reboot-sweep.sh) derive the
+    DEFAULT persistent dir independently — two hand-written strings with no shared source.
+    If either drifts, every marker is silently orphaned and the standby incident returns
+    with all suites green (closer F12). Skips off-hub (the sweep is a box surface)."""
+    import re
+
+    sweep = Path.home() / ".claude" / "bin" / "claude-reboot-sweep.sh"
+    if not sweep.is_file():
+        return  # box sweep not present (non-hub environment) — nothing to compare
+    hook_src = HOOK.read_text()
+    sweep_src = sweep.read_text()
+    # writer side: the three Path components that build the default
+    assert '/ ".claude" / "state" / "autonomous"' in hook_src, \
+        "writer default no longer derives ~/.claude/state/autonomous"
+    m = re.search(r'state="\$\{MESH_STATE_DIR:-\$HOME/([^}]+)\}"', sweep_src)
+    assert m and m.group(1) == ".claude/state/autonomous", (
+        "sweep default drifted from the writer's", m.group(1) if m else None)
 
 
 def test_rerun_rewrites_a_consumed_marker(tmp_path: Path) -> None:

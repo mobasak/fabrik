@@ -15,12 +15,15 @@ self-flock, an atomic `mv` claim-before-spawn (a failed claim is a refusal, neve
 `stalled-api-error*` eligibility (dead-mid-work IS resumable mid-work once /tmp's errparked
 record is gone), and `vm-cut` classification; `ci_fix_dispatcher.py` seeds the marker population
 by exporting `CLAUDE_MESH_AUTONOMOUS=1` to its workers (closer finding F1: the population was
-empty box-wide). Leg B (interactive — the actual incident class): on every boot the sweep scans
-pre-boot transcripts (≤20, 48h window), and each session still busy/stalled at the cut gets one
+empty box-wide). Leg B (interactive — the actual incident class): on each FRESH boot (lock dir absent;
+cron-restart re-fires skip it) the sweep scans pre-boot transcripts (≤20, 48h window,
+subagent sidecars excluded), and each session still busy/stalled at the cut gets one
 Telegram with its exact `claude --resume <sid>` command via the existing `mesh-notify` mode
 (24h persistent per-sid suppress — 13 bounce boots must not storm); panes are notified, never
-auto-resumed. Repo tests 22 green (orient retarget red-first + dispatcher env); mesh harness
-114→129, all 15 new asserts watched RED first.
+auto-resumed. Repo tests 23 green (orient retarget red-first + dispatcher env + the writer↔sweep
+default-dir contract pin); mesh harness 114→135, every behavioral assert watched RED first
+(two waves: the plan's 15 + the closer round's 6 — sidecar exclusion, lock-fd closure,
+fresh-boot gate, twin consumption, claim re-processability, concurrent-consume guard).
 
 ### Added — connection-failure auto-resume: the ENOTIMP-family sibling of the mid-stream class (2026-08-12)
 
