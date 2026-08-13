@@ -126,8 +126,13 @@ def main() -> int:
     # the sessions it serves. Panes never set the env, so they are structurally excluded.
     if sid and os.environ.get("CLAUDE_MESH_AUTONOMOUS") == "1":
         try:
-            locks = Path(os.environ.get(
-                "CLAUDE_SOUND_LOCKDIR", f"/tmp/claude-sound-locks-{os.getuid()}"))
+            # PERSISTENT state dir, never the /tmp lock dir (plan 2026-08-13-plan-1): a VM
+            # termination (standby cut, host kill) wipes /tmp and with it every sweep
+            # eligibility — the marker must outlive the VM for the @reboot sweep to revive
+            # the session. The sweep reads this dir first, legacy lock dir second.
+            locks = Path(os.environ.get("MESH_STATE_DIR")
+                         or Path(os.environ.get("HOME", str(Path.home())))
+                         / ".claude" / "state" / "autonomous")
             locks.mkdir(mode=0o700, parents=True, exist_ok=True)
             # 0600 at CREATE time: the marker carries cwd + transcript path (project
             # names, task slugs) and the default umask would make it world-readable.

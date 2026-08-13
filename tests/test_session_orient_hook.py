@@ -203,22 +203,77 @@ def test_hook_is_synced_and_wired() -> None:
 
 
 def test_autonomous_env_drops_a_marker(tmp_path: Path) -> None:
-    # Phase D (plan 2026-08-10-plan-1): a launcher marks its session autonomous; the
-    # @reboot sweep resumes ONLY marked, mid-work sessions.
-    locks = tmp_path / "locks"
-    locks.mkdir()
+    # Phase D (plan 2026-08-10-plan-1), RETARGETED by plan 2026-08-13-plan-1: the marker
+    # must land in the PERSISTENT state dir (MESH_STATE_DIR), not the /tmp lock dir — a
+    # VM termination wipes /tmp and with it every sweep eligibility (the Modern Standby
+    # incident). The @reboot sweep resumes ONLY marked, mid-work sessions.
+    state = tmp_path / "state"
     proj = tmp_path / "opt" / "auto"
     proj.mkdir(parents=True)
     rc, _ = _run(proj, tmp_path,
                  json.dumps({"cwd": str(proj), "session_id": "sid-auto",
                              "transcript_path": str(tmp_path / "t.jsonl")}),
                  extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
-                            "CLAUDE_SOUND_LOCKDIR": str(locks)})
+                            "MESH_STATE_DIR": str(state)})
     assert rc == 0
-    marker = locks / "sid-auto.autonomous"
+    marker = state / "sid-auto.autonomous"
     assert marker.is_file()
     data = json.loads(marker.read_text())
     assert data["sid"] == "sid-auto" and data["cwd"] == str(proj)
+    assert (marker.stat().st_mode & 0o777) == 0o600  # cwd/transcript paths stay private
+
+
+def test_marker_never_lands_in_the_lock_dir(tmp_path: Path) -> None:
+    # The inverse of the retarget: with BOTH envs set, the ephemeral lock dir stays empty —
+    # a marker there would be wiped by the next VM cut and is a regression to the incident.
+    state = tmp_path / "state"
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    proj = tmp_path / "opt" / "auto3"
+    proj.mkdir(parents=True)
+    rc, _ = _run(proj, tmp_path,
+                 json.dumps({"cwd": str(proj), "session_id": "sid-b"}),
+                 extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
+                            "MESH_STATE_DIR": str(state),
+                            "CLAUDE_SOUND_LOCKDIR": str(locks)})
+    assert rc == 0
+    assert (state / "sid-b.autonomous").is_file()
+    assert not (locks / "sid-b.autonomous").exists()
+
+
+def test_unwritable_state_dir_is_fail_open(tmp_path: Path) -> None:
+    # A broken state dir must never block a session (hook fail-open discipline).
+    state = tmp_path / "state"
+    state.mkdir(mode=0o500)
+    proj = tmp_path / "opt" / "auto4"
+    proj.mkdir(parents=True)
+    try:
+        rc, _ = _run(proj, tmp_path,
+                     json.dumps({"cwd": str(proj), "session_id": "sid-ro"}),
+                     extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
+                                "MESH_STATE_DIR": str(state)})
+    finally:
+        state.chmod(0o700)
+    assert rc == 0
+
+
+def test_rerun_rewrites_a_consumed_marker(tmp_path: Path) -> None:
+    # RS7's repo half (bounce-loop self-heal): the sweep consumes the marker before its
+    # resume; the resumed session's own SessionStart must re-write it, else a resume killed
+    # by the next VM bounce is lost forever.
+    state = tmp_path / "state"
+    proj = tmp_path / "opt" / "auto5"
+    proj.mkdir(parents=True)
+    payload = json.dumps({"cwd": str(proj), "session_id": "sid-r"})
+    env = {"CLAUDE_MESH_AUTONOMOUS": "1", "MESH_STATE_DIR": str(state)}
+    rc, _ = _run(proj, tmp_path, payload, extra_env=env)
+    assert rc == 0
+    marker = state / "sid-r.autonomous"
+    assert marker.is_file()
+    marker.unlink()  # the sweep's consume
+    rc, _ = _run(proj, tmp_path, payload, extra_env=env)
+    assert rc == 0
+    assert marker.is_file()  # re-marked by the resumed session
 
 
 def test_autonomous_marker_even_when_headless(tmp_path: Path) -> None:
@@ -231,10 +286,10 @@ def test_autonomous_marker_even_when_headless(tmp_path: Path) -> None:
     proj.mkdir(parents=True)
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-h"}),
                    extra_env={"CLAUDE_MESH_AUTONOMOUS": "1", "CLAUDE_MESH_HEADLESS": "1",
-                              "CLAUDE_SOUND_LOCKDIR": str(locks)})
+                              "MESH_STATE_DIR": str(locks / "state")})
     assert rc == 0
     assert "ARM YOUR SELF-WATCH" not in out           # headless: no pane to wake
-    assert (locks / "sid-h.autonomous").is_file()      # but still swept
+    assert (locks / "state" / "sid-h.autonomous").is_file()  # but still swept
 
 
 def test_no_autonomous_env_no_marker(tmp_path: Path) -> None:

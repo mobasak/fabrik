@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -190,6 +191,10 @@ def dispatch(repo_dir: Path, brief: str, log_path: Path, dry_run: bool) -> int:
                 ["claude", "--dangerously-skip-permissions", "-p", brief],
                 cwd=repo_dir, stdout=lf, stderr=subprocess.STDOUT,
                 timeout=WORKER_TIMEOUT_S,
+                # resume-mesh: mark the worker AUTONOMOUS so session_orient.py drops the
+                # persistent sweep marker — a VM cut mid-fix gets revived at next boot
+                # (plan 2026-08-13-plan-1 Leg A; extend os.environ, never replace it)
+                env={**os.environ, "CLAUDE_MESH_AUTONOMOUS": "1"},
             )
             lf.write(f"\n=== worker exit={p.returncode} ===\n")
             return p.returncode

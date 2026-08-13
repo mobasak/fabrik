@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — standby-survivable resume sweep: persistent markers + cut-session notify (2026-08-13)
+
+Executes `docs/development/plans/2026-08-13-plan-1-standby-survivable-sweep.md` (the Modern
+Standby incident follow-up). Leg A (autonomous): `session_orient.py` (SYNCED, fleet-wide) now
+drops the `.autonomous` sweep marker into the persistent `~/.claude/state/autonomous/`
+(`MESH_STATE_DIR`) instead of the VM-mortal /tmp lock dir; `claude-reboot-sweep.sh` (box,
+DR-versioned) gains a gather-list union read (state dir wins, legacy honored), a non-blocking
+self-flock, an atomic `mv` claim-before-spawn (a failed claim is a refusal, never a boot-loop),
+`stalled-api-error*` eligibility (dead-mid-work IS resumable mid-work once /tmp's errparked
+record is gone), and `vm-cut` classification; `ci_fix_dispatcher.py` seeds the marker population
+by exporting `CLAUDE_MESH_AUTONOMOUS=1` to its workers (closer finding F1: the population was
+empty box-wide). Leg B (interactive — the actual incident class): on every boot the sweep scans
+pre-boot transcripts (≤20, 48h window), and each session still busy/stalled at the cut gets one
+Telegram with its exact `claude --resume <sid>` command via the existing `mesh-notify` mode
+(24h persistent per-sid suppress — 13 bounce boots must not storm); panes are notified, never
+auto-resumed. Repo tests 22 green (orient retarget red-first + dispatcher env); mesh harness
+114→129, all 15 new asserts watched RED first.
+
 ### Added — connection-failure auto-resume: the ENOTIMP-family sibling of the mid-stream class (2026-08-12)
 
 `~/.claude/bin/claude-stop-decider.py` (box surface, DR-versioned) now detects the CLI's
