@@ -52,16 +52,35 @@ One new daemon leg + `--list` enrichment on the existing tool:
    health. THIS answers operator wants #1 and #2 directly.
 2. **Rotation daemon** (cron every 5 min, flock'd, state in `~/.claude/state/` — the
    VM-cut-survivable dir from today's sweep work): poll the LIVE account's usage; at
-   ≥ THRESHOLD (default 95%, operator asked ~98% — configurable) on EITHER window, pick the
-   healthiest sibling (lowest weekly utilization among un-walled, valid-snapshot accounts) and
-   run the existing `--switch`. Telegram one line via the existing mesh-notify plumbing.
-   Below-threshold: silent.
+   ≥ THRESHOLD (default 95%, configurable toward the operator's ~98%) on EITHER window, pick
+   the successor and run the existing `--switch`. Telegram one line via the existing
+   mesh-notify plumbing. Below-threshold: silent.
+   **Successor policy (operator-settled 2026-08-13): PERISHABLE-FIRST.** Eligibility gates:
+   valid identity-verified snapshot · not walled on either window (live-probed) · not the
+   account being left. Rank eligible siblings by **soonest weekly reset** (quota about to
+   refresh is the cheapest to burn — use-it-or-lose-it economics); tie-break lower weekly %,
+   then lower session %. Hysteresis: ≥30 min dwell unless the new account walls outright; an
+   account rotated away from re-enters the pool automatically when its 5h window resets.
 3. **Keep-warm**: same daemon tick refreshes each PARKED account's snapshot (the CLI token
    refresh flow) every ≤24h so refresh tokens never age out; each refresh is identity-gated
    before filing (shipped). Steady state: zero logins forever.
 4. **Onboarding (deferred, operator-timed)**: for mob@ (post-Sat) and can@ (post-Mon):
    one-window `/login` → identity-gated capture fires → immediate `--switch sarp` back
    (~30s exposure; any turn that walls parks + revives via the mesh).
+
+### Graceful drain (operator-proposed 2026-08-13 — pool-exhaustion foresight)
+
+When the pool is FORECAST to exhaust — the last eligible account crosses a DRAIN threshold
+(default 85%) with no sibling to rotate to — the daemon broadcasts a **drain warning via
+fabrik-mail** to every repo inbox: "pool exhaustion forecast ~HH:MM; reach a commit-and-push
+checkpoint NOW, do not start new phases; work revives at HH:MM (earliest weekly/session
+reset)." This needs NO new agent behavior: the commit-at-task-end law already defines the
+checkpoint, and mail banners surface on every prompt AND background-task notification, so
+mid-plan agents see it within minutes. Escalation: one Telegram to the operator with the same
+forecast. At the actual wall, the existing park/revive mesh takes over; cleanly-parked
+autonomous sessions are swept back at reset (Leg A markers). Acceptance: mock forecast →
+drain mail lands in ≥2 repo inboxes + Telegram sent + no new mails on repeat ticks (24h-class
+suppress stamp in `~/.claude/state/`).
 
 ## fabrik-lib verdict
 
