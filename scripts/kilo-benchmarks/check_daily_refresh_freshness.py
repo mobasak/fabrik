@@ -142,7 +142,10 @@ def check_selection_doc(
     if not m:
         return {"status": "undated", "age_days": None, "threshold_days": max_age_days}
     stamped = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=UTC)
-    age_days = (now - stamped).total_seconds() / 86400.0
+    # rank_task_subagents stamps date.today() (LOCAL; this box is UTC+3) and we parse as UTC,
+    # so a doc written after 21:00 UTC reads as up to a day in the future. Clamp at 0: a
+    # future stamp is "fresh", never a negative age in the operator-facing output.
+    age_days = max(0.0, (now - stamped).total_seconds() / 86400.0)
     return {
         "status": "stale" if age_days > max_age_days else "fresh",
         "age_days": age_days,
@@ -155,34 +158,46 @@ def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
     """Fire an alert when the ranker's output has stopped being refreshed."""
     if result["status"] in ("fresh", "missing"):
         return False
-    bodies = {
-        "stale": (
+    # Built per-status, NOT eagerly: the "stale" body formats age_days, which is None for
+    # "stub" and "undated". Because the key EXISTS, `.get("age_days", 0)`'s default never
+    # applied and both of those states raised TypeError out of main() — so the two worst
+    # cases (the flywheel has NEVER succeeded; the doc lost its date header) delivered no
+    # alert at all, and daily_refresh.sh swallowed the non-zero exit into a logfile.
+    status = str(result["status"])
+    if status == "stale":
+        body = (
             f"TASK_SUBAGENT_SELECTION.md is stamped {result.get('stamped')} "
-            f"({result.get('age_days', 0):.1f} days old > {result['threshold_days']}d). "
+            f"({float(result['age_days'] or 0):.1f} days old > {result['threshold_days']}d). "
             "daily_refresh.sh may still be 'succeeding' while rank_task_subagents fails: a "
             "BROKEN flywheel read keeps the previous doc by design, so the heartbeat stays "
             "green. Past 14 days select.py treats it as stale and every vendored pick_models "
             "falls back to the baked-in _TABLE. Check the postgres/sudo path on this host."
-        ),
-        "stub": (
+        )
+    elif status == "stub":
+        body = (
             "TASK_SUBAGENT_SELECTION.md is the AGGREGATION FAILED stub — the flywheel read "
             "has never succeeded on this host. pick_models is running on the baked-in _TABLE."
-        ),
-        "undated": (
+        )
+    elif status == "undated":
+        body = (
             "TASK_SUBAGENT_SELECTION.md has no parseable 'Last refresh:' line, so its "
             "staleness cannot be checked. The renderer may have changed."
-        ),
-    }
+        )
+    else:
+        return False
+
     try:
         from alerting import send_alert  # type: ignore[import-not-found]
     except ImportError:
-        print(f"[heartbeat] selection doc {result['status']} (alerting unavailable)", file=sys.stderr)
+        print(
+            f"[heartbeat] selection doc {result['status']} (alerting unavailable)", file=sys.stderr
+        )
         return False
     try:
         return bool(
             send_alert(
-                title=f"TASK_SUBAGENT_SELECTION.md is {result['status']}",
-                body=bodies[str(result["status"])],
+                title=f"TASK_SUBAGENT_SELECTION.md is {status}",
+                body=body,
                 severity="critical",
             )
         )

@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 4: the oracle now actually RUNS in production, and the flywheel alert no longer crashes (2026-08-13)
+
+Round-4 review of the round-3 fixes. Two of those fixes did not work as shipped, and the
+round-3 CHANGELOG entry above overstated one of them — corrected here:
+
+- **⚠️ Correction to the entry above.** It claimed `ORACLE_REQUIRE_LOCAL_ARTIFACTS=1` made
+  "the pipeline host strict". It did not: the variable was set **nowhere**, and
+  `capture_golden.py --verify` had **no production caller at all** — the oracle ran only
+  under pytest, in its permissive branch. So the 4 gitignored artifacts (31% of the frozen
+  inventory) stayed exempt from "NO LONGER PRODUCED" in every real execution. `daily_refresh.sh`
+  now runs the oracle strict at the end of each nightly run and alerts on drift.
+- **The selection-doc alert crashed on 2 of its 3 states.** The alert bodies were built
+  eagerly and the `stale` body formatted `age_days`, which is `None` for `stub` and `undated`
+  — and because the key *exists*, `.get(..., 0)`'s default never applied. Both raised
+  `TypeError` out of `main()`, which `daily_refresh.sh` swallows into a logfile with no
+  MAILTO. Combined with the round-3 stub fix, the crashing branch was the one guaranteed to
+  be taken, so the permanently-broken-flywheel case the entry above claims to close was still
+  silent. Bodies are now built per-status and every state is proven to deliver.
+- **The ratio band false-red on small collections.** 20+ frozen collections are tiny
+  (`CANDIDATE_SIGNUPS.md` = 1 row, already halved 2 → 1 in-window; the STT/TTS/TRANSLATION
+  tables = 1; several `kilo_*_final.json` roles = 1–3). At n=1 a `[0.5, 4.0]` band calls an
+  emptied signup queue a COLLAPSE and a 5th candidate a FAN-OUT. Below `SMALL_N=10` only
+  total loss counts. The fan-out ceiling also moved to 10× because `models_browser.html` grew
+  1.41× in 26 days — a 4× ceiling would red on pure catalog growth ~104 days into an
+  extraction that Phase A freezes the contract for.
+- **The `db_queries` tolerance guard read the wrong side** (`wq`, the golden, instead of `gq`,
+  the observation), so it could never fire normally and, when it did, tolerated any observed
+  value. Post-excise the oracle emitted 15 spurious `QUERY CHANGED`/`GONE` lines — defeating
+  the Phase-E design `_db_queries` exists to serve.
+- **`verify()` threw away the reason it had already computed**, printing a generic
+  `SHAPE CHANGED`; the dead `DATA COLLAPSE` branch still referenced the removed `data_rows`.
+  Drift now names the collection and its sizes.
+- **Adjacent tables** (no blank line between them) had their rows merged into the first
+  table's count and the second was never keyed at all, so gutting it was silently green.
+- `json_shape` recorded container sizes *after* the depth-3 cutoff returned, so anything
+  deeper was unmeasurable; the `html_shape` docstring's rationale was factually wrong (the
+  payload blob contains zero `id="` substrings — the round-2 check caught **nothing**, it
+  wasn't "luck"); `verify()`'s OK line under-reported coverage (said 31, checks 46).
+
+Also: a future-dated doc no longer yields a negative age (the doc is stamped local, parsed
+UTC), and the stub-detection read is guarded so an `OSError` cannot skip the keep-guard.
+
+Each fix proven red-on-revert. The test that hid the alert crash was itself the anti-pattern
+this suite exists to replace — it hand-built inputs the producer never emits; it now drives
+from real files through `check_selection_doc`.
+
 ### Fixed — catalog-extraction Phase A: the golden oracle now measures VOLUME per collection, not per document (2026-08-13)
 
 Round-3 review of the Phase-A safety net found the magnitude invariant added in round 2 was

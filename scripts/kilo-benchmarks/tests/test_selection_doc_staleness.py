@@ -63,16 +63,45 @@ def test_a_missing_doc_does_not_alert(tmp_path):
     assert chk.maybe_alert_selection_doc(r) is False
 
 
-def test_alerting_fires_for_every_unhealthy_state(monkeypatch):
-    """The states must actually reach send_alert — a body-less state would KeyError."""
+def test_alerting_fires_for_every_unhealthy_state(monkeypatch, tmp_path):
+    """Every unhealthy state must actually REACH send_alert, driven by the REAL producer.
+
+    The earlier version hand-built `{"status": s, "age_days": 9.0, ...}` for all three
+    statuses — a shape `check_selection_doc` only ever emits for "stale". Fed the producer's
+    real output, "stub" and "undated" carry `age_days: None` and the alert body raised
+    TypeError, so the two worst cases delivered nothing. Hand-written inputs the pipeline
+    never emits is precisely the anti-pattern this suite exists to replace, so drive it from
+    real files on disk.
+    """
     sent = []
-    monkeypatch.setitem(
-        sys.modules, "alerting", type(sys)("alerting")
-    )
-    sys.modules["alerting"].send_alert = lambda **kw: sent.append(kw) or True
-    for status in ("stale", "stub", "undated"):
-        assert chk.maybe_alert_selection_doc(
-            {"status": status, "age_days": 9.0, "stamped": "2026-07-20", "threshold_days": 3}
-        ), f"{status} must fire an alert"
+    mod = type(sys)("alerting")
+    mod.send_alert = lambda **kw: sent.append(kw) or True
+    monkeypatch.setitem(sys.modules, "alerting", mod)
+
+    cases = {
+        "stale": "Last refresh: 2026-07-20\n\n| m | s |\n",
+        "stub": "Last refresh: 2026-08-13\n\nAGGREGATION FAILED\n",
+        "undated": "# Selection\n\n| m | s |\n",
+    }
+    for expected, body in cases.items():
+        result = chk.check_selection_doc(_doc(tmp_path, body), now=NOW)
+        assert result["status"] == expected
+        assert chk.maybe_alert_selection_doc(result), f"{expected} must fire an alert"
+
     assert len(sent) == 3
     assert all(k["severity"] == "critical" for k in sent)
+    assert all(k["body"] for k in sent), "an empty body is a silent alert"
+
+
+def test_the_whole_cli_survives_every_state(tmp_path, monkeypatch):
+    """End-to-end: main() must exit 0 for each state, not raise.
+
+    The crash surfaced only through main(); daily_refresh.sh swallows a non-zero exit into a
+    logfile with no MAILTO, so an exception here is invisible in production.
+    """
+    monkeypatch.setattr(chk, "maybe_alert", lambda *_a, **_k: False)
+    monkeypatch.setattr(chk, "maybe_alert_selection_doc", lambda *_a, **_k: False)
+    for body in ("Last refresh: 2026-07-20\n", "AGGREGATION FAILED\n", "# no date\n"):
+        doc = _doc(tmp_path, body)
+        monkeypatch.setattr(sys, "argv", ["x", "--selection-doc", str(doc), "--quiet"])
+        assert chk.main() == 0

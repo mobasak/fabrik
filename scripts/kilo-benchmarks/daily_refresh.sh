@@ -517,6 +517,19 @@ mkdir -p "$(dirname "$LOG_FILE")"
     "$VENV_PY" -c "from alerting import send_alert; send_alert(title='daily_refresh.sh: heartbeat timestamp write FAILED', body='Could not write to $KB/cache/daily_refresh_last_success.txt. Tomorrow heartbeat will alert as STALE; please investigate disk / permissions now.', severity='critical')" 2>/dev/null || true
   fi
 
+  # ─── Contract oracle — did this run still produce everything it is supposed to? ───
+  # THE production caller for tests/capture_golden.py --verify. Without this the oracle ran
+  # only under pytest, in its permissive mode, so ORACLE_REQUIRE_LOCAL_ARTIFACTS was never
+  # set anywhere and the 4 gitignored artifacts (31% of the frozen inventory) stayed exempt
+  # from "NO LONGER PRODUCED" in every real execution. This is the box that actually produces
+  # them, so absence here means the pipeline stopped emitting them — not an absent checkout.
+  # Advisory (|| true): the oracle guards the Phase B-E extraction, and must never be able to
+  # abort a healthy nightly refresh. Exit 2 = the golden predates the observer (re-snapshot).
+  if ! ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 "$VENV_PY" "$KB/tests/capture_golden.py" --verify; then
+    echo "[daily_refresh] contract oracle reported DRIFT or a stale golden — see above"
+    "$VENV_PY" -c "import sys; sys.path.insert(0, '$KB'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title='daily_refresh.sh: contract oracle reported drift', body='tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot). Check the run log for the specific contract element.', severity='critical')" 2>&1 || true
+  fi
+
   # ─── Disk hygiene — keep the on-disk footprint BOUNDED (added 2026-07-19) ───
   # gitignoring the caches stopped them poisoning the tree, but they still grew on disk.
   # Prune every run so the WSL box never fills with pipeline trash. All non-fatal. The

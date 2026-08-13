@@ -1379,9 +1379,15 @@ def main() -> int:
     # failure the stub IS on disk, so every later broken run would preserve the stub forever
     # while the alert claims "the fleet is on yesterday-good, not poisoned" — the opposite of
     # the truth. A stub is not worth protecting: re-write it (same content, honest date).
-    existing_is_stub = OUTPUT_PATH.exists() and "AGGREGATION FAILED" in OUTPUT_PATH.read_text(
-        encoding="utf-8", errors="replace"
-    )
+    # Guarded: an OSError here (permissions, or a race with daily_refresh's git commit) would
+    # otherwise raise out of main() BEFORE the keep-guard runs, skipping the very protection
+    # this block exists to apply. On an unreadable doc, treat it as NOT a stub — i.e. keep it.
+    try:
+        existing_is_stub = OUTPUT_PATH.exists() and "AGGREGATION FAILED" in OUTPUT_PATH.read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        existing_is_stub = False
     if state == "error" and OUTPUT_PATH.exists() and not existing_is_stub:
         print(
             f"[rank_task_subagents] read BROKEN — KEEPING the existing {OUTPUT_PATH.name} "

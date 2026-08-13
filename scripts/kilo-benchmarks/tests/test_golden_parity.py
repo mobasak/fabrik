@@ -46,7 +46,8 @@ def _require_snapshot():
 
 
 # ── stability ────────────────────────────────────────────────────────────────
-def test_verify_is_green_on_the_live_tree():
+def test_verify_is_green_on_the_live_tree(monkeypatch):
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
     assert cg.verify() == 0, "the oracle reports drift on an unmodified tree"
 
 
@@ -160,6 +161,10 @@ def test_gitignored_artifacts_do_not_red_a_fresh_clone(monkeypatch):
         }
         return o
 
+    # Explicit: once daily_refresh.sh exports this on the pipeline host, an inherited value
+    # would red this test (and test_verify_is_green_on_the_live_tree) for environmental
+    # reasons. The paired loss test sets it deliberately.
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
     monkeypatch.setattr(cg, "observe", fresh_clone)
     assert cg.verify() == 0, "a gitignored artifact's absence must not be reported as drift"
 
@@ -256,8 +261,9 @@ def test_magnitude_tolerates_ordinary_growth():
     assert cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(108)))  # +8%, real churn
     assert cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(130)))  # +30%
     assert cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(70)))  # -30% shrink
-    # ...but unbounded growth is not "fine": a join fan-out emitting every row 10x is drift.
-    assert not cg.shapes_equal(cg.md_shape(_rows(100)), cg.md_shape(_rows(1000)))
+    # Growth stays cheap on purpose: Phase A freezes the contract for the whole B->E
+    # extraction, and models_browser.html grew 1.41x in 26 days, so any tight ceiling would
+    # red on pure catalog growth. See test_large_collection_growth_survives_a_long_extraction.
 
 
 def test_magnitude_catches_an_order_of_magnitude_loss():
@@ -285,10 +291,14 @@ def test_html_payload_collapse_is_drift():
 
 def test_html_row_growth_is_not_drift():
     """New models land as new rows every night — growth must not red the oracle."""
+
     def page(n: int) -> str:
         return (
-            '<html><script id="payload">' + "x" * n + "</script><table>"
-            + "<tr><td>x</td></tr>" * 100 + "</table></html>"
+            '<html><script id="payload">'
+            + "x" * n
+            + "</script><table>"
+            + "<tr><td>x</td></tr>" * 100
+            + "</table></html>"
         )
 
     assert cg.shapes_equal(cg.html_shape(page(10_000)), cg.html_shape(page(13_000)))
@@ -366,7 +376,9 @@ def test_partial_gutting_of_only_the_routing_tables_is_drift():
     real = doc.read_text()
     cut = real.find("## Full review benchmark results")
     assert cut > 0, "the display-only section moved — re-derive this test's split point"
-    gutted = re.sub(r"(\|[^\n]*\|\n\|[\s:|-]+\|\n)(?:\|[^\n]*\|\n)+", r"\1", real[:cut]) + real[cut:]
+    gutted = (
+        re.sub(r"(\|[^\n]*\|\n\|[\s:|-]+\|\n)(?:\|[^\n]*\|\n)+", r"\1", real[:cut]) + real[cut:]
+    )
     assert not cg.shapes_equal(cg.md_shape(real), cg.md_shape(gutted)), (
         "every routing table emptied but the oracle is green — magnitudes are not per-table"
     )
@@ -381,3 +393,124 @@ def test_json_list_truncation_is_drift():
     assert not cg.shapes_equal(cg.json_shape(a), cg.json_shape(b))
     grown = json.dumps({"roles": {"coding": [{"m": "x"}] * 44}})
     assert cg.shapes_equal(cg.json_shape(a), cg.json_shape(grown)), "growth is not drift"
+
+
+# ── round-4 fixes ────────────────────────────────────────────────────────────
+def test_tiny_collections_tolerate_ordinary_churn():
+    """A ratio is meaningless on a 1-row table, and 20+ frozen collections are tiny.
+
+    CANDIDATE_SIGNUPS.md is frozen at 1 row and has already halved 2 -> 1 in-window; the
+    natural end-state of a signup queue is 0. Under a [0.5, 4.0] band an emptied queue reads
+    as COLLAPSE and a 5th candidate as FAN-OUT — both ordinary churn. A false-red oracle gets
+    ignored, which is the failure mode this whole safety net exists to avoid.
+    """
+    one, five = {"t": 1}, {"t": 5}
+    assert cg.magnitudes_ok(one, five)[0], "growth on a tiny collection must not be drift"
+    assert cg.magnitudes_ok({"t": 3}, {"t": 1})[0], "3 -> 1 on a tiny collection is churn"
+    # ...but total loss is unambiguous at any size.
+    assert not cg.magnitudes_ok(one, {"t": 0})[0], "a tiny collection emptying IS drift"
+
+
+def test_large_collection_growth_survives_a_long_extraction():
+    """Phase A freezes the contract for the whole B->E extraction.
+
+    models_browser.html's row count grew 1.41x in 26 days, so a 4x ceiling would trip on pure
+    catalog growth in ~104 days. Growth must stay cheap; collapse must stay caught.
+    """
+    assert cg.magnitudes_ok({"t": 157}, {"t": 600})[0], "pure catalog growth is not drift"
+    assert not cg.magnitudes_ok({"t": 157}, {"t": 20})[0], "an 87% collapse is still drift"
+
+
+def test_adjacent_tables_are_keyed_separately():
+    """A table not separated by a blank line swallowed its neighbour's header + rows.
+
+    The count was inflated by 2 + the neighbour's rows AND the neighbour was never keyed, so
+    gutting the second table was silently green.
+    """
+    doc = "# D\n\n## S\n\n| a | b |\n|---|---|\n| 1 | 2 |\n| c | d |\n|---|---|\n| 3 | 4 |\n"
+    shape = cg.md_shape(doc)
+    assert set(shape["magnitudes"]) == {"a|b", "c|d"}, shape["magnitudes"]
+    assert shape["magnitudes"] == {"a|b": 1, "c|d": 1}
+    gutted = "# D\n\n## S\n\n| a | b |\n|---|---|\n| 1 | 2 |\n| c | d |\n|---|---|\n"
+    assert not cg.shapes_equal(shape, cg.md_shape(gutted)), "second table gutted, still green"
+
+
+def test_magnitude_keys_match_the_table_inventory_on_every_real_artifact():
+    """The structural invariant behind the fix: one magnitude key per column contract."""
+    for rel in cg.SELECTION_DOCS + [cg.CAPABILITIES_DOC]:
+        text = cg._read(rel)
+        if text is None:
+            continue
+        shape = cg.md_shape(text)
+        cols = {"|".join(c) for c in shape["table_columns"]}
+        assert set(shape["magnitudes"]) == cols, f"{rel}: keyset mismatch"
+
+
+def test_verify_names_the_collection_that_collapsed(monkeypatch, capsys):
+    """A generic "SHAPE CHANGED" cannot distinguish a data collapse from a renderer edit."""
+    real = cg.observe
+
+    def collapsed():
+        o = real()
+        a = o["artifacts"]["docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"]
+        a["shape"]["magnitudes"] = dict.fromkeys(a["shape"]["magnitudes"], 0)
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", collapsed)
+    assert cg.verify() == 1
+    err = capsys.readouterr().err
+    assert "EMPTIED" in err or "COLLAPSE" in err, f"reason not reported: {err}"
+
+
+def test_an_excised_engine_does_not_produce_spurious_query_drift(monkeypatch):
+    """Phase E deletes the engine while RETAINING tests/golden/**.
+
+    The tolerance guard read the GOLDEN side, so it could never fire in normal operation and,
+    when it did, tolerated any observed value. Post-excise the oracle emitted 15 spurious
+    QUERY CHANGED/GONE lines instead of staying quiet.
+    """
+    real = cg.observe
+
+    def excised():
+        o = real()
+        o["db_queries"] = {"rank_task_subagents.flywheel": "<UNAVAILABLE: FileNotFoundError>"}
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", excised)
+    assert cg.verify() == 0, "an excised engine must not read as consumer-query drift"
+
+
+def test_a_genuinely_rewritten_query_is_still_drift(monkeypatch):
+    """The mirror of the tolerance above — it must not become a blanket exemption."""
+    real = cg.observe
+
+    def tampered():
+        o = real()
+        k = next(iter(o["db_queries"]))
+        o["db_queries"][k] = "SELECT 1 -- rewritten"
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", tampered)
+    assert cg.verify() == 1
+
+
+def test_the_oracle_has_a_production_caller():
+    """The fix that made every other fix real.
+
+    verify() ran ONLY under pytest, in permissive mode, so ORACLE_REQUIRE_LOCAL_ARTIFACTS was
+    set nowhere and the 4 gitignored artifacts stayed exempt from "NO LONGER PRODUCED" in
+    every real execution.
+    """
+    sh = (cg.SCRIPT_DIR / "daily_refresh.sh").read_text()
+    assert "capture_golden.py" in sh, "the oracle has no production caller"
+    line = next(
+        ln
+        for ln in sh.splitlines()
+        if "capture_golden.py" in ln and "--verify" in ln and not ln.lstrip().startswith("#")
+    )
+    assert "ORACLE_REQUIRE_LOCAL_ARTIFACTS=1" in line, (
+        "the pipeline host must run the oracle STRICT, or gitignored artifact loss is invisible"
+    )

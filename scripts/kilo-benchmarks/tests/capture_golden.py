@@ -96,11 +96,20 @@ def _strip_volatile(s: str) -> str:
 ORACLE_VERSION = 2
 
 # A collection may lose this fraction before we call it a collapse, or multiply by this
-# factor before we call it a fan-out. Measured daily churn is ~8% (n_total 274 -> 296) and
-# per-table churn was 0 and +6 rows; a real extraction failure emptied 181 rows to 24 (-87%).
-# Both bounds sit an order of magnitude away from normal churn.
+# factor before we call it a fan-out. Measured daily churn on the LARGE tables is ~8%
+# (n_total 274 -> 296); a real extraction failure emptied 181 rows to 24 (-87%).
 COLLAPSE_RATIO = 0.5
-FANOUT_CEILING = 4.0
+FANOUT_CEILING = 10.0
+
+# ...but a ratio is meaningless on a small collection, and 20+ frozen collections are tiny
+# (CANDIDATE_SIGNUPS.md = 1 row; kilo_embeddings_final.json `$.roles.code_embedding` = 1;
+# the STT/TTS/TRANSLATION tables = 1). At n=1 the band [0.5, 4.0] calls an emptied signup
+# queue a COLLAPSE and a 5th candidate a FAN-OUT — both ordinary churn, and CANDIDATE_SIGNUPS
+# has already halved 2 -> 1 in-window. A false-red oracle gets ignored, which is exactly the
+# failure mode this whole safety net exists to avoid. Below the floor only TOTAL loss counts,
+# and growth is never drift (catalog growth is the norm: models_browser.html's row count grew
+# 1.41x in 26 days, so any ceiling would trip on pure growth during a months-long extraction).
+SMALL_N = 10
 
 
 def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
@@ -118,6 +127,11 @@ def magnitudes_ok(want: dict, got: dict) -> tuple[bool, str]:
         if gn is None:
             return False, f"collection disappeared: {key}"
         if wn == 0:
+            continue
+        if wn < SMALL_N:
+            # Too small to reason about proportionally — only total loss is unambiguous.
+            if gn == 0:
+                return False, f"EMPTIED {key}: {wn} -> 0"
             continue
         if gn < wn * COLLAPSE_RATIO:
             return False, f"COLLAPSE {key}: {wn} -> {gn}"
@@ -207,7 +221,13 @@ def _rows_per_table(text: str) -> dict[str, int]:
         if head and re.match(r"^\|[\s:|-]+\|[ \t]*$", lines[i + 1]):
             key = "|".join(c.strip().strip("*`") for c in head.group(1).split("|"))
             j = i + 2
+            # Stop at the next table's header. Without this, a table not separated by a blank
+            # line swallowed its neighbour's header + separator + rows: the count was inflated
+            # by 2 + the neighbour's rows AND the neighbour was never keyed, so gutting it was
+            # silently green. Live docs are clean today; one renderer change opens the hole.
             while j < len(lines) and lines[j].startswith("|"):
+                if j + 1 < len(lines) and re.match(r"^\|[\s:|-]+\|[ \t]*$", lines[j + 1]):
+                    break
                 j += 1
             sizes[key] = sizes.get(key, 0) + (j - i - 2)
             i = j
@@ -232,13 +252,16 @@ def json_shape(text: str) -> dict:
     sizes: dict[str, int] = {}
 
     def walk(o, depth=0, path="$"):
+        if isinstance(o, (dict, list)):
+            # Size first: the depth cutoff below used to return before recording, so a
+            # collection deeper than 3 was unmeasurable. Sizes are cheap; the schema is what
+            # needs the depth bound.
+            sizes[path] = len(o)
         if depth > 3:
             return "..."
         if isinstance(o, dict):
-            sizes[path] = len(o)
             return {k: walk(v, depth + 1, f"{path}.{k}") for k, v in sorted(o.items())[:40]}
         if isinstance(o, list):
-            sizes[path] = len(o)
             return [walk(o[0], depth + 1, f"{path}[]")] if o else []
         return type(o).__name__
 
@@ -248,10 +271,11 @@ def json_shape(text: str) -> dict:
 def html_shape(text: str) -> dict:
     """Coarse shape for the generated browser page.
 
-    `data_rows` deliberately reuses md_shape's field name so shapes_equal applies the SAME
-    collapse ratio here. Measured: blanking the 3.7MB embedded JS payload does change
-    `id_attrs` — but only because the blob happens to contain `id="` substrings. That is
-    luck, not a contract. The row count makes the catch intentional.
+    Before `magnitudes` this function could not detect data loss AT ALL: measured, the payload
+    blob contains zero `id="` substrings, so blanking all 3.7MB of it left `has_table`,
+    `script_blocks`, `id_attrs` and even the literal `<tr` count byte-identical. It detected
+    only a template rewrite. `payload_bytes` is the sole honest magnitude here, because the
+    models are rendered client-side from that blob rather than from markup.
     """
     payload = re.search(r'<script[^>]*id="payload"[^>]*>(.*?)</script>', text, re.S)
     return {
@@ -444,17 +468,13 @@ def verify() -> int:
             drift.append(f"NO LONGER PRODUCED: {rel}")
             continue
         if w.get("present") and g.get("present"):
-            ws, gs = w.get("shape", {}), g.get("shape", {})
-            if not shapes_equal(ws, gs):
-                if (
-                    ws.get("data_rows")
-                    and gs.get("data_rows", 0) < ws["data_rows"] * COLLAPSE_RATIO
-                ):
-                    drift.append(
-                        f"DATA COLLAPSE: {rel} — {ws['data_rows']} rows -> {gs.get('data_rows', 0)}"
-                    )
-                else:
-                    drift.append(f"SHAPE CHANGED: {rel}")
+            # shape_drift already computes the PRECISE reason (which collection, what sizes).
+            # Calling the boolean shapes_equal here threw that away and printed a generic
+            # "SHAPE CHANGED", so an operator could not tell a data collapse from a renderer
+            # edit — the single most useful thing the oracle knows.
+            why = shape_drift(w.get("shape", {}), g.get("shape", {}))
+            if why:
+                drift.append(f"{rel}: {why}")
 
     # The SQL the live hub consumers issue. snapshot() froze these into both structure.json
     # and db_queries.json, but nothing ever compared them — so WINDOW_DAYS, MIN_RUNS, the
@@ -463,8 +483,18 @@ def verify() -> int:
     for key, wq in want.get("db_queries", {}).items():
         gq = got["db_queries"].get(key)
         if gq is None:
+            # Same Phase-E tolerance: a golden entry whose whole family went UNAVAILABLE is
+            # an excised engine, not a lost consumer query.
+            if any("UNAVAILABLE" in str(v) for v in got["db_queries"].values()):
+                continue
             drift.append(f"QUERY GONE: {key}")
-        elif gq != wq and "UNAVAILABLE" not in str(wq):
+        elif gq != wq and "UNAVAILABLE" not in str(gq):
+            # Test the OBSERVATION, not the golden. Reading `wq` meant the guard could never
+            # fire in normal operation (the golden holds real SQL) and, when it did fire,
+            # tolerated ANY observed value — baking in a dead check. Reading `gq` is what
+            # `_db_queries`' stated Phase-E purpose requires: after the engine is excised the
+            # observation degrades to <UNAVAILABLE> and the oracle stays quiet instead of
+            # emitting 15 spurious QUERY CHANGED/GONE lines.
             drift.append(f"QUERY CHANGED: {key}")
 
     for key, present in want["markers"].items():
@@ -489,8 +519,12 @@ def verify() -> int:
         for d in drift:
             print("   " + d, file=sys.stderr)
         return 1
-    n = len(want["artifacts"]) + len(want["markers"])
-    print(f"[capture_golden] OK — {n} contract elements intact")
+    n = len(want["artifacts"]) + len(want["markers"]) + len(want.get("db_queries", {}))
+    print(
+        f"[capture_golden] OK — {n} contract elements intact "
+        f"({len(want['artifacts'])} artifacts, {len(want['markers'])} markers, "
+        f"{len(want.get('db_queries', {}))} queries)"
+    )
     return 0
 
 
