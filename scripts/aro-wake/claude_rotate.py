@@ -1107,6 +1107,15 @@ def _keepwarm_refresh(store: Path) -> bool:
     rtok = oauth.get("refreshToken")
     if not rtok:
         return False
+    # WRITABILITY PRE-CHECK before consuming the SINGLE-USE token (pool review F1): a filing
+    # failure after the grant strands the account — prove the store can take the write first.
+    try:
+        probe = store / ".credentials.json.tmp"
+        probe.write_bytes(b"probe")
+        probe.unlink()
+    except OSError:
+        sys.stderr.write(f"claude_rotate: keep-warm skipped — {store.name} not writable\n")
+        return False
     try:
         import urllib.request
         body = json.dumps({"grant_type": "refresh_token", "refresh_token": rtok,
@@ -1124,12 +1133,23 @@ def _keepwarm_refresh(store: Path) -> bool:
     if not new_access or not new_refresh:
         return False
     prof = _oauth_get("profile", new_access)
-    email = ((prof or {}).get("account") or {}).get("email") or ""
     merged = dict(blob)
     merged["claudeAiOauth"] = {**oauth, "accessToken": new_access,
                                "refreshToken": new_refresh}
     if isinstance(resp.get("expires_in"), (int, float)):
         merged["claudeAiOauth"]["expiresAt"] = int((_now() + resp["expires_in"]) * 1000)
+    if prof is None:
+        # Provenance-trusted filing (pool review F1): the refreshed pair came FROM this
+        # store's own token — by OAuth construction it belongs to this account. Refusing to
+        # file because a VERIFICATION probe was unreachable would LOSE the new pair while the
+        # old refresh token is already consumed — the exact strand the gate exists to prevent.
+        # Refuse only on a POSITIVE mismatch (probe answered with a different owner).
+        sys.stderr.write(f"claude_rotate: keep-warm filing {store.name} identity-unverified"
+                         " (profile unreachable) — provenance-trusted\n")
+        local = store.name.split("-", 1)[0]
+        return _file_refreshed_credentials(store, merged,
+                                           verified_email=f"{local}@provenance")
+    email = ((prof or {}).get("account") or {}).get("email") or ""
     return _file_refreshed_credentials(store, merged, verified_email=email)
 
 

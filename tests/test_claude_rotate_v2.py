@@ -182,6 +182,49 @@ def test_t5_identity_mismatch_never_filed(tmp_path, monkeypatch):
     assert (store / ".credentials.json.prev").exists(), ".prev must be retained"
 
 
+def test_t5c_profile_unreachable_files_by_provenance(tmp_path, monkeypatch):
+    """Pool review F1: the refreshed pair came from THIS store's own token — an unreachable
+    verification probe must never LOSE it (the old refresh token is already consumed).
+    Positive mismatch still refuses (T5b); probe-unavailable files provenance-trusted."""
+    store = tmp_path / "ob-ocoron-com-s-organization"
+    store.mkdir()
+    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+        "accessToken": "OLD", "refreshToken": "OLDR"}}))
+    class FakeResp:
+        def __init__(self, data): self._d = data
+        def read(self): return json.dumps(self._d).encode()
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda req, timeout=0: FakeResp({"access_token": "NEW",
+                                                         "refresh_token": "NEWR"}))
+    monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: None)  # probe unreachable
+    ok = cr._keepwarm_refresh(store)
+    assert ok is True
+    blob = json.loads((store / ".credentials.json").read_text())
+    assert blob["claudeAiOauth"]["refreshToken"] == "NEWR", "the pair must not be lost"
+
+
+def test_t5d_unwritable_store_never_consumes_the_token(tmp_path, monkeypatch):
+    """F1's other half: prove the store can take the write BEFORE the single-use grant."""
+    store = tmp_path / "ob-ocoron-com-s-organization"
+    store.mkdir()
+    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+        "accessToken": "OLD", "refreshToken": "OLDR"}}))
+    consumed = []
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda req, timeout=0: consumed.append(1))
+    store.chmod(0o500)
+    try:
+        ok = cr._keepwarm_refresh(store)
+    finally:
+        store.chmod(0o700)
+    assert ok is False
+    assert consumed == [], "the grant must NOT run against an unwritable store"
+
+
 # ── T6: no process signals anywhere ────────────────────────────────────────────
 
 
