@@ -75,9 +75,12 @@ One new daemon leg + `--list` enrichment on the existing tool:
    refresh is the cheapest to burn — use-it-or-lose-it economics); tie-break lower weekly %,
    then lower session %. Hysteresis: ≥30 min dwell unless the new account walls outright; an
    account rotated away from re-enters the pool automatically when its 5h window resets.
-3. **Keep-warm**: same daemon tick refreshes each PARKED account's snapshot (the CLI token
-   refresh flow) every ≤24h so refresh tokens never age out; each refresh is identity-gated
-   before filing (shipped). Steady state: zero logins forever.
+3. **Keep-warm — RETIRED at execution (live-probed 2026-08-13):** a script-side refresh POST
+   to `/v1/oauth/token` returns HTTP 403 (Cloudflare 1010) on BOTH platform.claude.com and
+   console.anthropic.com — the grant is CLI-only, and defeating that check is out of bounds.
+   What actually keeps accounts warm: USE — the CLI refreshes live credentials in place and
+   drift-check captures them, so any account the rotation visits stays warm against a ~30-day
+   refresh-token life. A store parked longer needs one operator rotate-through.
 4. **Onboarding (deferred, operator-timed)**: for mob@ (post-Sat) and can@ (post-Mon):
    one-window `/login` → identity-gated capture fires → immediate `--switch sarp` back
    (~30s exposure; any turn that walls parks + revives via the mesh).

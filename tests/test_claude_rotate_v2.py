@@ -182,36 +182,24 @@ def test_t5_identity_mismatch_never_filed(tmp_path, monkeypatch):
     assert (store / ".credentials.json.prev").exists(), ".prev must be retained"
 
 
-def test_t5c_profile_unreachable_files_by_provenance(tmp_path, monkeypatch):
-    """Pool review F1: the refreshed pair came from THIS store's own token — an unreachable
-    verification probe must never LOSE it (the old refresh token is already consumed).
-    Positive mismatch still refuses (T5b); probe-unavailable files provenance-trusted."""
-    store = tmp_path / "ob-ocoron-com-s-organization"
-    store.mkdir()
-    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-        "accessToken": "OLD", "refreshToken": "OLDR"}}))
-    class FakeResp:
-        def __init__(self, data): self._d = data
-        def read(self): return json.dumps(self._d).encode()
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-    import urllib.request
-    class FakeOpener:
-        def open(self, req, timeout=0):
-            return FakeResp({"access_token": "NEW", "refresh_token": "NEWR"})
-    monkeypatch.setattr(urllib.request, "build_opener", lambda *a: FakeOpener())
-    monkeypatch.setattr(urllib.request, "urlopen",
-                        lambda req, timeout=0: FakeResp({"access_token": "NEW",
-                                                         "refresh_token": "NEWR"}))
-    monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: None)  # probe unreachable
-    live = tmp_path / "live-credentials.json"     # isolated: never the box's real live file
-    live.write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE-OTHER",
-                                                 "refreshToken": "LIVE-OTHER-R"}}))
-    monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
-    ok = cr._keepwarm_refresh(store)
-    assert ok is True
-    blob = json.loads((store / ".credentials.json").read_text())
-    assert blob["claudeAiOauth"]["refreshToken"] == "NEWR", "the pair must not be lost"
+def test_t5c_provenance_filing_path_still_guards_identity():
+    """T5c RETIRED as a keep-warm test — the HTTP grant is CLI-only (403/1010), so there is
+    no in-tool refresh to file. The provenance FLAG on _file_refreshed_credentials remains
+    (a future CLI-mediated refresh would use it), so its contract is pinned directly."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        store = Path(d) / "ob-ocoron-com-s-organization"
+        store.mkdir()
+        (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+            "accessToken": "OLD"}}))
+        assert cr._file_refreshed_credentials(
+            store, {"claudeAiOauth": {"accessToken": "NEW"}},
+            verified_email=None, provenance=True) is True
+        assert json.loads((store / ".credentials.json").read_text())[
+            "claudeAiOauth"]["accessToken"] == "NEW"
+        assert cr._file_refreshed_credentials(
+            store, {"claudeAiOauth": {"accessToken": "X"}},
+            verified_email="sarp@ocoron.com") is False
 
 
 def test_t5d_unwritable_store_never_consumes_the_token(tmp_path, monkeypatch):
@@ -339,3 +327,47 @@ def test_t11_keepwarm_runs_on_degraded_ticks(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_keepwarm_pass", lambda *a: called.append(1))
     assert cr._cmd_tick() == 0
     assert called == [1], "keep-warm must run even when the live account is unresolvable"
+
+
+# ── live-probe round: the grant is CLI-only; parked telemetry degrades, never lies ────
+
+
+def test_t12_keepwarm_is_blocked_and_never_spends_a_token(tmp_path, monkeypatch):
+    """The /v1/oauth/token grant returns 403/1010 to non-CLI clients (live-probed on BOTH
+    hosts 2026-08-13). Keep-warm must be an honest no-op — never a silent token spend."""
+    store = tmp_path / "ob-ocoron-com-s-organization"
+    store.mkdir()
+    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+        "accessToken": "A", "refreshToken": "R"}}))
+    import urllib.request
+    called = []
+    monkeypatch.setattr(urllib.request, "build_opener",
+                        lambda *a: type("O", (), {"open": lambda s, r, timeout=0:
+                                                  called.append(1)})())
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **kw: called.append(1))
+    assert cr._keepwarm_refresh(store) is False
+    assert called == [], "no grant request may be issued"
+
+
+def test_t13_parked_expired_access_is_unknown_not_dead(monkeypatch):
+    """A parked store's ACCESS token dies every ~8h while its REFRESH token lives for weeks.
+    Reading that as INVALID collapsed the pool to one account (live-observed on ob@)."""
+    monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: None)  # 401s
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    store = Path("/tmp/ob-ocoron-com-s-organization")
+    monkeypatch.setattr(Path, "read_text",
+                        lambda self, *a, **kw: json.dumps({"claudeAiOauth": {
+                            "refreshTokenExpiresAt": (NOW + 20 * 86400) * 1000}}))
+    row = cr._account_status(store)
+    assert row["valid"] is True and row["telemetry"] == "unknown-parked"
+
+
+def test_t14_unknown_parked_ranks_last_but_is_eligible():
+    """Fail-closed preference: an account with REAL telemetry always outranks an unknown
+    one; an unknown account is still better than no successor at all."""
+    live_tel = _acct("known", weekly_reset=NOW + 6 * 86400)
+    unknown = {"name": "parked-ocoron-com-s-organization", "valid": True,
+               "telemetry": "unknown-parked", "five_hour": None, "seven_day": None}
+    assert cr._pick_successor([live_tel, unknown], None, NOW) == live_tel["name"]
+    assert cr._pick_successor([unknown], None, NOW) == unknown["name"]

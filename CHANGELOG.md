@@ -37,9 +37,12 @@ per-account quota table (both windows + reset times via `api/oauth/usage`, disco
 CLI binary and live-probed) — and `--tick`, the flock'd */5 cron daemon: threshold switch (95%)
 to the PERISHABLE-FIRST successor (soonest weekly reset, picked under the shared switch flock —
 TOCTOU-free), graceful-drain fabrik-mail broadcast + Telegram at 85%-with-no-sibling (24h
-suppress), expiry-keyed keep-warm for parked snapshots (single-use refresh tokens consumed only
-near death, identity-gated atomic filing with .prev retained), append-only ledger in the
-VM-cut-safe state dir. Also fixes a latent defect in the morning's identity gate caught by its
+suppress), append-only ledger in the VM-cut-safe state dir. Keep-warm-by-HTTP was RETIRED during
+execution: the `/v1/oauth/token` grant returns 403 (Cloudflare 1010) to non-CLI clients on both
+hosts (live-probed) — accounts stay warm by USE instead (the CLI refreshes live credentials;
+drift-check captures them), and a parked store's expired access token now reads
+`unknown-parked` (usable, ranked last) rather than INVALID — without that, every parked sibling
+read dead within 8h and the pool collapsed to one account (live-observed on ob@). Also fixes a latent defect in the morning's identity gate caught by its
 NEW contract tests: the retargeted capture path never actually retargeted
 (`_cmd_capture_current` gained the explicit `into=` target). 47 tests green (T1-T7 red-first +
 the pre-gate suite updated to the gate's contract + 4 new gate tests incl. the

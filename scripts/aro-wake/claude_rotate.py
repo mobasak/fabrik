@@ -933,7 +933,35 @@ def _account_status(store: Path) -> dict:
         pass
     prof = _oauth_get("profile", tok)
     usage = _oauth_get("usage", tok)
+    if (not prof or not usage) and False:  # refresh-on-demand retired (grant is CLI-only)
+        # REFRESH-ON-DEMAND (live-probe finding 2026-08-13): a PARKED store's access token
+        # dies every ~8h while its refresh token lives for weeks. Without this, every parked
+        # sibling reads INVALID for most of the day, _pick_successor excludes them, the pool
+        # collapses to one account and drain fires forever — the feature would be a no-op.
+        # Never for the LIVE store (that path belongs to the CLI itself; _keepwarm_refresh's
+        # own guard also refuses it).
+        if _keepwarm_refresh(store):
+            tok = _read_access_token(store / ".credentials.json")
+            if tok is not None:
+                prof = _oauth_get("profile", tok)
+                usage = _oauth_get("usage", tok)
+                try:
+                    blob = json.loads((store / ".credentials.json").read_text())
+                    exp_ms = (blob.get("claudeAiOauth") or {}).get("refreshTokenExpiresAt")
+                    if isinstance(exp_ms, (int, float)) and exp_ms > 0:
+                        row["refresh_expires_at_epoch"] = float(exp_ms) / 1000.0
+                except (OSError, ValueError):
+                    pass
     if not prof or not usage:
+        # A dead ACCESS token (they expire ~8h) with a LIVE refresh token is NOT a dead
+        # account — the CLI will refresh it the moment it becomes live. Mark it usable but
+        # UNKNOWN so the successor ranking prefers accounts with real telemetry and only
+        # falls back to these (the spec's documented degradation path). A store whose
+        # REFRESH token is also expired is genuinely dead → relogin.
+        rexp = row.get("refresh_expires_at_epoch")
+        if rexp is not None and rexp > _now():
+            row["valid"] = True
+            row["telemetry"] = "unknown-parked"
         return row
     row["email"] = (prof.get("account") or {}).get("email")
     # FAIL-CLOSED parse (closer F6): a 200 with a changed/partial shape must read as
@@ -951,6 +979,13 @@ def _account_status(store: Path) -> dict:
                     "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
     row["valid"] = row["email"] is not None and windows_ok
     return row
+
+
+def _is_live_store(store: Path) -> bool:
+    """True when this store's tokens ARE the live file's (same guard family as
+    _keepwarm_refresh's) — token-compared, never marker-trusted."""
+    live = _read_access_token(ACTIVE_CREDS)
+    return live is not None and _read_access_token(store / ".credentials.json") == live
 
 
 def _collect_statuses() -> tuple[list[dict], str | None]:
@@ -985,7 +1020,10 @@ def _cmd_status(as_json: bool) -> int:
         return f"{w['utilization']:.0f}% (resets {rs_s})"
     for r in pay["accounts"]:
         mark = "*" if r["name"] == pay["live"] else " "
-        if r["valid"]:
+        if r.get("telemetry") == "unknown-parked":
+            print(f"{mark} {r['name']:32} parked — quota unknown until used"
+                  f" (refresh token valid)")
+        elif r["valid"]:
             print(f"{mark} {r['email'] or r['name']:32} session {fmt(r['five_hour']):24}"
                   f" weekly {fmt(r['seven_day'])}")
         else:
@@ -994,6 +1032,8 @@ def _cmd_status(as_json: bool) -> int:
 
 
 def _walled(row: dict) -> bool:
+    if row.get("telemetry") == "unknown-parked":
+        return False  # no evidence of a wall; ranked last (see _pick_successor)
     for key in ("five_hour", "seven_day"):
         w = row.get(key)
         if not w:
@@ -1012,9 +1052,10 @@ def _pick_successor(candidates: list[dict], current_name: str | None, now: float
     if not eligible:
         return None
     far = now + 365 * 86400
-    eligible.sort(key=lambda r: ((r["seven_day"] or {}).get("resets_at_epoch") or far,
-                                 (r["seven_day"] or {}).get("utilization", 100.0),
-                                 (r["five_hour"] or {}).get("utilization", 100.0)))
+    eligible.sort(key=lambda r: (1 if r.get("telemetry") == "unknown-parked" else 0,
+                                 (r.get("seven_day") or {}).get("resets_at_epoch") or far,
+                                 (r.get("seven_day") or {}).get("utilization", 100.0),
+                                 (r.get("five_hour") or {}).get("utilization", 100.0)))
     return eligible[0]["name"]
 
 
@@ -1158,82 +1199,20 @@ def _file_refreshed_credentials(store: Path, payload: dict, verified_email: str 
 
 
 def _keepwarm_refresh(store: Path) -> bool:
-    """Refresh a PARKED snapshot's token pair via the OAuth grant, identity-gate, file
-    atomically. The refresh token is SINGLE-USE: on any doubt the old snapshot stays."""
-    try:
-        blob = json.loads((store / ".credentials.json").read_text())
-    except (OSError, ValueError):
-        return False
-    oauth = blob.get("claudeAiOauth") or {}
-    rtok = oauth.get("refreshToken")
-    if not rtok:
-        return False
-    # NEVER the live account's token (closer #1): _active_account() is fallible (the very
-    # incident class of 2026-08-13) and drift-check keeps the active store byte-identical to
-    # the live file — consuming a token EQUAL to the live one retires the fleet's working
-    # refresh chain. Same guard kills the duplicate-store variant (one account mis-filed in
-    # two stores) and the generation-deadlock (closer #14) via this path.
-    live_access = _read_access_token(ACTIVE_CREDS)
-    try:
-        live_refresh = (json.loads(ACTIVE_CREDS.read_text()).get("claudeAiOauth") or {}).get("refreshToken")
-    except (OSError, ValueError):
-        live_refresh = None
-    if (live_access is not None and oauth.get("accessToken") == live_access) or \
-       (live_refresh is not None and rtok == live_refresh):
-        sys.stderr.write(f"claude_rotate: keep-warm skipped — {store.name} holds the LIVE"
-                         " account's tokens\n")
-        return False
-    # WRITABILITY PRE-CHECK before consuming the SINGLE-USE token (pool review F1): a filing
-    # failure after the grant strands the account — prove the store can take the write first.
-    try:
-        probe = store / f".credentials.json.probe{os.getpid()}"
-        _secure_write(probe, b"probe")
-        probe.unlink()
-    except OSError:
-        sys.stderr.write(f"claude_rotate: keep-warm skipped — {store.name} not writable\n")
-        return False
-    try:
-        import urllib.request
-        body = json.dumps({"grant_type": "refresh_token", "refresh_token": rtok,
-                           "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e"}).encode()
-        # Host grounded in the installed CLI binary (closer F2: TOKEN_URL is
-        # platform.claude.com in 2.1.231; console.anthropic.com appears 0 times). A
-        # redirect on this POST would drop the body AND leak the grant to an unverified
-        # target — refuse redirects outright.
-        class _NoRedirect(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, *a, **kw):
-                return None
-        opener = urllib.request.build_opener(_NoRedirect)
-        req = urllib.request.Request("https://platform.claude.com/v1/oauth/token",
-                                     data=body,
-                                     headers={"Content-Type": "application/json"})
-        with opener.open(req, timeout=20) as r:
-            resp = json.load(r)
-    except Exception:
-        sys.stderr.write(f"claude_rotate: keep-warm refresh failed for {store.name}\n")
-        return False
-    new_access = resp.get("access_token")
-    new_refresh = resp.get("refresh_token")
-    if not new_access or not new_refresh:
-        return False
-    prof = _oauth_get("profile", new_access)
-    merged = dict(blob)
-    merged["claudeAiOauth"] = {**oauth, "accessToken": new_access,
-                               "refreshToken": new_refresh}
-    if isinstance(resp.get("expires_in"), (int, float)):
-        merged["claudeAiOauth"]["expiresAt"] = int((_now() + resp["expires_in"]) * 1000)
-    if prof is None:
-        # Provenance-trusted filing (pool review F1): the refreshed pair came FROM this
-        # store's own token — by OAuth construction it belongs to this account. Refusing to
-        # file because a VERIFICATION probe was unreachable would LOSE the new pair while the
-        # old refresh token is already consumed — the exact strand the gate exists to prevent.
-        # Refuse only on a POSITIVE mismatch (probe answered with a different owner).
-        sys.stderr.write(f"claude_rotate: keep-warm filing {store.name} identity-unverified"
-                         " (profile unreachable) — provenance-trusted\n")
-        return _file_refreshed_credentials(store, merged, verified_email=None,
-                                           provenance=True)
-    email = ((prof or {}).get("account") or {}).get("email") or ""
-    return _file_refreshed_credentials(store, merged, verified_email=email)
+    """BLOCKED BY THE ENDPOINT (live-probed 2026-08-13): a script-side refresh POST to
+    /v1/oauth/token returns HTTP 403 (Cloudflare 1010) on BOTH platform.claude.com and
+    console.anthropic.com — the grant is issued only to the CLI's own client. Defeating that
+    check is out of bounds, so keep-warm-by-HTTP does not exist.
+
+    What keeps accounts warm instead (no code needed): USE. The CLI refreshes the LIVE
+    credentials in place, and `--drift-check` captures them hourly — so any account the
+    rotation visits stays warm by construction, and this pool rotates every few days against
+    a ~30-day refresh-token life. A store parked longer than that needs one rotate-through
+    (switch to it, let a session use it, switch back) — an operator/cron action, not a
+    silent token spend. Returns False always; the tick logs it once per parked store."""
+    sys.stderr.write(f"claude_rotate: keep-warm unavailable for {store.name} — the token"
+                     " grant is CLI-only (403/1010); rotation-through is the warm path\n")
+    return False
 
 
 def _cmd_tick() -> int:
