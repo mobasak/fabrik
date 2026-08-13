@@ -875,6 +875,38 @@ def _cmd_capture_current() -> int:
     return 0
 
 
+
+def _live_email(timeout_s: float = 10.0) -> str | None:
+    """The LIVE token's account email, from Anthropic's own OAuth profile endpoint — the only
+    identity signal that cannot lie (token-match misses after a refresh, newer creds omit the
+    org, and the marker goes stale on out-of-band logins: all three failed together on
+    2026-08-13 and mis-filed ob@'s tokens into the sarp store). None on any failure — callers
+    must treat that as "unknown", never guess. Never emits token bytes."""
+    tok = _read_access_token(ACTIVE_CREDS)
+    if tok is None:
+        return None
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://api.anthropic.com/api/oauth/profile",
+            headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            data = json.load(r)
+        email = (data.get("account") or {}).get("email")
+        return email if isinstance(email, str) and "@" in email else None
+    except Exception:
+        return None
+
+
+def _store_for_email(email: str, accounts: list[Path]) -> Path | None:
+    """Map an account email to its snapshot dir by the store-naming convention
+    (<local-part>-<domain-dashed>-...): unique prefix match on the email's local part.
+    None when zero or multiple stores match — ambiguity is never guessed."""
+    local = email.split("@", 1)[0].lower()
+    hits = [a for a in accounts if a.name.lower().startswith(local + "-")]
+    return hits[0] if len(hits) == 1 else None
+
+
 def _cmd_drift_check() -> int:
     """Capture ONLY when the live token has diverged from the stored snapshot.
 
@@ -885,6 +917,25 @@ def _cmd_drift_check() -> int:
     target = _active_account()
     if live_tok is None or target is None:
         return 0  # nothing resolvable to compare — quiet no-op
+    # IDENTITY GATE (2026-08-13 mis-filing incident): before writing anything, ask the API whose
+    # token this actually is. A verified email that maps to a DIFFERENT store retargets the
+    # capture; a verified email with no matching store, or an unreachable profile endpoint,
+    # SKIPS the capture — filing under a guessed name corrupts a sibling account's store, which
+    # is strictly worse than one missed hourly capture.
+    email = _live_email()
+    if email is None:
+        sys.stderr.write("claude_rotate: drift-check skipped — live identity unverifiable\n")
+        return 0
+    verified = _store_for_email(email, _list_accounts())
+    if verified is None:
+        sys.stderr.write(
+            f"claude_rotate: drift-check skipped — no store for live account {email}\n")
+        return 0
+    if verified != target:
+        sys.stderr.write(
+            f"claude_rotate: capture RETARGETED {target.name} -> {verified.name} "
+            f"(live token belongs to {email})\n")
+        target = verified
     # Compare the WHOLE credential blob, never just the access token: the live incident
     # (2026-08-10) was a stale REFRESH token, and the refresh token rotates independently
     # of the short-lived access token — an accessToken-only compare would see "in sync"
