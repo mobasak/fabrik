@@ -360,6 +360,14 @@ def _activate_snapshot(
         # a marker-write failure must not fail an already-completed swap (token-match still recovers).
         try:
             _secure_write(ACTIVE_MARKER, target.name.encode())
+            # closer #5: EVERY switch writer starts the dwell clock — a manual --switch/
+            # --next/aro-wake rotation invisible to the ledger let the tick re-rotate
+            # minutes later, defeating the hysteresis the plan promises
+            try:
+                _ledger_append({"event": "switch", "ts": _now(), "to": target.name,
+                                "via": "activate"})
+            except Exception:  # noqa: BLE001 — audit only, never a switch-blocker
+                pass
         except OSError:
             pass
         # fsync the CONTAINING DIRECTORY so the rename (directory-entry update) is also
@@ -928,11 +936,20 @@ def _account_status(store: Path) -> dict:
     if not prof or not usage:
         return row
     row["email"] = (prof.get("account") or {}).get("email")
+    # FAIL-CLOSED parse (closer F6): a 200 with a changed/partial shape must read as
+    # UNKNOWN (row invalid), never as 0% — 0% makes a walled sibling the most attractive
+    # successor and stops the live account from ever rotating.
+    windows_ok = True
     for key in ("five_hour", "seven_day"):
-        w = usage.get(key) or {}
-        row[key] = {"utilization": float(w.get("utilization") or 0.0),
+        w = usage.get(key)
+        u = w.get("utilization") if isinstance(w, dict) else None
+        if not isinstance(u, (int, float)):
+            windows_ok = False
+            row[key] = None
+            continue
+        row[key] = {"utilization": float(u),
                     "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
-    row["valid"] = row["email"] is not None and row["five_hour"] is not None
+    row["valid"] = row["email"] is not None and windows_ok
     return row
 
 
@@ -1034,9 +1051,16 @@ def _last_switch_ts() -> float | None:
 def _mailbox_repos() -> list[str]:
     """Repos that can SURFACE mail (mail.py:157 rule) — enumerated, never hardcoded."""
     out = []
-    for d in sorted(Path("/opt").iterdir()):
-        if (d / ".claude" / "hooks" / "mail_notify.py").is_file():
-            out.append(d.name)
+    try:
+        entries = sorted(Path("/opt").iterdir())
+    except OSError:
+        return out
+    for d in entries:
+        try:
+            if (d / ".claude" / "hooks" / "mail_notify.py").is_file():
+                out.append(d.name)
+        except OSError:
+            continue
     return out
 
 
@@ -1046,9 +1070,15 @@ def _drain_mail(repos: list[str], msg: str) -> None:
         return
     for repo in repos:
         try:
-            subprocess.run([sys.executable, str(mail), "send", "--to", repo,
-                            "--from", "fabrik", "--kind", "finding", "--ack", "no"],
-                           input=msg, text=True, capture_output=True, timeout=30)
+            # fire-and-forget (closer #8): ~49 serial 30s-timeout sends could hold the tick
+            # flock for ~25 min at exactly the draining moment; Popen detaches each send
+            proc = subprocess.Popen([sys.executable, str(mail), "send", "--to", repo,
+                                     "--from", "fabrik", "--kind", "finding", "--ack", "no"],
+                                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, text=True)
+            if proc.stdin is not None:
+                proc.stdin.write(msg)
+                proc.stdin.close()
         except (OSError, subprocess.SubprocessError):
             continue  # one refused mailbox must not stop the broadcast
 
@@ -1066,34 +1096,65 @@ def _tick_telegram(msg: str) -> None:
 
 
 def _tick_switch(name: str) -> bool:
-    """Install `name` — re-validated UNDER the shared flock via the selector seam, so the
-    poll→pick→install path cannot race a concurrent manual --switch/aro-wake rotation."""
+    """Install `name`. Closer #3: capture the OUTGOING account's live credentials into its
+    own store FIRST — drift-check is hourly, and an hour-stale snapshot holds a superseded
+    refresh token (the 2026-08-10 14:37 class, which a 5-minute automatic trigger would
+    otherwise replay). Closer #7: the under-lock selector re-validates FITNESS (fresh
+    telemetry: valid + un-walled), not just the path — 'TOCTOU-free' must cover the pick."""
+    if _cmd_capture_current() != 0:
+        sys.stderr.write("claude_rotate: tick pre-switch capture failed — switch aborted"
+                         " (a stale outgoing snapshot must not be left behind)\n")
+        return False
+
     def _selector() -> Path | None:
         hit = next((a for a in _list_accounts() if a.name == name), None)
+        if hit is None:
+            return None
+        row = _account_status(hit)
+        if not row.get("valid") or _walled(row):
+            sys.stderr.write(f"claude_rotate: {name} no longer fit at install time — abort\n")
+            return None
         return hit
     return _activate_snapshot(selector=_selector) is not None
 
 
-def _file_refreshed_credentials(store: Path, payload: dict, verified_email: str) -> bool:
+def _file_refreshed_credentials(store: Path, payload: dict, verified_email: str | None,
+                                provenance: bool = False) -> bool:
     """Atomically install a refreshed credential pair into ITS OWN store — identity-gated
     (the 2026-08-13 mis-filing class must be impossible here): the verified email's local
-    part must match the store's name prefix. Backup to .prev, tmp+rename install."""
-    local = (verified_email or "").split("@", 1)[0].lower()
-    if not local or not store.name.lower().startswith(local + "-"):
-        sys.stderr.write(f"claude_rotate: refresh NOT filed — {verified_email!r} does not"
-                         f" match store {store.name}\n")
-        return False
+    part must match the store's name prefix, OR ``provenance=True`` (the pair came from this
+    store's own refresh token — OAuth construction proves ownership; used only when the
+    verification probe is unreachable). Under ROTATE_LOCK (closer #9 — every sibling
+    credential writer holds it); backup to .prev, unique-tmp+rename install."""
+    if not provenance:
+        local = (verified_email or "").split("@", 1)[0].lower()
+        if not local or not store.name.lower().startswith(local + "-"):
+            sys.stderr.write(f"claude_rotate: refresh NOT filed — {verified_email!r} does not"
+                             f" match store {store.name}\n")
+            return False
     dst = store / ".credentials.json"
+    try:
+        lock_fd = os.open(str(ROTATE_LOCK), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    except OSError:
+        lock_fd = None  # best-effort: os.replace still keeps readers atomic
     try:
         if dst.exists():
             _secure_write(store / ".credentials.json.prev", dst.read_bytes())
-        tmp = store / ".credentials.json.tmp"
+        tmp = store / f".credentials.json.tmp{os.getpid()}.{time.monotonic_ns()}"
         _secure_write(tmp, json.dumps(payload).encode())
         os.replace(tmp, dst)
         return True
     except OSError as e:
         sys.stderr.write(f"claude_rotate: refresh filing failed for {store.name}: {e}\n")
         return False
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+            except OSError:
+                pass
 
 
 def _keepwarm_refresh(store: Path) -> bool:
@@ -1107,11 +1168,26 @@ def _keepwarm_refresh(store: Path) -> bool:
     rtok = oauth.get("refreshToken")
     if not rtok:
         return False
+    # NEVER the live account's token (closer #1): _active_account() is fallible (the very
+    # incident class of 2026-08-13) and drift-check keeps the active store byte-identical to
+    # the live file — consuming a token EQUAL to the live one retires the fleet's working
+    # refresh chain. Same guard kills the duplicate-store variant (one account mis-filed in
+    # two stores) and the generation-deadlock (closer #14) via this path.
+    live_access = _read_access_token(ACTIVE_CREDS)
+    try:
+        live_refresh = (json.loads(ACTIVE_CREDS.read_text()).get("claudeAiOauth") or {}).get("refreshToken")
+    except (OSError, ValueError):
+        live_refresh = None
+    if (live_access is not None and oauth.get("accessToken") == live_access) or \
+       (live_refresh is not None and rtok == live_refresh):
+        sys.stderr.write(f"claude_rotate: keep-warm skipped — {store.name} holds the LIVE"
+                         " account's tokens\n")
+        return False
     # WRITABILITY PRE-CHECK before consuming the SINGLE-USE token (pool review F1): a filing
     # failure after the grant strands the account — prove the store can take the write first.
     try:
-        probe = store / ".credentials.json.tmp"
-        probe.write_bytes(b"probe")
+        probe = store / f".credentials.json.probe{os.getpid()}"
+        _secure_write(probe, b"probe")
         probe.unlink()
     except OSError:
         sys.stderr.write(f"claude_rotate: keep-warm skipped — {store.name} not writable\n")
@@ -1120,10 +1196,18 @@ def _keepwarm_refresh(store: Path) -> bool:
         import urllib.request
         body = json.dumps({"grant_type": "refresh_token", "refresh_token": rtok,
                            "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e"}).encode()
-        req = urllib.request.Request("https://console.anthropic.com/v1/oauth/token",
+        # Host grounded in the installed CLI binary (closer F2: TOKEN_URL is
+        # platform.claude.com in 2.1.231; console.anthropic.com appears 0 times). A
+        # redirect on this POST would drop the body AND leak the grant to an unverified
+        # target — refuse redirects outright.
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a, **kw):
+                return None
+        opener = urllib.request.build_opener(_NoRedirect)
+        req = urllib.request.Request("https://platform.claude.com/v1/oauth/token",
                                      data=body,
                                      headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with opener.open(req, timeout=20) as r:
             resp = json.load(r)
     except Exception:
         sys.stderr.write(f"claude_rotate: keep-warm refresh failed for {store.name}\n")
@@ -1146,77 +1230,105 @@ def _keepwarm_refresh(store: Path) -> bool:
         # Refuse only on a POSITIVE mismatch (probe answered with a different owner).
         sys.stderr.write(f"claude_rotate: keep-warm filing {store.name} identity-unverified"
                          " (profile unreachable) — provenance-trusted\n")
-        local = store.name.split("-", 1)[0]
-        return _file_refreshed_credentials(store, merged,
-                                           verified_email=f"{local}@provenance")
+        return _file_refreshed_credentials(store, merged, verified_email=None,
+                                           provenance=True)
     email = ((prof or {}).get("account") or {}).get("email") or ""
     return _file_refreshed_credentials(store, merged, verified_email=email)
 
 
 def _cmd_tick() -> int:
-    """The 5-minute rotation daemon tick. Always exits 0 (cron-hosted; a broken tick must
-    never look like a broken cron). Every decision is one printed line (audit discipline)."""
-    threshold = float(os.environ.get("ROTATE_THRESHOLD", "95"))
-    drain_thr = float(os.environ.get("ROTATE_DRAIN_THRESHOLD", "85"))
-    dwell_s = float(os.environ.get("ROTATE_DWELL_MIN", "30")) * 60
+    """The 5-minute rotation daemon tick. Always exits 0 — ENFORCED by the outer guard
+    (closer #11), not just documented. Every decision is one printed line."""
+    try:
+        return _tick_inner()
+    except Exception as e:  # noqa: BLE001 — cron-hosted: a broken tick must never look
+        #                     like a broken cron; the class+message is the diagnostic
+        print(f"tick: INTERNAL ERROR {type(e).__name__}: {e}")
+        return 0
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _tick_inner() -> int:
+    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    dwell_s = _env_float("ROTATE_DWELL_MIN", 30.0) * 60
     now = _now()
     rows, live_name = _collect_statuses()
-    live = next((r for r in rows if r["name"] == live_name), None)
-    if live is None or not live.get("valid"):
-        print("tick: live account unresolvable/invalid — no action")
-        _ledger_append({"event": "tick", "ts": now, "verdict": "no-live"})
-        return 0
-    hot = max((live.get("five_hour") or {}).get("utilization", 0.0),
-              (live.get("seven_day") or {}).get("utilization", 0.0))
-    successor = _pick_successor(rows, live_name, now)
-    if hot >= threshold and successor is not None:
-        last = _last_switch_ts()
-        if last is not None and (now - last) < dwell_s:
-            print(f"tick: {hot:.0f}% >= {threshold:.0f}% but within dwell — holding")
-            _ledger_append({"event": "tick", "ts": now, "verdict": "dwell-hold"})
+    try:
+        # keep-warm runs for EVERY tick outcome (closer #12): no-live and dwell-hold are
+        # exactly the degraded states where parked snapshots must not age out
+        live = next((r for r in rows if r["name"] == live_name), None)
+        if live is None or not live.get("valid"):
+            print("tick: live account unresolvable/invalid — no action")
+            _ledger_append({"event": "tick", "ts": now, "verdict": "no-live"})
             return 0
-        if _tick_switch(successor):
-            _ledger_append({"event": "switch", "ts": now, "to": successor,
-                            "from": live_name, "at_pct": hot})
-            _tick_telegram(f"rotated {live_name} -> {successor} at {hot:.0f}%")
-            print(f"tick: switched {live_name} -> {successor} at {hot:.0f}%")
-        else:
+        hot = max((live.get("five_hour") or {}).get("utilization", 0.0),
+                  (live.get("seven_day") or {}).get("utilization", 0.0))
+        successor = _pick_successor(rows, live_name, now)
+        switch_failed = False
+        if hot >= threshold and successor is not None:
+            last = _last_switch_ts()
+            if last is not None and (now - last) < dwell_s:
+                print(f"tick: {hot:.0f}% >= {threshold:.0f}% but within dwell — holding")
+                _ledger_append({"event": "tick", "ts": now, "verdict": "dwell-hold"})
+                return 0
+            if _tick_switch(successor):
+                _ledger_append({"event": "switch", "ts": now, "to": successor,
+                                "from": live_name, "at_pct": hot})
+                _tick_telegram(f"rotated {live_name} -> {successor} at {hot:.0f}%")
+                print(f"tick: switched {live_name} -> {successor} at {hot:.0f}%")
+                return 0
+            # closer #4: a failed switch must be LOUD and must not shadow the drain path —
+            # "successor exists but cannot install" burns silently to 100% otherwise
+            switch_failed = True
+            _tick_telegram(f"quota switch to {successor} FAILED at {hot:.0f}% — "
+                           "pool may be draining")
             print(f"tick: switch to {successor} FAILED")
             _ledger_append({"event": "tick", "ts": now, "verdict": "switch-failed"})
-    elif hot >= drain_thr and successor is None:
-        stamp = _rotate_state_dir() / "drain-stamp"
-        try:
-            age = now - stamp.stat().st_mtime
-        except OSError:
-            age = None
-        if age is None or age >= 86400:
-            resets = [w.get("resets_at_epoch") for r in rows for w in
-                      ((r.get("five_hour"), r.get("seven_day")) if r.get("valid") else ())
-                      if w and w.get("resets_at_epoch")]
-            revive = min(resets) if resets else None
-            from datetime import datetime
-            revive_s = (datetime.fromtimestamp(revive).strftime("%a %H:%M")
-                        if revive else "unknown")
-            msg = (f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
-                   f"eligible account, no sibling). Reach a commit-and-push checkpoint "
-                   f"NOW; do not start new phases. Work revives at {revive_s}.")
-            _drain_mail(_mailbox_repos(), "quota drain warning\n\n" + msg)
-            _tick_telegram(msg)
+        if hot >= drain_thr and (successor is None or switch_failed):
+            stamp = _rotate_state_dir() / "drain-stamp"
             try:
-                stamp.touch()
-                os.utime(stamp, (now, now))  # the tick's OWN clock — the age check above
-                                             # reads the same source (test-fakeable)
+                age = now - stamp.stat().st_mtime
             except OSError:
-                pass
-            _ledger_append({"event": "drain", "ts": now, "at_pct": hot})
-            print(f"tick: DRAIN broadcast at {hot:.0f}%")
-        else:
-            print("tick: drain condition holds but suppressed (stamp)")
-    else:
-        print(f"tick: ok — live {live_name} at {hot:.0f}%")
-        _ledger_append({"event": "tick", "ts": now, "verdict": "ok", "pct": hot})
-    # keep-warm: parked snapshots whose refresh token nears expiry (single-use — consume
-    # only when genuinely near death; spec open-item settled expiry-keyed)
+                age = None
+            if age is None or age >= 86400:
+                resets = [w.get("resets_at_epoch") for r in rows for w in
+                          ((r.get("five_hour"), r.get("seven_day")) if r.get("valid") else ())
+                          if w and w.get("resets_at_epoch")]
+                revive = min(resets) if resets else None
+                from datetime import datetime
+                revive_s = (datetime.fromtimestamp(revive).strftime("%a %H:%M")
+                            if revive else "unknown")
+                msg = (f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
+                       f"eligible account, no installable sibling). Reach a commit-and-push "
+                       f"checkpoint NOW; do not start new phases. Work revives at {revive_s}.")
+                _drain_mail(_mailbox_repos(), "quota drain warning\n\n" + msg)
+                _tick_telegram(msg)
+                try:
+                    stamp.touch()
+                    os.utime(stamp, (now, now))
+                except OSError:
+                    pass
+                _ledger_append({"event": "drain", "ts": now, "at_pct": hot})
+                print(f"tick: DRAIN broadcast at {hot:.0f}%")
+            else:
+                print("tick: drain condition holds but suppressed (stamp)")
+        elif not switch_failed:
+            print(f"tick: ok — live {live_name} at {hot:.0f}%")
+            _ledger_append({"event": "tick", "ts": now, "verdict": "ok", "pct": hot})
+        return 0
+    finally:
+        _keepwarm_pass(rows, live_name, now)
+        _ledger_rotate()
+
+
+def _keepwarm_pass(rows: list[dict], live_name: str | None, now: float) -> None:
     for r in rows:
         if r["name"] == live_name or not r.get("valid"):
             continue
@@ -1225,8 +1337,18 @@ def _cmd_tick() -> int:
             if _keepwarm_refresh(Path(r["store"])):
                 print(f"tick: kept warm {r['name']}")
                 _ledger_append({"event": "keepwarm", "ts": now, "store": r["name"]})
-    return 0
 
+
+def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
+    """Bound the append-only ledger (closer #15): keep the newest half when it crosses the
+    cap — the dwell scan only ever needs the recent tail."""
+    led = _rotate_state_dir() / "rotate-ledger.jsonl"
+    try:
+        if led.stat().st_size > cap_bytes:
+            lines = led.read_text().splitlines(keepends=True)
+            led.write_text("".join(lines[len(lines) // 2:]))
+    except OSError:
+        pass
 
 
 def _live_email(timeout_s: float = 10.0) -> str | None:
@@ -1288,9 +1410,14 @@ def _cmd_drift_check() -> int:
         sys.stderr.write(
             f"claude_rotate: capture RETARGETED {target.name} -> {verified.name} "
             f"(live token belongs to {email})\n")
-        target = verified
         if _cmd_capture_current(into=verified) != 0:
             sys.stderr.write("claude_rotate: retargeted capture FAILED — snapshot is stale\n")
+        else:
+            try:
+                _secure_write(ACTIVE_MARKER, verified.name.encode())
+                sys.stderr.write(f"claude_rotate: active marker repaired -> {verified.name}\n")
+            except OSError:
+                pass
         return 0
     # Compare the WHOLE credential blob, never just the access token: the live incident
     # (2026-08-10) was a stale REFRESH token, and the refresh token rotates independently

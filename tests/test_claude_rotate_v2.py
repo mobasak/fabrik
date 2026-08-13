@@ -196,10 +196,18 @@ def test_t5c_profile_unreachable_files_by_provenance(tmp_path, monkeypatch):
         def __enter__(self): return self
         def __exit__(self, *a): return False
     import urllib.request
+    class FakeOpener:
+        def open(self, req, timeout=0):
+            return FakeResp({"access_token": "NEW", "refresh_token": "NEWR"})
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *a: FakeOpener())
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda req, timeout=0: FakeResp({"access_token": "NEW",
                                                          "refresh_token": "NEWR"}))
     monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: None)  # probe unreachable
+    live = tmp_path / "live-credentials.json"     # isolated: never the box's real live file
+    live.write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE-OTHER",
+                                                 "refreshToken": "LIVE-OTHER-R"}}))
+    monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
     ok = cr._keepwarm_refresh(store)
     assert ok is True
     blob = json.loads((store / ".credentials.json").read_text())
@@ -216,6 +224,13 @@ def test_t5d_unwritable_store_never_consumes_the_token(tmp_path, monkeypatch):
     import urllib.request
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda req, timeout=0: consumed.append(1))
+    monkeypatch.setattr(urllib.request, "build_opener",
+                        lambda *a: type("O", (), {"open": lambda s, r, timeout=0:
+                                                  consumed.append(1)})())
+    live = tmp_path / "live-credentials.json"
+    live.write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE-OTHER",
+                                                 "refreshToken": "LIVE-OTHER-R"}}))
+    monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
     store.chmod(0o500)
     try:
         ok = cr._keepwarm_refresh(store)
@@ -229,7 +244,11 @@ def test_t5d_unwritable_store_never_consumes_the_token(tmp_path, monkeypatch):
 
 
 def test_t6_no_signal_calls_in_either_copy():
-    pat = re.compile(r"\bpkill\b|os\.kill\(|import signal|signal\.SIG|raise_signal")
+    # closer #17: wide enough to catch os.killpg/signal.alarm/from-signal-import (the
+    # narrowed first version missed all three) while excluding PROSE uses of the word
+    # "signal" in comments/docstrings — the plan's raw grep matched those, which is why
+    # its literal form cannot be the assertion
+    pat = re.compile(r"pkill|os\.kill|from signal import|(?<![a-z ])signal\.[a-z]")
     for f in (REPO / "scripts" / "sysadmin" / "claude_rotate.py",
               REPO / "scripts" / "aro-wake" / "claude_rotate.py"):
         hits = [ln for ln in f.read_text().splitlines() if pat.search(ln)]
@@ -247,3 +266,76 @@ def test_t7_status_json_rows(tmp_path, monkeypatch):
     assert out["live"] == rows[0]["name"]
     bad = next(r for r in out["accounts"] if not r["valid"])
     assert bad.get("note") == "INVALID (relogin needed)"
+
+
+# ── closer round: the credential-strand guards ─────────────────────────────────
+
+
+def test_t5e_never_consumes_the_live_accounts_token(tmp_path, monkeypatch):
+    """Closer #1 (worst class): a store holding the LIVE account's tokens — via a stale
+    marker or a duplicate mis-filed store — must NEVER have its refresh token consumed."""
+    store = tmp_path / "sarp-ocoron-com-s-organization"
+    store.mkdir()
+    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+        "accessToken": "LIVE-TOK", "refreshToken": "LIVE-R"}}))
+    live = tmp_path / "live-credentials.json"
+    live.write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE-TOK",
+                                                 "refreshToken": "LIVE-R"}}))
+    monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
+    consumed = []
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "build_opener",
+                        lambda *a: type("O", (), {"open": lambda s, r, timeout=0:
+                                                  consumed.append(1)})())
+    assert cr._keepwarm_refresh(store) is False
+    assert consumed == [], "the live account's single-use token must never be spent"
+
+
+def test_t8_account_status_fails_closed_on_partial_usage(monkeypatch):
+    """Closer #6: a 200 with a missing/oddly-typed window must read UNKNOWN (invalid), never
+    0% — 0% makes a walled sibling the most attractive successor."""
+    monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: (
+        {"account": {"email": "ob@ocoron.com"}} if path == "profile"
+        else {"five_hour": {"utilization": 12.0, "resets_at": None}}))   # seven_day MISSING
+    row = cr._account_status(Path("/tmp/ob-ocoron-com-s-organization"))
+    assert row["valid"] is False
+    assert row["seven_day"] is None
+    assert cr._pick_successor([row], None, NOW) is None, "unknown telemetry is never a target"
+
+
+def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
+    """Closer #4: 'successor exists but cannot install' must NOT shadow the drain — the
+    silent burn to 100% is the failure mode the whole feature exists to prevent."""
+    live = _acct("live", session_pct=97.0)
+    sib = _acct("sib", weekly_reset=NOW + 86400)
+    state = tmp_path / "state"; state.mkdir()
+    actions = {"mails": [], "telegrams": []}
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(cr, "_collect_statuses", lambda: ([live, sib], live["name"]))
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_tick_switch", lambda name: False)      # install refuses
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg))
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "_keepwarm_pass", lambda *a: None)
+    assert cr._cmd_tick() == 0
+    assert actions["mails"] == ["fabrik"], "a failed switch must still reach the drain"
+    assert len(actions["telegrams"]) >= 1
+
+
+def test_t10_tick_never_raises(tmp_path, monkeypatch):
+    """Closer #11: 'always exits 0' must be ENFORCED, not documented."""
+    monkeypatch.setattr(cr, "_collect_statuses", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert cr._cmd_tick() == 0
+
+
+def test_t11_keepwarm_runs_on_degraded_ticks(tmp_path, monkeypatch):
+    """Closer #12: no-live is exactly when parked snapshots must not age out."""
+    called = []
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    monkeypatch.setattr(cr, "_collect_statuses", lambda: ([_acct("x")], None))
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_keepwarm_pass", lambda *a: called.append(1))
+    assert cr._cmd_tick() == 0
+    assert called == [1], "keep-warm must run even when the live account is unresolvable"
