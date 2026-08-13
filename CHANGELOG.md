@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 10: the version gate missed a same-version format change, again (2026-08-13)
+
+Round 10 confirmed round 9 broke nothing reproducible — 0 detection regressions across 549 +
+15,483 artifact pairs and 726 + 15,961 marker pairs, containment verified against a
+9-mutation × 9-document battery, whole-cell integers confirmed never to be a rank/index, 4/4
+fixes red-on-revert. One finding, and it is a repeat:
+
+- **`ORACLE_VERSION` was not bumped when round 9 added `live_counts` to the marker shape.**
+  `magnitudes_ok` iterates the GOLDEN's keys, so a magnitude the golden lacks is never
+  checked — and a golden frozen one commit earlier still passes a version gate that reads 3
+  on both sides. Executed: a v3 golden certified the real partial gateway husk (the very thing
+  round 9 added `live_counts` to catch) as `OK — 46 contract elements intact`. This matters
+  concretely here: Phase B copies `tests/` into the engine repo, and three sessions share this
+  `master`, so a `structure.json` arriving from a pre-round-9 branch or worktree would pass.
+- Bumped to 4 — **and** the guard now compares the golden's marker **key-set** against what
+  `marker_shape` emits, because the version number alone already failed to catch a
+  same-version format change once before (round 8). A test now pins the declared version to
+  the emitted key set, so the next magnitude added fails at authoring time rather than in
+  production.
+- The freeze-time "these can never red again" warning covered artifacts only, while round 9
+  froze `live_counts: 0` into 12 of 18 markers (route blocks carry no bold or whole-cell
+  integers, by design). That is a legitimate choice the operator was never told about; it is
+  now reported at `--snapshot`, and a test asserts every marker still retains at least one
+  live magnitude.
+
+### Added — quota rotation v2: preemptive 4-account pool with graceful drain (2026-08-13)
+
+Executes `docs/development/plans/2026-08-13-plan-2-quota-rotation-v2.md` (spec dd79fe9a,
+operator-approved). `claude_rotate.py` (+ aro-wake twin) gains `--status [--json]` — the live
+per-account quota table (both windows + reset times via `api/oauth/usage`, discovered in the
+CLI binary and live-probed) — and `--tick`, the flock'd */5 cron daemon: threshold switch (95%)
+to the PERISHABLE-FIRST successor (soonest weekly reset, picked under the shared switch flock —
+TOCTOU-free), graceful-drain fabrik-mail broadcast + Telegram at 85%-with-no-sibling (24h
+suppress), expiry-keyed keep-warm for parked snapshots (single-use refresh tokens consumed only
+near death, identity-gated atomic filing with .prev retained), append-only ledger in the
+VM-cut-safe state dir. Also fixes a latent defect in the morning's identity gate caught by its
+NEW contract tests: the retargeted capture path never actually retargeted
+(`_cmd_capture_current` gained the explicit `into=` target). 47 tests green (T1-T7 red-first +
+the pre-gate suite updated to the gate's contract + 4 new gate tests incl. the
+ambiguity-never-guessed mapping rule). No process signals anywhere (grep-enforced, both copies).
+
 ### Fixed — catalog-extraction Phase A round 9: a partial gateway husk, and a real false-red between two daily commits (2026-08-13)
 
 Round 9 confirmed round 8 broke nothing (all five fixes red-on-revert proven, 726 real marker

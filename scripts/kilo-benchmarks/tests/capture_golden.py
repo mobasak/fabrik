@@ -97,7 +97,14 @@ def _strip_volatile(s: str) -> str:
 # the newer invariants, and `shapes_equal` would silently skip them while `verify()` printed
 # OK — a strictly worse failure than no oracle, because it certifies what it never checked.
 # verify() refuses to run against a mismatched version instead.
-ORACLE_VERSION = 3
+#   v2 -> v3  markers became magnitude dicts
+#   v3 -> v4  marker magnitudes gained `live_counts`
+# ⚠️ Bumping is necessary but NOT sufficient, and has already been forgotten twice: the
+# version alone cannot see a SAME-version key change, so the guard below also compares the
+# golden's marker key-set against what marker_shape emits today. A magnitude key the golden
+# lacks is never iterated by magnitudes_ok, so it would be silently skipped while verify()
+# printed OK — which is exactly how a v3 golden certified the partial gateway husk as intact.
+ORACLE_VERSION = 4
 
 # How much a collection may shrink before we call it a collapse. Two regimes in one line:
 #   min_allowed = min(wn - 1, wn * COLLAPSE_RATIO)
@@ -596,6 +603,18 @@ def snapshot() -> dict:
     # A collection frozen at 0 can never be ratio-compared again (0 * anything == 0), so
     # re-freezing while the pipeline is broken silently bakes in a dead check. --snapshot is
     # the only writer and nothing else validates the observed state, so say it out loud.
+    inert: list[tuple[str, list[str]]] = []
+    for key, mag in sorted(obs["markers"].items()):
+        if isinstance(mag, dict):
+            zeros = [k.replace(SECTION_KEY, "section") for k, n in mag.items() if n == 0]
+            if zeros:
+                inert.append((key, zeros))
+    for key, zeros in inert:
+        print(
+            f"[capture_golden] ⚠️  freezing EMPTY marker magnitudes in {key}: {zeros} — "
+            "these can never red again",
+            file=sys.stderr,
+        )
     for rel, a in sorted(obs["artifacts"].items()):
         empties = [k for k, n in (a.get("shape", {}).get("magnitudes") or {}).items() if n == 0]
         if empties:
@@ -622,10 +641,11 @@ def verify() -> int:
             file=sys.stderr,
         )
         return 2
+    expected_keys = set(marker_shape(""))
     stale_markers = [
         k
         for k, v in want.get("markers", {}).items()
-        if v is not None and not isinstance(v, dict)
+        if v is not None and (not isinstance(v, dict) or set(v) != expected_keys)
     ]
     if stale_markers:
         print(

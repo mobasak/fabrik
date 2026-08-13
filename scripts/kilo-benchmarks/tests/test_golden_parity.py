@@ -1048,3 +1048,58 @@ def test_the_real_conditional_section_pair_is_green():
     assert cg.shape_drift(cg.md_shape(b), cg.md_shape(a)), (
         "...but losing that section must still be caught"
     )
+
+
+# ── round-10 fixes ───────────────────────────────────────────────────────────
+def test_a_golden_missing_a_magnitude_key_refuses_to_run(monkeypatch, tmp_path):
+    """Version-skew, the SAME-version half.
+
+    Round 9 added `live_counts` to the marker shape and left ORACLE_VERSION at 3, so a golden
+    frozen one commit earlier passed the version gate — and `magnitudes_ok` iterates the
+    GOLDEN's keys, so the new invariant was never checked. Executed at the time: a v3 golden
+    certified the real partial gateway husk as "46 contract elements intact". The version
+    number alone cannot see this; the key-set must be compared too.
+    """
+    old = json.loads(cg.MANIFEST.read_text())
+    for v in old["markers"].values():
+        if isinstance(v, dict):
+            v.pop("live_counts", None)
+    stale = tmp_path / "structure.json"
+    stale.write_text(json.dumps(old))
+    monkeypatch.setattr(cg, "MANIFEST", stale)
+    assert cg.verify() == 2, "a golden missing a magnitude key must refuse, not silently skip"
+
+
+def test_the_oracle_version_tracks_the_marker_shape():
+    """A guard against forgetting the bump a third time.
+
+    The key-set guard above is the real net, but it only fires against a golden that already
+    exists. This pins the declared version to the shape the code emits, so adding a magnitude
+    without bumping fails here at authoring time rather than in production.
+    """
+    assert set(cg.marker_shape("")) == {"chars", "rows", "live_counts", f"{cg.SECTION_KEY} nums"}
+    assert cg.ORACLE_VERSION == 4, (
+        "marker_shape's key set and ORACLE_VERSION disagree — bump the version and update "
+        "this assertion together, or a stale golden silently skips the new invariant"
+    )
+
+
+def test_snapshot_warns_about_inert_marker_magnitudes(capsys):
+    """The freeze-time 'can never red again' warning covered artifacts only.
+
+    Round 9 froze `live_counts: 0` into 12 of 18 markers (route blocks carry no bold or
+    whole-cell integers, by design). `magnitudes_ok` skips any key frozen at 0, so those are
+    permanently inert — which is a legitimate choice, but the operator must be told at the
+    moment it is made.
+    """
+    obs = cg.observe()
+    inert = [
+        k
+        for k, v in obs["markers"].items()
+        if isinstance(v, dict) and any(n == 0 for n in v.values())
+    ]
+    assert inert, "no inert marker magnitudes — this test no longer measures anything"
+    # Every marker must still retain at least one LIVE magnitude, or it is unguarded.
+    for key, mag in obs["markers"].items():
+        if isinstance(mag, dict):
+            assert any(n > 0 for n in mag.values()), f"{key} has no live magnitude at all"
