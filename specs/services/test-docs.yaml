@@ -12,6 +12,8 @@ shape:
   has_search_feature: false
   needs_cache: false
   exposes_metrics: false
+  uses_claude_cli: false
+  claude_cli_home: /root
 expose:
   http: true
   internal_only: false
