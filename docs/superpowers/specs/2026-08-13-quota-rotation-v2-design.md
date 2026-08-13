@@ -1,6 +1,10 @@
 # Design spec — preemptive quota rotation v2 (4-account Claude Max pool)
 
-Status: DRAFT (operator approval → /fabrik-spec-review)
+Status: CONVERGED (2026-08-13 — /fabrik-spec-review: 4-pass loop; probe re-run both passes
+(sarp 26→27% live drift observed mid-review — the endpoint is real-time); walled-token claim
+demoted to a marked ASSUMPTION with a degradation path; fabrik-lib alerting/ considered and
+passed over on topology; perishable-first + graceful drain operator-settled. md5
+b588e735a82207859af1b38294e9287c closing no-op. AWAITING OPERATOR APPROVAL)
 Date: 2026-08-13 · Owner: infra
 
 ## Goal
@@ -10,7 +14,7 @@ ob@ocoron.com) operate as ONE continuous pool: agents never stop at a quota wall
 (both windows + reset times per account) → preemptive in-place switch at threshold → zero
 logins in steady state.
 
-## Grounded facts (all live-probed THIS session, 2026-08-13)
+## Grounded facts (live-probed THIS session, 2026-08-13 — the one assumption is marked inline)
 
 1. **The quota endpoint — the whole telemetry problem is solved.**
    `GET https://api.anthropic.com/api/oauth/usage` (headers: `Authorization: Bearer <token>`,
@@ -18,8 +22,18 @@ logins in steady state.
    `five_hour.{utilization, resets_at}` · `seven_day.{utilization, resets_at}` · a `limits[]`
    array with `{kind, percent, severity, resets_at}`. Live probe output (sarp@ 18%/4%;
    ob@ 95% session resetting 14:59Z, 72% weekly resetting 2026-08-19 11:59Z) captured in the
-   session transcript. Works with any account's stored token — a WALLED account still answers
-   (quota ≠ auth). Source: CLI binary string table (`api/oauth/usage`) + live probes.
+   session transcript. Runnable probe (email-safe, no token bytes printed):
+
+```
+$ python3 -c "import json,urllib.request,pathlib; t=json.loads((pathlib.Path.home()/'.claude'/'.credentials.json').read_text())['claudeAiOauth']['accessToken']; r=json.load(urllib.request.urlopen(urllib.request.Request('https://api.anthropic.com/api/oauth/usage', headers={'Authorization':'Bearer '+t,'anthropic-beta':'oauth-2025-04-20'}), timeout=15)); print({w: (r[w]['utilization'], r[w]['resets_at']) for w in ('five_hour','seven_day')})"
+{'five_hour': (<pct>, '<iso>'), 'seven_day': (<pct>, '<iso>')}
+```
+
+   Source: CLI binary string table (`api/oauth/usage`) + live probes on two accounts.
+   **ASSUMPTION (verify at first walled onboarding): a WALLED account's token still answers
+   usage** (quota ≠ auth is expected, but both live probes used un-walled tokens; can/mob's
+   stored tokens are dead so it is unprobeable today). If false, the daemon reads walled
+   siblings' state from its own last-seen cache + reset clocks — design degrades, not breaks.
 2. **Identity authority**: `GET api/oauth/profile` (same headers) → account email. Already
    shipped as the drift-check identity gate (765ed888 + aro-wake twin 6edf83bd) after the
    2026-08-13 mis-filing incident.
@@ -72,7 +86,7 @@ One new daemon leg + `--list` enrichment on the existing tool:
 
 When the pool is FORECAST to exhaust — the last eligible account crosses a DRAIN threshold
 (default 85%) with no sibling to rotate to — the daemon broadcasts a **drain warning via
-fabrik-mail** to every repo inbox: "pool exhaustion forecast ~HH:MM; reach a commit-and-push
+fabrik-mail** to every repo WITH a mailbox (mail.py refuses hookless repos — e.g. the watchdog): "pool exhaustion forecast ~HH:MM; reach a commit-and-push
 checkpoint NOW, do not start new phases; work revives at HH:MM (earliest weekly/session
 reset)." This needs NO new agent behavior: the commit-at-task-end law already defines the
 checkpoint, and mail banners surface on every prompt AND background-task notification, so
@@ -86,7 +100,7 @@ suppress stamp in `~/.claude/state/`).
 
 | Capability | Verdict |
 |---|---|
-| Telegram alert | VENDOR the existing mesh-notify path (already on the box) — no new module |
+| Telegram alert | VENDOR the box's existing mesh-notify path. fabrik-lib `alerting/` WAS considered (README:15) and passed over on topology: its transport is SSH→VPS Apprise — wrong direction for a WSL workstation daemon; mesh-notify curls Telegram directly with per-target suppress already proven here |
 | cron/flock daemon | BUILD thin (≈150 lines in claude_rotate.py itself — no new file family); not a fabrik-lib candidate (single-box, credential-coupled) |
 | usage/profile client | BUILD in-tool (stdlib urllib, ~30 lines, both endpoints already proven) |
 
@@ -95,7 +109,7 @@ suppress stamp in `~/.claude/state/`).
 | # | Requirement | Acceptance |
 |---|---|---|
 | 1 | Per-account both-window % + reset times | `--status` table matches live probes for ≥2 accounts |
-| 2 | Preemptive switch at threshold | daemon test: mock usage ≥98% → `--switch` invoked to healthiest sibling; below → no-op |
+| 2 | Preemptive switch at threshold | daemon test: mock usage ≥ threshold → `--switch` invoked to the PERISHABLE-FIRST successor (soonest weekly reset among eligible); below → no-op |
 | 3 | Zero-relogin steady state | keep-warm keeps a parked account's token valid ≥7 days (measured); no login prompts across ≥3 daemon-driven switches |
 | 4 | Never interrupt agents | switches are file-swaps only; no process signals anywhere (grep-enforced: no pkill/kill) |
 | 5 | Survive VM cuts | daemon state + last-switch ledger in `~/.claude/state/`; @reboot-safe (flock; idempotent tick) |
