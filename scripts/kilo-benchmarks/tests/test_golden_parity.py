@@ -122,15 +122,23 @@ def test_an_artifact_that_stops_being_produced_is_drift(monkeypatch):
 
 
 def test_a_marker_that_stops_being_injected_is_drift(monkeypatch):
+    """The block and its fences are gone entirely — distinct from an EMPTIED payload.
+
+    The observer records `None` for an absent block. This test previously set `False`, which
+    once markers became magnitudes compared equal to 0 and so exercised the EMPTIED branch
+    instead: the test's name was false and the NO-LONGER-INJECTED branch was unpinned
+    (verified — deleting that branch left the entire suite green).
+    """
     real = cg.observe
 
     def gone():
         o = real()
         for k in list(o["markers"]):
             if "EMBEDDING_WINNERS" in k:
-                o["markers"][k] = False
+                o["markers"][k] = None
         return o
 
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
     monkeypatch.setattr(cg, "observe", gone)
     assert cg.verify() == 1, "a marker that stopped being injected must RED the oracle"
 
@@ -740,8 +748,8 @@ def test_an_emptied_marker_block_is_drift(monkeypatch):
 
     def emptied():
         o = real()
-        key = next(k for k, v in o["markers"].items() if v > 0)
-        o["markers"][key] = 0
+        key = next(k for k, v in o["markers"].items() if v and v.get("rows"))
+        o["markers"][key] = dict.fromkeys(o["markers"][key], 0)
         return o
 
     monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
@@ -755,7 +763,10 @@ def test_marker_content_churn_is_not_drift(monkeypatch):
 
     def churned():
         o = real()
-        o["markers"] = {k: (int(v * 1.08) if v > 0 else v) for k, v in o["markers"].items()}
+        o["markers"] = {
+            k: (None if v is None else {kk: int(vv * 1.08) for kk, vv in v.items()})
+            for k, v in o["markers"].items()
+        }
         return o
 
     monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
@@ -795,7 +806,62 @@ def test_marker_sizes_are_observed_not_just_presence():
     """
     markers = cg.observe()["markers"]
     assert markers, "no markers observed"
-    assert not all(v in (0, 1, True, False) for v in markers.values()), (
-        "markers look boolean — an emptied block would read as injected"
+    assert all(v is None or isinstance(v, dict) for v in markers.values()), (
+        "markers look boolean/scalar — an emptied block would read as injected"
     )
-    assert any(v > 1 for v in markers.values())
+    present = [v for v in markers.values() if v]
+    assert present, "no marker payloads observed"
+    # The DATA signals, not just a byte count: a character band certified 15 of 18 husks green.
+    for v in present:
+        assert "rows" in v and f"{cg.SECTION_KEY} nums" in v, (
+            f"marker magnitude lacks a data signal: {sorted(v)}"
+        )
+    assert any(v["rows"] > 0 for v in present)
+
+
+def test_a_marker_husk_that_keeps_its_table_is_drift():
+    """The husk a row count CANNOT see.
+
+    `update_gateway_counts.py` renders a fixed table whose data IS its integers, so "every
+    gateway reports 0" leaves the rows, the columns and ~98% of the characters intact. A
+    character band (round 6) and a row count alone both certify it as healthy.
+    """
+    live = (cg.FABRIK_ROOT / ".windsurf/rules/ai/00-ai-model-selection.md").read_text(
+        errors="replace"
+    )
+    block = cg.extract_block(live, "GATEWAY_COUNTS")
+    if not block:
+        pytest.skip("GATEWAY_COUNTS block absent")
+    zeroed = re.sub(r"\b\d+\b", "0", block)
+    want, got = cg.marker_shape(block), cg.marker_shape(zeroed)
+    assert got["rows"] == want["rows"], "this husk deliberately keeps every row"
+    assert got["chars"] > want["chars"] * 0.9, "...and almost every character"
+    assert not cg.magnitudes_ok(want, got)[0], (
+        "all gateway counts zeroed but the marker reads as healthy"
+    )
+
+
+def test_marker_count_churn_is_not_drift():
+    """The paired stability assertion for the counts signal.
+
+    Measured over 666 real marker pairs, small route blocks moved 7 -> 3 and 10 -> 3
+    legitimately; a proportional band on the integer sum called that a collapse.
+    """
+    base = "| Gateway | Models |\n|---|---|\n| **OpenRouter** | 384 |\n| **Kilo** | 349 |\n"
+    moved = "| Gateway | Models |\n|---|---|\n| **OpenRouter** | 201 |\n| **Kilo** | 150 |\n"
+    assert cg.magnitudes_ok(cg.marker_shape(base), cg.marker_shape(moved))[0], (
+        "ordinary count movement must not red the oracle"
+    )
+
+
+def test_section_shrinkage_is_tolerated_but_emptying_is_not():
+    """Pins the per-section rule, which nothing tested.
+
+    The emptying-only tolerance is empirically justified — measured across real history it
+    prevents 3 genuine false-reds (`review` 13 -> 4, `X-AI` 15 -> 4, the signup queue 6 -> 2).
+    Without a test recording that, a later round tightening it would silently reintroduce a
+    ~1.2%/pair false-red rate, which is how an oracle gets ignored.
+    """
+    k = f"{cg.SECTION_KEY} review :: rank|model"
+    assert cg.magnitudes_ok({k: 13}, {k: 4})[0], "a section shrinking is catalog churn"
+    assert not cg.magnitudes_ok({k: 13}, {k: 0})[0], "a section EMPTYING is a husk"

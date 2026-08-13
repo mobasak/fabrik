@@ -128,3 +128,19 @@ def test_the_whole_cli_survives_every_state(tmp_path, monkeypatch):
         # NOT --quiet: the print path formats age_days and was itself untested.
         monkeypatch.setattr(sys, "argv", ["x", "--selection-doc", str(doc)])
         assert chk.main() == 0
+
+
+def test_a_regex_matching_but_invalid_date_does_not_crash(tmp_path, monkeypatch):
+    """`_DOC_DATE` accepts any \\d{4}-\\d{2}-\\d{2}, so `2026-13-45` matches and strptime raises.
+
+    That call sits outside main()'s try, so the exception killed the whole selection-doc leg —
+    the same "an unhealthy doc kills the check" class this module already fixed once when the
+    alert crashed. An unparseable date must degrade to `undated`, which still alerts.
+    """
+    for bad in ("2026-13-45", "2026-02-30", "0000-00-00"):
+        doc = _doc(tmp_path, f"Last refresh: {bad}\n\n| m | s |\n")
+        assert chk.check_selection_doc(doc, now=NOW)["status"] == "undated", bad
+        monkeypatch.setattr(sys, "argv", ["x", "--selection-doc", str(doc), "--quiet"])
+        monkeypatch.setattr(chk, "maybe_alert", lambda *_a, **_k: False)
+        monkeypatch.setattr(chk, "maybe_alert_selection_doc", lambda *_a, **_k: False)
+        assert chk.main() == 0, f"main() did not survive {bad}"

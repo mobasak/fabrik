@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 7: the marker husk check was measuring the wrong thing (2026-08-13)
+
+Round 6 gave the 18 marker blocks a character-count magnitude and the CHANGELOG claimed that
+closed their husk hole. Round 7 measured it against the injectors' own zero-data code paths
+and found it closed the hole for **3 of 18**:
+
+- These blocks are boilerplate-dominated, so the data is a minority of the bytes. Total data
+  loss retained **53–100% of the characters** in 15 of 18 markers — **including all 14
+  fleet-synced ai-pack blocks**. Husking only those, `verify()` still printed
+  `OK — 46 contract elements intact`. `GATEWAY_COUNTS` is structurally invisible to any size
+  check: its payload is a fixed table whose data *is* its integers, so "every gateway reports
+  0" leaves the rows, the columns and ~98% of the characters intact.
+- Markers now carry what the payload actually **is**: table `rows`, plus the **sum of its
+  integers**. Both husk shapes — rows deleted, and rows kept with every digit zeroed — are now
+  caught for **18 of 18** markers. The integer sum is judged on disappearance only, because it
+  is inherently volatile: over 666 real marker pairs, small route blocks moved 7 → 3 and
+  10 → 3 legitimately, which a proportional band called a collapse. Final: **666 real marker
+  pairs, 0 false-reds**.
+- **Three marker branches were each individually revertible with the suite green.** The cause
+  was a test that round 6 silently invalidated: it simulated an absent block with `False`,
+  which after markers became magnitudes compared equal to 0 and so exercised the EMPTIED
+  branch — its name was false and NO-LONGER-INJECTED was unpinned. All three branches, and the
+  per-section tolerance (which nothing tested, though it demonstrably prevents 3 genuine
+  false-reds), are pinned now.
+- The `§` section sentinel was a printable character that can legally appear in a column
+  header — one there would have routed that contract's aggregates to the emptying-only rule
+  and silently disabled proportional checking for it. Replaced with `\x00`.
+- `check_selection_doc` crashed on a regex-matching but invalid date (`2026-13-45`): the
+  `strptime` sits outside `main()`'s try, so it killed the selection-doc leg — the same class
+  as the round-4 alert crash. It degrades to `undated` now.
+
+Artifact churn re-verified unchanged at 238 real pairs, 0 false-reds.
+
 ### Fixed — catalog-extraction Phase A round 6: total data loss was undetectable in 25 collections and all 18 markers (2026-08-13)
 
 Round-6 review found that round 5's own tolerance rule had an off-by-one that disabled the

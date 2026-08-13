@@ -125,7 +125,12 @@ FANOUT_CEILING = 10.0
 MAY_EMPTY = frozenset({"docs/reference/kilo/CANDIDATE_SIGNUPS.md"})
 
 # Prefix marking a per-section row count in a magnitudes dict (see _rows_per_table).
-SECTION_KEY = "\u00a7"
+# A control character, not "§": the routing test is `key.startswith(SECTION_KEY)`, and the
+# aggregate keys are built from the column contract — so a table whose FIRST column header
+# began with the sentinel would route both of its aggregates to the emptying-only rule and
+# silently disable proportional checking for that whole contract. `§` occurs in this tree
+# (ai/25-3d-generation.md), just not yet in a header. \x00 cannot appear in markdown.
+SECTION_KEY = "\x00"
 
 
 def _min_allowed(wn: int) -> float:
@@ -341,6 +346,34 @@ def json_shape(text: str) -> dict:
     return {"schema": walk(data), "magnitudes": sizes}
 
 
+def marker_shape(block: str) -> dict:
+    """Magnitudes for an injected marker payload.
+
+    A character count is NOT enough, and shipping one was the round-6 mistake: these blocks
+    are boilerplate-dominated, so the data is a minority of the bytes. Measured against the
+    injectors' own zero-data paths (`category_export_markdown.py::render_routes_block` emits a
+    header plus "no eligible models" placeholder; `update_gateway_counts.py::render_block`
+    only changes digits), TOTAL data loss retained 53-100% of the characters in 15 of 18
+    markers — including all 14 fleet-synced ai-pack blocks. So measure what the payload IS:
+
+      rows  — table data rows (an emptied roster/catalog/routes table goes to 0)
+      nums  — the sum of the integers in the payload. GATEWAY_COUNTS has no rows to lose; its
+              data IS its counts, so "all gateways report 0" is only visible as this sum.
+    """
+    stripped = _VOLATILE_IN_HEADING.sub("<N>", block)
+    per_table = _rows_per_table(stripped)
+    rows = sum(v for k, v in per_table.items() if k.startswith(SECTION_KEY))
+    if not rows:
+        rows = sum(v for k, v in per_table.items() if k.endswith(":: ROWS"))
+    nums = sum(int(n) for n in re.findall(r"\b\d+\b", stripped))
+    # `nums` is keyed as a SECTION magnitude so only its DISAPPEARANCE counts. A sum of live
+    # counts is inherently volatile — measured over 666 real marker pairs, small route blocks
+    # moved 7 -> 3 and 10 -> 3 legitimately, which a proportional band called a collapse. Its
+    # job is the one husk no row count can see: GATEWAY_COUNTS keeps its table and only zeroes
+    # the digits, so "every gateway reports 0" is visible ONLY as this sum going to zero.
+    return {"chars": len(block.strip()), "rows": rows, f"{SECTION_KEY} nums": nums}
+
+
 def html_shape(text: str) -> dict:
     """Coarse shape for the generated browser page.
 
@@ -469,16 +502,13 @@ def observe() -> dict:
         else {"present": True, "shape": md_shape(strip_marker(cap, "EMBEDDING_CATALOG"))}
     )
 
-    markers: dict[str, bool] = {}
+    markers: dict[str, dict | None] = {}
     for rel, marker in MARKER_HOSTS:
         text = _read(rel)
         block = extract_block(text, marker) if text else None
-        # SIZE, not a boolean. `extract_block` returns "" for an emptied block, which is
-        # `is not None`, so an injector that still writes its START/END fences with nothing
-        # between them read as fully intact — 18 of the 46 contract elements (the ROSTER,
-        # EMBEDDING_ROSTER, EMBEDDING_CATALOG, EMBEDDING_WINNERS and 14 ai-pack blocks) had
-        # no husk protection at all.
-        markers[f"{rel}::{marker}"] = -1 if block is None else len(block.strip())
+        # DATA magnitudes, not a boolean and not a byte count — see marker_shape. `None`
+        # (absent block) stays distinguishable from an empty one.
+        markers[f"{rel}::{marker}"] = None if block is None else marker_shape(block)
     for host in ai_pack_hosts():
         # errors="replace" mirrors _read: a non-UTF-8 byte in any fleet-synced ai/*.md must
         # report drift, never crash the gate.
@@ -486,7 +516,7 @@ def observe() -> dict:
         for marker in AI_PACK_MARKERS:
             block = extract_block(text, marker)
             if block is not None:
-                markers[f".windsurf/rules/ai/{host.name}::{marker}"] = len(block.strip())
+                markers[f".windsurf/rules/ai/{host.name}::{marker}"] = marker_shape(block)
 
     return {
         "oracle_version": ORACLE_VERSION,
@@ -587,14 +617,16 @@ def verify() -> int:
             # emitting 15 spurious QUERY CHANGED/GONE lines.
             drift.append(f"QUERY CHANGED: {key}")
 
-    for key, want_size in want["markers"].items():
-        got_size = got["markers"].get(key, -1)
-        if want_size >= 0 and got_size < 0:
+    for key, want_m in want["markers"].items():
+        got_m = got["markers"].get(key, "absent")
+        if want_m is None:
+            continue
+        if got_m is None or got_m == "absent":
             drift.append(f"MARKER NO LONGER INJECTED: {key}")
-        elif want_size > 0 and got_size == 0:
-            drift.append(f"MARKER EMPTIED (fences still written, payload gone): {key}")
-        elif want_size > 0 and got_size < _min_allowed(want_size):
-            drift.append(f"MARKER COLLAPSED: {key} — {want_size} -> {got_size} chars")
+            continue
+        ok, why = magnitudes_ok(want_m, got_m)
+        if not ok:
+            drift.append(f"MARKER {why}: {key}")
     for key in got["markers"]:
         if key not in want["markers"]:
             print(f"[capture_golden] NEW marker (addition, not drift): {key}", file=sys.stderr)

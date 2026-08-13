@@ -141,7 +141,13 @@ def check_selection_doc(
     m = _DOC_DATE.search(text)
     if not m:
         return {"status": "undated", "age_days": None, "threshold_days": max_age_days}
-    stamped = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=UTC)
+    try:
+        stamped = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=UTC)
+    except ValueError:
+        # `_DOC_DATE` accepts any \d{4}-\d{2}-\d{2}, so `2026-13-45` matches and then raises
+        # out of main() — the same "an unhealthy doc kills the check" class this module
+        # already fixed once. An unparseable date is `undated`, not a crash.
+        return {"status": "undated", "age_days": None, "threshold_days": max_age_days}
     # rank_task_subagents stamps date.today() (LOCAL; this box is UTC+3) and we parse as UTC,
     # so a doc written after 21:00 UTC legitimately reads up to a day in the future. Tolerate
     # exactly that much. Beyond it the stamp is bogus (clock skew, a forged date, a hand-edit)
