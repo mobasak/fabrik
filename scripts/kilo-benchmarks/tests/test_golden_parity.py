@@ -1207,3 +1207,84 @@ def test_a_golden_with_a_stale_html_key_set_refuses_to_run(monkeypatch, tmp_path
     stale.write_text(json.dumps(g))
     monkeypatch.setattr(cg, "MANIFEST", stale)
     assert cg.verify() == 2, "a stale html magnitude key set must refuse, not silently skip"
+
+
+# ── round-12 fixes ───────────────────────────────────────────────────────────
+def test_a_single_dead_column_is_drift_on_the_small_gateway_packs():
+    """A flat `wn - 1` allowance was a 50% blind spot on 2-position blocks.
+
+    `30-language` and `50-agentic` carry two counts each, so ONE dying —
+    "tool/function-calling across all gateways: **0**" — sat inside the allowance while
+    `chars` stayed byte-identical, `rows` frozen at 0 and `nums` non-zero. Measured over every
+    revision of all 18 markers, the small packs have NEVER lost a position, so closing this
+    costs nothing.
+    """
+    import importlib.util
+
+    src = cg.SCRIPT_DIR / "update_gateway_counts.py"
+    if not src.exists():
+        pytest.skip("gateway renderer absent (engine excised)")
+    spec = importlib.util.spec_from_file_location("_ugc12", src)
+    ugc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ugc)
+
+    keys = sorted(set(re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text())))
+    healthy = {k: 200 + i * 37 for i, k in enumerate(keys)}
+    checked = 0
+    for category in ("language", "agentic"):
+        base = cg.marker_shape(ugc.render_block(category, healthy, "2026-01-01"))
+        if base["live_counts"] < 2:
+            continue
+        for dead in [k for k in keys if k.startswith("with_")]:
+            husk = cg.marker_shape(
+                ugc.render_block(category, {**healthy, dead: 0}, "2026-01-01")
+            )
+            if husk["live_counts"] == base["live_counts"]:
+                continue  # that count is not rendered for this category
+            checked += 1
+            assert not cg.magnitudes_ok(base, husk)[0], (
+                f"{category}: {dead} died but the pack reads as healthy"
+            )
+    assert checked >= 2, f"only {checked} single-column husks exercised — test is vacuous"
+
+
+def test_a_one_position_block_may_not_lose_its_only_position():
+    """`wn - 1` silently re-opened the wn=1 hole that `_min_allowed`'s max(1.0, …) floor
+    exists to prevent. Four markers are frozen at `live_counts: 1`."""
+    assert not cg.magnitudes_ok({"live_counts": 1}, {"live_counts": 0})[0]
+    assert not cg.magnitudes_ok({"live_counts": 2}, {"live_counts": 1})[0]
+    # ...while the large master block keeps its one-position allowance, which real history
+    # needs: it legitimately lost a position four times (a direct-vendor gateway going 1 -> 0).
+    assert cg.magnitudes_ok({"live_counts": 14}, {"live_counts": 13})[0]
+    assert not cg.magnitudes_ok({"live_counts": 14}, {"live_counts": 12})[0]
+
+
+def test_an_unfrozen_marker_is_not_counted_as_intact(monkeypatch, capsys, tmp_path):
+    """A marker frozen as `None` was never observed, so it is checked by nothing — counting it
+    as an "intact contract element" overstates coverage, the module's own
+    certifies-what-it-never-checked class. Reverting this left the whole suite green.
+    """
+    golden = json.loads(cg.MANIFEST.read_text())
+    absent = sorted(golden["markers"])[:2]
+    total = len(golden["artifacts"]) + len(golden["markers"]) + len(golden["db_queries"])
+
+    real = cg.observe
+
+    def with_absent():
+        o = real()
+        for k in absent:
+            o["markers"][k] = None
+        return o
+
+    for k in absent:
+        golden["markers"][k] = None
+    stale = tmp_path / "structure.json"
+    stale.write_text(json.dumps(golden))
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", with_absent)
+    monkeypatch.setattr(cg, "MANIFEST", stale)
+    assert cg.verify() == 0
+    out = capsys.readouterr().out
+    assert "UNFROZEN" in out, f"absent markers reported as intact: {out}"
+    assert f"{total - len(absent)} contract elements" in out, out

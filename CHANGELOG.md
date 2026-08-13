@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 12: a one-column husk survived on every per-category pack (2026-08-13)
+
+Round 12 confirmed round 11 broke nothing — **0 verdict differences** vs round 10 across
+15,940 anchored marker pairs and 11,208 anchored artifact pairs, and it verified the new
+`snapshot()` test cannot touch the repo golden (byte-identical output in a tmp dir, `git
+status` clean). Three findings, all mine:
+
+- **My "both halves now pinned" claim was too broad.** Round 11's absolute `wn - 1` allowance
+  was calibrated on the 13-position master block and then applied to blocks with **two**
+  positions, where it is a 50% blind spot. One capability column dying —
+  `tool/function-calling across all gateways: **0**` on `50-agentic`, `translation-scored
+  **0**` on `30-language` — passed green with `chars` byte-identical, `rows` frozen at 0 and
+  `nums` non-zero. The round-11 test only ever rendered `master` with all five columns dead,
+  so it certified the class closed while six per-category packs stayed open.
+- The allowance is now size-aware: at or below 4 positions **none** may be lost; above it, one
+  may. Measured over every revision of all 18 markers, the small packs have **never** lost a
+  position, while the master block legitimately did four times (a direct-vendor gateway going
+  1 → 0). Cost of the tightening: **0 false-reds across 1,454 real consecutive + anchored
+  pairs.**
+- **⚠️ Stated residual, not hidden:** on the master block a husk that kills exactly ONE of its
+  13 columns is still tolerated. Closing it would cost 4 measured false-reds on genuine
+  churn — the trade that gets an oracle ignored. It is now documented in the code next to the
+  constant rather than left for a future round to rediscover.
+- `wn - 1` had also silently re-opened the `wn = 1` hole that `_min_allowed`'s `max(1.0, …)`
+  floor exists to prevent — a relaxation vs round 10, masked today only because `nums` fires
+  first. Four markers are frozen at `live_counts: 1`. Closed and pinned in both directions.
+- Round 11's "a `None` marker no longer counts toward elements intact" fix was **unpinned** —
+  reverting it left all 90 tests green. Now covered.
+
 ### Fixed — catalog-extraction Phase A round 11: the capability half of the gateway husk, and a test that never called what it was named for (2026-08-13)
 
 Round 11 confirmed round 10 broke nothing — 0 detection regressions vs round 9 across 549

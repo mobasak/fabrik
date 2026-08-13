@@ -150,6 +150,25 @@ def _min_allowed(wn: int) -> float:
     return max(1.0, min(wn - 1, wn * COLLAPSE_RATIO))
 
 
+# Above this many data positions, ONE may be lost without complaint; at or below it, none may.
+# Measured over every revision of all 18 markers: the small gateway packs (1-2 positions) have
+# NEVER lost a position, while the 13-14-position master block legitimately did four times —
+# a direct-vendor gateway going 1 -> 0, `Kilo-only` 1 -> 0, and similar. So a flat `wn - 1`
+# allowance was a 50% blind spot exactly where it cost nothing to close: it let a whole
+# capability column die ("tool/function-calling across all gateways: **0**") on every
+# per-category pack. It also silently re-opened the wn=1 hole that `_min_allowed`'s max(1.0, …)
+# floor exists to prevent.
+#
+# ⚠️ KNOWN RESIDUAL, stated rather than hidden: on the master block (13-14 positions) a husk
+# that kills exactly ONE column is still tolerated. Closing it would cost 4 measured historical
+# false-reds on genuine churn, which is the trade that gets an oracle ignored.
+SMALL_POSITIONS = 4
+
+
+def _positions_floor(wn: int) -> int:
+    return wn if wn <= SMALL_POSITIONS else wn - 1
+
+
 def magnitudes_ok(want: dict, got: dict, may_empty: bool = False) -> tuple[bool, str]:
     """Compare per-collection sizes. Returns (ok, reason).
 
@@ -195,7 +214,7 @@ def magnitudes_ok(want: dict, got: dict, may_empty: bool = False) -> tuple[bool,
         # block reading "reasoning **0** · tools **0** · vision **0**" to ~46 repos. Measured
         # cost of the stricter rule over 727 real marker pairs: ZERO false-reds (live_counts
         # fell twice in all of history, both 14 -> 13).
-        floor = wn - 1 if key == "live_counts" else _min_allowed(wn)
+        floor = _positions_floor(wn) if key == "live_counts" else _min_allowed(wn)
         if not may_empty and gn < floor:
             return False, f"COLLAPSE {key}: {wn} -> {gn}"
         if gn > wn * FANOUT_CEILING:
