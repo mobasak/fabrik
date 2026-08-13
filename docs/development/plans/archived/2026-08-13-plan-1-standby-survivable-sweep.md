@@ -1,10 +1,9 @@
 # Plan — standby-survivable resume sweep (persistent markers + death-class eligibility + vm-cut classification)
 
-Status: CONVERGED (2026-08-13 — /fabrik-plan-review: 6-pass loop; pool grounder deepseek-v4-pro
-scored 4 (F2 glob-break, F3 no-flock, F4 rm-claim) + native Opus closer (9 findings incl. F1
-empty-marker-population → the two-leg re-scope, F2 evidence-expiry → deterministic probes);
-closing pass raised 0 / edits 0, md5 de89288229ebd669a05ee428633d309c start==end, probes re-run
-green)
+Status: EXECUTED 2026-08-13 (both legs live: persistent markers + seeded launcher + hardened
+sweep + cut-session notify. Harness 114→152, repo tests 23, 7-round/5-wave review loop closed
+CLEAN — docs/development/reviews/2026-08-13-plan-1-standby-survivable-sweep-review.md; gate
+47/0; DR 20260813T122559Z; fleet-sync verified)
 Date: 2026-08-13
 Owner: infra (operator-dispatched after the 2026-08-13 Modern Standby incident diagnosis)
 Shape: monolith, single phase (small box-side hardening + one synced-hook edit)
