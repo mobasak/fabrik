@@ -937,25 +937,6 @@ def _account_status(store: Path) -> dict:
         pass
     prof = _oauth_get("profile", tok)
     usage = _oauth_get("usage", tok)
-    if (not prof or not usage) and False:  # refresh-on-demand retired (grant is CLI-only)
-        # REFRESH-ON-DEMAND (live-probe finding 2026-08-13): a PARKED store's access token
-        # dies every ~8h while its refresh token lives for weeks. Without this, every parked
-        # sibling reads INVALID for most of the day, _pick_successor excludes them, the pool
-        # collapses to one account and drain fires forever — the feature would be a no-op.
-        # Never for the LIVE store (that path belongs to the CLI itself; _keepwarm_refresh's
-        # own guard also refuses it).
-        if _keepwarm_refresh(store):
-            tok = _read_access_token(store / ".credentials.json")
-            if tok is not None:
-                prof = _oauth_get("profile", tok)
-                usage = _oauth_get("usage", tok)
-                try:
-                    blob = json.loads((store / ".credentials.json").read_text())
-                    exp_ms = (blob.get("claudeAiOauth") or {}).get("refreshTokenExpiresAt")
-                    if isinstance(exp_ms, (int, float)) and exp_ms > 0:
-                        row["refresh_expires_at_epoch"] = float(exp_ms) / 1000.0
-                except (OSError, ValueError):
-                    pass
     if not prof or not usage:
         # A dead ACCESS token (they expire ~8h) with a LIVE refresh token is NOT a dead
         # account — the CLI will refresh it the moment it becomes live. Mark it usable but

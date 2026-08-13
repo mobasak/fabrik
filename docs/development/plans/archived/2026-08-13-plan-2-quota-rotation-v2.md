@@ -1,10 +1,10 @@
 # Plan — quota rotation v2: --status telemetry + perishable-first daemon + graceful drain
 
-Status: CONVERGED (2026-08-13 — /fabrik-plan-review: 3-pass solo loop (spec independently
-4-pass-converged at dd79fe9a this hour; all cites re-verified fresh); pass 1: selector-under-
-lock design upgrade (:299-311 TOCTOU-free), T6 pattern fix, fallback-coverage honesty; pass 2:
-spec keep-warm delta made explicit; closing pass raised 0 / edits 0, md5
-958b42a98e51f158f62a994d600f7146 start==end)
+Status: EXECUTED 2026-08-13 (--status + --tick live on */5 cron; 57 tests; gate 47/0;
+4 review rounds / 4 fix waves — review:
+docs/development/reviews/2026-08-13-plan-2-quota-rotation-v2-review.md. DELTA vs plan:
+keep-warm-by-HTTP RETIRED — the grant is CLI-only (403/1010, both hosts, live-probed); accounts
+stay warm by use, parked telemetry degrades to unknown-parked)
 Date: 2026-08-13
 Owner: infra (spec-fed: docs/superpowers/specs/2026-08-13-quota-rotation-v2-design.md, CONVERGED dd79fe9a, operator-approved)
 Shape: monolith, single phase (~half-day; one repo script + AFTER-EDIT twin + tests + one crontab line)

@@ -1,0 +1,15 @@
+{
+ "plan": "docs/development/plans/archived/2026-08-13-plan-2-quota-rotation-v2.md",
+ "owned_paths": [
+  "docs/development/plans/2026-08-13-plan-2-quota-rotation-v2.md",
+  "docs/development/reviews/2026-08-13-plan-2-quota-rotation-v2-review.md",
+  "scripts/sysadmin/claude_rotate.py",
+  "scripts/aro-wake/claude_rotate.py",
+  "tests/test_claude_rotate_v2.py",
+  "docs/workstation/hooks-index.md"
+ ],
+ "branch": "master",
+ "status": "released",
+ "started_at": "2026-08-13T17:18:53+03:00",
+ "baseline_commit": "3e7026a100cdc92465ab4bed231026763ed3cb65"
+}

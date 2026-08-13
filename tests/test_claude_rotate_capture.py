@@ -405,10 +405,13 @@ def test_gate_skips_when_no_store_matches(box, monkeypatch, capsys):
 
 
 def test_store_for_email_prefix_mapping(tmp_path):
-    a = tmp_path / "ob-ocoron-com-s-organization"; a.mkdir()
-    b = tmp_path / "sarp-ocoron-com-s-organization"; b.mkdir()
+    a = tmp_path / "ob-ocoron-com-s-organization"
+    a.mkdir()
+    b = tmp_path / "sarp-ocoron-com-s-organization"
+    b.mkdir()
     assert rot._store_for_email("ob@ocoron.com", [a, b]) == a
     assert rot._store_for_email("sarp@ocoron.com", [a, b]) == b
     assert rot._store_for_email("zz@ocoron.com", [a, b]) is None
-    c = tmp_path / "ob-other-org"; c.mkdir()
+    c = tmp_path / "ob-other-org"
+    c.mkdir()
     assert rot._store_for_email("ob@ocoron.com", [a, b, c]) is None, "ambiguity never guessed"

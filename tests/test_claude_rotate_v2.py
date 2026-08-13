@@ -11,7 +11,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -154,7 +153,8 @@ def test_t5_expiring_snapshot_refreshes_fresh_does_not(tmp_path, monkeypatch):
     fresh["refresh_expires_at_epoch"] = NOW + 30 * 86400   # far out → leave alone
     stores = tmp_path / "stores"
     for a in (exp, fresh):
-        d = stores / a["name"]; d.mkdir(parents=True)
+        d = stores / a["name"]
+        d.mkdir(parents=True)
         a["store"] = str(d)
     actions, _ = _tick(tmp_path, monkeypatch, [live, exp, fresh], live["name"])
     assert actions["refreshed"] == [exp["name"]]
@@ -297,7 +297,8 @@ def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
     silent burn to 100% is the failure mode the whole feature exists to prevent."""
     live = _acct("live", session_pct=97.0)
     sib = _acct("sib", weekly_reset=NOW + 86400)
-    state = tmp_path / "state"; state.mkdir()
+    state = tmp_path / "state"
+    state.mkdir()
     actions = {"mails": [], "telegrams": []}
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     monkeypatch.setattr(cr, "_collect_statuses", lambda: ([live, sib], live["name"]))
