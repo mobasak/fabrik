@@ -99,13 +99,24 @@ def test_capture_refuses_when_no_active_account_resolves(box):
     assert rot._cmd_capture_current() != 0
 
 
-def test_drift_check_captures_when_the_token_diverged(box):
+def _verified_as_active(monkeypatch):
+    """Identity-gate seams (shipped 2026-08-13): the live token verifies as the account the
+    marker names — the pre-gate tests' implicit assumption, now explicit."""
+    monkeypatch.setattr(rot, "_live_email", lambda **kw: "acct@example.com")
+    monkeypatch.setattr(rot, "_store_for_email",
+                        lambda email, accounts: next(
+                            (a for a in accounts if a.name == "acct-b"), None))
+
+
+def test_drift_check_captures_when_the_token_diverged(box, monkeypatch):
+    _verified_as_active(monkeypatch)
     assert rot._cmd_drift_check() == 0
     snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
     assert snap["claudeAiOauth"]["accessToken"] == "tok-B-LIVE"
 
 
-def test_drift_check_is_a_noop_when_in_sync(box):
+def test_drift_check_is_a_noop_when_in_sync(box, monkeypatch):
+    _verified_as_active(monkeypatch)
     rot._cmd_capture_current()
     snap = box / "manager-accounts/acct-b/.credentials.json"
     os.utime(snap, (1_000_000, 1_000_000))
@@ -142,7 +153,8 @@ def test_existing_switch_and_next_paths_are_untouched(box, monkeypatch):
     assert calls == ["list", "switch:acct-a", "next"]
 
 
-def test_drift_check_captures_when_only_the_refresh_token_rotated(box):
+def test_drift_check_captures_when_only_the_refresh_token_rotated(box, monkeypatch):
+    _verified_as_active(monkeypatch)
     """The live-incident shape: access token unchanged, refresh token rotated.
 
     An accessToken-only comparison reads "in sync" and leaves a DEAD refresh token in the
@@ -167,6 +179,7 @@ def test_capture_rolls_the_outgoing_snapshot_aside(box):
 
 
 def test_drift_check_reports_a_failed_capture_without_failing_the_hook(box, monkeypatch, capsys):
+    _verified_as_active(monkeypatch)
     monkeypatch.setattr(rot, "_cmd_capture_current", lambda: 1)
     assert rot._cmd_drift_check() == 0          # a hook must never fail
     assert "capture FAILED" in capsys.readouterr().err  # but it must be visible
@@ -356,3 +369,46 @@ def test_a_snapshot_with_no_refresh_token_is_refused_by_both_layers():
     blob = json.dumps({"claudeAiOauth": {"accessToken": "x", "expiresAt": 9_999_999_999_000}}).encode()
     reason = rot._stale_snapshot_reason(blob)
     assert reason is not None and "no refresh token" in reason
+
+
+# ── identity gate (shipped 2026-08-13 after the mis-filing incident) ───────────
+
+
+def test_gate_retargets_capture_to_the_verified_store(box, monkeypatch, capsys):
+    """Marker says acct-b but the LIVE token verifies as acct-a's owner → the capture must
+    land in acct-a (the mis-filing class, inverted)."""
+    monkeypatch.setattr(rot, "_live_email", lambda **kw: "owner-a@example.com")
+    monkeypatch.setattr(rot, "_store_for_email",
+                        lambda email, accounts: next(
+                            (a for a in accounts if a.name == "acct-a"), None))
+    assert rot._cmd_drift_check() == 0
+    snap = json.loads((box / "manager-accounts/acct-a/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-LIVE"
+    assert "RETARGETED" in capsys.readouterr().err
+
+
+def test_gate_skips_when_identity_unverifiable(box, monkeypatch, capsys):
+    monkeypatch.setattr(rot, "_live_email", lambda **kw: None)
+    assert rot._cmd_drift_check() == 0
+    snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-OLD", "no write on unverifiable"
+    assert "skipped" in capsys.readouterr().err
+
+
+def test_gate_skips_when_no_store_matches(box, monkeypatch, capsys):
+    monkeypatch.setattr(rot, "_live_email", lambda **kw: "stranger@example.com")
+    monkeypatch.setattr(rot, "_store_for_email", lambda email, accounts: None)
+    assert rot._cmd_drift_check() == 0
+    snap = json.loads((box / "manager-accounts/acct-b/.credentials.json").read_text())
+    assert snap["claudeAiOauth"]["accessToken"] == "tok-B-OLD"
+    assert "no store for live account" in capsys.readouterr().err
+
+
+def test_store_for_email_prefix_mapping(tmp_path):
+    a = tmp_path / "ob-ocoron-com-s-organization"; a.mkdir()
+    b = tmp_path / "sarp-ocoron-com-s-organization"; b.mkdir()
+    assert rot._store_for_email("ob@ocoron.com", [a, b]) == a
+    assert rot._store_for_email("sarp@ocoron.com", [a, b]) == b
+    assert rot._store_for_email("zz@ocoron.com", [a, b]) is None
+    c = tmp_path / "ob-other-org"; c.mkdir()
+    assert rot._store_for_email("ob@ocoron.com", [a, b, c]) is None, "ambiguity never guessed"

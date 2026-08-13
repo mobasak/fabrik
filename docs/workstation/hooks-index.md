@@ -50,6 +50,18 @@ transcripts (≤20, 48h window, subagent sidecars excluded) for cut-mid-work ses
 excluded; panes are notified, never auto-resumed). A missing `claude` binary skips only the
 marker leg — the notify leg still runs. Fixtures: mesh harness §RS (135 total).
 
+### 2c. Cron */5 — the quota-rotation tick (mesh sibling of §2b)
+
+`claude_rotate.py --tick` (crontab `*/5`, flock'd via `~/.claude/state/rotate.lock`; repo-side
+script `scripts/sysadmin/claude_rotate.py` + aro-wake twin). Plan 2026-08-13-plan-2: polls the
+LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD` (95) switches to the
+PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared switch flock —
+TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling at
+`ROTATE_DRAIN_THRESHOLD` (85) broadcasts the graceful-drain fabrik-mail (commit-and-push
+checkpoint + revival time; 24h stamp suppress) + one Telegram; keeps parked snapshots warm
+(expiry-keyed refresh, identity-gated filing). `--status [--json]` = the operator's live quota
+table. Ledger: `~/.claude/state/rotate-ledger.jsonl` (VM-cut-survivable).
+
 ## 3. Cascade hooks — DORMANT
 
 `.windsurf/hooks.json` (fleet-synced): `post_write_code` → `validate_conventions` + `check_secrets`;
