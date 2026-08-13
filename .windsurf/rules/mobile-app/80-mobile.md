@@ -391,3 +391,12 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] Data-hosting region (Fabrik VPS, EU) documented in privacy policy.
 - [ ] No PII in AI agent prompts or external LLM calls.
 - [ ] Both dark and light mode implemented. OS preference detected + manual toggle in Settings + preference persists in MMKV.
+
+## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
+
+Every form/wizard/editor/AI-populated surface persists its full working state **continuously on
+change** (debounce ≤1s + flush on blur/hide/background) to MMKV/AsyncStorage (drafts only — tokens stay in `expo-secure-store`); **restore is automatic and
+silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
+user continues down to the last letter typed. The draft clears on exactly ONE event: successful
+creation/submission of the entity (or explicit user discard). Canonical detail:
+`core/ocoron-design-system.md` § Save Behavior.

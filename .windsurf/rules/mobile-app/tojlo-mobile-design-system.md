@@ -407,3 +407,12 @@ All Ocoron mobile rules (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, M
 | PN2 | Per-module mute in notification settings |
 | PN3 | Quiet hours with critical alert bypass |
 | PN4 | Push title always includes module name |
+
+## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
+
+Every form/wizard/editor/AI-populated surface persists its full working state **continuously on
+change** (debounce ≤1s + flush on blur/hide/background) to MMKV/AsyncStorage (drafts only — tokens stay in secure storage); **restore is automatic and
+silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
+user continues down to the last letter typed. The draft clears on exactly ONE event: successful
+creation/submission of the entity (or explicit user discard). Canonical detail:
+`core/ocoron-design-system.md` § Save Behavior.

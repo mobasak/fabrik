@@ -362,3 +362,12 @@ A UI component or page is done when all of the following are true:
 - [ ] Infrastructure metrics (queue depth, worker PIDs, proxy stats) are admin-only.
 - [ ] Paywalled features show soft gate (locked + upgrade CTA), not hidden.
 - [ ] Tenant context visible in nav; data is tenant-scoped; no cross-tenant leaks in UI.
+
+## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
+
+Every form/wizard/editor/AI-populated surface persists its full working state **continuously on
+change** (debounce ≤1s + flush on blur/hide/background) to durable browser storage (`localStorage`/IndexedDB); **restore is automatic and
+silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
+user continues down to the last letter typed. The draft clears on exactly ONE event: successful
+creation/submission of the entity (or explicit user discard). Canonical detail:
+`core/ocoron-design-system.md` § Save Behavior.

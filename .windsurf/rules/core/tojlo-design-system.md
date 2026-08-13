@@ -2191,3 +2191,12 @@ This document is versioned alongside Tojlo platform releases. Breaking changes (
 | v1.0 | 2026-05-18 | Initial release. Endorsed-brand model under Ocoron. Tojlo Indigo accent. Twelve-module canonical list. |
 | v1.1 | 2026-05-18 | Comprehensive expansion. Brand: Manifesto, anti-positioning, audience, customer promise, localized voice (TR/AR/RU/FA), voice across 22 surfaces, naming and capitalization rules. Visual: full logo construction spec, iconography, motion language, density modes. Components: data tables, forms, command palette, charts, six-state taxonomy, notifications, activity/audit, permissions, onboarding. AI: 5 surface patterns (A1–A5), confidence and citation, recovery and override, multimodal. Localization: multilingual and RTL, date/time/currency/number formatting. Output: email templates, print and export. Compliance: WCAG 2.2 AA matrix. Implementation: token governance, stack summary. Agent rules expanded from 13 to 47 (T1–T47). |
 | v1.2 | 2026-05-24 | Added: Responsive layout inherited from Ocoron (RWD1-RWD10). Motion/easing tokens added to CSS and Tailwind references. Responsive rules T48–T52. |
+
+## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
+
+Every form/wizard/editor/AI-populated surface persists its full working state **continuously on
+change** (debounce ≤1s + flush on blur/hide/background) to durable browser storage (`localStorage`/IndexedDB); **restore is automatic and
+silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
+user continues down to the last letter typed. The draft clears on exactly ONE event: successful
+creation/submission of the entity (or explicit user discard). Canonical detail:
+`core/ocoron-design-system.md` § Save Behavior.

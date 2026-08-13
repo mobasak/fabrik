@@ -340,3 +340,12 @@ It is loaded by path from the mega-epic planner, not by glob.
 **This pack owns the code-time facts** (surfaces, MV3, permissions, build, testing, and § Distribution Model
 above). The planner cites them; it never restates them. Keep it that way — the duplicate that used to live
 here had already drifted into contradicting § Distribution Model.
+
+## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
+
+Every form/wizard/editor/AI-populated surface persists its full working state **continuously on
+change** (debounce ≤1s + flush on blur/hide/background) to `chrome.storage.local` (NEVER `storage.session` — it dies with the browser); **restore is automatic and
+silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
+user continues down to the last letter typed. The draft clears on exactly ONE event: successful
+creation/submission of the entity (or explicit user discard). Canonical detail:
+`core/ocoron-design-system.md` § Save Behavior.
