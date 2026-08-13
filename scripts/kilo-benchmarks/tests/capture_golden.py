@@ -86,7 +86,7 @@ AI_PACK_MARKERS = ("GATEWAY_COUNTS", "OPENROUTER_ROUTES")
 # once headings became part of the magnitude key, `### OPENAI (87 models)` -> `(88 models)`
 # changed the key overnight and reported "collection disappeared" — a false red on pure
 # catalog growth, which is the fastest way to get an oracle ignored.
-_VOLATILE_IN_HEADING = re.compile(r"\d{4}-\d{2}-\d{2}|n_total=\d+|\(\d+[^)]*\)")
+_VOLATILE_IN_HEADING = re.compile(r"\d{4}-\d{2}-\d{2}|n_total=\d+|\(\d+[^)\n]*\)")
 
 
 def _strip_volatile(s: str) -> str:
@@ -97,7 +97,7 @@ def _strip_volatile(s: str) -> str:
 # the newer invariants, and `shapes_equal` would silently skip them while `verify()` printed
 # OK — a strictly worse failure than no oracle, because it certifies what it never checked.
 # verify() refuses to run against a mismatched version instead.
-ORACLE_VERSION = 2
+ORACLE_VERSION = 3
 
 # How much a collection may shrink before we call it a collapse. Two regimes in one line:
 #   min_allowed = min(wn - 1, wn * COLLAPSE_RATIO)
@@ -361,16 +361,20 @@ def marker_shape(block: str) -> dict:
               data IS its counts, so "all gateways report 0" is only visible as this sum.
     """
     stripped = _VOLATILE_IN_HEADING.sub("<N>", block)
-    per_table = _rows_per_table(stripped)
-    rows = sum(v for k, v in per_table.items() if k.startswith(SECTION_KEY))
-    if not rows:
-        rows = sum(v for k, v in per_table.items() if k.endswith(":: ROWS"))
-    nums = sum(int(n) for n in re.findall(r"\b\d+\b", stripped))
-    # `nums` is keyed as a SECTION magnitude so only its DISAPPEARANCE counts. A sum of live
-    # counts is inherently volatile — measured over 666 real marker pairs, small route blocks
-    # moved 7 -> 3 and 10 -> 3 legitimately, which a proportional band called a collapse. Its
-    # job is the one husk no row count can see: GATEWAY_COUNTS keeps its table and only zeroes
-    # the digits, so "every gateway reports 0" is visible ONLY as this sum going to zero.
+    # Total data rows across every table in the block, sectioned or not. An earlier version
+    # summed section keys and fell back to the per-contract aggregate only when that was 0 —
+    # which fires exactly when every sectioned table empties, and then silently reports a
+    # surviving heading-less table's rows instead.
+    rows = sum(v for k, v in _rows_per_table(stripped).items() if k.endswith(":: ROWS"))
+    # BOLD integers only. Summing every integer was wrong in both directions: the gateway
+    # renderer embeds constants in hardcoded prose ("+ 27 Qwen/...", "category 2", "GLM-5.2"),
+    # so 4 of 7 GATEWAY_COUNTS husks kept a non-zero sum and passed green; and a routes block
+    # whose prices are legitimately `free` has NO data digits, so a healthy block fired the
+    # husk alarm. The renderers emit every count as `**{n:,}**` (see update_gateway_counts._kv)
+    # and never bold their prose, so bolding is the data/boilerplate separator. Route blocks
+    # carry no bold numbers at all — they freeze at 0, are skipped, and are covered by `rows`.
+    nums = sum(int(n.replace(",", "")) for n in re.findall(r"\*\*([\d,]+)\*\*", stripped))
+    # Keyed as a SECTION magnitude: only its disappearance counts, never its movement.
     return {"chars": len(block.strip()), "rows": rows, f"{SECTION_KEY} nums": nums}
 
 
@@ -558,6 +562,19 @@ def verify() -> int:
             file=sys.stderr,
         )
         return 2
+    stale_markers = [
+        k
+        for k, v in want.get("markers", {}).items()
+        if v is not None and not isinstance(v, dict)
+    ]
+    if stale_markers:
+        print(
+            f"[capture_golden] golden stores {len(stale_markers)} marker(s) in a pre-v"
+            f"{ORACLE_VERSION} format — its invariants would be SKIPPED or crash the run. "
+            "Re-freeze with --snapshot.",
+            file=sys.stderr,
+        )
+        return 2
     got = observe()
     drift: list[str] = []
 
@@ -642,9 +659,12 @@ def verify() -> int:
             )
 
     if drift:
+        # The section sentinel is a NUL; printing it raw makes the whole run log read as a
+        # binary file to grep, so "check the run log for the specific element" fails exactly
+        # when the operator needs it.
         print("[capture_golden] CONTRACT DRIFT:", file=sys.stderr)
         for d in drift:
-            print("   " + d, file=sys.stderr)
+            print("   " + d.replace(SECTION_KEY, "section"), file=sys.stderr)
         return 1
     n = len(want["artifacts"]) + len(want["markers"]) + len(want.get("db_queries", {}))
     print(

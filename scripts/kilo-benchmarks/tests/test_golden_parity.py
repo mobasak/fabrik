@@ -820,25 +820,58 @@ def test_marker_sizes_are_observed_not_just_presence():
 
 
 def test_a_marker_husk_that_keeps_its_table_is_drift():
-    """The husk a row count CANNOT see.
+    """The husk a row count CANNOT see — driven by the REAL renderer, not a mutation.
 
-    `update_gateway_counts.py` renders a fixed table whose data IS its integers, so "every
-    gateway reports 0" leaves the rows, the columns and ~98% of the characters intact. A
-    character band (round 6) and a row count alone both certify it as healthy.
+    `update_gateway_counts.render_block` emits a fixed table whose data IS its integers, so
+    "every gateway reports 0" leaves rows, columns and ~98% of characters intact. The earlier
+    version of this test built its husk with `re.sub(r"\\b\\d+\\b", "0", block)`, which also
+    zeroed hardcoded prose constants ("+ 27 Qwen/...", "category 2", "GLM-5.2") that the real
+    renderer PRESERVES — so it passed while 4 of the 7 real husks went undetected. Synthetic
+    mutations flatter the oracle; drive the producer.
     """
-    live = (cg.FABRIK_ROOT / ".windsurf/rules/ai/00-ai-model-selection.md").read_text(
-        errors="replace"
+    import importlib.util
+
+    src = cg.SCRIPT_DIR / "update_gateway_counts.py"
+    if not src.exists():
+        pytest.skip("gateway renderer absent (engine excised)")
+    spec = importlib.util.spec_from_file_location("_ugc", src)
+    ugc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ugc)
+
+    want = json.loads(cg.MANIFEST.read_text())["markers"]
+    zero = dict.fromkeys(
+        re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text()), 0
     )
-    block = cg.extract_block(live, "GATEWAY_COUNTS")
-    if not block:
-        pytest.skip("GATEWAY_COUNTS block absent")
-    zeroed = re.sub(r"\b\d+\b", "0", block)
-    want, got = cg.marker_shape(block), cg.marker_shape(zeroed)
-    assert got["rows"] == want["rows"], "this husk deliberately keeps every row"
-    assert got["chars"] > want["chars"] * 0.9, "...and almost every character"
-    assert not cg.magnitudes_ok(want, got)[0], (
-        "all gateway counts zeroed but the marker reads as healthy"
-    )
+    checked, missed = 0, []
+    for pack, category in (getattr(ugc, "PACK_TO_CATEGORY", {}) or {}).items():
+        key = f".windsurf/rules/ai/{pack}::GATEWAY_COUNTS"
+        if key not in want:
+            continue
+        husk = ugc.render_block(category, zero, "2026-01-01")
+        checked += 1
+        if cg.magnitudes_ok(want[key], cg.marker_shape(husk))[0]:
+            missed.append(pack)
+    assert checked >= 5, f"only {checked} gateway markers exercised — test is vacuous"
+    assert not missed, f"all gateway counts zeroed but these read as healthy: {missed}"
+
+
+def test_a_free_priced_routes_block_is_not_a_husk():
+    """The mirror of the above, and why the signal must be BOLD integers.
+
+    A routes block's only plain digits are prices, and `openrouter/auto` + `openrouter/fusion`
+    are already live free routes — so a healthy block can legitimately render with zero price
+    digits. Summing every integer made that fire the husk alarm on intact rows and columns.
+    """
+    for rel, marker in [(f".windsurf/rules/ai/{h.name}", "OPENROUTER_ROUTES") for h in cg.ai_pack_hosts()]:
+        host = cg.FABRIK_ROOT / rel
+        if not host.exists():
+            continue
+        block = cg.extract_block(host.read_text(errors="replace"), marker)
+        if not block:
+            continue
+        free = re.sub(r"\$\d[\d.]*", "free", block)
+        ok, why = cg.magnitudes_ok(cg.marker_shape(block), cg.marker_shape(free))
+        assert ok, f"{rel}: a healthy free-priced block read as a husk: {why}"
 
 
 def test_marker_count_churn_is_not_drift():
@@ -865,3 +898,78 @@ def test_section_shrinkage_is_tolerated_but_emptying_is_not():
     k = f"{cg.SECTION_KEY} review :: rank|model"
     assert cg.magnitudes_ok({k: 13}, {k: 4})[0], "a section shrinking is catalog churn"
     assert not cg.magnitudes_ok({k: 13}, {k: 0})[0], "a section EMPTYING is a husk"
+
+
+def test_a_golden_in_an_older_marker_format_refuses_to_run(monkeypatch, tmp_path):
+    """Version-skew must refuse, not crash.
+
+    ORACLE_VERSION was left at 2 across two shape-format changes (the section sentinel and
+    markers int -> dict), so a round-6 golden met a round-7 observer and raised
+    `AttributeError: 'int' object has no attribute 'items'` out of verify() — the production
+    caller got a traceback instead of the designed "re-freeze with --snapshot" exit 2.
+    """
+    old = json.loads(cg.MANIFEST.read_text())
+    old["markers"] = {k: (0 if v is None else 42) for k, v in old["markers"].items()}
+    stale = tmp_path / "structure.json"
+    stale.write_text(json.dumps(old))
+    monkeypatch.setattr(cg, "MANIFEST", stale)
+    assert cg.verify() == 2, "a pre-v3 marker format must refuse to run, not crash"
+
+
+def test_drift_output_is_greppable(monkeypatch, capsys):
+    """The section sentinel is a NUL; printed raw it makes the whole run log read as binary
+    to grep, so "check the run log for the specific contract element" fails exactly when the
+    operator needs it."""
+    real = cg.observe
+
+    def collapsed():
+        o = real()
+        a = o["artifacts"]["docs/reference/kilo/TASK_SUBAGENT_SELECTION.md"]
+        a["shape"]["magnitudes"] = dict.fromkeys(a["shape"]["magnitudes"], 0)
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", collapsed)
+    assert cg.verify() == 1
+    err = capsys.readouterr().err
+    assert err.strip(), "drift reported nothing"
+    assert "\x00" not in err, "raw NUL in operator output makes the run log un-greppable"
+
+
+def test_marker_rows_count_every_table_not_just_sectioned_ones():
+    """The fallback that fired exactly when it was needed least.
+
+    rows summed section keys and fell back to the per-contract aggregate ONLY when that was 0
+    — i.e. precisely when every sectioned table had emptied, at which point it silently
+    reported a surviving heading-less table's rows instead.
+    """
+    headless = "| a | b |\n|---|---|\n| 1 | 2 |\n"
+    section = "### {}\n\n| a | b |\n|---|---|\n" + "| x | y |\n" * 4
+    block = headless + "\n" + section.format("one") + "\n" + section.format("two") + "\n"
+    gutted = (
+        headless + "\n### one\n\n| a | b |\n|---|---|\n\n### two\n\n| a | b |\n|---|---|\n"
+    )
+    # rows counts EVERY table, sectioned or not.
+    assert cg.marker_shape(block)["rows"] == 9
+    assert cg.marker_shape(gutted)["rows"] == 1
+    # Under the old either/or fallback the gutted block reported the surviving heading-less
+    # table's rows and read as unchanged.
+    assert not cg.magnitudes_ok(cg.marker_shape(block), cg.marker_shape(gutted))[0]
+
+
+def test_volatile_stripping_cannot_span_lines():
+    """`\\(\\d+[^)]*\\)` matched across newlines, so one unbalanced `(` + digit would delete
+    every heading and table header up to the next `)` — a loud structure-changed false red."""
+    block = (
+        "| a | b |\n|---|---|\n"
+        "| x (2 items | 1 |\n"
+        "| y | 2 |\n"
+        "| z | 3 ) |\n"
+        "| w | 4 |\n"
+    )
+    assert cg.marker_shape(block)["rows"] == 4, (
+        f"volatile stripping ate rows across newlines: {cg.marker_shape(block)}"
+    )
+    # md_shape applies it per-heading, so it cannot span there — assert that too.
+    doc = "# D (2 things\n\n## Real Section\n\n| m | s |\n|---|---|\n| x | 1 |\n\n## Other )\n"
+    assert "Real Section" in " ".join(cg.md_shape(doc)["skeleton"])

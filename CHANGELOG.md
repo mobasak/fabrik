@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 8: the marker count signal was defeated by prose, and false-fired on free prices (2026-08-13)
+
+Round 7 replaced the marker character-count with "rows + the sum of the payload's integers"
+and claimed the husk hole closed. Round 8 drove the **real renderers** instead of a synthetic
+mutation and found that sum broken in both directions at once:
+
+- **Too weak.** `update_gateway_counts` embeds constants in hardcoded prose — `+ 27 Qwen/...`,
+  `(top-3 on FR/PT/DE/ID/AR`, `Vision (category 2)`, `GLM-5.2`. With every real count zeroed,
+  those survivors kept the sum non-zero, so **4 of 7 GATEWAY_COUNTS husks passed green** —
+  including the flagship master block. End-to-end, `verify()` still printed
+  `OK — 46 contract elements intact`. That is the same sentence the round-7 entry claims to
+  have fixed, one round later.
+- **Too brittle.** A routes block's only plain digits are prices, and `openrouter/auto` and
+  `openrouter/fusion` are already live *free* routes — so a perfectly healthy block can render
+  with zero price digits and fire the husk alarm on intact rows and columns.
+- Both are one flaw: the sum could not tell data integers from boilerplate integers. The
+  renderers emit every count as `**{n:,}**` and never bold their prose, so the signal is now
+  **bold integers only**. Verified by driving `render_block` with all counts zero: **0 of 7
+  missed**; free-priced routes blocks: **0 false-reds** (they carry no bold numbers, freeze at
+  0, and are covered by `rows`); route husks still caught via `rows`. 694 real marker pairs, 0
+  false-reds.
+- **`ORACLE_VERSION` was never bumped** across two shape-format changes, so a round-6 golden
+  met a round-7 observer and raised `AttributeError: 'int' object has no attribute 'items'` out
+  of `verify()` — the production caller got a traceback instead of the designed exit-2
+  "re-freeze". Bumped to 3, plus an explicit older-marker-format guard, because the version
+  number alone did not catch a same-version format change.
+- The `rows` fallback (sum section keys, else the per-contract aggregate) fired *exactly* when
+  every sectioned table emptied, then reported a surviving heading-less table's rows instead.
+  It now counts every table unconditionally.
+- The `\x00` section sentinel leaked into stderr and thus the run log, making it read as
+  binary to `grep` — so "check the run log for the specific contract element" failed precisely
+  when it was needed. Sanitised on output.
+- `_strip_volatile`'s `[^)]*` matched across newlines; in `marker_shape` (which strips the whole
+  block) one unbalanced `(` plus a digit silently ate every row up to the next `)`.
+
+The test that hid the headline defect asserted its claim against `re.sub(r"\b\d+\b", "0", ...)`
+— a mutation that also zeroes the prose the real renderer preserves. It now drives
+`update_gateway_counts.render_block` directly.
+
 ### Fixed — catalog-extraction Phase A round 7: the marker husk check was measuring the wrong thing (2026-08-13)
 
 Round 6 gave the 18 marker blocks a character-count magnitude and the CHANGELOG claimed that
