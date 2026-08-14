@@ -206,11 +206,11 @@ def test_an_unborn_branch_does_not_bypass_the_no_branch_guard(tmp_path):
     (r / ".windsurf/rules/ai/00-ai.md").write_text("first\n")
 
     out = _run(r)
-    # Every log line must be a complete record — no split messages.
-    for line in out.splitlines():
-        if line.startswith("[auto-commit]"):
-            assert "\n" not in line
-    assert "HEAD\nHEAD" not in out
+    # `splitlines()` guarantees no newline inside an element, so the obvious per-line check
+    # cannot fail. Assert the real symptom instead: the two-line record the appended _BRANCH
+    # produced, and that every [auto-commit] line is self-contained.
+    assert "HEAD\nHEAD" not in out, "the appended _BRANCH split the log record"
+    assert "no origin/HEAD" not in out, "resolved the branch as the literal HEAD"
     assert "committed" in out, out
 
 

@@ -115,7 +115,16 @@ fi
 
 STAGED=()
 for _p in "${PATHS[@]}"; do
-  if git add -- "$_p" 2>/dev/null; then STAGED+=("$_p"); fi
+  if git add -- "$_p" 2>/dev/null; then
+    STAGED+=("$_p")
+  elif [ -e "$(git rev-parse --git-path index.lock 2>/dev/null)" ]; then
+    # The pre-loop guard is a point sample; a peer can take the lock DURING these ~26 adds and
+    # the run then reported "a pipeline output was renamed or retired" — a false cause, plus a
+    # partial commit. Re-check on failure so the real reason is named.
+    echo "[auto-commit] index lock appeared mid-stage — aborting and unstaging (not a stage-list problem)"
+    [ ${#STAGED[@]} -gt 0 ] && git reset -q -- "${STAGED[@]}" 2>/dev/null
+    exit 0
+  fi
 done
 if [ ${#STAGED[@]} -eq 0 ]; then
   echo "[auto-commit] no pipeline paths matched — nothing to stage (check the stage list)"
@@ -158,7 +167,21 @@ git commit -q \
 Agent-Context: the pipeline commits its own regenerated tracked outputs so the working tree stays clean for the next agent
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
   -- "${STAGED[@]}" \
-  && echo "[auto-commit] committed" || { echo "[auto-commit] commit failed (non-fatal)"; exit 0; }
+  && echo "[auto-commit] committed" || {
+    # The ONLY bail-out that used to leave the index dirty. Every other path says "refusing to
+    # touch the index" and means it. Here up to 26 pipeline paths stayed STAGED in the shared
+    # master index, every day, and because the script exits 0 the caller's `|| echo ... errored`
+    # can never fire — so a persistently failing pre-commit hook (this repo has two MODIFYING
+    # hooks plus forbid-secrets and governance-sync) disables the auto-commit forever, silently.
+    # That is the round-16 REBASE_HEAD class on a path with no ref to grep for.
+    echo "[auto-commit] commit failed — unstaging our paths so the shared index is left as we found it"
+    git reset -q -- "${STAGED[@]}" 2>/dev/null || true
+    bash "$(dirname "$0")/pipeline_alert.sh" \
+      "auto-commit: git commit failed on $(hostname 2>/dev/null || echo this host)" \
+      "The pipeline auto-commit could not commit its regenerated outputs (most likely a failing pre-commit hook). Our paths were unstaged so the shared index is unchanged, but the regenerated files remain UNCOMMITTED and the tree stays dirty for the next agent. If this repeats, the auto-commit is effectively disabled — check the pre-commit hooks first." \
+      >> /dev/null 2>&1 || true
+    exit 0
+  }
 
 BRANCH="$_BRANCH"
 # Detached HEAD returns the literal "HEAD": the commit lands on no branch and is dropped at the

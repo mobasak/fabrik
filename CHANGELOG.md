@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Agent-Role trailer template has been broken fleet-wide since July, plus two dead CRITICAL alerts (2026-08-15)
+
+Round 18 answered the question I flagged rather than assumed, and the answer was not about my
+script:
+
+- **⚠️ FLEET-WIDE: `CLAUDE.md`'s own worked example ships a broken trailer block.** Git parses
+  only the LAST paragraph of a commit message as trailers, and the example puts a **blank line
+  between `Agent-Context:` and `Co-Authored-By:`** — which turns every `Agent-*` line above it
+  into prose. Measured: of the last 200 hub commits, **200 carry `Agent-Role:` and only 10
+  parse**. So `git log --format='%(trailers:key=Agent-Role)'` — the query CLAUDE.md § Agent
+  Provenance Trailers says the trailers exist for — has returned nothing for nearly every
+  AI-authored commit since July. Fixed in both `CLAUDE.md` and
+  `templates/governance/CLAUDE.md`, with the rule stated explicitly and the measurement
+  recorded, so the next reader knows why the blank line matters. This is a synced surface: it
+  distributes fleet-wide.
+- **Two CRITICAL alerts in `daily_refresh.sh` were silent no-ops.** The heartbeat-failure pair
+  (`:530`, `:534`) called `send_alert` with **no** `load_dotenv`, unlike the ranker/oracle pair
+  — so `alerting._is_enabled()` was False, the return value was swallowed, stderr went to
+  `/dev/null` and `|| true` ate the exit. A disk-full heartbeat failure alerted nobody, and the
+  operator learned 36h later from the staleness leg — exactly the latency that code's own
+  comment claims to have removed. Both now route through `pipeline_alert.sh`.
+  **My own header hid them:** it said daily_refresh carried "two inlined copies (:425, :480)".
+  It carried four, and the two I omitted were the broken ones. The header now enumerates all
+  four and says why the ranker/oracle pair stays inline (a test pins that form).
+- **The commit-failure path was the only bail-out that left the index dirty**, and it never
+  alerted. Up to 26 pipeline paths stayed staged in the shared master index; because the script
+  exits 0 the caller's `|| echo ... errored` can never fire. This repo's pre-commit set includes
+  two *modifying* hooks, so one persistently failing hook would have disabled the auto-commit
+  forever, silently — the round-16 `REBASE_HEAD` class on a path with no ref to grep for. Now
+  unstages only our paths and alerts.
+- The index-lock guard was a point sample before a 26-iteration `git add` loop; a lock arriving
+  mid-loop reproduced the exact symptom round 17 set out to remove. Re-checked on failure.
+
+**And the guard I wrote last round could not catch its own class.** `test_the_hook_prelude_slice_stays_side_effect_free`
+rebuilt the prelude from an inline copy of the filter, so reverting the *real* slice back to the
+log-destroying one left it green — the fork-the-source class this plan exists to un-fork,
+reproduced inside the guard against it. My first repair (shimming `mv`/`rm`) also failed,
+because the rotation only fires above 500KB and the log is currently 67KB — it would pass
+whenever the condition happened to be absent, which is precisely what made the original defect
+invisible. The prelude is now its own function that both the materialiser and the guard call,
+and the guard is proven to red on that revert.
+
 ### Fixed — catalog-extraction Phase A round 17: an unborn branch bypassed the no-branch guard, and a lock collision blamed the wrong thing (2026-08-15)
 
 Round 17's highest-value hunt came back CLEAN — no test path can reach the script's

@@ -1,13 +1,16 @@
 #!/bin/bash
-# AFTER-EDIT: wsl_startup_hook.sh (its only caller today)
+# AFTER-EDIT: wsl_startup_hook.sh, daily_refresh.sh (both call this)
 #
 # Fire one critical Telegram alert from a pipeline step.
 #
-# ⚠️ daily_refresh.sh does NOT use this yet — it still carries two inlined `python -c` copies
-# (:425, :480). Migrating them would be the obvious de-duplication, but it reds
-# test_flywheel_safety.py:114-123, which is pinned to the inline send_alert+load_dotenv form.
-# Do both together or neither; leaving the header claiming a coupling that does not exist is
-# how the stage list forked in the first place.
+# daily_refresh.sh's two HEARTBEAT alerts (:530, :534) now route through here. Its two RANKER
+# and ORACLE alerts (:425, :480) deliberately stay inline: test_flywheel_safety.py:94-101 pins
+# that form for the ranker line specifically. The heartbeat pair were migrated because they had
+# NO load_dotenv at all and were therefore silent no-ops — alerting._is_enabled() reads
+# TELEGRAM_BOT_TOKEN from the process env, so a disk-full heartbeat failure alerted nobody.
+# An earlier version of this header said daily_refresh carried "two" inlined copies; it carried
+# FOUR, and the two the header omitted were exactly the broken ones. The header's inaccuracy is
+# what hid them — which is why it now enumerates all four.
 #
 # Extracted 2026-08-15 because the call sites live INSIDE wsl_startup_hook.sh's double-quoted
 # `nohup bash -c "…"` string, where an inline `python -c "…"` needs its quotes escaped and a

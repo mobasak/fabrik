@@ -1360,6 +1360,27 @@ def test_the_autocommit_survives_a_retired_pipeline_path():
 
 
 # ── round-14 fixes ───────────────────────────────────────────────────────────
+def _hook_prelude(src: str) -> str:
+    """The variable assignments `_hook_inner_block` sources — ASSIGNMENTS ONLY.
+
+    ⚠️ Its own function so the guard below asserts on THE STRING THAT IS ACTUALLY SOURCED. An
+    earlier guard rebuilt this from an inline copy of the same filter, so reverting the real
+    slice left the guard green — the fork-the-source class this plan exists to un-fork,
+    reproduced inside the guard against it.
+
+    Slicing to "# --- Persistent process" instead swept in the hook's LOG ROTATION loop, which
+    `mv`s the REAL /opt/fabrik logs (FABRIK_ROOT is hardcoded there, so no override protects
+    them). Every pytest and gate run would then have destroyed a generation of pipeline history
+    the moment update.log crossed 500KB — the very log an operator reads while running this
+    suite to diagnose the pipeline.
+    """
+    return "\n".join(
+        ln
+        for ln in src.splitlines()
+        if re.match(r"^[A-Z_]+=", ln) and "$(" not in ln.split("=", 1)[1]
+    )
+
+
 def _hook_inner_block() -> str:
     """The wsl_startup_hook pipeline body EXACTLY as the child `bash -c` receives it.
 
@@ -1377,15 +1398,7 @@ def _hook_inner_block() -> str:
     quoted = src[i + len("nohup bash -c ") : j + len('\n    "')]
     # Run the hook's own assignment block so every variable resolves exactly as it would at
     # boot, then let BASH perform the quote processing and print the result.
-    # ⚠️ ASSIGNMENTS ONLY. Slicing to "# --- Persistent process" swept in the hook's LOG
-    # ROTATION loop (:65-72), which `mv`s the REAL /opt/fabrik logs — FABRIK_ROOT is hardcoded
-    # at :34, so no override reaches it. Every pytest and every gate run would have destroyed a
-    # generation of pipeline history the moment update.log crossed 500KB (update.log.1 is
-    # 512988 bytes right now) — the very log an operator reads while running this suite.
-    prelude = "\n".join(
-        ln for ln in src.splitlines()
-        if re.match(r"^[A-Z_]+=", ln) and "$(" not in ln.split("=", 1)[1]
-    )
+    prelude = _hook_prelude(src)
     harness = prelude + "\nprintf '%s' " + quoted + "\n"
     r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
     assert r.returncode == 0, f"could not materialise the child block: {r.stderr[:300]}"
@@ -1500,23 +1513,20 @@ def test_the_alert_helper_loads_dotenv_before_importing_alerting():
 def test_the_hook_prelude_slice_stays_side_effect_free():
     """Guards the class that made a TEST destroy production logs.
 
-    `_hook_inner_block` sources the hook's assignments to resolve variables. An earlier slice
-    swept in the log-rotation loop, which `mv`s the REAL /opt/fabrik logs on every pytest and
-    gate run. Nothing pinned the slice's shape, so re-widening it — or a future assignment using
-    BACKTICKS, which the `$(`-filter does not catch — re-arms it silently.
+    Asserts on `_hook_prelude` — the string `_hook_inner_block` actually sources — so widening
+    the slice back to the log-rotation loop reds here. A shim-based check does NOT work: the
+    rotation only fires when the log exceeds 500KB, so it would pass whenever the log happens
+    to be small, which is exactly the latent condition that made the original defect invisible.
     """
     src = (cg.SCRIPT_DIR.parent / "wsl_startup_hook.sh").read_text()
-    prelude = "\n".join(
-        ln
-        for ln in src.splitlines()
-        if re.match(r"^[A-Z_]+=", ln) and "$(" not in ln.split("=", 1)[1]
-    )
+    prelude = _hook_prelude(src)
     assert prelude, "the prelude filter matched nothing"
     for danger in ("mv ", "rm ", "for ", "while ", "if ", "`", "$(", ">", "|"):
         assert danger not in prelude, (
-            f"the prelude slice contains {danger!r} — sourcing it has side effects on the REAL "
-            f"repo (FABRIK_ROOT is hardcoded in that file, so no override protects it)"
+            f"the prelude contains {danger!r} — sourcing it has side effects on the REAL repo "
+            f"(FABRIK_ROOT is hardcoded in that file, so no override protects it)"
         )
-    # ...and it must still define everything the materialised block needs.
     for var in ("FABRIK_ROOT=", "VENV_PYTHON=", "LOG_FILE="):
         assert var in prelude, f"{var} lost from the prelude — steps would expand to empty"
+    # ...and the materialised block must still resolve, proving the prelude is sufficient.
+    assert "/opt/fabrik/.venv/bin/python" in _hook_inner_block()
