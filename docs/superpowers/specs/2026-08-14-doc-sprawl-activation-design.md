@@ -1,6 +1,9 @@
 # Design spec — activating check_doc_sprawl (the permanently-green blocking check)
 
-Status: CONVERGED (2026-08-14 — /fabrik-spec-review: 3-pass loop. Pass 1 OVERTURNED this spec's
+Status: EXECUTED 2026-08-15 — activation landed (see below); the orphan disposition was answered
+DELETE by intel, who removed 74 copies fleet-wide; final fleet state at activation: 2 blocking
+files in ONE repo, already red on check_structure for the identical files.
+Prior: CONVERGED (2026-08-14 — /fabrik-spec-review: 3-pass loop. Pass 1 OVERTURNED this spec's
 own central claim: the two flagged docs are NOT fabrik-synced (no script mentions them, absent
 from synced.lock, hub copies untracked, gitignore_dest_paths already emits a reference-docs
 group) — they are orphaned bulk copies, so "close the sync gap" became "disposition the orphans",

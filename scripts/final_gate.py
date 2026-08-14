@@ -1068,6 +1068,12 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_doc_sprawl.py",
                 "Documentation Sprawl",
+                # ACTIVATED 2026-08-15 (spec 2026-08-14-doc-sprawl-activation-design): the
+                # check was inert since ≤2026-08-04, then WARN-only while the fleet was
+                # cleaned. Fleet state at activation: 2 blocking files in ONE repo, and that
+                # repo is already RED on check_structure for the identical files, so this adds
+                # no new burden anywhere. Reverting = drop this one argument.
+                "--strict",
                 # advisory: keep the check's stdout on exit 0 — in WARN mode the report IS
                 # the product, and run_optional_check discards it otherwise (F5)
                 advisory=True,

@@ -103,13 +103,24 @@ def test_t7_warn_is_the_default_and_never_fails(tmp_path):
     assert "RANDOM_NEW_DOC.md" in warn.stdout, "warn mode must still REPORT the violation"
 
 
-def test_t7b_final_gate_call_site_is_not_strict():
-    """Activation is a deliberate, separately-reviewed one-line change — it must not slip in
-    with this plan."""
+def _doc_sprawl_call_site() -> str:
+    """The doc-sprawl call site's ARGUMENT BLOCK, bounded by the call itself rather than a
+    fixed character window (review finding F13: a 300-char window is brittle — the activation
+    comment alone pushed `advisory=True` out of it, failing a test whose claim was still true)."""
     src = (REPO / "scripts" / "final_gate.py").read_text()
     i = src.index("check_doc_sprawl.py")
-    window = src[i : i + 300]
-    assert "--strict" not in window, "final_gate must call the check in warn mode for now"
+    end = src.find("results.append", i)
+    return src[i : end if end != -1 else i + 2000]
+
+
+def test_t7b_final_gate_call_site_is_strict_and_advisory():
+    """ACTIVATED 2026-08-15. The pre-activation form of this test asserted the OPPOSITE (no
+    --strict) and was the deliberate guard against a silent flip; flipping it is itself the
+    activation record. advisory=True must survive the flip so the violation text still reaches
+    --json warnings (F5) rather than being discarded on the exit-0 path."""
+    window = _doc_sprawl_call_site()
+    assert "--strict" in window, "the check must now enforce"
+    assert "advisory=True" in window, "the report must stay reachable"
 
 
 # ── the check_file entry point (validate_conventions' path) ────────────────────
@@ -264,9 +275,7 @@ def test_f5_warn_output_is_reachable_through_the_gate(tmp_path, monkeypatch):
     (r / "docs" / "RANDOM_NEW_DOC.md").write_text("x\n")
     out = _scan(r)  # default warn mode
     assert out.stdout.lstrip().startswith("⚠"), out.stdout
-    src = (REPO / "scripts" / "final_gate.py").read_text()
-    i = src.index("check_doc_sprawl.py")
-    assert "advisory=True" in src[i : i + 400], "call site must preserve the report"
+    assert "advisory=True" in _doc_sprawl_call_site(), "call site must preserve the report"
 
 
 def test_f1_doc_sprawl_is_warning_severity_until_activation():

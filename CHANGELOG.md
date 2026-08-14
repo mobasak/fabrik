@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — check_doc_sprawl ACTIVATED (--strict) after a 2272 → 2 fleet cleanup (2026-08-15)
+
+The final step of the activation spec. Sequence that made it safe: made both entry points
+non-vacuous (d860ae51) → hardened the sibling silent-green class (e0bd7b8f) → implemented
+CLAUDE.md's own `docs/reference/**` allowance the check was missing (6e99f755) → a non-author
+review found 8 defects in that work including a fail-open vendor amnesty and a false "still
+WARN" claim (08305aac) → intel deleted 74 orphaned bulk-copied docs fleet-wide. Fleet went
+2272 → 22 → 3 → **2 blocking files in one repo**, and that repo is already red on
+`check_structure` for the identical two files (`src/**.md` is in its NO_MD_DIRS set), so
+enforcement adds no new burden anywhere. `advisory=True` is retained alongside `--strict` so the
+violation text still reaches `--json` warnings. The pre-activation guard test asserted the
+opposite contract and was flipped deliberately — that flip IS the activation record.
+
 ### Fixed — the trailer fix shipped HALF-APPLIED and had already synced to 49 repos (2026-08-15)
 
 Round 19 independently verified the governance claim from round 18 — the git behaviour on
