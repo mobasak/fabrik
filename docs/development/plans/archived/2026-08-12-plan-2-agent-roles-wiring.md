@@ -181,7 +181,13 @@ mechanically-failed pool runs.
    resolves (repo-root inserted on `sys.path` before the lazy import at :418) instead of
    `ModuleNotFoundError`. Watch RED → insert the two-line root-insert guard → green. Reply
    disposition to fleet's 01KZTMZ19… by mail.
-4. **Red-first — flywheel auto-0 (honestly scoped per intel's verified analysis):** targets
+4. **Red-first — flywheel auto-0 (honestly scoped per intel's verified analysis):**
+   ⚠️ **SUPERSEDED AT EXECUTION — read `libs/subagents/pg_ledger.py:250-256` for the shipped
+   contract, not this paragraph** (intel correction, 2026-08-14): auto-0 covers ONLY
+   `status="done"` with empty output. `error`/`capped` are deliberately EXCLUDED — `record_run`
+   already NULL-coerces them by design ("an infra/provider failure can't teach pick_models a
+   false 0") and `success_rate` already punishes them. A test written from the original wording
+   below would pin a contract that does not exist. Original (stale) target: targets
    error(157)+capped(117)+empty-output rows ≈ 274 all-time — correct and cheap, NOT the headline
    fix. Test in a new `tests/test_pg_ledger_auto0.py` (hub-side, no DSN needed — assert via the
    JSONL outbox path): a result whose `status` is errored/capped OR whose `text` is
