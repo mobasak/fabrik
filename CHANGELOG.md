@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — operator reference for the Claude account-rotation pool (2026-08-14)
+
+`docs/workstation/claude-account-rotation.md`: the one-command status check, how an in-place
+switch avoids interrupting sessions, the */5 tick's perishable-first + graceful-drain behavior,
+and — the operator's actual question — **when a manual `/login` is genuinely needed** (only for
+an account left completely unused; refresh tokens are ~30-day-lived and every real use resets
+the clock), plus the open-one-window-first habit that avoids the post-idle refresh race,
+onboarding steps, and the safety invariants (atomic writes under flock, `.prev` retention,
+identity-verified filing, no process signals). Indexed in INDEX.md + docs/README.md. All four
+accounts are stored and current as of this entry (earliest refresh-token expiry: can@, Sep 8).
+
 ### Fixed — catalog-extraction Phase A round 12: a one-column husk survived on every per-category pack (2026-08-13)
 
 Round 12 confirmed round 11 broke nothing — **0 verdict differences** vs round 10 across

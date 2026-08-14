@@ -514,6 +514,7 @@ docs/
 │   ├── claude-configuration-inventory.md # Every Claude config path on this box: function + current state + sizes
 │   ├── cleanup-automation.md       # WSL+Windows cleanup system reference (one cleaner per OS + manual compaction)
 │   ├── cleanup-maintenance-backlog.md # Remaining dev-box cleanup items after the 2026-07-25 sweep
+│   ├── claude-account-rotation.md # The 4-account Claude Max quota pool: --status telemetry, the */5 perishable-first tick, graceful drain, when a manual /login is actually needed, onboarding + safety invariants
 │   ├── fabrik-mail.md             # fabrik-mail box view: store /opt/fabrik-mail, components (mail.py + hook + digest), the 2-layer model, sync-exclusion, observe/troubleshoot (protocol is docs/reference/fabrik-mail.md)
 │   ├── hooks-index.md              # Every hook on the box in one page (4 layers) — freshness gate-enforced by check_hooks_index.py
 │   ├── wip-backup-safety-net.md    # The */15 WIP snapshot cron: isolated-index tree snapshots to refs/wip + off-box push; recovery runbook
