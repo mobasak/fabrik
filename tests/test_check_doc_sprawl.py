@@ -168,3 +168,26 @@ def test_missing_optional_check_is_visible_not_silently_green(tmp_path, monkeypa
     assert passed is True, "a missing optional check must never RED a project"
     assert out.lstrip().startswith("⚠"), f"must be surfaced as a warning, got {out!r}"
     assert "does_not_exist.py" in out, "the warning must name the missing script"
+
+
+def test_docs_reference_tree_is_allowed_per_claude_md(tmp_path):
+    """CONTRACT DRIFT (found 2026-08-15 while preparing activation): CLAUDE.md's new-.md
+    allowlist explicitly lists `docs/reference/**/*.md`, and the check implemented NO pattern
+    for it — so activation would have RED a file governance permits. The check must match the
+    contract it enforces."""
+    r = _repo(tmp_path)
+    (r / "docs" / "reference").mkdir(parents=True)
+    (r / "docs" / "reference" / "fleet-feature-inventory.md").write_text("ref doc\n")
+    (r / "docs" / "reference" / "nested" / "deep").mkdir(parents=True)
+    (r / "docs" / "reference" / "nested" / "deep" / "note.md").write_text("nested ref\n")
+    p = _scan(r, "--strict")
+    assert p.returncode == 0, (p.stdout, p.stderr)
+
+
+def test_epics_are_allowed_per_claude_md(tmp_path):
+    """Same contract, second entry: docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md."""
+    r = _repo(tmp_path)
+    d = r / "docs" / "development" / "epics"
+    d.mkdir(parents=True)
+    (d / "2026-08-15-epic-3-quota.md").write_text("epic\n")
+    assert _scan(r, "--strict").returncode == 0

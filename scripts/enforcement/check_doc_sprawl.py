@@ -101,6 +101,12 @@ ALLOWED_PATTERNS = [
     # Same dated shape as the plans pattern above, deliberately: one artifact per file,
     # greppable, and unambiguously distinct from a plan.
     re.compile(r"^docs/development/epics/\d{4}-\d{2}-\d{2}-epic-\d+-.+\.md$"),
+    # Reference docs: docs/reference/**/*.md — CLAUDE.md's new-.md allowlist lists this tree
+    # explicitly ("· `docs/reference/**/*.md` ·"), and the check carried NO pattern for it, so
+    # activation would have RED files governance permits (found 2026-08-15 preparing the
+    # --strict flip; tojlo-mail's fleet-feature-inventory.md was the live case). A check must
+    # match the contract it enforces.
+    re.compile(r"^docs/reference/.+\.md$"),
     # Orchestrator cockpit + our runnable workflow definitions: docs/orchestrator/**
     # The `-fabrik` command files, their EVALUATION_CHECKLISTs, the north-star, and the
     # cockpit design docs live here (moved out of docs/traycer/ 2026-07-17, which keeps
