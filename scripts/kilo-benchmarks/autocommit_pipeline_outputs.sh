@@ -65,8 +65,13 @@ fi
 # above the ADD, so the detached path still left pipeline files staged and exited 0 — breaking
 # this file's own "refusing to touch the index" contract and leaving content that rides along in
 # the next bare commit.
-_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-if [ "$_BRANCH" = "HEAD" ]; then
+# `git rev-parse --abbrev-ref HEAD` prints "HEAD" on stdout AND exits 128 on an UNBORN branch,
+# so `|| echo HEAD` appended rather than substituted and _BRANCH became $'HEAD\nHEAD' — which
+# is not equal to "HEAD", so this guard was bypassed and the log record split across two lines.
+# Phase B stands up the engine repo with `git init` and no commits, so that is on our own path.
+# symbolic-ref is empty on a real detached HEAD and correct on an unborn branch.
+_BRANCH="$(git symbolic-ref --short -q HEAD || true)"
+if [ -z "$_BRANCH" ]; then
   echo "[auto-commit] DETACHED HEAD — refusing to stage or commit onto no branch"
   exit 0
 fi
@@ -99,6 +104,15 @@ PATHS=(
 # empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not
 # exist) made it exit 128 with NOTHING staged — and the guard below then logged "tree already
 # clean", reporting success for a total no-op. Per-path keeps the other 15 working.
+# A peer's `git commit` holds .git/index.lock for SECONDS here — its pre-commit governance-sync
+# fans out to ~46 repos. Every `git add` then fails, and because their stderr is discarded the
+# script blamed the stage list, no-op'd, and the daily lockfile blocked any retry until tomorrow.
+# Detect the real cause and say so.
+if [ -e "$(git rev-parse --git-path index.lock 2>/dev/null)" ]; then
+  echo "[auto-commit] another git process holds the index lock — skipping this run (not a stage-list problem)"
+  exit 0
+fi
+
 STAGED=()
 for _p in "${PATHS[@]}"; do
   if git add -- "$_p" 2>/dev/null; then STAGED+=("$_p"); fi
@@ -115,6 +129,12 @@ fi
 # LOCAL_LLM_INFRASTRUCTURE.md is deliberately NOT staged: the pipeline rewrites only its
 # auto-generated block, but the file is MIXED (hand-authored prose above) — `git add` stages
 # the whole file, so a cron add would bundle an agent's uncommitted manual edit (review finding).
+# ⚠️ STATED RESIDUAL: `.windsurf/rules/**` ARE mixed in the same sense — hand-authored rule
+# prose plus an injected GATEWAY_COUNTS/OPENROUTER_ROUTES block — and they ARE staged, because
+# the pipeline must publish that block and there is no way to stage only part of a file. So a
+# sibling mid-edit on a rule pack when the boot pipeline fires gets that edit committed AND
+# fleet-synced. Unlike LOCAL_LLM_INFRASTRUCTURE.md this is unavoidable, not an oversight —
+# recorded here so the next reader does not mistake it for one.
 # NEVER add shared agent-edited files here (PORTS.md, plan-locks, enforcement code): a cron
 # staging those would bundle a live agent's WIP into its commit. If the refresh churns such a
 # file (format sweep), the churn is the defect — stop touching it, don't auto-commit it.
@@ -129,21 +149,20 @@ if git diff --cached --quiet -- "${STAGED[@]}"; then
   exit 0
 fi
 
+# ONE -m for the trailer block: git parses only the LAST paragraph as trailers, so a -m per
+# line left `git log --format='%(trailers:key=Agent-Role)'` empty on every pipeline commit since
+# July — the exact query CLAUDE.md § Agent Provenance Trailers says the trailers exist for.
 git commit -q \
   -m "chore(kilo): ${CALLER} auto-commit of regenerated selection docs + catalog ($(date -u +%Y-%m-%d))" \
-  -m "Agent-Role: primary" \
-  -m "Agent-Context: the pipeline commits its own regenerated tracked outputs so the working tree stays clean for the next agent" \
-  -m "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
+  -m "Agent-Role: primary
+Agent-Context: the pipeline commits its own regenerated tracked outputs so the working tree stays clean for the next agent
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
   -- "${STAGED[@]}" \
   && echo "[auto-commit] committed" || { echo "[auto-commit] commit failed (non-fatal)"; exit 0; }
 
 BRANCH="$_BRANCH"
 # Detached HEAD returns the literal "HEAD": the commit lands on no branch and is dropped at the
 # next checkout, so say that rather than the misleading "diverged" the generic path prints.
-if [ "$BRANCH" = "HEAD" ]; then
-  echo "[auto-commit] DETACHED HEAD — commit is on no branch and will be lost at the next checkout"
-  exit 0
-fi
 if ! git rev-parse --verify -q "origin/$BRANCH" >/dev/null 2>&1; then
   echo "[auto-commit] no origin/$BRANCH — commit left local (not a divergence)"
   exit 0

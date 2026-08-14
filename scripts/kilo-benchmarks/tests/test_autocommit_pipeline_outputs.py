@@ -172,3 +172,70 @@ def test_it_never_exits_nonzero(tmp_path, subdir):
         env={"PATH": "/usr/bin:/bin", "HOME": str(r), "FABRIK_ROOT": str(r / subdir)},
     )
     assert p.returncode == 0, f"exit {p.returncode}: {p.stdout}{p.stderr}"
+
+
+def test_peer_wip_alone_does_not_trigger_a_commit(tmp_path):
+    """The emptiness test must be SCOPED to our paths.
+
+    Unscoped, `git diff --cached --quiet` fires whenever ANY file is staged, so the script would
+    commit on a run where zero pipeline outputs changed. Round 15 fixed this and round 17 found
+    it was still the one production change with no behavioural test — all 8 others passed with
+    it reverted.
+    """
+    r = _repo(tmp_path)
+    (r / "PORTS.md").write_text("peer wip\n")
+    _git(r, "add", "PORTS.md")  # staged, but NOT one of ours
+    head_before = _git(r, "rev-parse", "HEAD")
+
+    out = _run(r)
+    assert "tree already clean" in out, out
+    assert _git(r, "rev-parse", "HEAD") == head_before, "committed with no pipeline change"
+    assert "PORTS.md" in _git(r, "diff", "--cached", "--name-only"), "peer WIP was disturbed"
+
+
+def test_an_unborn_branch_does_not_bypass_the_no_branch_guard(tmp_path):
+    """`git rev-parse --abbrev-ref HEAD` prints "HEAD" AND exits 128 on an unborn branch, so
+    `|| echo HEAD` APPENDED — _BRANCH became $'HEAD\\nHEAD', which is not "HEAD", so the guard
+    was bypassed and the log record split across two lines. Phase B stands up the engine repo
+    with `git init` and no commits, so this is on the plan's own path."""
+    r = tmp_path / "unborn"
+    (r / ".windsurf/rules/ai").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(r)], check=True)
+    _git(r, "config", "user.email", "t@t")
+    _git(r, "config", "user.name", "t")
+    (r / ".windsurf/rules/ai/00-ai.md").write_text("first\n")
+
+    out = _run(r)
+    # Every log line must be a complete record — no split messages.
+    for line in out.splitlines():
+        if line.startswith("[auto-commit]"):
+            assert "\n" not in line
+    assert "HEAD\nHEAD" not in out
+    assert "committed" in out, out
+
+
+def test_a_concurrent_index_lock_is_diagnosed_as_itself(tmp_path):
+    """A peer's `git commit` holds .git/index.lock for SECONDS (its pre-commit governance-sync
+    fans out to ~46 repos). Every `git add` then failed with stderr discarded, so the script
+    blamed the stage list, no-op'd, and the daily lockfile blocked any retry until tomorrow."""
+    r = _repo(tmp_path)
+    (r / ".windsurf/rules/ai/00-ai.md").write_text("regenerated\n")
+    (Path(_git(r, "rev-parse", "--absolute-git-dir")) / "index.lock").touch()
+
+    out = _run(r)
+    assert "index lock" in out, out
+    assert "check the stage list" not in out, "blamed the stage list for a lock collision"
+
+
+def test_the_commit_trailers_are_machine_parseable(tmp_path):
+    """git parses only the LAST paragraph as trailers, so one `-m` per line left
+    `git log --format='%(trailers:key=Agent-Role)'` empty on every pipeline commit since July —
+    the exact query CLAUDE.md § Agent Provenance Trailers says the trailers exist for."""
+    r = _repo(tmp_path)
+    (r / ".windsurf/rules/ai/00-ai.md").write_text("regenerated\n")
+    assert "committed" in _run(r)
+
+    role = _git(r, "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)").strip()
+    ctx = _git(r, "log", "-1", "--format=%(trailers:key=Agent-Context,valueonly)").strip()
+    assert role == "primary", f"Agent-Role not parseable: {role!r}"
+    assert ctx, "Agent-Context not parseable"

@@ -1332,7 +1332,14 @@ def test_the_autocommit_commits_a_pathspec_not_the_index():
         i for i, ln in enumerate(lines)
         if ln.strip().startswith("git commit") and not ln.lstrip().startswith("#")
     )
-    commit = "\n".join(lines[start : start + 10])
+    # Widened from 10: a multi-line -m trailer block pushed the pathspec past the window, and
+    # this assertion went red while the behavioural test caught the REAL regression (the
+    # pathspec had actually been dropped). Read to the end of the command instead.
+    end = next(
+        (i for i in range(start, len(lines)) if "echo \"[auto-commit] committed\"" in lines[i]),
+        start + 20,
+    )
+    commit = "\n".join(lines[start : end + 1])
     assert '-- "${STAGED[@]}"' in commit, f"git commit has no pathspec:\n{commit}"
     assert 'git diff --cached --quiet -- "${STAGED[@]}"' in sh, (
         "the emptiness test is unscoped — it fires whenever ANY file is staged"
@@ -1488,3 +1495,28 @@ def test_the_alert_helper_loads_dotenv_before_importing_alerting():
     assert code.index("load_dotenv(") < code.index("from alerting import send_alert"), (
         "alerting is imported before dotenv is loaded — the alert is a silent no-op"
     )
+
+
+def test_the_hook_prelude_slice_stays_side_effect_free():
+    """Guards the class that made a TEST destroy production logs.
+
+    `_hook_inner_block` sources the hook's assignments to resolve variables. An earlier slice
+    swept in the log-rotation loop, which `mv`s the REAL /opt/fabrik logs on every pytest and
+    gate run. Nothing pinned the slice's shape, so re-widening it — or a future assignment using
+    BACKTICKS, which the `$(`-filter does not catch — re-arms it silently.
+    """
+    src = (cg.SCRIPT_DIR.parent / "wsl_startup_hook.sh").read_text()
+    prelude = "\n".join(
+        ln
+        for ln in src.splitlines()
+        if re.match(r"^[A-Z_]+=", ln) and "$(" not in ln.split("=", 1)[1]
+    )
+    assert prelude, "the prelude filter matched nothing"
+    for danger in ("mv ", "rm ", "for ", "while ", "if ", "`", "$(", ">", "|"):
+        assert danger not in prelude, (
+            f"the prelude slice contains {danger!r} — sourcing it has side effects on the REAL "
+            f"repo (FABRIK_ROOT is hardcoded in that file, so no override protects it)"
+        )
+    # ...and it must still define everything the materialised block needs.
+    for var in ("FABRIK_ROOT=", "VENV_PYTHON=", "LOG_FILE="):
+        assert var in prelude, f"{var} lost from the prelude — steps would expand to empty"

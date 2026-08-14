@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 17: an unborn branch bypassed the no-branch guard, and a lock collision blamed the wrong thing (2026-08-15)
+
+Round 17's highest-value hunt came back CLEAN — no test path can reach the script's
+`/opt/fabrik` default, and the rebase guard holds in subdirectories and git worktrees (relevant
+because Phase B/E may run in one). Four real findings:
+
+- **An unborn branch bypassed the no-branch guard.** `git rev-parse --abbrev-ref HEAD` prints
+  `HEAD` on stdout **and** exits 128 when there are no commits, so `|| echo HEAD` *appended*:
+  `_BRANCH` became `$'HEAD\nHEAD'`, which is not equal to `"HEAD"`, so the guard never fired and
+  the log record split across two lines. Phase B stands up the engine repo with `git init` and
+  no commits, so this sat on the plan's own path. Now uses `git symbolic-ref`, which is empty on
+  a real detached HEAD and correct on an unborn branch.
+- **A concurrent `index.lock` was diagnosed as a stage-list problem.** A peer's `git commit`
+  holds the lock for *seconds* — its pre-commit governance-sync fans out to ~46 repos — so every
+  `git add` failed with stderr discarded, and the script printed "check the stage list", the one
+  thing that was not wrong. The daily lockfile then blocked any retry until tomorrow, leaving
+  the tree dirty: the exact friction this file exists to remove.
+- **The provenance trailers were not machine-parseable.** One `-m` per line means git parses only
+  the *last* paragraph as trailers, so `git log --format='%(trailers:key=Agent-Role)'` returned
+  empty for every pipeline commit since July — the exact query CLAUDE.md says the trailers exist
+  for. Now a single `-m` carrying the block.
+- Round 15's scoped-emptiness fix was still the one production change with **no behavioural
+  test** — all 8 of round 16's tests passed with it reverted. Covered now, along with the three
+  above.
+
+**And the thing worth recording honestly:** fixing the trailers *dropped the commit pathspec*,
+reintroducing the round-13 HARD STOP (committing the whole index, peer WIP and all) in the same
+edit. The behavioural test module round 16 added caught it on the very next run — which is
+exactly the argument for having written it, and the reason a textual-only guard would have shipped
+the regression. The textual guard *also* went red, but for the wrong reason: its 10-line window
+no longer reached the pathspec past a multi-line `-m`. It now reads to the end of the command.
+
+Also: nothing pinned the shape of the test prelude, so the "a test rotated the real logs" class
+could re-arm silently (the `$(`-filter does not catch backticks) — now guarded, including a check
+that the prelude still defines every variable the materialised steps need. And the file's
+exclusion comment claimed a rule it does not follow: `.windsurf/rules/**` are mixed in the same
+sense as `LOCAL_LLM_INFRASTRUCTURE.md` and *are* staged, because the pipeline must publish their
+injected block and a partial-file stage is impossible. Recorded as a stated residual rather than
+left looking like an oversight.
+
 ### Fixed — catalog-extraction Phase A round 16: a sticky REBASE_HEAD would have killed the auto-commit forever, and a test was rotating the real pipeline logs (2026-08-15)
 
 Round 16 found six defects; the two worst were mine from round 15.
