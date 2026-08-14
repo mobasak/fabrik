@@ -415,3 +415,16 @@ def test_store_for_email_prefix_mapping(tmp_path):
     c = tmp_path / "ob-other-org"
     c.mkdir()
     assert rot._store_for_email("ob@ocoron.com", [a, b, c]) is None, "ambiguity never guessed"
+
+
+def test_gate_files_a_bootstrap_store_with_no_credentials_yet(box, monkeypatch, capsys):
+    """ONBOARDING (2026-08-14, live): a first-ever login for an account whose store exists but
+    holds no .credentials.json yet must FILE, not skip — _list_accounts excludes credential-less
+    dirs, so the identity gate saw 'no store for live account' and quarantined a valid pair."""
+    fresh = box / "manager-accounts" / "acct-c-example-com-s-organization"
+    fresh.mkdir()                     # store dir exists, no credentials inside
+    monkeypatch.setattr(rot, "_live_email", lambda **kw: "acct-c@example.com")
+    assert rot._cmd_drift_check() == 0
+    assert (fresh / ".credentials.json").is_file(), "bootstrap capture must land"
+    assert json.loads((fresh / ".credentials.json").read_text())[
+        "claudeAiOauth"]["accessToken"] == "tok-B-LIVE"

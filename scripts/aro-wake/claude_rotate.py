@@ -1338,7 +1338,8 @@ def _store_for_email(email: str, accounts: list[Path]) -> Path | None:
     (<local-part>-<domain-dashed>-...): unique prefix match on the email's local part.
     None when zero or multiple stores match — ambiguity is never guessed."""
     local = email.split("@", 1)[0].lower()
-    hits = [a for a in accounts if a.name.lower().startswith(local + "-")]
+    hits = [a for a in accounts
+            if a.name.lower() == local or a.name.lower().startswith(local + "-")]
     return hits[0] if len(hits) == 1 else None
 
 
@@ -1361,7 +1362,16 @@ def _cmd_drift_check() -> int:
     if email is None:
         sys.stderr.write("claude_rotate: drift-check skipped — live identity unverifiable\n")
         return 0
-    verified = _store_for_email(email, _list_accounts())
+    # ONBOARDING (2026-08-14 live gap): map against every store DIR, not only those that
+    # already hold credentials — _list_accounts excludes credential-less dirs, so a
+    # first-ever login for a new account was refused ("no store for live account") and its
+    # pair quarantined. A store dir is the operator's declaration that the account belongs
+    # to the pool; the identity gate still proves WHOSE token it is before writing.
+    try:
+        all_stores = sorted(d for d in ACCOUNTS_DIR.iterdir() if d.is_dir())
+    except OSError:
+        all_stores = _list_accounts()
+    verified = _store_for_email(email, all_stores)
     if verified is None:
         sys.stderr.write(
             f"claude_rotate: drift-check skipped — no store for live account {email}\n")
