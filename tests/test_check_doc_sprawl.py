@@ -146,3 +146,25 @@ def test_t5_vendor_trees_are_never_adjudicated(tmp_path, monkeypatch):
     out = _scan(r, "--strict")
     assert out.returncode == 1
     assert "node_modules" not in out.stdout
+
+
+# ── the sibling class: a MISSING optional check must not read as a silent green ─
+
+
+def test_missing_optional_check_is_visible_not_silently_green(tmp_path, monkeypatch):
+    """LIVE CLASS (fabrik-lib report 01M00TWS91, 2026-08-14): run_optional_check returns
+    passed=True for a script that does not exist, so a deleted or un-refreshed check stops
+    enforcing with NO change to the gate's green count. It must stay non-failing (a project
+    legitimately lacking an optional check must not red) but it must be VISIBLE — the ⚠ prefix
+    is the machine-readable surface --json already collects into `warnings`."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("fg_t", REPO / "scripts" / "final_gate.py")
+    fg = importlib.util.module_from_spec(spec)
+    sys.modules["fg_t"] = fg
+    spec.loader.exec_module(fg)
+
+    name, passed, out = fg.run_optional_check("scripts/enforcement/does_not_exist.py", "Ghost")
+    assert passed is True, "a missing optional check must never RED a project"
+    assert out.lstrip().startswith("⚠"), f"must be surfaced as a warning, got {out!r}"
+    assert "does_not_exist.py" in out, "the warning must name the missing script"

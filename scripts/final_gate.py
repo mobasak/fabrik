@@ -159,7 +159,12 @@ def run_optional_check(
     """
     full_path = PROJECT_ROOT / script_path
     if not full_path.exists():
-        return (check_name, True, "(check not present, skipping)")
+        # VISIBLE, not silently green (fabrik-lib finding 2026-08-14): a deleted or
+        # un-refreshed check used to vanish from enforcement with NO change to the gate's
+        # green count. It still must not RED a project that legitimately lacks an optional
+        # check — so it stays passed=True, but carries the ⚠ prefix the --json layer
+        # collects into `warnings`, where an operator (and CI) can actually see it.
+        return (check_name, True, f"⚠ check not present, skipping: {script_path}")
 
     if module:
         code, out = run_cmd([PYTHON, "-m", module] + list(args))
@@ -273,7 +278,7 @@ def print_step(name: str, passed: bool, output: str = "") -> None:
     if not passed and output:
         for line in output.split("\n")[:10]:  # Limit output
             print(f"       {line}")
-    elif passed and output and output != "(check not present, skipping)":
+    elif passed and output and not output.startswith("(check not present"):
         # Advisory output (warnings from non-blocking checks)
         for line in output.split("\n")[:10]:
             print(f"       {YELLOW}{line}{RESET}")

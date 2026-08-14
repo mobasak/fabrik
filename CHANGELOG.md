@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a missing optional check is now VISIBLE instead of silently green (2026-08-14)
+
+`run_optional_check` returned `passed=True, "(check not present, skipping)"` for a script that
+does not exist, so a deleted or un-refreshed check stopped enforcing with no change to the gate's
+green count (fabrik-lib finding 01M00TWS91 — the sibling of the doc-sprawl vacuity fixed in the
+same session). It still never REDs a project that legitimately lacks an optional check, but the
+message now carries the `⚠` prefix that `--json` collects into `warnings`, so the disappearance is
+machine-readable in CI and visible to an operator. Red-first test pins both halves (non-failing
+AND surfaced, naming the missing script). Synced surface — ships to ~46 projects.
+
 ### Fixed — check_doc_sprawl is no longer a permanently-green blocking check (2026-08-14)
 
 Both entry points were vacuous: no `__main__` (so `final_gate`'s script invocation always exited
