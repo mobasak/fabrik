@@ -23,13 +23,13 @@ cannot be widespread — it had a population of one.
 
 ## fabrik-lib — clean
 
-- The dead `CLAUDE.md` branch in `scripts/refresh-governance.sh` is **documented in place**
+- The dead `CLAUDE.md` branch in `/opt/fabrik-lib/scripts/refresh-governance.sh` is **documented in place**
   (`⚠ DEAD CODE as of 2026-08-12 — the hub REMOVED "CLAUDE.md" from GOVERNANCE_FILES`), not
   silently left to rot. Their agent handled it as reported.
 - All five UNIVERSAL governance anchors are present in its `CLAUDE.md`: commit-at-task-end ·
   push-at-task-end · explicit-pathspecs · provenance-trailers · no-force-push.
-- Its own `scripts/enforcement/check_governance_drift.py` exists and is wired into
-  `final_gate_fabrik_lib.py` — so future hub drift surfaces there automatically.
+- Its own `/opt/fabrik-lib/scripts/enforcement/check_governance_drift.py` exists and is wired into
+  its `final_gate_fabrik_lib.py` — so future hub drift surfaces there automatically.
 
 ## The reverse question (the valuable half)
 
