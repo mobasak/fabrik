@@ -1230,6 +1230,10 @@ def test_a_single_dead_column_is_drift_on_the_small_gateway_packs():
 
     keys = sorted(set(re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text())))
     healthy = {k: 200 + i * 37 for i, k in enumerate(keys)}
+    # Without this the `language` pack renders "language-tagged: **0**", its base live_counts is
+    # 1 not 2, and the `< 2` guard below SKIPS it — so the test silently covered only `agentic`
+    # while its docstring claimed both, and `checked >= 2` was satisfied by agentic alone.
+    healthy.setdefault("categories", {})
     checked = 0
     for category in ("language", "agentic"):
         base = cg.marker_shape(ugc.render_block(category, healthy, "2026-01-01"))
@@ -1288,3 +1292,60 @@ def test_an_unfrozen_marker_is_not_counted_as_intact(monkeypatch, capsys, tmp_pa
     out = capsys.readouterr().out
     assert "UNFROZEN" in out, f"absent markers reported as intact: {out}"
     assert f"{total - len(absent)} contract elements" in out, out
+
+
+# ── round-13 fixes ───────────────────────────────────────────────────────────
+def test_both_pipeline_entry_points_run_the_oracle_before_committing():
+    """The ordering test that only looked at daily_refresh.sh could not see the real path.
+
+    Both entry points share /tmp/.fabrik_daily_<UTC>, so whichever wins the race the other
+    SKIPS ENTIRELY. Measured from update.log: 7 "Pipeline complete" (wsl_startup_hook) vs 0
+    "Refresh complete" (daily_refresh) — a workstation booted after the 06:00 UTC cron always
+    wins, so the oracle's only caller had not run at all. Meanwhile the hook's auto-commit
+    matches the governance-sync pre-commit filter (^\\.windsurf/rules/), so it fans a husk out
+    to ~46 repos. Assert the invariant on EVERY entry point, not just the one that documents it.
+    """
+    for rel in ("daily_refresh.sh", "../wsl_startup_hook.sh"):
+        sh = (cg.SCRIPT_DIR / rel).read_text()
+        lines = [ln for ln in sh.splitlines() if not ln.lstrip().startswith("#")]
+        body = "\n".join(lines)
+        assert "capture_golden.py" in body and "--verify" in body, f"{rel}: no oracle call"
+        assert "autocommit_pipeline_outputs" in body, f"{rel}: no auto-commit call"
+        assert body.index("capture_golden.py") < body.index("autocommit_pipeline_outputs"), (
+            f"{rel}: commits/pushes BEFORE verifying the contract — a husk would fleet-sync"
+        )
+
+
+def test_the_autocommit_commits_a_pathspec_not_the_index():
+    """CLAUDE.md § HARD STOPS: commit with a pathspec, never the index.
+
+    The first version ran `git add -- <paths>` then a BARE `git commit`, which commits
+    EVERYTHING staged — a peer's WIP rode along, defeating the exclusion list in the same file.
+    A bare `final_gate.py` run auto-stages, so a non-empty index is the normal state here.
+    """
+    sh = (cg.SCRIPT_DIR / "autocommit_pipeline_outputs.sh").read_text()
+    # Anchor on the COMMAND, not the word: the file's own comments discuss `git commit`, and
+    # matching those made an earlier version of this assertion read the prose instead.
+    lines = sh.splitlines()
+    start = next(
+        i for i, ln in enumerate(lines)
+        if ln.strip().startswith("git commit") and not ln.lstrip().startswith("#")
+    )
+    commit = "\n".join(lines[start : start + 10])
+    assert '-- "${STAGED[@]}"' in commit, f"git commit has no pathspec:\n{commit}"
+    assert 'git diff --cached --quiet -- "${STAGED[@]}"' in sh, (
+        "the emptiness test is unscoped — it fires whenever ANY file is staged"
+    )
+    for protected in ("PORTS.md", "LOCAL_LLM_INFRASTRUCTURE.md", "libs/subagents", "plan-locks"):
+        staged_block = sh[sh.index("PATHS=(") : sh.index(")", sh.index("PATHS=("))]
+        assert protected not in staged_block, f"{protected} is in the stage list"
+
+
+def test_the_autocommit_survives_a_retired_pipeline_path():
+    """`git add` is all-or-nothing: ONE renamed path made it exit 128 with NOTHING staged,
+    and the guard then logged "tree already clean" — reporting success for a total no-op.
+    Phase B copies this into the engine repo where most paths will not exist."""
+    sh = (cg.SCRIPT_DIR / "autocommit_pipeline_outputs.sh").read_text()
+    assert 'for _p in "${PATHS[@]}"' in sh, "paths are still added in one all-or-nothing call"
+    assert "no pipeline paths matched" in sh, "a total mismatch is not reported"
+    assert "stage paths matched" in sh, "a partial mismatch is not warned"

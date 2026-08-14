@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 13: the auto-commit I shipped last turn committed the INDEX, and the oracle had not run in 3 days (2026-08-14)
+
+Round 13 reviewed the shell surface I added one turn earlier alongside the oracle. Two of its
+three confirmed findings are defects I introduced:
+
+- **⚠️ The auto-commit committed the whole index.** `git add -- <paths>` was followed by a
+  BARE `git commit`, so it committed everything staged by anyone — a peer's WIP rode along,
+  defeating the exclusion list in the same file. This is the exact HARD STOP in CLAUDE.md
+  ("commit with a pathspec, never the index"), and I had verified the *stage* list by staging
+  and inspecting while never testing the *commit* form. Reproduced by the reviewer against the
+  real script: it bundled `PORTS.md` and `libs/subagents/agent.py`. The one live run
+  (712d7e49) was clean only because I had run `git reset` moments before; a bare
+  `final_gate.py` auto-stages, so a non-empty index is the normal state.
+- **One retired path silently disabled the whole thing and logged success.** `git add` is
+  all-or-nothing: any unmatched pathspec exits 128 with nothing staged, stderr swallowed, and
+  the guard then printed "nothing regenerated changed — tree already clean". Phase B copies
+  this into the engine repo where most of those paths will not exist.
+- Both fixed: the stage list is now one array used for add, the emptiness test and the commit;
+  paths are added individually with a partial-match warning; the push targets the checked-out
+  branch rather than a hardcoded `master`.
+
+- **The contract oracle had not executed in the whole log window.** Both entry points share
+  `/tmp/.fabrik_daily_<UTC>`, so whichever wins the race the other skips entirely — measured,
+  7 `Pipeline complete` (wsl_startup_hook) against 0 `Refresh complete` (daily_refresh). The
+  oracle, the staleness alarm and the ranker are called only by `daily_refresh.sh`, so none had
+  run; the heartbeat that would have reported this lives inside the script that never ran. My
+  new auto-commit made it load-bearing: it pushes, and its stage list matches the
+  governance-sync pre-commit filter, so a husk would fleet-sync to ~46 repos with nothing
+  verifying it. All three steps now run in the hook too, in `daily_refresh`'s order, with the
+  oracle above the commit.
+
+Test fixes in the same pass: `test_the_oracle_runs_before_the_fleet_sync` only inspected
+`daily_refresh.sh` and so was blind to the path that actually runs — the invariant is now
+asserted on every entry point. And `test_a_single_dead_column_is_drift_on_the_small_gateway_packs`
+silently skipped the `language` pack it named (its fixture lacked a `categories` key, so the
+pack rendered one position and hit the `< 2` guard), leaving `checked >= 2` satisfied by
+`agentic` alone.
+
+Round 13 also confirmed clean: 762 consecutive and 17,461 forward-window marker pairs with 0
+reds, the full husk battery caught by the real producers, and all three round-12 fixes red on
+revert.
+
 ### Fixed — the daily pipeline now commits its own regenerated outputs (2026-08-14)
 
 Fourteen tracked files reappeared dirty after every boot, poisoning the working tree for the

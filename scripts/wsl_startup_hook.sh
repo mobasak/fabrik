@@ -169,6 +169,23 @@ if [ ! -f "$LOCK_FILE" ]; then
         python3 $FABRIK_ROOT/commands/assemble_commands.py --check >> $LOG_FILE 2>&1 || echo 'WARN: ~/.claude/commands drifted from /opt/fabrik/commands sources — re-render or reconcile' >> $LOG_FILE
         # session-recall incremental index (fail-quiet; initial heavy ingest already done 2026-07-26)
         cd /opt/session-recall && timeout 600 .venv/bin/python -m ingest.reindex >> $LOG_FILE 2>&1 || echo \"[session-recall] incremental index failed (non-fatal)\" >> $LOG_FILE
+        # === STEPS THIS HOOK WAS MISSING (added 2026-08-14) ===
+        # Both entry points share /tmp/.fabrik_daily_<UTC>, so whichever wins the race, the
+        # other SKIPS ENTIRELY. Measured: 7 'Pipeline complete' runs, 0 'Refresh complete' —
+        # a workstation booted after the 06:00 UTC cron always wins, so daily_refresh.sh had
+        # not run in the whole log window. Its three exclusive steps therefore never ran
+        # either, while THIS hook regenerates the same artifacts. Same order daily_refresh
+        # uses: ranker -> contract oracle -> (sync) -> auto-commit.
+        # ⚠️ The oracle MUST stay above the auto-commit: that commit matches the
+        # governance-sync pre-commit filter (^\.windsurf/rules/), so it fans out to ~46 repos.
+        # Committing a husk before verifying it is the exact ordering
+        # test_the_oracle_runs_before_the_fleet_sync exists to prevent.
+        \$VENV_PYTHON \$FABRIK_ROOT/scripts/kilo-benchmarks/rank_task_subagents.py >> \$LOG_FILE 2>&1 \
+            || echo '[wsl_startup_hook] rank_task_subagents FAILED — selection doc KEPT, not overwritten' >> \$LOG_FILE
+        ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 \$VENV_PYTHON \$FABRIK_ROOT/scripts/kilo-benchmarks/tests/capture_golden.py --verify >> \$LOG_FILE 2>&1 \
+            || echo '[wsl_startup_hook] contract oracle reported DRIFT or a stale golden — see above' >> \$LOG_FILE
+        \$VENV_PYTHON \$FABRIK_ROOT/scripts/kilo-benchmarks/check_daily_refresh_freshness.py >> \$LOG_FILE 2>&1 \
+            || echo '[wsl_startup_hook] freshness check errored (non-fatal)' >> \$LOG_FILE
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
         # THIS is the daily-dirt fix: this hook regenerates ~14 tracked files every boot and
         # had no git step at all, so the tree was perpetually dirty for the next agent while

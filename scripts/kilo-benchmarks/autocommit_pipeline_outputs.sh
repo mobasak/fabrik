@@ -27,23 +27,45 @@ CALLER="${1:-pipeline}"
 
 cd "$FABRIK_ROOT" || exit 0
 
-git add -- \
-  .windsurf/rules/ai/*.md \
-  .windsurf/rules/core/65-rag-search.md \
-  docs/reference/kilo/CODING_SUBAGENT_SELECTION.md \
-  docs/reference/kilo/TASK_SUBAGENT_SELECTION.md \
-  docs/reference/kilo/KILO_MODEL_CAPABILITIES.md \
-  docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md \
-  docs/reference/kilo/TTS_SELECTION.md \
-  docs/reference/kilo/STT_SELECTION.md \
-  docs/reference/kilo/TRANSLATION_SELECTION.md \
-  docs/reference/kilo/IMAGE_GEN_SELECTION.md \
-  docs/reference/kilo/CANDIDATE_SIGNUPS.md \
-  docs/CAPABILITIES.md capabilities.json \
-  docs/traycer/kilo_selected_agents.md \
-  scripts/kilo-benchmarks/embedding_models_dump.json \
-  scripts/kilo-benchmarks/embedding_shortlists.json \
-  2>/dev/null || true
+# THE stage list. Defined once as an array because it is used THREE times below — add,
+# emptiness-test and commit. Earlier this was a single `git add --` followed by a BARE
+# `git commit`, which commits the WHOLE INDEX: a peer's staged WIP rode along, defeating the
+# exclusion list two comments down. (CLAUDE.md § HARD STOPS: commit with a pathspec, never the
+# index. A bare `final_gate.py` run auto-stages, so a non-empty index is the NORMAL state here.)
+PATHS=(
+  .windsurf/rules/ai/*.md
+  .windsurf/rules/core/65-rag-search.md
+  docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
+  docs/reference/kilo/TASK_SUBAGENT_SELECTION.md
+  docs/reference/kilo/KILO_MODEL_CAPABILITIES.md
+  docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md
+  docs/reference/kilo/TTS_SELECTION.md
+  docs/reference/kilo/STT_SELECTION.md
+  docs/reference/kilo/TRANSLATION_SELECTION.md
+  docs/reference/kilo/IMAGE_GEN_SELECTION.md
+  docs/reference/kilo/CANDIDATE_SIGNUPS.md
+  docs/CAPABILITIES.md
+  capabilities.json
+  docs/traycer/kilo_selected_agents.md
+  scripts/kilo-benchmarks/embedding_models_dump.json
+  scripts/kilo-benchmarks/embedding_shortlists.json
+)
+
+# Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
+# empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not
+# exist) made it exit 128 with NOTHING staged — and the guard below then logged "tree already
+# clean", reporting success for a total no-op. Per-path keeps the other 15 working.
+STAGED=()
+for _p in "${PATHS[@]}"; do
+  if git add -- "$_p" 2>/dev/null; then STAGED+=("$_p"); fi
+done
+if [ ${#STAGED[@]} -eq 0 ]; then
+  echo "[auto-commit] no pipeline paths matched — nothing to stage (check the stage list)"
+  exit 0
+fi
+if [ ${#STAGED[@]} -ne ${#PATHS[@]} ]; then
+  echo "[auto-commit] WARNING: ${#STAGED[@]}/${#PATHS[@]} stage paths matched — a pipeline output was renamed or retired"
+fi
 
 # ⚠️ EXCLUSIONS — do not "helpfully" add these:
 # LOCAL_LLM_INFRASTRUCTURE.md is deliberately NOT staged: the pipeline rewrites only its
@@ -53,7 +75,9 @@ git add -- \
 # staging those would bundle a live agent's WIP into its commit. If the refresh churns such a
 # file (format sweep), the churn is the defect — stop touching it, don't auto-commit it.
 
-if git diff --cached --quiet; then
+# Scoped to OUR paths: an unscoped test fires whenever ANY file is staged, so the script would
+# commit even when zero pipeline outputs changed.
+if git diff --cached --quiet -- "${STAGED[@]}"; then
   echo "[auto-commit] nothing regenerated changed — tree already clean"
   exit 0
 fi
@@ -63,14 +87,19 @@ git commit -q \
   -m "Agent-Role: primary" \
   -m "Agent-Context: the pipeline commits its own regenerated tracked outputs so the working tree stays clean for the next agent" \
   -m "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
+  -- "${STAGED[@]}" \
   && echo "[auto-commit] committed" || { echo "[auto-commit] commit failed (non-fatal)"; exit 0; }
 
-git fetch -q origin master 2>/dev/null || true
-if git merge-base --is-ancestor origin/master HEAD 2>/dev/null; then
-  git push -q origin master 2>/dev/null \
-    && echo "[auto-commit] pushed to origin/master" \
+# Push the CHECKED-OUT branch. `origin master` pushed the local master ref regardless of what
+# was checked out — on an ad-hoc branch the commit landed on the branch while an unrelated
+# master got pushed.
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo master)"
+git fetch -q origin "$BRANCH" 2>/dev/null || true
+if git merge-base --is-ancestor "origin/$BRANCH" HEAD 2>/dev/null; then
+  git push -q origin "$BRANCH" 2>/dev/null \
+    && echo "[auto-commit] pushed to origin/$BRANCH" \
     || echo "[auto-commit] push failed — commit left local (non-fatal)"
 else
-  echo "[auto-commit] origin/master diverged — commit left local for the next agent to integrate"
+  echo "[auto-commit] origin/$BRANCH diverged — commit left local for the next agent to integrate"
 fi
 exit 0
