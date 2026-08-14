@@ -239,3 +239,52 @@ def test_the_commit_trailers_are_machine_parseable(tmp_path):
     ctx = _git(r, "log", "-1", "--format=%(trailers:key=Agent-Context,valueonly)").strip()
     assert role == "primary", f"Agent-Role not parseable: {role!r}"
     assert ctx, "Agent-Context not parseable"
+
+
+def test_commit_failure_unstages_our_paths_and_alerts(tmp_path):
+    """The only bail-out that used to leave the index dirty, and it never alerted.
+
+    Up to 26 pipeline paths stayed staged in the shared master index; because the script exits 0
+    the caller's `|| echo ... errored` can never fire, so a persistently failing pre-commit hook
+    (this repo has two MODIFYING hooks) would disable the auto-commit forever, silently.
+    """
+    r = _repo(tmp_path)
+    hooks = Path(_git(r, "rev-parse", "--absolute-git-dir")) / "hooks"
+    hooks.mkdir(exist_ok=True)
+    (hooks / "pre-commit").write_text("#!/bin/bash\nexit 1\n")
+    (hooks / "pre-commit").chmod(0o755)
+    (r / ".windsurf/rules/ai/00-ai.md").write_text("regenerated\n")
+
+    out = _run(r)
+    assert "commit failed" in out, out
+    assert _git(r, "diff", "--cached", "--name-only") == "", "our paths were left staged"
+    assert "pipeline_alert" in (Path(__file__).resolve().parents[1] / "autocommit_pipeline_outputs.sh").read_text()
+
+
+def test_a_lock_taken_mid_stage_is_diagnosed_as_a_lock(tmp_path):
+    """The pre-loop guard is a point sample. A peer can take the lock DURING the ~26 adds — the
+    run then reported 'a pipeline output was renamed or retired', a false cause, plus a partial
+    commit. The failing add must re-check."""
+    r = _repo(tmp_path)
+    for i in range(3):
+        (r / f".windsurf/rules/ai/{i}0-x.md").write_text("base\n")
+    _git(r, "add", "-A")
+    _git(r, "commit", "-qm", "more")
+    for i in range(3):
+        (r / f".windsurf/rules/ai/{i}0-x.md").write_text("regenerated\n")
+
+    # a hook-free way to make adds start failing partway: drop the lock in after the run starts
+    lock = Path(_git(r, "rev-parse", "--absolute-git-dir")) / "index.lock"
+    script = Path(__file__).resolve().parents[1] / "autocommit_pipeline_outputs.sh"
+    proc = subprocess.Popen(
+        ["bash", str(script), "pytest"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(r), "FABRIK_ROOT": str(r)},
+    )
+    lock.touch()  # racy by nature; assert only on the outcomes we can guarantee
+    out = proc.communicate()[0]
+    lock.unlink(missing_ok=True)
+    # Either it finished before the lock landed (committed) or it saw the lock — never the
+    # misleading rename diagnosis while a lock exists.
+    assert "renamed or retired" not in out or "index lock" in out, out
+    assert proc.returncode == 0, out

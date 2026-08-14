@@ -92,15 +92,14 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 | `Merged-From` | comma-separated branch list | orchestrator squash commits |
 | `Conflicts-Resolved` | count | orchestrator squash commits |
 
-Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`:
+Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`. ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it: git parses only the LAST paragraph, and only if it is all-trailers. A blank line before `Co-Authored-By:` demotes everything above it to prose; so does a prose line glued to the top of the block. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because the old example here shipped the blank line.
 
 ```
 fix(worker): handle OOM exit code -9 in poll_worker
 
 Agent-Role: primary
 Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
-
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
 
 Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From`/`Conflicts-Resolved` — the `/execute-plan` command (`.claude/commands/execute-plan.md`) is the canonical source for that.

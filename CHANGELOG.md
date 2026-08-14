@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the trailer fix shipped HALF-APPLIED and had already synced to 49 repos (2026-08-15)
+
+Round 19 independently verified the governance claim from round 18 — the git behaviour on
+2.43.0, the "200 of 200 carried `Agent-Role:`, only 10 parsed" measurement, its causal
+attribution (190 of 190 failures were the blank-line-in-block cause, zero others), and that the
+corrected worked example parses when copied verbatim. All correct.
+
+But it found the fix was applied to two files and needed four:
+
+- **⚠️ `.windsurf/rules/core/40-documentation.md` still carried the broken example — on 49
+  project repos.** That pack is both a governance-sync **trigger** and a **synced** file, so it
+  had already distributed. Worse, CLAUDE.md § Conflict resolution ranks **rule pack > ticket**
+  for *how to write*, so every project held two synced governance files giving opposite
+  instructions on the same question, with the **wrong** one holding precedence. That is the
+  "an inconsistent rule fleet-wide is worse than the original bug" case, created by fixing it.
+- **`commands/_sources/fabrik-execute-plan.md` had three broken copy-pasteable blocks**, each
+  inside a `git commit -m "$(cat <<'EOF' … EOF)"` — and CLAUDE.md points there as the canonical
+  source for plan-execution trailers. The queries documented on that same page are *proven
+  wrong* by it: `git log --format='%h %s %(trailers:key=Conflicts-Resolved)' | grep -v ': 0'`
+  reports a conflict-free phase as having had conflicts, because the empty trailer survives both
+  filters. Fixed and re-rendered box-wide.
+- `AGENTS-compact.md` still carried the exact wording that caused the bug ("blank line first,
+  above `Co-Authored-By:`") with no no-blank-inside rule and no example.
+
+Also from round 19, all mine:
+
+- **My heartbeat-alert migration lost `$KB` expansion** — moving the body from a double-quoted
+  `python -c` into single quotes meant the only alert that names the failing path would have
+  read literally `Disk full or permission denied on $KB/cache/`.
+- **Three of round 18's four production fixes had no behavioural test** (green on revert): the
+  commit-failure unstage, the mid-loop lock re-check, and the heartbeat migration. This is the
+  same class round 18's own entry claims to have closed. Covered now — and the reason the
+  heartbeat pair stayed broken since June is that
+  `test_the_alert_can_actually_fire_not_just_exist` filters on `"rank_task_subagents"`, so it
+  only ever saw the ranker line. The new test checks **every** alert site.
+- The header I rewrote *because a header's inaccuracy had hidden a defect* shipped a new wrong
+  line-cite; and "the shared index is left as we found it" was false — `git reset -- <paths>`
+  restores to HEAD, not to the pre-run index. Both corrected rather than left to drift.
+
 ### Fixed — the Agent-Role trailer template has been broken fleet-wide since July, plus two dead CRITICAL alerts (2026-08-15)
 
 Round 18 answered the question I flagged rather than assumed, and the answer was not about my

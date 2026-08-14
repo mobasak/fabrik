@@ -212,3 +212,34 @@ def test_an_unreadable_doc_does_not_skip_the_keep_guard(monkeypatch, tmp_path):
     assert doc.read_text() == "GOOD CONTENT FROM YESTERDAY", (
         "an unreadable doc skipped the keep-guard and the stub was published over it"
     )
+
+
+def test_every_daily_refresh_alert_can_actually_deliver():
+    """The heartbeat pair alerted NOBODY from June until 2026-08-15.
+
+    `test_the_alert_can_actually_fire_not_just_exist` filters on
+    `"rank_task_subagents" in ln.lower()`, so it only ever saw the ranker line — which is
+    exactly why the two heartbeat `send_alert` calls could sit there with no `load_dotenv`
+    (making `alerting._is_enabled()` False) for months. Check EVERY alert site.
+    """
+    sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
+    sites = [ln for ln in sh.splitlines() if "send_alert" in ln or "pipeline_alert.sh" in ln]
+    assert len(sites) >= 4, f"expected all four alert sites, found {len(sites)}"
+    for ln in sites:
+        ok = "pipeline_alert.sh" in ln or "load_dotenv" in ln
+        assert ok, f"alert site can never deliver (no load_dotenv, no helper):\n  {ln[:160]}"
+
+
+def test_the_heartbeat_alert_bodies_expand_their_paths():
+    """Migrating the heartbeat alerts into single quotes stopped `$KB` expanding, so the only
+    alert that names the failing path would have read literally `$KB/cache/`."""
+    sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
+    for ln in sh.splitlines():
+        if "pipeline_alert.sh" not in ln:
+            continue
+        # Splitting on `'` alternates outside/inside single quotes; only the ODD chunks are
+        # single-quoted, and only those suppress expansion.
+        for chunk in ln.split("'")[1::2]:
+            assert "$" not in chunk, (
+                f"single-quoted alert body will emit a literal variable:\n  {ln[:170]}"
+            )

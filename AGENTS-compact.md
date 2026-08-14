@@ -63,7 +63,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 **Skip:** refactor/docs/test-only → `CHANGELOG.md` only.
 
 ## AGENT PROVENANCE TRAILERS (every AI commit)
-Git can't tell agents apart — every commit shows the same user. Add trailers to the commit **body** (blank line first, above `Co-Authored-By:`) for attribution.
+Git can't tell agents apart — every commit shows the same user. Add trailers to the commit **body** as ONE paragraph — blank line before the block, **no blank line inside it** (a blank line before `Co-Authored-By:` makes git ignore every `Agent-*` line above it) for attribution.
 
 | Trailer | Values | When |
 |---|---|---|

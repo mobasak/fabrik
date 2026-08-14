@@ -174,7 +174,12 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
     # can never fire — so a persistently failing pre-commit hook (this repo has two MODIFYING
     # hooks plus forbid-secrets and governance-sync) disables the auto-commit forever, silently.
     # That is the round-16 REBASE_HEAD class on a path with no ref to grep for.
-    echo "[auto-commit] commit failed — unstaging our paths so the shared index is left as we found it"
+    # ⚠️ `git reset -- <paths>` restores the index to HEAD, NOT to the pre-run index. If a peer
+    # had one of OUR paths staged, this unstages it. Their content is already gone by then (the
+    # `git add` above overwrote it) and is recoverable from the worktree, so this is the least
+    # bad option — but it is not "leaving the index as we found it", and saying so would be the
+    # kind of comment-drift that produced the round-17 bug.
+    echo "[auto-commit] commit failed — unstaging our paths (note: git reset restores them to HEAD, not to whatever was staged before this run)"
     git reset -q -- "${STAGED[@]}" 2>/dev/null || true
     bash "$(dirname "$0")/pipeline_alert.sh" \
       "auto-commit: git commit failed on $(hostname 2>/dev/null || echo this host)" \

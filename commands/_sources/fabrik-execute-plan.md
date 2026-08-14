@@ -226,7 +226,6 @@ Agent-Role: subagent
 Agent-Phase: B
 Agent-Task: 5
 Agent-Context: GDPR schema migration + Flask consent routes
-
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
 )"
@@ -256,7 +255,6 @@ feat(scope): Phase D — File Cache
 Agent-Role: orchestrator
 Agent-Phase: D
 Agent-Context: inline execution, no subagents (low complexity)
-
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
 )"
@@ -270,7 +268,6 @@ fix(scope): Phase B review — null guard in audit_log.record_event
 Agent-Role: review-fix
 Agent-Phase: B
 Agent-Context: fixed CONFIRMED finding from /fabrik-review — missing None check on target_id
-
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
 )"

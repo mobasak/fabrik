@@ -4,7 +4,7 @@
 # Fire one critical Telegram alert from a pipeline step.
 #
 # daily_refresh.sh's two HEARTBEAT alerts (:530, :534) now route through here. Its two RANKER
-# and ORACLE alerts (:425, :480) deliberately stay inline: test_flywheel_safety.py:94-101 pins
+# and ORACLE alerts (:425, :480) deliberately stay inline: test_flywheel_safety.py::test_the_alert_can_actually_fire_not_just_exist pins
 # that form for the ranker line specifically. The heartbeat pair were migrated because they had
 # NO load_dotenv at all and were therefore silent no-ops — alerting._is_enabled() reads
 # TELEGRAM_BOT_TOKEN from the process env, so a disk-full heartbeat failure alerted nobody.
