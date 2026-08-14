@@ -34,8 +34,8 @@ import os
 import re
 import select
 import subprocess
-import tempfile
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
