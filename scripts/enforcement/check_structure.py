@@ -359,6 +359,17 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         elif parts[0] == "docs-site":
             pass  # Docusaurus site content allowed
 
+        # sites/<slug>/ is a NESTED PROJECT ROOT — a factory project (web-ecommerce-factory)
+        # produces one self-contained deliverable per client there, each with its own INDEX,
+        # page inventory and design contracts. Those docs must stay WITH the site for BRAND
+        # ISOLATION: telling the project to "move to docs/" would put one client's strategy
+        # next to every other client's material, violating the policy its own docs/README.md
+        # states. Same nested-root reasoning as docs-site/ above (web-ecommerce-factory
+        # upstream proposal 2026-08-08, applied 2026-08-15). Zero blast radius: no other /opt
+        # repo has a top-level sites/ tree.
+        elif parts[0] == "sites":
+            pass  # per-site deliverable docs allowed
+
         # Other locations
         else:
             violations.append(

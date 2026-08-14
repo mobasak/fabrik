@@ -181,3 +181,32 @@ def test_gitignored_set_returns_unquoted_nonascii_paths(tmp_path):
     (tmp_path / "artifacts" / name).write_text("x", encoding="utf-8")
     got = cs._gitignored_files(tmp_path)
     assert f"artifacts/{name}" in got, got
+
+
+# ── sites/<slug>/ nested roots (upstream proposal from web-ecommerce-factory, 2026-08-08) ──
+
+
+def _paths_violations(paths):
+    """Run check_structure over arbitrary repo-relative paths; return flagged paths."""
+    return {v["file"] for v in cs.check_structure(REPO_ROOT, files=list(paths))}
+
+
+def test_site_package_markdown_is_allowed():
+    """A factory project produces sites into sites/<slug>/, each a self-contained deliverable
+    whose docs must stay WITH it (brand isolation: one client's strategy must never land in the
+    factory's shared docs/). Same nested-root reasoning as docs-site/ — without this branch the
+    catch-all flags every per-site doc as "unexpected location" and instructs the project to
+    violate the policy its own docs/README.md wrote down first."""
+    flagged = _paths_violations([
+        "sites/bhdtrade/INDEX.md",
+        "sites/bhdtrade/page-layouts.md",
+        "sites/bhdtrade/BHD_global_market_strategy.md",
+        "sites/acme/README.md",
+    ])
+    assert flagged == set(), f"site-package docs must not be flagged: {sorted(flagged)}"
+
+
+def test_markdown_outside_a_site_package_still_flagged():
+    """The allowance is scoped — it must not become a blanket amnesty."""
+    flagged = _paths_violations(["random_dir/STRAY.md"])
+    assert any("STRAY.md" in f for f in flagged), f"stray doc must still be flagged: {flagged}"

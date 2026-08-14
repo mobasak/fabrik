@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_structure allows per-site deliverable docs (sites/<slug>/) (2026-08-15)
+
+Upstream proposal from web-ecommerce-factory (their
+`docs/reference/upstream-proposals/2026-08-08-check-structure-md-allowlist.md`, proposal 2):
+the synced `check_structure.py` had nested-root branches for `docs-site/`, `templates/`,
+`specs/`, `ops/`, `commands/`, `.windsurf/`, `.droid/` — but none for `sites/`, so a factory
+project's per-site docs fell to the catch-all "Markdown file in unexpected location", whose fix
+hint ("move to docs/") would have made them violate their own written brand-isolation policy
+(one client's strategy must never sit in the factory's shared docs tree). Added the branch with
+the same nested-root reasoning as `docs-site/`. Verified: their Tier-2 structure check now
+passes; blast radius zero (no other /opt repo has a top-level `sites/`); 2 red-first tests, one
+of which pins that a stray .md elsewhere is STILL flagged so this is not a blanket amnesty.
+
 ### Fixed — catalog-extraction Phase A round 15: my round-14 fix made a healthy boot alert "the pipeline is hanging" (2026-08-15)
 
 Round 15 found that activating the freshness check created live harm, plus three tests of mine
