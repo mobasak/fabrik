@@ -101,6 +101,15 @@ ALLOWED_PATTERNS = [
     # Same dated shape as the plans pattern above, deliberately: one artifact per file,
     # greppable, and unambiguously distinct from a plan.
     re.compile(r"^docs/development/epics/\d{4}-\d{2}-\d{2}-epic-\d+-.+\.md$"),
+    # CROSS-CHECK CONSISTENCY (review finding F2, 2026-08-15): check_structure.py allows
+    # README.md at any depth (:229), libs/** (:246), ops/** (:345), docs-site/** (:359) and
+    # sites/** (:370). Two synced checks giving OPPOSITE verdicts on the same file is worse
+    # than either policy alone — a project cannot satisfy both. These mirror that contract.
+    re.compile(r"(^|.*/)README\.md$"),
+    re.compile(r"^libs/.+\.md$"),
+    re.compile(r"^ops/.+\.md$"),
+    re.compile(r"^sites/.+\.md$"),
+    re.compile(r"^docs-site/.+\.md$"),
     # Reference docs: docs/reference/**/*.md — CLAUDE.md's new-.md allowlist lists this tree
     # explicitly ("· `docs/reference/**/*.md` ·"), and the check carried NO pattern for it, so
     # activation would have RED files governance permits (found 2026-08-15 preparing the
@@ -118,9 +127,12 @@ ALLOWED_PATTERNS = [
 # Third-party / build trees are NEVER adjudicated by a doc policy (plan 2026-08-14-plan-1):
 # rnfinal alone carried 2230 untracked node_modules READMEs. A default-deny rule that judges
 # vendored files is measuring someone else's repository.
+# TIGHTENED (review finding F4, 2026-08-15): the first cut matched generic words at ANY
+# segment — `docs/build/NOTES.md` and `docs/guides/dist/legit.md` were silently un-adjudicated,
+# a fail-OPEN amnesty inside a default-deny policy. Only unambiguous third-party/tooling roots
+# remain; this also matches check_structure's own skip set rather than diverging from it.
 _VENDOR_SEGMENTS = frozenset({
-    "node_modules", "vendor", ".venv", "venv", "site-packages",
-    "dist", "build", ".tox", ".next", ".pnpm-store",
+    "node_modules", "site-packages", ".venv", "venv", ".tox", ".pnpm-store", "__pycache__",
 })
 
 
@@ -283,6 +295,11 @@ def check_file(file_path: Path) -> list[CheckResult]:
         return results  # genuinely outside the repo — not ours to judge
 
     path_str = str(rel_path).replace("\\", "/")  # Normalize for Windows
+    # F8: the suffix gate above is case-INsensitive but every ALLOWED_PATTERN ends in a
+    # literal `.md`, so `docs/archive/OLD.MD` — a path CLAUDE.md's allowlist permits — was
+    # blocked. Normalize only the extension; the rest of the path stays case-exact.
+    if path_str.endswith(".MD") or path_str[-3:].lower() == ".md":
+        path_str = path_str[: -len(rel_path.suffix)] + rel_path.suffix.lower()
 
     if _is_vendor(path_str):
         return results
@@ -326,17 +343,26 @@ def check_file(file_path: Path) -> list[CheckResult]:
 def scan_repo(repo_root: Path) -> list[str]:
     """Every untracked+unignored .md in the repo that the allowlist denies (vendor trees
     excluded). Returns human-readable violation lines."""
-    try:
-        out = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard", "*.md"],
-            cwd=repo_root, capture_output=True, text=True, check=False,
-        )
-        if out.returncode != 0:
-            return []
-    except Exception:
-        return []
+    rels: list[str] = []
+    # F7: `core.quotePath=false` + `-z` — git otherwise emits "docs/caf\303\251.md" (quoted,
+    # octal-escaped), whose suffix parses as `.md"` and slips past the .md gate entirely.
+    # F3: `--others` alone sees untracked files ONLY, while check_file deliberately treats a
+    # STAGED addition as new (the Phase-F allowlist-bypass fix) — and final_gate auto-stages
+    # what a change touched, so `git add` made the scan blind to exactly the files under test.
+    for args in (
+        ["-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard", "-z", "*.md"],
+        ["-c", "core.quotePath=false", "diff", "--cached", "--name-only", "--diff-filter=A",
+         "-z", "--", "*.md"],
+    ):
+        try:
+            out = subprocess.run(["git", *args], cwd=repo_root,
+                                 capture_output=True, text=True, check=False)
+            if out.returncode == 0:
+                rels.extend(x for x in out.stdout.split("\0") if x)
+        except Exception:
+            continue
     lines: list[str] = []
-    for rel in (x.strip() for x in out.stdout.splitlines()):
+    for rel in dict.fromkeys(rels):
         if not rel or _is_vendor(rel):
             continue
         for res in check_file(repo_root / rel):
@@ -365,7 +391,9 @@ def main(argv: list[str] | None = None) -> int:
     if not violations:
         print("doc-sprawl: no new .md files outside the allowlist")
         return 0
-    print(f"doc-sprawl: {len(violations)} new .md file(s) outside the allowlist:")
+    # F5: run_optional_check DISCARDS stdout on exit 0 unless advisory=True, and --json's
+    # warnings filter keys on a leading ⚠ — without both, warn mode was silent at the gate.
+    print(f"⚠ doc-sprawl: {len(violations)} new .md file(s) outside the allowlist:")
     for line in violations:
         print(line)
     if strict:

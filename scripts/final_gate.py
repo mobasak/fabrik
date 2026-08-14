@@ -278,7 +278,7 @@ def print_step(name: str, passed: bool, output: str = "") -> None:
     if not passed and output:
         for line in output.split("\n")[:10]:  # Limit output
             print(f"       {line}")
-    elif passed and output and not output.startswith("(check not present"):
+    elif passed and output and "check not present, skipping" not in output:
         # Advisory output (warnings from non-blocking checks)
         for line in output.split("\n")[:10]:
             print(f"       {YELLOW}{line}{RESET}")
@@ -1068,6 +1068,9 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_doc_sprawl.py",
                 "Documentation Sprawl",
+                # advisory: keep the check's stdout on exit 0 — in WARN mode the report IS
+                # the product, and run_optional_check discards it otherwise (F5)
+                advisory=True,
             )
         )
         results.append(

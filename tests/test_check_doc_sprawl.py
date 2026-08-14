@@ -76,6 +76,9 @@ def test_t2_allowlisted_new_docs_pass(tmp_path):
     (r / "README.md").write_text("root allowlist\n")
     p = _scan(r, "--strict")
     assert p.returncode == 0, (p.stdout, p.stderr)
+    # F9 de-vacuization: exit 0 alone passed against the pre-__main__ implementation too.
+    # Pin that the scan RAN and adjudicated nothing.
+    assert "no new .md files outside the allowlist" in p.stdout
 
 
 def test_t6_outside_a_git_repo_fails_soft(tmp_path):
@@ -84,6 +87,7 @@ def test_t6_outside_a_git_repo_fails_soft(tmp_path):
     (plain / "whatever.md").write_text("x\n")
     p = _scan(plain, "--strict")
     assert p.returncode == 0, "a non-repo run must never adjudicate junk"
+    assert "not a git repository" in p.stdout, "must SAY it skipped (F9: exit 0 was vacuous)"
 
 
 def test_t7_warn_is_the_default_and_never_fails(tmp_path):
@@ -129,7 +133,9 @@ def test_t4_grandfathered_docs_stay_green_in_both_paths(tmp_path, monkeypatch):
     r = _repo(tmp_path)          # docs/LEGACY_SPRAWL.md is committed
     monkeypatch.chdir(r)
     assert cds.check_file(Path("docs/LEGACY_SPRAWL.md")) == []
-    assert _scan(r, "--strict").returncode == 0
+    out = _scan(r, "--strict")
+    assert out.returncode == 0
+    assert "no new .md files outside the allowlist" in out.stdout  # F9: proves the scan ran
 
 
 def test_t5_vendor_trees_are_never_adjudicated(tmp_path, monkeypatch):
@@ -142,6 +148,8 @@ def test_t5_vendor_trees_are_never_adjudicated(tmp_path, monkeypatch):
     (r / "docs" / "READMEXX.md").write_text("ours\n")
     monkeypatch.chdir(r)
     assert cds.check_file(Path("node_modules/pkg/READMEXX.md")) == [], "vendor tree is not ours"
+    # F9: that assert alone was vacuous pre-fix (every relative path returned []). Pin the
+    # DISCRIMINATION instead — same relative-path call style, opposite verdicts.
     assert len(cds.check_file(Path("docs/READMEXX.md"))) == 1, "same name outside vendor blocks"
     out = _scan(r, "--strict")
     assert out.returncode == 1
@@ -191,3 +199,79 @@ def test_epics_are_allowed_per_claude_md(tmp_path):
     d.mkdir(parents=True)
     (d / "2026-08-15-epic-3-quota.md").write_text("epic\n")
     assert _scan(r, "--strict").returncode == 0
+
+
+# ── review-round pins (2026-08-15 non-author round; each finding gets a guard) ──
+
+
+def test_f4_generic_build_dirs_are_still_adjudicated(tmp_path):
+    """F4: the first vendor guard matched `build`/`dist`/`vendor` at ANY depth, silently
+    exempting `docs/build/NOTES.md` — a fail-OPEN amnesty inside a default-deny policy."""
+    r = _repo(tmp_path)
+    (r / "docs" / "build").mkdir(parents=True)
+    (r / "docs" / "build" / "NOTES.md").write_text("ours\n")
+    out = _scan(r, "--strict")
+    assert out.returncode == 1 and "docs/build/NOTES.md" in out.stdout
+
+
+def test_f2_cross_check_agreement_on_nested_roots(tmp_path):
+    """F2: check_structure allows README.md at any depth, libs/**, ops/**, sites/**,
+    docs-site/** — two synced checks giving opposite verdicts on one file is unsatisfiable."""
+    r = _repo(tmp_path)
+    for rel in ("libs/captcha/README.md", "ops/mypkg/runbook.md",
+                "sites/acme/INDEX.md", "docs-site/docs/intro.md"):
+        p = r / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n")
+    out = _scan(r, "--strict")
+    assert out.returncode == 0, out.stdout
+
+
+def test_f3_staged_new_docs_are_seen_by_the_scan(tmp_path):
+    """F3: the scan read `--others` only, so `git add` (which final_gate does automatically)
+    made a violating file invisible while check_file still counted it as new."""
+    r = _repo(tmp_path)
+    (r / "docs" / "STAGED_SPRAWL.md").write_text("x\n")
+    _git("add", "docs/STAGED_SPRAWL.md", cwd=r)
+    out = _scan(r, "--strict")
+    assert out.returncode == 1 and "STAGED_SPRAWL.md" in out.stdout
+
+
+def test_f7_non_ascii_paths_are_not_invisible(tmp_path):
+    """F7: git quotes non-ASCII paths, so the suffix parsed as `.md\"` and the file escaped
+    the .md gate entirely."""
+    r = _repo(tmp_path)
+    (r / "docs" / "café-notes.md").write_text("x\n")
+    out = _scan(r, "--strict")
+    assert out.returncode == 1, out.stdout
+
+
+def test_f8_uppercase_extension_respects_the_allowlist(tmp_path, monkeypatch):
+    """F8: the suffix gate is case-insensitive but the patterns end in a literal `.md`, so a
+    governance-ALLOWED path (docs/archive/**) was blocked when it ended in .MD."""
+    cds = _load("cds_f8")
+    r = _repo(tmp_path)
+    (r / "docs" / "archive").mkdir(parents=True)
+    (r / "docs" / "archive" / "OLD.MD").write_text("x\n")
+    monkeypatch.chdir(r)
+    assert cds.check_file(Path("docs/archive/OLD.MD")) == []
+
+
+def test_f5_warn_output_is_reachable_through_the_gate(tmp_path, monkeypatch):
+    """F5: run_optional_check discards stdout on exit 0 unless advisory=True, and --json's
+    warnings filter keys on a leading ⚠. Without both, WARN mode was silent AT THE GATE."""
+    r = _repo(tmp_path)
+    (r / "docs" / "RANDOM_NEW_DOC.md").write_text("x\n")
+    out = _scan(r)  # default warn mode
+    assert out.stdout.lstrip().startswith("⚠"), out.stdout
+    src = (REPO / "scripts" / "final_gate.py").read_text()
+    i = src.index("check_doc_sprawl.py")
+    assert "advisory=True" in src[i : i + 400], "call site must preserve the report"
+
+
+def test_f1_doc_sprawl_is_warning_severity_until_activation():
+    """F1: making check_file non-vacuous silently turned validate_conventions' path into a
+    HARD Tier-3 failure fleet-wide, while every document said reporting-only. Behaviour must
+    match the written contract."""
+    src = (REPO / "scripts" / "enforcement" / "validate_conventions.py").read_text()
+    assert "_as_warnings(run_check_doc_sprawl(" in src

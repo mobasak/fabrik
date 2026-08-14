@@ -114,8 +114,32 @@ def run_check_plan_tickets(file_path: Path) -> list[CheckResult]:
     return check_file(file_path)
 
 
+def _as_warnings(results: list[CheckResult]) -> list[CheckResult]:
+    """Downgrade a check's findings to WARNING (pending-activation gate, F1)."""
+    out = []
+    for r in results:
+        if getattr(r, "severity", None) is Severity.ERROR:
+            r = CheckResult(
+                check_name=r.check_name,
+                severity=Severity.WARNING,
+                message=r.message,
+                file_path=r.file_path,
+                fix_hint=r.fix_hint,
+            )
+        out.append(r)
+    return out
+
+
 def run_check_doc_sprawl(file_path: Path) -> list[CheckResult]:
-    """Check documentation anti-sprawl (prevent new files in protected dirs)."""
+    """Check documentation anti-sprawl (prevent new files in protected dirs).
+
+    SEVERITY IS DOWNGRADED TO WARNING until the doc-sprawl activation lands (review finding
+    F1, 2026-08-15): making ``check_file`` non-vacuous silently turned this path into a HARD
+    Tier-3 failure fleet-wide, while the check's own STATUS comment, its ``--warn`` default
+    and the plan all documented it as reporting-only. Behaviour must match the contract that
+    is written down; the ERROR severity returns with the deliberate, separately-reviewed
+    activation, not as a side effect of a bug fix.
+    """
     from .check_doc_sprawl import check_file
 
     return check_file(file_path)
@@ -175,7 +199,9 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
         results.extend(run_check_plans(file_path))
         results.extend(run_check_plan_quality(file_path))
         results.extend(run_check_plan_tickets(file_path))  # Spine+ticket plan-set contract
-        results.extend(run_check_doc_sprawl(file_path))  # Anti-sprawl enforcement
+        results.extend(
+            _as_warnings(run_check_doc_sprawl(file_path))  # Anti-sprawl (WARN until activation)
+        )
         # Check if tasks.md needs update when phase docs change
         if "phase" in name:
             try:
