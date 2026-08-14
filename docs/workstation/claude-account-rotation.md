@@ -69,6 +69,15 @@ but do it while no agents are working, or they will hit the wall until you switc
   store's own refresh token (provenance), and never when the pair is structurally dead.
 - The tick never sends process signals (grep-enforced in tests) — it cannot interrupt an agent.
 
+## Cross-repo asks that reach the hub through mail
+
+The drain broadcast is not the only mail traffic this pool creates: `--tick`'s graceful-drain
+finding lands in every mailbox-bearing repo, and repos reply/ack through the same channel. The
+mailbox is triaged with the same rule the rotation itself follows — **verify, then route by
+beat**: a claim gets checked against the live system before it is relayed or acted on, and work
+that belongs to another agent's beat (deploy/registrar → fleet, flywheel/model data → intel) is
+handed over with the grounding attached rather than executed cross-beat.
+
 ## Related
 
 - `docs/development/plans/archived/2026-08-13-plan-2-quota-rotation-v2.md` (the build)

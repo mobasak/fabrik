@@ -14,7 +14,7 @@ shape:
   needs_database: true        # uses postgres-main::seo (depends.postgres: seo)
   needs_cache: false          # no Redis
   has_search_feature: false   # no Meilisearch index
-  exposes_metrics: true       # GET /metrics (src/seo/main.py:68) → Prometheus scrape job
+  exposes_metrics: true       # GET /metrics (src/seo/main.py) → Prometheus scrape job
   uses_claude_cli: true       # shells out to claude -p (subscription); deployer requires the host's
                               # rotated ~/.claude:ro mount in the compose — rotation-aware, no static token
   claude_cli_home: /home/appuser  # seo container runs USER appuser (Dockerfile) → ~/.claude = /home/appuser/.claude
