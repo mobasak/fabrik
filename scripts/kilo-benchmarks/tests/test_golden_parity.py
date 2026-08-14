@@ -1530,3 +1530,40 @@ def test_the_hook_prelude_slice_stays_side_effect_free():
         assert var in prelude, f"{var} lost from the prelude — steps would expand to empty"
     # ...and the materialised block must still resolve, proving the prelude is sufficient.
     assert "/opt/fabrik/.venv/bin/python" in _hook_inner_block()
+
+
+def test_every_commit_template_in_the_command_corpus_parses():
+    """The execute-plan trailer templates regressed in THREE consecutive rounds and nothing in
+    the tree guarded them — `assemble_commands.py --check` only proves the rendered copy matches
+    the source, not that either is correct.
+
+    Each template is committed for real and read back, because the failure modes are invisible
+    to inspection: a blank line inside the block, an INDENTED trailer (git ignores those
+    entirely), or an indented `EOF` that is not even valid shell.
+    """
+    src = cg.FABRIK_ROOT / "commands/_sources/fabrik-execute-plan.md"
+    if not src.exists():
+        pytest.skip("command corpus source absent")
+    blocks = [b for b in re.findall(r"cat <<'EOF'\n(.*?)\nEOF", src.read_text(), re.S)
+              if "Agent-Role:" in b]
+    assert len(blocks) >= 4, f"only {len(blocks)} trailer templates found — test is vacuous"
+
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run(["git", "init", "-q", d], check=True)
+        for k, v in (("user.email", "t@t"), ("user.name", "t")):
+            subprocess.run(["git", "-C", d, "config", k, v], check=True)
+        subprocess.run(["git", "-C", d, "commit", "-q", "--allow-empty", "-m", "init"], check=True)
+        for i, body in enumerate(blocks):
+            msg = Path(d) / "m.txt"
+            msg.write_text(body)
+            subprocess.run(
+                ["git", "-C", d, "commit", "-q", "--allow-empty", "-F", str(msg)], check=True
+            )
+            role = subprocess.run(
+                ["git", "-C", d, "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            assert role, (
+                f"template #{i} yields an UNPARSEABLE Agent-Role — a blank line inside the "
+                f"block, or an indented trailer:\n{body[:300]}"
+            )

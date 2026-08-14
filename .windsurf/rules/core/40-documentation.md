@@ -102,7 +102,7 @@ Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
 
-Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From`/`Conflicts-Resolved` — the `/execute-plan` command (`/fabrik-execute-plan` (rendered to `~/.claude/commands/fabrik-execute-plan.md`)) is the canonical source for that.
+Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From`/`Conflicts-Resolved` — the `/fabrik-execute-plan` skill is the canonical source for that — authored at `commands/_sources/fabrik-execute-plan.md` in the hub and rendered to `~/.claude/commands/fabrik-execute-plan.md` (edit the SOURCE; the rendered copy is regenerated and hand-edits are pruned).
 
 ---
 

@@ -236,7 +236,13 @@ def test_every_daily_refresh_alert_can_actually_deliver():
                 continue  # a comment mentioning send_alert is not a site
             if "send_alert" in ln or "pipeline_alert.sh" in ln:
                 sites.append(ln)
-    assert len(sites) >= 6, f"expected every alert site across the entry points, found {len(sites)}"
+    # An inequality with slack is not a guard: at >= 6 with 8 real sites, BOTH autocommit
+    # alerts could be deleted and this still passed. Pin the exact count so removing any site
+    # reds — and update it deliberately when a site is added.
+    assert len(sites) == 9, (
+        f"expected exactly 9 alert sites across the three entry points, found {len(sites)}. "
+        f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
+    )
     for ln in sites:
         ok = "pipeline_alert.sh" in ln or "load_dotenv" in ln
         assert ok, f"alert site can never deliver (no load_dotenv, no helper):\n  {ln[:160]}"
@@ -266,10 +272,14 @@ def test_no_alert_redirects_into_the_directory_it_reports_as_broken():
     alert became unreachable by construction. The redirect was also redundant: the enclosing
     block already ends `} >> "$LOG_FILE" 2>&1`.
     """
-    sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
-    for ln in sh.splitlines():
-        if "pipeline_alert.sh" not in ln:
+    for src in (SCRIPT_DIR / "daily_refresh.sh", SCRIPT_DIR.parent / "wsl_startup_hook.sh"):
+      for ln in src.read_text().splitlines():
+        if "pipeline_alert.sh" not in ln or ln.lstrip().startswith("#"):
             continue
-        assert ">> \"$LOG_FILE\"" not in ln and ">> $LOG_FILE" not in ln, (
-            f"alert redirects into the log dir it may be reporting as broken:\n  {ln[:170]}"
+        # Only the redirect attached to the ALERT ITSELF matters. A redirect on a preceding
+        # `echo` in the same `|| { …; …; }` group is harmless: a failed redirection kills that
+        # command, and the group continues to the next one, so the alert still fires.
+        tail = ln.split("pipeline_alert.sh", 1)[1]
+        assert ">> \"$LOG_FILE\"" not in tail and ">> $LOG_FILE" not in tail, (
+            f"the ALERT redirects into the log dir it may be reporting as broken:\n  {ln[:190]}"
         )

@@ -15,7 +15,9 @@ None of those is visible by grepping the source.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -43,9 +45,28 @@ def _repo(tmp_path: Path) -> Path:
     return r
 
 
+def _alert_fired(repo: Path) -> bool:
+    """Did the last _run in this repo actually invoke pipeline_alert.sh?
+
+    `_run` points SELF_DIR's helper at a recorder via a shim directory, so this reads the
+    receipt rather than grepping the script. A source grep cannot tell an invoked alert from a
+    deleted one — which is how round 20's own new alert shipped with nothing holding it.
+    """
+    return (repo / ".alert_receipt").exists()
+
+
 def _run(repo: Path) -> str:
+    # Copy the script beside a RECORDER named pipeline_alert.sh, so SELF_DIR resolves to the
+    # recorder and any alert invocation leaves a receipt. Nothing real is sent.
+    shim = repo / "_bin"
+    shim.mkdir(exist_ok=True)
+    (shim / "autocommit_pipeline_outputs.sh").write_text(SCRIPT.read_text())
+    (shim / "pipeline_alert.sh").write_text(
+        f"#!/bin/bash\ntouch '{repo}/.alert_receipt'\nexit 0\n"
+    )
+    (shim / "pipeline_alert.sh").chmod(0o755)
     p = subprocess.run(
-        ["bash", str(SCRIPT), "pytest"],
+        ["bash", str(shim / "autocommit_pipeline_outputs.sh"), "pytest"],
         capture_output=True,
         text=True,
         env={"PATH": "/usr/bin:/bin", "HOME": str(repo), "FABRIK_ROOT": str(repo)},
@@ -258,7 +279,9 @@ def test_commit_failure_unstages_our_paths_and_alerts(tmp_path):
     out = _run(r)
     assert "commit failed" in out, out
     assert _git(r, "diff", "--cached", "--name-only") == "", "our paths were left staged"
-    assert "pipeline_alert" in (Path(__file__).resolve().parents[1] / "autocommit_pipeline_outputs.sh").read_text()
+    # Behavioural, not a source grep: run with the helper replaced by a recorder and assert it
+    # was actually invoked. The grep form let the whole alert be deleted with the suite green.
+    assert _alert_fired(r), "the commit-failure path did not invoke pipeline_alert.sh"
 
 
 def test_a_lock_taken_mid_stage_is_diagnosed_as_a_lock(tmp_path):
@@ -291,6 +314,60 @@ def test_a_lock_taken_mid_stage_is_diagnosed_as_a_lock(tmp_path):
     assert "index lock appeared mid-stage" in out, (
         f"the mid-loop branch was never reached — this test proves nothing:\n{out}"
     )
-    assert "renamed or retired" not in out.split("index lock appeared")[0].split("\n")[-1], out
+    # NOT `out.split(...)[0].split("\n")[-1]` — that slice is always the tail of the SAME line
+    # as the match (`"[auto-commit] "`), so it green-lit the very symptom it names.
+    assert "renamed or retired" not in out, out
     # It must NOT claim an unstage it cannot perform.
     assert "unstaging" not in out.lower() or "cannot unstage" in out.lower(), out
+
+
+def test_the_mid_stage_abort_also_alerts(tmp_path):
+    """Round 20 added this alert and nothing held it — deleting it left the suite green.
+
+    Unlike the pre-loop guard, this branch exits with paths STILL STAGED in the shared index
+    (unstaging is impossible: it needs the very lock that triggered the branch), so a silent
+    exit is the one outcome that must not happen here.
+    """
+    r = _repo(tmp_path)
+    for i in range(3):
+        (r / f".windsurf/rules/ai/{i}0-x.md").write_text("base\n")
+    _git(r, "add", "-A")
+    _git(r, "commit", "-qm", "more")
+    for i in range(3):
+        (r / f".windsurf/rules/ai/{i}0-x.md").write_text("regenerated\n")
+
+    gitdir = Path(_git(r, "rev-parse", "--absolute-git-dir"))
+    hooks = gitdir / "hooks"
+    hooks.mkdir(exist_ok=True)
+    (hooks / "post-index-change").write_text(
+        f"#!/bin/bash\ntouch '{gitdir}/index.lock'\nexit 0\n"
+    )
+    (hooks / "post-index-change").chmod(0o755)
+
+    out = _run(r)
+    (gitdir / "index.lock").unlink(missing_ok=True)
+    assert "index lock appeared mid-stage" in out, out
+    assert _alert_fired(r), "aborted mid-stage with paths staged and did not alert"
+
+
+def test_a_stale_lock_is_distinguished_from_a_peer_mid_commit(tmp_path):
+    """A transient lock is a skip; a STALE one disables the auto-commit forever.
+
+    A crashed or OOM-killed git leaves .git/index.lock behind. While it exists every run
+    no-ops, the tree stays dirty, the heartbeat is still stamped and the oracle still green —
+    the round-16 REBASE_HEAD class, on a path with no ref to grep for.
+    """
+    r = _repo(tmp_path)
+    (r / ".windsurf/rules/ai/00-ai.md").write_text("regenerated\n")
+    lock = Path(_git(r, "rev-parse", "--absolute-git-dir")) / "index.lock"
+
+    lock.touch()  # fresh: a peer mid-commit
+    out = _run(r)
+    assert "another git process holds the index lock" in out, out
+    assert not _alert_fired(r), "alerted on a transient lock — that would be noise every day"
+
+    os.utime(lock, (time.time() - 7200, time.time() - 7200))  # 2h old: stale
+    out = _run(r)
+    lock.unlink(missing_ok=True)
+    assert "STALE" in out, out
+    assert _alert_fired(r), "a stale lock silently disables the auto-commit and did not alert"

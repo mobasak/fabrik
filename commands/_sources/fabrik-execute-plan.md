@@ -608,7 +608,7 @@ Test: {list}
 Commit your work to the worktree branch with provenance trailers:
   git add {explicit file list}
   git commit -m "$(cat <<'EOF'
-  feat(scope): Phase {X} Task {N} — {title}
+feat(scope): Phase {X} Task {N} — {title}
 
 Agent-Role: subagent
 Agent-Phase: {X}
@@ -795,7 +795,7 @@ After merging all subagent branches for a phase:
    git reset --soft <pre-merge-commit>
    git add <all phase files — explicit list>
    git commit -m "$(cat <<'EOF'
-   feat(scope): Phase {X} — {title}
+feat(scope): Phase {X} — {title}
 
 Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
 Agent-Role: orchestrator

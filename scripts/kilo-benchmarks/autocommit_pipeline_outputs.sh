@@ -22,6 +22,11 @@
 # Usage: bash autocommit_pipeline_outputs.sh [caller-label]
 set -u
 
+# Resolved BEFORE the cd below: `dirname "$0"` is relative, so after `cd "$FABRIK_ROOT"`
+# an invocation like `bash autocommit_pipeline_outputs.sh` from this directory resolved
+# the helper to /opt/fabrik/pipeline_alert.sh, which does not exist — and the alert was
+# then lost to `|| true`.
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
 CALLER="${1:-pipeline}"
 
@@ -109,7 +114,21 @@ PATHS=(
 # script blamed the stage list, no-op'd, and the daily lockfile blocked any retry until tomorrow.
 # Detect the real cause and say so.
 if [ -e "$(git rev-parse --git-path index.lock 2>/dev/null)" ]; then
-  echo "[auto-commit] another git process holds the index lock — skipping this run (not a stage-list problem)"
+  # A TRANSIENT lock (a peer mid-commit) is fine to skip silently-ish. A STALE one (crashed or
+  # OOM-killed git — plausible on a memory-constrained WSL box whose pre-commit fans out to ~46
+  # repos) never clears, so every later run no-ops forever with the message only in a log the
+  # file's own comment says nobody tails: the round-16 REBASE_HEAD class again. Age it.
+  _lock="$(git rev-parse --git-path index.lock)"
+  _age=$(( $(date +%s) - $(stat -c %Y "$_lock" 2>/dev/null || date +%s) ))
+  if [ "$_age" -gt 900 ]; then
+    echo "[auto-commit] index.lock is ${_age}s old — STALE, not a peer mid-commit; the auto-commit is disabled until it is removed"
+    bash "$SELF_DIR/pipeline_alert.sh" \
+      "auto-commit: stale .git/index.lock is disabling the pipeline auto-commit" \
+      "A .git/index.lock in /opt/fabrik is ${_age}s old — far longer than a peer's commit. It is almost certainly from a crashed or OOM-killed git. While it exists EVERY pipeline auto-commit no-ops silently and the tree stays dirty for the next agent. Remove it once you have confirmed no git process is running: rm /opt/fabrik/.git/index.lock" \
+      || true
+  else
+    echo "[auto-commit] another git process holds the index lock — skipping this run (not a stage-list problem)"
+  fi
   exit 0
 fi
 
@@ -127,7 +146,7 @@ for _p in "${PATHS[@]}"; do
     # satisfy, while up to 25 paths stayed staged in shared master. Say what is true, and
     # alert, because unlike the pre-loop guard this one leaves the index dirty.
     echo "[auto-commit] index lock appeared mid-stage — aborting with ${#STAGED[@]} path(s) STILL STAGED (cannot unstage: that needs the same lock)"
-    bash "$(dirname "$0")/pipeline_alert.sh" \
+    bash "$SELF_DIR/pipeline_alert.sh" \
       "auto-commit: aborted mid-stage, paths left staged" \
       "A peer took .git/index.lock while the pipeline auto-commit was staging. ${#STAGED[@]} regenerated path(s) are left STAGED in the shared index and could ride along in the next bare commit. Unstaging is impossible from here (it needs the same lock). Run: git reset -- <the pipeline paths>, or just let the next pipeline run re-stage and commit them." \
       || true
@@ -189,7 +208,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
     # kind of comment-drift that produced the round-17 bug.
     echo "[auto-commit] commit failed — unstaging our paths (note: git reset restores them to HEAD, not to whatever was staged before this run)"
     git reset -q -- "${STAGED[@]}" 2>/dev/null || true
-    bash "$(dirname "$0")/pipeline_alert.sh" \
+    bash "$SELF_DIR/pipeline_alert.sh" \
       "auto-commit: git commit failed on $(hostname 2>/dev/null || echo this host)" \
       "The pipeline auto-commit could not commit its regenerated outputs (most likely a failing pre-commit hook). Our paths were unstaged so the shared index is unchanged, but the regenerated files remain UNCOMMITTED and the tree stays dirty for the next agent. If this repeats, the auto-commit is effectively disabled — check the pre-commit hooks first." \
       || true

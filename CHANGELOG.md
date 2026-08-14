@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round 21: zero production defects, but round 20's own alerts had nothing holding them (2026-08-15)
+
+Round 21 returned the first verdict in this loop with **no production-behaviour break**: the
+mid-loop branch is honest and reachable, the alerts fire, all six execute-plan heredocs are
+valid shell and parse, and removing the redirects changed nothing about what reaches
+`update.log` (the enclosing block still redirects). The residue was coverage and one
+half-applied doc fix:
+
+- **Round 20's own new mid-stage alert was green on revert** — deleting it entirely left the
+  suite passing. Two holes let it through: the test asserted only on the `echo` text, and the
+  alert-site scan used `>= 6` while finding 8, so *both* autocommit alerts could vanish and it
+  still passed. Both alert sites are now pinned **behaviourally** — the script runs against a
+  recorder named `pipeline_alert.sh` and the test reads the receipt, because a source grep
+  cannot tell an invoked alert from a deleted one. The count assertion is now exact.
+- **A permanently-green assertion** in the rewritten mid-loop test: the slice it inspected was
+  always the tail of the *same line* as the match, so it green-lit the precise symptom it named.
+- **The pointer fix was half-applied**, the same shape as the three rounds before it: round 20
+  replaced the dead *path* but left the dead *command name*, producing nested parentheses naming
+  a `/execute-plan` that does not exist — on 47 repos.
+- The failed-redirect fail-open class survived in `wsl_startup_hook.sh`, which unlike
+  `daily_refresh.sh` has **no** enclosing block redirect, so its two alerts would have been
+  skipped outright in the disk-full case they exist for.
+
+Two additions beyond the findings:
+
+- **The execute-plan trailer templates now have a regression guard.** They regressed in three
+  consecutive rounds with nothing watching — `assemble_commands.py --check` only proves the
+  rendered copy matches the source, not that either is correct. The new test commits every
+  template for real and reads the trailers back, and is proven to red when a blank line is
+  reintroduced.
+- **A stale `index.lock` now alerts.** A transient lock (a peer mid-commit) is a fine silent
+  skip; a stale one from a crashed git disables the auto-commit forever with the message only in
+  a log nobody tails — the round-16 `REBASE_HEAD` class on a path with no ref to grep for. Locks
+  older than 15 minutes are reported as stale and alerted; fresh ones stay quiet.
+
+Two of my own new tests then caught my own imprecision: the exact-count assertion was stale after
+I added the stale-lock alert, and the redirect scan flagged a redirect on a preceding `echo`.
+Verified empirically that a failed redirection kills only that command and the `{ …; …; }` group
+continues, so the alert still fires — the scan now checks only the redirect attached to the alert
+itself.
+
 ### Added — fleet CI-health probe: catch CI that never ran, and the quota curve that kills it (2026-08-15)
 
 `scripts/sysadmin/ci_health_probe.py` (hourly at :35). Born from a live outage: GitHub refused to
