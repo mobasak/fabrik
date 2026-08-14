@@ -222,9 +222,21 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     exactly why the two heartbeat `send_alert` calls could sit there with no `load_dotenv`
     (making `alerting._is_enabled()` False) for months. Check EVERY alert site.
     """
-    sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
-    sites = [ln for ln in sh.splitlines() if "send_alert" in ln or "pipeline_alert.sh" in ln]
-    assert len(sites) >= 4, f"expected all four alert sites, found {len(sites)}"
+    # EVERY pipeline entry point, not just daily_refresh.sh — the heartbeat pair stayed broken
+    # for months precisely because the existing test filtered on "rank_task_subagents".
+    sources = [
+        SCRIPT_DIR / "daily_refresh.sh",
+        SCRIPT_DIR.parent / "wsl_startup_hook.sh",
+        SCRIPT_DIR / "autocommit_pipeline_outputs.sh",
+    ]
+    sites = []
+    for src in sources:
+        for ln in src.read_text().splitlines():
+            if ln.lstrip().startswith("#"):
+                continue  # a comment mentioning send_alert is not a site
+            if "send_alert" in ln or "pipeline_alert.sh" in ln:
+                sites.append(ln)
+    assert len(sites) >= 6, f"expected every alert site across the entry points, found {len(sites)}"
     for ln in sites:
         ok = "pipeline_alert.sh" in ln or "load_dotenv" in ln
         assert ok, f"alert site can never deliver (no load_dotenv, no helper):\n  {ln[:160]}"
@@ -243,3 +255,21 @@ def test_the_heartbeat_alert_bodies_expand_their_paths():
             assert "$" not in chunk, (
                 f"single-quoted alert body will emit a literal variable:\n  {ln[:170]}"
             )
+
+
+def test_no_alert_redirects_into_the_directory_it_reports_as_broken():
+    """A failed redirection means bash never runs the command at all.
+
+    The heartbeat cache-dir alert reports that `$KB/cache/` could not be created — and an
+    earlier version redirected its own output to `$KB/cache/update.log`, INSIDE that very
+    directory. The guard condition and the redirect failure are perfectly correlated, so the
+    alert became unreachable by construction. The redirect was also redundant: the enclosing
+    block already ends `} >> "$LOG_FILE" 2>&1`.
+    """
+    sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
+    for ln in sh.splitlines():
+        if "pipeline_alert.sh" not in ln:
+            continue
+        assert ">> \"$LOG_FILE\"" not in ln and ">> $LOG_FILE" not in ln, (
+            f"alert redirects into the log dir it may be reporting as broken:\n  {ln[:170]}"
+        )

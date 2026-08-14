@@ -241,7 +241,6 @@ Agent-Role: orchestrator
 Agent-Phase: B
 Agent-Context: merged 3 subagent branches, ran phase gate + review
 Conflicts-Resolved: 0
-
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
 )"
@@ -611,13 +610,12 @@ Commit your work to the worktree branch with provenance trailers:
   git commit -m "$(cat <<'EOF'
   feat(scope): Phase {X} Task {N} — {title}
 
-  Agent-Role: subagent
-  Agent-Phase: {X}
-  Agent-Task: {N}
-  Agent-Context: {one-line summary of what you did}
-
-  Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
-  EOF
+Agent-Role: subagent
+Agent-Phase: {X}
+Agent-Task: {N}
+Agent-Context: {one-line summary of what you did}
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
   )"
 
 Do NOT push. Do NOT merge. The orchestrator handles that.
@@ -799,14 +797,13 @@ After merging all subagent branches for a phase:
    git commit -m "$(cat <<'EOF'
    feat(scope): Phase {X} — {title}
 
-   Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
-   Agent-Role: orchestrator
-   Agent-Phase: {X}
-   Agent-Context: merged {N} subagent branches, ran phase gate
-   Conflicts-Resolved: {count}
-
-   Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
-   EOF
+Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
+Agent-Role: orchestrator
+Agent-Phase: {X}
+Agent-Context: merged {N} subagent branches, ran phase gate
+Conflicts-Resolved: {count}
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+EOF
    )"
    ```
 6. THEN proceed to `/fabrik-review`

@@ -262,9 +262,14 @@ def test_commit_failure_unstages_our_paths_and_alerts(tmp_path):
 
 
 def test_a_lock_taken_mid_stage_is_diagnosed_as_a_lock(tmp_path):
-    """The pre-loop guard is a point sample. A peer can take the lock DURING the ~26 adds — the
-    run then reported 'a pipeline output was renamed or retired', a false cause, plus a partial
-    commit. The failing add must re-check."""
+    """The pre-loop guard is a point sample; a peer can take the lock DURING the ~26 adds.
+
+    ⚠️ Deterministic, via a `post-index-change` hook that plants the lock after the FIRST
+    successful add. The previous version raced `lock.touch()` against `Popen` and lost 180/180
+    times — it always tripped the PRE-loop guard, making it a silent duplicate of
+    `test_a_concurrent_index_lock_is_diagnosed_as_itself` and green with the mid-loop branch
+    deleted.
+    """
     r = _repo(tmp_path)
     for i in range(3):
         (r / f".windsurf/rules/ai/{i}0-x.md").write_text("base\n")
@@ -273,18 +278,19 @@ def test_a_lock_taken_mid_stage_is_diagnosed_as_a_lock(tmp_path):
     for i in range(3):
         (r / f".windsurf/rules/ai/{i}0-x.md").write_text("regenerated\n")
 
-    # a hook-free way to make adds start failing partway: drop the lock in after the run starts
-    lock = Path(_git(r, "rev-parse", "--absolute-git-dir")) / "index.lock"
-    script = Path(__file__).resolve().parents[1] / "autocommit_pipeline_outputs.sh"
-    proc = subprocess.Popen(
-        ["bash", str(script), "pytest"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        env={"PATH": "/usr/bin:/bin", "HOME": str(r), "FABRIK_ROOT": str(r)},
+    gitdir = Path(_git(r, "rev-parse", "--absolute-git-dir"))
+    hooks = gitdir / "hooks"
+    hooks.mkdir(exist_ok=True)
+    hook = hooks / "post-index-change"
+    hook.write_text(f"#!/bin/bash\ntouch '{gitdir}/index.lock'\nexit 0\n")
+    hook.chmod(0o755)
+
+    out = _run(r)
+    (gitdir / "index.lock").unlink(missing_ok=True)
+
+    assert "index lock appeared mid-stage" in out, (
+        f"the mid-loop branch was never reached — this test proves nothing:\n{out}"
     )
-    lock.touch()  # racy by nature; assert only on the outcomes we can guarantee
-    out = proc.communicate()[0]
-    lock.unlink(missing_ok=True)
-    # Either it finished before the lock landed (committed) or it saw the lock — never the
-    # misleading rename diagnosis while a lock exists.
-    assert "renamed or retired" not in out or "index lock" in out, out
-    assert proc.returncode == 0, out
+    assert "renamed or retired" not in out.split("index lock appeared")[0].split("\n")[-1], out
+    # It must NOT claim an unstage it cannot perform.
+    assert "unstaging" not in out.lower() or "cannot unstage" in out.lower(), out

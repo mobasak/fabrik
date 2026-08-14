@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round 20: my round-19 "fix" made an alert unreachable, and the execute-plan fix was half-applied a second time (2026-08-15)
+
+Every finding this round was introduced by round 19's own fixes:
+
+- **⚠️ I made the heartbeat cache-dir alert unreachable by construction.** Round 19 changed
+  `>> /dev/null` to `>> "$LOG_FILE"` on the alert that reports `$KB/cache/` could not be
+  created — and `LOG_FILE` **is** `$KB/cache/update.log`, inside that very directory. In bash a
+  failed redirection means the command is never executed, and `|| true` swallows it, so the
+  guard condition and the redirect failure are perfectly correlated. Round 19 traded "the alert
+  fires, its own diagnostics are discarded" for "the alert never fires". The redirect was also
+  redundant — the enclosing block already ends `} >> "$LOG_FILE" 2>&1` — so it bought nothing.
+- **The execute-plan fix was half-applied AGAIN.** I reported fixing "three broken blocks";
+  there were **six**, and three stayed broken — including **both** blocks carrying
+  `Conflicts-Resolved`. So the exact defect my own commit message named (the documented query
+  reporting a conflict-free phase as having had conflicts) was still fully live on the page
+  CLAUDE.md calls canonical, and I re-rendered it box-wide in that state. All six now parse.
+- Two of those templates were **not runnable shell** either: `<<'EOF'` with an *indented*
+  terminator, which bash does not recognise. And git ignores **indented** trailer lines
+  entirely, so removing the blank line alone would not have fixed them.
+- **The mid-loop lock branch claimed an unstage it cannot perform.** `git reset` writes the
+  index, which needs the very lock whose presence triggered the branch — guaranteed to fail. It
+  logged "aborting and unstaging" while leaving up to 25 paths staged in shared master, with no
+  alert. It now states what is true and alerts.
+- **My test for that branch never reached it.** `lock.touch()` after `Popen` lost the race
+  180/180 times, always tripping the *pre-loop* guard — a silent duplicate of an existing test,
+  and green with the mid-loop branch deleted. Rewritten deterministically with a
+  `post-index-change` hook, and proven red on revert.
+- The commit-failure alert was still `>> /dev/null` — the exact pattern round 19 fixed in the
+  sibling file and missed here, making a failure of the alert-about-a-silent-failure itself
+  silent.
+
+Also: the synced rules pack pointed at `.claude/commands/execute-plan.md`, which does not exist
+(the real surface is `/fabrik-execute-plan`) — five lines below the paragraph round 19 rewrote,
+and now on 48 repos. And the alert-site scan only read `daily_refresh.sh`; it now covers all
+three entry points and skips comments.
+
 ### Changed — check_doc_sprawl ACTIVATED (--strict) after a 2272 → 2 fleet cleanup (2026-08-15)
 
 The final step of the activation spec. Sequence that made it safe: made both entry points

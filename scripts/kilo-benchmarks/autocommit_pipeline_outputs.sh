@@ -121,8 +121,16 @@ for _p in "${PATHS[@]}"; do
     # The pre-loop guard is a point sample; a peer can take the lock DURING these ~26 adds and
     # the run then reported "a pipeline output was renamed or retired" — a false cause, plus a
     # partial commit. Re-check on failure so the real reason is named.
-    echo "[auto-commit] index lock appeared mid-stage — aborting and unstaging (not a stage-list problem)"
-    [ ${#STAGED[@]} -gt 0 ] && git reset -q -- "${STAGED[@]}" 2>/dev/null
+    # ⚠️ Deliberately NOT attempting `git reset` here: writing the index needs the very lock
+    # whose presence triggered this branch, so the unstage is guaranteed to fail. An earlier
+    # version called it anyway and logged "aborting and unstaging" — a claim it could never
+    # satisfy, while up to 25 paths stayed staged in shared master. Say what is true, and
+    # alert, because unlike the pre-loop guard this one leaves the index dirty.
+    echo "[auto-commit] index lock appeared mid-stage — aborting with ${#STAGED[@]} path(s) STILL STAGED (cannot unstage: that needs the same lock)"
+    bash "$(dirname "$0")/pipeline_alert.sh" \
+      "auto-commit: aborted mid-stage, paths left staged" \
+      "A peer took .git/index.lock while the pipeline auto-commit was staging. ${#STAGED[@]} regenerated path(s) are left STAGED in the shared index and could ride along in the next bare commit. Unstaging is impossible from here (it needs the same lock). Run: git reset -- <the pipeline paths>, or just let the next pipeline run re-stage and commit them." \
+      || true
     exit 0
   fi
 done
@@ -184,7 +192,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
     bash "$(dirname "$0")/pipeline_alert.sh" \
       "auto-commit: git commit failed on $(hostname 2>/dev/null || echo this host)" \
       "The pipeline auto-commit could not commit its regenerated outputs (most likely a failing pre-commit hook). Our paths were unstaged so the shared index is unchanged, but the regenerated files remain UNCOMMITTED and the tree stays dirty for the next agent. If this repeats, the auto-commit is effectively disabled — check the pre-commit hooks first." \
-      >> /dev/null 2>&1 || true
+      || true
     exit 0
   }
 
