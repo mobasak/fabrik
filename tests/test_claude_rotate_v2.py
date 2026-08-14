@@ -372,3 +372,112 @@ def test_t14_unknown_parked_ranks_last_but_is_eligible():
                "telemetry": "unknown-parked", "five_hour": None, "seven_day": None}
     assert cr._pick_successor([live_tel, unknown], None, NOW) == live_tel["name"]
     assert cr._pick_successor([unknown], None, NOW) == unknown["name"]
+
+
+# ── T8: --touch (keep the parked accounts' refresh chains alive) ───────────────
+
+
+def _touch_env(tmp_path, monkeypatch, live_name, ran, refreshed_email="ob@ocoron.com",
+               change=True):
+    """Seams: two stores (live + parked), a fake `claude` run that optionally rewrites the
+    isolated config's credentials, and a fake identity probe."""
+    stores = tmp_path / "manager-accounts"
+    for n in ("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"):
+        d = stores / n
+        d.mkdir(parents=True)
+        (d / ".credentials.json").write_text(json.dumps(
+            {"claudeAiOauth": {"accessToken": f"OLD-{n[:3]}", "refreshToken": f"R-{n[:3]}"}}))
+    monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
+    monkeypatch.setattr(cr, "ACTIVE_CREDS", tmp_path / "live.json")
+    (tmp_path / "live.json").write_text(json.dumps(
+        {"claudeAiOauth": {"accessToken": "LIVE", "refreshToken": "R-LIVE"}}))
+    monkeypatch.setattr(cr, "_active_account", lambda: stores / live_name)
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+
+    def fake_run(cfg_dir: Path, store: Path) -> bool:
+        ran.append(store.name)
+        if change:
+            (cfg_dir / ".credentials.json").write_text(json.dumps(
+                {"claudeAiOauth": {"accessToken": "NEW-TOK", "refreshToken": "NEW-R",
+                                   "expiresAt": int((NOW + 8 * 3600) * 1000)}}))
+        return True
+
+    monkeypatch.setattr(cr, "_touch_run_cli", fake_run)
+    monkeypatch.setattr(cr, "_email_for_token", lambda tok: refreshed_email)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    return stores
+
+
+def test_t8_touch_skips_the_live_account(tmp_path, monkeypatch):
+    ran = []
+    _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran)
+    assert cr._cmd_touch() == 0
+    assert ran == ["ob-ocoron-com-s-organization"], "the live account refreshes on its own"
+
+
+def test_t8_touch_files_the_refreshed_pair(tmp_path, monkeypatch):
+    ran = []
+    stores = _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran)
+    assert cr._cmd_touch() == 0
+    blob = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
+    assert blob["claudeAiOauth"]["accessToken"] == "NEW-TOK"
+
+
+def test_t8_touch_refuses_a_mismatched_identity(tmp_path, monkeypatch):
+    ran = []
+    stores = _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran,
+                        refreshed_email="stranger@example.com")
+    assert cr._cmd_touch() == 0
+    blob = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
+    assert blob["claudeAiOauth"]["accessToken"] == "OLD-ob-", "mismatch must not be filed"
+
+
+def test_t8_touch_never_mutates_the_live_credentials(tmp_path, monkeypatch):
+    ran = []
+    _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran)
+    before = (tmp_path / "live.json").read_bytes()
+    assert cr._cmd_touch() == 0
+    assert (tmp_path / "live.json").read_bytes() == before, "touch is isolated from live sessions"
+
+
+def test_t8_touch_noop_when_the_cli_returns_the_same_pair(tmp_path, monkeypatch):
+    ran = []
+    stores = _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran, change=False)
+    store = stores / "ob-ocoron-com-s-organization"
+    before = (store / ".credentials.json").read_bytes()
+    assert cr._cmd_touch() == 0
+    assert (store / ".credentials.json").read_bytes() == before
+    assert not (store / ".credentials.json.prev").exists(), "no churn when nothing changed"
+
+
+def test_t8_touch_never_files_a_blanked_credential(tmp_path, monkeypatch):
+    """LIVE DEFECT 2026-08-14: `claude -p` in an isolated config wrote a BLANKED pair (empty
+    refreshToken, expiresAt=0) and the touch filed it over a good snapshot. A refreshed blob
+    is only fileable when it is structurally alive: non-empty refresh token AND a future
+    access-token expiry. Otherwise the existing snapshot stands."""
+    ran = []
+    stores = tmp_path / "manager-accounts"
+    for n in ("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"):
+        d = stores / n
+        d.mkdir(parents=True)
+        (d / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+            "accessToken": "GOOD", "refreshToken": "GOOD-R",
+            "expiresAt": int((NOW + 3600) * 1000)}}))
+    monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
+    monkeypatch.setattr(cr, "ACTIVE_CREDS", tmp_path / "live.json")
+    (tmp_path / "live.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE"}}))
+    monkeypatch.setattr(cr, "_active_account",
+                        lambda: stores / "sarp-ocoron-com-s-organization")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(cr, "_email_for_token", lambda tok: "ob@ocoron.com")
+
+    def blanking_run(cfg_dir: Path, store: Path) -> bool:
+        ran.append(store.name)
+        (cfg_dir / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+            "accessToken": "BLANK", "refreshToken": "", "expiresAt": 0}}))
+        return True
+
+    monkeypatch.setattr(cr, "_touch_run_cli", blanking_run)
+    assert cr._cmd_touch() == 0
+    kept = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
+    assert kept["claudeAiOauth"]["refreshToken"] == "GOOD-R", "a blanked pair must never be filed"

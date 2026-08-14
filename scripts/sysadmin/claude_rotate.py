@@ -34,6 +34,7 @@ import os
 import re
 import select
 import subprocess
+import tempfile
 import sys
 import time
 import urllib.parse
@@ -1200,6 +1201,102 @@ def _keepwarm_refresh(store: Path) -> bool:
     return False
 
 
+def _email_for_token(token: str) -> str | None:
+    """The account email a specific token belongs to (the identity authority, applied to a
+    token that is NOT the live one — the touch path's verification seam)."""
+    prof = _oauth_get("profile", token)
+    email = ((prof or {}).get("account") or {}).get("email")
+    return email if isinstance(email, str) and "@" in email else None
+
+
+def _touch_run_cli(cfg_dir: Path, store: Path) -> bool:
+    """Run one trivial `claude -p` against an ISOLATED config dir so the official client
+    performs its own token refresh. Never touches the live credentials file — the account
+    being touched is parked, and live sessions keep using ACTIVE_CREDS untouched."""
+    env = os.environ.copy()
+    env["CLAUDE_CONFIG_DIR"] = str(cfg_dir)
+    env["CLAUDE_MESH_HEADLESS"] = "1"
+    env["CLAUDE_SOUND_NO_REVIVE"] = "1"
+    env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
+    try:
+        p = subprocess.run(["claude", "-p", "ping"], env=env, capture_output=True,
+                           text=True, timeout=int(os.environ.get("TOUCH_TIMEOUT", "150")))
+        return p.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _cmd_touch(only: str | None = None) -> int:
+    """Keep PARKED accounts' refresh chains alive (operator ask 2026-08-14: never log in
+    again). Refresh tokens are single-use but ~30-day-lived, and the CLI rotates them on
+    use — so one trivial call per account per week keeps every chain current WITHOUT any
+    login, email automation, or impact on live sessions. Isolated per account via
+    CLAUDE_CONFIG_DIR; a refreshed pair is identity-verified before it is filed."""
+    active = _active_account()
+    live_name = active.name if active is not None else None
+    touched = 0
+    for store in _list_accounts():
+        if store.name == live_name:
+            continue  # the live account refreshes naturally on every real turn
+        if only is not None and not store.name.lower().startswith(only.lower()):
+            continue
+        src = store / ".credentials.json"
+        if not src.is_file():
+            continue
+        before = src.read_bytes()
+        tmpdir = Path(tempfile.mkdtemp(prefix=f"claude-touch-{store.name[:12]}-"))
+        try:
+            os.chmod(tmpdir, 0o700)
+            _secure_write(tmpdir / ".credentials.json", before)
+            cj = store / ".claude.json"
+            if cj.is_file():
+                _secure_write(tmpdir / ".claude.json", cj.read_bytes())
+            _touch_run_cli(tmpdir, store)
+            after_path = tmpdir / ".credentials.json"
+            after = after_path.read_bytes() if after_path.is_file() else before
+            if after == before:
+                print(f"touch: {store.name} — unchanged (chain already current)")
+                continue
+            try:
+                payload = json.loads(after)
+            except ValueError:
+                print(f"touch: {store.name} — unreadable refreshed pair, not filed")
+                continue
+            tok = (payload.get("claudeAiOauth") or {}).get("accessToken")
+            # STRUCTURAL LIVENESS GATE (live defect 2026-08-14): `claude -p` in an isolated
+            # config can write a BLANKED pair (empty refreshToken, expiresAt=0) — filing it
+            # destroys a perfectly good snapshot. A refreshed blob is fileable only when it
+            # is alive: a non-empty refresh token AND a future access-token expiry. And the
+            # identity must POSITIVELY verify — no provenance fallback here, because the
+            # existing snapshot is still valid and doing nothing is always the safer branch.
+            o = payload.get("claudeAiOauth") or {}
+            exp_ms = o.get("expiresAt")
+            alive = bool(o.get("refreshToken")) and isinstance(exp_ms, (int, float)) \
+                and (exp_ms / 1000.0) > _now()
+            if not alive:
+                print(f"touch: {store.name} — CLI returned a dead/blanked pair, keeping the"
+                      " existing snapshot")
+                continue
+            email = _email_for_token(tok) if tok else None
+            if not email:
+                print(f"touch: {store.name} — refreshed pair unverifiable, not filed")
+                continue
+            ok = _file_refreshed_credentials(store, payload, verified_email=email)
+            if ok:
+                touched += 1
+                print(f"touch: {store.name} — refreshed and filed")
+                _ledger_append({"event": "touch", "ts": _now(), "store": store.name})
+        finally:
+            try:
+                for f in tmpdir.iterdir():
+                    f.unlink()
+                tmpdir.rmdir()
+            except OSError:
+                pass
+    print(f"touch: done — {touched} account(s) refreshed")
+    return 0
+
+
 def _cmd_tick() -> int:
     """The 5-minute rotation daemon tick. Always exits 0 — ENFORCED by the outer guard
     (closer #11), not just documented. Every decision is one printed line."""
@@ -1449,6 +1546,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_status(as_json="--json" in args[1:])
     if args[0] == "--tick":
         return _cmd_tick()
+    if args[0] == "--touch":
+        return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
     env = os.environ.copy()
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     try:
