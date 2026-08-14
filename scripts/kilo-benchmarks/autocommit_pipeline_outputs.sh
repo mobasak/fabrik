@@ -27,6 +27,23 @@ CALLER="${1:-pipeline}"
 
 cd "$FABRIK_ROOT" || exit 0
 
+# ⚠️ BAIL if the repo is mid-operation. `git add` on a conflicted path marks it RESOLVED —
+# staging the file WITH its <<<<<<< markers. The commit then correctly fails ("cannot do a
+# partial commit during a merge"), but the index damage PERSISTS: `git diff --diff-filter=U`
+# (the standard "am I done?" check) reports clean, and the sibling's next commit writes conflict
+# markers into master. Three concurrent agents plus a boot-triggered pipeline on one shared tree
+# makes this reachable. Nothing this script does is urgent enough to touch a mid-merge index.
+for _state in MERGE_HEAD REBASE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
+  if git rev-parse -q --verify "$_state" >/dev/null 2>&1 || [ -e "$(git rev-parse --git-path "$_state" 2>/dev/null)" ]; then
+    echo "[auto-commit] repo is mid-operation ($_state) — refusing to touch the index"
+    exit 0
+  fi
+done
+if [ -n "$(git ls-files --unmerged 2>/dev/null)" ]; then
+  echo "[auto-commit] unmerged paths present — refusing to touch the index"
+  exit 0
+fi
+
 # THE stage list. Defined once as an array because it is used THREE times below — add,
 # emptiness-test and commit. Earlier this was a single `git add --` followed by a BARE
 # `git commit`, which commits the WHOLE INDEX: a peer's staged WIP rode along, defeating the
@@ -75,6 +92,15 @@ fi
 # staging those would bundle a live agent's WIP into its commit. If the refresh churns such a
 # file (format sweep), the churn is the defect — stop touching it, don't auto-commit it.
 
+# Resolve the destination BEFORE committing. The detached-HEAD guard used to sit AFTER the
+# commit, so it announced "will be lost at the next checkout" about a commit it had just made —
+# and the tree was then clean, hiding the loss from the next agent.
+_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+if [ "$_BRANCH" = "HEAD" ]; then
+  echo "[auto-commit] DETACHED HEAD — refusing to commit onto no branch (it would be lost at the next checkout)"
+  exit 0
+fi
+
 # Scoped to OUR paths: an unscoped test fires whenever ANY file is staged, so the script would
 # commit even when zero pipeline outputs changed.
 if git diff --cached --quiet -- "${STAGED[@]}"; then
@@ -90,10 +116,7 @@ git commit -q \
   -- "${STAGED[@]}" \
   && echo "[auto-commit] committed" || { echo "[auto-commit] commit failed (non-fatal)"; exit 0; }
 
-# Push the CHECKED-OUT branch. `origin master` pushed the local master ref regardless of what
-# was checked out — on an ad-hoc branch the commit landed on the branch while an unrelated
-# master got pushed.
-BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+BRANCH="$_BRANCH"
 # Detached HEAD returns the literal "HEAD": the commit lands on no branch and is dropped at the
 # next checkout, so say that rather than the misleading "diverged" the generic path prints.
 if [ "$BRANCH" = "HEAD" ]; then

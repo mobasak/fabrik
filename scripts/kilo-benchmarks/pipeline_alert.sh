@@ -1,7 +1,13 @@
 #!/bin/bash
-# AFTER-EDIT: wsl_startup_hook.sh, daily_refresh.sh (both alert through this)
+# AFTER-EDIT: wsl_startup_hook.sh (its only caller today)
 #
 # Fire one critical Telegram alert from a pipeline step.
+#
+# ⚠️ daily_refresh.sh does NOT use this yet — it still carries two inlined `python -c` copies
+# (:425, :480). Migrating them would be the obvious de-duplication, but it reds
+# test_flywheel_safety.py:114-123, which is pinned to the inline send_alert+load_dotenv form.
+# Do both together or neither; leaving the header claiming a coupling that does not exist is
+# how the stage list forked in the first place.
 #
 # Extracted 2026-08-15 because the call sites live INSIDE wsl_startup_hook.sh's double-quoted
 # `nohup bash -c "…"` string, where an inline `python -c "…"` needs its quotes escaped and a
@@ -21,9 +27,12 @@ FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
 TITLE="${1:-pipeline alert}"
 BODY="${2:-(no body)}"
 
-"$FABRIK_ROOT/.venv/bin/python" - "$TITLE" "$BODY" <<'PY' 2>&1 || true
+# FABRIK_ROOT is passed IN rather than hardcoded in the python: the interpreter came from the
+# variable while sys.path and .env were pinned to /opt/fabrik, so under an override the helper
+# either sent nothing or read the wrong repo's .env — silently, since every path exits 0.
+"$FABRIK_ROOT/.venv/bin/python" - "$TITLE" "$BODY" "$FABRIK_ROOT" <<'PY' 2>&1 || true
 import sys, pathlib
-kb = pathlib.Path("/opt/fabrik/scripts/kilo-benchmarks")
+kb = pathlib.Path(sys.argv[3]) / "scripts" / "kilo-benchmarks"
 sys.path.insert(0, str(kb))
 try:
     from dotenv import load_dotenv

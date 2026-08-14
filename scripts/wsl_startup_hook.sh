@@ -193,6 +193,15 @@ if [ ! -f "$LOCK_FILE" ]; then
         # in autocommit_pipeline_outputs.sh — never inline a second copy here.
         bash $FABRIK_ROOT/scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh wsl_startup_hook >> $LOG_FILE 2>&1 \
             || echo '[wsl_startup_hook] auto-commit step errored (non-fatal)' >> $LOG_FILE
+        # Heartbeat: record that THIS pipeline completed. Without it the freshness check
+        # above reads a stamp only daily_refresh.sh ever writes — and daily_refresh.sh loses
+        # the lockfile race and never runs — so a perfectly healthy boot fired a CRITICAL
+        # "the refresh pipeline is hanging" alert every single time, poisoning the same
+        # Telegram channel the oracle/ranker alerts depend on. Written AFTER the work, so the
+        # check above still reads the previous run's value.
+        mkdir -p $FABRIK_ROOT/scripts/kilo-benchmarks/cache 2>/dev/null || true
+        date -u '+%Y-%m-%dT%H:%M:%S+00:00' > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt 2>/dev/null \
+            || echo '[wsl_startup_hook] heartbeat write FAILED — next boot will alert as stale' >> $LOG_FILE
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
     " &
 fi

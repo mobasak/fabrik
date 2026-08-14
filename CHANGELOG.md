@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 15: my round-14 fix made a healthy boot alert "the pipeline is hanging" (2026-08-15)
+
+Round 15 found that activating the freshness check created live harm, plus three tests of mine
+that asserted their own documentation, plus two index-safety holes on a shared tree:
+
+- **⚠️ A false CRITICAL Telegram alert on every boot, forever.** Un-escaping made
+  `check_daily_refresh_freshness.py` actually run — but its heartbeat file has exactly one
+  writer, `daily_refresh.sh:532`, and that is the entry point which loses the lockfile race and
+  never runs. Measured 66.1h stale against a 36h threshold: a successful boot would have
+  reported "the cron may be skipped or the refresh pipeline is hanging", poisoning the very
+  channel the oracle and ranker alerts depend on — the suite's own stated failure mode. The
+  hook now writes the heartbeat after its work, so the check reads the previous run's stamp.
+  Verified: after a hook run `fresh`; box off 40h still `stale`.
+- **The auto-commit silently resolved a sibling's merge conflict.** `git add` on a conflicted
+  path marks it RESOLVED — staging the file *with* its `<<<<<<<` markers. The commit then
+  correctly fails, but the index damage persists: `git diff --diff-filter=U` reports clean and
+  the sibling's next commit writes conflict markers into master. With three agents and a
+  boot-triggered pipeline on one shared tree this was reachable. Now refuses when
+  MERGE/REBASE/CHERRY_PICK/REVERT_HEAD or any unmerged path is present.
+- **The detached-HEAD guard announced the loss it had just caused** — it ran after the commit,
+  so the commit landed on no branch and the tree was left clean, hiding it. Moved above.
+
+Three of my tests asserted text rather than behaviour — the class round 14 set out to end:
+
+- `test_the_alert_helper_loads_dotenv_before_importing_alerting` matched the file's own
+  "⚠️ load_dotenv BEFORE importing alerting" **comment**; it passed against a helper with both
+  real dotenv lines deleted. It now strips comments first.
+- "every command word exists on disk" checked three words — the same interpreter twice plus one
+  script — so moving `rank_task_subagents.py` or `capture_golden.py` left it green. Phase E
+  *deletes* those, so the blind spot sat on the plan's critical path. It now checks every
+  absolute path the block names.
+- `_hook_inner_block` reimplemented bash's quote processing in Python and diverged four ways;
+  crucially it did not join backslash-newline continuations, so a dropped `\` — a syntax error
+  that aborts the rest of the pipeline including the auto-commit — was invisible. Replaced with
+  **real bash**: the hook's own assignment block is sourced and bash prints the child string.
+  Added `test_the_hook_child_block_is_syntactically_valid` (`bash -n` on that string), which
+  round 13 had checked ad hoc and round 14 failed to preserve.
+
+Also: `pipeline_alert.sh`'s AFTER-EDIT header claimed `daily_refresh.sh` alerts through it — it
+does not, and migrating it reds a test pinned to the inline form, so the header now says so
+instead of asserting a coupling that does not exist. And the helper took `FABRIK_ROOT` as a
+variable while hardcoding `/opt/fabrik` inside its python, so under an override it silently sent
+nothing.
+
 ### Fixed — catalog-extraction Phase A round 14: the fix I shipped for "the oracle never ran" itself never ran (2026-08-15)
 
 Round 14 found my round-13 fix was inert, and that the test I wrote to guard it could not tell:

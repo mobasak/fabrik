@@ -16,6 +16,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -1355,27 +1356,41 @@ def test_the_autocommit_survives_a_retired_pipeline_path():
 def _hook_inner_block() -> str:
     """The wsl_startup_hook pipeline body EXACTLY as the child `bash -c` receives it.
 
-    The body lives inside a double-quoted `nohup bash -c "…"` string, so the OUTER shell
-    expands unescaped `$VAR` at launch and passes `\\$VAR` through literally. Reproducing that
-    distinction is the whole point: a literal `$VENV_PYTHON` reaches a child where the variable
-    was never exported, expands to empty, and the step silently never runs.
+    Produced by REAL BASH, not a Python model of it. The previous version reimplemented the
+    outer shell's double-quote processing by hand and diverged in four ways — it did not join
+    backslash-newline continuations, did not expand `$(date …)`, did not model quote removal,
+    and knew only three variables. The first of those hid a defect: a dropped continuation
+    backslash is a syntax error that kills the rest of the pipeline, and the hand model could
+    not see it. Bash is available; modelling it is a needless source of false confidence.
     """
-    src = (cg.SCRIPT_DIR.parent / "wsl_startup_hook.sh").read_text()
-    i = src.index('nohup bash -c "') + len('nohup bash -c "')
+    hook = cg.SCRIPT_DIR.parent / "wsl_startup_hook.sh"
+    src = hook.read_text()
+    i = src.index('nohup bash -c "')
     j = src.index('\n    " &', i)
-    raw = src[i:j]
-    env: dict[str, str] = {}
-    for line in src.splitlines():
-        for key in ("FABRIK_ROOT", "VENV_PYTHON", "LOG_FILE"):
-            if line.startswith(f"{key}="):
-                val = line.split("=", 1)[1].strip().strip('"')
-                for k2, v2 in env.items():
-                    val = val.replace(f"${k2}", v2)
-                env[key] = val
-    inner = raw.replace('\\"', '"').replace("\\$", "\x00")  # \$ stays LITERAL
-    for key, val in env.items():
-        inner = inner.replace(f"${key}", val)
-    return inner.replace("\x00", "$")
+    quoted = src[i + len("nohup bash -c ") : j + len('\n    "')]
+    # Run the hook's own assignment block so every variable resolves exactly as it would at
+    # boot, then let BASH perform the quote processing and print the result.
+    prelude = src[: src.index("# --- Persistent process")]
+    harness = prelude + "\nprintf '%s' " + quoted + "\n"
+    r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
+    assert r.returncode == 0, f"could not materialise the child block: {r.stderr[:300]}"
+    return r.stdout
+
+
+def test_the_hook_child_block_is_syntactically_valid():
+    """A dropped continuation backslash aborts the REST of the pipeline — including the
+    auto-commit — and both behavioural tests stay green. Round 13 checked this ad hoc and
+    round 14 did not preserve it as a test; nothing else validates this file's inner block.
+    """
+    inner = _hook_inner_block()
+    with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as fh:
+        fh.write(inner)
+        path = fh.name
+    try:
+        r = subprocess.run(["bash", "-n", path], capture_output=True, text=True)
+        assert r.returncode == 0, f"the child block does not parse:\n{r.stderr[:400]}"
+    finally:
+        Path(path).unlink(missing_ok=True)
 
 
 def test_the_hook_pipeline_steps_are_actually_runnable():
@@ -1403,19 +1418,19 @@ def test_the_hook_pipeline_steps_are_actually_runnable():
     # ...and the interpreter/script each COMMAND line invokes must exist on disk. Continuation
     # lines (`|| { … }`) carry the failure path, not a command word, so they are checked for
     # unexpanded variables above but skipped here.
-    checked = 0
-    for step in steps:
-        if step.startswith(("|", "&", "{", "}")):
-            continue
-        words = step.split()
-        first = words[0]
-        if "=" in first and not first.startswith("/"):  # env prefix like ORACLE_...=1
-            words, first = words[1:], words[1]
-        if first == "bash":  # `bash <script>` — the script is what must exist
-            first = words[1]
-        assert Path(first).exists(), f"command word does not exist: {first}\n  in: {step}"
-        checked += 1
-    assert checked >= 3, f"only {checked} command lines validated — test is vacuous"
+    # Check EVERY absolute path each line names, not just the command word: the previous form
+    # validated `/opt/fabrik/.venv/bin/python` twice and one shell script, so moving or deleting
+    # rank_task_subagents.py / capture_golden.py / pipeline_alert.sh left it green. Phase E
+    # DELETES the engine scripts, so that blind spot is on the plan's own critical path.
+    targets = set()
+    for step in steps + [ln.strip() for ln in inner.splitlines() if "pipeline_alert.sh" in ln]:
+        for word in step.split():
+            w = word.strip("'\";&|()")
+            if w.startswith("/opt/") and ("." in Path(w).name):
+                targets.add(w)
+    assert len(targets) >= 5, f"only {len(targets)} absolute targets found — test is vacuous"
+    missing = sorted(w for w in targets if not Path(w).exists())
+    assert not missing, f"the hook invokes paths that do not exist: {missing}"
 
 
 def test_the_hook_alerts_on_a_broken_ranker_or_a_red_oracle():
@@ -1437,8 +1452,13 @@ def test_the_alert_helper_loads_dotenv_before_importing_alerting():
     """`alerting` reads TELEGRAM_BOT_TOKEN from the process env and does not load .env itself,
     so an invocation without load_dotenv is a SILENT no-op — the defect
     check_daily_refresh_freshness.py:39-43 documents."""
+    # Strip comments FIRST: the file carries a "⚠️ load_dotenv BEFORE importing alerting"
+    # warning, and matching that made an earlier version of this assertion pass against a
+    # helper with both real dotenv lines deleted — a test asserting its own documentation.
     helper = (cg.SCRIPT_DIR / "pipeline_alert.sh").read_text()
-    assert "load_dotenv" in helper
-    assert helper.index("load_dotenv") < helper.index("from alerting import send_alert"), (
-        "alerting is imported before dotenv is loaded — the alert will never deliver"
+    code = "\n".join(ln for ln in helper.splitlines() if not ln.lstrip().startswith("#"))
+    assert "from dotenv import load_dotenv" in code, "the helper does not import load_dotenv"
+    assert "load_dotenv(" in code, "the helper never CALLS load_dotenv"
+    assert code.index("load_dotenv(") < code.index("from alerting import send_alert"), (
+        "alerting is imported before dotenv is loaded — the alert is a silent no-op"
     )
