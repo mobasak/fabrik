@@ -39,6 +39,18 @@
       "score_type": "input_cost_per_m"
     },
     {
+      "id": "voyageai/voyage-code-4",
+      "provider": "voyageai",
+      "input_cost_per_m": 0.12,
+      "context_window_k": 32,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 1,
+      "dimensions": null,
+      "score_used": 0.12,
+      "score_type": "input_cost_per_m"
+    },
+    {
       "id": "voyageai/voyage-multimodal-3.5",
       "provider": "voyageai",
       "input_cost_per_m": 0.12,
@@ -85,21 +97,21 @@
       "dimensions": null,
       "score_used": 0.15,
       "score_type": "input_cost_per_m"
-    },
-    {
-      "id": "google/gemini-embedding-2",
-      "provider": "google",
-      "input_cost_per_m": 0.19999999999999998,
-      "context_window_k": 8,
-      "quality_tier": 3,
-      "is_multilingual": 1,
-      "is_code_tuned": 0,
-      "dimensions": null,
-      "score_used": 0.19999999999999998,
-      "score_type": "input_cost_per_m"
     }
   ],
   "code_embedding": [
+    {
+      "id": "voyageai/voyage-code-4",
+      "provider": "voyageai",
+      "input_cost_per_m": 0.12,
+      "context_window_k": 32,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 1,
+      "dimensions": null,
+      "score_used": 0.12,
+      "score_type": "input_cost_per_m"
+    },
     {
       "id": "mistralai/codestral-embed-2505",
       "provider": "mistralai",

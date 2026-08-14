@@ -758,7 +758,7 @@
 | `grok-latest` | $2.00 | $6.00 | 500K | 🧠 🔧 🖼️ | — | — |
 
 <!-- EMBEDDING_CATALOG:START (auto-managed by embedding_export_markdown.py) -->
-*Auto-generated on 2026-08-13 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 34 models.***
+*Auto-generated on 2026-08-14 (UTC) from the `embedding_models` table. Sorted by `input_cost_per_m ASC, id ASC`. **Total: 35 models.***
 
 | Provider | Model | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned | GA | Status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -790,6 +790,7 @@
 | mistralai | `mistralai/mistral-embed-2312` | $0.10/M | 8k | — | 2 (mid) | ✓ | — | ✓ | active |
 | openai | `openai/text-embedding-ada-002` | $0.10/M | 8k | — | 2 (mid) | — | — | ✓ | active |
 | voyageai | `voyageai/voyage-4-large` | $0.12/M | 32k | — | 3 (frontier) | — | — | ✓ | active |
+| voyageai | `voyageai/voyage-code-4` | $0.12/M | 32k | — | 3 (frontier) | — | ✓ | ✓ | active |
 | voyageai | `voyageai/voyage-multimodal-3.5` | $0.12/M | 32k | — | 3 (frontier) | — | — | ✓ | active |
 | openai | `openai/text-embedding-3-large` | $0.13/M | 8k | — | 3 (frontier) | — | — | ✓ | active |
 | google | `google/gemini-embedding-001` | $0.15/M | 20k | — | 3 (frontier) | ✓ | — | ✓ | active |

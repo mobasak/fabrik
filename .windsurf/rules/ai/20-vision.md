@@ -11,7 +11,7 @@ trigger: glob
 
 # 2. Vision AI
 
-Last content verification: 2026-08-13
+Last content verification: 2026-08-14
 
 **Purpose:** Interpret or generate images/video.
 
@@ -38,18 +38,18 @@ Last content verification: 2026-08-13
 
 Either gateway is fine — pick the cheaper rate per model from the bake-off browser. **Note:** these are vision *understanding* models. For image *generation*, use Recraft (branded/vector) or FLUX/BFL (photoreal) directly — not a gateway LLM.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-13 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-13 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-14 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-14 UTC; auto-refreshed from `kilo_agents.db`):*
 
-vision-input across all gateways: **213**
+vision-input across all gateways: **215**
 
 These are vision *understanding* models. Image *generation* (Recraft / FLUX) is not gateway-routed.
 <!-- GATEWAY_COUNTS:END -->
 
 **Use cases:** content creation, surveillance, document processing.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-13 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-13 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-14 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-14 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 | Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
 |---|---|---|---|---|

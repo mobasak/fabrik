@@ -1,5 +1,43 @@
 [
   {
+    "id": "voyageai/voyage-code-4",
+    "canonical_slug": "voyageai/voyage-code-4-20260812",
+    "hugging_face_id": null,
+    "name": "VoyageAI by MongoDB: voyage-code-4",
+    "created": 1786636912,
+    "description": "voyage-code-4 is a code embedding model from Voyage AI, a MongoDB company. It is designed for coding agents and code retrieval, with Matryoshka embeddings at 2048, 1024, 512, and 256...",
+    "context_length": 32000,
+    "architecture": {
+      "modality": "text->embeddings",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "embeddings"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000012",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 32000,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/voyageai/voyage-code-4-20260812/endpoints"
+    }
+  },
+  {
     "id": "voyageai/voyage-multimodal-3.5",
     "canonical_slug": "voyageai/voyage-multimodal-3.5-20260727",
     "hugging_face_id": null,
