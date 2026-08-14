@@ -698,8 +698,8 @@
   },
   "github": {
     "category": "infra-platform",
-    "cost": "freemium",
-    "capability": "git hosting + API",
+    "cost": "paid",
+    "capability": "git hosting + API + Actions CI (Pro plan since 2026-08-15: 3000 Actions min/mo included; overage $0.006/min Linux 2-core; public repos unmetered)",
     "url": "https://github.com",
     "status": "active",
     "match": [
