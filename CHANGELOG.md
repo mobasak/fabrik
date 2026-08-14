@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the daily pipeline now commits its own regenerated outputs (2026-08-14)
+
+Fourteen tracked files reappeared dirty after every boot, poisoning the working tree for the
+next agent. I had blamed `daily_refresh.sh`'s auto-commit step; infra traced it instead of
+patching, and the attribution was wrong in a way that mattered:
+
+- `daily_refresh.sh`'s auto-commit already existed and was well built (explicit pathspecs,
+  commit-if-changed, guarded fast-forward push, non-fatal).
+- The script that actually runs at boot is `wsl_startup_hook.sh` — confirmed by `update.log`'s
+  `=== Pipeline complete ===`, which is its completion line, not `daily_refresh.sh`'s. It
+  regenerated all fourteen files and contained **zero** `git add`/`git commit`. That was the
+  recurrence.
+- Two pipeline-owned files were missing from the stage list even when `daily_refresh.sh` did
+  run: `.windsurf/rules/core/65-rag-search.md` (the glob covered only `rules/ai/*.md`) and
+  `scripts/kilo-benchmarks/embedding_shortlists.json`.
+
+Rather than duplicating the block into the hook — whose entire pipeline body lives inside a
+double-quoted `nohup bash -c "…"` string, so an inlined block with quotes and `$(…)` would need
+fragile escaping AND would fork the stage list in two, which is precisely what let those two
+files slip — the block is extracted to `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh`
+and both entry points call it. One list, one source of truth.
+
+Verified end to end: the stage list captures exactly the 14 pipeline files and excludes all four
+protected classes (`PORTS.md`, `LOCAL_LLM_INFRASTRUCTURE.md`, `libs/subagents/**`, plan-locks),
+the inner `bash -c` block still parses after the edit, and a real run took the tree 22 → 8 dirty
+with the remainder being deliberate exclusions plus another session's in-flight work.
+
 ### Fixed — a missing optional check is now VISIBLE instead of silently green (2026-08-14)
 
 `run_optional_check` returned `passed=True, "(check not present, skipping)"` for a script that

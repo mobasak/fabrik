@@ -556,58 +556,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
     echo "[disk-hygiene] pruned caches/logs/audits/backups to bounded limits"
   } || echo "[daily_refresh] disk-hygiene step errored (non-fatal)"
 
-  # ─── Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-07-19) ───
-  # Regenerating these every run but never committing them left the working tree
-  # perpetually dirty for the next agent (the "poisoned before starting" friction).
-  # Stage EXPLICIT pipeline-owned paths ONLY — never `git add -A` on shared master —
-  # commit only when something changed, then a GUARDED fast-forward push (never force;
-  # if origin diverged, leave the commit local for the next agent to integrate). Runs
-  # in a subshell so the glob resolves at repo root without changing the script's CWD.
-  # Whole step is non-fatal — a git hiccup must never abort or fail the refresh.
-  (
-    cd "$FABRIK_ROOT" || exit 0
-    git add -- \
-      .windsurf/rules/ai/*.md \
-      docs/reference/kilo/CODING_SUBAGENT_SELECTION.md \
-      docs/reference/kilo/TASK_SUBAGENT_SELECTION.md \
-      docs/reference/kilo/KILO_MODEL_CAPABILITIES.md \
-      docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md \
-      docs/reference/kilo/TTS_SELECTION.md \
-      docs/reference/kilo/STT_SELECTION.md \
-      docs/reference/kilo/TRANSLATION_SELECTION.md \
-      docs/reference/kilo/IMAGE_GEN_SELECTION.md \
-      docs/reference/kilo/CANDIDATE_SIGNUPS.md \
-      docs/CAPABILITIES.md capabilities.json \
-      docs/traycer/kilo_selected_agents.md \
-      scripts/kilo-benchmarks/embedding_models_dump.json \
-      2>/dev/null || true
-    # LOCAL_LLM_INFRASTRUCTURE.md is deliberately NOT staged: the pipeline
-    # rewrites only its auto-generated block, but the file is MIXED (hand-
-    # authored prose above) — `git add` stages the whole file, so a cron add
-    # would bundle an agent's uncommitted manual edit (review finding).
-    # NEVER add shared agent-edited files here (PORTS.md, plan-locks, enforcement
-    # code): a cron staging those would bundle a live agent's WIP into its commit.
-    # If the refresh churns such a file (format sweep), the churn is the defect —
-    # stop touching it, don't auto-commit it.
-    if git diff --cached --quiet; then
-      echo "[auto-commit] nothing regenerated changed — tree already clean"
-    else
-      git commit -q \
-        -m "chore(kilo): daily_refresh auto-commit of regenerated selection docs + catalog ($(date -u +%Y-%m-%d))" \
-        -m "Agent-Role: primary" \
-        -m "Agent-Context: daily_refresh.sh commits its own regenerated tracked outputs so the working tree stays clean for the next agent" \
-        -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" \
-        && echo "[auto-commit] committed" || { echo "[auto-commit] commit failed (non-fatal)"; exit 0; }
-      git fetch -q origin master 2>/dev/null || true
-      if git merge-base --is-ancestor origin/master HEAD 2>/dev/null; then
-        git push -q origin master 2>/dev/null \
-          && echo "[auto-commit] pushed to origin/master" \
-          || echo "[auto-commit] push failed — commit left local (non-fatal)"
-      else
-        echo "[auto-commit] origin/master diverged — commit left local for the next agent to integrate"
-      fi
-    fi
-  ) || echo "[daily_refresh] auto-commit step errored (non-fatal)"
+  # ─── Auto-commit the pipeline's OWN regenerated tracked docs ───
+  # Extracted to autocommit_pipeline_outputs.sh 2026-08-14 so this entry point and
+  # wsl_startup_hook.sh share ONE stage list. Forking the list is what let
+  # 65-rag-search.md and embedding_shortlists.json go unstaged; keep the paths there.
+  bash "$KB/autocommit_pipeline_outputs.sh" daily_refresh \
+    || echo "[daily_refresh] auto-commit step errored (non-fatal)"
 
   printf '[timing] TOTAL: %ds\n' "$((SECONDS - T0_TOTAL))"
   echo "=== Refresh complete — $(date -u +'%Y-%m-%d %H:%M:%S UTC') ==="

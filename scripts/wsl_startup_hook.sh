@@ -169,6 +169,13 @@ if [ ! -f "$LOCK_FILE" ]; then
         python3 $FABRIK_ROOT/commands/assemble_commands.py --check >> $LOG_FILE 2>&1 || echo 'WARN: ~/.claude/commands drifted from /opt/fabrik/commands sources — re-render or reconcile' >> $LOG_FILE
         # session-recall incremental index (fail-quiet; initial heavy ingest already done 2026-07-26)
         cd /opt/session-recall && timeout 600 .venv/bin/python -m ingest.reindex >> $LOG_FILE 2>&1 || echo \"[session-recall] incremental index failed (non-fatal)\" >> $LOG_FILE
+        # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
+        # THIS is the daily-dirt fix: this hook regenerates ~14 tracked files every boot and
+        # had no git step at all, so the tree was perpetually dirty for the next agent while
+        # daily_refresh.sh (which DOES commit) was wrongly blamed. One shared stage list lives
+        # in autocommit_pipeline_outputs.sh — never inline a second copy here.
+        bash $FABRIK_ROOT/scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh wsl_startup_hook >> $LOG_FILE 2>&1 \
+            || echo '[wsl_startup_hook] auto-commit step errored (non-fatal)' >> $LOG_FILE
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
     " &
 fi
