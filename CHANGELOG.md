@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — sync-excluded repo audit: population of one, and zero fleet forks (2026-08-15)
+
+`docs/reference/sync-excluded-repo-audit.md`. fabrik-lib asked whether other sync-excluded repos
+carry its orphaned-governance shape; grounded from `sync_enforcement_to_projects.py:765-777`,
+there is exactly ONE live sync-excluded repo (fabrik-lib itself — audited clean: dead branch
+documented, all five universal anchors present, its drift detector wired). The reverse sweep is
+the valuable half: all 43 /opt repos have a synced.lock, none is missing a file its lock lists,
+and 8282 delivered synced files were compared byte-for-byte — **zero forks**. Three apparent
+drifts were false positives of the comparison itself (CLAUDE.md is template-sourced;
+libs/subagents/* differed only because the hub worktree held a sibling's uncommitted work;
+sync_extensions.sh is sourced from templates/scaffold/scripts/) and are recorded so the next
+sweep resolves each file to its true source and compares against HEAD, never the worktree.
+
 ### Fixed — check_structure allows per-site deliverable docs (sites/<slug>/) (2026-08-15)
 
 Upstream proposal from web-ecommerce-factory (their

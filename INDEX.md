@@ -553,6 +553,7 @@ docs/
 | [agents/intel.md](docs/reference/agents/intel.md) | intel agent charter (model intelligence until extraction + standing reviewer + floater) — SessionStart overlay via `agent_role.py` |
 | [agents/kaizen-log-infra.md](docs/reference/agents/kaizen-log-infra.md) | infra weekly kaizen log — the 5 pinned metrics, one row per Monday pass |
 | [agents/kaizen-log-fleet.md](docs/reference/agents/kaizen-log-fleet.md) | fleet weekly kaizen log — the 5 pinned metrics, one row per Monday pass |
+| [sync-excluded-repo-audit.md](docs/reference/sync-excluded-repo-audit.md) | 2026-08-15 audit: the exclusion set has exactly ONE live repo (fabrik-lib, clean); reverse sweep of 8282 delivered files found zero forks, with the three false-positive traps recorded |
 | [fabrik-mail.md](docs/reference/fabrik-mail.md) | fabrik-mail conventions — the hub↔project AI mail protocol: mailbox layout, message format, the tmp-then-O_EXCL publish + atomic-rename-claim + reply-closure rules, ack-per-kind table, digest predicate, trust model, the Layer-2 socket=notification/file=truth composition, and the operator-relayed fabrik-lib provisioning request (item 6). |
 | [stack.md](docs/archive/stack.md) | Coolify-era stack overview (archived 2026-07-20; live truth: agents-fabrik.md + PROJECT_CATALOG) |
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
