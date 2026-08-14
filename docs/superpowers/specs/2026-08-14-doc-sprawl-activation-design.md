@@ -1,6 +1,12 @@
 # Design spec — activating check_doc_sprawl (the permanently-green blocking check)
 
-Status: DRAFT (operator approved the activation path 2026-08-14; this spec defines it)
+Status: CONVERGED (2026-08-14 — /fabrik-spec-review: 3-pass loop. Pass 1 OVERTURNED this spec's
+own central claim: the two flagged docs are NOT fabrik-synced (no script mentions them, absent
+from synced.lock, hub copies untracked, gitignore_dest_paths already emits a reference-docs
+group) — they are orphaned bulk copies, so "close the sync gap" became "disposition the orphans",
+a named BLOCKING decision for intel + the operator. Pass 2: two coherence edits. Closing pass:
+raised 0, edits 0, md5 1cf714bd053376058ae8647ade1fd074 stable, numeric claims re-verified live
+(44 / 30 repos). AWAITING the orphan disposition + operator approval to plan.)
 Date: 2026-08-14 · Owner: infra
 
 ## The problem
@@ -31,13 +37,26 @@ git repos under `/opt`, applying the check's own `ALLOWED_NEW_ROOT_DOCS` / `ALLO
 | total blocking files | 2272 |
 | …of which `rnfinal` alone | 2230 |
 
-And the composition is the real finding — **almost none of it is sprawl**:
+And the composition is the real finding — **none of it is the sprawl the check was written for**
+(new project docs invented ad hoc); it is two mechanical classes plus a handful of real cases:
 
 1. **12 of the 14 repos red on 1–2 files, and they are the SAME two files everywhere:**
-   `docs/reference/ai_agent_prompt_directives.md` and `docs/reference/AI_TAXONOMY.md` — hub
-   REFERENCE_DOCS distributed by governance-sync that are **not covered by the generated
-   `.gitignore` "Fabrik-synced" block**, so they appear as untracked project files. This is a
-   **sync-manifest gap**, not doc sprawl.
+   `docs/reference/ai_agent_prompt_directives.md` and `docs/reference/AI_TAXONOMY.md`. Re-probed
+   at review time, and the first framing of this spec was WRONG — they are **not fabrik-synced
+   at all**:
+   - no hub script mentions either filename (`grep` over `scripts/`, `src/fabrik/`, `commands/`,
+     `.claude/`: zero matches);
+   - they are absent from a project's `.fabrik/synced.lock` (204 entries in `/opt/meb`);
+   - `gitignore_dest_paths()` (`fabrik_synced_manifest.py:147-172`) DOES already emit a
+     `"Reference docs (synced from fabrik)"` group — so there is no missing-group bug;
+   - the **hub's own copies are untracked too** (`git ls-files` returns nothing for either);
+   - they exist in **44 repos** (prompt_directives) / **30 repos** (AI_TAXONOMY), byte-identical
+     (`md5 77385e0a…` across repos) with a **single shared mtime** each (2026-05-30 17:40 and
+     2026-06-25 13:08).
+   Verdict: these are **orphaned bulk-copied artifacts** — a one-off fleet-wide copy that was
+   never adopted into the sync manifest and never tracked anywhere. A third class, distinct from
+   both "sprawl" and "synced", and the check is RIGHT to flag them: they are unfiled by
+   definition.
 2. **`rnfinal`'s 2230 are `node_modules/**/*.md`** (its `.gitignore` does not cover
    `node_modules/`, so `--exclude-standard` does not filter them). The check has **no
    vendor-directory guard** — any JS project with an unignored dependency tree would red on
@@ -46,13 +65,19 @@ And the composition is the real finding — **almost none of it is sprawl**:
 
 ## Approach (single — the fear was the only alternative)
 
-Fix the two structural causes FIRST, then activate. Nothing else is needed, and no allowlist
-migration is required (the original plan's assumed cost does not exist).
+Settle the orphan disposition and fix the two code causes FIRST, then activate. No allowlist
+migration is required (that assumed cost does not exist), and the three steps are independent —
+only step 1 needs an owner's answer.
 
-1. **Close the sync gap** — `gitignore_dest_paths()` (`fabrik_synced_manifest.py:147`) must emit
-   the REFERENCE_DOCS group so projects ignore what the hub distributes to them. Clears 12 of
-   the 14 repos at a stroke, and fixes a real bug independent of this spec: synced files
-   showing as untracked project noise.
+1. **Disposition the orphaned bulk copies** (BLOCKING decision, not a code fix — clears 12 of
+   the 14 repos whichever way it goes). Three legitimate answers, and the owner picks:
+   (a) **adopt** — add both to `REFERENCE_DOCS` in the manifest, commit the hub copies, re-sync:
+   they become properly owned, ignored in projects, and updatable from one place;
+   (b) **delete fleet-wide** — if they are stale one-off output nobody reads;
+   (c) **track per-repo** — if each project legitimately owns its own copy.
+   ⚠️ Ownership note: `AI_TAXONOMY.md` is AI-model documentation, which is **intel's beat**, and
+   its 2026-06-25 timestamp coincides with intel's AI-taxonomy work. This decision is routed to
+   intel + the operator BEFORE the activation lands, not assumed by infra.
 2. **Add a vendor guard to the check** — skip `node_modules/`, `vendor/`, `.venv/`, `dist/`,
    `build/`, `site-packages/`. A default-deny doc policy must never adjudicate third-party
    files. Clears `rnfinal` + `rn-kit-sandbox`.
@@ -68,11 +93,19 @@ migration is required (the original plan's assumed cost does not exist).
 | # | Requirement | Acceptance |
 |---|---|---|
 | 1 | Both call paths non-vacuous | red-first test: a violating untracked .md makes `python scripts/enforcement/check_doc_sprawl.py` exit 1 AND `validate_conventions` return a finding |
-| 2 | Sync gap closed | after re-sync, `git -C /opt/<project> ls-files --others --exclude-standard '*.md'` no longer lists any hub-synced reference doc (checked on ≥3 projects) |
+| 2 | Orphans dispositioned | after the owner's choice lands (adopt/delete/track), `git -C /opt/<project> ls-files --others --exclude-standard '*.md'` no longer lists `ai_agent_prompt_directives.md` or `AI_TAXONOMY.md` on ≥3 sample repos |
 | 3 | Vendor dirs never adjudicated | test: a violating path under `node_modules/` is ignored; the same path outside it is blocked |
 | 4 | Grandfathering preserved | test: a tracked .md that violates the allowlist stays green (edits to existing docs are always allowed) |
 | 5 | Fleet blast radius measured post-fix | the measurement script re-run, result recorded in the plan's Evidence, expected <10 files total |
 | 6 | No silent-green regression | `run_optional_check`'s missing-script GREEN is a separate approved workstream; this spec must not depend on it |
+
+## Named BLOCKING unknown
+
+The orphan disposition (approach step 1) must be answered by intel + the operator before
+activation, because activating first would red 12 repos on files nobody has decided about. It is
+NOT a research gap — the facts are measured above; it is an ownership decision with three valid
+answers. Everything else in this spec (vendor guard, `__main__`, `relative_to` fix) is
+independent and can be built while the decision is pending.
 
 ## Out of scope
 
@@ -82,9 +115,11 @@ migration is required (the original plan's assumed cost does not exist).
 
 ## Risks
 
-- **Sync-gitignore change is fleet-wide** (~46 projects): it only ADDS ignore entries for files
-  the hub already owns, so the worst case is a project that had deliberately committed a copy of
-  a synced doc — measurable before shipping (`git ls-files` for those paths per repo).
+- **The orphan disposition is fleet-wide** (44 repos hold at least one copy): "adopt" adds them
+  to the sync surface and to every project's ignore block; "delete" removes a file 44 repos have
+  had since May/June. Either is reversible (git history on adopt; the byte-identical copies make
+  restore trivial on delete), but it is a fleet action and belongs to the owner, not to this
+  spec's executor.
 - **Activation surfaces real debt** in whichever repos still red after the fixes; each is a
   genuine unfiled doc, and the remedy (file it in an allowlisted location or track it) is
   actionable in-repo. That is the point of the check.
