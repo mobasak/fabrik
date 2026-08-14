@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — subagent_runs.session_id (SCOPE-B step 2) + the AUTO-0 diff guard restored after a second clobber (2026-08-15)
+
+**The ALTER is applied.** `ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS session_id text;` —
+nullable, no default, no backfill, exactly the shape approved. Verified against the live
+`fabrik_analytics` table: 13 → 14 columns; 6307 rows with `session_id` non-null = **0**; and an
+11-column INSERT (every vendored copy predating this) still succeeds and writes NULL. The
+module's shipped `SUBAGENT_RUNS_DDL` was updated to match, so a fresh WSL-dev table equals
+production.
+
+The ordering condition I attached to the approval held up: fabrik-lib confirmed that adding
+`session_id` to `_COLS` before relaxing `flush_outbox`'s completeness gate would have quarantined
+every pending outbox row — the **scored** ones, the highest-value flywheel signal. Their step 1
+(`_REQUIRED_OUTBOX_COLS`) is verified landed in both their copy and the hub's vendored one.
+
+**And applying it surfaced a regression: my AUTO-0 diff guard had been clobbered a second time.**
+A vendor-sync from fabrik-lib overwrote `68a10297`, and their upstream never carried the guard —
+so a `mode="write"` coder whose value IS its diff (empty text, real diff) was again being
+auto-scored **0**. A false zero of exactly the kind the surrounding comment warns against, and it
+reds `tests/test_pg_ledger_auto0.py::test_write_unit_with_diff_but_empty_text_stays_null`, whose
+own docstring states the intent. Restored — and this time **upstreamed by mail**, because a
+vendored copy cannot hold a fix against its own upstream: the next sync would clobber it a third
+time.
+
 ### Fixed — round 21: zero production defects, but round 20's own alerts had nothing holding them (2026-08-15)
 
 Round 21 returned the first verdict in this loop with **no production-behaviour break**: the

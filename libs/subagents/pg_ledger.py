@@ -54,7 +54,13 @@ CREATE TABLE IF NOT EXISTS subagent_runs (
     turns         INTEGER,
     latency_s     DOUBLE PRECISION,
     quality_score REAL,
-    tool_calls    JSONB
+    tool_calls    JSONB,
+    -- Added 2026-08-15 (intel, SCOPE-B step 2). NULLABLE, no default, no backfill: every
+    -- vendored copy predating it keeps inserting 11 columns and writing NULL here, which is
+    -- the honest value for "this run had no session identity". Applied to the live
+    -- fabrik_analytics table FIRST, before any writer emits it — a new writer against an old
+    -- table fails the INSERT, and record_run is fail-open, so the row would be lost silently.
+    session_id    TEXT
 );
 CREATE INDEX IF NOT EXISTS subagent_runs_task_model_idx ON subagent_runs (task_type, model);
 CREATE INDEX IF NOT EXISTS subagent_runs_ts_idx ON subagent_runs (ts);
@@ -68,6 +74,29 @@ _INSERT = (
 )
 # The `_INSERT` column order — the outbox serializes a row as a name→value dict so `flush_outbox`
 # can rebuild the exact tuple regardless of dict ordering. Keep in lockstep with `_INSERT`.
+# The outbox gate checks THIS, not _COLS. The distinction is what makes adding a column safe.
+#
+# An outbox row is written by an OLDER copy of this module than the one flushing it — that is the
+# whole point of an outbox (the DB was unreachable; the row waits). So growing _COLS and validating
+# against it retroactively condemns every row already on disk: `all(c in obj for c in _COLS)` fails
+# on the new key and quarantines them to pg_outbox.corrupt.jsonl. Those rows are the SCORED ones —
+# precisely what the outbox exists to protect — and there are 61 vendored copies that could have
+# written them.
+#
+# The INSERT path never needed the strictness: it reads `r.get(c)`, so a missing key is already
+# None. Only the gate was too strict. Ordering condition from the table's owner (intel), and the
+# reason this lands BEFORE any ALTER TABLE or any code that writes the new column.
+#
+# ⚠ Add a name here ONLY for a column that is NOT NULL with no default — i.e. one whose absence
+# genuinely makes a row unusable. A new NULLABLE column must never be added.
+_REQUIRED_OUTBOX_COLS = (
+    "project",
+    "agent_id",
+    "task_type",
+    "model",
+    "status",
+)
+
 _COLS = (
     "project",
     "agent_id",
@@ -259,11 +288,12 @@ def record_agent_run(
         # punishes them. Only when the caller passed no score: an explicit judgment always wins.
         if quality_score is None:
             _txt = getattr(result, "text", None)
-            # The diff guard is load-bearing, not redundant: a mode="write" coder's value IS
-            # its diff, so empty text alongside a real diff is a HEALTHY run. Dropping it
-            # auto-scores those 0 — a false zero of exactly the kind the note above warns
-            # against — and reds tests/test_pg_ledger_auto0.py::
-            # test_write_unit_with_diff_but_empty_text_stays_null.
+            # ⚠️ The diff guard is load-bearing and has now been lost TWICE to an upstream
+            # vendor-sync: a mode="write" coder's value IS its diff, so empty text alongside a
+            # real diff is a HEALTHY run. Without this clause those are auto-scored 0 — a false
+            # zero of exactly the kind the note above warns against — and it reds
+            # tests/test_pg_ledger_auto0.py::test_write_unit_with_diff_but_empty_text_stays_null.
+            # Upstreamed to fabrik-lib so the next sync stops clobbering it.
             _diff = getattr(result, "diff", None)
             if (
                 str(record.get("status") or "") == "done"
@@ -366,6 +396,21 @@ def set_quality(
         return False
     # Try the DB when a DSN is configured; on ANY miss, outbox the scored delta so it isn't lost.
     if dsn:
+        # ── ORPHAN GUARD (2026-08-14). Refuse to score a run that has no dispatch row.
+        #
+        # This writer is INSERT-only, so scoring an agent_id that was never recorded does not
+        # fail — it APPENDS a scored delta with no run behind it, carrying a real model name into
+        # the flywheel. Seven such rows exist in fabrik_analytics (5 with real models, 4 of them
+        # zeros); two are traceable to a disclosed incident where a consumer misread fanout's
+        # return and scored results whose dispatch rows had never been written.
+        #
+        # ⚠ THREE-STATE, NOT TWO. `None` means "could not ask", and it MUST behave like today:
+        # this function is documented fail-open and outboxes on any miss, so treating "cannot
+        # ask" as "absent" would stop every DB-less vendored copy (CI, offline dev) from scoring
+        # at all — trading a 0.8% integrity defect for total loss of the flywheel signal.
+        present = agent_ids_present([str(agent_id)], dsn=dsn, connect=connect)
+        if present is not None and str(agent_id) not in present:
+            return False  # definitive miss: the run does not exist, so the score cannot be real
         conn = None
         try:
             conn = connect(dsn) if connect is not None else _connect(dsn)
@@ -488,7 +533,7 @@ def _flush_locked(
         except Exception:  # noqa: BLE001 — a torn/corrupt line
             bad.append(ln)
             continue
-        if isinstance(obj, dict) and all(c in obj for c in _COLS):
+        if isinstance(obj, dict) and all(c in obj for c in _REQUIRED_OUTBOX_COLS):
             good.append(obj)
         else:
             bad.append(ln)  # valid JSON but wrong shape → still poison; quarantine it
@@ -540,3 +585,74 @@ __all__ = [
     "set_quality",
     "flush_outbox",
 ]
+
+
+def agent_ids_present(
+    agent_ids: list[str],
+    *,
+    dsn: str | None = None,
+    connect: Callable[[str], Any] | None = None,
+) -> set[str] | None:
+    """Which of ``agent_ids`` have a DISPATCH row. ``None`` = could not tell (DB unreachable).
+
+    ⚠ This is the module's FIRST read. Everything else here is INSERT-only by design
+    (least-privilege), so the three-state return is deliberate and load-bearing:
+
+        set(...)  the DB answered — anything absent genuinely has no dispatch row
+        set()     the DB answered "none of them"
+        None      we could not ask
+
+    A two-state (present/absent) return would collapse "no such run" into "database is down", and a
+    caller acting on that would refuse to score during an outage — turning a 0.8% integrity defect
+    into total loss of the flywheel signal in CI and offline dev. ``None`` is what lets
+    :func:`set_quality` stay FAIL-OPEN on an unreachable DB while failing CLOSED on a real miss.
+    """
+    if not agent_ids:
+        return set()
+    dsn = dsn if dsn is not None else os.getenv("SUBAGENT_RUNS_DSN")
+    if not dsn:
+        return None  # no sink configured — indistinguishable from unreachable, so: cannot tell
+    try:
+        conn = connect(dsn) if connect is not None else _connect(dsn)
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT agent_id FROM subagent_runs "
+                "WHERE agent_id = ANY(%s) AND status <> 'scored'",
+                (list(agent_ids),),
+            )
+            return {r[0] for r in cur.fetchall()}
+    except Exception:  # noqa: BLE001 — fail-open: a read must never become a new failure mode
+        # Silent by module convention: this sink logs nothing anywhere (there is no logger here),
+        # and the caller distinguishes the states via the return value, not a log line.
+        return None
+
+
+def unscored_agent_ids(
+    agent_ids: list[str],
+    *,
+    dsn: str | None = None,
+    connect: Callable[[str], Any] | None = None,
+) -> list[str]:
+    """Of ``agent_ids``, those with a dispatch row but NO scored delta yet.
+
+    Reads the ledger rather than tracking in-process ``score()`` calls, so a back-fill made
+    directly via :func:`set_quality` (which the hub round-close currently requires as its interim)
+    is correctly seen as scored instead of being reported as still owed.
+    """
+    if not agent_ids:
+        return []
+    dsn = dsn if dsn is not None else os.getenv("SUBAGENT_RUNS_DSN")
+    if not dsn:
+        return []
+    try:
+        conn = connect(dsn) if connect is not None else _connect(dsn)
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT agent_id FROM subagent_runs "
+                "WHERE agent_id = ANY(%s) AND status = 'scored'",
+                (list(agent_ids),),
+            )
+            scored = {r[0] for r in cur.fetchall()}
+        return [a for a in agent_ids if a not in scored]
+    except Exception:  # noqa: BLE001 — fail-open, mirroring the writer
+        return []
