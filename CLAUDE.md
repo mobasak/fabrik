@@ -138,7 +138,7 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 | `Merged-From` | comma-separated branch list | orchestrator squash commits |
 | `Conflicts-Resolved` | count | orchestrator squash commits |
 
-Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go in the commit **body** (blank line before them), above `Co-Authored-By`. ⚠️ **NO blank line _between_ trailers** — git parses only the LAST paragraph as trailers, so a blank line before `Co-Authored-By` turns every `Agent-*` line above it into prose and `%(trailers:key=Agent-Role)` returns empty. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because this example shipped the blank line. Example:
+Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go in the commit **body** (blank line before them), above `Co-Authored-By`. ⚠️ **The trailer block must be its OWN paragraph, with NO blank line inside it.** Git parses only the LAST paragraph, and only if it is all-trailers — so BOTH of these return empty from `%(trailers:key=Agent-Role)`: a blank line *between* `Agent-Context:` and `Co-Authored-By:` (which demotes everything above it to prose), and a prose line *glued* to the top of the block with no blank line before it (which demotes the whole paragraph). Verified both empirically 2026-08-15. Measured the same day: 200 of the last 200 hub commits carried `Agent-Role:` and only **10** parsed, because this example shipped the first mistake — and the commit that fixed it made the second. Put a blank line before the block, none within. Example:
 ```
 fix(worker): handle OOM exit code -9 in poll_worker
 
