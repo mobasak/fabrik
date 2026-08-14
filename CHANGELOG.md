@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 16: a sticky REBASE_HEAD would have killed the auto-commit forever, and a test was rotating the real pipeline logs (2026-08-15)
+
+Round 16 found six defects; the two worst were mine from round 15.
+
+- **⚠️ `REBASE_HEAD` is a permanent kill switch.** git does NOT clear that ref when a conflicted
+  rebase *completes* — only when the next one starts. CLAUDE.md's push ladder mandates
+  `git pull --rebase=merges`, so the first agent to resolve a rebase conflict (a `CHANGELOG
+  [Unreleased]` collision is the likeliest on this 3-agent tree) would have disabled the
+  auto-commit **forever**, silently: exit 0, message only in a log its own comment says nobody
+  tails, oracle still green, heartbeat still stamped. Verified sticky against git 2.43. The
+  `rebase-merge`/`rebase-apply` DIRECTORIES *are* cleared correctly, so the guard now uses
+  those. A real mid-rebase still refuses.
+- **⚠️ A test was rotating the real logs.** `_hook_inner_block` sourced the hook's "prelude" to
+  resolve its variables, and my slice ran to line 73 — sweeping in the log-rotation loop, which
+  `mv`s `/opt/fabrik/.../update.log` (FABRIK_ROOT is hardcoded, so no override reaches it).
+  Every pytest and every gate run would have destroyed a generation of pipeline history the
+  moment the log crossed 500KB — `update.log.1` is 512,988 bytes right now — i.e. exactly the
+  log an operator reads while running the suite to diagnose the pipeline. The prelude is now
+  assignments only (30 lines, no `mv`, no loop).
+- The detached-HEAD bail moved above the *commit* in round 15 but not above the *stage*, so it
+  still left pipeline files staged while printing "refusing to touch the index".
+- The new path-existence assertion pinned `cache/update.log` — a **gitignored** redirect target,
+  not an invoked path — so it would have red on every fresh clone, in CI, and in the Phase-B
+  engine repo, which is the environment it exists to protect.
+- Its step filter also excluded the two lines round 15 added, leaving the round-14 defect class
+  (an escaped `\$VAR` → "ambiguous redirect" → the step and its own `|| echo` both die silently)
+  live on exactly the new code.
+
+**And the finding that will save future rounds:** three of round 15's four *production* fixes
+shipped with **no test at all**. The "3/3 red on revert" in that commit was true of the test
+rewrites, not the behaviour changes — a distinction I stated imprecisely. New
+`tests/test_autocommit_pipeline_outputs.py` drives the real script against real throwaway git
+repos (8 tests: pathspec-not-index, sticky-REBASE_HEAD, mid-merge, mid-rebase, detached,
+retired-path, never-exits-nonzero), because every defect in this file has been behavioural and
+invisible to grep. All three production fixes now red on revert.
+
+Also: the stale-heartbeat alert body named `/opt/fabrik/.droid/daily_refresh.log`, which does
+not exist, and told the operator to check the crontab when the heartbeat is now written by
+whichever entry point wins the lockfile. `FABRIK_ROOT` is now exported to `pipeline_alert.sh`.
+
 ### Added — sync-excluded repo audit: population of one, and zero fleet forks (2026-08-15)
 
 `docs/reference/sync-excluded-repo-audit.md`. fabrik-lib asked whether other sync-excluded repos

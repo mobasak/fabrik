@@ -1370,7 +1370,15 @@ def _hook_inner_block() -> str:
     quoted = src[i + len("nohup bash -c ") : j + len('\n    "')]
     # Run the hook's own assignment block so every variable resolves exactly as it would at
     # boot, then let BASH perform the quote processing and print the result.
-    prelude = src[: src.index("# --- Persistent process")]
+    # ⚠️ ASSIGNMENTS ONLY. Slicing to "# --- Persistent process" swept in the hook's LOG
+    # ROTATION loop (:65-72), which `mv`s the REAL /opt/fabrik logs — FABRIK_ROOT is hardcoded
+    # at :34, so no override reaches it. Every pytest and every gate run would have destroyed a
+    # generation of pipeline history the moment update.log crossed 500KB (update.log.1 is
+    # 512988 bytes right now) — the very log an operator reads while running this suite.
+    prelude = "\n".join(
+        ln for ln in src.splitlines()
+        if re.match(r"^[A-Z_]+=", ln) and "$(" not in ln.split("=", 1)[1]
+    )
     harness = prelude + "\nprintf '%s' " + quoted + "\n"
     r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
     assert r.returncode == 0, f"could not materialise the child block: {r.stderr[:300]}"
@@ -1408,7 +1416,19 @@ def test_the_hook_pipeline_steps_are_actually_runnable():
         ln.strip()
         for ln in inner.splitlines()
         if "kilo-benchmarks" in ln
-        and any(k in ln for k in ("rank_task_subagents", "capture_golden", "autocommit_"))
+        and any(
+            k in ln
+            for k in (
+                "rank_task_subagents",
+                "capture_golden",
+                "autocommit_",
+                # These two were EXCLUDED by the original filter, so the round-14 defect class
+                # (an escaped \$VAR -> "ambiguous redirect" -> the step and its own || echo both
+                # die silently) was still live on exactly the lines round 15 added.
+                "check_daily_refresh_freshness",
+                "daily_refresh_last_success",
+            )
+        )
     ]
     assert len(steps) >= 3, f"expected the pipeline steps, found {len(steps)}"
     for step in steps:
@@ -1426,9 +1446,15 @@ def test_the_hook_pipeline_steps_are_actually_runnable():
     for step in steps + [ln.strip() for ln in inner.splitlines() if "pipeline_alert.sh" in ln]:
         for word in step.split():
             w = word.strip("'\";&|()")
+            # Skip anything under a gitignored cache dir: `cache/update.log` is a REDIRECT
+            # TARGET, not an invoked path, and .gitignore:163 ignores it — pinning it reds this
+            # test on every fresh clone, in CI, and in the Phase-B engine repo, which is the
+            # exact environment this test exists to protect.
+            if "/cache/" in w or w.endswith(".log"):
+                continue
             if w.startswith("/opt/") and ("." in Path(w).name):
                 targets.add(w)
-    assert len(targets) >= 5, f"only {len(targets)} absolute targets found — test is vacuous"
+    assert len(targets) >= 4, f"only {len(targets)} absolute targets found — test is vacuous"
     missing = sorted(w for w in targets if not Path(w).exists())
     assert not missing, f"the hook invokes paths that do not exist: {missing}"
 

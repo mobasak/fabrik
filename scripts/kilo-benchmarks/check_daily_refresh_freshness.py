@@ -256,8 +256,11 @@ def maybe_alert(result: dict[str, object]) -> bool:
                     f"{result['timestamp']} UTC "
                     f"({result['age_hours']:.1f} hours ago — threshold "
                     f"{result['threshold_hours']}h). The cron may be skipped or the "
-                    f"refresh pipeline is hanging. Investigate: check "
-                    f"/opt/fabrik/.droid/daily_refresh.log and the crontab."
+                    f"refresh pipeline is hanging. Investigate: "
+                    f"scripts/kilo-benchmarks/cache/update.log (the real log — "
+                    f".droid/daily_refresh.log does not exist), and note the heartbeat is "
+                    f"written by whichever entry point wins the daily lockfile: "
+                    f"wsl_startup_hook.sh on a booted workstation, daily_refresh.sh from cron."
                 ),
                 severity="critical",
             )

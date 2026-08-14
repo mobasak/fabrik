@@ -33,14 +33,41 @@ cd "$FABRIK_ROOT" || exit 0
 # (the standard "am I done?" check) reports clean, and the sibling's next commit writes conflict
 # markers into master. Three concurrent agents plus a boot-triggered pipeline on one shared tree
 # makes this reachable. Nothing this script does is urgent enough to touch a mid-merge index.
-for _state in MERGE_HEAD REBASE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
-  if git rev-parse -q --verify "$_state" >/dev/null 2>&1 || [ -e "$(git rev-parse --git-path "$_state" 2>/dev/null)" ]; then
+# ⚠️ NOT REBASE_HEAD: git leaves that ref in place after a CONFLICTED rebase COMPLETES — it is
+# only cleared when the next rebase starts. CLAUDE.md's push ladder mandates
+# `git pull --rebase=merges`, so the first agent to resolve a rebase conflict (a CHANGELOG
+# [Unreleased] collision is the likeliest on this 3-agent tree) would have disabled this script
+# FOREVER, silently: exit 0, message only in a log nobody tails, oracle still green, heartbeat
+# still stamped. The rebase-merge/rebase-apply DIRECTORIES are cleared correctly, so they are
+# the honest in-progress signal. Verified against git 2.43.
+for _state in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+  if git rev-parse -q --verify "$_state" >/dev/null 2>&1; then
     echo "[auto-commit] repo is mid-operation ($_state) — refusing to touch the index"
     exit 0
   fi
 done
+for _dir in rebase-merge rebase-apply; do
+  if [ -d "$(git rev-parse --git-path "$_dir" 2>/dev/null)" ]; then
+    echo "[auto-commit] repo is mid-rebase ($_dir) — refusing to touch the index"
+    exit 0
+  fi
+done
+if [ -e "$(git rev-parse --git-path BISECT_LOG 2>/dev/null)" ]; then
+  echo "[auto-commit] repo is mid-bisect — refusing to touch the index"
+  exit 0
+fi
 if [ -n "$(git ls-files --unmerged 2>/dev/null)" ]; then
   echo "[auto-commit] unmerged paths present — refusing to touch the index"
+  exit 0
+fi
+
+# Resolve the destination BEFORE staging. The guard moved above the COMMIT in round 15 but not
+# above the ADD, so the detached path still left pipeline files staged and exited 0 — breaking
+# this file's own "refusing to touch the index" contract and leaving content that rides along in
+# the next bare commit.
+_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+if [ "$_BRANCH" = "HEAD" ]; then
+  echo "[auto-commit] DETACHED HEAD — refusing to stage or commit onto no branch"
   exit 0
 fi
 
@@ -95,12 +122,6 @@ fi
 # Resolve the destination BEFORE committing. The detached-HEAD guard used to sit AFTER the
 # commit, so it announced "will be lost at the next checkout" about a commit it had just made —
 # and the tree was then clean, hiding the loss from the next agent.
-_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-if [ "$_BRANCH" = "HEAD" ]; then
-  echo "[auto-commit] DETACHED HEAD — refusing to commit onto no branch (it would be lost at the next checkout)"
-  exit 0
-fi
-
 # Scoped to OUR paths: an unscoped test fires whenever ANY file is staged, so the script would
 # commit even when zero pipeline outputs changed.
 if git diff --cached --quiet -- "${STAGED[@]}"; then
