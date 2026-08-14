@@ -129,8 +129,19 @@ def recent_failures(slug: str, max_age_hours: int, extra_branch: str = "") -> li
             created = datetime.fromisoformat(r["createdAt"].replace("Z", "+00:00"))
         except (KeyError, ValueError):
             continue
-        if created >= cutoff:
-            picked.append(r)
+        if created < cutoff:
+            continue
+        # NEVER-STARTED runs are not fixable code (2026-08-15 incident): a billing refusal,
+        # an invalid workflow or a dispatch-time cancellation produces conclusion=failure with
+        # ZERO steps and no logs. Dispatching `claude -p` at those burns the exact resource
+        # whose exhaustion caused them. The CI-health probe reports them instead.
+        rc2, out2 = sh(["gh", "api", f"repos/{slug}/actions/runs/{r['databaseId']}/jobs",
+                        "--jq", ".jobs[0].steps | length"], timeout=30)
+        if rc2 == 0 and out2.strip() == "0":
+            print(f"    [skip] {slug} run {r['databaseId']}: job never started "
+                  "(billing/workflow refusal) — not a code failure")
+            continue
+        picked.append(r)
     return picked
 
 

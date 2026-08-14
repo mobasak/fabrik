@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fleet CI-health probe: catch CI that never ran, and the quota curve that kills it (2026-08-15)
+
+`scripts/sysadmin/ci_health_probe.py` (hourly at :35). Born from a live outage: GitHub refused to
+START Actions jobs on every private repo (Free allowance crossed in July, $0 spending limit), and
+every local gate stayed green because `final_gate` runs ruff/pytest on the box. Reactive leg:
+a `conclusion=failure` job with ZERO steps never reached a runner — classified as `never-started`
+with GitHub's own annotation text and the run's DATE (a post-fix probe must not read a stale
+pre-fix failure as a live block). Predictive leg: current-month Actions minutes vs plan allowance
+(Free 2000 / Pro 3000), WARN at 80%, and an unreachable billing API reads as UNKNOWN rather than
+zero. One Telegram per event naming every affected repo, 24h suppress in the VM-cut-survivable
+state dir. Also fixes a real defect in `ci_fix_dispatcher.py`: it could not distinguish a failed
+test from a job that never started, so it would have dispatched `claude -p` workers to fix code
+that was never broken — burning the quota whose exhaustion caused the outage. 11 red-first tests.
+First live run found two additional blocked repos the operator had not noticed.
+
 ### Fixed — round 20: my round-19 "fix" made an alert unreachable, and the execute-plan fix was half-applied a second time (2026-08-15)
 
 Every finding this round was introduced by round 19's own fixes:
