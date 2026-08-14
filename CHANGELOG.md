@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_doc_sprawl is no longer a permanently-green blocking check (2026-08-14)
+
+Both entry points were vacuous: no `__main__` (so `final_gate`'s script invocation always exited
+0) and `check_file()` raised `relative_to` ValueError → `[]` on repo-relative paths — a consumer
+(fabrik-lib) wired it BLOCKING and read `OK Doc Sprawl` for months while it checked nothing. Now:
+a `__main__` repo-scan with an explicit exit policy (`--strict` exits 1, default WARNs and exits
+0), `check_file()` accepts absolute AND relative paths, and a vendor guard so a doc policy never
+adjudicates `node_modules/`, `vendor/`, `.venv/`, `dist/`, `build/`… Measured fleet-wide: 2272 →
+22 blocking files (rnfinal alone 2230 → 1). Activation (flipping the call site to `--strict`)
+stays gated on the orphaned-bulk-copy disposition mailed to intel. First test suite for the check
+(8 tests, red-first), incl. the guard that final_gate must not silently become `--strict`.
+
 ### Added — operator reference for the Claude account-rotation pool (2026-08-14)
 
 `docs/workstation/claude-account-rotation.md`: the one-command status check, how an in-place

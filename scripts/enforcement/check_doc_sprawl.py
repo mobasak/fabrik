@@ -17,6 +17,7 @@ must match explicit allowlist or pattern.
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 # Works whether invoked as a package import (e.g. by pytest) OR as a
@@ -56,12 +57,12 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
     }
 )
 
-# ⚠️ KNOWN-INERT in the two ENFORCEMENT call paths (pre-existing, verified
-# 2026-08-04) — the script has no __main__ (final_gate's Tier-2 invocation
-# always exits 0) and check_file() feeds a RELATIVE path into relative_to(abs)
-# (ValueError → []) in the validate_conventions path. Activating it is a
-# fleet-behavior change (every project with stray .md files would newly red) and
-# needs its own plan — flagged to the operator; do not silently "fix" it here.
+# STATUS (plan 2026-08-14-plan-1): both entry points are now NON-VACUOUS — this file has a
+# `__main__` repo-scan (see main()) and check_file() accepts repo-RELATIVE paths, so neither
+# reads a false green any more. final_gate runs it in WARN mode (reports, exits 0); `--strict`
+# exits 1 and IS the activation, gated on the orphaned-bulk-copy disposition (spec
+# docs/superpowers/specs/2026-08-14-doc-sprawl-activation-design.md, mailed to intel).
+# Fleet effect measured after the fix: 2272 -> 22 blocking files (vendor trees excluded).
 # Allowed patterns for new files - STRICT matchers
 ALLOWED_PATTERNS = [
     # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md —
@@ -106,6 +107,19 @@ ALLOWED_PATTERNS = [
     # the Traycer `-command` twins). Hub-only path; harmless on projects (dir absent).
     re.compile(r"^docs/orchestrator/.+\.md$"),
 ]
+
+
+# Third-party / build trees are NEVER adjudicated by a doc policy (plan 2026-08-14-plan-1):
+# rnfinal alone carried 2230 untracked node_modules READMEs. A default-deny rule that judges
+# vendored files is measuring someone else's repository.
+_VENDOR_SEGMENTS = frozenset({
+    "node_modules", "vendor", ".venv", "venv", "site-packages",
+    "dist", "build", ".tox", ".next", ".pnpm-store",
+})
+
+
+def _is_vendor(path_str: str) -> bool:
+    return any(seg in _VENDOR_SEGMENTS for seg in path_str.split("/"))
 
 
 def get_repo_root() -> Path:
@@ -253,12 +267,19 @@ def check_file(file_path: Path) -> list[CheckResult]:
     # Cache repo root for efficiency
     repo_root = get_repo_root()
 
+    # Accept BOTH absolute and repo-RELATIVE inputs (plan 2026-08-14-plan-1): the
+    # validate_conventions path passes relative paths, and the old unconditional
+    # relative_to() raised ValueError → [] → the check silently adjudicated nothing.
+    candidate = file_path if file_path.is_absolute() else (repo_root / file_path)
     try:
-        rel_path = file_path.relative_to(repo_root)
-    except ValueError:
-        return results
+        rel_path = candidate.resolve().relative_to(repo_root.resolve())
+    except (ValueError, OSError):
+        return results  # genuinely outside the repo — not ours to judge
 
     path_str = str(rel_path).replace("\\", "/")  # Normalize for Windows
+
+    if _is_vendor(path_str):
+        return results
 
     # ALLOW: Existing docs only — present in HEAD or a staged RENAME of a tracked
     # doc. A staged brand-new file is NOT existing (the old index-based check let
@@ -294,3 +315,58 @@ def check_file(file_path: Path) -> list[CheckResult]:
     )
 
     return results
+
+
+def scan_repo(repo_root: Path) -> list[str]:
+    """Every untracked+unignored .md in the repo that the allowlist denies (vendor trees
+    excluded). Returns human-readable violation lines."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "*.md"],
+            cwd=repo_root, capture_output=True, text=True, check=False,
+        )
+        if out.returncode != 0:
+            return []
+    except Exception:
+        return []
+    lines: list[str] = []
+    for rel in (x.strip() for x in out.stdout.splitlines()):
+        if not rel or _is_vendor(rel):
+            continue
+        for res in check_file(repo_root / rel):
+            lines.append(f"  BLOCKED: {rel}\n           → {res.fix_hint}")
+    return lines
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Repo-scan entry point. Exit policy is EXPLICIT (fabrik-lib's corollary: a check wired
+    BLOCKING must have a non-zero exit path):
+
+      --strict  exit 1 when violations exist (the activation mode)
+      default   report violations, exit 0 (fleet-safe while the orphaned bulk-copied docs
+                await their disposition — see the spec; flipping the final_gate call site to
+                --strict IS the activation)
+
+    Fail-soft outside a git repo: report and exit 0, never adjudicate junk.
+    """
+    args = list(sys.argv[1:] if argv is None else argv)
+    strict = "--strict" in args
+    repo_root = get_repo_root()
+    if not (repo_root / ".git").exists():
+        print("doc-sprawl: not a git repository — skipped")
+        return 0
+    violations = scan_repo(repo_root)
+    if not violations:
+        print("doc-sprawl: no new .md files outside the allowlist")
+        return 0
+    print(f"doc-sprawl: {len(violations)} new .md file(s) outside the allowlist:")
+    for line in violations:
+        print(line)
+    if strict:
+        return 1
+    print("doc-sprawl: WARN-only (pass --strict to enforce)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
