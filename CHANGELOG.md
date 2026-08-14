@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — catalog-extraction Phase A round 14: the fix I shipped for "the oracle never ran" itself never ran (2026-08-15)
+
+Round 14 found my round-13 fix was inert, and that the test I wrote to guard it could not tell:
+
+- **⚠️ All three steps I added to `wsl_startup_hook.sh` were dead.** I wrote them with escaped
+  `\$VENV_PYTHON` / `\$FABRIK_ROOT` / `\$LOG_FILE`, unlike the file's 22 other call sites. The
+  body lives inside a double-quoted `nohup bash -c "…"` string, so escaping passes the names
+  through **literally** to a child where they were never exported — every line died on
+  `ambiguous redirect`, taking its own `|| echo` fallback with it, so not even a log line
+  appeared. The auto-commit below them still ran: committing, pushing, and fleet-syncing
+  `.windsurf/rules/**` to ~46 repos with nothing having verified it. That is round-13's own
+  finding recurring one turn later in a new form.
+- **My validation masked it.** I extracted the inner block and ran `bash -n` on it — but my
+  extraction replaced `\$`→`$`, which models the text correctly while silently simulating the
+  *fixed* behaviour. It proved the block parses, never that the commands resolve.
+- **The test could not catch it either.** `test_both_pipeline_entry_points_run_the_oracle_before_committing`
+  asserted the oracle *appeared* before the auto-commit and passed while all three steps were
+  inert — "certifies what it never checked", inside the test written to close exactly that.
+
+Fixed: the variables are unescaped so the outer shell expands them (verified: every step now
+carries an absolute interpreter path and zero unexpanded `$VAR`). Added
+`test_the_hook_pipeline_steps_are_actually_runnable`, which reproduces the outer shell's
+quote-processing faithfully — `\$` stays literal, unescaped `$VAR` expands — then asserts no
+step contains an unexpanded variable and that every command word exists on disk. It fails on
+the exact round-13 bug when a single `\$` is reintroduced.
+
+Also from round 14:
+
+- **The A.0 anti-swallow invariant was enforced only on the entry point that never runs.**
+  `test_daily_refresh_does_not_swallow_the_tripwire` reads `daily_refresh.sh` alone, so the
+  hook's ranker and oracle failures were bare `|| echo` into a log the file's own comment says
+  nobody tails. Both now fire a critical alert. The alert call is extracted to
+  `pipeline_alert.sh` rather than inlined, because an inline `python -c "…"` inside that
+  already-double-quoted block needs nested escaping — my first attempt at it was a syntax error.
+- Detached HEAD reported "origin/HEAD diverged" while the commit was landing on no branch at
+  all; a branch with no origin counterpart reported "diverged" when the truth is "no upstream".
+  Both now say what actually happened.
+
+Round 14 also confirmed clean: the empty-glob, unborn-HEAD, deleted-path, gitignored-path and
+peer-WIP cases of the rewritten auto-commit all behave, and the ranker keep-guard does not
+interact badly with the oracle running immediately after.
+
 ### Fixed — catalog-extraction Phase A round 13: the auto-commit I shipped last turn committed the INDEX, and the oracle had not run in 3 days (2026-08-14)
 
 Round 13 reviewed the shell surface I added one turn earlier alongside the oracle. Two of its

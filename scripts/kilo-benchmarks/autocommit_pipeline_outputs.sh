@@ -93,7 +93,17 @@ git commit -q \
 # Push the CHECKED-OUT branch. `origin master` pushed the local master ref regardless of what
 # was checked out — on an ad-hoc branch the commit landed on the branch while an unrelated
 # master got pushed.
-BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo master)"
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+# Detached HEAD returns the literal "HEAD": the commit lands on no branch and is dropped at the
+# next checkout, so say that rather than the misleading "diverged" the generic path prints.
+if [ "$BRANCH" = "HEAD" ]; then
+  echo "[auto-commit] DETACHED HEAD — commit is on no branch and will be lost at the next checkout"
+  exit 0
+fi
+if ! git rev-parse --verify -q "origin/$BRANCH" >/dev/null 2>&1; then
+  echo "[auto-commit] no origin/$BRANCH — commit left local (not a divergence)"
+  exit 0
+fi
 git fetch -q origin "$BRANCH" 2>/dev/null || true
 if git merge-base --is-ancestor "origin/$BRANCH" HEAD 2>/dev/null; then
   git push -q origin "$BRANCH" 2>/dev/null \

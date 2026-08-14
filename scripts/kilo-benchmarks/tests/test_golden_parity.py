@@ -1349,3 +1349,96 @@ def test_the_autocommit_survives_a_retired_pipeline_path():
     assert 'for _p in "${PATHS[@]}"' in sh, "paths are still added in one all-or-nothing call"
     assert "no pipeline paths matched" in sh, "a total mismatch is not reported"
     assert "stage paths matched" in sh, "a partial mismatch is not warned"
+
+
+# ── round-14 fixes ───────────────────────────────────────────────────────────
+def _hook_inner_block() -> str:
+    """The wsl_startup_hook pipeline body EXACTLY as the child `bash -c` receives it.
+
+    The body lives inside a double-quoted `nohup bash -c "…"` string, so the OUTER shell
+    expands unescaped `$VAR` at launch and passes `\\$VAR` through literally. Reproducing that
+    distinction is the whole point: a literal `$VENV_PYTHON` reaches a child where the variable
+    was never exported, expands to empty, and the step silently never runs.
+    """
+    src = (cg.SCRIPT_DIR.parent / "wsl_startup_hook.sh").read_text()
+    i = src.index('nohup bash -c "') + len('nohup bash -c "')
+    j = src.index('\n    " &', i)
+    raw = src[i:j]
+    env: dict[str, str] = {}
+    for line in src.splitlines():
+        for key in ("FABRIK_ROOT", "VENV_PYTHON", "LOG_FILE"):
+            if line.startswith(f"{key}="):
+                val = line.split("=", 1)[1].strip().strip('"')
+                for k2, v2 in env.items():
+                    val = val.replace(f"${k2}", v2)
+                env[key] = val
+    inner = raw.replace('\\"', '"').replace("\\$", "\x00")  # \$ stays LITERAL
+    for key, val in env.items():
+        inner = inner.replace(f"${key}", val)
+    return inner.replace("\x00", "$")
+
+
+def test_the_hook_pipeline_steps_are_actually_runnable():
+    """EXECUTION-level, not textual — the gap that let a dead fix pass review.
+
+    The round-13 ordering test asserted the oracle APPEARED before the auto-commit and passed
+    while all three added steps were inert: they had been written with escaped `\\$VENV_PYTHON`,
+    unlike the file's 22 other call sites, so the child received a literal `$VENV_PYTHON`, the
+    variable was unset there, and every line died on `ambiguous redirect` — taking its own
+    `|| echo` fallback with it, so nothing was even logged. The auto-commit below them still
+    ran, committing and fleet-syncing unverified.
+    """
+    inner = _hook_inner_block()
+    steps = [
+        ln.strip()
+        for ln in inner.splitlines()
+        if "kilo-benchmarks" in ln
+        and any(k in ln for k in ("rank_task_subagents", "capture_golden", "autocommit_"))
+    ]
+    assert len(steps) >= 3, f"expected the pipeline steps, found {len(steps)}"
+    for step in steps:
+        assert not re.search(r"\$[A-Za-z_]+", step), (
+            f"unexpanded variable reaches the child shell — the step will not run:\n  {step}"
+        )
+    # ...and the interpreter/script each COMMAND line invokes must exist on disk. Continuation
+    # lines (`|| { … }`) carry the failure path, not a command word, so they are checked for
+    # unexpanded variables above but skipped here.
+    checked = 0
+    for step in steps:
+        if step.startswith(("|", "&", "{", "}")):
+            continue
+        words = step.split()
+        first = words[0]
+        if "=" in first and not first.startswith("/"):  # env prefix like ORACLE_...=1
+            words, first = words[1:], words[1]
+        if first == "bash":  # `bash <script>` — the script is what must exist
+            first = words[1]
+        assert Path(first).exists(), f"command word does not exist: {first}\n  in: {step}"
+        checked += 1
+    assert checked >= 3, f"only {checked} command lines validated — test is vacuous"
+
+
+def test_the_hook_alerts_on_a_broken_ranker_or_a_red_oracle():
+    """A.0 gate 3, replicated onto the entry point that actually runs.
+
+    test_daily_refresh_does_not_swallow_the_tripwire enforces this on daily_refresh.sh only —
+    and daily_refresh.sh is the entry point that loses the lockfile race and never executes.
+    A bare `|| echo` there is a line in a log the file's own comment says nobody tails.
+    """
+    inner = _hook_inner_block()
+    for step_key in ("rank_task_subagents", "capture_golden.py --verify"):
+        line = next(ln for ln in inner.splitlines() if step_key in ln and "||" in ln)
+        assert "pipeline_alert.sh" in line, (
+            f"{step_key} failure is swallowed into a log line, no alert:\n  {line[:160]}"
+        )
+
+
+def test_the_alert_helper_loads_dotenv_before_importing_alerting():
+    """`alerting` reads TELEGRAM_BOT_TOKEN from the process env and does not load .env itself,
+    so an invocation without load_dotenv is a SILENT no-op — the defect
+    check_daily_refresh_freshness.py:39-43 documents."""
+    helper = (cg.SCRIPT_DIR / "pipeline_alert.sh").read_text()
+    assert "load_dotenv" in helper
+    assert helper.index("load_dotenv") < helper.index("from alerting import send_alert"), (
+        "alerting is imported before dotenv is loaded — the alert will never deliver"
+    )

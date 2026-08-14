@@ -180,12 +180,12 @@ if [ ! -f "$LOCK_FILE" ]; then
         # governance-sync pre-commit filter (^\.windsurf/rules/), so it fans out to ~46 repos.
         # Committing a husk before verifying it is the exact ordering
         # test_the_oracle_runs_before_the_fleet_sync exists to prevent.
-        \$VENV_PYTHON \$FABRIK_ROOT/scripts/kilo-benchmarks/rank_task_subagents.py >> \$LOG_FILE 2>&1 \
-            || echo '[wsl_startup_hook] rank_task_subagents FAILED — selection doc KEPT, not overwritten' >> \$LOG_FILE
-        ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 \$VENV_PYTHON \$FABRIK_ROOT/scripts/kilo-benchmarks/tests/capture_golden.py --verify >> \$LOG_FILE 2>&1 \
-            || echo '[wsl_startup_hook] contract oracle reported DRIFT or a stale golden — see above' >> \$LOG_FILE
-        \$VENV_PYTHON \$FABRIK_ROOT/scripts/kilo-benchmarks/check_daily_refresh_freshness.py >> \$LOG_FILE 2>&1 \
-            || echo '[wsl_startup_hook] freshness check errored (non-fatal)' >> \$LOG_FILE
+        $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/rank_task_subagents.py >> $LOG_FILE 2>&1 \
+            || { echo '[wsl_startup_hook] rank_task_subagents FAILED — previous selection doc KEPT, not overwritten' >> $LOG_FILE; bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: rank_task_subagents exited non-zero' 'The flywheel read is likely BROKEN (state=error). The previous TASK_SUBAGENT_SELECTION.md was deliberately KEPT rather than overwritten with the failure stub, so the fleet is on yesterday-good, not poisoned. Check the postgres/sudo path on this host.' >> $LOG_FILE 2>&1; }
+        ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/tests/capture_golden.py --verify >> $LOG_FILE 2>&1 \
+            || { echo '[wsl_startup_hook] contract oracle reported DRIFT or a stale golden — see above' >> $LOG_FILE; bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: contract oracle reported drift' 'capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the observer (exit 2 -> re-run --snapshot). The auto-commit below fleet-syncs .windsurf/rules/**, so treat this as blocking.' >> $LOG_FILE 2>&1; }
+        $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/check_daily_refresh_freshness.py >> $LOG_FILE 2>&1 \
+            || echo '[wsl_startup_hook] freshness check errored (non-fatal)' >> $LOG_FILE
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
         # THIS is the daily-dirt fix: this hook regenerates ~14 tracked files every boot and
         # had no git step at all, so the tree was perpetually dirty for the next agent while
