@@ -33,15 +33,6 @@
 
 FABRIK_ROOT="/opt/fabrik"
 VENV_PYTHON="$FABRIK_ROOT/.venv/bin/python"
-DB_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/kilo_agents_db.py"
-BENCHMARK_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/update_kilo_benchmarks.py"
-AA_SCRAPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/scrape_artificial_analysis.py"
-ROLE_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/role_mapper.py"
-TRAYCER_EXPORT_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_traycer_registry.py"
-EMBEDDING_DB_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_models_db.py"
-EMBEDDING_PREFILTER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_pre_filter.py"
-EMBEDDING_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_role_mapper.py"
-EMBEDDING_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_export_markdown.py"
 AGENT_SCRIPT="$FABRIK_ROOT/scripts/generate_kilo_agents.py"
 EXTENSIONS_SCRIPT="$FABRIK_ROOT/scripts/sync_extensions.sh"
 ENV_WATCHER_SCRIPT="$FABRIK_ROOT/scripts/watch_env_changes.sh"
@@ -50,15 +41,6 @@ SYNC_PROJECTS_SCRIPT="$FABRIK_ROOT/scripts/sync_projects.py"
 CASCADE_BACKUP_SCRIPT="$FABRIK_ROOT/scripts/sync_cascade_backup.sh"
 HEALTH_SUMMARY_SCRIPT="$FABRIK_ROOT/scripts/health_summary.py"
 AI_PACK_FRESHNESS_SCRIPT="$FABRIK_ROOT/scripts/check_ai_pack_freshness.py"
-CATEGORY_CLASSIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/classify_ai_category.py"
-CATEGORY_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_route_mapper.py"
-CATEGORY_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/category_export_markdown.py"
-GATEWAY_COUNTS_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/update_gateway_counts.py"
-FETCH_REPLICATE_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/fetch_replicate_prices.py"
-FETCH_FAL_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/fetch_fal_prices.py"
-DERIVE_CHEAPEST_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/derive_cheapest_gateway.py"
-MODELS_BROWSER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_models_browser.py"
-OR_VERIFIER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/verify_openrouter_catalog.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"
 
@@ -147,21 +129,11 @@ if [ ! -f "$LOCK_FILE" ]; then
         if [ \"\${FABRIK_DISABLE_KILO_WORKFLOW:-0}\" = \"1\" ]; then
             echo \"[\$(date +%H:%M:%S)] kilo benchmark workflow skipped (FABRIK_DISABLE_KILO_WORKFLOW=1)\" >> $LOG_FILE
         else
-            $VENV_PYTHON $DB_SCRIPT all >> $LOG_FILE 2>&1 && \
-            $VENV_PYTHON $BENCHMARK_SCRIPT --force >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $AA_SCRAPER_SCRIPT >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $ROLE_MAPPER_SCRIPT >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $TRAYCER_EXPORT_SCRIPT >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT && $VENV_PYTHON $AGENT_SCRIPT >> $LOG_FILE 2>&1
             # === EMBEDDING SELECTION WORKFLOW ===
             # Mirrors the chat pipeline shape: catalog scrape → shortlists → role winners.
             # Independent failure: a broken embeddings catalog must NOT kill the chat
             # workflow above, so this runs in its own && chain after the chat block
             # closes (note the closing 'fi' moves below this section).
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_DB_SCRIPT all >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_PREFILTER_SCRIPT >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MAPPER_SCRIPT >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1
         fi
         # === OPENROUTER CATEGORY ROUTING ===
         # Reads agents + agent_categories, writes openrouter:{category} pins
@@ -184,26 +156,6 @@ if [ ! -f "$LOCK_FILE" ]; then
                 # auto-fix discrepancies, mark delisted rows deprecated,
                 # ingest new ones. Runs BEFORE the classifier so the
                 # downstream selector sees the corrected catalog.
-                $VENV_PYTHON $OR_VERIFIER_SCRIPT --apply --ingest-new >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] OpenRouter verifier failed (non-fatal)\" >> $LOG_FILE
-                $VENV_PYTHON $CATEGORY_CLASSIFIER_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] classifier failed (non-fatal)\" >> $LOG_FILE
-                $VENV_PYTHON $CATEGORY_MAPPER_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] mapper failed (non-fatal)\" >> $LOG_FILE
-                $VENV_PYTHON $CATEGORY_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] markdown export failed (non-fatal)\" >> $LOG_FILE
-                $VENV_PYTHON $GATEWAY_COUNTS_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] gateway counts inject failed (non-fatal)\" >> $LOG_FILE
-                $VENV_PYTHON $FETCH_REPLICATE_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] replicate price fetch failed (non-fatal)\" >> $LOG_FILE
-                if [ -n \"\${FAL_KEY:-}\" ]; then
-                    $VENV_PYTHON $FETCH_FAL_SCRIPT >> $LOG_FILE 2>&1 \
-                        || echo \"[openrouter-routing] fal price fetch failed (non-fatal)\" >> $LOG_FILE
-                fi
-                $VENV_PYTHON $DERIVE_CHEAPEST_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] cheapest gateway derive failed (non-fatal)\" >> $LOG_FILE
-                $VENV_PYTHON $MODELS_BROWSER_SCRIPT >> $LOG_FILE 2>&1 \
-                    || echo \"[openrouter-routing] models_browser export failed (non-fatal)\" >> $LOG_FILE
             )
         fi
         # === AI RULE PACK FRESHNESS CHECK (warn-only) ===
