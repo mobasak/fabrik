@@ -338,6 +338,50 @@ files are untouched since scaffold. `CHANGELOG.md:13` carries a B.2g entry only 
 > total. All three fixes regression-checked against a baseline worktree: **16 pre-existing failures
 > before, the same 16 after, zero new** (1265 passed).
 
+> 🔍 **PHASE-B ADVERSARIAL REVIEW (native Opus, 2026-08-15) — 17 findings. FIXED: 11. OPEN: 6.**
+>
+> **The meta-finding: the isolation invariant I shipped was VACUOUS** — 0 flags while ≥6 real escapes
+> lived, with four independent defects (visited only `ast.Assign`; `str()` zeroed the counter, so the
+> live `str(Path(__file__).parents[2])` was missed while its own discriminator asserted it caught a
+> form present NOWHERE; `.parents[n]` off by one, sitting exactly on the `MAX_HOPS=1` boundary so
+> `parents[1]` — the scaffold root — passed; and the env carve-out ran before the name table was
+> built, poisoning it). Rebuilt with two passes, NET depth (`/` descends), a PER-FILE budget (a flat
+> one flagged 82 innocent subdirectory files — a detector that cries wolf on 82 files gets turned
+> off), and a subtree-scoped environ exemption. It then found **10 real escapes** and independently
+> reproduced four of the reviewer's confirmed findings. All fixed. ⚠️ `tests/` had been in
+> `SKIP_DIRS`, which hid the worst one: **`tests/capture_golden.py` is PRODUCTION code** (cron runs
+> it) and resolved **`/opt`**, so `--verify` reported all 13 artifacts + 18 markers as NO LONGER
+> PRODUCED **every night** and fired a critical alert — a permanently-red alarm is a disabled alarm,
+> and it is the only runtime detector that a producer stopped producing.
+>
+> Also fixed: `docs/traycer/kilo_selected_agents.md` was produced by **neither** of its two producers,
+> forever, silently (one crashed on a missing parent dir — which also skipped `export_local_models()`
+> in the same branch — and the other fails soft on an absent host) **and the parity oracle listed
+> exactly that file in `_NEEDS_NETWORK` and skipped it.** `_NEEDS_NETWORK` is now empty: 33 assertions,
+> 13 artifacts, zero skips. Two more producers had lost their `mkdir`. `catalog_store` never translated
+> `INSERT OR REPLACE ... VALUES` **without a column list** (SQLite allows it; two live writers use it),
+> so with `CATALOG_DSN` set every judged-microbench and coding-direct metrics write hit a Postgres
+> syntax error — and those tables feed `TASK_SUBAGENT_SELECTION.md`. `microbench_review` handed
+> **`/opt`** to the subagent pool as its workspace root. Four `.env` loads resolved to `/opt/.env`, so
+> the Telegram token never loaded and the staleness alarm was silent.
+>
+> ⚠️ **OPEN — not fixed, not deferred by choice; carried so the next pass starts here:**
+> **(O1)** `autocommit_pipeline_outputs.sh` stages **nothing** — its path list is old-repo-relative
+> (`.windsurf/`, `docs/`, `scripts/kilo-benchmarks/`, none of which exist under `engine/`) and the
+> genuinely-regenerated files aren't in the list at all; worse, the 0-matched case `exit 0`s BEFORE
+> the "a pipeline output was renamed" warning, so losing 15 of 16 paths warns and losing 16 of 16 is
+> silent. **(O2)** three read-modify-write producers (`role_mapper:335`, `kilo_agents_db:1093/:1256`)
+> now fail soft into permanent no-ops because their hosts never exist under `OUTPUT_ROOT`; none is in
+> the golden, so no oracle notices. **(O3)** `_fix_order_by` mangles `ORDER BY x;`, silently swallows
+> the clause into a trailing `-- comment` (reverting Postgres to its own NULL ordering — the exact
+> inversion it exists to prevent), and is not string-literal aware; latent today, no live query hits
+> it. **(O4)** `test_no_fabrik_paths` cannot see `"/opt/" + "fabrik"`, which is how
+> `deliver_to_fabrik.py:47` writes the one genuine cross-repo default — the test that exists to notice
+> cross-repo references is blind to the only real one. **(O5)** `_output_root()` binds at IMPORT time
+> in three producers despite a docstring promising call-time. **(O6)** `daily_refresh.sh` has a dead
+> `if false` branch and writes `$KB/cache/...` at `:337` before the only `mkdir -p` at `:545` —
+> surviving only because one git-tracked file keeps the dir alive.
+
 **Verified-good in Phase B (recorded so the next pass does not re-litigate):** the `speed_overrides.json`
 carve-out is fully done and now git-**tracked** (`engine/.gitignore:15`); `_query_rows` + the
 `sudo -n -u postgres psql` shellout are intact, so B.2c's DO-NOT-REWRITE held; `test_no_fabrik_paths.py` passes
@@ -416,7 +460,38 @@ invocation context*. Gate, run from `/opt/ai-model-catalog/engine/` as the cron 
 
 ---
 
-## Phase C — Delivery bridge + parallel-run · both repos · the safety window
+## Phase C — Delivery bridge + parallel-run · both repos · the safety window — 🟡 CODE COMPLETE 2026-08-15 (`07d0d51`, `5266354a`, `ee8988c`) · **WINDOW OPEN — calendar-gated**
+
+> **C.1 ✅** `engine/deliver_to_fabrik.py` + 11 injection tests, each proven to BITE by mutation.
+> **C.2 harness ✅ and the window is OPEN** — a real shadow bundle was delivered to
+> `/tmp/deliver-shadow` today (23 files, 11 hosts seeded, live repo untouched). **C.3 ✅** all three
+> rollback gates green: fabrik's own producers satisfy the golden (81/0), `pick_models` + 
+> `kilo_auto_route` resolve, the selection-doc-removed fail-open holds, and `git status` on
+> `.windsurf/` + `docs/reference/kilo/` is clean.
+>
+> ⛔ **C.2's ≥7-day observation window (incl. a Sunday) CANNOT be completed inside one run** — it is
+> elapsed-time data that does not exist yet, and **Phase D's cutover is gated on it by design**.
+> Cutting over early would discard the safety property the window exists to establish.
+>
+> **C-B5 (new, found by RUNNING it):** the plan says "diff shadow vs fabrik-live" without
+> constraining WHEN. Measured today — fabrik's cron produced at 03:01Z, the relocated engine at
+> 15:40Z — `TASK_SUBAGENT_SELECTION.md` diverged on `n_total=124` vs `142` with a reshuffled top-3.
+> Neither engine is wrong: the flywheel gained 18 runs between them and every ranking derives from
+> it, so a pair taken 12h apart is GUARANTEED to differ on real data and **the window as specified
+> could never go green.** The harness now refuses to judge a pair skewed >3h (neither pass nor fail),
+> and C.2's protocol is to run the two engines ADJACENTLY. Evidence the decoupling itself is sound:
+> with skew removed `kilo_47_agents_final.json` is **byte-IDENTICAL** between the two engines;
+> the selection doc differs on 13 of 227 lines, all flywheel-derived.
+>
+> ⚠️ **Incident, recorded because the lesson generalises:** proving the `--target-root` containment
+> guard by NEUTERING it caused the exact escape it guards. `DEFAULT_TARGET_ROOT` resolves to the real
+> `/opt/fabrik`, so the neutered run injected into the live fleet-synced `.windsurf/rules/ai/20-vision.md`
+> — and that corrupted pack took **fabrik's own contract oracle from 81/0 to 8 FAILED**, i.e. the escape
+> reddened the very check that would have to certify a fleet sync. Both restored (fabrik 81/0, tree
+> clean). Fixed by an autouse fixture pointing `DEFAULT_TARGET_ROOT` at `tmp_path`: a test whose subject
+> writes into repos must have NO live path reachable from ANY code path, and the mutation proof is
+> precisely when the implementation is wrong on purpose. Re-verified — the identical neuter now fails
+> SAFELY (2 red, 0 files modified).
 
 **Deliverable:** `ai-model-catalog` **delivers** the produced bundle into fabrik's consumed paths; both engines run in parallel for ≥1 week; a daily diff proves zero divergence. Fabrik is still on its own engine — nothing has broken.
 
