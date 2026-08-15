@@ -53,7 +53,9 @@ REJECT_CODE = 9
 # this guard's OWN rejection text and in hooks-index.md, so every commit documenting this guard —
 # which this review loop produces each round — was self-blocked, with a remedy that was
 # impossible to follow and a verify command that contradicted the verdict.
-SCISSORS_RE = re.compile(r"^#\s?-{24} >8 -{24}\s*$")
+def scissors_re(cc: str = "#") -> re.Pattern[str]:
+    """git's cut line for the configured comment char: 24 dashes, space, >8, space, 24 dashes."""
+    return re.compile(rf"^{re.escape(cc)}\s?-{{24}} >8 -{{24}}\s*$")
 
 
 def parsed_trailers(message: str) -> dict[str, str] | None:
@@ -92,7 +94,12 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
     for line in out.splitlines():
         if ":" in line:
             key, _, value = line.partition(":")
-            trailers[key.strip()] = value.strip()
+            # Lower-cased KEY, because `%(trailers:key=Agent-Role)` matches case-insensitively.
+            # Round 27 made the PRESENCE gate case-insensitive and left this dict lookup
+            # case-sensitive, so a well-formed `agent-role:` block — which git parses perfectly —
+            # was hard-rejected with the diagnosis "the final paragraph is not all-trailers",
+            # which was simply false. Exactly the self-blocking class that commit set out to end.
+            trailers[key.strip().lower()] = value.strip()
     return trailers
 
 
@@ -174,24 +181,41 @@ def replaying() -> bool:
     return (d / "CHERRY_PICK_HEAD").exists()
 
 
+def comment_char() -> str:
+    """git's comment character. Hardcoding '#' left a latent hijack: with `core.commentChar=;`
+    neither the scissors match nor the comment strip fires, so a whole `git commit -v` diff stays
+    in the authored text and a diff CONTEXT line ` Agent-Role: …` reads as an indented trailer —
+    rejecting a commit over a line its author never wrote and cannot fix."""
+    try:
+        got = subprocess.run(
+            ["git", "config", "--get", "core.commentChar"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return "#"
+    value = got.stdout.strip() if got.returncode == 0 else ""
+    # 'auto' means git picks one when it writes the template; it resolves to '#' unless the
+    # message already contains it, and we cannot see that choice from here.
+    return value if len(value) == 1 else "#"
+
+
 def authored_text(message: str) -> str:
     """The part of the buffer the author actually wrote — what git will keep as the commit.
 
     Two things get discarded, mirroring git's own cleanup: everything below a scissors line
     (`git commit -v` puts the entire diff there, uncommented), and `#` comment lines.
     """
+    cc = comment_char()
     lines = message.splitlines()
     # ⚠️ Match git's ACTUAL scissors line, not "a comment containing >8". The loose form
     # truncated a legitimate body line like `# >8 threads regressed throughput` and discarded
     # everything below it — including the trailer block — so the guard silently passed a
     # malformed commit. Reproduced. Git emits exactly:
     #     # ------------------------ >8 ------------------------
-    scissors = next(
-        (i for i, ln in enumerate(lines) if SCISSORS_RE.match(ln)), None
-    )
+    scissors = next((i for i, ln in enumerate(lines) if scissors_re(cc).match(ln)), None)
     if scissors is not None:
         lines = lines[:scissors]
-    return "\n".join(ln for ln in lines if not ln.startswith("#"))
+    return "\n".join(ln for ln in lines if not ln.startswith(cc))
 
 
 TRAILER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:\s")
@@ -241,7 +265,9 @@ def trailers_lost_below_scissors(message: str) -> bool:
     this very file cannot trip it.
     """
     lines = message.splitlines()
-    scissors = next((i for i, ln in enumerate(lines) if SCISSORS_RE.match(ln)), None)
+    scissors = next(
+        (i for i, ln in enumerate(lines) if scissors_re(comment_char()).match(ln)), None
+    )
     if scissors is None:
         return False
     return any(ln.lower().startswith(f"{REQUIRED.lower()}:") for ln in lines[scissors + 1 :])
@@ -460,13 +486,23 @@ def main(argv: list[str]) -> int:
     # does not match, because stripping whitespace leaves the `+`.
     if not declares_agent_role(body):
         if trailers_lost_below_scissors(message):
+            cc = comment_char()
             print(
-                f"\n❌ COMMIT REJECTED — a {REQUIRED} block sits BELOW a scissors line.\n\n"
-                f"   Git discards everything under `# ---- >8 ----`, so these trailers would be\n"
-                f"   thrown away and the commit would land with no provenance at all. Move the\n"
-                f"   trailer block ABOVE the scissors line.\n",
+                f"\n❌ COMMIT REJECTED — a {REQUIRED} block sits BELOW git's cut line.\n\n"
+                f"   Under -m/-F and under `git commit -v`, git discards everything below\n"
+                f"   `{cc} ------------------------ >8 ------------------------`, so these\n"
+                f"   trailers would be thrown away and the commit would land with no provenance.\n"
+                f"   Move the trailer block ABOVE that line, or break up the quoted cut line.\n\n"
+                f"   ⚠️ Known limitation: an INTERACTIVE editor commit under the default cleanup\n"
+                f"   mode STRIPS that line instead of truncating at it, and would have kept your\n"
+                f"   trailers. The hook cannot tell the two apart from the message alone, and it\n"
+                f"   errs toward the mode every automated commit here uses. If that is your case,\n"
+                f"   `git commit --no-verify` is the right escape.\n",
                 file=sys.stderr,
             )
+            # Deliberately NOT printing the `git log --format=%(trailers:…)` verify line here:
+            # on the editor path that query would print the role and flatly contradict this
+            # verdict, which is worse than saying nothing.
             return REJECT_CODE
         return 0  # not an agent commit — merges, reverts, and human commits pass through
 
@@ -479,7 +515,7 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 0
-    if trailers.get(REQUIRED):
+    if trailers.get(REQUIRED.lower()):
         return 0
 
     print(

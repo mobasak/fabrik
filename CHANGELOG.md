@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-28: a regression the previous round's own test masked (2026-08-15)
+
+Round 27 made the trailer-key PRESENCE gate case-insensitive and left the VERDICT lookup
+case-sensitive, so a **well-formed** `agent-role:` block — which git parses perfectly — was
+hard-rejected, with the diagnosis "the final paragraph is not all-trailers" (simply false) and a
+printed verify command that returned `primary`, contradicting the verdict. That is precisely the
+self-blocking class round 27 was written to eliminate, reintroduced by the same commit.
+
+It shipped green because the test added *for* that change used a BROKEN block: git could not parse
+it either way, so the assertion was satisfied by the reject path alone and the lowercase key never
+reached the verdict lookup — the only place the new case-insensitivity could go wrong. The test is
+now parametrized over four casings and asserts BOTH directions.
+
+Both `install()` fixes from round 27 — the non-clobbering backup and the per-writer temp file —
+shipped with **zero** tests; a revert of either left all 34 tests green. Both are now pinned.
+`core.commentChar` is honoured rather than hardcoded: with `;` neither the scissors match nor the
+comment strip fired, so a whole `git commit -v` diff stayed in the authored text and a diff CONTEXT
+line ` Agent-Role: …` read as an indented trailer, rejecting a commit over a line its author never
+wrote. And the below-cut-line rejection no longer prints a verify command that contradicts itself:
+on the interactive-editor path git STRIPS that line rather than truncating at it, which the hook
+cannot detect from the message alone, so the diagnosis now states the limitation and names
+`--no-verify` as the correct escape for that case.
+
+Re-checked against real `git commit` + `git log --format='%(trailers:…)'` across ten shapes
+including all four key casings: zero divergences.
+
 ### Fixed — round-27: 5 findings, one of them self-inflicted (2026-08-15)
 
 The scissors regex accepted "dashes around `>8`" when git writes exactly ONE cut line — 24 dashes,

@@ -233,7 +233,7 @@ def _git_verdict(message: str, tmp_path: Path) -> bool:
     it is the verdict that actually matters.
     """
     repo = tmp_path / "oracle"
-    repo.mkdir()
+    repo.mkdir(parents=True, exist_ok=True)
     run_git = lambda *a: subprocess.run(  # noqa: E731
         ["git", *a], cwd=repo, capture_output=True, text=True, check=False
     )
@@ -538,7 +538,7 @@ def test_a_trailer_block_below_an_authored_scissors_line_is_rejected(tmp_path):
     assert _git_verdict(message, tmp_path) is False, "precondition: git must not parse this"
     result = run(message, tmp_path)
     assert result.returncode == REJECT_CODE
-    assert "BELOW a scissors line" in result.stderr
+    assert "BELOW git's cut line" in result.stderr
 
 
 def test_a_real_verbose_diff_below_scissors_is_not_mistaken_for_a_lost_block(tmp_path):
@@ -641,8 +641,98 @@ def test_a_wholly_indented_trailer_block_is_rejected(tmp_path):
     assert run(message, tmp_path).returncode == REJECT_CODE
 
 
-def test_a_lowercase_trailer_key_is_not_a_blind_spot(tmp_path):
-    """`%(trailers:key=Agent-Role)` is case-INSENSITIVE; a case-sensitive gate was not."""
-    message = "fix: x\n\nagent-role: primary\n\nCo-Authored-By: Y <y@z>\n"
-    assert _git_verdict(message, tmp_path) is False
-    assert run(message, tmp_path).returncode == REJECT_CODE
+@pytest.mark.parametrize("key", ["agent-role", "AGENT-ROLE", "Agent-role", "Agent-Role"])
+def test_trailer_key_casing_is_handled_the_way_git_handles_it(key, tmp_path):
+    """`%(trailers:key=Agent-Role)` matches case-INSENSITIVELY, in BOTH directions.
+
+    The earlier version of this test used only a BROKEN block, so git could not parse it either
+    way and the assertion was satisfied by the reject path alone — the lowercase key never
+    reached the verdict lookup, which is the only place the case-insensitivity can go wrong.
+    It duly shipped green over a regression that hard-rejected well-formed `agent-role:` blocks.
+    Both directions now, for every casing.
+    """
+    good = f"fix: x\n\n{key}: primary\nCo-Authored-By: Y <y@z>\n"
+    assert _git_verdict(good, tmp_path / "a") is True, "precondition: git parses this"
+    assert run(good, tmp_path).returncode == 0, (
+        f"a well-formed {key!r} block was rejected, but git parses it perfectly"
+    )
+
+    broken = f"fix: x\n\n{key}: primary\n\nCo-Authored-By: Y <y@z>\n"
+    assert _git_verdict(broken, tmp_path / "b") is False, "precondition: git cannot parse this"
+    assert run(broken, tmp_path).returncode == REJECT_CODE
+
+
+
+def test_install_does_not_clobber_an_earlier_backup(tmp_path):
+    """A single fixed backup name destroyed the FIRST foreign hook on the second replacement.
+
+    Nothing ever restores these files and no doc mentions them, so the loss was silent and
+    permanent. This shipped with no test at all.
+    """
+    repo = _scratch_repo(tmp_path)
+    hook = repo / ".git" / "hooks" / "commit-msg"
+    for marker in ("FOREIGN-ONE", "FOREIGN-TWO"):
+        hook.write_text(f"#!/bin/sh\n# {marker}\nexit 0\n")
+        hook.chmod(0o755)
+        subprocess.run(
+            [sys.executable, str(GUARD), "--install", "--force"],
+            cwd=repo, capture_output=True, text=True, check=False,
+        )
+    backups = list(hook.parent.glob("commit-msg.replaced-by-fabrik*"))
+    preserved = {m for m in ("FOREIGN-ONE", "FOREIGN-TWO")
+                 if any(m in b.read_text() for b in backups)}
+    assert preserved == {"FOREIGN-ONE", "FOREIGN-TWO"}, (
+        f"a backup was overwritten — only {preserved} survived across {len(backups)} file(s)"
+    )
+
+
+def test_install_leaves_no_temp_file_and_uses_a_unique_one(tmp_path):
+    """A shared fixed `commit-msg.tmp` re-opened the race the atomic write had just closed.
+
+    install() runs on every interactive shell on a three-agent box; two writers interleaving on
+    one temp path could publish a zero-length hook, and an empty sh script exits 0 — the guard
+    silently off. Also shipped untested.
+    """
+    repo = _scratch_repo(tmp_path)
+    hook = _install_into(repo)
+    leftovers = [p.name for p in hook.parent.glob("*.tmp")]
+    assert not leftovers, f"install() left temp files behind: {leftovers}"
+    assert 'hook.with_suffix(".tmp")' not in GUARD.read_text(), (
+        "install() is using a single shared temp filename again — two concurrent shells can "
+        "interleave on it and publish a truncated hook"
+    )
+    assert "mkstemp" in GUARD.read_text()
+    assert os.access(hook, os.X_OK), "the installed hook must be executable"
+
+
+def test_a_non_default_comment_char_does_not_reopen_the_verbose_diff_hijack(tmp_path):
+    """Hardcoding '#' left a latent hijack under `core.commentChar`.
+
+    With `;` as the comment char, git writes `; ---- >8 ----` — so neither the scissors match
+    nor the comment strip fired, the whole `git commit -v` diff stayed in the authored text, and
+    a diff CONTEXT line ` Agent-Role: primary` read as an indented trailer. The commit was
+    rejected over a line its author never wrote and could not fix. This is the exact scenario
+    `test_a_verbose_commit_whose_diff_mentions_agent_role_is_not_hijacked` claims to cover.
+    """
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", ";"], cwd=repo, capture_output=True, check=False
+    )
+    message = (
+        "docs: edit a file that mentions the trailer\n"
+        "\n"
+        "prose\n"
+        "\n"
+        "; ------------------------ >8 ------------------------\n"
+        "diff --git a/x b/x\n"
+        " Agent-Role: primary\n"
+    )
+    msg = repo / "COMMIT_EDITMSG_probe"
+    msg.write_text(message, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"a verbose-diff commit was hijacked under a non-default comment char:\n{result.stderr}"
+    )
