@@ -65,9 +65,15 @@ LOCK_FILE="/tmp/.fabrik_daily_$(date -u +%Y%m%d)"
 # --- Log rotation (keep logs under 500KB, 1 backup) ---
 MAX_LOG_SIZE=512000  # 500KB
 for logfile in "$LOG_FILE" "$ENV_WATCHER_LOG"; do
+    # This loop runs on EVERY sourced shell, well above the daily block's writability probe,
+    # and it WRITES $logfile. On an unwritable log dir both `mv` and `echo` failed with raw
+    # shell errors straight into the operator's login shell, before any guard or alert existed.
+    # Rotation is best-effort housekeeping: if the log is not writable the daily block's probe
+    # will detect and alert on it properly, so stay silent here rather than shout in a terminal.
     if [ -f "$logfile" ] && [ "$(stat -c%s "$logfile" 2>/dev/null || echo 0)" -gt "$MAX_LOG_SIZE" ]; then
-        mv "$logfile" "${logfile}.1"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log rotated" > "$logfile"
+        if mv "$logfile" "${logfile}.1" 2>/dev/null; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log rotated" > "$logfile" 2>/dev/null || true
+        fi
     fi
 done
 
@@ -90,11 +96,10 @@ if [ ! -f "$LOCK_FILE" ]; then
     # unwritable directory. Probe the real append, and fall back rather than run blind.
     if ! { mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null && : >>"$LOG_FILE" 2>/dev/null; }; then
         _fallback="/tmp/fabrik_daily_pipeline_$(date -u +%Y%m%d).log"
-        echo "[wsl_startup_hook] CRITICAL: $LOG_FILE unwritable — falling back to $_fallback" >&2
-        bash "$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh" \
-            "wsl_startup_hook.sh: pipeline log unwritable — the boot pipeline would have run blind" \
-            "Could not append to $LOG_FILE. Every step of the boot pipeline redirects there, so each would have been skipped individually and the heartbeat never written — with no alert reachable from inside. Falling back to $_fallback for this boot. Investigate disk/permissions now." \
-            || true
+        _broken="$LOG_FILE"
+        # ⚠️ DECIDE FIRST, ANNOUNCE SECOND. Announcing "falling back to $_fallback" before the
+        # ladder ran told the operator to look in /tmp for a log that had actually gone to
+        # /dev/stderr or /dev/null.
         if { mkdir -p /tmp 2>/dev/null && : >>"$_fallback" 2>/dev/null; }; then
             LOG_FILE="$_fallback"
         elif : >>/dev/stderr 2>/dev/null; then
@@ -102,7 +107,21 @@ if [ ! -f "$LOCK_FILE" ]; then
         else
             LOG_FILE="/dev/null"
         fi
+        echo "[wsl_startup_hook] CRITICAL: $_broken unwritable — logging to $LOG_FILE" >&2
+        # Backgrounded: this runs in the FOREGROUND of a ~/.bashrc-sourced login shell, and it
+        # spawns python for a network call. Bounded at 15s, but the first shell of each UTC day
+        # should not stall on a Telegram timeout.
+        bash "$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh" \
+            "wsl_startup_hook.sh: pipeline log unwritable — the boot pipeline would have run blind" \
+            "Could not append to $_broken. Every step of the boot pipeline redirects there, so each would have been skipped individually and the heartbeat never written — with no alert reachable from inside. Now logging to $LOG_FILE for this boot. Investigate disk/permissions now." \
+            >/dev/null 2>&1 &
     fi
+    # Keep the commit-msg trailer guard installed. Nothing else invokes --install, so moving
+    # off pre-commit (which self-installs) left the guard depending on a manual command — and a
+    # guard nobody installs is the inert-check class this repo has been bitten by before.
+    # Idempotent, no network, refuses to clobber a foreign hook.
+    "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" --install >/dev/null 2>&1 || true
+
     # Run full pipeline in background (chained to ensure order)
     # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
     nohup bash -c "
@@ -220,7 +239,10 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Telegram channel the oracle/ranker alerts depend on. Written AFTER the work, so the
         # check above still reads the previous run's value.
         mkdir -p $FABRIK_ROOT/scripts/kilo-benchmarks/cache 2>/dev/null || true
-        date -u '+%Y-%m-%dT%H:%M:%S+00:00' > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt 2>/dev/null \
+        # Withheld when the log ladder bottomed out at /dev/null: that run produced no
+        # reviewable output at all, so stamping it green would hide a blind run behind a
+        # healthy freshness check. See daily_refresh.sh for the same guard.
+        [ \"$LOG_FILE\" = /dev/null ] || date -u '+%Y-%m-%dT%H:%M:%S+00:00' > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt 2>/dev/null \
             || echo '[wsl_startup_hook] heartbeat write FAILED — next boot will alert as stale' >> $LOG_FILE
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
     " &

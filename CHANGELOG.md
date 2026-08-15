@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-24 native pass: 16 further findings on the same guard (2026-08-15)
+
+An Opus finder independently confirmed the two bypasses the pool had already found, and added 16.
+The blocking one: the installed shim pinned `sys.executable`, so a rebuilt venv made git reject
+**every commit in the repo** — including well-formed ones with no trailers — for three concurrent
+sessions and the boot pipeline at once. Reproduced (`exec: not found`, rc=1, zero commits land).
+The shim now falls back through `python3`/`python` and exits 0 when nothing is runnable: a guard
+whose breakage is indistinguishable from a violation is worse than no guard.
+
+The sharpest finding was against the tests again. Both log-guard tests asserted that certain
+STRINGS appeared above the first redirect, and five mutants that each reproduce the original
+silent-skip bug exactly — inverting the `!`, deleting the LOG_FILE reassignment, appending
+`|| true` to the probe, reassigning LOG_FILE back to the failing path — all stayed green,
+including on the test whose own failure message names that last mutation. They are now
+BEHAVIOURAL: the guard region is extracted, executed against a real unwritable directory, and the
+LOG_FILE it settles on is checked for actual appendability. All five mutants now fail.
+
+Other confirmed and fixed: git silently IGNORES a non-executable hook, and the installed-hook test
+passed on a `chmod 644` hook while the malformed commit landed (now asserts `os.access(X_OK)`);
+nothing anywhere invoked `--install`, because moving off pre-commit removed the only self-installing
+path (`wsl_startup_hook.sh` now re-installs each boot-day); `pre-commit install --hook-type
+commit-msg` silently reclaims the hook and restores the doubled stash cycle while the config-reading
+test stays green (the test now reads the INSTALLED hook, and `install --force` can take it back);
+a top-level `default_stages: [commit-msg]` evaded the same check; the unattended-auto-commit pin
+hand-sliced one `-m` argument, so a third `-m` left it green while the real message was rejected
+(it now parses every `-m` and joins them as git does); the differential oracle ignored the commit's
+return code, so a machine-global `commit.gpgsign` with no key made the malformed cases agree
+vacuously; log rotation ran on every sourced shell above the probe and shouted raw errors into the
+operator's login shell; both alerts named the fallback destination before the ladder had chosen it;
+and the login-shell alert ran a synchronous network call in the foreground.
+
+Finally, a run whose log ladder bottoms out at `/dev/null` no longer stamps the success heartbeat.
+Such a run really executes — it commits and pushes, fleet-syncing to ~46 repos — with every line of
+its output destroyed. Withholding the stamp lets the staleness check raise it, which is the only
+signal left; stamping green over it is how a blind run becomes an invisible one.
+
 ### Fixed — round-24: two guard BYPASSES, both reproduced (2026-08-15)
 
 `replaying()` exempted MERGE_HEAD, but a commit made while MERGE_HEAD exists is the resolution

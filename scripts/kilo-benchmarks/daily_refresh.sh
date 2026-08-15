@@ -83,12 +83,7 @@ _log_usable() { mkdir -p "$(dirname "$1")" 2>/dev/null && : >>"$1" 2>/dev/null; 
 
 if ! _log_usable "$LOG_FILE"; then
   _fallback="/tmp/fabrik_daily_refresh_$(date -u +%Y%m%d).log"
-  echo "[daily_refresh] CRITICAL: $LOG_FILE is not writable — falling back to $_fallback" >&2
-  # Alert BEFORE the block, while a working redirect still exists.
-  bash "$KB/pipeline_alert.sh" \
-    "daily_refresh.sh: log file unwritable — pipeline would have silently no-opped" \
-    "Could not append to $LOG_FILE. The refresh body is one compound command redirected there, so bash would have skipped ALL of it without running a single step or firing the in-block heartbeat guard. Falling back for this run. Investigate disk/permissions now." \
-    || true
+  _broken="$LOG_FILE"
   # If even /tmp is unusable, redirect to stderr rather than to a path that fails: a failed
   # redirect skips the entire pipeline, which is strictly worse than logging somewhere odd.
   # There is no configuration in which this script should silently do nothing.
@@ -99,6 +94,13 @@ if ! _log_usable "$LOG_FILE"; then
   if _log_usable "$_fallback"; then LOG_FILE="$_fallback"
   elif : >>/dev/stderr 2>/dev/null; then LOG_FILE="/dev/stderr"
   else LOG_FILE="/dev/null"; fi
+  # ⚠️ Announce AFTER the ladder has chosen, or the alert names a destination the log did not
+  # go to. Alert here, while a working redirect still exists — the block below cannot.
+  echo "[daily_refresh] CRITICAL: $_broken is not writable — logging to $LOG_FILE" >&2
+  bash "$KB/pipeline_alert.sh" \
+    "daily_refresh.sh: log file unwritable — pipeline would have silently no-opped" \
+    "Could not append to $_broken. The refresh body is one compound command redirected there, so bash would have skipped ALL of it without running a single step or firing the in-block heartbeat guard. Now logging to $LOG_FILE for this run. Investigate disk/permissions now." \
+    || true
 fi
 {
   echo ""
@@ -561,7 +563,15 @@ fi
     echo "[daily_refresh] CRITICAL: heartbeat cache dir creation failed"
     bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: heartbeat cache dir creation FAILED' "Disk full or permission denied on $KB/cache/. Next-day staleness alert will fire as backup but operator should investigate immediately." || true
   fi
-  if ! date -u +'%Y-%m-%dT%H:%M:%S+00:00' > "$KB/cache/daily_refresh_last_success.txt" 2>/dev/null; then
+  # ⚠️ Do NOT stamp success when the log ladder bottomed out at /dev/null. That run really
+  # executed — it committed and PUSHED, fleet-syncing to ~46 repos — but every line of its
+  # output was destroyed, so there is no forensic trail and nothing to review. Leaving the
+  # stamp un-written lets tomorrow's freshness check raise it, which is the only remaining
+  # signal; stamping green over it is how a blind run becomes an invisible one.
+  if [ "$LOG_FILE" = "/dev/null" ]; then
+    echo "[daily_refresh] NOT stamping success: this run's output was discarded to /dev/null"
+    bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: ran BLIND — heartbeat deliberately NOT stamped' "The log ladder fell through to /dev/null, so this run produced no reviewable output. The success stamp was withheld on purpose so the staleness check raises it. Investigate disk / permissions." || true
+  elif ! date -u +'%Y-%m-%dT%H:%M:%S+00:00' > "$KB/cache/daily_refresh_last_success.txt" 2>/dev/null; then
     echo "[daily_refresh] CRITICAL: heartbeat timestamp write failed (disk full? permission?)"
     bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: heartbeat timestamp write FAILED' "Could not write to $KB/cache/daily_refresh_last_success.txt. Tomorrow heartbeat will alert as STALE; please investigate disk / permissions now." || true
   fi

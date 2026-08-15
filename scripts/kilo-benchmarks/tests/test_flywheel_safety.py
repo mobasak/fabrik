@@ -18,6 +18,7 @@ separate operational gate (A.0 gate 1 / B.4a), deliberately not a unit test.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -242,8 +243,8 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # An inequality with slack is not a guard: at >= 6 with 8 real sites, BOTH autocommit
     # alerts could be deleted and this still passed. Pin the exact count so removing any site
     # reds — and update it deliberately when a site is added.
-    assert len(sites) == 11, (
-        f"expected exactly 11 alert sites across the three entry points, found {len(sites)}. "
+    assert len(sites) == 12, (
+        f"expected exactly 12 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:
@@ -255,7 +256,7 @@ def test_the_heartbeat_alert_bodies_expand_their_paths():
     """Migrating the heartbeat alerts into single quotes stopped `$KB` expanding, so the only
     alert that names the failing path would have read literally `$KB/cache/`."""
     sh = (SCRIPT_DIR / "daily_refresh.sh").read_text()
-    for ln in sh.splitlines():
+    for ln in _logical_lines(sh):
         if "pipeline_alert.sh" not in ln:
             continue
         # Splitting on `'` alternates outside/inside single quotes; only the ODD chunks are
@@ -425,3 +426,100 @@ def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(sc
         f"{script} detects the unwritable log but never alerts — the failure would surface "
         f"only via the next run's freshness check, if at all"
     )
+
+
+def _extract_log_guard(path):
+    """Lift the writability-guard region out of a pipeline script so it can be RUN.
+
+    The two tests above assert that certain STRINGS appear above the first redirect. That is
+    not the invariant. Five mutants which each reproduce the original silent-skip bug exactly
+    — inverting the `!`, dropping the LOG_FILE reassignment, appending `|| true` to the probe,
+    reassigning LOG_FILE back to the failing path — all keep those tests green, including on
+    the test whose own failure message names that last mutation. Only executing the guard and
+    observing where LOG_FILE actually lands can tell the difference.
+    """
+    lines = path.read_text().splitlines()
+    start = next(
+        i for i, ln in enumerate(lines)
+        if ln.startswith("_log_usable()") or ln.lstrip().startswith("if ! { mkdir -p")
+    )
+    # Close on the `fi` at the SAME indentation as the opening `if`. Matching the first `fi`
+    # anywhere grabbed the NESTED fallback-ladder's terminator and produced an unbalanced
+    # fragment that bash rejected outright — which the harness then read as "the guard chose
+    # an empty LOG_FILE". A test harness that mis-extracts fails loudly here rather than
+    # silently measuring the wrong thing.
+    if_idx = next(i for i in range(start, len(lines)) if lines[i].lstrip().startswith("if "))
+    indent = lines[if_idx][: len(lines[if_idx]) - len(lines[if_idx].lstrip())]
+    end = next(
+        i for i in range(if_idx + 1, len(lines)) if lines[i] == f"{indent}fi"
+    )
+    return "\n".join(lines[start : end + 1])
+
+
+def _run_log_guard(path, tmp_path, writable):
+    """Execute the guard with LOG_FILE pointing at a writable or unwritable target.
+
+    Returns the LOG_FILE the guard settled on, and whether that target is actually appendable.
+    """
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    log = cache / "update.log"
+    if not writable:
+        cache.chmod(0o500)
+    # Both call sites are stubbed: daily_refresh uses $KB, wsl_startup_hook uses
+    # $FABRIK_ROOT/scripts/kilo-benchmarks — the harness must satisfy whichever it extracts.
+    stub = tmp_path / "scripts" / "kilo-benchmarks"
+    stub.mkdir(parents=True)
+    (stub / "pipeline_alert.sh").write_text("#!/bin/sh\nexit 0\n")
+    (stub / "pipeline_alert.sh").chmod(0o755)
+
+    script = tmp_path / "harness.sh"
+    script.write_text(
+        "set -u\n"
+        f'FABRIK_ROOT="{tmp_path}"\n'
+        f'KB="{stub}"\n'
+        f'LOG_FILE="{log}"\n'
+        f"{_extract_log_guard(path)}\n"
+        'printf "%s" "$LOG_FILE"\n'
+    )
+    try:
+        chosen = subprocess.run(
+            ["bash", str(script)], capture_output=True, text=True, check=False
+        ).stdout.strip()
+    finally:
+        cache.chmod(0o700)
+    appendable = subprocess.run(
+        ["bash", "-c", f': >>"{chosen}" 2>/dev/null'], check=False
+    ).returncode == 0
+    return chosen, appendable, str(log)
+
+
+@pytest.mark.parametrize(
+    "script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"]
+)
+def test_the_log_guard_actually_redirects_away_from_an_unwritable_log(script, tmp_path):
+    """BEHAVIOURAL: run the guard, assert LOG_FILE lands somewhere that really accepts writes."""
+    src = SCRIPT_DIR.parent / script
+    chosen, appendable, original = _run_log_guard(src, tmp_path, writable=False)
+    assert chosen != original, (
+        f"{script}: the log was unwritable but the guard left LOG_FILE pointing at it — every "
+        f"redirect will fail and the pipeline runs blind or not at all"
+    )
+    assert appendable, (
+        f"{script}: the guard moved LOG_FILE to {chosen!r}, which is ALSO not appendable — "
+        f"falling back to a second failing path reproduces the silent failure it just detected"
+    )
+
+
+@pytest.mark.parametrize(
+    "script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"]
+)
+def test_the_log_guard_leaves_a_healthy_log_alone(script, tmp_path):
+    """The mirror: an inverted probe would divert a perfectly good log to the fallback."""
+    src = SCRIPT_DIR.parent / script
+    chosen, appendable, original = _run_log_guard(src, tmp_path, writable=True)
+    assert chosen == original, (
+        f"{script}: the log was writable but the guard diverted LOG_FILE to {chosen!r} — the "
+        f"probe's sense is inverted"
+    )
+    assert appendable

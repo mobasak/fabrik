@@ -9,6 +9,8 @@ that keep the other five from becoming decorative.
 
 from __future__ import annotations
 
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -110,11 +112,41 @@ def test_the_guard_is_not_routed_through_pre_commit(tmp_path):
     must NOT reappear as a pre-commit hook.
     """
     config = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
+    # A top-level `default_stages: [commit-msg]` routes hooks that declare NO stages of their
+    # own — reading only per-hook `stages` missed that entirely.
+    default_stages = config.get("default_stages") or []
     hooks = [h for r in config["repos"] for h in r.get("hooks", [])]
-    offenders = [h for h in hooks if "commit-msg" in (h.get("stages") or [])]
+    offenders = [
+        h for h in hooks
+        if "commit-msg" in (h.get("stages") or default_stages)
+    ]
     assert not offenders, (
         f"a commit-msg-stage pre-commit hook reintroduces the doubled stash cycle: {offenders}"
     )
+
+    # ⚠️ The config is not the ground truth — `pre-commit install --hook-type commit-msg`
+    # REPLACES .git/hooks/commit-msg with pre-commit's generated hook (moving ours to
+    # commit-msg.legacy) and restores the doubled stash cycle, while this config stays clean.
+    # Reproduced live. Assert on what is actually INSTALLED.
+    hook = _installed_hook()
+    if hook is not None and hook.exists():
+        text = hook.read_text(errors="replace")
+        assert "check_commit_trailers" in text and "pre_commit" not in text, (
+            "the installed commit-msg hook has been taken over by pre-commit — the doubled "
+            "stash cycle is back. Reclaim it: "
+            "`python3 scripts/check_commit_trailers.py --install --force`"
+        )
+
+
+def _installed_hook():
+    """Resolve .git/hooks/commit-msg via git, so worktrees resolve to the SHARED hooks dir."""
+    common = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, check=False, cwd=REPO,
+    )
+    if common.returncode != 0:
+        return None
+    return (REPO / common.stdout.strip()).resolve() / "hooks" / "commit-msg"
 
 
 def test_the_commit_msg_hook_is_actually_installed_and_points_at_this_guard():
@@ -140,6 +172,13 @@ def test_the_commit_msg_hook_is_actually_installed_and_points_at_this_guard():
     )
     assert "check_commit_trailers" in hook.read_text(errors="replace"), (
         "a commit-msg hook exists but does not invoke this guard"
+    )
+    # ⚠️ git SILENTLY IGNORES a non-executable hook — it prints a notice and the commit lands.
+    # Reproduced with chmod 644: the malformed commit went through while both content
+    # assertions above still passed. Only install() ever sets the mode.
+    assert os.access(hook, os.X_OK), (
+        f"{hook} is not executable, so git ignores it entirely and the guard never runs: "
+        f"re-run `python3 scripts/check_commit_trailers.py --install`"
     )
 
 
@@ -177,7 +216,14 @@ def _git_verdict(message: str, tmp_path: Path) -> bool:
     run_git("config", "user.name", "t")
     (repo / "f").write_text("x")
     run_git("add", "f")
-    run_git("commit", "-q", "--no-verify", "-m", message)
+    # -c commit.gpgsign=false: a machine-global signing config with no key makes the commit
+    # fail rc=128, and an unchecked return code turned that into a silent `False` — which reads
+    # as "git cannot parse this", making the malformed cases agree VACUOUSLY.
+    committed = run_git("-c", "commit.gpgsign=false", "commit", "-q", "--no-verify", "-m", message)
+    assert committed.returncode == 0, (
+        f"the oracle could not create its commit, so its verdict would be meaningless: "
+        f"{committed.stderr.strip()}"
+    )
     return bool(
         run_git("log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)").stdout.strip()
     )
@@ -247,15 +293,23 @@ def test_the_unattended_pipeline_commit_is_not_blocked_by_this_guard(tmp_path):
     shell script and runs it through the real guard.
     """
     script = (REPO / "scripts" / "kilo-benchmarks" / "autocommit_pipeline_outputs.sh").read_text()
-    # The trailer block is the second -m argument: a double-quoted string starting at Agent-Role.
-    start = script.index('-m "Agent-Role:')
-    block = script[start + len('-m "') :]
-    block = block[: block.index('"')]
-    assert block.startswith("Agent-Role:"), block[:80]
+    # ⚠️ Extract EVERY -m argument, in order, and join them the way git does. Hand-slicing only
+    # the `-m "Agent-Role:…"` argument and prepending a made-up subject meant a THIRD -m added
+    # after the trailer block — a plausible "add a note" edit — left this test green while the
+    # message git actually builds is REJECTED. Both measured. Since the script always exits 0,
+    # that would disable the boot auto-commit silently and permanently: exactly the catastrophe
+    # this test claims to prevent, waved through by an approximation of the input.
+    invocation = script[script.index("git commit"):]
+    invocation = invocation[: invocation.index("\n  -- ")]
+    m_args = re.findall(r'-m "((?:[^"\\]|\\.)*)"', invocation, re.S)
+    assert len(m_args) >= 2, f"expected at least a subject and a trailer block, got {m_args!r}"
+    assert any(a.startswith("Agent-Role:") for a in m_args), m_args
 
-    # git joins multiple -m arguments with a blank line, which is what makes the block its own
-    # final paragraph — reproduce that exactly rather than approximating it.
-    message = f"chore(kilo): pipeline auto-commit of regenerated outputs\n\n{block}\n"
+    # git joins multiple -m arguments with a BLANK LINE between each.
+    message = "\n\n".join(m_args) + "\n"
+    # Shell expansions are irrelevant to trailer parsing; neutralise them so the harness does
+    # not depend on runtime values.
+    message = re.sub(r"\$\{?\w+\}?|\$\([^)]*\)", "x", message)
     result = run(message, tmp_path)
     assert result.returncode == 0, (
         "the unattended boot-time auto-commit would be REJECTED by this guard, which silently "

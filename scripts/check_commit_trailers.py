@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: .pre-commit-config.yaml, scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py | none
+# AFTER-EDIT: docs/workstation/hooks-index.md, scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py | none
 """Reject a commit whose Agent Provenance Trailers do not actually PARSE.
 
 Run as a `commit-msg` pre-commit hook, so it fires while the message is still editable —
@@ -143,12 +143,30 @@ SHIM = """#!/bin/sh
 # Installed by scripts/check_commit_trailers.py --install. Deliberately a plain git hook rather
 # than a pre-commit stage: pre-commit's commit-msg stage stashes and restores unstaged work a
 # SECOND time per commit, and this tree is shared by three concurrent agents.
-exec {python} {script} "$1"
+#
+# ⚠️ FAIL OPEN, ALWAYS. A hook that cannot run must never block a commit. Pinning one absolute
+# interpreter made a rebuilt venv reject EVERY commit in the repo — including well-formed ones
+# with no trailers at all — for three concurrent sessions and the boot pipeline simultaneously.
+# Reproduced: `exec: /nonexistent/python: not found`, rc=1, zero commits land. A guard whose
+# breakage is indistinguishable from a violation is worse than no guard.
+GUARD='{script}'
+[ -f "$GUARD" ] || exit 0
+for PY in '{python}' python3 python; do
+    command -v "$PY" >/dev/null 2>&1 && exec "$PY" "$GUARD" "$1"
+done
+exit 0
 """
 
 
-def install() -> int:
-    """Write .git/hooks/commit-msg. Idempotent; refuses to clobber a foreign hook."""
+def install(force: bool = False) -> int:
+    """Write .git/hooks/commit-msg. Idempotent; refuses to clobber a foreign hook.
+
+    `--force` exists because `pre-commit install --hook-type commit-msg` — a command the docs
+    used to recommend — REPLACES this hook with pre-commit's generated one and moves ours to
+    `commit-msg.legacy`. That silently restores the doubled staged_files_only() stash cycle this
+    guard was moved off pre-commit to avoid. Without --force, install() saw a foreign hook and
+    refused, leaving no way back short of deleting the file by hand.
+    """
     common = subprocess.run(
         ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False
     )
@@ -160,8 +178,14 @@ def install() -> int:
     hook = (Path(common.stdout.strip()).resolve()) / "hooks" / "commit-msg"
     hook.parent.mkdir(parents=True, exist_ok=True)
     if hook.exists() and "check_commit_trailers" not in hook.read_text(errors="replace"):
-        print(f"refusing to overwrite an existing unrelated hook: {hook}", file=sys.stderr)
-        return 1
+        if not force:
+            print(
+                f"refusing to overwrite an existing unrelated hook: {hook}\n"
+                f"  (if this is pre-commit's generated hook, re-run with --force)",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"--force: replacing the existing hook at {hook}", file=sys.stderr)
     hook.write_text(SHIM.format(python=sys.executable, script=Path(__file__).resolve()))
     hook.chmod(0o755)
     print(f"installed {hook}")
@@ -170,7 +194,7 @@ def install() -> int:
 
 def main(argv: list[str]) -> int:
     if len(argv) >= 2 and argv[1] == "--install":
-        return install()
+        return install(force="--force" in argv[2:])
     if len(argv) < 2:
         print("usage: check_commit_trailers.py <commit-msg-file>", file=sys.stderr)
         return 2
