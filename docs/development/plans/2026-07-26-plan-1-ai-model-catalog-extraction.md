@@ -254,7 +254,53 @@ day — `test $(date -u +%F) = $(date -u -r engine/out/docs/reference/kilo/TASK_
 **Consumes:** the delivered artifacts (Phase C, now to fabrik's live paths). **Produces (for Phase E):** a fabrik `daily_refresh` with no local engine.
 
 ### Steps
-**D.1 — Flip delivery to live paths + shrink daily_refresh (large surgery — **57** engine `_step` calls, measured 2026-08-15; the plan said ~40, a 42% underestimate on the biggest single surgery in this plan, #12).** Point `deliver_to_fabrik.py` at fabrik's real consumed paths; remove **every** engine `_step` from `daily_refresh.sh`/`wsl_startup_hook.sh`. The retained `daily_refresh.sh` is an **allow-list** — it may ONLY keep: the fabrik-infra steps (`gather_envs`, `classify_services`), the new `deliver` (or fetch) step, and the consumer steps (`generate_capability_index`, `generate_kilo_agents`, `sync_enforcement_to_projects`). **`check_daily_refresh_freshness` is DROPPED (#15):** it is a `$KB/` helper reading `kilo-benchmarks/cache/daily_refresh_last_success.txt` (`check_daily_refresh_freshness.py:5`) — the OLD engine-refresh self-check; post-cutover the relevant freshness is the DELIVERED-doc age, already monitored by `check_ai_pack_freshness.py` (D.2.3), so this obsolete helper is deleted with the engine (no orphan, no carve-out). Everything else — all `$KB/`-invoked producers incl. `generate_model_capabilities` (`:242`), `generate_selection_guide_roster` (`:244`), `export_traycer_registry` (`:272`), `export_models_browser` (`:454`), and the ~36 `scrape_*`/`migrate_*`/`embedding_*`/`category_*`/`seed_*`/`fetch_*`/`verify_openrouter_catalog`/`discover_*`/`kilo_agents_db`/`role_mapper`/`update_kilo_benchmarks`/`classify_ai_category`/`backfill_*`/`microbench_*`/`restore_*` steps — is removed. **Same removal applies to `scripts/wsl_startup_hook.sh` (#16 — it invokes ~9 engine scripts, `wsl_startup_hook.sh:36-44`: `kilo_agents_db`, `update_kilo_benchmarks`, `scrape_artificial_analysis`, `role_mapper`, `export_traycer_registry`, `embedding_*`).** **Gate — TWO separate checks (one pattern can't cover both idioms; the old mixed grep was unexecutable):**
+⚠️⚠️ **PHASE C/D BLOCKERS — pass-4 grounding, 2026-08-15, each re-verified by the orchestrator.**
+
+**C-B1 — the parallel-run proof is ALREADY defeated, in the copied file.** `engine/daily_refresh.sh`
+carries the guard BYTE-IDENTICALLY at the same lines as fabrik's (`LOCK_FILE="/tmp/.fabrik_daily_$(date
+-u +%Y%m%d)"` :125, `exit 0` :129). Both engines contend on ONE lockfile on ONE box, so C.2 can go green
+with the relocated engine never executing a single step. S1d predicted the hazard; it is now shipped.
+Fix in B/C before C.2 runs, or the whole safety window proves nothing. *(Cite corrected: the guard is at
+:125-131, not :92-96.)*
+
+**C-B2 — the marker host sets are two DIFFERENT 7-packs, not one.** OPENROUTER_ROUTES = {10,20,30,40,50,
+60,**90**}; GATEWAY_COUNTS = {**00**,10,20,30,40,50,60}. Union = 8 packs → **14** block files. Three of
+the 11 `ai/*.md` packs carry NEITHER marker, so the literal glob over-reaches by 3. And
+`category_export_markdown.py` has no `PACK_TO_CATEGORY`/`RULES_DIR`/`glob` at all — its hosts come from
+`ai_category_configs.yaml` (`CONFIG_PATH:57`), so a path-grep enumerates nothing.
+
+**C-B3 — C.1's safety gate is VACUOUS.** `--dry-run | grep -c "^/opt/fabrik"` anchors at column 0; any
+action-verb prefix (`COPY /opt/fabrik/… → …`) makes it pass regardless. The assertion protecting the
+CORE pack `65-rag-search.md` cannot fail as written.
+
+**C-B4 — the rule-6 carve-out is incomplete.** `kilo_auto_route.py`'s one `sys.path.insert` (:56) serves
+THREE modules: `db_models` (:59-62, carved out), plus `classify_ticket` (:58) and `kilo_telemetry`
+(:63+), which are not. Phase E's delete kills `kilo_auto_route` at import regardless.
+
+**D-B1 — D.1's gate CANNOT PASS, even after a perfect surgery.** The comment at `daily_refresh.sh:527`
+contains the literal `_step "label"`, and `grep -hoE '_step "[a-z_0-9]+"'` extracts it — `label` is not
+in the allow-list, so the gate reds on prose. Verified: `label` is in today's `sort -u` output.
+
+**D-B2 — `check_daily_refresh_freshness` HAS a second caller.** The plan says deleting it leaves "no
+orphan, no carve-out". `wsl_startup_hook.sh:236` invokes it by absolute path. The prose licenses a
+deletion that orphans a live call.
+
+**D-B3 — D.2's pre-cutover baseline DOES NOT EXIST.** `tests/golden/` holds exactly two files
+(`db_queries.json`, `structure.json`); neither records a `pick_models` top-3. D.2's flagship assertion
+has nothing to compare against, and no phase creates it.
+
+**D-B4 — the step enumeration misses 12 engine steps**, including all seven `rank_*` (among them
+`rank_task_subagents`, which produces the very `TASK_SUBAGENT_SELECTION.md` D.2 certifies) and
+`update_gateway_counts` (one of Phase C's four named injectors).
+
+**D-B5 — "56 vendored copies" is wrong twice.** Measured today: **48**. The repo's canonical figure
+everywhere else (daily_refresh.sh:456, rank_task_subagents.py:1373, the design spec) is 49; the plan is
+the only artifact saying 56.
+
+**D.1 — Flip delivery to live paths + shrink daily_refresh (large surgery — **55** real engine `_step`
+invocations, of which the allow-list retains 5, so **50** to remove. ⚠️ My own 2026-08-15 correction of
+"~40 → 57" was ALSO wrong: `grep -c '_step '` returns 57 but two of those lines are comments (:364,
+:527). Measure invocations, not grep hits.).** Point `deliver_to_fabrik.py` at fabrik's real consumed paths; remove **every** engine `_step` from `daily_refresh.sh`/`wsl_startup_hook.sh`. The retained `daily_refresh.sh` is an **allow-list** — it may ONLY keep: the fabrik-infra steps (`gather_envs`, `classify_services`), the new `deliver` (or fetch) step, and the consumer steps (`generate_capability_index`, `generate_kilo_agents`, `sync_enforcement_to_projects`). **`check_daily_refresh_freshness` is DROPPED (#15):** it is a `$KB/` helper reading `kilo-benchmarks/cache/daily_refresh_last_success.txt` (`check_daily_refresh_freshness.py:5`) — the OLD engine-refresh self-check; post-cutover the relevant freshness is the DELIVERED-doc age, already monitored by `check_ai_pack_freshness.py` (D.2.3), so this obsolete helper is deleted with the engine (no orphan, no carve-out). Everything else — all `$KB/`-invoked producers incl. `generate_model_capabilities` (`:242`), `generate_selection_guide_roster` (`:244`), `export_traycer_registry` (`:272`), `export_models_browser` (`:454`), and the ~36 `scrape_*`/`migrate_*`/`embedding_*`/`category_*`/`seed_*`/`fetch_*`/`verify_openrouter_catalog`/`discover_*`/`kilo_agents_db`/`role_mapper`/`update_kilo_benchmarks`/`classify_ai_category`/`backfill_*`/`microbench_*`/`restore_*` steps — is removed. **Same removal applies to `scripts/wsl_startup_hook.sh` (#16 — it invokes ~9 engine scripts, `wsl_startup_hook.sh:36-44`: `kilo_agents_db`, `update_kilo_benchmarks`, `scrape_artificial_analysis`, `role_mapper`, `export_traycer_registry`, `embedding_*`).** **Gate — TWO separate checks (one pattern can't cover both idioms; the old mixed grep was unexecutable):**
    - **(i) step allow-list:** `grep -hoE '_step "[a-z_0-9]+"' scripts/kilo-benchmarks/daily_refresh.sh | sort -u` → **Expected:** a subset of `{gather_envs, classify_services, deliver_to_fabrik, generate_capability_index, generate_kilo_agents, sync_enforcement_to_projects}` — any other step name is an engine producer still present. (`deliver_to_fabrik` is the Phase-C script invoked as a `_step` like any other; name it exactly that.)
    - **(ii) engine-script reference check (covers `$KB/` expansion AND literal paths, in BOTH files):** `grep -hoE '(\$KB|\$\{KB\}|scripts/kilo-benchmarks)/[A-Za-z_0-9.-]+' scripts/kilo-benchmarks/daily_refresh.sh scripts/wsl_startup_hook.sh | sort -u` → **Expected:** only references to the retained remnant (`kilo_agents.db`, `models_browser.html`, `cache/`, `backups/`, `tests/golden/`) — **any `.py` engine script here must be removed.**
 **D.2 — Cutover verification (behavior 1 — flagship).**
