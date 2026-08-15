@@ -29,8 +29,9 @@ A window is bound to its dir by TWO environment variables — both, or the bindi
   variable, not from `CLAUDE_CONFIG_DIR`; without it every window sleeps on every other
   window's quota wall.
 
-The dir's `.credentials.json` has exactly one WRITER: that window (plus its own headless
-callers and its own keepalive ping) — nothing else ever writes, copies, or relocates it.
+The dir's `.credentials.json` is written by exactly one owning context — that window, its
+own headless callers, and its own keepalive ping — and nothing else ever writes, copies, or
+relocates it.
 Two sanctioned in-memory READS exist: `--status`/`--tick` extract the dir's access token for
 the identity-pin and quota-usage probes (never logged, never persisted).
 
@@ -84,7 +85,7 @@ completes the binding the row already records. The whole body runs under the ass
 so concurrent runs serialize instead of losing each other's row.
 
 **The five refusal states** (rc 1 — exactly the cases where re-running would destroy or
-duplicate something):
+duplicate something; the hub policy refusal in the parenthetical below is a separate rc 1):
 
 1. The dir holds a `.credentials.json` — a LIVE chain, never re-seeded.
 2. The row names a DIFFERENT account — rebalancing is a deliberate re-login, not a
