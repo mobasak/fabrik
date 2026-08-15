@@ -33,3 +33,27 @@ moot at M4 retirement.
 
 Round 1 verdict: NOT CLEAN — 4 fixups dispatched to the T01 coder (F1–F4). Round 2 (fresh
 finder pass on the updated surface) follows the fixup.
+
+## Round 2 (2026-08-15, on fixup commit 0f436ca4)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 2
+Pool: both clean (flag lifecycle + run_claude local-init proven safe single-threaded).
+Native opus: 8 mutants ALL KILLED (incl. round 1's three survivors) — but the fixup itself
+introduced a regression:
+
+| # | Finding | Disposition |
+|---|---|---|
+| C-A | CONFIRMED HIGH — module-global flag races under aro-wake's real concurrency (asyncio.to_thread + fire-and-forget, no lock): 130 false all-dead alerts / 3200 paused calls at 8 threads (base: 0). "Single-threaded CLI" premise false for the twin | **FIX (F5)**: threading.local reason + run_claude resets it before each gate call (also kills C-D) |
+| C-B | CONFIRMED HIGH — fail-closed conflates install-decision with alert-decision: unreadable state dir → no rotation AND no Telegram (fail-silent on a cron host) | **FIX (F6)**: tri-state reason ('marker' suppresses, 'error' refuses install but ALERTS with an unreadable note) |
+| C-C | CONFIRMED MED — 4 legacy tests vacuous NOW (real marker short-circuits; harness never isolates ROTATE_STATE_DIR; suite mkdirs in real $HOME) | **FIX (F7)**: isolate state dir in the legacy harness (declared adjacent touch) |
+| C-D | CONFIRMED MED — order-dependent legacy test via the global | subsumed by F5's caller-side reset |
+| C-E | PLAUSIBLE — RuntimeError from Path.home() escapes the guard | **FIX (F8)** |
+| C-F | PLAUSIBLE — --status tracebacks / tick loses DRAIN on unreadable dir (raw probe call sites) | **FIX (F9)**: soft probe at both sites |
+| C-G | PLAUSIBLE — error-case stderr line claims a marker that doesn't exist; no --resume-switch guidance | folded into F6 |
+| C-H | PLAUSIBLE — t15e second half under-pinned | **FIX (F10)** |
+| C-I | PLAUSIBLE — runbook still describes the marker as tick-only | ROUTED to T04 (its rewrite owns the pause section; briefing updated) |
+
+Refuted (opus, executed): stale-else branch single-threaded; the 12 legacy reds (pre-exist at
+merge-base); --switch gating (manual lever intact, probe-proven).
+
+Round 2 verdict: NOT CLEAN — F5–F10 dispatched. Round 3 follows.
