@@ -32,3 +32,35 @@ introduced upstream on master after this plan's baseline; none of the files are 
 scope.
 
 Round 1 verdict: NOT CLEAN — F36–F47 dispatched. Round 2 follows.
+
+## Round 2 (2026-08-15)
+
+Surface: fixup commit 15e9db17 (F36–F47, +594/-340 across twin + tests). Coder's claims
+re-verified first-hand: 155/155 across the 4 suites re-run by the orchestrator, twins
+md5-identical (c26f9e75…). Coder's red-on-revert sweep vs pre-fixup HEAD: 28 failed / 26
+passed — every behavioral guard red where it should be. Finders: pool deepseek+gemini
+(fixup diff inline, read_only) + native opus (worktree probes + 2 mutant tests, both
+killed, tree restored clean).
+
+F36–F47 all verified FIXED by the native leg (occupancy scan matches live box shapes,
+cleanup scope mutant-killed, different-account gate mutant-killed, flock ordering, fd/tmp
+cleanup probed, mtime-retry probed against a real concurrent write — no double-apply,
+hub refusal, mode-preserve first-write fallback).
+
+| # | Finding | Source | Disposition |
+|---|---|---|---|
+| 14 | Resume with a DIFFERENT --project rebinds the row + writes a 2nd carrier, old project's carrier orphaned-but-live → two repos on one chain (the silent-rejoin class, moved to project level); probe: rc 0/rc 0, stale carrier True | opus CONFIRMED (live probe) | **FIX (F48)**: row is truth on resume; conflicting --project → rc 1 naming row project + carrier path |
+| 15 | settings.json copy mode silently 644→600 (_replace_file default), untested behavior change; source is 644 and the carrier's own rationale says shared-not-secret | opus CONFIRMED (probe both paths) | **FIX (F49)**: explicit mode=0o644 + mode assert test |
+| 16 | Row with account=null claimable by ANY email (refusal reads `not in (None, email)`); docstring claims "exactly three" refusal states; assignments.json is documented hand-editable | opus CONFIRMED (probe rc 0) | **FIX (F50)**: null/missing account → refuse as corrupt row |
+| 17 | _write_json_atomic handler os.close(fd) after fdopen adopted+closed it — thread fd-reuse double-close hazard (aro-wake twin runs under asyncio.to_thread); EBADF guard doesn't help when the number is reused | gemini (variant; code-read confirmed) | **FIX (F51)**: manual close ONLY when fdopen itself raised |
+| 18 | `CLAUDE_CONFIG_DIR=` (empty value) counts a session as fleet-bound → undercount, the permanently-green direction (d860ae51 class) | deepseek CONFIRMED | **FIX (F52)**: require non-empty value |
+| 19 | Dead unreachable return after the (0,1) retry loop in _merge_roster_once | opus NIT | **FIX (F53)**: delete |
+
+Refuted round 2: cleanup _has_credentials→rmtree TOCTOU (interactive login is a >10s
+browser flow vs ms-scale cleanup — unrealizable; the mid-scaffold-chain guard already
+covers the realizable states) · matcher wrapper-name false negatives (documented design
+choice, live-box verified) · churn false-0 (advisory monitor, self-corrects next tick) ·
+gemini's F40 "fd leak" framing (leak path IS handled; the real residue is #17's
+double-close, filed).
+
+Round 2 verdict: NOT CLEAN — F48–F53 dispatched. Round 3 follows.
