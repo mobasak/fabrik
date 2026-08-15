@@ -33,10 +33,12 @@ at all (merge commits, `git revert`, and human commits are not this hook's busin
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REQUIRED = "Agent-Role"
@@ -44,8 +46,14 @@ REQUIRED = "Agent-Role"
 # CRASH. Anything else the interpreter returns means the guard broke, and a broken guard must
 # never block a commit.
 REJECT_CODE = 9
-# `# ---- >8 ----` with any run of dashes, which is what `git commit --cleanup=scissors` writes.
-SCISSORS_RE = re.compile(r"^#\s*-{2,}\s*>8\s*-{2,}")
+# Git's cut line is ONE exact string — 24 dashes, space, >8, space, 24 dashes — confirmed by
+# reading a real `git commit -v` buffer. Accepting "any run of dashes" made the guard truncate a
+# message at any prose line of that rough shape, and then reject it for having its trailers
+# "below a scissors line" while git parsed them perfectly. The literal `# ---- >8 ----` appears in
+# this guard's OWN rejection text and in hooks-index.md, so every commit documenting this guard —
+# which this review loop produces each round — was self-blocked, with a remedy that was
+# impossible to follow and a verify command that contradicted the verdict.
+SCISSORS_RE = re.compile(r"^#\s?-{24} >8 -{24}\s*$")
 
 
 def parsed_trailers(message: str) -> dict[str, str] | None:
@@ -57,7 +65,13 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
     """
     try:
         proc = subprocess.run(
-            ["git", "interpret-trailers", "--parse"],
+            # --no-divider: `interpret-trailers` stops at a `---` line by default, but
+            # `%(trailers:key=…)` — the query CLAUDE.md says the trailers exist for, and the
+            # only consumer that matters — does not. Without this the guard rejected commits
+            # whose provenance was fully intact, merely because the body quoted a diff header
+            # or a markdown rule above the block. Diverging from the tool you guard is the
+            # failure this module's docstring calls worse than having no guard.
+            ["git", "interpret-trailers", "--no-divider", "--parse"],
             input=message,
             capture_output=True,
             text=True,
@@ -198,12 +212,19 @@ def declares_agent_role(body: str) -> bool:
         because CLAUDE.md's own example is indented and commits about it are routine here.
     """
     lines = body.splitlines()
-    if any(ln.startswith(f"{REQUIRED}:") for ln in lines):
+    # Case-insensitive, because `%(trailers:key=Agent-Role)` is: a commit writing
+    # `agent-role:` with a broken block parsed as nothing and slipped past a case-sensitive
+    # test entirely.
+    if any(ln.lower().startswith(f"{REQUIRED.lower()}:") for ln in lines):
         return True
+    # Any indented key in the FINAL paragraph counts. Requiring a column-0 anchor alongside it
+    # re-opened the bypass for a block that is indented in its ENTIRETY — structurally identical
+    # to a quoted example, and there is no way to tell them apart from the text. Reject is the
+    # right default: a lost block is silent and permanent, while a genuinely quoted example is
+    # fixed by putting the commit's own real trailer block below it (every automated producer
+    # here emits one) or moving the example out of the last paragraph. The diagnosis says so.
     final = body.rstrip().split("\n\n")[-1].splitlines()
-    if not any(ln.strip().startswith(f"{REQUIRED}:") for ln in final):
-        return False
-    return any(TRAILER_LINE.match(ln) for ln in final)
+    return any(ln.strip().lower().startswith(f"{REQUIRED.lower()}:") for ln in final)
 
 
 def trailers_lost_below_scissors(message: str) -> bool:
@@ -223,13 +244,17 @@ def trailers_lost_below_scissors(message: str) -> bool:
     scissors = next((i for i, ln in enumerate(lines) if SCISSORS_RE.match(ln)), None)
     if scissors is None:
         return False
-    return any(ln.startswith(f"{REQUIRED}:") for ln in lines[scissors + 1 :])
+    return any(ln.lower().startswith(f"{REQUIRED.lower()}:") for ln in lines[scissors + 1 :])
 
 
 def diagnose(message: str) -> str:
     """Name the specific defect, so the fix is obvious without re-deriving git's rules."""
     lines = message.rstrip().splitlines()
-    idx = next((i for i, ln in enumerate(lines) if ln.strip().startswith(f"{REQUIRED}:")), None)
+    idx = next(
+        (i for i, ln in enumerate(lines)
+         if ln.strip().lower().startswith(f"{REQUIRED.lower()}:")),
+        None,
+    )
     if idx is None:
         return "no Agent-Role: line found"
     if lines[idx] != lines[idx].strip():
@@ -347,7 +372,13 @@ def install(force: bool = False) -> int:
     # --install from wherever they are.
     guard_path = main_checkout_guard()
     if hook.exists() and "check_commit_trailers" not in hook.read_text(errors="replace"):
-        backup = hook.with_suffix(".replaced-by-fabrik")
+        # Unique name: a single fixed backup path silently destroyed the FIRST foreign hook the
+        # second time install() replaced one, and nothing ever restores this file.
+        backup = hook.with_suffix(f".replaced-by-fabrik.{os.getpid()}")
+        n = 0
+        while backup.exists():
+            n += 1
+            backup = hook.with_suffix(f".replaced-by-fabrik.{os.getpid()}.{n}")
         backup.write_text(hook.read_text(errors="replace"))
         print(f"backed up the previous hook to {backup}", file=sys.stderr)
     payload = (
@@ -363,10 +394,20 @@ def install(force: bool = False) -> int:
     # Atomic: install() now runs on every interactive shell, and a `git commit` that started the
     # hook inside a truncate->write window would read a partial (or empty) script — an empty sh
     # script exits 0, so that commit would pass unchecked and silently.
-    tmp = hook.with_suffix(".tmp")
-    tmp.write_text(payload)
-    tmp.chmod(0o755)
-    tmp.replace(hook)
+    # A SHARED fixed temp name reintroduced the very race the atomic write closed, one level
+    # down: install() now runs on every interactive shell on a three-agent box, and two shells
+    # interleaving on one `commit-msg.tmp` could publish a zero-length file — an empty sh script
+    # exits 0, i.e. the guard silently off. mkstemp gives each writer its own inode.
+    fd, tmp_name = tempfile.mkstemp(dir=str(hook.parent), prefix="commit-msg.", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(payload)
+        tmp.chmod(0o755)
+        tmp.replace(hook)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     print(f"installed {hook} -> {guard_path}")
     return 0
 

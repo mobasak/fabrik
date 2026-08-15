@@ -211,6 +211,16 @@ DIFFERENTIAL = {
     "markdown heading in body": "fix: x\n\n# Heading\nprose\n\nAgent-Role: primary\n"
     "Co-Authored-By: Y <y@z>\n",
     "comment-only final paragraph": "fix: x\n\nAgent-Role: primary\n\n# just a comment\n",
+    # The two shapes the corpus was missing — each one used to make the guard reject a commit
+    # whose provenance git preserves perfectly. A corpus that claims to cover "the shapes a real
+    # commit takes" while omitting the ones where the guard diverges is the wrong corpus.
+    "markdown rule above the block": "fix: x\n\nprose\n\n---\n\nAgent-Role: primary\n"
+    "Co-Authored-By: Y <y@z>\n",
+    # At LINE START, which is how a commit body quotes it (a fenced block, or the guard's own
+    # rejection text pasted in). An inline mention never reaches the ^#-anchored regex at all,
+    # so a corpus entry with the marker mid-sentence would have tested nothing.
+    "short scissors-ish line at column 0": "docs: document the guard\n\nOn failure it prints:"
+    "\n\n# ---- >8 ----\n\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n",
 }
 
 
@@ -589,13 +599,15 @@ def test_install_does_not_destroy_a_foreign_hook_that_merely_mentions_pre_commit
     assert "commitlint" in hook.read_text(), "the foreign hook was overwritten"
 
 
-def test_a_docs_commit_quoting_the_trailer_example_is_not_rejected(tmp_path):
-    """The mirror of the indented-key bypass — and the more likely one in this repo.
+def test_a_docs_commit_quoting_the_example_passes_when_it_carries_its_own_block(tmp_path):
+    """CLAUDE.md's canonical example is INDENTED, and commits discussing it are routine here.
 
-    CLAUDE.md's canonical trailer example is INDENTED inside a fenced block, and commits that
-    discuss it are routine here. Treating any indented `Agent-Role:` as a broken trailer made
-    those commits unrejectable-by-fixing: there was no trailer block to repair. An indented key
-    now only counts when the final paragraph is genuinely a trailer block.
+    An earlier attempt let ANY indented block through so long as the final paragraph had no
+    column-0 anchor — which re-opened the bypass, because a wholly-indented real block is
+    textually identical to a quoted one. There is no way to tell them apart, so the guard
+    rejects the ambiguous shape and the quotation is resolved by structure: put the commit's
+    own trailer block below the example (every automated producer here emits one), or move the
+    example out of the final paragraph. Both are what a real commit looks like anyway.
     """
     message = (
         "docs: explain the trailer format\n"
@@ -603,10 +615,34 @@ def test_a_docs_commit_quoting_the_trailer_example_is_not_rejected(tmp_path):
         "The canonical example is:\n"
         "\n"
         "    Agent-Role: primary\n"
-        "    Co-Authored-By: Claude <x@y>\n"
+        "\n"
+        "Agent-Role: primary\n"
+        "Co-Authored-By: Claude <x@y>\n"
     )
+    assert _git_verdict(message, tmp_path) is True, "precondition: git must parse this"
     result = run(message, tmp_path)
     assert result.returncode == 0, (
-        f"a docs commit that merely QUOTES the trailer example was rejected, and there is no "
-        f"trailer block in it to fix:\n{result.stderr}"
+        f"a docs commit quoting the example, carrying its own valid block, was rejected:"
+        f"\n{result.stderr}"
     )
+
+
+def test_a_wholly_indented_trailer_block_is_rejected(tmp_path):
+    """Every line indented means git parses nothing — and nothing complains. That is the
+
+    silent lost-provenance outcome the guard exists to stop, and requiring a column-0 anchor
+    alongside the indented key had re-opened it.
+    """
+    message = (
+        "fix: x\n\n    Agent-Role: primary\n    Agent-Context: c\n"
+        "    Co-Authored-By: Y <y@z>\n"
+    )
+    assert _git_verdict(message, tmp_path) is False, "precondition: git must NOT parse this"
+    assert run(message, tmp_path).returncode == REJECT_CODE
+
+
+def test_a_lowercase_trailer_key_is_not_a_blind_spot(tmp_path):
+    """`%(trailers:key=Agent-Role)` is case-INSENSITIVE; a case-sensitive gate was not."""
+    message = "fix: x\n\nagent-role: primary\n\nCo-Authored-By: Y <y@z>\n"
+    assert _git_verdict(message, tmp_path) is False
+    assert run(message, tmp_path).returncode == REJECT_CODE

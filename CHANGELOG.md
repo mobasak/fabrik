@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-27: 5 findings, one of them self-inflicted (2026-08-15)
+
+The scissors regex accepted "dashes around `>8`" when git writes exactly ONE cut line — 24 dashes,
+space, `>8`, space, 24 dashes (confirmed by reading a real `git commit -v` buffer). The loose form
+truncated a message at any prose line of that rough shape and then rejected it for having its
+trailers "below a scissors line" while git parsed them perfectly. This was self-inflicted: the
+literal `# ---- >8 ----` appears in **this guard's own rejection text** and in `hooks-index.md`, so
+every commit documenting the guard — which this review loop produces each round — was blocked, with
+a remedy impossible to follow and a verify command that contradicted the verdict.
+
+`git interpret-trailers --parse` honours the `---` patch divider; `%(trailers:key=…)` — the query
+CLAUDE.md says the trailers exist for, and the only consumer that matters — does not. A commit body
+quoting a diff header or a markdown rule above its block was hard-rejected with fully intact
+provenance. Fixed with `--no-divider`, which aligns the oracle with the consumer.
+
+The previous round's narrowing overshot in the other direction: requiring a column-0 anchor beside
+the indented key re-opened the bypass for a block indented in its ENTIRETY, which is textually
+identical to a quoted example. There is no way to tell them apart, so the guard rejects the
+ambiguous shape; a genuine quotation is resolved by structure (put the commit's own block below the
+example, which every automated producer here emits). Also: the presence gate was case-SENSITIVE
+while `%(trailers:key=…)` is case-INSENSITIVE, so `agent-role:` with a broken block slipped past
+entirely.
+
+`install()` used a single fixed backup name — the second foreign hook it replaced destroyed the
+first backup — and a shared fixed `commit-msg.tmp`, which reintroduced the race the atomic write had
+just closed, one level down: two shells interleaving on one temp file could publish a zero-length
+script, and an empty `sh` script exits 0. Now `mkstemp` per writer and a non-clobbering backup.
+
+All eight shapes re-checked against real `git commit` + `git log --format='%(trailers:…)'`: zero
+divergences. The `DIFFERENTIAL` corpus gained the two shapes it was missing — precisely the ones
+where the guard diverged.
+
 ### Fixed — round-26: 11 findings, including a cross-repo write and two live bypasses (2026-08-15)
 
 Round-27 self-review addendum: the indented-key fix above overshot into its own mirror. Treating
