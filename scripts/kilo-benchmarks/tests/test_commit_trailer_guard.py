@@ -877,3 +877,65 @@ def test_the_hook_does_not_fork_git_once_per_message_line(tmp_path):
         f"the hook forked git {short} times for a 20-line message and {long_} times for a "
         f"1200-line one — a subprocess is being spawned per message line"
     )
+
+
+CUT_LINE = "-" * 24 + " >8 " + "-" * 24
+
+
+@pytest.mark.parametrize("char", [";", "@", "!", ":", "|"])
+def test_a_quoted_cut_line_is_not_mistaken_for_gits_own(char, tmp_path):
+    """git resolves `core.commentChar=auto` ONLY when it writes a template.
+
+    For `-m`/`-F` it never runs that resolution, and neither `interpret-trailers` nor
+    `%(trailers:key=…)` resolve it either — both use '#' unconditionally. So a message that
+    merely QUOTES a non-'#' cut line was having everything below it discarded, and its real
+    trailer block reported as lost: a hard reject of a commit git parses perfectly, which is the
+    exact class this guard exists not to create. Detection now requires git's surrounding
+    COMMENT BLOCK, which a quotation does not have.
+    """
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", "auto"], cwd=repo, capture_output=True, check=False
+    )
+    message = (
+        f"docs: explain the cut line\n\ngit emits:\n{char} {CUT_LINE}\nand truncates there.\n"
+        f"\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n"
+    )
+    msg = repo / "COMMIT_EDITMSG_quoted"
+    msg.write_text(message, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"a quoted {char!r} cut line truncated the message and lost a valid trailer block:"
+        f"\n{result.stderr}"
+    )
+
+
+def test_gits_real_template_is_still_detected_under_auto(tmp_path):
+    """The mirror: requiring a comment block must not stop detection where git DID write one."""
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", "auto"], cwd=repo, capture_output=True, check=False
+    )
+    message = (
+        "docs: edit a file that mentions the trailer\n"
+        "\n# A markdown heading, which pushes git off '#'\n\n"
+        "; Please enter the commit message for your changes. Lines starting\n"
+        "; with ';' will be ignored, and an empty message aborts the commit.\n"
+        "; On branch main\n"
+        f"; {CUT_LINE}\n"
+        "diff --git a/x b/x\n"
+        " Agent-Role: primary\n"
+    )
+    msg = repo / "COMMIT_EDITMSG_template"
+    msg.write_text(message, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"git's own ';' template was not detected, so the -v diff hijacked the guard:"
+        f"\n{result.stderr}"
+    )

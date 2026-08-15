@@ -211,16 +211,25 @@ def comment_char(message: str | None = None) -> str:
         # `git commit -v` diff stayed in the authored text and a diff CONTEXT line
         # ` Agent-Role: …` read as an indented trailer, rejecting the commit over a line its
         # author never wrote. Same hijack the ';' fix closed, reached through 'auto'.
-        # Detect the char git ACTUALLY used, rather than recomputing its choice: the buffer we
-        # see already contains git's own comments, so "the first candidate that starts no line"
-        # excludes the very character it picked — that reasoning returned '@' where git had
-        # chosen ';'. A cut line is unambiguous direct evidence.
+        # Detect the char git ACTUALLY used rather than recomputing its choice — the buffer
+        # already contains git's own comments, so "the first candidate that starts no line"
+        # excludes the very character it picked (that reasoning returned '@' where git chose ';').
+        #
+        # Over-eager detection is SAFE here, and that is deliberate. This char is used only by
+        # authored_text(), whose sole job is deciding what the author wrote; truncating too much
+        # can only make the guard see no trailer and pass the commit through — and git, which
+        # resolves `auto` to '#' for parsing, will have parsed the block, so the two agree.
+        # The hard-reject path (trailers_lost_below_scissors) is pinned to '#' precisely so that
+        # a mis-detection can never cost anyone a rejected commit. An earlier version added a
+        # "must also have a comment block" requirement to make detection conservative; with the
+        # reject path pinned it bought nothing and broke detection of git's own template.
+        lines = message.splitlines()
         for candidate in AUTO_CANDIDATES:
             pattern = scissors_re(candidate)
-            if any(pattern.match(ln) for ln in message.splitlines()):
+            if any(pattern.match(ln) for ln in lines):
                 return candidate
-        # No cut line (not a -v commit). '#' is safe here: the verdict still comes from git's own
-        # parse of the RAW message, so an unstripped comment block cannot change it.
+        # No template of git's own making. '#' is what git itself falls back to for trailer
+        # parsing under `auto`, so it is also the right answer here.
         return "#"
     return value if len(value) == 1 else "#"
 
@@ -296,7 +305,16 @@ def trailers_lost_below_scissors(message: str) -> bool:
     # the module-level constant it replaced cost nothing. It is worst exactly where it is least
     # affordable: this branch runs for every commit WITHOUT a parsable Agent-Role (the common
     # case), and with no scissors line `next()` never short-circuits, so it scans every line.
-    pattern = scissors_re(comment_char(message))
+    # ⚠️ ALWAYS '#', never the auto-detected char. This function drives a hard REJECT, so it
+    # must fire only where git GENUINELY loses the block — and `%(trailers:key=…)`, the query
+    # that decides whether provenance survived, never resolves `core.commentChar=auto`: it uses
+    # '#' unconditionally. Using the detected char here rejected a `-F` message that merely
+    # quoted git's template (a `;` comment block plus a `;` cut line) with a perfectly good
+    # trailer block below it — git reported `primary`, the guard said the block was lost.
+    #
+    # authored_text() takes the opposite choice deliberately: there the detected char STRIPS a
+    # -v diff, and over-stripping can only cause a pass-through, which agrees with git.
+    pattern = scissors_re("#")
     scissors = next((i for i, ln in enumerate(lines) if pattern.match(ln)), None)
     if scissors is None:
         return False
@@ -516,7 +534,7 @@ def main(argv: list[str]) -> int:
     # does not match, because stripping whitespace leaves the `+`.
     if not declares_agent_role(body):
         if trailers_lost_below_scissors(message):
-            cc = comment_char()
+            cc = "#"  # the char this verdict was actually computed against
             print(
                 f"\n❌ COMMIT REJECTED — a {REQUIRED} block sits BELOW git's cut line.\n\n"
                 f"   Under -m/-F and under `git commit -v`, git discards everything below\n"

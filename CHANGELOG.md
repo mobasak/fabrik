@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-30: the `auto` comment-char detection could hard-reject a valid commit (2026-08-15)
+
+Round 29's `core.commentChar=auto` detection trusted any cut line it found. But git resolves `auto`
+only in `adjust_comment_line_char()`, which runs **only when git writes a template** — never for
+`-m`/`-F` — and neither `interpret-trailers` nor `%(trailers:key=…)` resolve it either: both use
+`#` unconditionally. So a `-F` message that merely QUOTED a `;` cut line had everything below it
+discarded and its real trailer block reported as lost — a hard reject of a commit git parses
+perfectly, which is the exact class this guard exists not to create. Twelve regression cells
+against the pre-fix guard.
+
+The fix splits the two uses of the comment char by what they can cost:
+`trailers_lost_below_scissors()` — the hard-REJECT path — is pinned to `#`, so it fires only where
+git genuinely loses the block; `authored_text()` — the STRIP path — uses the detected char, where
+over-truncating can only cause a pass-through, and git (parsing with `#`) will have accepted the
+block anyway, so the two agree. A first attempt instead made detection conservative by demanding a
+surrounding comment block; with the reject path pinned that bought nothing and broke detection of
+git's own template, so it was removed.
+
+Also: the rejection text called `comment_char()` without the message, so under `auto` it named `#`
+while the verdict had been computed against `;` — telling the author to move their block above a
+line that does not appear in their message. It now reports the char the verdict actually used.
+
 ### Fixed — round-29: a per-line subprocess fork, and `core.commentChar=auto` (2026-08-15)
 
 Round-30 self-review: the test pinning that fix was WALL-CLOCK based (`min()` of three runs against
