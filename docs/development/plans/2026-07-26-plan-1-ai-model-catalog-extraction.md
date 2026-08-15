@@ -529,6 +529,433 @@ day — `test $(date -u +%F) = $(date -u -r engine/out/docs/reference/kilo/TASK_
 
 ## Phase D — Cutover · runs in `/opt/fabrik`
 
+> **REWRITTEN CLEAN 2026-08-15 (pass 9).** The previous D+E was 483 lines carrying 39 warning
+> markers and 76 blocker references — eight review passes had appended findings faster than the steps
+> were corrected, so each new edit had ~40 neighbours to reconcile and passes 6–8 each left the
+> *step* asserting what its own *blocker* refuted. Every verified finding is folded into the steps
+> below, stated ONCE. The 115-finding record is preserved verbatim in § Appendix — Review Record;
+> nothing was discarded, but **these steps are now the artifact and the appendix is history.**
+>
+> **Every gate here was RUN against the live tree before being written down.** Where a gate could not
+> pass, could not fail, or measured the wrong thing, it was rewritten and re-run — that is the whole
+> reason this section exists.
+
+**Deliverable:** fabrik's `daily_refresh.sh` and `wsl_startup_hook.sh` stop running engine steps; the
+external engine (delivering live) is the sole producer; fabrik keeps `generate_kilo_agents`,
+`generate_capability_index` and `sync_enforcement_to_projects`. The vendored `_TABLE` floor stays.
+
+**⛔ GATED ON C.2.** D is not startable until the ≥7-day parallel-run window closes with the
+adjacent-run protocol (C-B5). Cutting over early discards the safety property the window establishes.
+
+**Files (MODIFY, fabrik):**
+- `scripts/kilo-benchmarks/daily_refresh.sh` — remove the engine steps, keep the consumer steps.
+- `scripts/wsl_startup_hook.sh` — **owned by THIS phase.** It invokes **23 distinct engine files**
+  (18 via `*_SCRIPT=` variables at `:36-44`/`:53-61`, every one used at `:150-154`/`:161-163`/
+  `:188-211`, plus 5 by absolute path at `:130`/`:232`/`:233`/`:234`/`:235`/`:236`/`:243`). It is a
+  full second engine pipeline, not a husk. Every invocation is swallowed by `>> $LOG_FILE 2>&1 || {…}`.
+- `scripts/generate_kilo_agents.py` — strip the `if not args.dry_run:` "Auto-update docs" block
+  (`:952-972`) that `importlib.exec_module`s two engine scripts. Phase C's deliver step owns roster +
+  capabilities injection now, so the block is redundant; left in place it degrades to a silent
+  `[warn]` at `:970` on the live path.
+
+### Steps
+
+**D.0 — Capture the cutover baseline (NEW; D.2 has always compared against a baseline nobody created).**
+`tests/golden/` holds only `db_queries.json` and `structure.json`; neither records a `pick_models`
+result. Capture one BEFORE any cutover step:
+`python -c "import sys,json;sys.path.insert(0,'libs');from subagents.select import pick_models;
+json.dump({t:pick_models(t,n=3) for t in ('code','review','docs','plan','research','spec')},
+open('scripts/kilo-benchmarks/tests/golden/pick_models_baseline.json','w'),indent=1)"`
+→ **Expected:** the file exists and every value is a 3-element list. Commit it.
+
+**D.1 — Shrink the two orchestrators.** Remove every engine `_step` from `daily_refresh.sh`
+(**55 real invocations**; `grep -c '_step '` returns 57 but `:364` and `:527` are comments) and every
+engine invocation from `wsl_startup_hook.sh` (the 23 above). The retained `daily_refresh.sh` is an
+**allow-list** of exactly six: `gather_envs`, `classify_services`, `deliver_to_fabrik`,
+`generate_capability_index`, `generate_kilo_agents`, `sync_enforcement_to_projects` — five exist
+today, `deliver_to_fabrik` is the Phase-C script invoked as a `_step` under exactly that name. So
+**50 steps are removed.**
+
+⚠️ `check_daily_refresh_freshness` is **RETAINED, not dropped.** An earlier version deleted it as an
+obsolete self-check "with no orphan, no carve-out" — `wsl_startup_hook.sh:236` is a live second
+caller. It moves with the retained remnant.
+
+- **Gate (i) — the step allow-list.** Comments must be stripped FIRST, or the gate reds on prose: the
+  comment at `daily_refresh.sh:527` contains the literal `_step "label"` and a naive grep extracts
+  `label`, making the gate unpassable after a perfect surgery.
+  `grep -vE '^[[:space:]]*#' scripts/kilo-benchmarks/daily_refresh.sh | grep -hoE '_step "[a-z_0-9]+"' | sort -u`
+  → **Expected:** a subset of the six allow-list names.
+- **Gate (ii) — engine-script references, both files.** The char class MUST include `/`, or every
+  subdirectory script collapses to its directory name and `$KB/tests/capture_golden.py` renders as
+  `$KB/tests`, which the retained list contains — the gate then passes with the blocker present.
+  `grep -hoE '(\$KB|\$\{KB\}|scripts/kilo-benchmarks)/[A-Za-z_0-9./-]+' scripts/kilo-benchmarks/daily_refresh.sh scripts/wsl_startup_hook.sh | sort -u`
+  → **Expected:** every hit is a member of the § E retained remnant (which now includes
+  `tests/capture_golden.py`, `pipeline_alert.sh`, `autocommit_pipeline_outputs.sh`,
+  `check_daily_refresh_freshness.py` and `rank_task_subagents.py` — do NOT read the old
+  "any `.py` here must be removed" wording, which contradicted the remnant).
+
+**D.2 — Cutover verification (behavior 1).**
+1. `python -c "import sys;sys.path.insert(0,'libs');from subagents.select import pick_models;print(pick_models('code',n=3))"`
+   → **Expected:** equals `pick_models_baseline.json["code"]` from D.0. **`n=3` is required** —
+   `pick_models(task_type, n=1)` is the signature, so `[:3]` on the default returns ONE model.
+2. Force-remove the selection doc → `pick_models('code',n=3)` still returns (falls to `_TABLE`), does
+   not raise → restore. **Verified working:** the fallback returns a *different* ordering, so this
+   gate genuinely discriminates.
+3. **Delivered-doc freshness.** Do NOT use `check_ai_pack_freshness.py`: its own docstring says
+   *"Exit 0 always — a freshness signal, NOT a gate"*, it reads hand-written pack stamps rather than
+   delivered-doc mtimes, and its threshold is 90 days.
+   `python -c "import time,pathlib;p=pathlib.Path('/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md');
+   age=(time.time()-p.stat().st_mtime)/3600;assert age<30, f'{age:.1f}h old'"`
+   → **Expected:** exit 0. (30h, not 24h: a 24h threshold on a 24h cron has zero margin and reds on
+   any delivery slip. Absolute path, because the gate is CWD-sensitive otherwise.)
+4. **Fleet smoke — must shadow the hub doc, or it cannot fail.** `libs/subagents/select.py:357-359`
+   prefers `_HUB_SELECTION_DOC` whenever `/opt/fabrik` exists, so a project reading its own vendored
+   copy is never exercised on this box: with a project's copy husked to `BROKEN/sync-failed-model`
+   the unshadowed gate still returned the correct hub answer, from the wrong file.
+   `cd /opt/<project> && SUBAGENT_SELECTION_DOC=$PWD/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md python -c "…pick_models('code',n=3)…"`
+   → **Expected:** matches the D.0 baseline, proving `sync_enforcement_to_projects` really delivered.
+   (**48** vendored copies, measured.)
+5. Overlap ≥3 days monitoring `pick_models` + the flywheel. *(Elapsed-time; not runnable in a session.)*
+
+**D.3 — Behavior Contract:** behavior 1, both clauses — the fleet resolves post-cutover (D.2.1/D.2.4)
+and the selection-doc-removed `_TABLE` fail-open holds (D.2.2).
+
+**D.closing:** `final_gate --json` green; `check_doc_sync`; `/fabrik-review` on the diff → no-op;
+commit (`Agent-Phase: D`) + plan marker.
+
+---
+
+## Phase E — Excise residue · runs in `/opt/fabrik`
+
+**Deliverable:** the engine and the genuinely-dead Kilo/Cascade scripts are gone from fabrik.
+**Deploy is OUT OF SCOPE (D5)** — no `fabrik apply`, no container, no network DSN.
+
+### What is KEPT — decided, not deferred
+
+**K1 — `scripts/kilo_code_review.py` and `scripts/kilo_docs_enforcer.py` STAY.** They are not Kilo
+residue; they are live fleet-synced governance on eight surfaces — `fabrik_synced_manifest.py:29-30`
+(CORE_SCRIPTS), the governance-sync `files:` filter at `.pre-commit-config.yaml:65`,
+`sync_enforcement_to_projects.py:5`, `watch_enforcement_changes.sh:49-50`, `src/fabrik/scaffold.py:1017-1018`,
+the fleet-synced pack `.windsurf/rules/core/50-code-review.md:75,87`,
+`templates/saas-skeleton/AGENTS.md:101`, `templates/scaffold/gitignore-synced-block.txt:30` — with
+**48 project copies on disk**. Deleting them fails silently in both directions: `sync_enforcement_to_projects.py:405`
+copies CORE_SCRIPTS under a bare `if source.exists():` with orphan pruning only for `VENDORED_DIRS`,
+and `scaffold.py:1025` has the same guard, so new projects would ship without Step-3/Step-4 tooling
+and no test asserts otherwise. **Because they stay, `scaffold.py` needs no change** and their two
+tests (`tests/test_kilo_review_validation.py`, `tests/test_kilo_strictness_scenarios.py`) stay too.
+
+**K2 — the retained `kilo-benchmarks/` remnant** (everything else under it is deleted):
+`kilo_agents.db` · `models_browser.html` · `daily_refresh.sh` (shrunk, `0 6 * * *` cron) ·
+`tests/golden/**` · `tests/capture_golden.py` · `tests/test_golden_parity.py` ·
+`tests/test_parallel_run_diff.py` · `pipeline_alert.sh` · `autocommit_pipeline_outputs.sh` ·
+`check_daily_refresh_freshness.py` · `rank_task_subagents.py` · the rule-6 coding-router deps
+`classify_ticket.py` + `db_models.py` + `kilo_telemetry.py` · the rule-7 data files
+`claude_p_cost.json` + `claude_price_ratios.json`.
+*Why each:* the three `tests/` Python files are the ONLY readers of the retained `tests/golden/**` —
+without them the golden survives with zero readers, and `C.3` gate (i) invokes one of them post-E.
+The five shell/py at the end are invoked by the RETAINED boot hook and orchestrator.
+
+**K3 — rule-7 data relocation.** `cp` (not `git mv`) `claude_p_cost.json` + `claude_price_ratios.json`
+to `scripts/`, `git add` both. `scripts/claude_p_cost.py` resolves them via `_find()` (`:49-56`) as
+`_HERE/<name>` then `_HERE/"kilo-benchmarks"/<name>`; after E they are the only copies and the first
+path wins. ⚠️ It is **NOT** fleet-synced (absent from `fabrik_synced_manifest.py`) — its own docstring
+says otherwise and is wrong; the blast radius of getting this wrong is hub-only.
+
+### What is DELETED
+
+**E.2(i)** — `git rm -r` the engine under `scripts/kilo-benchmarks/`, keeping K2.
+**E.2(ii)** — the genuinely-dead top-level scripts (verified 2026-08-15: all present, brace expansion resolves
+to **14** files, exit 0 — 9 named + 4 `Local_*.sh` + `Kilo_Review.sh`. My first draft of this line said
+13; the count is stated here because a `git rm` naming one absent path fails the WHOLE command):
+`git rm scripts/{kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh,kilo_code_review_bckp.py} scripts/Local_*.sh scripts/Kilo_Review.sh`
+⚠️ `kilo_code_review_bckp.py` **is** deleted despite K1 keeping its sibling: it has zero live
+consumers (only CHANGELOG + the design spec mention it) and cannot match the `\.py$`-anchored sync
+filter. Keeping it would violate behavior 4.
+**E.2(iii)** — `git rm tests/kilo_benchmarks/**` (14 engine test files) plus the two co-deleted
+root tests: `tests/test_kilo_dispatch.py` (its module goes) and `tests/test_derive_cost_by_family.py`
+(`derive_cost.py` is dead outside the engine — only engine-internal importers, and
+`claude_p_cost.py:9-12` deliberately keeps a standalone copy rather than importing it).
+⚠️ `process.py`/`process_v2.py` are NOT top-level; they exist only under `kilo-benchmarks/` and are
+covered by (i). Do **not** "fix" this with a `scripts/process*.py` glob — that matches the live
+`scripts/process_monitor.py`.
+
+**E.2(iv) — dangling references to the deleted set** (each verified live): `.windsurf/workflows/kilo.md`
+(the ONE workflow invoking `kilo_dispatch`; the other five reference `kilo_code_review`, which is
+KEPT — purging all six would break live governance) · 23 `scripts/traycer_agents_fixed/*.sh` and the
+three sibling fixers `fix_balanced_tier_agents.py`, `fix_economy_tier_agents.py`,
+`implement_self_review_workflow.py` plus `templates/traycer/agent-post-execution-hook.md`, all of
+which invoke `traycer_agent_review.py` · the dead-script patterns in `fabrik_synced_manifest.py` and
+`.pre-commit-config.yaml:65` (**not** the `kilo_code_review|kilo_docs_enforcer` entries — K1) ·
+`watch_enforcement_changes.sh:49-50` · the rule-4 docs.
+
+**E.2(v) — the residue emitter.** `rank_coding_subagents.py:392` writes
+`**Generator:** \`scripts/kilo-benchmarks/rank_coding_subagents.py\`` into the delivered docs, so the
+relocated engine re-injects the banned string daily into rule-1 KEEP artifacts. Repoint the header to
+the engine's own path in `ai-model-catalog` **before** the residue gate is trusted, or the gate and
+rule 1 are permanently unsatisfiable.
+
+### Gates
+
+- **(a) dead-pattern purge —** `[ "$(grep -rho 'kilo_dispatch\|kilo_consult\|mcp_kilo_server\|kilo_agent_health\|traycer_agent_review' scripts/fabrik_synced_manifest.py .pre-commit-config.yaml scripts/watch_enforcement_changes.sh | wc -l)" = 0 ]`
+  → **Expected: exit 0.** ⚠️ Do NOT include `kilo_code_review|kilo_docs_enforcer`: a gate demanding
+  those reach zero mandates the K1 regression — it forces them out of the sync while the files stay
+  on disk, orphaning 48 project copies.
+- **(a-inverse) the KEPT modules stay wired —** `grep -c 'kilo_code_review' scripts/fabrik_synced_manifest.py`
+  → **Expected: ≥1.**
+- **(b) positive-deletion proof —** `ls scripts/kilo_dispatch.py scripts/kilo_consult.py scripts/kilo_cost_report.py scripts/mcp_kilo_server.py 2>&1 | grep -c 'No such file'`
+  → **Expected: 4.** ⚠️ `grep -c` exits 1 when it prints `0`, so never place this after `set -e`
+  without `|| true`.
+- **(c) residue —** `grep -rlE "scripts/kilo-benchmarks/[a-z_0-9]+\.py" /opt/fabrik --include=*.py --include=*.sh --include=*.md | grep -vE "/\.git/|/\.claude/worktrees/|docs/archive/|docs/superpowers/specs/|scripts/\.archive/|CHANGELOG\.md|LESSONS_LEARNT\.md|docs/development/|tests/integration/test_routing_failover\.sh|tests/test_docs_updater\.py"`
+  → **Expected: empty.** ⚠️ `/\.claude/worktrees/` is **required**: those files are excluded from git
+  via `.git/info/exclude`, not from grep, and sibling worktrees put 67–340 matches there — without it
+  behavior 4 is unprovable on this box. Two intentional fixtures are excluded and must never be
+  "fixed": `test_routing_failover.sh:49`'s fail-open sentinel and `test_docs_updater.py:187`'s string
+  fixture asserting cross-repo links do NOT resolve.
+- **(d) retained consumers still run —** `test -f scripts/kilo-benchmarks/kilo_agents.db`;
+  `grep -c "generate_selection_guide_roster.py\|generate_model_capabilities.py" scripts/generate_kilo_agents.py`
+  → **Expected: 0** after D.1's strip; `python scripts/kilo_auto_route.py --help` → exit 0;
+  `python -c "import sys;sys.path.insert(0,'libs');from alerting import send_alert"` → imports.
+  ⚠️ Do **not** gate on `generate_kilo_agents.py --out …`: that flag does not exist (argparse accepts
+  only `-h`/`-d`), and the "equivalent" non-dry-run wipes `~/.traycer/cli-agents` via `shutil.rmtree`
+  (`:875`). The failure it targets prints `[warn] Could not update` to stdout with **exit 0**, and the
+  emitter sits inside `if not args.dry_run:` — so a `--dry-run` grep can never see it either. Prove it
+  instead by the static check above plus a real run in a disposable HOME:
+  `HOME=$(mktemp -d) python scripts/generate_kilo_agents.py 2>&1 | grep -c 'Could not update'` → **0**.
+
+**E.1 — Import-graph audit.** Build it as a runnable script (`tests/audit_engine_coupling.py`,
+throwaway). Four defects in the previously-embedded version must not be reproduced: derive ENTRY from
+the live crontab with a `/`-tolerant pattern **and guard every path with `.exists()`** (the old form
+emitted other repos' absolute paths and died on `FileNotFoundError` before printing a line, while
+missing this plan's own `0 6 * * *` cron); give the shell branch a `/`-tolerant pattern **and a `.sh`
+alternation** (without them it cannot see `capture_golden.py`, `pipeline_alert.sh` or `coding-auto.sh`
+— the very C3 dependency it exists to find); iterate the RULE-7 pass over the transitive set, not
+`ENTRY`; and cover `.db`/`.html` as well as `json|yaml|txt`, since the two rule-1 artifacts are
+otherwise invisible to the tool meant to prove the sweep complete. **Expected:** every `RULE-6 DEP` is
+in K2 and every `RULE-7 DATA DEP` is relocated per K3. Today the correct output is **5** RULE-6 lines
+— the three carve-out modules plus `generate_model_capabilities.py` and
+`generate_selection_guide_roster.py`, which D.1's strip removes; treat those two as handled, not as
+orphans to carve out.
+
+**E.3 — Full gate + pool smoke.** `python scripts/final_gate.py --json` → `"success"`
+(baseline-attributed); run a real `/fabrik-review` finder round end-to-end.
+
+**E.4 — ⛔ RETIRED (D5).** Deploy + network flywheel DSN are out of scope; the probe this step planned
+was already run (spec §4: `fabrik_analytics` is on the WSL host's local socket,
+`listen_addresses=localhost`, box not on the WireGuard mesh). Its steps were **deleted** rather than
+left as imperatives a skim could execute.
+
+**E.5 — Behavior Contract:** behavior 4 (residue).
+
+**E.closing:** whole-plan `/fabrik-review` over the cumulative diff → no-op; `final_gate --json` green
+(fresh) in both repos; `check_convergence.py` green; `/fabrik-docs-review`; commit (`Agent-Phase: E`)
++ flip `Status: → EXECUTED <date>`; archive to `docs/development/plans/archived/`.
+
+**Out of migration scope (Phase 6, separate plan):** the catalog *product* — API, UI, multi-tenancy,
+billing, and licensing the 7 high-risk scraped-ranking feeds.
+
+---
+
+## Subagent strategy
+
+| Fan-out | Where | Recipe | Records |
+|---|---|---|---|
+| Per-phase `/fabrik-review` finders | A/B/C/D/E closing | `fanout("review", units=[dims], mode="read_only", project="catalog-extraction")` + `set_quality` + **≥1 native `fabrik-reviewer` (Opus)** on the high-blast slices (deliver step, cutover, residue-delete) | `subagent_runs` |
+| Behavior-test authoring | A.3/B.2/B.3/C.1 | `fanout("code", mode="write", owned_paths=[disjoint per unit], project="catalog-extraction")` → curate → `git apply` | `subagent_runs` |
+| Parallel grounding (this plan-review) | Phase 1 | `fanout("research", mode="read_only", web_tools=[…])` per independent unit + native `fabrik-researcher` (Haiku sample) | `subagent_runs` |
+
+**Parallelism:** A→B→C→D→E are **sequential** (each consumes the prior). Within a phase, the review finders + test authors fan out in parallel and merge. Cross-repo: Phase B runs in ai-model-catalog, A/D in fabrik, C/E in both — no shared file within a phase.
+
+## File Scope (owned paths)
+
+- **fabrik:** `scripts/kilo-benchmarks/**` (snapshot in A, engine SCRIPTS deleted in E — retaining the consumer remnant: `kilo_agents.db`, `models_browser.html`, `daily_refresh.sh`, `tests/golden/**`), **`tests/kilo_benchmarks/**`** (moved to engine in B, `git rm`'d in E), **`scripts/run_kilo_workflow.sh`** (deleted in E), `scripts/generate_kilo_agents.py` (D: strip auto-update block), `scripts/kilo-benchmarks/tests/test_{golden_parity,parallel_run_diff}.py`, `scripts/wsl_startup_hook.sh`, `scripts/fabrik_synced_manifest.py`, `.pre-commit-config.yaml`, `scripts/watch_enforcement_changes.sh`, the dead Kilo/Cascade scripts (E), the rule-4 docs (`docs/FEATURES.md`, `docs/operations/AI_MODELS_BROWSER_OPS.md`, `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`, `docs/workflows/KILO_AGENT_MANAGEMENT.md`, `docs/CONFIGURATION.md`), `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `docs/PROJECT_CATALOG.md`, `docs/README.md`, this plan file. **(The exact rule-3/rule-4 set is enumerated mechanically by E.1's discovery grep — this list is the known core, not the completeness authority.)**
+- **ai-model-catalog:** `engine/**`, `compose.yaml`, `CHANGELOG.md`, `docs/SERVICES.md`, `docs/OPERATIONS.md`.
+- **Disjoint** from any known-active sibling plan (verify at scope-lock). The fabrik `INDEX.md`/`PORTS.md`/`PROJECT_CATALOG.md` are shared-churn files → **serialization points** (stage only this plan's lines, per the shared-master rule).
+
+## Evidence
+
+### Phase A grounded in
+- Consumer manifest: spec §2 (the six output classes) — verified live this session (`select.py:479-483` fallthrough, `rank_task_subagents.py:335` query).
+- `sync_enforcement_to_projects.py:279` `_atomic_copy` (the deliver-step reuse) — read this session.
+
+### Phase B grounded in
+- `ai-model-catalog` structure — `ls /opt/ai-model-catalog` (has `engine`-able tree; `compose.yaml` already carries a `worker` service at `:83`):
+  ```
+  services: ai-model-catalog(:12) · api(:46) · worker(:83) · fabrik network(:113)
+  ```
+- Engine size — ⚠️ **RE-MEASURED 2026-08-15 (P5-10): this section, the plan's own *grounding record*, was
+  carrying the frozen 2026-07-26 numbers while the Files list at Phase B had already been corrected.** Live
+  today: **101** top-level `.py` (not 98) + **55** in-tree tests (not 50) in `scripts/kilo-benchmarks/`
+  (`ls scripts/kilo-benchmarks/*.py | wc -l` → 101; `find scripts/kilo-benchmarks/tests -name 'test_*.py' | wc -l`
+  → 55) **+ 14 repo-root engine test files in `tests/kilo_benchmarks/`** (unchanged; `ls tests/kilo_benchmarks/*.py
+  | grep -v __init__ | wc -l` → 14). Engine test total = 55 + 14 − 2 rule-6 tests = **67**, matching Phase B —
+  **not** the 64 this line used to assert. A stale Evidence block is worse than no Evidence block: it is the
+  section a fresh executor trusts as already-verified.
+
+### Phase D grounded in
+- Engine→consumer split: spec §3b (STAYS: `generate_kilo_agents`, `generate_capability_index`, `sync_enforcement`) — verified via `daily_refresh.sh:257/260` seam.
+- Fail-open: `select.py:479-483` + `:373` 14-day gate; freshness: `check_ai_pack_freshness.py` (`wsl_startup_hook:213` — cite corrected pass 7; and per P6-5 it is an exit-0-always SIGNAL on 90-day pack stamps, **not** a delivered-doc gate).
+
+### Phase E grounded in
+- Dead-script inventory + non-propagation: spec §3c; `fabrik_synced_manifest.py:29-30`, `watch_enforcement_changes.sh:49-50`, git `55a53b9a` "retired Kilo/Cascade triad".
+- Flywheel host-less DSN: spec §4 (`SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics`, `rank_task_subagents.py:213`/`:216` fail-open, `:187-191` sudo-psql).
+
+## Self-audit
+
+### Grounding passes run
+- Solo (this turn), inheriting the CONVERGED spec (5-pass /fabrik-spec-review, same session). Re-confirmed live: `select.py:479-483`, ACTIVE-packs (24), `ai-model-catalog` tree + `compose.yaml` worker service, engine file counts.
+
+### (a) Coverage — every "What we already agreed" mapped
+- Move engine → ai-model-catalog (spec Goal) → Phases B (copy) + D (cutover) + E (excise/deploy).
+- Don't break fabrik/fleet (constraint 1/2) → Phase A golden + C parallel-run + D fail-open verification.
+- No functionality lost (constraint 3) → Phase A/B **structural** parity + Phase C's same-instant byte diff.
+- Zero residue (constraint 4) → Phase E excise + pre-delete grep + sync-manifest purge.
+- Option A / tenant-zero / produce→deliver→sync (D1) → Phase C deliver bridge + D (fabrik keeps sync).
+- Flywheel read-only DSN (D2) → **SUPERSEDED by D5 (2026-08-12)**: the probe was run and found no network-reachable instance; the flywheel does not move and the read is unchanged. E.4 retired.
+- Fold dead-residue purge (D3) → Phase E.2.
+- Single plan, review per boundary (D4) → this plan, `/fabrik-review` in every phase's closing.
+- Catalog store → **Postgres** (operator 2026-08-12) → Global Constraints + **B.2g**. *(B.4 is deleted; the old "SQLite stays / engine=worker" mapping is superseded.)*
+
+### (b) Cross-phase signature consistency
+- `capture_golden.GOLDEN_DIR` (A) ← consumed by `test_parity_vs_fabrik_golden` (B) + `test_parallel_run_diff` (C). ⚠️ **The old "Names match" was FALSE** — the Interfaces block promised `assert_parity()` and a sha256 manifest, neither of which exists. Corrected there; the real shared surface is `structure.json` + `capture_golden`'s shape extractors.
+- `engine/out/**` — file producers write `engine/out/<fabrik-relative>` (two sub-classes per B.2e: `FABRIK_ROOT`-repoint for `rank_*`/`generate_model_capabilities`; explicit `--output` for `export_traycer_registry`/`export_models_browser`), injectors emit `engine/out/blocks/*.txt`, plus `engine/out/kilo_agents.db` (F1) → `deliver_to_fabrik.py` copies the file artifacts, marker-injects the blocks, and copies the DB to fabrik (C consumes). Match.
+- **Engine outputs vs retained-consumer outputs (F2):** the engine produces the selection docs, marker blocks, `kilo_47_agents_final.json`, `KILO_MODEL_CAPABILITIES.md`, `models_browser.html`, `kilo_agents.db`. `docs/CAPABILITIES.md`/`capabilities.json`/`llms.txt` are `generate_capability_index.py` outputs (retained fabrik consumer, Phase D) — NOT engine outputs, NOT in the golden, NOT delivered (would collide with the live local producer). Consistent A↔B↔C↔D.
+- `OUTPUT_ROOT` env (B.2e introduces, default `ENGINE_ROOT/out`, decouples writes from `SCRIPT_DIR.parent.parent` so producers never clobber the scaffold's own `.windsurf/rules/ai`; the two `--output`-driven producers get the flag from `daily_refresh.sh`) → the golden (A) captures the same relative artifacts + marker-block bodies the producers emit. Match.
+- ~~`FLYWHEEL_DSN` env (B.2 introduces) → provisioned real (E.4). Match.~~ ⛔ **VOID (pass 7): neither end exists.** B.2c is `SUPERSEDED BY D5 — DO NOT REWRITE THE FLYWHEEL READ`, and E.4 is `⛔ RETIRED`. A self-audit certifying a producer/consumer pair where both ends were retired is worse than a missing row.
+
+Fixed-point claim: this plan carries the full grounding a fresh executor needs; `/fabrik-plan-review` re-ground every `path:line` (incl. the B.2e OUTPUT-decoupling defect), and a follow-up `/fabrik-review` native-Opus pass caught + fixed the artifact-attribution defects (F2 `CAPABILITIES.*` misattribution, F1 retained-consumer `kilo_agents.db` delete-break, F3 `--output`-driven producers, F4 deliver-injection test, F5 12F-XI stdout, F6 golden artifact, F7 test count).
+
+## Residual unknowns
+
+### Resolved during drafting
+1. **Engine target dir** — `engine/` in ai-model-catalog. **REASON CORRECTED 2026-08-12:** not "the scaffold's `worker` service hosts it" (that service is the retired container). Under WSL-only **no build context binds the engine at all**, so a top-level `engine/` is correct and keeps the 101-script flat tree out of the scaffold's `server/src/ai_model_catalog` package namespace. The later VPS spec re-decides. RESOLVED.
+2. **SQLite vs Postgres** — CHANGED 2026-08-12 (operator, spec §7): **consolidated into Postgres in the new repo.** RESOLVED the other way; see Global Constraints.
+3. **Deliver mechanism** — reuse `_atomic_copy` from `sync_enforcement`. RESOLVED.
+
+### Still-open (each self-service)
+1. **[SELF-SERVICE — Phase B.2]** Exact set of `/opt/fabrik` string literals to rewrite. Resolution: `test_no_fabrik_paths.py`'s grep enumerates them; fix each; the test gates it. No stop.
+2. **RESOLVED 2026-08-12 — no longer a residual.** The flywheel's physical host was PROBED and recorded in spec §4 (WSL local socket, `listen_addresses=localhost`, not on `postgres-main`, box not on the WireGuard mesh). E.4 is retired. Original text: ~~[SELF-SERVICE — Phase E.4] … Resolution:~~ `psql "$SUBAGENT_RUNS_DSN" -c '\conninfo'` on the hub — a one-command probe, executor runs it. Fail-open covers a miss.
+3. **[SELF-SERVICE — Phase E]** Whether any /opt project (beyond fabrik) imports the engine directly. Resolution: E.1's fleet-wide grep; extend the delete-guard to any hit. No stop.
+
+## Pass Ledger (`/fabrik-plan-review`)
+
+The loop terminates only on a pass with `edits: 0` **and** `md5(start) == md5(end)`. Recorded here because a
+review that lives only in chat is not a review — and because the header spent three passes asserting a
+convergence it never had.
+
+| Pass | scope re-grounded | raised | new: | edits | plan md5 (start → end) |
+|-----:|---|---:|---:|---:|---|
+| 1–3 | pre-2026-08-15 rounds. ⚠️ The `dc3eddf8…` no-op these claimed was **not reproducible** — treat as unverified | — | — | — | not recorded |
+| 4 | C/D grounders + orchestrator re-verify (C-B1…C-B4, D-B1…D-B5) | 9 | 9 | 9 | → `46361555…` |
+| 5 | closing full read; A/C/D by orchestrator, B + E by two independent Opus grounders | 43 | 43 | 43 | `46361555…` → (edited) |
+| 6 | **EXECUTION-GROUNDED**, scoped to D+E: every gate RUN; pool breadth (3 models) + native Opus | 11 | 11 | 11 | `63cc676b…` → `6f5f5625…` |
+| 7 | **closing full read** (all 1,178 lines, nothing skimmed) + orchestrator fold-in | 30 | 30 | **35 step-body edits** | `4cb61ca9…` → (edited) |
+
+⚠️ **Rebuilt in pass 7.** The previous table had a six-cell row against a four-column header, listed pass 6
+before pass 5, left an md5 as the prose placeholder "(non-identical — pass 6 owed)", and had an unexplained
+gap between pass 5's end and pass 6's start — so its own termination condition (`md5(start) == md5(end)`) was
+unauditable from it.
+
+**Pass 7 — the DIAGNOSIS, and it indicts every pass including mine.** An independent closing read of all 1,178
+lines found 30 more and named the structural cause: *"pass 6 changed the METHOD (run the gates) but not the
+DELIVERABLE — it appended eleven correct findings and edited ZERO of the eleven step bodies they indict. Every
+prior pass did the same. The plan is now a document in which the blocker blocks are more accurate than the
+steps, and the executor reads the steps."* That is exactly right, and it explains why six passes kept finding
+things: **recording a defect was being mistaken for fixing it.** Pass 7 therefore made **35 step-body edits** —
+the data-destroying `cache/` gate, the E.2 delete list, the char class that let a gate pass with its own
+blocker present, the fleet smoke that could not fail, the freshness gate measuring the wrong thing on a 90-day
+threshold, the Interfaces contract promising a function that does not exist, the A.1 floors that passed with
+12 of 18 markers gone, the retained remnant missing seven files, four surviving "byte-identical" claims, the
+stale Handoff, and the Converged field. **The blocker blocks stay as the record; the STEPS are now the
+corrected artifact.**
+
+**Pass 6 — the method changed, and it is the finding.** Four prose passes shipped 74 wrong claims;
+pass 6 RAN the gates instead and found 11 more in the two phases that have not executed — including
+that **E.2 as written deletes live fleet-synced governance with no failing check anywhere** (P6-1),
+that **two D gates cannot fail** (P6-3, P6-4, each proven by constructing the failure they exist to
+catch), and that one of my OWN pass-5 findings was wrong (**E-B5 REFUTED**, P6-2). ⚠️ The pool
+breadth layer (3 models) returned almost entirely RESTATEMENTS of the blocker blocks already written
+into the plan — scored 2-3/5. That is a method lesson worth keeping: **once a plan contains its own
+defect list, prose review summarises it back instead of finding anything new.** Every genuinely new
+pass-6 finding came from executing a command. Probe duty: the plan embeds **0** runnable probes
+(`$ `-prefixed fences) across ~600 lines — which is precisely why 74 claims could be wrong and look
+right.
+
+**Pass 5 total: 43 findings** — 10 orchestrator (below), 11 Phase B (**B-B1…B-B11**), 20 Phase E
+(**E-B1…E-B20**), plus 2 sub-claims refuted inside otherwise-correct findings. Running total across passes
+2–5: **74** wrong or drifted claims. The distribution is the lesson: **every single one required opening a
+file or running a command** — the plan reads impeccably and was wrong 74 times.
+
+⚠️ **The four that would have caused real damage, all found in this pass:** `B-B1` (two producers write to
+`/opt/docs/`, outside both repos — a HARD STOP, armed but not yet fired), `B-B4` (a gate whose literal
+execution deletes the hand-maintained data the previous sentence protects), `E-B1` (E.2 orphans five live
+callers under the retained boot hook, every failure swallowed, with the alerting script itself deleted), and
+`E-B12` (a false piece of evidence whose "obvious fix" would `git rm` the live `process_monitor.py`).
+
+**Pass-5 findings (orchestrator half, each verified by opening the file or running the command):**
+
+| # | Finding | Verdict |
+|---|---|---|
+| A-B1 | A.1/A.2/B.3 gate on `golden/manifest.json`, `blocks/`, sha256 byte-identity and `test_selection_docs_match_current` — **none exist**; the real oracle is `structure.json` (`capture_golden.py:50`) | CONFIRMED — CRITICAL, blocks B.3 |
+| D-B6 | `pick_models('code')[:3]` returns **one** model (`select.py:430-432`, `n: int = 1`); the flagship gate calls it a top-3 and cannot see a `_TABLE` fallback | CONFIRMED |
+| P5-1 | `PACK_TO_CATEGORY` is at `update_gateway_counts.py:260/:275`, **not** `category_export_markdown.py:303`; the two injectors do not share a host-discovery mechanism | CONFIRMED |
+| P5-2 | C-B4 ("rule-6 carve-out incomplete") was **my own false finding** — all three modules are carved out at `:155`, `:334`, `:386` | **REFUTED** |
+| P5-3 | "56 vendored copies" (2 sites) — live count **48**, repo canonical 49; D-B5 recorded it but never fixed the sites | CONFIRMED |
+| P5-4 | Header + Handoff asserted `CONVERGED` / an md5-verified no-op that never happened | CONFIRMED |
+| P5-5 | No Pass Ledger existed at all — hence this section | CONFIRMED |
+| P5-7 | `_atomic_copy` is `sync_enforcement_to_projects.py:279`, cited as `:278` in 4 places | CONFIRMED |
+| P5-9 | Global Constraints' 12-Factor bullet still answered X and XII with "n/a — SQLite", which B.2g superseded — the last site asserting the retired store decision | CONFIRMED |
+| P5-10 | § Evidence still recorded `98 .py + 50 tests = 64`; live is `101 + 55` → **67**, matching Phase B. The plan's grounding record was the stale one | CONFIRMED |
+
+Re-verified and **held** from pass 4: C-B1 (lockfile byte-identical at `:125-131` in both engines), C-B2 (two
+different 7-packs; 3 of 11 `ai/*.md` carry neither marker), C-B3 (the `^/opt/fabrik` anchor is escapable —
+proved with a 2-line fixture), D-B1 (57 grep hits, **55** real invocations, comments at `:364`/`:527`, and
+`label` really is in the `sort -u` output), D-B2 (`wsl_startup_hook.sh:236` is the second caller), D-B3
+(`tests/golden/` holds exactly `db_queries.json` + `structure.json`; no `pick_models` baseline anywhere).
+
+## Handoff
+
+**Next (user-triggered):** `/fabrik-execute-plan docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md`. ⚠️ **STATE, refreshed pass 7 (the old text said "B in progress" and never mentioned C):** Phase A `✅ EXECUTED`, Phase B `✅ EXECUTED`, Phase C `🟡 CODE COMPLETE — window OPEN`, Phases D+E **unexecuted**. **The one live gate is C.2's ≥7-day parallel-run window; Phase D is gated on it by design** and cutting over early discards the safety property it exists to establish. Before D runs: A-B1 ✅ fixed, C-B1 ✅ fixed, B-B9 (`CATALOG_DSN` unprovisioned) still open, and E.2 must not run until P6-1's KEEP decision is reflected in whatever tooling executes the deletes. ⚠️ **The plan is NOT `CONVERGED`** — this line's earlier "re-grounded to an md5-verified no-op" claim was false (see § Pass Ledger). Execution has begun anyway under operator direction (Phases A ✅, B in progress); the **blockers block at Phase D's head is binding** — A-B1 must be resolved before B.3, C-B1 before C.2, and E.2 must not run until C1/C2/C3 are scheduled. E.4 is retired (D5).
+**💡 fabrik-lib candidates:** none — the deliver step reuses `sync_enforcement`'s copy pattern; the engine is project-local.
+
+---
+
+## Plan reconciliation (2026-08-12)
+
+A sibling plan SET — now at
+`docs/development/plans/archived/2026-08-12-plan-1-catalog-extraction-fabrik-prep/` (5 tickets, **SUPERSEDED,
+archived unexecuted 2026-08-12**) — was authored before this plan was re-reviewed, and overlapped it:
+
+| Sibling ticket | Overlap with this plan | Disposition |
+|---|---|---|
+| T01 golden-file oracle | **Duplicates Phase A.1–A.3, less well.** This plan's A.1 already carries the whole-file vs marker-body split, the `EMBEDDING_CATALOG` strip, the `EMBEDDING_WINNERS`/`ROSTER` hosts, the 6-doc `*_SELECTION.md` scoping and the `db_queries.json` capture — every fix an independent review had to add back to T01. | **This plan wins; retire T01.** |
+| T02 import-graph audit | Duplicates E.1's audit, which is the original and carries all 7 classification rules. | **This plan wins; retire T02.** |
+| T03 flywheel safety gates | **No counterpart here** until A.0 above. | Either source is fine — **run once**. |
+| T04 shared cost-JSON relocation | Duplicates E.1 rule 7 (`claude_p_cost.json` / `claude_price_ratios.json`). | **This plan wins; retire T04.** |
+| T05 integration receipts | Set-shape ceremony; this monolith uses per-phase closings instead. | Retire with the set. |
+
+**ACTIONED 2026-08-12 (operator-directed):** the sibling set was marked `Status: SUPERSEDED` and archived as a
+whole directory (spine + all 5 tickets travel together, per the plan-lifecycle rule). It is SUPERSEDED, not
+EXECUTED — no ticket ran, no commit carries an `Agent-Task` trailer for it, and its Board is entirely ⬜.
+T03's three gates live on here as **A.0**. This plan is now the single artifact for the migration.
+
+
+---
+
+## Appendix — Review Record (passes 2–8, verbatim)
+
+**This is HISTORY, not instructions.** It is the accreted D+E text as it stood before the pass-9
+rewrite: 483 lines, 39 warning markers, 76 blocker references. Every verified finding in it has
+been folded into the rewritten Phases D and E above, stated once. It is kept because the findings
+are the record of what was wrong and why — but **an executor must read the phases, never this.**
+The reason this appendix exists at all is the pass-8 diagnosis: with ~40 blocker blocks interleaved
+among the steps, every correction had forty neighbours to reconcile, so passes 6, 7 and 8 each left
+the STEP asserting what its own BLOCKER refuted. Separating the record from the artifact is the fix.
+
+<details>
+<summary>Expand the pre-rewrite D+E (483 lines)</summary>
+
+## Phase D — Cutover · runs in `/opt/fabrik`
+
 **Deliverable:** fabrik's `daily_refresh` **stops running engine steps**; the external engine (delivering live) is the sole producer; fabrik keeps `generate_kilo_agents` + `generate_capability_index` + `sync_enforcement`. The vendored `_TABLE` floor stays as the seatbelt.
 
 **Files (MODIFY, fabrik):**
@@ -995,7 +1422,7 @@ dir. Rule 6 is accurate to the line (`kilo_auto_route.py:54-56/:58/:59-62/:63-67
 E.1's audit script **does run clean** from `/opt/fabrik` on the current `ENTRY` and its output matches the
 plan's "Expected (post-fix)" — the defects are in what it **cannot see**, not in what it reports.
 
-**E.2 — Excise (TWO separate deletions — different directories, N3).** (i) `git rm -r scripts/kilo-benchmarks/<engine files>` (keeping the rule-1/2/6/7 remnant); (ii) `git rm scripts/{kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh} scripts/Local_*.sh scripts/Kilo_Review.sh` — ⚠️ **`kilo_docs_enforcer.py`, `kilo_code_review.py` and `_bckp` were REMOVED from this command (P6-1): they are live fleet-synced governance, KEPT.** (My first edit pasted that note INSIDE the brace expansion, which would have made the command unparseable if copy-pasted — the fix-introduces-a-defect pattern this plan keeps demonstrating.) — **top-level paths**, which (i)'s recursive delete never touches. Then purge the sync-manifest/watch patterns. Gates: (a) reference purge — ⚠️ **REWRITTEN (P6-9): the old gate `grep -rc … → Expected: 0` never printed a scalar `0` (`grep -rc` over 2 files prints `file:count` each — measured `2` and `1`) and exits **1** on the clean case, so under `set -e` it aborted the script exactly when it passed.** Use a containment assert instead: `[ "$(grep -rho 'kilo_code_review\|kilo_docs_enforcer' scripts/fabrik_synced_manifest.py .pre-commit-config.yaml scripts/watch_enforcement_changes.sh | wc -l)" = 0 ]` → **Expected: exit 0**, and note it now also covers `watch_enforcement_changes.sh`, which was in the MODIFY list but in no gate; (b) **positive-deletion proof (the (a) gate only proves the manifest stopped naming them, never that the files are gone)** — ⚠️ **CORRECTED (P6-1): the old form listed `kilo_docs_enforcer.py` and `kilo_code_review.py`, which are now KEPT — it would have demanded proof that live governance had been deleted.** `ls scripts/kilo_cost_report.py scripts/mcp_kilo_server.py scripts/kilo_dispatch.py scripts/kilo_consult.py 2>&1 | grep -c 'No such file'` → **Expected: 4**; and the inverse, `ls scripts/kilo_code_review.py scripts/kilo_docs_enforcer.py >/dev/null 2>&1` → **Expected: exit 0** (both still present — deleting them is the P6-1 regression).
+**E.2 — Excise (TWO separate deletions — different directories, N3).** (i) `git rm -r scripts/kilo-benchmarks/<engine files>` (keeping the rule-1/2/6/7 remnant); (ii) `git rm scripts/{kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh} scripts/Local_*.sh scripts/Kilo_Review.sh` — ⚠️ **`kilo_docs_enforcer.py`, `kilo_code_review.py` and `_bckp` were REMOVED from this command (P6-1): they are live fleet-synced governance, KEPT.** (My first edit pasted that note INSIDE the brace expansion, which would have made the command unparseable if copy-pasted — the fix-introduces-a-defect pattern this plan keeps demonstrating.) — **top-level paths**, which (i)'s recursive delete never touches. Then purge the sync-manifest/watch patterns. Gates: (a) reference purge — ⚠️ **REWRITTEN TWICE — read this, because my pass-7 version MANDATED the very regression P6-1 exists to prevent.** Pass 7 wrote `[ "$(grep -rho 'kilo_code_review\|kilo_docs_enforcer' fabrik_synced_manifest.py .pre-commit-config.yaml watch_enforcement_changes.sh | wc -l)" = 0 ]`. Run today that is **exit 1, 6 matches** — and those six matches ARE the live fleet-sync wiring (`CORE_SCRIPTS:29-30`, the governance-sync `files:` filter at `.pre-commit-config.yaml:65`, `watch_enforcement_changes.sh:49-50`) **for the two modules P6-1 decided to KEEP.** Making that gate green means unwiring them from the sync while leaving the files on disk — hub keeps them, 48 projects go orphaned, `check_synced_unmodified.py` compares against a source no longer in the manifest. That is P6-1's exact failure, delivered by the gate written to prevent it. **The purge is now scoped to the genuinely dead scripts only:** `[ "$(grep -rho 'kilo_dispatch\|kilo_consult\|mcp_kilo_server\|kilo_agent_health\|traycer_agent_review' scripts/fabrik_synced_manifest.py .pre-commit-config.yaml scripts/watch_enforcement_changes.sh | wc -l)" = 0 ]` → **Expected: exit 0**, AND the inverse invariant `grep -c 'kilo_code_review' scripts/fabrik_synced_manifest.py` → **Expected: ≥1 — the KEPT modules must STAY wired to the sync**; (b) **positive-deletion proof (the (a) gate only proves the manifest stopped naming them, never that the files are gone)** — ⚠️ **CORRECTED (P6-1): the old form listed `kilo_docs_enforcer.py` and `kilo_code_review.py`, which are now KEPT — it would have demanded proof that live governance had been deleted.** `ls scripts/kilo_cost_report.py scripts/mcp_kilo_server.py scripts/kilo_dispatch.py scripts/kilo_consult.py 2>&1 | grep -c 'No such file'` → **Expected: 4**; and the inverse, `ls scripts/kilo_code_review.py scripts/kilo_docs_enforcer.py >/dev/null 2>&1` → **Expected: exit 0** (both still present — deleting them is the P6-1 regression).
 **E.3 — Full gate + subagent-pool smoke (behavior 4).** `python scripts/final_gate.py --json` → `"success"` (baseline-attributed); run a real `/fabrik-review` finder round end-to-end to prove fabrik's brain still works headless.
 **E.4 — ⛔ RETIRED (D5, 2026-08-12): deploy + network flywheel DSN are OUT OF SCOPE.** The probe this step planned has already been RUN (spec §4): `fabrik_analytics` sits on the WSL workstation's local socket, `listen_addresses=localhost`, **not** on `postgres-main`, and that box is not on the WireGuard mesh — so *provision a network-reachable read-only DSN* had no target. Retained verbatim below as the hand-off brief for the separate VPS-deployment spec:
 > *(The three original numbered steps — probe the flywheel host, `fabrik apply`, and provision a
@@ -1010,185 +1437,5 @@ plan's "Expected (post-fix)" — the defects are in what it **cannot see**, not 
 
 ---
 
-## Subagent strategy
 
-| Fan-out | Where | Recipe | Records |
-|---|---|---|---|
-| Per-phase `/fabrik-review` finders | A/B/C/D/E closing | `fanout("review", units=[dims], mode="read_only", project="catalog-extraction")` + `set_quality` + **≥1 native `fabrik-reviewer` (Opus)** on the high-blast slices (deliver step, cutover, residue-delete) | `subagent_runs` |
-| Behavior-test authoring | A.3/B.2/B.3/C.1 | `fanout("code", mode="write", owned_paths=[disjoint per unit], project="catalog-extraction")` → curate → `git apply` | `subagent_runs` |
-| Parallel grounding (this plan-review) | Phase 1 | `fanout("research", mode="read_only", web_tools=[…])` per independent unit + native `fabrik-researcher` (Haiku sample) | `subagent_runs` |
-
-**Parallelism:** A→B→C→D→E are **sequential** (each consumes the prior). Within a phase, the review finders + test authors fan out in parallel and merge. Cross-repo: Phase B runs in ai-model-catalog, A/D in fabrik, C/E in both — no shared file within a phase.
-
-## File Scope (owned paths)
-
-- **fabrik:** `scripts/kilo-benchmarks/**` (snapshot in A, engine SCRIPTS deleted in E — retaining the consumer remnant: `kilo_agents.db`, `models_browser.html`, `daily_refresh.sh`, `tests/golden/**`), **`tests/kilo_benchmarks/**`** (moved to engine in B, `git rm`'d in E), **`scripts/run_kilo_workflow.sh`** (deleted in E), `scripts/generate_kilo_agents.py` (D: strip auto-update block), `scripts/kilo-benchmarks/tests/test_{golden_parity,parallel_run_diff}.py`, `scripts/wsl_startup_hook.sh`, `scripts/fabrik_synced_manifest.py`, `.pre-commit-config.yaml`, `scripts/watch_enforcement_changes.sh`, the dead Kilo/Cascade scripts (E), the rule-4 docs (`docs/FEATURES.md`, `docs/operations/AI_MODELS_BROWSER_OPS.md`, `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`, `docs/workflows/KILO_AGENT_MANAGEMENT.md`, `docs/CONFIGURATION.md`), `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `docs/PROJECT_CATALOG.md`, `docs/README.md`, this plan file. **(The exact rule-3/rule-4 set is enumerated mechanically by E.1's discovery grep — this list is the known core, not the completeness authority.)**
-- **ai-model-catalog:** `engine/**`, `compose.yaml`, `CHANGELOG.md`, `docs/SERVICES.md`, `docs/OPERATIONS.md`.
-- **Disjoint** from any known-active sibling plan (verify at scope-lock). The fabrik `INDEX.md`/`PORTS.md`/`PROJECT_CATALOG.md` are shared-churn files → **serialization points** (stage only this plan's lines, per the shared-master rule).
-
-## Evidence
-
-### Phase A grounded in
-- Consumer manifest: spec §2 (the six output classes) — verified live this session (`select.py:479-483` fallthrough, `rank_task_subagents.py:335` query).
-- `sync_enforcement_to_projects.py:279` `_atomic_copy` (the deliver-step reuse) — read this session.
-
-### Phase B grounded in
-- `ai-model-catalog` structure — `ls /opt/ai-model-catalog` (has `engine`-able tree; `compose.yaml` already carries a `worker` service at `:83`):
-  ```
-  services: ai-model-catalog(:12) · api(:46) · worker(:83) · fabrik network(:113)
-  ```
-- Engine size — ⚠️ **RE-MEASURED 2026-08-15 (P5-10): this section, the plan's own *grounding record*, was
-  carrying the frozen 2026-07-26 numbers while the Files list at Phase B had already been corrected.** Live
-  today: **101** top-level `.py` (not 98) + **55** in-tree tests (not 50) in `scripts/kilo-benchmarks/`
-  (`ls scripts/kilo-benchmarks/*.py | wc -l` → 101; `find scripts/kilo-benchmarks/tests -name 'test_*.py' | wc -l`
-  → 55) **+ 14 repo-root engine test files in `tests/kilo_benchmarks/`** (unchanged; `ls tests/kilo_benchmarks/*.py
-  | grep -v __init__ | wc -l` → 14). Engine test total = 55 + 14 − 2 rule-6 tests = **67**, matching Phase B —
-  **not** the 64 this line used to assert. A stale Evidence block is worse than no Evidence block: it is the
-  section a fresh executor trusts as already-verified.
-
-### Phase D grounded in
-- Engine→consumer split: spec §3b (STAYS: `generate_kilo_agents`, `generate_capability_index`, `sync_enforcement`) — verified via `daily_refresh.sh:257/260` seam.
-- Fail-open: `select.py:479-483` + `:373` 14-day gate; freshness: `check_ai_pack_freshness.py` (`wsl_startup_hook:213` — cite corrected pass 7; and per P6-5 it is an exit-0-always SIGNAL on 90-day pack stamps, **not** a delivered-doc gate).
-
-### Phase E grounded in
-- Dead-script inventory + non-propagation: spec §3c; `fabrik_synced_manifest.py:29-30`, `watch_enforcement_changes.sh:49-50`, git `55a53b9a` "retired Kilo/Cascade triad".
-- Flywheel host-less DSN: spec §4 (`SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics`, `rank_task_subagents.py:213`/`:216` fail-open, `:187-191` sudo-psql).
-
-## Self-audit
-
-### Grounding passes run
-- Solo (this turn), inheriting the CONVERGED spec (5-pass /fabrik-spec-review, same session). Re-confirmed live: `select.py:479-483`, ACTIVE-packs (24), `ai-model-catalog` tree + `compose.yaml` worker service, engine file counts.
-
-### (a) Coverage — every "What we already agreed" mapped
-- Move engine → ai-model-catalog (spec Goal) → Phases B (copy) + D (cutover) + E (excise/deploy).
-- Don't break fabrik/fleet (constraint 1/2) → Phase A golden + C parallel-run + D fail-open verification.
-- No functionality lost (constraint 3) → Phase A/B **structural** parity + Phase C's same-instant byte diff.
-- Zero residue (constraint 4) → Phase E excise + pre-delete grep + sync-manifest purge.
-- Option A / tenant-zero / produce→deliver→sync (D1) → Phase C deliver bridge + D (fabrik keeps sync).
-- Flywheel read-only DSN (D2) → **SUPERSEDED by D5 (2026-08-12)**: the probe was run and found no network-reachable instance; the flywheel does not move and the read is unchanged. E.4 retired.
-- Fold dead-residue purge (D3) → Phase E.2.
-- Single plan, review per boundary (D4) → this plan, `/fabrik-review` in every phase's closing.
-- Catalog store → **Postgres** (operator 2026-08-12) → Global Constraints + **B.2g**. *(B.4 is deleted; the old "SQLite stays / engine=worker" mapping is superseded.)*
-
-### (b) Cross-phase signature consistency
-- `capture_golden.GOLDEN_DIR` (A) ← consumed by `test_parity_vs_fabrik_golden` (B) + `test_parallel_run_diff` (C). ⚠️ **The old "Names match" was FALSE** — the Interfaces block promised `assert_parity()` and a sha256 manifest, neither of which exists. Corrected there; the real shared surface is `structure.json` + `capture_golden`'s shape extractors.
-- `engine/out/**` — file producers write `engine/out/<fabrik-relative>` (two sub-classes per B.2e: `FABRIK_ROOT`-repoint for `rank_*`/`generate_model_capabilities`; explicit `--output` for `export_traycer_registry`/`export_models_browser`), injectors emit `engine/out/blocks/*.txt`, plus `engine/out/kilo_agents.db` (F1) → `deliver_to_fabrik.py` copies the file artifacts, marker-injects the blocks, and copies the DB to fabrik (C consumes). Match.
-- **Engine outputs vs retained-consumer outputs (F2):** the engine produces the selection docs, marker blocks, `kilo_47_agents_final.json`, `KILO_MODEL_CAPABILITIES.md`, `models_browser.html`, `kilo_agents.db`. `docs/CAPABILITIES.md`/`capabilities.json`/`llms.txt` are `generate_capability_index.py` outputs (retained fabrik consumer, Phase D) — NOT engine outputs, NOT in the golden, NOT delivered (would collide with the live local producer). Consistent A↔B↔C↔D.
-- `OUTPUT_ROOT` env (B.2e introduces, default `ENGINE_ROOT/out`, decouples writes from `SCRIPT_DIR.parent.parent` so producers never clobber the scaffold's own `.windsurf/rules/ai`; the two `--output`-driven producers get the flag from `daily_refresh.sh`) → the golden (A) captures the same relative artifacts + marker-block bodies the producers emit. Match.
-- ~~`FLYWHEEL_DSN` env (B.2 introduces) → provisioned real (E.4). Match.~~ ⛔ **VOID (pass 7): neither end exists.** B.2c is `SUPERSEDED BY D5 — DO NOT REWRITE THE FLYWHEEL READ`, and E.4 is `⛔ RETIRED`. A self-audit certifying a producer/consumer pair where both ends were retired is worse than a missing row.
-
-Fixed-point claim: this plan carries the full grounding a fresh executor needs; `/fabrik-plan-review` re-ground every `path:line` (incl. the B.2e OUTPUT-decoupling defect), and a follow-up `/fabrik-review` native-Opus pass caught + fixed the artifact-attribution defects (F2 `CAPABILITIES.*` misattribution, F1 retained-consumer `kilo_agents.db` delete-break, F3 `--output`-driven producers, F4 deliver-injection test, F5 12F-XI stdout, F6 golden artifact, F7 test count).
-
-## Residual unknowns
-
-### Resolved during drafting
-1. **Engine target dir** — `engine/` in ai-model-catalog. **REASON CORRECTED 2026-08-12:** not "the scaffold's `worker` service hosts it" (that service is the retired container). Under WSL-only **no build context binds the engine at all**, so a top-level `engine/` is correct and keeps the 101-script flat tree out of the scaffold's `server/src/ai_model_catalog` package namespace. The later VPS spec re-decides. RESOLVED.
-2. **SQLite vs Postgres** — CHANGED 2026-08-12 (operator, spec §7): **consolidated into Postgres in the new repo.** RESOLVED the other way; see Global Constraints.
-3. **Deliver mechanism** — reuse `_atomic_copy` from `sync_enforcement`. RESOLVED.
-
-### Still-open (each self-service)
-1. **[SELF-SERVICE — Phase B.2]** Exact set of `/opt/fabrik` string literals to rewrite. Resolution: `test_no_fabrik_paths.py`'s grep enumerates them; fix each; the test gates it. No stop.
-2. **RESOLVED 2026-08-12 — no longer a residual.** The flywheel's physical host was PROBED and recorded in spec §4 (WSL local socket, `listen_addresses=localhost`, not on `postgres-main`, box not on the WireGuard mesh). E.4 is retired. Original text: ~~[SELF-SERVICE — Phase E.4] … Resolution:~~ `psql "$SUBAGENT_RUNS_DSN" -c '\conninfo'` on the hub — a one-command probe, executor runs it. Fail-open covers a miss.
-3. **[SELF-SERVICE — Phase E]** Whether any /opt project (beyond fabrik) imports the engine directly. Resolution: E.1's fleet-wide grep; extend the delete-guard to any hit. No stop.
-
-## Pass Ledger (`/fabrik-plan-review`)
-
-The loop terminates only on a pass with `edits: 0` **and** `md5(start) == md5(end)`. Recorded here because a
-review that lives only in chat is not a review — and because the header spent three passes asserting a
-convergence it never had.
-
-| Pass | scope re-grounded | raised | new: | edits | plan md5 (start → end) |
-|-----:|---|---:|---:|---:|---|
-| 1–3 | pre-2026-08-15 rounds. ⚠️ The `dc3eddf8…` no-op these claimed was **not reproducible** — treat as unverified | — | — | — | not recorded |
-| 4 | C/D grounders + orchestrator re-verify (C-B1…C-B4, D-B1…D-B5) | 9 | 9 | 9 | → `46361555…` |
-| 5 | closing full read; A/C/D by orchestrator, B + E by two independent Opus grounders | 43 | 43 | 43 | `46361555…` → (edited) |
-| 6 | **EXECUTION-GROUNDED**, scoped to D+E: every gate RUN; pool breadth (3 models) + native Opus | 11 | 11 | 11 | `63cc676b…` → `6f5f5625…` |
-| 7 | **closing full read** (all 1,178 lines, nothing skimmed) + orchestrator fold-in | 30 | 30 | **35 step-body edits** | `4cb61ca9…` → (edited) |
-
-⚠️ **Rebuilt in pass 7.** The previous table had a six-cell row against a four-column header, listed pass 6
-before pass 5, left an md5 as the prose placeholder "(non-identical — pass 6 owed)", and had an unexplained
-gap between pass 5's end and pass 6's start — so its own termination condition (`md5(start) == md5(end)`) was
-unauditable from it.
-
-**Pass 7 — the DIAGNOSIS, and it indicts every pass including mine.** An independent closing read of all 1,178
-lines found 30 more and named the structural cause: *"pass 6 changed the METHOD (run the gates) but not the
-DELIVERABLE — it appended eleven correct findings and edited ZERO of the eleven step bodies they indict. Every
-prior pass did the same. The plan is now a document in which the blocker blocks are more accurate than the
-steps, and the executor reads the steps."* That is exactly right, and it explains why six passes kept finding
-things: **recording a defect was being mistaken for fixing it.** Pass 7 therefore made **35 step-body edits** —
-the data-destroying `cache/` gate, the E.2 delete list, the char class that let a gate pass with its own
-blocker present, the fleet smoke that could not fail, the freshness gate measuring the wrong thing on a 90-day
-threshold, the Interfaces contract promising a function that does not exist, the A.1 floors that passed with
-12 of 18 markers gone, the retained remnant missing seven files, four surviving "byte-identical" claims, the
-stale Handoff, and the Converged field. **The blocker blocks stay as the record; the STEPS are now the
-corrected artifact.**
-
-**Pass 6 — the method changed, and it is the finding.** Four prose passes shipped 74 wrong claims;
-pass 6 RAN the gates instead and found 11 more in the two phases that have not executed — including
-that **E.2 as written deletes live fleet-synced governance with no failing check anywhere** (P6-1),
-that **two D gates cannot fail** (P6-3, P6-4, each proven by constructing the failure they exist to
-catch), and that one of my OWN pass-5 findings was wrong (**E-B5 REFUTED**, P6-2). ⚠️ The pool
-breadth layer (3 models) returned almost entirely RESTATEMENTS of the blocker blocks already written
-into the plan — scored 2-3/5. That is a method lesson worth keeping: **once a plan contains its own
-defect list, prose review summarises it back instead of finding anything new.** Every genuinely new
-pass-6 finding came from executing a command. Probe duty: the plan embeds **0** runnable probes
-(`$ `-prefixed fences) across ~600 lines — which is precisely why 74 claims could be wrong and look
-right.
-
-**Pass 5 total: 43 findings** — 10 orchestrator (below), 11 Phase B (**B-B1…B-B11**), 20 Phase E
-(**E-B1…E-B20**), plus 2 sub-claims refuted inside otherwise-correct findings. Running total across passes
-2–5: **74** wrong or drifted claims. The distribution is the lesson: **every single one required opening a
-file or running a command** — the plan reads impeccably and was wrong 74 times.
-
-⚠️ **The four that would have caused real damage, all found in this pass:** `B-B1` (two producers write to
-`/opt/docs/`, outside both repos — a HARD STOP, armed but not yet fired), `B-B4` (a gate whose literal
-execution deletes the hand-maintained data the previous sentence protects), `E-B1` (E.2 orphans five live
-callers under the retained boot hook, every failure swallowed, with the alerting script itself deleted), and
-`E-B12` (a false piece of evidence whose "obvious fix" would `git rm` the live `process_monitor.py`).
-
-**Pass-5 findings (orchestrator half, each verified by opening the file or running the command):**
-
-| # | Finding | Verdict |
-|---|---|---|
-| A-B1 | A.1/A.2/B.3 gate on `golden/manifest.json`, `blocks/`, sha256 byte-identity and `test_selection_docs_match_current` — **none exist**; the real oracle is `structure.json` (`capture_golden.py:50`) | CONFIRMED — CRITICAL, blocks B.3 |
-| D-B6 | `pick_models('code')[:3]` returns **one** model (`select.py:430-432`, `n: int = 1`); the flagship gate calls it a top-3 and cannot see a `_TABLE` fallback | CONFIRMED |
-| P5-1 | `PACK_TO_CATEGORY` is at `update_gateway_counts.py:260/:275`, **not** `category_export_markdown.py:303`; the two injectors do not share a host-discovery mechanism | CONFIRMED |
-| P5-2 | C-B4 ("rule-6 carve-out incomplete") was **my own false finding** — all three modules are carved out at `:155`, `:334`, `:386` | **REFUTED** |
-| P5-3 | "56 vendored copies" (2 sites) — live count **48**, repo canonical 49; D-B5 recorded it but never fixed the sites | CONFIRMED |
-| P5-4 | Header + Handoff asserted `CONVERGED` / an md5-verified no-op that never happened | CONFIRMED |
-| P5-5 | No Pass Ledger existed at all — hence this section | CONFIRMED |
-| P5-7 | `_atomic_copy` is `sync_enforcement_to_projects.py:279`, cited as `:278` in 4 places | CONFIRMED |
-| P5-9 | Global Constraints' 12-Factor bullet still answered X and XII with "n/a — SQLite", which B.2g superseded — the last site asserting the retired store decision | CONFIRMED |
-| P5-10 | § Evidence still recorded `98 .py + 50 tests = 64`; live is `101 + 55` → **67**, matching Phase B. The plan's grounding record was the stale one | CONFIRMED |
-
-Re-verified and **held** from pass 4: C-B1 (lockfile byte-identical at `:125-131` in both engines), C-B2 (two
-different 7-packs; 3 of 11 `ai/*.md` carry neither marker), C-B3 (the `^/opt/fabrik` anchor is escapable —
-proved with a 2-line fixture), D-B1 (57 grep hits, **55** real invocations, comments at `:364`/`:527`, and
-`label` really is in the `sort -u` output), D-B2 (`wsl_startup_hook.sh:236` is the second caller), D-B3
-(`tests/golden/` holds exactly `db_queries.json` + `structure.json`; no `pick_models` baseline anywhere).
-
-## Handoff
-
-**Next (user-triggered):** `/fabrik-execute-plan docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md`. ⚠️ **STATE, refreshed pass 7 (the old text said "B in progress" and never mentioned C):** Phase A `✅ EXECUTED`, Phase B `✅ EXECUTED`, Phase C `🟡 CODE COMPLETE — window OPEN`, Phases D+E **unexecuted**. **The one live gate is C.2's ≥7-day parallel-run window; Phase D is gated on it by design** and cutting over early discards the safety property it exists to establish. Before D runs: A-B1 ✅ fixed, C-B1 ✅ fixed, B-B9 (`CATALOG_DSN` unprovisioned) still open, and E.2 must not run until P6-1's KEEP decision is reflected in whatever tooling executes the deletes. ⚠️ **The plan is NOT `CONVERGED`** — this line's earlier "re-grounded to an md5-verified no-op" claim was false (see § Pass Ledger). Execution has begun anyway under operator direction (Phases A ✅, B in progress); the **blockers block at Phase D's head is binding** — A-B1 must be resolved before B.3, C-B1 before C.2, and E.2 must not run until C1/C2/C3 are scheduled. E.4 is retired (D5).
-**💡 fabrik-lib candidates:** none — the deliver step reuses `sync_enforcement`'s copy pattern; the engine is project-local.
-
----
-
-## Plan reconciliation (2026-08-12)
-
-A sibling plan SET — now at
-`docs/development/plans/archived/2026-08-12-plan-1-catalog-extraction-fabrik-prep/` (5 tickets, **SUPERSEDED,
-archived unexecuted 2026-08-12**) — was authored before this plan was re-reviewed, and overlapped it:
-
-| Sibling ticket | Overlap with this plan | Disposition |
-|---|---|---|
-| T01 golden-file oracle | **Duplicates Phase A.1–A.3, less well.** This plan's A.1 already carries the whole-file vs marker-body split, the `EMBEDDING_CATALOG` strip, the `EMBEDDING_WINNERS`/`ROSTER` hosts, the 6-doc `*_SELECTION.md` scoping and the `db_queries.json` capture — every fix an independent review had to add back to T01. | **This plan wins; retire T01.** |
-| T02 import-graph audit | Duplicates E.1's audit, which is the original and carries all 7 classification rules. | **This plan wins; retire T02.** |
-| T03 flywheel safety gates | **No counterpart here** until A.0 above. | Either source is fine — **run once**. |
-| T04 shared cost-JSON relocation | Duplicates E.1 rule 7 (`claude_p_cost.json` / `claude_price_ratios.json`). | **This plan wins; retire T04.** |
-| T05 integration receipts | Set-shape ceremony; this monolith uses per-phase closings instead. | Retire with the set. |
-
-**ACTIONED 2026-08-12 (operator-directed):** the sibling set was marked `Status: SUPERSEDED` and archived as a
-whole directory (spine + all 5 tickets travel together, per the plan-lifecycle rule). It is SUPERSEDED, not
-EXECUTED — no ticket ran, no commit carries an `Agent-Task` trailer for it, and its Board is entirely ⬜.
-T03's three gates live on here as **A.0**. This plan is now the single artifact for the migration.
+</details>
