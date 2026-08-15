@@ -1,0 +1,28 @@
+{
+ "code": [
+  "qwen/qwen3-coder-next",
+  "google/gemini-3-flash-preview",
+  "openai/gpt-5.6-luna"
+ ],
+ "review": [
+  "deepseek/deepseek-v3.2-exp",
+  "google/gemini-3-flash-preview",
+  "qwen/qwen3-max"
+ ],
+ "docs": [
+  "minimax/minimax-m3",
+  "deepseek/deepseek-v4-pro",
+  "minimax/minimax-m2.5"
+ ],
+ "plan": [
+  "deepseek/deepseek-v4-pro"
+ ],
+ "research": [
+  "deepseek/deepseek-v4-pro",
+  "minimax/minimax-m3",
+  "deepseek/deepseek-v3.2"
+ ],
+ "spec": [
+  "z-ai/glm-5"
+ ]
+}
