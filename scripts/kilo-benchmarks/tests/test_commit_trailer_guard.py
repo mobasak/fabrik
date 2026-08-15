@@ -299,7 +299,13 @@ def test_the_unattended_pipeline_commit_is_not_blocked_by_this_guard(tmp_path):
     # message git actually builds is REJECTED. Both measured. Since the script always exits 0,
     # that would disable the boot auto-commit silently and permanently: exactly the catastrophe
     # this test claims to prevent, waved through by an approximation of the input.
-    invocation = script[script.index("git commit"):]
+    # ⚠️ Anchor at line start. `index("git commit")` matched a COMMENT 105 lines above the real
+    # invocation, so the slice spanned a hundred lines of prose — adding one explanatory comment
+    # that quoted an old `-m` form made the harness extract five `-m` args and feed the guard a
+    # fabricated message, green while proving nothing about what git actually builds.
+    m = re.search(r"^git commit", script, re.M)
+    assert m, "could not find the git commit invocation in the auto-commit script"
+    invocation = script[m.start():]
     invocation = invocation[: invocation.index("\n  -- ")]
     m_args = re.findall(r'-m "((?:[^"\\]|\\.)*)"', invocation, re.S)
     assert len(m_args) >= 2, f"expected at least a subject and a trailer block, got {m_args!r}"
@@ -374,4 +380,95 @@ def test_a_body_line_mentioning_8_is_not_treated_as_a_scissors_line(tmp_path):
     assert run(message, tmp_path).returncode == 1, (
         "the malformed trailer below a `# >8 ...` prose line was never checked — the loose "
         "scissors match discarded everything under it"
+    )
+
+
+def _install_into(repo: Path) -> Path:
+    """Install the shim into a scratch repo and return the hook path."""
+    subprocess.run(
+        [sys.executable, str(GUARD), "--install", "--force"],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    return repo / ".git" / "hooks" / "commit-msg"
+
+
+def _scratch_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "shim"
+    repo.mkdir()
+    for args in (
+        ["init", "-q", "-b", "main", "."],
+        ["config", "user.email", "t@t"],
+        ["config", "user.name", "t"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, check=False)
+    (repo / "f").write_text("x")
+    subprocess.run(["git", "add", "f"], cwd=repo, capture_output=True, check=False)
+    return repo
+
+
+def test_the_installed_shim_points_at_a_guard_that_actually_exists():
+    """`[ -f "$GUARD" ] || exit 0` turns a stale path into a permanent SILENT disable.
+
+    Running `--install` from a WORKTREE used to embed the worktree-local script path into the
+    SHARED hooks dir. Delete that worktree and the guard was off for the main checkout and every
+    sibling — forever, with no signal — while `hook.exists()`, the content check and the
+    executable-bit check all still passed. Reproduced: a malformed commit landed rc=0 with an
+    empty trailer. Nothing asserted the path resolves, so assert it.
+    """
+    hook = _installed_hook()
+    if hook is None or not hook.exists():
+        pytest.skip("no commit-msg hook installed in this checkout")
+    guard_line = next(
+        (ln for ln in hook.read_text(errors="replace").splitlines() if ln.startswith("GUARD=")),
+        None,
+    )
+    assert guard_line, "the installed shim declares no GUARD path"
+    target = Path(guard_line.split("=", 1)[1].strip().strip("'\""))
+    assert target.is_file(), (
+        f"the installed hook points at {target}, which does not exist — the shim exits 0 on a "
+        f"missing guard, so enforcement is silently OFF for this repo. Re-run "
+        f"`python3 scripts/check_commit_trailers.py --install --force` from the main checkout"
+    )
+
+
+def test_the_shim_fails_open_when_no_interpreter_is_executable(tmp_path):
+    """A lost exec bit must not block commits — `command -v` alone did not catch that.
+
+    Under /bin/sh (dash) `command -v` ACCEPTS an existing but non-executable file, so the
+    interpreter loop reached `exec`, which fails 126 and never falls through: every commit in
+    the repo rejected, including well-formed ones with no trailers. That is the same repo-wide
+    blocker the shim was written to eliminate.
+    """
+    repo = _scratch_repo(tmp_path)
+    hook = _install_into(repo)
+    dud = tmp_path / "fakepython"
+    dud.write_text("#!/bin/sh\necho hi\n")
+    dud.chmod(0o644)  # exists, NOT executable
+    hook.write_text(
+        hook.read_text().replace(
+            hook.read_text().split("for PY in ", 1)[1].split(";", 1)[0],
+            f"'{dud}'",
+        )
+    )
+    hook.chmod(0o755)
+    result = subprocess.run(
+        ["git", "commit", "-m", "chore: a plain commit with no trailers"],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"a well-formed commit was blocked because no interpreter was runnable — the shim must "
+        f"fail OPEN:\n{result.stderr}"
+    )
+
+
+def test_the_shim_still_enforces_when_an_interpreter_is_available(tmp_path):
+    """The mirror of the fail-open test: failing open must not mean never enforcing."""
+    repo = _scratch_repo(tmp_path)
+    _install_into(repo)
+    result = subprocess.run(
+        ["git", "commit", "-m", BLANK_INSIDE],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0, (
+        "the installed shim let a malformed trailer block through — it is not enforcing at all"
     )

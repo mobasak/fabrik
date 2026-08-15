@@ -449,9 +449,22 @@ def _extract_log_guard(path):
     # fragment that bash rejected outright — which the harness then read as "the guard chose
     # an empty LOG_FILE". A test harness that mis-extracts fails loudly here rather than
     # silently measuring the wrong thing.
-    if_idx = next(i for i in range(start, len(lines)) if lines[i].lstrip().startswith("if "))
+    # ⚠️ Anchor on the `if` that actually gates on the LOG probe, not merely the next `if`.
+    # Hoisting the `_log_usable` helper above the rotation loop — a refactor the sibling test
+    # explicitly blesses — made this grab the rotation loop's `if`, lift the `for … do` with no
+    # `done`, and fail both tests with a confidently wrong diagnosis.
+    if_idx = next(
+        i for i in range(start, len(lines))
+        if lines[i].lstrip().startswith("if ") and "$LOG_FILE" in lines[i]
+    )
     indent = lines[if_idx][: len(lines[if_idx]) - len(lines[if_idx].lstrip())]
-    end = next(i for i in range(if_idx + 1, len(lines)) if lines[i] == f"{indent}fi")
+    # Tolerate a trailing comment or trailing whitespace on the terminator: `fi  # end guard`
+    # is the same `fi`, and an exact-string match raises StopIteration and crashes the test
+    # rather than measuring anything.
+    end = next(
+        i for i in range(if_idx + 1, len(lines))
+        if lines[i].split("#")[0].rstrip() == f"{indent}fi"
+    )
     return "\n".join(lines[start : end + 1])
 
 
@@ -483,13 +496,21 @@ def _run_log_guard(path, tmp_path, writable):
     (stub / "pipeline_alert.sh").write_text("#!/bin/sh\nexit 0\n")
     (stub / "pipeline_alert.sh").chmod(0o755)
 
+    # Extract BEFORE touching permissions: a reshaped script raises StopIteration here, and
+    # doing it inside the try-block's setup left `cache` at mode 0500 with no finally to restore.
+    guard_src = _extract_log_guard(path)
+    # Redirect the production /tmp fallback into tmp_path. Running the ladder verbatim created
+    # and appended to the REAL /tmp/fabrik_daily_*.log paths the live pipeline falls back to —
+    # harmless same-user, but if the suite ever runs as another uid it would leave the pipeline's
+    # own fallback unappendable. Nothing prunes those files either.
+    guard_src = re.sub(r'"/tmp/fabrik_[^"]*"', f'"{tmp_path}/fallback.log"', guard_src)
     script = tmp_path / "harness.sh"
     script.write_text(
         "set -u\n"
         f'FABRIK_ROOT="{tmp_path}"\n'
         f'KB="{stub}"\n'
         f'LOG_FILE="{log}"\n'
-        f"{_extract_log_guard(path)}\n"
+        f"{guard_src}\n"
         'printf "%s" "$LOG_FILE"\n'
     )
     try:

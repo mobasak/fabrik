@@ -84,6 +84,14 @@ if ! pgrep -f "watch_env_changes.sh" > /dev/null 2>&1; then
     nohup bash "$ENV_WATCHER_SCRIPT" >> "$ENV_WATCHER_LOG" 2>&1 &
 fi
 
+# Keep the commit-msg trailer guard installed. Nothing else invokes --install, so moving off
+# pre-commit (which self-installs) left the guard depending on a manual command — and a guard
+# nobody installs is the inert-check class this repo has been bitten by before. Deliberately
+# OUTSIDE the daily lockfile block: daily_refresh.sh shares that lockfile, so on any day the
+# 06:00 cron wins the race the re-install would never run at all. Idempotent, ~20ms, no network.
+[ -x "$VENV_PYTHON" ] && "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" \
+    --install >/dev/null 2>&1
+
 # --- Daily pipeline (runs once per WSL boot day) ---
 # Run update if not already run today
 if [ ! -f "$LOCK_FILE" ]; then
@@ -111,17 +119,14 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Backgrounded: this runs in the FOREGROUND of a ~/.bashrc-sourced login shell, and it
         # spawns python for a network call. Bounded at 15s, but the first shell of each UTC day
         # should not stall on a Telegram timeout.
-        bash "$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh" \
+        # Wrapped in a subshell: a bare `&` in a ~/.bashrc-sourced INTERACTIVE shell prints a
+        # job-control notice (`[1]+  Done  bash -c …`) to the operator's terminal — the very
+        # class of terminal noise the rotation fix above exists to prevent.
+        ( bash "$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh" \
             "wsl_startup_hook.sh: pipeline log unwritable — the boot pipeline would have run blind" \
             "Could not append to $_broken. Every step of the boot pipeline redirects there, so each would have been skipped individually and the heartbeat never written — with no alert reachable from inside. Now logging to $LOG_FILE for this boot. Investigate disk/permissions now." \
-            >/dev/null 2>&1 &
+            >/dev/null 2>&1 & )
     fi
-    # Keep the commit-msg trailer guard installed. Nothing else invokes --install, so moving
-    # off pre-commit (which self-installs) left the guard depending on a manual command — and a
-    # guard nobody installs is the inert-check class this repo has been bitten by before.
-    # Idempotent, no network, refuses to clobber a foreign hook.
-    "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" --install >/dev/null 2>&1 || true
-
     # Run full pipeline in background (chained to ensure order)
     # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
     nohup bash -c "

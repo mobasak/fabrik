@@ -34,6 +34,7 @@ at all (merge commits, `git revert`, and human commits are not this hook's busin
 from __future__ import annotations
 
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -51,13 +52,20 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
     exactly how a check goes quietly vacuous.
     """
     try:
-        out = subprocess.run(
+        proc = subprocess.run(
             ["git", "interpret-trailers", "--parse"],
             input=message,
             capture_output=True,
             text=True,
             check=False,
-        ).stdout
+        )
+        if proc.returncode != 0:
+            # git RAN but could not parse — a broken config, an ancient git without
+            # interpret-trailers, a wrapper. That is "cannot verify", not "no trailers": treating
+            # it as the latter rejected perfectly well-formed commits, which is the same
+            # breakage-indistinguishable-from-violation failure the shim was hardened against.
+            return None
+        out = proc.stdout
     except OSError:
         # No git on PATH. A hook that cannot consult git has no verdict it can justify, and a
         # traceback out of a hook is unactionable — return the sentinel and let main() fail open.
@@ -68,6 +76,39 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
             key, _, value = line.partition(":")
             trailers[key.strip()] = value.strip()
     return trailers
+
+
+def hooks_dir() -> Path | None:
+    """The hooks directory git ACTUALLY consults, honouring core.hooksPath and worktrees."""
+    configured = subprocess.run(
+        ["git", "config", "--get", "core.hooksPath"], capture_output=True, text=True, check=False
+    )
+    if configured.returncode == 0 and configured.stdout.strip():
+        # If this is ever set, installing into .git/hooks would put the guard somewhere git
+        # never looks while every "is it installed" check kept passing.
+        return Path(configured.stdout.strip()).expanduser().resolve()
+    common = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False
+    )
+    if common.returncode != 0:
+        return None
+    # --git-common-dir resolves to the SHARED git dir from a worktree too, where `.git` is a
+    # file and a naive `<repo>/.git/hooks` path would install nowhere useful.
+    return Path(common.stdout.strip()).resolve() / "hooks"
+
+
+def main_checkout_guard() -> Path:
+    """This script as it lives in the MAIN checkout — the path every worktree's hook must use."""
+    top = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True, text=True, check=False,
+    )
+    here = Path(__file__).resolve()
+    if top.returncode == 0 and top.stdout.strip():
+        candidate = Path(top.stdout.strip()).parent / "scripts" / here.name
+        if candidate.is_file():
+            return candidate
+    return here
 
 
 def replaying() -> bool:
@@ -145,14 +186,21 @@ SHIM = """#!/bin/sh
 # SECOND time per commit, and this tree is shared by three concurrent agents.
 #
 # ⚠️ FAIL OPEN, ALWAYS. A hook that cannot run must never block a commit. Pinning one absolute
-# interpreter made a rebuilt venv reject EVERY commit in the repo — including well-formed ones
-# with no trailers at all — for three concurrent sessions and the boot pipeline simultaneously.
-# Reproduced: `exec: /nonexistent/python: not found`, rc=1, zero commits land. A guard whose
-# breakage is indistinguishable from a violation is worse than no guard.
-GUARD='{script}'
-[ -f "$GUARD" ] || exit 0
-for PY in '{python}' python3 python; do
-    command -v "$PY" >/dev/null 2>&1 && exec "$PY" "$GUARD" "$1"
+# interpreter once made a rebuilt venv reject EVERY commit in the repo. `command -v` was not
+# enough of a fix: under /bin/sh (dash here) `command -v` ACCEPTS an existing but
+# non-executable file, so a lost exec bit or a noexec mount still reached `exec`, which fails
+# 126 and never falls through — the identical repo-wide blocker. Test executability directly.
+GUARD={guard}
+# -r, not -f: python must READ this file. An existing but unreadable guard would make the
+# interpreter exit non-zero and block the commit — failing closed on a permissions problem.
+[ -r "$GUARD" ] || exit 0
+for PY in {pythons}; do
+    case "$PY" in
+        /*) [ -x "$PY" ] || continue ;;
+        *)  PY=$(command -v "$PY" 2>/dev/null) || continue
+            [ -x "$PY" ] || continue ;;
+    esac
+    exec "$PY" "$GUARD" "$1"
 done
 exit 0
 """
@@ -167,28 +215,53 @@ def install(force: bool = False) -> int:
     guard was moved off pre-commit to avoid. Without --force, install() saw a foreign hook and
     refused, leaving no way back short of deleting the file by hand.
     """
-    common = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False
-    )
-    if common.returncode != 0:
+    hook = hooks_dir()
+    if hook is None:
         print("not a git checkout", file=sys.stderr)
         return 1
-    # --git-common-dir resolves to the SHARED hooks dir from a worktree too, where `.git` is a
-    # file and a naive `<repo>/.git/hooks` path would silently install nowhere useful.
-    hook = (Path(common.stdout.strip()).resolve()) / "hooks" / "commit-msg"
+    hook = hook / "commit-msg"
     hook.parent.mkdir(parents=True, exist_ok=True)
     if hook.exists() and "check_commit_trailers" not in hook.read_text(errors="replace"):
-        if not force:
+        existing = hook.read_text(errors="replace")
+        # pre-commit's generated hook is a KNOWN, self-inflicted takeover, not a third party's
+        # work: `pre-commit install --hook-type commit-msg` silently replaces this hook and
+        # restores the doubled stash cycle the guard was moved off pre-commit to avoid. Reclaim
+        # it automatically, so the unattended boot heal — which cannot pass --force safely for
+        # the general case — can actually recover. Anything else still needs an explicit --force.
+        if "pre_commit" in existing or "pre-commit" in existing:
+            print(
+                f"reclaiming {hook} from pre-commit — its commit-msg stage restores the "
+                f"doubled staged_files_only() stash cycle",
+                file=sys.stderr,
+            )
+        elif force:
+            print(f"--force: replacing the existing hook at {hook}", file=sys.stderr)
+        else:
             print(
                 f"refusing to overwrite an existing unrelated hook: {hook}\n"
-                f"  (if this is pre-commit's generated hook, re-run with --force)",
+                f"  (re-run with --force if you are sure)",
                 file=sys.stderr,
             )
             return 1
-        print(f"--force: replacing the existing hook at {hook}", file=sys.stderr)
-    hook.write_text(SHIM.format(python=sys.executable, script=Path(__file__).resolve()))
+    # ⚠️ Embed the MAIN checkout's copy of this script, never `__file__`. install() writes to
+    # the SHARED hooks dir, so running it from a worktree pointed every checkout's hook at a
+    # worktree-local path — and when that worktree was removed, `[ -f "$GUARD" ] || exit 0`
+    # disabled the guard for the whole repo, permanently and silently, while every "is it
+    # installed" assertion still passed. Reproduced: malformed commit landed rc=0, trailer empty.
+    # Worktrees are routine here (plan execution + subagents), and the docs tell readers to run
+    # --install from wherever they are.
+    guard_path = main_checkout_guard()
+    hook.write_text(
+        SHIM.format(
+            guard=shlex.quote(str(guard_path)),
+            # shlex.quote: an apostrophe anywhere in a path (`/opt/o'brien/...`) produced an
+            # unterminated string and rc=2 — every commit rejected, the exact opposite of the
+            # FAIL OPEN the shim promises.
+            pythons=" ".join(shlex.quote(x) for x in (sys.executable, "python3", "python")),
+        )
+    )
     hook.chmod(0o755)
-    print(f"installed {hook}")
+    print(f"installed {hook} -> {guard_path}")
     return 0
 
 

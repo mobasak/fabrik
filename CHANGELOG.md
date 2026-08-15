@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-25: 4 MAJOR + 8 MINOR, all reproduced (2026-08-15)
+
+The worst was a **permanent, silent, repo-wide disable**. `install()` writes to the SHARED hooks
+dir but embedded `__file__` — so running `--install` from a worktree (routine here: plan execution
+and subagents both create them, and the docs tell readers to run it from wherever they are) pointed
+every checkout's hook at a worktree-local path. Remove that worktree and `[ -f "$GUARD" ] || exit 0`
+turned the guard off for the main checkout and all siblings, forever, with no signal — while
+`hook.exists()`, the content check and the executable-bit check all still passed. Reproduced: a
+malformed commit landed rc=0 with an empty trailer. It now embeds the MAIN checkout's copy, and a
+new test asserts the embedded path actually resolves.
+
+The fail-open shim still failed CLOSED. Under `/bin/sh` (dash here) `command -v` ACCEPTS an
+existing but non-executable file, so a lost exec bit or a `noexec` mount still reached `exec`,
+which fails 126 and never falls through — the identical repo-wide blocker round 24 thought it had
+removed. Executability is now tested directly with `[ -x ]`. The shim also had NO test coverage at
+all, despite being where the round-24 blocking bug lived; there are now three (fails open with no
+runnable interpreter, still enforces with one, and the guard path resolves). Paths are
+`shlex.quote`d — an apostrophe anywhere in the repo path produced an unterminated string and
+rejected every commit — and the existence probe is `-r`, since python must READ the file.
+
+`parsed_trailers()` ignored git's return code, so a git that RUNS but cannot parse (broken config,
+a wrapper, a pre-2.1 git) returned `{}` rather than the `None` sentinel and rejected well-formed
+commits — breakage indistinguishable from a violation, one layer up from the shim.
+
+The auto-commit pin was still measuring an approximation: `script.index("git commit")` matched a
+COMMENT 105 lines above the real invocation, so one added explanatory comment quoting an old `-m`
+form made the harness extract five `-m` args and feed the guard a fabricated message, green while
+proving nothing. Anchored with `^git commit`.
+
+Harness fixes: extraction anchored on the `if` that gates on `$LOG_FILE` (hoisting the helper — a
+refactor the sibling test explicitly blesses — made it lift the rotation loop's unbalanced `for`);
+the `fi` match tolerates a trailing comment instead of raising StopIteration; the production `/tmp`
+fallback paths are redirected into `tmp_path` (the suite was creating and appending to the live
+pipeline's own fallback logs, which nothing prunes); and extraction happens before `chmod`, so a
+reshaped script cannot leave the directory at mode 0500. `install()` honours `core.hooksPath`, and
+auto-reclaims pre-commit's takeover so the unattended boot heal can recover. The boot re-install
+moved OUT of the daily lockfile block — `daily_refresh.sh` shares that lockfile, so on any day the
+06:00 cron won the race the re-install never ran at all. The backgrounded alert is wrapped in a
+subshell: a bare `&` in an interactive login shell prints a job-control notice, the same terminal
+noise the rotation fix one hunk above exists to prevent.
+
 ### Added — rotation `--pause-switch`: the tick can be held off an unverified successor pool (2026-08-15)
 
 `claude_rotate.py` gains `--pause-switch` / `--resume-switch` (a `switch-paused` marker in
