@@ -152,3 +152,32 @@ def test_no_actions_minutes_are_consumed_by_the_probe():
     would consume the very quota it exists to protect."""
     src = PROBE.read_text()
     assert "workflow run" not in src and "gh run rerun" not in src
+
+
+def test_public_repo_minutes_are_not_counted(monkeypatch):
+    """2026-08-15 false alarm: PUBLIC-repo minutes are unmetered (gross fully discounted,
+    net $0) but the probe summed raw quantity — fabrik's 2559 public minutes read as 82% of
+    the Pro allowance. Only private (and unknown-visibility, fail-loud) repos count."""
+    import json as _json
+
+    def fake_sh(cmd, timeout=45):
+        joined = " ".join(cmd)
+        if "/user" in cmd and "--jq" in cmd:
+            return 0, "tester pro\n"
+        if "settings/billing/usage" in joined:
+            return 0, _json.dumps({"usageItems": [
+                {"date": "2026-08-01T00:00:00Z", "sku": "Actions Linux", "quantity": 2559,
+                 "repositoryName": "fabrik"},
+                {"date": "2026-08-01T00:00:00Z", "sku": "Actions Linux", "quantity": 40,
+                 "repositoryName": "tryton-crm"},
+                {"date": "2026-08-01T00:00:00Z", "sku": "Actions Linux", "quantity": 7,
+                 "repositoryName": "mystery"},
+            ]})
+        return 1, ""
+
+    monkeypatch.setattr(cp, "sh", fake_sh)
+    monkeypatch.setattr(cp, "datetime", _FrozenNow("2026-08"))
+    monkeypatch.setattr(cp, "_repo_is_private", lambda owner, repo: {
+        "fabrik": False, "tryton-crm": True}.get(repo))  # mystery -> None (unknown)
+    q = cp.actions_quota()
+    assert q["used"] == 47, "public fabrik excluded; private + unknown counted (fail-loud)"

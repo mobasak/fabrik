@@ -111,8 +111,20 @@ def annotation_reason(slug: str, job: dict) -> str:
     return msg[:200] if rc == 0 and msg else "job never started (no steps executed)"
 
 
+def _repo_is_private(owner: str, repo: str) -> bool | None:
+    """True/False from the live API; None when unknowable (counted, fail-loud)."""
+    rc, out = sh(["gh", "api", f"repos/{owner}/{repo}", "--jq", ".private"], timeout=20)
+    s = out.strip().lower()
+    return True if (rc == 0 and s == "true") else False if (rc == 0 and s == "false") else None
+
+
 def actions_quota() -> dict | None:
-    """Current-month Actions minutes vs the plan's included allowance.
+    """Current-month METERED Actions minutes vs the plan's included allowance.
+
+    Only PRIVATE repos consume the allowance — public-repo minutes appear in usageItems with
+    quantity but are fully discounted (net $0, unmetered). Summing raw quantity produced the
+    2026-08-15 false alarm: fabrik (public) alone read as 82% of the Pro allowance while real
+    metered usage was ~0. Unknown visibility counts (fail-loud beats a silent wall).
 
     A non-200 (the per-user billing endpoint already moved once — the old path 410s) must read
     as UNKNOWN, never as zero: a fail-open zero would silence the alert exactly when the API
@@ -130,8 +142,18 @@ def actions_quota() -> dict | None:
     except ValueError:
         return None
     month = datetime.now(UTC).strftime("%Y-%m")
-    used = sum(i.get("quantity", 0) for i in items
-               if i.get("sku") == "Actions Linux" and str(i.get("date", "")).startswith(month))
+    rows = [i for i in items
+            if i.get("sku") == "Actions Linux" and str(i.get("date", "")).startswith(month)]
+    visibility: dict[str, bool | None] = {}
+    used = 0.0
+    for i in rows:
+        repo = i.get("repositoryName")
+        if repo:
+            if repo not in visibility:
+                visibility[repo] = _repo_is_private(login, repo)
+            if visibility[repo] is False:
+                continue  # public = unmetered
+        used += i.get("quantity", 0)
     included = PLAN_MINUTES.get(plan.lower(), 2000)
     return {"plan": plan, "used": round(used), "included": included,
             "pct": (used / included * 100) if included else 0.0}

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — ci-health probe counted unmetered public-repo minutes as quota burn (2026-08-15)
+
+`actions_quota()` summed raw `usageItems` quantity, so the PUBLIC hub's 2,559 unmetered minutes
+(gross fully discounted, net $0) read as 82% of the Pro allowance and fired false quota
+warnings. The probe now resolves each repo's visibility and counts only private (and
+unknown-visibility, fail-loud) repos; live reading after the fix: 0/3000. The operator's
+"trim triggers vs self-hosted runner" decision dissolved — there is no metered burn. Doc
+updated with the caveat that the historical 529→1478→2074→2409 curve was raw-sum inflated and
+the July block's own annotation blamed failed payments, not allowance exhaustion. Test:
+`test_public_repo_minutes_are_not_counted`, watched red first.
+
 ### Fixed — round-28: a regression the previous round's own test masked (2026-08-15)
 
 Round 27 made the trailer-key PRESENCE gate case-insensitive and left the VERDICT lookup

@@ -21,12 +21,20 @@ dispatch-time cancellations. The probe reports GitHub's own annotation text rath
 the cause, and **dates the run** — after a billing fix the newest run is often still a pre-fix
 failure, so "blocked" without an age misleads.
 
-**Predictive — "when will it die?"** One call reads current-month Actions minutes against the
-plan's included allowance (`/users/<login>/settings/billing/usage`; Free 2000 · Pro 3000 · Team
-3000; public repos unmetered; self-hosted runners free). WARN at 80%, ALERT at 100%. This is the
-half that would have PREVENTED the outage — the curve was **529 → 1478 → 2074 → 2409** minutes
-over four months, public in the API, unwatched. A non-200 reads as **UNKNOWN, never as zero**: a
-fail-open zero would silence the alert exactly when the endpoint moves (it already moved once).
+**Predictive — "when will it die?"** One call reads current-month **metered** Actions minutes
+against the plan's included allowance (`/users/<login>/settings/billing/usage`; Free 2000 ·
+Pro 3000 · Team 3000; self-hosted runners free). WARN at 80%, ALERT at 100%. A non-200 reads as
+**UNKNOWN, never as zero**: a fail-open zero would silence the alert exactly when the endpoint
+moves (it already moved once).
+
+⚠️ **Metered-only counting (fixed 2026-08-15):** public-repo minutes appear in `usageItems`
+with full `quantity` but are unmetered (gross fully discounted, `netAmount: 0`). The probe
+originally summed raw quantity, so the public hub alone (2,559 min) read as 82% of the Pro
+allowance — a false alarm. The probe now looks up each repo's visibility and excludes public
+repos (unknown visibility still counts — fail-loud beats a silent wall). Same caveat applies to
+the historical **529 → 1478 → 2074 → 2409** curve: those figures were raw sums inflated by the
+public hub, and the July outage's own annotation blamed *failed payments*, not allowance
+exhaustion — treat the "2000 crossed in July" narrative as unproven.
 
 ## The dispatcher defect it also fixed
 
