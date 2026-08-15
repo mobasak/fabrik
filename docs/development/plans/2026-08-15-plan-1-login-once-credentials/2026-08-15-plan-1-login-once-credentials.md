@@ -1,6 +1,6 @@
 # Plan — login-once credentials, phase 1: disarm, scaffold, fleet telemetry, runbook
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Date: 2026-08-15 · Owner: infra · Spec: docs/superpowers/specs/2026-08-15-login-once-credentials-design.md (CONVERGED, operator-approved)
 
 **What this plan delivers vs defers.** It builds everything that must exist BEFORE the
@@ -28,7 +28,7 @@ window's live path would break the box.
 ## Ticket Board
 
 | Ticket | Title | Depends | Parallel | State | Commit |
-| T01 | Disarm the old world (M-pre) | — | ⛓️ | ⬜ | |
+| T01 | Disarm the old world (M-pre) | — | ⛓️ | 🔵 | |
 | T02a | Fleet-dir scaffolder + carrier monitor | T01 | ⛓️ | ⬜ | |
 | T02b | Fleet gitignore for the carrier file | — | ⚡ | ⬜ | |
 | T03 | Fleet-mode status/tick + keepalive | T02a | ⛓️ | ⬜ | |
@@ -146,6 +146,19 @@ window's live path would break the box.
 - docs/workstation/claude-account-rotation.md
 - docs/workstation/hooks-index.md
 - docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md
+
+## Execution Evidence (run log — orchestrator-appended)
+
+- 2026-08-15: operator ruling — "send a message to intel agent and proceed your work" →
+  run started WITHOUT T02b dispatch; `scripts/fabrik_synced_manifest.py` is DEFERRED in the
+  lock until intel's `2026-07-26-plan-1-ai-model-catalog-extraction` lock releases (mail
+  01M02J7XM9XCWZ19Q5GE78SG3N, ack-required, asks intel for release/path-drop). T02b dispatches
+  the moment the overlap clears; if the Board otherwise completes first, T02b ends 🔴 for a
+  later resume — never a silent skip.
+- Baseline: HEAD 6250ada3, lean gate success with ZERO reds (clean attribution reference).
+- Isolation note: intel's active lock has no path overlap with this run's locked set; both
+  runs follow the shared-master + disjoint-locks precedent (coder isolation is per-ticket
+  worktrees, per D2).
 
 ## Evidence
 
