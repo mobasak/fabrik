@@ -199,6 +199,30 @@ an inlined `parent.parent.parent`, so commit `13b7ec1`'s "7 producers no longer 
 nonexistent file, so the blend at `:1320` silently degrades to `n_total=0`. **Fix `rank_task_subagents.py` and
 `rank_coding_subagents.py` to honour `OUTPUT_ROOT` before any producer is run.**
 
+> ✅ **B-B1 FIXED 2026-08-15 (`ai-model-catalog` `e858a64`) — and it was FOUR TIMES WIDER than reported, and
+> it had ALREADY FIRED.** A class sweep for the idiom (not the two named instances) found **20** modules in
+> five shapes: selection-doc producers (3 hops → `/opt`), Traycer JSON exports (2 hops → the scaffold repo
+> root), `.env` loaders (B-B7), "repo root" haystack readers (`docs_grader`/`mine_docs_corpus`/`structural_grader`
+> — under `engine/` these would have made the grader scan every project on the box as one codebase), and one
+> vendored fixture (correctly exempted). **Damage already done, found by looking rather than by any gate:** the
+> scaffold's own `.windsurf/rules/ai/*.md` carried injected `GATEWAY_COUNTS` blocks stamped *"auto-managed by
+> `update_gateway_counts.py`"*, and `docs/reference/kilo/` carried **nine** files stamped *"Generator:
+> `rank_coding_subagents.py`"* — the precise clobber B.2e exists to prevent, sitting in the tree since 06:04.
+> Both surfaces restored to HEAD; the stray `kilo_embeddings_final.json` at the scaffold root removed.
+> `/opt/docs/` was never created **only** because the producers had not been run since the move.
+> **The gate now exists:** `engine/tests/test_output_root_isolation.py` — the file B.2 gate 4 requires and
+> that had never been written — AST-walks every module, symbolically counts how many levels each path
+> expression walks up from `__file__` **through module-level names** (so `SCRIPT_DIR = Path(__file__).parent`
+> then `SCRIPT_DIR.parent.parent` is caught as 3), and fails anything above one hop. Committed **RED at 20
+> modules, green at 0**, with an anti-vacuity guard and a discriminator proving it stays quiet on the correct
+> `OUTPUT_ROOT` idiom and bites on all four real ones. ⚠️ **`test_no_fabrik_paths.py` passed throughout** —
+> every one of these is a *computed* path, so string-matching is structurally blind to the entire class.
+> Regression-checked against a baseline worktree at the prior commit: **16 pre-existing failures before, the
+> same 16 after, zero new** (1264 passed, +145). One self-inflicted defect en route, recorded because it is
+> the reusable lesson: redirecting into `engine/out/` broke 13 embedding tests with `FileNotFoundError`,
+> because the *old* parent always existed and the new one must be created — `mkdir(parents=True)` added at the
+> three write sites.
+
 **B-B2 — `engine/daily_refresh.sh` is entirely non-functional; B.2f is not done.** `:55` repoints
 `FABRIK_ROOT` to the engine root but the **sub-paths were not repointed with it**: `:58` still sets
 `KB="$FABRIK_ROOT/scripts/kilo-benchmarks"`, a directory that does not exist under `engine/`, and there are
