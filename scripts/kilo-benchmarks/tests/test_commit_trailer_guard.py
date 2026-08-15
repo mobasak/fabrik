@@ -977,3 +977,73 @@ def test_an_explicit_comment_char_cut_line_really_does_lose_the_block(tmp_path):
     assert result.returncode == REJECT_CODE, (
         "git dropped the trailer block and the guard accepted the commit — silent lost provenance"
     )
+
+
+@pytest.mark.parametrize("char", [";", "@", ":"])
+def test_a_quoted_cut_line_does_not_hide_a_malformed_block_below_it(char, tmp_path):
+    """The FALSE ACCEPT that falsified this guard's own load-bearing comment.
+
+    Keying the strip on the auto-DETECTED char meant a message merely QUOTING a `;` cut line was
+    truncated there, so a MALFORMED trailer block below became invisible and the commit landed
+    with no provenance — silently. The justification ("over-truncating can only cause a
+    pass-through, and git will have parsed the block, so the two agree") is false exactly where
+    it matters: git does NOT parse a malformed block, which is the only case this guard is for.
+    """
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", "auto"], cwd=repo, capture_output=True, check=False
+    )
+    message = (
+        f"docs: explain the cut line\n\ngit emits:\n{char} {CUT_LINE}\nand truncates there.\n"
+        f"\nAgent-Role: primary\n\nCo-Authored-By: Y <y@z>\n"  # blank line = malformed
+    )
+    msg = repo / "COMMIT_EDITMSG_hidden"
+    msg.write_text(message, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == REJECT_CODE, (
+        f"a malformed block below a quoted {char!r} cut line was accepted — git cannot parse it "
+        f"either, so the commit lands with no provenance at all"
+    )
+
+
+@pytest.mark.parametrize("sep", ["", "\t", "  "])
+def test_only_gits_exact_cut_line_spacing_counts(sep, tmp_path):
+    """git's cut line is `commentChar + ' ' + dashes`; the single space is MANDATORY.
+
+    Treating the separator as optional whitespace made `#------…>8------…` and a tab-separated
+    variant — ordinary prose to git — truncate the message AND hard-reject it. That is the
+    self-blocking class again, in `-F` mode, which every automated commit here uses, so the
+    documented interactive-editor escape hatch does not apply.
+    """
+    message = f"docs: document the cut line\n\n#{sep}{CUT_LINE}\n\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n"
+    assert _git_verdict(message, tmp_path) is True, "precondition: git keeps this block"
+    result = run(message, tmp_path)
+    assert result.returncode == 0, (
+        f"a cut-line lookalike separated by {sep!r} truncated a message git treats as prose:"
+        f"\n{result.stderr}"
+    )
+
+
+def test_an_indented_block_below_a_real_cut_line_is_still_caught(tmp_path):
+    """The reject path tested column 0 only, while declares_agent_role() catches indented keys.
+
+    The two rules disagreed about what counts as a declaration, so an indented block sitting
+    below a genuine cut line was discarded by git in silence.
+    """
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", ";"], cwd=repo, capture_output=True, check=False
+    )
+    message = f"docs: a\n\nprose\n\n; {CUT_LINE}\n\n    Agent-Role: primary\n"
+    msg = repo / "COMMIT_EDITMSG_indented_below"
+    msg.write_text(message, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == REJECT_CODE, (
+        "an indented trailer block below a genuine cut line was accepted, and git drops it"
+    )

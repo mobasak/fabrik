@@ -55,7 +55,7 @@ REJECT_CODE = 9
 # impossible to follow and a verify command that contradicted the verdict.
 def scissors_re(cc: str = "#") -> re.Pattern[str]:
     """git's cut line for the configured comment char: 24 dashes, space, >8, space, 24 dashes."""
-    return re.compile(rf"^{re.escape(cc)}\s?-{{24}} >8 -{{24}}\s*$")
+    return re.compile(rf"^{re.escape(cc)} -{{24}} >8 -{{24}}\s*$")
 
 
 def parsed_trailers(message: str) -> dict[str, list[str]] | None:
@@ -197,8 +197,15 @@ def verdict_comment_char() -> str:
     Measured, because the two cases differ and the difference is a silent lost commit:
       * `core.commentChar` set explicitly to a single char  -> `%(trailers:key=…)` HONOURS it and
         cuts at that char's cut line, so a block below one is genuinely lost.
-      * `core.commentChar=auto` (or unset)                  -> parsing falls back to '#', because
-        git resolves `auto` only when writing a template.
+      * `core.commentChar=auto` (or unset)                  -> parsing falls back to '#'.
+
+    ⚠️ The reason for that second line is NOT "git only resolves auto when writing a template" —
+    that is false, `adjust_comment_line_char()` runs for `-F`/`-m` too (proof: a `-F` message
+    starting lines with all ten candidates makes git itself abort with "unable to select a
+    comment character"). The real reason is narrower: `git log` is a SEPARATE process with no
+    message to adjust against, so `auto` never resolves there. Rounds 29 and 30 both reasoned
+    from the wrong premise and shipped a defect each time; the conclusion survived, the
+    justification did not.
 
     Pinning this to '#' unconditionally was a FALSE ACCEPT under an explicit `;`: git dropped the
     block (query empty) and the guard said nothing — exactly the silent lost provenance this
@@ -259,23 +266,54 @@ def comment_char(message: str | None = None) -> str:
     return value if len(value) == 1 else "#"
 
 
-def authored_text(message: str) -> str:
-    """The part of the buffer the author actually wrote — what git will keep as the commit.
+def diff_region_start(lines: list[str], after: int) -> int | None:
+    """Index of the `diff --git` line that begins a `git commit -v` diff, if one follows."""
+    return next(
+        (i for i in range(after, len(lines)) if lines[i].startswith("diff --git ")), None
+    )
 
-    Two things get discarded, mirroring git's own cleanup: everything below a scissors line
-    (`git commit -v` puts the entire diff there, uncommented), and `#` comment lines.
+
+def cut_index(lines: list[str]) -> int | None:
+    """Where git will cut this buffer — and ONLY where git will actually cut it.
+
+    Two separate reasons to truncate, and keying both on the auto-DETECTED comment char was a
+    silent FALSE ACCEPT: under `core.commentChar=auto` a message merely QUOTING a `;` cut line
+    was truncated there, so a MALFORMED trailer block below it became invisible and the commit
+    landed with no provenance at all. The comment that justified it — "over-truncating can only
+    cause a pass-through, and git will have parsed the block, so the two agree" — is false
+    exactly where it matters: git does NOT parse a malformed block, which is the only case this
+    guard exists for.
+
+    So truncate only when one of these actually holds:
+      1. a cut line for the char git will DECIDE with — that is git's real cleanup;
+      2. a cut line for any candidate char that is FOLLOWED BY A DIFF — the `git commit -v`
+         region, which git strips regardless, and whose ` Agent-Role: …` context lines would
+         otherwise read as an indented trailer and reject a commit over a line nobody wrote.
+    A quoted cut line with no diff under it satisfies neither, so the block below stays visible.
     """
-    cc = comment_char(message)
+    verdict = scissors_re(verdict_comment_char())
+    hit = next((i for i, ln in enumerate(lines) if verdict.match(ln)), None)
+    if hit is not None:
+        return hit
+    for candidate in AUTO_CANDIDATES:
+        pattern = scissors_re(candidate)
+        found = next((i for i, ln in enumerate(lines) if pattern.match(ln)), None)
+        if found is not None and diff_region_start(lines, found) is not None:
+            return found
+    return None
+
+
+def authored_text(message: str) -> str:
+    """The part of the buffer the author actually wrote — what git will keep as the commit."""
     lines = message.splitlines()
-    # ⚠️ Match git's ACTUAL scissors line, not "a comment containing >8". The loose form
-    # truncated a legitimate body line like `# >8 threads regressed throughput` and discarded
-    # everything below it — including the trailer block — so the guard silently passed a
-    # malformed commit. Reproduced. Git emits exactly:
-    #     # ------------------------ >8 ------------------------
-    scissors = next((i for i, ln in enumerate(lines) if scissors_re(cc).match(ln)), None)
-    if scissors is not None:
-        lines = lines[:scissors]
-    return "\n".join(ln for ln in lines if not ln.startswith(cc))
+    cut = cut_index(lines)
+    if cut is not None:
+        lines = lines[:cut]
+    # Strip comments for BOTH the configured char and any auto-detected one: dropping a comment
+    # line can never hide a trailer, since git ignores those lines too.
+    chars = {verdict_comment_char(), comment_char(message)}
+    return "\n".join(ln for ln in lines if not any(ln.startswith(c) for c in chars))
+
 
 
 TRAILER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:\s")
@@ -339,7 +377,16 @@ def trailers_lost_below_scissors(message: str) -> bool:
     scissors = next((i for i, ln in enumerate(lines) if pattern.match(ln)), None)
     if scissors is None:
         return False
-    return any(ln.lower().startswith(f"{REQUIRED.lower()}:") for ln in lines[scissors + 1 :])
+    # Stop at a `git commit -v` diff: its content lines carry a ' '/'+'/'-' prefix, and an
+    # indented match there would reject a commit over a line its author never wrote. Below the
+    # cut line but ABOVE any diff, an INDENTED key counts — declares_agent_role() was taught to
+    # catch that shape and this path disagreed with it, letting an indented block sitting below
+    # a genuine cut line be discarded by git in silence.
+    region = lines[scissors + 1 :]
+    diff_at = diff_region_start(region, 0)
+    if diff_at is not None:
+        region = region[:diff_at]
+    return any(ln.strip().lower().startswith(f"{REQUIRED.lower()}:") for ln in region)
 
 
 def diagnose(message: str) -> str:

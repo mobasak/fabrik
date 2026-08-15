@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-31: 4 findings from a 520-cell empirical grid (2026-08-15)
+
+The finder committed 520 real commits in 520 throwaway repos (25 messages x 4 `core.commentChar`
+settings x 4 commit modes) and compared the guard against `%(trailers:key=…)` on each LANDED
+commit. Three behavioural defects, and one factually wrong comment.
+
+**A false accept that falsified this guard's own load-bearing comment.** Keying the STRIP path on
+the auto-detected char meant a message merely QUOTING a `;` cut line was truncated there, so a
+MALFORMED trailer block below it became invisible and the commit landed with no provenance,
+silently. The justification — "over-truncating can only cause a pass-through, and git will have
+parsed the block, so the two agree" — is false exactly where it matters: git does **not** parse a
+malformed block, which is the only case this guard exists for. Truncation now happens only where
+git truly cuts: at the verdict char's cut line, or at any candidate's cut line that is FOLLOWED BY
+A DIFF (the `-v` region git strips regardless). A quoted cut line with nothing under it satisfies
+neither, so the block below stays visible.
+
+**A false reject from optional spacing.** git's cut line is `commentChar + " " + dashes` and the
+single space is mandatory, but the pattern allowed any/no whitespace — so `#------…>8------…`,
+ordinary prose to git, truncated the message and hard-rejected it, in `-F` mode where the
+documented interactive-editor escape hatch does not apply.
+
+**A false accept from disagreeing rules.** The reject path matched column 0 only while
+`declares_agent_role()` catches indented keys, so an indented block below a genuine cut line was
+discarded by git in silence. It now matches indented keys too, stopping at any `-v` diff so a
+context line cannot trigger it.
+
+And the comment justifying `verdict_comment_char()` was wrong: `adjust_comment_line_char()` DOES
+run for `-F`/`-m` (a message using all ten candidates makes git itself abort). The conclusion holds
+for a different reason — `git log` is a separate process with no message to adjust against — but
+rounds 29 and 30 each shipped a defect reasoning from the wrong premise.
+
 ### Fixed — round-30: the `auto` comment-char detection could hard-reject a valid commit (2026-08-15)
 
 Round-31 self-review found the mirror of that fix, in the worse direction. Pinning the reject path
