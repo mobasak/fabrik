@@ -1,6 +1,6 @@
 # Design spec — login-once credential architecture (per-window `CLAUDE_CONFIG_DIR` isolation)
 
-Status: DRAFT
+Status: CONVERGED (review 2026-08-15: 7 passes, closing no-op md5-verified)
 Date: 2026-08-15 · Owner: infra
 
 ## Goal
@@ -28,9 +28,16 @@ on use. Sharing one chain among N long-lived processes therefore guarantees:
 4. **Parked-quota blindness** — a parked store's access token dies ~8h after capture, so
    `--status` cannot read a parked account's quota (operator complaint, 2026-08-15).
 
-Upstream this is a confirmed open bug family — the CLI does read→refresh→write on the shared
-file with no locking and no re-read-on-failure (anthropics/claude-code issues #24317, #25609,
-#27933, #43392, #48786, #54443, #56339; surveyed 2026-08-15, none fixed as of 2.1.232).
+Upstream status (live-verified via GitHub API + CHANGELOG, 2026-08-15): the race was tracked as
+anthropics/claude-code #24317 and **partially mitigated** — a lockfile in the refresh path
+(~2.1.81), a parallel-session wake-from-sleep logout fix (2.1.211), and a concurrent-refresh
+fix (2.1.221). #24317 was closed as *completed* 2026-05-07 with no maintainer explanation;
+#25609/#27933/#43392/#48786/#56339 are closed as duplicates; the only open tracker, #54443, is
+labeled *stale*. **The field disagrees with the close**: users report reproduction through
+2.1.195 post-close, and this box reproduced the full class on **2.1.232 the same morning this
+spec was written**. Net: upstream considers it done, the failure persists here, and no open
+tracked fix path exists — self-help isolation is the only route that doesn't wait on a closed
+issue.
 
 **The load-bearing fact:** an account that is *used* never needs a login — the CLI rolls its
 chain on every real turn. Every relogin traces to sharing, swapping, or stranding a chain, never
@@ -78,11 +85,13 @@ stronger ground).
 ```
 
 - Kebab-case slugs; one dir = one OAuth chain = one login, ever.
-- Hub exception: 3 windows share `/opt/fabrik` as cwd, so cwd-keyed settings cannot split them.
-  Design: per-role dirs selected by the `CLAUDE_AGENT` env the operator already sets per hub
-  window; **fallback** (if per-window env proves impractical): one shared `fabrik` dir — a
-  3-process residual race, recoverable by window reload (never a login), ¼ of today's blast
-  radius. Resolution: migration step M2 probes it.
+- Hub exception: 3 windows share `/opt/fabrik` as cwd, so cwd-keyed settings cannot split them —
+  and a settings `env` entry would *override* any per-window value (the docs' documented
+  precedence), so **the hub gets NO `settings.local.json` entry**: each hub window's own
+  environment carries `CLAUDE_CONFIG_DIR=~/.claude-fleet/fabrik-<role>` directly (set wherever
+  the operator already sets `CLAUDE_AGENT` per window). **Fallback** (if per-window env proves
+  impractical): one shared `fabrik` dir — a 3-process residual race, recoverable by window
+  reload (never a login), a fifth of today's blast radius. Resolution: migration step M2 probes it.
 - Headless crons in project cwds (`ci_fix_dispatcher` dispatches `claude -p` inside
   `/opt/<project>`) inherit that project's dir automatically — no per-cron work.
 
@@ -103,9 +112,11 @@ stronger ground).
   switch/install path and the store/capture/drift machinery retire with their tests (the
   drift-check blind spot that lost can@ is rendered moot, not patched).
 - `claude_rotate.py --status` walks `~/.claude-fleet/*/`, groups dirs by account
-  (assignments.json, verified against `api/oauth/profile` per dir), and reads **live quota for
-  every account all the time** — every dir's access token is fresh by use. Closes the
-  parked-telemetry gap by construction.
+  (assignments.json, verified against `api/oauth/profile` per dir), and reads quota with the
+  freshest access token per account — **live whenever any of the account's dirs was used in
+  the last ~8h** (during work, effectively always), else **last-known + age**, which for an
+  idle account is an upper bound (utilization only decays while unused). Closes the
+  parked-telemetry gap: today a parked account is unreadable at all.
 - The 5-min tick keeps telemetry + advisories only: "account X at ≥85% (resets HH:MM)" Telegram
   + graceful-drain fabrik-mail to the repos **mapped to that account** (assignments.json is the
   routing table). A walled account's windows pause until the 5h reset — the wall-resume
@@ -134,7 +145,9 @@ temp dir — the fragile pattern that blanked pairs; it retires). Failure alerts
 M0. ~~Probe `settings.local.json` env merge~~ **DONE 2026-08-15** (probe passed; see Mechanism).
 M1. Build dir scaffolder (`claude_rotate.py --new-dir <slug> <account>`): mkdir, seed
     `.claude.json`, symlinks, assignments.json row.
-M2. Hub role-dir probe (`CLAUDE_AGENT`-keyed selection); fall back to single hub dir if needed.
+M2. Hub per-window env probe: set `CLAUDE_CONFIG_DIR=~/.claude-fleet/fabrik-<role>` in each hub
+    window's environment (beside the existing per-window `CLAUDE_AGENT`); fall back to a single
+    shared hub dir if per-window env proves impractical.
 M3. **Staged rollout, 3–4 dirs per account per day**: create dirs, operator does ONE `/login`
     each (~15 total, the last ever), watch 24h for upstream grant evictions (see Unknowns)
     before the next batch.
@@ -150,7 +163,9 @@ M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs)
    (measured: no `/login` events outside migration itself).
 2. **Overnight survival**: a full night with active autonomous sessions ends with every window
    usable without reload or login.
-3. `--status` shows **live session+weekly quota for all 4 accounts** at any time of day.
+3. `--status` shows session+weekly quota for **all 4 accounts** at any time — live values
+   whenever an account had use in the last ~8h, otherwise last-known-with-age (never today's
+   "parked — quota unknown").
 4. **No credential file is ever written by two processes**: each `~/.claude-fleet/<slug>/`
    `.credentials.json` is only ever touched by sessions started in its mapped project.
 5. A quota wall on one account leaves the other accounts' windows **fully working**, and the
@@ -161,9 +176,10 @@ M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs)
 - **Per-account dirs only (4 dirs)** — fewer logins, but every account's windows still share
   one chain: the overnight-refresh → morning-relogin class survives at ~¼ scale. Rejected: the
   operator's requirement is zero, not fewer.
-- **Status quo + reload discipline + wait for upstream** — the race is open upstream with seven
-  duplicate issues and no committed fix (surveyed 2026-08-15); nightly breakage is the live
-  cost. Rejected.
+- **Status quo + reload discipline + wait for upstream** — upstream closed the tracking issue
+  as completed (2026-05-07) after partial mitigations, yet the class reproduced on this box on
+  2.1.232 the day of this spec; the only open tracker is stale. There is nothing tracked to
+  wait FOR, and nightly breakage is the live cost. Rejected.
 - **Script-side refresh daemon (keep one file, refresh centrally)** — the token grant is
   Cloudflare-fenced to the CLI client (403/1010, live-probed 2026-08-13); defeating that is out
   of bounds. Dead.
@@ -174,19 +190,22 @@ M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs)
 
 | Fact | Grounding | Source + date |
 |---|---|---|
-| `settings.json` supports an `env` map applied to sessions | official docs | code.claude.com/docs/en/settings, fetched 2026-08-15 |
-| Project-level settings `env` can redirect `CLAUDE_CONFIG_DIR` | **live probe this session** (fixture project; CLI ignored shared creds, scaffolded target dir) | box, 2026-08-15 |
-| Extension honors `CLAUDE_CONFIG_DIR` | prior grounded session (`acp-agent.js:14`) | session 92c3df30, 2026-07-15 |
-| Refresh race is open upstream, no fix in 2.1.232 | issue survey | github.com/anthropics/claude-code issues #24317 #25609 #27933 #43392 #48786 #54443 #56339, 2026-08-15 |
+| Settings `env` map: *"Environment variables passed to Claude Code and its subprocesses"*; applied *"no matter how `claude` was launched"*, **overriding** the inherited shell value and re-applied on file change | official docs, quoted | code.claude.com/docs/en/settings + /docs/en/env-vars, fetched 2026-08-15 |
+| `CLAUDE_CONFIG_DIR` relocates the config dir; *"credentials are stored under the configuration directory"* (login prompted when pointed at an empty dir) | official docs, quoted | code.claude.com/docs/en/debug-your-config + /docs/en/server-managed-settings, fetched 2026-08-15 |
+| Project-level settings `env` redirects `CLAUDE_CONFIG_DIR` (both `settings.json` and `settings.local.json`) | **live probes this session** (fixture projects; CLI ignored shared creds, scaffolded target dirs) | box, 2026-08-15 |
+| Race partially mitigated upstream (lockfile ~2.1.81; 2.1.211; 2.1.221) but tracking closed while field reports persist; only open tracker #54443 is stale; reproduced HERE on 2.1.232 | GitHub API issue states + CHANGELOG quotes + box incident | github.com/anthropics/claude-code #24317 #54443 + CHANGELOG, 2026-08-15 |
+| No published cap on concurrent devices/logins per account; sessions 28 days with rolling refresh; *absence of a documented limit is not a guarantee* — subscription acceptable-use terms govern (ordinary use of the official CLI on own accounts is the design here) | support articles surveyed | support.claude.com articles 13124001 + 10310342, fetched 2026-08-15 |
 | Refresh tokens single-use, ~30-day idle life, roll on use | live blobs (`refreshTokenExpiresAt` ≈ +28–30d) + incident forensics | box, 2026-08-15 |
 | Direct HTTP refresh fenced (Cloudflare 1010) | live probe | box, 2026-08-13 (`_keepwarm_refresh` docstring) |
 | ≥2 concurrent grants per account coexist | live: youtube-headless + shared dir, same account, weeks | box, 2026-08-15 |
 | `.claude.json` (MCP/trust/onboarding) is kept INSIDE the redirected dir, not at `~` | live: `~/.claude-youtube-headless/.claude.json` exists and is actively maintained (mtime = today) | box, 2026-08-15 |
 
 Pool-grounding note (recorded for the review): a pool researcher's claim that the upstream race
-was "fixed Nov 2024 via `claude/auth.py` file locking" was **refuted** — the race reproduced on
-this box on 2.1.232 the same morning, today's live issue survey shows the reports open, and the
-CLI has no such Python module. Scored 0 in the flywheel; do not let it resurface.
+was "fixed Nov 2024 via `claude/auth.py` file locking" was **fabricated** (wrong year — closures
+are Feb–May 2026; wrong language — the refresh path is JS with `proper-lockfile`; no such file).
+Scored 0 in the flywheel. The native Opus verify then established the accurate picture absorbed
+above: partial mitigations DID ship, the tracking is closed, and the failure still reproduces
+here — a fabrication's direction being half-right does not make it grounding.
 
 ## fabrik-lib verdict table
 
@@ -216,7 +235,7 @@ place — same file, new architecture; Doc Sync Matrix "extend the existing doc,
 
 | # | Unknown | Status | Resolution step |
 |---|---|---|---|
-| 1 | Concurrent OAuth grant cap per account (need ~4–6; ≥2 proven) | OPEN | M3 staged rollout watches for grant eviction (a relogin prompt in an untouched dir = abort signal → regroup to fewer dirs/account) |
+| 1 | Concurrent OAuth grant cap per account (need ~4–6; ≥2 proven live; no published cap found in support docs 2026-08-15 — absence of documentation ≠ guarantee) | OPEN | M3 staged rollout watches for grant eviction (a relogin prompt in an untouched dir = abort signal → regroup to fewer dirs/account) |
 | 2 | ~~`settings.local.json` env merge~~ | **RESOLVED 2026-08-15** | live probe passed (see Mechanism) |
-| 3 | Hub per-role dir selection via `CLAUDE_AGENT`; extension INTERACTIVE session applies project env like `-p` does | OPEN | M2/M3 first-window probes; fallback single hub dir is acceptable (reload-recoverable, no logins) |
+| 3 | Hub per-window env practicality (`CLAUDE_CONFIG_DIR` set directly in each window's environment, beside `CLAUDE_AGENT`); extension INTERACTIVE session applies project env like `-p` does | OPEN | M2/M3 first-window probes; fallback single hub dir is acceptable (reload-recoverable, no logins) |
 | 4 | VPS/aro-wake fleet accounts (today fed by snapshot sync of WSL chains) | OUT OF SCOPE — named follow-up | separate spec: per-box dedicated logins, retiring snapshot shipping; until then VPS keeps consuming `manager-accounts` snapshots, so stores are archived, not deleted, at M4 |
