@@ -1,6 +1,6 @@
 # Design spec — login-once credential architecture (per-window `CLAUDE_CONFIG_DIR` isolation)
 
-Status: CONVERGED (review 2026-08-15: 7 passes, closing no-op md5-verified)
+Status: CONVERGED (two review cycles 2026-08-15 — 7-pass initial + 4-pass operator-invoked re-review with an Opus edge-case adversary; both closed on md5-verified no-op passes)
 Date: 2026-08-15 · Owner: infra
 
 ## Goal
@@ -52,8 +52,15 @@ chain has no foreign owners.
 A project-level `.claude/settings.local.json`:
 
 ```json
-{"env": {"CLAUDE_CONFIG_DIR": "/home/ozgur/.claude-fleet/<slug>"}}
+{"env": {"CLAUDE_CONFIG_DIR": "/home/ozgur/.claude-fleet/<slug>",
+         "CLAUDE_QUOTA_HOME": "/home/ozgur/.claude-fleet/<slug>"}}
 ```
+
+`CLAUDE_QUOTA_HOME` rides along because the wall/resume layer (`~/.claude/bin/claude-quota.py:37`)
+resolves its home from that variable, not from `CLAUDE_CONFIG_DIR` — without it, all windows
+would share one `~/.claude/.claude-manager/wall-state.json` and sleep on each other's walls
+(adversary finding B4). With it, wall state is per-dir: a wall recorded by a `seo/` session is
+read only by `seo/` sessions. Hub per-window env carries both variables likewise.
 
 **Empirically verified twice (2026-08-15, this session):** `claude -p` runs in fixture projects
 carrying exactly this file — once as `settings.json`, once as `settings.local.json` — both
@@ -89,16 +96,30 @@ stronger ground).
   and a settings `env` entry would *override* any per-window value (the docs' documented
   precedence), so **the hub gets NO `settings.local.json` entry**: each hub window's own
   environment carries `CLAUDE_CONFIG_DIR=~/.claude-fleet/fabrik-<role>` directly (set wherever
-  the operator already sets `CLAUDE_AGENT` per window). **Fallback** (if per-window env proves
+  the operator already sets `CLAUDE_AGENT` per window). A hub terminal opened WITHOUT the
+  per-window env lands on `~/.claude` (the M5 ad-hoc default) — visible in `--status`'s
+  carrier/occupancy check, never a corruption. **Fallback** (if per-window env proves
   impractical): one shared `fabrik` dir — a 3-process residual race, recoverable by window
   reload (never a login), a fifth of today's blast radius. Resolution: migration step M2 probes it.
 - Headless crons in project cwds (`ci_fix_dispatcher` dispatches `claude -p` inside
-  `/opt/<project>`) inherit that project's dir automatically — no per-cron work.
+  `/opt/<project>`, `cwd=repo_dir` at `scripts/ci_fix_dispatcher.py:203`) inherit that
+  project's dir automatically — no per-cron work.
+- **Third carrier — headless callers without a project cwd** (root crons via `claude-run.sh`,
+  the hourly keepalive shim, anything using `cron-ci-fix/`): the launch line itself sets
+  `CLAUDE_CONFIG_DIR`/`CLAUDE_QUOTA_HOME` (a cron env prefix; `claude-run.sh`'s `sudo env`
+  whitelist gains the two variables). Without this, those callers silently stay on `~/.claude`
+  (adversary findings R1/R6).
 - ⚠️ **Git worktrees don't carry the mapping**: `settings.local.json` is untracked, so a fresh
   `claude` session started inside a worktree checkout falls back to shared `~/.claude`.
   In-session worktree moves and Task subagents are unaffected (the env is already applied to
   the running process). Mitigation at build time: worktree-creating flows copy the parent
-  checkout's `.claude/settings.local.json` into the worktree (one `cp` in the helper).
+  checkout's `.claude/settings.local.json` into the worktree (one `cp` in the helper), and the
+  **carrier-presence monitor** (below) catches any silent fallback the copy misses.
+- **Carrier-presence monitor** — the load-bearing invariant must not fail open invisibly
+  (adversary finding B3): `--status` (and the tick) checks every mapped project for its
+  `settings.local.json` carrier and WARNs when one is missing or when an unexpected process
+  count appears on `~/.claude`; a missing carrier is a named alert, never a silent rejoin of
+  the shared chain.
 
 ### What is per-dir vs shared (the seeding contract)
 
@@ -116,9 +137,11 @@ stronger ground).
   stores, no `--touch`. Today's `--pause-switch` posture (f8eebd84) becomes permanent; the
   switch/install path and the store/capture/drift machinery retire with their tests (the
   drift-check blind spot that lost can@ is rendered moot, not patched).
-- `claude_rotate.py --status` walks `~/.claude-fleet/*/`, groups dirs by account
-  (assignments.json, verified against `api/oauth/profile` per dir), and reads quota with the
-  freshest access token per account — **live whenever any of the account's dirs was used in
+- `claude_rotate.py --status` walks `~/.claude-fleet/*/` and groups dirs by account. **Identity
+  is pinned once, at dir creation** (the login's `api/oauth/profile` answer, cached in
+  assignments.json) — never re-probed per status, so the dead-token identity gate that lost
+  can@ is not reintroduced (adversary finding R4). Usage is queried once per account per tick
+  (the freshest dir's token, ~4 calls) — **live whenever any of the account's dirs was used in
   the last ~8h** (during work, effectively always), else **last-known + age**, which for an
   idle account is an upper bound (utilization only decays while unused). Closes the
   parked-telemetry gap: today a parked account is unreadable at all.
@@ -147,9 +170,29 @@ temp dir — the fragile pattern that blanked pairs; it retires). Failure alerts
 
 ### Migration — the last login round
 
+**M-pre. Disarm the old world FIRST** (adversary findings B1/B2 — the pause marker gates only
+the tick; these stay armed without explicit action):
+  - `claude-sound.sh` autorotate: **already disarmed** (`CLAUDE_SOUND_AUTOROTATE=0` in the
+    settings env, verified live 2026-08-15) — keep it that way.
+  - `run_claude()`'s rotation-retry (the WSL keepalive shim's swap path): gate it with the same
+    `switch-paused` marker the tick honors.
+  - `--drift-check`: disable BOTH the hourly cron and the **SessionStart hook**
+    (`~/.claude/settings.json:37`) before any fleet dir exists — the settings symlink would
+    otherwise run it from every new dir against its hardcoded `~/.claude` paths, re-creating
+    the exact capture/retarget hazard this design retires.
+  - Stop the `capture-watch.sh` poller; leave the hourly VPS fleet-sync (it feeds the VPS from
+    `~/.claude`, which stays live as the ad-hoc account — reviewed in the VPS follow-up spec).
 M0. ~~Probe `settings.local.json` env merge~~ **DONE 2026-08-15** (probe passed; see Mechanism).
 M1. Build dir scaffolder (`claude_rotate.py --new-dir <slug> <account>`): mkdir, seed
-    `.claude.json`, symlinks, assignments.json row.
+    `.claude.json`, symlinks, assignments.json row (+ a `--sync-mcp` helper — the per-dir
+    `.claude.json` copies fork the MCP roster ~15×, adversary finding R7; the durable de-fork
+    is the planned global/per-project `.mcp.json` split, intel finding 01KZX92Q). Acceptance
+    includes probing that symlinked `projects/`/`agents/`/`commands/`/`skills/` behave under a
+    redirected dir (only `.claude.json` relocation is live-proven today). Also at M1: add
+    `.claude/settings.local.json` to the fleet-synced gitignore block
+    (`templates/scaffold/gitignore-synced-block.txt` + scaffolder) — **no ignore rule exists
+    anywhere today** (verified: zero hits across src/templates/scripts), so without this every
+    project would commit a hardcoded absolute path (adversary finding B3).
 M2. Hub per-window env probe: set `CLAUDE_CONFIG_DIR=~/.claude-fleet/fabrik-<role>` in each hub
     window's environment (beside the existing per-window `CLAUDE_AGENT`); fall back to a single
     shared hub dir if per-window env proves impractical.
@@ -157,23 +200,38 @@ M3. **Staged rollout, 3–4 dirs per account per day**: create dirs, operator do
     each (~15 total, the last ever), watch 24h for upstream grant evictions (see Unknowns)
     before the next batch.
 M4. Flip `--status`/tick to fleet-dir mode; retire switch/capture/touch code + stores
-    (stores archived to the DR store first); update `dr_claude_backup.sh` to back up
-    `~/.claude-fleet/` (config-DR contract: extend the list when a new config surface appears).
-M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs) on one
-    designated account.
+    (stores archived to the DR store first). **Retirement blast radius — sweep every consumer**
+    (adversary finding R2): `capture-watch.sh` (string-coupled to two drift-check messages),
+    the SessionStart hook + hourly cron (disabled at M-pre, removed here), `claude-sound.sh`'s
+    `--switch`/`--next` mesh legs (⚠️ operator hard rule: the sound system is not edited as a
+    side effect — its change is a named, owned step), `claude-mesh-test.sh` fixtures asserting
+    the retired argv, `claude_p_cost.py:45` + `derive_cost.py:26` (`_MANAGER_ACCOUNTS` feeds
+    the amortized $/Mtok model — repoint before archiving stores), `export_claude_state.sh:27`,
+    `bootstrap-vps.sh:1021`, and the byte-identical aro-wake twin. DR: `dr_claude_backup.sh`
+    backs up `~/.claude-fleet/` **excluding `.credentials.json`** — a stored chain is consumed
+    the moment the live one rolls, so **fleet-dir restore = one `/login`, never a file restore**
+    (adversary finding R3; also folds the existing `~/.claude-youtube-headless` special case).
+M5. `~/.claude` remains the default for anything unmapped, on one designated account — with its
+    occupant list made explicit and thinned: operator ad-hoc runs and worktree stragglers stay;
+    the root crons (`claude-run.sh`), the keepalive shim, and `cron-ci-fix` callers move to
+    their own dirs via the third carrier (adversary finding R1). What remains on `~/.claude` is
+    a handful of occasional processes sharing one chain — an accepted, monitored residual for
+    one-off runs, not the overnight fleet.
 
 ## Success criteria (testable)
 
 1. **Zero login prompts** across all migrated windows for 30 consecutive days of normal use
    (measured: no `/login` events outside migration itself).
-2. **Overnight survival**: a full night with active autonomous sessions ends with every window
-   usable without reload or login.
+2. **Overnight survival**: a full night with active autonomous sessions ends with every
+   migrated window usable without reload or login.
 3. `--status` shows session+weekly quota for **all 4 accounts** at any time — live values
    whenever an account had use in the last ~8h, otherwise last-known-with-age (never today's
    "parked — quota unknown").
 4. **No credential file is ever written by two unrelated owners**: each
    `~/.claude-fleet/<slug>/.credentials.json` is only ever touched by sessions bound to that
-   dir — its project's windows, its headless callers, and its own keepalive ping.
+   dir — its project's windows, its headless callers, and its own keepalive ping. (Hub
+   fallback case: the 3 hub windows bound to one shared `fabrik` dir count as bound — the
+   residual 3-process race there is documented, reload-recoverable, and login-free.)
 5. A quota wall on one account leaves the other accounts' windows **fully working**, and the
    walled account's windows resume at the 5h reset without operator action.
 
@@ -234,8 +292,9 @@ place — same file, new architecture; Doc Sync Matrix "extend the existing doc,
 - Credentials are secrets: backup before mutation (`backups/`, DR store), never log token bytes.
 - Migration must never orphan a live chain: a dir is created *empty* and logged into fresh —
   the only file-copy is `.claude.json` seeding (no credential bytes).
-- Governance sync: `.claude/settings.local.json` in ~15 project repos — verify it is ignored by
-  each repo's gate/sync surfaces before M3 (it is Claude-Code-conventional local state).
+- Governance sync: `.claude/settings.local.json` is safe from the manifest sync (file-scoped to
+  `settings.json`, `fabrik_synced_manifest.py:106`) but is **not gitignored anywhere today** —
+  M1 adds it to the fleet-synced gitignore block before any project carries one.
 
 ## Open / blocking unknowns
 
@@ -244,4 +303,4 @@ place — same file, new architecture; Doc Sync Matrix "extend the existing doc,
 | 1 | Concurrent OAuth grant cap per account (need ~4–6; ≥2 proven live; no published cap found in support docs 2026-08-15 — absence of documentation ≠ guarantee) | OPEN | M3 staged rollout watches for grant eviction (a relogin prompt in an untouched dir = abort signal → regroup to fewer dirs/account) |
 | 2 | ~~`settings.local.json` env merge~~ | **RESOLVED 2026-08-15** | live probe passed (see Mechanism) |
 | 3 | Hub per-window env practicality (`CLAUDE_CONFIG_DIR` set directly in each window's environment, beside `CLAUDE_AGENT`); extension INTERACTIVE session applies project env like `-p` does | OPEN | M2/M3 first-window probes; fallback single hub dir is acceptable (reload-recoverable, no logins) |
-| 4 | VPS/aro-wake fleet accounts (today fed by snapshot sync of WSL chains) | OUT OF SCOPE — named follow-up | separate spec: per-box dedicated logins, retiring snapshot shipping; until then VPS keeps consuming `manager-accounts` snapshots, so stores are archived, not deleted, at M4 |
+| 4 | VPS/aro-wake fleet accounts (today fed by snapshot sync of WSL chains) | OUT OF SCOPE — named follow-up **with a hard deadline** | separate spec: per-box dedicated logins, retiring snapshot shipping. Until it lands the VPS keeps working off the hourly sync of the still-live `~/.claude` (the ad-hoc account); the ARCHIVED sibling stores stop rolling at M4 and lapse ~30 days later (adversary finding R8) — the follow-up must land within **M4+30d** or those accounts need one login each on the VPS side |
