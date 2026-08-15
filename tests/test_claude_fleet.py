@@ -2303,3 +2303,412 @@ def test_fleet_mode_structurally_retires_the_legacy_installer(tmp_path, monkeypa
 
     # (5) structural: the guard exists at the choke point
     assert "_fleet_dirs" in cr._rotate_active_account.__code__.co_names
+
+
+# ── B16: per-account weekly caps — caps.json reserves quota for operator browser use ──────────
+# Operator contract (2026-08-15): "do not consume ob@'s weekly quota more than 90% — I also use
+# it in the claude.ai browser regularly." <fleet_root>/caps.json = {"email": cap%}; at/over the
+# cap an account is flipped away from and excluded from automated selection; manual --switch,
+# keepalive and the identity/liveness nets ignore caps.
+
+
+def _caps(fleet, table):
+    (fleet / "caps.json").write_text(json.dumps(table))
+
+
+def test_account_caps_loader_clamps_skips_and_fails_soft(tmp_path, monkeypatch, capsys):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    fleet.mkdir(parents=True, exist_ok=True)
+    assert cr._account_caps() == {}, "no caps.json → no caps (regression: today's behavior)"
+    _caps(
+        fleet,
+        {"ob@ocoron.com": 90, "hi@x.com": 150, "lo@x.com": -5, "bad@x.com": "ninety"},
+    )
+    capsys.readouterr()
+    caps = cr._account_caps()
+    err = capsys.readouterr().err
+    assert caps == {"ob@ocoron.com": 90, "hi@x.com": 100, "lo@x.com": 1}, (
+        "values clamp to 1..100; non-numeric entries are skipped"
+    )
+    assert "bad@x.com" in err and "caps.json" in err, "a skipped entry warns, naming the file"
+    # unparseable file: loud warning naming the file, and rotation proceeds UNCAPPED
+    (fleet / "caps.json").write_text("{not json")
+    capsys.readouterr()
+    assert cr._account_caps() == {}
+    assert "caps.json" in capsys.readouterr().err, "a broken caps file must never be silent"
+    # wrong shape (a list) is the same contract
+    (fleet / "caps.json").write_text("[90]")
+    capsys.readouterr()
+    assert cr._account_caps() == {}
+    assert "caps.json" in capsys.readouterr().err
+
+
+def test_cap_walled_candidate_is_excluded_even_when_best_by_weekly(tmp_path, monkeypatch, capsys):
+    """ob ranks BEST by weekly headroom but sits at/over its cap → the flip must pick the
+    worse-by-weekly uncapped account instead (cap-walled = walled, same choke point)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "mob", "mob@ocoron.com"]) == 0
+    _pin(fleet, "mob", "mob@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fleet_creds(fleet, "mob", "tok-mob", age_s=60.0)
+    _caps(fleet, {"ob@ocoron.com": 15})
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-intel": _usage_blob(10.0, 20.0),  # ob: best weekly, but 20 ≥ cap 15
+            "tok-mob": _usage_blob(10.0, 60.0),  # worse weekly, uncapped
+        },
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "mob", (
+        "a cap-walled account is never an automated flip target, however good its weekly"
+    )
+
+
+def test_active_flips_away_at_weekly_cap_with_session_low(tmp_path, monkeypatch, capsys):
+    """The flip-away leg: weekly ≥ cap trips the flip even though BOTH windows sit below
+    ROTATE_THRESHOLD — the remainder is the operator's browser reserve."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"sarp@ocoron.com": 90})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(50.0, 91.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert os.readlink(fleet / "active") == "intel", "weekly ≥ cap must flip the pointer away"
+    assert "cap 90" in out, "the flip line must name the cap that tripped it"
+
+
+def test_active_below_cap_and_threshold_never_flips(tmp_path, monkeypatch, capsys):
+    """Session threshold is UNCHANGED by a cap: weekly under cap + session under threshold →
+    no flip (the cap only tightens the WEEKLY leg)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"sarp@ocoron.com": 90})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(50.0, 89.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "seo", "under cap AND under threshold → no flip"
+
+
+def test_near_threshold_candidate_is_excluded_from_selection(tmp_path, monkeypatch, capsys):
+    """Adjacent churn fix: a candidate already ≥ ROTATE_THRESHOLD on EITHER window is never
+    picked — flipping to a 99%-session account just trips the flip-away next tick."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(99.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert os.readlink(fleet / "active") == "seo", (
+        "a 99%-session sibling is pointless churn, never a flip target"
+    )
+    assert "NO successor has headroom" in out
+
+
+def test_corrupt_caps_json_warns_and_rotation_proceeds_uncapped(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    (fleet / "caps.json").write_text("{broken")
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    captured = capsys.readouterr()
+
+    assert os.readlink(fleet / "active") == "intel", (
+        "a broken caps file must never HALT rotation — it proceeds uncapped"
+    )
+    assert "caps.json" in captured.err, "…but it must never be silent either"
+
+
+def test_status_shows_the_cap_and_the_cap_walled_marker(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"sarp@ocoron.com": 90})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(50.0, 91.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    sarp_line = next(line for line in out.splitlines() if "sarp@ocoron.com" in line)
+    assert "(cap 90)" in sarp_line, "a capped account's row must show its cap"
+    assert "cap-walled" in out and "reserved for operator use until weekly reset" in out
+
+    assert cr.main(["--status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    by_email = {r["email"]: r for r in payload["accounts"]}
+    assert by_email["sarp@ocoron.com"]["weekly_cap"] == 90
+    assert by_email["sarp@ocoron.com"]["cap_walled"] is True
+    assert by_email["ob@ocoron.com"]["weekly_cap"] is None
+    assert by_email["ob@ocoron.com"]["cap_walled"] is False
+
+
+def test_manual_switch_to_a_capped_account_succeeds_with_a_warning(tmp_path, monkeypatch, capsys):
+    """The cap NEVER binds the operator: --switch to a capped account is honored — with one
+    line naming the cap (their deliberate act, same escape-hatch contract as pause)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"ob@ocoron.com": 90})
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr.main(["--switch", "intel"]) == 0, "a cap must never refuse a manual switch"
+    out = capsys.readouterr().out
+
+    assert os.readlink(fleet / "active") == "intel"
+    assert "pointer flip" in out
+    assert "cap" in out and "90" in out, "the override prints one line naming the cap"
+
+
+def test_all_capped_or_walled_fires_the_drain_advisory(tmp_path, monkeypatch, capsys):
+    """Cap-walled counts as unavailable exactly like walled: with every sibling capped-or-walled
+    nothing flips and the ≥85% drain advisory fires, exactly as today."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"ob@ocoron.com": 40})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(10.0, 50.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert os.readlink(fleet / "active") == "seo", "a cap-walled sibling is never a flip target"
+    assert "NO successor has headroom" in out
+    assert any("sarp@ocoron.com" in t for t in actions["telegrams"]), (
+        "the drain advisory stays the recourse when everything is capped-or-walled"
+    )
+
+
+# ── B17: round-2 — shared exclusion predicate, case-normalized caps, trip attribution ─────────
+
+
+def test_live_reverify_applies_the_same_churn_exclusion_as_the_selector(
+    tmp_path, monkeypatch, capsys
+):
+    """F-C1: a stale-cached candidate (cached weekly 50) that live-verifies to a 97% session —
+    under 100, under its cap, but ≥ ROTATE_THRESHOLD — must be excluded and the next-best
+    chosen; returning it re-trips the flip-away next tick (the exact churn the selector's
+    exclusion exists to prevent). One shared predicate covers both sites so they cannot drift."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "mob", "mob@ocoron.com"]) == 0
+    _pin(fleet, "mob", "mob@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=10 * 3600.0)  # stale → cached row
+    _fleet_creds(fleet, "mob", "tok-mob", age_s=10 * 3600.0)  # stale → cached row
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "ob@ocoron.com": {  # best by cached weekly — the rosy cache
+                    "ts": FLEET_NOW - 3600.0,
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": None},
+                    "seven_day": {"utilization": 20.0, "resets_at_epoch": None},
+                },
+                "mob@ocoron.com": {
+                    "ts": FLEET_NOW - 3600.0,
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": None},
+                    "seven_day": {"utilization": 60.0, "resets_at_epoch": None},
+                },
+            }
+        )
+    )
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-intel": _usage_blob(97.0, 50.0),  # live truth: session 97 ≥ threshold
+            "tok-mob": _usage_blob(10.0, 60.0),  # live truth: clean
+        },
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "mob", (
+        "a cached-rosy candidate whose LIVE reading is ≥ threshold is churn, never the pick"
+    )
+
+
+def test_caps_keys_match_account_emails_case_insensitively(tmp_path, monkeypatch, capsys):
+    """F-C2: {"SARP@ocoron.com": 90} must cap sarp@ocoron.com — keys and comparison emails
+    normalize to lowercase at the loader boundary; a silent case mismatch violates the
+    loader's own never-silent contract."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"SARP@ocoron.com": 90})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(50.0, 91.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    by_email = {r["email"]: r for r in payload["accounts"]}
+
+    assert by_email["sarp@ocoron.com"]["weekly_cap"] == 90, "case must not defeat the cap"
+    assert by_email["sarp@ocoron.com"]["cap_walled"] is True
+
+
+def test_caps_key_matching_no_account_warns_cap_inactive(tmp_path, monkeypatch, capsys):
+    """F-C2: a caps.json key that matches NO known account email (pinned identities +
+    assignments accounts) is a typo doing nothing — it must warn, never sit silent."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _caps(fleet, {"ghost@nowhere.com": 50})
+    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(42.0, 31.0)})
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    assert "ghost@nowhere.com" in out and "matches no account" in out and "cap inactive" in out
+    # a key that DOES match (any case) must not false-fire the warning
+    _caps(fleet, {"OB@ocoron.com": 90})
+    capsys.readouterr()
+    assert cr.main(["--status"]) == 0
+    assert "matches no account" not in capsys.readouterr().out
+
+
+def test_cap_trip_ledger_records_the_weekly_value_that_tripped(tmp_path, monkeypatch, capsys):
+    """F-C3: session 93 / weekly 91 / cap 90 → the flip line says weekly ≥ cap, so the
+    ledger's at_pct must record 91 (the tripping weekly), not hot=93 — misattributing the
+    trigger poisons the audit trail."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"sarp@ocoron.com": 90})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(93.0, 91.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "intel"
+    lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
+    flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
+    assert flip["at_pct"] == 91.0, "at_pct must be the value that actually tripped (weekly)"
+
+
+def test_selector_excludes_a_candidate_at_exactly_its_cap(tmp_path, monkeypatch, capsys):
+    """F-C4 boundary: weekly == cap EXACTLY is cap-walled (≥, not >) at the SELECTOR layer —
+    kills the >= → > mutant that the flip-away tests alone cannot see."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "mob", "mob@ocoron.com"]) == 0
+    _pin(fleet, "mob", "mob@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fleet_creds(fleet, "mob", "tok-mob", age_s=60.0)
+    _caps(fleet, {"ob@ocoron.com": 15})
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-intel": _usage_blob(10.0, 15.0),  # ob: weekly 15 == cap 15 exactly
+            "tok-mob": _usage_blob(10.0, 60.0),  # worse weekly, uncapped
+        },
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "mob", "weekly == cap exactly is already walled"
+
+
+def test_active_flips_away_at_exactly_its_cap(tmp_path, monkeypatch, capsys):
+    """F-C4 boundary: the flip-away leg trips at weekly == cap EXACTLY (90 == 90)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"sarp@ocoron.com": 90})
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(50.0, 90.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "intel", "weekly == cap exactly must flip away"

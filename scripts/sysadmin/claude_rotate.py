@@ -2859,16 +2859,38 @@ def _account_flip_dir(slugs: list[str]) -> str | None:
     return best
 
 
+def _flip_churn_excluded(
+    utils: dict[str, float | None], cap: float | None, threshold: float
+) -> bool:
+    """The ONE candidate-exclusion predicate, shared by :func:`_pick_flip_target` (cached
+    readings) and :func:`_validated_pick` (live re-verify) — F-C1: the two sites drifting
+    apart IS the churn bug, so they cannot each carry their own copy. Excluded when: either
+    window ≥100 (walled — revives on reset, never by a flip), weekly ≥ its ``caps.json`` cap
+    (cap-walled — the operator's reserve), or either window ≥ ``ROTATE_THRESHOLD`` (flipping
+    there just trips the flip-away next tick — pointless churn)."""
+    if any(u is not None and u >= 100.0 for u in utils.values()):
+        return True
+    wu = utils.get("seven_day")
+    if cap is not None and wu is not None and wu >= cap:
+        return True
+    return any(u is not None and u >= threshold for u in utils.values())
+
+
 def _pick_flip_target(
     accounts: list[dict], exclude: frozenset[str] | set[str] = frozenset()
 ) -> tuple[str, str] | None:
     """The flip successor as ``(slug, email)``: the account with the most weekly-then-session
     HEADROOM (lowest seven_day utilization, ties to lowest five_hour) among accounts whose dirs
     hold LIVE-chained credentials (the F-P1 gate, via ``_account_flip_dir``) — excluding the
-    *exclude* emails, walled ones (either window ≥100%) and accounts with no quota reading at
-    all (headroom that cannot be proven is not headroom; adapted from the legacy ``_walled``
-    no-telemetry rule). Cached readings count here — ``_validated_pick`` live-verifies them
+    *exclude* emails, walled ones (either window ≥100%), CAP-walled ones (weekly ≥ its
+    ``caps.json`` cap — the operator's browser reserve), ones already at/over
+    ``ROTATE_THRESHOLD`` on either window (flipping there just trips the flip-away next tick —
+    pointless churn), and accounts with no quota reading at all (headroom that cannot be proven
+    is not headroom; adapted from the legacy ``_walled`` no-telemetry rule). This is the ONE
+    choke point: the tick's flip leg and the pointer-repair fallback both inherit these
+    exclusions through here. Cached readings count — ``_validated_pick`` live-verifies them
     before a flip. None when nothing qualifies (→ the drain advisory is the only recourse)."""
+    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
     ranked: list[tuple[tuple[float, float], str, str]] = []
     for row in accounts:
         if row.get("email") in exclude:
@@ -2883,8 +2905,8 @@ def _pick_flip_target(
             utils[key] = float(u) if isinstance(u, (int, float)) else None
         if utils["five_hour"] is None and utils["seven_day"] is None:
             continue  # no reading — cannot prove headroom
-        if any(u is not None and u >= 100.0 for u in utils.values()):
-            continue  # walled — its windows revive on reset, never by a flip
+        if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
+            continue  # walled / cap-walled / already ≥ threshold — never a flip target
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
         session = utils["five_hour"] if utils["five_hour"] is not None else 100.0
         ranked.append(((weekly, session), slug, str(row.get("email"))))
@@ -2908,6 +2930,7 @@ def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] 
     (dead/unreachable) or a walled live reading excludes it and the next-best is considered.
     Cached-and-unverifiable must never become the fleet's sole pointer. None when nobody
     survives (→ the caller falls through to the no-headroom advisory)."""
+    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
     exclude = set(exclude)
     while True:
         pick = _pick_flip_target(accounts, exclude=exclude)
@@ -2922,8 +2945,11 @@ def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] 
         if windows is None:
             exclude.add(email)  # cached-and-unverifiable — never the fleet's pointer
             continue
-        if max(w["utilization"] for w in windows.values()) >= 100.0:
-            exclude.add(email)  # the rosy cache hid a wall — the live reading wins
+        live_utils = {k: w["utilization"] for k, w in windows.items()}
+        if _flip_churn_excluded(live_utils, row.get("weekly_cap"), threshold):
+            # the rosy cache hid a wall / the cap / a ≥threshold window — the live reading
+            # wins, by the SAME predicate the selector applied to the cached one (F-C1)
+            exclude.add(email)
             continue
         return pick
 
@@ -2945,6 +2971,16 @@ def _cmd_fleet_switch(name: str, dirs: list[Path]) -> int:
         return 1
     if _flip_active(matches[0], manual=True):
         print(f"active fleet account -> {matches[0]} (pointer flip — zero credential bytes moved)")
+        # The cap never binds the operator: a manual flip to a capped account is honored, with
+        # one line naming the cap — their deliberate act, same escape-hatch contract as pause.
+        arow = _load_assignments(strict=False).get(matches[0])
+        identity = arow.get("identity") if isinstance(arow, dict) else None
+        cap = _account_caps().get(identity.lower()) if isinstance(identity, str) else None
+        if cap is not None:
+            print(
+                f"note: {identity} carries a weekly cap of {cap}% (caps.json) — manual "
+                "override honored; the tick flips away once weekly ≥ cap"
+            )
         return 0
     sys.stderr.write("switch failed — active pointer unchanged (see above)\n")
     return 1
@@ -3037,6 +3073,52 @@ def _load_usage_cache() -> dict:
         return {}
 
 
+def _account_caps() -> dict[str, int]:
+    """Per-account WEEKLY utilization caps: ``<fleet_root>/caps.json`` = {"email": cap%}.
+
+    Operator contract (2026-08-15): "do not consume ob@'s weekly quota more than 90% — I also
+    use it in the claude.ai browser regularly." At/over its cap an account is flipped AWAY from
+    and excluded from automated selection exactly like a walled one — the remainder is the
+    operator's browser reserve. The cap never touches manual ``--switch`` (warned, honored),
+    keepalive, or the identity/liveness nets. Lives in the fleet root deliberately: it travels
+    with the fleet and shares no keyspace with assignments.json's slugs.
+
+    Fail direction: a broken caps file must never HALT rotation, but must never be silent
+    either — missing file → no caps; unparseable/wrong-shape → loud stderr naming the file +
+    no caps; non-numeric entries skipped with a warning. Values clamp to 1..100. Keys are
+    normalized to LOWERCASE (every consumer lowercases its comparison email too — F-C2: a case
+    mismatch silently doing nothing violates this loader's own never-silent contract), and a
+    key matching no known account warns via :func:`_fleet_row_warnings`.
+    """
+    path = _fleet_root() / "caps.json"
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        return {}
+    except OSError as e:
+        sys.stderr.write(f"claude_rotate: cannot read {path} ({e}) — rotating UNCAPPED\n")
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        sys.stderr.write(f"claude_rotate: {path} is not valid JSON ({e}) — rotating UNCAPPED\n")
+        return {}
+    if not isinstance(data, dict):
+        sys.stderr.write(f"claude_rotate: {path} is not a JSON object — rotating UNCAPPED\n")
+        return {}
+    caps: dict[str, int] = {}
+    for email, cap in data.items():
+        # bool is an int subclass — `true` as a cap is a typo, never "cap at 1%"
+        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or not math.isfinite(cap):
+            sys.stderr.write(
+                f"claude_rotate: {path}: cap for {email!r} is not a number ({cap!r}) — "
+                "entry skipped\n"
+            )
+            continue
+        caps[str(email).lower()] = int(min(100, max(1, cap)))
+    return caps
+
+
 def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
     """(account rows, pending entries) — the fleet view's data, shared by --status and the tick.
 
@@ -3064,6 +3146,7 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
         else:
             pending.append(entry)
     cache = _load_usage_cache()
+    caps = _account_caps()
     accounts: list[dict] = []
     cache_dirty = False
     for email in sorted(groups):
@@ -3091,6 +3174,8 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
             # F-P1 flip gate would silently drop it from candidacy)
             "refresh_expires_epoch": min(exps) if exps else None,
             "identity_mismatches": [],
+            "weekly_cap": caps.get(email.lower()),
+            "cap_walled": False,
         }
         windows = None
         if with_creds and (now - with_creds[0]["mtime"]) < _FLEET_TOKEN_FRESH_S:
@@ -3162,6 +3247,13 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
                 row["seven_day"] = c.get("seven_day")
                 row["source"] = "cache"
                 row["age_s"] = max(0.0, now - float(c["ts"]))
+        wk = row["seven_day"]
+        wu = wk.get("utilization") if isinstance(wk, dict) else None
+        row["cap_walled"] = bool(
+            row["weekly_cap"] is not None
+            and isinstance(wu, (int, float))
+            and wu >= row["weekly_cap"]
+        )
         accounts.append(row)
     if cache_dirty:
         try:
@@ -3195,6 +3287,8 @@ def _fleet_quota_text(row: dict) -> str:
         f"session {_fmt_quota_window(row['five_hour']):24}"
         f" weekly {_fmt_quota_window(row['seven_day'])}"
     )
+    if row.get("weekly_cap") is not None:
+        text += f" (cap {row['weekly_cap']})"
     if row["source"] == "cache":
         text += f"  STALE — cached {row['age_s'] / 3600:.0f}h ago"
     return text
@@ -3232,6 +3326,33 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
                 "refresh, or a login went into the wrong dir). Recovery: ONE /login in that "
                 "dir re-mints its chain; do NOT copy credential files"
             )
+        if row.get("cap_walled"):
+            wk = row.get("seven_day")
+            wu = wk.get("utilization") if isinstance(wk, dict) else None
+            at = f"{wu:.0f}%" if isinstance(wu, (int, float)) else "?"
+            warns.append(
+                f"⚠ {row['email']}: cap-walled — weekly {at} ≥ cap {row['weekly_cap']} "
+                "(caps.json) — reserved for operator use until weekly reset; automated flips "
+                "exclude it (--switch still may, deliberately)"
+            )
+    # F-C2: a caps.json key matching NO known account email (pinned identities + assignments
+    # accounts, all lowercased) is a typo silently doing nothing — surface it. File reads
+    # only, no probes (the docstring contract above holds).
+    caps = _account_caps()
+    if caps:
+        known = {str(row.get("email", "")).lower() for row in accounts}
+        for arow in _load_assignments(strict=False).values():
+            if isinstance(arow, dict):
+                for field in ("identity", "account"):
+                    v = arow.get(field)
+                    if isinstance(v, str) and "@" in v:
+                        known.add(v.lower())
+        for key in sorted(caps):
+            if key not in known:
+                warns.append(
+                    f"⚠ caps.json key {key!r} matches no account — cap inactive (typo? "
+                    "known accounts are the pinned identities and assignments entries)"
+                )
     return warns
 
 
@@ -3324,27 +3445,46 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     if row is None:
         print(f"tick: active {active_slug} — identity pending, no flip decision possible")
         return
-    utils = [
-        w["utilization"]
-        for w in (row.get("five_hour"), row.get("seven_day"))
-        if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
-    ]
-    if not utils:
+    utils = {}
+    for key in ("five_hour", "seven_day"):
+        w = row.get(key)
+        u = w.get("utilization") if isinstance(w, dict) else None
+        utils[key] = u if isinstance(u, (int, float)) else None
+    present = [u for u in utils.values() if u is not None]
+    if not present:
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
         return
-    hot = max(utils)
-    if hot < threshold:
+    hot = max(present)
+    # The cap tightens the WEEKLY leg only (session threshold unchanged): the active account's
+    # effective weekly threshold is min(ROTATE_THRESHOLD, its caps.json cap) — at weekly ≥ cap
+    # it flips away even with the session low, reserving the remainder for the operator.
+    cap = row.get("weekly_cap")
+    weekly_thr = min(threshold, float(cap)) if cap is not None else threshold
+    ordinary_trip = hot >= threshold
+    cap_trip = (
+        cap is not None and utils["seven_day"] is not None and utils["seven_day"] >= weekly_thr
+    )
+    if not (ordinary_trip or cap_trip):
         print(f"tick: active {row['email']} at {hot:.0f}% — below {threshold:.0f}%, no flip")
         return
+    # F-C3: the audit trail records the value that actually TRIPPED — the weekly reading on a
+    # cap-only trip; the hottest window when the ordinary threshold fired (legacy shape kept).
+    cap_only = cap_trip and not ordinary_trip
+    at_pct = utils["seven_day"] if cap_only else hot
+    at_desc = (
+        f"at weekly {utils['seven_day']:.0f}% ≥ cap {cap} (operator reserve, caps.json)"
+        if cap_only
+        else f"at {hot:.0f}%"
+    )
     pick = _validated_pick(accounts, {row["email"]})
     if pick is None:
-        # Every sibling is walled/unreadable/credential-less: nothing to flip to. The ≥85%
-        # advisory loop below is the recourse (Telegram + drain mail), exactly as before.
-        print(f"tick: active {row['email']} at {hot:.0f}% but NO successor has headroom")
+        # Every sibling is walled/cap-walled/unreadable/credential-less: nothing to flip to. The
+        # ≥85% advisory loop below is the recourse (Telegram + drain mail), exactly as before.
+        print(f"tick: active {row['email']} {at_desc} but NO successor has headroom")
         return
     slug, email = pick
-    if _flip_active(slug, at_pct=hot):
-        print(f"tick: flipped active {row['email']} -> {email} ({slug}) at {hot:.0f}%")
+    if _flip_active(slug, at_pct=at_pct):
+        print(f"tick: flipped active {row['email']} -> {email} ({slug}) {at_desc}")
     else:
         print(f"tick: flip {row['email']} -> {email} ({slug}) withheld (see stderr)")
 

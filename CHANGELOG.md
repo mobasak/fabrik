@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Per-account weekly caps: caps.json reserves quota for operator browser use (2026-08-15)
+
+- Operator requirement: "do not consume ob@'s weekly quota more than 90% — I also use it in
+  the claude.ai browser regularly." `<fleet-root>/caps.json` = `{"<email>": <cap%>}`; the cap
+  binds the WEEKLY window only: (1) flip-away — the active account's effective weekly
+  threshold becomes `min(ROTATE_THRESHOLD, cap)`, so weekly ≥ cap flips the pointer away even
+  with the session low (session threshold unchanged); (2) selector exclusion — one SHARED
+  predicate (`_flip_churn_excluded`: walled ≥100 · weekly ≥ cap · either window ≥ threshold)
+  applied to the ranked cached readings in `_pick_flip_target` AND to `_validated_pick`'s
+  live re-verified windows (a cached-rosy candidate that live-verifies to ≥ threshold is
+  re-picked past, not flipped to), inherited by the tick's flip leg and the pointer repair —
+  so cap-walled also counts as unavailable for the no-headroom drain advisory;
+  (3) surfacing — `--status` rows show `(cap N)`, cap-walled rows warn "reserved for operator
+  use until weekly reset", JSON rows carry `weekly_cap`/`cap_walled`; a cap-tripped flip
+  ledgers `at_pct` as the WEEKLY value that tripped (the hottest window only on an ordinary
+  threshold trip) — the audit trail names the actual trigger.
+- Loader fail direction (`_account_caps`): a broken caps file must never HALT rotation but
+  never be silent — missing file → no caps; unparseable/wrong-shape → loud stderr naming the
+  file + rotation proceeds uncapped; non-numeric entries skipped with a warning; values clamp
+  to 1..100. Keys are case-normalized (lowercased at the loader boundary, consumers lowercase
+  their comparison emails), and a caps.json key matching no known account email (pinned
+  identities + assignments entries) warns "cap inactive" on --status and the tick. The cap
+  NEVER touches manual `--switch` (honored, one warning line naming the cap), keepalive, or
+  the identity/liveness nets.
+- Adjacent selection fix: candidates already ≥ `ROTATE_THRESHOLD` on EITHER window are now
+  excluded — the old weekly-only ranking could flip to a 99%-session account, tripping the
+  flip-away next tick (pointless churn).
+
 ### Removed — Phases D+E: the AI-model-catalog engine leaves fabrik (2026-08-15)
 
 - **fabrik stopped running the engine.** `daily_refresh.sh` went from **55** `_step` invocations to
@@ -41,7 +69,6 @@ All notable changes to this project will be documented in this file.
   de-linked, since a markdown link cannot resolve into another repo.
 - `generate_kilo_agents.py`'s auto-update block removed — it `importlib`-exec'd two now-deleted engine
   scripts and swallowed the ImportError into a silent `[warn]`.
-
 
 ### Changed — Fleet rotation = pointer flip: 4 account dirs, one active symlink, tick flips by quota headroom (2026-08-15)
 
