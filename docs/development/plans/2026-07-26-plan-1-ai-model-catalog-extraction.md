@@ -289,6 +289,45 @@ PASSING case is recorded as a failure. Use `[ "$(grep -c …)" = 0 ]`.
 files are untouched since scaffold. `CHANGELOG.md:13` carries a B.2g entry only — nothing for B.1/B.2/B.2e.
 ✅ The spec claim IS confirmed: `specs/services/ai-model-catalog.yaml:11` `needs_database: true`.
 
+> ✅ **B-B2, B-B3, B-B5 FIXED 2026-08-15** (`ai-model-catalog` `a992256`, `b385570`, `cb1214c`).
+> **B-B3** — `engine/pyproject.toml` written from AST-derived real imports (not the plan's illustrative
+> list), `[tool.setuptools] py-modules = []` for the flat ~100-module tree, LCB/EvalPlus as an optional
+> `[lcb]` extra so torch/vllm never enter a base install; `.venv` created and `pip install -e .[dev]`
+> **succeeds** — the five gates this blocked now run, and B.1 step 2a reports **0 collection errors**
+> (1291 tests) for the first time, after guarding the two `evalplus` tests so an absent OPTIONAL dep
+> skips instead of erroring. ⚠️ **Deriving the manifest surfaced TWO MORE fabrik tentacles neither
+> grounder found — the plan says four, it is six:** (#5) `docs_grader.py` + `mine_docs_corpus.py`
+> `import doc_reconcile`, which resolved in fabrik only because they put `SCRIPT_DIR.parent`
+> (= `scripts/`) on `sys.path`; **both failed at import here**, silently, because B.1 excluded the one
+> test that would have caught it — fixed by vendoring the **three** helpers they use (AST-verified
+> identical to fabrik's, constants included) rather than the 489-line file, which imports
+> `_doc_registry`/`check_doc_stubs`/`libs` and would drag a fabrik chain in; (#6)
+> `tests/test_rank_task_subagents.py` imports `fabrik.drivers.postgres` — **the SYSTEM interpreter was
+> masking it** (fabrik is pip-installed there), and only the fresh `.venv` exposed it; skipped, not
+> vendored, since that privilege boundary is on the shared flywheel DB which does not move (D5).
+> *Sub-lesson worth keeping:* the first guard used `importorskip("fabrik")` and **passed alone but
+> failed in-suite** — something earlier puts that name on `sys.path`, so the parent import succeeded
+> and the next line still died on `fabrik.drivers`. Guard the submodule you import, never its parent.
+> **B-B2** — `KB` now means the engine root (it meant `<repo>/scripts/kilo-benchmarks`, so all 65 `$KB/`
+> references, i.e. **every** `_step`, were dead paths). B.2f done: the `cache/update.log` write is gone
+> and with it the whole writability ladder **and** the block-scope redirect hazard it guarded — there is
+> no `} >> "$LOG_FILE"` left that can fail and skip the body. **C-B1 fixed here** (it is this file):
+> lockfile namespaced to `/tmp/.amc_engine_daily_*`, prune loop and docs matched. B.2e(ii) done: both
+> `--output`-driven producers now get an explicit `--output`. Five fabrik CONSUMER steps removed (they
+> rode the shared orchestrator into the copy and referenced a `scripts/` dir that does not exist here;
+> Phase D keeps them in fabrik) — 55 `_step` invocations → **50**. Both `load_dotenv` calls repointed to
+> `engine/.env` (B.2b) and `engine/.env.example` written from the **38** env vars the engine really
+> reads. ⚠️ **`engine/.env` itself is deliberately NOT created:** the keys already live in fabrik's
+> `.env`, and copying them makes a second copy on the box to rotate and to leak — an operator decision,
+> recorded rather than taken.
+> **B-B5** — eleven queries across six producers got a tiebreak on a column that is actually unique in
+> that query's shape (`m.model_id` where the metrics tables have no `id`; `a.id`/`r.id`/`agent_id`/
+> `model_id` elsewhere), so B.3 cannot false-diff on a LIMIT-boundary tie. Two of them
+> (`microbench_judged`, `microbench_review`) were in nobody's list and were caught by sweeping the
+> idiom; both feed `TASK_SUBAGENT_SELECTION.md`. The only bare `ORDER BY` left is `ORDER BY id`, already
+> total. All three fixes regression-checked against a baseline worktree: **16 pre-existing failures
+> before, the same 16 after, zero new** (1265 passed).
+
 **Verified-good in Phase B (recorded so the next pass does not re-litigate):** the `speed_overrides.json`
 carve-out is fully done and now git-**tracked** (`engine/.gitignore:15`); `_query_rows` + the
 `sudo -n -u postgres psql` shellout are intact, so B.2c's DO-NOT-REWRITE held; `test_no_fabrik_paths.py` passes
@@ -328,8 +367,25 @@ un-converted SQLite would prove nothing about the conversion, which is the whole
 **B.3 — Standalone green + byte-identical parity (behavior 2 — the flagship of this phase).**
 1. `cd /opt/ai-model-catalog/engine && python -m venv .venv && .venv/bin/pip install -e .` (toolchain preflight: `.venv/bin/python --version` → 3.11+; `which sqlite3`).
 2. Run the artifact producers only (no live scrapes — feed the copied `kilo_agents.db`; `OUTPUT_ROOT=engine/out`): the file producers write `engine/out/<fabrik-relative>`, the injector producers emit `engine/out/blocks/*.txt` + `manifest.json` (per B.2e). **Assert the refactor actually took (else B.3 parity fails confusingly on the one hybrid file):** `grep -c "EMBEDDING_CATALOG" engine/out/docs/reference/kilo/KILO_MODEL_CAPABILITIES.md` → **Expected: 0** — the engine emits the **base**; the block lives only in `engine/out/blocks/`. A non-zero count means an injector still injects in-producer (B.2e incomplete), not a parity bug.
-3. Write `engine/tests/test_parity_vs_fabrik_golden.py` — diff `engine/out/**` vs `/opt/fabrik/scripts/kilo-benchmarks/tests/golden/**` by sha256, matching the A.1 split: **whole-file goldens** vs the engine's whole-file outputs (for `KILO_MODEL_CAPABILITIES.md` both sides are the **base** — engine/out never injects `EMBEDDING_CATALOG`, and the golden was captured block-stripped, #10), and **block-body goldens** vs `engine/out/blocks/*.txt`. Run → **Expected: byte-identical** per class (same DB + same code = same output). Any diff = a decoupling bug (a path/env leaked into content) → fix.
-4. Gate: `.venv/bin/python -m pytest engine/tests/test_parity_vs_fabrik_golden.py engine/tests/ -v` → **Expected:** all **67** ported test files (**55** in-tree + 14 from `tests/kilo_benchmarks/`, − 2 rule-6 tests) + parity pass. ⚠️ Assert the COLLECTED COUNT, never a frozen literal you may be tempted to edit down when it disagrees — a shrinking count is the silent-loss signal this gate exists for.
+3. ⚠️ **REWRITTEN 2026-08-15 (A-B1) — the sha256 golden set this step diffed against never existed.**
+   `/opt/fabrik/scripts/kilo-benchmarks/tests/golden/` holds exactly `structure.json` and
+   `db_queries.json`; there are **no** whole-file hashes, no `blocks/` bodies, no `manifest.json`, and
+   `grep -c sha256 structure.json` → **0**. The 2026-08-12 blockquote in Phase A already retired
+   byte-identity in favour of STRUCTURAL equivalence and moved byte-equality to Phase C's same-moment
+   parallel-run — this step was simply never rewritten to match, so following it literally builds a
+   harness against a fiction. **What B.3 asserts instead:** write
+   `engine/tests/test_parity_vs_fabrik_golden.py` comparing the engine's `engine/out/**` to the
+   **structural contract** in `golden/structure.json` — the artifact inventory (13), the marker
+   inventory (18 `<host>::<MARKER>` keys), each artifact's markdown skeleton + table COLUMN contract,
+   and each JSON's key schema. Red on: an artifact no longer produced, a marker no longer emitted, a
+   lost table column, a lost JSON field. **Byte-equality is NOT asserted here and its absence is not a
+   gap** — these are live aggregates over a flywheel that gains rows daily (measured: 3 artifacts
+   byte-drifted across two consecutive runs with 0 structural drift), so a frozen byte-golden is stale
+   within 24 h. Phase C's old-vs-new-at-the-same-instant diff is the only byte comparison that means
+   anything, and it already owns that. ⚠️ **The tempting wrong fix — regenerating goldens from the
+   RELOCATED engine and diffing them against themselves — makes the oracle self-certifying and
+   silently retires behavior 2. Do not.**
+4. Gate: `.venv/bin/python -m pytest tests/test_parity_vs_fabrik_golden.py tests/ -v` → **Expected:** parity passes and the collected count is **computed at run time, never asserted against a frozen literal** (B-B6: the plan has carried 64, 67 and 68 for this one number; live is 69 files / 1291 tests and it moves every time a phase adds a test). The signal that matters is a count that SHRINKS between runs — that is silent test loss. Pre-existing failures are baseline-attributed: capture them from a worktree at the phase's starting commit and assert **zero NEW** names, not zero failures.
 
 **B.4 — ⛔ DELETED (D5, 2026-08-12): compose worker wiring + image deps served the retired container only.** Its `psql`-in-Dockerfile mandate also contradicted B.2c's DO-NOT-REWRITE. Retained heading for traceability; no step here executes. Original text follows for the VPS spec: ~~Compose worker wiring + image deps.~~
 1. Toolchain preflight: `which docker` → **Expected:** `/usr/bin/docker` (present in WSL dev). Add the engine as a scheduled-worker service in `compose.yaml` (memory limit, `PYTHONUNBUFFERED=1`, `fabrik` network, no host ports); `docker compose -f compose.yaml config -q` (CLI-only, no daemon needed) → **Expected:** valid.
