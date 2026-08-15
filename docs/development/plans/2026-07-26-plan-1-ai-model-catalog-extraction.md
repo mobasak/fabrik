@@ -619,6 +619,116 @@ has nothing to compare against, and no phase creates it.
 everywhere else (daily_refresh.sh:456, rank_task_subagents.py:1373, the design spec) is 49; the plan is
 the only artifact saying 56.
 
+⚠️⚠️⚠️ **PASS-6 — EXECUTION-GROUNDED (every gate below was RUN against the live tree, 2026-08-15).
+Four prose passes reviewed these two phases and shipped 74 wrong claims; this pass ran the commands
+instead. It refutes one of my own recorded findings and finds that E.2 as written DELETES LIVE
+FLEET-SYNCED GOVERNANCE.**
+
+**P6-1 — ⛔ E.2 DELETES LIVE FLEET GOVERNANCE, and BOTH consumers skip it SILENTLY.**
+`scripts/kilo_code_review.py` and `kilo_docs_enforcer.py` are **not Kilo residue** — they are live
+synced surfaces on **eight** of them: `fabrik_synced_manifest.py:29` CORE_SCRIPTS ·
+`.pre-commit-config.yaml:65` governance-sync filter · `sync_enforcement_to_projects.py:5` ·
+`watch_enforcement_changes.sh:49` · `src/fabrik/scaffold.py:1017` · the fleet-synced rule pack
+`.windsurf/rules/core/50-code-review.md:75,87` · `templates/saas-skeleton/AGENTS.md:101` ·
+`templates/scaffold/gitignore-synced-block.txt:30`. **48 projects hold a copy today.** And nothing
+turns red: `sync_enforcement_to_projects.py:405` copies CORE_SCRIPTS under `if source.exists():` —
+a **silent skip** — and orphan pruning exists only for `VENDORED_DIRS` and the enforcement dir
+(`:457-495`), never for CORE_SCRIPTS. `scaffold.py:1025` has the same silent `.exists()` guard, so
+new projects would ship without Step-3/Step-4 tooling; no scaffold test asserts otherwise. After
+E.2, **48 repos keep a zombie copy the hub no longer owns, forever, with no failing check anywhere.**
+`CHANGELOG.md:15311` records that their previous ABSENCE from CORE_SCRIPTS already broke all 38
+child projects once. **DECISION REQUIRED: these two are outside this plan's blast radius — KEEP
+them, and cut them from E.2(ii).**
+
+**P6-2 — ❌ E-B5 REFUTED (my own finding, wrong).** I recorded that `wsl_startup_hook.sh`'s 18
+`*_SCRIPT=` assignments were "dead, uses=0". That was a grep artifact. Direct proof:
+`grep -nF '$DB_SCRIPT'` → `:150`; `$EMBEDDING_DB_SCRIPT` → `:161`; `$AA_SCRAPER_SCRIPT` → `:152`;
+`$AI_PACK_FRESHNESS_SCRIPT` → `:213`. **All 19 are USED** (`:150-154`, `:161-163`, `:188-211`). The
+hook is a full second engine pipeline, not a husk — acting on E-B5 ("leave them, they're dead")
+ships a boot pipeline invoking 19 deleted scripts. **C2 is also half-wrong:** Phase **D** does own
+the hook (D's Files list). What is true is that **D.1's scope is under-sized** — it says "~9 engine
+scripts at `:36-44`"; the real figure is **19 variable-invoked + 5 more by absolute path**
+(`:130/:233/:235` `pipeline_alert.sh`, `:232` `rank_task_subagents.py`, `:234`
+`tests/capture_golden.py`, `:236` `check_daily_refresh_freshness.py`, `:243`
+`autocommit_pipeline_outputs.sh`), every one swallowed by `>> $LOG_FILE 2>&1 || {…}`.
+
+**P6-3 — 🔴 D.1 gate (ii) FAILS OPEN on the exact C3 blocker.** The char class
+`[A-Za-z_0-9.-]` excludes `/`, so **every subdirectory script collapses to its directory name**:
+`$KB/tests/capture_golden.py` renders as **`$KB/tests`**, which the gate's own Expected text lists
+as a retained remnant. The gate goes green with C3 fully present. Same for the two engine `.sh`
+files, which the Expected sentence ("any `.py` engine script here must be removed") textually
+exempts. 84 hits measured.
+
+**P6-4 — 🔴 D.2 step 4's fleet smoke CANNOT FAIL, proven by construction.**
+`libs/subagents/select.py:357-359` — `_HUB_SELECTION_DOC` wins **whenever `/opt/fabrik` exists on
+the box**; the project-relative copy (`:361`) is only consulted if it does not. Built the failure it
+exists to catch (a fake project whose vendored doc was husked to `BROKEN/sync-failed-model`):
+hub present → the correct hub top-3 (**GREEN, wrong**); hub hidden → `['BROKEN/sync-failed-model']`
+(the truth). **The gate whose stated purpose is proving the sync actually delivered to a consumer
+reading its OWN copy is structurally blind to a total delivery break, on the only box it will run
+on.** Behavior 1's flagship fleet clause is unprovable as written.
+
+**P6-5 — 🔴 D.2 step 3 measures the wrong thing and cannot fail.**
+`check_ai_pack_freshness.py:7` says in its own docstring *"Exit 0 always — a freshness signal, NOT a
+gate"*; every `main()` return is 0. It reads `.windsurf/rules/ai/*.md` hand-written
+`Last content verification:` stamps, **not delivered-doc mtimes**, with a **90-day** threshold
+(`AI_PACK_STALE_DAYS:27`), not 24h — and it already emits 3 warnings today. Cite corrected: it runs
+at `wsl_startup_hook.sh:213`, not `:164`. **Post-cutover there is NO gate on delivered-doc freshness
+at all.**
+
+**P6-6 — 🔴 E.1's retained-consumer gate (iii) cannot run, and its "or equiv" is DESTRUCTIVE.**
+`python scripts/generate_kilo_agents.py --out /tmp/gka-smoke` → `error: unrecognized arguments`,
+exit 2. The argparse accepts only `-h` and `-d/--dry-run` (`:945-949`); `OUTPUT_DIR` is hard-coded to
+`Path.home()/".traycer"/"cli-agents"` (`:40`) and the non-dry-run path does `shutil.rmtree(OUTPUT_DIR)`
+(`:875`). So "(or equiv)" means **wiping the operator's live Traycer agent dir** — there is no
+sandbox. And even if run, the failure it targets prints `[warn] Could not update` to stdout with
+**exit 0** (`:970-971`), so an exit-code gate cannot fail; it needs a stdout grep the plan omits.
+
+**P6-7 — 🔴 E.1's residue gate STRUCTURALLY CONTRADICTS rule 1, permanently.**
+`rank_coding_subagents.py:392` emits `**Generator:** \`scripts/kilo-benchmarks/rank_coding_subagents.py\``
+into the delivered docs, so the relocated engine **re-injects the forbidden string every day** into
+five rule-1 KEEP artifacts. The gate and rule 1 cannot both be satisfied until the header emitter is
+repointed — **a change no phase owns.** (Plus E-B4 re-confirmed: 408 matches, **340** inside
+`.claude/worktrees/` across 5 live sibling worktrees; 28 real.)
+
+**P6-8 — E.1's audit script: its ACTUAL output contradicts the plan's "Expected" AND the plan's own
+✅ "Verified-good" claim.** Run verbatim it prints **5** `RULE-6 DEP` lines — the three carved-out
+modules *plus* `generate_model_capabilities.py` and `generate_selection_guide_roster.py`. The plan
+says "Expected: every printed RULE-6 DEP is in the carve-out" and its stop-rule says any that is not
+"= an unhandled orphan → fix it before E.2" — so an executor is instructed to **carve out two engine
+scripts Phase E exists to delete**. (They are handled, by D.1's `importlib`-block strip; nothing in
+E.1 says so.) Its ENTRY-derivation command also **crashes the tool**: 19 of 21 paths it emits are
+other repos' (`/scripts/wip_backup.sh` → `FileNotFoundError`, no existence guard), and it misses the
+plan's own `0 6 * * *` cron because the char class has no `/`.
+
+**P6-9 — E.2 gate (a) never prints `0` and `set -e`-ABORTS exactly when it passes.** `grep -rc` over
+two files always prints `file:count` per file (measured: `2` and `1`), and on the clean case exits
+**1**, killing the script on success. Coverage it never sees: `watch_enforcement_changes.sh:49-50`
+(in MODIFY, in no gate), `src/fabrik/scaffold.py:1017-1018` (in **no** plan list),
+`.windsurf/rules/core/50-code-review.md:75,87`, and two `templates/` files.
+
+**P6-10 — C3 extends further than recorded.** The same `git rm -r` also deletes
+`tests/test_golden_parity.py` and `tests/test_parallel_run_diff.py` — the plan's **own Phase-A and
+Phase-C oracles**, named in File Scope as owned paths. After E.2 the retained `tests/golden/**` has
+**zero readers**: no `--verify`, no parity test, no diff test.
+
+**P6-11 — C1 ANSWERED with evidence (the plan says "decide it HERE"; here is the decision).**
+`derive_cost.py` is **dead outside the engine** (only engine-internal importers; `claude_p_cost.py:9-12`
+deliberately keeps a standalone copy rather than importing it) → **co-delete
+`tests/test_derive_cost_by_family.py`**. `kilo_dispatch.py`'s shell callers all die with it → **co-delete
+`tests/test_kilo_dispatch.py`**, but E.2 must ALSO purge the **6** fleet-synced
+`.windsurf/workflows/*.md` that invoke it (`fabrik_synced_manifest.py:82` → ~46 repos) or the dangling
+refs propagate fleet-wide. `kilo_code_review.py` is **LIVE** (P6-1) → **KEEP the module**, and with it
+`tests/test_kilo_review_validation.py` + `tests/test_kilo_strictness_scenarios.py`. All four tests
+collect and pass today (105 passed).
+
+✅ **Ran clean and confirmed accurate:** D.2 step 2's `_TABLE` fail-open (returns a *different*
+top-3, so it genuinely discriminates — and this partially refutes **D-B6**, whose fix `n=3` is right
+but whose stated reason was overstated); E.1 sub-checks (i)/(ii)/heartbeat/`kilo_auto_route --help`;
+E.2 gate (b) as a positive-deletion proof; D.1's arithmetic (57 hits − 2 comments = **55** real, 5
+retained → **50** to remove). Cites re-confirmed: `daily_refresh.sh` alerting `:459`/`:514`;
+`.pre-commit-config.yaml:65`; 23 `traycer_agents_fixed` files; 6 workflows; **48** vendored copies.
+
 **D.1 — Flip delivery to live paths + shrink daily_refresh (large surgery — **55** real engine `_step`
 invocations, of which the allow-list retains 5, so **50** to remove. ⚠️ My own 2026-08-15 correction of
 "~40 → 57" was ALSO wrong: `grep -c '_step '` returns 57 but two of those lines are comments (:364,
@@ -994,7 +1104,20 @@ convergence it never had.
 |-----:|---|---:|---|
 | 1–3 | (pre-2026-08-15 rounds; the `dc3eddf8…` no-op claimed here was **not** reproducible) | — | — |
 | 4 | C/D grounders + orchestrator re-verify — C-B1…C-B4, D-B1…D-B5 | 9 | → `46361555…` |
+| 6 | **EXECUTION-GROUNDED**, scoped to the unexecuted surface (D+E): every gate RUN against the live tree; pool breadth (3 models) + 1 native Opus | 11 | 11 | 11 | `63cc676b…` → `6f5f5625…` |
 | 5 | **closing pass** — full fresh read; Phase A/C/D by the orchestrator, Phase B + Phase E by two independent Opus grounders (native Opus, read-only) | **43** | `46361555…` → (non-identical — pass 6 owed) |
+
+**Pass 6 — the method changed, and it is the finding.** Four prose passes shipped 74 wrong claims;
+pass 6 RAN the gates instead and found 11 more in the two phases that have not executed — including
+that **E.2 as written deletes live fleet-synced governance with no failing check anywhere** (P6-1),
+that **two D gates cannot fail** (P6-3, P6-4, each proven by constructing the failure they exist to
+catch), and that one of my OWN pass-5 findings was wrong (**E-B5 REFUTED**, P6-2). ⚠️ The pool
+breadth layer (3 models) returned almost entirely RESTATEMENTS of the blocker blocks already written
+into the plan — scored 2-3/5. That is a method lesson worth keeping: **once a plan contains its own
+defect list, prose review summarises it back instead of finding anything new.** Every genuinely new
+pass-6 finding came from executing a command. Probe duty: the plan embeds **0** runnable probes
+(`$ `-prefixed fences) across ~600 lines — which is precisely why 74 claims could be wrong and look
+right.
 
 **Pass 5 total: 43 findings** — 10 orchestrator (below), 11 Phase B (**B-B1…B-B11**), 20 Phase E
 (**E-B1…E-B20**), plus 2 sub-claims refuted inside otherwise-correct findings. Running total across passes
