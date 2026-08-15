@@ -544,8 +544,13 @@ day — `test $(date -u +%F) = $(date -u -r engine/out/docs/reference/kilo/TASK_
 external engine (delivering live) is the sole producer; fabrik keeps `generate_kilo_agents`,
 `generate_capability_index` and `sync_enforcement_to_projects`. The vendored `_TABLE` floor stays.
 
-**⛔ GATED ON C.2.** D is not startable until the ≥7-day parallel-run window closes with the
-adjacent-run protocol (C-B5). Cutting over early discards the safety property the window establishes.
+**✅ C.2 WINDOW WAIVED — operator ruling 2026-08-15, recorded here because it changes the risk.** D was
+gated on a ≥7-day parallel run. The operator waived it explicitly. What that trades away: the window
+would have caught a divergence that only appears across several daily cycles (a Sunday-only specialty
+bench, a weekly scrape). What still protects the cutover: C.1's delivery bridge is mutation-proven,
+C.3's three rollback gates are green, the same-instant diff showed `kilo_47_agents_final.json`
+byte-IDENTICAL between the two engines, and behavior 6 holds — reverting is still 'turn delivery off',
+because D deletes no producer, it only stops fabrik invoking its own.
 
 **Files (MODIFY, fabrik):**
 - `scripts/kilo-benchmarks/daily_refresh.sh` — remove the engine steps, keep the consumer steps.
@@ -566,15 +571,11 @@ result. Capture one BEFORE any cutover step:
 `python -c "import sys,json;sys.path.insert(0,'libs');from subagents.select import pick_models;
 json.dump({t:pick_models(t,n=3) for t in ('code','review','docs','plan','research','spec')},
 open('scripts/kilo-benchmarks/tests/golden/pick_models_baseline.json','w'),indent=1)"`
-→ **Expected:** the file exists and every value is a 3-element list. Commit it.
+→ **Expected:** the file exists and every value is a **non-empty** list. ⚠️ NOT '3-element': `pick_models` returns *up to* n, and the synced doc lists a single model for `plan` and `spec`, so a correct capture yields `{code:3, review:3, docs:3, plan:1, research:3, spec:1}`. A 3-element assertion reds a correct baseline — or invites someone to 'fix' the producer. Commit it.
 
-**D.1 — Shrink the two orchestrators.** Remove every engine `_step` from `daily_refresh.sh`
-(**55 real invocations**; `grep -c '_step '` returns 57 but `:364` and `:527` are comments) and every
-engine invocation from `wsl_startup_hook.sh` (the 23 above). The retained `daily_refresh.sh` is an
-**allow-list** of exactly six: `gather_envs`, `classify_services`, `deliver_to_fabrik`,
-`generate_capability_index`, `generate_kilo_agents`, `sync_enforcement_to_projects` — five exist
-today, `deliver_to_fabrik` is the Phase-C script invoked as a `_step` under exactly that name. So
-**50 steps are removed.**
+**D.1 — Shrink the two orchestrators.** Remove every engine `_step` from `daily_refresh.sh` (**55 real invocations**; `grep -c '_step '` returns 57 but `:364` and `:527` are comments) except the seven allow-listed. From `wsl_startup_hook.sh` remove the **18 `*_SCRIPT=` engine invocations** — ⚠️ **but NOT the five absolute-path ones at `:130`/`:232`/`:233`/`:234`/`:235`/`:236`/`:243`.** Those five ARE the retention justification for `rank_task_subagents.py`, `capture_golden.py`, `check_daily_refresh_freshness.py`, `pipeline_alert.sh` and `autocommit_pipeline_outputs.sh`; stripping them would leave K2 retaining five files with zero readers, and `:232`'s ranker invocation carries the **A.0 gate-3 alert** built specifically to satisfy the operator's *"we should not break flywheel"* constraint. Removing it silently undoes A.0. The retained `daily_refresh.sh` is an
+**allow-list** of exactly SEVEN — ⚠️ `check_daily_refresh_freshness` is itself a `_step` (`daily_refresh.sh:163`), so an allow-list that retains the FILE but omits the STEP name reds gate (i) on the very thing the ⚠️ below says to keep: `gather_envs`, `classify_services`, `deliver_to_fabrik`,
+`generate_capability_index`, `generate_kilo_agents`, `sync_enforcement_to_projects`, `check_daily_refresh_freshness` — six exist today, `deliver_to_fabrik` is the Phase-C script invoked as a `_step` under exactly that name. **55 real invocations − 6 retained = 49 removed.**
 
 ⚠️ `check_daily_refresh_freshness` is **RETAINED, not dropped.** An earlier version deleted it as an
 obsolete self-check "with no orphan, no carve-out" — `wsl_startup_hook.sh:236` is a live second
@@ -589,7 +590,7 @@ caller. It moves with the retained remnant.
   subdirectory script collapses to its directory name and `$KB/tests/capture_golden.py` renders as
   `$KB/tests`, which the retained list contains — the gate then passes with the blocker present.
   `grep -hoE '(\$KB|\$\{KB\}|scripts/kilo-benchmarks)/[A-Za-z_0-9./-]+' scripts/kilo-benchmarks/daily_refresh.sh scripts/wsl_startup_hook.sh | sort -u`
-  → **Expected:** every hit is a member of the § E retained remnant (which now includes
+  → **Expected:** every hit is a member of the § E retained remnant **or is `cache/` / `backups/`** — ⚠️ those two are runtime state the retained orchestrator still writes (`:56` heartbeat log path, `:137` DB backup, `:562-576` the freshness stamp K2's `check_daily_refresh_freshness.py` reads) and the pass-9 rewrite dropped them from the Expected list, making the gate unpassable after a perfect surgery (which now includes
   `tests/capture_golden.py`, `pipeline_alert.sh`, `autocommit_pipeline_outputs.sh`,
   `check_daily_refresh_freshness.py` and `rank_task_subagents.py` — do NOT read the old
   "any `.py` here must be removed" wording, which contradicted the remnant).
@@ -598,8 +599,7 @@ caller. It moves with the retained remnant.
 1. `python -c "import sys;sys.path.insert(0,'libs');from subagents.select import pick_models;print(pick_models('code',n=3))"`
    → **Expected:** equals `pick_models_baseline.json["code"]` from D.0. **`n=3` is required** —
    `pick_models(task_type, n=1)` is the signature, so `[:3]` on the default returns ONE model.
-2. Force-remove the selection doc → `pick_models('code',n=3)` still returns (falls to `_TABLE`), does
-   not raise → restore. **Verified working:** the fallback returns a *different* ordering, so this
+2. Force-remove the selection doc → `pick_models('code',n=3)` still returns (falls to `_TABLE`), does not raise → restore. ⚠️ **Disable the governance-sync FIRST** (`SKIP=governance-sync`, and do not run `sync_enforcement_to_projects.py` while the doc is absent): `docs/reference/kilo` is `GOVERNANCE_DIRS[2]` and governance dirs **are** orphan-pruned (`sync_enforcement_to_projects.py:548` — `if relative not in source_files: dest_file.unlink()`), so any sync firing during the window deletes the doc from 47 project copies. Use a copy-aside/restore, never a `git rm`. **Verified working:** the fallback returns a *different* ordering, so this
    gate genuinely discriminates.
 3. **Delivered-doc freshness.** Do NOT use `check_ai_pack_freshness.py`: its own docstring says
    *"Exit 0 always — a freshness signal, NOT a gate"*, it reads hand-written pack stamps rather than
@@ -668,10 +668,9 @@ says otherwise and is wrong; the blast radius of getting this wrong is hub-only.
 to **14** files, exit 0 — 9 named + 4 `Local_*.sh` + `Kilo_Review.sh`. My first draft of this line said
 13; the count is stated here because a `git rm` naming one absent path fails the WHOLE command):
 `git rm scripts/{kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh,kilo_code_review_bckp.py} scripts/Local_*.sh scripts/Kilo_Review.sh`
-⚠️ `kilo_code_review_bckp.py` **is** deleted despite K1 keeping its sibling: it has zero live
-consumers (only CHANGELOG + the design spec mention it) and cannot match the `\.py$`-anchored sync
+⚠️ `kilo_code_review_bckp.py` **is** deleted despite K1 keeping its sibling: it has zero live CODE consumers (CHANGELOG, the design spec, and a capabilities.json row that regenerates) and cannot match the `\.py$`-anchored sync
 filter. Keeping it would violate behavior 4.
-**E.2(iii)** — `git rm tests/kilo_benchmarks/**` (14 engine test files) plus the two co-deleted
+**E.2(iii)** — `git rm tests/kilo_benchmarks/**` (**15** files — 14 tests + `__init__.py`) plus the two co-deleted
 root tests: `tests/test_kilo_dispatch.py` (its module goes) and `tests/test_derive_cost_by_family.py`
 (`derive_cost.py` is dead outside the engine — only engine-internal importers, and
 `claude_p_cost.py:9-12` deliberately keeps a standalone copy rather than importing it).
@@ -685,6 +684,8 @@ three sibling fixers `fix_balanced_tier_agents.py`, `fix_economy_tier_agents.py`
 which invoke `traycer_agent_review.py` · the dead-script patterns in `fabrik_synced_manifest.py` and
 `.pre-commit-config.yaml:65` (**not** the `kilo_code_review|kilo_docs_enforcer` entries — K1) ·
 `watch_enforcement_changes.sh:49-50` · the rule-4 docs.
+
+**E.2(v-pre) — repoint the retained orchestrator's alerting import (LOST in the pass-9 rewrite; the gate survived, the step did not).** `daily_refresh.sh:459` and `:514` do `sys.path.insert(0,'$KB'); from alerting import send_alert` — `$KB/alerting/` is deleted by E.2(i), and both calls are swallowed by `|| true`, so the operator's only heartbeat alert goes dark **silently**. Repoint both to fabrik's retained `libs/alerting`. Gate: `grep -c "sys.path.insert(0, 'libs')" scripts/kilo-benchmarks/daily_refresh.sh` → **Expected: 2**.
 
 **E.2(v) — the residue emitter.** `rank_coding_subagents.py:392` writes
 `**Generator:** \`scripts/kilo-benchmarks/rank_coding_subagents.py\`` into the delivered docs, so the
@@ -716,9 +717,7 @@ rule 1 are permanently unsatisfiable.
   ⚠️ Do **not** gate on `generate_kilo_agents.py --out …`: that flag does not exist (argparse accepts
   only `-h`/`-d`), and the "equivalent" non-dry-run wipes `~/.traycer/cli-agents` via `shutil.rmtree`
   (`:875`). The failure it targets prints `[warn] Could not update` to stdout with **exit 0**, and the
-  emitter sits inside `if not args.dry_run:` — so a `--dry-run` grep can never see it either. Prove it
-  instead by the static check above plus a real run in a disposable HOME:
-  `HOME=$(mktemp -d) python scripts/generate_kilo_agents.py 2>&1 | grep -c 'Could not update'` → **0**.
+  emitter sits inside `if not args.dry_run:` — so a `--dry-run` grep can never see it either. ⚠️ **And do not use the disposable-HOME run either** — `HOME` protects `~/.traycer` but NOT the repo: the non-dry-run path `exec_module`s two scripts that `write_text` into the fleet-synced `docs/reference/kilo/`, colliding with C.3 gate (iii)'s clean-tree assertion. It is also vacuous by construction post-D.1, since the `[warn] Could not update` emitter is inside the block D.1 strips. **Prove it by the static check above** (`grep -c` → 0) **plus** `python scripts/generate_kilo_agents.py --dry-run` exiting 0, which exercises the import path without writing.
 
 **E.1 — Import-graph audit: BUILT, at `scripts/kilo-benchmarks/tests/excise_manifest.py`** (not a throwaway — it is the KEEP/DELETE authority and runs as a gate). It already handles the classes the previously-embedded version missed: package dirs (`alerting/` is exactly that case), subdirectory paths, `.sh` invocations, and `importlib` string literals. Retained for reference: Four defects in the previously-embedded version must not be reproduced: derive ENTRY from
 the live crontab with a `/`-tolerant pattern **and guard every path with `.exists()`** (the old form
@@ -727,8 +726,7 @@ missing this plan's own `0 6 * * *` cron); give the shell branch a `/`-tolerant 
 alternation** (without them it cannot see `capture_golden.py`, `pipeline_alert.sh` or `coding-auto.sh`
 — the very C3 dependency it exists to find); iterate the RULE-7 pass over the transitive set, not
 `ENTRY`; and cover `.db`/`.html` as well as `json|yaml|txt`, since the two rule-1 artifacts are
-otherwise invisible to the tool meant to prove the sweep complete. **Expected:** every `RULE-6 DEP` is
-in K2 and every `RULE-7 DATA DEP` is relocated per K3. Today the correct output is **5** RULE-6 lines
+otherwise invisible to the tool meant to prove the sweep complete. **Expected:** every `RULE-6 DEP` is in K2, and every `RULE-7 DATA DEP` is **either relocated per K3 or itself retained**. ⚠️ The second clause is the correction: with the mandated fixes applied (transitive iteration + `.db`/`.html` coverage) the pass legitimately reports `kilo_agents.db` — which K2 retains **in place** and gate (d) asserts exists. A stop-rule of 'any unrelocated RULE-7 DEP is an orphan' would fail on the artifact the plan deliberately keeps. Today the correct output is **5** RULE-6 lines
 — the three carve-out modules plus `generate_model_capabilities.py` and
 `generate_selection_guide_roster.py`, which D.1's strip removes; treat those two as handled, not as
 orphans to carve out.
