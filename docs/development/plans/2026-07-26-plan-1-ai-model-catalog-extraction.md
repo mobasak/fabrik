@@ -179,6 +179,102 @@ unexecuted on 2026-08-12 — see § Plan reconciliation at the foot of this file
 **Produces (for Phase C):** `engine/daily_refresh.sh` (green standalone); the produced-artifact bundle at `engine/out/` in **fabrik-relative mirrored layout** — `engine/out/docs/reference/kilo/*.md` (selection docs), `engine/out/scripts/kilo_47_agents_final.json`, `engine/out/models_browser.html` (file producers) — plus `engine/out/blocks/<host>.<MARKER>.txt` (injector-block content — OPENROUTER_ROUTES · GATEWAY_COUNTS · EMBEDDING_ROSTER/CATALOG/WINNERS · ROSTER, per B.2e; EMBEDDING_* inject into `KILO_AGENT_SELECTION_GUIDE.md` + `KILO_MODEL_CAPABILITIES.md` + core `65-rag-search.md`, ROSTER into `KILO_AGENT_SELECTION_GUIDE.md`) — plus `engine/out/kilo_agents.db` (the raw DB delivered for fabrik's retained `generate_kilo_agents` consumer — see F1/Phase C) — same relative names/content as the Phase-A golden. **Not** `CAPABILITIES.md`/`capabilities.json`/`llms.txt` (retained-fabrik-consumer outputs, not the engine).
 
 ### Steps
+
+⚠️⚠️ **PHASE B BLOCKERS — pass-5 grounding (independent Opus grounder + orchestrator re-verification against
+the live `/opt/ai-model-catalog/engine/` tree at `6935ce9`), 2026-08-15. Phase B is NOT complete; B.2f, B.3,
+B.4a and B.5 have not started, and four defects are already committed.**
+
+**B-B1 — ⛔ CRITICAL, HARD-STOP CLASS: the two `rank_*` producers write to `/opt/docs/`, OUTSIDE BOTH REPOS.**
+`engine/rank_task_subagents.py:148-154` builds `OUTPUT_PATH` from `Path(__file__).resolve().parent.parent.parent`,
+which from `/opt/ai-model-catalog/engine/` resolves to **`/opt`** — verified live:
+`/opt/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`. Same at `:309-315` (`CODING_FALLBACK_PATH`) and
+`rank_coding_subagents.py:53`. `_atomic_write` (`:1363`) does `path.parent.mkdir(parents=True, exist_ok=True)`,
+so **the first run creates `/opt/docs/`** — a write outside any project tree, which CLAUDE.md lists as a HARD
+STOP. It has not fired only because these producers have not been run since the move (`ls -d /opt/docs` → No
+such file). **Why B.2e missed it:** the step says "repoint the `FABRIK_ROOT`/`FABRIK_DIR` anchor to
+`OUTPUT_ROOT`", and `rank_*` has **no named anchor** — `grep -c 'OUTPUT_ROOT\|FABRIK_ROOT\|FABRIK_DIR'
+rank_task_subagents.py` → **0**. It inlines the walk. A grep-for-the-anchor instruction is structurally blind to
+an inlined `parent.parent.parent`, so commit `13b7ec1`'s "7 producers no longer derive a root by walking out of
+`engine/`" is false for exactly the two that matter most. Secondary: `CODING_FALLBACK_PATH` now reads a
+nonexistent file, so the blend at `:1320` silently degrades to `n_total=0`. **Fix `rank_task_subagents.py` and
+`rank_coding_subagents.py` to honour `OUTPUT_ROOT` before any producer is run.**
+
+**B-B2 — `engine/daily_refresh.sh` is entirely non-functional; B.2f is not done.** `:55` repoints
+`FABRIK_ROOT` to the engine root but the **sub-paths were not repointed with it**: `:58` still sets
+`KB="$FABRIK_ROOT/scripts/kilo-benchmarks"`, a directory that does not exist under `engine/`, and there are
+**65** `$KB/` references. Every `_step` invocation is a dead path. `:56` still sets
+`LOG_FILE=".../cache/update.log"` and `:610` still `>> "$LOG_FILE"`, so **B.2 gate 3 FAILS today** (its grep
+returns 6 matches). B.2e(ii)'s `--output` flags were never added at `:306`/`:490`, so
+`export_traycer_registry` writes to the scaffold repo root and `export_models_browser` has already written a
+3.9 MB `engine/models_browser.html` outside `engine/out/`. Five steps still invoke **fabrik-only** scripts
+(`gather_envs`, `classify_services`, `generate_capability_index`, `generate_kilo_agents`,
+`sync_enforcement_to_projects`) that do not exist in the engine at all. Files line 146 and the B.3 Produces
+line both assert a "relocated / green standalone" `daily_refresh.sh` — **false against the live tree.**
+
+**B-B3 — no `pyproject.toml`, no `requirements.txt`, no `.venv`: FIVE gates in this phase are unrunnable.**
+All three absent (verified). B.3 step 1's `pip install -e .` fails **and its documented fallback**
+(`pip install -r requirements.txt`) has no file either. Unrunnable as written: B.1 step 2a, B.2 gate 4, B.3
+steps 1 and 4, B.4a. Files line 145 asserts the `[build-system]` block — it does not exist.
+
+**B-B4 — B.1 step 1 contains TWO MUTUALLY EXCLUSIVE GATES, and the second one destroys the data the first
+one exists to save.** The step first requires `test -s engine/cache/speed_overrides.json` (pass), then
+requires `[ -z "$(ls -A engine/cache)" ]` — "dir exists **and is empty**". A directory holding
+`speed_overrides.json` can never be empty; run verbatim today the second gate **FAILS** (`ls -A cache/` →
+`blocked_writes`, `speed_overrides.json`, `vendor_failures.json`). An executor who takes the empty-dir gate
+literally deletes the hand-maintained, previously-git-ignored `speed_overrides.json` — **the exact
+silent-data-loss the sentence two lines above it exists to prevent.** Drop the empty-dir assertion; assert
+instead that `cache/` contains *only* `speed_overrides.json` after the carve-out.
+
+**B-B5 — the `, id` tiebreak B.2g(iii) mandates "FIRST" is still absent from every flagship producer.**
+`rank_task_subagents.py:549/:653/:974` are bare `ORDER BY … DESC`; `:741`, `export_traycer_registry.py:83`,
+`export_models_browser.py:79/:88/:111/:168` are non-total orders. Only `generate_model_capabilities.py:64` and
+`embedding_export_markdown.py:277` carry it. B.3 will hit precisely the false-diff hazard B.2g predicts. (The
+`NULLS LAST` half **is** done — `catalog_store.py:165`, cite exact.)
+
+**B-B6 — three different test counts, and all three are wrong.** Line 37 says 64, B.1 gate 3 says 64, lines
+144/157/184 say 67; live `find engine/tests -name 'test_*.py' | wc -l` → **68** (67 ported + the
+`test_no_fabrik_paths.py` B.2 creates). By the time B.3 runs, B.2 gate 4 and B.3 step 3 add two more → **70**.
+B.3 gate 4 freezes "67" in the same sentence that warns "assert the COLLECTED COUNT, never a frozen literal".
+Same class: B.1 gate 3's "**96 scripts**" is live **98** (96 copied + `blocks_out.py` + `catalog_store.py`).
+**Every count in this phase must be computed at run time, never asserted.**
+
+**B-B7 — `engine/.env` does not exist and one loader escapes both repos.** B.2(b) is undone:
+`fetch_direct_vendor_prices.py:73-74` and `check_daily_refresh_freshness.py:44` load
+`/opt/ai-model-catalog/.env` (the scaffold's, not the engine's), and `microbench_terminal.py:876` resolves
+`SCRIPT_DIR.parent.parent/".env"` = **`/opt/.env`** — the same escape class as B-B1. None contains the literal
+`/opt/fabrik`, so `test_no_fabrik_paths.py` is structurally blind to all three.
+
+**B-B8 — 200 stale `.pyc` files carrying `/opt/fabrik` `co_filename` rode in on B.1's `rsync -a`.** No
+`--exclude __pycache__`; `rsync -a` preserves mtimes so the cached bytecode stays **valid** and is used, making
+tracebacks in the new repo point at the old one. `test_no_fabrik_paths.py:24` lists `__pycache__` in
+`SKIP_DIRS`, so the invariant test cannot see it. Not committed (gitignored) — on-disk residue only, but
+residue inside the "zero residue" boundary. Add the exclude and purge.
+
+**B-B9 — `CATALOG_DSN` is read but never provisioned, so B.2g's oracle would silently test SQLite.** It
+appears only as `os.environ.get` reads in `catalog_store.py`; no `.env`, no compose entry, no export in
+`daily_refresh.sh`. Unset ⇒ silent SQLite fallback — so B.3 "run the producers against the POSTGRES store"
+(line 177) proves nothing unless the DSN is provisioned first. PLAUSIBLE→CONFIRMED by absence; provision it
+explicitly and assert the store in the gate.
+
+**B-B10 — `grep -c … → Expected: 0` inverts its own exit status.** B.3 step 2 and B.2 gate 3 both expect a
+count of `0`, but `grep -c` **exits 1** when it prints `0`. Under `set -e` or any exit-status runner, the
+PASSING case is recorded as a failure. Use `[ "$(grep -c …)" = 0 ]`.
+
+**B-B11 — B.5 is not done.** `docs/SERVICES.md` in `ai-model-catalog` has **zero** engine mentions (its 3
+`OPERATIONS.md` hits are scaffold placeholder prose — "needs engineering time", "bite new engineers"); both
+files are untouched since scaffold. `CHANGELOG.md:13` carries a B.2g entry only — nothing for B.1/B.2/B.2e.
+✅ The spec claim IS confirmed: `specs/services/ai-model-catalog.yaml:11` `needs_database: true`.
+
+**Verified-good in Phase B (recorded so the next pass does not re-litigate):** the `speed_overrides.json`
+carve-out is fully done and now git-**tracked** (`engine/.gitignore:15`); `_query_rows` + the
+`sudo -n -u postgres psql` shellout are intact, so B.2c's DO-NOT-REWRITE held; `test_no_fabrik_paths.py` passes
+255 cases and is **non-vacuous** (anti-vacuity guard `:111-115`, red-side discriminator `:118-127`); every one
+of B.2e's seven producer line-cites is exact; the B.2g transitive-reader finding (i) is real and was caught;
+the size claims hold (8.7G source / 8.3G `.lcb-hf-cache` exact; post-exclude 33M vs the plan's 30M — drifted,
+gate still holds). ⚠️ One sub-justification **REFUTED**: `scrape_coding_benchmarks.py:357-358` **warns and
+degrades** on a missing `cache/`, it does not crash — the pre-create conclusion may hold for the other 12
+cache-touching scripts, but the named evidence does not support it.
+
 **B.1 — Copy + prune (TWO copies — the engine tree AND the repo-root engine tests).**
 1. `rsync -a --exclude process.py --exclude process_v2.py --exclude '.lcb-*' --exclude '.microbench_cache' --exclude 'cache/' --exclude 'backups/' --exclude '.tmp' --exclude classify_ticket.py --exclude db_models.py --exclude kilo_telemetry.py /opt/fabrik/scripts/kilo-benchmarks/ /opt/ai-model-catalog/engine/`. The last three excludes are the **rule-6 fabrik-consumer-only** modules (N5 — no engine script imports them; copying them creates the dual-editable "shared file" Global Constraints forbid). **The state excludes are load-bearing (R10-4):** the source tree is **8.7G as of 2026-08-12** (422M when this plan was written; `.lcb-hf-cache` alone is now 8.3G — the existing `--exclude '.lcb-*'` already catches it, and the post-exclude tree measures **30M** (25M when written; re-measured 2026-08-15), well inside the gate) — `.lcb-venv` 297M, `backups/` 42M, `.microbench_cache` 27M, `cache/` 26M — all regenerable runtime state that must NOT land in a fresh git repo (`cache/` also holds the very `update.log` B.2f removes the write of). Add them to `engine/.gitignore` too, so a later run can't re-commit them. **⚠️ `cache/` is NOT purely regenerable — carve out the curated file first (N2, silent-data-loss):** `scripts/kilo-benchmarks/cache/speed_overrides.json` is **hand-maintained**, non-regenerable data (14 entries; its `_README` reads *"Manual speed data for models artificialanalysis.ai does not track… Each entry must explain the source"*) and it is **git-ignored** (`.gitignore:163`), so excluding `cache/` wholesale destroys the only copy. Copy it explicitly — `rsync -a /opt/fabrik/scripts/kilo-benchmarks/cache/speed_overrides.json /opt/ai-model-catalog/engine/cache/` — and **un-ignore it in `engine/.gitignore`** (`!cache/speed_overrides.json`) so it is version-controlled from now on rather than surviving only on one disk. Gate: `test -s /opt/ai-model-catalog/engine/cache/speed_overrides.json && python -c "import json;assert len(json.load(open('/opt/ai-model-catalog/engine/cache/speed_overrides.json')))>=14"` → **Expected:** pass (without it, `scrape_artificial_analysis.py` silently exports degraded speed data for the models AA doesn't track). **Then exclude the remaining CONTENTS and re-create the empty dirs — `mkdir -p /opt/ai-model-catalog/engine/{cache,backups}`:** `cache/` is read/written at runtime by ≥5 engine scripts and at least one (`scrape_coding_benchmarks.py`) **never `mkdir`s it** (verified: 0 mkdir calls), so a missing dir is a first-run crash, not a clean regeneration. Gate: `test -d /opt/ai-model-catalog/engine/cache && [ -z "$(ls -A /opt/ai-model-catalog/engine/cache)" ]` → **Expected:** dir exists and is empty.
 2. **`rsync -a /opt/fabrik/tests/kilo_benchmarks/ /opt/ai-model-catalog/engine/tests/` (R10-1 — the SEPARATE top-level dir).** B.1's first rsync is scoped to `scripts/kilo-benchmarks/` and **structurally cannot reach** `/opt/fabrik/tests/kilo_benchmarks/`; without this second copy the 14 repo-root engine tests (+ their `fixtures/` of cached HTML two tests require) never arrive, and B.3's 64-file gate fails at 50.
@@ -488,6 +584,145 @@ fleet-synced `.windsurf/workflows/*.md` invoke `kilo_dispatch.py`/`Kilo_Review.s
 exist only under `scripts/kilo-benchmarks/`, i.e. inside deletion (i); the Files DELETE list's "N3
 verified, top-level" claim is the wrong half, and E.2(ii)'s own `git rm` already omits them.
 
+⚠️⚠️ **PHASE E ADDENDUM — pass-5 grounding (independent Opus grounder + orchestrator re-verification),
+2026-08-15. 22 findings; the four load-bearing ones make an E.1/E.2 gate unpassable or delete a live caller.**
+
+**E-B1 — C3 undercounts by FOUR. The retained `wsl_startup_hook.sh` invokes FIVE engine files, none of them
+in the remnant.** Verified verbatim: `:232` `rank_task_subagents.py`, `:234` `tests/capture_golden.py --verify`,
+`:236` `check_daily_refresh_freshness.py`, `:130/:233/:235` `pipeline_alert.sh`, `:243`
+`autocommit_pipeline_outputs.sh`. The remnant (`:334`) names none of them. **This also directly refutes D.1's
+"`check_daily_refresh_freshness` is DROPPED … no orphan, no carve-out"** — `:236` is a live caller D.1 does not
+own (see D-B2). Failure mode: E.2 lands, the next shell open runs the hook, five invocations hit "No such
+file", every one swallowed by `>> $LOG_FILE 2>&1 || {…}` — and `pipeline_alert.sh`, the thing that would tell
+you, is itself among the deleted. **Add all five to the retained remnant, or give Phase E an explicit MODIFY
+for the hook.**
+
+**E-B2 — a FOURTH C1-class test, unnamed anywhere in the plan: `tests/test_derive_cost_by_family.py`.** It is
+repo-root (not under `tests/kilo_benchmarks/**`, which is all E.2 deletes), collected by `testpaths=["tests"]`,
+and does a **module-level** `importlib.util.spec_from_file_location("derive_cost", …/kilo-benchmarks/derive_cost.py)`
+(`:17-20`). Deleting `derive_cost.py` errors it at **collection** and reds `final_gate` at E.3. It is exactly
+the `importlib`-computed-path idiom E.1 says it exists to catch — missed because the audit walks `ENTRY`, and
+`ENTRY` contains no tests.
+
+**E-B3 — E.1's audit script is structurally blind to C3, proven by running its own regex.** The shell branch
+pattern `(?:\$\{?KB\}?|kilo-benchmarks)/([A-Za-z_0-9]+)\.py` requires `.py` **immediately** after the prefix,
+so `$KB/tests/capture_golden.py` MISSES (subdirectory), `pipeline_alert.sh` MISSES (no `.sh` alternation at
+all), and `coding-auto.sh` — named in the ⚠️ ENTRY comment — yields `[]`. The tool the plan calls "the
+completeness guarantee" cannot see the blocker the plan calls critical.
+
+**E-B4 — E.1's post-E.2 residue gate can NEVER return empty on this box.** Its exclusion list covers
+`/\.git/` but not `.claude/worktrees/`, which is excluded from git via `.git/info/exclude` — not from grep.
+Live: **5** worktrees, **342** matching files inside them (the number moves as siblings work). Behavior 4 is
+unprovable as written on any shared tree with a live sibling worktree. **Add `/\.claude/worktrees/` to the
+exclusion.**
+
+**E-B5 — C2's "20 distinct engine scripts" is a grep-hit count, not an invocation count.** `wsl_startup_hook.sh`
+*references* 20 and *invokes* **3** `.py` (+2 `.sh`); lines 36-61 are 18 `*_SCRIPT="…"` assignments with
+**zero uses** — dead assignments from an earlier shrink. This is the same measure-invocations-not-grep-hits
+error D.1 corrects for `daily_refresh.sh`, committed one paragraph later. **Internal contradiction:** D.1
+(`:303`) says the same file "invokes ~9 engine scripts, `:36-44`". Neither 20 nor 9 is right. C2's
+*conclusion* survives and is strengthened by E-B1.
+
+**E-B6 — `.pre-commit-config.yaml:57` is WRONG; the real line is `:65`** (the `governance-sync` `files:`
+filter). `:57` is the unrelated `command-corpus-check` entry — an executor following the cite edits the wrong
+gate. Cited in the MODIFY list and § Evidence.
+
+**E-B7 — the `daily_refresh.sh` alerting cites `:511`/`:515` are WRONG; real `from alerting import` lines are
+`:459` and `:514`.** `libs/alerting/` exists, so the #F3 fix target is real — only the coordinates were wrong.
+
+**E-B8 — `derive_cost.py:158` is WRONG; `_COST_SIDECAR = _HERE / "claude_p_cost.json"` is at `:234`** (`:158`
+is a function parameter). `derive_cost.py:23 _RATIOS` and `rank_task_subagents.py:483` are both **exact**.
+
+**E-B9 — `capture_golden.py --verify` is described as "the BLOCKING gate"; both callers are ADVISORY.**
+`daily_refresh.sh:510-511` says so in a comment ("must never be able to abort a healthy nightly refresh") and
+`wsl_startup_hook.sh:234-235` is `|| { … }`. The quoted "treat this as blocking" text is real — but it is
+**prose inside an alert body**, not control flow. C3's severity framing overstates it: nothing stops the sync
+today either. (C3's substance still stands — the file must be retained.)
+
+**E-B10 — "22 `traycer_agents_fixed/*.sh:171`" is wrong three ways.** Live: **23** files, **23** invoke
+`traycer_agent_review.py`, and only 14 at `:171` (1 at `:184`, 8 at `:191`). And **four more referencing files
+appear in no plan list**: `scripts/fix_balanced_tier_agents.py`, `scripts/fix_economy_tier_agents.py`,
+`scripts/implement_self_review_workflow.py`, `templates/traycer/agent-post-execution-hook.md` — only
+`fix_traycer_agents.py` is in E.2(ii), so three sibling fixers survive pointing at a deleted target.
+
+**E-B11 — "five `.windsurf/workflows/*.md`" is SIX**: `kilo.md`, `local-coder.md`, `local-review.md`,
+`local-fixer.md`, `local-docs.md`, `auto-review.md`. ⚠️ `.windsurf/workflows` is in
+`fabrik_synced_manifest.py:82`, so these ride the sync to ~46 repos — the dangling references propagate
+**fleet-wide**.
+
+**E-B12 — ⚠️ the PLAN-ERROR block's own evidence is false, and acting on it deletes a live script.** It
+asserts "`ls scripts/process*.py` fails". It **succeeds, exit 0** — `scripts/process_monitor.py`. The
+substantive claim holds (`process.py`/`process_v2.py` exist only under `kilo-benchmarks/`), but anyone
+"fixing" E.2(ii) by adding a `scripts/process*.py` glob would `git rm` the live `process_monitor.py`.
+
+**E-B13 — the PLAN-ERROR block never fixed the list it corrects.** `:334`'s DELETE list still enumerates
+`process.py`, `process_v2.py` inside the "each at `scripts/<name>`" **top-level** set that the block itself
+declares to be the wrong half.
+
+**E-B14 — `claude_p_cost.py` is NOT fleet-synced.** Rule 7 calls it "fleet-synced consumer infra"; live
+`grep -c claude_p_cost scripts/fabrik_synced_manifest.py` → **0**, absent from `CORE_SCRIPTS` and from the
+`:65` governance filter, and absent from projects. The plan took the file's **own docstring** (`:9-11`) as
+ground truth. Everything else in rule 7 is confirmed (`_find()` is `:49-56`, not `:50-54`; the `$0.093/M`
+anchor is defined `:41`, consumed `:97`) — but the blast radius of the un-relocated break is **hub-only, not
+fleet-wide**, so rule 7's severity drops accordingly.
+
+**E-B15 — the ENTRY-derivation command drops subdir crons AND feeds the audit paths that crash it.**
+`grep -oE '/?scripts/[a-z_0-9-]+\.(py|sh)'` has no `/` in the class, so it misses **the plan's own #13 cron**
+(`0 6 * * * /opt/fabrik/scripts/kilo-benchmarks/daily_refresh.sh`) plus `scripts/enforcement/`,
+`scripts/sysadmin/` entries. Conversely it emits **other repos'** paths with a leading slash
+(`/scripts/recovery_sweep.py` from `/opt/youtube`, …), which `pathlib.Path(p).read_text()` resolves as
+absolute → **`FileNotFoundError`, with no existence guard**. Following the instruction literally crashes the
+tool. (Also: `ENTRY` is relative while `KB` is absolute, so the script only runs from CWD `/opt/fabrik`
+despite being CREATEd under `scripts/kilo-benchmarks/tests/`; and the literal `ENTRY` contains no shell
+entry-points, making its own shell branch dead code.)
+
+**E-B16 — the RULE-7 pass has three holes the plan claims are closed.** (a) it iterates `for e in ENTRY`, not
+`for e in seen`, so a data-file dep of a transitively-reached module is never scanned — concrete miss:
+`db_models.py:20 DB_PATH = … "kilo_agents.db"`, and `db_models` is only ever reached transitively; (b) the
+extension alternation is `json|ya?ml|txt`, so `.db` and `.html` — i.e. **the two rule-1 artifacts** — are
+invisible to the tool meant to prove the sweep complete; (c) `local_imports` only tests `KB/f"{name}.py"`,
+never `KB/name/"__init__.py"`, so `alerting/` (a real package dir) is undetectable — and E.1's text sweep
+`grep -vE`s it out too. The plan's "**Sweep verified complete this review**" is therefore asserted, not
+proven, and "E.1's rule-7 pass re-proves it at execution" is **UNVERIFIABLE by that code**.
+
+**E-B17 — E.2 gate (a) is not mechanically checkable and under-covers.** `grep -rc <pat> fileA fileB` prints
+`file:count` per file, never a scalar `0`; and when both truly reach zero `grep -c` **exits 1**, so under
+`set -e` the gate errors exactly when it passes (same class as B-B10). It also omits
+`scripts/watch_enforcement_changes.sh`, whose `:49-50` is in the MODIFY list but in no gate. Gate (b) is sound.
+
+**E-B18 — the scaffold HIGH is confirmed and has ZERO test coverage.** `src/fabrik/scaffold.py:1015-1026`:
+`core_scripts` includes `kilo_code_review.py` (`:1017`) and `kilo_docs_enforcer.py` (`:1018`), copied under an
+`.exists()` guard (`:1025`) → **silent skip, no error**. Neither `tests/test_scaffold.py` nor
+`test_scaffold_fix.py` asserts they are copied, so nothing goes red. **`src/fabrik/scaffold.py` appears in no
+plan list, including File Scope.** Compounding: both are live synced `CORE_SCRIPTS`
+(`fabrik_synced_manifest.py:29-30`) with copies in projects today, so deleting the hub sources changes what
+`check_synced_unmodified.py` compares against in ~46 repos — covered by no phase-E step.
+
+**E-B19 — the rule-4 doc set is materially larger than either list.** Running the residue gate on the current
+tree matches **28** non-engine, non-worktree files, including fleet-synced surfaces named nowhere in the plan:
+`.windsurf/rules/core/65-rag-search.md`, `docs/reference/kilo/{CODING_SUBAGENT_SELECTION,BENCHMARK_SOURCES,AI_VENDOR_ACCESS}.md`,
+`docs/CAPABILITIES.md`, `docs/reference/{terminal-bench-runner,LOCAL_LLM_INFRASTRUCTURE,architecture}.md`,
+`INDEX.md`. The plan hedges with "E.1's grep enumerates the exact set" — but per E-B4 that grep cannot reach
+empty, so the hedge does not close it.
+
+**E-B20 — File Scope (`:449`) and the DELETE list (`:334`) disagree, and both omit blocker-implicated files.**
+`:449`'s retention omits the rule-6 trio that `:334` explicitly retains, plus `capture_golden.py` and the
+rule-7 JSONs. Named in rule 4 but absent from File Scope: `docs/operations/wsl-environment.md`,
+`docs/workflows/DATA_SYNC_WORKFLOW.md`, `.windsurf/workflows/subagent-runs-flywheel.md`,
+`.windsurf/rules/ai/00-ai-model-selection.md`. Named in CREATE but absent: `audit_engine_coupling.py`, both
+rule-7 JSONs. In **neither** list: `src/fabrik/scaffold.py`, the four C1-class tests,
+`scripts/traycer_agents_fixed/*.sh` (23), `.windsurf/workflows/*.md` (6), the three sibling fixers, the
+Traycer template.
+
+✅ **Verified-good in Phase E (do not re-litigate):** E.2(ii)'s `git rm` list is **complete and correct** — all
+12 named files exist and `scripts/Local_*.sh` expands to 4 real files; there is no `kilo_cost_report/` package
+dir. Rule 6 is accurate to the line (`kilo_auto_route.py:54-56/:58/:59-62/:63-67`, `coding-auto.sh:32/:62`,
+`generate_kilo_agents.py:49-51`). C1 is confirmed (and *undercounts* its own line list —
+`test_kilo_review_validation.py` also matches at `:615/:655/:701/:737`). `run_kilo_workflow.sh:25-27`,
+`test_routing_failover.sh:49`, `pyproject.toml:94`, and the 14 `tests/kilo_benchmarks/` files are all exact.
+E.1's audit script **does run clean** from `/opt/fabrik` on the current `ENTRY` and its output matches the
+plan's "Expected (post-fix)" — the defects are in what it **cannot see**, not in what it reports.
+
 **E.2 — Excise (TWO separate deletions — different directories, N3).** (i) `git rm -r scripts/kilo-benchmarks/<engine files>` (keeping the rule-1/2/6/7 remnant); (ii) `git rm scripts/{kilo_docs_enforcer.py,kilo_code_review.py,kilo_code_review_bckp.py,kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh} scripts/Local_*.sh scripts/Kilo_Review.sh` — **top-level paths**, which (i)'s recursive delete never touches. Then purge the sync-manifest/watch patterns. Gates: (a) reference purge — `grep -rc "kilo_code_review\|kilo_docs_enforcer" scripts/fabrik_synced_manifest.py .pre-commit-config.yaml` → **Expected: 0**; (b) **positive-deletion proof (the (a) gate only proves the manifest stopped naming them, never that the files are gone)** — `ls scripts/kilo_docs_enforcer.py scripts/kilo_code_review.py scripts/kilo_cost_report.py scripts/mcp_kilo_server.py 2>&1 | grep -c 'No such file'` → **Expected: 4**.
 **E.3 — Full gate + subagent-pool smoke (behavior 4).** `python scripts/final_gate.py --json` → `"success"` (baseline-attributed); run a real `/fabrik-review` finder round end-to-end to prove fabrik's brain still works headless.
 **E.4 — ⛔ RETIRED (D5, 2026-08-12): deploy + network flywheel DSN are OUT OF SCOPE.** The probe this step planned has already been RUN (spec §4): `fabrik_analytics` sits on the WSL workstation's local socket, `listen_addresses=localhost`, **not** on `postgres-main`, and that box is not on the WireGuard mesh — so *provision a network-reachable read-only DSN* had no target. Retained verbatim below as the hand-off brief for the separate VPS-deployment spec:
@@ -594,7 +829,18 @@ convergence it never had.
 |-----:|---|---:|---|
 | 1–3 | (pre-2026-08-15 rounds; the `dc3eddf8…` no-op claimed here was **not** reproducible) | — | — |
 | 4 | C/D grounders + orchestrator re-verify — C-B1…C-B4, D-B1…D-B5 | 9 | → `46361555…` |
-| 5 | **closing pass** — full fresh read; Phase A/C/D by the orchestrator, Phase B + Phase E by two independent Opus grounders | see below | `46361555…` → … |
+| 5 | **closing pass** — full fresh read; Phase A/C/D by the orchestrator, Phase B + Phase E by two independent Opus grounders (native Opus, read-only) | **43** | `46361555…` → (non-identical — pass 6 owed) |
+
+**Pass 5 total: 43 findings** — 10 orchestrator (below), 11 Phase B (**B-B1…B-B11**), 20 Phase E
+(**E-B1…E-B20**), plus 2 sub-claims refuted inside otherwise-correct findings. Running total across passes
+2–5: **74** wrong or drifted claims. The distribution is the lesson: **every single one required opening a
+file or running a command** — the plan reads impeccably and was wrong 74 times.
+
+⚠️ **The four that would have caused real damage, all found in this pass:** `B-B1` (two producers write to
+`/opt/docs/`, outside both repos — a HARD STOP, armed but not yet fired), `B-B4` (a gate whose literal
+execution deletes the hand-maintained data the previous sentence protects), `E-B1` (E.2 orphans five live
+callers under the retained boot hook, every failure swallowed, with the alerting script itself deleted), and
+`E-B12` (a false piece of evidence whose "obvious fix" would `git rm` the live `process_monitor.py`).
 
 **Pass-5 findings (orchestrator half, each verified by opening the file or running the command):**
 
