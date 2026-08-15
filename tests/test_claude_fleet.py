@@ -16,6 +16,7 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -939,3 +940,457 @@ def test_twin_copies_are_byte_identical():
     a = (REPO / "scripts" / "sysadmin" / "claude_rotate.py").read_bytes()
     b = (REPO / "scripts" / "aro-wake" / "claude_rotate.py").read_bytes()
     assert a == b, "the two vendored copies must stay byte-identical (cp after every edit)"
+
+
+# ── T03: fleet-mode --status / tick + --keepalive ─────────────────────────────────────────────
+# Feature-detected: ≥1 scaffolded fleet dir flips --status/--tick into the per-ACCOUNT view; an
+# empty fleet root keeps the legacy manager-accounts machinery byte-unchanged. All tmp_path
+# fleet roots, all probes faked — no network, no real credentials, no real crontab.
+
+FLEET_NOW = 1_800_000_000.0
+
+
+def _pin(fleet, slug, email):
+    """Simulate an ALREADY-pinned identity (a prior successful post-login profile probe)."""
+    path = fleet / "assignments.json"
+    table = json.loads(path.read_text())
+    table[slug]["identity"] = email
+    path.write_text(json.dumps(table))
+
+
+def _fleet_creds(fleet, slug, token, age_s=0.0):
+    """Plant a FAKE credentials file in a tmp fleet dir (tests only) and backdate its mtime."""
+    creds = fleet / slug / ".credentials.json"
+    creds.write_text(json.dumps({"claudeAiOauth": {"accessToken": token}}))
+    ts = FLEET_NOW - age_s
+    os.utime(creds, (ts, ts))
+    return creds
+
+
+def _fake_oauth(monkeypatch, profiles=None, usages=None):
+    """Fake the api/oauth endpoint, keyed by token. Returns the recorded (path, token) calls."""
+    calls = []
+
+    def fake(path, token, timeout_s=15.0):
+        calls.append((path, token))
+        return {"profile": profiles or {}, "usage": usages or {}}.get(path, {}).get(token)
+
+    monkeypatch.setattr(cr, "_oauth_get", fake)
+    return calls
+
+
+def _usage_blob(session=42.0, weekly=31.0):
+    return {
+        "five_hour": {"utilization": session, "resets_at": "2027-01-20T00:00:00+00:00"},
+        "seven_day": {"utilization": weekly, "resets_at": "2027-01-22T00:00:00+00:00"},
+    }
+
+
+def _fleet_two_accounts(tmp_path, monkeypatch):
+    """Three dirs on two accounts, identities already pinned. Returns the fleet root."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    for slug, email in (
+        ("seo", "sarp@ocoron.com"),
+        ("youtube", "sarp@ocoron.com"),
+        ("intel", "ob@ocoron.com"),
+    ):
+        assert cr.main(["--new-dir", slug, email]) == 0
+        _pin(fleet, slug, email)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    return fleet
+
+
+# ── B7: fleet --status groups by account, live quota from the freshest token ──────────────────
+
+
+def test_fleet_status_groups_by_account_with_live_quota(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=3600.0)
+    _fleet_creds(fleet, "youtube", "tok-yt", age_s=600.0)  # freshest sarp dir
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    calls = _fake_oauth(
+        monkeypatch,
+        usages={"tok-yt": _usage_blob(42.0, 31.0), "tok-intel": _usage_blob(7.0, 9.0)},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    assert "sarp@ocoron.com" in out and "ob@ocoron.com" in out
+    assert "42%" in out and "7%" in out
+    assert "parked — quota unknown" not in out
+    # usage is queried ONCE per account, with the FRESHEST dir's token — never per dir
+    assert sorted(t for p, t in calls if p == "usage") == ["tok-intel", "tok-yt"]
+    sarp_line = next(line for line in out.splitlines() if "sarp@ocoron.com" in line)
+    assert "seo" in sarp_line and "youtube" in sarp_line, "dirs must group under their account"
+
+
+def test_fleet_status_stale_account_falls_back_to_the_cached_row_with_age(
+    tmp_path, monkeypatch, capsys
+):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    _pin(fleet, "seo", "sarp@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=10 * 3600.0)  # no token <8h old
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "sarp@ocoron.com": {
+                    "ts": FLEET_NOW - 9 * 3600.0,
+                    "five_hour": {"utilization": 66.0, "resets_at_epoch": FLEET_NOW + 3600},
+                    "seven_day": {"utilization": 12.0, "resets_at_epoch": FLEET_NOW + 86400},
+                }
+            }
+        )
+    )
+    calls = _fake_oauth(monkeypatch)
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    assert [c for c in calls if c[0] == "usage"] == [], "a stale account must not be probed"
+    assert "66%" in out and "STALE" in out and "9h" in out
+    assert "parked — quota unknown" not in out
+
+
+def test_fleet_status_without_any_reading_never_prints_the_legacy_parked_line(
+    tmp_path, monkeypatch, capsys
+):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    _pin(fleet, "seo", "sarp@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=10 * 3600.0)  # idle >8h, and no cache exists
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    _fake_oauth(monkeypatch)
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    assert "sarp@ocoron.com" in out
+    assert "parked — quota unknown" not in out
+
+
+# ── B8: identity pinning — ONE probe, written back, never re-probed ───────────────────────────
+
+
+def test_pending_login_is_pinned_once_and_never_reprobed(tmp_path, monkeypatch, capsys):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0  # identity: pending-login
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    calls = _fake_oauth(
+        monkeypatch,
+        profiles={"tok-seo": {"account": {"email": "sarp@ocoron.com"}}},
+        usages={"tok-seo": _usage_blob()},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    row = json.loads((fleet / "assignments.json").read_text())["seo"]
+    assert row["identity"] == "sarp@ocoron.com", "the verified email must be written back"
+    assert [c for c in calls if c[0] == "profile"] == [("profile", "tok-seo")]
+
+    calls.clear()
+    assert cr.main(["--status"]) == 0  # second run: the pin holds — ZERO profile probes
+    assert [c for c in calls if c[0] == "profile"] == []
+    assert json.loads((fleet / "assignments.json").read_text())["seo"]["identity"] == (
+        "sarp@ocoron.com"
+    )
+
+
+def test_pending_login_probe_failure_stays_pending_and_excluded_from_grouping(
+    tmp_path, monkeypatch, capsys
+):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    _fake_oauth(monkeypatch)  # profile answers None — probe failure
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    assert "pending-login" in out
+    assert "sarp@ocoron.com — " not in out, "an unpinned dir must not be grouped as an account"
+    row = json.loads((fleet / "assignments.json").read_text())["seo"]
+    assert row["identity"] == "pending-login"
+
+
+# ── B9: empty fleet root → the legacy view, byte-unchanged ────────────────────────────────────
+
+
+def test_empty_fleet_root_keeps_the_legacy_view_and_one_dir_flips_it(tmp_path, monkeypatch, capsys):
+    _canonical(tmp_path, monkeypatch)  # fleet root never created
+    reset = FLEET_NOW
+    row = {
+        "name": "sarp-ocoron-com-s-organization",
+        "email": "sarp@ocoron.com",
+        "valid": True,
+        "five_hour": {"utilization": 42.0, "resets_at_epoch": reset},
+        "seven_day": {"utilization": 31.0, "resets_at_epoch": reset},
+    }
+    monkeypatch.setattr(cr, "_collect_statuses", lambda: ([row], row["name"]))
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    capsys.readouterr()
+
+    assert cr._cmd_status(as_json=False) == 0
+    out = capsys.readouterr().out
+
+    from datetime import datetime
+
+    rs = datetime.fromtimestamp(reset).strftime("%a %H:%M")
+    session = f"42% (resets {rs})"
+    expected = f"* {row['email']:32} session {session:24} weekly 31% (resets {rs})\n"
+    assert out == expected, "empty fleet root must render the legacy view BYTE-unchanged"
+
+    # …and ONE scaffolded dir must flip the same call into the fleet view (the dispatch seam)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    capsys.readouterr()
+    assert cr._cmd_status(as_json=False) == 0
+    assert "fleet" in capsys.readouterr().out
+
+
+# ── B10: --keepalive — mtime-gated, one in-place ping per stale dir ───────────────────────────
+
+
+def test_keepalive_pings_exactly_the_stale_dirs_with_their_own_env(tmp_path, monkeypatch, capsys):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    for slug in ("old", "fresh", "empty"):
+        assert cr.main(["--new-dir", slug, "sarp@ocoron.com"]) == 0
+    _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)  # 8 days idle → ping
+    _fleet_creds(fleet, "fresh", "tok-fresh", age_s=1 * 86400.0)  # 1 day → skip
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    runs = []
+
+    def fake_run(argv, **kw):
+        runs.append((list(argv), dict(kw.get("env") or {})))
+        return subprocess.CompletedProcess(argv, 0, "pong", "")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    capsys.readouterr()
+
+    assert cr.main(["--keepalive"]) == 0
+    out = capsys.readouterr().out
+
+    assert len(runs) == 1, "exactly ONE ping — the stale dir only"
+    argv, env = runs[0]
+    assert argv == ["claude", "-p", "ping"]
+    # in-place sole-owner refresh: BOTH carrier variables point at the dir ITSELF, no temp copy
+    assert env["CLAUDE_CONFIG_DIR"] == str(fleet / "old")
+    assert env["CLAUDE_QUOTA_HOME"] == str(fleet / "old")
+    for line in out.splitlines():
+        assert line.startswith("keepalive:"), f"cron-log lines must be single-line: {line!r}"
+
+
+def test_keepalive_failed_ping_alerts_via_mesh_notify_and_exits_nonzero(
+    tmp_path, monkeypatch, capsys
+):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "old", "sarp@ocoron.com"]) == 0
+    _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+
+    def fake_run(argv, **kw):
+        return subprocess.CompletedProcess(argv, 1, "", "boom")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    alerts = []
+    # _tick_telegram IS the ci_health_probe mesh-notify invocation
+    # (bash ~/.claude/bin/claude-sound.sh mesh-notify <sid> /opt/fabrik "<msg>")
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: alerts.append(msg))
+    capsys.readouterr()
+
+    assert cr.main(["--keepalive"]) == 1, "a failed ping must be visible to cron (rc 1)"
+    assert alerts and "old" in alerts[0]
+
+
+def test_keepalive_never_reads_credential_bytes(tmp_path, monkeypatch):
+    """The staleness gate is MTIME-only: a keepalive pass must never open the credential file."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "old", "sarp@ocoron.com"]) == 0
+    creds = _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(
+        cr.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 0, "", "")
+    )
+    real_read_bytes, real_read_text = Path.read_bytes, Path.read_text
+
+    def guarded_bytes(self, *a, **k):
+        assert self.name != ".credentials.json", "keepalive read credential BYTES"
+        return real_read_bytes(self, *a, **k)
+
+    def guarded_text(self, *a, **k):
+        assert self.name != ".credentials.json", "keepalive read credential BYTES"
+        return real_read_text(self, *a, **k)
+
+    monkeypatch.setattr(Path, "read_bytes", guarded_bytes)
+    monkeypatch.setattr(Path, "read_text", guarded_text)
+
+    assert cr.main(["--keepalive"]) == 0
+    assert creds.read_text  # fixture intact
+
+
+# ── B11: the fleet tick — per-account advisory, structurally no successor logic ───────────────
+
+
+def _fleet_tick_spies(monkeypatch):
+    actions = {"switched": [], "picked": [], "telegrams": [], "mails": []}
+    monkeypatch.setattr(cr, "_tick_switch", lambda name: actions["switched"].append(name) or True)
+    monkeypatch.setattr(cr, "_pick_successor", lambda *a, **k: actions["picked"].append(a) or None)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg))
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
+    return actions
+
+
+def test_fleet_tick_advisory_at_96_installs_nothing(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert actions["switched"] == [] and actions["picked"] == [], "fleet tick installs NOTHING"
+    assert len(actions["telegrams"]) == 1
+    assert "sarp@ocoron.com" in actions["telegrams"][0] and "96" in actions["telegrams"][0]
+    assert "96%" in out
+
+    # 24h per-account suppression: an immediate re-tick fires nothing new
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "the advisory must be 24h-suppressed per account"
+
+
+def test_fleet_tick_suppression_is_per_account_not_global(tmp_path, monkeypatch):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1  # sarp only
+
+    usages["tok-intel"] = _usage_blob(90.0, 10.0)  # ob crosses AFTER sarp's stamp exists
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 2, "a second account's advisory must not be suppressed"
+    assert "ob@ocoron.com" in actions["telegrams"][1]
+
+
+def test_fleet_tick_drain_mail_routes_mapped_slugs_to_existing_repos(tmp_path, monkeypatch, capsys):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    for slug in ("fabrik-infra", "cron-ci-fix", "seo"):
+        assert cr.main(["--new-dir", slug, "sarp@ocoron.com"]) == 0
+        _pin(fleet, slug, "sarp@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(96.0, 50.0)})
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo", "youtube"])
+    opt = tmp_path / "opt"  # holds fabrik/ + seo/ but NO cron-ci-fix/
+    (opt / "fabrik").mkdir(parents=True)
+    (opt / "seo").mkdir()
+    monkeypatch.setattr(cr, "OPT_DIR", opt)
+
+    assert cr._cmd_tick() == 0
+
+    # fabrik-* hub role slugs → fabrik; seo → seo; cron-ci-fix has no repo → skipped
+    assert sorted(actions["mails"]) == ["fabrik", "seo"]
+
+
+def test_fleet_tick_future_dated_stamp_never_suppresses_the_advisory(tmp_path, monkeypatch):
+    """F54: a suppression stamp whose mtime sits in the FUTURE (WSL suspend/resume, NTP — the
+    _last_switch_ts clock-skew class) must read EXPIRED, not 'suppressed until the wall clock
+    catches up in 5 days' — that silence lands exactly while an account burns to its wall."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(96.0, 50.0)})
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    stamp = cr._fleet_advisory_stamp("sarp@ocoron.com")
+    stamp.touch()
+    future = FLEET_NOW + 5 * 86400
+    os.utime(stamp, (future, future))
+
+    assert cr._cmd_tick() == 0
+
+    assert len(actions["telegrams"]) == 1, "a future-dated stamp must not silence the advisory"
+    assert stamp.stat().st_mtime == FLEET_NOW, "the invalid stamp must be rewritten at now"
+
+
+def test_keepalive_future_skewed_credentials_mtime_counts_as_due(tmp_path, monkeypatch, capsys):
+    """F55: a credentials mtime AHEAD of now beyond the skew tolerance must be pinged — a
+    spurious ping is harmless, a silently skipped one risks the ~30-day idle lapse."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "skewed", "sarp@ocoron.com"]) == 0
+    _fleet_creds(fleet, "skewed", "tok-skewed", age_s=-5 * 86400.0)  # mtime 5 days in the FUTURE
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    runs = []
+
+    def fake_run(argv, **kw):
+        runs.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "pong", "")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    capsys.readouterr()
+
+    assert cr.main(["--keepalive"]) == 0
+    out = capsys.readouterr().out
+
+    assert len(runs) == 1, "a future-skewed mtime must be treated as DUE, never as fresh"
+    for line in out.splitlines():
+        assert line.startswith("keepalive:"), f"cron-log lines must be single-line: {line!r}"
+
+
+def test_fleet_tick_branch_has_structurally_no_successor_logic(tmp_path, monkeypatch):
+    forbidden = {
+        "_tick_switch",
+        "_pick_successor",
+        "_tick_inner",
+        "_activate_snapshot",
+        "_cmd_switch",
+        "_cmd_next",
+        "_rotate_active_account",
+    }
+    for fn_name in (
+        "_fleet_tick_inner",
+        "_fleet_account_rows",
+        "_cmd_fleet_status",
+        "_cmd_keepalive",
+    ):
+        fn = getattr(cr, fn_name)
+        overlap = set(fn.__code__.co_names) & forbidden
+        assert not overlap, f"{fn_name} references successor machinery: {overlap}"
+
+    # …and the dispatch never reaches the single-live-account tick in fleet mode
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    monkeypatch.setattr(
+        cr, "_tick_inner", lambda: (_ for _ in ()).throw(AssertionError("legacy tick reached"))
+    )
+    monkeypatch.setattr(cr, "_fleet_tick_inner", lambda dirs: 0)
+    assert cr._cmd_tick() == 0

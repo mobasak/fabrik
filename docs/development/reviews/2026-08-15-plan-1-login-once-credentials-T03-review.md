@@ -33,3 +33,42 @@ census clean (token reads in-memory via the sanctioned reader; keepalive mtime-o
 trap-tested).
 
 Round 1 verdict: NOT CLEAN — F54–F58 dispatched. Round 2 follows.
+
+## Round 2 (2026-08-15)
+
+Surface: fixup commit ccfd5357 (F54–F58, +117/−14, 3 new red-first tests). Re-verified
+first-hand: 182/182 across the 4 suites, twins md5 5c239113.
+
+Finders: pool deepseek+gemini (diff inline) + native opus (worktree probes + F54 clamp
+mutant — killed, restored, twins re-verified).
+
+Pool: deepseek verified all five fixes with correct boundary analysis (exact-tolerance
+suppressed, rewrite-then-suppress no-spam) — zero candidates. Gemini's one open item —
+does the LEGACY fire-path rewrite the stamp, or does a future stamp spam every tick? —
+refuted by orchestrator code-read: the legacy block does `stamp.touch()` +
+`os.utime(stamp, (now, now))` on every fire (:2475-2479), so fire-once-then-suppress
+holds in both branches.
+
+Native probes all green: +5d stamp fires AND rewrites to now AND the follow-on tick
+suppresses (both fleet and legacy paths); −30s within tolerance suppresses/reads-fresh,
+−61s fires/pings (correct sign, no NTP-jitter false-fires); F58's clamp is the ONLY
+legacy change (twin-diff byte-identical, v2 pre-existing drain tests unmodified green);
+keepalive rc/single-line contract intact; OPT_DIR seam production-identical; all three
+new tests genuinely red on d8d8ea96; F54 mutant killed.
+
+NITs recorded (not blocking): no test exercises the real unmocked `_mailbox_repos()`
+end-to-end (every test monkeypatches it; production default unchanged) · cosmetic local
+`import os as _os` in the new v2 test.
+
+Round 2 verdict: **CLEAN** — zero confirmed findings.
+
+## CLOSE
+
+2 rounds, 5 fixes (F54–F58, one HIGH: the future-skew advisory silence), 16 new tests
+(fleet suite 65 → 80, v2 54 → 55). Final surface: worktree commits d8d8ea96 + ccfd5357
+squash-applied to master as ONE acceptance commit (hash in the spine Board). Suites at
+merge: 182/182 re-run on the MERGED tree by the orchestrator. Box step at acceptance:
+the weekly keepalive cron line installed (T03's declared box step). Notable loop yield:
+the unclamped stamp-age class caught in ALL THREE sites (fleet advisory, keepalive,
+legacy drain) after T01 had already established the in-file fix pattern — the class
+closed repo-wide, not per-variant.

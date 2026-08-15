@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Fleet-mode telemetry: per-account `--status`/tick + `--keepalive` (T03) (2026-08-15)
+
+- Feature-detected fleet mode in `claude_rotate.py` (+ byte-identical aro-wake twin): ≥1
+  scaffolded dir under the fleet root flips `--status` and `--tick` into the per-ACCOUNT view;
+  an empty fleet root renders the legacy manager-accounts view byte-unchanged
+  (regression-guarded).
+- Fleet `--status` groups dirs by account via the `assignments.json` identity. **Identity
+  pinning**: a `pending-login` row gets ONE profile probe with that dir's own access token —
+  on success the verified email is written back under the assignments flock (pinned forever,
+  never re-probed); on failure the row stays pending and is excluded from grouping. Usage is
+  read once per account with the freshest dir's token (mtime <8h), else a cached
+  last-known-with-age row (`fleet-usage-cache.json` in the rotate state dir) marked STALE —
+  the "parked — quota unknown" blindness is gone from the fleet view.
+- The tick's fleet branch is REWRITTEN, not reused: per-account utilization, a ≥85% advisory
+  Telegram per account (24h-suppressed PER account) plus drain mail routed to the account's
+  mapped slugs (`/opt/<slug>` where the repo exists, `fabrik-*` → `/opt/fabrik`, intersected
+  with the mailbox repos; slugs with no repo skipped) — and STRUCTURALLY no
+  `_pick_successor`/`_tick_switch` reference (test-asserted on the function objects); the
+  single-live-account `_tick_inner` is never reached in fleet mode.
+- New `--keepalive` (weekly-cron-safe: one line per dir, rc 1 on any failure): each fleet dir
+  whose `.credentials.json` MTIME (never content) is >7 days old gets one `claude -p ping`
+  with `CLAUDE_CONFIG_DIR`+`CLAUDE_QUOTA_HOME` set to the dir itself — the in-place
+  sole-owner refresh, not the retired temp-dir copy pattern; a failed ping alerts via the
+  ci_health_probe mesh-notify invocation.
+- Tests: 13 new behavior-contract tests in `tests/test_claude_fleet.py` (all watched-fail-red
+  first); `tests/test_claude_rotate_v2.py` legacy tick/status tests pinned to a hermetic
+  `CLAUDE_FLEET_ROOT` so a real operator-created fleet can never flip them into fleet mode.
+- Review round 1 (F54/F55/F58): future-skewed mtimes (WSL suspend/resume, NTP) are clamped via
+  `_CLOCK_SKEW_TOLERANCE_S` — a future-dated advisory/drain suppression stamp reads EXPIRED
+  (the advisory fires, never a multi-day silence) and a future-skewed credentials mtime counts
+  as DUE for `--keepalive`.
+
 ### Added — Fleet-dir scaffolder: `--new-dir` / `--sync-mcp` / `--sync-shared` + carrier monitor (M1) (2026-08-15)
 
 - `claude_rotate.py --new-dir <slug> <account-email> [--project /opt/<repo>]` scaffolds one

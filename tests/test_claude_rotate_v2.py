@@ -77,6 +77,9 @@ def _tick(tmp_path, monkeypatch, statuses, live_name, now=NOW, ledger_pre=None,
         (state / "rotate-ledger.jsonl").write_text(
             "".join(json.dumps(e) + "\n" for e in ledger_pre))
     actions = {"switched_to": [], "mails": [], "telegrams": [], "refreshed": []}
+    # Hermetic: an operator-created real ~/.claude-fleet must never flip these legacy-tick
+    # tests into fleet mode (T03 feature detection keys on the fleet root's contents).
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     monkeypatch.setenv("ROTATE_THRESHOLD", threshold)
     monkeypatch.setenv("ROTATE_DRAIN_THRESHOLD", drain)
@@ -137,6 +140,24 @@ def test_t4_drain_broadcast_and_suppress(tmp_path, monkeypatch):
     assert len(actions["telegrams"]) == 1
     actions2, _ = _tick(tmp_path, monkeypatch, [live, dead], live["name"])
     assert actions2["mails"] == [] and actions2["telegrams"] == [], "stamp must suppress"
+
+
+def test_t4b_future_dated_drain_stamp_never_suppresses(tmp_path, monkeypatch):
+    """F58 (clock-skew class, same clamp as _last_switch_ts): a drain stamp whose mtime sits in
+    the FUTURE (WSL suspend/resume, NTP correction) must read EXPIRED — not 'suppressed until
+    the wall clock catches up', which silences the broadcast for days while the pool drains."""
+    import os as _os
+    live = _acct("live", session_pct=86.0)
+    dead = _acct("dead", valid=False)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    stamp = state / "drain-stamp"
+    stamp.touch()
+    future = NOW + 5 * 86400
+    _os.utime(stamp, (future, future))
+    actions, _ = _tick(tmp_path, monkeypatch, [live, dead], live["name"])
+    assert actions["mails"] == ["fabrik", "seo"], "future-dated stamp must not silence the drain"
+    assert len(actions["telegrams"]) == 1
 
 
 def test_t4_no_drain_when_sibling_available(tmp_path, monkeypatch):
@@ -305,6 +326,7 @@ def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
     state = tmp_path / "state"
     state.mkdir()
     actions = {"mails": [], "telegrams": []}
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))  # hermetic (T03)
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     monkeypatch.setattr(cr, "_collect_statuses", lambda: ([live, sib], live["name"]))
     monkeypatch.setattr(cr, "_now", lambda: NOW)
@@ -320,6 +342,7 @@ def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
 
 def test_t10_tick_never_raises(tmp_path, monkeypatch):
     """Closer #11: 'always exits 0' must be ENFORCED, not documented."""
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))  # hermetic (T03)
     monkeypatch.setattr(cr, "_collect_statuses", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     assert cr._cmd_tick() == 0
 
@@ -327,6 +350,7 @@ def test_t10_tick_never_raises(tmp_path, monkeypatch):
 def test_t11_keepwarm_runs_on_degraded_ticks(tmp_path, monkeypatch):
     """Closer #12: no-live is exactly when parked snapshots must not age out."""
     called = []
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))  # hermetic (T03)
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
     monkeypatch.setattr(cr, "_collect_statuses", lambda: ([_acct("x")], None))
     monkeypatch.setattr(cr, "_now", lambda: NOW)
@@ -732,6 +756,7 @@ def test_t15j_withheld_reason_is_thread_local(tmp_path, monkeypatch):
 def test_t15k_status_banner_survives_an_unreadable_pause_state(tmp_path, monkeypatch, capsys):
     """F9: `--status` is the command the runbook tells the operator to check WHILE paused. Its
     banner probed the marker raw, so an unreadable state dir tracebacked out with exit 1."""
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))  # hermetic (T03)
     monkeypatch.setattr(cr, "_switch_paused", _boom())
     rows = [_acct("live")]
     monkeypatch.setattr(cr, "_collect_statuses", lambda: (rows, rows[0]["name"]))

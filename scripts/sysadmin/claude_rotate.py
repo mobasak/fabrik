@@ -1141,6 +1141,13 @@ def _status_payload() -> dict:
 
 
 def _cmd_status(as_json: bool) -> int:
+    # Fleet mode (login-once architecture): ≥1 scaffolded fleet dir flips --status into the
+    # per-ACCOUNT view (grouped dirs, freshest-token quota, cached-with-age fallback). The
+    # legacy manager-accounts view below stays BYTE-unchanged for the empty-fleet box
+    # (regression-guarded in tests/test_claude_fleet.py).
+    fleet_dirs = _fleet_dirs()
+    if fleet_dirs:
+        return _cmd_fleet_status(fleet_dirs, as_json)
     pay = _status_payload()
     if as_json:
         print(json.dumps(pay, indent=1))
@@ -1249,6 +1256,16 @@ _SHARED_BOUND_MAX_DEFAULT = 3
 HUB_REPO = Path("/opt/fabrik")
 # Module constant so tests can point the session scan at a fixture tree instead of the live kernel.
 PROC_DIR = Path("/proc")
+# Where project repos live — the fleet tick's drain-mail routing resolves a slug to /opt/<slug>.
+# Module constant so tests route against a fixture tree, never the real /opt.
+OPT_DIR = Path("/opt")
+# An account's quota is read LIVE only with a token fresh enough to still answer (~8h access-token
+# life); the freshness signal is the credential file's MTIME — the CLI rewrites it on every
+# refresh, so mtime IS last-use. Older than this → the cached last-known row (marked stale).
+_FLEET_TOKEN_FRESH_S = 8 * 3600
+# --keepalive pings a dir whose chain has idled longer than this (weekly cron beats the ~30-day
+# refresh-token idle lapse with three weeks of margin).
+_KEEPALIVE_MAX_IDLE_S = 7 * 86400
 
 
 def _pull_opts(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict[str, str], bool]:
@@ -2044,10 +2061,12 @@ def _last_switch_ts() -> tuple[float | None, bool]:
 
 
 def _mailbox_repos() -> list[str]:
-    """Repos that can SURFACE mail (mail.py:157 rule) — enumerated, never hardcoded."""
+    """Repos that can SURFACE mail (mail.py:157 rule) — enumerated, never hardcoded. Scans
+    ``OPT_DIR`` (== /opt in production) so tests have ONE seam, shared with the fleet
+    drain-mail routing's existence checks."""
     out = []
     try:
-        entries = sorted(Path("/opt").iterdir())
+        entries = sorted(OPT_DIR.iterdir())
     except OSError:
         return out
     for d in entries:
@@ -2303,8 +2322,16 @@ def _cmd_touch(only: str | None = None) -> int:
 
 def _cmd_tick() -> int:
     """The 5-minute rotation daemon tick. Always exits 0 — ENFORCED by the outer guard
-    (closer #11), not just documented. Every decision is one printed line."""
+    (closer #11), not just documented. Every decision is one printed line.
+
+    Fleet mode dispatches to :func:`_fleet_tick_inner` BEFORE :func:`_tick_inner` ever runs:
+    the legacy tick is single-live-account-shaped (``live_name`` from ``_active_account()``
+    matches no fleet slug) and could reach ``_tick_switch`` — the fleet branch must be
+    structurally unable to install anything."""
     try:
+        fleet_dirs = _fleet_dirs()
+        if fleet_dirs:
+            return _fleet_tick_inner(fleet_dirs)
         return _tick_inner()
     except Exception as e:  # noqa: BLE001 — cron-hosted: a broken tick must never look
         #                     like a broken cron; the class+message is the diagnostic
@@ -2421,6 +2448,10 @@ def _tick_inner() -> int:
                 age = now - stamp.stat().st_mtime
             except OSError:
                 age = None
+            if age is not None and age < -_CLOCK_SKEW_TOLERANCE_S:
+                # Same skew clamp as _last_switch_ts / the fleet advisory stamp: a stamp mtime
+                # in the FUTURE must read EXPIRED, never "suppressed until the clock catches up".
+                age = None
             if age is None or age >= 86400:
                 resets = [
                     w.get("resets_at_epoch")
@@ -2480,6 +2511,418 @@ def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
             led.write_text("".join(lines[len(lines) // 2 :]))
     except _STATE_DIR_ERRORS:
         pass  # runs in _tick_inner's finally — an escape here would mask the tick's own outcome
+
+
+# ── fleet-mode telemetry (T03): per-ACCOUNT --status/tick + --keepalive ───────────────────────
+# Feature-detected: ≥1 scaffolded dir under _fleet_root() flips --status and --tick into the
+# fleet view; an empty fleet root leaves the legacy manager-accounts machinery untouched (the
+# successor plan retires it — never this module). The fleet branches are REWRITTEN, not reused:
+# _tick_inner is single-live-account-shaped (live_name from _active_account() matches no fleet
+# slug), so fleet mode must never reach it — and the fleet branch STRUCTURALLY contains no
+# _pick_successor/_tick_switch call at all (credentials never move again; a wall is an advisory,
+# not a switch). Credential HANDLING contract: this section reads a dir's access token in memory
+# for the profile/usage probes (the same never-logged pattern _account_status uses) and checks
+# the credential file's MTIME — it never writes, copies, or relocates a credential byte, and the
+# keepalive staleness gate is mtime-only.
+
+
+def _fleet_dirs() -> list[Path]:
+    """Scaffolded fleet dirs (sorted). [] when the root is absent/unreadable — which IS the
+    feature detection: no dirs, no fleet mode."""
+    try:
+        return sorted(d for d in _fleet_root().iterdir() if d.is_dir())
+    except OSError:
+        return []
+
+
+def _pin_pending_identities(dirs: list[Path]) -> dict:
+    """Flip ``pending-login`` rows to their VERIFIED email — the pin moment (spine Interfaces).
+
+    A pending row gets ONE profile probe with that dir's OWN access token (in memory, never
+    logged). Success → the verified email is written back to assignments.json and the row is
+    never probed again (the pin is permanent — the dead-token identity gate that lost an
+    account's chain is not reintroduced). Failure → the row stays pending and is excluded from
+    account grouping. Probes run BEFORE the flock (never hold a lock across the network); the
+    write-back re-reads the table under the lock so a concurrent --new-dir row is never lost.
+    Returns the table with the pins applied (in memory even if persisting failed — an unpersisted
+    pin re-probes next run, which only costs one call).
+    """
+    table = _load_assignments(strict=False)
+    pins: dict[str, str] = {}
+    for d in dirs:
+        row = table.get(d.name)
+        if not isinstance(row, dict) or row.get("identity") != "pending-login":
+            continue
+        tok = _read_access_token(d / ".credentials.json")
+        if tok is None:
+            continue  # no login yet (or unreadable) — nothing to verify
+        prof = _oauth_get("profile", tok)
+        email = ((prof or {}).get("account") or {}).get("email")
+        if isinstance(email, str) and "@" in email:
+            pins[d.name] = email
+    if not pins:
+        return table
+    try:
+        lock_fd = _assignments_lock_fd()
+    except _STATE_DIR_ERRORS:
+        lock_fd = None  # cannot lock → apply in memory only; never risk clobbering the table
+    try:
+        if lock_fd is not None:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            table = _load_assignments(strict=False)  # re-read under the lock
+        changed = False
+        for slug, email in pins.items():
+            row = table.get(slug)
+            if isinstance(row, dict) and row.get("identity") == "pending-login":
+                row["identity"] = email
+                changed = True
+        if lock_fd is not None and changed:
+            try:
+                _write_json_atomic(_assignments_path(), table)
+            except _STATE_DIR_ERRORS as e:
+                sys.stderr.write(f"claude_rotate: identity pin not persisted ({e})\n")
+        return table
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(lock_fd)
+
+
+def _usage_windows(usage: dict | None) -> dict | None:
+    """Both quota windows from a usage payload, or None on ANY malformed part. FAIL-CLOSED like
+    _account_status: a changed/partial shape must read as "no reading" (→ the cached row), never
+    as 0% — a false 0% would silence the advisory exactly when an account nears its wall."""
+    if not isinstance(usage, dict):
+        return None
+    out: dict = {}
+    for key in ("five_hour", "seven_day"):
+        w = usage.get(key)
+        u = w.get("utilization") if isinstance(w, dict) else None
+        if not isinstance(u, (int, float)):
+            return None
+        out[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
+    return out
+
+
+def _usage_cache_path() -> Path:
+    return _rotate_state_dir() / "fleet-usage-cache.json"
+
+
+def _load_usage_cache() -> dict:
+    try:
+        data = json.loads(_usage_cache_path().read_text())
+        return data if isinstance(data, dict) else {}
+    except _STATE_DIR_ERRORS:
+        return {}
+
+
+def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
+    """(account rows, pending entries) — the fleet view's data, shared by --status and the tick.
+
+    Grouping keys on the PINNED identity in assignments.json (never a live re-probe). Usage is
+    read once per account with the FRESHEST dir's token (~4 calls/tick) — live only while that
+    token is <8h old (mtime, the CLI's rewrite-on-refresh signal); otherwise the cached
+    last-known row rides with its age, marked stale. The cache means an idle account is an
+    upper bound with a date on it — never today's "parked — quota unknown" blindness.
+    """
+    now = _now()
+    table = _pin_pending_identities(dirs)
+    groups: dict[str, list[dict]] = {}
+    pending: list[dict] = []
+    for d in dirs:
+        row = table.get(d.name)
+        row = row if isinstance(row, dict) else {}
+        try:
+            mtime: float | None = (d / ".credentials.json").stat().st_mtime  # MTIME, never bytes
+        except OSError:
+            mtime = None
+        entry = {"slug": d.name, "dir": d, "mtime": mtime}
+        identity = row.get("identity")
+        if isinstance(identity, str) and "@" in identity:
+            groups.setdefault(identity, []).append(entry)
+        else:
+            pending.append(entry)
+    cache = _load_usage_cache()
+    accounts: list[dict] = []
+    cache_dirty = False
+    for email in sorted(groups):
+        members = sorted(groups[email], key=lambda m: m["slug"])
+        with_creds = sorted(
+            (m for m in members if m["mtime"] is not None),
+            key=lambda m: m["mtime"],
+            reverse=True,
+        )
+        row = {
+            "email": email,
+            "slugs": [m["slug"] for m in members],
+            "five_hour": None,
+            "seven_day": None,
+            "source": "none",
+            "age_s": None,
+        }
+        windows = None
+        if with_creds and (now - with_creds[0]["mtime"]) < _FLEET_TOKEN_FRESH_S:
+            tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
+            if tok is not None:
+                windows = _usage_windows(_oauth_get("usage", tok))
+        if windows is not None:
+            row.update(windows)
+            row["source"] = "live"
+            cache[email] = {"ts": now, **windows}
+            cache_dirty = True
+        else:
+            c = cache.get(email)
+            if isinstance(c, dict) and isinstance(c.get("ts"), (int, float)):
+                row["five_hour"] = c.get("five_hour")
+                row["seven_day"] = c.get("seven_day")
+                row["source"] = "cache"
+                row["age_s"] = max(0.0, now - float(c["ts"]))
+        accounts.append(row)
+    if cache_dirty:
+        try:
+            _write_json_atomic(_usage_cache_path(), cache)
+        except _STATE_DIR_ERRORS:
+            pass  # a lost cache write costs one stale row later, never the status itself
+    return accounts, pending
+
+
+def _fmt_quota_window(w: dict | None) -> str:
+    """Fleet-view window formatter (the legacy _cmd_status keeps its own — that view must stay
+    byte-identical while the fleet exists nowhere)."""
+    if not isinstance(w, dict) or not isinstance(w.get("utilization"), (int, float)):
+        return "-"
+    rs = w.get("resets_at_epoch")
+    if rs:
+        from datetime import datetime
+
+        rs_s = datetime.fromtimestamp(rs).strftime("%a %H:%M")
+    else:
+        rs_s = "?"
+    return f"{w['utilization']:.0f}% (resets {rs_s})"
+
+
+def _fleet_quota_text(row: dict) -> str:
+    """One account's quota cell: live values, a cached row with its age, or an honest 'no
+    reading yet' — NEVER the legacy "parked — quota unknown" line this view retires."""
+    if row["source"] == "none":
+        return "no quota reading yet (idle >8h, nothing cached)"
+    text = (
+        f"session {_fmt_quota_window(row['five_hour']):24}"
+        f" weekly {_fmt_quota_window(row['seven_day'])}"
+    )
+    if row["source"] == "cache":
+        text += f"  STALE — cached {row['age_s'] / 3600:.0f}h ago"
+    return text
+
+
+def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
+    accounts, pending = _fleet_account_rows(dirs)
+    warns = _fleet_warnings()
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "fleet_root": str(_fleet_root()),
+                    "accounts": accounts,
+                    "pending": [p["slug"] for p in pending],
+                    "pause": _pause_state(),
+                    "fleet_warnings": warns,
+                },
+                indent=1,
+            )
+        )
+        return 0
+    # No raw root path in the text header — a path can smuggle arbitrary words into the banner
+    # (a tmp root literally containing "occupancy" false-fired a warn assertion); the JSON
+    # payload carries fleet_root for machine consumers.
+    print(f"fleet: {len(dirs)} dir(s) · {len(accounts)} account(s)")
+    for row in accounts:
+        label = ", ".join(row["slugs"])
+        print(f"  {row['email']:32} {_fleet_quota_text(row)}  [{label}]")
+    for p in pending:
+        print(
+            f"  {p['slug']:32} pending-login — identity unverified (ONE /login in this dir pins it)"
+        )
+    for warn in warns:
+        print(warn)
+    return 0
+
+
+def _fleet_advisory_stamp(email: str) -> Path:
+    """The 24h PER-ACCOUNT advisory dedupe stamp (same fallback contract as the drain stamp)."""
+    safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
+    try:
+        return _rotate_state_dir() / f"fleet-advisory-{safe}"
+    except _STATE_DIR_ERRORS:
+        return Path(tempfile.gettempdir()) / f"claude-fleet-advisory-{safe}"
+
+
+def _fleet_slug_repos(slugs: list[str]) -> list[str]:
+    """Drain-mail routing: slug → /opt/<slug> where that repo exists (hub role slugs
+    ``fabrik-*`` → /opt/fabrik), intersected with the mailbox-capable repos. Slugs with no
+    repo (e.g. cron-ci-fix) are skipped — mail to a nonexistent inbox helps nobody."""
+    reachable = set(_mailbox_repos())
+    out: list[str] = []
+    for slug in slugs:
+        name = "fabrik" if slug.startswith("fabrik-") else slug
+        if name in out or name not in reachable:
+            continue
+        try:
+            if not (OPT_DIR / name).is_dir():
+                continue
+        except OSError:
+            continue
+        out.append(name)
+    return out
+
+
+def _fleet_tick_inner(dirs: list[Path]) -> int:
+    """The tick, fleet-shaped: telemetry + per-ACCOUNT advisories ONLY.
+
+    REWRITTEN, not reused — _tick_inner's live/successor frame has no meaning when every
+    account is permanently logged in in its own dirs. There is deliberately no successor
+    logic here (no pick, no switch, no install — not paused, ABSENT): a walled account's
+    windows pause until their reset; the other accounts are untouched. ≥85% (the drain
+    threshold) fires one advisory Telegram per account per 24h, plus drain mail routed to
+    the repos mapped to that account's slugs.
+    """
+    drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    now = _now()
+    accounts, pending = _fleet_account_rows(dirs)
+    for row in accounts:
+        windows = [w for w in (row["five_hour"], row["seven_day"]) if isinstance(w, dict)]
+        utils = [
+            w["utilization"] for w in windows if isinstance(w.get("utilization"), (int, float))
+        ]
+        stale = f" (cached {row['age_s'] / 3600:.0f}h ago)" if row["source"] == "cache" else ""
+        if not utils:
+            print(f"tick: {row['email']} — no quota reading (no fresh token, nothing cached)")
+            continue
+        hot = max(utils)
+        if hot < drain_thr:
+            print(f"tick: ok — {row['email']} at {hot:.0f}%{stale}")
+            continue
+        stamp = _fleet_advisory_stamp(row["email"])
+        try:
+            age = now - stamp.stat().st_mtime
+        except OSError:
+            age = None
+        if age is not None and age < -_CLOCK_SKEW_TOLERANCE_S:
+            # A stamp mtime AHEAD of now (WSL suspend/resume, NTP — the _last_switch_ts skew
+            # class) would read "fresh" until the wall clock catches up, silencing the advisory
+            # for days exactly while an account burns. Future-dated = INVALID: fire now and
+            # rewrite the stamp at now.
+            age = None
+        if age is not None and age < 86400:
+            print(f"tick: {row['email']} at {hot:.0f}%{stale} — advisory suppressed (stamp)")
+            continue
+        resets = [w.get("resets_at_epoch") for w in windows if w.get("resets_at_epoch")]
+        if resets:
+            from datetime import datetime
+
+            revive_s = datetime.fromtimestamp(min(resets)).strftime("%a %H:%M")
+        else:
+            revive_s = "unknown"
+        msg = (
+            f"fleet advisory: account {row['email']} at {hot:.0f}%{stale} (resets {revive_s})"
+            " — its windows pause at the wall and resume on reset; nothing is switched"
+        )
+        _tick_telegram(msg)
+        repos = _fleet_slug_repos(row["slugs"])
+        if repos:
+            _drain_mail(
+                repos,
+                "fleet quota advisory\n\n"
+                + msg
+                + " Reach a commit-and-push checkpoint before the wall.",
+            )
+        try:
+            stamp.touch()
+            os.utime(stamp, (now, now))
+        except OSError:
+            pass
+        _ledger_append(
+            {"event": "fleet-advisory", "ts": now, "account": row["email"], "at_pct": hot}
+        )
+        print(f"tick: ADVISORY {row['email']} at {hot:.0f}%{stale}")
+    for p in pending:
+        print(f"tick: {p['slug']} pending-login — excluded from account telemetry")
+    _ledger_rotate()
+    return 0
+
+
+def _keepalive_ping(cfg_dir: Path) -> bool:
+    """One ``claude -p ping`` bound to *cfg_dir* — the in-place SOLE-OWNER refresh (the
+    youtube-proven path): CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME both point at the dir itself,
+    so the CLI rolls THIS dir's own chain. NOT the retired --touch temp-dir copy pattern —
+    no credential byte is read, copied, or written by this script."""
+    env = os.environ.copy()
+    env["CLAUDE_CONFIG_DIR"] = str(cfg_dir)
+    env["CLAUDE_QUOTA_HOME"] = str(cfg_dir)
+    env["CLAUDE_MESH_HEADLESS"] = "1"
+    env["CLAUDE_SOUND_NO_REVIVE"] = "1"
+    env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
+    try:
+        timeout = int(os.environ.get("KEEPALIVE_TIMEOUT", "150"))
+    except ValueError:
+        timeout = 150
+    try:
+        p = subprocess.run(
+            ["claude", "-p", "ping"],
+            env=env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return p.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _cmd_keepalive() -> int:
+    """Idle-chain keepalive: ping every fleet dir whose credential MTIME (never content — the
+    CLI rewrites the file on each refresh, so mtime IS last-use) is >7 days old, so no chain
+    ever reaches the ~30-day idle lapse. Cron-safe: one line per dir on stdout, rc 0 when
+    every stale dir refreshed (or none was stale), rc 1 when any ping failed — a failed ping
+    also alerts via mesh-notify (the ci_health_probe invocation, via _tick_telegram)."""
+    now = _now()
+    dirs = _fleet_dirs()
+    if not dirs:
+        print(f"keepalive: no fleet dirs under {_fleet_root()} — nothing to do")
+        return 0
+    pinged = failures = 0
+    for d in dirs:
+        try:
+            idle_s = now - (d / ".credentials.json").stat().st_mtime  # mtime only, never bytes
+        except OSError:
+            print(f"keepalive: {d.name} — no credentials yet (pending /login), skipped")
+            continue
+        # Clock-skew clamp (the _last_switch_ts class): an mtime AHEAD of now would read as
+        # "fresh" and silently skip a due ping. Safe direction: a spurious ping is harmless, a
+        # missed one risks the ~30-day idle lapse — future-skewed counts as DUE.
+        skewed = idle_s < -_CLOCK_SKEW_TOLERANCE_S
+        if not skewed and idle_s <= _KEEPALIVE_MAX_IDLE_S:
+            print(f"keepalive: {d.name} — fresh ({idle_s / 86400:.1f}d idle), no ping needed")
+            continue
+        idle_desc = (
+            "future-skewed mtime, treated as due" if skewed else f"{idle_s / 86400:.1f}d idle"
+        )
+        pinged += 1
+        if _keepalive_ping(d):
+            print(f"keepalive: {d.name} — pinged ok ({idle_desc})")
+        else:
+            failures += 1
+            print(f"keepalive: {d.name} — PING FAILED ({idle_desc}) — alerted")
+            _tick_telegram(
+                f"keepalive FAILED for fleet dir {d.name} ({idle_desc}) — its"
+                " refresh chain risks the ~30-day idle lapse; run one claude turn in that dir"
+                " (or ONE /login if it already lapsed)"
+            )
+    print(f"keepalive: done — {pinged} pinged, {failures} failed")
+    return 1 if failures else 0
 
 
 def _live_email(timeout_s: float = 10.0) -> str | None:
@@ -2601,6 +3044,12 @@ def main(argv: list[str] | None = None) -> int:
         ``--new-dir <slug> <email> [--project /opt/<repo>]``  scaffold a dir + its carrier
         ``--sync-mcp``      re-push the MCP roster into every fleet dir
         ``--sync-shared``   …and the settings.json copy with it
+        ``--keepalive``     one in-place ``claude -p ping`` per fleet dir idle >7 days
+                            (weekly cron; rc 1 + mesh-notify alert on any failed ping)
+
+    Once ≥1 fleet dir exists, ``--status`` and ``--tick`` switch to the fleet view: dirs
+    grouped per ACCOUNT (pinned identity), quota from the freshest dir's token or the cached
+    last-known row with age, ≥85% advisory per account — and structurally NO account switch.
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
@@ -2608,7 +3057,7 @@ def main(argv: list[str] | None = None) -> int:
             "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
             " | --drift-check | --status | --tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
-            " | --sync-mcp | --sync-shared | <claude> args...]\n"
+            " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
         )
         return 2
     if args[0] == "--list":
@@ -2639,6 +3088,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         return _cmd_new_dir(rest[0], rest[1], opts.get("--project"), opts.get("--from"))
+    if args[0] == "--keepalive":
+        return _cmd_keepalive()
     if args[0] in ("--sync-mcp", "--sync-shared"):
         rest, opts, bad = _pull_opts(args[1:], ("--from",))
         if bad or rest:
