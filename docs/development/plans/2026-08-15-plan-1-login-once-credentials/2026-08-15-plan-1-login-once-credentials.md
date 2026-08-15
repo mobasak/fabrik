@@ -30,7 +30,7 @@ window's live path would break the box.
 | Ticket | Title | Depends | Parallel | State | Commit |
 | T01 | Disarm the old world (M-pre) | — | ⛓️ | 🟡 | |
 | T02a | Fleet-dir scaffolder + carrier monitor | T01 | ⛓️ | ⬜ | |
-| T02b | Fleet gitignore for the carrier file | — | ⚡ | ⬜ | |
+| T02b | Fleet gitignore for the carrier file | — | ⚡ | 🔵 | |
 | T03 | Fleet-mode status/tick + keepalive | T02a | ⛓️ | ⬜ | |
 | T04 | Rotation doc rewrite + operator runbook | T03 | ⛓️ | ⬜ | |
 | T05 | Integration: whole-plan gate + receipt | T04 | ⛓️ | ⬜ | |
@@ -156,6 +156,10 @@ window's live path would break the box.
   the moment the overlap clears; if the Board otherwise completes first, T02b ends 🔴 for a
   later resume — never a silent skip.
 - Baseline: HEAD 6250ada3, lean gate success with ZERO reds (clean attribution reference).
+- 2026-08-15 (later): intel RELEASED `scripts/fabrik_synced_manifest.py` from their lock (mail
+  01M02K4G3S, verified in the lock file) — path reclaimed into this plan's lock, T02b ungated
+  and dispatched; intel's remaining Phase E touches `CORE_SCRIPTS` ~:27-32, disjoint from
+  T02b's tail edit (~:208-210).
 - Isolation note: intel's active lock has no path overlap with this run's locked set; both
   runs follow the shared-master + disjoint-locks precedent (coder isolation is per-ticket
   worktrees, per D2).
