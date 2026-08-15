@@ -108,3 +108,27 @@ Also recorded (not T01's): the legacy suite's 12 pre-existing reds (fixture omit
 the vacuous `rc == 0` assert in the v2 `_tick` harness (pre-existing).
 
 Round 4 verdict: NOT CLEAN — F18–F21 dispatched (converging: 8→4 actionable). Round 5 follows.
+
+## Round 5 (2026-08-15, on fixup commit 86d978fd)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 5
+Pool: contradictory on the carve-out order — settled by the orchestrator reading the code
+(FileNotFoundError first at :1238; deepseek misread, all 3 of its candidates refuted; gemini
+CLEAN). Opus: all round-4 mutants re-killed (incl. M4 order-swap proving the carve-out is
+load-bearing via t2/t9); 9 attack lines refuted with executed evidence; verdict NOT CLEAN:
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | Corrupt-ledger fail-closed hold returns before the drain leg — pool burns to the wall with ZERO alerts (12-tick probe: no telegram) and never self-heals | **FIX (F22)**: degraded-hold routes into the drain broadcast, 24h-deduped |
+| 2a | Malformed switch `ts` (non-numeric) → None → fail-open | **FIX (F23)** |
+| 2b | Dropped ledger append → no dwell record → fail-open (6 switches/window probe) | RULED PRE-EXISTING at base (append swallowing predates T01; partial mitigation via pre-capture) — recorded for the successor plan |
+| 3 | `--switch` escape hatch untested where the gate runs | **FIX (F24)** |
+| 4 | Legacy test file outside gate testpaths; 12 reds pre-existing; F7 isolation not load-bearing there | RECORDED (pre-existing; informational) |
+| 5 | CHANGELOG/runbook absent from worktree range | REFUTED again: Deltas ride the acceptance commit; runbook = T04 |
+| 6 | `--pause-switch`/`--resume-switch` traceback on broken state dir (pre-existing, now pointed-at by our own message) | **FIX (F25)** |
+| 7 | `--status --json` omits pause state | **FIX (F26)** |
+| 8 | t15o docstring figure + PermissionError leg untested | **FIX (F27)** |
+
+Round 5 verdict: NOT CLEAN — F22–F27 dispatched (the survivors are consequences of the
+fail-closed design choice, not implementation defects; all stated prior fixes held under
+mutant re-execution). Round 6 follows.
