@@ -126,15 +126,10 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Deterministic role assignment (pre_filter → selector → post_filter)
         # Runs in ~50ms, $0 cost, byte-identical re-runs
         # Re-enabled 2026-05-13 after switching from LLM to deterministic algorithm
-        if [ \"\${FABRIK_DISABLE_KILO_WORKFLOW:-0}\" = \"1\" ]; then
-            echo \"[\$(date +%H:%M:%S)] kilo benchmark workflow skipped (FABRIK_DISABLE_KILO_WORKFLOW=1)\" >> $LOG_FILE
-        else
-            # === EMBEDDING SELECTION WORKFLOW ===
-            # Mirrors the chat pipeline shape: catalog scrape → shortlists → role winners.
-            # Independent failure: a broken embeddings catalog must NOT kill the chat
-            # workflow above, so this runs in its own && chain after the chat block
-            # closes (note the closing 'fi' moves below this section).
-        fi
+        # D.1: the kilo/embedding workflow if/else was REMOVED here. Its else-branch body was the
+        # engine pipeline, now in ai-model-catalog; the step removal emptied it and left `else` -> `fi`
+        # with no body, which bash rejects. Caught by the RETAINED test_golden_parity oracle, which
+        # parses the hook's extracted CHILD block — `bash -n` on the whole file passed.
         # === OPENROUTER CATEGORY ROUTING ===
         # Reads agents + agent_categories, writes openrouter:{category} pins
         # to agent_roles, then injects OPENROUTER_ROUTES markers into the 7
