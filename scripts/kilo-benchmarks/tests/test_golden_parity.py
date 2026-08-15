@@ -1544,8 +1544,20 @@ def test_every_commit_template_in_the_command_corpus_parses():
     src = cg.FABRIK_ROOT / "commands/_sources/fabrik-execute-plan.md"
     if not src.exists():
         pytest.skip("command corpus source absent")
-    blocks = [b for b in re.findall(r"cat <<'EOF'\n(.*?)\nEOF", src.read_text(), re.S)
-              if "Agent-Role:" in b]
+    text = src.read_text()
+    # ⚠️ Anchor the terminator at column 0 (`^EOF$`). The lazy `\nEOF` form re-anchors on the
+    # NEXT unindented EOF when one site is indented, silently MERGING two templates into one
+    # match — so a single indented `EOF` (a hard shell syntax error, since `<<-` strips tabs
+    # only) slipped through while the count merely dropped 6 -> 5.
+    blocks = [
+        b for b in re.findall(r"cat <<'EOF'\n(.*?)\n^EOF$", text, re.S | re.M)
+        if "Agent-Role:" in b
+    ]
+    expected = len(re.findall(r"cat <<'EOF'\n(?:(?!\ncat <<'EOF').)*?Agent-Role:", text, re.S))
+    assert len(blocks) == expected, (
+        f"{expected} templates carry Agent-Role but only {len(blocks)} parsed as complete "
+        f"heredocs — an EOF terminator is indented, which is not valid shell"
+    )
     assert len(blocks) >= 4, f"only {len(blocks)} trailer templates found — test is vacuous"
 
     with tempfile.TemporaryDirectory() as d:
@@ -1566,4 +1578,12 @@ def test_every_commit_template_in_the_command_corpus_parses():
             assert role, (
                 f"template #{i} yields an UNPARSEABLE Agent-Role — a blank line inside the "
                 f"block, or an indented trailer:\n{body[:300]}"
+            )
+            # An indented SUBJECT still parses its trailers, so the assertion above cannot see
+            # it — but it produces `git log --oneline` entries like "  feat(scope): …". This is
+            # one of the three modes the docstring names and it regressed once already.
+            subject = body.split("\n", 1)[0]
+            assert subject == subject.lstrip(), (
+                f"template #{i} has an INDENTED subject line — commits made from it carry the "
+                f"leading whitespace: {subject!r}"
             )

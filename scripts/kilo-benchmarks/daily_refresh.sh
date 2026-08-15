@@ -67,7 +67,22 @@ export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 # with parentheses that would break `source` in bash). Documented here so a
 # future change to add a new step understands the convention.
 
-mkdir -p "$(dirname "$LOG_FILE")"
+# ⚠️ BLOCK-SCOPE REDIRECT HAZARD. The whole pipeline body below is one compound command closed
+# by `} >> "$LOG_FILE" 2>&1`, and a failed redirection on a COMPOUND command makes bash skip the
+# ENTIRE body — not just one line. LOG_FILE lives in $KB/cache/, so if that directory cannot be
+# created the refresh silently does nothing AND the "heartbeat cache dir creation FAILED" guard
+# inside the block never even evaluates. Line-scope redirects were fixed earlier; this is the
+# block-scope instance of the same class, and it is the one that matters.
+if ! mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null; then
+  _fallback="/tmp/fabrik_daily_refresh_$(date -u +%Y%m%d).log"
+  echo "[daily_refresh] CRITICAL: cannot create $(dirname "$LOG_FILE") — logging to $_fallback" >&2
+  # Alert BEFORE the block, while a working redirect still exists.
+  bash "$KB/pipeline_alert.sh" \
+    "daily_refresh.sh: log directory unusable — pipeline would have silently no-opped" \
+    "Could not create $(dirname "$LOG_FILE"). The refresh body is one compound command redirected there, so bash would have skipped ALL of it without running a single step or firing the in-block heartbeat guard. Logging to $_fallback for this run. Investigate disk/permissions now." \
+    || true
+  LOG_FILE="$_fallback"
+fi
 {
   echo ""
   echo "=== Fabrik AI catalog refresh — $(date -u +'%Y-%m-%d %H:%M:%S UTC') ==="

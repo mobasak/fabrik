@@ -17,6 +17,7 @@ separate operational gate (A.0 gate 1 / B.4a), deliberately not a unit test.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -239,8 +240,8 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # An inequality with slack is not a guard: at >= 6 with 8 real sites, BOTH autocommit
     # alerts could be deleted and this still passed. Pin the exact count so removing any site
     # reds — and update it deliberately when a site is added.
-    assert len(sites) == 9, (
-        f"expected exactly 9 alert sites across the three entry points, found {len(sites)}. "
+    assert len(sites) == 10, (
+        f"expected exactly 10 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:
@@ -282,4 +283,40 @@ def test_no_alert_redirects_into_the_directory_it_reports_as_broken():
         tail = ln.split("pipeline_alert.sh", 1)[1]
         assert ">> \"$LOG_FILE\"" not in tail and ">> $LOG_FILE" not in tail, (
             f"the ALERT redirects into the log dir it may be reporting as broken:\n  {ln[:190]}"
+        )
+
+
+def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
+    """A COMPOUND command's failed redirection skips its ENTIRE body — silently, exit 1.
+
+    daily_refresh.sh wraps its whole pipeline in `{ … } >> "$LOG_FILE" 2>&1`. LOG_FILE lives
+    in $KB/cache/, so if that directory cannot be created bash skips every step AND the
+    in-block "heartbeat cache dir creation FAILED" guard never even evaluates — the one alert
+    that would have reported it. The line-scope version of this defect was fixed earlier and
+    is pinned by test_no_alert_redirects_into_the_directory_it_reports_as_broken, but that
+    test skips any line without `pipeline_alert.sh` in it, so the block-scope closer was
+    invisible to it. This is the instance that matters: it takes down the whole run, not one
+    alert.
+
+    The invariant: any script closing a block with `} >> "$LOG_FILE"` must make that redirect
+    unfailable BEFORE the block opens — an unguarded `mkdir -p` is not enough, because it
+    fails in exactly the same scenario. It needs a fallback that reassigns LOG_FILE.
+    """
+    for src in (SCRIPT_DIR / "daily_refresh.sh", SCRIPT_DIR.parent / "wsl_startup_hook.sh"):
+        lines = src.read_text().splitlines()
+        closers = [
+            i for i, ln in enumerate(lines)
+            if re.match(r'^\}\s*>>\s*"?\$LOG_FILE"?', ln) and "pipeline_alert.sh" not in ln
+        ]
+        if not closers:
+            continue
+        head = "\n".join(lines[: closers[0]])
+        assert re.search(r'if\s+!\s+mkdir -p "\$\(dirname "\$LOG_FILE"\)"', head), (
+            f"{src.name} closes a block with `}} >> $LOG_FILE` but never GUARDS the creation "
+            f"of that directory before the block opens — an unguarded `mkdir -p` fails in the "
+            f"identical scenario, so the whole pipeline body would be skipped in silence"
+        )
+        assert re.search(r"^\s*LOG_FILE=.*\n", head, re.M) and "_fallback" in head, (
+            f"{src.name} guards the mkdir but never REASSIGNS LOG_FILE to a usable fallback — "
+            f"detecting the failure does not stop the block redirect from failing"
         )

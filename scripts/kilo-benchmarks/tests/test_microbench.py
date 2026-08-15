@@ -486,6 +486,15 @@ def test_idempotent_skips_recently_benched_rows(tmp_path):
 
 def test_cost_cap_aborts_loop(tmp_path, monkeypatch):
     """Mock bench returns $6/call, assert loop stops after 2 calls."""
+    # The suite must not write to the REAL operator audit log: run_microbench calls
+    # _append_log unconditionally, so this test was appending a fabricated
+    # "cost cap tripped at $12" row to scripts/kilo-benchmarks/cache/microbench_log.jsonl
+    # on every run — and daily_refresh's disk-hygiene prune does not cover that file.
+    import microbench_or_models
+
+    monkeypatch.setattr(
+        microbench_or_models, "LOG_PATH", tmp_path / "microbench_log.jsonl", raising=False
+    )
     from microbench_or_models import run_microbench
 
     db = _seed_cohort_db(tmp_path)
