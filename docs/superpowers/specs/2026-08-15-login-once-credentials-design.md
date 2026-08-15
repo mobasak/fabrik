@@ -48,14 +48,20 @@ A project-level `.claude/settings.local.json`:
 {"env": {"CLAUDE_CONFIG_DIR": "/home/ozgur/.claude-fleet/<slug>"}}
 ```
 
-**Empirically verified:** a `claude -p` run in a fixture project with exactly this file ignored
-the healthy shared `~/.claude` credentials ("Not logged in") and scaffolded the target dir —
-i.e. the project-settings `env` map redirects the config dir for every session started in that
-project, extension and terminal alike, with **no PATH shim, no wrapper, no VS Code setting**,
-and it survives CLI updates. (The extension honors `CLAUDE_CONFIG_DIR` — confirmed at
-`acp-agent.js:14`, session 92c3df30, 2026-07-15. The verified probe used `settings.json`; the
-migration's first step re-runs it for `settings.local.json`, expected identical merge
-semantics.)
+**Empirically verified twice (2026-08-15, this session):** `claude -p` runs in fixture projects
+carrying exactly this file — once as `settings.json`, once as `settings.local.json` — both
+ignored the healthy shared `~/.claude` credentials ("Not logged in") and scaffolded the target
+dir. The `env` map redirects the config dir with **no PATH shim, no wrapper, no VS Code
+setting**, and it survives CLI updates. `settings.local.json` is the required carrier, not just
+the polite one: `.claude/settings.json` in project repos is a **governance-synced surface**
+(`scripts/fabrik_synced_manifest.py:106`) and would be overwritten fleet-wide.
+
+Extension coverage: the redirect is applied by the **CLI itself** when it loads project
+settings, so it binds any spawner — extension or terminal — that runs the CLI in the project
+cwd. Probes above used `-p` mode; migration step M3 verifies the first interactive extension
+window before scaling (a stale July citation to the extension's `acp-agent.js` was dropped —
+that file is not present in the currently installed extension, and the CLI-side probe is the
+stronger ground).
 
 ### Dir layout
 
@@ -117,14 +123,15 @@ that account's ~quarter of the fleet.
 
 ### Idle-dir keepalive (the only recurring duty, automated)
 
-A chain idle >~30 days lapses. Weekly cron: for each dir whose ledger shows no use in 7 days,
+A chain idle >~30 days lapses. Weekly cron: for each dir whose `.credentials.json` mtime is
+older than 7 days (the CLI rewrites it on every refresh, so mtime IS the last-use signal),
 run one `claude -p ping` **in that dir's own context** (its env, its chain — the sole-owner
 in-place path youtube proved for weeks). This is NOT `--touch` (which copied a chain into a
 temp dir — the fragile pattern that blanked pairs; it retires). Failure alerts via mesh-notify.
 
 ### Migration — the last login round
 
-M0. Probe `settings.local.json` env merge (repeat of the proven `settings.json` probe).
+M0. ~~Probe `settings.local.json` env merge~~ **DONE 2026-08-15** (probe passed; see Mechanism).
 M1. Build dir scaffolder (`claude_rotate.py --new-dir <slug> <account>`): mkdir, seed
     `.claude.json`, symlinks, assignments.json row.
 M2. Hub role-dir probe (`CLAUDE_AGENT`-keyed selection); fall back to single hub dir if needed.
@@ -136,6 +143,18 @@ M4. Flip `--status`/tick to fleet-dir mode; retire switch/capture/touch code + s
     `~/.claude-fleet/` (config-DR contract: extend the list when a new config surface appears).
 M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs) on one
     designated account.
+
+## Success criteria (testable)
+
+1. **Zero login prompts** across all migrated windows for 30 consecutive days of normal use
+   (measured: no `/login` events outside migration itself).
+2. **Overnight survival**: a full night with active autonomous sessions ends with every window
+   usable without reload or login.
+3. `--status` shows **live session+weekly quota for all 4 accounts** at any time of day.
+4. **No credential file is ever written by two processes**: each `~/.claude-fleet/<slug>/`
+   `.credentials.json` is only ever touched by sessions started in its mapped project.
+5. A quota wall on one account leaves the other accounts' windows **fully working**, and the
+   walled account's windows resume at the 5h reset without operator action.
 
 ## Rejected alternatives
 
@@ -162,6 +181,12 @@ M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs)
 | Refresh tokens single-use, ~30-day idle life, roll on use | live blobs (`refreshTokenExpiresAt` ≈ +28–30d) + incident forensics | box, 2026-08-15 |
 | Direct HTTP refresh fenced (Cloudflare 1010) | live probe | box, 2026-08-13 (`_keepwarm_refresh` docstring) |
 | ≥2 concurrent grants per account coexist | live: youtube-headless + shared dir, same account, weeks | box, 2026-08-15 |
+| `.claude.json` (MCP/trust/onboarding) is kept INSIDE the redirected dir, not at `~` | live: `~/.claude-youtube-headless/.claude.json` exists and is actively maintained (mtime = today) | box, 2026-08-15 |
+
+Pool-grounding note (recorded for the review): a pool researcher's claim that the upstream race
+was "fixed Nov 2024 via `claude/auth.py` file locking" was **refuted** — the race reproduced on
+this box on 2.1.232 the same morning, today's live issue survey shows the reports open, and the
+CLI has no such Python module. Scored 0 in the flywheel; do not let it resurface.
 
 ## fabrik-lib verdict table
 
@@ -192,6 +217,6 @@ place — same file, new architecture; Doc Sync Matrix "extend the existing doc,
 | # | Unknown | Status | Resolution step |
 |---|---|---|---|
 | 1 | Concurrent OAuth grant cap per account (need ~4–6; ≥2 proven) | OPEN | M3 staged rollout watches for grant eviction (a relogin prompt in an untouched dir = abort signal → regroup to fewer dirs/account) |
-| 2 | `settings.local.json` env merge = `settings.json` env merge | OPEN (expected yes) | M0 probe, 5 minutes, before anything else |
-| 3 | Hub per-role dir selection via `CLAUDE_AGENT` | OPEN | M2 probe; fallback single hub dir is acceptable (reload-recoverable, no logins) |
+| 2 | ~~`settings.local.json` env merge~~ | **RESOLVED 2026-08-15** | live probe passed (see Mechanism) |
+| 3 | Hub per-role dir selection via `CLAUDE_AGENT`; extension INTERACTIVE session applies project env like `-p` does | OPEN | M2/M3 first-window probes; fallback single hub dir is acceptable (reload-recoverable, no logins) |
 | 4 | VPS/aro-wake fleet accounts (today fed by snapshot sync of WSL chains) | OUT OF SCOPE — named follow-up | separate spec: per-box dedicated logins, retiring snapshot shipping; until then VPS keeps consuming `manager-accounts` snapshots, so stores are archived, not deleted, at M4 |
