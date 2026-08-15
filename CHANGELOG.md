@@ -20,6 +20,13 @@ CLI pause/resume roundtrip), both watched red first.
 
 ### Fixed — round-24 native pass: 16 further findings on the same guard (2026-08-15)
 
+Round-25 self-review addendum: the new behavioural harness relied on `chmod 500` making a directory
+unwritable, which is **not true for root** — in a root container or CI it would have reported "the
+guard handled an unwritable log" while the log was perfectly writable, vacuously green in the
+environment least likely to be watched. It now verifies its own precondition and skips loudly
+instead of passing quietly.
+
+
 An Opus finder independently confirmed the two bypasses the pool had already found, and added 16.
 The blocking one: the installed shim pinned `sys.executable`, so a rebuilt venv made git reject
 **every commit in the repo** — including well-formed ones with no trailers — for three concurrent

@@ -277,16 +277,16 @@ def test_no_alert_redirects_into_the_directory_it_reports_as_broken():
     block already ends `} >> "$LOG_FILE" 2>&1`.
     """
     for src in (SCRIPT_DIR / "daily_refresh.sh", SCRIPT_DIR.parent / "wsl_startup_hook.sh"):
-      for ln in _logical_lines(src.read_text()):
-        if "pipeline_alert.sh" not in ln or ln.lstrip().startswith("#"):
-            continue
-        # Only the redirect attached to the ALERT ITSELF matters. A redirect on a preceding
-        # `echo` in the same `|| { …; …; }` group is harmless: a failed redirection kills that
-        # command, and the group continues to the next one, so the alert still fires.
-        tail = ln.split("pipeline_alert.sh", 1)[1]
-        assert ">> \"$LOG_FILE\"" not in tail and ">> $LOG_FILE" not in tail, (
-            f"the ALERT redirects into the log dir it may be reporting as broken:\n  {ln[:190]}"
-        )
+        for ln in _logical_lines(src.read_text()):
+            if "pipeline_alert.sh" not in ln or ln.lstrip().startswith("#"):
+                continue
+            # Only the redirect attached to the ALERT ITSELF matters. A redirect on a preceding
+            # `echo` in the same `|| { …; …; }` group is harmless: a failed redirection kills that
+            # command, and the group continues to the next one, so the alert still fires.
+            tail = ln.split("pipeline_alert.sh", 1)[1]
+            assert '>> "$LOG_FILE"' not in tail and ">> $LOG_FILE" not in tail, (
+                f"the ALERT redirects into the log dir it may be reporting as broken:\n  {ln[:190]}"
+            )
 
 
 def _logical_lines(text):
@@ -336,7 +336,8 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
     for src in (SCRIPT_DIR / "daily_refresh.sh", SCRIPT_DIR.parent / "wsl_startup_hook.sh"):
         lines = src.read_text().splitlines()
         closers = [
-            i for i, ln in enumerate(lines)
+            i
+            for i, ln in enumerate(lines)
             if re.match(r'^\}\s*>>\s*"?\$LOG_FILE"?', ln) and "pipeline_alert.sh" not in ln
         ]
         # ⚠️ `head` must stop at the block OPENER, not the closer. Anchoring on the closer made
@@ -351,9 +352,7 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
                 f"is no longer being checked. Do not let it skip silently."
             )
             continue
-        opener = next(
-            (i for i in range(closers[0]) if lines[i].rstrip() == "{"), None
-        )
+        opener = next((i for i in range(closers[0]) if lines[i].rstrip() == "{"), None)
         assert opener is not None, f"{src.name}: found a block closer but no opener"
         head = "\n".join(lines[:opener])
         # ⚠️ Assert the probe is an APPEND, not a `mkdir -p`. `mkdir -p` returns 0 on an
@@ -375,9 +374,7 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
         )
 
 
-@pytest.mark.parametrize(
-    "script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"]
-)
+@pytest.mark.parametrize("script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"])
 def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(script):
     """Both entry points, both redirect shapes — no script gets exempted by falling through.
 
@@ -398,11 +395,14 @@ def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(sc
     # Skip comments — these files DOCUMENT the hazard in prose, and a comment describing the
     # redirect is not a redirect. Matching one made the test fail on its own explanation.
     first_redirect = next(
-        (i for i, ln in enumerate(lines)
-         if not ln.lstrip().startswith("#")
-         and ('>> "$LOG_FILE"' in ln or ">> $LOG_FILE" in ln or '>>"$LOG_FILE"' in ln)
-         # the probe itself is the thing being asserted, not a violation of it
-         and ': >>"$LOG_FILE"' not in ln),
+        (
+            i
+            for i, ln in enumerate(lines)
+            if not ln.lstrip().startswith("#")
+            and ('>> "$LOG_FILE"' in ln or ">> $LOG_FILE" in ln or '>>"$LOG_FILE"' in ln)
+            # the probe itself is the thing being asserted, not a violation of it
+            and ': >>"$LOG_FILE"' not in ln
+        ),
         None,
     )
     assert first_redirect is not None, f"{script}: no $LOG_FILE redirect found — test is stale"
@@ -440,7 +440,8 @@ def _extract_log_guard(path):
     """
     lines = path.read_text().splitlines()
     start = next(
-        i for i, ln in enumerate(lines)
+        i
+        for i, ln in enumerate(lines)
         if ln.startswith("_log_usable()") or ln.lstrip().startswith("if ! { mkdir -p")
     )
     # Close on the `fi` at the SAME indentation as the opening `if`. Matching the first `fi`
@@ -450,9 +451,7 @@ def _extract_log_guard(path):
     # silently measuring the wrong thing.
     if_idx = next(i for i in range(start, len(lines)) if lines[i].lstrip().startswith("if "))
     indent = lines[if_idx][: len(lines[if_idx]) - len(lines[if_idx].lstrip())]
-    end = next(
-        i for i in range(if_idx + 1, len(lines)) if lines[i] == f"{indent}fi"
-    )
+    end = next(i for i in range(if_idx + 1, len(lines)) if lines[i] == f"{indent}fi")
     return "\n".join(lines[start : end + 1])
 
 
@@ -466,6 +465,17 @@ def _run_log_guard(path, tmp_path, writable):
     log = cache / "update.log"
     if not writable:
         cache.chmod(0o500)
+        # ⚠️ VERIFY THE PRECONDITION, do not assume it. `chmod 500` does not stop ROOT, so in a
+        # root container or CI this whole harness would report "the guard handled an unwritable
+        # log" while the log was perfectly writable — vacuously green in the environment least
+        # likely to be watched. Skip loudly instead of passing quietly.
+        if subprocess.run(["bash", "-c", f': >>"{log}" 2>/dev/null'], check=False).returncode == 0:
+            cache.chmod(0o700)
+            pytest.skip(
+                "chmod 500 does not prevent writes for this uid (running as root?) — this "
+                "harness cannot construct an unwritable log, so it would test nothing"
+            )
+        log.unlink(missing_ok=True)
     # Both call sites are stubbed: daily_refresh uses $KB, wsl_startup_hook uses
     # $FABRIK_ROOT/scripts/kilo-benchmarks — the harness must satisfy whichever it extracts.
     stub = tmp_path / "scripts" / "kilo-benchmarks"
@@ -488,15 +498,13 @@ def _run_log_guard(path, tmp_path, writable):
         ).stdout.strip()
     finally:
         cache.chmod(0o700)
-    appendable = subprocess.run(
-        ["bash", "-c", f': >>"{chosen}" 2>/dev/null'], check=False
-    ).returncode == 0
+    appendable = (
+        subprocess.run(["bash", "-c", f': >>"{chosen}" 2>/dev/null'], check=False).returncode == 0
+    )
     return chosen, appendable, str(log)
 
 
-@pytest.mark.parametrize(
-    "script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"]
-)
+@pytest.mark.parametrize("script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"])
 def test_the_log_guard_actually_redirects_away_from_an_unwritable_log(script, tmp_path):
     """BEHAVIOURAL: run the guard, assert LOG_FILE lands somewhere that really accepts writes."""
     src = SCRIPT_DIR.parent / script
@@ -511,9 +519,7 @@ def test_the_log_guard_actually_redirects_away_from_an_unwritable_log(script, tm
     )
 
 
-@pytest.mark.parametrize(
-    "script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"]
-)
+@pytest.mark.parametrize("script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"])
 def test_the_log_guard_leaves_a_healthy_log_alone(script, tmp_path):
     """The mirror: an inverted probe would divert a perfectly good log to the fallback."""
     src = SCRIPT_DIR.parent / script
