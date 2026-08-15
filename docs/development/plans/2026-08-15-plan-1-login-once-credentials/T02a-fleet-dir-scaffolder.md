@@ -11,9 +11,18 @@ credential bytes — login replaces the OAuth section); symlink `settings.json`,
 write the project's `.claude/settings.local.json` carrier with BOTH env vars
 (`CLAUDE_CONFIG_DIR` + `CLAUDE_QUOTA_HOME`, per the spec's Mechanism payload) when a repo path
 is given. (2) `--sync-mcp`: re-copy the MCP `mcpServers` section of `~/.claude.json` into every
-fleet dir's `.claude.json` (the R7 de-fork helper). (3) Carrier-presence monitor: a check,
-wired into `--status`, that WARNs for every `assignments.json` project whose
-`.claude/settings.local.json` is missing (B3 fail-open guard). DO-NOT: no login automation of
+fleet dir's `.claude.json` (the R7 de-fork helper). (3) Carrier-presence + occupancy monitor, wired into `--status`: WARN for every
+`assignments.json` project whose `.claude/settings.local.json` is missing (B3 fail-open
+guard), AND WARN when `~/.claude/.credentials.json` shows unexpected occupancy (open-handle
+count via `fuser`/`lsof` above a small threshold — the spec's "silent rejoin" detector for
+paths with no mapped project). (4) ⚠️ Symlink WRITE-THROUGH acceptance (the one unproven
+mechanism): the CLI writes config via tmp+rename, and a rename onto a FILE symlink replaces
+the symlink — forking that dir off the canonical copy (evidence: leftover
+`.claude.json.tmp.<pid>.<hex>` files in `~/.claude-youtube-headless/`). Acceptance probes a
+write-through on the `settings.json` symlink in a tmp fixture; if it forks, the fallback IS
+the deliverable: seed `settings.json` as a copy and extend `--sync-mcp` to `--sync-shared`
+(roster + settings) — dir symlinks (`agents/`, `commands/`, `skills/`, `projects/`) are safe
+either way. DO-NOT: no login automation of
 any kind; `--new-dir` never copies or writes credential bytes; the fleet gitignore is T02b's.
 
 Depends: T01
@@ -32,6 +41,8 @@ Docs: none (T04 owns the doc rewrite)
 - **Given** an existing fleet dir, **When** `--new-dir` targets the same slug, **Then** it refuses and exits non-zero (check-before-create; never overwrite)
 - **Given** a mapped project whose carrier file is missing, **When** `--status` runs, **Then** the output WARNs naming that project (scripts/sysadmin/claude_rotate.py:985)
 - **Given** `--sync-mcp` after an MCP roster edit in `~/.claude.json`, **When** it runs, **Then** every fleet dir's `.claude.json` carries the new roster and its OAuth section is untouched
+- **Given** a tmp fixture with a file symlink for `settings.json`, **When** a tmp+rename write-through is probed, **Then** the outcome (symlink survives vs forks) is asserted and on fork the seeded-copy fallback is applied (tests/test_claude_fleet.py:1)
+- **Given** `~/.claude/.credentials.json` with an open-handle count above the threshold, **When** `--status` runs, **Then** an occupancy WARN names the shared file (scripts/sysadmin/claude_rotate.py:985)
 
 ## Context Files
 - docs/superpowers/specs/2026-08-15-login-once-credentials-design.md

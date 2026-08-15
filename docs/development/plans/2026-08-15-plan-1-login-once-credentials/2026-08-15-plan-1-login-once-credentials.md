@@ -1,6 +1,6 @@
 # Plan — login-once credentials, phase 1: disarm, scaffold, fleet telemetry, runbook
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-08-15 · Owner: infra · Spec: docs/superpowers/specs/2026-08-15-login-once-credentials-design.md (CONVERGED, operator-approved)
 
 **What this plan delivers vs defers.** It builds everything that must exist BEFORE the
@@ -50,7 +50,8 @@ window's live path would break the box.
   `_switch_paused()` is true — no signature change; every caller (`run_claude` retry,
   keepalive shim, bot/aro-wake vendored copies) inherits the gate. Seam test: T01's marker
   test in `tests/test_claude_rotate_v2.py`.
-- **T02a → T03**: `FLEET_ROOT = Path.home() / ".claude-fleet"`; `assignments.json` schema
+- **T02a → T03**: `_fleet_root()` — a call-time helper honoring `CLAUDE_FLEET_ROOT` (default
+  `~/.claude-fleet`, the `_rotate_state_dir()` env pattern, tmp_path-testable); `assignments.json` schema
   `{<slug>: {"account": <email>, "created": <iso>, "identity": "pending-login"|<email>}}` —
   T02a always writes `"pending-login"`; **T03 flips it to the verified email** on the first
   successful per-dir profile read after the operator's login (the pin moment; never re-probed
@@ -66,8 +67,9 @@ window's live path would break the box.
 - **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed
   surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass
   green.
-- **Dispatch policy** — the credential-touching tickets (T01–T03, T05) are `Complexity: native`
-  (auth-class surface; native worktree coder, Opus for the risky logic). Pool-default still
+- **Dispatch policy** — every work ticket except T04 is `Complexity: native` (T01/T02a/T03:
+  auth-class credential surface; T02b: a governance-sync trigger with fleet blast radius; T05:
+  the Integration receipt); native worktree coder, Opus for the risky logic. Pool-default still
   applies to the gradeable sub-work: per-behavior test authoring, the doc reconcile
   (`scripts/doc_reconcile.py` for T04), and every `/fabrik-review` finder breadth layer run via
   `fanout(...)` + `set_quality` back-fill — all-native finder rounds land zero flywheel rows
@@ -83,15 +85,20 @@ window's live path would break the box.
 - **Given** the switch-paused marker exists, **When** `run_claude` hits a usage-limit or 401 rotation trigger, **Then** `_rotate_active_account` installs nothing and prints a PAUSED line (scripts/sysadmin/claude_rotate.py:403)
 - **Given** the switch-paused marker is absent, **When** the same trigger fires, **Then** rotation behaves exactly as before (regression guard) (scripts/sysadmin/claude_rotate.py:649)
 - **Given** the switch-paused marker exists, **When** the operator runs `--next`, **Then** it refuses with the PAUSED line and installs nothing (scripts/sysadmin/claude_rotate.py:766)
+- **Given** the switch-paused marker exists, **When** a 401 leaves rotation withheld, **Then** the "all credentials are dead" Telegram does NOT fire (scripts/sysadmin/claude_rotate.py:670)
 - **Given** `--new-dir seo sarp@ocoron.com` with a repo path, **When** it runs, **Then** the dir carries a seeded `.claude.json`, the five symlinks, an assignments row, the two-variable carrier file, and zero credential bytes (scripts/sysadmin/claude_rotate.py:1599)
 - **Given** an existing fleet dir, **When** `--new-dir` targets the same slug, **Then** it refuses and exits non-zero (check-before-create; never overwrite)
 - **Given** a mapped project whose carrier file is missing, **When** `--status` runs, **Then** the output WARNs naming that project (scripts/sysadmin/claude_rotate.py:985)
-- **Given** the manifest's gitignore groups, **When** the synced block text renders, **Then** it contains `.claude/settings.local.json` (scripts/fabrik_synced_manifest.py:183)
+- **Given** the manifest's gitignore groups, **When** the synced block text renders, **Then** it contains `.claude/settings.local.json` (scripts/fabrik_synced_manifest.py:208)
 - **Given** `--sync-mcp` after an MCP roster edit in `~/.claude.json`, **When** it runs, **Then** every fleet dir's `.claude.json` carries the new roster and its OAuth section is untouched
+- **Given** a tmp fixture with a file symlink for `settings.json`, **When** a tmp+rename write-through is probed, **Then** the outcome (symlink survives vs forks) is asserted and on fork the seeded-copy fallback is applied (tests/test_claude_fleet.py:1)
+- **Given** `~/.claude/.credentials.json` with an open-handle count above the threshold, **When** `--status` runs, **Then** an occupancy WARN names the shared file (scripts/sysadmin/claude_rotate.py:985)
 - **Given** a fleet root with dirs on two accounts, **When** `--status` runs, **Then** rows group by account with live quota from the freshest token and never print "parked — quota unknown" (scripts/sysadmin/claude_rotate.py:985)
 - **Given** an account none of whose dirs was used in the last 8h, **When** `--status` runs, **Then** its row shows the cached last-known values with their age, marked stale
 - **Given** a fleet dir whose credentials mtime is 8 days old, **When** `--keepalive` runs, **Then** exactly one ping executes with that dir's own env and a failing ping produces a mesh-notify alert
 - **Given** an empty fleet root, **When** `--status` runs, **Then** the legacy manager-accounts view renders unchanged (regression guard)
+- **Given** a fleet dir whose assignments row is `pending-login` and whose own token answers the profile probe, **When** `--status` runs, **Then** the verified email is written back once and never re-probed (scripts/sysadmin/claude_rotate.py:985)
+- **Given** fleet mode with an account at 96% utilization, **When** the tick runs, **Then** it emits the per-account advisory and installs nothing — the fleet branch contains no successor or switch call (scripts/sysadmin/claude_rotate.py:1381)
 - **Given** the rewritten rotation doc, **When** its claims are checked against the shipped T01–T03 behavior, **Then** every named command, path, and env var exists as documented (docs/workstation/claude-account-rotation.md:1)
 - **Given** all work tickets merged, **When** the full Tier-2 gate and convergence check run, **Then** both are green and the receipt embeds the verbatim success JSON (docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md:1)
 
@@ -136,7 +143,6 @@ window's live path would break the box.
 - tests/test_claude_rotate_v2.py
 - tests/test_claude_fleet.py
 - scripts/fabrik_synced_manifest.py
-- templates/scaffold/gitignore-synced-block.txt
 - docs/workstation/claude-account-rotation.md
 - docs/workstation/hooks-index.md
 - docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md
@@ -144,11 +150,17 @@ window's live path would break the box.
 ## Evidence
 
 - `scripts/sysadmin/claude_rotate.py:403` `_rotate_active_account` — the single rotation choke
-  point behind the retry at `:649`/`:766`; `_switch_paused` at `:1056`; `main()` CLI dispatch
-  at `:1509`; `_collect_statuses` at `:1043` (all read this session).
-- `scripts/fabrik_synced_manifest.py:147` `gitignore_dest_paths()`; block render `:183-211`;
-  `scripts/sync_enforcement_to_projects.py:37` "Single source of truth — shared with
-  scaffold.py's .gitignore"; `:118` `patched_gitignore` (the fleet application path).
+  point behind the retry at `:649` and `_cmd_next` at `:766`; `_switch_paused` at `:1072`;
+  `main()` CLI dispatch at `:1599`; `_collect_statuses` at `:985` (all re-read this session,
+  post-edit).
+- `scripts/fabrik_synced_manifest.py:147` `gitignore_dest_paths()` (synced-file name lists —
+  NOT the carrier's home); the local-state tail `# Synced-files lock` / `.fabrik/synced.lock`
+  at `:208-210` inside `gitignore_block_text()` (render `:186-212`) — the carrier line's
+  correct precedent; `scripts/sync_enforcement_to_projects.py:37` "Single source of truth —
+  shared with scaffold.py's .gitignore"; `:118` `patched_gitignore` (the fleet application
+  path); `src/fabrik/scaffold.py:509-511` imports `gitignore_block_text` — and
+  `templates/scaffold/gitignore-synced-block.txt` has ZERO references in src/scripts/templates/
+  tests and is stale (adversary-verified): it is DEAD, not hand-maintained.
 - `scripts/ci_fix_dispatcher.py:203` `cwd=repo_dir` (project-cwd inheritance for headless
   dispatch).
 - `~/.claude/bin/claude-quota.py:37` honors `CLAUDE_QUOTA_HOME` (the second carrier variable).
@@ -182,9 +194,10 @@ Not logged in · Please run /login          # shared ~/.claude creds were VALID 
   no-login-automation → constraint carried in T02a scope; hub per-window env → T04 runbook
   (M2 recipe; the probe itself is operator-executed). M4 retirement deliberately deferred to
   the successor plan — stated in the header, not a gap.
-- (b) Cross-ticket signatures: `FLEET_ROOT`/`assignments.json` schema produced by T02a, consumed
-  by T03 (seam test consumer-owned in `tests/test_claude_fleet.py`); T01's gate changes no
-  signature; T04 documents T03's final CLI names after T03 merges.
+- (b) Cross-ticket signatures: `_fleet_root()` + the `assignments.json` schema produced by
+  T02a, consumed by T03 (seam test consumer-owned in `tests/test_claude_fleet.py`; the
+  identity-pin handoff is stated in Interfaces — T02a writes `pending-login`, T03 flips);
+  T01's gate changes no signature; T04 documents T03's final CLI names after T03 merges.
 - Grounding passes: all `path:line` cites re-read this session (see Evidence); the
   gitignore-block generation path is the one Phase-1 ambiguity, resolved in-ticket by grounding
   before editing (manifest is canonical per `sync_enforcement_to_projects.py:37`).
@@ -199,4 +212,8 @@ Not logged in · Please run /login          # shared ~/.claude creds were VALID 
   regroup rule in the runbook); extension interactive-mode env application (first migrated
   window verifies before scaling).
 - **Open — successor plan:** M4 retirement sweep (10-consumer inventory incl. sound system),
-  M5 occupant thinning, VPS follow-up spec (hard deadline M4+30d).
+  M5 occupant thinning, VPS follow-up spec (hard deadline M4+30d), and the **worktree carrier
+  copy** — no worktree-creating helper script exists in this repo to patch (adversary-verified:
+  zero hits), so the build-time `cp` mitigation has no owner here; until the successor plan
+  names the real carrier (the worktree-skill/EnterWorktree path), T02a's occupancy monitor is
+  the detection net for worktree sessions rejoining `~/.claude`.

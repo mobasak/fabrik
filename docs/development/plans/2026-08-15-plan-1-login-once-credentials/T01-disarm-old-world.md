@@ -5,8 +5,13 @@ Gate the last ungated credential-swapper in code and switch off the box-side cap
 so the entire migration window has exactly ZERO processes that can install or capture a pair in
 `~/.claude/`. Code: `_rotate_active_account()` (`scripts/sysadmin/claude_rotate.py:403`, the
 single choke point behind `run_claude()`'s usage-limit/401 retry at `:649` and `:766`) returns
-`None` with a loud `PAUSED` line while `_switch_paused()` (`scripts/sysadmin/claude_rotate.py:1072`)
-is true. ⚠️ Deliberate side effect, stated: `--next` also routes through
+`None` with a loud `PAUSED` line **on stderr** (the passthrough mirrors stdout back to callers,
+`:1694-1697`) while `_switch_paused()` (`scripts/sysadmin/claude_rotate.py:1072`) is true.
+⚠️ Suppression-aware alerting (adversary finding R6): `run_claude`'s 401 leg reads a `None`
+rotation as EXHAUSTION and fires the 12h-debounced "NO working Claude account — all
+credentials are dead" Telegram (`:670-681`) — while paused, that branch must be skipped
+(distinguish "rotation withheld" from "no target exists"); the marker is already live on this
+box, so an ungated alert fires the moment this ticket lands. ⚠️ Deliberate side effect, stated: `--next` also routes through
 `_rotate_active_account` (`scripts/sysadmin/claude_rotate.py:766`), so the operator's manual
 cycle refuses with the same PAUSED line while the marker exists — correct during migration
 (nothing may swap); the runbook (T04) names `--resume-switch` as the override
@@ -39,6 +44,7 @@ Docs: none (T04 owns the doc rewrite; CHANGELOG is orchestrator-applied)
 - **Given** the switch-paused marker exists, **When** `run_claude` hits a usage-limit or 401 rotation trigger, **Then** `_rotate_active_account` installs nothing and prints a PAUSED line (scripts/sysadmin/claude_rotate.py:403)
 - **Given** the switch-paused marker is absent, **When** the same trigger fires, **Then** rotation behaves exactly as before (regression guard) (scripts/sysadmin/claude_rotate.py:649)
 - **Given** the switch-paused marker exists, **When** the operator runs `--next`, **Then** it refuses with the PAUSED line and installs nothing (scripts/sysadmin/claude_rotate.py:766)
+- **Given** the switch-paused marker exists, **When** a 401 leaves rotation withheld, **Then** the "all credentials are dead" Telegram does NOT fire (scripts/sysadmin/claude_rotate.py:670)
 
 ## Context Files
 - .windsurf/rules/core/45-testing-strategy.md
