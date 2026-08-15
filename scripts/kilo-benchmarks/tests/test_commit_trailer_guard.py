@@ -12,9 +12,9 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -839,26 +839,41 @@ def test_core_comment_char_auto_does_not_reopen_the_verbose_diff_hijack(tmp_path
 def test_the_hook_does_not_fork_git_once_per_message_line(tmp_path):
     """`comment_char()` shells out to git; inside a per-line predicate that is one fork PER LINE.
 
-    Measured before the hoist: 600-line message, 600 subprocesses, 1.3s of pure hook latency
-    where the module-level constant it replaced cost nothing. It bites hardest exactly where it
-    is least affordable — the branch taken by every commit WITHOUT a parsable Agent-Role, which
-    is the common case, and with no cut line present `next()` scans every line.
+    Measured before the hoist: a 600-line message spawned 600 subprocesses and cost 1.3s of pure
+    hook latency, where the module-level constant it replaced cost nothing. It bites hardest
+    exactly where it is least affordable — the branch every commit WITHOUT a parsable Agent-Role
+    takes, which is the common case, and with no cut line present `next()` scans every line.
+
+    COUNTED, not timed. A wall-clock bound in a completion gate is a flaky test waiting to
+    happen on a loaded box — and this box runs three concurrent agents. Shimming `git` on PATH
+    and counting invocations measures the defect itself, is immune to load, and catches a HALF
+    fix (one call site hoisted, the other not) that a timing ratio could easily absorb.
     """
-    short = "chore: x\n\n" + "\n".join(f"line {i}" for i in range(20)) + "\n"
-    long_ = "chore: x\n\n" + "\n".join(f"line {i}" for i in range(1200)) + "\n"
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    log = tmp_path / "git-calls.log"
+    real_git = shutil.which("git")
+    assert real_git, "git must be on PATH for this test to mean anything"
+    shim = shim_dir / "git"
+    shim.write_text(f'#!/bin/sh\necho x >> {log}\nexec {real_git} "$@"\n')
+    shim.chmod(0o755)
+    env = {**os.environ, "PATH": f"{shim_dir}:{os.environ['PATH']}"}
 
-    def elapsed(message: str) -> float:
+    def git_calls(line_count: int) -> int:
+        log.write_text("")
         msg = tmp_path / "m.txt"
-        msg.write_text(message, encoding="utf-8")
-        start = time.monotonic()
-        subprocess.run(
-            [sys.executable, str(GUARD), str(msg)], capture_output=True, check=False, cwd=REPO
+        msg.write_text(
+            "chore: x\n\n" + "\n".join(f"line {i}" for i in range(line_count)) + "\n",
+            encoding="utf-8",
         )
-        return time.monotonic() - start
+        subprocess.run(
+            [sys.executable, str(GUARD), str(msg)],
+            capture_output=True, check=False, cwd=REPO, env=env,
+        )
+        return len(log.read_text().splitlines())
 
-    baseline = min(elapsed(short) for _ in range(3))
-    scaled = min(elapsed(long_) for _ in range(3))
-    assert scaled < baseline * 3 + 0.5, (
-        f"hook latency scales with message length ({baseline:.3f}s at 20 lines vs "
-        f"{scaled:.3f}s at 1200) — a subprocess is being forked per line"
+    short, long_ = git_calls(20), git_calls(1200)
+    assert long_ <= short, (
+        f"the hook forked git {short} times for a 20-line message and {long_} times for a "
+        f"1200-line one — a subprocess is being spawned per message line"
     )

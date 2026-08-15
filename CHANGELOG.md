@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — round-29: a per-line subprocess fork, and `core.commentChar=auto` (2026-08-15)
 
+Round-30 self-review: the test pinning that fix was WALL-CLOCK based (`min()` of three runs against
+a `baseline * 3 + 0.5` bound). A timing assertion in a completion gate is a flaky test waiting to
+happen, and this box runs three concurrent agents. It now shims `git` on PATH and COUNTS
+invocations — immune to load, and it catches a HALF fix (one call site hoisted, the other not)
+that a timing ratio could easily absorb. Both the full revert and a valid half-fix mutant now fail
+it; an earlier half-fix mutant of mine was invalid (it crashed the guard, which forks LESS), which
+is itself a reminder that a mutation must be checked for validity before its survival means anything.
+
+
 `comment_char()` shells out to `git config`, and one of its two call sites left it INSIDE a
 per-line generator predicate — one fork per message line. Measured: a 600-line message cost 1.3s
 of pure hook latency where the module-level constant it replaced cost nothing, and it bites
