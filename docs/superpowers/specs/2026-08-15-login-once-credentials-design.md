@@ -94,6 +94,11 @@ stronger ground).
   reload (never a login), a fifth of today's blast radius. Resolution: migration step M2 probes it.
 - Headless crons in project cwds (`ci_fix_dispatcher` dispatches `claude -p` inside
   `/opt/<project>`) inherit that project's dir automatically — no per-cron work.
+- ⚠️ **Git worktrees don't carry the mapping**: `settings.local.json` is untracked, so a fresh
+  `claude` session started inside a worktree checkout falls back to shared `~/.claude`.
+  In-session worktree moves and Task subagents are unaffected (the env is already applied to
+  the running process). Mitigation at build time: worktree-creating flows copy the parent
+  checkout's `.claude/settings.local.json` into the worktree (one `cp` in the helper).
 
 ### What is per-dir vs shared (the seeding contract)
 
@@ -166,8 +171,9 @@ M5. `~/.claude` remains the default for anything unmapped (operator ad-hoc runs)
 3. `--status` shows session+weekly quota for **all 4 accounts** at any time — live values
    whenever an account had use in the last ~8h, otherwise last-known-with-age (never today's
    "parked — quota unknown").
-4. **No credential file is ever written by two processes**: each `~/.claude-fleet/<slug>/`
-   `.credentials.json` is only ever touched by sessions started in its mapped project.
+4. **No credential file is ever written by two unrelated owners**: each
+   `~/.claude-fleet/<slug>/.credentials.json` is only ever touched by sessions bound to that
+   dir — its project's windows, its headless callers, and its own keepalive ping.
 5. A quota wall on one account leaves the other accounts' windows **fully working**, and the
    walled account's windows resume at the 5h reset without operator action.
 
