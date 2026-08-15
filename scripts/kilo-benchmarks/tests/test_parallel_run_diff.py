@@ -124,7 +124,7 @@ def test_shadow_matches_fabrik_byte_for_byte(rel):
         sl, fl = s.splitlines(), f.splitlines()
         diff = [
             f"  line {i + 1}:\n    shadow: {a[:120]}\n    fabrik: {b[:120]}"
-            for i, (a, b) in enumerate(zip(sl, fl))
+            for i, (a, b) in enumerate(zip(sl, fl, strict=False))
             if a != b
         ][:5]
         pytest.fail(
