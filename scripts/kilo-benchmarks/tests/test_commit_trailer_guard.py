@@ -939,3 +939,41 @@ def test_gits_real_template_is_still_detected_under_auto(tmp_path):
         f"git's own ';' template was not detected, so the -v diff hijacked the guard:"
         f"\n{result.stderr}"
     )
+
+
+def test_an_explicit_comment_char_cut_line_really_does_lose_the_block(tmp_path):
+    """`%(trailers:)` HONOURS an explicit `core.commentChar` — but falls back to '#' for `auto`.
+
+    Those two cases differ, and the difference is a silently lost commit. Pinning the reject
+    path to '#' unconditionally was a FALSE ACCEPT here: under an explicit `;`, git dropped the
+    block (query empty) and the guard said nothing — the exact silent lost provenance it exists
+    to catch. Pinning it to the auto-DETECTED char was the mirror false reject. It has to be
+    neither: it has to be what git itself will decide with.
+    """
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", ";"], cwd=repo, capture_output=True, check=False
+    )
+    message = f"docs: a\n\nprose\n\n; {CUT_LINE}\n\nAgent-Role: primary\n"
+
+    (repo / "g").write_text("y")
+    subprocess.run(["git", "add", "g"], cwd=repo, capture_output=True, check=False)
+    msg = repo / "COMMIT_EDITMSG_explicit"
+    msg.write_text(message, encoding="utf-8")
+    subprocess.run(
+        ["git", "commit", "-q", "--no-verify", "-F", str(msg)],
+        cwd=repo, capture_output=True, check=False,
+    )
+    landed = subprocess.run(
+        ["git", "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)"],
+        cwd=repo, capture_output=True, text=True, check=False,
+    ).stdout.strip()
+    assert landed == "", "precondition: git must DROP this block under an explicit ';'"
+
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == REJECT_CODE, (
+        "git dropped the trailer block and the guard accepted the commit — silent lost provenance"
+    )

@@ -191,6 +191,31 @@ def replaying() -> bool:
 AUTO_CANDIDATES = "#;@!$%^&|:"
 
 
+def verdict_comment_char() -> str:
+    """The comment char git uses when DECIDING whether a trailer block survived.
+
+    Measured, because the two cases differ and the difference is a silent lost commit:
+      * `core.commentChar` set explicitly to a single char  -> `%(trailers:key=…)` HONOURS it and
+        cuts at that char's cut line, so a block below one is genuinely lost.
+      * `core.commentChar=auto` (or unset)                  -> parsing falls back to '#', because
+        git resolves `auto` only when writing a template.
+
+    Pinning this to '#' unconditionally was a FALSE ACCEPT under an explicit `;`: git dropped the
+    block (query empty) and the guard said nothing — exactly the silent lost provenance this
+    guard exists to catch. Pinning it to the DETECTED char was the mirror false reject. It has to
+    be neither: it has to be what git itself will use.
+    """
+    try:
+        got = subprocess.run(
+            ["git", "config", "--get", "core.commentChar"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return "#"
+    value = got.stdout.strip() if got.returncode == 0 else ""
+    return value if len(value) == 1 else "#"
+
+
 def comment_char(message: str | None = None) -> str:
     """git's comment character. Hardcoding '#' left a latent hijack: with `core.commentChar=;`
     neither the scissors match nor the comment strip fires, so a whole `git commit -v` diff stays
@@ -305,16 +330,12 @@ def trailers_lost_below_scissors(message: str) -> bool:
     # the module-level constant it replaced cost nothing. It is worst exactly where it is least
     # affordable: this branch runs for every commit WITHOUT a parsable Agent-Role (the common
     # case), and with no scissors line `next()` never short-circuits, so it scans every line.
-    # ⚠️ ALWAYS '#', never the auto-detected char. This function drives a hard REJECT, so it
-    # must fire only where git GENUINELY loses the block — and `%(trailers:key=…)`, the query
-    # that decides whether provenance survived, never resolves `core.commentChar=auto`: it uses
-    # '#' unconditionally. Using the detected char here rejected a `-F` message that merely
-    # quoted git's template (a `;` comment block plus a `;` cut line) with a perfectly good
-    # trailer block below it — git reported `primary`, the guard said the block was lost.
-    #
-    # authored_text() takes the opposite choice deliberately: there the detected char STRIPS a
-    # -v diff, and over-stripping can only cause a pass-through, which agrees with git.
-    pattern = scissors_re("#")
+    # ⚠️ The char git will DECIDE with — see verdict_comment_char(). Not the auto-detected one
+    # (that rejected a message merely quoting a `;` cut line, whose block git kept), and not a
+    # hardcoded '#' either (that silently ACCEPTED a block git really dropped under an explicit
+    # `core.commentChar=;`). authored_text() deliberately uses the detected char instead: there
+    # over-truncating can only cause a pass-through, which agrees with git.
+    pattern = scissors_re(verdict_comment_char())
     scissors = next((i for i, ln in enumerate(lines) if pattern.match(ln)), None)
     if scissors is None:
         return False
@@ -534,7 +555,7 @@ def main(argv: list[str]) -> int:
     # does not match, because stripping whitespace leaves the `+`.
     if not declares_agent_role(body):
         if trailers_lost_below_scissors(message):
-            cc = "#"  # the char this verdict was actually computed against
+            cc = verdict_comment_char()  # the char this verdict was computed against
             print(
                 f"\n❌ COMMIT REJECTED — a {REQUIRED} block sits BELOW git's cut line.\n\n"
                 f"   Under -m/-F and under `git commit -v`, git discards everything below\n"

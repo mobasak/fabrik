@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — round-30: the `auto` comment-char detection could hard-reject a valid commit (2026-08-15)
 
+Round-31 self-review found the mirror of that fix, in the worse direction. Pinning the reject path
+to `#` was a **FALSE ACCEPT** under an explicit `core.commentChar=;`: `%(trailers:key=…)` HONOURS an
+explicitly configured comment char and cuts at its cut line, so git dropped the block, the query
+came back empty, and the guard said nothing — the silent lost provenance this whole guard exists to
+catch. It falls back to `#` only for `auto`, which git resolves solely when writing a template.
+So the reject path is now neither hardcoded nor auto-detected: it asks what git itself will decide
+with. Both mutants — `#` and the detected char — now fail, in opposite directions.
+
+
 Round 29's `core.commentChar=auto` detection trusted any cut line it found. But git resolves `auto`
 only in `adjust_comment_line_char()`, which runs **only when git writes a template** — never for
 `-m`/`-F` — and neither `interpret-trailers` nor `%(trailers:key=…)` resolve it either: both use
