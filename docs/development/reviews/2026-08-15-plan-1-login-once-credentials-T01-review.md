@@ -132,3 +132,29 @@ load-bearing via t2/t9); 9 attack lines refuted with executed evidence; verdict 
 Round 5 verdict: NOT CLEAN — F22–F27 dispatched (the survivors are consequences of the
 fail-closed design choice, not implementation defects; all stated prior fixes held under
 mutant re-execution). Round 6 follows.
+
+## Round 6 (2026-08-15, on fixup commit 4c3fd7e3)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 6
+Pool: both candidates refuted (below-drain-threshold silence matches the pause path's
+semantics by design; switch-failed/drain interplay is the unchanged pre-existing routing).
+Opus: 18 mutants ALL KILLED; install census, parity, stream discipline, dedupe-across-legs,
+double-drain, tuple consumers all executed clean. Verdict NOT CLEAN — 1 CONFIRMED + tail:
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | FUTURE-dated switch ts → silent hold for skew+dwell, no drain (WSL clock-skew is a lived scenario on this box) | **FIX (F28)**: future ts (>now+60s) = degraded → drain-routed |
+| 2 | Fail-closed hold is arithmetic (2nd `_now()` µs-later), defeated by ROTATE_DWELL_MIN=0 (probe: install) | **FIX (F29)**: structural hold when degraded |
+| 3 | drain_thr > threshold misconfig → "routing to DRAIN" then verdict "ok" | **FIX (F30)**: clamp + note |
+| 6 | Degraded hold ledgered as plain "dwell-hold" | **FIX (F31)**: distinct verdict |
+| 7 | Vacuous elif guard + misattributing comment | **FIX (F32)**: comment truth |
+| 4 | `--status --json` now mkdirs (side effect) | REFUTED: idempotent, single-operator, no machine consumer; T03 reworks status |
+| 5 | Pause gate outside the install flock (ms TOCTOU) | REFUTED-as-inherent to a marker design; doc nuance routed to T04 ("the marker gates new installs; one already past the gate completes") |
+| 8 | Corrupt ledger never capped (growth ~2 rows/5min) | ACCEPTED RESIDUAL: ledger machinery retires at M4; bounded by the migration window |
+| 9 | Runbook lacks the "pause" JSON field + rc-1 semantics | ROUTED to T04 (briefing updated) |
+
+Also re-recorded: the legacy file's 12 reds reproduced at base from a clean extraction
+(fixture omits expiry metadata) — pre-existing, correctly excluded from T01's green claim.
+
+Round 6 verdict: NOT CLEAN — F28–F32 dispatched (1 confirmed edge + hardening tail). Round 7
+follows and is expected to close.
