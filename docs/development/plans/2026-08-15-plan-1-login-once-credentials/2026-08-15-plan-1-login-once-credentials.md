@@ -1,6 +1,6 @@
 # Plan — login-once credentials, phase 1: disarm, scaffold, fleet telemetry, runbook
 
-Status: IN-PROGRESS
+Status: EXECUTED
 Date: 2026-08-15 · Owner: infra · Spec: docs/superpowers/specs/2026-08-15-login-once-credentials-design.md (CONVERGED, operator-approved)
 
 **What this plan delivers vs defers.** It builds everything that must exist BEFORE the
@@ -33,7 +33,7 @@ window's live path would break the box.
 | T02b | Fleet gitignore for the carrier file | — | ⚡ | ✅ | 0f7b6401 |
 | T03 | Fleet-mode status/tick + keepalive | T02a | ⛓️ | ✅ | ccfd5357 |
 | T04 | Rotation doc rewrite + operator runbook | T03 | ⛓️ | ✅ | b4376f2a |
-| T05 | Integration: whole-plan gate + receipt | T04 | ⛓️ | ⬜ | |
+| T05 | Integration: whole-plan gate + receipt | T04 | ⛓️ | ✅ | (orchestrator-run) |
 
 ## Merge Order
 
@@ -234,3 +234,15 @@ Not logged in · Please run /login          # shared ~/.claude creds were VALID 
   zero hits), so the build-time `cp` mitigation has no owner here; until the successor plan
   names the real carrier (the worktree-skill/EnterWorktree path), T02a's occupancy monitor is
   the detection net for worktree sessions rejoining `~/.claude`.
+
+### Close (2026-08-15)
+
+All five tickets merged (T01 fa2cb7fb · T02b a4446e4a · T02a 713699eb · T03 35dbfffb ·
+T04 81427be0) + the weekly keepalive cron installed (T03 box step). T05 receipt +
+D7 whole-plan validation (3 pool lenses + native authoritative seat, live box-state probes):
+**VALIDATED, found: 0** — full Tier-2 gate `"status":"success"` (46 passed / 0 failed)
+embedded verbatim, with the docs-review 3-pass CONVERGED ledger, in the whole-plan review:
+`docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md` (the
+per-ticket ledgers sit beside it). Residuals + successor-plan pointers named there.
+Operator's next step: the M3 login batches per
+`docs/workstation/claude-account-rotation.md` § Rollout runbook.

@@ -280,8 +280,10 @@ docs/
 │   │   ├── 2026-06-29-plan-watchdog-deploy-side.md
 │   │   ├── 2026-07-20-plan-1-docs-truth-convergence.md
 │   │   ├── 2026-07-20-plan-2-claude-p-first-class-scoring.md
+│   │   ├── 2026-08-15-plan-1-login-once-credentials    # spine + T01-T05 tickets (EXECUTED)
 │   │   └── archived
 │   └── reviews
+│       ├── 2026-08-15-plan-1-login-once-credentials-review.md   # + its -T01/-T02a/-T02b/-T03/-T04 per-ticket ledgers
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
 │       ├── docs-truth-root-review.md
@@ -608,6 +610,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 |----------|--------|
 | [2026-08-10-finder-shape-ab.md](docs/development/reviews/2026-08-10-finder-shape-ab.md) | Plan-2 Phase A decision record — the pinned-roster 3-arm finder-shape A/B (read-only vs tool-enabled vs find+verify): adjudication ledger with execution-verdicts, parallelism assert, CHOSEN SHAPE: arm 1 (no dispatch change). |
 | [2026-08-11-plan-2-stalled-midstream-resume-review.md](docs/development/reviews/2026-08-11-plan-2-stalled-midstream-resume-review.md) | Whole-plan review of the stalled-mid-stream auto-resume execution: 15-round ledger, requirements coverage, embedded gate success, shared-tree adjudications. |
+| [2026-08-15-plan-1-login-once-credentials-review.md](docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md) | Whole-plan validation of the login-once credential architecture (T01–T05): per-ticket verdicts, embedded Tier-2 gate success (46/0), docs-review 3-pass CONVERGED ledger, D7 found: 0, named residuals + successor-plan pointers. |
 | [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
