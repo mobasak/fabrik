@@ -164,7 +164,17 @@ unexecuted on 2026-08-12 — see § Plan reconciliation at the foot of this file
 
 ---
 
-## Phase B — Copy the engine into `/opt/ai-model-catalog/engine/` · fabrik UNTOUCHED · runs in `/opt/ai-model-catalog`
+## Phase B — Copy the engine into `/opt/ai-model-catalog/engine/` · fabrik UNTOUCHED · runs in `/opt/ai-model-catalog` — ✅ EXECUTED 2026-08-15 (B.1 `9bdacfc` → B.closing `fa76d32`)
+
+> **B.3 parity: GREEN** — 17 producers run clean under `OUTPUT_ROOT`, 31 artifacts incl. **18 marker
+> blocks matching the golden's 18 exactly**; 32 assertions pass and the oracle was **proven to bite**
+> on three mutations (artifact not produced · marker not emitted · artifact husked to a heading),
+> green again on restore. **B.4a flywheel: GREEN** — `state=ok`, **72 rows**, from the relocated repo.
+> **B.5 docs:** SERVICES + OPERATIONS carry the engine. Gate: **43 passed / 3 failed**, all three
+> baseline-attributed and none naming `engine/` (Project Structure went GREEN vs the 9bdacfc
+> baseline). ⚠️ `Fabrik-Synced Files` is **sync LAG, not a defect**: the project holds its July
+> scaffold copies while fabrik HEAD moved to August via its own daily auto-commit (`2bc30c90`) —
+> hand-editing a project's synced copy is a HARD STOP; the next governance-sync resolves it.
 
 **Deliverable:** the engine runs standalone in `ai-model-catalog`, producing **byte-identical** outputs vs the Phase-A golden; fabrik's own engine still runs (parallel-safe).
 
