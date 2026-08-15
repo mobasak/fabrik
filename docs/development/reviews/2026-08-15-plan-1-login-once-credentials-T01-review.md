@@ -84,3 +84,27 @@ unpaused parity, stderr-only, --switch intact, twins enforced identical, drain 2
 (readable case), TLS reset discipline incl. asyncio thread-reuse.
 
 Round 3 verdict: NOT CLEAN — F11–F17 dispatched. Round 4 follows.
+
+## Round 4 (2026-08-15, on fixup commit 36099c09)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 4
+Pool: both candidates (tmp multi-user stamp; manual tuple fragility) REFUTED — single-operator
+threat model (memory-documented) + the F16b docstring already names the latent class. Opus:
+all 4 round-3 mutants re-killed deterministically (t15j 20/20 red under the shared-object
+mutant, <0.1s, no flake); invariants re-confirmed; verdict NOT CLEAN with 8 survivors:
+
+| # | Finding | Disposition |
+|---|---|---|
+| 2 | `_last_switch_ts` widening flipped the dwell guard FAIL-OPEN — corrupt ledger byte → box-wide swap every 5 min (probe: 5 consecutive) | **FIX (F18)**: fail-closed (errors read as "just switched"), stderr note, red-first test |
+| 1 | Literal-type claim false; constants inferred `str` → 2 NEW mypy errors; gate never type-checks scripts/ | **FIX (F19)**: Final annotation + truthful comment crediting the tests |
+| 5 | t15n reads/writes the REAL $HOME and passes vacuously on all branches | **FIX (F20)**: hermetic + exact tri-state asserts |
+| 6 | Three hardcoded copies of the error tuple; docstring points at one | **FIX (F21)**: single `_STATE_DIR_ERRORS` definition used at all sites |
+| 3 | No CHANGELOG entry in the worktree range | REFUTED: the Delta lands in the orchestrator's acceptance commit (D3 mechanism; entry text carried in the coder's report) |
+| 4 | Runbook still tick-scoped | REFUTED-as-ROUTED: T04's rewrite owns it (same run; window accepted at the C-I ruling) |
+| 7 | Twin parity not test-enforced | REFUTED: `scripts/sysadmin/test_claude_rotate_wire.py` — `test_bot_rotation_wire.py:47` md5-enforces parity (cited by round 3's own invariant table) |
+| 8 | Predictable /tmp fallback stamp (symlink/clobber) | REFUTED: single-operator threat model; finder's own assessment "near-unreachable in production, would not block" |
+
+Also recorded (not T01's): the legacy suite's 12 pre-existing reds (fixture omits expiresAt);
+the vacuous `rc == 0` assert in the v2 `_tick` harness (pre-existing).
+
+Round 4 verdict: NOT CLEAN — F18–F21 dispatched (converging: 8→4 actionable). Round 5 follows.
