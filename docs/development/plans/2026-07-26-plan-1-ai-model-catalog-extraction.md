@@ -57,7 +57,7 @@ Trivia skipped: exact worker-container image tag, log-line wording, `--help` tex
 
 ---
 
-## Phase A — Freeze the contract + arm the flywheel tripwire · runs in `/opt/fabrik`
+## Phase A — Freeze the contract + arm the flywheel tripwire · runs in `/opt/fabrik` — ✅ EXECUTED 2026-08-15 (8cd1a402)
 
 **A.0 — Flywheel-safety gates (NEW 2026-08-12; spec §7 *Flywheel-safety invariant*, BINDING).** The operator's
 constraint is *"we should not break flywheel"*, and the relocation is the single event most likely to break the
@@ -83,7 +83,7 @@ required, landed BEFORE any file moves:
 *(A.0 is the SOLE source of these three gates. The sibling prep set that also carried them was archived
 unexecuted on 2026-08-12 — see § Plan reconciliation at the foot of this file.)*
 
-## Phase A — Freeze the contract (the golden-file regression oracle) · READ-ONLY (A.1–A.3) · runs in `/opt/fabrik`
+## Phase A — Freeze the contract (the golden-file regression oracle) · READ-ONLY (A.1–A.3) · runs in `/opt/fabrik` — ✅ EXECUTED 2026-08-15 (60dcfffc)
 
 **Deliverable:** a committed golden snapshot + a runnable diff harness that reproduces every live consumer output — the objective definition of "no functionality lost."
 
