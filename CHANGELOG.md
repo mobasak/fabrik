@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — round-26: 11 findings, including a cross-repo write and two live bypasses (2026-08-15)
 
+Round-27 self-review addendum: the indented-key fix above overshot into its own mirror. Treating
+ANY indented `Agent-Role:` as a broken trailer false-rejected a docs commit that merely QUOTES the
+canonical example — which is indented inside a fenced block in `CLAUDE.md`, and which commits in
+this repo discuss routinely. Worse, such a commit had no trailer block to repair, so the diagnosis
+was unactionable. An indented key now counts only when the final paragraph is genuinely a trailer
+block (it also holds a column-0 `Key: value` line), which separates the real bypass from the
+harmless quotation. Both directions are mutation-proven.
+
+
 The boot re-install had **no repo pin**. `~/.bashrc` sources `wsl_startup_hook.sh` on every
 interactive shell, whose cwd is arbitrary: from `$HOME` it found no git checkout and installed
 NOTHING — making the hooks-index claim that it re-installs the guard simply false — and from any

@@ -587,3 +587,26 @@ def test_install_does_not_destroy_a_foreign_hook_that_merely_mentions_pre_commit
     )
     assert result.returncode != 0, "install() clobbered a foreign hook without --force"
     assert "commitlint" in hook.read_text(), "the foreign hook was overwritten"
+
+
+def test_a_docs_commit_quoting_the_trailer_example_is_not_rejected(tmp_path):
+    """The mirror of the indented-key bypass — and the more likely one in this repo.
+
+    CLAUDE.md's canonical trailer example is INDENTED inside a fenced block, and commits that
+    discuss it are routine here. Treating any indented `Agent-Role:` as a broken trailer made
+    those commits unrejectable-by-fixing: there was no trailer block to repair. An indented key
+    now only counts when the final paragraph is genuinely a trailer block.
+    """
+    message = (
+        "docs: explain the trailer format\n"
+        "\n"
+        "The canonical example is:\n"
+        "\n"
+        "    Agent-Role: primary\n"
+        "    Co-Authored-By: Claude <x@y>\n"
+    )
+    result = run(message, tmp_path)
+    assert result.returncode == 0, (
+        f"a docs commit that merely QUOTES the trailer example was rejected, and there is no "
+        f"trailer block in it to fix:\n{result.stderr}"
+    )

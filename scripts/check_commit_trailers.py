@@ -180,6 +180,32 @@ def authored_text(message: str) -> str:
     return "\n".join(ln for ln in lines if not ln.startswith("#"))
 
 
+TRAILER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:\s")
+
+
+def declares_agent_role(body: str) -> bool:
+    """Whether this commit is TRYING to declare provenance.
+
+    Column 0 always counts. An INDENTED key counts only when the final paragraph is genuinely a
+    trailer block — i.e. it also holds a column-0 `Key: value` line. That distinction is what
+    separates the two mirror-image defects:
+
+      * the bypass: `Agent-Context: c` / ` Agent-Role: primary` / `Co-Authored-By: …` — a real
+        trailer block whose indented key git folds into the previous trailer, silently losing
+        the provenance. Must be REJECTED.
+      * the false reject: a docs commit whose body quotes the canonical example in an indented
+        code block, with no trailer block at all. Must PASS — and it did not, which mattered
+        because CLAUDE.md's own example is indented and commits about it are routine here.
+    """
+    lines = body.splitlines()
+    if any(ln.startswith(f"{REQUIRED}:") for ln in lines):
+        return True
+    final = body.rstrip().split("\n\n")[-1].splitlines()
+    if not any(ln.strip().startswith(f"{REQUIRED}:") for ln in final):
+        return False
+    return any(TRAILER_LINE.match(ln) for ln in final)
+
+
 def trailers_lost_below_scissors(message: str) -> bool:
     """True when an authored trailer block sits BELOW a scissors line, where git discards it.
 
@@ -391,7 +417,7 @@ def main(argv: list[str]) -> int:
     # and a column-0-only test read that as "no trailer here" and accepted the commit. That is
     # the lost-provenance outcome the guard exists to stop. A diff line (`+Agent-Role:`) still
     # does not match, because stripping whitespace leaves the `+`.
-    if not any(ln.strip().startswith(f"{REQUIRED}:") for ln in body.splitlines()):
+    if not declares_agent_role(body):
         if trailers_lost_below_scissors(message):
             print(
                 f"\n❌ COMMIT REJECTED — a {REQUIRED} block sits BELOW a scissors line.\n\n"
