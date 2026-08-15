@@ -11,8 +11,12 @@ The tick's advisory/drain legs read the same rows; drain mail routes to the repo
 walled account via `assignments.json`. New `--keepalive`: for each fleet dir whose
 `.credentials.json` mtime is >7 days old, run one `claude -p ping` with that dir's env
 (`CLAUDE_CONFIG_DIR`+`CLAUDE_QUOTA_HOME` set to the dir — in-place sole-owner refresh, the
-youtube-proven path, NOT the retired temp-dir copy pattern), and mesh-notify on a failed ping;
-plus the crontab step installing the weekly `--keepalive` entry. DO-NOT: no switch/install
+youtube-proven path, NOT the retired temp-dir copy pattern), and alert on a failed ping via the
+same mesh-notify invocation `scripts/sysadmin/ci_health_probe.py:140-146` uses
+(`bash ~/.claude/bin/claude-sound.sh mesh-notify <sid> /opt/fabrik "<msg>"` — invoking the
+sound script is sanctioned; editing it is not); plus the box step installing the weekly cron
+line `20 6 * * 1 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive >>
+$HOME/.claude/keepalive.log 2>&1`. DO-NOT: no switch/install
 logic anywhere in fleet mode; do not remove legacy code paths (successor plan).
 
 Depends: T02a
@@ -23,7 +27,7 @@ Docs: none (T04 owns the doc rewrite)
 
 ## Touches
 - scripts/sysadmin/claude_rotate.py — PRIMARY PATH (fleet-mode status/tick, --keepalive)
-- scripts/aro-wake/claude_rotate.py — byte-identical twin
+- scripts/aro-wake/claude_rotate.py — byte-identical twin (cp after edit; md5 must match)
 - tests/test_claude_fleet.py — fleet-mode + keepalive behaviors
 
 ## Behavior Contract

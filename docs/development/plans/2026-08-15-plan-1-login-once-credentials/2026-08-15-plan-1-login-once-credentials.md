@@ -51,9 +51,11 @@ window's live path would break the box.
   keepalive shim, bot/aro-wake vendored copies) inherits the gate. Seam test: T01's marker
   test in `tests/test_claude_rotate_v2.py`.
 - **T02a → T03**: `FLEET_ROOT = Path.home() / ".claude-fleet"`; `assignments.json` schema
-  `{<slug>: {"account": <email>, "created": <iso>, "identity": "pending-login"|<email>}}`;
-  the carrier payload (two env vars). Seam test: T03's fleet-mode tests build dirs via T02a's
-  `--new-dir` code path in `tests/test_claude_fleet.py` (consumer-owned).
+  `{<slug>: {"account": <email>, "created": <iso>, "identity": "pending-login"|<email>}}` —
+  T02a always writes `"pending-login"`; **T03 flips it to the verified email** on the first
+  successful per-dir profile read after the operator's login (the pin moment; never re-probed
+  after). The carrier payload (two env vars). Seam test: T03's fleet-mode tests build dirs via
+  T02a's `--new-dir` code path in `tests/test_claude_fleet.py` (consumer-owned).
 - **T02b → (operator M3)**: the rendered synced-gitignore block ignores the carrier file
   before any project carries one; no code consumer — the governance-sync applies it.
 - **T03 → T04**: final CLI surface (`--new-dir`, `--sync-mcp`, `--keepalive`, fleet `--status`
@@ -80,6 +82,7 @@ window's live path would break the box.
 
 - **Given** the switch-paused marker exists, **When** `run_claude` hits a usage-limit or 401 rotation trigger, **Then** `_rotate_active_account` installs nothing and prints a PAUSED line (scripts/sysadmin/claude_rotate.py:403)
 - **Given** the switch-paused marker is absent, **When** the same trigger fires, **Then** rotation behaves exactly as before (regression guard) (scripts/sysadmin/claude_rotate.py:649)
+- **Given** the switch-paused marker exists, **When** the operator runs `--next`, **Then** it refuses with the PAUSED line and installs nothing (scripts/sysadmin/claude_rotate.py:766)
 - **Given** `--new-dir seo sarp@ocoron.com` with a repo path, **When** it runs, **Then** the dir carries a seeded `.claude.json`, the five symlinks, an assignments row, the two-variable carrier file, and zero credential bytes (scripts/sysadmin/claude_rotate.py:1599)
 - **Given** an existing fleet dir, **When** `--new-dir` targets the same slug, **Then** it refuses and exits non-zero (check-before-create; never overwrite)
 - **Given** a mapped project whose carrier file is missing, **When** `--status` runs, **Then** the output WARNs naming that project (scripts/sysadmin/claude_rotate.py:985)

@@ -9,12 +9,16 @@ single choke point behind `run_claude()`'s usage-limit/401 retry at `:649` and `
 is true. ⚠️ Deliberate side effect, stated: `--next` also routes through
 `_rotate_active_account` (`scripts/sysadmin/claude_rotate.py:766`), so the operator's manual
 cycle refuses with the same PAUSED line while the marker exists — correct during migration
-(nothing may swap); the runbook (T04) names `--resume-switch` as the override. `--switch <name>`
-(`:748`) does NOT route through the choke point and stays usable as the explicit manual lever.
+(nothing may swap); the runbook (T04) names `--resume-switch` as the override
+(`--pause-switch`/`--resume-switch` ALREADY EXIST — shipped f8eebd84 — this ticket adds no CLI).
+`--switch <name>` (`:748`) does NOT route through the choke point and stays usable as the
+explicit manual lever.
 Box steps (executed by this ticket's steps, not owned files): remove the hourly
 `--drift-check` crontab line (`crontab -l | grep drift-check`), remove the SessionStart
 `--drift-check` hook entry from `~/.claude/settings.json` (line ~37), stop
-`~/.claude/state/capture-watch.sh` if running, verify `CLAUDE_SOUND_AUTOROTATE` is still `"0"`
+`~/.claude/state/capture-watch.sh` if running (it self-exits after `WATCH_SECONDS`, default
+2400s — `pgrep -f capture-watch` then wait or kill that PID; never `pkill -f` broader
+patterns), verify `CLAUDE_SOUND_AUTOROTATE` is still `"0"`
 in the settings env, and finish with `bash scripts/dr_claude_backup.sh` (config-DR contract:
 run after any Claude-config change). DO-NOT: touch `~/.claude/bin/claude-sound.sh` (operator
 hard rule — its mesh legs are the successor plan's named, owned step); do not remove any
@@ -34,6 +38,7 @@ Docs: none (T04 owns the doc rewrite; CHANGELOG is orchestrator-applied)
 ## Behavior Contract
 - **Given** the switch-paused marker exists, **When** `run_claude` hits a usage-limit or 401 rotation trigger, **Then** `_rotate_active_account` installs nothing and prints a PAUSED line (scripts/sysadmin/claude_rotate.py:403)
 - **Given** the switch-paused marker is absent, **When** the same trigger fires, **Then** rotation behaves exactly as before (regression guard) (scripts/sysadmin/claude_rotate.py:649)
+- **Given** the switch-paused marker exists, **When** the operator runs `--next`, **Then** it refuses with the PAUSED line and installs nothing (scripts/sysadmin/claude_rotate.py:766)
 
 ## Context Files
 - .windsurf/rules/core/45-testing-strategy.md

@@ -1,7 +1,9 @@
 # T02a — Fleet-dir scaffolder: `--new-dir`, seeding contract, `--sync-mcp`, carrier monitor
 
 ## Scope
-The M1 machinery in `claude_rotate.py`. (1) `--new-dir <slug> <account-email>`: create
+The M1 machinery in `claude_rotate.py`. (1) `--new-dir <slug> <account-email>
+[--project /opt/<repo>]` (the optional third arg is the repo whose carrier file gets written;
+without it only the fleet dir is created — hub role dirs use no carrier): create
 `~/.claude-fleet/<slug>/` mode 0700; seed `.claude.json` as a COPY of `~/.claude.json` (no
 credential bytes — login replaces the OAuth section); symlink `settings.json`, `agents/`,
 `commands/`, `skills/`, `projects/` → the canonical `~/.claude/` entries; append the
@@ -22,7 +24,7 @@ Docs: none (T04 owns the doc rewrite)
 
 ## Touches
 - scripts/sysadmin/claude_rotate.py — PRIMARY PATH (--new-dir, --sync-mcp, carrier check)
-- scripts/aro-wake/claude_rotate.py — byte-identical twin
+- scripts/aro-wake/claude_rotate.py — byte-identical twin (cp after edit; md5 must match)
 - tests/test_claude_fleet.py — NEW test module (fleet-dir behaviors, tmp_path-isolated)
 
 ## Behavior Contract
