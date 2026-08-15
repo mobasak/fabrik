@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-29: a per-line subprocess fork, and `core.commentChar=auto` (2026-08-15)
+
+`comment_char()` shells out to `git config`, and one of its two call sites left it INSIDE a
+per-line generator predicate — one fork per message line. Measured: a 600-line message cost 1.3s
+of pure hook latency where the module-level constant it replaced cost nothing, and it bites
+hardest exactly where it is least affordable (the branch every commit WITHOUT a parsable
+`Agent-Role` takes, where with no cut line present `next()` scans every line). Hoisted: 600 lines
+now 0.096s. A test pins the flatness rather than a wall-clock number.
+
+`core.commentChar=auto` fell back to `#`, reopening the verbose-diff hijack the explicit-`;` fix
+had just closed: with a markdown heading in the body — routine here — git picks another char, so
+neither the cut-line match nor the comment strip fired, the whole `-v` diff stayed in the authored
+text, and a diff CONTEXT line ` Agent-Role: …` read as an indented trailer. The guard now DETECTS
+the char git used rather than recomputing its choice: the buffer already contains git's own
+comments, so "the first candidate that starts no line" excludes the very character it picked —
+that reasoning returned `@` where git had chosen `;`. A cut line is unambiguous evidence.
+
+Round 29's finder also ran a 31-shape guard-vs-git differential across BOTH cleanup modes
+(`-F`/whitespace and interactive editor/strip) and found zero divergences beyond the one
+documented below-cut-line trade-off.
+
 ### Fixed — ci-health probe counted unmetered public-repo minutes as quota burn (2026-08-15)
 
 `actions_quota()` summed raw `usageItems` quantity, so the PUBLIC hub's 2,559 unmetered minutes

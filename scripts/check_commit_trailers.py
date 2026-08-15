@@ -185,7 +185,13 @@ def replaying() -> bool:
     return (d / "CHERRY_PICK_HEAD").exists()
 
 
-def comment_char() -> str:
+# git's candidate list for `core.commentChar=auto`, in its own order (see git's
+# adjust_comment_line_char): it takes the first character that does not begin any line of the
+# message. Reproducing the list is the only way to know which one git actually chose.
+AUTO_CANDIDATES = "#;@!$%^&|:"
+
+
+def comment_char(message: str | None = None) -> str:
     """git's comment character. Hardcoding '#' left a latent hijack: with `core.commentChar=;`
     neither the scissors match nor the comment strip fires, so a whole `git commit -v` diff stays
     in the authored text and a diff CONTEXT line ` Agent-Role: …` reads as an indented trailer —
@@ -198,8 +204,24 @@ def comment_char() -> str:
     except OSError:
         return "#"
     value = got.stdout.strip() if got.returncode == 0 else ""
-    # 'auto' means git picks one when it writes the template; it resolves to '#' unless the
-    # message already contains it, and we cannot see that choice from here.
+    if value == "auto" and message is not None:
+        # ⚠️ Resolve it, do not assume '#'. With `auto` and a body line starting with '#' — a
+        # markdown heading, routine in this repo's commit bodies — git picks ';' instead, so a
+        # '#'-assuming guard neither matched the cut line nor stripped comments: the whole
+        # `git commit -v` diff stayed in the authored text and a diff CONTEXT line
+        # ` Agent-Role: …` read as an indented trailer, rejecting the commit over a line its
+        # author never wrote. Same hijack the ';' fix closed, reached through 'auto'.
+        # Detect the char git ACTUALLY used, rather than recomputing its choice: the buffer we
+        # see already contains git's own comments, so "the first candidate that starts no line"
+        # excludes the very character it picked — that reasoning returned '@' where git had
+        # chosen ';'. A cut line is unambiguous direct evidence.
+        for candidate in AUTO_CANDIDATES:
+            pattern = scissors_re(candidate)
+            if any(pattern.match(ln) for ln in message.splitlines()):
+                return candidate
+        # No cut line (not a -v commit). '#' is safe here: the verdict still comes from git's own
+        # parse of the RAW message, so an unstripped comment block cannot change it.
+        return "#"
     return value if len(value) == 1 else "#"
 
 
@@ -209,7 +231,7 @@ def authored_text(message: str) -> str:
     Two things get discarded, mirroring git's own cleanup: everything below a scissors line
     (`git commit -v` puts the entire diff there, uncommented), and `#` comment lines.
     """
-    cc = comment_char()
+    cc = comment_char(message)
     lines = message.splitlines()
     # ⚠️ Match git's ACTUAL scissors line, not "a comment containing >8". The loose form
     # truncated a legitimate body line like `# >8 threads regressed throughput` and discarded
@@ -269,9 +291,13 @@ def trailers_lost_below_scissors(message: str) -> bool:
     this very file cannot trip it.
     """
     lines = message.splitlines()
-    scissors = next(
-        (i for i, ln in enumerate(lines) if scissors_re(comment_char()).match(ln)), None
-    )
+    # ⚠️ Hoisted. Inside the generator's condition this ran once PER LINE, and comment_char()
+    # forks `git config` — 600-line message, 600 subprocesses, 1.3s of pure hook latency where
+    # the module-level constant it replaced cost nothing. It is worst exactly where it is least
+    # affordable: this branch runs for every commit WITHOUT a parsable Agent-Role (the common
+    # case), and with no scissors line `next()` never short-circuits, so it scans every line.
+    pattern = scissors_re(comment_char(message))
+    scissors = next((i for i, ln in enumerate(lines) if pattern.match(ln)), None)
     if scissors is None:
         return False
     return any(ln.lower().startswith(f"{REQUIRED.lower()}:") for ln in lines[scissors + 1 :])

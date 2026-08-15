@@ -14,6 +14,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -797,3 +798,67 @@ def test_a_key_with_only_empty_values_is_still_rejected(tmp_path):
     message = "fix: x\n\nAgent-Role:\nagent-role:\nCo-Authored-By: Y <y@z>\n"
     assert _git_verdict(message, tmp_path) is False
     assert run(message, tmp_path).returncode == REJECT_CODE
+
+
+def test_core_comment_char_auto_does_not_reopen_the_verbose_diff_hijack(tmp_path):
+    """`auto` is not `#`. git picks another char when `#` starts any line of the message.
+
+    A body with a markdown heading — routine in this repo — makes git choose `;`, so a
+    `#`-assuming guard neither matched the cut line nor stripped comments: the whole `-v` diff
+    stayed in the authored text and a diff CONTEXT line ` Agent-Role: …` read as an indented
+    trailer. Same hijack the explicit-`;` fix closed, reached through `auto`.
+
+    The resolution DETECTS the char git used rather than recomputing its choice: the buffer
+    already contains git's own comments, so "first candidate that starts no line" excludes the
+    very character it picked — that reasoning returned `@` where git had chosen `;`.
+    """
+    repo = _scratch_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.commentChar", "auto"], cwd=repo, capture_output=True, check=False
+    )
+    message = (
+        "docs: edit a file mentioning the trailer\n"
+        "\n"
+        "# A markdown heading, which forces git away from '#'\n"
+        "\n"
+        "; ------------------------ >8 ------------------------\n"
+        "diff --git a/x b/x\n"
+        " Agent-Role: primary\n"
+    )
+    msg = repo / "COMMIT_EDITMSG_auto"
+    msg.write_text(message, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"a verbose-diff commit was hijacked under core.commentChar=auto:\n{result.stderr}"
+    )
+
+
+def test_the_hook_does_not_fork_git_once_per_message_line(tmp_path):
+    """`comment_char()` shells out to git; inside a per-line predicate that is one fork PER LINE.
+
+    Measured before the hoist: 600-line message, 600 subprocesses, 1.3s of pure hook latency
+    where the module-level constant it replaced cost nothing. It bites hardest exactly where it
+    is least affordable — the branch taken by every commit WITHOUT a parsable Agent-Role, which
+    is the common case, and with no cut line present `next()` scans every line.
+    """
+    short = "chore: x\n\n" + "\n".join(f"line {i}" for i in range(20)) + "\n"
+    long_ = "chore: x\n\n" + "\n".join(f"line {i}" for i in range(1200)) + "\n"
+
+    def elapsed(message: str) -> float:
+        msg = tmp_path / "m.txt"
+        msg.write_text(message, encoding="utf-8")
+        start = time.monotonic()
+        subprocess.run(
+            [sys.executable, str(GUARD), str(msg)], capture_output=True, check=False, cwd=REPO
+        )
+        return time.monotonic() - start
+
+    baseline = min(elapsed(short) for _ in range(3))
+    scaled = min(elapsed(long_) for _ in range(3))
+    assert scaled < baseline * 3 + 0.5, (
+        f"hook latency scales with message length ({baseline:.3f}s at 20 lines vs "
+        f"{scaled:.3f}s at 1200) — a subprocess is being forked per line"
+    )
