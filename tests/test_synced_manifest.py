@@ -110,6 +110,28 @@ def test_gitignore_block_collapses_windsurf_and_groups() -> None:
     assert "scripts/enforcement/" in groups["Synced scripts"]
 
 
+def test_gitignore_block_ignores_claude_settings_local() -> None:
+    # The .claude/settings.local.json carrier is per-project local state, never committed —
+    # it must be ignored fleet-wide, same precedent as .fabrik/synced.lock. Three claims,
+    # because two mutants pass a bare substring check (review round 1): the line must appear
+    # exactly once, INSIDE the managed block (before the END marker — a line rendered after
+    # it survives every future sync as an orphan), and must NEVER be a synced FILE (filed
+    # into a name list, the hub's copy would overwrite every project's per-machine carrier).
+    text = m.gitignore_block_text()
+    assert text.count(".claude/settings.local.json") == 1
+    assert text.index(".claude/settings.local.json") < text.index(m.GITIGNORE_BLOCK_END)
+    synced_names = [
+        p
+        for v in vars(m).values()
+        if isinstance(v, (list, tuple))
+        for p in v
+        if isinstance(p, str)
+    ]
+    assert not any(
+        "settings.local.json" in p for p in synced_names
+    ), "the carrier must be ignored, never distributed (no synced name list may carry it)"
+
+
 def test_vendored_subagents_gitignored_and_pycache_excluded(
     fake_fabrik: Path, tmp_path: Path
 ) -> None:

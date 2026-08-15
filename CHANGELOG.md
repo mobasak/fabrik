@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fleet gitignore ignores the `.claude/settings.local.json` carrier (2026-08-15)
+
+`gitignore_block_text()`'s local-state tail only ignored `.fabrik/synced.lock`; without an
+ignore rule for `.claude/settings.local.json` every project would commit that per-project,
+machine-specific local-settings carrier. Added to the same local-state group (T02b), with the
+rendered group header relabeled to "Local state (never committed, never synced)" — the old
+"Synced-files lock" label sat under a "DO NOT EDIT (centrally managed)" banner that was false
+for local state on a fleet-distributed surface. The test pins position-inside-the-block and
+absence-from-every-synced-name-list (two mutants the original substring assert missed).
+
 ### Fixed — Rotation pause gate at the credential choke point (M-pre) (2026-08-15)
 
 - `claude_rotate._rotate_active_account()` now refuses to install any snapshot while the operator's

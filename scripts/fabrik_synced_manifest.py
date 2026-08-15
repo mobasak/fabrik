@@ -205,9 +205,11 @@ def gitignore_block_text() -> str:
         lines.append(f"# {group}")
         lines.extend(paths)
         lines.append("")
-    # Per-project synced-files lock — written by the sync (md5 of what was distributed);
-    # local state, never committed. check_synced_unmodified compares against it.
-    lines += ["# Synced-files lock", ".fabrik/synced.lock", ""]
+    # Per-project local state, never committed: the synced-files lock (md5 of what was
+    # distributed; check_synced_unmodified compares against it) + the Claude Code local
+    # settings carrier (per-project, machine-specific — never a fleet-wide contract).
+    lines += ["# Local state (never committed, never synced)",
+              ".fabrik/synced.lock", ".claude/settings.local.json", ""]
     lines += [_GI_BAR, GITIGNORE_BLOCK_END, _GI_BAR]
     return "\n".join(lines) + "\n"
 
