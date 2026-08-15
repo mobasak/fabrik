@@ -120,8 +120,8 @@ absence-from-every-synced-name-list (two mutants the original substring assert m
 ### Fixed — Rotation pause gate at the credential choke point (M-pre) (2026-08-15)
 
 - `claude_rotate._rotate_active_account()` now refuses to install any snapshot while the operator's
-  `switch-paused` marker exists, printing `rotation PAUSED (switch-paused marker) — no account installed
-  (override: --resume-switch)` to stderr and returning `None` — closing the last ungated automated
+  `switch-paused` marker exists, printing `claude_rotate: rotation PAUSED (switch-paused marker) — no
+  account installed (override: --resume-switch)` to stderr and returning `None` — closing the last ungated automated
   credential swapper (`run_claude`'s usage-limit/401 retry, and `--next`, whose refusal drops the
   misleading "need ≥2 snapshots" hint). `--switch <name>` does not route through the choke point and
   stays usable as the explicit manual lever, marker or not.

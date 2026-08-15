@@ -17,8 +17,10 @@ long-lived window (`seo/`, `youtube/`, `fabrik-infra/`, `cron-ci-fix/`, …), pl
 `assignments.json` — the routing table (slug → account, pinned identity, bound project). Only
 `--new-dir` ever creates the root; readers (`--status`, `--sync-mcp`, `--keepalive`) never
 mkdir it. On an absent/empty root, `--status` and the tick keep the legacy behavior below
-live; `--sync-mcp` and `--keepalive` have no legacy equivalent — they print "nothing to
-sync"/"nothing to do" and exit 0.
+live; `--sync-mcp`/`--sync-shared` and `--keepalive` have no legacy equivalent —
+`--keepalive` prints "nothing to do" and exits 0 either way, while the sync commands exit 1
+with "nothing to sync" on an ABSENT root (a loud misconfiguration signal) and exit 0
+silently on an empty one.
 
 A window is bound to its dir by TWO environment variables — both, or the binding is a no-op:
 
@@ -86,8 +88,9 @@ duplicate something):
 
 1. The dir holds a `.credentials.json` — a LIVE chain, never re-seeded.
 2. The row names a DIFFERENT account — rebalancing is a deliberate re-login, not a
-   re-scaffold (to move a slug: edit the row's `account`, then `/login` the new account in
-   that dir).
+   re-scaffold (to move a slug: edit the row's `account` AND reset its `identity` to
+   `"pending-login"` — grouping keys on the pinned identity, which is never re-probed
+   otherwise — then `/login` the new account in that dir).
 3. The row has no usable `account` value — corrupt, never claimed.
 4. The row is already bound to a DIFFERENT project — moving a binding is an operator action
    (remove the old carrier, edit the row), never a scaffold side effect.
@@ -95,7 +98,8 @@ duplicate something):
 
 (`--project /opt/fabrik` is also refused — see the hub recipe below — and a malformed
 slug/email exits 2 with usage. Plain I/O failures — scaffold step, carrier write, row
-write — also exit 1 with one clean line; those are re-runnable, not refusals.)
+write, and the `--project` carrier-parse pre-flight — also exit 1 with one clean line;
+those are re-runnable, not refusals.)
 
 ## Roster re-push — `--sync-mcp` / `--sync-shared`
 
