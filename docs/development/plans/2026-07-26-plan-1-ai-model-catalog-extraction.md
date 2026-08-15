@@ -644,7 +644,7 @@ and `scaffold.py:1025` has the same guard, so new projects would ship without St
 and no test asserts otherwise. **Because they stay, `scaffold.py` needs no change** and their two
 tests (`tests/test_kilo_review_validation.py`, `tests/test_kilo_strictness_scenarios.py`) stay too.
 
-**K2 — the retained `kilo-benchmarks/` remnant** (everything else under it is deleted):
+**K2 — the retained remnant is COMPUTED, not listed.** ⚠️ Ten review passes could not keep a hand-written KEEP list sound; the proof is that the list below retained `rank_task_subagents.py` while deleting `build_task_baselines.py` and `derive_cost.py` **which it imports** (both behind `try/except`, so post-excise it exits 0 and publishes a silently degraded selection doc to 47 project copies), and retained `check_daily_refresh_freshness.py` while deleting the `alerting/` package it needs to raise the alarm. **Run `python scripts/kilo-benchmarks/tests/excise_manifest.py --check`** — it states the ROOTS (a judgement, each with its retained caller as evidence) and computes the CLOSURE (a fact), failing when any retained file depends on a deleted one. ⚠️ **It must run AFTER D.1**: `daily_refresh.sh` is a root and the closure follows what it invokes, so against today's un-shrunk orchestrator the KEEP set is **156 files, not 16** — the script refuses to certify until the orchestrator is down to its six-name allow-list. The roots below are the input to that computation, not the answer:
 `kilo_agents.db` · `models_browser.html` · `daily_refresh.sh` (shrunk, `0 6 * * *` cron) ·
 `tests/golden/**` · `tests/capture_golden.py` · `tests/test_golden_parity.py` ·
 `tests/test_parallel_run_diff.py` · `pipeline_alert.sh` · `autocommit_pipeline_outputs.sh` ·
@@ -679,9 +679,7 @@ root tests: `tests/test_kilo_dispatch.py` (its module goes) and `tests/test_deri
 covered by (i). Do **not** "fix" this with a `scripts/process*.py` glob — that matches the live
 `scripts/process_monitor.py`.
 
-**E.2(iv) — dangling references to the deleted set** (each verified live): `.windsurf/workflows/kilo.md`
-(the ONE workflow invoking `kilo_dispatch`; the other five reference `kilo_code_review`, which is
-KEPT — purging all six would break live governance) · 23 `scripts/traycer_agents_fixed/*.sh` and the
+**E.2(iv) — dangling references to the deleted set** (each verified live): **all SIX `.windsurf/workflows/*.md`** — ⚠️ **my pass-9 text had this exactly INVERTED and it was measured wrong: `grep -rn kilo_code_review .windsurf/workflows/` returns ZERO.** `kilo.md` invokes `kilo_dispatch.py`; `local-coder`, `local-review`, `local-docs`, `local-fixer` invoke the four `Local_*.sh`; `auto-review` invokes `Kilo_Review.sh` — every one of those targets is in E.2(ii)'s `git rm`. `.windsurf/workflows` is a GOVERNANCE_DIR (`fabrik_synced_manifest.py:82`), so leaving five of them dangling propagates broken workflows to ~47 repos · 23 `scripts/traycer_agents_fixed/*.sh` and the
 three sibling fixers `fix_balanced_tier_agents.py`, `fix_economy_tier_agents.py`,
 `implement_self_review_workflow.py` plus `templates/traycer/agent-post-execution-hook.md`, all of
 which invoke `traycer_agent_review.py` · the dead-script patterns in `fabrik_synced_manifest.py` and
@@ -722,8 +720,7 @@ rule 1 are permanently unsatisfiable.
   instead by the static check above plus a real run in a disposable HOME:
   `HOME=$(mktemp -d) python scripts/generate_kilo_agents.py 2>&1 | grep -c 'Could not update'` → **0**.
 
-**E.1 — Import-graph audit.** Build it as a runnable script (`tests/audit_engine_coupling.py`,
-throwaway). Four defects in the previously-embedded version must not be reproduced: derive ENTRY from
+**E.1 — Import-graph audit: BUILT, at `scripts/kilo-benchmarks/tests/excise_manifest.py`** (not a throwaway — it is the KEEP/DELETE authority and runs as a gate). It already handles the classes the previously-embedded version missed: package dirs (`alerting/` is exactly that case), subdirectory paths, `.sh` invocations, and `importlib` string literals. Retained for reference: Four defects in the previously-embedded version must not be reproduced: derive ENTRY from
 the live crontab with a `/`-tolerant pattern **and guard every path with `.exists()`** (the old form
 emitted other repos' absolute paths and died on `FileNotFoundError` before printing a line, while
 missing this plan's own `0 6 * * *` cron); give the shell branch a `/`-tolerant pattern **and a `.sh`

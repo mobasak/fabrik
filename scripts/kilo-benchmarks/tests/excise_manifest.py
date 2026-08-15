@@ -94,7 +94,7 @@ def _shell_deps(path: Path) -> set[str]:
     """
     import re
     src = path.read_text(errors="replace")
-    return {m for m in re.findall(r"(?:\$\{?KB\}?|kilo-benchmarks)/([A-Za-z_0-9./-]+\.(?:py|sh))", src)}
+    return set(re.findall(r"(?:\$\{?KB\}?|kilo-benchmarks)/([A-Za-z_0-9./-]+\.(?:py|sh))", src))
 
 
 def closure() -> tuple[set[str], set[str]]:
