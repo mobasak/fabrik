@@ -261,3 +261,63 @@ def test_the_unattended_pipeline_commit_is_not_blocked_by_this_guard(tmp_path):
         "the unattended boot-time auto-commit would be REJECTED by this guard, which silently "
         f"disables it forever:\n{result.stderr}"
     )
+
+
+def test_a_conflict_resolution_commit_is_still_checked(tmp_path):
+    """MERGE_HEAD is NOT a replayed message — it is a normal authored commit.
+
+    Reproduced before this guard was narrowed: after a conflicted `git merge`, the resolver
+    runs `git commit`, MERGE_HEAD still exists, and a malformed trailer went through
+    unchecked. `git revert --no-edit` and rebase replay never fire this hook at all, so
+    listing them alongside cherry-pick bought nothing and only widened the exemption.
+    """
+    repo = tmp_path / "merge"
+    repo.mkdir()
+    g = lambda *a: subprocess.run(  # noqa: E731
+        ["git", *a], cwd=repo, capture_output=True, text=True, check=False
+    )
+    g("init", "-q", "-b", "main", ".")
+    g("config", "user.email", "t@t")
+    g("config", "user.name", "t")
+    (repo / "f").write_text("base\n")
+    g("add", "f")
+    g("commit", "-q", "-m", "base")
+    g("checkout", "-q", "-b", "side")
+    (repo / "f").write_text("side\n")
+    g("add", "f")
+    g("commit", "-q", "-m", "side")
+    g("checkout", "-q", "main")
+    (repo / "f").write_text("main\n")
+    g("add", "f")
+    g("commit", "-q", "-m", "main")
+    g("merge", "side")
+    assert (repo / ".git" / "MERGE_HEAD").exists(), "expected a conflicted merge"
+
+    (repo / "f").write_text("resolved\n")
+    g("add", "f")
+    hook = repo / ".git" / "hooks" / "commit-msg"
+    hook.write_text(f'#!/bin/sh\nexec {sys.executable} {GUARD} "$1"\n')
+    hook.chmod(0o755)
+
+    result = g("commit", "-m", BLANK_INSIDE)
+    assert result.returncode != 0, (
+        "a malformed trailer block passed during conflict resolution — MERGE_HEAD was treated "
+        "as a replayed message when the commit is genuinely authored here"
+    )
+
+
+def test_a_body_line_mentioning_8_is_not_treated_as_a_scissors_line(tmp_path):
+    """`# >8 threads regressed` truncated the message and silently bypassed the guard."""
+    message = (
+        "perf: tune the worker pool\n"
+        "\n"
+        "# >8 threads regressed throughput on the shared box\n"
+        "\n"
+        "Agent-Role: primary\n"
+        "\n"
+        "Co-Authored-By: Y <y@z>\n"
+    )
+    assert run(message, tmp_path).returncode == 1, (
+        "the malformed trailer below a `# >8 ...` prose line was never checked — the loose "
+        "scissors match discarded everything under it"
+    )

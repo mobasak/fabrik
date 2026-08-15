@@ -39,6 +39,8 @@ import sys
 from pathlib import Path
 
 REQUIRED = "Agent-Role"
+# `# ---- >8 ----` with any run of dashes, which is what `git commit --cleanup=scissors` writes.
+SCISSORS_RE = re.compile(r"^#\s*-{2,}\s*>8\s*-{2,}")
 
 
 def parsed_trailers(message: str) -> dict[str, str] | None:
@@ -78,11 +80,14 @@ def replaying() -> bool:
         return False  # no git — parsed_trailers() reports the same condition and fails open
     if git_dir.returncode != 0:
         return False
+    # ⚠️ CHERRY_PICK_HEAD ONLY. Including MERGE_HEAD was a real BYPASS, reproduced: after a
+    # conflicted `git merge`, the resolver runs `git commit` — a NORMAL, newly-AUTHORED commit
+    # — while MERGE_HEAD still exists, and a malformed trailer sailed through unchecked. Rebase
+    # replay and `git revert --no-edit` do not fire this hook at all (measured), so listing them
+    # bought nothing and only widened the hole. Cherry-pick is the one case that both fires the
+    # hook AND carries a message authored by someone else, which is what this exemption is for.
     d = Path(git_dir.stdout.strip())
-    return any(
-        (d / marker).exists()
-        for marker in ("CHERRY_PICK_HEAD", "REVERT_HEAD", "MERGE_HEAD", "rebase-merge", "rebase-apply")
-    )
+    return (d / "CHERRY_PICK_HEAD").exists()
 
 
 def authored_text(message: str) -> str:
@@ -92,8 +97,13 @@ def authored_text(message: str) -> str:
     (`git commit -v` puts the entire diff there, uncommented), and `#` comment lines.
     """
     lines = message.splitlines()
+    # ⚠️ Match git's ACTUAL scissors line, not "a comment containing >8". The loose form
+    # truncated a legitimate body line like `# >8 threads regressed throughput` and discarded
+    # everything below it — including the trailer block — so the guard silently passed a
+    # malformed commit. Reproduced. Git emits exactly:
+    #     # ------------------------ >8 ------------------------
     scissors = next(
-        (i for i, ln in enumerate(lines) if ln.startswith("#") and ">8" in ln), None
+        (i for i, ln in enumerate(lines) if SCISSORS_RE.match(ln)), None
     )
     if scissors is not None:
         lines = lines[:scissors]

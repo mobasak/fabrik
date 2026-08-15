@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-24: two guard BYPASSES, both reproduced (2026-08-15)
+
+`replaying()` exempted MERGE_HEAD, but a commit made while MERGE_HEAD exists is the resolution
+of a conflicted merge — a normal, newly-AUTHORED commit, not a replayed message. Reproduced
+end-to-end: conflicted merge, resolve, commit a malformed trailer block, hook skipped, trailer
+does not parse. Narrowed to CHERRY_PICK_HEAD, the only state that both fires the hook and carries
+someone else's message; `git revert --no-edit` and rebase replay never fire it at all, so the
+other markers bought nothing and only widened the hole.
+
+The scissors detection matched "a comment line containing `>8`", which truncated a legitimate body
+line such as `# >8 threads regressed throughput` and discarded everything below it — including the
+trailer block, so a malformed commit passed unchecked. Now matches git's actual emitted form
+(`# ------------------------ >8 ------------------------`) via a dash-anchored regex.
+
 ### Fixed — round-23 adversarial review: 11 findings on the guard I shipped hours earlier (2026-08-15)
 
 A native Opus finder plus four pool finders were pointed at the two commits from earlier today.
