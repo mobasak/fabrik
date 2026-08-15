@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Fleet-dir scaffolder: `--new-dir` / `--sync-mcp` / `--sync-shared` + carrier monitor (M1) (2026-08-15)
+
+- `claude_rotate.py --new-dir <slug> <account-email> [--project /opt/<repo>]` scaffolds one
+  per-window config dir: `<fleet-root>/<slug>/` at 0700, `.claude.json` seeded from `~/.claude.json`
+  (MCP roster + trust + onboarding, **zero credential bytes** — `.credentials.json` is never read or
+  written), the shared surfaces per the seeding contract, an `assignments.json` row
+  (`account`/`created`/`identity: pending-login`, plus `project` when mapped), and the project's
+  `.claude/settings.local.json` carrier holding **both** `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME`.
+  The carrier write is a deep MERGE that preserves the file's existing mode: three live projects
+  already keep Claude Code permissions state in that file, and an unparseable one is refused loudly
+  *before any mutation*, never overwritten. `--project` refuses the hub itself — its 3 windows share
+  one cwd and a settings `env` entry overrides each window's own value, so a carrier there would
+  collapse all three onto ONE chain. `_fleet_root()` honours `CLAUDE_FLEET_ROOT` (default
+  `~/.claude-fleet`) and never mkdirs on read.
+- **`--new-dir` is RESUMABLE, and every step is idempotent.** A dir holding no `.credentials.json`
+  is an unfinished scaffold, not a live chain, so re-running COMPLETES it (seeding what is absent,
+  linking what is absent, writing the carrier if absent or incomplete) and exits 0 — turning every
+  partial-failure state into "fix the cause, re-run" instead of a permanently wedged slug. A resume
+  preserves the original `created` stamp and any already-pinned `identity`. **For an existing slug
+  the assignments row is truth**, so it refuses (rc 1) wherever re-running would destroy or
+  duplicate something: the dir holds a `.credentials.json` (a live chain), the row names a different
+  account, the row has no usable `account` (corrupt — never claimed, since the file is hand-editable),
+  the row is already bound to a **different project** (re-pointing silently would leave the old
+  repo's carrier live — two repos on one chain, with `--status` blind to the first), or the routing
+  table cannot be parsed. With `--project` omitted, a resume completes the binding the row records.
+  A mid-scaffold failure prints one clean line instead of a traceback and
+  best-effort removes the partial dir — only when that invocation created it and it holds no
+  credentials. The whole body runs under an `assignments.lock` flock, so two concurrent runs
+  serialize rather than losing each other's row (an unlocked read-modify-write dropped one).
+- **The write-through acceptance decided the seeding mode.** POSIX `rename(2)` operates on the link,
+  not its target, so the CLI's tmp+rename config write REPLACES a file symlink — a symlinked
+  `settings.json` would fork off the canonical copy on first write. Probe outcome: FORK. So
+  `settings.json` is seeded as a **copy** (mode 0644 — shared config, not a secret, unlike the 0600
+  `.claude.json`) and re-pushed by the new `--sync-shared`; `agents/`, `commands/`, `skills/`,
+  `projects/` stay symlinks (a rename *inside* a symlinked dir lands on the canonical inode). Both
+  outcomes are pinned by tests, so a POSIX change re-opens the decision.
+- `--sync-mcp` re-pushes the `mcpServers` roster into every fleet dir (the R7 de-fork helper);
+  `--sync-shared` also re-pushes the settings copy, via tmp+rename so it replaces the file rather
+  than writing *through* a symlink back into the canonical copy. Both are section-level merges —
+  each dir's own OAuth account and per-project trust are preserved, and an unparseable dir is
+  skipped, not clobbered. Each dir's mtime is re-checked immediately before the replace: a `/login`
+  landing mid-sync triggers one re-read-and-re-merge, then a skip, instead of being discarded.
+  **`--from <slug|path>` selects the roster source** — after migration `~/.claude.json` is the
+  ad-hoc leftover, so syncing from the default would REVERT every dir; taking the default with
+  fleet dirs present now prints a loud warning naming the fix.
+- `--status` gained the carrier-presence + occupancy monitor (also on `--status --json` as
+  `fleet_warnings`): a WARN naming every mapped project whose carrier is missing, unreadable, or
+  short an env key — the invariant otherwise fails OPEN and invisibly, silently rejoining the shared
+  chain — plus a count of **live claude sessions whose environment carries no non-empty
+  `CLAUDE_CONFIG_DIR`** (read from `/proc/<pid>/environ`, matched on argv[0]'s basename; an
+  exported-empty value falls back to `~/.claude`, so it counts as shared) above
+  `CLAUDE_FLEET_OCCUPANCY_MAX` (default 3), fail-soft to *unknown* rather than a false all-clear.
+  That replaced an open-handle count via `fuser`/`lsof`, which measured the wrong thing — the CLI
+  opens the credentials file, reads it and closes it, so the handle count was 0 with 46 live
+  sessions; the process signal reports 14 on the same box. Occupancy is not probed until a fleet
+  exists: pre-migration every process is legitimately on the shared chain, and a monitor that cries
+  wolf for weeks is not read on the day it is right.
+
 ### Fixed — fleet gitignore ignores the `.claude/settings.local.json` carrier (2026-08-15)
 
 `gitignore_block_text()`'s local-state tail only ignored `.fabrik/synced.lock`; without an

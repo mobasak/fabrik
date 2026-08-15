@@ -64,3 +64,48 @@ gemini's F40 "fd leak" framing (leak path IS handled; the real residue is #17's
 double-close, filed).
 
 Round 2 verdict: NOT CLEAN — F48–F53 dispatched. Round 3 follows.
+
+## Round 3 (2026-08-15)
+
+Surface: fixup commit 398e672d (F48–F53, +313/-67 incl. twin + 11 new tests). Re-verified
+first-hand: 166/166 across the 4 suites, twins md5 1f62b22e. Coder's watched-fail-first
+honest: 6 new tests red vs 15e9db17; the F51 first-draft tests didn't discriminate and the
+coder REWROTE them to hit the body-raise-after-adoption path (2 red on old code) — the
+native leg independently reproduced both reds against a checked-out 15e9db17 module.
+
+Finders: pool deepseek+gemini (diff inline) + native opus (worktree probes + F48 guard
+mutant — weakened in place, 2 tests red, restored, twins re-verified).
+
+Pool candidates, all dead on code-read: F48 "no normalization" (both finders — MISSED
+`_cmd_new_dir:1514` `Path(project).expanduser().resolve()` at entry; stored and compared
+values are both resolved) · deepseek's F51 "leak window between fdopen and with" (no code
+exists between them; json.dump is inside the with-block) · F52 whitespace-value counting
+(deliberate, documented undercount-avoidance direction). Gemini independently VERIFIED
+F51's single-owner discipline correct.
+
+Native re-probes: rebind refusal (rc 1, no second carrier, row + old carrier untouched),
+first-create / same-project / omitted-project resume all green, F50 corrupt-account truth
+table, F51 both writers both paths (no litter, single close), F52 environ truth table
+(empty/whitespace/absent → shared-bound; non-empty → not), F49 modes at both call sites
+(644 settings copy / 600 .claude.json / 644 carrier), F53 unreachability confirmed,
+credential-byte census clean, environ contents never printed.
+
+ACCEPTED RESIDUAL (recorded, not release-blocking): `_new_dir_locked:1595` compares
+resolved `repo` against the row's RAW `bound` string — a hand-edited or symlink-aliased
+row can cause a false REFUSAL of a legitimate resume (probe-confirmed). Fail-closed: it
+can never produce the double-carrier state F48 prevents; the refusal message names both
+paths and the remedy (edit the row). Same acceptance class as the F44 documented race.
+
+Round 3 verdict: **CLEAN** — zero confirmed findings.
+
+## CLOSE
+
+3 rounds, 18 fixes (F36–F53), 36 new tests (30 → 66 authored, 65 shipped + carrier tests
+elsewhere; fleet suite 65). Final surface: worktree commits f82de0c0 + 15e9db17 + 398e672d
+squash-applied to master as ONE acceptance commit (hash in the spine Board). Suites at
+merge: 166/166 (fleet 65 + v2 54 + capture 36 + wire 11) re-run on the MERGED tree by the
+orchestrator. Gate: `final_gate.py --check` — the only red is the inherited Doc Link
+Integrity failure (kilo refs, 4 files, none in this plan's scope — recorded round 1).
+Notable loop yield: the always-zero occupancy detector (round 1, the d860ae51 class), the
+project-level silent-rejoin via resume (round 2, live-probed), and a non-discriminating
+first-draft test caught and rewritten by the coder's own watched-fail-first (round 3).

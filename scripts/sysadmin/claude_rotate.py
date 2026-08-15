@@ -34,6 +34,7 @@ import math
 import os
 import re
 import select
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,10 @@ from typing import Final, Literal
 CLAUDE_DIR = Path.home() / ".claude"
 ACTIVE_CREDS = CLAUDE_DIR / ".credentials.json"
 ACCOUNTS_DIR = CLAUDE_DIR / "manager-accounts"
+# MCP roster + per-project trust + onboarding state — NOT credentials (those live in
+# .credentials.json). It is the one file a new fleet dir is seeded from, so a fresh dir needs no
+# re-onboarding and no re-trusting; the operator's single /login replaces its OAuth section.
+USER_CLAUDE_JSON = Path.home() / ".claude.json"
 _CRED_MARGIN_S = 300  # never hand over a token that dies mid-switch
 BACKUP_CREDS = CLAUDE_DIR / ".credentials.json.prev"  # single rolling backup of outgoing active
 ROTATE_LOCK = CLAUDE_DIR / ".claude-rotate.lock"
@@ -1124,7 +1129,15 @@ def _status_payload() -> dict:
     # The pause state rides the JSON too (not just the text banner): a machine consumer reading a
     # healthy-looking payload while switching is off entirely has no way to know rotation is
     # withheld. null = running, "marker" = operator paused, "error" = pause state unreadable.
-    return {"accounts": out, "live": live, "pause": _pause_state()}
+    # fleet_warnings rides the JSON too: the carrier invariant fails OPEN, so a machine consumer
+    # reading a healthy-looking payload has no other way to learn a window silently rejoined the
+    # shared chain. Empty list = every mapped carrier present and occupancy within bounds.
+    return {
+        "accounts": out,
+        "live": live,
+        "pause": _pause_state(),
+        "fleet_warnings": _fleet_warnings(),
+    }
 
 
 def _cmd_status(as_json: bool) -> int:
@@ -1160,6 +1173,8 @@ def _cmd_status(as_json: bool) -> int:
             )
         else:
             print(f"{mark} {r['name']:32} INVALID (relogin needed)")
+    for warn in pay.get("fleet_warnings") or []:
+        print(warn)
     return 0
 
 
@@ -1194,6 +1209,755 @@ def _pick_successor(candidates: list[dict], current_name: str | None, now: float
         )
     )
     return eligible[0]["name"]
+
+
+# ── the fleet: one config dir per window, one OAuth refresh chain per dir ─────────────────────
+# The login-once architecture (docs/superpowers/specs/2026-08-15-login-once-credentials-design.md).
+# Every long-lived window points CLAUDE_CONFIG_DIR *and* CLAUDE_QUOTA_HOME at its own
+# <fleet-root>/<slug>/, so its refresh chain has exactly ONE owner. Refresh tokens are single-use:
+# sharing one chain across N processes is what produces the morning relogin wave. CLAUDE_QUOTA_HOME
+# rides along because the wall/resume layer resolves its home from that variable, not from
+# CLAUDE_CONFIG_DIR — without it every window would sleep on every other window's quota wall.
+
+_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+# Shared state that must NOT fragment across ~15 dirs. DIRECTORIES are symlinked: a rename inside a
+# symlinked dir resolves through the link and lands on the canonical inode, so the link survives
+# every write (proven: test_writethrough_survives_a_directory_symlink).
+_SHARED_DIR_LINKS: Final = ("agents", "commands", "skills", "projects")
+# settings.json is COPIED, never symlinked. WRITE-THROUGH PROBE (2026-08-15): the CLI writes config
+# with tmp+rename, and POSIX rename(2) operates on the LINK rather than its target — os.replace onto
+# a FILE symlink REPLACES the link with a regular file. A symlinked settings.json would therefore
+# fork off the canonical copy on the CLI's first settings write (the leftover
+# `.claude.json.tmp.<pid>.<hex>` files in ~/.claude-youtube-headless/ are that mechanism's
+# fingerprint). The copy is re-pushed by --sync-shared instead. Guarded by
+# test_writethrough_rename_replaces_a_file_symlink: if POSIX ever changes, that test goes red and
+# this decision is re-taken deliberately.
+_SHARED_FILE_COPIES: Final = ("settings.json",)
+
+# BOTH variables or the carrier is a no-op — see the CLAUDE_QUOTA_HOME note above.
+_CARRIER_ENV_KEYS: Final = ("CLAUDE_CONFIG_DIR", "CLAUDE_QUOTA_HOME")
+# Live claude sessions still bound to the SHARED ~/.claude allowed once the fleet exists: the
+# operator's ad-hoc runs plus a straggler. Above this, sessions have SILENTLY REJOINED the shared
+# chain — the failure this architecture exists to prevent, and one that is otherwise invisible
+# (a missing carrier fails OPEN: the session just works, on the wrong chain).
+_SHARED_BOUND_MAX_DEFAULT = 3
+# The hub checkout. Its 3 concurrent windows share this cwd, so a cwd-keyed carrier cannot split
+# them — and a settings `env` entry OVERRIDES each window's own value, which would collapse all
+# three onto ONE dir and ONE chain: strictly worse than today. The hub therefore gets NO carrier;
+# each window carries the two variables in its own environment. --project refuses it (spec rule).
+HUB_REPO = Path("/opt/fabrik")
+# Module constant so tests can point the session scan at a fixture tree instead of the live kernel.
+PROC_DIR = Path("/proc")
+
+
+def _pull_opts(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict[str, str], bool]:
+    """Split ``--name value`` options out of *args*. Returns (positionals, options, malformed).
+
+    *malformed* is True for an option given without a value or an unknown ``--flag``, so the caller
+    prints usage instead of silently treating the flag as a positional (``--new-dir seo --project``
+    must not scaffold a dir literally named ``--project``).
+    """
+    rest: list[str] = []
+    opts: dict[str, str] = {}
+    i = 0
+    while i < len(args):
+        token = args[i]
+        if token in names:
+            if i + 1 >= len(args):
+                return rest, opts, True
+            opts[token] = args[i + 1]
+            i += 2
+            continue
+        if token.startswith("--"):
+            return rest, opts, True
+        rest.append(token)
+        i += 1
+    return rest, opts, False
+
+
+def _fleet_root() -> Path:
+    """Root of the per-window config-dir fleet: ``CLAUDE_FLEET_ROOT`` or ``~/.claude-fleet``.
+
+    Resolved at CALL time (never cached in a module constant) so a test env and a changed HOME are
+    both honored. Unlike :func:`_rotate_state_dir` it NEVER mkdirs: every READER here (``--status``,
+    ``--sync-mcp``) must be able to report "no fleet yet" without conjuring one, and a stray mkdir
+    from a status probe would make the migration's own progress unreadable. ``--new-dir`` is the
+    only creator.
+    """
+    return Path(os.environ.get("CLAUDE_FLEET_ROOT") or Path.home() / ".claude-fleet")
+
+
+def _assignments_path() -> Path:
+    """The routing table: slug → {account, created, identity, project?}. The advisor, ``--status``
+    and the drain mail all read it; it is the only record of which account a dir belongs to."""
+    return _fleet_root() / "assignments.json"
+
+
+def _load_assignments(strict: bool) -> dict:
+    """Read the routing table.
+
+    ``strict=True`` is the WRITE path: a corrupt/absurd file RAISES, because appending a row to
+    bytes we could not parse would destroy the routing for every other window. ``strict=False`` is
+    the READ path (``--status``): it degrades to ``{}`` — a broken table must not take the status
+    banner down with it. Both treat "no file yet" as an empty table, never a fault.
+    """
+    path = _assignments_path()
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        return {}
+    except _STATE_DIR_ERRORS:
+        if strict:
+            raise
+        return {}
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        if strict:
+            raise
+        return {}
+    if isinstance(data, dict):
+        return data
+    if strict:
+        raise ValueError(f"{path} is not a JSON object")
+    return {}
+
+
+def _write_json_atomic(dst: Path, data: object, mode: int = 0o600) -> None:
+    """tmp+rename *within the destination's own directory* — same filesystem, so the rename is
+    atomic and a reader never sees a half-written table. The temp file is unlinked on any failure
+    so a crashed write leaves no `.tmp.` litter behind (the fingerprint we diagnosed the symlink
+    fork from)."""
+    fd, tmp = tempfile.mkstemp(dir=str(dst.parent), prefix=f".{dst.name}.tmp.")
+    try:
+        # The fd is closed EXACTLY once, by exactly one owner. os.fdopen ADOPTS the descriptor, so
+        # the manual close belongs only on the path where fdopen itself raised and adoption never
+        # happened; once `fh` exists, the with-block owns it and this function must never touch the
+        # number again. An EBADF guard is NOT good enough: between the with-block's close and a
+        # later os.close(fd), a sibling thread can be handed the same fd number by the kernel — and
+        # this twin runs under asyncio.to_thread in aro-wake — so the "harmless" close would shut
+        # someone else's file.
+        try:
+            fh = os.fdopen(fd, "w")
+        except BaseException:
+            os.close(fd)  # fdopen did not adopt it; we are still the owner
+            raise
+        with fh:
+            json.dump(data, fh, indent=1, sort_keys=True)
+            fh.write("\n")
+        os.chmod(tmp, mode)
+        os.replace(tmp, dst)
+    except BaseException:
+        try:
+            os.unlink(tmp)  # never leave `.tmp.` litter behind
+        except OSError:
+            pass
+        raise
+
+
+def _carrier_path(repo: Path) -> Path:
+    """The project's carrier file. ``settings.local.json``, NOT ``settings.json``: the latter is a
+    governance-synced surface (``fabrik_synced_manifest.py``) and would be overwritten fleet-wide."""
+    return repo / ".claude" / "settings.local.json"
+
+
+def _load_carrier(repo: Path) -> dict:
+    """Existing carrier contents, or ``{}`` when there is none.
+
+    RAISES on anything we cannot safely merge INTO. Three live projects already keep Claude Code
+    permissions state in this file (2026-08-15), so a clobber costs the operator real approvals —
+    unparseable means refuse loudly, never overwrite.
+    """
+    path = _carrier_path(repo)
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        return {}
+    if not raw.strip():
+        return {}
+    data = json.loads(raw)  # ValueError propagates — the caller refuses
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    if not isinstance(data.get("env", {}), dict):
+        raise ValueError(f"{path} has a non-object 'env' section")
+    return data
+
+
+def _write_carrier(repo: Path, cfg_dir: Path) -> Path:
+    """Deep-set BOTH env vars in the project's carrier, preserving every other key it holds."""
+    data = _load_carrier(repo)
+    env = dict(data.get("env") or {})
+    for key in _CARRIER_ENV_KEYS:
+        env[key] = str(cfg_dir)
+    data["env"] = env
+    path = _carrier_path(repo)
+    # PRESERVE an existing file's mode. Merging into someone's carrier must not silently widen (or
+    # narrow) its permissions as a side effect — an operator who chmod 600'd theirs keeps it. 0644
+    # applies only to a carrier we are creating: it is not a secret and other tooling reads it.
+    try:
+        mode = path.stat().st_mode & 0o777
+    except OSError:
+        mode = 0o644
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json_atomic(path, data, mode=mode)
+    return path
+
+
+def _assignments_lock_fd() -> int:
+    """An exclusive flock over the routing table, held across READ-MODIFY-WRITE.
+
+    Without it two concurrent ``--new-dir`` runs both read the table, both add their own row to
+    their own copy, and the second write LOSES the first row — the dir exists but nothing routes to
+    it (reproduced). Same ``fcntl.flock`` idiom the credential swap uses; a dedicated lock file so
+    it never contends with rotation.
+    """
+    root = _fleet_root()
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return os.open(str(root / "assignments.lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+
+
+def _roster_source(spec: str | None = None) -> Path:
+    """The ``.claude.json`` to read the MCP roster (and a new dir's seed) FROM.
+
+    *spec* accepts a fleet SLUG (``seo``), a directory, or a direct file path; ``None`` falls back
+    to ``~/.claude.json``. The fallback is a REAL hazard once the fleet exists: post-migration
+    ``~/.claude.json`` is the ad-hoc leftover, so syncing from it would push a stale roster over
+    every dir's current one. Callers warn when they take the fallback with dirs present.
+    """
+    if spec is None:
+        return USER_CLAUDE_JSON
+    path = (
+        Path(spec).expanduser() if ("/" in spec or spec.endswith(".json")) else _fleet_root() / spec
+    )
+    return path / ".claude.json" if path.is_dir() else path
+
+
+def _replace_file(dst: Path, body: bytes, mode: int = 0o600) -> None:
+    """Write *body* to *dst* via tmp+rename.
+
+    NOT ``write_bytes``: that truncates in place (a reader mid-write sees a partial file) and it
+    writes THROUGH a symlink — which would silently re-fork the seeding decision this module pinned,
+    pushing bytes into the canonical ``~/.claude`` file instead of the dir's own copy. ``os.replace``
+    onto a symlink path replaces the LINK with the real file, which is exactly the copy branch.
+    """
+    fd, tmp = tempfile.mkstemp(dir=str(dst.parent), prefix=f".{dst.name}.tmp.")
+    try:
+        # Single-owner fd discipline — see the identical note in _write_json_atomic.
+        try:
+            fh = os.fdopen(fd, "wb")
+        except BaseException:
+            os.close(fd)  # fdopen did not adopt it; we are still the owner
+            raise
+        with fh:
+            fh.write(body)
+        os.chmod(tmp, mode)
+        os.replace(tmp, dst)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _has_credentials(dest: Path) -> bool:
+    """True when this dir holds a credential file — i.e. an account has logged in here.
+
+    The single most important predicate in this command: it is the difference between "an
+    abandoned half-built dir I may complete or delete" and "a LIVE OAuth chain that must never be
+    touched". ``is_symlink`` counts too — a dangling credential symlink still means hands off.
+    """
+    creds = dest / ".credentials.json"
+    return creds.is_symlink() or creds.exists()
+
+
+def _cmd_new_dir(
+    slug: str, email: str, project: str | None = None, source: str | None = None
+) -> int:
+    """Scaffold — or RESUME — one fleet dir:
+    ``--new-dir <slug> <account-email> [--project /opt/<repo>]``.
+
+    Creates ``<fleet-root>/<slug>/`` at 0700, seeds ``.claude.json`` from the roster source, links
+    or copies the shared surfaces per the seeding contract, records the assignments row, and — when
+    a repo is given — writes that repo's two-variable carrier. It NEVER reads or writes a credential
+    byte: the dir is created empty of credentials and filled by ONE operator ``/login``.
+
+    **Every step is IDEMPOTENT and the command is RESUMABLE.** A dir that exists but holds no
+    credentials is an unfinished scaffold, not a live chain, so re-running COMPLETES it (seeding
+    what is absent, linking what is absent, writing the carrier if absent or incomplete) and exits
+    0. That converts every partial-failure state into "fix the cause, re-run" instead of a
+    permanently wedged slug.
+
+    For an existing slug the assignments ROW is truth. It refuses (rc 1) on exactly the states where
+    re-running would destroy or duplicate something: the dir holds a ``.credentials.json`` (a live
+    chain — never re-seeded); the row names a DIFFERENT account; the row has no usable ``account``
+    (corrupt — never claimed); the row is already bound to a DIFFERENT project (moving a binding is
+    an operator action, never a scaffold side effect); or the routing table cannot be parsed. With
+    ``--project`` omitted, a resume completes the binding the row already records.
+
+    The whole body runs under the assignments flock, so two concurrent runs on any slug serialize
+    rather than losing each other's row.
+    """
+    if not _SLUG_RE.match(slug):
+        sys.stderr.write(
+            f"claude_rotate: refusing slug {slug!r} — kebab-case [a-z0-9-] only "
+            "(the slug becomes a directory name under the fleet root)\n"
+        )
+        return 2
+    if "@" not in email:
+        sys.stderr.write(f"claude_rotate: refusing account {email!r} — expected an email address\n")
+        return 2
+
+    repo: Path | None = None
+    if project is not None:
+        repo = Path(project).expanduser().resolve()
+        if not repo.is_dir():
+            sys.stderr.write(f"claude_rotate: --project {repo} is not a directory\n")
+            return 2
+        try:
+            hub = HUB_REPO.resolve()
+        except OSError:
+            hub = HUB_REPO
+        if repo == hub:
+            sys.stderr.write(
+                f"claude_rotate: refusing --project {repo} — the hub gets NO carrier. Its 3 windows "
+                "share this cwd, and a settings 'env' entry OVERRIDES each window's own value, so a "
+                "carrier here would collapse all three onto ONE dir and ONE chain. Create the role "
+                "dirs without --project and set CLAUDE_CONFIG_DIR per window instead.\n"
+            )
+            return 1
+        # PRE-FLIGHT the carrier merge BEFORE any mutation: a corrupt settings.local.json must abort
+        # the whole command rather than leave a dir that no carrier points at (which would read as
+        # "migrated" in assignments.json while the project silently stays on ~/.claude).
+        try:
+            _load_carrier(repo)
+        except (OSError, ValueError) as e:
+            sys.stderr.write(
+                f"claude_rotate: {_carrier_path(repo)} exists but cannot be parsed ({e}) — "
+                "refusing; fix or move it by hand (it holds this project's permissions state)\n"
+            )
+            return 1
+
+    try:
+        lock_fd = _assignments_lock_fd()
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot lock the fleet root ({e}) — refusing\n")
+        return 1
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        return _new_dir_locked(slug, email, repo, _roster_source(source))
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
+
+def _new_dir_locked(slug: str, email: str, repo: Path | None, source: Path) -> int:
+    """The scaffold/resume body — runs with the assignments flock held (see :func:`_cmd_new_dir`)."""
+    root = _fleet_root()
+    dest = root / slug
+
+    try:
+        table = _load_assignments(strict=True)
+    except _STATE_DIR_ERRORS as e:
+        # strict: never append a row to bytes we could not parse — that would silently REPLACE the
+        # routing table for every other window with a table containing only this row.
+        sys.stderr.write(
+            f"claude_rotate: {_assignments_path()} cannot be parsed ({e}) — refusing to append "
+            "(it is the routing table for every other window)\n"
+        )
+        return 1
+
+    existing = table.get(slug) if isinstance(table.get(slug), dict) else None
+    if existing is not None:
+        # The ROW is truth for an existing slug. assignments.json is hand-editable, so a row whose
+        # account is missing/null/blank is CORRUPT, not "unclaimed": treating it as claimable let
+        # any email take over an existing slug's dir (same family as the unparseable-table refusal).
+        claimed = existing.get("account")
+        if not isinstance(claimed, str) or not claimed.strip():
+            sys.stderr.write(
+                f"claude_rotate: the {slug} row in {_assignments_path()} has no usable 'account' "
+                f"({claimed!r}) — refusing. Repair the row by hand; a corrupt row is never claimed.\n"
+            )
+            return 1
+        if claimed != email:
+            sys.stderr.write(
+                f"claude_rotate: {slug} is already assigned to {claimed!r}, not {email!r} — "
+                "refusing (rebalancing an account is a deliberate re-login, not a re-scaffold)\n"
+            )
+            return 1
+        # …and truth for the PROJECT binding too. Silently re-pointing it would leave the OLD repo's
+        # carrier in place and live: two repos bound to one chain, with --status blind to the first
+        # (it only ever checks the row's current project).
+        bound = existing.get("project")
+        if bound and repo is not None and str(repo) != str(bound):
+            sys.stderr.write(
+                f"claude_rotate: {slug} is already bound to {bound} (carrier "
+                f"{_carrier_path(Path(str(bound)))}), not {repo} — refusing. Moving a binding is an "
+                "operator action: remove the old carrier and edit the assignments row, never a "
+                "scaffold side effect (two live carriers would share one chain, unmonitored).\n"
+            )
+            return 1
+        if bound and repo is None:
+            repo = Path(str(bound))  # resume completes the binding the row already records
+    if _has_credentials(dest):
+        sys.stderr.write(
+            f"claude_rotate: {dest} holds a .credentials.json — refusing. That is a LIVE OAuth "
+            "chain; re-seeding it would overwrite config under a running session.\n"
+        )
+        return 1
+
+    resuming = dest.is_symlink() or dest.exists()
+    if resuming and not dest.is_dir():
+        sys.stderr.write(f"claude_rotate: {dest} exists but is not a directory — refusing\n")
+        return 1
+
+    notes: list[str] = []
+    created_here = False
+    try:
+        if not resuming:
+            root.mkdir(mode=0o700, parents=True, exist_ok=True)
+            dest.mkdir(mode=0o700)
+            created_here = True
+        # mkdir's mode is umask-masked, and a resumed dir may predate this line: assert 0700 either
+        # way — the dir will hold an OAuth chain.
+        os.chmod(dest, 0o700)
+        _scaffold_dir(dest, notes, source)
+    except _STATE_DIR_ERRORS as e:
+        # One clean line, not a traceback — and best-effort remove the partial dir so the slug is
+        # retryable instead of permanently wedged. ONLY when THIS invocation created it and it holds
+        # no credentials: a resumed dir is someone else's state, and a dir with a chain is sacred.
+        cleaned = ""
+        if created_here and not _has_credentials(dest):
+            try:
+                shutil.rmtree(dest)
+                cleaned = " (partial dir removed — re-run when fixed)"
+            except OSError:
+                cleaned = f" (could NOT remove the partial dir {dest} — remove it by hand)"
+        sys.stderr.write(f"claude_rotate: scaffolding {dest} failed ({e}){cleaned}\n")
+        return 1
+
+    from datetime import UTC, datetime
+
+    row: dict = dict(existing or {})
+    row["account"] = email
+    # Preserve the ORIGINAL creation stamp across a resume — it dates the dir, not the last attempt.
+    row.setdefault("created", datetime.now(UTC).isoformat(timespec="seconds"))
+    # Identity is pinned ONCE, at the login that follows — never re-probed per status, so the
+    # dead-token identity gate that lost an account's chain is not reintroduced. A resume must not
+    # reset an already-pinned identity back to pending.
+    row.setdefault("identity", "pending-login")
+    if repo is not None:
+        row["project"] = str(repo)
+    table[slug] = row
+    try:
+        _write_json_atomic(_assignments_path(), table)
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot write {_assignments_path()} ({e})\n")
+        return 1
+
+    verb = "resumed" if resuming else "fleet dir"
+    print(f"{verb}: {dest} (account {email}, identity {row['identity']})")
+    if repo is not None:
+        # The parse hazard was pre-flighted, so what is left is a WRITE failure (a read-only
+        # checkout, a full disk). Report it as a non-zero exit rather than a traceback: the dir and
+        # its row exist, the carrier monitor now names this project on every --status until it is
+        # written, and re-running resumes — a visible, self-announcing half-state, never a silent one.
+        try:
+            carrier = _write_carrier(repo, dest)
+        except (OSError, ValueError) as e:
+            sys.stderr.write(
+                f"claude_rotate: fleet dir ready, but the carrier {_carrier_path(repo)} "
+                f"could not be written ({e}) — --status will WARN; fix and re-run to resume\n"
+            )
+            return 1
+        print(f"carrier:   {carrier} → {', '.join(_CARRIER_ENV_KEYS)}")
+    for note in notes:
+        print(f"  note: {note}")
+    print("  next: ONE /login in this dir's context — no credential bytes were copied")
+    return 0
+
+
+def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
+    """Seed + link the shared surfaces INTO *dest*, idempotently (absent pieces only).
+
+    Skipping what already exists is what makes ``--new-dir`` resumable: a re-run completes a
+    half-built dir without disturbing anything the first run (or a login) already put there.
+    """
+    target = dest / ".claude.json"
+    if not target.exists():
+        try:
+            seed = source.read_bytes()
+        except OSError:
+            seed = b"{}\n"
+            notes.append(f"seeded an EMPTY .claude.json — {source} is unreadable")
+        # 0600 + O_EXCL|O_NOFOLLOW: .claude.json carries the account identity and machine ID, and
+        # the path is predictable. The same guard the credential writes use.
+        _secure_write(target, seed)
+
+    for name in _SHARED_DIR_LINKS:
+        link = dest / name
+        if link.is_symlink() or link.exists():
+            continue
+        src = CLAUDE_DIR / name
+        if not src.is_dir():
+            notes.append(f"skipped the {name}/ symlink — {src} does not exist")
+            continue
+        link.symlink_to(src, target_is_directory=True)
+
+    for name in _SHARED_FILE_COPIES:
+        copy = dest / name
+        if copy.exists():
+            continue
+        src = CLAUDE_DIR / name
+        try:
+            body = src.read_bytes()
+        except OSError:
+            notes.append(f"skipped the {name} copy — {src} does not exist")
+            continue
+        # 0644, like the carrier and like the canonical file: shared config, not a secret, and other
+        # tooling reads it. Without an explicit mode it would inherit _replace_file's 0600 default.
+        _replace_file(copy, body, mode=0o644)
+
+
+def _merge_roster_once(target: Path, roster: dict) -> str | None:
+    """Merge *roster* into one dir's ``.claude.json``. Returns None on success, else a reason.
+
+    Read-modify-write against a file a LIVE CLI also writes (a ``/login`` completing mid-sync writes
+    the OAuth section). The target's mtime is captured before the read and re-checked immediately
+    before the replace; a change means our in-memory copy is stale and would DISCARD that login, so
+    we re-read and re-merge once, then give up rather than clobber. Residual: the re-check→replace
+    window is still not atomic (no lock is available on the CLI side), so a write landing inside
+    those microseconds is lost — acceptable on a single-operator box where the operator is the one
+    running the sync, and strictly better than the unconditional overwrite it replaces.
+    """
+    for attempt in (0, 1):
+        try:
+            before = target.stat().st_mtime_ns
+            blob = json.loads(target.read_text())
+            if not isinstance(blob, dict):
+                raise ValueError("not a JSON object")
+        except FileNotFoundError:
+            return "no .claude.json (was it made by --new-dir?)"
+        except (OSError, ValueError) as e:
+            return f".claude.json unreadable ({e}) — NOT overwritten"
+        blob["mcpServers"] = roster
+        try:
+            if target.stat().st_mtime_ns != before:
+                if attempt == 0:
+                    continue  # a live write landed under us — re-read and re-merge onto it
+                return "changed under us twice (a live session is writing it) — skipped"
+            _write_json_atomic(target, blob)
+        except (OSError, ValueError) as e:
+            return f"write failed ({e})"
+        return None
+
+
+def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
+    """Re-push the SHARED surfaces into every fleet dir.
+
+    ``--sync-mcp`` pushes only the MCP roster; ``--sync-shared`` additionally re-pushes the shared
+    file copies (``settings.json``), which are copies rather than symlinks (see
+    ``_SHARED_FILE_COPIES``). The roster push is a section-level MERGE, never a file copy: each
+    dir's other ``.claude.json`` sections — above all its own OAuth account and per-project trust —
+    are read, preserved and written back untouched, and a dir whose ``.claude.json`` cannot be
+    parsed is SKIPPED rather than overwritten.
+
+    ``--from <slug|path>`` selects the roster SOURCE. This matters after migration: ``~/.claude.json``
+    becomes the ad-hoc leftover, so the default source goes stale and syncing from it would REVERT
+    every dir to an old roster. Taking the default with dirs present prints a loud warning naming
+    the fix.
+    """
+    src = _roster_source(source)
+    root = _fleet_root()
+    try:
+        dirs = sorted(d for d in root.iterdir() if d.is_dir())
+    except FileNotFoundError:
+        sys.stderr.write(f"claude_rotate: no fleet root at {root} — nothing to sync\n")
+        return 1
+    except OSError as e:
+        sys.stderr.write(f"claude_rotate: cannot list {root} ({e})\n")
+        return 1
+
+    if source is None and dirs:
+        sys.stderr.write(
+            f"claude_rotate: WARNING — syncing FROM {src}, the shared ad-hoc dir, while "
+            f"{len(dirs)} fleet dir(s) exist. Once windows are migrated that file stops being the "
+            "live roster, and this push REVERTS every dir to it. Pass --from <slug> to sync from a "
+            "migrated dir's roster instead.\n"
+        )
+
+    try:
+        roster = json.loads(src.read_text()).get("mcpServers")
+    except (OSError, ValueError) as e:
+        sys.stderr.write(f"claude_rotate: cannot read {src} ({e})\n")
+        return 1
+    if not isinstance(roster, dict):
+        sys.stderr.write(f"claude_rotate: {src} has no 'mcpServers' object — nothing to sync\n")
+        return 1
+
+    shared: dict[str, bytes] = {}
+    if include_settings:
+        for name in _SHARED_FILE_COPIES:
+            try:
+                shared[name] = (CLAUDE_DIR / name).read_bytes()
+            except OSError as e:
+                sys.stderr.write(f"claude_rotate: cannot read the canonical {name} ({e})\n")
+                return 1
+
+    failures = 0
+    for d in dirs:
+        reason = _merge_roster_once(d / ".claude.json", roster)
+        if reason is not None:
+            sys.stderr.write(f"  SKIP {d.name}: {reason}\n")
+            failures += 1
+            continue
+        pushed = []
+        for name, body in shared.items():
+            try:
+                _replace_file(d / name, body, mode=0o644)  # shared config, not a secret
+                pushed.append(name)
+            except OSError as e:
+                sys.stderr.write(f"  {d.name}: {name} not pushed ({e})\n")
+                failures += 1
+        extra = (" + " + ", ".join(pushed)) if pushed else ""
+        print(f"  {d.name}: {len(roster)} MCP servers{extra}")
+    return 1 if failures else 0
+
+
+def _is_claude_process(argv: list[str]) -> bool:
+    """True iff *argv* is a Claude Code CLI process.
+
+    Keyed on argv[0]'s BASENAME, never on a substring of the whole command line. Measured on this
+    box: a `"claude" in cmdline` test matched 42 processes of which only 14 were the CLI — the rest
+    were `bash -c` wrappers, hook scripts, `uvicorn` and `node` servers that merely carry "claude"
+    in a path. A monitor built on that would warn about its own hooks forever.
+    """
+    if not argv:
+        return False
+    if os.path.basename(argv[0]) == "claude":
+        return True
+    # `node /path/to/claude` / `bun …` launcher form.
+    return (
+        len(argv) > 1
+        and os.path.basename(argv[0]) in ("node", "bun")
+        and os.path.basename(argv[1]) == "claude"
+    )
+
+
+def _has_config_dir(environ: bytes) -> bool:
+    """True iff this process's environment binds it to a fleet dir.
+
+    The value must be NON-EMPTY. ``CLAUDE_CONFIG_DIR=`` (exported empty — how a shell "unsets" it in
+    place) makes the CLI fall back to the shared ``~/.claude``, so counting the bare NAME as
+    isolated would report a shared-bound session as migrated: an UNDERCOUNT, i.e. the monitor going
+    quiet exactly when a window silently rejoined.
+    """
+    prefix = b"CLAUDE_CONFIG_DIR="
+    return any(
+        var.startswith(prefix) and var[len(prefix) :].strip() for var in environ.split(b"\0")
+    )
+
+
+def _shared_bound_sessions() -> int | None:
+    """How many LIVE claude sessions are still bound to the SHARED ``~/.claude``, or ``None`` when
+    that cannot be determined.
+
+    This is the "silent rejoin" detector. It replaces an open-handle count (``fuser``/``lsof``),
+    which measured the wrong thing: the CLI opens ``.credentials.json``, reads it and closes it, so
+    the handle count is ~always 0 — measured 0 with 46 live sessions on this box, i.e. a detector
+    that could never fire. What actually identifies the condition is a running claude whose
+    environment carries no ``CLAUDE_CONFIG_DIR``: that process IS on the shared chain.
+
+    Reads ``/proc/<pid>/environ``, which is readable for same-uid processes — exactly the ones that
+    could be sharing this user's chain. FAIL-SOFT: ``None`` when ``/proc`` is unusable or when
+    claude processes were found but none could be inspected; a false ``0`` all-clear would be worse
+    than no signal at all. Never raises — ``--status`` must survive it.
+    """
+    try:
+        entries = [p for p in PROC_DIR.iterdir() if p.name.isdigit()]
+    except OSError:
+        return None
+    matched = readable = shared = 0
+    for proc in entries:
+        try:
+            raw = (proc / "cmdline").read_bytes()
+        except OSError:
+            continue  # the process exited, or is not ours to inspect
+        argv = [a.decode("utf-8", "replace") for a in raw.split(b"\0") if a]
+        if not _is_claude_process(argv):
+            continue
+        matched += 1
+        try:
+            environ = (proc / "environ").read_bytes()
+        except OSError:
+            continue  # a foreign-uid claude cannot be sharing OUR chain, and cannot be read anyway
+        readable += 1
+        if not _has_config_dir(environ):
+            shared += 1
+    if matched and not readable:
+        return None  # found sessions, could inspect none → unknown, never a false all-clear
+    return shared
+
+
+def _shared_bound_max() -> int:
+    try:
+        return max(
+            0, int(os.environ.get("CLAUDE_FLEET_OCCUPANCY_MAX") or _SHARED_BOUND_MAX_DEFAULT)
+        )
+    except ValueError:
+        return _SHARED_BOUND_MAX_DEFAULT
+
+
+def _fleet_warnings() -> list[str]:
+    """The carrier-presence + occupancy WARNs shown by ``--status``.
+
+    The architecture's load-bearing invariant — every mapped project carries BOTH env vars — fails
+    OPEN and INVISIBLY: a project whose carrier went missing (a fresh git worktree, a hand-edit, a
+    reverted file) just quietly rejoins the shared ``~/.claude`` chain and re-creates the relogin
+    wave. A missing carrier must therefore be a NAMED alert. Never raises — it is decoration on a
+    status banner that has to print regardless.
+    """
+    warns: list[str] = []
+    try:
+        table = _load_assignments(strict=False)
+    except _STATE_DIR_ERRORS:
+        return warns
+    if not table:
+        # No fleet yet (pre-migration, or a box that never gets one): EVERY process is legitimately
+        # on the shared chain, so probing occupancy here would fire a WARN on normal operation every
+        # single run — and a monitor that cries wolf for weeks is not read on the day it is right.
+        return warns
+    for slug, row in sorted(table.items()):
+        project = row.get("project") if isinstance(row, dict) else None
+        if not project:
+            continue  # hub role dirs + headless callers carry the env on the launch line, not a file
+        carrier = _carrier_path(Path(str(project)))
+        try:
+            data = json.loads(carrier.read_text())
+        except FileNotFoundError:
+            warns.append(
+                f"⚠ {slug}: carrier MISSING — {carrier} "
+                "(that project's sessions rejoin the shared ~/.claude chain)"
+            )
+            continue
+        except (OSError, ValueError) as e:
+            warns.append(f"⚠ {slug}: carrier unreadable — {carrier} ({e})")
+            continue
+        env = data.get("env") if isinstance(data, dict) else None
+        missing = [k for k in _CARRIER_ENV_KEYS if not (isinstance(env, dict) and env.get(k))]
+        if missing:
+            warns.append(f"⚠ {slug}: carrier {carrier} lacks {', '.join(missing)}")
+    count = _shared_bound_sessions()
+    cap = _shared_bound_max()
+    if count is not None and count > cap:
+        warns.append(
+            f"⚠ occupancy: {count} live claude sessions carry no CLAUDE_CONFIG_DIR (>{cap}) — "
+            f"they share {ACTIVE_CREDS}; unmapped windows have silently rejoined the shared chain"
+        )
+    return warns
 
 
 def _rotate_state_dir() -> Path:
@@ -1832,13 +2596,19 @@ def main(argv: list[str] | None = None) -> int:
         ``python3 claude_rotate.py --capture-current`` snapshot the live creds into the active
                                                        account (keeps the store un-stale)
         ``python3 claude_rotate.py --drift-check``     capture only if the live token diverged
+
+    Fleet dirs (the login-once architecture — one config dir, one OAuth chain, one login):
+        ``--new-dir <slug> <email> [--project /opt/<repo>]``  scaffold a dir + its carrier
+        ``--sync-mcp``      re-push the MCP roster into every fleet dir
+        ``--sync-shared``   …and the settings.json copy with it
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
             " | --drift-check | --status | --tick | --touch | --pause-switch"
-            " | --resume-switch | <claude> args...]\n"
+            " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
+            " | --sync-mcp | --sync-shared | <claude> args...]\n"
         )
         return 2
     if args[0] == "--list":
@@ -1860,6 +2630,23 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_tick()
     if args[0] == "--touch":
         return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
+    if args[0] == "--new-dir":
+        rest, opts, bad = _pull_opts(args[1:], ("--project", "--from"))
+        if bad or len(rest) != 2:
+            sys.stderr.write(
+                "usage: claude_rotate.py --new-dir <slug> <account-email>"
+                " [--project /opt/<repo>] [--from <slug|path>]\n"
+            )
+            return 2
+        return _cmd_new_dir(rest[0], rest[1], opts.get("--project"), opts.get("--from"))
+    if args[0] in ("--sync-mcp", "--sync-shared"):
+        rest, opts, bad = _pull_opts(args[1:], ("--from",))
+        if bad or rest:
+            sys.stderr.write(f"usage: claude_rotate.py {args[0]} [--from <slug|path>]\n")
+            return 2
+        return _cmd_sync_shared(
+            include_settings=args[0] == "--sync-shared", source=opts.get("--from")
+        )
     if args[0] == "--pause-switch":
         # A broken state dir is exactly the situation the fail-closed messages send the operator
         # here to fix — report it, never traceback out of main().
