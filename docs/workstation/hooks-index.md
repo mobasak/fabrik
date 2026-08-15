@@ -33,7 +33,6 @@ wired in the synced `.claude/settings.json`.
 | PreToolUse | `claude-sound.sh attention` | Question-popup ring (matcher `AskUserQuestion` — that popup emits no other hook event) |
 | PreCompact | `claude-sound.sh compact-start` | Writes the `compacting` marker so the decider reads compaction as busy (transcript shows nothing mid-compact) |
 | PostCompact | `claude-sound.sh compact-end` | Clears the `compacting` marker |
-| SessionStart | `claude_rotate.py --drift-check` | Token re-capture: snapshots the LIVE credentials into the active account's store whenever they diverge, so a later rotation can never restore a superseded refresh token (the 2026-08-10 12:05 login failure). Read-only + silent when in sync; async, 10s |
 | StopFailure | `claude-sound.sh failure` | Failure pipeline + the **resume mesh**: writes the `errparked` death record (skipped for sid-less payloads; the decider CLEARS it on a busy turn-death — a live waker makes the death non-terminal), triggers HEALTH-AWARE account rotation for auth/rate classes (**default ON since 2026-08-10** — a switch requires a VERIFIED unwalled sibling and targets it by name via `--switch`, so the blind churn of 2026-08-09 cannot recur; `CLAUDE_SOUND_AUTOROTATE=0` is the wait-only escape hatch; 10-min limiter), spawns the opt-in headless reviver (`claude-autoresume.sh`, `CLAUDE_SOUND_AUTORESUME=1`; its `claude -p` child carries `NO_REVIVE` + `CLAUDE_MESH_HEADLESS` so it never forks a second writer or arms a pane watch), and on a truly-dead `/opt` ring escalates to Telegram (`mesh-notify`, 30-min suppress, every outcome logged). Pane auto-continue: **EVERY interactive session arms `claude-selfwatch.sh` via the ORIENT-ordered persistent Monitor** (operator-mandated, commit 50675991; skipped for headless runs and compact-resume — the armed Monitor survives compaction). The self-watch consumes a pre-arm marker silently and consumes on fire — one wake per death record, network-gated for all classes. Quota-health (plan 2026-08-10-plan-1): a `rate_limit` death is parsed by `claude-quota.py` into a WALL (`rateLimitType` + `resetsAt`, from the manager tap's exhausted window or the payload's `error_details`); both revival layers then wait to that CLOCK in ≤60s slices instead of a blind 90s, and the operator gets a "revival scheduled in Nm" Telegram. Fixture harness: `claude-mesh-test.sh` (135 fixtures). The decider also bridges WAKER LOSS (operator-observed: "Connection closed mid-response" stranding a pending task/subagent → permanent busy-silence): every busy-waker verdict arms a detached zero-API sleeper that re-evaluates after the staleness bound — a **provably** lost waker (dispatched, never completed; persistent Monitors are standing watches, never wakers) rings "(waker lost)" in the error voice, writes a `waker_lost` death record (armed self-watches wake the pane), and Telegrams for `/opt` sessions with the true class |
 
 ## 2b. Cron @reboot — the resume sweep (not a hook; documented here as mesh Layer 4)
@@ -53,14 +52,22 @@ marker leg — the notify leg still runs. Fixtures: mesh harness §RS (135 total
 ### 2c. Cron */5 — the quota-rotation tick (mesh sibling of §2b)
 
 `claude_rotate.py --tick` (crontab `*/5`, flock'd via `~/.claude/state/rotate.lock`; repo-side
-script `scripts/sysadmin/claude_rotate.py` + aro-wake twin). Plan 2026-08-13-plan-2: polls the
-LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD` (95) switches to the
-PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared switch flock —
-TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling at
-`ROTATE_DRAIN_THRESHOLD` (85) broadcasts the graceful-drain fabrik-mail (commit-and-push
-checkpoint + revival time; 24h stamp suppress) + one Telegram; keeps parked snapshots warm
-(expiry-keyed refresh, identity-gated filing). `--status [--json]` = the operator's live quota
-table. Ledger: `~/.claude/state/rotate-ledger.jsonl` (VM-cut-survivable).
+script `scripts/sysadmin/claude_rotate.py` + aro-wake twin). FEATURE-DETECTED, two modes. Fleet
+mode (≥1 scaffolded dir under `~/.claude-fleet/` — the login-once architecture): per-ACCOUNT
+telemetry + advisories ONLY — pinned-identity grouping, freshest-token quota with a
+cached-with-age fallback, ≥`ROTATE_DRAIN_THRESHOLD` (85) fires one advisory Telegram per
+account per 24h + drain fabrik-mail to that account's mapped repos; structurally NO account
+switch (a walled account's windows pause until reset). Legacy mode (until the fleet root is
+populated): polls the LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD` (95)
+switches to the PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared
+switch flock — TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling
+at 85 broadcasts the graceful-drain fabrik-mail (commit-and-push checkpoint + revival time;
+24h stamp suppress) + one Telegram; keeps parked snapshots warm (expiry-keyed refresh,
+identity-gated filing). `--status [--json]` = the operator's live quota table (same feature
+detection). Cron sibling: weekly `claude_rotate.py --keepalive` (Mon 06:20) pings each fleet
+dir idle >7 days in place (credential MTIME only, never bytes). Ledger:
+`~/.claude/state/rotate-ledger.jsonl` (VM-cut-survivable). Reference:
+`docs/workstation/claude-account-rotation.md`.
 
 ## 3. Cascade hooks — DORMANT
 

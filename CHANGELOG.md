@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — claude-account-rotation.md rewritten as the login-once reference + rollout runbook (T04) (2026-08-15)
+
+- `docs/workstation/claude-account-rotation.md` rewritten in place: the per-window dir model,
+  the `--new-dir` seeding contract (resumable, row-is-truth, five refusal states), the
+  two-variable carrier, the carrier-presence + occupancy monitor, fleet `--status`/tick +
+  `--keepalive`, `--sync-mcp`/`--sync-shared --from` (revert hazard), pause semantics,
+  reload-never-login + fleet-dir DR rules, the M2 hub env recipe, the M3 staged login runbook
+  (grant-eviction abort signal), and the named successor plan (M4 sweep + VPS follow-up,
+  M4+30d). Legacy shared-file rotation kept, marked "live until retirement".
+- `docs/workstation/hooks-index.md`: SessionStart `--drift-check` row removed (hook removed at
+  T01); §2c tick row rewritten for feature-detected fleet mode + the weekly `--keepalive` cron
+  sibling.
+
 ### Added — Fleet-mode telemetry: per-account `--status`/tick + `--keepalive` (T03) (2026-08-15)
 
 - Feature-detected fleet mode in `claude_rotate.py` (+ byte-identical aro-wake twin): ≥1

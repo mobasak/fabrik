@@ -32,7 +32,7 @@ window's live path would break the box.
 | T02a | Fleet-dir scaffolder + carrier monitor | T01 | ⛓️ | ✅ | 398e672d |
 | T02b | Fleet gitignore for the carrier file | — | ⚡ | ✅ | 0f7b6401 |
 | T03 | Fleet-mode status/tick + keepalive | T02a | ⛓️ | ✅ | ccfd5357 |
-| T04 | Rotation doc rewrite + operator runbook | T03 | ⛓️ | ⬜ | |
+| T04 | Rotation doc rewrite + operator runbook | T03 | ⛓️ | ✅ | b4376f2a |
 | T05 | Integration: whole-plan gate + receipt | T04 | ⛓️ | ⬜ | |
 
 ## Merge Order
