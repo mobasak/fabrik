@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a commit-msg guard that rejects Agent Provenance Trailers git cannot parse (2026-08-15)
+
+**Measured, not assumed:** 200 of the last 200 hub commits carried an `Agent-Role:` line and only
+**10** parsed. Cause: one malformed example in `CLAUDE.md` that every agent copied. That example was
+corrected fleet-wide on 2026-08-15 — and the **next 50 commits still parsed 0/50**, including one
+written by the agent that made the correction, working from a session-start snapshot of the file that
+predated its own fix.
+
+That is the finding: **documentation cannot enforce a machine-readable format.** An agent reads the
+contract once at session start and commits for hours afterwards, so any later correction is invisible
+to every session already running. `scripts/check_commit_trailers.py` (hub-local — `scripts/enforcement/`
+syncs wholesale, this deliberately does not) runs at the **commit-msg** stage, the last moment the
+message is still editable: after the commit is pushed an unparseable block is only fixable by a
+force-push, a HARD STOP. It shells out to `git interpret-trailers --parse` rather than reimplementing
+git's rules, names which of the two defects it found (blank line inside the block / prose glued to the
+top), and passes through any commit with no `Agent-Role:` at all.
+
+`.pre-commit-config.yaml` gained the hook and the `commit-msg` hook type is installed.
+`tests/test_commit_trailer_guard.py` (8 tests) covers both defect modes, the pass-through cases, and —
+because an unwired check is this repo's known inert-check class — that the hook is registered at the
+right stage AND that `.git/hooks/commit-msg` actually exists.
+
 ### Added — subagent_runs.session_id (SCOPE-B step 2) + the AUTO-0 diff guard restored after a second clobber (2026-08-15)
 
 **The ALTER is applied.** `ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS session_id text;` —
