@@ -191,7 +191,7 @@ These files/folders are **auto-synced** from `/opt/fabrik/` to all projects:
 - **Synced by:** `sync_enforcement_to_projects.py`
 - **Purpose:** Quality gate checks (docker, health, env, schema, etc.)
 
-### 5. Cascade Wrappers (`scripts/Local_*.sh`, `scripts/Kilo_Review.sh`)
+### 5. Cascade Wrappers (`scripts/Local_*.sh`, the Kilo review wrapper (retired 2026-08-15))
 - **Source:** `/opt/fabrik/scripts/`
 - **Synced by:** `sync_enforcement_to_projects.py`
 - **Purpose:** Hardware-safe local LLM agent wrappers

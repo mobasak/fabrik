@@ -31,7 +31,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -204,6 +204,143 @@ class AgentSpec:
     # set this True to acknowledge you've inlined the FULL content into `task` (the finder pattern).
     # Prefer tools_enabled=True for grounding. Like sandbox=False, treat True as a reviewable opt-out.
     allow_ungrounded: bool = False
+
+
+class FanoutBatch:
+    """What :func:`fanout` returns: still ``(results, table)``, plus the dispatch context.
+
+    **Unpacking is unchanged** — ``results, table = fanout(...)`` works exactly as before, across
+    every vendored copy, because ``__iter__`` yields the same two values in the same order.
+
+    Why not a ``NamedTuple``: its fields ARE its tuple, so a third field would break every
+    two-value unpack in the fleet. This class keeps the 2-tuple shape and carries the dispatch
+    context as attributes instead. (``isinstance(batch, tuple)`` is therefore False; nothing in
+    the module or its callers relies on that — checked before the change.)
+
+    **What the context is FOR.** ``fanout`` can hand back a result whose dispatch row was never
+    written — the ``record_agent_run`` failure is deliberately swallowed so a record failure never
+    loses results, and when ``project`` is None nothing is recorded at all. Scoring such a run
+    creates an ORPHAN: an INSERT-only ``scored`` delta with no run behind it, carrying a real model
+    name into the flywheel. Seven such rows exist in ``fabrik_analytics`` (5 with real models, 4 of
+    them zeros); two are traceable to a disclosed incident. ``.score()`` refuses them by name.
+    """
+
+    __slots__ = ("results", "table", "_recorded", "_task_type", "_project", "_models")
+
+    def __init__(
+        self,
+        results: list[AgentResult],
+        table: str,
+        *,
+        _recorded: dict[str, bool] | None = None,
+        _task_type: str = "",
+        _project: str | None = None,
+        _models: dict[str, str] | None = None,
+    ) -> None:
+        self.results = results
+        self.table = table
+        self._recorded = _recorded or {}
+        self._task_type = _task_type
+        self._project = _project
+        self._models = _models or {}
+
+    def __iter__(self) -> Iterator[Any]:
+        """Preserve ``results, table = fanout(...)`` — the whole point of not using a 3-field type."""
+        yield self.results
+        yield self.table
+
+    def __len__(self) -> int:
+        return 2
+
+    def __repr__(self) -> str:
+        n = len(self.results)
+        unrecorded = sum(1 for v in self._recorded.values() if not v)
+        return (
+            f"FanoutBatch({n} result(s), {unrecorded} unrecorded, "
+            f"task_type={self._task_type!r}, project={self._project!r})"
+        )
+
+    def score(self, result_or_agent_id: AgentResult | str, quality: float) -> bool:
+        """Back-fill a quality score, with the bucket bound from the DISPATCH, not the caller.
+
+        The caller supplies only *which* run and *how good*; model / task_type / project come from
+        what was actually dispatched, so a mistyped or stale bucket cannot misattribute the score.
+
+        Raises ``ValueError`` for an ``agent_id`` not in this batch, or for one whose dispatch row
+        was never recorded — the second is the orphan case, refused HERE because this is the last
+        point at which the cause is still known. Downstream all that survives is a scored row with
+        nothing behind it.
+        """
+        agent_id = (
+            result_or_agent_id.agent_id
+            if isinstance(result_or_agent_id, AgentResult)
+            else result_or_agent_id
+        )
+        if agent_id not in self._recorded:
+            raise ValueError(
+                f"score(): {agent_id!r} is not in this batch — scoring a foreign agent_id is how "
+                f"a bogus score reaches a real model's ranking. Batch: {sorted(self._recorded)}"
+            )
+        if not self._recorded[agent_id]:
+            raise ValueError(
+                f"score(): {agent_id!r} has NO dispatch row (record_agent_run failed, or the "
+                f"fanout ran with project=None), so scoring it would create an orphan delta. "
+                f"Re-dispatch with a project, or fix the record failure — do not score it."
+            )
+        # Refuse an empty bucket rather than forwarding one. set_quality documents project /
+        # task_type / model as REQUIRED and non-empty because an empty bucket silently
+        # misattributes the score — the failure mode this whole class exists to prevent. fanout
+        # cannot produce this state (project=None marks every run unrecorded, so the guard above
+        # already fired), but FanoutBatch is public and hand-constructible, so it is checked here
+        # rather than trusted.
+        model = self._models.get(agent_id, "")
+        project = self._project or ""
+        missing = [
+            n
+            for n, v in (
+                ("project", project),
+                ("task_type", self._task_type),
+                ("model", model),
+            )
+            if not v
+        ]
+        if missing:
+            raise ValueError(
+                f"score(): cannot score {agent_id!r} — the dispatch context is incomplete "
+                f"({', '.join(missing)} empty). An empty bucket misattributes the score."
+            )
+        from .pg_ledger import set_quality
+
+        return set_quality(
+            agent_id,
+            quality,
+            project=project,
+            task_type=self._task_type,
+            model=model,
+        )
+
+    def unscored(self) -> list[str]:
+        """This batch's recorded ``agent_id``s that carry no quality score yet.
+
+        Reads the LEDGER rather than tracking ``.score()`` calls in-process: the hub's round-close
+        currently back-fills via ``set_quality`` directly, and an in-process tracker would report
+        those correctly-scored runs as still owed. Unrecorded runs are excluded — they are not
+        "unscored", they are un-dispatched, and :meth:`score` refuses them.
+
+        Fail-open: an unreachable ledger yields ``[]`` rather than raising, matching the writer's
+        contract. A caller asserting "nothing owed" must therefore treat DB availability as part
+        of its own check, not infer it from an empty list.
+        """
+        from .pg_ledger import unscored_agent_ids
+
+        candidates = [a for a, ok in self._recorded.items() if ok]
+        if not candidates:
+            return []
+        try:
+            return unscored_agent_ids(candidates)
+        except Exception:  # noqa: BLE001 — fail-open, mirroring the writer
+            logger.warning("FanoutBatch.unscored(): ledger unreachable; returning []")
+            return []
 
 
 @dataclass
@@ -747,7 +884,7 @@ def fanout(
     record: bool = True,
     recover_caps: bool = True,
     **spec_kwargs: Any,
-) -> tuple[list[AgentResult], str]:
+) -> FanoutBatch:
     """One call for a K-way, family-diverse, parallel-safe, auto-recorded pool fan-out — the
     "utilize the whole pool" vehicle that replaces hand-rolled ``run_agents`` boilerplate (and the
     forgotten-``record_agent_run`` footgun it invites).
@@ -982,22 +1119,50 @@ def fanout(
                         0
                     ]  # recovered on a healthy provider this time
 
+    # agent_id → was its dispatch row actually written? See FanoutBatch for why this is kept.
+    recorded: dict[str, bool] = {}
     if record and project:
         for spec, r in zip(specs, results, strict=True):
             try:
-                record_agent_run(
-                    spec, r, project=project
-                )  # unscored — set_quality later
-            except Exception:  # noqa: BLE001 — a record failure NEVER loses the returned results
-                logger.warning(
-                    "fanout: record_agent_run failed for model %s", spec.model
+                # ⚠ USE the return value. `record_agent_run` is documented FAIL-OPEN —
+                # "returns False on any error and NEVER raises" — so the `except` below is
+                # dead for exactly the failure it exists to catch, and `recorded[...] = True`
+                # measured only "a never-raising function did not raise". That made
+                # `FanoutBatch.score()`'s orphan guard vacuous: a DB blip at dispatch
+                # outboxed the row, `recorded` still said True, and the guard whose whole
+                # purpose is refusing to score an orphan waved it through.
+                recorded[r.agent_id] = bool(
+                    record_agent_run(spec, r, project=project)  # unscored — set_quality later
                 )
+            except Exception:  # noqa: BLE001 — a record failure NEVER loses the returned results
+                recorded[r.agent_id] = False
+                # ⚠ Name the agent_id, not just the model. The old message said only
+                # "failed for model X", so the ONE identifier needed to trace or refuse the
+                # later score was absent from the only signal this failure produces.
+                logger.warning(
+                    "fanout: record_agent_run failed for model %s (agent_id=%s) — "
+                    "this run has NO dispatch row; scoring it would orphan the score",
+                    spec.model,
+                    r.agent_id,
+                )
+    else:
+        # Recording was never attempted: record=False, or project=None (the auto-record is
+        # gated on a project). Every result here lacks a dispatch row by construction.
+        for r in results:
+            recorded[r.agent_id] = False
 
     entries = [
         {"unit": f"{task_type}[{i}]", "model": s.model, "result": r}
         for i, (s, r) in enumerate(zip(specs, results, strict=True))
     ]
-    return results, results_table(entries)
+    return FanoutBatch(
+        results,
+        results_table(entries),
+        _recorded=recorded,
+        _task_type=task_type,
+        _project=project,
+        _models={r.agent_id: s.model for s, r in zip(specs, results, strict=True)},
+    )
 
 
 __all__ = [

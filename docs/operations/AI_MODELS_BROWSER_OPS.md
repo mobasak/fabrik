@@ -8,7 +8,7 @@ The AI Models Browser at [scripts/kilo-benchmarks/models_browser.html](../../scr
 
 ## Current scraper coverage (2026-06-30)
 
-**17 rows actively scraped daily** across 7 vendors. Use [audit_direct_vendor_freshness.py](../../scripts/kilo-benchmarks/audit_direct_vendor_freshness.py) for the live count.
+**17 rows actively scraped daily** across 7 vendors. Use `engine/audit_direct_vendor_freshness.py` (ai-model-catalog) for the live count.
 
 | Vendor | Method | DB rows scraped | Source page |
 |---|---|---|---|
@@ -32,51 +32,51 @@ For these, prefer the quarterly-audit helper below over building a parser per ve
 
 ```bash
 # Backfill provider for rows marked 'unknown' (Phase 4 deliverable)
-.venv/bin/python scripts/kilo-benchmarks/backfill_unknown_providers.py            # dry-run
-.venv/bin/python scripts/kilo-benchmarks/backfill_unknown_providers.py --apply    # write
+.venv/bin/python engine/backfill_unknown_providers.py            # dry-run
+.venv/bin/python engine/backfill_unknown_providers.py --apply    # write
 
 # Dry-run (no DB writes; shows what would happen)
-.venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py
+.venv/bin/python engine/fetch_direct_vendor_prices.py
 
 # Apply to DB
-.venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py --apply
+.venv/bin/python engine/fetch_direct_vendor_prices.py --apply
 
 # Subset of vendors
-.venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py --vendors soniox,deepgram
+.venv/bin/python engine/fetch_direct_vendor_prices.py --vendors soniox,deepgram
 
 # Diff report (CSV)
-.venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py \
+.venv/bin/python engine/fetch_direct_vendor_prices.py \
     --report cache/direct-vendor-diffs.csv
 
 # Alert-smoke (force a vendor's fetch to fail; verify alert wiring)
-.venv/bin/python scripts/kilo-benchmarks/fetch_direct_vendor_prices.py \
+.venv/bin/python engine/fetch_direct_vendor_prices.py \
     --simulate-failure soniox --max-iter 7
 
 # Quarterly audit: which direct-vendor rows have fresh scraper coverage?
 # (Helps the operator decide which rows need a manual price check against
 # the vendor's website. "seed-only" rows are operator-curated values that
 # can be months old; "stale" rows have stopped getting scraper updates.)
-.venv/bin/python scripts/kilo-benchmarks/audit_direct_vendor_freshness.py
-.venv/bin/python scripts/kilo-benchmarks/audit_direct_vendor_freshness.py --status seed-only
-.venv/bin/python scripts/kilo-benchmarks/audit_direct_vendor_freshness.py --csv audit.csv
+.venv/bin/python engine/audit_direct_vendor_freshness.py
+.venv/bin/python engine/audit_direct_vendor_freshness.py --status seed-only
+.venv/bin/python engine/audit_direct_vendor_freshness.py --csv audit.csv
 ```
 
 ## Adding a new vendor
 
-1. Add a YAML entry under [scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml](../../scripts/kilo-benchmarks/direct_vendor_pricing_registry.yaml) with `pricing_url`, `fetch_method` (`static` | `rendered` | `stealth`), and `parser_module: null` (stub).
+1. Add a YAML entry under `engine/direct_vendor_pricing_registry.yaml` (ai-model-catalog) with `pricing_url`, `fetch_method` (`static` | `rendered` | `stealth`), and `parser_module: null` (stub).
 2. Verify the URL works by running the dry-run with `--vendors <new_vendor>`; expect "no parser_module (stubbed)" in the audit log.
 3. Write the parser at `scripts/kilo-benchmarks/direct_vendor_parsers/<new_vendor>.py` following the pattern of any existing Phase 1 parser. Export `extract(payload: str, source_url: str) -> list[ParsedRow]`. **For subscription-only vendors** (no per-call API pricing published — Suno, Udio, HeyGen, ElevenLabs, LlamaIndex, DeepL fall in this bucket today), reuse the shared `direct_vendor_parsers.subscription_monitor` instead of writing a new parser: it scans for per-call patterns daily and emits an ALERT row if the vendor ever flips to per-call API pricing.
 4. Add the `parser_module`, `models`, and `slug_on_page` fields to the registry entry.
 5. Save a fixture at `tests/kilo_benchmarks/fixtures/direct_vendor_parsers/<new_vendor>.html` (curl the page once, trim to relevant chunks if >500KB).
-6. Add tests at `tests/kilo_benchmarks/test_direct_vendor_parsers.py`.
+6. Add tests at `engine/test_direct_vendor_parsers.py`.
 7. Run the full test suite + the dry-run and verify expected behavior, then commit.
 
 ### Confidence check: scripted add-vendor roundtrip
 
-The end-to-end onboarding pipeline (registry edit → orchestrator fetch → audit MD generation → cleanup) is validated by [scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh](../../scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh). Run it before shipping a new-vendor PR to confirm the workflow still works:
+The end-to-end onboarding pipeline (registry edit → orchestrator fetch → audit MD generation → cleanup) is validated by `engine/test_add_vendor_roundtrip.sh` (ai-model-catalog). Run it before shipping a new-vendor PR to confirm the workflow still works:
 
 ```bash
-time bash /opt/fabrik/scripts/kilo-benchmarks/test_add_vendor_roundtrip.sh
+time bash /opt/fabrik/engine/test_add_vendor_roundtrip.sh
 # Expected: "TEST_PASS" in stdout, <15min real time (typically <1s)
 ```
 
@@ -96,7 +96,7 @@ Each daily run reports per-vendor outcomes:
 - `missing` — row was in the registry but the parser did not return its slug.
 
 When `refused` ≥ 1 for a vendor, the Telegram alert fires with `severity='critical'`. Manual triage:
-- If the diff is real (vendor changed prices), update the seed in [scripts/kilo-benchmarks/seed_direct_vendors.py](../../scripts/kilo-benchmarks/seed_direct_vendors.py) so the next daily run can write cleanly.
+- If the diff is real (vendor changed prices), update the seed in `engine/seed_direct_vendors.py` (ai-model-catalog) so the next daily run can write cleanly.
 - If the parser is wrong, fix the parser and add a regression test.
 
 ## URL_BROKEN_ sentinel

@@ -33,7 +33,7 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 ### 2.1 Chatbot Arena (LMSys / openlm.ai)
 
 - **URL:** `https://openlm.ai/chatbot-arena/`
-- **Scraper:** [scripts/kilo-benchmarks/scrape_benchmarks.py](../../../scripts/kilo-benchmarks/scrape_benchmarks.py)
+- **Scraper:** `engine/scrape_benchmarks.py` (ai-model-catalog)
 - **What it measures:** Pairwise blind preference voting → Elo rating. Captures *general output quality* across an open-domain conversation distribution.
 - **Blind spot:** Strongly biased toward chat/instruction-following; says nothing about whether the model can run a 12-step terminal task without losing state.
 - **Refresh cadence:** Daily-ish (new votes accumulate continuously; new models added on launch).
@@ -44,7 +44,7 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 ### 2.2 Terminal Bench 2.0 (tbench.ai)
 
 - **URL:** `https://www.tbench.ai/leaderboard/terminal-bench/2.0`
-- **Scraper:** [scripts/kilo-benchmarks/scrape_benchmarks.py](../../../scripts/kilo-benchmarks/scrape_benchmarks.py)
+- **Scraper:** `engine/scrape_benchmarks.py` (ai-model-catalog)
 - **What it measures:** Success rate on 80+ terminal tasks (run commands, read files, debug, iterate) under a fixed time budget. Closest analog to what Kilo/Traycer agents actually do.
 - **Blind spot:** Doesn't measure code-editing quality directly — only end-state success.
 - **Refresh cadence:** Updated as new models are submitted; major version revisions occasionally (2.0 is current).
@@ -55,7 +55,7 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 ### 2.3 BenchLM coding leaderboard
 
 - **URL:** `https://benchlm.ai/api/data/leaderboard?category=coding&format=json`
-- **Scraper:** [scripts/kilo-benchmarks/scrape_benchlm.py](../../../scripts/kilo-benchmarks/scrape_benchlm.py)
+- **Scraper:** `engine/scrape_benchlm.py` (ai-model-catalog)
 - **What it measures:** Composite coding score across multiple sub-benchmarks (HumanEval, MBPP, code-fix tasks). Provides a *coding-specific* gradient that Terminal Bench doesn't capture.
 - **Blind spot:** Composite hides which sub-benchmark drives the score; can lag on newest models (50 entries / 85 mapped in last run).
 - **Refresh cadence:** Periodic — new models added on launch.
@@ -66,7 +66,7 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 ### 2.4 Artificial Analysis (artificialanalysis.ai)
 
 - **URL:** `https://artificialanalysis.ai/leaderboards/models`
-- **Scraper:** [scripts/kilo-benchmarks/scrape_artificial_analysis.py](../../../scripts/kilo-benchmarks/scrape_artificial_analysis.py)
+- **Scraper:** `engine/scrape_artificial_analysis.py` (ai-model-catalog)
 - **What it measures:** **Three signals**:
   1. **Throughput** (tokens/sec) — operational signal
   2. **TTFT** (time-to-first-token) — operational signal
@@ -90,7 +90,7 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 ### 2.6 SWE-bench Verified (swebench.com)
 
 - **URL:** `https://www.swebench.com/index.html` — embedded as `<script id="leaderboard-data">…</script>` JSON
-- **Scraper:** [scripts/kilo-benchmarks/scrape_coding_benchmarks.py](../../../scripts/kilo-benchmarks/scrape_coding_benchmarks.py)
+- **Scraper:** `engine/scrape_coding_benchmarks.py` (ai-model-catalog)
 - **What it measures:** % of 500 hand-verified real GitHub issues solved per model on `mini-SWE-agent v2` (the default agent). Computed locally from `per_instance_details.resolved` count / total. Strongest real-world coding signal we have.
 - **Blind spot:** Only ~40 frontier models on the leaderboard; mid-tier and older models absent. Result depends on the chosen agent — we use mini-SWE-agent v2 which is the most-populated.
 - **Refresh cadence:** Updated as model providers / community submit results, daily-ish.
@@ -101,7 +101,7 @@ These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fill
 ### 2.7 Aider Polyglot leaderboard (aider.chat)
 
 - **URL:** `https://raw.githubusercontent.com/Aider-AI/aider/main/aider/website/_data/polyglot_leaderboard.yml` (direct YAML, no scrape needed)
-- **Scraper:** [scripts/kilo-benchmarks/scrape_coding_benchmarks.py](../../../scripts/kilo-benchmarks/scrape_coding_benchmarks.py)
+- **Scraper:** `engine/scrape_coding_benchmarks.py` (ai-model-catalog)
 - **What it measures:** `pass_rate_2` = % of 225 hard exercism problems solved across 6 languages (C++, Go, Java, JavaScript, Python, Rust). Tests *multi-language* code-editing capability.
 - **Blind spot:** Aider's harness has its own quirks (edit format preferences favor certain models). Some models tested with multiple reasoning levels; we match the first valid entry per name.
 - **Refresh cadence:** YAML file updated whenever new models submit results.
@@ -265,10 +265,10 @@ This is a **real, observable gap** that meets the §1 criteria. The fix is small
 
 ## 6. How to wire a new source (after a CONFIRMED ✅ verdict)
 
-1. Add a scraper in `scripts/kilo-benchmarks/scrape_<name>.py` following the shape of [scrape_benchlm.py](../../../scripts/kilo-benchmarks/scrape_benchlm.py) (httpx + cache file + JSON output).
+1. Add a scraper in `scripts/kilo-benchmarks/scrape_<name>.py` following the shape of `engine/scrape_benchlm.py` (ai-model-catalog) (httpx + cache file + JSON output).
 2. Add a column to `kilo_agents.db.agents` for the new score.
-3. Wire the scraper into [update_kilo_benchmarks.py](../../../scripts/kilo-benchmarks/update_kilo_benchmarks.py) so it runs as part of step 5b in the daily pipeline.
-4. Add the new score column to the [role_mapper.py](../../../scripts/kilo-benchmarks/role_mapper.py) sort-key in the right priority slot.
+3. Wire the scraper into `engine/update_kilo_benchmarks.py` (ai-model-catalog) so it runs as part of step 5b in the daily pipeline.
+4. Add the new score column to the `engine/role_mapper.py` (ai-model-catalog) sort-key in the right priority slot.
 5. Move the entry from §3 to §2 here, fill in the "Lands in" + "Last verified" fields.
 6. Update [KILO_BENCHMARK_WORKFLOW.md](../../workflows/KILO_BENCHMARK_WORKFLOW.md) step 5b's table cell to mention the new source.
 7. Run the pipeline once manually; verify the column populates in the DB.

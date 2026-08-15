@@ -951,21 +951,7 @@ if __name__ == "__main__":
     main(dry_run=args.dry_run)
 
     # Auto-update docs from live DB data
-    if not args.dry_run:
-        import importlib.util
-
-        bench_dir = os.path.join(os.path.dirname(__file__), "kilo-benchmarks")
-
-        for script, func_name, label in [
-            ("generate_selection_guide_roster.py", "update_guide", "selection guide roster"),
-            ("generate_model_capabilities.py", "main", "model capabilities"),
-        ]:
-            try:
-                spec = importlib.util.spec_from_file_location(
-                    script.replace(".py", ""), os.path.join(bench_dir, script)
-                )
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
-                getattr(mod, func_name)()
-            except Exception as e:
-                print(f"[warn] Could not update {label}: {e}")
+    # D.1: the auto-update block was REMOVED here. It importlib-exec'd
+    # deleted by E.2 — and its except swallowed the ImportError into a silent [warn], so roster and
+    # capabilities regeneration would have stopped with nothing red. Phase C's deliver step owns
+    # both artifacts now.

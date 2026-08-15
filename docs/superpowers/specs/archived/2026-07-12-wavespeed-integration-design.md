@@ -26,9 +26,9 @@ Wire the WaveSpeed AI catalog (941 models across 25 types on `https://api.wavesp
    - Idempotent, safe to re-run
    - Called by `scrape_wavespeed_catalog.py` on first invocation (same as `microbench_specialty.py::run_specialty` invokes `add_perf_seconds_column`)
 
-3. **`scripts/kilo-benchmarks/derive_quality_v2.py`** (modify, ~10 LOC delta) — extend the `SERVICE_TYPES_KNOWN` set (or equivalent gate) to include `'3d_gen'` and `'moderation'` so quality-tier derivation doesn't skip WaveSpeed's 30 new-category rows.
+3. **`engine/derive_quality_v2.py`** (modify, ~10 LOC delta) — extend the `SERVICE_TYPES_KNOWN` set (or equivalent gate) to include `'3d_gen'` and `'moderation'` so quality-tier derivation doesn't skip WaveSpeed's 30 new-category rows.
 
-4. **`scripts/kilo-benchmarks/export_models_browser.py`** (modify, ~30 LOC delta) — no new columns; ensure the payload exposes `service_type` in `('3d_gen', 'moderation')` values so the browser JS can filter them. Add a `via_wavespeed` badge on the model card (matching the existing `via_siliconflow`/`via_modelscope` badge pattern in `models_browser.html`).
+4. **`engine/export_models_browser.py`** (modify, ~30 LOC delta) — no new columns; ensure the payload exposes `service_type` in `('3d_gen', 'moderation')` values so the browser JS can filter them. Add a `via_wavespeed` badge on the model card (matching the existing `via_siliconflow`/`via_modelscope` badge pattern in `models_browser.html`).
 
 5. **`docs/reference/kilo/AI_VENDOR_ACCESS.md`** (modify, ~1 LOC delta) — update the WaveSpeed row DB-provider(s) cell from `(none — no rows in DB yet)` to `wavespeed-ai, pruna-ai, pixverse, kwaivgi, sync, ...` (the actual populated sub-vendor set post-scrape).
 

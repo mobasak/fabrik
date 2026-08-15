@@ -66,7 +66,7 @@ try:
     from agent_selector import NoAgentAvailableError, select_agent
 except ImportError:
     print("Error: agent_selector.py not found in scripts/kilo-benchmarks/", file=sys.stderr)
-    print("Run: python scripts/kilo-benchmarks/role_mapper.py to set up agents", file=sys.stderr)
+    print("Run: python the ai-model-catalog engine (engine/role_mapper.py) to set up agents", file=sys.stderr)
     sys.exit(2)
 
 PROJECT_ROOT = Path.cwd()

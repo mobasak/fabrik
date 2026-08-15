@@ -969,5 +969,15 @@
     "match": [
       "WAVESPEED"
     ]
+  },
+  "exchange_client": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": [
+      "EXCHANGE_CLIENT"
+    ]
   }
 }

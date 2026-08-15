@@ -400,7 +400,7 @@ fi
   # abort a healthy nightly refresh. Exit 2 = the golden predates the observer (re-snapshot).
   if ! ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 "$VENV_PY" "$KB/tests/capture_golden.py" --verify; then
     echo "[daily_refresh] contract oracle reported DRIFT or a stale golden — see above"
-    "$VENV_PY" -c "import sys; sys.path.insert(0, '$KB'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title='daily_refresh.sh: contract oracle reported drift', body='tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot). Check the run log for the specific contract element.', severity='critical')" 2>&1 || true
+    "$VENV_PY" -c "import sys; sys.path.insert(0, '$FABRIK_ROOT/libs'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title='daily_refresh.sh: contract oracle reported drift', body='tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot). Check the run log for the specific contract element.', severity='critical')" 2>&1 || true
   fi
 
   # ── Push regenerated synced files to all projects (deploy-readiness-gaps Phase 3b) ──

@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — Phases D+E: the AI-model-catalog engine leaves fabrik (2026-08-15)
+
+- **fabrik stopped running the engine.** `daily_refresh.sh` went from **55** `_step` invocations to
+  **6** (the consumer allow-list: `gather_envs`, `classify_services`, `generate_capability_index`,
+  `generate_kilo_agents`, `sync_enforcement_to_projects`, `check_daily_refresh_freshness`), and
+  `wsl_startup_hook.sh` lost its 18 `*_SCRIPT=` engine definitions and their invocation sites. The
+  removal was **scripted, not hand-edited** — deleting invocations orphans their enclosing control
+  flow, and the first attempt produced two bash syntax errors (an empty `if` body, then an empty
+  `then` with a live `else`).
+- ⚠️ **Five hook invocations were deliberately KEPT** (`rank_task_subagents.py`,
+  `tests/capture_golden.py --verify`, `check_daily_refresh_freshness.py`, `pipeline_alert.sh`,
+  `autocommit_pipeline_outputs.sh`). They are the retention justification for the remnant, and the
+  ranker's line carries the **A.0 flywheel alert** built for the operator's *"we should not break
+  flywheel"* constraint — removing it would have silently undone A.0.
+- **~320 files deleted** from `scripts/kilo-benchmarks/` + `tests/kilo_benchmarks/`, plus the retired
+  Kilo/Cascade top-level scripts and six `.windsurf/workflows/*.md` that invoked them.
+- **`scripts/kilo-benchmarks/tests/excise_manifest.py` (new)** — the KEEP/DELETE set is now
+  **computed from the live import graph**, not enumerated in prose. Ten plan-review passes could not
+  keep a hand-written list sound: it retained `rank_task_subagents.py` while deleting
+  `build_task_baselines.py` and `derive_cost.py` which it imports, and retained
+  `check_daily_refresh_freshness.py` while deleting the `alerting/` package it needs to raise the
+  alarm — all behind `try/except`, so post-excise the ranker would have exited 0 and published a
+  **silently degraded** selection doc to 47 project copies. `--check` fails when any retained file
+  depends on a deleted one. It also caught that it had **deleted itself** on the first run (it lived
+  under `tests/` and was not a root), which would have left the residue gate unrunnable.
+- **KEPT deliberately:** `scripts/kilo_code_review.py` and `scripts/kilo_docs_enforcer.py` are live
+  fleet governance on eight surfaces with 47 project copies — not Kilo residue. An earlier gate
+  demanded they reach zero matches in the sync manifest, which would have unwired them while leaving
+  the files on disk; that gate is now scoped to the genuinely dead scripts, with an inverse gate
+  asserting the kept pair stays wired.
+- **Residue gate is manifest-aware.** The old pattern matched any `scripts/kilo-benchmarks/*.py` and
+  so could never reach empty while the remnant exists; it now flags references to **deleted** scripts
+  only. Behavior 4 verified: **0 hits**.
+- 15 rule-4 docs repointed to `engine/…` (ai-model-catalog); cross-repo and retired-script references
+  de-linked, since a markdown link cannot resolve into another repo.
+- `generate_kilo_agents.py`'s auto-update block removed — it `importlib`-exec'd two now-deleted engine
+  scripts and swallowed the ImportError into a silent `[warn]`.
+
+
 ### Changed — Fleet rotation = pointer flip: 4 account dirs, one active symlink, tick flips by quota headroom (2026-08-15)
 
 - Operator redesign (all-projects-one-active-account): the per-PROJECT dir binding shipped

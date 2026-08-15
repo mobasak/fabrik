@@ -18,6 +18,7 @@ enhanced with the agent-run record instead of the consult record.
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from collections.abc import Iterable
@@ -142,6 +143,13 @@ def agent_record(spec: object, result: object) -> dict[str, object]:
     is never serialized. The ``diff`` is truncated (see ``_MAX_DIFF_CHARS``).
     """
     record: dict[str, object] = {"ts": datetime.now(UTC).isoformat()}
+    # WHICH SESSION produced this run. Three agents share one ledger file, so without it a
+    # per-session gate can only accuse the whole file — it cannot tell whose run went unrecorded.
+    # Omitted (not null) when unknown, so a row predating this field is distinguishable from one
+    # written by a harness that provides no session. Never derived from the process: a pid-based
+    # identity changes between an agent's own commands (the repo_lock trap).
+    if (_sid := session_id()) is not None:
+        record["session_id"] = _sid
     for field in _SPEC_FIELDS:
         record[field] = getattr(spec, field, None)
     for field in _RESULT_FIELDS:
@@ -181,8 +189,38 @@ def _receipts_path(receipt_dir: str | None) -> Path:
     return base / RECEIPTS_FILENAME
 
 
+# The harness-provided per-session identity. NOT a name we own — it is a convention of the
+# environment we happen to run in, so it is read defensively and its absence is normal.
+_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
+
+
+def session_id(override: str | None = None) -> str | None:
+    """This session's identity, or ``None``.
+
+    Why an env var and never a derived value: three sessions share one ledger, so a per-session
+    "unscored runs" gate needs to tell them apart — but anything derived from the PROCESS is
+    unstable. ``repo_lock.py`` proved that here on 2026-08-13: it identified holders by
+    ``getppid()``, an agent runs each shell command in a NEW process, and the lock became
+    permanently unreleasable because the ppid at release never matched the one at acquire.
+
+    ``None`` is a normal, expected answer — a vendored copy in CI or another harness has no such
+    variable, and callers must degrade rather than fail.
+
+    (The name is infra's `CLAUDE_SESSION_ID` corrected: that variable is unset; the live one is
+    `CLAUDE_CODE_SESSION_ID`.)
+    """
+    if override:
+        return override
+    val = os.getenv(_SESSION_ENV)
+    return val or None
+
+
 def write_receipt(
-    agent_id: object, project: str | None, *, receipt_dir: str | None = None
+    agent_id: object,
+    project: str | None,
+    *,
+    receipt_dir: str | None = None,
+    session: str | None = None,
 ) -> bool:
     """Append one receipt marking a run as recorded+scored. BEST-EFFORT: returns ``False`` and never
     raises on any error (a missing receipt after a real DB write only costs a false advisory WARN,
@@ -194,6 +232,10 @@ def write_receipt(
                 "ts": datetime.now(UTC).isoformat(),
                 "recorded": True,
                 "project": project,
+                # Omitted entirely when unknown, rather than written as null: a receipt that
+                # SAYS session=null is indistinguishable from one written before this field
+                # existed, and a reconciler cannot tell "no session" from "old receipt".
+                **({"session_id": sid} if (sid := session_id(session)) else {}),
             }
         )
         return True

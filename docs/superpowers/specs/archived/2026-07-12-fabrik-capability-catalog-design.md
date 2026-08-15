@@ -117,7 +117,7 @@ orchestrator agents: `AGENTS.md` says *how to work here*, `capabilities.json` sa
    `scripts/kilo-benchmarks/daily_refresh.sh`) so the catalog never rots — it's a build artifact, re-derived,
    not a document someone maintains by hand.
 
-**Pattern to follow (in-repo precedent):** `scripts/kilo-benchmarks/generate_model_capabilities.py` +
+**Pattern to follow (in-repo precedent):** `engine/generate_model_capabilities.py` +
 `verify_openrouter_catalog.py` already do exactly "generate a catalog + verify each entry" for *models* — the
 tool catalog is the same shape applied to the repo's own tools. Reuse the structure, not a copy.
 

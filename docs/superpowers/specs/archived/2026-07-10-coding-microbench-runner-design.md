@@ -15,7 +15,7 @@ External claims re-verified live this session: EvalPlus repo alive (v0.3.1 Oct 2
 
 ## Goal
 
-Ship a local coding benchmark runner (`scripts/kilo-benchmarks/microbench_coding.py`) that, given a list of OR-routable model IDs, runs the full HumanEval suite (164 problems) + MBPP (399 problems) via EvalPlus, sandbox-executes each returned solution against the reference test cases, computes `pass@1` for HumanEval / HumanEval+ / MBPP / MBPP+, and writes back to `agents.humaneval_score` + `agents.coding_score`. Solves the "OR route exists but no external benchmark scored it" gap for any current-or-future model — starting with the 4 ByteDance-Seed targets (UI-TARS is a GUI-agent model, deferred to a separate GUI-bench follow-up plan).
+Ship a local coding benchmark runner (`engine/microbench_coding.py`) that, given a list of OR-routable model IDs, runs the full HumanEval suite (164 problems) + MBPP (399 problems) via EvalPlus, sandbox-executes each returned solution against the reference test cases, computes `pass@1` for HumanEval / HumanEval+ / MBPP / MBPP+, and writes back to `agents.humaneval_score` + `agents.coding_score`. Solves the "OR route exists but no external benchmark scored it" gap for any current-or-future model — starting with the 4 ByteDance-Seed targets (UI-TARS is a GUI-agent model, deferred to a separate GUI-bench follow-up plan).
 
 ## Success criteria
 
@@ -112,7 +112,7 @@ UI-TARS excluded — GUI-agent model, out of scope for coding-selection MD. Delt
 ### CLI
 
 ```bash
-python scripts/kilo-benchmarks/microbench_coding.py \
+python engine/microbench_coding.py \
     --models bytedance-seed/seed-1.6-flash,bytedance-seed/seed-2.0-mini,bytedance-seed/seed-1.6,bytedance-seed/seed-2.0-lite \
     --datasets humaneval,mbpp \
     --cost-cap 5 \

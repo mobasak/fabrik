@@ -143,7 +143,7 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
 
 ### Specialty-service bench providers (kilo-benchmarks)
 
-Used by [scripts/kilo-benchmarks/microbench_specialty.py](../scripts/kilo-benchmarks/microbench_specialty.py) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md).
+Used by `engine/microbench_specialty.py` (ai-model-catalog) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md).
 
 - `REPLICATE_API_TOKEN` — Replicate prediction API. Get from [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens). Unlocks Stability SD family + Stable Audio rows (~6 rows).
 - `RECRAFT_API_KEY` — Recraft direct REST. Get from [recraft.ai/profile/api](https://www.recraft.ai/profile/api). Unlocks `recraft/v3` + `recraft/nano-banana` (~2 rows; 40 credits ≈ $0.04 per image).

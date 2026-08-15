@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py scripts/kilo-benchmarks/rank_coding_subagents.py libs/subagents/select.py
+# AFTER-EDIT: rank_task_subagents.py (retained) engine/rank_coding_subagents.py (ai-model-catalog) libs/subagents/select.py
 """Per-(model, task_type) quality PRIOR, derived from benchmarks that actually measure the task.
 
 The pool's ranking is `shrunk_q = (n·avg_q + K·tier_baseline) / (n + K)` — a blend of the

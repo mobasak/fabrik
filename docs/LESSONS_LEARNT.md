@@ -400,7 +400,7 @@ trusting the package's declared `dependencies`.
 
 # Lesson 96: the gate blamed a sibling's untracked WIP on my session — a "CI-parity" check that counts untracked files isn't parity, and the fix is scope, not noqa
 
-**Context (2026-07-18):** Mid-session, the stop-hook DoD failed my turn on 2 new ruff errors (`119 → 121`). Every file I authored passed clean; the errors were in `scripts/kilo-benchmarks/microbench_review.py` — an **untracked** file a sibling agent had created **minutes earlier** and was still actively editing (it grew to 4 errors during diagnosis).
+**Context (2026-07-18):** Mid-session, the stop-hook DoD failed my turn on 2 new ruff errors (`119 → 121`). Every file I authored passed clean; the errors were in `engine/microbench_review.py` — an **untracked** file a sibling agent had created **minutes earlier** and was still actively editing (it grew to 4 errors during diagnosis).
 
 **Root cause (two layers):** (1) `check_lint_ratchet.py` ran `ruff check .` over the **working tree**, but its own claim is CI-parity — and CI's clean checkout contains only **tracked** files, so untracked sibling WIP inflated a count CI would never see. (2) `final_gate.get_changed_files()` unconditionally added **all untracked files** to "this session's change set" — misattributing sibling files, and one bare (fix-mode) run away from **auto-fixing and auto-staging a sibling's mid-write file into my commit** (the exact cross-agent data-loss the shared-tree rules exist to prevent).
 
@@ -474,7 +474,7 @@ re-run** — parse it, persist the score, spend `$0`. `_find_resumable_run` now 
 
 # Lesson 93: a resume that replays a lock file makes your cache key a *correctness* boundary, not an optimisation
 
-**Context (2026-07-14):** The Terminal-Bench runner (`scripts/kilo-benchmarks/microbench_terminal.py`) resumes an
+**Context (2026-07-14):** The Terminal-Bench runner (`engine/microbench_terminal.py`) resumes an
 interrupted benchmark with `tb runs resume`. Its docstring is explicit — *"the resume command uses the original
 configuration from the run's tb.lock file"* (`terminal_bench/cli/tb/runs.py:793-804`) — and it accepts only
 `--run-id`/`--runs-dir`. **Every other flag you pass is discarded.** The runner keyed its per-run cache dir on the
@@ -4355,7 +4355,7 @@ Any service with `traefik.enable=true` and no middleware entry is open. Every pu
 # Lesson 47: "Diff-aware" lean gate fires on out-of-scope files modified in prior sessions, blocking the current ticket
 
 **Date:** 2026-05-14
-**Context:** Running `scripts/final_gate.py --lean --json` for T1-01 returned `status: failure` on three ruff violations (N806 / B007) in files that were NOT in T1-01 scope: `scripts/generate_kilo_agents.py`, `scripts/kilo-benchmarks/post_filter.py`, `scripts/kilo-benchmarks/scrape_artificial_analysis.py`. Two had been modified in earlier sessions and left in the working tree; one was an untracked file from a prior session. The gate's diff-aware check rightly considers them "current state" and runs ruff over them. Result: T1-01's own work was clean, but the gate blocked progress on inherited lint debt.
+**Context:** Running `scripts/final_gate.py --lean --json` for T1-01 returned `status: failure` on three ruff violations (N806 / B007) in files that were NOT in T1-01 scope: `scripts/generate_kilo_agents.py`, `engine/post_filter.py`, `engine/scrape_artificial_analysis.py`. Two had been modified in earlier sessions and left in the working tree; one was an untracked file from a prior session. The gate's diff-aware check rightly considers them "current state" and runs ruff over them. Result: T1-01's own work was clean, but the gate blocked progress on inherited lint debt.
 
 **Root cause:** The current `final_gate.py` doesn't distinguish "files this ticket touched" from "files modified somewhere in the working tree". For a multi-ticket campaign on a working tree that already has cross-ticket pending changes, this means every ticket's gate inherits the lint debt of every prior session — even when those files have nothing to do with the current ticket's Scope.
 

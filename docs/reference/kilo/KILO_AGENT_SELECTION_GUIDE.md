@@ -165,19 +165,19 @@ python3 scripts/kilo_model_sync.py --sync
 ### Manual full refresh
 ```bash
 cd /opt/fabrik
-PATH=/usr/local/bin:$PATH python3 scripts/kilo-benchmarks/discover_kilo_agents.py  # Gateway models
-python3 scripts/kilo-benchmarks/update_kilo_benchmarks.py   # Scrape leaderboards
-python3 scripts/kilo-benchmarks/compute_assignments.py       # Recompute roles
+PATH=/usr/local/bin:$PATH python3 engine/discover_kilo_agents.py  # Gateway models
+python3 engine/update_kilo_benchmarks.py   # Scrape leaderboards
+python3 engine/compute_assignments.py       # Recompute roles
 python3 scripts/generate_kilo_agents.py                      # Regenerate agent scripts + update this roster
 ```
 
 The last step auto-updates the roster above via `generate_selection_guide_roster.py`. You can also run it standalone:
 ```bash
-python3 scripts/kilo-benchmarks/generate_selection_guide_roster.py
+python3 engine/generate_selection_guide_roster.py
 ```
 
 ### Manual override (pin a model to a role)
-Edit `scripts/kilo-benchmarks/assignments.json` directly. The next `compute_assignments.py` run will overwrite it — to make it permanent, also edit `role_configs.yaml` floors to ensure your preferred model qualifies.
+Edit `engine/assignments.json` directly. The next `compute_assignments.py` run will overwrite it — to make it permanent, also edit `role_configs.yaml` floors to ensure your preferred model qualifies.
 
 ### Live data queries
 ```bash
@@ -206,9 +206,9 @@ sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
 | Cost efficiency | Extreme outlier | Review |
 
 ```bash
-python scripts/kilo-benchmarks/manage_blocked.py block "agent/id" "reason"
-python scripts/kilo-benchmarks/manage_blocked.py unblock "agent/id"
-python scripts/kilo-benchmarks/manage_blocked.py list
+python engine/manage_blocked.py block "agent/id" "reason"
+python engine/manage_blocked.py unblock "agent/id"
+python engine/manage_blocked.py list
 ```
 
 ---
@@ -218,7 +218,7 @@ python scripts/kilo-benchmarks/manage_blocked.py list
 | What | Where | Freshness |
 |---|---|---|
 | All models + pricing + benchmarks | `scripts/kilo-benchmarks/kilo_agents.db` | Auto-updated daily |
-| Role definitions + floors | `scripts/kilo-benchmarks/role_configs.yaml` | Manual (stable) |
-| Current assignments | `scripts/kilo-benchmarks/assignments.json` | On pipeline run |
+| Role definitions + floors | `engine/role_configs.yaml` | Manual (stable) |
+| Current assignments | `engine/assignments.json` | On pipeline run |
 | Agent scripts on disk | `~/.traycer/cli-agents/*.sh` | On `generate_kilo_agents.py` |
 | Kilo CLI | `/usr/local/bin/kilo` (v7.3.1) | `npm update -g @kilocode/cli` |

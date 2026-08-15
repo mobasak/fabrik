@@ -121,7 +121,7 @@ touched.
 
 ### Phase B — Suggester CLI + per-task selection MDs
 
-- **`scripts/kilo-benchmarks/suggest_model.py`** (new). CLI:
+- **`engine/suggest_model.py`** (new). CLI:
   `python suggest_model.py --task {tts|stt|translation|image_gen|music_gen|llm|coding_llm}
   [--volume-chars N | --volume-minutes N | --volume-images N]
   [--quality-tier {cheap|balanced|expressive|premium}]
@@ -204,7 +204,7 @@ touched.
   - `novita/meta-llama/Llama-3.3-70B-Instruct` — provider=`novita`, service_type=`llm`, price live-probed at seed time (Open Unknown #4 below).
   - **Fine-tuning is OUT of scope for this phase.** No new `fine_tuning` service_type; Together.ai's LoRA training pricing goes only in `CANDIDATE_SIGNUPS.md` prose. YAGNI — if a real fine-tune job appears, add the row then.
 
-- **E.3 — Browser GUI: full surface for every new column + new table.** The template auto-reads `SELECT *` so new columns land in the JSON payload, but the HTML template only renders columns with explicit `<th>` entries. **Real template architecture** (verified 2026-07-06 at `scripts/kilo-benchmarks/models_browser_template.html:651-659` + JS `activeTab` variable at `:931`): tabs are `<span class="tab" data-tab="<name>">` chips in a selector strip; the single `<table>` body renders every row, and per-column visibility toggles based on `<th data-tabs="tab1 tab2 …">` matching the JS `activeTab` string. NO `<div id="tab-…">` sections exist. This phase adds:
+- **E.3 — Browser GUI: full surface for every new column + new table.** The template auto-reads `SELECT *` so new columns land in the JSON payload, but the HTML template only renders columns with explicit `<th>` entries. **Real template architecture** (verified 2026-07-06 at `engine/models_browser_template.html:651-659` + JS `activeTab` variable at `:931`): tabs are `<span class="tab" data-tab="<name>">` chips in a selector strip; the single `<table>` body renders every row, and per-column visibility toggles based on `<th data-tabs="tab1 tab2 …">` matching the JS `activeTab` string. NO `<div id="tab-…">` sections exist. This phase adds:
   1. **New sortable column `Q-Elo`** (`data-sort="quality_elo" data-tabs="image voice"`) — Arena Elo for image_gen (ArtificialAnalysis) and tts (TTS Arena V2). NULL rows render as `—`.
   2. **New non-sortable badge column `Reach`** (`data-tabs="overview reasoning coding translation transcription voice image video ocr rent-gpu candidates"`) — green ✅ when `reachable_with_existing_keys=1`, dim ❌ when `=0`, yellow ⚠️ reserved (CSS class present but no row emits it this phase). Visible in EVERY tab so at-a-glance any row's accessibility is clear.
   3. **New tab chip `<span class="tab" data-tab="rent-gpu">`** rendering `gpu_providers` rows via a **separate `<tbody id="rows-gpu">`** because `gpu_providers.gpu_sku` / `usd_per_hour` / `usd_per_second` / `cold_start_seconds` columns don't map onto `agents` schema — a shared table would break sort/filter typing. When `activeTab==="rent-gpu"` the JS hides `#rows-agents` and shows `#rows-gpu`; every other tab does the opposite. Columns in the GPU tbody: `Provider | GPU SKU | Tier | $/hr | $/sec | Cold-start (s) | Reach | Signup trigger`. Default sort: `$/hr` ascending. Shows BOTH reachable states (Vast/RunPod/Modal accessible AND Hyperbolic/Novita candidate).
@@ -302,7 +302,7 @@ Checked against `/opt/fabrik-lib/README.md` (66 modules, `ls /opt/fabrik-lib/` o
 | Alerting when a model in the accessible set has zero remaining credits **(Phase B.5)** | **VENDOR AS-IS** | `alerting/` | Same — B.5, not now. |
 | Cost budget on the ranker itself | **N/A** | — | The ranker is a read-only DB query; it spends no vendor money. |
 | GPU rental runtime (Phase E) — Vast/RunPod/Modal driver, rent→run→status→stop, cheapest-provider selection, daily-spend envelope, reaper | **VENDOR AS-IS (no code change)** | `fabrik-lib/gpu-rent/` (drivers: `runpod`, `modal_provider`, `vast_provider`) | Already vendored fleet-wide. Phase E adds a **catalog** of GPU pricing next to it (new `gpu_providers` table for the suggester to rank across), NOT a second runtime — the runtime stays in `gpu-rent/`. Coherence constraint: `gpu_providers.provider` values with `reachable_with_existing_keys=1` MUST be a subset of `gpu-rent/`'s supported providers list (`runpod`, `modal`, `vast`). Hyperbolic/Novita GPU rows stay `reachable=0` until an operator vendors a driver for them into `gpu-rent/` and upstreams it. |
-| GPU pricing scraper (Phase E) — poll Vast/RunPod/Hyperbolic/Novita public pricing pages, no auth | **VENDOR fabrik-lib/web-scrape** | `fabrik-lib/web-scrape/` | Its stated purpose is verbatim what we need: "deterministic fetch + parse you can run in a cron loop." Ships `WebScraper.fetch_static(url)` with robots.txt awareness, retries on 5xx/429, cache_dir, plus built-in parsers for Next.js `__NEXT_DATA__` and Apollo `__APOLLO_STATE__` — Modal's pricing page and RunPod's are Next.js, so the `__NEXT_DATA__` parser lifts the SKU-price JSON directly. New `scripts/kilo-benchmarks/scrape_gpu_prices.py` vendors `web-scrape/` and adds per-vendor CSS/JSON selectors. **No enhancement to the module's core**, just adapter code around it — no `UPSTREAM_FEEDBACK.md` needed. Earlier "BUILD" verdict was wrong; the review caught it. |
+| GPU pricing scraper (Phase E) — poll Vast/RunPod/Hyperbolic/Novita public pricing pages, no auth | **VENDOR fabrik-lib/web-scrape** | `fabrik-lib/web-scrape/` | Its stated purpose is verbatim what we need: "deterministic fetch + parse you can run in a cron loop." Ships `WebScraper.fetch_static(url)` with robots.txt awareness, retries on 5xx/429, cache_dir, plus built-in parsers for Next.js `__NEXT_DATA__` and Apollo `__APOLLO_STATE__` — Modal's pricing page and RunPod's are Next.js, so the `__NEXT_DATA__` parser lifts the SKU-price JSON directly. New `engine/scrape_gpu_prices.py` vendors `web-scrape/` and adds per-vendor CSS/JSON selectors. **No enhancement to the module's core**, just adapter code around it — no `UPSTREAM_FEEDBACK.md` needed. Earlier "BUILD" verdict was wrong; the review caught it. |
 | Upsell threshold logic (Phase E.6) | **BUILD (10 lines)** | — | Simple comparator inside `suggest_model.py` — no module. |
 
 Nothing to enhance in a fabrik-lib module. Nothing new is a reusable-enough capability to
@@ -384,12 +384,12 @@ a URL + fetch date; every internal fact is grounded to a real DB query or file a
 
 The system is done when all of the following pass:
 
-1. `python scripts/kilo-benchmarks/suggest_model.py --task tts --volume-chars 130000
+1. `python engine/suggest_model.py --task tts --volume-chars 130000
    --quality-tier expressive` prints ≥1 accessible-vendor row and exits 0. Manually
    verified against `AI_VENDOR_ACCESS.md` for correctness.
-2. `python scripts/kilo-benchmarks/suggest_model.py --task video_gen` (a class with
+2. `python engine/suggest_model.py --task video_gen` (a class with
    zero active accessible rows on 2026-07-05) exits 1 with the empty-pool message.
-3. `python scripts/kilo-benchmarks/suggest_model.py --task tts` (missing volume flag)
+3. `python engine/suggest_model.py --task tts` (missing volume flag)
    exits 2 with the "volume flag required" message.
 4. `grep -c 'IMAGE_GEN_SELECTION\|TTS_SELECTION\|STT_SELECTION\|TRANSLATION_SELECTION\|CODING_SUBAGENT_SELECTION' .windsurf/rules/ai/00-ai-model-selection.md` returns 5 (all five selection MDs referenced).
 5. `SELECT COUNT(*) FROM agents WHERE service_type IN ('tts','stt','translation')
@@ -406,7 +406,7 @@ The system is done when all of the following pass:
 11. `docs/reference/kilo/CANDIDATE_SIGNUPS.md` exists, header stamp is within 24h of `daily_refresh.sh` run, table has ≥1 row per candidate vendor.
 12. `grep -c '## Candidate signup vendors' .windsurf/rules/ai/00-ai-model-selection.md` returns 1.
 13. Coherence: `SELECT DISTINCT provider FROM gpu_providers WHERE reachable_with_existing_keys=1` returns exactly `{vast, runpod, modal}` (matches the driver set in `/opt/fabrik-lib/gpu-rent/gpu_rent/drivers/`).
-14. `python scripts/kilo-benchmarks/suggest_model.py --task llm --volume-chars 1000000` (bulk Llama workload) prints a `💡 Consider signup:` line naming `hyperbolic/…` because 32% cheaper than OR's best route; the same command with `--strict` suppresses that line.
+14. `python engine/suggest_model.py --task llm --volume-chars 1000000` (bulk Llama workload) prints a `💡 Consider signup:` line naming `hyperbolic/…` because 32% cheaper than OR's best route; the same command with `--strict` suppresses that line.
 15. Browser has a candidates tab chip: `grep -q '<span class="tab" data-tab="candidates"' models_browser.html`. Emitted `<tbody id="rows-candidates">` row count ≥ `SELECT COUNT(*) FROM agents WHERE reachable_with_existing_keys=0 AND status='active'` + `SELECT COUNT(*) FROM gpu_providers WHERE reachable_with_existing_keys=0`.
 16. Browser has a rent-gpu tab chip: `grep -q '<span class="tab" data-tab="rent-gpu"' models_browser.html`. Emitted `<tbody id="rows-gpu">` row count ≥ `SELECT COUNT(*) FROM gpu_providers` (both reachable states).
 17. `Q-Elo` column: `grep -q 'data-sort="quality_elo"' models_browser.html`. `Reach` badge column: `grep -q 'class="reach-badge' models_browser.html`. Reach-badge cell count ≥ `SELECT COUNT(*) FROM agents WHERE status='active'` + `SELECT COUNT(*) FROM gpu_providers` (every visible row gets a badge).

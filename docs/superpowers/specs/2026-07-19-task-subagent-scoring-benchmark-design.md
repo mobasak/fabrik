@@ -11,14 +11,14 @@ Topic: benchmark harness scoring the pool models on `docs` / `research` / `plan`
 
 Give `pick_models(task_type)` a **measured, contamination-free baseline** for the four task types that today
 have **none** — `docs`, `research`, `plan`, `spec` — parallel to the benchmarks that already cover `review`
-([microbench_review.py](../../scripts/kilo-benchmarks/microbench_review.py)) and `code`
-([microbench_coding_direct.py](../../scripts/kilo-benchmarks/microbench_coding_direct.py)).
+(`engine/microbench_review.py` (ai-model-catalog)) and `code`
+(`engine/microbench_coding_direct.py` (ai-model-catalog)).
 
 **Why it matters:** `rank_task_subagents._tier_baseline` ([rank_task_subagents.py:91-137](../../scripts/kilo-benchmarks/rank_task_subagents.py#L91))
 resolves a model's prior in precedence order: **(1) a `model_task_baseline` benchmark row for THIS (model,
 task_type)** → (2) a task-*blind* `quality_tier` column → (3) raw average. Only `ops`+`code`
 ([build_task_baselines.py:45](../../scripts/kilo-benchmarks/build_task_baselines.py#L45)) and `review`
-(written separately by [microbench_review.py:persist](../../scripts/kilo-benchmarks/microbench_review.py#L571))
+(written separately by [microbench_review.py:persist](../../engine/microbench_review.py#L571))
 have a real benchmark prior today. `docs`/`research`/`plan`/`spec` fall through to the single blind tier —
 every model looks identical for these tasks until the flywheel slowly accumulates real runs. This benchmark
 emits the missing priors.
@@ -28,7 +28,7 @@ emits the missing priors.
 COUNT(*) >= MIN_RUNS(3)` over `WINDOW_DAYS(90)` ([rank_task_subagents.py:154-164](../../scripts/kilo-benchmarks/rank_task_subagents.py#L154)).
 A benchmark baseline **alone does not surface a cold model** — it re-weights models that already have flywheel
 presence. Therefore the benchmark **must also record each dispatch to `subagent_runs`** (exactly as
-[microbench_review.record_flywheel](../../scripts/kilo-benchmarks/microbench_review.py#L607) does), so its own
+[microbench_review.record_flywheel](../../engine/microbench_review.py#L607) does), so its own
 runs satisfy the `>= 3` gate *and* the baseline supplies the prior — together surfacing the model with **zero
 ranker code change**.
 
@@ -47,9 +47,9 @@ re-ranking logic (unchanged — we only feed it data).
 
 ## Chosen approach — one harness, two grader families, judge-deferred
 
-Copy the [microbench_coding_direct.py](../../scripts/kilo-benchmarks/microbench_coding_direct.py) skeleton
+Copy the `engine/microbench_coding_direct.py` (ai-model-catalog) skeleton
 (dispatch → grade → `persist_metrics`/`persist_baseline` → batched-resume `main()` with balance-guard, per-call
-+ workload cost caps, `_measured_models()` resume) and the [microbench_review.py](../../scripts/kilo-benchmarks/microbench_review.py)
++ workload cost caps, `_measured_models()` resume) and the `engine/microbench_review.py` (ai-model-catalog)
 `ModelScore` recall/precision + grade-cut pattern (A+ ≥4.5 … F, `is_measured` ≥ MIN_MEASURED). A new
 `microbench_judged.py` (working name) parameterizes the corpus + grader per task_type; everything else is shared.
 
@@ -115,7 +115,7 @@ Each task benchmark writes, per model:
   [kilo_agents.db](../../scripts/kilo-benchmarks/build_task_baselines.py#L41) — the **shrinkage prior**,
   consumed by `rank_task_subagents._tier_baseline` **unchanged**.
 - **`record_flywheel()` → one `subagent_runs` row per dispatch** (`quality_score=score5`, `task_type` set on
-  the dispatch `AgentSpec`) — mirroring [microbench_review.py:607](../../scripts/kilo-benchmarks/microbench_review.py#L607).
+  the dispatch `AgentSpec`) — mirroring [microbench_review.py:607](../../engine/microbench_review.py#L607).
   **Load-bearing**: it clears the ranker's `HAVING COUNT(*) >= 3` gate so a cold model surfaces (the baseline
   only re-weights it).
 - `persist_metrics()` → a per-task `model_<task>_metrics` table (mirroring `model_review_metrics`/
@@ -186,8 +186,8 @@ runtime vendor, no API key, no new package beyond what the sibling benchmarks al
 | Capability | Verdict | Module / ref (verified this session) |
 |---|---|---|
 | Model dispatch (paid generation) | **VENDOR** | `libs.subagents._transport.run` (raw transport, as coding bench uses) + `pick_models(task_type)` / `methodology()` / `fanout` / `set_quality` |
-| Benchmark skeleton (dispatch→grade→persist→resume, cost caps, balance guard) | **VENDOR (copy pattern)** | [microbench_coding_direct.py](../../scripts/kilo-benchmarks/microbench_coding_direct.py) |
-| `ModelScore` recall/precision + grade cuts + `is_measured` | **VENDOR (copy pattern)** | [microbench_review.py](../../scripts/kilo-benchmarks/microbench_review.py) |
+| Benchmark skeleton (dispatch→grade→persist→resume, cost caps, balance guard) | **VENDOR (copy pattern)** | `engine/microbench_coding_direct.py` (ai-model-catalog) |
+| `ModelScore` recall/precision + grade cuts + `is_measured` | **VENDOR (copy pattern)** | `engine/microbench_review.py` (ai-model-catalog) |
 | Docs claim-check (added-symbol resolution, token extraction, codebase haystack) | **VENDOR + ENHANCE** | `reconcile_doc` / `_default_verify` / `_extract_tokens` / `_codebase_haystack` / `_added_lines` / `_quality` ([doc_reconcile.py:118-362](../../scripts/doc_reconcile.py#L118)). **Enhance:** add the *removed-symbol / required-edit recall* axis `_default_verify` lacks. Not a core fork — an added grader path; note in the script if any `doc_reconcile` core fn is touched. |
 | Baseline store + ranker consumption | **VENDOR as-is** | `model_task_baseline` in `kilo_agents.db` ([build_task_baselines.py:41-78](../../scripts/kilo-benchmarks/build_task_baselines.py#L41)); consumed by `rank_task_subagents._tier_baseline` **unchanged** |
 | Selection-doc eligibility gate + full-leaderboard + selected-shortlist display | **VENDOR (copy pattern)** | mirror `review_eligible`/`code_eligible` ([build_task_baselines.py:150,234](../../scripts/kilo-benchmarks/build_task_baselines.py#L150)), `_full_review_results_table`/`_full_coding_results_table` ([rank_task_subagents.py:440,502](../../scripts/kilo-benchmarks/rank_task_subagents.py#L440)), and `_selected_shortlists` ([:598](../../scripts/kilo-benchmarks/rank_task_subagents.py#L598)) — a `<task>_eligible()` + `_full_<task>_results_table()` + a `_selected_shortlists` extension per new task type. **This DOES modify `rank_task_subagents`** (unlike the baseline consumption above). |

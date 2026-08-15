@@ -51,6 +51,11 @@ KEEP_ROOTS = {
     "tests/capture_golden.py":          "wsl_startup_hook.sh:234 + daily_refresh.sh — the contract oracle",
     "tests/test_golden_parity.py":      "the Phase-A oracle; C.3 gate (i) invokes it post-E",
     "tests/test_parallel_run_diff.py":  "the Phase-C window harness",
+    # ⚠️ THIS FILE. It deleted ITSELF on the first excise run: it lives under tests/ and was not a
+    # root, so it landed in its own DELETE set — and the plan called it "throwaway, deleted with the
+    # engine tree". But gate (c) is manifest-aware, so without this tool the post-excise residue
+    # check cannot run at all. The thing that computes the delete set has to survive it.
+    "tests/excise_manifest.py":         "computes KEEP/DELETE; gate (c) reads it post-excise",
     "classify_ticket.py":               "scripts/kilo_auto_route.py:58 (live Traycer coding router)",
     "db_models.py":                     "scripts/kilo_auto_route.py:59-62",
     "kilo_telemetry.py":                "scripts/kilo_auto_route.py:63-67",

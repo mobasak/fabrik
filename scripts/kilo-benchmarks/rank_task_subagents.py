@@ -1357,7 +1357,7 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
 
 def _atomic_write(path: Path, content: str) -> None:
     """Write via temp file + os.replace so a mid-write crash never leaves partial file.
-    Cloned from `scripts/kilo-benchmarks/rank_coding_subagents.py:345`."""
+    Cloned from `engine/rank_coding_subagents.py (ai-model-catalog):345`."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(content, encoding="utf-8")

@@ -69,7 +69,7 @@ Then Traycer applies the **12 planning constraints**: solo dev, x86_64 only, bud
 
 Traycer's deliverable is one or more tickets. Each carries: **Scope** (which files), **Acceptance Criteria** (testable), **Final Gate Instruction** (literal command + flags), **Lessons Learnt** field (`none` or required), and **Implementation Notes**.
 
-Critically, Traycer also **injects rule-pack guidance** into the coding-agent prompt at query-construction time. It reads `project.yaml::type` → default packs (e.g., `python-api` → `PY_CORE`), adds feature overlays based on ticket scope (`API_CONTRACTS` for endpoints, `DATA_PG` for migrations, `SECURITY` for auth, `TESTING` always, `OBSERVABILITY` for health/logging, `RAG_SEARCH` for vector work, `PAYMENTS` for Paddle, `MULTI_TENANT` for RLS) and emits up to **40 lines total** (6 per pack, type defaults preserved if overlays would overflow). Agents do NOT self-select packs — that's Traycer's authority. Mechanics: [scripts/kilo_dispatch.py](../../scripts/kilo_dispatch.py) (constants `MAX_RULE_LINES = 40`, `MAX_LINES_PER_PACK = 6`).
+Critically, Traycer also **injects rule-pack guidance** into the coding-agent prompt at query-construction time. It reads `project.yaml::type` → default packs (e.g., `python-api` → `PY_CORE`), adds feature overlays based on ticket scope (`API_CONTRACTS` for endpoints, `DATA_PG` for migrations, `SECURITY` for auth, `TESTING` always, `OBSERVABILITY` for health/logging, `RAG_SEARCH` for vector work, `PAYMENTS` for Paddle, `MULTI_TENANT` for RLS) and emits up to **40 lines total** (6 per pack, type defaults preserved if overlays would overflow). Agents do NOT self-select packs — that's Traycer's authority. Mechanics: `kilo_dispatch.py` (removed 2026-08-15) (constants `MAX_RULE_LINES = 40`, `MAX_LINES_PER_PACK = 6`).
 
 ## 4. Pick a coder
 
@@ -79,7 +79,7 @@ Three coding paths, each with its own bootstrap:
 |---|---|---|
 | **Claude Code** | [CLAUDE.md](../../CLAUDE.md) (≤6,000 chars, enforced) | Reads scope-relevant packs from `.windsurf/rules/` on demand |
 | **Windsurf Cascade** | [.windsurfrules](../../.windsurfrules) | Cascade auto-loads packs via frontmatter (`activation: glob` or `model_decision`) |
-| **Kilo CLI** | [AGENTS-compact.md](../../AGENTS-compact.md) | `scripts/kilo_dispatch.py` injects the bootstrap + selectively-chosen packs into every prompt |
+| **Kilo CLI** | `AGENTS-compact.md` | the Kilo dispatcher (retired 2026-08-15) injects the bootstrap + selectively-chosen packs into every prompt |
 
 All three carry the same always-on contract: **FIRST OUTPUT line** (`RULES ACTIVE: <agent> | <3 rules applied>`), **Orient** (read `project.yaml`, `AFCL.md`, scope-relevant packs), **Behavior** (check-before-create, present-before-execute, stay-on-task, surface state conflicts), **Completion Contract** (IMPLEMENT → GATE → CHANGELOG → LESSONS LEARNT → EXIT), and a **HARD STOPS** table forbidding `git commit/push` without explicit user ask, `localhost` in connection strings, Alpine base images, raw `pip install`, Authelia SIGHUP, Gatus UUID names, `/tmp/` usage, FastAPI `except Exception` swallowing `HTTPException`, etc.
 
@@ -274,7 +274,7 @@ Every claim in this document is checkable. The grep / file commands below valida
 | 55 rule packs in `.windsurf/rules/` (recursive) | `find /opt/fabrik/.windsurf/rules -name "*.md" \| wc -l` |
 | 12 scaffold types (`SCAFFOLD_TYPES`, incl. `python-api-gpu`) | `sed -n '/^SCAFFOLD_TYPES = frozenset(/,/^)/p' /opt/fabrik/src/fabrik/scaffold.py \| grep -c '"'` |
 | Pack registry matches actual files | `awk '/^### Pack Registry/,/^### Project Type/' /opt/fabrik/AGENTS.md \| grep -c '^\| \`'` |
-| `kilo_dispatch.py` injection caps (40 / 6) | `grep -E 'MAX_RULE_LINES\|MAX_LINES_PER_PACK' /opt/fabrik/scripts/kilo_dispatch.py` |
+| `kilo_dispatch.py` injection caps (40 / 6) | `grep -E 'MAX_RULE_LINES\|MAX_LINES_PER_PACK' /opt/fabrik/the Kilo dispatcher (retired 2026-08-15) |
 | `final_gate.py` flags (`--lean`, `--systemic`, `--json`) | `grep -nE '^\s+"--(lean\|systemic\|json)"' /opt/fabrik/scripts/final_gate.py` |
 | `fabrik` CLI subcommands (scaffold / apply / redeploy / domain / new — **not** `deploy`, no such command exists) | `grep -roE 'fabrik (scaffold\|apply\|redeploy\|domain\|new)' /opt/fabrik/src/fabrik/ \| sort -u` |
 | 12 Prometheus alerts in `alerts.yml` | `grep -cE '^\s+- alert:' /opt/fabrik/configs/prometheus/rules/alerts.yml` |

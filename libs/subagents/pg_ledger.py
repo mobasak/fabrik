@@ -55,22 +55,20 @@ CREATE TABLE IF NOT EXISTS subagent_runs (
     latency_s     DOUBLE PRECISION,
     quality_score REAL,
     tool_calls    JSONB,
-    -- Added 2026-08-15 (intel, SCOPE-B step 2). NULLABLE, no default, no backfill: every
-    -- vendored copy predating it keeps inserting 11 columns and writing NULL here, which is
-    -- the honest value for "this run had no session identity". Applied to the live
-    -- fabrik_analytics table FIRST, before any writer emits it — a new writer against an old
-    -- table fails the INSERT, and record_run is fail-open, so the row would be lost silently.
     session_id    TEXT
 );
 CREATE INDEX IF NOT EXISTS subagent_runs_task_model_idx ON subagent_runs (task_type, model);
 CREATE INDEX IF NOT EXISTS subagent_runs_ts_idx ON subagent_runs (ts);
+-- Added 2026-08-15 with the session_id column. A table created from an OLDER copy of
+-- this DDL needs the column added before this module can write to it at all:
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS session_id TEXT;
 """.strip()
 
 _INSERT = (
     "INSERT INTO subagent_runs "
     "(project, agent_id, task_type, model, provider, status, cost_usd, turns, "
-    "latency_s, quality_score, tool_calls) "
-    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)"
+    "latency_s, quality_score, tool_calls, session_id) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)"
 )
 # The `_INSERT` column order — the outbox serializes a row as a name→value dict so `flush_outbox`
 # can rebuild the exact tuple regardless of dict ordering. Keep in lockstep with `_INSERT`.
@@ -109,6 +107,11 @@ _COLS = (
     "latency_s",
     "quality_score",
     "tool_calls",
+    # Added 2026-08-15 with the DB column. Safe to append ONLY because the flush gate checks
+    # _REQUIRED_OUTBOX_COLS, not _COLS — an older copy's outbox row lacks this key and must still
+    # flush. That ordering was the precondition the table's owner made explicit; adding it here
+    # first would have quarantined every pending SCORED row as poison.
+    "session_id",
 )
 
 
@@ -141,6 +144,21 @@ def _append_outbox(row: tuple[object, ...], outbox_dir: str | None) -> None:
             fh.write(json.dumps(dict(zip(_COLS, row, strict=True)), default=str) + "\n")
     except Exception:  # noqa: BLE001 — best-effort; never raise
         pass
+
+
+def _session_id() -> str | None:
+    """This session's identity for the ledger row, or ``None``.
+
+    Deferred import, like every other ``.ledger`` use here, so a broken ``ledger`` module can
+    never block a record; and fail-open, because a missing session must degrade to NULL rather
+    than lose the row. The column is nullable exactly to allow that.
+    """
+    try:
+        from .ledger import session_id  # noqa: PLC0415 — deferred by module convention
+
+        return session_id()
+    except Exception:  # noqa: BLE001 — never let identity lookup break a record
+        return None
 
 
 def _connect(dsn: str) -> Any:
@@ -210,6 +228,11 @@ def record_run(
             record.get("latency_s"),
             quality_score,
             json.dumps(record.get("tool_calls") or {}, default=str),
+            # Which session produced this run. NULL when the harness provides none (a vendored
+            # copy in CI), which the column is nullable to allow. Never derived from the process:
+            # a pid/ppid-based identity changes between an agent's own commands, which is how a
+            # repo lock here became unreleasable by its own author.
+            record.get("session_id") or _session_id(),
         )
     except Exception:  # noqa: BLE001 — fail-open: a malformed record never raises
         return False
@@ -288,12 +311,14 @@ def record_agent_run(
         # punishes them. Only when the caller passed no score: an explicit judgment always wins.
         if quality_score is None:
             _txt = getattr(result, "text", None)
-            # ⚠️ The diff guard is load-bearing and has now been lost TWICE to an upstream
-            # vendor-sync: a mode="write" coder's value IS its diff, so empty text alongside a
-            # real diff is a HEALTHY run. Without this clause those are auto-scored 0 — a false
-            # zero of exactly the kind the note above warns against — and it reds
-            # tests/test_pg_ledger_auto0.py::test_write_unit_with_diff_but_empty_text_stays_null.
-            # Upstreamed to fabrik-lib so the next sync stops clobbering it.
+            # ⚠ The diff clause is LOAD-BEARING, not a redundant None-check. A mode="write"
+            # coder's value IS its diff: it returns the work as a patch and often says nothing in
+            # `text`. Judging it on `text` alone auto-scores real work 0 — the same false zero the
+            # comment above warns against, aimed at ourselves, and it teaches the ranker to
+            # down-rank coders. Only test_write_unit_with_diff_but_empty_text_stays_null shows
+            # this; the clause is invisible to inspection, so keep the test adjacent to it.
+            # Reported upstream by intel 2026-08-15 after their copy was overwritten twice by our
+            # sync — a vendored copy cannot hold a fix against its own upstream.
             _diff = getattr(result, "diff", None)
             if (
                 str(record.get("status") or "") == "done"
@@ -391,6 +416,11 @@ def set_quality(
             None,  # latency_s
             float(quality_score),
             json.dumps({}),
+            # ⚠ _INSERT is SHARED with record_run, so this tuple's arity is load-bearing: an
+            # 11-element row against the 12-column INSERT breaks EVERY scored delta. The scored
+            # delta carries its own session — the one that did the JUDGING, which is the useful
+            # attribution here (the dispatch row already records the session that ran it).
+            _session_id(),
         )
     except Exception:  # noqa: BLE001 — fail-open: never raises
         return False
@@ -615,6 +645,12 @@ def agent_ids_present(
     try:
         conn = connect(dsn) if connect is not None else _connect(dsn)
         with conn, conn.cursor() as cur:
+            # ⚠ The two READ paths had no statement_timeout while all three WRITE paths
+            # do. `connect_timeout=5` bounds only the TCP handshake, not the query — so a
+            # server that accepts connections but blocks on a lock made this hang FOREVER
+            # inside a function documented "FAIL-OPEN … NEVER raises". A hang is not a
+            # fail-open; it is the worst failure mode, because nothing times out.
+            cur.execute("SET LOCAL statement_timeout = 5000")
             cur.execute(
                 "SELECT DISTINCT agent_id FROM subagent_runs "
                 "WHERE agent_id = ANY(%s) AND status <> 'scored'",
@@ -647,6 +683,9 @@ def unscored_agent_ids(
     try:
         conn = connect(dsn) if connect is not None else _connect(dsn)
         with conn, conn.cursor() as cur:
+            # Same reasoning as `agent_ids_present`: a read without a statement_timeout
+            # can hang forever inside a documented fail-open helper.
+            cur.execute("SET LOCAL statement_timeout = 5000")
             cur.execute(
                 "SELECT DISTINCT agent_id FROM subagent_runs "
                 "WHERE agent_id = ANY(%s) AND status = 'scored'",

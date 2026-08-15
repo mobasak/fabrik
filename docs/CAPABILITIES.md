@@ -148,59 +148,59 @@
 - [scripts/health_checker.py](INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
 - [scripts/health_summary.py](INDEX.md) (owner: infra): Scan /opt/* project directories and report health status.
 - [scripts/inject_deploy_resources.py](INDEX.md) (owner: infra): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
-- [scripts/kilo-benchmarks/add_perf_seconds_column.py](INDEX.md) (owner: intel): AFTER-EDIT: none
-- [scripts/kilo-benchmarks/add_tbench_leaderboard_table.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/scrape_tbench_task_results.py
-- [scripts/kilo-benchmarks/add_tbench_task_results_table.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/microbench_terminal.py
-- [scripts/kilo-benchmarks/audit_direct_vendor_freshness.py](INDEX.md) (owner: intel): Quarterly-audit helper: which direct-vendor rows have fresh scraper coverage?
-- [scripts/kilo-benchmarks/audit_ui_values.py](INDEX.md) (owner: intel): Systematic audit of every value shown in models_browser.html.
-- [scripts/kilo-benchmarks/backfill_unknown_providers.py](INDEX.md) (owner: intel): Phase 4 of the direct-vendor pricing plan.
-- [scripts/kilo-benchmarks/build_lcb_difficulty_manifest.py](INDEX.md) (owner: intel): AFTER-EDIT: none (one-shot cache-warmer + manifest builder; consumed by microbench_coding_direct.py --difficulty)
-- [scripts/kilo-benchmarks/build_task_baselines.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py scripts/kilo-benchmarks/rank_coding_subagents.py libs/subagents/select.py
+- [engine/add_perf_seconds_column.py](INDEX.md) (owner: intel): AFTER-EDIT: none
+- [engine/add_tbench_leaderboard_table.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/scrape_tbench_task_results.py
+- [engine/add_tbench_task_results_table.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/microbench_terminal.py
+- [engine/audit_direct_vendor_freshness.py](INDEX.md) (owner: intel): Quarterly-audit helper: which direct-vendor rows have fresh scraper coverage?
+- [engine/audit_ui_values.py](INDEX.md) (owner: intel): Systematic audit of every value shown in models_browser.html.
+- [engine/backfill_unknown_providers.py](INDEX.md) (owner: intel): Phase 4 of the direct-vendor pricing plan.
+- [engine/build_lcb_difficulty_manifest.py](INDEX.md) (owner: intel): AFTER-EDIT: none (one-shot cache-warmer + manifest builder; consumed by microbench_coding_direct.py --difficulty)
+- [scripts/kilo-benchmarks/build_task_baselines.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py engine/rank_coding_subagents.py libs/subagents/select.py
 - [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](INDEX.md) (owner: intel): Heartbeat check for daily_refresh.sh — fires an alert when stale.
-- [scripts/kilo-benchmarks/check_model_live.py](INDEX.md) (owner: intel): Live-truth oracle for a specific model ID.
-- [scripts/kilo-benchmarks/correlated_prior.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/microbench_judged.py scripts/kilo-benchmarks/build_task_baselines.py
-- [scripts/kilo-benchmarks/derive_cheapest_gateway.py](INDEX.md) (owner: intel): Derive `cheapest_gateway` and `cheapest_gateway_price` from `gateway_prices`.
-- [scripts/kilo-benchmarks/discover_hidden_openrouter_routes.py](INDEX.md) (owner: intel): Discover OpenRouter routes hidden from the public catalog endpoint.
-- [scripts/kilo-benchmarks/dispatcher_bench.py](INDEX.md) (owner: intel): AFTER-EDIT: dispatcher-bench/tasks/*.yaml (task schema), dispatcher-bench/accept/* (grader contract)
-- [scripts/kilo-benchmarks/embedding_models_db.py](INDEX.md) (owner: intel): Embedding catalog scraper + DB schema for the embedding selection pipeline.
-- [scripts/kilo-benchmarks/embedding_pre_filter.py](INDEX.md) (owner: intel): Per-role shortlist generator for the embedding pipeline.
-- [scripts/kilo-benchmarks/export_models_browser.py](INDEX.md) (owner: intel): Generate a single-file HTML browser for ALL AI models in kilo_agents.db.
-- [scripts/kilo-benchmarks/export_traycer_registry.py](INDEX.md) (owner: intel): Export the current `agent_roles` assignments as a JSON registry consumed by
-- [scripts/kilo-benchmarks/fetch_direct_vendor_prices.py](INDEX.md) (owner: intel): Daily direct-vendor pricing scraper — Phase 1 deliverable.
-- [scripts/kilo-benchmarks/fetch_fal_prices.py](INDEX.md) (owner: intel): Fetch per-model pricing from fal.ai's catalog API and merge into
-- [scripts/kilo-benchmarks/fetch_replicate_prices.py](INDEX.md) (owner: intel): Fetch per-model pricing from Replicate by scraping `billingConfig` blobs
-- [scripts/kilo-benchmarks/manage_blocked.py](INDEX.md) (owner: intel): Manage blocked agents in the Kilo agents database.
-- [scripts/kilo-benchmarks/microbench_coding.py](INDEX.md) (owner: intel): Local coding benchmark runner — EvalPlus + libs.subagents composition.
-- [scripts/kilo-benchmarks/microbench_coding_direct.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/CODING_SUBAGENT_SELECTION.md | scripts/kilo-benchmarks/build_task_baselines.py
-- [scripts/kilo-benchmarks/microbench_coding_tier_snapshot.py](INDEX.md) (owner: intel): Snapshot every agents row's derived quality_tier from derive_quality_v2.
-- [scripts/kilo-benchmarks/microbench_judged.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TASK_SUBAGENT_SELECTION.md | scripts/kilo-benchmarks/build_task_baselines.py
-- [scripts/kilo-benchmarks/microbench_or_models.py](INDEX.md) (owner: intel): Microbench every active OR-routed LLM model for output_tokens_per_sec + ttft_ms.
-- [scripts/kilo-benchmarks/microbench_review.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/build_task_baselines.py scripts/kilo-benchmarks/rank_task_subagents.py scripts/kilo-benchmarks/rank_coding_subagents.py
-- [scripts/kilo-benchmarks/microbench_specialty.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_microbench_specialty.py
-- [scripts/kilo-benchmarks/microbench_terminal.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_microbench_terminal.py docs/reference/terminal-bench-runner.md
-- [scripts/kilo-benchmarks/microbench_vision_describe.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TASK_SUBAGENT_SELECTION.md (if a winner is promoted) | none else
-- [scripts/kilo-benchmarks/migrate_aggregator_columns.py](INDEX.md) (owner: intel): Add aggregator-pricing columns to `agents` (idempotent).
-- [scripts/kilo-benchmarks/migrate_direct_vendor_pricing_columns.py](INDEX.md) (owner: intel): Add 3 columns to `agents` for the direct-vendor pricing scraper.
-- [scripts/kilo-benchmarks/migrate_selector_columns.py](INDEX.md) (owner: intel): Idempotent migration: add quality_tier + is_ga columns to `agents` and
-- [scripts/kilo-benchmarks/rank_candidate_signups.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/CANDIDATE_SIGNUPS.md
-- [scripts/kilo-benchmarks/rank_image_gen.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/IMAGE_GEN_SELECTION.md
-- [scripts/kilo-benchmarks/rank_stt.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/STT_SELECTION.md
-- [scripts/kilo-benchmarks/rank_translation.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TRANSLATION_SELECTION.md
-- [scripts/kilo-benchmarks/rank_tts.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TTS_SELECTION.md
-- [scripts/kilo-benchmarks/restore_wrongly_deprecated_direct_vendors.py](INDEX.md) (owner: intel): Restore direct-vendor rows wrongly deprecated by verify_openrouter_catalog.py.
-- [scripts/kilo-benchmarks/role_selector.py](INDEX.md) (owner: intel): Role-based agent selector.
-- [scripts/kilo-benchmarks/scrape_artificial_analysis.py](INDEX.md) (owner: intel): Scrape model throughput + TTFT from artificialanalysis.ai/leaderboards/models.
-- [scripts/kilo-benchmarks/scrape_coding_benchmarks.py](INDEX.md) (owner: intel): Scrape three public coding leaderboards and join into kilo_agents.db.
-- [scripts/kilo-benchmarks/scrape_gpu_prices.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_watchlist_and_gpu.py
-- [scripts/kilo-benchmarks/scrape_groq_speeds.py](INDEX.md) (owner: intel): Scrape Groq's LPU tokens-per-second table from https://groq.com/pricing.
-- [scripts/kilo-benchmarks/scrape_modelscope_catalog.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/AI_VENDOR_ACCESS.md scripts/kilo-benchmarks/models_browser.html
-- [scripts/kilo-benchmarks/scrape_openrouter_endpoints.py](INDEX.md) (owner: intel): Scrape OpenRouter's per-model /endpoints API.
-- [scripts/kilo-benchmarks/scrape_openrouter_rankings.py](INDEX.md) (owner: intel): Populate `weekly_rank` + `weekly_category` from OpenRouter's /rankings pages.
-- [scripts/kilo-benchmarks/scrape_tbench_task_results.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/add_tbench_leaderboard_table.py docs/reference/terminal-bench-runner.md
-- [scripts/kilo-benchmarks/seed_translation_and_stt.py](INDEX.md) (owner: intel): Seed translation + STT capability data into kilo_agents.db.
-- [scripts/kilo-benchmarks/suggest_model.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/tests/test_suggest_model.py
+- [engine/check_model_live.py](INDEX.md) (owner: intel): Live-truth oracle for a specific model ID.
+- [engine/correlated_prior.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/microbench_judged.py scripts/kilo-benchmarks/build_task_baselines.py
+- [engine/derive_cheapest_gateway.py](INDEX.md) (owner: intel): Derive `cheapest_gateway` and `cheapest_gateway_price` from `gateway_prices`.
+- [engine/discover_hidden_openrouter_routes.py](INDEX.md) (owner: intel): Discover OpenRouter routes hidden from the public catalog endpoint.
+- [engine/dispatcher_bench.py](INDEX.md) (owner: intel): AFTER-EDIT: dispatcher-bench/tasks/*.yaml (task schema), dispatcher-bench/accept/* (grader contract)
+- [engine/embedding_models_db.py](INDEX.md) (owner: intel): Embedding catalog scraper + DB schema for the embedding selection pipeline.
+- [engine/embedding_pre_filter.py](INDEX.md) (owner: intel): Per-role shortlist generator for the embedding pipeline.
+- [engine/export_models_browser.py](INDEX.md) (owner: intel): Generate a single-file HTML browser for ALL AI models in kilo_agents.db.
+- [engine/export_traycer_registry.py](INDEX.md) (owner: intel): Export the current `agent_roles` assignments as a JSON registry consumed by
+- [engine/fetch_direct_vendor_prices.py](INDEX.md) (owner: intel): Daily direct-vendor pricing scraper — Phase 1 deliverable.
+- [engine/fetch_fal_prices.py](INDEX.md) (owner: intel): Fetch per-model pricing from fal.ai's catalog API and merge into
+- [engine/fetch_replicate_prices.py](INDEX.md) (owner: intel): Fetch per-model pricing from Replicate by scraping `billingConfig` blobs
+- [engine/manage_blocked.py](INDEX.md) (owner: intel): Manage blocked agents in the Kilo agents database.
+- [engine/microbench_coding.py](INDEX.md) (owner: intel): Local coding benchmark runner — EvalPlus + libs.subagents composition.
+- [engine/microbench_coding_direct.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/CODING_SUBAGENT_SELECTION.md | scripts/kilo-benchmarks/build_task_baselines.py
+- [engine/microbench_coding_tier_snapshot.py](INDEX.md) (owner: intel): Snapshot every agents row's derived quality_tier from derive_quality_v2.
+- [engine/microbench_judged.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TASK_SUBAGENT_SELECTION.md | scripts/kilo-benchmarks/build_task_baselines.py
+- [engine/microbench_or_models.py](INDEX.md) (owner: intel): Microbench every active OR-routed LLM model for output_tokens_per_sec + ttft_ms.
+- [engine/microbench_review.py](INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/build_task_baselines.py scripts/kilo-benchmarks/rank_task_subagents.py engine/rank_coding_subagents.py
+- [engine/microbench_specialty.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/tests/test_microbench_specialty.py
+- [engine/microbench_terminal.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/tests/test_microbench_terminal.py docs/reference/terminal-bench-runner.md
+- [engine/microbench_vision_describe.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TASK_SUBAGENT_SELECTION.md (if a winner is promoted) | none else
+- [engine/migrate_aggregator_columns.py](INDEX.md) (owner: intel): Add aggregator-pricing columns to `agents` (idempotent).
+- [engine/migrate_direct_vendor_pricing_columns.py](INDEX.md) (owner: intel): Add 3 columns to `agents` for the direct-vendor pricing scraper.
+- [engine/migrate_selector_columns.py](INDEX.md) (owner: intel): Idempotent migration: add quality_tier + is_ga columns to `agents` and
+- [engine/rank_candidate_signups.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/CANDIDATE_SIGNUPS.md
+- [engine/rank_image_gen.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/IMAGE_GEN_SELECTION.md
+- [engine/rank_stt.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/STT_SELECTION.md
+- [engine/rank_translation.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TRANSLATION_SELECTION.md
+- [engine/rank_tts.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/TTS_SELECTION.md
+- [engine/restore_wrongly_deprecated_direct_vendors.py](INDEX.md) (owner: intel): Restore direct-vendor rows wrongly deprecated by verify_openrouter_catalog.py.
+- [engine/role_selector.py](INDEX.md) (owner: intel): Role-based agent selector.
+- [engine/scrape_artificial_analysis.py](INDEX.md) (owner: intel): Scrape model throughput + TTFT from artificialanalysis.ai/leaderboards/models.
+- [engine/scrape_coding_benchmarks.py](INDEX.md) (owner: intel): Scrape three public coding leaderboards and join into kilo_agents.db.
+- [engine/scrape_gpu_prices.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/tests/test_watchlist_and_gpu.py
+- [engine/scrape_groq_speeds.py](INDEX.md) (owner: intel): Scrape Groq's LPU tokens-per-second table from https://groq.com/pricing.
+- [engine/scrape_modelscope_catalog.py](INDEX.md) (owner: intel): AFTER-EDIT: docs/reference/kilo/AI_VENDOR_ACCESS.md scripts/kilo-benchmarks/models_browser.html
+- [engine/scrape_openrouter_endpoints.py](INDEX.md) (owner: intel): Scrape OpenRouter's per-model /endpoints API.
+- [engine/scrape_openrouter_rankings.py](INDEX.md) (owner: intel): Populate `weekly_rank` + `weekly_category` from OpenRouter's /rankings pages.
+- [engine/scrape_tbench_task_results.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/add_tbench_leaderboard_table.py docs/reference/terminal-bench-runner.md
+- [engine/seed_translation_and_stt.py](INDEX.md) (owner: intel): Seed translation + STT capability data into kilo_agents.db.
+- [engine/suggest_model.py](INDEX.md) (owner: intel): AFTER-EDIT: engine/tests/test_suggest_model.py
 - [scripts/kilo-benchmarks/update_gateway_counts.py](INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
-- [scripts/kilo-benchmarks/verify_openrouter_catalog.py](INDEX.md) (owner: intel): Verify every row in kilo_agents.db.agents against the live OpenRouter
+- [engine/verify_openrouter_catalog.py](INDEX.md) (owner: intel): Verify every row in kilo_agents.db.agents against the live OpenRouter
 - [scripts/kilo_terminal_runner.py](INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
 - [scripts/lint_fix_agent.py](INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
 - [scripts/mail.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md
@@ -218,7 +218,6 @@
 - [scripts/sync_prometheus_to_vps.sh](INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
-- [scripts/traycer_agent_review.py](INDEX.md) (owner: infra): Traycer Agent Auto-Review Wrapper
 - [scripts/traycer_mirror.py](INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](INDEX.md) (owner: infra): Traycer Report Writer
 - [scripts/update_agents_toc.py](INDEX.md) (owner: infra): Update AGENTS.md Table of Contents

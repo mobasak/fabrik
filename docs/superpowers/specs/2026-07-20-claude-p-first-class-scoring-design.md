@@ -61,9 +61,9 @@ cost/latency — not a derivation; deleted.)
 
 `claude-evaluator._call_cli` ([/opt/fabrik-lib/claude-evaluator/claude_evaluator/core.py:188](/opt/fabrik-lib/claude-evaluator/claude_evaluator/core.py#L188)) already shells `npx @anthropic-ai/claude-code --print --output-format text --model
 <m> --system-prompt <s>` (stdin prompt, fail-closed) and is **already vendored in-tree**
-([scripts/kilo-benchmarks/vendor/claude_evaluator/](../../scripts/kilo-benchmarks/vendor/claude_evaluator/core.py)). So VENDOR + ENHANCE, not build.
+(`engine/vendor/claude_evaluator/core.py` (ai-model-catalog)). So VENDOR + ENHANCE, not build.
 
-`scripts/kilo-benchmarks/claude_p.py` → `claude_p_call(tier, prompt, *, system, timeout) -> (text, usage)`
+`engine/claude_p.py` → `claude_p_call(tier, prompt, *, system, timeout) -> (text, usage)`
 wraps it with ONE core enhancement (→ upstream): **`--output-format text` → `json`** to capture the `usage`
 token block `_call_cli` discards — the CLI json uses the Anthropic API key names `input_tokens` /
 `output_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens` (snake_case, grounded 2026-07-20;
@@ -75,8 +75,8 @@ completion (transport parity). Aliases (grounded on-disk + `claude --help`): `cl
 Wired as a **model-namespace branch** (`model.startswith("claude-code/")`) — NOT a `run_fn` — in the two
 harnesses, each building its OWN result object from `(text, usage)` (a small adapter; review returns a
 `_DirectResult`, coding a `_Gen`):
-- **review** — beside `_direct_call` [microbench_review.py:458](../../scripts/kilo-benchmarks/microbench_review.py#L458) / `run_direct` [:514](../../scripts/kilo-benchmarks/microbench_review.py#L514); grader unchanged (`f1(recall,precision)×5`).
-- **code** — beside the `_or_run(...)` call in `generate` [microbench_coding_direct.py:243](../../scripts/kilo-benchmarks/microbench_coding_direct.py#L243); grader unchanged (LiveCodeBench `pass@1×5`, single-shot for everyone).
+- **review** — beside `_direct_call` [microbench_review.py:458](../../engine/microbench_review.py#L458) / `run_direct` [:514](../../engine/microbench_review.py#L514); grader unchanged (`f1(recall,precision)×5`).
+- **code** — beside the `_or_run(...)` call in `generate` [microbench_coding_direct.py:243](../../engine/microbench_coding_direct.py#L243); grader unchanged (LiveCodeBench `pass@1×5`, single-shot for everyone).
 
 ### 2. Subscription-run cost — THREE numbers for THREE questions (measure tokens once, calibrate three rates)
 
