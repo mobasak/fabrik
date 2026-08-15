@@ -17,6 +17,17 @@ the July block's own annotation blamed failed payments, not allowance exhaustion
 
 ### Fixed — round-28: a regression the previous round's own test masked (2026-08-15)
 
+Round-29 self-review addendum, found by fuzzing the new lower-cased key dict: it was
+last-write-wins, so a trailing valueless `agent-role:` erased a perfectly good
+`Agent-Role: primary` and the guard rejected a commit whose provenance git reports intact. git's
+`%(trailers:key=…)` returns EVERY matching trailer, so the guard now keeps all values and treats
+any non-empty one as provenance. Also: `test_install_leaves_no_temp_file_and_uses_a_unique_one`
+asserted on SOURCE TEXT — the vacuous shape this loop has caught repeatedly. A shared-temp-name
+mutant survived even the concurrency run (the write window is too small to race reliably), so the
+test now occupies the fixed temp path with a DIRECTORY: an installer still using that name fails
+outright, an `mkstemp` one is unaffected, and no race is required.
+
+
 Round 27 made the trailer-key PRESENCE gate case-insensitive and left the VERDICT lookup
 case-sensitive, so a **well-formed** `agent-role:` block — which git parses perfectly — was
 hard-rejected, with the diagnosis "the final paragraph is not all-trailers" (simply false) and a

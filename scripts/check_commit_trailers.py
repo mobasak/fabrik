@@ -58,7 +58,7 @@ def scissors_re(cc: str = "#") -> re.Pattern[str]:
     return re.compile(rf"^{re.escape(cc)}\s?-{{24}} >8 -{{24}}\s*$")
 
 
-def parsed_trailers(message: str) -> dict[str, str] | None:
+def parsed_trailers(message: str) -> dict[str, list[str]] | None:
     """Return the trailers git ITSELF parses — never a reimplementation of its rules.
 
     Shelling out to `git interpret-trailers --parse` is the point: a hand-rolled parser would
@@ -90,7 +90,11 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
         # No git on PATH. A hook that cannot consult git has no verdict it can justify, and a
         # traceback out of a hook is unactionable — return the sentinel and let main() fail open.
         return None
-    trailers: dict[str, str] = {}
+    # ⚠️ ALL values per key, not the last one. git's `%(trailers:key=Agent-Role)` returns every
+    # matching trailer, so a message carrying `Agent-Role: primary` followed by a valueless
+    # `agent-role:` still has provenance — but a last-write-wins dict saw only the empty one and
+    # rejected it. Keys are lower-cased because git matches them case-insensitively.
+    trailers: dict[str, list[str]] = {}
     for line in out.splitlines():
         if ":" in line:
             key, _, value = line.partition(":")
@@ -99,7 +103,7 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
             # case-sensitive, so a well-formed `agent-role:` block — which git parses perfectly —
             # was hard-rejected with the diagnosis "the final paragraph is not all-trailers",
             # which was simply false. Exactly the self-blocking class that commit set out to end.
-            trailers[key.strip().lower()] = value.strip()
+            trailers.setdefault(key.strip().lower(), []).append(value.strip())
     return trailers
 
 
@@ -515,7 +519,8 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 0
-    if trailers.get(REQUIRED.lower()):
+    # any() over the values: one non-empty value is provenance, exactly as git reports it.
+    if any(trailers.get(REQUIRED.lower(), [])):
         return 0
 
     print(

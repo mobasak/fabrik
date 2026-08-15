@@ -695,14 +695,55 @@ def test_install_leaves_no_temp_file_and_uses_a_unique_one(tmp_path):
     """
     repo = _scratch_repo(tmp_path)
     hook = _install_into(repo)
-    leftovers = [p.name for p in hook.parent.glob("*.tmp")]
+    leftovers = [p.name for p in hook.parent.glob("*.tmp*")]
     assert not leftovers, f"install() left temp files behind: {leftovers}"
-    assert 'hook.with_suffix(".tmp")' not in GUARD.read_text(), (
-        "install() is using a single shared temp filename again — two concurrent shells can "
-        "interleave on it and publish a truncated hook"
-    )
-    assert "mkstemp" in GUARD.read_text()
     assert os.access(hook, os.X_OK), "the installed hook must be executable"
+
+    # ⚠️ BEHAVIOURAL, not a grep of the source. This loop has repeatedly caught itself asserting
+    # that some string appears in a file and calling that a test. Run many installers at once
+    # and require every observation of the hook to be a complete, runnable script: with a shared
+    # temp name, a reader can catch a truncated or zero-length publish, and an empty sh script
+    # exits 0 — the guard silently off.
+    import concurrent.futures
+
+    def install_once(_):
+        return subprocess.run(
+            [sys.executable, str(GUARD), "--install", "--force"],
+            cwd=repo, capture_output=True, text=True, check=False,
+        ).returncode
+
+    def observe(_):
+        text = hook.read_text(errors="replace")
+        return bool(text) and "check_commit_trailers" in text and text.startswith("#!")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        installs = list(pool.map(install_once, range(12)))
+        observations = list(pool.map(observe, range(60)))
+
+    assert all(rc == 0 for rc in installs), f"a concurrent install failed: {installs}"
+    assert all(observations), (
+        "a reader observed a truncated or empty commit-msg hook while installers were racing — "
+        "an empty sh script exits 0, i.e. the guard silently off"
+    )
+    assert not list(hook.parent.glob("*.tmp*")), "temp files survived the concurrent run"
+
+    # ⚠️ DETERMINISTIC probe for the fixed-name regression. The concurrency run above is
+    # best-effort — the write window is tiny and a mutant using one shared `commit-msg.tmp`
+    # survived it. Occupying that exact path with a DIRECTORY cannot be opened for writing, so
+    # an installer that still uses the fixed name fails outright while an mkstemp-based one is
+    # unaffected. No race required.
+    (hook.parent / "commit-msg.tmp").mkdir()
+    try:
+        blocked = subprocess.run(
+            [sys.executable, str(GUARD), "--install", "--force"],
+            cwd=repo, capture_output=True, text=True, check=False,
+        )
+    finally:
+        (hook.parent / "commit-msg.tmp").rmdir()
+    assert blocked.returncode == 0, (
+        "install() is still writing through a single shared `commit-msg.tmp` — two concurrent "
+        f"shells can interleave on it and publish a truncated hook:\n{blocked.stderr}"
+    )
 
 
 def test_a_non_default_comment_char_does_not_reopen_the_verbose_diff_hijack(tmp_path):
@@ -736,3 +777,23 @@ def test_a_non_default_comment_char_does_not_reopen_the_verbose_diff_hijack(tmp_
     assert result.returncode == 0, (
         f"a verbose-diff commit was hijacked under a non-default comment char:\n{result.stderr}"
     )
+
+
+def test_a_valueless_duplicate_key_does_not_erase_real_provenance(tmp_path):
+    """git's `%(trailers:key=…)` returns EVERY matching trailer, not the last one.
+
+    A last-write-wins dict let a trailing valueless `agent-role:` overwrite a perfectly good
+    `Agent-Role: primary`, so the guard rejected a commit whose provenance git reports intact.
+    """
+    message = (
+        "fix: x\n\nAgent-Role: primary\nagent-role:\nCo-Authored-By: Y <y@z>\n"
+    )
+    assert _git_verdict(message, tmp_path) is True, "precondition: git parses this"
+    assert run(message, tmp_path).returncode == 0
+
+
+def test_a_key_with_only_empty_values_is_still_rejected(tmp_path):
+    """The mirror: no non-empty value anywhere means no provenance, whatever the key count."""
+    message = "fix: x\n\nAgent-Role:\nagent-role:\nCo-Authored-By: Y <y@z>\n"
+    assert _git_verdict(message, tmp_path) is False
+    assert run(message, tmp_path).returncode == REJECT_CODE
