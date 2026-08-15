@@ -339,6 +339,40 @@ for e in ENTRY:                            # any '<name>.json'/'.yaml'/'.txt' li
 ```
 **Expected (post-fix):** every printed `RULE-6 DEP` is in the rule-6 carve-out (today: `classify_ticket.py`, `db_models.py`, `kilo_telemetry.py` from `kilo_auto_route.py` — verified self-contained, stdlib-only imports + the retained `kilo_agents.db` at `db_models.py:20`), and every printed **`RULE-7 DATA DEP`** has been relocated per rule 7 (today: `claude_p_cost.json`, `claude_price_ratios.json` → `cp` to `scripts/`, in the Files CREATE list). **Any `RULE-6 DEP` not carved out, or any `RULE-7 DATA DEP` not relocated, = an unhandled orphan → fix it before E.2.** Also shell-side: `grep -nE '\$KB/|kilo-benchmarks/' scripts/kilo-benchmarks/daily_refresh.sh scripts/wsl_startup_hook.sh scripts/coding-auto.sh` → every hit must resolve to a retained-remnant file. Classify every node from (a)+(b) by the 6 rules; every rule-6 dep (like `classify_ticket`/`db_models`/`kilo_telemetry`) is carved out (KEEP), every rule-3 is deleted, every rule-4 doc updated. **Post-classification gate (behavior 4):** after E.2, `grep -rlE "scripts/kilo-benchmarks/[a-z_0-9]+\.py" /opt/fabrik --include=*.py --include=*.sh --include=*.md | grep -vE "/\.git/|docs/archive/|docs/superpowers/specs/|scripts/\.archive/|CHANGELOG\.md|LESSONS_LEARNT\.md|docs/development/|tests/integration/test_routing_failover\.sh"` → **Expected: empty** (`tests/integration/test_routing_failover.sh:49`'s `__does_not_exist__.py` is an INTENTIONAL fail-open sentinel — excluded, never "fixed", finding-3); AND a positive check that the rule-6 deps resolve: `python scripts/kilo_auto_route.py --help` (or a dry classify) → **Expected:** imports `classify_ticket`/`db_models`/`kilo_telemetry` cleanly (they were carved out). Any unexpected hit = an unhandled node → resolve before claiming behavior 4. **⚠️ The gate is a backstop, not the guarantee — bare-filename doc refs (`wsl-environment.md:80`) escape the prefix pattern; the import-graph audit (b) + the rule-4 doc sweep are what actually close behavior 4.**
 **Retained-consumer runtime gate (F1 + #9 — the `--dry-run` probe is NOT enough; the break is on the non-dry-run path):** prove `generate_kilo_agents` runs post-delete on its REAL path: (i) `test -f scripts/kilo-benchmarks/kilo_agents.db` (delivered DB present); (ii) `grep -c "generate_selection_guide_roster.py\|generate_model_capabilities.py" scripts/generate_kilo_agents.py` → **Expected: 0** (Phase-D strip removed the deleted-script `importlib` block); (iii) a **non-dry-run** smoke (`python scripts/generate_kilo_agents.py --out /tmp/gka-smoke` or equiv) → **Expected:** emits the Traycer scripts, no `[warn] Could not update` line. **Heartbeat gate (#F3-Pass6):** `python -c "import sys; sys.path.insert(0,'libs'); from alerting import send_alert"` → **Expected:** imports (the retained `daily_refresh.sh` heartbeat now resolves `alerting` from `libs/`, not the deleted vendored copy). If any fails, fix before E.2.
+⚠️⚠️ **E.2 BLOCKERS — THREE CRITICAL findings, each verified against the live tree 2026-08-15 by an
+independent grounder and re-verified by the orchestrator. E.2 MUST NOT RUN until all three are
+scheduled, because none of them fails a test — each deletes something a live caller still needs.**
+
+**C1 — three LIVE test imports sit OUTSIDE every delete set.** `tests/test_kilo_dispatch.py:14`
+(`import kilo_dispatch`), `tests/test_kilo_review_validation.py:11,649,695,733` and
+`tests/test_kilo_strictness_scenarios.py:19` (`from scripts.kilo_code_review import …`). They live at
+`tests/test_kilo_*.py`, NOT under `tests/kilo_benchmarks/**` which is all E.2 deletes, and
+`pyproject.toml:94 testpaths=["tests"]` collects them. Deleting the targets reds `final_gate` at E.3.
+Either co-delete these tests or keep the modules — decide it HERE, not mid-excise.
+
+**C2 — `wsl_startup_hook.sh` invokes 20 distinct engine scripts and Phase E schedules no MODIFY for
+it.** Phase E's File Scope lists the file but no phase-E ACTION touches it, while E.1's own shell gate
+asserts every hit resolves to a retained remnant — a gate this phase cannot pass as written. If Phase
+D shrinks the hook, Phase E must SAY so; today neither phase owns it and the boot pipeline breaks.
+
+**C3 — the contract oracle is invoked by RETAINED scripts but is not itself retained.**
+`tests/capture_golden.py --verify` runs from `wsl_startup_hook.sh:234` AND `daily_refresh.sh:505`,
+both retained. It is the BLOCKING gate in front of a fleet-sync: the hook's own alert text says *"The
+auto-commit below fleet-syncs `.windsurf/rules/**`, so treat this as blocking."* E.2 deletes the
+engine `tests/` tree, which orphans the retained `tests/golden/**` data and silently removes the only
+thing standing between a husked artifact and ~46 repos. Add `capture_golden.py` to the retained
+remnant explicitly.
+
+**HIGH — `src/fabrik/scaffold.py:1017-1018` copies `kilo_code_review.py`/`kilo_docs_enforcer.py` into
+every newly scaffolded project** (`core_scripts`), guarded by `.exists()` — so deleting them is a
+SILENT scaffold regression, and the file appears in no plan list. **HIGH — E.1's residue gates pattern
+only on `kilo-benchmarks/…` and engine module names, so they never see the top-level dead-script
+basenames**: 22 `scripts/traycer_agents_fixed/*.sh:171` invoke `traycer_agent_review.py`, and five
+fleet-synced `.windsurf/workflows/*.md` invoke `kilo_dispatch.py`/`Kilo_Review.sh`/`Local_*.sh`.
+**PLAN ERROR — `process.py`/`process_v2.py` are NOT top-level**; `ls scripts/process*.py` fails. They
+exist only under `scripts/kilo-benchmarks/`, i.e. inside deletion (i); the Files DELETE list's "N3
+verified, top-level" claim is the wrong half, and E.2(ii)'s own `git rm` already omits them.
+
 **E.2 — Excise (TWO separate deletions — different directories, N3).** (i) `git rm -r scripts/kilo-benchmarks/<engine files>` (keeping the rule-1/2/6/7 remnant); (ii) `git rm scripts/{kilo_docs_enforcer.py,kilo_code_review.py,kilo_code_review_bckp.py,kilo_dispatch.py,kilo_consult.py,kilo_cost_report.py,kilo_agent_health.sh,fix_traycer_agents.py,traycer_agent_review.py,mcp_kilo_server.py,run_kilo_workflow.sh} scripts/Local_*.sh scripts/Kilo_Review.sh` — **top-level paths**, which (i)'s recursive delete never touches. Then purge the sync-manifest/watch patterns. Gates: (a) reference purge — `grep -rc "kilo_code_review\|kilo_docs_enforcer" scripts/fabrik_synced_manifest.py .pre-commit-config.yaml` → **Expected: 0**; (b) **positive-deletion proof (the (a) gate only proves the manifest stopped naming them, never that the files are gone)** — `ls scripts/kilo_docs_enforcer.py scripts/kilo_code_review.py scripts/kilo_cost_report.py scripts/mcp_kilo_server.py 2>&1 | grep -c 'No such file'` → **Expected: 4**.
 **E.3 — Full gate + subagent-pool smoke (behavior 4).** `python scripts/final_gate.py --json` → `"success"` (baseline-attributed); run a real `/fabrik-review` finder round end-to-end to prove fabrik's brain still works headless.
 **E.4 — ⛔ RETIRED (D5, 2026-08-12): deploy + network flywheel DSN are OUT OF SCOPE.** The probe this step planned has already been RUN (spec §4): `fabrik_analytics` sits on the WSL workstation's local socket, `listen_addresses=localhost`, **not** on `postgres-main`, and that box is not on the WireGuard mesh — so *provision a network-reachable read-only DSN* had no target. Retained verbatim below as the hand-off brief for the separate VPS-deployment spec:
