@@ -365,8 +365,9 @@ def _activate_snapshot(
             # --next/aro-wake rotation invisible to the ledger let the tick re-rotate
             # minutes later, defeating the hysteresis the plan promises
             try:
-                _ledger_append({"event": "switch", "ts": _now(), "to": target.name,
-                                "via": "activate"})
+                _ledger_append(
+                    {"event": "switch", "ts": _now(), "to": target.name, "via": "activate"}
+                )
             except Exception:  # noqa: BLE001 — audit only, never a switch-blocker
                 pass
         except OSError:
@@ -793,7 +794,10 @@ def _cred_generation_of(path: Path) -> int:
 
 
 def _cmd_capture_current(into: Path | None = None) -> int:
-    """Snapshot the LIVE credentials into the ACTIVE account's dir (plan 2026-08-10-plan-1).
+    """Snapshot the LIVE credentials into the ACTIVE account's dir (plan 2026-08-10-plan-1) —
+    or into an EXPLICIT, identity-verified ``into`` store (the drift-check's retarget path:
+    the gate has already asked the API whose token this is, and its verdict outranks the
+    marker-resolved active account).
 
     Why: a stored snapshot drifts off the live token every time Claude refreshes it. A restore
     of a stale snapshot installs a superseded refresh token, which the server rejects — the
@@ -897,6 +901,7 @@ def _iso_to_epoch(s: object) -> float | None:
         return None
     try:
         from datetime import datetime
+
         return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
@@ -907,10 +912,11 @@ def _oauth_get(path: str, token: str, timeout_s: float = 15.0) -> dict | None:
     miss must never crash a tick. Never emits token bytes."""
     try:
         import urllib.request
+
         req = urllib.request.Request(
             f"https://api.anthropic.com/api/oauth/{path}",
-            headers={"Authorization": f"Bearer {token}",
-                     "anthropic-beta": "oauth-2025-04-20"})
+            headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
+        )
         with urllib.request.urlopen(req, timeout=timeout_s) as r:
             return json.load(r)
     except Exception:
@@ -920,8 +926,15 @@ def _oauth_get(path: str, token: str, timeout_s: float = 15.0) -> dict | None:
 def _account_status(store: Path) -> dict:
     """One telemetry row for a snapshot dir: identity + both quota windows. valid=False when
     the stored token no longer answers (dead snapshot → relogin needed)."""
-    row: dict = {"name": store.name, "store": str(store), "valid": False, "email": None,
-                 "five_hour": None, "seven_day": None, "refresh_expires_at_epoch": None}
+    row: dict = {
+        "name": store.name,
+        "store": str(store),
+        "valid": False,
+        "email": None,
+        "five_hour": None,
+        "seven_day": None,
+        "refresh_expires_at_epoch": None,
+    }
     tok = _read_access_token(store / ".credentials.json")
     if tok is None:
         return row
@@ -957,8 +970,7 @@ def _account_status(store: Path) -> dict:
             windows_ok = False
             row[key] = None
             continue
-        row[key] = {"utilization": float(u),
-                    "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
+        row[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
     row["valid"] = row["email"] is not None and windows_ok
     return row
 
@@ -993,21 +1005,26 @@ def _cmd_status(as_json: bool) -> int:
     if as_json:
         print(json.dumps(pay, indent=1))
         return 0
+    if _switch_paused():
+        print("⏸ auto-switch PAUSED (--resume-switch to re-enable)")
     from datetime import datetime
+
     def fmt(w):
         if not w:
             return "-"
         rs = w.get("resets_at_epoch")
         rs_s = datetime.fromtimestamp(rs).strftime("%a %H:%M") if rs else "?"
         return f"{w['utilization']:.0f}% (resets {rs_s})"
+
     for r in pay["accounts"]:
         mark = "*" if r["name"] == pay["live"] else " "
         if r.get("telemetry") == "unknown-parked":
-            print(f"{mark} {r['name']:32} parked — quota unknown until used"
-                  f" (refresh token valid)")
+            print(f"{mark} {r['name']:32} parked — quota unknown until used (refresh token valid)")
         elif r["valid"]:
-            print(f"{mark} {r['email'] or r['name']:32} session {fmt(r['five_hour']):24}"
-                  f" weekly {fmt(r['seven_day'])}")
+            print(
+                f"{mark} {r['email'] or r['name']:32} session {fmt(r['five_hour']):24}"
+                f" weekly {fmt(r['seven_day'])}"
+            )
         else:
             print(f"{mark} {r['name']:32} INVALID (relogin needed)")
     return 0
@@ -1029,15 +1046,20 @@ def _pick_successor(candidates: list[dict], current_name: str | None, now: float
     """PERISHABLE-FIRST (operator-settled): among valid, un-walled, non-current rows, the
     soonest weekly reset wins (quota about to refresh is the cheapest to burn); ties break to
     lower weekly then lower session utilization."""
-    eligible = [r for r in candidates
-                if r.get("valid") and not _walled(r) and r["name"] != current_name]
+    eligible = [
+        r for r in candidates if r.get("valid") and not _walled(r) and r["name"] != current_name
+    ]
     if not eligible:
         return None
     far = now + 365 * 86400
-    eligible.sort(key=lambda r: (1 if r.get("telemetry") == "unknown-parked" else 0,
-                                 (r.get("seven_day") or {}).get("resets_at_epoch") or far,
-                                 (r.get("seven_day") or {}).get("utilization", 100.0),
-                                 (r.get("five_hour") or {}).get("utilization", 100.0)))
+    eligible.sort(
+        key=lambda r: (
+            1 if r.get("telemetry") == "unknown-parked" else 0,
+            (r.get("seven_day") or {}).get("resets_at_epoch") or far,
+            (r.get("seven_day") or {}).get("utilization", 100.0),
+            (r.get("five_hour") or {}).get("utilization", 100.0),
+        )
+    )
     return eligible[0]["name"]
 
 
@@ -1045,6 +1067,15 @@ def _rotate_state_dir() -> Path:
     d = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
     return d
+
+
+def _switch_paused() -> bool:
+    """Operator pause marker (``--pause-switch``): while present the tick NEVER installs a
+    pair. Set it when the successor pool is unverified or known-dead (2026-08-15: after a
+    chain loss, an auto-switch would have installed a consumed pair box-wide — killing every
+    session at once). The tick keeps ticking: telemetry, keep-warm and the DRAIN warning all
+    stay armed; only the install is withheld."""
+    return (_rotate_state_dir() / "switch-paused").is_file()
 
 
 def _ledger_append(event: dict) -> None:
@@ -1095,10 +1126,25 @@ def _drain_mail(repos: list[str], msg: str) -> None:
         try:
             # fire-and-forget (closer #8): ~49 serial 30s-timeout sends could hold the tick
             # flock for ~25 min at exactly the draining moment; Popen detaches each send
-            proc = subprocess.Popen([sys.executable, str(mail), "send", "--to", repo,
-                                     "--from", "fabrik", "--kind", "finding", "--ack", "no"],
-                                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL, text=True)
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(mail),
+                    "send",
+                    "--to",
+                    repo,
+                    "--from",
+                    "fabrik",
+                    "--kind",
+                    "finding",
+                    "--ack",
+                    "no",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
             if proc.stdin is not None:
                 proc.stdin.write(msg)
                 proc.stdin.close()
@@ -1111,9 +1157,12 @@ def _tick_telegram(msg: str) -> None:
     if not sound.is_file():
         return
     try:
-        subprocess.run(["bash", str(sound), "mesh-notify", "quota-rotation",
-                        "/opt/fabrik", msg], stdin=subprocess.DEVNULL,
-                       capture_output=True, timeout=30)
+        subprocess.run(
+            ["bash", str(sound), "mesh-notify", "quota-rotation", "/opt/fabrik", msg],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=30,
+        )
     except (OSError, subprocess.SubprocessError):
         pass
 
@@ -1125,8 +1174,10 @@ def _tick_switch(name: str) -> bool:
     otherwise replay). Closer #7: the under-lock selector re-validates FITNESS (fresh
     telemetry: valid + un-walled), not just the path — 'TOCTOU-free' must cover the pick."""
     if _cmd_capture_current() != 0:
-        sys.stderr.write("claude_rotate: tick pre-switch capture failed — switch aborted"
-                         " (a stale outgoing snapshot must not be left behind)\n")
+        sys.stderr.write(
+            "claude_rotate: tick pre-switch capture failed — switch aborted"
+            " (a stale outgoing snapshot must not be left behind)\n"
+        )
         return False
 
     def _selector() -> Path | None:
@@ -1138,11 +1189,13 @@ def _tick_switch(name: str) -> bool:
             sys.stderr.write(f"claude_rotate: {name} no longer fit at install time — abort\n")
             return None
         return hit
+
     return _activate_snapshot(selector=_selector) is not None
 
 
-def _file_refreshed_credentials(store: Path, payload: dict, verified_email: str | None,
-                                provenance: bool = False) -> bool:
+def _file_refreshed_credentials(
+    store: Path, payload: dict, verified_email: str | None, provenance: bool = False
+) -> bool:
     """Atomically install a refreshed credential pair into ITS OWN store — identity-gated
     (the 2026-08-13 mis-filing class must be impossible here): the verified email's local
     part must match the store's name prefix, OR ``provenance=True`` (the pair came from this
@@ -1152,8 +1205,10 @@ def _file_refreshed_credentials(store: Path, payload: dict, verified_email: str 
     if not provenance:
         local = (verified_email or "").split("@", 1)[0].lower()
         if not local or not store.name.lower().startswith(local + "-"):
-            sys.stderr.write(f"claude_rotate: refresh NOT filed — {verified_email!r} does not"
-                             f" match store {store.name}\n")
+            sys.stderr.write(
+                f"claude_rotate: refresh NOT filed — {verified_email!r} does not"
+                f" match store {store.name}\n"
+            )
             return False
     dst = store / ".credentials.json"
     try:
@@ -1192,8 +1247,10 @@ def _keepwarm_refresh(store: Path) -> bool:
     a ~30-day refresh-token life. A store parked longer than that needs one rotate-through
     (switch to it, let a session use it, switch back) — an operator/cron action, not a
     silent token spend. Returns False always; the tick logs it once per parked store."""
-    sys.stderr.write(f"claude_rotate: keep-warm unavailable for {store.name} — the token"
-                     " grant is CLI-only (403/1010); rotation-through is the warm path\n")
+    sys.stderr.write(
+        f"claude_rotate: keep-warm unavailable for {store.name} — the token"
+        " grant is CLI-only (403/1010); rotation-through is the warm path\n"
+    )
     return False
 
 
@@ -1215,8 +1272,13 @@ def _touch_run_cli(cfg_dir: Path, store: Path) -> bool:
     env["CLAUDE_SOUND_NO_REVIVE"] = "1"
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     try:
-        p = subprocess.run(["claude", "-p", "ping"], env=env, capture_output=True,
-                           text=True, timeout=int(os.environ.get("TOUCH_TIMEOUT", "150")))
+        p = subprocess.run(
+            ["claude", "-p", "ping"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=int(os.environ.get("TOUCH_TIMEOUT", "150")),
+        )
         return p.returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1267,11 +1329,16 @@ def _cmd_touch(only: str | None = None) -> int:
             # existing snapshot is still valid and doing nothing is always the safer branch.
             o = payload.get("claudeAiOauth") or {}
             exp_ms = o.get("expiresAt")
-            alive = bool(o.get("refreshToken")) and isinstance(exp_ms, (int, float)) \
+            alive = (
+                bool(o.get("refreshToken"))
+                and isinstance(exp_ms, (int, float))
                 and (exp_ms / 1000.0) > _now()
+            )
             if not alive:
-                print(f"touch: {store.name} — CLI returned a dead/blanked pair, keeping the"
-                      " existing snapshot")
+                print(
+                    f"touch: {store.name} — CLI returned a dead/blanked pair, keeping the"
+                    " existing snapshot"
+                )
                 continue
             email = _email_for_token(tok) if tok else None
             if not email:
@@ -1325,9 +1392,16 @@ def _tick_inner() -> int:
             print("tick: live account unresolvable/invalid — no action")
             _ledger_append({"event": "tick", "ts": now, "verdict": "no-live"})
             return 0
-        hot = max((live.get("five_hour") or {}).get("utilization", 0.0),
-                  (live.get("seven_day") or {}).get("utilization", 0.0))
+        hot = max(
+            (live.get("five_hour") or {}).get("utilization", 0.0),
+            (live.get("seven_day") or {}).get("utilization", 0.0),
+        )
         successor = _pick_successor(rows, live_name, now)
+        if successor is not None and _switch_paused():
+            # successor=None routes ≥drain_thr ticks into the DRAIN broadcast, so a paused
+            # pool warns before the wall instead of silently hitting it
+            print(f"tick: auto-switch PAUSED (operator marker) — {successor} not installed")
+            successor = None
         switch_failed = False
         if hot >= threshold and successor is not None:
             last = _last_switch_ts()
@@ -1336,16 +1410,24 @@ def _tick_inner() -> int:
                 _ledger_append({"event": "tick", "ts": now, "verdict": "dwell-hold"})
                 return 0
             if _tick_switch(successor):
-                _ledger_append({"event": "switch", "ts": now, "to": successor,
-                                "from": live_name, "at_pct": hot})
+                _ledger_append(
+                    {
+                        "event": "switch",
+                        "ts": now,
+                        "to": successor,
+                        "from": live_name,
+                        "at_pct": hot,
+                    }
+                )
                 _tick_telegram(f"rotated {live_name} -> {successor} at {hot:.0f}%")
                 print(f"tick: switched {live_name} -> {successor} at {hot:.0f}%")
                 return 0
             # closer #4: a failed switch must be LOUD and must not shadow the drain path —
             # "successor exists but cannot install" burns silently to 100% otherwise
             switch_failed = True
-            _tick_telegram(f"quota switch to {successor} FAILED at {hot:.0f}% — "
-                           "pool may be draining")
+            _tick_telegram(
+                f"quota switch to {successor} FAILED at {hot:.0f}% — pool may be draining"
+            )
             print(f"tick: switch to {successor} FAILED")
             _ledger_append({"event": "tick", "ts": now, "verdict": "switch-failed"})
         if hot >= drain_thr and (successor is None or switch_failed):
@@ -1355,16 +1437,23 @@ def _tick_inner() -> int:
             except OSError:
                 age = None
             if age is None or age >= 86400:
-                resets = [w.get("resets_at_epoch") for r in rows for w in
-                          ((r.get("five_hour"), r.get("seven_day")) if r.get("valid") else ())
-                          if w and w.get("resets_at_epoch")]
+                resets = [
+                    w.get("resets_at_epoch")
+                    for r in rows
+                    for w in ((r.get("five_hour"), r.get("seven_day")) if r.get("valid") else ())
+                    if w and w.get("resets_at_epoch")
+                ]
                 revive = min(resets) if resets else None
                 from datetime import datetime
-                revive_s = (datetime.fromtimestamp(revive).strftime("%a %H:%M")
-                            if revive else "unknown")
-                msg = (f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
-                       f"eligible account, no installable sibling). Reach a commit-and-push "
-                       f"checkpoint NOW; do not start new phases. Work revives at {revive_s}.")
+
+                revive_s = (
+                    datetime.fromtimestamp(revive).strftime("%a %H:%M") if revive else "unknown"
+                )
+                msg = (
+                    f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
+                    f"eligible account, no installable sibling). Reach a commit-and-push "
+                    f"checkpoint NOW; do not start new phases. Work revives at {revive_s}."
+                )
                 _drain_mail(_mailbox_repos(), "quota drain warning\n\n" + msg)
                 _tick_telegram(msg)
                 try:
@@ -1403,7 +1492,7 @@ def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
     try:
         if led.stat().st_size > cap_bytes:
             lines = led.read_text().splitlines(keepends=True)
-            led.write_text("".join(lines[len(lines) // 2:]))
+            led.write_text("".join(lines[len(lines) // 2 :]))
     except OSError:
         pass
 
@@ -1419,9 +1508,11 @@ def _live_email(timeout_s: float = 10.0) -> str | None:
         return None
     try:
         import urllib.request
+
         req = urllib.request.Request(
             "https://api.anthropic.com/api/oauth/profile",
-            headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"})
+            headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"},
+        )
         with urllib.request.urlopen(req, timeout=timeout_s) as r:
             data = json.load(r)
         email = (data.get("account") or {}).get("email")
@@ -1435,8 +1526,9 @@ def _store_for_email(email: str, accounts: list[Path]) -> Path | None:
     (<local-part>-<domain-dashed>-...): unique prefix match on the email's local part.
     None when zero or multiple stores match — ambiguity is never guessed."""
     local = email.split("@", 1)[0].lower()
-    hits = [a for a in accounts
-            if a.name.lower() == local or a.name.lower().startswith(local + "-")]
+    hits = [
+        a for a in accounts if a.name.lower() == local or a.name.lower().startswith(local + "-")
+    ]
     return hits[0] if len(hits) == 1 else None
 
 
@@ -1471,12 +1563,14 @@ def _cmd_drift_check() -> int:
     verified = _store_for_email(email, all_stores)
     if verified is None:
         sys.stderr.write(
-            f"claude_rotate: drift-check skipped — no store for live account {email}\n")
+            f"claude_rotate: drift-check skipped — no store for live account {email}\n"
+        )
         return 0
     if verified != target:
         sys.stderr.write(
             f"claude_rotate: capture RETARGETED {target.name} -> {verified.name} "
-            f"(live token belongs to {email})\n")
+            f"(live token belongs to {email})\n"
+        )
         if _cmd_capture_current(into=verified) != 0:
             sys.stderr.write("claude_rotate: retargeted capture FAILED — snapshot is stale\n")
         else:
@@ -1522,7 +1616,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
-            " | --drift-check | <claude> args...]\n"
+            " | --drift-check | --status | --tick | --touch | --pause-switch"
+            " | --resume-switch | <claude> args...]\n"
         )
         return 2
     if args[0] == "--list":
@@ -1544,6 +1639,20 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_tick()
     if args[0] == "--touch":
         return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
+    if args[0] == "--pause-switch":
+        (_rotate_state_dir() / "switch-paused").touch()
+        print(
+            "auto-switch PAUSED — ticks keep telemetry + drain warnings; no account is"
+            " installed until --resume-switch"
+        )
+        return 0
+    if args[0] == "--resume-switch":
+        try:
+            (_rotate_state_dir() / "switch-paused").unlink()
+        except FileNotFoundError:
+            pass
+        print("auto-switch RESUMED")
+        return 0
     env = os.environ.copy()
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     try:

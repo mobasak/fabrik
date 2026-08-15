@@ -29,6 +29,15 @@ never ping-pong. With no installable sibling at `ROTATE_DRAIN_THRESHOLD` (85%) i
 checkpoint; work revives at HH:MM") plus one Telegram, suppressed for 24h. Audit trail:
 `~/.claude/state/rotate-ledger.jsonl`.
 
+**Pausing the auto-switch** — `--pause-switch` drops a `switch-paused` marker in
+`~/.claude/state/`; while it exists the tick installs NOTHING (it prints the withheld
+successor instead) but keeps telemetry, keep-warm and the drain warnings armed — a paused
+pool warns before the wall instead of silently hitting it. `--resume-switch` re-enables;
+`--status` shows a `⏸` banner while paused. Use it whenever the successor pool is
+unverified or known-dead: on 2026-08-15 an auto-switch would have installed a consumed
+chain (a store whose single-use refresh token had already been spent while it was live)
+box-wide, killing every session at once.
+
 ## Logins: when they are actually needed
 
 Refresh tokens are **single-use but ~30-day-lived**, and the CLI rotates them on every real
@@ -68,6 +77,14 @@ but do it while no agents are working, or they will hit the wall until you switc
 - Nothing is filed without a POSITIVE identity verification, except a pair produced by the
   store's own refresh token (provenance), and never when the pair is structurally dead.
 - The tick never sends process signals (grep-enforced in tests) — it cannot interrupt an agent.
+
+**Known gap (2026-08-15, open):** the drift-check's identity gate skips ("live identity
+unverifiable") when the live ACCESS token is expired at check time — over a whole live period
+that means zero captures, the rolling chain exists only in `~/.claude/.credentials.json`, and
+the next `/login` (which overwrites that file) destroys the account's chain. This is how can@'s
+chain was lost overnight 2026-08-15 (store mtime stuck at Aug 11 through nine hourly checks).
+Until fixed: before `/login`-ing a DIFFERENT account, run `--capture-current` so the live
+chain is filed first.
 
 ## Cross-repo asks that reach the hub through mail
 

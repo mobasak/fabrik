@@ -481,3 +481,29 @@ def test_t8_touch_never_files_a_blanked_credential(tmp_path, monkeypatch):
     assert cr._cmd_touch() == 0
     kept = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
     assert kept["claudeAiOauth"]["refreshToken"] == "GOOD-R", "a blanked pair must never be filed"
+
+
+# ── T14: operator pause — a paused tick must never install a pair ──────────────
+
+
+def test_t14_pause_marker_blocks_switch_but_keeps_drain_armed(tmp_path, monkeypatch):
+    """Live incident 2026-08-15: after a chain loss every parked successor was unverified
+    (one provably consumed). A switch would have installed a possibly-dead pair box-wide.
+    While the pause marker exists the tick must (a) install nothing, (b) leave the DRAIN
+    warning path armed so the coming wall is announced instead of silently hit."""
+    live = _acct("live", session_pct=96.0)
+    sib = _acct("sib", weekly_reset=NOW + 86400)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "switch-paused").touch()
+    actions, _ = _tick(tmp_path, monkeypatch, [live, sib], live["name"])
+    assert actions["switched_to"] == [], "paused tick must not install any pair"
+    assert actions["mails"], "drain warning must still fire while paused"
+
+
+def test_t14_pause_and_resume_cli_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    assert cr.main(["--pause-switch"]) == 0
+    assert (tmp_path / "switch-paused").is_file()
+    assert cr.main(["--resume-switch"]) == 0
+    assert not (tmp_path / "switch-paused").exists()

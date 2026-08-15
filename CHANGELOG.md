@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — rotation `--pause-switch`: the tick can be held off an unverified successor pool (2026-08-15)
+
+`claude_rotate.py` gains `--pause-switch` / `--resume-switch` (a `switch-paused` marker in
+`~/.claude/state/`). While paused the `*/5` tick installs nothing — it prints the withheld
+successor — but telemetry, keep-warm and the graceful-drain warnings stay armed, so a paused
+pool announces the coming wall instead of silently hitting it. `--status` shows a `⏸` banner.
+Built and armed live the day an auto-switch would have installed a consumed chain box-wide:
+can@'s store was proven dead (its single-use refresh token spent during its overnight live
+period; the drift-check captured nothing all night — gap documented in the rotation doc) and
+the tick named exactly that store as tonight's successor. Twin `scripts/aro-wake/claude_rotate.py`
+re-synced byte-identical (also heals a 6-line docstring drift). Tests: T14 pair in
+`tests/test_claude_rotate_v2.py` (marker blocks the install at 96% while drain still fires;
+CLI pause/resume roundtrip), both watched red first.
+
 ### Fixed — round-24 native pass: 16 further findings on the same guard (2026-08-15)
 
 An Opus finder independently confirmed the two bypasses the pool had already found, and added 16.
