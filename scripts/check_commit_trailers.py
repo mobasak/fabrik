@@ -40,6 +40,10 @@ import sys
 from pathlib import Path
 
 REQUIRED = "Agent-Role"
+# A dedicated status for "the trailers do not parse", so the shim can tell a VERDICT from a
+# CRASH. Anything else the interpreter returns means the guard broke, and a broken guard must
+# never block a commit.
+REJECT_CODE = 9
 # `# ---- >8 ----` with any run of dashes, which is what `git commit --cleanup=scissors` writes.
 SCISSORS_RE = re.compile(r"^#\s*-{2,}\s*>8\s*-{2,}")
 
@@ -80,16 +84,33 @@ def parsed_trailers(message: str) -> dict[str, str] | None:
 
 def hooks_dir() -> Path | None:
     """The hooks directory git ACTUALLY consults, honouring core.hooksPath and worktrees."""
-    configured = subprocess.run(
-        ["git", "config", "--get", "core.hooksPath"], capture_output=True, text=True, check=False
-    )
-    if configured.returncode == 0 and configured.stdout.strip():
-        # If this is ever set, installing into .git/hooks would put the guard somewhere git
-        # never looks while every "is it installed" check kept passing.
-        return Path(configured.stdout.strip()).expanduser().resolve()
-    common = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False
-    )
+    try:
+        configured = subprocess.run(
+            ["git", "config", "--get", "core.hooksPath"],
+            capture_output=True, text=True, check=False,
+        )
+        if configured.returncode == 0 and configured.stdout.strip():
+            # If this is ever set, installing into .git/hooks would put the guard somewhere git
+            # never looks while every "is it installed" check kept passing.
+            raw = Path(configured.stdout.strip()).expanduser()
+            if raw.is_absolute():
+                return raw.resolve()
+            # ⚠️ git resolves a RELATIVE core.hooksPath against the top of the working tree, not
+            # against the process cwd. Resolving it against cwd installed into
+            # <repo>/scripts/.githooks/ — reporting success while git kept looking at
+            # <repo>/.githooks/ — the exact blindness this branch was added to prevent.
+            top = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True, text=True, check=False,
+            )
+            if top.returncode != 0:
+                return None
+            return (Path(top.stdout.strip()) / raw).resolve()
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return None  # no git at all — the caller reports "not a git checkout"
     if common.returncode != 0:
         return None
     # --git-common-dir resolves to the SHARED git dir from a worktree too, where `.git` is a
@@ -99,15 +120,23 @@ def hooks_dir() -> Path | None:
 
 def main_checkout_guard() -> Path:
     """This script as it lives in the MAIN checkout — the path every worktree's hook must use."""
-    top = subprocess.run(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-        capture_output=True, text=True, check=False,
-    )
     here = Path(__file__).resolve()
-    if top.returncode == 0 and top.stdout.strip():
-        candidate = Path(top.stdout.strip()).parent / "scripts" / here.name
-        if candidate.is_file():
-            return candidate
+    try:
+        # NOT --path-format=absolute: that needs git >= 2.31, and on an older git rev-parse
+        # returns non-zero and this silently fell back to __file__ — reinstating the worktree
+        # bug this function exists to fix, with no signal. Resolve the relative form ourselves.
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return here
+    if common.returncode != 0 or not common.stdout.strip():
+        return here
+    candidate = (Path.cwd() / common.stdout.strip()).resolve().parent / "scripts" / here.name
+    # Identity check, not merely is_file(): another repo may legitimately have a file of this
+    # name, and pointing every checkout's hook at a stranger's script is worse than falling back.
+    if candidate.is_file() and REQUIRED in candidate.read_text(errors="replace"):
+        return candidate
     return here
 
 
@@ -151,12 +180,38 @@ def authored_text(message: str) -> str:
     return "\n".join(ln for ln in lines if not ln.startswith("#"))
 
 
+def trailers_lost_below_scissors(message: str) -> bool:
+    """True when an authored trailer block sits BELOW a scissors line, where git discards it.
+
+    A commit body that documents git's scissors line — which this repo writes routinely — and
+    then puts its trailer block underneath loses its provenance silently: git honours the
+    scissors marker too, so `%(trailers:key=Agent-Role)` is empty, and the guard classified the
+    commit as "not an agent commit" and waved it through. That is the exact lost-provenance
+    outcome this guard exists to prevent.
+
+    Only a line starting at COLUMN 0 counts. In `git commit -v` the discarded region is a
+    unified diff, where every content line carries a ' ', '+' or '-' prefix — so a real diff of
+    this very file cannot trip it.
+    """
+    lines = message.splitlines()
+    scissors = next((i for i, ln in enumerate(lines) if SCISSORS_RE.match(ln)), None)
+    if scissors is None:
+        return False
+    return any(ln.startswith(f"{REQUIRED}:") for ln in lines[scissors + 1 :])
+
+
 def diagnose(message: str) -> str:
     """Name the specific defect, so the fix is obvious without re-deriving git's rules."""
     lines = message.rstrip().splitlines()
-    idx = next((i for i, ln in enumerate(lines) if ln.startswith(f"{REQUIRED}:")), None)
+    idx = next((i for i, ln in enumerate(lines) if ln.strip().startswith(f"{REQUIRED}:")), None)
     if idx is None:
         return "no Agent-Role: line found"
+    if lines[idx] != lines[idx].strip():
+        return (
+            f"line {idx + 1} is INDENTED ({lines[idx][:60]!r}). Git folds an indented line into "
+            f"the previous trailer as a continuation, so {REQUIRED} never parses. Remove the "
+            f"leading whitespace."
+        )
     after = lines[idx + 1 :]
     if any(ln.strip() == "" for ln in after):
         blank = idx + 1 + next(i for i, ln in enumerate(after) if ln.strip() == "")
@@ -196,11 +251,20 @@ GUARD={guard}
 [ -r "$GUARD" ] || exit 0
 for PY in {pythons}; do
     case "$PY" in
-        /*) [ -x "$PY" ] || continue ;;
+        /*) [ -f "$PY" ] && [ -x "$PY" ] || continue ;;  # -x alone is true for a directory
         *)  PY=$(command -v "$PY" 2>/dev/null) || continue
             [ -x "$PY" ] || continue ;;
     esac
-    exec "$PY" "$GUARD" "$1"
+    "$PY" "$GUARD" "$1"
+    rc=$?
+    # ⚠️ ONLY a deliberate rejection blocks. The guard exits {reject} to say "this trailer block
+    # does not parse"; ANY other status is the guard failing, not the commit — a syntax error
+    # from a sibling's half-written edit, a bad import, a missing dependency. This file is a
+    # live edit target on a tree three agents share, so `exec`ing it made every commit in the
+    # repo hostage to whoever was mid-save. Reproduced: SyntaxError -> rc=1 -> a plain commit
+    # with no trailers rejected.
+    [ "$rc" = {reject} ] && exit 1
+    exit 0
 done
 exit 0
 """
@@ -228,7 +292,12 @@ def install(force: bool = False) -> int:
         # restores the doubled stash cycle the guard was moved off pre-commit to avoid. Reclaim
         # it automatically, so the unattended boot heal — which cannot pass --force safely for
         # the general case — can actually recover. Anything else still needs an explicit --force.
-        if "pre_commit" in existing or "pre-commit" in existing:
+        # ⚠️ Match pre-commit's GENERATED hook, not the word "pre-commit". A bare substring
+        # fired on any hook whose COMMENTS mentioned pre-commit — reproduced against a commitlint
+        # hook whose only offence was referencing .pre-commit-config.yaml in a comment; it was
+        # silently destroyed with no --force and no backup. These two markers are written by
+        # pre-commit itself into every hook it generates.
+        if "File generated by pre-commit" in existing or "pre_commit.main" in existing:
             print(
                 f"reclaiming {hook} from pre-commit — its commit-msg stage restores the "
                 f"doubled staged_files_only() stash cycle",
@@ -251,16 +320,27 @@ def install(force: bool = False) -> int:
     # Worktrees are routine here (plan execution + subagents), and the docs tell readers to run
     # --install from wherever they are.
     guard_path = main_checkout_guard()
-    hook.write_text(
+    if hook.exists() and "check_commit_trailers" not in hook.read_text(errors="replace"):
+        backup = hook.with_suffix(".replaced-by-fabrik")
+        backup.write_text(hook.read_text(errors="replace"))
+        print(f"backed up the previous hook to {backup}", file=sys.stderr)
+    payload = (
         SHIM.format(
             guard=shlex.quote(str(guard_path)),
             # shlex.quote: an apostrophe anywhere in a path (`/opt/o'brien/...`) produced an
             # unterminated string and rc=2 — every commit rejected, the exact opposite of the
             # FAIL OPEN the shim promises.
             pythons=" ".join(shlex.quote(x) for x in (sys.executable, "python3", "python")),
+            reject=REJECT_CODE,
         )
     )
-    hook.chmod(0o755)
+    # Atomic: install() now runs on every interactive shell, and a `git commit` that started the
+    # hook inside a truncate->write window would read a partial (or empty) script — an empty sh
+    # script exits 0, so that commit would pass unchecked and silently.
+    tmp = hook.with_suffix(".tmp")
+    tmp.write_text(payload)
+    tmp.chmod(0o755)
+    tmp.replace(hook)
     print(f"installed {hook} -> {guard_path}")
     return 0
 
@@ -306,7 +386,21 @@ def main(argv: list[str]) -> int:
     # directly above "no Agent-Role: line found". `diagnose()` always used `startswith`; only this
     # gate disagreed with it, and the disagreement was the bug.
     body = authored_text(message)
-    if not any(ln.startswith(f"{REQUIRED}:") for ln in body.splitlines()):
+    # ⚠️ Compare the STRIPPED line. A single leading space makes git fold the key into the
+    # previous trailer as a continuation, so `%(trailers:key=Agent-Role)` comes back empty —
+    # and a column-0-only test read that as "no trailer here" and accepted the commit. That is
+    # the lost-provenance outcome the guard exists to stop. A diff line (`+Agent-Role:`) still
+    # does not match, because stripping whitespace leaves the `+`.
+    if not any(ln.strip().startswith(f"{REQUIRED}:") for ln in body.splitlines()):
+        if trailers_lost_below_scissors(message):
+            print(
+                f"\n❌ COMMIT REJECTED — a {REQUIRED} block sits BELOW a scissors line.\n\n"
+                f"   Git discards everything under `# ---- >8 ----`, so these trailers would be\n"
+                f"   thrown away and the commit would land with no provenance at all. Move the\n"
+                f"   trailer block ABOVE the scissors line.\n",
+                file=sys.stderr,
+            )
+            return REJECT_CODE
         return 0  # not an agent commit — merges, reverts, and human commits pass through
 
     # The VERDICT is git's own, on the raw message: git ignores comments and scissors itself, so
@@ -330,7 +424,7 @@ def main(argv: list[str]) -> int:
         f"   HARD STOP.\n",
         file=sys.stderr,
     )
-    return 1
+    return REJECT_CODE
 
 
 if __name__ == "__main__":

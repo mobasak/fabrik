@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-26: 11 findings, including a cross-repo write and two live bypasses (2026-08-15)
+
+The boot re-install had **no repo pin**. `~/.bashrc` sources `wsl_startup_hook.sh` on every
+interactive shell, whose cwd is arbitrary: from `$HOME` it found no git checkout and installed
+NOTHING — making the hooks-index claim that it re-installs the guard simply false — and from any
+other repo it would have written fabrik's hook into **that repo's** `.git/hooks`. Verified no
+contamination occurred (the line was added this session and had not yet run). Now pinned in a
+subshell.
+
+Two live bypasses, both accepting a commit whose provenance git genuinely loses. A single leading
+space before `Agent-Role:` makes git fold the key into the previous trailer as a continuation, so
+the column-0-only presence test read it as "not an agent commit" and waved it through. And a
+trailer block below an **exact** scissors line in authored prose — which this repo writes commit
+bodies about routinely — is discarded by git too, silently. Both now rejected with specific
+diagnoses, and a real `git commit -v` diff of these very files still passes, because only a
+column-0 match counts and every unified-diff content line carries a prefix.
+
+The shim had one remaining fail-CLOSED path: it `exec`d the guard, so the guard's exit status WAS
+the hook's, and any Python-level crash blocked every commit repo-wide. This file is edited every
+review round on a tree three agents share, so a sibling's half-written save would have done it.
+Rejection now uses a dedicated status (9); every other status means the guard broke, not the
+commit.
+
+`install()`'s reclaim branch was a bare substring match on "pre-commit" — it destroyed a commitlint
+hook whose only offence was mentioning `.pre-commit-config.yaml` in a comment, with no `--force`
+and no backup. It now matches pre-commit's own generated markers, and backs up anything it
+replaces. The hook write is atomic (it runs once per shell now, and a commit landing inside a
+truncate→write window would read an empty script and pass unchecked). A relative `core.hooksPath`
+is resolved against the worktree top, as git does, not the process cwd. `main_checkout_guard()` no
+longer needs git ≥2.31 (the older-git path silently fell back to `__file__`, reinstating the
+worktree bug) and checks the candidate's identity rather than trusting `is_file()`.
+
+Test fixes: the new enforcement test passed on a `commit.gpgsign` failure rather than the guard's
+verdict (its sibling `_git_verdict` had already been hardened for exactly this); `_installed_hook`
+hardcoded `<git-common-dir>/hooks` while `install()` had learned to honour `core.hooksPath`, so
+the wiring tests went vacuous in the configuration most likely to be misinstalled; and the
+GUARD-path test used `strip("'")`, which cannot undo the `shlex.quote` escaping this same work
+introduced.
+
 ### Fixed — round-25: 4 MAJOR + 8 MINOR, all reproduced (2026-08-15)
 
 The worst was a **permanent, silent, repo-wide disable**. `install()` writes to the SHARED hooks

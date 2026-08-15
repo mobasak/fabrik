@@ -89,8 +89,13 @@ fi
 # nobody installs is the inert-check class this repo has been bitten by before. Deliberately
 # OUTSIDE the daily lockfile block: daily_refresh.sh shares that lockfile, so on any day the
 # 06:00 cron wins the race the re-install would never run at all. Idempotent, ~20ms, no network.
-[ -x "$VENV_PYTHON" ] && "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" \
-    --install >/dev/null 2>&1
+# ⚠️ PIN THE CWD. ~/.bashrc sources this on every interactive shell, whose cwd is arbitrary:
+# from $HOME the installer found no git checkout and silently installed NOTHING (making the
+# hooks-index claim that this re-installs the guard simply false), and from any OTHER repo it
+# would have written fabrik's hook into THAT repo's .git/hooks — a cross-repo write nobody asked
+# for. The subshell keeps the cd out of the operator's shell.
+[ -x "$VENV_PYTHON" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
+    "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" --install >/dev/null 2>&1 )
 
 # --- Daily pipeline (runs once per WSL boot day) ---
 # Run update if not already run today

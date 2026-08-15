@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,12 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[3]
 GUARD = REPO / "scripts" / "check_commit_trailers.py"
+sys.path.insert(0, str(REPO / "scripts"))
+from check_commit_trailers import REJECT_CODE  # noqa: E402 — path set immediately above
+
+# The guard signals "these trailers do not parse" with a DEDICATED status, so the shim can tell
+# a verdict from a crash. Asserting a bare `== 1` would go green on any interpreter failure —
+# the same vacuity as asserting `!= 0` on a commit that failed for an unrelated reason.
 
 GOOD = (
     "fix(worker): handle OOM exit code -9\n"
@@ -58,13 +65,13 @@ def test_a_correctly_formed_trailer_block_is_accepted(tmp_path):
 def test_a_blank_line_inside_the_block_is_rejected(tmp_path):
     """The defect that cost 190 of 200 hub commits their provenance."""
     result = run(BLANK_INSIDE, tmp_path)
-    assert result.returncode == 1
+    assert result.returncode == REJECT_CODE
     assert "BLANK LINE" in result.stderr, "the message must name the specific defect"
 
 
 def test_prose_glued_to_the_top_of_the_block_is_rejected(tmp_path):
     result = run(PROSE_GLUED, tmp_path)
-    assert result.returncode == 1
+    assert result.returncode == REJECT_CODE
     assert "GLUED" in result.stderr
 
 
@@ -95,7 +102,7 @@ def test_the_guard_delegates_to_git_rather_than_reimplementing_its_rules(tmp_pat
     without_git = subprocess.run(
         args, capture_output=True, text=True, check=False, cwd=REPO, env={"PATH": "/nonexistent"}
     )
-    assert with_git.returncode == 1, "the malformed block should be rejected when git is present"
+    assert with_git.returncode == REJECT_CODE, "the malformed block should be rejected when git is present"
     assert without_git.returncode == 0, (
         "with git unavailable the guard must fail open, not reject and not traceback"
     )
@@ -139,14 +146,23 @@ def test_the_guard_is_not_routed_through_pre_commit(tmp_path):
 
 
 def _installed_hook():
-    """Resolve .git/hooks/commit-msg via git, so worktrees resolve to the SHARED hooks dir."""
-    common = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
-        capture_output=True, text=True, check=False, cwd=REPO,
-    )
-    if common.returncode != 0:
-        return None
-    return (REPO / common.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    """Resolve the hook exactly as install() does — via the guard's own hooks_dir().
+
+    Hardcoding `<git-common-dir>/hooks` made the wiring tests disagree with the installer once
+    `install()` learned to honour core.hooksPath: in such a checkout the installer writes
+    elsewhere, `.git/hooks/commit-msg` does not exist, and every wiring assertion took its skip
+    branch — going vacuously green in the configuration most likely to be misinstalled.
+    """
+    sys.path.insert(0, str(REPO / "scripts"))
+    import check_commit_trailers
+
+    cwd = os.getcwd()
+    os.chdir(REPO)
+    try:
+        d = check_commit_trailers.hooks_dir()
+    finally:
+        os.chdir(cwd)
+    return None if d is None else d / "commit-msg"
 
 
 def test_the_commit_msg_hook_is_actually_installed_and_points_at_this_guard():
@@ -279,7 +295,7 @@ def test_a_verbose_commit_whose_diff_mentions_agent_role_is_not_hijacked(tmp_pat
 def test_a_verbose_commit_with_a_real_broken_block_is_still_rejected(tmp_path):
     """The scissors fix must not become a bypass: authored trailers are still checked."""
     broken = BLANK_INSIDE + "\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n"
-    assert run(broken, tmp_path).returncode == 1
+    assert run(broken, tmp_path).returncode == REJECT_CODE
 
 
 def test_the_unattended_pipeline_commit_is_not_blocked_by_this_guard(tmp_path):
@@ -377,7 +393,7 @@ def test_a_body_line_mentioning_8_is_not_treated_as_a_scissors_line(tmp_path):
         "\n"
         "Co-Authored-By: Y <y@z>\n"
     )
-    assert run(message, tmp_path).returncode == 1, (
+    assert run(message, tmp_path).returncode == REJECT_CODE, (
         "the malformed trailer below a `# >8 ...` prose line was never checked — the loose "
         "scissors match discarded everything under it"
     )
@@ -399,6 +415,11 @@ def _scratch_repo(tmp_path: Path) -> Path:
         ["init", "-q", "-b", "main", "."],
         ["config", "user.email", "t@t"],
         ["config", "user.name", "t"],
+        # ⚠️ A machine-global commit.gpgsign with no key makes `git commit` fail rc=128, and
+        # `assert returncode != 0` is satisfied by THAT — so the enforcement test passed with a
+        # guard neutered to accept everything. `_git_verdict` was already hardened for exactly
+        # this; its mirror was not.
+        ["config", "commit.gpgsign", "false"],
     ):
         subprocess.run(["git", *args], cwd=repo, capture_output=True, check=False)
     (repo / "f").write_text("x")
@@ -423,7 +444,9 @@ def test_the_installed_shim_points_at_a_guard_that_actually_exists():
         None,
     )
     assert guard_line, "the installed shim declares no GUARD path"
-    target = Path(guard_line.split("=", 1)[1].strip().strip("'\""))
+    # shlex.split, not strip("'"): shlex.quote escapes an apostrophe as '"'"', which a naive
+    # strip turns into a bogus path — and this commit added shlex.quote for exactly those paths.
+    target = Path(shlex.split(guard_line.split("=", 1)[1])[0])
     assert target.is_file(), (
         f"the installed hook points at {target}, which does not exist — the shim exits 0 on a "
         f"missing guard, so enforcement is silently OFF for this repo. Re-run "
@@ -472,3 +495,95 @@ def test_the_shim_still_enforces_when_an_interpreter_is_available(tmp_path):
     assert result.returncode != 0, (
         "the installed shim let a malformed trailer block through — it is not enforcing at all"
     )
+    # Assert it was the GUARD that refused, not some unrelated commit failure.
+    assert "COMMIT REJECTED" in result.stdout + result.stderr, (
+        f"the commit failed, but not because of this guard — the test would pass on any commit "
+        f"failure at all:\n{result.stderr}"
+    )
+
+
+def test_an_indented_trailer_key_is_rejected_not_waved_through(tmp_path):
+    """A single leading space makes git fold the key into the previous trailer.
+
+    `%(trailers:key=Agent-Role)` then comes back empty — and a column-0-only presence test read
+    that as "no trailer here" and ACCEPTED the commit, producing exactly the lost provenance
+    this guard exists to prevent.
+    """
+    message = (
+        "fix: x\n\nAgent-Context: c\n Agent-Role: primary\nCo-Authored-By: Y <y@z>\n"
+    )
+    assert _git_verdict(message, tmp_path) is False, "precondition: git must not parse this"
+    result = run(message, tmp_path)
+    assert result.returncode == REJECT_CODE, "an indented trailer key was accepted"
+    assert "INDENTED" in result.stderr
+
+
+def test_a_trailer_block_below_an_authored_scissors_line_is_rejected(tmp_path):
+    """git discards everything under `# ---- >8 ----`, so those trailers are simply lost."""
+    message = (
+        "docs: explain the scissors line\n\ngit emits:\n\n"
+        "# ------------------------ >8 ------------------------\n\n"
+        "Agent-Role: primary\nCo-Authored-By: Y <y@z>\n"
+    )
+    assert _git_verdict(message, tmp_path) is False, "precondition: git must not parse this"
+    result = run(message, tmp_path)
+    assert result.returncode == REJECT_CODE
+    assert "BELOW a scissors line" in result.stderr
+
+
+def test_a_real_verbose_diff_below_scissors_is_not_mistaken_for_a_lost_block(tmp_path):
+    """The mirror: `git commit -v` on THESE files puts diff lines below the scissors marker.
+
+    Every unified-diff content line carries a ' ', '+' or '-' prefix, so only a column-0 match
+    counts — otherwise editing this very file would become uncommittable.
+    """
+    message = (
+        "docs: edit the guard\n\nprose.\n\n"
+        "# ------------------------ >8 ------------------------\n"
+        "diff --git a/x b/x\n+Agent-Role: primary\n Agent-Role: a context line\n"
+    )
+    assert run(message, tmp_path).returncode == 0
+
+
+def test_a_crashing_guard_does_not_block_commits(tmp_path):
+    """The shim must distinguish a VERDICT from the guard simply being broken.
+
+    check_commit_trailers.py is edited every review round on a tree three agents share. When the
+    shim `exec`d it, a sibling's half-written save made every commit in the repo fail — a plain
+    commit with no trailers included. Only the dedicated reject status blocks now.
+    """
+    repo = _scratch_repo(tmp_path)
+    hook = _install_into(repo)
+    broken = tmp_path / "crash.py"
+    broken.write_text("def broken(\n")  # SyntaxError on import
+    hook.write_text(
+        re.sub(r"^GUARD=.*$", f"GUARD={shlex.quote(str(broken))}", hook.read_text(), flags=re.M)
+    )
+    hook.chmod(0o755)
+    result = subprocess.run(
+        ["git", "commit", "-m", "chore: a plain commit with no trailers"],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"a crashing guard blocked a well-formed commit — breakage must never be "
+        f"indistinguishable from a violation:\n{result.stderr}"
+    )
+
+
+def test_install_does_not_destroy_a_foreign_hook_that_merely_mentions_pre_commit(tmp_path):
+    """The reclaim branch was a bare substring match on the word "pre-commit".
+
+    It fired on any hook whose COMMENTS referenced pre-commit — a commitlint hook was silently
+    destroyed with no --force and no backup, while install()'s docstring promised it refuses to
+    clobber a foreign hook.
+    """
+    repo = _scratch_repo(tmp_path)
+    hook = repo / ".git" / "hooks" / "commit-msg"
+    hook.write_text("#!/bin/sh\n# commitlint — see also .pre-commit-config.yaml\nexit 0\n")
+    hook.chmod(0o755)
+    result = subprocess.run(
+        [sys.executable, str(GUARD), "--install"],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0, "install() clobbered a foreign hook without --force"
+    assert "commitlint" in hook.read_text(), "the foreign hook was overwritten"
