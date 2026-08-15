@@ -57,3 +57,30 @@ Refuted (opus, executed): stale-else branch single-threaded; the 12 legacy reds 
 merge-base); --switch gating (manual lever intact, probe-proven).
 
 Round 2 verdict: NOT CLEAN — F5–F10 dispatched. Round 3 follows.
+
+## Round 3 (2026-08-15, on fixup commit 91be35f6)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 3
+Pool: 2 candidates refuted (entry-reset design; break-on-withheld makes reason-persistence
+harmless); 1 half-real corroborated by opus (drain-stamp dedupe loss). Opus: 5 mutant families
+executed — verdict NOT CLEAN, 7 CONFIRMED + 3 PLAUSIBLE:
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | t15j race probe vacuous — shared-object mutant survives 21/30 (empty race window) | **FIX (F11)**: deterministic event-sequenced interleaving test |
+| 3 | Drain block dies on RuntimeError (HOME unset — probe: mail+telegram swallowed, rc 0) + stamp=None loses 24h dedupe (flood during outage) | **FIX (F12)**: broader catch + tempdir fallback stamp + t15l extensions |
+| 4 | `_switch_paused_soft` dead code (zero call sites; E7 mutant green) | **FIX (F13)**: delete |
+| 5 | `--status` 'marker' banner zero coverage (E4 typo silences banner, suite green) | **FIX (F15)** |
+| 6 | tick why-label untested (E6 green) | **FIX (F15)** |
+| 10 | Magic-string tri-state class (6 sites, 3 unprotected; no Literal type) | **FIX (F14)**: constants + Literal annotation + literal-set test |
+| 2 | Unreproducible "130 false suppressions" figure in a comment | **FIX (F16a)** |
+| 9 | "It never raises" docstring absolute (KeyError/TypeError escape — latent) | **FIX (F16b)** |
+| 8 | Mid-run marker suppresses a proven-dead alert; comment's justification false for that path | RULED: behavior stays (operator's pause owns the silence); **FIX (F16c)** comment truthfulness |
+| 7 | Docs/CHANGELOG contract — runbook still tick-scoped | ROUTED: runbook = T04 (same run); CHANGELOG = the coder's Delta lands in this acceptance commit |
+| — | Legacy suite 12 reds | environmental, pre-exist at base for an unrelated fixture reason (no action, F17 confirm-only) |
+
+Invariants re-confirmed by opus (executed): install census (3 callers, all gated/manual),
+unpaused parity, stderr-only, --switch intact, twins enforced identical, drain 24h dedupe
+(readable case), TLS reset discipline incl. asyncio thread-reuse.
+
+Round 3 verdict: NOT CLEAN — F11–F17 dispatched. Round 4 follows.
