@@ -769,6 +769,11 @@ def _setup_fake_claude(tmp_path, monkeypatch, orgs):
     monkeypatch.setattr(claude_rotate, "BACKUP_CREDS", claude_dir / ".credentials.json.prev")
     monkeypatch.setattr(claude_rotate, "ROTATE_LOCK", claude_dir / ".claude-rotate.lock")
     monkeypatch.setattr(claude_rotate, "ACTIVE_MARKER", claude_dir / ".active-account")
+    # The rotate STATE dir too: _rotate_active_account reads the operator's switch-paused marker
+    # there, and _cmd_tick/_ledger_append WRITE there. Without this the suite reads (and mkdirs in)
+    # the real $HOME — on a box where the marker is set, every rotation test short-circuits at the
+    # gate and passes vacuously.
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(claude_dir / "state"))
     return claude_dir, accounts_dir, active
 
 

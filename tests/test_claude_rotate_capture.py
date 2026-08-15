@@ -311,8 +311,10 @@ def test_the_override_still_admits_a_metadata_less_snapshot(monkeypatch):
 # single failure, while the commit claimed "ANY caller is covered".
 
 
-def _rotation_sandbox(tmp_path, accounts):
-    """A real snapshot tree; `accounts` is {name: hours-until-access-expiry or None-for-dead}."""
+def _rotation_sandbox(tmp_path, monkeypatch, accounts):
+    """A real snapshot tree; `accounts` is {name: hours-until-access-expiry or None-for-dead}.
+    The rotate STATE dir is redirected too: `_rotate_active_account` reads the operator's
+    switch-paused marker there, and the real ~/.claude/state one may be set on this box."""
     import time as _t
     now = _t.time()
     (tmp_path / "manager-accounts").mkdir()
@@ -333,31 +335,32 @@ def _rotation_sandbox(tmp_path, accounts):
     rot.ACTIVE_MARKER = tmp_path / ".active-account"
     rot.BACKUP_CREDS = tmp_path / ".credentials.json.prev"
     rot.ROTATE_LOCK = tmp_path / ".rotate.lock"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     return tmp_path / ".credentials.json"
 
 
-def test_activate_snapshot_itself_refuses_a_dead_target(tmp_path):
+def test_activate_snapshot_itself_refuses_a_dead_target(tmp_path, monkeypatch):
     """Pins the CALL SITE: deleting the guard from `_activate_snapshot` must red this."""
-    live = _rotation_sandbox(tmp_path, {"dead": (-720, -10)})
+    live = _rotation_sandbox(tmp_path, monkeypatch, {"dead": (-720, -10)})
     before = live.read_bytes()
     assert rot._activate_snapshot(target=tmp_path / "manager-accounts" / "dead") is None
     assert live.read_bytes() == before, "a refused activation must not touch the live credentials"
 
 
-def test_activate_snapshot_still_installs_a_good_target(tmp_path):
+def test_activate_snapshot_still_installs_a_good_target(tmp_path, monkeypatch):
     """Non-vacuity: proves the refusal is selective, not a blanket 'refuse everything' that would
     silently disable rotation — the mirror failure of the bug this guard exists to fix."""
-    live = _rotation_sandbox(tmp_path, {"good": (8, 700)})
+    live = _rotation_sandbox(tmp_path, monkeypatch, {"good": (8, 700)})
     before = live.read_bytes()
     assert rot._activate_snapshot(target=tmp_path / "manager-accounts" / "good") == "good"
     assert live.read_bytes() != before
 
 
-def test_a_dead_first_candidate_does_not_block_a_healthy_later_one(tmp_path):
+def test_a_dead_first_candidate_does_not_block_a_healthy_later_one(tmp_path, monkeypatch):
     """Review finding F1: the selector returned the FIRST tokened snapshot without consulting the
     guard, the installer refused it, and the caller broke out — so a fresh standby one index later
     was never tried. Pre-fix that logged the operator out; post-fix it rotated NOWHERE."""
-    live = _rotation_sandbox(tmp_path, {"a-dead": (-720, -10), "b-good": (8, 700)})
+    live = _rotation_sandbox(tmp_path, monkeypatch, {"a-dead": (-720, -10), "b-good": (8, 700)})
     assert rot._rotate_active_account() == "b-good"
     assert b"tok-b-good" in live.read_bytes()
 

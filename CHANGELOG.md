@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Rotation pause gate at the credential choke point (M-pre) (2026-08-15)
+
+- `claude_rotate._rotate_active_account()` now refuses to install any snapshot while the operator's
+  `switch-paused` marker exists, printing `rotation PAUSED (switch-paused marker) — no account installed
+  (override: --resume-switch)` to stderr and returning `None` — closing the last ungated automated
+  credential swapper (`run_claude`'s usage-limit/401 retry, and `--next`, whose refusal drops the
+  misleading "need ≥2 snapshots" hint). `--switch <name>` does not route through the choke point and
+  stays usable as the explicit manual lever, marker or not.
+- The pause probe is tri-state and never raises: no marker / operator marker / **unreadable**. An
+  unreadable rotation state dir fails **closed** (no install) but is NOT treated as the operator's marker
+  — the "all credentials are dead" 401 Telegram still fires, carrying "(pause-state unreadable — install
+  refused fail-closed)", so a broken state dir can never buy silence. `--status` and the 5-min tick use the
+  same probe and name which pause they mean; `--status --json` now reports it as `"pause"`, so machine
+  consumers can no longer read a healthy payload while switching is off. `--pause-switch`/`--resume-switch`
+  report a broken state dir instead of tracebacking.
+- The tick's dwell guard fails CLOSED on a ledger it cannot use — corrupt bytes, a permission error, a
+  switch record with a non-numeric timestamp, or one stamped in the FUTURE (WSL suspend/resume skews this
+  box's clock, and a negative age reads as "within dwell" for hours). "When did we last switch?" can no
+  longer answer "never" when it cannot answer at all; that let the tick install a fresh pair every 5
+  minutes for the length of the fault. The withholding is structural, not arithmetic — it holds even with
+  ROTATE_DWELL_MIN=0 — and it still routes into the DRAIN broadcast (24h-deduped), because nobody is
+  installing while the live account burns toward the wall; the ledger records it as `dwell-hold-degraded`,
+  distinct from a genuine hold. A MISSING ledger still reads as "no switch yet", so a fresh box can make
+  its first install. ROTATE_DRAIN_THRESHOLD above ROTATE_THRESHOLD is clamped (with a stderr note): the
+  warning must never sit above the action, or there is a band that neither switches nor warns.
+- The tick's DRAIN warning now survives a dead state dir end to end: the mail + telegram no longer vanish
+  into the blanket except, and the 24h dedupe stamp falls back to the temp dir — without it the
+  "reach a checkpoint NOW" broadcast would repeat every 5 minutes for the length of the outage.
+- `run_claude`'s 401 alerting is suppression-aware: only a marker-withheld rotation silences the all-dead
+  alert, and a suppressed alert no longer burns the 12h debounce window. The withholding verdict is reported
+  by the gate in **thread-local** state — as a module global it leaked across threads (the aro-wake twin
+  drives `run_claude` from `asyncio.to_thread` and an unlocked background task) and silenced genuine alerts.
+  Both copies of the vendored twin updated.
+
 ### Fixed — round-31: 4 findings from a 520-cell empirical grid (2026-08-15)
 
 The finder committed 520 real commits in 520 throwaway repos (25 messages x 4 `core.commentChar`

@@ -158,3 +158,38 @@ Also re-recorded: the legacy file's 12 reds reproduced at base from a clean extr
 
 Round 6 verdict: NOT CLEAN — F28–F32 dispatched (1 confirmed edge + hardening tail). Round 7
 follows and is expected to close.
+
+## Round 7 (2026-08-15, on fixup commit 78b42413)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 7
+Pool: deepseek self-refuted both candidates; gemini's ledger-duplication refuted on structure
+(the "ok" verdict is unreachable in the degraded case). Opus: **the round-6 CODE diff is
+CLEAN** — 10/11 mutants killed with exact test attribution, skew boundary probed at ±0.1s.
+Ticket-level survivors: box-step disarm (ruled SEQUENCING — the orchestrator's merge step);
+fleet-sync ungated (spec-ruled out of scope, but the docstring over-claim → F33); stdout-leak
+mutant M5 survives (F34); NaN thresholds silently disable the drain (F35). The finder's
+"marker absent" observation was REFUTED by direct check (marker present, tick actively
+withholding; two stray test-artifact ledger events noted, moot while paused, machinery
+retires at M4).
+
+## Round 8 (2026-08-15, on fixup commit 095942b9 — CLOSING)
+
+Finders: pool deepseek-v3.2-exp×1 + gemini-3-flash×1 + native opus×1 — round 8
+Pool: deepseek CLEAN; gemini's non-finite-default candidate refuted (no live caller; no
+recursion in the code shape). Opus: **CLEAN — zero CONFIRMED, zero PLAUSIBLE.** 5/5 mutants
+killed including two it added itself (stdout-leak-alongside → the NEW asserts bite;
+isfinite-revert → t15u); assert-vs-banner collision disproven by tracing both test paths;
+the corrected docstring re-grounded against the live crontab. Observations recorded, none
+blocking: the CHANGELOG lands in this acceptance commit (D3); twin parity is
+test_bot_rotation_wire-enforced; `_env_float` loud-on-nonfinite/silent-on-garbage asymmetry
+lands on the safe default; two stale fleet-sync doc lines noted for a docs sweep
+(docs/operations/wsl-environment.md:41, docs/infrastructure/vps-complete-inventory.md:12).
+
+## CLOSE
+
+**Coverage-adjudicated exit reached: round 8 returned zero CONFIRMED and zero PLAUSIBLE.**
+8 rounds · 34 dispatched fixups (F1–F35, F17 confirm-only) · 8 worktree commits
+(a62267cb…095942b9) · every fix mutant-proven, every refutation evidence-cited · final
+surface: 101 tests green (54 v2 + 36 capture + 11 wire), twins byte-identical `c62b849c`,
+mypy at base count, legacy red set identical to base. Merged to master in the acceptance
+commit carrying this ledger update, the Board flip, and the CHANGELOG/LESSONS Deltas.

@@ -30,17 +30,20 @@ from __future__ import annotations
 
 import fcntl
 import json
+import math
 import os
 import re
 import select
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
+from typing import Final, Literal
 
 CLAUDE_DIR = Path.home() / ".claude"
 ACTIVE_CREDS = CLAUDE_DIR / ".credentials.json"
@@ -55,6 +58,9 @@ ACTIVE_MARKER = CLAUDE_DIR / ".active-account"
 # the host) — a persistently-dead account must not flood Telegram from every 15-min cron × N hosts.
 ALERT_STATE = CLAUDE_DIR / ".last-401-alert"
 _ALERT_DEBOUNCE_S = 12 * 3600
+# A ledger timestamp may sit this far ahead of "now" before it is treated as clock skew rather than
+# a real switch (NTP correction, and WSL suspend/resume, move this box's clock in both directions).
+_CLOCK_SKEW_TOLERANCE_S = 60.0
 
 # Quota / usage-limit signal (case-insensitive). PURE alternation — no literal spaces
 # around '|'. Grounded verbatim (claude-auto-retry README + Anthropic errors docs,
@@ -400,6 +406,59 @@ def _activate_snapshot(
             os.close(lock_fd)
 
 
+# Everything the rotate STATE DIR can throw at a caller: _rotate_state_dir() mkdirs, so it raises
+# OSError, and Path.home() raises RuntimeError when HOME is unset with no passwd entry (a real
+# systemd/container config); a corrupt file read adds UnicodeDecodeError (a ValueError). Every
+# best-effort reader of that dir swallows exactly this set — widen _STATE_DIR_ERRORS (one name, all
+# sites) if _rotate_state_dir ever grows a new failure mode, e.g. a KeyError from an env lookup.
+_STATE_DIR_ERRORS = (OSError, ValueError, RuntimeError)
+
+# The two pause REASONS, as constants: they are compared at several call sites (the 401 alert leg,
+# --next, --status, the tick), and a bare-string rename in one place fails every comparison
+# silently. The guard against that is the TESTS — t15k/t15m/t15n assert the operator-facing strings
+# and all three tri-state branches — NOT the type checker: the repo gate does not type-check
+# scripts/ (pyproject excludes it), so the Literal below only bites in a standalone mypy run.
+_PAUSE_MARKER: Final[Literal["marker"]] = "marker"  # the operator's --pause-switch marker is set
+_PAUSE_ERROR: Final[Literal["error"]] = "error"  # the pause state is unreadable → fail closed
+
+# ``withheld_reason`` — set by EVERY call into _rotate_active_account: the reason above iff that
+# call was refused by the pause gate (nothing installed, nothing even attempted), None on every
+# other outcome. It is the gate's own REPORT to `run_claude`/`_cmd_next`, which must never re-derive
+# it by re-reading the marker: a re-read is wrong whenever the function was not called at all (a
+# 1-snapshot host, or _list_accounts fail-softing to [] → max_rotations == 0), where it silenced a
+# TRUE "all credentials are dead" alert, and it races the marker's removal (TOCTOU) at the resume
+# moment. THREAD-LOCAL, not a module global: the aro-wake twin calls run_claude from
+# ``asyncio.to_thread`` AND from a fire-and-forget task with no lock, so two callers are genuinely
+# in the gate at once — with one shared slot, a paused caller's verdict is read by an exhausted
+# sibling and silences its alert. Readers use ``getattr(_TLS, "withheld_reason", None)`` — a thread
+# that never rotated has no attribute at all.
+_TLS = threading.local()
+
+
+def _pause_state() -> Literal["marker", "error"] | None:
+    """Tri-state pause probe — the SINGLE surface every caller uses. Returns ``None`` (not paused),
+    ``_PAUSE_MARKER`` (the operator's ``--pause-switch`` marker is present), or ``_PAUSE_ERROR``
+    (the pause state could not be READ — an unreachable/unwritable state dir, or ``Path.home()``
+    raising RuntimeError when HOME is unset with no passwd entry, a real systemd/container config).
+
+    It swallows exactly ``_STATE_DIR_ERRORS`` — everything :func:`_rotate_state_dir` and
+    ``Path.is_file`` can raise today. That set is the contract: an escape mid-``claude``-call is
+    mislabeled by ``main()`` as an exec failure (126) and discards a good result, so a future edit
+    that gives ``_rotate_state_dir`` a new failure mode must widen ``_STATE_DIR_ERRORS`` (the one
+    name every state-dir reader shares).
+
+    **``_PAUSE_ERROR`` fails CLOSED — no pair is installed** — because this function cannot tell
+    "no marker" from "cannot look", and T01's invariant is that ZERO processes may swap credentials
+    while the operator holds the marker. Refusing costs a wait ``--resume-switch`` ends; permitting
+    costs exactly the box-wide swap the marker exists to forbid. But it is NOT the marker: callers
+    must keep their alerting ARMED for it (the operator asked for silence when they set the marker
+    — never when a state dir broke), which is why this is tri-state and not a bool."""
+    try:
+        return _PAUSE_MARKER if _switch_paused() else None
+    except _STATE_DIR_ERRORS:
+        return _PAUSE_ERROR
+
+
 def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
     """Rotate the active account to another snapshot: pick the first snapshot that is NOT in
     *avoid*, is a USABLE account (has an OAuth token — so an empty/0-byte/tokenless snapshot is
@@ -412,7 +471,35 @@ def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
     can't both target the same account, over-write the ``.prev`` backup, or report a phantom
     no-op rotation. Returns the new account's dir name, or None when there is no eligible target
     or the install fails (fail-soft). Never emits token bytes.
+
+    **Pause gate (the M-pre invariant, 2026-08-15):** while the operator's ``switch-paused``
+    marker exists (``--pause-switch``), NOTHING installs a pair — this is the single choke point
+    behind ``run_claude``'s usage-limit/401 retry and ``--next``, so gating it here disarms every
+    automated credential swap ON THIS BOX. It does NOT reach the hourly fleet-sync
+    (``scripts/sysadmin/sync-claude-accounts-to-fleet.sh``), which pushes the live credentials to
+    the 3 VPSes with no pause awareness — that push's pause-awareness belongs to the VPS follow-up
+    spec, not to this gate. The refusal is LOUD on **stderr** (the CLI passthrough
+    mirrors stdout back to its callers, so a stdout line would corrupt their payload) and returns
+    None. ``--switch <name>`` does not route through here and stays usable as the manual lever.
+    A refusal is REPORTED to callers via ``_TLS.withheld_reason`` (set on every call), so they can
+    tell "withheld by the marker" from "withheld fail-closed" from "no target existed" without
+    re-reading the marker themselves.
     """
+    _TLS.withheld_reason = None
+    paused = _pause_state()
+    if paused is not None:
+        _TLS.withheld_reason = paused
+        if paused == _PAUSE_MARKER:
+            sys.stderr.write(
+                "claude_rotate: rotation PAUSED (switch-paused marker) — no account installed "
+                "(override: --resume-switch)\n"
+            )
+        else:
+            sys.stderr.write(
+                "claude_rotate: pause-state unreadable — failing CLOSED, no account installed "
+                "(fix the rotate state dir; --resume-switch clears a real marker)\n"
+            )
+        return None
     accounts = _list_accounts()
     if len(accounts) < 2:
         return None
@@ -627,6 +714,12 @@ def run_claude(
     rotations = 0
     died_account: str | None = None  # the FIRST account whose creds 401'd (dead), for the alert
     last_target: str | None = None  # the last account we rotated TO
+    # Why the LAST rotation attempt gave up: "marker" (the operator withheld it — the alert below
+    # stays silent, since nothing is proven dead), "error" (withheld fail-closed on an unreadable
+    # pause state — the alert FIRES, saying so), or None (genuine exhaustion). Reported BY the gate
+    # per thread (see _TLS), never re-read here: a give-up that never reached the gate
+    # (max_rotations == 0 — a 1-snapshot host) correctly stays "exhausted".
+    withheld_reason: str | None = None
     while True:
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
         # Rotate on the usage-limit signal OR a 401, REGARDLESS of exit code / output format.
@@ -645,11 +738,20 @@ def run_claude(
             # Record the account that died BEFORE rotating, so the alert names it (not the target).
             d = _active_account()
             died_account = d.name if d is not None else "?"
-        new_account = (
-            _rotate_active_account(avoid=frozenset(tried)) if rotations < max_rotations else None
-        )
+        if rotations < max_rotations:
+            # Clear THIS thread's slot first: a stubbed/monkeypatched rotate never writes it, and a
+            # stale same-thread value from an earlier call would otherwise be read as this call's
+            # verdict.
+            _TLS.withheld_reason = None
+            new_account = _rotate_active_account(avoid=frozenset(tried))
+            # WHY it gave up matters for the alert below, and only the gate knows: a withheld
+            # rotation is not evidence of dead credentials, while an exhausted one is.
+            withheld_reason = getattr(_TLS, "withheld_reason", None)
+        else:
+            new_account = None  # the gate was never consulted → genuine exhaustion
+            withheld_reason = None
         if new_account is None:
-            break  # no untried account left → give up (all exhausted / <2 accounts)
+            break  # no untried account left → give up (all exhausted / <2 accounts / paused)
         last_target = new_account
         tried.add(new_account)
         rotations += 1
@@ -667,18 +769,34 @@ def run_claude(
     # optimistic mid-loop guess, since a standby we rotated to may itself be dead. Recovery = the
     # final attempt is no longer a 401 (nor a limit). DEBOUNCED per host (_should_alert_401) so a
     # persistently-dead fleet doesn't flood Telegram. Best-effort; never raises (see _notify_telegram).
-    if died_account is not None and _should_alert_401():
+    if died_account is not None:
         final = (result.stdout or "") + "\n" + (result.stderr or "")
         host = _hostname()
-        if last_target is not None and not is_auth_401(final) and not is_usage_limit(final):
-            _notify_telegram(
-                f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
-                f"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)"
+        recovered = last_target is not None and not is_auth_401(final) and not is_usage_limit(final)
+        # RULE: while the operator's MARKER is set, the all-dead alert is theirs to own — they are
+        # actively working the credential pool and asked for no swaps, so this call is not allowed
+        # to declare the fleet dead on their behalf. (That holds even when real standbys were tried
+        # and died before the marker landed mid-run: the operator is at the keyboard.) The debounce
+        # probe is SKIPPED with it — it records a send time even when nothing is sent, which would
+        # mute the next genuine alert for ~12h. A fail-CLOSED refusal (_PAUSE_ERROR) is the
+        # opposite case: nobody asked for silence, so the alert fires and names why the box could
+        # not heal itself.
+        if recovered:
+            if _should_alert_401():
+                _notify_telegram(
+                    f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
+                    f"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)"
+                )
+        elif withheld_reason != _PAUSE_MARKER and _should_alert_401():
+            why = (
+                " (pause-state unreadable — install refused fail-closed)"
+                if withheld_reason == _PAUSE_ERROR
+                else ""
             )
-        else:
             _notify_telegram(
-                f"🚨 Claude 401 on {host}: NO working Claude account — all credentials are dead. "
-                f"Re-capture a fresh account (claude auth login / claude-manager). (alerts quiet ~12h)"
+                f"🚨 Claude 401 on {host}: NO working Claude account — all credentials are dead."
+                f"{why} Re-capture a fresh account (claude auth login / claude-manager). "
+                f"(alerts quiet ~12h)"
             )
     return result
 
@@ -763,6 +881,7 @@ def _cmd_switch(name: str) -> int:
 
 
 def _cmd_next() -> int:
+    _TLS.withheld_reason = None  # this thread's slot is stale until the gate writes it
     new_account = _rotate_active_account()
     if new_account:
         match = _find_account(new_account)  # may be None if the snapshot vanished post-rotation
@@ -770,6 +889,11 @@ def _cmd_next() -> int:
         sys.stdout.write(f"rotated active Claude account → {new_account} ({email})\n")
         _reload_hint()
         return 0
+    if getattr(_TLS, "withheld_reason", None) is not None:
+        # The gate already printed WHY on stderr (marker held, or pause state unreadable). The
+        # "need ≥2 snapshots" hint below would send the operator to `--list` hunting a missing
+        # snapshot that is not the problem.
+        return 1
     sys.stderr.write("no other account to rotate to (need ≥2 snapshots) — run `--list`\n")
     return 1
 
@@ -997,7 +1121,10 @@ def _status_payload() -> dict:
         if not row["valid"]:
             row["note"] = "INVALID (relogin needed)"
         out.append(row)
-    return {"accounts": out, "live": live}
+    # The pause state rides the JSON too (not just the text banner): a machine consumer reading a
+    # healthy-looking payload while switching is off entirely has no way to know rotation is
+    # withheld. null = running, "marker" = operator paused, "error" = pause state unreadable.
+    return {"accounts": out, "live": live, "pause": _pause_state()}
 
 
 def _cmd_status(as_json: bool) -> int:
@@ -1005,8 +1132,14 @@ def _cmd_status(as_json: bool) -> int:
     if as_json:
         print(json.dumps(pay, indent=1))
         return 0
-    if _switch_paused():
+    pause = pay["pause"]  # already probed for the payload; soft, so it never crashes --status
+    if pause == _PAUSE_MARKER:
         print("⏸ auto-switch PAUSED (--resume-switch to re-enable)")
+    elif pause == _PAUSE_ERROR:
+        print(
+            "⏸ auto-switch PAUSED (pause state unreadable — assumed paused; "
+            "check the rotate state dir)"
+        )
     from datetime import datetime
 
     def fmt(w):
@@ -1078,19 +1211,52 @@ def _switch_paused() -> bool:
     return (_rotate_state_dir() / "switch-paused").is_file()
 
 
+def _drain_stamp_path() -> Path:
+    """Where the 24h DRAIN dedupe stamp lives. Falls back to the temp dir when the rotate state dir
+    is unreachable (``_rotate_state_dir`` raising): the drain warning must still be deduped during
+    a state-dir outage, or the tick re-broadcasts the same "reach a checkpoint NOW" mail + telegram
+    every 5 minutes for the length of it. A temp-dir stamp is weaker (a reboot clears it) — one
+    extra broadcast, versus hundreds."""
+    try:
+        return _rotate_state_dir() / "drain-stamp"
+    except _STATE_DIR_ERRORS:
+        return Path(tempfile.gettempdir()) / "claude-drain-stamp"
+
+
+# The ledger is an audit trail, never a crash source — an escape from these readers aborts the tick
+# mid-flight, taking the drain broadcast with it.
 def _ledger_append(event: dict) -> None:
     try:
         with (_rotate_state_dir() / "rotate-ledger.jsonl").open("a") as fh:
             fh.write(json.dumps(event) + "\n")
-    except OSError:
-        pass  # the ledger is an audit trail, never a crash source
+    except _STATE_DIR_ERRORS:
+        pass
 
 
-def _last_switch_ts() -> float | None:
+def _last_switch_ts() -> tuple[float | None, bool]:
+    """When the last install happened, for the tick's dwell guard — as ``(timestamp, degraded)``.
+
+    ``(None, False)`` means "no switch on record" and lets the tick install: it is only ever
+    returned when the ledger legitimately has no switch entry (a fresh box has no ledger at all
+    and must still be able to make its first switch).
+
+    A ledger that cannot be READ — unreachable/corrupt bytes, a permission error, or a well-formed
+    switch record whose ``ts`` is not a number — fails **CLOSED**: ``(now, True)``, which reads as
+    "just switched" and holds the guard. Answering "no recent switch" to a question we cannot
+    answer lets the tick install a fresh pair on every 5-minute run for as long as the fault lasts.
+    ``degraded=True`` is the second half of that contract: the hold is a GUESS, so the caller must
+    NOT treat it as a healthy dwell — the tick routes it into the DRAIN broadcast, because nobody
+    is installing while the live account burns toward the wall."""
     try:
         lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
-    except OSError:
-        return None
+    except FileNotFoundError:
+        return None, False  # no ledger yet = nothing has ever switched (fresh box, not a fault)
+    except _STATE_DIR_ERRORS:
+        sys.stderr.write(
+            "claude_rotate: rotate-ledger unreadable/corrupt — dwell guard failing CLOSED "
+            "(holding; no account installed)\n"
+        )
+        return _now(), True
     for line in reversed(lines):
         try:
             e = json.loads(line)
@@ -1098,8 +1264,19 @@ def _last_switch_ts() -> float | None:
             continue
         if e.get("event") == "switch":
             ts = e.get("ts")
-            return float(ts) if isinstance(ts, (int, float)) else None
-    return None
+            if isinstance(ts, (int, float)) and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S:
+                return float(ts), False
+            # Two unknowns, one verdict. A non-numeric ts cannot be compared at all; a ts stamped
+            # in the FUTURE makes ``now - last`` negative, which reads as "within dwell" for as
+            # long as the skew lasts — a silent hold with no drain (WSL suspend/resume moves this
+            # box's clock). Neither may read as "no recent switch".
+            sys.stderr.write(
+                "claude_rotate: rotate-ledger switch record has an unusable ts "
+                f"({ts!r} — non-numeric or clock-skewed into the future) — dwell guard failing "
+                "CLOSED (holding; no account installed)\n"
+            )
+            return _now(), True
+    return None, False
 
 
 def _mailbox_repos() -> list[str]:
@@ -1372,15 +1549,36 @@ def _cmd_tick() -> int:
 
 
 def _env_float(name: str, default: float) -> float:
+    """An env override as a float, falling back to *default* on anything unusable.
+
+    NON-FINITE values are rejected LOUDLY: ``nan`` compares False against everything, so
+    ``ROTATE_DRAIN_THRESHOLD=nan`` disables the DRAIN warning permanently and invisibly — the
+    threshold clamp cannot even fire to report it — and ``inf`` does the same by never being
+    reached. A silently-disabled warning is the failure mode this whole ticket exists to prevent."""
     try:
-        return float(os.environ.get(name, default))
+        val = float(os.environ.get(name, default))
     except (TypeError, ValueError):
         return default
+    if not math.isfinite(val):
+        sys.stderr.write(
+            f"claude_rotate: {name} is not a finite number ({val}) — using the default {default}\n"
+        )
+        return default
+    return val
 
 
 def _tick_inner() -> int:
     threshold = _env_float("ROTATE_THRESHOLD", 95.0)
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    if drain_thr > threshold:
+        # The warning must never sit ABOVE the action it warns about: between the two there is a
+        # band where the tick refuses to switch (paused / no successor) and also refuses to warn,
+        # printing a hold line and then ledgering "ok" — a silent burn to the wall.
+        sys.stderr.write(
+            f"claude_rotate: ROTATE_DRAIN_THRESHOLD ({drain_thr:.0f}) is above ROTATE_THRESHOLD "
+            f"({threshold:.0f}) — clamping the drain warning to the switch threshold\n"
+        )
+        drain_thr = threshold
     dwell_s = _env_float("ROTATE_DWELL_MIN", 30.0) * 60
     now = _now()
     rows, live_name = _collect_statuses()
@@ -1397,19 +1595,35 @@ def _tick_inner() -> int:
             (live.get("seven_day") or {}).get("utilization", 0.0),
         )
         successor = _pick_successor(rows, live_name, now)
-        if successor is not None and _switch_paused():
+        pause = _pause_state()  # soft: an unreadable state dir must not kill the DRAIN broadcast
+        if successor is not None and pause is not None:
             # successor=None routes ≥drain_thr ticks into the DRAIN broadcast, so a paused
             # pool warns before the wall instead of silently hitting it
-            print(f"tick: auto-switch PAUSED (operator marker) — {successor} not installed")
+            why = "operator marker" if pause == _PAUSE_MARKER else "pause state unreadable"
+            print(f"tick: auto-switch PAUSED ({why}) — {successor} not installed")
             successor = None
         switch_failed = False
         if hot >= threshold and successor is not None:
-            last = _last_switch_ts()
-            if last is not None and (now - last) < dwell_s:
+            last, degraded = _last_switch_ts()
+            # `degraded` withholds STRUCTURALLY — never via the dwell arithmetic below. The
+            # fail-closed timestamp is "now", so `(now - last) < dwell_s` only happens to be true
+            # because the two clock reads differ by microseconds: with ROTATE_DWELL_MIN=0 that
+            # comparison is False and the tick would install off an unreadable ledger anyway.
+            if degraded:
+                # A fail-closed hold is a guess, not a real recent switch: no install happened and
+                # none will while the ledger is unreadable, so the account burns to the wall
+                # unannounced unless this reaches the DRAIN broadcast. Clearing `successor` is what
+                # carries it there — the same carrier the paused/no-successor case uses. The
+                # verdict is its OWN string: post-hoc, a fail-closed hold and a genuine dwell hold
+                # are different incidents.
+                print("tick: dwell guard fail-closed (unusable ledger) — holding, routing to DRAIN")
+                _ledger_append({"event": "tick", "ts": now, "verdict": "dwell-hold-degraded"})
+                successor = None
+            elif last is not None and (now - last) < dwell_s:
                 print(f"tick: {hot:.0f}% >= {threshold:.0f}% but within dwell — holding")
                 _ledger_append({"event": "tick", "ts": now, "verdict": "dwell-hold"})
                 return 0
-            if _tick_switch(successor):
+            elif _tick_switch(successor):
                 _ledger_append(
                     {
                         "event": "switch",
@@ -1422,16 +1636,23 @@ def _tick_inner() -> int:
                 _tick_telegram(f"rotated {live_name} -> {successor} at {hot:.0f}%")
                 print(f"tick: switched {live_name} -> {successor} at {hot:.0f}%")
                 return 0
-            # closer #4: a failed switch must be LOUD and must not shadow the drain path —
-            # "successor exists but cannot install" burns silently to 100% otherwise
-            switch_failed = True
-            _tick_telegram(
-                f"quota switch to {successor} FAILED at {hot:.0f}% — pool may be draining"
-            )
-            print(f"tick: switch to {successor} FAILED")
-            _ledger_append({"event": "tick", "ts": now, "verdict": "switch-failed"})
+            else:
+                # closer #4: a failed switch must be LOUD and must not shadow the drain path —
+                # "successor exists but cannot install" burns silently to 100% otherwise. Reached
+                # only when `_tick_switch` above actually ran and returned False: the elif chain
+                # excludes both hold arms, so a held tick never reports a switch failure.
+                switch_failed = True
+                _tick_telegram(
+                    f"quota switch to {successor} FAILED at {hot:.0f}% — pool may be draining"
+                )
+                print(f"tick: switch to {successor} FAILED")
+                _ledger_append({"event": "tick", "ts": now, "verdict": "switch-failed"})
         if hot >= drain_thr and (successor is None or switch_failed):
-            stamp = _rotate_state_dir() / "drain-stamp"
+            # The stamp DEBOUNCES the broadcast to once per 24h. An unreachable state dir must
+            # never abort the drain warning (it used to raise straight into _cmd_tick's blanket
+            # except, losing the mail AND the telegram) — and must not lose the dedupe either, or
+            # the drain re-broadcasts on every 5-minute tick for the whole outage.
+            stamp = _drain_stamp_path()
             try:
                 age = now - stamp.stat().st_mtime
             except OSError:
@@ -1488,13 +1709,13 @@ def _keepwarm_pass(rows: list[dict], live_name: str | None, now: float) -> None:
 def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
     """Bound the append-only ledger (closer #15): keep the newest half when it crosses the
     cap — the dwell scan only ever needs the recent tail."""
-    led = _rotate_state_dir() / "rotate-ledger.jsonl"
     try:
+        led = _rotate_state_dir() / "rotate-ledger.jsonl"
         if led.stat().st_size > cap_bytes:
             lines = led.read_text().splitlines(keepends=True)
             led.write_text("".join(lines[len(lines) // 2 :]))
-    except OSError:
-        pass
+    except _STATE_DIR_ERRORS:
+        pass  # runs in _tick_inner's finally — an escape here would mask the tick's own outcome
 
 
 def _live_email(timeout_s: float = 10.0) -> str | None:
@@ -1640,7 +1861,16 @@ def main(argv: list[str] | None = None) -> int:
     if args[0] == "--touch":
         return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
     if args[0] == "--pause-switch":
-        (_rotate_state_dir() / "switch-paused").touch()
+        # A broken state dir is exactly the situation the fail-closed messages send the operator
+        # here to fix — report it, never traceback out of main().
+        try:
+            (_rotate_state_dir() / "switch-paused").touch()
+        except _STATE_DIR_ERRORS:
+            sys.stderr.write(
+                "claude_rotate: cannot write the rotate state dir — pause NOT recorded "
+                "(rotation is already refusing fail-closed while it is unreadable)\n"
+            )
+            return 1
         print(
             "auto-switch PAUSED — ticks keep telemetry + drain warnings; no account is"
             " installed until --resume-switch"
@@ -1650,7 +1880,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             (_rotate_state_dir() / "switch-paused").unlink()
         except FileNotFoundError:
-            pass
+            pass  # already resumed
+        except _STATE_DIR_ERRORS:
+            sys.stderr.write(
+                "claude_rotate: cannot read/write the rotate state dir — resume NOT applied; "
+                "rotation stays refused (fail-closed) until the state dir is fixed\n"
+            )
+            return 1
         print("auto-switch RESUMED")
         return 0
     env = os.environ.copy()

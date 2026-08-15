@@ -28,7 +28,7 @@ window's live path would break the box.
 ## Ticket Board
 
 | Ticket | Title | Depends | Parallel | State | Commit |
-| T01 | Disarm the old world (M-pre) | — | ⛓️ | 🟡 | |
+| T01 | Disarm the old world (M-pre) | — | ⛓️ | ✅ | 095942b9 |
 | T02a | Fleet-dir scaffolder + carrier monitor | T01 | ⛓️ | ⬜ | |
 | T02b | Fleet gitignore for the carrier file | — | ⚡ | 🔵 | |
 | T03 | Fleet-mode status/tick + keepalive | T02a | ⛓️ | ⬜ | |
