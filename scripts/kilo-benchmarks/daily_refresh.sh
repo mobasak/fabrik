@@ -1,56 +1,35 @@
 #!/bin/bash
-# Daily refresh of the AI model catalog. Cron-safe (no PATH assumptions,
-# no shell activity required). Runs the full chain:
-#   0. gather_envs.py + classify_services.py --apply
-#        → refresh secrets/all-envs.env; web-ground + catalog any new external
-#          service whose key appeared (no-op at zero cost when nothing is new)
-#   1. verify_openrouter_catalog.py --apply --ingest-new
-#        → cross-checks the DB against live OpenRouter + Kilo CLI,
-#          fixes prices, marks delisted, ingests new
-#   2. classify_ai_category.py
-#        → re-classifies all models into the 7 LLM packs
-#   3. category_route_mapper.py
-#        → re-picks today's openrouter:* route winners + history
-#   4. category_export_markdown.py
-#        → injects OPENROUTER_ROUTES blocks + freshness stamp into
-#          .windsurf/rules/ai/*.md
-#   5. update_gateway_counts.py
-#        → injects GATEWAY_COUNTS blocks (live per-category gateway
-#          counts from kilo_agents.db) into the same packs
-#   6. fetch_replicate_prices.py / fetch_fal_prices.py
-#        → scrape per-model pricing from aggregators; populate
-#          agents.gateway_prices JSON (plan-2-aggregator-pricing.md)
-#   7. derive_cheapest_gateway.py (preceded on Sundays by microbench_or_models.py
-#      + microbench_specialty.py — OR / specialty microbench for rows without
-#      Speed data; needs OPENROUTER_API_KEY + specialty-provider keys)
-#        → picks the cheapest (gateway, price) per row from
-#          gateway_prices + direct price; writes cheapest_gateway +
-#          cheapest_gateway_price for the browser to badge
-#   8. rank_coding_subagents.py
-#        → queries the DB for GLM/Kimi/Minimax/DeepSeek active LLMs,
-#          applies a weighted composite score + Doc↔Code letter grade,
-#          writes docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
-#   8b1. correlated_prior.py
-#        → seeds plan/spec cold-start priors (plan←code+review, spec←docs+plan)
-#          into model_task_baseline (FREE; paid judged bench is operator-only)
-#   8b. rank_task_subagents.py
-#        → queries fabrik_analytics.subagent_runs, aggregates per
-#          (task_type, model) with 90-day window + min 3 runs, writes
-#          docs/reference/kilo/TASK_SUBAGENT_SELECTION.md. Consumed by
-#          the subagents module's pick_models (select.py:174).
-#   9. export_models_browser.py
-#        → regenerates the single-file models_browser.html
+# fabrik's CONSUMER pipeline for the AI model catalog. Cron-safe (no PATH assumptions, no shell
+# activity required). `0 6 * * *`.
 #
-# Each step is wrapped in `|| echo "[step] failed (non-fatal)"` so a
-# downstream failure can't short-circuit subsequent steps. Output goes
-# to scripts/kilo-benchmarks/cache/update.log.
+# ⚠️ THIS SCRIPT NO LONGER PRODUCES THE CATALOG. The engine (scrape → normalize → derive → rank →
+# export, ~210 modules) was relocated to /opt/ai-model-catalog/engine/ on 2026-08-15 and runs from
+# its own cron at `30 5 * * *`, half an hour ahead of this one so the delivered artifacts are fresh
+# when generate_kilo_agents reads them. This header used to document a 9-step producer chain
+# (verify_openrouter_catalog → classify_ai_category → category_route_mapper → category_export_markdown
+# → update_gateway_counts → fetch_*_prices → derive_cheapest_gateway → rank_* → export_models_browser);
+# every one of those steps is gone from this file. Rewritten 2026-08-16 after a review found the
+# header still describing the pipeline it had stopped running — a stale header on a cron entry point
+# is how the next operator debugs the wrong system.
 #
-# Install (run once):
-#   ( crontab -l 2>/dev/null; echo "0 6 * * * /opt/fabrik/scripts/kilo-benchmarks/daily_refresh.sh" ) | crontab -
+# What this file actually does now, in order:
+#   1. check_daily_refresh_freshness.py  — heartbeat: alerts if the previous run is >36h stale
+#   2. gather_envs.py --apply            — consolidate secrets/all-envs.env
+#   3. classify_services.py --apply      — web-ground + catalog any newly-keyed external service
+#   4. generate_capability_index.py      — regenerate capabilities.json + docs/CAPABILITIES.md
+#   5. generate_kilo_agents.py           — emit the Traycer CLI agent scripts from kilo_agents.db
+#   6. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
 #
+# ⚠️ The heartbeat measures whether THIS script reached its end. It does NOT measure catalog
+# freshness — post-relocation those are different questions, and a green heartbeat here says nothing
+# about whether the engine ran. The delivered-doc age is the signal that matters
+# (docs/reference/kilo/TASK_SUBAGENT_SELECTION.md mtime; select.py drops a ranking >14 days old).
+#
+# Install (already in crontab):
+#   ( crontab -l; echo "0 6 * * * /opt/fabrik/scripts/kilo-benchmarks/daily_refresh.sh" ) | crontab -
 # Manual run:
 #   bash /opt/fabrik/scripts/kilo-benchmarks/daily_refresh.sh
-
+# Logs: stdout (12-Factor XI). Redirect at the invocation layer if you want a file.
 set -u
 FABRIK_ROOT="/opt/fabrik"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"

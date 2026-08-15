@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — E.closing findings #10 and #14: stale docs, and a disclosed shared-tree violation (2026-08-16)
+
+- **`daily_refresh.sh`'s header documented a pipeline it stopped running.** It still described the
+  9-step producer chain (`verify_openrouter_catalog` → … → `export_models_browser`), every step of
+  which D.1 removed. A stale header on a cron entry point is how the next operator debugs the wrong
+  system. Rewritten to the six consumer steps it actually runs, with the relocation, the engine's own
+  `30 5 * * *` cron, and an explicit warning that the heartbeat measures whether THIS script finished
+  — **not** catalog freshness, which post-relocation is a different question.
+- **`INDEX.md`: 39 rows described deleted surfaces as present.** Dropped by ROW SUBJECT only. ⚠️ The
+  first attempt matched any row *naming* a dead file and destroyed rows about `daily_refresh.sh`,
+  `rank_task_subagents.py`, `db_models.py` and `libs/subagents/select.py` — all retained, all live —
+  because a row can mention a deleted file while being about a live one. Reverted and redone against
+  the row's subject, then re-verified that nothing dropped still exists on disk.
+- **`AFCL.md:56` corrected.** It said `fanout()` returns a TUPLE. It now returns a `FanoutBatch`:
+  `__iter__` yields the same two values so `results, table = fanout(...)` is unchanged across every
+  vendored copy, but it is **not** a tuple subclass and has **no `__getitem__`**, so `fanout(...)[0]`
+  raises `TypeError`. No in-repo caller indexes; the entry's existing rule ("ALWAYS unpack") is now
+  more load-bearing, not less.
+- ⚠️ **Disclosed: commit `73bde59a` bundled a sibling's in-flight `libs/subagents` work** (agent.py
+  +179, ledger.py +44, pg_ledger.py +65) with no mention in its message. Cause: I ran `git add -u` to
+  stage ~320 deletions, which stages every tracked modification including a peer's — a CLAUDE.md HARD
+  STOP, and I had the computed deletion set sitting in a file I could have used as a pathspec. NOT
+  reverted: their files are still dirty, so a revert would clobber live work, which is worse than an
+  unwanted commit. Nothing of theirs was lost or altered; 49/49 subagent+ledger tests green. Sent to
+  the peer via fabrik-mail with an offer to split it out.
+
+
 ### Fixed — E.closing review: the excise's blind spot, and a catalog with no scheduler (2026-08-16)
 
 The whole-plan review found what a green `final_gate` structurally could not. Both of the worst are
