@@ -311,12 +311,20 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
         if not closers:
             continue
         head = "\n".join(lines[: closers[0]])
-        assert re.search(r'if\s+!\s+mkdir -p "\$\(dirname "\$LOG_FILE"\)"', head), (
-            f"{src.name} closes a block with `}} >> $LOG_FILE` but never GUARDS the creation "
-            f"of that directory before the block opens — an unguarded `mkdir -p` fails in the "
-            f"identical scenario, so the whole pipeline body would be skipped in silence"
+        # ⚠️ Assert the probe is an APPEND, not a `mkdir -p`. `mkdir -p` returns 0 on an
+        # existing-but-unwritable directory, so a mkdir-based guard reports success while the
+        # redirect still fails and still skips the entire body — the guard would be decorative
+        # in exactly the scenario it exists for. Empirically reproduced with `chmod 500`.
+        assert re.search(r'_log_usable\(\)\s*\{[^}]*:\s*>>"?\$1', head), (
+            f"{src.name} must prove the log is WRITABLE by appending to it before the block "
+            f"opens. `mkdir -p` alone is not that proof: it succeeds on an existing unwritable "
+            f"directory, and the whole pipeline body is then skipped in silence"
         )
-        assert re.search(r"^\s*LOG_FILE=.*\n", head, re.M) and "_fallback" in head, (
-            f"{src.name} guards the mkdir but never REASSIGNS LOG_FILE to a usable fallback — "
-            f"detecting the failure does not stop the block redirect from failing"
+        assert re.search(r'if\s+!\s+_log_usable "\$LOG_FILE"', head), (
+            f"{src.name} defines the writability probe but does not gate on it"
+        )
+        assert "_fallback" in head and "/dev/stderr" in head, (
+            f"{src.name} needs a terminal fallback that CANNOT fail: if both the real log and "
+            f"/tmp are unusable, reassigning LOG_FILE to another failing path reproduces the "
+            f"silent skip. Redirect to /dev/stderr rather than let the body be skipped"
         )

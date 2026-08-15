@@ -73,15 +73,26 @@ export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 # created the refresh silently does nothing AND the "heartbeat cache dir creation FAILED" guard
 # inside the block never even evaluates. Line-scope redirects were fixed earlier; this is the
 # block-scope instance of the same class, and it is the one that matters.
-if ! mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null; then
+#
+# ⚠️ The probe must be a real APPEND, not `mkdir -p`. `mkdir -p` returns 0 when the directory
+# already exists — including when it exists and is NOT WRITABLE — so a `mkdir`-based guard
+# passes cleanly while the redirect below still fails and still skips the whole body. Verified:
+# `chmod 500` the cache dir and the mkdir guard reports success, the block exits 1, and nothing
+# runs. Only appending to the actual target proves the actual redirect can succeed.
+_log_usable() { mkdir -p "$(dirname "$1")" 2>/dev/null && : >>"$1" 2>/dev/null; }
+
+if ! _log_usable "$LOG_FILE"; then
   _fallback="/tmp/fabrik_daily_refresh_$(date -u +%Y%m%d).log"
-  echo "[daily_refresh] CRITICAL: cannot create $(dirname "$LOG_FILE") — logging to $_fallback" >&2
+  echo "[daily_refresh] CRITICAL: $LOG_FILE is not writable — falling back to $_fallback" >&2
   # Alert BEFORE the block, while a working redirect still exists.
   bash "$KB/pipeline_alert.sh" \
-    "daily_refresh.sh: log directory unusable — pipeline would have silently no-opped" \
-    "Could not create $(dirname "$LOG_FILE"). The refresh body is one compound command redirected there, so bash would have skipped ALL of it without running a single step or firing the in-block heartbeat guard. Logging to $_fallback for this run. Investigate disk/permissions now." \
+    "daily_refresh.sh: log file unwritable — pipeline would have silently no-opped" \
+    "Could not append to $LOG_FILE. The refresh body is one compound command redirected there, so bash would have skipped ALL of it without running a single step or firing the in-block heartbeat guard. Falling back for this run. Investigate disk/permissions now." \
     || true
-  LOG_FILE="$_fallback"
+  # If even /tmp is unusable, redirect to stderr rather than to a path that fails: a failed
+  # redirect skips the entire pipeline, which is strictly worse than logging somewhere odd.
+  # There is no configuration in which this script should silently do nothing.
+  if _log_usable "$_fallback"; then LOG_FILE="$_fallback"; else LOG_FILE="/dev/stderr"; fi
 fi
 {
   echo ""

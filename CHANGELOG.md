@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the log-writability guard tested creatability, which is not the invariant (2026-08-15)
+
+Round-23 review of the guard added the same day. `mkdir -p` returns 0 when the directory already
+exists **including when it exists and is not writable**, so the guard reported success while
+`} >> "$LOG_FILE" 2>&1` still failed and bash still skipped the entire pipeline body — decorative
+in exactly the scenario it existed for. Reproduced with `chmod 500`: guard passes, block exits 1,
+nothing runs. The probe is now a real append (`: >>"$1"`), and if both the log and the /tmp
+fallback are unusable the redirect goes to `/dev/stderr` rather than to another failing path,
+because there is no configuration in which this script should silently do nothing.
+
+Also from round 23: `check_commit_trailers.py` now decides on the RAW message instead of a
+comment-stripped copy — git ignores comment lines in a trailer block itself, so the preprocessing
+was pure redundancy carrying divergence risk (7 adversarial shapes, 0 divergences, now pinned by a
+parametrized differential test). Non-UTF-8 messages degrade instead of raising. And
+`test_the_commit_msg_hook_type_is_actually_installed` resolves the hooks dir via
+`git rev-parse --git-common-dir`: it keyed on `REPO/".git"` being a directory, which is false in a
+worktree — the exact environment plan execution runs in — so it went vacuously green there.
+
 ### Added — a commit-msg guard that rejects Agent Provenance Trailers git cannot parse (2026-08-15)
 
 **Measured, not assumed:** 200 of the last 200 hub commits carried an `Agent-Role:` line and only

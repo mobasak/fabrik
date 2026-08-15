@@ -98,11 +98,61 @@ def test_the_guard_is_wired_at_the_commit_msg_stage(tmp_path):
 
 def test_the_commit_msg_hook_type_is_actually_installed():
     """`pre-commit install` alone installs only pre-commit; commit-msg needs --hook-type."""
-    hook = REPO / ".git" / "hooks" / "commit-msg"
-    if not (REPO / ".git").is_dir():
+    # ⚠️ Resolve the hooks dir via git, never as REPO/".git"/"hooks". In a WORKTREE — which is
+    # how plan execution runs here — `.git` is a FILE, not a directory, so an `is_dir()` guard
+    # skips and the test goes vacuously green in the very environment where a missing hook
+    # matters. `--git-common-dir` resolves to the shared hooks dir from a worktree too.
+    common = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, check=False, cwd=REPO,
+    )
+    if common.returncode != 0:
         pytest.skip("not a git checkout")
+    hook = (REPO / common.stdout.strip()).resolve() / "hooks" / "commit-msg"
     assert hook.exists(), (
         "the commit-msg hook is not installed, so the guard never runs on a real commit: "
         "run `pre-commit install --hook-type commit-msg`"
     )
     assert "pre-commit" in hook.read_text(errors="ignore")
+
+
+# The verdict must be git's verdict. Anything the guard does to the message before asking git
+# is room for the two to disagree — and a guard that disagrees with the tool it guards is worse
+# than no guard, because it is trusted. These are the seven shapes a real commit message takes.
+DIFFERENTIAL = {
+    "editor comments appended": "fix: x\n\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n\n"
+    "# Please enter the commit message.\n# On branch master\n",
+    "comment inside the block": "fix: x\n\nAgent-Role: primary\n# note\nCo-Authored-By: Y <y@z>\n",
+    "blank line inside block": "fix: x\n\nAgent-Role: primary\n\nCo-Authored-By: Y <y@z>\n",
+    "prose glued to top": "fix: x\n\nprose.\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n",
+    "issue ref in body": "fix: x\n\ncloses #123\n\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n",
+    "markdown heading in body": "fix: x\n\n# Heading\nprose\n\nAgent-Role: primary\n"
+    "Co-Authored-By: Y <y@z>\n",
+    "comment-only final paragraph": "fix: x\n\nAgent-Role: primary\n\n# just a comment\n",
+}
+
+
+@pytest.mark.parametrize("name", sorted(DIFFERENTIAL))
+def test_the_guards_verdict_never_diverges_from_git(name, tmp_path):
+    """Whatever git parses, the guard must accept; whatever git cannot, it must reject."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    from check_commit_trailers import parsed_trailers
+
+    message = DIFFERENTIAL[name]
+    git_can_parse = bool(parsed_trailers(message).get("Agent-Role"))
+    guard_accepts = run(message, tmp_path).returncode == 0
+    assert guard_accepts == git_can_parse, (
+        f"{name}: git {'parses' if git_can_parse else 'CANNOT parse'} Agent-Role but the guard "
+        f"{'accepts' if guard_accepts else 'rejects'} — the guard has diverged from git"
+    )
+
+
+def test_a_non_utf8_commit_message_does_not_crash_the_hook(tmp_path):
+    """A traceback from a git hook is an unactionable failure; degrade, don't explode."""
+    msg = tmp_path / "COMMIT_EDITMSG"
+    msg.write_bytes(b"fix: caf\xe9\n\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n")
+    result = subprocess.run(
+        [sys.executable, str(GUARD), str(msg)], capture_output=True, text=True, check=False, cwd=REPO
+    )
+    assert "Traceback" not in result.stderr, result.stderr
+    assert result.returncode == 0

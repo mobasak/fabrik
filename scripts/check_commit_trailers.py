@@ -96,15 +96,26 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("usage: check_commit_trailers.py <commit-msg-file>", file=sys.stderr)
         return 2
-    message = Path(argv[1]).read_text(encoding="utf-8")
-    # Strip the comment lines git appends to the editor buffer; they are not part of the commit.
-    body = "\n".join(ln for ln in message.splitlines() if not ln.startswith("#"))
-
-    if f"{REQUIRED}:" not in body:
+    # errors="replace" rather than a hard UTF-8 decode: a non-UTF-8 byte in a commit message
+    # must not crash the hook with a traceback. The guard still runs; worst case a mangled
+    # character appears in the diagnosis.
+    message = Path(argv[1]).read_text(encoding="utf-8", errors="replace")
+    # ⚠️ The DECISION is made on the RAW message, never a preprocessed copy — git ignores
+    # comment lines inside a trailer block itself, so stripping them here would only create
+    # room for the guard's verdict to diverge from git's. Verified across 7 adversarial cases
+    # (editor comments appended, a comment inside the block, `#123` issue refs, a markdown
+    # heading in the body, and the two real defect shapes): 0 divergences, so the stripping
+    # that used to live here was pure redundancy carrying pure risk. Pinned by
+    # test_the_guards_verdict_never_diverges_from_git.
+    if f"{REQUIRED}:" not in message:
         return 0  # not an agent commit — merges, reverts, and human commits pass through
 
-    if parsed_trailers(body).get(REQUIRED):
+    if parsed_trailers(message).get(REQUIRED):
         return 0
+
+    # Only the DIAGNOSIS drops comment lines, so reported line numbers describe the message
+    # the author actually wrote rather than git's appended editor boilerplate.
+    body = "\n".join(ln for ln in message.splitlines() if not ln.startswith("#"))
 
     print(
         f"\n❌ COMMIT REJECTED — {REQUIRED} is present but git CANNOT parse it.\n\n"
