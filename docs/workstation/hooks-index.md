@@ -78,7 +78,12 @@ active enforcement.
 | pre-commit-hooks (large files · merge conflicts · private keys · forbidden `.env`/keys/certs) | Standard commit safety |
 | `command-corpus-check` | Installed `~/.claude/commands` + skills must match the rendered `_sources/` (hand-edits die on re-render) |
 | `governance-sync` | A commit touching a trigger surface auto-distributes governance to all `/opt` projects (trigger set = its `files:` filter — the filter is the truth, not memory) |
-| `agent-trailers-parse` (**stage: `commit-msg`**) | Rejects a commit whose `Agent-Role:` trailer git cannot parse — a blank line inside the trailer block, or prose glued to its top. Runs at `commit-msg`, the last moment the message is editable: once pushed, an unparseable block needs a force-push (HARD STOP). Delegates to `git interpret-trailers --parse`; passes through any commit with no `Agent-Role:`. ⚠️ Needs `pre-commit install --hook-type commit-msg` — plain `pre-commit install` wires only `pre-commit`, leaving this inert (pinned by `test_commit_trailer_guard.py`). Exists because prose alone provably failed: after CLAUDE.md's malformed example was fixed fleet-wide, the next 50 commits still parsed 0/50. |
+
+## 5. Plain git hooks (NOT managed by pre-commit)
+
+| Hook | What it does |
+|---|---|
+| `.git/hooks/commit-msg` → `scripts/check_commit_trailers.py` | Rejects a commit whose `Agent-Role:` trailer git cannot parse — a blank line inside the block, or prose glued to its top. Runs at commit-msg, the last moment the message is editable: once pushed, an unparseable block needs a force-push (HARD STOP). Delegates to `git interpret-trailers --parse`; passes through commits with no authored `Agent-Role:`, replayed messages (cherry-pick/revert/merge/rebase), and any state where git is unavailable. **Install: `python3 scripts/check_commit_trailers.py --install`** (idempotent; refuses to clobber a foreign hook; resolves the shared hooks dir via `--git-common-dir` so it works from a worktree). ⚠️ Deliberately NOT a pre-commit stage: pre-commit's commit-msg stage runs a SECOND `staged_files_only()` stash/restore per commit on a tree three agents share — where a pre-commit stash has already reverted uncommitted work once — and adds a second site for the "Your pre-commit configuration is unstaged" abort. Both were observed live. Exists because prose provably failed: after CLAUDE.md's malformed example was fixed fleet-wide, the next 50 commits still parsed 0/50. Tests: `scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py`. |
 
 ## Deeper documentation
 

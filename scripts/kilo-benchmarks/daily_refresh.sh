@@ -92,7 +92,13 @@ if ! _log_usable "$LOG_FILE"; then
   # If even /tmp is unusable, redirect to stderr rather than to a path that fails: a failed
   # redirect skips the entire pipeline, which is strictly worse than logging somewhere odd.
   # There is no configuration in which this script should silently do nothing.
-  if _log_usable "$_fallback"; then LOG_FILE="$_fallback"; else LOG_FILE="/dev/stderr"; fi
+  # /dev/stderr is NOT unconditionally safe: `daily_refresh.sh 2>&-`, or any daemonized
+  # invocation with fd 2 closed, makes appending to it fail and reproduces the silent skip on
+  # the very branch that exists to be unfailable. Probe it too, then degrade to /dev/null —
+  # running with no log is bad; not running at all, with no alert, is what we are preventing.
+  if _log_usable "$_fallback"; then LOG_FILE="$_fallback"
+  elif : >>/dev/stderr 2>/dev/null; then LOG_FILE="/dev/stderr"
+  else LOG_FILE="/dev/null"; fi
 fi
 {
   echo ""

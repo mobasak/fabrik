@@ -78,26 +78,47 @@ def test_gits_editor_comments_are_not_mistaken_for_prose(tmp_path):
 
 
 def test_the_guard_delegates_to_git_rather_than_reimplementing_its_rules(tmp_path):
-    """A hand-rolled parser drifts from git; drift is how a guard goes quietly vacuous."""
-    src = GUARD.read_text()
-    assert "interpret-trailers" in src and "--parse" in src
+    """A hand-rolled parser drifts from git; drift is how a guard goes quietly vacuous.
+
+    Asserting the strings "interpret-trailers" and "--parse" appear in the source proved
+    nothing: both occur in the module DOCSTRING, so swapping in a hand-rolled parser while
+    leaving the prose kept the test green. Prove delegation by BEHAVIOUR — take git away and
+    the verdict must change, which is only possible if git was being consulted.
+    """
+    msg = tmp_path / "COMMIT_EDITMSG"
+    msg.write_text(BLANK_INSIDE, encoding="utf-8")
+    args = [sys.executable, str(GUARD), str(msg)]
+
+    with_git = subprocess.run(args, capture_output=True, text=True, check=False, cwd=REPO)
+    without_git = subprocess.run(
+        args, capture_output=True, text=True, check=False, cwd=REPO, env={"PATH": "/nonexistent"}
+    )
+    assert with_git.returncode == 1, "the malformed block should be rejected when git is present"
+    assert without_git.returncode == 0, (
+        "with git unavailable the guard must fail open, not reject and not traceback"
+    )
+    assert "Traceback" not in without_git.stderr, without_git.stderr
 
 
-def test_the_guard_is_wired_at_the_commit_msg_stage(tmp_path):
-    """pre-commit stage, not commit-msg, would fire when the message cannot yet be read."""
+def test_the_guard_is_not_routed_through_pre_commit(tmp_path):
+    """pre-commit's commit-msg stage stashes unstaged work a SECOND time, per commit.
+
+    This tree is shared by three concurrent agents and a pre-commit stash has already reverted
+    uncommitted work here once. Routing the guard through pre-commit doubled that window and
+    added a second site for the "Your pre-commit configuration is unstaged" abort — both
+    observed live. A plain `.git/hooks/commit-msg` shim has neither failure mode, so the guard
+    must NOT reappear as a pre-commit hook.
+    """
     config = yaml.safe_load((REPO / ".pre-commit-config.yaml").read_text())
     hooks = [h for r in config["repos"] for h in r.get("hooks", [])]
-    hook = next((h for h in hooks if h["id"] == "agent-trailers-parse"), None)
-    assert hook is not None, "the guard is not registered in .pre-commit-config.yaml — inert"
-    assert hook.get("stages") == ["commit-msg"], (
-        f"the guard must run at commit-msg (the last point the message is editable); "
-        f"got stages={hook.get('stages')!r}"
+    offenders = [h for h in hooks if "commit-msg" in (h.get("stages") or [])]
+    assert not offenders, (
+        f"a commit-msg-stage pre-commit hook reintroduces the doubled stash cycle: {offenders}"
     )
-    assert "check_commit_trailers.py" in hook["entry"]
 
 
-def test_the_commit_msg_hook_type_is_actually_installed():
-    """`pre-commit install` alone installs only pre-commit; commit-msg needs --hook-type."""
+def test_the_commit_msg_hook_is_actually_installed_and_points_at_this_guard():
+    """A correct guard nothing invokes is the inert-check class — assert it is really wired."""
     # ⚠️ Resolve the hooks dir via git, never as REPO/".git"/"hooks". In a WORKTREE — which is
     # how plan execution runs here — `.git` is a FILE, not a directory, so an `is_dir()` guard
     # skips and the test goes vacuously green in the very environment where a missing hook
@@ -109,11 +130,17 @@ def test_the_commit_msg_hook_type_is_actually_installed():
     if common.returncode != 0:
         pytest.skip("not a git checkout")
     hook = (REPO / common.stdout.strip()).resolve() / "hooks" / "commit-msg"
+    # Only meaningful where hooks are installed at all. A fresh clone that has never run any
+    # installer is not a regression — but a repo with hooks installed and THIS one missing is.
+    if not (hook.parent / "pre-commit").exists() and not hook.exists():
+        pytest.skip("no git hooks installed in this checkout at all")
     assert hook.exists(), (
         "the commit-msg hook is not installed, so the guard never runs on a real commit: "
-        "run `pre-commit install --hook-type commit-msg`"
+        "run `python3 scripts/check_commit_trailers.py --install`"
     )
-    assert "pre-commit" in hook.read_text(errors="ignore")
+    assert "check_commit_trailers" in hook.read_text(errors="replace"), (
+        "a commit-msg hook exists but does not invoke this guard"
+    )
 
 
 # The verdict must be git's verdict. Anything the guard does to the message before asking git
@@ -132,14 +159,35 @@ DIFFERENTIAL = {
 }
 
 
+def _git_verdict(message: str, tmp_path: Path) -> bool:
+    """Independent oracle: make a REAL commit and read the trailer back with `git log`.
+
+    Using the guard's own `parsed_trailers()` as the oracle was circular — it could only ever
+    test main()'s pre/post-processing and was blind to any drift INSIDE parsed_trailers itself.
+    `git log --format='%(trailers:...)'` is the query CLAUDE.md says the trailers exist for, so
+    it is the verdict that actually matters.
+    """
+    repo = tmp_path / "oracle"
+    repo.mkdir()
+    run_git = lambda *a: subprocess.run(  # noqa: E731
+        ["git", *a], cwd=repo, capture_output=True, text=True, check=False
+    )
+    run_git("init", "-q", ".")
+    run_git("config", "user.email", "t@t")
+    run_git("config", "user.name", "t")
+    (repo / "f").write_text("x")
+    run_git("add", "f")
+    run_git("commit", "-q", "--no-verify", "-m", message)
+    return bool(
+        run_git("log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)").stdout.strip()
+    )
+
+
 @pytest.mark.parametrize("name", sorted(DIFFERENTIAL))
 def test_the_guards_verdict_never_diverges_from_git(name, tmp_path):
     """Whatever git parses, the guard must accept; whatever git cannot, it must reject."""
-    sys.path.insert(0, str(REPO / "scripts"))
-    from check_commit_trailers import parsed_trailers
-
     message = DIFFERENTIAL[name]
-    git_can_parse = bool(parsed_trailers(message).get("Agent-Role"))
+    git_can_parse = _git_verdict(message, tmp_path)
     guard_accepts = run(message, tmp_path).returncode == 0
     assert guard_accepts == git_can_parse, (
         f"{name}: git {'parses' if git_can_parse else 'CANNOT parse'} Agent-Role but the guard "
@@ -156,3 +204,60 @@ def test_a_non_utf8_commit_message_does_not_crash_the_hook(tmp_path):
     )
     assert "Traceback" not in result.stderr, result.stderr
     assert result.returncode == 0
+
+
+# `git commit -v` appends the whole diff below a scissors line, UNCOMMENTED. Any commit editing
+# a file that contains the literal string "Agent-Role:" — this script, these tests, CLAUDE.md —
+# therefore carries that string in its buffer without being an agent commit at all.
+VERBOSE_DIFF = (
+    "docs: edit the trailer documentation\n"
+    "\n"
+    "A normal commit that declares no trailers of its own.\n"
+    "\n"
+    "# ------------------------ >8 ------------------------\n"
+    "# Do not modify or remove the line above.\n"
+    "diff --git a/CLAUDE.md b/CLAUDE.md\n"
+    "+Agent-Role: primary\n"
+)
+
+
+def test_a_verbose_commit_whose_diff_mentions_agent_role_is_not_hijacked(tmp_path):
+    """The diff below the scissors line is not the author's text and must not be read as such."""
+    result = run(VERBOSE_DIFF, tmp_path)
+    assert result.returncode == 0, (
+        "a commit that merely EDITS a file containing 'Agent-Role:' was rejected as a "
+        f"malformed agent commit:\n{result.stderr}"
+    )
+
+
+def test_a_verbose_commit_with_a_real_broken_block_is_still_rejected(tmp_path):
+    """The scissors fix must not become a bypass: authored trailers are still checked."""
+    broken = BLANK_INSIDE + "\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n"
+    assert run(broken, tmp_path).returncode == 1
+
+
+def test_the_unattended_pipeline_commit_is_not_blocked_by_this_guard(tmp_path):
+    """The boot-time auto-commit runs with no human present — a false reject is invisible.
+
+    autocommit_pipeline_outputs.sh always `exit 0`s, so its caller's `|| echo … errored` can
+    never fire: a persistently failing commit-msg hook would disable the auto-commit SILENTLY
+    and FOREVER, and the tree would just go quietly dirty for every subsequent agent. Nothing
+    pinned its message form against this guard, so a single shape change on either side breaks
+    it with no signal. This test is that pin: it extracts the ACTUAL trailer block from the
+    shell script and runs it through the real guard.
+    """
+    script = (REPO / "scripts" / "kilo-benchmarks" / "autocommit_pipeline_outputs.sh").read_text()
+    # The trailer block is the second -m argument: a double-quoted string starting at Agent-Role.
+    start = script.index('-m "Agent-Role:')
+    block = script[start + len('-m "') :]
+    block = block[: block.index('"')]
+    assert block.startswith("Agent-Role:"), block[:80]
+
+    # git joins multiple -m arguments with a blank line, which is what makes the block its own
+    # final paragraph — reproduce that exactly rather than approximating it.
+    message = f"chore(kilo): pipeline auto-commit of regenerated outputs\n\n{block}\n"
+    result = run(message, tmp_path)
+    assert result.returncode == 0, (
+        "the unattended boot-time auto-commit would be REJECTED by this guard, which silently "
+        f"disables it forever:\n{result.stderr}"
+    )

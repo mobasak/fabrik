@@ -21,6 +21,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -232,7 +234,7 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     ]
     sites = []
     for src in sources:
-        for ln in src.read_text().splitlines():
+        for ln in _logical_lines(src.read_text()):
             if ln.lstrip().startswith("#"):
                 continue  # a comment mentioning send_alert is not a site
             if "send_alert" in ln or "pipeline_alert.sh" in ln:
@@ -240,8 +242,8 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # An inequality with slack is not a guard: at >= 6 with 8 real sites, BOTH autocommit
     # alerts could be deleted and this still passed. Pin the exact count so removing any site
     # reds — and update it deliberately when a site is added.
-    assert len(sites) == 10, (
-        f"expected exactly 10 alert sites across the three entry points, found {len(sites)}. "
+    assert len(sites) == 11, (
+        f"expected exactly 11 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:
@@ -274,7 +276,7 @@ def test_no_alert_redirects_into_the_directory_it_reports_as_broken():
     block already ends `} >> "$LOG_FILE" 2>&1`.
     """
     for src in (SCRIPT_DIR / "daily_refresh.sh", SCRIPT_DIR.parent / "wsl_startup_hook.sh"):
-      for ln in src.read_text().splitlines():
+      for ln in _logical_lines(src.read_text()):
         if "pipeline_alert.sh" not in ln or ln.lstrip().startswith("#"):
             continue
         # Only the redirect attached to the ALERT ITSELF matters. A redirect on a preceding
@@ -284,6 +286,34 @@ def test_no_alert_redirects_into_the_directory_it_reports_as_broken():
         assert ">> \"$LOG_FILE\"" not in tail and ">> $LOG_FILE" not in tail, (
             f"the ALERT redirects into the log dir it may be reporting as broken:\n  {ln[:190]}"
         )
+
+
+def _logical_lines(text):
+    """Join backslash-continuations into one logical line.
+
+    Both alert-safety tests iterate physical lines and filter on `pipeline_alert.sh in ln`. For a
+    MULTI-LINE call site that line is only `bash "$KB/pipeline_alert.sh" \\` — the title, the body,
+    and any redirect attached to them live on continuation lines and were never examined. The
+    tail extracted for the redirect check was literally " \\". Every multi-line site in
+    daily_refresh.sh and autocommit_pipeline_outputs.sh was invisible to the tests named for
+    exactly those defects.
+    """
+    out, buf = [], ""
+    for ln in text.splitlines():
+        buf += ln
+        if buf.rstrip().endswith("\\"):
+            buf = buf.rstrip()[:-1] + " "
+            continue
+        out.append(buf)
+        buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def _line_redirects_log(lines, idx):
+    """Whether the block opened at idx is redirected to the log at all."""
+    return any('>> "$LOG_FILE"' in ln for ln in lines[idx:])
 
 
 def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
@@ -308,9 +338,23 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
             i for i, ln in enumerate(lines)
             if re.match(r'^\}\s*>>\s*"?\$LOG_FILE"?', ln) and "pipeline_alert.sh" not in ln
         ]
+        # ⚠️ `head` must stop at the block OPENER, not the closer. Anchoring on the closer made
+        # head span essentially the whole file, so the guard could be relocated INSIDE the block
+        # — reproducing the bug exactly — and every assertion still passed. Mutation-tested: the
+        # relocated form skips the body, and the closer-anchored test called it green.
         if not closers:
+            opener = next((i for i, ln in enumerate(lines) if ln.rstrip() == "{"), None)
+            assert opener is None or _line_redirects_log(lines, opener), (
+                f"{src.name} opens a compound block at line {opener + 1} but this test found no "
+                f"`}} >> $LOG_FILE` closer to anchor on — the file changed shape and the guard "
+                f"is no longer being checked. Do not let it skip silently."
+            )
             continue
-        head = "\n".join(lines[: closers[0]])
+        opener = next(
+            (i for i in range(closers[0]) if lines[i].rstrip() == "{"), None
+        )
+        assert opener is not None, f"{src.name}: found a block closer but no opener"
+        head = "\n".join(lines[:opener])
         # ⚠️ Assert the probe is an APPEND, not a `mkdir -p`. `mkdir -p` returns 0 on an
         # existing-but-unwritable directory, so a mkdir-based guard reports success while the
         # redirect still fails and still skips the entire body — the guard would be decorative
@@ -328,3 +372,56 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
             f"/tmp are unusable, reassigning LOG_FILE to another failing path reproduces the "
             f"silent skip. Redirect to /dev/stderr rather than let the body be skipped"
         )
+
+
+@pytest.mark.parametrize(
+    "script", ["kilo-benchmarks/daily_refresh.sh", "wsl_startup_hook.sh"]
+)
+def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(script):
+    """Both entry points, both redirect shapes — no script gets exempted by falling through.
+
+    The block-scope test above `continue`s on any file with no `} >> $LOG_FILE` closer, which
+    silently exempted wsl_startup_hook.sh entirely — a file with the SAME hazard in its
+    line-scope form: every step redirects `>> $LOG_FILE`, a failed redirection skips that
+    command, so an unwritable log makes the whole boot pipeline no-op step by step including
+    the heartbeat, with no alert reachable from inside. A test whose name promises coverage and
+    whose control flow skips the file is worse than no test.
+
+    The invariant both must satisfy: prove the log is APPENDABLE before anything redirects to
+    it, and degrade to a target that cannot fail rather than run blind.
+    """
+    src = SCRIPT_DIR.parent / script if "/" not in script else SCRIPT_DIR.parent / script
+    text = src.read_text()
+    lines = text.splitlines()
+
+    # Skip comments — these files DOCUMENT the hazard in prose, and a comment describing the
+    # redirect is not a redirect. Matching one made the test fail on its own explanation.
+    first_redirect = next(
+        (i for i, ln in enumerate(lines)
+         if not ln.lstrip().startswith("#")
+         and ('>> "$LOG_FILE"' in ln or ">> $LOG_FILE" in ln or '>>"$LOG_FILE"' in ln)
+         # the probe itself is the thing being asserted, not a violation of it
+         and ': >>"$LOG_FILE"' not in ln),
+        None,
+    )
+    assert first_redirect is not None, f"{script}: no $LOG_FILE redirect found — test is stale"
+    head = "\n".join(lines[:first_redirect])
+
+    # Two equivalent shapes are allowed: the probe written inline, or a `_log_usable` helper
+    # that appends to its argument and is then invoked on $LOG_FILE. Both prove appendability;
+    # pinning only the inline spelling would fail a legitimate refactor into a helper.
+    inline = ': >>"$LOG_FILE"' in head
+    via_helper = ': >>"$1"' in head and '_log_usable "$LOG_FILE"' in head
+    assert inline or via_helper, (
+        f"{script} redirects to $LOG_FILE at line {first_redirect + 1} without ever proving the "
+        f"file is appendable. `mkdir -p` is not that proof — it returns 0 on an existing "
+        f"unwritable directory, and every redirect then fails silently"
+    )
+    assert "/dev/null" in head or "/dev/stderr" in head, (
+        f"{script} has no terminal fallback: if the log AND /tmp are unusable, reassigning "
+        f"LOG_FILE to another failing path reproduces the silent failure it just detected"
+    )
+    assert "pipeline_alert.sh" in head, (
+        f"{script} detects the unwritable log but never alerts — the failure would surface "
+        f"only via the next run's freshness check, if at all"
+    )

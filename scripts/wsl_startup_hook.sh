@@ -82,7 +82,27 @@ fi
 # Run update if not already run today
 if [ ! -f "$LOCK_FILE" ]; then
     touch "$LOCK_FILE"
-    mkdir -p "$(dirname "$LOG_FILE")"
+    # ⚠️ Same class as daily_refresh.sh's block-scope hazard, in its line-scope form. Every step
+    # below redirects `>> $LOG_FILE`, and a failed redirection SKIPS that command — so an
+    # unwritable log makes this whole boot pipeline no-op step by step, including the heartbeat
+    # write at the end, with NOT ONE alert reachable (the failure only surfaces on the next
+    # boot's freshness check). `mkdir -p` cannot detect it: it returns 0 on an existing but
+    # unwritable directory. Probe the real append, and fall back rather than run blind.
+    if ! { mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null && : >>"$LOG_FILE" 2>/dev/null; }; then
+        _fallback="/tmp/fabrik_daily_pipeline_$(date -u +%Y%m%d).log"
+        echo "[wsl_startup_hook] CRITICAL: $LOG_FILE unwritable — falling back to $_fallback" >&2
+        bash "$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh" \
+            "wsl_startup_hook.sh: pipeline log unwritable — the boot pipeline would have run blind" \
+            "Could not append to $LOG_FILE. Every step of the boot pipeline redirects there, so each would have been skipped individually and the heartbeat never written — with no alert reachable from inside. Falling back to $_fallback for this boot. Investigate disk/permissions now." \
+            || true
+        if { mkdir -p /tmp 2>/dev/null && : >>"$_fallback" 2>/dev/null; }; then
+            LOG_FILE="$_fallback"
+        elif : >>/dev/stderr 2>/dev/null; then
+            LOG_FILE="/dev/stderr"
+        else
+            LOG_FILE="/dev/null"
+        fi
+    fi
     # Run full pipeline in background (chained to ensure order)
     # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
     nohup bash -c "

@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round-23 adversarial review: 11 findings on the guard I shipped hours earlier (2026-08-15)
+
+A native Opus finder plus four pool finders were pointed at the two commits from earlier today.
+The most useful finding was against **my own new test**: `head` was anchored at the block CLOSER,
+which made it span essentially the whole file — so the writability guard could be relocated INSIDE
+the block, reproducing the bug exactly, and every assertion still passed. The "red-on-revert
+proven" claim held only for a whole-hunk revert, not for the load-bearing line. `head` now stops at
+the block OPENER, and both mutations (relocate-inside, delete-the-reassignment) are caught.
+
+Second: the block-scope test `continue`d on any file without a `} >> $LOG_FILE` closer, silently
+exempting `wsl_startup_hook.sh` — which carries the SAME hazard in line-scope form, entirely
+unguarded, with no alert reachable from inside (every step redirects, a failed redirect skips that
+step, the heartbeat never lands, and the failure surfaces only on the next boot's freshness check).
+That script now probes writability and alerts, and a new parametrized test covers both entry points
+so neither can fall through.
+
+Guard fixes: a substring presence test rejected prose that merely QUOTES `Agent-Role:` — which
+governance commits here do routinely — with a self-contradictory message ("Agent-Role is present"
+above "no Agent-Role: line found"); presence now requires a line that STARTS with the key, matching
+what `diagnose()` always did. `git cherry-pick` fires the commit-msg hook (measured; revert and
+rebase replay do not), so backporting any of the ~190 historically-malformed commits was
+hard-blocked — replayed messages now pass through. Unreadable files, non-UTF-8 bytes, and a missing
+`git` all fail open with a message instead of throwing a traceback out of a hook.
+
+The guard moved OFF pre-commit to a plain `.git/hooks/commit-msg` shim
+(`check_commit_trailers.py --install`). pre-commit's commit-msg stage runs a SECOND
+`staged_files_only()` stash/restore per commit — on a tree three agents share, where a pre-commit
+stash has already reverted uncommitted work once — and adds a second site for the "Your pre-commit
+configuration is unstaged" abort, which was hit live. A test now asserts no commit-msg-stage
+pre-commit hook reappears.
+
+Test-quality fixes, all mutation-verified: the delegation test passed on strings that occur in the
+module DOCSTRING (a hand-rolled parser with the prose left intact stayed green) — it now proves
+delegation behaviourally by removing git and asserting the verdict changes; the differential test
+used the guard's own `parsed_trailers()` as its git oracle, which was circular and blind to drift
+inside that function — it now makes a real commit and reads the trailer back with `git log`; the
+two alert-safety tests iterated physical lines, so every MULTI-LINE `pipeline_alert.sh` call site
+was invisible to the tests named for exactly those defects — they now join continuations. And a new
+test pins the unattended boot-time auto-commit's actual trailer form against the real guard, because
+that script always exits 0: a false reject would have disabled it silently and permanently.
+
+Terminal fallback hardened: `/dev/stderr` is itself unusable when fd 2 is closed, so both scripts
+now probe it and degrade to `/dev/null`. Running with no log is bad; not running at all, with no
+alert, is the failure being prevented.
+
 ### Fixed — the log-writability guard tested creatability, which is not the invariant (2026-08-15)
 
 Round-23 review of the guard added the same day. `mkdir -p` returns 0 when the directory already
@@ -21,6 +66,14 @@ parametrized differential test). Non-UTF-8 messages degrade instead of raising. 
 `test_the_commit_msg_hook_type_is_actually_installed` resolves the hooks dir via
 `git rev-parse --git-common-dir`: it keyed on `REPO/".git"` being a directory, which is false in a
 worktree — the exact environment plan execution runs in — so it went vacuously green there.
+
+Self-review of that same change then caught the false-reject it introduced: moving the PRESENCE
+check to the raw message meant `git commit -v` — which appends the whole diff below a scissors
+line, **uncommented** — made every commit that merely EDITS a file containing the string
+`Agent-Role:` (this script, its tests, `CLAUDE.md`) look like a malformed agent commit. The
+rejection even printed "Agent-Role is present" beside "no Agent-Role line found", which is the
+self-contradiction that gave it away. Presence is now decided on the authored text only
+(scissors-truncated, comments dropped); the verdict still comes from git on the raw message.
 
 ### Added — a commit-msg guard that rejects Agent Provenance Trailers git cannot parse (2026-08-15)
 

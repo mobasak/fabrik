@@ -31,18 +31,13 @@ repos:
   # Forbidden files blocker - prevents committing secrets even if .gitignore fails
   - repo: local
     hooks:
-      # Runs at commit-msg, NOT pre-commit: the message must still be editable. Once the
-      # commit lands, an unparseable trailer block is only fixable by a force-push — a HARD
-      # STOP — so this is the last moment it can be caught. Prose alone demonstrably cannot
-      # enforce it: after CLAUDE.md's malformed example was corrected fleet-wide, the next 50
-      # hub commits still parsed 0/50, because every already-running session was working from
-      # a pre-fix snapshot of the file. See the script's docstring for the measurements.
-      - id: agent-trailers-parse
-        name: Agent Provenance Trailers actually parse
-        entry: python3 scripts/check_commit_trailers.py
-        language: system
-        stages: [commit-msg]
-        pass_filenames: true
+      # NOTE: the Agent-Provenance-Trailer guard is deliberately NOT a pre-commit hook. It runs
+      # as a plain `.git/hooks/commit-msg` shim (install: `python3 scripts/check_commit_trailers.py
+      # --install`). Routing it through pre-commit's commit-msg stage added a SECOND
+      # staged_files_only() stash/restore cycle to every commit — on a tree three agents share,
+      # where a pre-commit stash has already reverted uncommitted work once — and re-triggered
+      # the "Your pre-commit configuration is unstaged" abort at a second point in the commit.
+      # A 3-line shim has neither failure mode. See docs/workstation/hooks-index.md.
 
       - id: forbid-secrets
         name: Block forbidden files (.env, keys, certs)
