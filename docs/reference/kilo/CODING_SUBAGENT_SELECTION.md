@@ -1,6 +1,6 @@
 # Coding subagent selection
 
-**Generated:** 2026-08-12 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
+**Generated:** 2026-08-15 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `scripts/kilo-benchmarks/rank_coding_subagents.py`
 
 Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
 
@@ -25,23 +25,22 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | SiliconFlow | — | ✅ | 104 | 0.070 | 0.280 | — | — | — | — | 262k | **C+** | — | 0.458 |
 | 6 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | ✅ | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B+†** | 74% | 0.452 |
 | 7 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | — | 0.440 |
-| 8 | `minimax/minimax-m3` | ✅ | GMICloud | ✅ | — | 94 | 0.300 | 1.200 | — | — | 45 | 1485 | 1048k | **B†** | 67% | 0.425 |
-| 9 | `deepseek/deepseek-v4-pro` | ✅ | DeepSeek | ✅ | — | 73 | 0.644 | 1.289 | — | — | 44 | 1491 | 1048k | **A+†** | 92% | 0.421 |
-| 10 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **A+†** | 95% | 0.413 |
-| 11 | `deepseek/deepseek-v4-flash` | ✅ | DigitalOcean | ✅ | — | 110 | 0.140 | 0.280 | — | — | 38 | 1465 | 1048k | **A+†** | 94% | 0.400 |
-| 12 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 69 | 0.300 | 1.200 | — | — | 38 | 1448 | 204k | **A†** | 84% | 0.368 |
-| 13 | `qwen/qwen3-coder-next` | ✅ | Parasail | — | — | 151 | 0.120 | 0.800 | — | — | 21 | — | 262k | **A+†** | 90% | 0.257 |
-| 14 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | — | 0.225 |
-| 15 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **A†** | 80% | 0.224 |
-| 16 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **A+†** | 92% | 0.224 |
-| 17 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.250 | 0.950 | — | — | — | 1430 | 163k | **C+** | — | 0.210 |
-| 18 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | — | 0.182 |
-| 19 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | — | 0.172 |
-| 20 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 8k | **A†** | 83% | 0.163 |
-| 21 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.257 | 1.029 | — | — | — | 1337 | 163k | **C** | — | 0.160 |
-| 22 | `z-ai/glm-4.6v` | ✅ | Novita | ✅ | — | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | — | 0.157 |
-| 23 | `deepseek/deepseek-v3.1-terminus` | ✅ | DeepInfra | ✅ | — | 24 | 0.270 | 1.000 | — | — | — | — | 163k | **C** | — | 0.150 |
-| 24 | `minimax/minimax-01` | ✅ | Minimax | — | — | 22 | 0.200 | 1.100 | — | — | — | — | 1000k | **B** | — | 0.148 |
+| 8 | `minimax/minimax-m3` | ✅ | CoreWeave | ✅ | — | 107 | 0.300 | 1.200 | — | — | 45 | 1485 | 1048k | **B†** | 67% | 0.427 |
+| 9 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **A+†** | 95% | 0.413 |
+| 10 | `deepseek/deepseek-v4-flash` | ✅ | DigitalOcean | ✅ | — | 110 | 0.081 | 0.162 | — | — | 38 | 1465 | 1048k | **A+†** | 94% | 0.402 |
+| 11 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 69 | 0.300 | 1.200 | — | — | 38 | 1448 | 204k | **A†** | 84% | 0.368 |
+| 12 | `qwen/qwen3-coder-next` | ✅ | Parasail | — | — | 123 | 0.120 | 0.800 | — | — | 21 | — | 262k | **A+†** | 90% | 0.253 |
+| 13 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | — | 0.225 |
+| 14 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **A†** | 80% | 0.224 |
+| 15 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **A+†** | 92% | 0.224 |
+| 16 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.250 | 0.950 | — | — | — | 1430 | 163k | **C+** | — | 0.210 |
+| 17 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | — | 0.182 |
+| 18 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | — | 0.172 |
+| 19 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 8k | **A†** | 83% | 0.163 |
+| 20 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.257 | 1.029 | — | — | — | 1337 | 163k | **C** | — | 0.160 |
+| 21 | `z-ai/glm-4.6v` | ✅ | Novita | ✅ | — | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | — | 0.157 |
+| 22 | `deepseek/deepseek-v3.1-terminus` | ✅ | DeepInfra | ✅ | — | 24 | 0.270 | 0.950 | — | — | — | — | 163k | **C** | — | 0.151 |
+| 23 | `minimax/minimax-01` | ✅ | Minimax | — | — | 22 | 0.200 | 1.100 | — | — | — | — | 1000k | **B** | — | 0.148 |
 
 ### code-onrequest
 
@@ -49,26 +48,27 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 
 | # | Model | OR | OR_prov | Reason | Bench | db_tps | In $/M | Out $/M | SWE | Aider | AA | Arena | Ctx | Doc↔Code | pass@1 | Score |
 |---:|---|:-:|---|:-:|:-:|---:|---:|---:|---:|---:|---:|---:|---:|:-:|---:|---:|
-| 1 | `z-ai/glm-5` | ✅ | StreamLake | ✅ | — | 68 | 0.950 | 2.550 | 72.8 | — | — | 1461 | 204k | **A†** | 90% | 0.564 |
-| 2 | `z-ai/glm-4.6` | ✅ | Venice | ✅ | — | 68 | 0.500 | 2.000 | 68.2 | — | — | 1458 | 204k | **B** | — | 0.547 |
+| 1 | `z-ai/glm-5` | ✅ | StreamLake | ✅ | — | 68 | 0.600 | 1.920 | 72.8 | — | — | 1461 | 204k | **A†** | 90% | 0.571 |
+| 2 | `z-ai/glm-4.6` | ✅ | Venice | ✅ | — | 68 | 0.550 | 2.200 | 68.2 | — | — | 1458 | 204k | **B** | — | 0.545 |
 | 3 | `z-ai/glm-4.5` | ✅ | Z.AI | ✅ | — | 69 | 0.600 | 2.200 | 64.2 | — | — | 1448 | 131k | **C+** | — | 0.520 |
-| 4 | `deepseek/deepseek-r1` | ✅ | Novita | ✅ | — | 18 | 0.700 | 2.500 | — | 71.4 | — | 1382 | 163k | **B** | — | 0.475 |
+| 4 | `deepseek/deepseek-r1` | ✅ | Novita | ✅ | — | 18 | 0.700 | 2.500 | — | 71.4 | — | 1382 | 64k | **B** | — | 0.475 |
 | 5 | `moonshotai/kimi-k2.5` | ✅ | DigitalOcean | ✅ | — | 46 | 0.570 | 2.850 | 70.8 | — | — | — | 262k | **A+†** | 98% | 0.462 |
-| 6 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 100% | 0.450 |
-| 7 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | — | 0.450 |
-| 8 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 98% | 0.443 |
-| 9 | `z-ai/glm-5.1` | ✅ | GMICloud | ✅ | — | 74 | 1.400 | 4.400 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.385 |
-| 10 | `z-ai/glm-5.2` | ✅ | Decart | ✅ | — | 147 | 0.760 | 2.420 | — | — | 44 | — | 1048k | **A+†** | 96% | 0.316 |
-| 11 | `moonshotai/kimi-k2.7-code` | ✅ | DeepInfra | ✅ | — | 48 | 0.700 | 3.500 | — | — | 43 | — | 262k | **A+†** | 98% | 0.281 |
-| 12 | `moonshotai/kimi-k2.6` | ✅ | Chutes | ✅ | — | 40 | 0.950 | 4.000 | — | — | 44 | — | 262k | **A+†** | 98% | 0.275 |
-| 13 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 204k | **B** | — | 0.245 |
-| 14 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | ✅ | — | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | — | 0.196 |
-| 15 | `moonshotai/kimi-k2-0905` | ✅ | Novita | — | — | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | — | 0.183 |
-| 16 | `minimax/minimax-m1` | ✅ | Minimax | ✅ | — | 41 | 0.550 | 2.200 | — | — | — | 1369 | 1000k | **B** | — | 0.162 |
-| 17 | `z-ai/glm-4.5v` | ✅ | Novita | ✅ | — | 50 | 0.600 | 1.800 | — | — | — | — | 65k | **C** | — | 0.155 |
-| 18 | `qwen/qwen3-coder-plus` | ✅ | Alibaba | — | — | 36 | 0.650 | 3.250 | — | — | — | — | 1000k | **A†** | 88% | 0.135 |
-| 19 | `z-ai/glm-5-turbo` | ✅ | Z.AI | ✅ | — | 43 | 1.200 | 4.000 | — | — | — | — | 202k | **A+†** | 98% | 0.129 |
-| 20 | `z-ai/glm-5v-turbo` | ✅ | Z.AI | ✅ | — | 36 | 1.200 | 4.000 | — | — | — | — | 202k | **B+†** | 76% | 0.126 |
+| 6 | `deepseek/deepseek-v4-pro` | ✅ | StreamLake | ✅ | — | 78 | 1.168 | 2.336 | — | — | 44 | 1550 | 1048k | **A+†** | 92% | 0.455 |
+| 7 | `z-ai/glm-5.2` | ✅ | Baidu | ✅ | — | 123 | 0.490 | 1.540 | — | — | 44 | 1525 | 1048k | **A+†** | 96% | 0.453 |
+| 8 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 100% | 0.450 |
+| 9 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | — | 0.450 |
+| 10 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 98% | 0.443 |
+| 11 | `z-ai/glm-5.1` | ✅ | StreamLake | ✅ | — | 74 | 0.966 | 3.036 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.400 |
+| 12 | `moonshotai/kimi-k2.6` | ✅ | Baidu | ✅ | — | 40 | 0.650 | 3.410 | — | — | 44 | — | 262k | **A+†** | 98% | 0.282 |
+| 13 | `moonshotai/kimi-k2.7-code` | ✅ | Inceptron | ✅ | — | 37 | 0.710 | 3.500 | — | — | 43 | — | 262k | **A+†** | 98% | 0.276 |
+| 14 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 204k | **B** | — | 0.245 |
+| 15 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | ✅ | — | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | — | 0.196 |
+| 16 | `moonshotai/kimi-k2-0905` | ✅ | Novita | — | — | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | — | 0.183 |
+| 17 | `minimax/minimax-m1` | ✅ | Minimax | ✅ | — | 41 | 0.550 | 2.200 | — | — | — | 1369 | 1000k | **B** | — | 0.162 |
+| 18 | `z-ai/glm-4.5v` | ✅ | Novita | ✅ | — | 50 | 0.600 | 1.800 | — | — | — | — | 65k | **C** | — | 0.155 |
+| 19 | `qwen/qwen3-coder-plus` | ✅ | Alibaba | — | — | 36 | 0.650 | 3.250 | — | — | — | — | 1000k | **A†** | 88% | 0.135 |
+| 20 | `z-ai/glm-5-turbo` | ✅ | Z.AI | ✅ | — | 43 | 1.200 | 4.000 | — | — | — | — | 202k | **A+†** | 98% | 0.129 |
+| 21 | `z-ai/glm-5v-turbo` | ✅ | Z.AI | ✅ | — | 36 | 1.200 | 4.000 | — | — | — | — | 202k | **B+†** | 76% | 0.126 |
 
 ## Candidates not yet benched by us
 
@@ -85,7 +85,7 @@ Auto-tier coding candidates (OR-reachable, output ≤ $1.5/Mtok) with no live pa
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.800 | 0.800 | 45 | 8k | — | ✅ | 0.163 |
 | `deepseek/deepseek-chat` | 0.257 | 1.029 | 42 | 163k | 1337 | — | 0.160 |
 | `z-ai/glm-4.6v` | 0.300 | 0.900 | 33 | 131k | — | ✅ | 0.157 |
-| `deepseek/deepseek-v3.1-terminus` | 0.270 | 1.000 | 24 | 163k | — | ✅ | 0.150 |
+| `deepseek/deepseek-v3.1-terminus` | 0.270 | 0.950 | 24 | 163k | — | ✅ | 0.151 |
 | `minimax/minimax-01` | 0.200 | 1.100 | 22 | 1000k | — | — | 0.148 |
 
 ## API call recipes (OpenRouter)

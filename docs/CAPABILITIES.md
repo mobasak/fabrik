@@ -246,6 +246,7 @@
 - [credits](/opt/fabrik-lib/credits/README.md) (owner: external:fabrik-lib): credits/
 - [cursor-pagination](/opt/fabrik-lib/cursor-pagination/README.md) (owner: external:fabrik-lib): fabrik-lib/cursor-pagination — Keyset Cursor Pagination
 - [db-pool](/opt/fabrik-lib/db-pool/README.md) (owner: external:fabrik-lib): db-pool
+- [deep-research](/opt/fabrik-lib/deep-research/README.md) (owner: external:fabrik-lib): deep-research
 - [doc-convert](/opt/fabrik-lib/doc-convert/README.md) (owner: external:fabrik-lib): doc-convert — legacy .doc/.xls → docx/xlsx via headless LibreOffice
 - [doc-crawl](/opt/fabrik-lib/doc-crawl/README.md) (owner: external:fabrik-lib): doc-crawl — framework-free doc/site crawl layer (sitemap + BFS + dedup + classify + markdown)
 - [doc-translate](/opt/fabrik-lib/doc-translate/README.md) (owner: external:fabrik-lib): doc-translate — structure-preserving document translation orchestrator

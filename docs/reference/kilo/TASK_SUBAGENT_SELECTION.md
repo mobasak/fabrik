@@ -1,4 +1,4 @@
-Last refresh: 2026-08-12
+Last refresh: 2026-08-15
 Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shrunk_q ≥ 2.5; then cost-asc among survivors; top-2 slots require n ≥ 10 | tier_baseline T1=1.0, T2=2.5, T3=4.0 | Window: 90 days | Min runs: 3
 
 
@@ -53,24 +53,23 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | 4 | `deepseek/deepseek-v4-flash` | 2.72 | 0.25 | $0.0274 | 3.00 | 2 | 8 |
 | 5 | `deepseek/deepseek-v3.2` | 3.62 | 0.67 | $0.0584 | 3.00 | 3 | 6 |
 
-### plan (n_total=32)
+### plan (n_total=34)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-pro` | 3.21 | 0.91 | $0.0166 | 3.08 | 3 | 32 |
+| 1 | `deepseek/deepseek-v4-pro` | 3.23 | 0.85 | $0.0173 | 3.11 | 3 | 34 |
 
-### research (n_total=296)
+### research (n_total=313)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `z-ai/glm-4.5-air` | 2.57 | 0.51 | $0.0019 | 2.58 | 2 | 75 |
-| 2 | `deepseek/deepseek-v4-pro` | 3.70 | 0.52 | $0.0096 | 3.68 | 3 | 140 |
-| 3 | `minimax/minimax-m3` | 3.01 | 0.51 | $0.0103 | 3.08 | 2 | 75 |
-| 4 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0035 | 4.00 | 3 | 6 |
+| 1 | `deepseek/deepseek-v4-pro` | 3.60 | 0.52 | $0.0094 | 3.57 | 3 | 145 |
+| 2 | `minimax/minimax-m3` | 2.94 | 0.50 | $0.0106 | 3.00 | 2 | 80 |
+| 3 | `deepseek/deepseek-v3.2` | 4.00 | 0.50 | $0.0035 | 4.00 | 3 | 6 |
 
-### review (n_total=5601)
+### review (n_total=5628)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |
 |---:|---|---:|---:|---:|---:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2-exp` | 2.75 | 0.47 | $0.0031 | 2.73 | 3 | 340 |
-| 2 | `google/gemini-3-flash-preview` | 2.58 | 0.50 | $0.0061 | 2.54 | 3 | 406 |
+| 1 | `deepseek/deepseek-v3.2-exp` | 2.78 | 0.46 | $0.0031 | 2.76 | 3 | 356 |
+| 2 | `google/gemini-3-flash-preview` | 2.58 | 0.51 | $0.0061 | 2.54 | 3 | 411 |
 | 3 | `qwen/qwen3-max` | 4.07† | 0.69 | $0.1647 | 1.00 | 2 | 0 |
 | 4 | `deepseek/deepseek-v4-flash` | 3.71† | 0.59 | $0.2074 | 1.00 | 2 | 0 |
 
@@ -94,13 +93,13 @@ _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of th
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
 | `openai/o3-mini` | A | 4.36 | 0.77 | 1.00 | $3.814 | $4.40 | $0.1144 | — | 3.4 | 204 | 22 | 8 | — |
 | `anthropic/claude-haiku-4.5` | A | 4.21 | 0.73 | 1.00 | $1.867 | $5.00 | $0.0560 | — | 3.5 | 83 | 22 | 8 | — |
-| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.010303 | 16.5 | 60 | 22 | 8 | ✅ |
+| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.011165 | 16.5 | 60 | 22 | 8 | ✅ |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | 1.00 | $0.165 | $3.90 | $0.0033 | — | 1.9 | 8 | 16 | 4 | ✅ |
 | `bytedance-seed/seed-1.6` | A | 4.05 | 0.68 | 1.00 | $1.041 | $2.00 | $0.0312 | — | 6.5 | 48 | 22 | 8 | — |
 | `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | — | 7.5 | 73 | 22 | 8 | — |
-| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.012666 | 10.3 | 16 | 22 | 8 | ✅ |
-| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.012316 | 8.0 | 17 | 22 | 8 | ✅ |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $160.349 | $15.00 | $4.8105 | $0.019508 | 12.4 | 35 | 22 | 8 | ✅ |
+| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.013725 | 10.3 | 16 | 22 | 8 | ✅ |
+| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.013346 | 8.0 | 17 | 22 | 8 | ✅ |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $160.349 | $15.00 | $4.8105 | $0.021140 | 12.4 | 35 | 22 | 8 | ✅ |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | — | 1.3 | 10 | 22 | 8 | ✅ |
 | `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | — | 5.0 | 87 | 22 | 8 | — |
 | `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | — | 5.1 | 78 | 22 | 8 | — |
@@ -159,10 +158,10 @@ _source: `microbench_review.py --hard` → `model_review_hard_metrics`. 10 hand-
 _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.006/M · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| `claude-code/haiku` | A+ | 5.00 | 1.00 | 1.00 | $41.500 | $5.00 | $0.8300 | $0.007744 | 25.2 | 60 | 10 | 10 |
-| `claude-code/sonnet` | A+ | 5.00 | 1.00 | 1.00 | $166.464 | $15.00 | $3.3293 | $0.011420 | 16.3 | 28 | 10 | 10 |
-| `claude-code/fable` | A+ | 4.74 | 0.90 | 1.00 | $494.925 | $50.00 | $9.8985 | $0.009061 | 12.1 | 15 | 10 | 10 |
-| `claude-code/opus` | A | 4.44 | 0.80 | 1.00 | $237.073 | $25.00 | $4.7415 | $0.008816 | 13.8 | 10 | 10 | 10 |
+| `claude-code/haiku` | A+ | 5.00 | 1.00 | 1.00 | $41.500 | $5.00 | $0.8300 | $0.008391 | 25.2 | 60 | 10 | 10 |
+| `claude-code/sonnet` | A+ | 5.00 | 1.00 | 1.00 | $166.464 | $15.00 | $3.3293 | $0.012375 | 16.3 | 28 | 10 | 10 |
+| `claude-code/fable` | A+ | 4.74 | 0.90 | 1.00 | $494.925 | $50.00 | $9.8985 | $0.009819 | 12.1 | 15 | 10 | 10 |
+| `claude-code/opus` | A | 4.44 | 0.80 | 1.00 | $237.073 | $25.00 | $4.7415 | $0.009553 | 13.8 | 10 | 10 | 10 |
 
 ## Full coding benchmark results — LiveCodeBench pass@1 (display only; not parsed for routing)
 _source: `microbench_coding_direct.py` → `model_coding_metrics` (contamination-free LiveCodeBench). `pass@1` = fraction solved · `score5` = pass@1×5 · `value` = score5÷$/1k · `eligible` = clears the code gate (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s) · `tier` = curated use-case._
