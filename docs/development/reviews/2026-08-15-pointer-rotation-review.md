@@ -59,3 +59,30 @@ code) · stamp path traversal (regex collapses non-alnum) · structural one-leve
 (self-refuted: last != email fires on any new pairing).
 
 Round 2 verdict: NOT CLEAN — F-P7..F-P9 dispatched. Round 3 follows.
+
+## Round 3 (2026-08-15)
+
+Surface: fixup commit 3217f3cf (+305/−146; 210/210 re-run by orchestrator, twins d02fbbcd).
+Finders: pool deepseek+gemini + native opus (live probes + 2 mutants).
+
+F-P7/F-P8/F-P9 all CONFIRMED fixed by execution: warning survives +9h idling with zero new
+probes (mutant re-gating it → red); self-flip no-op precedes the gate, pause-independent, no
+ledger event, different-dead-dir still refused; per-slug stamps collision-free by _SLUG_RE
+grounding, old field grep-clean, orphan stamps inert.
+
+Pool starvation claims (a recovered dir's warning stuck forever behind the sibling-held
+budget) REFUTED by the native end-to-end probe: /login rewrites the credentials file →
+the recovered dir IS the freshest by construction → wins the next due probe → warning
+clears (probed t0 → t0+30m persists → post-login t0+3h cleared). The only persistent
+warning is an UNFIXED dir — correct behavior.
+
+NITs recorded: F-P9's named test doesn't itself kill the email-keying reversion (5 other
+tests do — attribution nit, coverage exists) · orphan stamp accumulation (inert, never
+read) · pre-existing ACCOUNTS_DIR import-time constant is a test-harness sharp edge
+(refuted as shipped-code bug; the real suite patches _collect_statuses correctly).
+
+Round 3 verdict: CLEAN on the reviewed surface. HELD FOR F-P10 (orchestrator rollout
+analysis, not a finder item): un-pausing for auto-rotation leaves run_claude's legacy
+401-retry able to reach the ~/.claude file-swap installer — fleet mode must structurally
+retire the legacy installer at the _rotate_active_account choke point before the marker
+can come off. Round 4 verifies F-P10, then merge.
