@@ -22,7 +22,7 @@ The result: the plan-2 Phase E live bench populates `agents.humaneval_score` + `
 
 ### The shim (module-owner authored, delivered ready to drop in)
 
-The completions shim was drafted by the fabrik-lib module owner ("them") who owns `libs/subagents/`. It sits at `engine/openrouter_complete.py` (~90 LOC) and exposes three functions:
+The completions shim was drafted by the fabrik-lib module owner ("them") who owns `libs/subagents/`. It sits at `/opt/ai-model-catalog/engine/openrouter_complete.py` (~90 LOC) and exposes three functions:
 
 - **`complete(model, prompt, *, client, max_cost_usd=0.50) → str`** — one greedy OR call, returns raw completion text (empty string on a zero-token stall).
 - **`generate_samples(model, problems: dict[str, str], out_path, *, max_concurrency=8, solution_key="solution", env_path=".env") → (Path, float)`** — batch-completes one problem per key, writes evalplus-shaped JSONL (`{"task_id", <solution_key>: <text>}` per line, in problems-dict order for determinism), returns `(output_path, total_cost_usd)`. Per-problem exceptions log `[error]` to stderr + write an empty solution (a SYSTEMATIC break is visible, not silently zero-scored). `finish_reason="length"` truncations log `[warn]`.
@@ -148,7 +148,7 @@ Same as parent plan-2: ~$2.66 for 4 Seed models × (HumanEval + MBPP) at real OR
 | OR completion transport (SSE-robust, cost-tracking, liveness/idle timeouts, streaming) | **vendor as-is** | `libs.subagents._transport.run` — already vendored via plan-2 Phase A step 2b; used by every pool subagent in this session, proven OR-compat. This is the primary unblock. | none — no changes to the transport |
 | OR HTTP client (referer/title/api-key config) | **vendor as-is** | `libs.subagents._client.OpenRouterClient` — same as above. | none |
 | Env-var loading from `.env` | **vendor as-is** (with caller-side quirk noted) | `libs.subagents._dotenv.load_env(repo: str, ...)` — takes a directory, not a file. Caller in `microbench_coding` passes `env_path="/opt/fabrik"` or relies on env already set. | none — module's contract stands |
-| Batch completion → JSONL for evalplus | **build** (~90 LOC, project-local) | `engine/openrouter_complete.py` — the shim, authored by the fabrik-lib module owner as a usage example. **Not** a fabrik-lib candidate (module owner explicitly declined: it's project-glue that composes the module, not a new module). | none |
+| Batch completion → JSONL for evalplus | **build** (~90 LOC, project-local) | `/opt/ai-model-catalog/engine/openrouter_complete.py` — the shim, authored by the fabrik-lib module owner as a usage example. **Not** a fabrik-lib candidate (module owner explicitly declined: it's project-glue that composes the module, not a new module). | none |
 | evalplus offline eval (`--samples <path>` mode) | **external dep — already installed via plan-2 Phase A** | `evalplus >= 0.3.0` in `pyproject.toml`. Just call it with different args. | none |
 | Integration into `microbench_coding._run_one` (2-step: shim → evalplus offline eval) | **build** (~40 LOC delta to `_run_one`, project-local) | Existing `microbench_coding.py` from plan-2. Replaces the single `subprocess.run(evalplus.evaluate --backend openai ...)` call with 2 steps: `generate_samples` then `evalplus.evaluate --samples`. | none |
 | Everything else in `microbench_coding` (write_scores, is_fresh, main, argparse, BenchUnit, validation) | **unchanged from plan-2** | plan-2 Phase A/B/C/D committed already; only `_run_one` changes and the test that mocks `subprocess.run` needs a 2-mock update. | none |
@@ -195,7 +195,7 @@ Zero cross-AI dependencies (shim already drafted by the fabrik-lib module owner)
   - Not a persistence-schema change (columns exist) → skip `/fabrik-data-contract`.
   - Not a GUI → skip `/fabrik-ui-design`.
   - `/fabrik-plan-after-chat docs/superpowers/specs/2026-07-10-coding-microbench-completions-shim-design.md`.
-  - Then user relays "plan-3 is drafted" to the fabrik-lib module owner, who drops the shim into `engine/openrouter_complete.py`.
+  - Then user relays "plan-3 is drafted" to the fabrik-lib module owner, who drops the shim into `/opt/ai-model-catalog/engine/openrouter_complete.py`.
   - Then `/fabrik-execute-plan` on plan-3.
   - Plan-3 EXECUTED → return to plan-2 Phase F (docs sync + `/fabrik-docs-review` + archive both plans).
 

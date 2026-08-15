@@ -11,8 +11,8 @@ Topic: benchmark harness scoring the pool models on `docs` / `research` / `plan`
 
 Give `pick_models(task_type)` a **measured, contamination-free baseline** for the four task types that today
 have **none** — `docs`, `research`, `plan`, `spec` — parallel to the benchmarks that already cover `review`
-(`engine/microbench_review.py` (ai-model-catalog)) and `code`
-(`engine/microbench_coding_direct.py` (ai-model-catalog)).
+(`/opt/ai-model-catalog/engine/microbench_review.py` (ai-model-catalog)) and `code`
+(`/opt/ai-model-catalog/engine/microbench_coding_direct.py` (ai-model-catalog)).
 
 **Why it matters:** `rank_task_subagents._tier_baseline` ([rank_task_subagents.py:91-137](../../scripts/kilo-benchmarks/rank_task_subagents.py#L91))
 resolves a model's prior in precedence order: **(1) a `model_task_baseline` benchmark row for THIS (model,
@@ -47,9 +47,9 @@ re-ranking logic (unchanged — we only feed it data).
 
 ## Chosen approach — one harness, two grader families, judge-deferred
 
-Copy the `engine/microbench_coding_direct.py` (ai-model-catalog) skeleton
+Copy the `/opt/ai-model-catalog/engine/microbench_coding_direct.py` (ai-model-catalog) skeleton
 (dispatch → grade → `persist_metrics`/`persist_baseline` → batched-resume `main()` with balance-guard, per-call
-+ workload cost caps, `_measured_models()` resume) and the `engine/microbench_review.py` (ai-model-catalog)
++ workload cost caps, `_measured_models()` resume) and the `/opt/ai-model-catalog/engine/microbench_review.py` (ai-model-catalog)
 `ModelScore` recall/precision + grade-cut pattern (A+ ≥4.5 … F, `is_measured` ≥ MIN_MEASURED). A new
 `microbench_judged.py` (working name) parameterizes the corpus + grader per task_type; everything else is shared.
 
@@ -186,8 +186,8 @@ runtime vendor, no API key, no new package beyond what the sibling benchmarks al
 | Capability | Verdict | Module / ref (verified this session) |
 |---|---|---|
 | Model dispatch (paid generation) | **VENDOR** | `libs.subagents._transport.run` (raw transport, as coding bench uses) + `pick_models(task_type)` / `methodology()` / `fanout` / `set_quality` |
-| Benchmark skeleton (dispatch→grade→persist→resume, cost caps, balance guard) | **VENDOR (copy pattern)** | `engine/microbench_coding_direct.py` (ai-model-catalog) |
-| `ModelScore` recall/precision + grade cuts + `is_measured` | **VENDOR (copy pattern)** | `engine/microbench_review.py` (ai-model-catalog) |
+| Benchmark skeleton (dispatch→grade→persist→resume, cost caps, balance guard) | **VENDOR (copy pattern)** | `/opt/ai-model-catalog/engine/microbench_coding_direct.py` (ai-model-catalog) |
+| `ModelScore` recall/precision + grade cuts + `is_measured` | **VENDOR (copy pattern)** | `/opt/ai-model-catalog/engine/microbench_review.py` (ai-model-catalog) |
 | Docs claim-check (added-symbol resolution, token extraction, codebase haystack) | **VENDOR + ENHANCE** | `reconcile_doc` / `_default_verify` / `_extract_tokens` / `_codebase_haystack` / `_added_lines` / `_quality` ([doc_reconcile.py:118-362](../../scripts/doc_reconcile.py#L118)). **Enhance:** add the *removed-symbol / required-edit recall* axis `_default_verify` lacks. Not a core fork — an added grader path; note in the script if any `doc_reconcile` core fn is touched. |
 | Baseline store + ranker consumption | **VENDOR as-is** | `model_task_baseline` in `kilo_agents.db` ([build_task_baselines.py:41-78](../../scripts/kilo-benchmarks/build_task_baselines.py#L41)); consumed by `rank_task_subagents._tier_baseline` **unchanged** |
 | Selection-doc eligibility gate + full-leaderboard + selected-shortlist display | **VENDOR (copy pattern)** | mirror `review_eligible`/`code_eligible` ([build_task_baselines.py:150,234](../../scripts/kilo-benchmarks/build_task_baselines.py#L150)), `_full_review_results_table`/`_full_coding_results_table` ([rank_task_subagents.py:440,502](../../scripts/kilo-benchmarks/rank_task_subagents.py#L440)), and `_selected_shortlists` ([:598](../../scripts/kilo-benchmarks/rank_task_subagents.py#L598)) — a `<task>_eligible()` + `_full_<task>_results_table()` + a `_selected_shortlists` extension per new task type. **This DOES modify `rank_task_subagents`** (unlike the baseline consumption above). |

@@ -4,7 +4,7 @@
 
 ## Review microbench — ground-truth code-review quality for the subagent pool (2026-07-18)
 
-`engine/microbench_review.py` scores a model's ability to **catch bugs in a review**,
+`/opt/ai-model-catalog/engine/microbench_review.py` scores a model's ability to **catch bugs in a review**,
 against ground truth — not the circular flywheel self-score. The corpus is deterministic AST mutation
 of 8 self-contained victim functions (the mutmut operator classes — comparison flip, arithmetic swap,
 boolean and/or flip): 22 planted defects, each at a known line, plus 8 un-mutated controls. Every model
@@ -50,7 +50,7 @@ maximally-enforced, not a guarantee. Design: `docs/superpowers/specs/archived/20
 
 ## Coding microbench — live pass@1 for the coding-subagent ranking (2026-07-11)
 
-`engine/microbench_coding.py` runs a live 3-step pipeline per `(model, dataset)` unit — `openrouter_complete.generate_samples` (via the vendored `libs.subagents._transport` primitive) → `evalplus.sanitize` (tree-sitter extracts Python from prose + fenced code) → `evalplus.evaluate --samples` (sandboxed pass@1 grading) — and writes real `agents.humaneval_score` + `agents.coding_score` for OpenRouter LLMs. Samples + eval_results persist under `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` so a downstream sanitize/evaluate failure is $0-recoverable (the $-cost sits entirely in the shim step). Outer serial × shim inner-8 concurrent → 8 in-flight OR calls, not 64. `TOTAL_SPEND_USD: {n.nn}` on the last stdout line; typical run cost ~$1.20 per 4-model × 2-dataset unit set (HumanEval+ 164 + MBPP+ 378 = 542 problems per model).
+`/opt/ai-model-catalog/engine/microbench_coding.py` runs a live 3-step pipeline per `(model, dataset)` unit — `openrouter_complete.generate_samples` (via the vendored `libs.subagents._transport` primitive) → `evalplus.sanitize` (tree-sitter extracts Python from prose + fenced code) → `evalplus.evaluate --samples` (sandboxed pass@1 grading) — and writes real `agents.humaneval_score` + `agents.coding_score` for OpenRouter LLMs. Samples + eval_results persist under `scripts/kilo-benchmarks/.microbench_cache/<UTC-stamp>-pid<pid>/` so a downstream sanitize/evaluate failure is $0-recoverable (the $-cost sits entirely in the shim step). Outer serial × shim inner-8 concurrent → 8 in-flight OR calls, not 64. `TOTAL_SPEND_USD: {n.nn}` on the last stdout line; typical run cost ~$1.20 per 4-model × 2-dataset unit set (HumanEval+ 164 + MBPP+ 378 = 542 problems per model).
 
 **Initial coverage (2026-07-11):** the 4 `bytedance-seed/seed-*` coding models — `seed-1.6` and `seed-2.0-lite` tie at `coding_score = 91.96` (98.17 HumanEval+), `seed-2.0-mini` at 90.52, `seed-1.6-flash` at 87.16. Fed straight into `rank_coding_subagents.py` → `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`.
 
@@ -58,7 +58,7 @@ maximally-enforced, not a guarantee. Design: `docs/superpowers/specs/archived/20
 
 ## Coding microbench (direct) — contamination-free pass@1 via LiveCodeBench (2026-07-19)
 
-`engine/microbench_coding_direct.py` grades the **same 57 models as the review table** on ONE
+`/opt/ai-model-catalog/engine/microbench_coding_direct.py` grades the **same 57 models as the review table** on ONE
 fixed **LiveCodeBench** window (contamination-free by temporal filter — the fix for HumanEval+/MBPP+ saturation
 + contamination that the older `microbench_coding.py` inherits). Generation is **direct** through the vendored
 ai-consult transport (`libs.subagents._transport.run`, real billed `cost_usd` via `{"usage":{"include":true}}`);
@@ -73,7 +73,7 @@ an operator action. Tests: `tests/test_lcb_smoke.py`, `test_microbench_coding_di
 
 ### Judged task-subagent benchmark — docs / research / plan / spec scoring
 
-`engine/microbench_judged.py` gives `pick_models()` a **measured, contamination-free
+`/opt/ai-model-catalog/engine/microbench_judged.py` gives `pick_models()` a **measured, contamination-free
 prior** for the four task types that previously had none. A task-agnostic spine (dispatch → grade →
 persist → batched-resume) fed by a per-task GRADER, all on **fabrik-private / post-cutoff corpora** so a
 model can't have memorized answers about our own repo:
@@ -118,7 +118,7 @@ The single-file `scripts/kilo-benchmarks/models_browser.html` now surfaces the c
 - **`Role suitability` filter chip** in the left sidebar — "coding-subagent" chip narrows the visible rows to the ranked pool. Registers in the "+N filters active" indicator alongside the other sidebar chips.
 - **Detail-panel entries** on click: `Coding-subagent fit score` + `Doc↔Code` grade, `OR request body hint` (e.g. `{"reasoning":{"exclude":true},"max_tokens":30000}` for `minimax/minimax-m2.5`), `Provider pin` recipe, `⚠ Coding subagent status` (when excluded).
 
-Data source: `engine/rank_coding_subagents.py` (single source of truth for scoring/exclusion/pin/body-hint state; overlaid onto the browser payload by `engine/export_models_browser.py` with the same `db_path` the chat rows come from). Full narrative + routing strategy lives in `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`.
+Data source: `/opt/ai-model-catalog/engine/rank_coding_subagents.py` (single source of truth for scoring/exclusion/pin/body-hint state; overlaid onto the browser payload by `/opt/ai-model-catalog/engine/export_models_browser.py` with the same `db_path` the chat rows come from). Full narrative + routing strategy lives in `docs/reference/kilo/CODING_SUBAGENT_SELECTION.md`.
 
 ---
 
@@ -839,7 +839,7 @@ Nested dot-path keys (`nav.home`), `{variable}` interpolation, `_meta` block for
 
 ### Validation
 
-Levels 2/3 route through the OpenRouter subagents pool rather than the retired Kilo CLI. Per-language model choice is driven by the translation-ranked leaderboard (`docs/reference/kilo/TRANSLATION_SELECTION.md`, seeded from `engine/rank_translation.py` against `agents WHERE service_type='translation'`) rather than a hardcoded per-language table.
+Levels 2/3 route through the OpenRouter subagents pool rather than the retired Kilo CLI. Per-language model choice is driven by the translation-ranked leaderboard (`docs/reference/kilo/TRANSLATION_SELECTION.md`, seeded from `/opt/ai-model-catalog/engine/rank_translation.py` against `agents WHERE service_type='translation'`) rather than a hardcoded per-language table.
 
 ### Rule Pack Integration
 

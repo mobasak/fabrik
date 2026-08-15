@@ -633,7 +633,7 @@ python scripts/kilo_docs_enforcer.py --auto-generate
 python scripts/kilo-benchmarks/db_models.py
 
 # View local model status
-python engine/kilo_agents_db.py ollama-status
+python /opt/ai-model-catalog/engine/kilo_agents_db.py ollama-status
 ```
 
 ### IDE Integration (Windsurf/Cascade)

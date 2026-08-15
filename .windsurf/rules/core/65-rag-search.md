@@ -115,7 +115,7 @@ A RAG system uses multiple stages. Some need AI models, some don't.
 
 ## Embedding Models
 
-**Use ONLY these models.** Auto-updated daily by `engine/embedding_export_markdown.py`. Called via OpenRouter `/v1/embeddings` endpoint — one API key (`OPENROUTER_API_KEY`), all providers unified.
+**Use ONLY these models.** Auto-updated daily by `/opt/ai-model-catalog/engine/embedding_export_markdown.py`. Called via OpenRouter `/v1/embeddings` endpoint — one API key (`OPENROUTER_API_KEY`), all providers unified.
 
 ```python
 # Production pattern — OpenRouter embeddings

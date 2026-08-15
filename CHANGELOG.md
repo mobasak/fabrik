@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — E.closing review: the excise's blind spot, and a catalog with no scheduler (2026-08-16)
+
+The whole-plan review found what a green `final_gate` structurally could not. Both of the worst are
+in the same blind spot: the import-graph closure only traversed files *under*
+`scripts/kilo-benchmarks/`, so a **fabrik-side consumer** of an engine module was invisible to it.
+
+- **Nothing scheduled the relocated engine.** `crontab -l` had only fabrik's *consumer*
+  (`0 6 * * *`); no entry, no timer, anywhere, ran `/opt/ai-model-catalog/engine/daily_refresh.sh`.
+  The catalog was frozen from the moment of cutover, and `select.py:373`'s 14-day staleness gate
+  meant **every one of ~47 vendored `pick_models` copies would silently drop to the hardcoded
+  `_TABLE` on 2026-08-30** — the exact "exit 0, degraded output" class the whole migration was built
+  around. Engine cron installed at `30 5 * * *`, half an hour before the consumer so delivered
+  artifacts are fresh when `generate_kilo_agents` reads them. ⚠️ Its first log path was
+  `/var/log/…`, which is **not writable here** — the cron would have died on the redirect, silently.
+  Moved to `~/.local/log/` and the entry point proven to run.
+- **`scripts/kilo_docs_enforcer.py` was dead** — `agent_selector.py` is its dependency and the excise
+  took it; the script exited 2. It is fleet-synced `CORE_SCRIPTS` on 47 project copies. Restored, and
+  `excise_manifest.py` now scans fabrik-side consumers, which **rediscovered this exact edge
+  independently**.
+- **`excise_manifest.py --check` was a TAUTOLOGY post-excise** — it computes `delete = everything -
+  keep` over the *current* tree, so deleted files aren't in `everything`, can't be in `delete`, and
+  "retained depends on deleted" could never fire. The `SOUND` verdict backing the excise was hollow.
+  Added `--against <ref>`, which reconstructs the pre-excise file set from git: it now checks the
+  retained set against **272 genuinely deleted files** and reports SOUND on evidence.
+- **Two deleted tests covered RETAINED surfaces**, not engine code: `test_flywheel_safety.py` (the A.0
+  flywheel tripwire — blast radius 47 repos) and `test_commit_trailer_guard.py` (the commit-msg
+  governance guard, a CLAUDE.md HARD STOP). Restored; the A.0 alert test retargeted to
+  `wsl_startup_hook.sh`, where D.1 legitimately moved the ranker's invocation.
+- **The doc-repoint script wrote unresolvable paths into fleet-synced governance** — 24 occurrences of
+  `/opt/fabrik/engine/` (which does not exist) plus bare `engine/…` in rule packs, which resolves to
+  `<project>/engine/` in ~46 repos. All repointed to the absolute `/opt/ai-model-catalog/engine/`.
+- **`capabilities.json` was stale with 246 dead references** while its generated twin `docs/CAPABILITIES.md`
+  had been hand-edited — and the boot pipeline auto-commits **and pushes** both. Regenerated: 246 → 26.
+- `autocommit_pipeline_outputs.sh` no longer stages deleted paths (it warned on every run) or the
+  fleet-synced rule packs fabrik stopped injecting at the cutover — staging a pack this pipeline does
+  not produce means a sibling's uncommitted edit gets auto-pushed to ~46 repos.
+- `test_parallel_run_diff.py` skips instead of failing now that C.2's window is closed; a hard
+  wall-clock assertion would have made it red every day forever.
+
+
 ### Added — Per-account weekly caps: caps.json reserves quota for operator browser use (2026-08-15)
 
 - Operator requirement: "do not consume ob@'s weekly quota more than 90% — I also use it in

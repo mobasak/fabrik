@@ -19,7 +19,7 @@ This folder is the **canonical AI ruleset** (it replaced the former `docs/refere
 
 ## Selection workflow (do this before writing code)
 
-> **Before recommending any AI model for the operator to actually run:** read the applicable `docs/reference/kilo/*_SELECTION.md` and consult `docs/reference/kilo/AI_VENDOR_ACCESS.md`. If the model you want to recommend is not in the accessible set, either flag it clearly ("**new vendor — needs signup + payment method**") or pick a peer from the accessible set. When in doubt, run `python engine/suggest_model.py --task <task> --volume-<unit> <N>` — it hard-fails with exit=1 if no data exists for that task class, so you can't extrapolate from thin air.
+> **Before recommending any AI model for the operator to actually run:** read the applicable `docs/reference/kilo/*_SELECTION.md` and consult `docs/reference/kilo/AI_VENDOR_ACCESS.md`. If the model you want to recommend is not in the accessible set, either flag it clearly ("**new vendor — needs signup + payment method**") or pick a peer from the accessible set. When in doubt, run `python /opt/ai-model-catalog/engine/suggest_model.py --task <task> --volume-<unit> <N>` — it hard-fails with exit=1 if no data exists for that task class, so you can't extrapolate from thin air.
 
 ## Selection MDs — read before recommending
 
@@ -55,7 +55,7 @@ picks = pick_models("review", n=3, exclude=unreachable)
 
 `exclude=` is the documented "reliability lever" in canonical `subagents`; the pre-filter is a plan-1 project-local mechanism (was a module fork — reverted). No env var, no kwarg toggle, no HTML-comment doc parsing — just pass the set at the call site.
 
-> **Freshness caveat:** `agents.reachable_with_existing_keys` is populated by `engine/seed_specialty_catalog.py` (which parses `AI_VENDOR_ACCESS.md`). The seeder is NOT wired into `daily_refresh.sh`'s cron — it runs on-demand when the operator edits `AI_VENDOR_ACCESS.md`. If a vendor was recently added/removed, run `python engine/seed_specialty_catalog.py` before relying on the `unreachable` set. The DB filter at `rank_coding_subagents.py:269` reads the same column, so a stale seed also stales the ranked doc.
+> **Freshness caveat:** `agents.reachable_with_existing_keys` is populated by `/opt/ai-model-catalog/engine/seed_specialty_catalog.py` (which parses `AI_VENDOR_ACCESS.md`). The seeder is NOT wired into `daily_refresh.sh`'s cron — it runs on-demand when the operator edits `AI_VENDOR_ACCESS.md`. If a vendor was recently added/removed, run `python /opt/ai-model-catalog/engine/seed_specialty_catalog.py` before relying on the `unreachable` set. The DB filter at `rank_coding_subagents.py:269` reads the same column, so a stale seed also stales the ranked doc.
 
 1. **Identify the category** from the 16 below.
 2. **Open the matching pack** (`10`–`90`) for its subcategories, tools, and the Fabrik default.

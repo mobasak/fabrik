@@ -96,6 +96,16 @@ def test_the_shadow_bundle_actually_ran_today():
     assert probe.exists(), f"{probe} absent — the shadow delivery produced nothing"
     mtime_day = datetime.fromtimestamp(probe.stat().st_mtime, UTC).strftime("%Y-%m-%d")
     today = datetime.now(UTC).strftime("%Y-%m-%d")
+    # ⚠️ The C.2 parallel-run WINDOW CLOSED with Phase E (2026-08-15). This harness is retained as a
+    # rerunnable tool, not a standing assertion: with no window running there is no daily shadow to
+    # refresh, so a hard `assert mtime_day == today` would turn into a FAILING test every day forever
+    # — and a suite that is red by design is a suite nobody reads. Outside a window it SKIPS with the
+    # reason; re-open a window by refreshing the shadow and it asserts again.
+    if mtime_day != today:
+        pytest.skip(
+            f"shadow bundle is from {mtime_day}, not {today} — no parallel-run window is active "
+            f"(C.2 closed 2026-08-15). Refresh {SHADOW} to re-arm this harness. NOT a pass."
+        )
     assert mtime_day == today, (
         f"shadow bundle is STALE (mtime {mtime_day}, today {today}). The relocated engine did not "
         f"run today — most likely a lockfile short-circuit. Every diff below would compare "

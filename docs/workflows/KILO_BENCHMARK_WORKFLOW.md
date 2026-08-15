@@ -206,29 +206,29 @@ Non-kilo steps in `wsl_startup_hook.sh`:
 | `/opt/fabrik/scripts/wsl_startup_hook.sh` | Daily pipeline; kilo workflow guarded by `FABRIK_DISABLE_KILO_WORKFLOW`. |
 | `/opt/fabrik/scripts/wsl_startup_hook.sh.before-kilo-disable` | Backup of the pre-2026-05-09 hook. |
 | `/opt/fabrik/scripts/run_kilo_workflow.sh` | Manual trigger (4-step subset) with 30-min watchdog. |
-| `/opt/fabrik/engine/role_mapper.py` | Deterministic role assignment orchestrator. |
-| `/opt/fabrik/engine/pre_filter.py` | Per-role shortlists (hard filters). |
-| `/opt/fabrik/engine/selector.py` | "Cheapest above floors" Pareto selection. |
-| `/opt/fabrik/engine/post_filter.py` | Reviewing-fleet family-diversity rule. |
-| `/opt/fabrik/engine/kilo_agents_db.py` | Catalog DB rebuild. |
-| `/opt/fabrik/engine/update_kilo_benchmarks.py` | Arena ELO + Terminal-Bench + Windsurf scraper. |
-| `/opt/fabrik/engine/scrape_artificial_analysis.py` | Throughput + TTFT scraper. |
-| `/opt/fabrik/engine/export_traycer_registry.py` | Exports `scripts/kilo_47_agents_final.json` from DB. |
-| `/opt/fabrik/engine/embedding_models_db.py` | Embedding catalog scraper. |
-| `/opt/fabrik/engine/embedding_pre_filter.py` | Embedding shortlists. |
-| `/opt/fabrik/engine/embedding_role_mapper.py` | Embedding role winners. |
-| `/opt/fabrik/engine/embedding_export_markdown.py` | Updates embedding doc sections. |
+| `/opt/ai-model-catalog/engine/role_mapper.py` | Deterministic role assignment orchestrator. |
+| `/opt/ai-model-catalog/engine/pre_filter.py` | Per-role shortlists (hard filters). |
+| `/opt/ai-model-catalog/engine/selector.py` | "Cheapest above floors" Pareto selection. |
+| `/opt/ai-model-catalog/engine/post_filter.py` | Reviewing-fleet family-diversity rule. |
+| `/opt/ai-model-catalog/engine/kilo_agents_db.py` | Catalog DB rebuild. |
+| `/opt/ai-model-catalog/engine/update_kilo_benchmarks.py` | Arena ELO + Terminal-Bench + Windsurf scraper. |
+| `/opt/ai-model-catalog/engine/scrape_artificial_analysis.py` | Throughput + TTFT scraper. |
+| `/opt/ai-model-catalog/engine/export_traycer_registry.py` | Exports `scripts/kilo_47_agents_final.json` from DB. |
+| `/opt/ai-model-catalog/engine/embedding_models_db.py` | Embedding catalog scraper. |
+| `/opt/ai-model-catalog/engine/embedding_pre_filter.py` | Embedding shortlists. |
+| `/opt/ai-model-catalog/engine/embedding_role_mapper.py` | Embedding role winners. |
+| `/opt/ai-model-catalog/engine/embedding_export_markdown.py` | Updates embedding doc sections. |
 | `/opt/fabrik/scripts/generate_kilo_agents.py` | Generates Traycer CLI wrappers into `~/.traycer/cli-agents/`. |
 | `/opt/fabrik/scripts/check_ai_pack_freshness.py` | Warn-only: flags `.windsurf/rules/ai/*.md` packs whose `Last content verification:` line is >90d old (`AI_PACK_STALE_DAYS` override). Never modifies packs. |
-| `/opt/fabrik/engine/verify_openrouter_catalog.py` | Verifies pricing/capabilities vs the live OpenRouter API before category routing runs. |
-| `/opt/fabrik/engine/classify_ai_category.py` | Pure-SQL classifier, models → the 7 categories. |
-| `/opt/fabrik/engine/category_route_mapper.py` | Per-category top-N selection → `agent_roles` pins. |
-| `/opt/fabrik/engine/category_export_markdown.py` | Injects `OPENROUTER_ROUTES` markers into the 7 packs. |
+| `/opt/ai-model-catalog/engine/verify_openrouter_catalog.py` | Verifies pricing/capabilities vs the live OpenRouter API before category routing runs. |
+| `/opt/ai-model-catalog/engine/classify_ai_category.py` | Pure-SQL classifier, models → the 7 categories. |
+| `/opt/ai-model-catalog/engine/category_route_mapper.py` | Per-category top-N selection → `agent_roles` pins. |
+| `/opt/ai-model-catalog/engine/category_export_markdown.py` | Injects `OPENROUTER_ROUTES` markers into the 7 packs. |
 | `/opt/fabrik/scripts/kilo-benchmarks/update_gateway_counts.py` | Injects gateway counts into exported routing data. |
-| `/opt/fabrik/engine/fetch_replicate_prices.py` | Fetches Replicate pricing. |
-| `/opt/fabrik/engine/fetch_fal_prices.py` | Fetches fal.ai pricing (conditional on `$FAL_KEY`). |
-| `/opt/fabrik/engine/derive_cheapest_gateway.py` | Derives cheapest gateway per model. |
-| `/opt/fabrik/engine/export_models_browser.py` | Exports the consolidated models-browser data file. |
+| `/opt/ai-model-catalog/engine/fetch_replicate_prices.py` | Fetches Replicate pricing. |
+| `/opt/ai-model-catalog/engine/fetch_fal_prices.py` | Fetches fal.ai pricing (conditional on `$FAL_KEY`). |
+| `/opt/ai-model-catalog/engine/derive_cheapest_gateway.py` | Derives cheapest gateway per model. |
+| `/opt/ai-model-catalog/engine/export_models_browser.py` | Exports the consolidated models-browser data file. |
 | `/opt/fabrik/scripts/kilo-benchmarks/cache/update.log` | Daily pipeline log. |
 | `/opt/fabrik/scripts/kilo-benchmarks/cache/manual_workflow.log` | Manual trigger log (created on first manual run). |
 
@@ -239,10 +239,10 @@ Non-kilo steps in `wsl_startup_hook.sh`:
 tail -100 /opt/fabrik/scripts/kilo-benchmarks/cache/update.log
 
 # Current role assignments
-/opt/fabrik/.venv/bin/python /opt/fabrik/engine/role_mapper.py --show
+/opt/fabrik/.venv/bin/python /opt/ai-model-catalog/engine/role_mapper.py --show
 
 # Preview assignments without writing the DB
-/opt/fabrik/.venv/bin/python /opt/fabrik/engine/role_mapper.py --dry-run
+/opt/fabrik/.venv/bin/python /opt/ai-model-catalog/engine/role_mapper.py --dry-run
 ```
 
 A healthy daily run writes a

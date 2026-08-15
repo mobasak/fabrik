@@ -102,7 +102,7 @@ SUBAGENT_SELECTION_DOC=docs/reference/kilo/TASK_SUBAGENT_SELECTION.md
   - WSL dev: local postgres accepting `sudo -n -u postgres psql` (peer auth on unix socket)
   - VPS: `postgres-main` container reachable via `fabrik apply`'s SSH
 - [ ] `fabrik_analytics` DB exists with `subagent_runs` table + `subagent_runs_id_seq`
-  - WSL dev: `bash /opt/fabrik/engine/apply_subagent_runs_ddl.sh` (idempotent)
+  - WSL dev: `bash /opt/ai-model-catalog/engine/apply_subagent_runs_ddl.sh` (idempotent)
   - VPS: applied automatically by `ensure_shared_analytics_db()` during `fabrik apply` (**deferred: extend that function to apply `SUBAGENT_RUNS_DDL` alongside `cost_ledger` — currently WSL-only**)
 - [ ] `OPENROUTER_API_KEY` set in the project's environment (this is the ONLY env var the module strictly needs to function — everything else auto-degrades)
 
@@ -454,9 +454,9 @@ GRANT USAGE ON SEQUENCE subagent_runs_id_seq TO "<project>_subagent_ins";
 
 | Path | Purpose |
 |---|---|
-| `engine/apply_subagent_runs_ddl.sh` | One-shot DDL applier for WSL local postgres. VPS uses `ensure_shared_analytics_db()`. |
+| `/opt/ai-model-catalog/engine/apply_subagent_runs_ddl.sh` | One-shot DDL applier for WSL local postgres. VPS uses `ensure_shared_analytics_db()`. |
 | `scripts/kilo-benchmarks/rank_task_subagents.py` | Nightly aggregator — reads `subagent_runs`, emits the ranked markdown. |
-| `engine/tests/test_rank_task_subagents.py` | 16 tests, incl. 2 live-DB integration tests (skip if postgres unreachable) |
+| `/opt/ai-model-catalog/engine/tests/test_rank_task_subagents.py` | 16 tests, incl. 2 live-DB integration tests (skip if postgres unreachable) |
 | `scripts/kilo-benchmarks/daily_refresh.sh` | Cron chain — invokes `rank_task_subagents.py` as step 8b between `rank_coding_subagents` (8) and `update_gateway_counts` (later) |
 | `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` | The emitted ranked doc — governance-synced to every project |
 | `src/fabrik/drivers/postgres.py:create_subagent_ins_role` | Per-project role provisioner |
@@ -497,7 +497,7 @@ The stderr line names the specific failure. Common causes:
 
 - `sudo: a password is required` → NOPASSWD not set for postgres user. Fix `/etc/sudoers.d/postgres` to include `%<your-user> ALL=(postgres) NOPASSWD: /usr/bin/psql`.
 - `psql: FATAL: role "postgres" does not exist` → WSL postgres running with a different superuser role. Adjust the script to your postgres cluster.
-- `psql: FATAL: database "fabrik_analytics" does not exist` → Run `bash engine/apply_subagent_runs_ddl.sh` once.
+- `psql: FATAL: database "fabrik_analytics" does not exist` → Run `bash /opt/ai-model-catalog/engine/apply_subagent_runs_ddl.sh` once.
 - `Timeout` → Query took >300s. Bump `SUBAGENT_RANK_TIMEOUT=600 python …` for the run.
 
 ### The aggregator says `state=ok` but always 0 rows

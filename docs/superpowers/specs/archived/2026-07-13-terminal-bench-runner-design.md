@@ -15,7 +15,7 @@ Give the kilo-benchmarks pipeline the ability to **generate** Terminal-Bench sco
 
 **Composition (one new script + one deps addition + one ranking-bug fix):**
 
-1. **`engine/microbench_terminal.py`** (new, ~250 LOC) — mirrors `microbench_coding.py`'s structure:
+1. **`/opt/ai-model-catalog/engine/microbench_terminal.py`** (new, ~250 LOC) — mirrors `microbench_coding.py`'s structure:
    - Cohort query: `SELECT id FROM agents WHERE via_openrouter=1 AND status='active' AND has_tools=1` (a sysadmin agent must call tools) filtered by `--models` if given.
    - For each target model, shell out to the Laude harness CLI with `terminus-2` (the default agent used in TerminalBench 2.0) and the OpenRouter-routed model: `subprocess.run([<cli>, "run", "--agent", "terminus-2", "--model", f"openrouter/{model_id}", "--dataset-name", "terminal-bench-core", "--dataset-version", "<pinned>", "--n-concurrent", str(N), "--output-path", <run_dir>])` with `OPENROUTER_API_KEY` in the subprocess env (read from `.env` via `load_dotenv()`). `<cli>` is `tb` or `harbor` — **pin at plan Phase A** (the documented `--model openrouter/...` example is `harbor run`; Terminal-Bench 2.0's harness IS Harbor/terminus-2, and both use LiteLLM so both accept `openrouter/` strings — Phase A confirms which CLI the installed package exposes via `--help`).
    - Parse the harness's run-output JSON → resolved/total → `pass_rate * 100`.
@@ -25,7 +25,7 @@ Give the kilo-benchmarks pipeline the ability to **generate** Terminal-Bench sco
 
 2. **`requirements.txt` / `pyproject.toml`** (modify — **needs plan authorization per CLAUDE.md deps rule**) — add `terminal-bench` (Apache-2.0 pip package; pulls its own LiteLLM). `uv` + Docker are already present system-wide (verified: Docker 29.1.3, uv 0.11.16) — no manifest entry, they're system toolchain.
 
-3. **`engine/derive_quality_v2.py` (or the ranking queries)** (modify, ~2 LOC delta) — fix the NULL-ranking footgun this work exposed: `COALESCE(tbench_accuracy, 0) DESC` sorts *unbenched* models to worst, structurally burying the newest models. Change ranking gates to treat NULL as "unranked" (exclude from the tbench-ordered sort, don't score them 0). Grep-audit `category_selector.py:119`, `compute_assignments.py`, and any other `COALESCE(...tbench...,0)` site.
+3. **`/opt/ai-model-catalog/engine/derive_quality_v2.py` (or the ranking queries)** (modify, ~2 LOC delta) — fix the NULL-ranking footgun this work exposed: `COALESCE(tbench_accuracy, 0) DESC` sorts *unbenched* models to worst, structurally burying the newest models. Change ranking gates to treat NULL as "unranked" (exclude from the tbench-ordered sort, don't score them 0). Grep-audit `category_selector.py:119`, `compute_assignments.py`, and any other `COALESCE(...tbench...,0)` site.
 
 **Invocation model:** operator-triggered / on-demand only. **NOT wired into `daily_refresh.sh`** — a full core-set run is minutes of wall-time and dollars of OR spend per model (agentic loops), far too heavy for a daily cron. The daily leaderboard *scrape* (`scrape_benchmarks.py`) stays; this tool fills gaps the scrape can't cover.
 

@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -44,11 +45,16 @@ KB = FABRIK / "scripts" / "kilo-benchmarks"
 # evidence; if the evidence stops being true, the root leaves.
 KEEP_ROOTS = {
     "daily_refresh.sh":                 "the shrunk consumer orchestrator + its 0 6 * * * cron",
-    "rank_task_subagents.py":           "wsl_startup_hook.sh:232 (retained boot hook)",
-    "check_daily_refresh_freshness.py": "wsl_startup_hook.sh:236 + daily_refresh.sh:163",
-    "pipeline_alert.sh":                "wsl_startup_hook.sh:130/233/235 — the operator's alert path",
-    "autocommit_pipeline_outputs.sh":   "wsl_startup_hook.sh:243",
-    "tests/capture_golden.py":          "wsl_startup_hook.sh:234 + daily_refresh.sh — the contract oracle",
+    "rank_task_subagents.py":           "wsl_startup_hook.sh:184 (retained boot hook)",
+    "check_daily_refresh_freshness.py": "wsl_startup_hook.sh:188 + daily_refresh.sh:163",
+    "pipeline_alert.sh":                "wsl_startup_hook.sh:112/185/187 — the operator's alert path",
+    "autocommit_pipeline_outputs.sh":   "wsl_startup_hook.sh:195",
+    "tests/capture_golden.py":          "wsl_startup_hook.sh:186 + daily_refresh.sh — the contract oracle",
+    # Found by this script's OWN boundary scan after the excise had already taken it:
+    # scripts/kilo_docs_enforcer.py:66-70 needs it and exits 2 without it. That script is
+    # fleet-synced CORE_SCRIPTS on 47 project copies, and nothing inside KB references
+    # agent_selector, so the inside-only closure never saw the edge.
+    "agent_selector.py":                "scripts/kilo_docs_enforcer.py:66-70 (fleet-synced CORE_SCRIPTS)",
     "tests/test_golden_parity.py":      "the Phase-A oracle; C.3 gate (i) invokes it post-E",
     "tests/test_parallel_run_diff.py":  "the Phase-C window harness",
     # ⚠️ THIS FILE. It deleted ITSELF on the first excise run: it lives under tests/ and was not a
@@ -148,6 +154,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="exit 1 if the computed sets are unsound")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--against", metavar="REF",
+                    help="verify against files ALREADY deleted since REF — the only form that is not "
+                         "a tautology once the excise has run (e.g. --against 73bde59a~1)")
     a = ap.parse_args()
 
     keep, delete = closure()
@@ -166,6 +175,88 @@ def main() -> int:
 
     if a.check:
         problems: list[str] = []
+        # ⚠️ POST-EXCISE THIS CHECK WAS A TAUTOLOGY, and the claim it backed ("SOUND") was hollow.
+        # `closure()` computes `delete = everything - keep` by scanning the CURRENT tree, so once the
+        # files are gone they are not in `everything`, cannot be in `delete`, and the
+        # "RETAINED depends on DELETED" rule below can never fire. Worse, `_local_deps` only keeps a
+        # candidate when `KB/<name>.py` still EXISTS, so a dependency on a deleted module is dropped
+        # from `deps` entirely — the edge disappears rather than being flagged.
+        #
+        # The real question is not "does anything depend on a file I am about to delete" (answerable
+        # from the live tree) but "does anything depend on a file I ALREADY deleted" — which is only
+        # answerable from git. `--against <ref>` reconstructs the pre-excise file set and checks the
+        # retained files' dependencies against it.
+        # ⚠️ THE BOUNDARY. The closure only traverses files UNDER scripts/kilo-benchmarks/, so a
+        # FABRIK-SIDE consumer of an engine module is invisible to it — the outside-in edges lived only
+        # in the hand-written KEEP_ROOTS. That blind spot is what shipped a broken
+        # kilo_docs_enforcer.py: it needs agent_selector.py, nothing in KB referenced it, so the graph
+        # never saw the edge and the excise took it. It is fleet-synced CORE_SCRIPTS on 47 project
+        # copies and it exited 2. Scan the consumers directly.
+        #
+        # The membership test must be "was this a KB module BEFORE the excise", not "is it missing
+        # now" — the naive form flagged every stdlib import in any file that merely mentions
+        # kilo-benchmarks (argparse, json, pathlib...), which is noise that gets a check switched off.
+        import ast as _a
+        was_kb = set()
+        if a.against:
+            was_kb = {
+                line.split("/")[-1]
+                for line in subprocess.run(
+                    ["git", "ls-tree", "-r", "--name-only", a.against, "--", str(KB.relative_to(FABRIK))],
+                    cwd=FABRIK, capture_output=True, text=True).stdout.split()
+                if line.endswith((".py", ".sh"))
+            }
+        for q in list((FABRIK / "scripts").glob("*.py")) + list((FABRIK / "scripts").glob("*.sh")):
+            src = q.read_text(errors="replace")
+            if "kilo-benchmarks" not in src:
+                continue
+            named = set(re.findall(r"kilo-benchmarks/([A-Za-z_0-9-]+\.(?:py|sh))", src))
+            if q.suffix == ".py":
+                try:
+                    for node in _a.walk(_a.parse(src)):
+                        if isinstance(node, _a.Import):
+                            named |= {f"{x.name.split('.')[0]}.py" for x in node.names}
+                        elif isinstance(node, _a.ImportFrom) and node.level == 0 and node.module:
+                            named.add(f"{node.module.split('.')[0]}.py")
+                except SyntaxError:
+                    pass
+            for n in sorted(named & was_kb):          # only names that really were KB modules
+                if not (KB / n).exists():
+                    problems.append(f"CONSUMER {q.relative_to(FABRIK)} needs DELETED {n}")
+                elif n not in keep:
+                    problems.append(f"CONSUMER {q.relative_to(FABRIK)} needs {n}, not in the KEEP set")
+
+        if a.against:
+            gone = {
+                line[len(f"{KB.relative_to(FABRIK)}/"):]
+                for line in subprocess.run(
+                    ["git", "diff", "--name-only", "--diff-filter=D", f"{a.against}..HEAD", "--",
+                     str(KB.relative_to(FABRIK))],
+                    cwd=FABRIK, capture_output=True, text=True).stdout.split()
+            }
+            print(f"[--against {a.against}] {len(gone)} files were deleted from the engine tree")
+            import ast as _ast
+            for k in sorted(keep):
+                f = KB / k
+                if not f.is_file() or f.suffix not in {".py", ".sh"}:
+                    continue
+                src = f.read_text(errors="replace")
+                if f.suffix == ".sh":
+                    names = set(_shell_deps(f))
+                else:
+                    names = set()
+                    try:
+                        for node in _ast.walk(_ast.parse(src)):
+                            if isinstance(node, _ast.Import):
+                                names |= {x.name.split(".")[0] for x in node.names}
+                            elif isinstance(node, _ast.ImportFrom) and node.level == 0 and node.module:
+                                names.add(node.module.split(".")[0])
+                    except SyntaxError:
+                        pass
+                for n in names:
+                    for cand in (f"{n}.py", f"{n}/__init__.py", n):
+                        if cand in gone:
+                            problems.append(f"RETAINED {k} references DELETED {cand}")
         # ⚠️ ORDERING. `daily_refresh.sh` is a KEEP root, and the closure follows what it INVOKES —
         # so run against today's un-shrunk orchestrator (55 engine steps) it retains 156 files, i.e.
         # most of the engine. That is not a bug in the graph; it is the honest answer to "what does

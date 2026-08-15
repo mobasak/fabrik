@@ -61,9 +61,9 @@ cost/latency — not a derivation; deleted.)
 
 `claude-evaluator._call_cli` ([/opt/fabrik-lib/claude-evaluator/claude_evaluator/core.py:188](/opt/fabrik-lib/claude-evaluator/claude_evaluator/core.py#L188)) already shells `npx @anthropic-ai/claude-code --print --output-format text --model
 <m> --system-prompt <s>` (stdin prompt, fail-closed) and is **already vendored in-tree**
-(`engine/vendor/claude_evaluator/core.py` (ai-model-catalog)). So VENDOR + ENHANCE, not build.
+(`/opt/ai-model-catalog/engine/vendor/claude_evaluator/core.py` (ai-model-catalog)). So VENDOR + ENHANCE, not build.
 
-`engine/claude_p.py` → `claude_p_call(tier, prompt, *, system, timeout) -> (text, usage)`
+`/opt/ai-model-catalog/engine/claude_p.py` → `claude_p_call(tier, prompt, *, system, timeout) -> (text, usage)`
 wraps it with ONE core enhancement (→ upstream): **`--output-format text` → `json`** to capture the `usage`
 token block `_call_cli` discards — the CLI json uses the Anthropic API key names `input_tokens` /
 `output_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens` (snake_case, grounded 2026-07-20;

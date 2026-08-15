@@ -1,14 +1,14 @@
 # Coding subagent selection
 
-**Generated:** 2026-08-15 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `engine/rank_coding_subagents.py`
+**Generated:** 2026-08-15 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `/opt/ai-model-catalog/engine/rank_coding_subagents.py`
 
 Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
 
 > **Score composition**: 45% best-verified code score (max of SWE-bench-Verified and Aider-Polyglot; falls back to our own live HumanEval+/MBPP+ `coding_score` × 0.7 when neither external benchmark is populated) · 20% AA intelligence index · 15% Arena ELO · 10% output tok/s · 10% cost-inverse. Every component normalized to [0,1] before its weight is applied. Higher = better fit.
 
-> **Doc↔Code grade + pass@1**: coding capability. `†` = MEASURED — the measured **coding** grade from `engine/microbench_coding_direct.py` (LiveCodeBench pass@1, shown in the `pass@1` column) wins when present; else the measured **review** grade from `microbench_review.py` (ground-truth planted-bug corpus — code-understanding proxy); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. `pass@1` = LiveCodeBench coding accuracy (contamination-free); `—` until the coding bench has run on that model. (The row **sort** is the composite `Score`, not the grade — the grade/pass@1 are the coding signal; `pick_models("code")` ranks on the measured `model_task_baseline` prior.)
+> **Doc↔Code grade + pass@1**: coding capability. `†` = MEASURED — the measured **coding** grade from `/opt/ai-model-catalog/engine/microbench_coding_direct.py` (LiveCodeBench pass@1, shown in the `pass@1` column) wins when present; else the measured **review** grade from `microbench_review.py` (ground-truth planted-bug corpus — code-understanding proxy); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. `pass@1` = LiveCodeBench coding accuracy (contamination-free); `—` until the coding bench has run on that model. (The row **sort** is the composite `Score`, not the grade — the grade/pass@1 are the coding signal; `pick_models("code")` ranks on the measured `model_task_baseline` prior.)
 
-> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `engine/microbench_coding.py` has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.
+> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `/opt/ai-model-catalog/engine/microbench_coding.py` has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.
 
 ## Ranked table
 
@@ -72,7 +72,7 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 
 ## Candidates not yet benched by us
 
-Auto-tier coding candidates (OR-reachable, output ≤ $1.5/Mtok) with no live pass_at_1 from `engine/microbench_coding.py` AND no external SWE-bench / Aider-Polyglot / AA-idx signal. Their composite score rests only on TPS + cost until benched, so their ranking is provisional — an explicit `microbench_coding.py --models <id> --datasets humaneval,mbpp` run would move them into (or out of) the top of the Auto tier.
+Auto-tier coding candidates (OR-reachable, output ≤ $1.5/Mtok) with no live pass_at_1 from `/opt/ai-model-catalog/engine/microbench_coding.py` AND no external SWE-bench / Aider-Polyglot / AA-idx signal. Their composite score rests only on TPS + cost until benched, so their ranking is provisional — an explicit `microbench_coding.py --models <id> --datasets humaneval,mbpp` run would move them into (or out of) the top of the Auto tier.
 
 | Model | In $/M | Out $/M | db_tps | Ctx | Arena | Reason | Score (provisional) |
 |---|---:|---:|---:|---:|---:|:-:|---:|

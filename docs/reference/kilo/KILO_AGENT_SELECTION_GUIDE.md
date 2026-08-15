@@ -165,15 +165,15 @@ python3 scripts/kilo_model_sync.py --sync
 ### Manual full refresh
 ```bash
 cd /opt/fabrik
-PATH=/usr/local/bin:$PATH python3 engine/discover_kilo_agents.py  # Gateway models
-python3 engine/update_kilo_benchmarks.py   # Scrape leaderboards
-python3 engine/compute_assignments.py       # Recompute roles
+PATH=/usr/local/bin:$PATH python3 /opt/ai-model-catalog/engine/discover_kilo_agents.py  # Gateway models
+python3 /opt/ai-model-catalog/engine/update_kilo_benchmarks.py   # Scrape leaderboards
+python3 /opt/ai-model-catalog/engine/compute_assignments.py       # Recompute roles
 python3 scripts/generate_kilo_agents.py                      # Regenerate agent scripts + update this roster
 ```
 
 The last step auto-updates the roster above via `generate_selection_guide_roster.py`. You can also run it standalone:
 ```bash
-python3 engine/generate_selection_guide_roster.py
+python3 /opt/ai-model-catalog/engine/generate_selection_guide_roster.py
 ```
 
 ### Manual override (pin a model to a role)
@@ -206,9 +206,9 @@ sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
 | Cost efficiency | Extreme outlier | Review |
 
 ```bash
-python engine/manage_blocked.py block "agent/id" "reason"
-python engine/manage_blocked.py unblock "agent/id"
-python engine/manage_blocked.py list
+python /opt/ai-model-catalog/engine/manage_blocked.py block "agent/id" "reason"
+python /opt/ai-model-catalog/engine/manage_blocked.py unblock "agent/id"
+python /opt/ai-model-catalog/engine/manage_blocked.py list
 ```
 
 ---

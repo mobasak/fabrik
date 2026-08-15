@@ -12,7 +12,6 @@
 # The block was NOT duplicated into wsl_startup_hook.sh: its whole pipeline body lives
 # inside a double-quoted `nohup bash -c "…"` string (:88-173), so an inlined block with
 # quotes, $(…) and || would need fragile escaping AND would fork the stage list in two —
-# the exact drift that let 65-rag-search.md and embedding_shortlists.json go unstaged.
 #
 # Contract: stage EXPLICIT pipeline-owned paths ONLY — never `git add -A` on shared master
 # — commit only when something changed, then a GUARDED fast-forward push (never force; if
@@ -87,8 +86,12 @@ fi
 # exclusion list two comments down. (CLAUDE.md § HARD STOPS: commit with a pathspec, never the
 # index. A bare `final_gate.py` run auto-stages, so a non-empty index is the NORMAL state here.)
 PATHS=(
-  .windsurf/rules/ai/*.md
-  .windsurf/rules/core/65-rag-search.md
+  # ⚠️ REMOVED at the Phase-D cutover 2026-08-15: fabrik no longer INJECTS these blocks
+  # (category_export_markdown/update_gateway_counts moved to the ai-model-catalog engine).
+  # Staging a fleet-synced rule pack that this pipeline does not produce means a SIBLING's
+  # uncommitted edit gets auto-committed and PUSHED to ~46 repos by the boot hook. The file's
+  # own residual note accepted that risk only because "the pipeline must publish that block";
+  # it no longer does, so the justification is gone and the risk is not.
   docs/reference/kilo/CODING_SUBAGENT_SELECTION.md
   docs/reference/kilo/TASK_SUBAGENT_SELECTION.md
   docs/reference/kilo/KILO_MODEL_CAPABILITIES.md
@@ -101,8 +104,6 @@ PATHS=(
   docs/CAPABILITIES.md
   capabilities.json
   docs/traycer/kilo_selected_agents.md
-  scripts/kilo-benchmarks/embedding_models_dump.json
-  scripts/kilo-benchmarks/embedding_shortlists.json
 )
 
 # Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
