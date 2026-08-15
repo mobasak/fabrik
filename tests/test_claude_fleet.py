@@ -958,10 +958,24 @@ def _pin(fleet, slug, email):
     path.write_text(json.dumps(table))
 
 
-def _fleet_creds(fleet, slug, token, age_s=0.0):
-    """Plant a FAKE credentials file in a tmp fleet dir (tests only) and backdate its mtime."""
+def _fleet_creds(fleet, slug, token, age_s=0.0, refresh_expires_s=30 * 86400.0):
+    """Plant a FAKE but LIVE credential chain in a tmp fleet dir (tests only) and backdate its
+    mtime. LIVE means it passes the F-P1 flip liveness gate (_chain_stale_reason): a refresh
+    token with a future expiry, relative to FLEET_NOW. Pass refresh_expires_s <= 0 to plant an
+    EXPIRED chain (a dead flip target)."""
     creds = fleet / slug / ".credentials.json"
-    creds.write_text(json.dumps({"claudeAiOauth": {"accessToken": token}}))
+    creds.write_text(
+        json.dumps(
+            {
+                "claudeAiOauth": {
+                    "accessToken": token,
+                    "refreshToken": f"R-{token}",
+                    "expiresAt": int((FLEET_NOW + 3600) * 1000),
+                    "refreshTokenExpiresAt": int((FLEET_NOW + refresh_expires_s) * 1000),
+                }
+            }
+        )
+    )
     ts = FLEET_NOW - age_s
     os.utime(creds, (ts, ts))
     return creds
@@ -1242,7 +1256,7 @@ def test_keepalive_never_reads_credential_bytes(tmp_path, monkeypatch):
     assert creds.read_text  # fixture intact
 
 
-# ── B11: the fleet tick — per-account advisory, structurally no successor logic ───────────────
+# ── B11: the fleet tick — per-account advisory; legacy install machinery never touched ────────
 
 
 def _fleet_tick_spies(monkeypatch):
@@ -1366,25 +1380,62 @@ def test_keepalive_future_skewed_credentials_mtime_counts_as_due(tmp_path, monke
         assert line.startswith("keepalive:"), f"cron-log lines must be single-line: {line!r}"
 
 
-def test_fleet_tick_branch_has_structurally_no_successor_logic(tmp_path, monkeypatch):
+def test_fleet_flip_path_structurally_writes_no_credentials(tmp_path, monkeypatch):
+    """REPLACES test_fleet_tick_branch_has_structurally_no_successor_logic: fleet-mode successor
+    selection now exists BY DESIGN (the pointer flip — operator redesign 2026-08-15). The
+    load-bearing invariant is restated as what it always protected: the flip path performs NO
+    credential-file writes — it renames a symlink, never touches the legacy install machinery
+    (its behavioral twin is test_fleet_flip_tick_moves_zero_credential_bytes)."""
     forbidden = {
+        "_activate_snapshot",
         "_tick_switch",
+        "_rotate_active_account",
+        "_cmd_capture_current",
+        "_file_refreshed_credentials",
+        "_secure_write",
+        "_replace_file",
+        "_cmd_next",
         "_pick_successor",
         "_tick_inner",
-        "_activate_snapshot",
-        "_cmd_switch",
-        "_cmd_next",
-        "_rotate_active_account",
     }
+
+    def _names(code):
+        """co_names of *code* PLUS its one-level nested code objects (lambdas / inner defs /
+        comprehensions), so a nested function cannot smuggle a forbidden name past the assert.
+        KNOWN LIMITATION: a fresh module-level helper with a novel name still evades a name
+        check by construction — the behavioral trap
+        (test_fleet_flip_tick_moves_zero_credential_bytes) is the real net, which is why it
+        must stay tight (writes, links, symlinks, AND subprocess argv are all trapped there)."""
+        names = set(code.co_names)
+        for const in code.co_consts:
+            if hasattr(const, "co_names"):
+                names |= set(const.co_names)
+        return names
+
     for fn_name in (
+        "_flip_active",
+        "_resolve_active",
+        "_chain_stale_reason",
+        "_refresh_expiry_epoch",
+        "_pick_flip_target",
+        "_validated_pick",
+        "_account_flip_dir",
+        "_freshest_credentialed_slug",
+        "_cmd_fleet_switch",
+        "_fleet_flip_leg",
+        "_fleet_row_warnings",
+        "_identity_probe_stamp",
+        "_identity_probe_due",
+        "_identity_probe_record",
+        "_identity_probe_result",
         "_fleet_tick_inner",
         "_fleet_account_rows",
         "_cmd_fleet_status",
         "_cmd_keepalive",
     ):
         fn = getattr(cr, fn_name)
-        overlap = set(fn.__code__.co_names) & forbidden
-        assert not overlap, f"{fn_name} references successor machinery: {overlap}"
+        overlap = _names(fn.__code__) & forbidden
+        assert not overlap, f"{fn_name} references credential-install machinery: {overlap}"
 
     # …and the dispatch never reaches the single-live-account tick in fleet mode
     fleet, *_ = _canonical(tmp_path, monkeypatch)
@@ -1394,3 +1445,861 @@ def test_fleet_tick_branch_has_structurally_no_successor_logic(tmp_path, monkeyp
     )
     monkeypatch.setattr(cr, "_fleet_tick_inner", lambda dirs: 0)
     assert cr._cmd_tick() == 0
+
+
+# ── B12: the active POINTER — flip rotation, zero credential bytes ────────────────────────────
+# Operator redesign 2026-08-15: per-ACCOUNT fleet dirs (each logged in once, chains never move)
+# + ONE `active` symlink every session follows; the tick FLIPS the pointer by quota headroom.
+
+
+def _point(fleet, slug):
+    """Pre-set the active pointer WITHOUT ledgering (simulates a flip from a past dwell window,
+    so the tick under test is not held by its own fixture's dwell clock)."""
+    ptr = fleet / "active"
+    if ptr.is_symlink():
+        ptr.unlink()
+    ptr.symlink_to(slug, target_is_directory=True)
+
+
+def test_rename_replaces_a_directory_symlink(tmp_path):
+    """The probe _flip_active's atomicity rests on (2026-08-15, the DIR twin of T02a's
+    file-symlink write-through probe): os.replace onto a symlink-to-DIRECTORY replaces the LINK
+    itself — rename(2) follows neither argument — so the pointer swap has no missing window.
+    If a platform ever changes this, this goes red and the flip design is re-taken."""
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    ptr = tmp_path / "active"
+    ptr.symlink_to("a", target_is_directory=True)
+    tmp = tmp_path / ".active.tmp"
+    tmp.symlink_to("b", target_is_directory=True)
+    os.replace(tmp, ptr)
+    assert ptr.is_symlink(), "the pointer must remain a symlink, never become a real dir"
+    assert os.readlink(ptr) == "b", "os.replace must swap the LINK, not write through it"
+    assert not tmp.exists() and not tmp.is_symlink(), "the temp link is consumed by the rename"
+
+
+def test_new_dir_refuses_the_reserved_active_slug(tmp_path, monkeypatch, capsys):
+    _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "active", "sarp@ocoron.com"]) == 2
+    assert "reserved" in capsys.readouterr().err
+
+
+def test_fleet_dirs_and_keepalive_ignore_the_active_pointer(tmp_path, monkeypatch, capsys):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    for slug in ("ob", "sarp"):
+        assert cr.main(["--new-dir", slug, f"{slug}@ocoron.com"]) == 0
+    _fleet_creds(fleet, "ob", "tok-ob", age_s=8 * 86400.0)  # stale → exactly one ping
+    _fleet_creds(fleet, "sarp", "tok-sarp", age_s=86400.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    assert cr._flip_active("ob", manual=True)
+    assert [d.name for d in cr._fleet_dirs()] == ["ob", "sarp"], (
+        "the active symlink must never be counted as a fleet dir"
+    )
+    runs = []
+
+    def fake_run(argv, **kw):
+        runs.append(dict(kw.get("env") or {})["CLAUDE_CONFIG_DIR"])
+        return subprocess.CompletedProcess(argv, 0, "pong", "")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    capsys.readouterr()
+    assert cr.main(["--keepalive"]) == 0
+    assert runs == [str(fleet / "ob")], (
+        "one ping for the stale dir only — never a double ping through the pointer"
+    )
+
+
+def test_flip_active_repoints_atomically_and_idempotently(tmp_path, monkeypatch):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo")
+    _fleet_creds(fleet, "intel", "tok-intel")
+    assert cr._flip_active("seo", manual=True)
+    ptr = fleet / "active"
+    assert ptr.is_symlink() and os.readlink(ptr) == "seo", (
+        "a RELATIVE link — the fleet root stays relocatable"
+    )
+    assert cr._resolve_active() == "seo"
+    assert cr._flip_active("seo", manual=True), "re-flipping to the active slug is a no-op success"
+    assert cr._flip_active("intel", manual=True)
+    assert os.readlink(ptr) == "intel"
+    lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
+    flips = [e for e in map(json.loads, lines) if e.get("event") == "flip"]
+    assert [(f["from"], f["to"]) for f in flips] == [(None, "seo"), ("seo", "intel")], (
+        "every real flip is ledgered; the idempotent no-op is not"
+    )
+
+
+def test_flip_active_refuses_a_dir_without_credentials(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo")
+    assert cr._flip_active("seo", manual=True)
+    capsys.readouterr()
+    assert not cr._flip_active("youtube", manual=True), "an empty chain is never pointed at"
+    assert not cr._flip_active("ghost", manual=True), "nor an absent dir"
+    assert not cr._flip_active("active", manual=True), "nor the pointer itself (no self-loop)"
+    assert "credentialed" in capsys.readouterr().err
+    assert os.readlink(fleet / "active") == "seo", "a refused flip leaves the pointer untouched"
+
+
+def test_flip_active_pause_holds_and_manual_overrides(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo")
+    _fleet_creds(fleet, "intel", "tok-intel")
+    _point(fleet, "seo")
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "switch-paused").touch()
+    capsys.readouterr()
+    assert not cr._flip_active("intel"), "the pause marker holds every automated flip"
+    err = capsys.readouterr().err
+    assert "PAUSED" in err and "--resume-switch" in err, "the refusal must name the override"
+    assert os.readlink(fleet / "active") == "seo"
+    assert cr._flip_active("intel", manual=True), "--switch stays the deliberate escape hatch"
+    assert os.readlink(fleet / "active") == "intel"
+
+
+def test_flip_active_dwell_blocks_then_allows_and_fails_closed(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo")
+    _fleet_creds(fleet, "intel", "tok-intel")
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    ledger = state / "rotate-ledger.jsonl"
+    ledger.write_text(json.dumps({"event": "flip", "ts": FLEET_NOW - 10 * 60, "to": "seo"}) + "\n")
+    capsys.readouterr()
+    assert not cr._flip_active("intel"), "10 min after a flip is inside the 30-min dwell"
+    assert "within dwell" in capsys.readouterr().err
+    ledger.write_text(json.dumps({"event": "flip", "ts": FLEET_NOW - 31 * 60, "to": "seo"}) + "\n")
+    assert cr._flip_active("intel"), "31 min after a flip is outside the dwell"
+    assert os.readlink(fleet / "active") == "intel"
+    # unusable ledger ts → the dwell guard fails CLOSED (the _last_switch_ts contract, flip event)
+    ledger.write_text(json.dumps({"event": "flip", "ts": "soon", "to": "seo"}) + "\n")
+    capsys.readouterr()
+    assert not cr._flip_active("seo"), "an unusable ledger must hold the flip, never allow it"
+    assert "fail-closed" in capsys.readouterr().err
+
+
+def test_fleet_tick_flips_at_threshold_to_the_headroom_account(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert os.readlink(fleet / "active") == "intel", "the tick must FLIP the pointer"
+    assert "flipped active sarp@ocoron.com -> ob@ocoron.com (intel) at 96%" in out
+    assert actions["switched"] == [] and actions["picked"] == [], "legacy install never touched"
+    lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
+    flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
+    assert (flip["from"], flip["to"], flip["at_pct"]) == ("seo", "intel", 96.0)
+
+    # …and a second over-threshold tick moments later is held by the dwell (hysteresis)
+    usages["tok-intel"] = _usage_blob(96.0, 96.0)
+    usages["tok-seo"] = _usage_blob(10.0, 10.0)
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert "withheld" in capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel", "a flip inside the dwell must be held"
+
+
+def test_fleet_tick_below_threshold_never_flips(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(94.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert "below 95%, no flip" in capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "seo"
+
+
+def test_fleet_tick_repairs_a_missing_or_dangling_pointer(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(42.0, 31.0), "tok-intel": _usage_blob(7.0, 9.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    # a recent ledger flip must NOT hold the repair — a dangling pointer is an outage, not
+    # hysteresis territory
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps({"event": "flip", "ts": FLEET_NOW - 60, "to": "seo"}) + "\n"
+    )
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert "repaired" in out
+    assert os.readlink(fleet / "active") == "intel", "no pointer → flip to most weekly headroom"
+
+    ptr = fleet / "active"
+    ptr.unlink()
+    ptr.symlink_to("ghost", target_is_directory=True)  # dangling
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert "repaired" in capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel", "a dangling pointer reads as no active"
+
+
+def test_fleet_tick_without_headroom_flips_nothing_and_advises(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(100.0, 100.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+
+    assert os.readlink(fleet / "active") == "seo", "a walled sibling is never a flip target"
+    assert "NO successor has headroom" in out
+    assert any("sarp@ocoron.com" in t for t in actions["telegrams"]), (
+        "the ≥85% drain advisory is the recourse when nothing can flip"
+    )
+
+
+def test_fleet_tick_pause_holds_the_flip_but_never_the_advisory(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "switch-paused").touch()
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    err = capsys.readouterr().err
+
+    assert os.readlink(fleet / "active") == "seo", "the pause marker holds the tick's flip"
+    assert "PAUSED" in err
+    assert any("sarp@ocoron.com" in t for t in actions["telegrams"]), (
+        "pause holds flips, NEVER telemetry/advisories (T01 semantics)"
+    )
+
+
+def test_switch_in_fleet_mode_is_a_manual_pause_exempt_flip(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo")
+    _fleet_creds(fleet, "intel", "tok-intel")
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "switch-paused").touch()
+    capsys.readouterr()
+
+    assert cr.main(["--switch", "intel"]) == 0, "--switch flips even while paused (escape hatch)"
+    assert "pointer flip" in capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel"
+    assert cr.main(["--switch", "nope"]) == 1, "an unknown slug is refused, pointer untouched"
+    assert os.readlink(fleet / "active") == "intel"
+
+
+def test_fleet_status_shows_the_active_account(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(42.0, 31.0)})
+    capsys.readouterr()
+
+    assert cr.main(["--status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["active"] is None, "no pointer → active: null"
+
+    assert cr._flip_active("seo", manual=True)
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    assert "active: seo" in out
+    sarp_line = next(line for line in out.splitlines() if "sarp@ocoron.com" in line)
+    assert sarp_line.startswith("*"), "the active account's row carries the * mark"
+
+    assert cr.main(["--status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["active"] == "seo"
+
+
+def test_fleet_flip_tick_moves_zero_credential_bytes(tmp_path, monkeypatch):
+    """THE invariant that distinguishes the flip from the retired file-swap rotation: a
+    flip-inducing tick performs no write of any kind against a *.credentials.json path —
+    every write primitive is trapped for the duration, and the bytes are compared after."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    before = {
+        slug: (fleet / slug / ".credentials.json").read_bytes() for slug in ("seo", "intel")
+    }
+
+    def _no_cred(target):
+        assert ".credentials.json" not in str(target), f"credential write during a flip: {target}"
+
+    real_write_bytes, real_write_text, real_open_p = Path.write_bytes, Path.write_text, Path.open
+    real_os_open, real_replace, real_rename = os.open, os.replace, os.rename
+    real_copy, real_copy2, real_copyfile, real_move = (
+        shutil.copy,
+        shutil.copy2,
+        shutil.copyfile,
+        shutil.move,
+    )
+    monkeypatch.setattr(
+        Path, "write_bytes", lambda self, *a, **k: _no_cred(self) or real_write_bytes(self, *a, **k)
+    )
+    monkeypatch.setattr(
+        Path, "write_text", lambda self, *a, **k: _no_cred(self) or real_write_text(self, *a, **k)
+    )
+
+    def guarded_open(self, mode="r", *a, **k):
+        if any(c in mode for c in "wax+"):
+            _no_cred(self)
+        return real_open_p(self, mode, *a, **k)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+
+    def guarded_os_open(path, flags, *a, **k):
+        if flags & (os.O_WRONLY | os.O_RDWR):
+            _no_cred(path)
+        return real_os_open(path, flags, *a, **k)
+
+    monkeypatch.setattr(os, "open", guarded_os_open)
+    monkeypatch.setattr(os, "replace", lambda src, dst, **k: _no_cred(dst) or real_replace(src, dst, **k))
+    monkeypatch.setattr(os, "rename", lambda src, dst, **k: _no_cred(dst) or real_rename(src, dst, **k))
+    monkeypatch.setattr(shutil, "copy", lambda src, dst, **k: _no_cred(dst) or real_copy(src, dst, **k))
+    monkeypatch.setattr(shutil, "copy2", lambda src, dst, **k: _no_cred(dst) or real_copy2(src, dst, **k))
+    monkeypatch.setattr(
+        shutil, "copyfile", lambda src, dst, **k: _no_cred(dst) or real_copyfile(src, dst, **k)
+    )
+    monkeypatch.setattr(shutil, "move", lambda src, dst, **k: _no_cred(dst) or real_move(src, dst, **k))
+    # F-P3 evasion probes closed: hardlinks, credential-path symlinks, and shelling out
+    # (cp/mv/install/dd — ANY argv naming a credential path) are trapped too.
+    real_link, real_symlink = os.link, os.symlink
+
+    def guarded_link(src, dst, **k):
+        _no_cred(src)
+        _no_cred(dst)
+        return real_link(src, dst, **k)
+
+    def guarded_symlink(src, dst, **k):
+        _no_cred(src)
+        _no_cred(dst)
+        return real_symlink(src, dst, **k)
+
+    monkeypatch.setattr(os, "link", guarded_link)
+    monkeypatch.setattr(os, "symlink", guarded_symlink)
+
+    def _no_cred_argv(argv):
+        if isinstance(argv, (list, tuple)):
+            for a in argv:
+                _no_cred(a)
+        else:
+            _no_cred(argv)
+
+    for sub_name in ("run", "check_call", "check_output", "Popen", "call"):
+        real_sub = getattr(subprocess, sub_name)
+        monkeypatch.setattr(
+            subprocess,
+            sub_name,
+            lambda argv, *a, __real=real_sub, **k: _no_cred_argv(argv) or __real(argv, *a, **k),
+        )
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "intel", "the flip must actually have happened"
+    for slug, blob in before.items():
+        assert (fleet / slug / ".credentials.json").read_bytes() == blob, (
+            f"{slug}'s credential bytes changed across a flip"
+        )
+
+
+# ── B13: flip-path liveness (F-P1), validate-before-flip (F-P2), identity net (F-P4) ──────────
+
+
+def test_flip_refuses_an_expired_chain_auto_and_manual(tmp_path, monkeypatch, capsys):
+    """F-P1: file presence is not usability — a chain whose refresh token is expired must never
+    become the fleet's pointer, MANUAL included (one dead pointer = fleet-wide auth outage)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo")
+    _fleet_creds(fleet, "intel", "tok-intel", refresh_expires_s=-3 * 3600.0)  # expired 3h ago
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert not cr._flip_active("intel", manual=True), "a manual flip to a dead chain is refused"
+    err = capsys.readouterr().err
+    assert "refresh token expired" in err, "the refusal must carry the module's own stale reason"
+    assert "/login" in err, "the refusal must name the revival path"
+    assert not cr._flip_active("intel"), "the auto path refuses the same chain"
+    assert os.readlink(fleet / "active") == "seo", "the pointer never moved"
+    assert cr.main(["--switch", "intel"]) == 1, "fleet --switch inherits the liveness gate"
+    assert os.readlink(fleet / "active") == "seo"
+
+
+def test_selector_skips_an_expired_chain_that_ranks_best_on_quota(tmp_path, monkeypatch, capsys):
+    """F-P1: the auto-selector must exclude a dead chain even when its (cached or live) quota
+    reading makes it the most attractive successor — quota headroom on a chain that cannot
+    authenticate is not headroom."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    # ob@'s chain is EXPIRED but its reading (10/10) ranks far ahead of sarp's (96/50)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0, refresh_expires_s=-3 * 3600.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "seo", "a dead chain is never chosen, however rosy"
+    assert "NO successor has headroom" in capsys.readouterr().out
+
+
+def test_status_warns_when_a_chain_nears_expiry(tmp_path, monkeypatch, capsys):
+    """F-P1: a dying chain must be visible on --status BEFORE it silently drops out of flip
+    candidacy — under 5d to expiry (the keepalive's 7d cadence has already missed it)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=3 * 86400.0)  # 3d left
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)  # 30d left → silent
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(42.0, 31.0), "tok-intel": _usage_blob(7.0, 9.0)},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    assert "sarp@ocoron.com: refresh chain expires in 3.0d" in out
+    assert "ob@ocoron.com: refresh chain expires" not in out, "a healthy chain warns nothing"
+
+    assert cr.main(["--status", "--json"]) == 0
+    rows = {r["email"]: r for r in json.loads(capsys.readouterr().out)["accounts"]}
+    assert rows["sarp@ocoron.com"]["refresh_expires_epoch"] == FLEET_NOW + 3 * 86400.0
+
+    # …and the tick prints the same warning (the cron log is where an operator will see it)
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert "refresh chain expires in 3.0d" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("live_probe", [None, "walled"])
+def test_flip_validates_a_cached_candidate_before_flipping(
+    tmp_path, monkeypatch, capsys, live_probe
+):
+    """F-P2: a candidate ranked off a CACHED reading gets ONE live usage probe before the fleet
+    is pointed at it. Probe failure (None) or a walled live reading → excluded, next-best
+    chosen. Cached-and-unverifiable must never become the fleet's sole pointer."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    for slug, email in (("a", "a@ocoron.com"), ("b", "b@ocoron.com"), ("c", "c@ocoron.com")):
+        assert cr.main(["--new-dir", slug, email]) == 0
+        _pin(fleet, slug, email)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    _fleet_creds(fleet, "a", "tok-a", age_s=60.0)  # active, over threshold (live)
+    _fleet_creds(fleet, "b", "tok-b", age_s=10 * 3600.0)  # idle >8h → CACHED reading used
+    _fleet_creds(fleet, "c", "tok-c", age_s=60.0)  # live, modest headroom
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "b@ocoron.com": {  # rosy STALE cache — ranks b@ best on quota
+                    "ts": FLEET_NOW - 9 * 3600.0,
+                    "five_hour": {"utilization": 5.0, "resets_at_epoch": FLEET_NOW + 3600},
+                    "seven_day": {"utilization": 5.0, "resets_at_epoch": FLEET_NOW + 86400},
+                }
+            }
+        )
+    )
+    usages = {"tok-a": _usage_blob(96.0, 50.0), "tok-c": _usage_blob(20.0, 20.0)}
+    if live_probe == "walled":
+        usages["tok-b"] = _usage_blob(100.0, 100.0)  # the rosy cache hid a wall
+    calls = _fake_oauth(monkeypatch, usages=usages)  # live_probe=None: tok-b probe returns None
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "a")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "c", "the unverifiable/walled cache loses to c@"
+    assert ("usage", "tok-b") in calls, "the cached candidate got exactly its ONE live probe"
+    assert calls.count(("usage", "tok-b")) == 1
+
+
+def test_identity_mismatch_probe_email_warns_loudly(tmp_path, monkeypatch, capsys):
+    """F-P4: the mid-refresh-race / wrong-dir-login NET, zero-cost usage-payload leg — a dir
+    whose already-made probe answers as a DIFFERENT account than its pinned identity gets a
+    LOUD warning naming the dir, both emails, and the /login recovery; a matching probe stays
+    silent. NB: probed live 2026-08-15 the real usage payload carries NO account.email, so this
+    leg is dormant on today's API shape — the LIVE leg is the hourly profile probe (F-P6,
+    test_identity_net_live_leg_fires_via_hourly_profile_probe); this test pins the wiring that
+    upgrades for free if the field ever appears."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    for slug, email in (("seo", "sarp@ocoron.com"), ("intel", "ob@ocoron.com")):
+        assert cr.main(["--new-dir", slug, email]) == 0
+        _pin(fleet, slug, email)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            # seo is pinned to sarp@ but its token answers as ob@ — the crossed-chain signature
+            "tok-seo": {**_usage_blob(42.0, 31.0), "account": {"email": "ob@ocoron.com"}},
+            # intel matches its pin — must stay silent
+            "tok-intel": {**_usage_blob(7.0, 9.0), "account": {"email": "ob@ocoron.com"}},
+        },
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    warn_lines = [line for line in out.splitlines() if "IDENTITY MISMATCH" in line]
+    assert len(warn_lines) == 1, "exactly the mismatched dir warns; the matching one is silent"
+    warn = warn_lines[0]
+    assert "seo" in warn and "sarp@ocoron.com" in warn and "ob@ocoron.com" in warn
+    assert "/login" in warn and "do NOT copy" in warn
+
+    # the tick prints the same net (the 5-min cron log is the operator's surface)
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert "IDENTITY MISMATCH" in capsys.readouterr().out
+
+
+# ── B14: F-P6 — the identity net's LIVE leg: one bounded profile probe per account per hour ───
+# Probed live 2026-08-15: /api/oauth/usage payloads carry NO account.email, so the usage-payload
+# leg above is dormant on today's API shape. These pin the leg that actually fires.
+
+
+def _identity_fleet(tmp_path, monkeypatch, profiles=None):
+    """One pinned account (seo → sarp@) with a fresh token and a REALISTIC usage payload (no
+    account.email). Returns (fleet, calls)."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    _pin(fleet, "seo", "sarp@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    calls = _fake_oauth(
+        monkeypatch, usages={"tok-seo": _usage_blob(42.0, 31.0)}, profiles=profiles or {}
+    )
+    return fleet, calls
+
+
+def test_identity_net_live_leg_fires_via_hourly_profile_probe(tmp_path, monkeypatch, capsys):
+    """F-P6: the hourly profile probe IS the net's live leg — a wrong-account answer warns
+    loudly even though the usage payload (realistically) carries no email; and the verdict is
+    STICKY: the very next pass still warns without a second probe."""
+    _fleet, calls = _identity_fleet(
+        tmp_path, monkeypatch, profiles={"tok-seo": {"account": {"email": "ob@ocoron.com"}}}
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    warn_lines = [line for line in out.splitlines() if "IDENTITY MISMATCH" in line]
+    assert len(warn_lines) == 1, "the profile leg must fire the warning on its own"
+    assert "seo" in warn_lines[0] and "sarp@ocoron.com" in warn_lines[0]
+    assert "ob@ocoron.com" in warn_lines[0] and "/login" in warn_lines[0]
+
+    assert cr.main(["--status"]) == 0
+    out2 = capsys.readouterr().out
+    assert "IDENTITY MISMATCH" in out2, "the recorded verdict must be sticky between probes"
+    assert [c for c in calls if c[0] == "profile"] == [("profile", "tok-seo")], (
+        "stickiness comes from the recorded verdict, never a second probe inside the hour"
+    )
+
+
+def test_identity_probe_budget_is_one_per_account_per_hour(tmp_path, monkeypatch, capsys):
+    """F-P6: two passes inside the hour → exactly ONE profile probe; stamp aged past the hour
+    → the next pass probes again."""
+    fleet, calls = _identity_fleet(
+        tmp_path, monkeypatch, profiles={"tok-seo": {"account": {"email": "sarp@ocoron.com"}}}
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    assert cr.main(["--status"]) == 0
+    assert [c for c in calls if c[0] == "profile"] == [("profile", "tok-seo")], (
+        "two passes inside the hour must spend exactly ONE profile probe"
+    )
+    assert "IDENTITY MISMATCH" not in capsys.readouterr().out, "a matching answer is silent"
+
+    stamp = cr._identity_probe_stamp("seo")
+    aged = FLEET_NOW - 3700.0
+    os.utime(stamp, (aged, aged))
+    assert cr.main(["--status"]) == 0
+    assert [c for c in calls if c[0] == "profile"] == [
+        ("profile", "tok-seo"),
+        ("profile", "tok-seo"),
+    ], "a stamp older than an hour re-arms the probe"
+
+
+def test_identity_probe_failure_retries_and_stays_silent(tmp_path, monkeypatch, capsys):
+    """F-P6: a transport failure neither warns (a blip is not a mismatch) nor stamps (the next
+    tick retries — a blip must not silence the net for an hour)."""
+    fleet, calls = _identity_fleet(tmp_path, monkeypatch)  # profiles absent → probe fails
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+
+    assert "IDENTITY MISMATCH" not in out
+    assert not cr._identity_probe_stamp("seo").exists(), (
+        "a failed probe must not consume the hourly budget"
+    )
+    assert [c for c in calls if c[0] == "profile"] == [
+        ("profile", "tok-seo"),
+        ("profile", "tok-seo"),
+    ], "both passes must RETRY the failed probe"
+
+
+def test_identity_probe_future_skewed_stamp_reads_due(tmp_path, monkeypatch, capsys):
+    """F-P6: a stamp mtime AHEAD of now beyond the skew tolerance is INVALID and reads DUE
+    (the advisory-stamp convention) — and the probe rewrites it at now."""
+    fleet, calls = _identity_fleet(
+        tmp_path, monkeypatch, profiles={"tok-seo": {"account": {"email": "sarp@ocoron.com"}}}
+    )
+    stamp = cr._identity_probe_stamp("seo")
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_text("sarp@ocoron.com\n")
+    future = FLEET_NOW + 5 * 86400
+    os.utime(stamp, (future, future))
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+
+    assert [c for c in calls if c[0] == "profile"] == [("profile", "tok-seo")], (
+        "a future-dated stamp must not silence the probe"
+    )
+    assert stamp.stat().st_mtime == FLEET_NOW, "the invalid stamp must be rewritten at now"
+
+
+# ── B15: round-3 — unconditional verdict reporting, self-flip no-op, per-dir stamps ───────────
+
+
+def test_identity_mismatch_warning_survives_dir_idling(tmp_path, monkeypatch, capsys):
+    """F-P7 (the coordinator's probe scenario): warn → the corrupted dir idles past the 8h
+    freshness window → STILL warns — the freshness gate governs NEW probes only, and the
+    LIKELY aftermath of a corrupted dir is that it goes idle. Recovery (/login = fresh file +
+    matching probe) clears it."""
+    profiles = {"tok-seo": {"account": {"email": "ob@ocoron.com"}}}
+    fleet, calls = _identity_fleet(tmp_path, monkeypatch, profiles=profiles)
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    assert "IDENTITY MISMATCH" in capsys.readouterr().out
+
+    creds = fleet / "seo" / ".credentials.json"
+    aged = FLEET_NOW - 9 * 3600.0
+    os.utime(creds, (aged, aged))  # +9h: the dir has idled past _FLEET_TOKEN_FRESH_S
+    assert cr.main(["--status"]) == 0
+    assert "IDENTITY MISMATCH" in capsys.readouterr().out, (
+        "an idle dir's recorded mismatch must keep warning, not vanish at the 8h mark"
+    )
+    assert [c for c in calls if c[0] == "profile"] == [("profile", "tok-seo")], (
+        "no new probe on a stale token — the warning must come from the stored verdict"
+    )
+
+    # recovery: ONE /login re-mints the chain (fresh file, new token); once the hourly budget
+    # re-arms, the probe re-verifies THAT dir and the warning clears
+    _fleet_creds(fleet, "seo", "tok-seo2", age_s=60.0)
+    profiles["tok-seo2"] = {"account": {"email": "sarp@ocoron.com"}}
+    stamp = cr._identity_probe_stamp("seo")
+    old = FLEET_NOW - 3700.0
+    os.utime(stamp, (old, old))
+    assert cr.main(["--status"]) == 0
+    assert "IDENTITY MISMATCH" not in capsys.readouterr().out, "re-verification must clear it"
+    assert ("profile", "tok-seo2") in calls
+
+
+def test_self_flip_on_a_decayed_active_chain_is_a_noop_success(tmp_path, monkeypatch, capsys):
+    """F-P8: --switch <already-active-slug> keeps the documented no-op-success contract even
+    when the active chain has decayed IN PLACE — the pointer does not move, so there is
+    nothing to gate; the decay is SURFACED as a stderr warning, never a failure (a flip to a
+    DIFFERENT dead dir stays refused — test_flip_refuses_an_expired_chain_auto_and_manual)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", refresh_expires_s=-3 * 3600.0)  # decayed in place
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr.main(["--switch", "seo"]) == 0, "self-flip is a no-op success, decay or not"
+    captured = capsys.readouterr()
+    assert "pointer flip" in captured.out
+    assert "WARNING" in captured.err
+    assert "refresh token expired" in captured.err and "/login" in captured.err
+    assert os.readlink(fleet / "active") == "seo"
+    assert cr._flip_active("seo", manual=True), "direct manual self-flip: same contract"
+    assert cr._flip_active("seo"), "auto self-flip: same contract (nothing moves)"
+
+
+def test_sibling_dir_mismatch_survives_a_fresh_pin(tmp_path, monkeypatch, capsys):
+    """F-P9: verdict stamps are keyed by SLUG, so a fresh pin on a NEW dir of the same account
+    can never overwrite a sibling dir's unresolved mismatch. (The email-keyed collision class
+    — two emails sanitizing identically sharing one stamp — is moot by construction: slugs are
+    _SLUG_RE-validated kebab, on which the sanitize regex is the identity function, and two
+    distinct dirs are two distinct slugs.)"""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    _pin(fleet, "seo", "sarp@ocoron.com")
+    assert cr.main(["--new-dir", "youtube", "sarp@ocoron.com"]) == 0  # pending → will pin now
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=10 * 3600.0)  # the corrupted dir went idle
+    _fleet_creds(fleet, "youtube", "tok-yt", age_s=60.0)  # the new dir, freshly logged in
+    stamp = cr._identity_probe_stamp("seo")  # seo carries an unresolved mismatch verdict
+    stamp.write_text("ob@ocoron.com\n")
+    old = FLEET_NOW - 2 * 3600.0
+    os.utime(stamp, (old, old))
+    _fake_oauth(
+        monkeypatch,
+        profiles={"tok-yt": {"account": {"email": "sarp@ocoron.com"}}},
+        usages={"tok-yt": _usage_blob(10.0, 10.0)},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    warn_lines = [line for line in out.splitlines() if "IDENTITY MISMATCH" in line]
+    assert len(warn_lines) == 1, "exactly seo warns; the freshly-pinned youtube is silent"
+    assert "seo" in warn_lines[0] and "ob@ocoron.com" in warn_lines[0], (
+        "the pin on youtube must not mask seo's unresolved mismatch"
+    )
+
+
+# ── B16: F-P10 — fleet mode structurally retires the LEGACY credential installer ──────────────
+# Rollout analysis: the pause marker was the ONLY barrier between run_claude's 401-retry (and
+# --next) and _rotate_active_account's file-swap install into ~/.claude — and the rollout
+# removes the marker. The guard is structural (fleet dirs exist → refuse, BEFORE the pause
+# check), while the empty-fleet box keeps legacy behavior byte-unchanged (the capture-suite
+# sandbox pins that, now hermetically).
+
+
+def test_fleet_mode_structurally_retires_the_legacy_installer(tmp_path, monkeypatch, capsys):
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "ob", "ob@ocoron.com"]) == 0
+    _fleet_creds(fleet, "ob", "tok-ob")
+    # a legacy snapshot pool that WOULD be installable pre-fleet (2 live snapshots)
+    stores = tmp_path / "manager-accounts"
+    for name in ("ob-ocoron-com", "sarp-ocoron-com"):
+        d = stores / name
+        d.mkdir(parents=True)
+        (d / ".credentials.json").write_text(
+            json.dumps(
+                {
+                    "claudeAiOauth": {
+                        "accessToken": f"TOK-{name}",
+                        "refreshToken": f"R-{name}",
+                        "expiresAt": int((FLEET_NOW + 3600) * 1000),
+                        "refreshTokenExpiresAt": int((FLEET_NOW + 30 * 86400) * 1000),
+                    }
+                }
+            )
+        )
+    monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
+    monkeypatch.setattr(cr, "ACTIVE_MARKER", tmp_path / ".active-account")
+    monkeypatch.setattr(cr, "ALERT_STATE", tmp_path / "last-401-alert")
+    alerts = []
+    monkeypatch.setattr(cr, "_notify_telegram", lambda text: alerts.append(text) or True)
+    installs = []
+    monkeypatch.setattr(cr, "_activate_snapshot", lambda *a, **k: installs.append(a) or "x")
+
+    def fake_run(argv, **kw):
+        return subprocess.CompletedProcess(argv, 1, "401 authentication failed", "")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    capsys.readouterr()
+
+    # (1) run_claude's 401-retry path: rotation refused structurally, no install, no retry
+    result = cr.run_claude(["claude", "-p", "hi"], timeout=5, cwd="/", env={})
+    err = capsys.readouterr().err
+    assert installs == [], "fleet mode must never install a credential file into ~/.claude"
+    assert result.returncode == 1
+    assert "fleet mode is live" in err and "pointer flip" in err
+    assert alerts and "fleet mode" in alerts[0], (
+        "the 401 alert stays ARMED (unlike the pause marker) and names the fleet-mode cause"
+    )
+
+    # (2) the guard is FIRST-STATEMENT-CLASS: with the pause marker PRESENT the refusal is
+    # still the structural one, not the marker (removing the marker changes nothing)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "switch-paused").touch()
+    capsys.readouterr()
+    assert cr._rotate_active_account() is None
+    err = capsys.readouterr().err
+    assert "fleet mode is live" in err and "PAUSED" not in err
+    assert getattr(cr._TLS, "withheld_reason", None) == cr._WITHHELD_FLEET
+    (state / "switch-paused").unlink()
+
+    # (3) --next inherits the guard: rc 1, no misleading "need ≥2 snapshots" hint
+    capsys.readouterr()
+    assert cr._cmd_next() == 1
+    err = capsys.readouterr().err
+    assert "fleet mode is live" in err and "need ≥2 snapshots" not in err
+
+    # (4) the LEGACY --switch form (manager-accounts snapshot name) is unreachable in fleet
+    # mode — the dispatch resolves against fleet dirs only, and no install can happen
+    capsys.readouterr()
+    assert cr.main(["--switch", "sarp-ocoron-com"]) == 1
+    assert "no unique fleet dir" in capsys.readouterr().err
+    assert installs == []
+    assert cr.main(["--switch", "ob"]) == 0, "the fleet flip form stays the live lever"
+    assert os.readlink(fleet / "active") == "ob"
+
+    # (5) structural: the guard exists at the choke point
+    assert "_fleet_dirs" in cr._rotate_active_account.__code__.co_names

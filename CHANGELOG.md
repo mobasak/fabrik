@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Fleet rotation = pointer flip: 4 account dirs, one active symlink, tick flips by quota headroom (2026-08-15)
+
+- Operator redesign (all-projects-one-active-account): the per-PROJECT dir binding shipped
+  earlier today is superseded — fleet dirs are per-ACCOUNT now (ob/can/sarp/mob, each logged
+  in ONCE, chains never move), every session follows the single `<fleet-root>/active` symlink,
+  and `--tick` FLIPS that pointer to the account with the most weekly-then-session headroom
+  when the active one crosses `ROTATE_THRESHOLD` (95) on either window. A missing/dangling
+  pointer is repaired immediately (dwell-exempt); no successor with headroom → the ≥85%
+  per-account drain advisory fires exactly as before (24h suppression kept).
+- Load-bearing invariant replacing the retired file-swap rotation: a flip moves ZERO
+  credential bytes — `os.replace` of a temp symlink over a dir-symlink (probed + pinned:
+  `test_rename_replaces_a_directory_symlink`), asserted structurally AND behaviorally
+  (`test_fleet_flip_path_structurally_writes_no_credentials`,
+  `test_fleet_flip_tick_moves_zero_credential_bytes`). The obsolete-by-design no-successor
+  structural test `test_fleet_tick_branch_has_structurally_no_successor_logic` was replaced by
+  the former.
+- `_flip_active` honors the pause marker (flip refused; telemetry/advisories never held) and
+  the legacy 30-min dwell (`ROTATE_DWELL_MIN`, clock-skew-clamped, fail-closed ledger);
+  `--switch <slug>` in fleet mode is the manual pause-exempt flip through the same path;
+  fleet `--status` shows the active account (text `active: <slug>` + JSON `"active"`);
+  `_fleet_dirs` no longer counts the `active` symlink as a dir (no double keepalive ping);
+  slug `active` is reserved at `--new-dir`.
+- Review round 1 hardening: the flip path gained a LIVENESS gate (`_chain_stale_reason` —
+  `_stale_snapshot_reason` applied to the target chain; refused unconditionally, manual
+  included, and inherited by both auto-selectors; `--status`/tick warn on a chain within 5d of
+  refresh expiry); VALIDATE-BEFORE-FLIP (`_validated_pick` — a cached-ranked candidate gets one
+  live usage probe; unverifiable or walled → excluded, next-best chosen); and the
+  identity-MISMATCH net (a dir whose already-made probe answers as a different account than its
+  pinned identity warns loudly — the mid-refresh flip race / wrong-dir login detector, race
+  documented in `_flip_active` as an accepted residual). The net is LIVE via an hourly bounded
+  identity probe (round 2): usage payloads carry no account email (probed live 2026-08-15), so
+  one profile GET per pinned account per hour — stamp-budgeted, skew-clamped, sticky verdict;
+  a transport failure retries next tick without consuming the budget — is the leg that
+  actually fires. Round 3: verdict REPORTING is unconditional (an idle corrupted dir's
+  mismatch keeps warning past the 8h freshness window — the gate governs new probes only);
+  verdict stamps are keyed per DIR slug (a fresh pin on a sibling dir can never mask another
+  dir's mismatch; email-sanitize collisions moot by construction); the self-flip no-op check
+  precedes the liveness gate (`--switch <active-slug>` on a decayed-in-place chain is a no-op
+  success with a stderr warning, never a failure). Fleet mode structurally retires the LEGACY
+  installer (`_rotate_active_account` refuses first-statement-class when fleet dirs exist —
+  the pause marker is no longer the only barrier between run_claude's 401-retry/`--next` and
+  a file-swap into `~/.claude`; the 401 alert stays armed and names the fleet-mode cause; the
+  empty-fleet box keeps legacy behavior byte-unchanged). Behavioral traps extended to
+  hardlinks, credential-path symlinks, and subprocess argv; the structural assert now walks
+  one level of nested code objects.
+
 ### Changed — claude-account-rotation.md rewritten as the login-once reference + rollout runbook (T04) (2026-08-15)
 
 - `docs/workstation/claude-account-rotation.md` rewritten in place: the per-window dir model,

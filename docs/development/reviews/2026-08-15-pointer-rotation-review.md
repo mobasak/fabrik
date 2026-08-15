@@ -86,3 +86,57 @@ analysis, not a finder item): un-pausing for auto-rotation leaves run_claude's l
 401-retry able to reach the ~/.claude file-swap installer — fleet mode must structurally
 retire the legacy installer at the _rotate_active_account choke point before the marker
 can come off. Round 4 verifies F-P10, then merge.
+
+## Round 4 (2026-08-15) — orchestrator verification, declared
+
+Surface: F-P10 commit c8ce56d2 (guard first-statement-class before the pause gate at
+`scripts/sysadmin/claude_rotate.py` `_rotate_active_account`; `_WITHHELD_FLEET` keeps the
+401 all-dead alert armed with the fleet-mode cause; legacy `--switch` unreachable by
+dispatch order; capture-sandbox hermeticity vs a future real fleet root). Single focused
+change after a CLEAN round; verified by the orchestrator directly: 211/211 across the
+four suites, twins md5 265b1f14, and a live two-direction probe of the guard:
+
+```
+fleet-mode result: None | installs: 0 | reason: fleet-mode
+stderr says fleet: True
+empty-root result: True | fleet refusal absent: True
+```
+
+Coder's red-on-revert evidence: the 5-leg test fails on 3217f3cf. Round 4 (Phase 4)
+verdict: **CLEAN** — merge.
+
+## CLOSE — Evidence
+
+### Phase verdicts (Phase N = review round N)
+
+- Phase 1 — NOT CLEAN: F-P1..F-P5 (HIGH: missing liveness gate, dead-chain flip probed).
+- Phase 2 — NOT CLEAN: F-P7..F-P9 (HIGH: mismatch warning vanished past the 8h gate).
+- Phase 3 — CLEAN on surface, HELD for F-P10 (structural retirement of the legacy installer).
+- Phase 4 — CLEAN: F-P10 verified by live probe + 211/211; merge approved.
+
+4 rounds, 10 fixes (F-P1..F-P10), 30 tests added / 1 replaced (182 → 211). Suites on the
+MERGED master tree, run by the orchestrator in the merging session:
+
+```
+$ python -m pytest tests/test_claude_fleet.py tests/test_claude_rotate_v2.py \
+    tests/test_claude_rotate_capture.py scripts/sysadmin/test_bot_rotation_wire.py -q
+211 passed in 8.85s
+```
+
+Full Tier-2 gate on the same merged tree (verbatim; run immediately before this section
+was written — the only prose that differed at run time was this ledger's own closing text):
+
+```json
+{
+ "status": "success",
+ "tier": 2,
+ "passed": 47,
+ "failed": 0,
+ "failures": []
+}
+```
+
+Known accepted residuals: the mid-refresh pointer race (detection net + documented
+recovery, prevention impossible client-side) · orphan slug stamps (inert) · the
+structural co_names test's novel-name limitation (behavioral trap is the net) ·
+pre-existing ACCOUNTS_DIR import-time harness sharp edge (out of scope, noted).

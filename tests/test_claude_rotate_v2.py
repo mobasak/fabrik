@@ -551,6 +551,9 @@ def _rotate_env(tmp_path, monkeypatch, paused, output, calls, install_ok=True,
     if paused:
         (state / "switch-paused").touch()
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    # Hermetic: an operator-created real ~/.claude-fleet must never flip --switch (or any other
+    # dispatch these tests reach) into fleet mode — same guard the _tick harness carries.
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))
 
     stores = tmp_path / "manager-accounts"
     for n in names:

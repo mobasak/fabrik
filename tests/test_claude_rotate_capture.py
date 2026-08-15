@@ -336,6 +336,9 @@ def _rotation_sandbox(tmp_path, monkeypatch, accounts):
     rot.BACKUP_CREDS = tmp_path / ".credentials.json.prev"
     rot.ROTATE_LOCK = tmp_path / ".rotate.lock"
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    # Hermetic: these pin LEGACY (empty-fleet) installer behavior — a real ~/.claude-fleet on
+    # the box must never flip them into fleet mode, where the F-P10 guard refuses the install.
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))
     return tmp_path / ".credentials.json"
 
 

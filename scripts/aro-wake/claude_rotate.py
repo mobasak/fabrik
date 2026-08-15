@@ -425,6 +425,11 @@ _STATE_DIR_ERRORS = (OSError, ValueError, RuntimeError)
 # scripts/ (pyproject excludes it), so the Literal below only bites in a standalone mypy run.
 _PAUSE_MARKER: Final[Literal["marker"]] = "marker"  # the operator's --pause-switch marker is set
 _PAUSE_ERROR: Final[Literal["error"]] = "error"  # the pause state is unreadable → fail closed
+# Third withheld-reason value (F-P10): the legacy installer is STRUCTURALLY retired because the
+# fleet exists — not operator state, so unlike _PAUSE_MARKER it never silences the 401 all-dead
+# alert (a straggler ~/.claude-bound caller on a dead chain will NOT self-heal; the operator
+# must hear about it) and _cmd_next skips the misleading "need ≥2 snapshots" hint.
+_WITHHELD_FLEET: Final = "fleet-mode"
 
 # ``withheld_reason`` — set by EVERY call into _rotate_active_account: the reason above iff that
 # call was refused by the pause gate (nothing installed, nothing even attempted), None on every
@@ -487,10 +492,29 @@ def _rotate_active_account(avoid: frozenset[str] = frozenset()) -> str | None:
     mirrors stdout back to its callers, so a stdout line would corrupt their payload) and returns
     None. ``--switch <name>`` does not route through here and stays usable as the manual lever.
     A refusal is REPORTED to callers via ``_TLS.withheld_reason`` (set on every call), so they can
-    tell "withheld by the marker" from "withheld fail-closed" from "no target existed" without
-    re-reading the marker themselves.
+    tell "withheld by the marker" from "withheld fail-closed" from "withheld structurally —
+    fleet mode" (``_WITHHELD_FLEET``) from "no target existed" without re-reading the marker
+    themselves.
+
+    **Fleet guard (F-P10, first-statement-class):** once ≥1 fleet dir exists, rotation IS the
+    pointer flip and NOTHING may install a credential file into ``~/.claude`` — this refusal is
+    checked BEFORE the pause gate, because it is structure, not operator state: removing the
+    pause marker (the rollout does) must never re-arm the legacy file-swap for a straggler
+    ``~/.claude``-bound caller (keepalive shim, sysadmin bot) hitting a usage-limit/401 — the
+    chain-destruction class. The 401 all-dead alert stays ARMED for it (unlike the marker):
+    the shared dir's dead chain will not self-heal, and the fix — migrate the caller to a
+    fleet dir, or the M-sweep — needs the operator. The shared dir's chain itself is left
+    untouched for the M-sweep.
     """
     _TLS.withheld_reason = None
+    if _fleet_dirs():
+        _TLS.withheld_reason = _WITHHELD_FLEET
+        sys.stderr.write(
+            "claude_rotate: fleet mode is live — rotation is the pointer flip; nothing "
+            "installs into ~/.claude (the shared dir's chain is left for the M-sweep). "
+            "Migrate this caller to a fleet dir (CLAUDE_CONFIG_DIR), or use --switch <slug>.\n"
+        )
+        return None
     paused = _pause_state()
     if paused is not None:
         _TLS.withheld_reason = paused
@@ -793,11 +817,15 @@ def run_claude(
                     f"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)"
                 )
         elif withheld_reason != _PAUSE_MARKER and _should_alert_401():
-            why = (
-                " (pause-state unreadable — install refused fail-closed)"
-                if withheld_reason == _PAUSE_ERROR
-                else ""
-            )
+            if withheld_reason == _PAUSE_ERROR:
+                why = " (pause-state unreadable — install refused fail-closed)"
+            elif withheld_reason == _WITHHELD_FLEET:
+                why = (
+                    " (fleet mode — this caller still binds the shared ~/.claude; migrate it "
+                    "to a fleet dir)"
+                )
+            else:
+                why = ""
             _notify_telegram(
                 f"🚨 Claude 401 on {host}: NO working Claude account — all credentials are dead."
                 f"{why} Re-capture a fresh account (claude auth login / claude-manager). "
@@ -869,6 +897,9 @@ def _reload_hint() -> None:
 
 
 def _cmd_switch(name: str) -> int:
+    fleet_dirs = _fleet_dirs()
+    if fleet_dirs:
+        return _cmd_fleet_switch(name, fleet_dirs)
     target = _find_account(name)
     if target is None:
         sys.stderr.write(f"no account matching {name!r} — run `--list` to see options\n")
@@ -1522,6 +1553,12 @@ def _cmd_new_dir(
             "(the slug becomes a directory name under the fleet root)\n"
         )
         return 2
+    if slug == _ACTIVE_POINTER_NAME:
+        sys.stderr.write(
+            f"claude_rotate: refusing slug {slug!r} — reserved for the fleet's active-pointer "
+            "symlink (scaffolding it would write INTO whichever account dir the pointer names)\n"
+        )
+        return 2
     if "@" not in email:
         sys.stderr.write(f"claude_rotate: refusing account {email!r} — expected an email address\n")
         return 2
@@ -2014,8 +2051,12 @@ def _ledger_append(event: dict) -> None:
         pass
 
 
-def _last_switch_ts() -> tuple[float | None, bool]:
+def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     """When the last install happened, for the tick's dwell guard — as ``(timestamp, degraded)``.
+
+    *event* selects the ledger record the dwell keys on: ``"switch"`` (the legacy credential
+    install) or ``"flip"`` (the fleet's active-pointer flip) — same guard, same fail-closed
+    contract, per-event clocks so a legacy install never holds a fleet flip or vice versa.
 
     ``(None, False)`` means "no switch on record" and lets the tick install: it is only ever
     returned when the ledger legitimately has no switch entry (a fresh box has no ledger at all
@@ -2043,7 +2084,7 @@ def _last_switch_ts() -> tuple[float | None, bool]:
             e = json.loads(line)
         except ValueError:
             continue
-        if e.get("event") == "switch":
+        if e.get("event") == event:
             ts = e.get("ts")
             if isinstance(ts, (int, float)) and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S:
                 return float(ts), False
@@ -2052,7 +2093,7 @@ def _last_switch_ts() -> tuple[float | None, bool]:
             # long as the skew lasts — a silent hold with no drain (WSL suspend/resume moves this
             # box's clock). Neither may read as "no recent switch".
             sys.stderr.write(
-                "claude_rotate: rotate-ledger switch record has an unusable ts "
+                f"claude_rotate: rotate-ledger {event} record has an unusable ts "
                 f"({ts!r} — non-numeric or clock-skewed into the future) — dwell guard failing "
                 "CLOSED (holding; no account installed)\n"
             )
@@ -2513,26 +2554,400 @@ def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
         pass  # runs in _tick_inner's finally — an escape here would mask the tick's own outcome
 
 
-# ── fleet-mode telemetry (T03): per-ACCOUNT --status/tick + --keepalive ───────────────────────
+# ── fleet mode: per-ACCOUNT dirs + ONE `active` pointer, flipped by quota headroom ────────────
 # Feature-detected: ≥1 scaffolded dir under _fleet_root() flips --status and --tick into the
 # fleet view; an empty fleet root leaves the legacy manager-accounts machinery untouched (the
 # successor plan retires it — never this module). The fleet branches are REWRITTEN, not reused:
 # _tick_inner is single-live-account-shaped (live_name from _active_account() matches no fleet
-# slug), so fleet mode must never reach it — and the fleet branch STRUCTURALLY contains no
-# _pick_successor/_tick_switch call at all (credentials never move again; a wall is an advisory,
-# not a switch). Credential HANDLING contract: this section reads a dir's access token in memory
-# for the profile/usage probes (the same never-logged pattern _account_status uses) and checks
-# the credential file's MTIME — it never writes, copies, or relocates a credential byte, and the
-# keepalive staleness gate is mtime-only.
+# slug), so fleet mode must never reach it. The rollout model (operator redesign 2026-08-15):
+# each ACCOUNT owns exactly one fleet dir (slug = account: ob, can, sarp, mob), logged in ONCE —
+# its OAuth chain never moves again; every project window follows the single `active` symlink at
+# <fleet-root>/active, and the tick FLIPS that pointer to the account with the most quota
+# headroom when the active one crosses ROTATE_THRESHOLD. The load-bearing invariant that
+# replaces the retired file-swap rotation: a flip renames a SYMLINK — it moves ZERO credential
+# bytes (asserted structurally + behaviorally in tests/test_claude_fleet.py). Credential
+# HANDLING contract: this section reads a dir's access token in memory for the profile/usage
+# probes (the same never-logged pattern _account_status uses) and checks the credential file's
+# MTIME — it never writes, copies, or relocates a credential byte, and the keepalive staleness
+# gate is mtime-only.
+
+# The reserved name of the active-pointer symlink under the fleet root. Never a dir slug.
+_ACTIVE_POINTER_NAME: Final = "active"
+# A refresh chain inside this window of its expiry gets a --status/tick warning: the keepalive
+# cadence is 7 days, so a chain seen under 5 days from lapse means the keepalive net has already
+# failed for it and an operator nudge is the remaining defense.
+_CHAIN_EXPIRY_WARN_S = 5 * 86400
+# The identity-mismatch net's live leg: ONE profile probe per pinned account per this interval
+# (~24/account/day, not one per 5-min tick). Detection latency ≤1h is deliberate — the
+# mid-refresh race's aftermath and a wrong-dir login both PERSIST until fixed, so a bounded
+# probe finds them; an unbounded one only finds them faster while multiplying probe volume ×12.
+_IDENTITY_PROBE_INTERVAL_S = 3600.0
 
 
 def _fleet_dirs() -> list[Path]:
     """Scaffolded fleet dirs (sorted). [] when the root is absent/unreadable — which IS the
-    feature detection: no dirs, no fleet mode."""
+    feature detection: no dirs, no fleet mode. SYMLINKS are excluded: the `active` pointer is
+    itself a dir-symlink under the root, and counting it would double-count its target account
+    (a phantom pending-login row on --status, a double keepalive ping, an off-by-one dir count)."""
     try:
-        return sorted(d for d in _fleet_root().iterdir() if d.is_dir())
+        return sorted(d for d in _fleet_root().iterdir() if d.is_dir() and not d.is_symlink())
     except OSError:
         return []
+
+
+def _active_pointer_path() -> Path:
+    """The ONE pointer every session follows: ``<fleet-root>/active``, a symlink to the active
+    account's dir. Sessions bind ``CLAUDE_CONFIG_DIR`` to this path, so repointing the link
+    re-homes the whole fleet in one rename — no session restart, no credential movement."""
+    return _fleet_root() / _ACTIVE_POINTER_NAME
+
+
+def _resolve_active() -> str | None:
+    """The slug the active pointer currently names, or None (no pointer, dangling, or not a
+    symlink) — the tick treats None as "no active account" and flips to the best immediately."""
+    ptr = _active_pointer_path()
+    try:
+        if not ptr.is_symlink():
+            return None
+        dest = ptr.resolve(strict=True)  # FileNotFoundError (an OSError) on a dangling link
+    except OSError:
+        return None
+    return dest.name if dest.is_dir() else None
+
+
+def _chain_stale_reason(dest: Path) -> str | None:
+    """Why *dest*'s chain must NOT become the fleet's active pointer, or None if it is live.
+
+    The flip-path liveness gate (F-P1, review round 1 — probe-proven gap): file PRESENCE is not
+    usability, and one dead pointer is a fleet-WIDE auth outage (every session follows it) — the
+    2026-08-10 dead-credential incident class, amplified. Delegates to the module's own
+    :func:`_stale_snapshot_reason` (expired/absent refresh token, missing expiry metadata;
+    ``CLAUDE_ROTATE_ALLOW_STALE=1`` honored), clock-pinned to ``_now()``, plus a token-presence
+    screen for the unparseable-blob shapes that guard deliberately passes. In-memory read via
+    the sanctioned reader pattern; never emits token bytes."""
+    try:
+        blob = (dest / ".credentials.json").read_bytes()  # ONE read; both checks share it
+    except OSError:
+        return "credentials unreadable"
+    if _access_token_from(blob) is None:
+        return "credentials unreadable or carry no access token"
+    return _stale_snapshot_reason(blob, now=_now())
+
+
+def _refresh_expiry_epoch(creds: Path) -> float | None:
+    """``claudeAiOauth.refreshTokenExpiresAt`` as epoch seconds, or None. The --status/tick
+    chain-health signal (a dying chain must be visible BEFORE it is a flip candidate). Same
+    in-memory read `_account_status` uses; never emits token bytes."""
+    try:
+        exp = (json.loads(creds.read_bytes()).get("claudeAiOauth") or {}).get(
+            "refreshTokenExpiresAt"
+        )
+    except (OSError, ValueError, AttributeError, TypeError):
+        return None
+    return float(exp) / 1000.0 if isinstance(exp, (int, float)) and exp > 0 else None
+
+
+def _identity_probe_stamp(slug: str) -> Path:
+    """The identity-probe verdict stamp for ONE fleet dir, keyed by SLUG (F-P9): verdicts
+    belong to dirs, so a fresh pin on a sibling dir can never mask another dir's unresolved
+    mismatch, and slugs are ``_SLUG_RE``-validated kebab — the sanitize regex below is the
+    identity function on them (collision-free by construction; it survives only as defense
+    for hand-made dirs). Same temp-dir fallback contract as the advisory stamp — the budget
+    must survive a state-dir outage without spamming probes."""
+    safe = re.sub(r"[^a-z0-9]+", "-", slug.lower()).strip("-")
+    try:
+        return _rotate_state_dir() / f"fleet-idcheck-{safe}"
+    except _STATE_DIR_ERRORS:
+        return Path(tempfile.gettempdir()) / f"claude-fleet-idcheck-{safe}"
+
+
+def _identity_probe_due(slugs: list[str], now: float) -> bool:
+    """True when the ACCOUNT's hourly identity-probe budget allows a new probe: verdicts are
+    stored per SLUG, but the cadence is per account — ANY of the account's dir stamps younger
+    than ``_IDENTITY_PROBE_INTERVAL_S`` (a fresh probe or a fresh pin on a sibling) holds the
+    budget. Missing/unreadable stamps never hold it; a stamp mtime AHEAD of now beyond
+    ``_CLOCK_SKEW_TOLERANCE_S`` is INVALID and never holds it either (the advisory-stamp
+    convention — clock skew must never silence a detector)."""
+    for slug in slugs:
+        try:
+            age = now - _identity_probe_stamp(slug).stat().st_mtime
+        except OSError:
+            continue
+        if age < -_CLOCK_SKEW_TOLERANCE_S:
+            continue  # future-dated stamp = invalid: it cannot hold the budget
+        if age < _IDENTITY_PROBE_INTERVAL_S:
+            return False
+    return True
+
+
+def _identity_probe_record(slug: str, probed: str | None, now: float) -> None:
+    """Record a COMPLETED identity probe for *slug*'s dir: *probed* is the email the dir's
+    token answered with (STORED in the stamp, so the verdict stays visible on every
+    --status/tick between hourly probes — a mismatch is sticky until a later probe of THAT
+    dir re-verifies), or None for a 200-with-no-email shape change (budget honored via mtime,
+    stored verdict unchanged). A transport FAILURE must never reach here — it retries next
+    tick, neither silencing nor spamming the net. Best-effort: a lost stamp write costs one
+    extra probe, never the pass."""
+    stamp = _identity_probe_stamp(slug)
+    try:
+        if probed is not None:
+            stamp.write_text(probed + "\n")
+        else:
+            stamp.touch()
+        os.utime(stamp, (now, now))
+    except OSError:
+        pass
+
+
+def _identity_probe_result(slug: str) -> str | None:
+    """The last recorded probe answer for *slug*'s dir, or None (no completed probe / no
+    usable verdict). Read UNCONDITIONALLY every pass for every pinned dir (F-P7) — reporting
+    a stored verdict is never gated by token freshness: the likely aftermath of a corrupted
+    dir is that it goes IDLE, and an idle dir's mismatch must keep warning, not vanish 8h
+    later while the stamp still holds it."""
+    try:
+        val = _identity_probe_stamp(slug).read_text().strip()
+    except _STATE_DIR_ERRORS:
+        return None
+    return val if "@" in val else None
+
+
+def _flip_active(
+    slug: str, *, manual: bool = False, ignore_dwell: bool = False, at_pct: float | None = None
+) -> bool:
+    """Repoint ``active`` at *slug*'s fleet dir — the ONLY rotation act in fleet mode.
+
+    A flip moves ZERO credential bytes: it creates a temp symlink beside the pointer and
+    ``os.replace``s it over — atomic, so ``active`` always resolves (old target or new, never
+    absent). POSIX ``rename(2)`` operates on the LINK, not through it — os.replace atomically
+    replaces a directory-symlink with a symlink (probed 2026-08-15, pinned by
+    test_rename_replaces_a_directory_symlink; the file-symlink twin is T02a's write-through
+    probe). Never unlink-then-symlink: that opens a window where every session's config dir is
+    missing.
+
+    Refusals (all fail-soft, stderr names the fix, pointer untouched):
+    - *slug* has no ``.credentials.json`` — the fleet is never pointed at an empty chain;
+    - *slug*'s chain fails the LIVENESS gate (:func:`_chain_stale_reason` — expired/absent
+      refresh token, unprovable expiry): UNCONDITIONAL, manual included — a manual flip to a
+      dead chain is never right; the revival path is ONE /login in that dir;
+    - the operator's pause marker is set, or the pause state is unreadable (fail-closed) —
+      unless *manual* (``--switch`` is the deliberate escape hatch, same as legacy);
+    - within the 30-min dwell of the last flip (``ROTATE_DWELL_MIN``, ledger-timed with the
+      ``_CLOCK_SKEW_TOLERANCE_S`` clamp; unreadable ledger fails CLOSED) — unless *manual* or
+      *ignore_dwell* (the missing/dangling-pointer repair, where holding means fleet outage).
+
+    Every completed flip is ledgered ({"event": "flip", ts, from, to, at_pct}) — the dwell
+    clock and the audit trail. Flipping to the already-active slug is an idempotent no-op
+    success (no ledger churn) — checked BEFORE the liveness gate, since the pointer does not
+    move: a decayed active chain is surfaced as a stderr WARNING, never a failure (F-P8).
+
+    Accepted residuals (single-operator threat model):
+    - Liveness-gate TOCTOU: the gate runs at flip time and the target's chain could die in the
+      check→replace microseconds — unpreventable without a cross-process fs lock on the chain;
+      the gate at flip time is the best available (same shape as the legacy installer's guard).
+    - Mid-refresh race (detection net, not prevention): the CLI renews credentials
+      read→HTTP→write THROUGH the pointer, so a flip landing inside that ~1-2s window makes the
+      CLI write account A's rolled chain into account B's dir — B's chain is lost locally, one
+      relogin owed. Rare (flips are dwell-limited) and undetectable at flip time from our side;
+      the NET is the identity-mismatch check in the fleet rows (pinned identity vs the email
+      the hourly bounded profile probe answers with — usage payloads carry no email, probed
+      live 2026-08-15, so that probe IS the net's live leg; `_fleet_row_warnings` prints it),
+      which also catches a manual login into the wrong dir. Detection latency is ≤1h by design
+      (both faults persist until fixed). Recovery is ONE /login in the named dir, never a file
+      copy."""
+    root = _fleet_root()
+    dest = root / slug
+    if dest.is_symlink() or not dest.is_dir() or not _has_credentials(dest):
+        sys.stderr.write(
+            f"claude_rotate: refusing to flip active -> {slug}: not a credentialed fleet dir "
+            "(the pointer is never aimed at an empty/absent chain — ONE /login there first)\n"
+        )
+        return False
+    if _resolve_active() == slug:
+        # F-P8: the idempotent no-op comes BEFORE the liveness gate — the pointer does not
+        # move, so there is nothing to gate; failing here would break the documented
+        # "self-flip is a no-op success" contract exactly when the active chain has decayed
+        # in place. A decayed chain is SURFACED, not failed (--status already warns on it).
+        stale = _chain_stale_reason(dest)
+        if stale is not None:
+            sys.stderr.write(
+                f"claude_rotate: WARNING — {slug} is already active but its chain is dying: "
+                f"{stale}. Revive it with ONE /login in that dir (the pointer is unchanged).\n"
+            )
+        return True  # no ledger churn: nothing moved
+    stale = _chain_stale_reason(dest)
+    if stale is not None:
+        # UNCONDITIONAL — manual included: pointing the whole fleet at a dead chain is never
+        # right, and the operator's real lever is a /login in that dir, not a flip to it.
+        sys.stderr.write(
+            f"claude_rotate: refusing to flip active -> {slug}: {stale} — one dead pointer is "
+            "a fleet-wide auth outage; revive the chain with ONE /login in that dir first\n"
+        )
+        return False
+    if not manual:
+        paused = _pause_state()
+        if paused is not None:
+            if paused == _PAUSE_MARKER:
+                sys.stderr.write(
+                    "claude_rotate: flip PAUSED (switch-paused marker) — pointer unchanged "
+                    "(override: --resume-switch, or --switch <slug> for a deliberate flip)\n"
+                )
+            else:
+                sys.stderr.write(
+                    "claude_rotate: pause-state unreadable — failing CLOSED, pointer unchanged "
+                    "(fix the rotate state dir; --switch <slug> remains the manual lever)\n"
+                )
+            return False
+        if not ignore_dwell:
+            last, degraded = _last_switch_ts(event="flip")
+            if degraded:
+                sys.stderr.write(
+                    "claude_rotate: flip dwell guard fail-closed (unusable ledger) — "
+                    "pointer unchanged\n"
+                )
+                return False
+            dwell_s = _env_float("ROTATE_DWELL_MIN", 30.0) * 60
+            if last is not None and (_now() - last) < dwell_s:
+                sys.stderr.write(
+                    f"claude_rotate: flip to {slug} within dwell "
+                    f"({dwell_s / 60:.0f}m of the last flip) — holding\n"
+                )
+                return False
+    prev = _resolve_active()  # the no-op case already returned above; this is the ledger "from"
+    ptr = _active_pointer_path()
+    tmp = root / f".{_ACTIVE_POINTER_NAME}.tmp{os.getpid()}.{time.monotonic_ns():x}"
+    try:
+        os.symlink(slug, tmp)  # RELATIVE target — the fleet root stays relocatable
+        os.replace(tmp, ptr)  # atomic over a file/dir-symlink or nothing; never a missing window
+    except OSError as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        sys.stderr.write(f"claude_rotate: flip to {slug} failed ({e}) — pointer unchanged\n")
+        return False
+    _ledger_append(
+        {
+            "event": "flip",
+            "ts": _now(),
+            "from": prev,
+            "to": slug,
+            "at_pct": at_pct,
+            "via": "switch" if manual else "tick",
+        }
+    )
+    return True
+
+
+def _account_flip_dir(slugs: list[str]) -> str | None:
+    """An account's flip target among its dirs: the freshest-mtime credentialed one (most
+    recently used = the chain proven alive most recently), or None when none holds credentials.
+    Dirs whose chain fails the liveness gate are skipped (F-P1) — both auto selectors
+    (:func:`_pick_flip_target`, :func:`_freshest_credentialed_slug`) inherit the gate here."""
+    best: str | None = None
+    best_m: float | None = None
+    for slug in slugs:
+        d = _fleet_root() / slug
+        try:
+            m = (d / ".credentials.json").stat().st_mtime
+        except OSError:
+            continue
+        if _chain_stale_reason(d) is not None:
+            continue  # a dead/dying chain is never a flip target, however good its quota looks
+        if best_m is None or m > best_m:
+            best, best_m = slug, m
+    return best
+
+
+def _pick_flip_target(
+    accounts: list[dict], exclude: frozenset[str] | set[str] = frozenset()
+) -> tuple[str, str] | None:
+    """The flip successor as ``(slug, email)``: the account with the most weekly-then-session
+    HEADROOM (lowest seven_day utilization, ties to lowest five_hour) among accounts whose dirs
+    hold LIVE-chained credentials (the F-P1 gate, via ``_account_flip_dir``) — excluding the
+    *exclude* emails, walled ones (either window ≥100%) and accounts with no quota reading at
+    all (headroom that cannot be proven is not headroom; adapted from the legacy ``_walled``
+    no-telemetry rule). Cached readings count here — ``_validated_pick`` live-verifies them
+    before a flip. None when nothing qualifies (→ the drain advisory is the only recourse)."""
+    ranked: list[tuple[tuple[float, float], str, str]] = []
+    for row in accounts:
+        if row.get("email") in exclude:
+            continue
+        slug = _account_flip_dir(row.get("slugs") or [])
+        if slug is None:
+            continue
+        utils: dict[str, float | None] = {}
+        for key in ("five_hour", "seven_day"):
+            w = row.get(key)
+            u = w.get("utilization") if isinstance(w, dict) else None
+            utils[key] = float(u) if isinstance(u, (int, float)) else None
+        if utils["five_hour"] is None and utils["seven_day"] is None:
+            continue  # no reading — cannot prove headroom
+        if any(u is not None and u >= 100.0 for u in utils.values()):
+            continue  # walled — its windows revive on reset, never by a flip
+        weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
+        session = utils["five_hour"] if utils["five_hour"] is not None else 100.0
+        ranked.append(((weekly, session), slug, str(row.get("email"))))
+    if not ranked:
+        return None
+    ranked.sort()
+    return ranked[0][1], ranked[0][2]
+
+
+def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
+    """Repair fallback when NO account has a provable quota reading: the freshest credentialed
+    dir fleet-wide — a missing/dangling pointer is an outage, and pointing at the most recently
+    live chain beats leaving every session with no config dir at all."""
+    return _account_flip_dir([d.name for d in dirs])
+
+
+def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] | None:
+    """F-P2: :func:`_pick_flip_target`, with cached candidates LIVE-verified before they can
+    become the fleet's pointer. A candidate whose reading was live THIS tick is returned as-is;
+    one ranked off a CACHED row gets ONE usage probe with its own dir's token — probe failure
+    (dead/unreachable) or a walled live reading excludes it and the next-best is considered.
+    Cached-and-unverifiable must never become the fleet's sole pointer. None when nobody
+    survives (→ the caller falls through to the no-headroom advisory)."""
+    exclude = set(exclude)
+    while True:
+        pick = _pick_flip_target(accounts, exclude=exclude)
+        if pick is None:
+            return None
+        slug, email = pick
+        row = next((r for r in accounts if r.get("email") == email), None)
+        if row is None or row.get("source") != "cache":
+            return pick  # reading is live this tick — already validated
+        tok = _read_access_token(_fleet_root() / slug / ".credentials.json")
+        windows = _usage_windows(_oauth_get("usage", tok)) if tok is not None else None
+        if windows is None:
+            exclude.add(email)  # cached-and-unverifiable — never the fleet's pointer
+            continue
+        if max(w["utilization"] for w in windows.values()) >= 100.0:
+            exclude.add(email)  # the rosy cache hid a wall — the live reading wins
+            continue
+        return pick
+
+
+def _cmd_fleet_switch(name: str, dirs: list[Path]) -> int:
+    """``--switch <slug>`` in fleet mode: a MANUAL flip through the same :func:`_flip_active`
+    the tick uses — pause-exempt and dwell-exempt, the deliberate operator escape hatch (same
+    semantics as the legacy ``--switch``). Resolves *name* by exact dir slug, else a UNIQUE
+    prefix — ambiguity is refused, never guessed (the ``_find_account`` rule)."""
+    names = [d.name for d in dirs]
+    matches: list[str] = []
+    if name:
+        exact = [n for n in names if n == name]
+        matches = exact or [n for n in names if n.startswith(name)]
+    if len(matches) != 1:
+        sys.stderr.write(
+            f"claude_rotate: no unique fleet dir matching {name!r} — dirs: {', '.join(names)}\n"
+        )
+        return 1
+    if _flip_active(matches[0], manual=True):
+        print(f"active fleet account -> {matches[0]} (pointer flip — zero credential bytes moved)")
+        return 0
+    sys.stderr.write("switch failed — active pointer unchanged (see above)\n")
+    return 1
 
 
 def _pin_pending_identities(dirs: list[Path]) -> dict:
@@ -2560,6 +2975,10 @@ def _pin_pending_identities(dirs: list[Path]) -> dict:
         email = ((prof or {}).get("account") or {}).get("email")
         if isinstance(email, str) and "@" in email:
             pins[d.name] = email
+            # The pin IS a live identity verification — record it as THIS DIR's first verdict
+            # (under its own slug, F-P9: it must never mask a sibling dir's unresolved
+            # mismatch), or the account-rows pass would immediately re-probe what it proved.
+            _identity_probe_record(d.name, email, _now())
     if not pins:
         return table
     try:
@@ -2654,6 +3073,13 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
             key=lambda m: m["mtime"],
             reverse=True,
         )
+        exps = [
+            e
+            for e in (
+                _refresh_expiry_epoch(m["dir"] / ".credentials.json") for m in with_creds
+            )
+            if e is not None
+        ]
         row = {
             "email": email,
             "slugs": [m["slug"] for m in members],
@@ -2661,12 +3087,69 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
             "seven_day": None,
             "source": "none",
             "age_s": None,
+            # the account's soonest chain lapse — --status/tick warn under 5d (before the
+            # F-P1 flip gate would silently drop it from candidacy)
+            "refresh_expires_epoch": min(exps) if exps else None,
+            "identity_mismatches": [],
         }
         windows = None
         if with_creds and (now - with_creds[0]["mtime"]) < _FLEET_TOKEN_FRESH_S:
             tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
             if tok is not None:
-                windows = _usage_windows(_oauth_get("usage", tok))
+                payload = _oauth_get("usage", tok)
+                windows = _usage_windows(payload)
+                # F-P4 net (mid-refresh flip race / login into the wrong dir): compare the
+                # pinned identity against what THIS already-made probe answers — no probe
+                # volume is added (review constraint), so the net keys on the identity the
+                # usage payload itself carries.
+                acct = payload.get("account") if isinstance(payload, dict) else None
+                probed = acct.get("email") if isinstance(acct, dict) else None
+                if isinstance(probed, str) and "@" in probed and probed != email:
+                    row["identity_mismatches"].append(
+                        {"slug": with_creds[0]["slug"], "probe_email": probed}
+                    )
+        # F-P6: the identity net's LIVE leg. Probed live 2026-08-15: the /api/oauth/usage
+        # payload carries NO account.email (top-level keys are the quota windows only), so the
+        # zero-cost comparison above can never fire on today's API shape — it stays only as a
+        # free upgrade if the field ever appears. The net's liveness rests on THIS bounded
+        # probe: ONE profile GET per pinned account per hour (stamp-budgeted per ACCOUNT,
+        # skew-clamped — ~24/account/day, not 288), made against the account's FRESHEST dir
+        # and only while that token is fresh enough to answer (the usage leg's mtime gate —
+        # the mid-refresh race and a wrong-dir login both leave a freshly-rewritten credential
+        # file, so the gate never blinds the net's targets). The verdict is recorded under
+        # THAT DIR'S SLUG (F-P9 — a fresh pin on a sibling dir can never mask another dir's
+        # mismatch). Probe FAILURE updates nothing: no warning (a transport blip is not a
+        # mismatch) and no stamp (next tick retries — a blip must not silence the net for an
+        # hour either).
+        member_slugs = [m["slug"] for m in members]
+        if (
+            with_creds
+            and (now - with_creds[0]["mtime"]) < _FLEET_TOKEN_FRESH_S
+            and _identity_probe_due(member_slugs, now)
+        ):
+            tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
+            prof = _oauth_get("profile", tok) if tok is not None else None
+            if prof is not None:
+                acct = prof.get("account") if isinstance(prof, dict) else None
+                probed = acct.get("email") if isinstance(acct, dict) else None
+                _identity_probe_record(
+                    with_creds[0]["slug"],
+                    probed if isinstance(probed, str) and "@" in probed else None,
+                    now,
+                )
+        # F-P7: REPORTING a stored verdict is UNCONDITIONAL — every pinned dir's slug stamp is
+        # read every pass, regardless of any mtime. The freshness gate above governs NEW probes
+        # only: the likely aftermath of a corrupted dir is that it goes IDLE, and its recorded
+        # mismatch must keep warning until a later probe of that dir re-verifies (which the
+        # recovery /login triggers — it rewrites the credential file, making the dir fresh and
+        # probe-able again).
+        flagged = {m["slug"] for m in row["identity_mismatches"]}
+        for slug in member_slugs:
+            if slug in flagged:
+                continue
+            last = _identity_probe_result(slug)
+            if last is not None and last != email:
+                row["identity_mismatches"].append({"slug": slug, "probe_email": last})
         if windows is not None:
             row.update(windows)
             row["source"] = "live"
@@ -2717,15 +3200,52 @@ def _fleet_quota_text(row: dict) -> str:
     return text
 
 
+def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
+    """Chain-health warnings derived from data already on the account rows (this function adds
+    no probes; the rows were built with at most one hourly identity probe per account), printed
+    by --status and the tick alike: (1) a refresh chain inside the 5-day expiry window — the
+    keepalive cadence is 7d, so this firing means that net already missed it; (2) the F-P4/F-P6
+    identity-mismatch net — a dir whose probed token answers as a DIFFERENT account than its
+    pinned identity (a flip landed inside a CLI credential refresh, or a login went into the
+    wrong dir). Recovery for both is a /login or a claude turn IN THAT DIR — never a file copy."""
+    warns: list[str] = []
+    now = _now()
+    for row in accounts:
+        label = ", ".join(row.get("slugs") or [])
+        exp = row.get("refresh_expires_epoch")
+        if isinstance(exp, (int, float)):
+            left = exp - now
+            if left <= 0:
+                warns.append(
+                    f"⚠ {row['email']}: refresh chain EXPIRED {-left / 86400:.1f}d ago — "
+                    f"ONE /login in [{label}] re-mints it"
+                )
+            elif left < _CHAIN_EXPIRY_WARN_S:
+                warns.append(
+                    f"⚠ {row['email']}: refresh chain expires in {left / 86400:.1f}d — run one "
+                    f"claude turn in [{label}] before it lapses (keepalive cadence is 7d)"
+                )
+        for mm in row.get("identity_mismatches") or []:
+            warns.append(
+                f"⚠ {mm['slug']}: IDENTITY MISMATCH — dir pinned to {row['email']} but its "
+                f"token answers as {mm['probe_email']} (a flip landed inside a credential "
+                "refresh, or a login went into the wrong dir). Recovery: ONE /login in that "
+                "dir re-mints its chain; do NOT copy credential files"
+            )
+    return warns
+
+
 def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
     accounts, pending = _fleet_account_rows(dirs)
-    warns = _fleet_warnings()
+    warns = _fleet_row_warnings(accounts) + _fleet_warnings()
+    active = _resolve_active()  # slug | None (missing/dangling pointer)
     if as_json:
         print(
             json.dumps(
                 {
                     "fleet_root": str(_fleet_root()),
                     "accounts": accounts,
+                    "active": active,
                     "pending": [p["slug"] for p in pending],
                     "pause": _pause_state(),
                     "fleet_warnings": warns,
@@ -2737,10 +3257,11 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
     # No raw root path in the text header — a path can smuggle arbitrary words into the banner
     # (a tmp root literally containing "occupancy" false-fired a warn assertion); the JSON
     # payload carries fleet_root for machine consumers.
-    print(f"fleet: {len(dirs)} dir(s) · {len(accounts)} account(s)")
+    print(f"fleet: {len(dirs)} dir(s) · {len(accounts)} account(s) · active: {active or 'none'}")
     for row in accounts:
         label = ", ".join(row["slugs"])
-        print(f"  {row['email']:32} {_fleet_quota_text(row)}  [{label}]")
+        mark = "*" if active is not None and active in row["slugs"] else " "
+        print(f"{mark} {row['email']:32} {_fleet_quota_text(row)}  [{label}]")
     for p in pending:
         print(
             f"  {p['slug']:32} pending-login — identity unverified (ONE /login in this dir pins it)"
@@ -2778,19 +3299,76 @@ def _fleet_slug_repos(slugs: list[str]) -> list[str]:
     return out
 
 
-def _fleet_tick_inner(dirs: list[Path]) -> int:
-    """The tick, fleet-shaped: telemetry + per-ACCOUNT advisories ONLY.
+def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) -> None:
+    """The tick's pointer decision — one printed line per outcome, never raises past the
+    ledger/stderr writers already guarded inside :func:`_flip_active`.
 
-    REWRITTEN, not reused — _tick_inner's live/successor frame has no meaning when every
-    account is permanently logged in in its own dirs. There is deliberately no successor
-    logic here (no pick, no switch, no install — not paused, ABSENT): a walled account's
-    windows pause until their reset; the other accounts are untouched. ≥85% (the drain
-    threshold) fires one advisory Telegram per account per 24h, plus drain mail routed to
-    the repos mapped to that account's slugs.
+    Missing/dangling pointer → flip to the best-headroom account NOW (dwell-exempt repair;
+    the pause marker still holds it — the operator's freeze outranks the repair, and their
+    ``--switch`` lever stays live). No account rankable by telemetry → fall back to the
+    freshest credentialed dir. Healthy pointer → flip only when the active account is at/over
+    *threshold* on either window AND a credentialed, un-walled sibling has headroom."""
+    active_slug = _resolve_active()
+    if active_slug is None:
+        pick = _validated_pick(accounts, set())
+        slug = pick[0] if pick else _freshest_credentialed_slug(dirs)
+        if slug is None:
+            print("tick: active pointer missing and NO credentialed dir exists — cannot repair")
+            return
+        if _flip_active(slug, ignore_dwell=True):
+            print(f"tick: active pointer missing/dangling — repaired -> {slug}")
+        else:
+            print(f"tick: active pointer missing — repair flip to {slug} withheld (see stderr)")
+        return
+    row = next((r for r in accounts if active_slug in (r.get("slugs") or [])), None)
+    if row is None:
+        print(f"tick: active {active_slug} — identity pending, no flip decision possible")
+        return
+    utils = [
+        w["utilization"]
+        for w in (row.get("five_hour"), row.get("seven_day"))
+        if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
+    ]
+    if not utils:
+        print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
+        return
+    hot = max(utils)
+    if hot < threshold:
+        print(f"tick: active {row['email']} at {hot:.0f}% — below {threshold:.0f}%, no flip")
+        return
+    pick = _validated_pick(accounts, {row["email"]})
+    if pick is None:
+        # Every sibling is walled/unreadable/credential-less: nothing to flip to. The ≥85%
+        # advisory loop below is the recourse (Telegram + drain mail), exactly as before.
+        print(f"tick: active {row['email']} at {hot:.0f}% but NO successor has headroom")
+        return
+    slug, email = pick
+    if _flip_active(slug, at_pct=hot):
+        print(f"tick: flipped active {row['email']} -> {email} ({slug}) at {hot:.0f}%")
+    else:
+        print(f"tick: flip {row['email']} -> {email} ({slug}) withheld (see stderr)")
+
+
+def _fleet_tick_inner(dirs: list[Path]) -> int:
+    """The tick, fleet-shaped: telemetry + the POINTER FLIP + per-ACCOUNT advisories.
+
+    REWRITTEN, not reused — _tick_inner's frame installs credential files, which fleet mode
+    never does. The flip leg (operator redesign 2026-08-15 — one active account for ALL
+    projects): resolve the ``active`` pointer; missing/dangling → flip to the best account
+    immediately (dwell-exempt repair — holding a dangling pointer is a fleet outage); the
+    active account ≥ROTATE_THRESHOLD (default 95) on EITHER window → flip to the account with
+    the most weekly-then-session headroom among credentialed, un-walled siblings. The flip
+    moves zero credential bytes and is refused by the pause marker + the 30-min dwell (inside
+    :func:`_flip_active`); telemetry and the advisories below run REGARDLESS (T01 semantics —
+    pause holds action, never signal). No successor with headroom → nothing flips and the
+    ≥85% drain advisory below is the recourse, exactly as before: one advisory Telegram per
+    account per 24h, plus drain mail routed to the repos mapped to that account's slugs.
     """
+    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
     now = _now()
     accounts, pending = _fleet_account_rows(dirs)
+    _fleet_flip_leg(dirs, accounts, threshold)
     for row in accounts:
         windows = [w for w in (row["five_hour"], row["seven_day"]) if isinstance(w, dict)]
         utils = [
@@ -2827,7 +3405,8 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             revive_s = "unknown"
         msg = (
             f"fleet advisory: account {row['email']} at {hot:.0f}%{stale} (resets {revive_s})"
-            " — its windows pause at the wall and resume on reset; nothing is switched"
+            " — the active pointer flips to the account with headroom; a walled account's"
+            " windows resume on reset"
         )
         _tick_telegram(msg)
         repos = _fleet_slug_repos(row["slugs"])
@@ -2847,6 +3426,8 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             {"event": "fleet-advisory", "ts": now, "account": row["email"], "at_pct": hot}
         )
         print(f"tick: ADVISORY {row['email']} at {hot:.0f}%{stale}")
+    for warn in _fleet_row_warnings(accounts):
+        print(warn)
     for p in pending:
         print(f"tick: {p['slug']} pending-login — excluded from account telemetry")
     _ledger_rotate()
@@ -3047,9 +3628,13 @@ def main(argv: list[str] | None = None) -> int:
         ``--keepalive``     one in-place ``claude -p ping`` per fleet dir idle >7 days
                             (weekly cron; rc 1 + mesh-notify alert on any failed ping)
 
-    Once ≥1 fleet dir exists, ``--status`` and ``--tick`` switch to the fleet view: dirs
-    grouped per ACCOUNT (pinned identity), quota from the freshest dir's token or the cached
-    last-known row with age, ≥85% advisory per account — and structurally NO account switch.
+    Once ≥1 fleet dir exists, ``--status``, ``--tick`` and ``--switch`` switch to the fleet
+    view: per-ACCOUNT dirs (pinned identity), quota from the freshest dir's token or the cached
+    last-known row with age, one ``active`` pointer symlink every session follows. The tick
+    FLIPS that pointer to the account with the most quota headroom when the active one crosses
+    ROTATE_THRESHOLD (pause marker + 30-min dwell respected); ``--switch <slug>`` is the manual,
+    pause-exempt flip. A flip moves ZERO credential bytes; ≥85% still fires the per-account
+    advisory when no successor has headroom.
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
