@@ -36,6 +36,7 @@ design:
 | `RESERVED — fleet excluded` | weekly ≥ its cap: automated flips skip it, the remainder is the operator's (browser use). `--switch` may still target it, deliberately |
 | `WALLED` | weekly ≥ 100%: unusable until its reset |
 | `cached Nh ago` | the account is idle, so its token is stale; the reading is the last known one with its age |
+| `unknown` in a cell | the cached reading is OLDER than the window it describes (a 5h window read 8h ago has rolled over completely). Showing a percentage there could only ever reassure — it would mean "we have not looked", not "quota is free". The weekly cell still shows its number at that age, because a 7-day window survives an 8h-old reading |
 | Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.

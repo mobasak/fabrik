@@ -154,3 +154,35 @@ def test_no_credential_paths_are_read_by_the_dashboard():
     src = _SRC.read_text(encoding="utf-8")
     assert ".credentials.json" not in src
     assert "manager-accounts" not in src
+
+
+def test_a_cached_reading_older_than_its_window_reads_unknown_not_100(tmp_path, monkeypatch):
+    """The permanently-green class, caught live by the operator: an idle account's 5-hour
+    reading cached 8h ago describes a window that has ROLLED OVER COMPLETELY. Rendering it as
+    "100% left" can only ever reassure — it means "we have not looked", not "plenty of quota".
+    The weekly cell keeps its number at that age (a 7-day window is still meaningful)."""
+    qd = _load(tmp_path, monkeypatch)
+    payload = _payload(session=0.0, weekly=91.0)
+    payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600})
+    monkeypatch.setattr(qd, "_probe", lambda: payload)
+
+    html = qd.generate()
+
+    assert "unknown" in html, "an expired 5h window must not render a percentage"
+    assert '<span class="pct ok">100%</span> left' not in html, "…least of all a reassuring 100%"
+    assert "which has since rolled" in html, "and it must say WHY it is unknown"
+    assert '<span class="pct warn">9%</span> left' in html, "the 7-day cell survives at 8.5h"
+
+
+def test_a_cached_reading_younger_than_its_window_still_shows_the_number(tmp_path, monkeypatch):
+    """The other half: 30 minutes into a 5-hour window the cached reading is still about the
+    window we are in, so suppressing it would throw away real information."""
+    qd = _load(tmp_path, monkeypatch)
+    payload = _payload(session=40.0, weekly=50.0)
+    payload["accounts"][0].update({"source": "cache", "age_s": 1800.0})
+    monkeypatch.setattr(qd, "_probe", lambda: payload)
+
+    html = qd.generate()
+
+    assert '<span class="pct ok">60%</span> left' in html
+    assert "which has since rolled" not in html

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Quota dashboard: an expired window read as "100% left" (2026-08-16)
+
+- Operator-caught: every idle account's 5-hour cell showed 100% remaining. The readings were
+  ~8.5h old — **older than the 5-hour window they described**, which had rolled over entirely.
+  A cell in that state can only ever reassure: it means "we have not looked", not "quota is
+  free" — the permanently-green class. Such cells now render `unknown` with the age and the
+  reason; the 7-day cell keeps its number at that age, since a weekly window survives an
+  8h-old reading. Both directions regression-tested (expired → unknown, 30-min-old → number).
+
 <<<<<<< ours
 ### Changed — Doc Sync Matrix is a FLOOR, not a whitelist (2026-08-16)
 

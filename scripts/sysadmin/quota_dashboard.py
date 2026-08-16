@@ -41,6 +41,11 @@ MAX_AGE_S = float(os.getenv("QUOTA_DASH_MAX_AGE_S", "240"))
 PROBE_TIMEOUT_S = float(os.getenv("QUOTA_DASH_PROBE_TIMEOUT_S", "60"))
 REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "60"))
 
+# The quota windows themselves. A cached reading older than its own window describes a window
+# that has fully rolled over — reported as unknown, never as a reassuring percentage.
+_FIVE_HOUR_S = 5 * 3600
+_SEVEN_DAY_S = 7 * 86400
+
 _HTML = OUT_DIR / "index.html"
 _JSON = OUT_DIR / "quota.json"
 
@@ -120,9 +125,28 @@ def _row(acct: dict, active: str | None) -> str:
     if stale:
         badges.append(f'<span class="badge stale">{escape(stale)}</span>')
 
-    def cell(left: float | None, used: float | None, reset: float | None) -> str:
+    def cell(
+        left: float | None, used: float | None, reset: float | None, window_s: float | None = None
+    ) -> str:
         if left is None:
             return '<td class="num muted">no reading<br><span class="sub">—</span></td>'
+        # A cached reading OLDER than the window it describes is not stale — it is EXPIRED.
+        # The 5-hour window it measured has since rolled over completely, so "100% left" would
+        # read as "plenty of quota" when it actually means "we have not looked in 8h". That is
+        # the permanently-green class: a cell that can only ever reassure. Say unknown instead.
+        age = acct.get("age_s")
+        if (
+            acct.get("source") == "cache"
+            and window_s
+            and isinstance(age, (int, float))
+            and age >= window_s
+        ):
+            return (
+                '<td class="num muted">unknown'
+                f'{_bar(0.0, "warn")}'
+                f'<span class="sub">last read {escape(_fmt_age(age))} — older than the '
+                f"{window_s / 3600:.0f}h window, which has since rolled</span></td>"
+            )
         tone = _tone(left)
         return (
             f'<td class="num"><span class="pct {tone}">{left:.0f}%</span> left'
@@ -134,8 +158,8 @@ def _row(acct: dict, active: str | None) -> str:
         f'<tr class="{"is-active" if is_active else ""}">'
         f'<td class="acct"><strong>{escape(email)}</strong><span class="sub">{escape(slug)}</span>'
         f'<div class="badges">{"".join(badges)}</div></td>'
-        f"{cell(s_left, s_used, five.get('resets_at_epoch'))}"
-        f"{cell(w_left, w_used, seven.get('resets_at_epoch'))}"
+        f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S)}"
+        f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         "</tr>"
     )
 
