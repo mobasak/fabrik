@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The excise manifest reported a false UNSOUND from the moment D.1 landed (2026-08-16)
+
+- `scripts/kilo-benchmarks/tests/excise_manifest.py` — the ORDERING soundness check asserted
+  `distinct _step names <= 6`, but the shrunk consumer orchestrator legitimately runs **seven**:
+  D.1 added `deliver_to_fabrik` as the produce→deliver→sync contract's missing leg and the
+  threshold was never moved with it. So `--check` exited 1 on a correct tree, which made the
+  plan's "the retained remnant is proven SOUND by a computed manifest" untrue as written — the
+  certifying tool disagreed with the claim it was cited for.
+- Replaced the count with the exact **name set** (`CONSUMER_STEPS`). A count cannot distinguish
+  seven correct steps from seven wrong ones, so an engine producer silently re-entering the
+  orchestrator — which would re-retain its whole dependency tree through the KEEP closure — scored
+  identically to the healthy state. The set check catches both directions and names the offender.
+- Mutation-proven both ways: a producer re-entering (`rank_task_subagents`) and the deliver leg
+  being dropped each produce a specific, named UNSOUND; the intact tree exits 0 with KEEP=30.
+- Also repointed this file's `AFTER-EDIT:` header at the plan's archived path — archiving the plan
+  had silently broken it, the same stale-successor-pointer class fixed in the prep set on 2026-08-15.
+
 ### Added — COMMAND RUN-RECORD protocol: pinned `RUN:` line, class ledger, Stop-hook 5th cause (2026-08-16)
 
 - `scripts/command_run.py` (stdlib only) — ONE json per session at

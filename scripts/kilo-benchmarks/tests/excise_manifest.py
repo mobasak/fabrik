@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md
+# AFTER-EDIT: docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md
 """Compute the Phase-E KEEP / DELETE sets from the LIVE import graph, instead of enumerating them.
 
 WHY THIS EXISTS. Ten `/fabrik-plan-review` passes over the extraction plan found 150 defects and did
@@ -39,6 +39,20 @@ from pathlib import Path
 
 FABRIK = Path(__file__).resolve().parents[3]
 KB = FABRIK / "scripts" / "kilo-benchmarks"
+
+# The EXACT steps the shrunk consumer orchestrator is allowed to run. Every one of these consumes
+# what the engine delivered; none of them produces catalog data. `deliver_to_fabrik` is the leg that
+# pulls the engine's bundle in, and it must stay ordered AHEAD of the consumers that read it.
+# This is a set, not a count, on purpose — see the soundness check below.
+CONSUMER_STEPS = {
+    "deliver_to_fabrik",
+    "gather_envs",
+    "classify_services",
+    "generate_capability_index",
+    "generate_kilo_agents",
+    "sync_enforcement_to_projects",
+    "check_daily_refresh_freshness",
+}
 
 # ─── The ROOTS: a judgement about what fabrik still needs. Everything else is DERIVED. ───
 # Each root is here because a RETAINED caller outside the engine invokes it. The comment is the
@@ -265,16 +279,31 @@ def main() -> int:
         # on the result would keep the thing Phase E exists to delete. The plan asserted a 16-file
         # remnant; measured against the current tree the closure is 156 — a 10x gap that no prose
         # pass caught, because the number depends on an ordering the prose never stated.
-        remaining = subprocess.run(
+        # ⚠️ This compares the NAME SET, not a count. It was written as `count > 6` and reported a
+        # false UNSOUND from the moment D.1 landed: the shrunk orchestrator legitimately runs SEVEN
+        # steps, because D.1 added `deliver_to_fabrik` as the produce->deliver->sync contract's
+        # missing leg — the threshold was simply never moved with it. Worse than the off-by-one is
+        # what a count can never tell you: seven CORRECT steps and seven WRONG ones score the same,
+        # so an engine producer silently re-entering the orchestrator would have passed. Checking
+        # the exact set catches both directions, and names the offender.
+        out = subprocess.run(
             ["bash", "-c",
              "grep -vE '^[[:space:]]*#' scripts/kilo-benchmarks/daily_refresh.sh "
-             "| grep -hoE '_step \"[a-z_0-9]+\"' | sort -u | wc -l"],
-            cwd=FABRIK, capture_output=True, text=True).stdout.strip()
-        if remaining.isdigit() and int(remaining) > 6:
-            problems.append(
-                f"ORDERING: daily_refresh.sh still has {remaining} distinct _step names (allow-list is 6). "
-                "Run D.1 FIRST — the KEEP closure follows what the orchestrator invokes, so this "
-                "currently retains most of the engine.")
+             "| grep -hoE '_step \"[a-z_0-9]+\"' | sort -u"],
+            cwd=FABRIK, capture_output=True, text=True).stdout
+        found = {m.split('"')[1] for m in out.splitlines() if '"' in m}
+        if found:
+            extra, missing = found - CONSUMER_STEPS, CONSUMER_STEPS - found
+            if extra:
+                problems.append(
+                    f"ORDERING: daily_refresh.sh invokes non-consumer step(s) {sorted(extra)}. The KEEP "
+                    "closure follows what the orchestrator invokes, so an engine producer here silently "
+                    "re-retains its whole dependency tree — run D.1, or drop the step.")
+            if missing:
+                problems.append(
+                    f"ORDERING: daily_refresh.sh no longer invokes {sorted(missing)}. A consumer step that "
+                    "stops running publishes stale docs quietly; if the removal is intended, update "
+                    "CONSUMER_STEPS in the same change.")
         for r in KEEP_ROOTS:
             if not (KB / r).exists():
                 problems.append(f"KEEP root does not exist: {r}")
