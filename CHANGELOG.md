@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Claude quota dashboard on localhost:5051 (2026-08-16)
+
+- `scripts/sysadmin/quota_dashboard.py` — a box-local page (stdlib only, loopback only)
+  rendering `claude_rotate.py --status --json`: per-account **remaining** session (5h) and
+  weekly headroom with reset times, the active-pointer row, `caps.json` reserves
+  (`RESERVED — fleet excluded`), walled accounts, per-account reading age, and the CLI's
+  `fleet_warnings`. Rows sort by weekly headroom, so the next flip target is the top
+  eligible row.
+- **No regeneration cron, deliberately.** `--status --json` makes live API probes, so a
+  periodic render would probe whether or not anyone is looking and a self-refreshing tab
+  would probe per reload. The page regenerates **on view, at most once per
+  `QUOTA_DASH_MAX_AGE_S` (240s)**: current for a viewer, zero cost when closed, and
+  refresh-spam cannot multiply probe volume. A failed probe renders the last good payload
+  behind a banner instead of blanking the page.
+- Self-healing via two crontab lines (`@reboot` + `*/10 --ensure`, a no-op while the port
+  answers) — WSL has no user systemd bus. Endpoints: `/`, `/quota.json`, `/health`.
+- Docs: `docs/workstation/quota-dashboard.md` (+ INDEX row); port 5051 recorded in PORTS.md.
+
 ### Changed — E.closing findings #10 and #14: stale docs, and a disclosed shared-tree violation (2026-08-16)
 
 - **`daily_refresh.sh`'s header documented a pipeline it stopped running.** It still described the

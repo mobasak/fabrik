@@ -518,6 +518,7 @@ docs/
 │   ├── cleanup-maintenance-backlog.md # Remaining dev-box cleanup items after the 2026-07-25 sweep
 │   ├── ci-health-probe.md          # Hourly probe: detects CI that NEVER RAN (zero-step job = billing refusal/invalid workflow) + Actions minutes vs plan allowance (WARN 80%); one Telegram per event; also fixed ci_fix_dispatcher dispatching at unfixable runs
 │   ├── claude-account-rotation.md # The 4-account Claude Max quota pool: --status telemetry, the */5 perishable-first tick, graceful drain, when a manual /login is actually needed, onboarding + safety invariants
+│   ├── quota-dashboard.md         # localhost:5051 account-quota board (remaining session/weekly per account, caps, resets, warnings); on-view regeneration bounds probe volume; self-healing via --ensure cron
 │   ├── fabrik-mail.md             # fabrik-mail box view: store /opt/fabrik-mail, components (mail.py + hook + digest), the 2-layer model, sync-exclusion, observe/troubleshoot (protocol is docs/reference/fabrik-mail.md)
 │   ├── hooks-index.md              # Every hook on the box in one page (4 layers) — freshness gate-enforced by check_hooks_index.py
 │   ├── wip-backup-safety-net.md    # The */15 WIP snapshot cron: isolated-index tree snapshots to refs/wip + off-box push; recovery runbook

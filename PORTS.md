@@ -66,6 +66,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | Port | Service | Project | Notes |
 |------|---------|---------|-------|
 | 5050 | Email Reader | /opt/email-reader | Gmail/M365 integration |
+| 5051 | Claude quota dashboard | /opt/fabrik | Box-local account-quota board, loopback only — `scripts/sysadmin/quota_dashboard.py`, docs/workstation/quota-dashboard.md |
 | 8000 | Local dev server | varies | Default FastAPI port |
 
 ---
