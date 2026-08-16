@@ -234,6 +234,24 @@ fi
   # and liveness-probing each, so a cold AI agent always reads a current,
   # self-verified tool catalog. Generated-not-hand-curated; fail-soft per
   # probe (a broken probe → status:broken, never crashes the refresh).
+  # ─── DELIVER: pull the produced bundle from the ai-model-catalog engine ───
+  # The MISSING LEG. The plan's produce -> deliver -> sync contract had `deliver_to_fabrik` in D.1's
+  # allow-list but no phase ever added the step, so after the cutover fabrik produced nothing AND
+  # received nothing: the delivered docs would simply age until select.py's 14-day staleness gate
+  # dropped them and ~47 vendored pick_models copies fell back to the hardcoded _TABLE. Found
+  # 2026-08-16 by the E.closing review; wired here.
+  #
+  # Non-fatal by design: a delivery failure must leave YESTERDAY's good docs in place rather than
+  # half-write today's. deliver_to_fabrik writes atomically (tmp + os.replace) for the same reason.
+  if [ -x /opt/ai-model-catalog/engine/.venv/bin/python ]; then
+    _step "deliver_to_fabrik" \
+      /opt/ai-model-catalog/engine/.venv/bin/python \
+      /opt/ai-model-catalog/engine/deliver_to_fabrik.py --apply --target-root "$FABRIK_ROOT" \
+      || echo "[daily_refresh] deliver_to_fabrik failed (non-fatal — yesterday's delivered docs are kept)"
+  else
+    echo "[daily_refresh] WARNING: ai-model-catalog engine venv missing — nothing delivered today"
+  fi
+
   _step "generate_capability_index" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_capability_index.py" \
     || echo "[daily_refresh] generate_capability_index failed (non-fatal)"
 
