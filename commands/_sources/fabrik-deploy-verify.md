@@ -18,6 +18,7 @@ this way — this command is the hub-side exception to the local-Docker-bridge-n
 violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS probe any box can run) or
 `[hub-side]` (needs the fleet SSH path — `ssh <target_vps> ...` or a hub-container `exec`).
 
+{{include:run-record}}
 {{include:grounding-artifact}}
 
 ## ⚠️ Termination contract

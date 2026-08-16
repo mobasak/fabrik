@@ -11,6 +11,7 @@ models author the tests; you own WHAT gets tested and the final quality.** Targe
 / file, or a phase's `## Behavior Contract`); if empty, infer the behaviors from the current changed surface
 (`git diff`). Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior.
 
+{{include:run-record}}
 ## Import the VENDORED pool (`from libs.subagents import …`)
 
 `fanout` / `pick_models` / `set_quality` come from the **vendored** `libs/subagents` (copied from canonical

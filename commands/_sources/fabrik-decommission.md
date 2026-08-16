@@ -9,6 +9,7 @@ runtime teardown that is NEVER this command's own decision. Run this from the hu
 needs fleet DNS/SSH reachability a project-side agent does not have (deploy is trigger-not-execute for
 projects; the hub is the execution side).
 
+{{include:run-record}}
 ## ⚠️ Termination contract
 
 This is a bounded GROUND TRUTH → DECIDE → CONFIRM → EXECUTE run for ONE name, not an open loop. Phase 0

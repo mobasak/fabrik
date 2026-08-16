@@ -12,6 +12,7 @@ orchestrator: subagents drive the service; you own the inventory, the journeys, 
 fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 **Coverage is a reconciled number against discovered denominators — never a feeling.**
 
+{{include:run-record}}
 {{include:autonomy-run}}
 {{include:term-coverage}}
 {{include:injection}}

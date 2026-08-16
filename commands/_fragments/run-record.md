@@ -1,0 +1,27 @@
+## Run record — open it as this command's FIRST act
+
+`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation, and the Stop hook's
+fifth cause reads it: while a record says `running`, ending the turn is BLOCKED. That is the
+machinery that stops a command being abandoned half-executed — it only protects you if you open it.
+
+```bash
+python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \
+  --terminal "<this command's own terminal condition, in your words>"
+```
+
+Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:`
+line shows the operator where the run actually is rather than where it started.
+
+Close it EXACTLY ONE of two ways — never by simply stopping:
+
+- `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal
+  condition was met>"` — the evidence is the point; "finished" is not evidence.
+- `python3 scripts/command_run.py blocked --command {{COMMAND}} --reason "<what · searched · missing>"`
+  on one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra ·
+  an unresolvable spec contradiction). Nothing else is a legitimate halt.
+
+**Always name the run you close.** A bare close ends whatever is live — which, when this command was
+invoked BY another, silently ends the *caller* instead. A mismatched name is refused; closing an
+already-closed run is a warned no-op.
+
+**Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes.**

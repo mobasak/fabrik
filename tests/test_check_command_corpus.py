@@ -16,6 +16,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts" / "enforcement"))
+sys.path.insert(0, str(REPO / "commands"))
 
 from check_command_corpus import audit  # noqa: E402
 
@@ -26,10 +27,13 @@ def corpus(tmp_path: Path):
     src, frag = tmp_path / "_sources", tmp_path / "_fragments"
     src.mkdir()
     frag.mkdir()
-    (src / "fabrik-real.md").write_text("a real sibling command\n")
+    # Every fixture command carries a run record unless a test opts out: predicate 5
+    # applies to the whole corpus, so a bare sibling would pollute every other test.
+    (src / "fabrik-real.md").write_text("a real sibling command\n{{include:run-record}}\n")
 
-    def write(body: str) -> list[str]:
-        (src / "fabrik-probe.md").write_text(body)
+    def write(body: str, *, with_record: bool = True) -> list[str]:
+        prefix = "{{include:run-record}}\n" if with_record else ""
+        (src / "fabrik-probe.md").write_text(prefix + body)
         return audit(src, frag, tmp_path / "no-assembler.py", REPO)
 
     return write
@@ -91,3 +95,38 @@ def test_empty_corpus_is_reported_not_silently_green(tmp_path: Path):
 def test_live_corpus_is_clean():
     """The shipped corpus itself must satisfy the check."""
     assert audit() == []
+
+
+def test_command_without_a_run_record_is_caught(corpus):
+    """CLAUDE.md makes the record the first act; 24 of 27 commands never opened one."""
+    problems = corpus("a command body that never opens a run record\n", with_record=False)
+    assert any("opens no run record" in p for p in problems)
+
+
+def test_bespoke_start_block_satisfies_the_run_record(corpus):
+    """A command with its own `start` block needs no fragment — both forms count."""
+    assert corpus(
+        "run `python3 scripts/command_run.py start --command x --phases 3`\n", with_record=False
+    ) == []
+
+
+def test_phase_count_prefers_explicit_phase_headings():
+    from assemble_commands import _phase_count  # noqa: PLC0415
+
+    assert _phase_count("## Phase 0 — a\n## Phase 1 — b\n## Phase 2 — c\n") == 3
+    assert _phase_count("## PHASE 0 — a\n## PHASE 1 — b\n") == 2
+
+
+def test_phase_count_ignores_a_lone_phase_heading_among_real_sections():
+    """A single `Phase 0` plus branch sections is not a one-phase command (fabrik-release)."""
+    from assemble_commands import _phase_count  # noqa: PLC0415
+
+    text = "## Termination\n## Phase 0 — resolve\n## VPS path\n## MOBILE path\n## Output\n"
+    assert _phase_count(text) == 5
+
+
+def test_phase_count_never_returns_zero():
+    """`--phases 0` would make a record that can never show progress."""
+    from assemble_commands import _phase_count  # noqa: PLC0415
+
+    assert _phase_count("prose with no headings at all\n") == 1

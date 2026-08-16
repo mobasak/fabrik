@@ -8,6 +8,7 @@ asserts is verifiable in the tree/infra, and everything the code obligates the d
 One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the
 single-doc deep converge).
 
+{{include:run-record}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope + pick the contract

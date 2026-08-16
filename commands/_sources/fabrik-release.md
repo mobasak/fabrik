@@ -7,6 +7,7 @@ Run this project's **release path** — the bridge from "gate-green code" to the
 approval is the operator's, always). This command **verifies and prepares; it never ships**: no `fabrik apply`,
 no `eas submit --auto`, no Web Store "Submit for Review" click, no store credential use.
 
+{{include:run-record}}
 ## ⚠️ Termination contract
 
 You are done when EVERY item of the surface's checklist below has a verdict — **PASS (with evidence: a

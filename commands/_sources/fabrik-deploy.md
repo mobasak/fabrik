@@ -14,6 +14,7 @@ protocol: a halted deploy unwinds (the rollback columns exist precisely for this
 `/fabrik-deploy-plan-review`, and returns as an AMENDED, re-converged plan whose runbook already accounts
 for anything that deliberately survived the halt.
 
+{{include:run-record}}
 ## ⚠️ Termination contract
 
 This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the

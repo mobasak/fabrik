@@ -153,6 +153,25 @@ for r in results:
 
 The vendor-ladder verdict (1b), the Q&A (Phase 2), and the decide/refute/merge stay yours — native `fabrik-researcher` (records nothing): verify-sample → Haiku (Sonnet for a nuanced source), Opus for synthesis / vendor-ladder / decide."""
 
+def _phase_count(text: str) -> int:
+    """How many phases this command declares — for the run record's `--phases`.
+
+    Commands write phase headings three ways (`## Phase 3 — …`, `## PHASE 3 —`, and a few
+    with none at all), so count the explicit phase headings first and fall back to the
+    top-level section count. Never returns 0: a record opened with `--phases 0` can never
+    show progress.
+    """
+    phases = len(re.findall(r"^#{2,3}\s+PHASE\s+\d", text, flags=re.M | re.I))
+    sections = len(re.findall(r"^##\s+\S", text, flags=re.M))
+    # A lone "Phase 0" heading among several real sections (e.g. /fabrik-release, whose
+    # work then branches into VPS/MOBILE/STORE paths) is not a one-phase command — taking
+    # the literal count there would make the pinned RUN: line claim the run is finished
+    # while most of it is still ahead. Trust the phase headings only once they enumerate.
+    if phases >= 2:
+        return phases
+    return max(sections, 1)
+
+
 PARAMS = {
     "fabrik-data-contract": {
         "term-edit": {"ARTIFACT": "contract", "DONE_ACT": "flip `Status: DRAFT → FROZEN`", "DONE_WORD": "FROZEN",
@@ -387,13 +406,21 @@ def render(dest: Path, skills_dest: Path | None = None):
         # already benign — the default makes the guarantee explicit rather than
         # incidental, so a later refactor that defers the call can't misattribute
         # a render error to the wrong command.
-        def sub(m, name=name):
+        def sub(m, name=name, src=text):
             fr = m.group(1)
             body = frags.get(fr)
             if body is None:
                 errs.append(f"{name}: unknown fragment {fr}")
                 return m.group(0)
-            for k, v in PARAMS.get(name, {}).get(fr, {}).items():
+            params = dict(PARAMS.get(name, {}).get(fr, {}))
+            if fr == "run-record":
+                # Computed, never hand-written: the run record's two values are the command's
+                # own name and its own phase count, both derivable from the source. Hand-authored
+                # PARAMS for 24 commands would drift the moment a phase is added — and a wrong
+                # phase count makes the pinned RUN: line lie about where the run is.
+                params.setdefault("COMMAND", name)
+                params.setdefault("PHASES", str(_phase_count(src)))
+            for k, v in params.items():
                 body2 = body.replace("{{" + k + "}}", v)
                 body = body2
             return body

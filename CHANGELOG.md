@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the run record was armed on 3 of 27 commands (2026-08-16)
+
+`CLAUDE.md` makes opening a run record the first act of any `/fabrik-*` invocation, and the Stop
+hook's fifth cause refuses to end a turn while one says `running`. It was wired into three commands.
+For the other 24 the pinned `RUN:` line, the class ledger, the non-convergence detector and the hook
+were all inert — the machinery built to stop half-executed commands could not fire for 89% of them.
+
+- New shared fragment `commands/_fragments/run-record.md`, included by all 24 commands that lacked a
+  block; the three bespoke ones keep their richer round-aware versions.
+- Its `{{COMMAND}}`/`{{PHASES}}` are computed at RENDER time (`assemble_commands.py::_phase_count`),
+  never hand-written — 24 hand-authored parameter sets would drift on the next phase added, and a
+  wrong phase count makes the pinned line lie about where the run is. `_phase_count` trusts explicit
+  `## Phase N` headings only once there are ≥2: `/fabrik-release` declares a lone `Phase 0` then
+  branches into VPS/MOBILE/STORE sections, where the literal count would report the run finished
+  with most of it still ahead.
+- `check_command_corpus.py` gains a fifth BLOCKING predicate so a future command cannot ship without
+  one; `--selftest` now proves all five fire.
+
 ### Fixed — command-corpus audit: research grounders were dispatched with NO tools (2026-08-16)
 
 The 27 `/fabrik-*` command sources had never been audited against the live implementation. The audit

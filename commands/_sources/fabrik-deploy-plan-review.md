@@ -11,6 +11,7 @@ class definitions live in `docs/development/reviews/2026-08-10-tryton-crm-deploy
 **Author-blindness is the point:** if this session authored the plan, the grounding passes below still
 re-open every file — the author's memory of a file is not a read.
 
+{{include:run-record}}
 ## ⚠️ Termination contract — READ FIRST (the rule agents skip)
 
 This is a LOOP, not a one-shot. It ends — and you may flip `Status: DRAFT → CONVERGED` — **only when a

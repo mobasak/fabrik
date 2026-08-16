@@ -12,6 +12,7 @@ classes named below (A1, A5, B1, B2, B3, M2, M3) are defined in
 `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md` — the review whose findings
 seeded this command's section list; each is also glossed inline where it binds.
 
+{{include:run-record}}
 ## ⚠️ Termination contract
 
 This run has exactly FIVE legitimate endings:

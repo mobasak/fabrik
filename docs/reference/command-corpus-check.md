@@ -28,7 +28,7 @@ grounded that way was ungrounded. No gate, test, or review caught it while the t
 
 ## What it proves
 
-Four mechanically decidable facts — no judgement, no network:
+Five mechanically decidable facts — no judgement, no network:
 
 | # | Check | Caught live |
 |---|---|---|
@@ -36,6 +36,7 @@ Four mechanically decidable facts — no judgement, no network:
 | 2 | Every `/fabrik-x` · `/design-review` chain reference resolves to a real source | — |
 | 3 | Every `scripts/**.py` a command tells an agent to run exists | — |
 | 4 | `Co-Authored-By:` in commit templates matches CLAUDE.md's canonical trailer | 6 templates naming a retired model |
+| 5 | Every command opens a run record (shared fragment or a bespoke `start` block) | 24 of 27 opened none |
 
 BLOCKING, because each is true/false with no tolerance band — and each was found violated
 in a corpus that looked healthy.
@@ -47,6 +48,22 @@ never broken, and a check that cries wolf gets ignored — which is how a real b
 ships. The boundary lookarounds in `_CHAIN_RE` encode this, and
 `test_path_lookalikes_are_not_chain_references` locks it.
 
+### Predicate 5 in detail — why coverage was the whole problem
+
+`CLAUDE.md` makes opening a run record the first act of any `/fabrik-*` invocation, and the Stop
+hook's fifth cause refuses to end a turn while a record says `running`. That machinery existed and
+was wired into **3 of 27** commands. For the other 24 the pinned `RUN:` line, the class ledger, the
+non-convergence detector and the hook were all disarmed — which is precisely the "agents stop
+without finishing the command" complaint the record was built to answer.
+
+The fix is a shared `{{include:run-record}}` fragment whose two values — the command's name and its
+phase count — are **computed at render time** by `assemble_commands.py::_phase_count`, never
+hand-written per command. Hand-authored parameters for 24 commands would drift the moment a phase
+was added, and a wrong phase count makes the pinned line lie about where the run is. `_phase_count`
+trusts explicit `## Phase N` headings only once there are at least two of them: `/fabrik-release`
+declares a lone `Phase 0` and then branches into VPS/MOBILE/STORE sections, so the literal count
+would claim the run was finished with most of it still ahead.
+
 ## Anti-vacuity
 
 `--selftest` feeds a known-bad corpus through the same predicates and requires **each** to
@@ -54,7 +71,7 @@ fire, then a known-good one and requires silence:
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: all 4 predicates fire on bad input and stay silent on good input
+✓ selftest: all 5 predicates fire on bad input and stay silent on good input
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

@@ -21,6 +21,7 @@ someone re-grounds the contract against the spec, the data contract, the design 
    live screen. Complements #2.
 This command is #1: it never opens a browser — it grounds text against text.
 
+{{include:run-record}}
 {{include:term-edit}}
 (After the no-op: the approval gate at the end.)
 

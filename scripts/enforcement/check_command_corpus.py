@@ -19,7 +19,7 @@ unknown name yields an EMPTY list, whereupon ``merged.pop("tools")`` runs the
 plan grounded that way was ungrounded, and no gate, test, or human review caught
 it for as long as the text stood.
 
-WHAT IT PROVES (all four are mechanically decidable — no judgement, no network)
+WHAT IT PROVES (all five are mechanically decidable — no judgement, no network)
 ------------------------------------------------------------------------------
 1. WEB-TOOL NAMES  — every ``web_tools=[...]`` literal names only real tools,
    imported live from ``WEB_TOOL_NAMES`` rather than copied here (a copy drifts).
@@ -33,8 +33,10 @@ WHAT IT PROVES (all four are mechanically decidable — no judgement, no network
 4. TRAILER MODEL   — the ``Co-Authored-By:`` in copy-paste commit templates matches
    the canonical example in ``CLAUDE.md``, so templates cannot stamp a retired
    model into provenance trailers (found live: six templates said "Opus 4.8").
+5. RUN RECORD      — every command opens one, so the Stop hook can block an abandoned
+   run (it was wired into 3 of 27 when this check was written).
 
-BLOCKING. Each of the four is a true/false fact about the tree with no tolerance
+BLOCKING. Each of the five is a true/false fact about the tree with no tolerance
 band, and every one of them was found VIOLATED in a corpus that looked healthy.
 
 Anti-vacuity: ``--selftest`` feeds a known-bad corpus through the same predicates
@@ -105,6 +107,21 @@ def audit(
     known_commands = {p.stem for p in sources.glob("*.md")}
     canonical_model = _canonical_trailer_model()
 
+    # 5. RUN RECORD — CLAUDE.md makes opening one the first act of any /fabrik-* invocation,
+    # and the Stop hook's fifth cause reads it. It was wired into 3 of 27 commands, so for the
+    # other 24 the pinned RUN: line, the class ledger, the non-convergence detector and the
+    # hook all stayed disarmed — which is exactly the "agents stop without finishing the
+    # command" failure the record was built to prevent. A command may carry the shared
+    # fragment or its own bespoke `start` block; having neither is the defect.
+    for path in sorted(sources.glob("*.md")):
+        body = path.read_text(encoding="utf-8", errors="replace")
+        if "{{include:run-record}}" not in body and "command_run.py start" not in body:
+            problems.append(
+                f"{path.relative_to(repo) if path.is_relative_to(repo) else path}: opens no run "
+                "record — add `{{include:run-record}}` (or a bespoke `command_run.py start` block). "
+                "Without it the Stop hook cannot block an abandoned run."
+            )
+
     for path in files:
         text = path.read_text(encoding="utf-8", errors="replace")
         # Never bare `relative_to`: it raises on any path outside the repo (temp-dir
@@ -146,13 +163,14 @@ def _selftest() -> int:
         src, frag = root / "_sources", root / "_fragments"
         src.mkdir()
         frag.mkdir()
-        (src / "fabrik-real.md").write_text("placeholder\n")
+        (src / "fabrik-real.md").write_text("placeholder\n{{include:run-record}}\n")
 
         cases = {
             "web-tool name": 'fanout("research", web_tools=["exa","brave"])\n',
             "chain target": "then run /fabrik-does-not-exist to finish\n",
             "script path": "run `scripts/enforcement/check_no_such_thing.py`\n",
             "trailer model": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n",
+            "run record": "a command body that never opens a run record\n",
         }
         for label, bad in cases.items():
             probe = src / "fabrik-probe.md"
@@ -163,6 +181,7 @@ def _selftest() -> int:
 
         good = src / "fabrik-good.md"
         good.write_text(
+            "{{include:run-record}}\n"
             'fanout("research", web_tools=["web_search","docs_lookup"])\n'
             "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
             "run `scripts/enforcement/check_command_corpus.py`\n"
@@ -198,7 +217,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {line}")
         return 1
     print(
-        "✓ command corpus: web-tool names, chain targets, script paths, trailer models all resolve"
+        "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
+        " run records — all sound"
     )
     return 0
 

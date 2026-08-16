@@ -25,6 +25,7 @@ string, and never by asking):
   the hub) — a `/opt/fabrik` **worktree** IS hub-repo: edit the canonical source directly there, never
   file a proposal to yourself.
 
+{{include:run-record}}
 {{include:repo-identity}}
 
 ## ⚠️ Termination contract

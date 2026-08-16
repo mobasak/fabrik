@@ -24,6 +24,7 @@ design-first layer between the design *system* (how things look) and the build �
    then pass **`/fabrik-ui-design-review`** (an independent adversarial no-op round) — before any plan —
    Traycer or `/fabrik-plan-after-chat` — consumes it.
 
+{{include:run-record}}
 {{include:term-edit}}
 (This command owns the AUTHOR'S self-convergence; the separate `/fabrik-ui-design-review` runs the INDEPENDENT author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`.)
 

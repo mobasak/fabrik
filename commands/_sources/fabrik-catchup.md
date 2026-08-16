@@ -9,6 +9,7 @@ already owns that fix. This command never reconciles a doc or contract itself �
 `/fabrik-doc-converge`, `/fabrik-features`, `/fabrik-data-contract`, and `/fabrik-ui-design`, each of
 which owns its own convergence loop.
 
+{{include:run-record}}
 ## ⚠️ Termination contract
 
 This is a bounded MEASURE → QUEUE → EXECUTE run, not an open-ended loop. You are done **only when a

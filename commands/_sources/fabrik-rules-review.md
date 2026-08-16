@@ -30,6 +30,7 @@ the finding upstream to `/opt/fabrik` instead.
 - **Does the rule's `globs:` actually fire where the violation is written?** A perfectly-worded rule in a pack
   whose glob never matches the offending file is **theatre**. Verify against `scripts/select_rules.py`.
 
+{{include:run-record}}
 {{include:grounding-artifact}}
 - Verify globs via `scripts/select_rules.py` — a plausible-looking glob is not proof it matches.
 

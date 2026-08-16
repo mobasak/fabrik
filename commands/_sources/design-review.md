@@ -43,3 +43,4 @@ Follow and implement THIS project's design contract as the design principles + s
 2. The **design system**: `.windsurf/rules/core/ocoron-design-system.md` (or `tojlo-design-system.md`) + `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy.
 3. A project-local `context/design-principles.md` / `context/style-guide.md` if present.
 If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist.
+{{include:run-record}}

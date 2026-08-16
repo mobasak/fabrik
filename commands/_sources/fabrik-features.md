@@ -8,6 +8,7 @@ certification gauntlets treat every FEATURES row as inventory ("a TESTED contrac
 reconcile bidirectionally — so **a missing row is a feature that never gets tested, and a stale row is a
 test that can never pass**. This command exists to make that denominator complete BEFORE certification.
 
+{{include:run-record}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope

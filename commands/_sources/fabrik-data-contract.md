@@ -17,6 +17,7 @@ listed here.** This is the seam between design and build:
 reach `FROZEN` (an edit-free convergence round) before `/fabrik-plan-after-chat` consumes it — a plan built on a
 half-agreed field list is the exact drift this command exists to prevent.
 
+{{include:run-record}}
 {{include:term-edit}}
 ## Phase 0 — Establish MODE + scope
 

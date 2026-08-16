@@ -10,6 +10,7 @@ catch — are **(1) an external fact taken from training memory or backed by a d
 **(2) a fabrik-lib verdict that reinvents what already exists** — both invisible until someone re-verifies
 against the real world.
 
+{{include:run-record}}
 {{include:term-edit}}
 (After the no-op: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)
 

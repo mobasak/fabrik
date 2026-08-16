@@ -5,6 +5,7 @@ argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — 
 
 Converge this plan to a fixed point — do not stop after one pass. **Fixed point = one full, demonstrably-thorough review pass that changes nothing;** the pass in which you *made* edits is never the last one.
 
+{{include:run-record}}
 {{include:term-edit}}
 (This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
 

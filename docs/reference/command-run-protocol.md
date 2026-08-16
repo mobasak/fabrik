@@ -108,6 +108,25 @@ naming the sequence and that diagnosis. It is **advisory only and never blocks**
 be trapped by a heuristic, and a legitimately widening review (a fix that opens a new surface) must be
 able to say so and continue.
 
+## Coverage — which commands open a record
+
+**All 27.** Until 2026-08-16 it was three (`/fabrik-review`, `/fabrik-execute-plan`,
+`/fabrik-docs-review`), so for the other 24 every mechanism on this page — the pinned `RUN:` line,
+the class ledger, the non-convergence detector, the Stop hook's fifth cause — was inert. The
+protocol was sound and simply not wired in, which is indistinguishable from not having it.
+
+Coverage is now structural rather than remembered:
+
+- `commands/_fragments/run-record.md` is the shared block; a command includes it with
+  `{{include:run-record}}`, placed as the first thing after its frontmatter.
+- `assemble_commands.py` fills the fragment's `{{COMMAND}}` and `{{PHASES}}` **at render time**
+  from the source itself (`_phase_count`), so a new command or a new phase needs no bookkeeping.
+- `scripts/enforcement/check_command_corpus.py` FAILS the gate on any command source that carries
+  neither the fragment nor its own `command_run.py start` block — the three bespoke commands keep
+  their richer, round-aware blocks and satisfy it that way.
+
+See `docs/reference/command-corpus-check.md` § Predicate 5.
+
 ## Enforcement — the Stop hook's fifth cause
 
 `.claude/hooks/final_gate_stop.py` had four causes (gate red · own uncommitted · own unpushed ·

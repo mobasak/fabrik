@@ -11,6 +11,7 @@ orchestrator: subagents drive the browser/device; you own the inventory, the jou
 refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 **Coverage is a reconciled number against discovered denominators — never a feeling.**
 
+{{include:run-record}}
 {{include:autonomy-run}}
 {{include:term-coverage}}
 {{include:injection}}
