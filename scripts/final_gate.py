@@ -138,12 +138,28 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         return 1, f"Command not found: {cmd[0]}"
 
 
+# Rows whose check has NO failing exit path — declared at registration with
+# `warn_only=True`. They can never turn the gate red, and until 2026-08-16 they printed
+# the SAME `[PASS]` as a check that genuinely blocks, so a green gate could not be read:
+# eight registered checks were each handed a real violation, each PRINTED it, and each
+# exited 0. The set is the display layer's source of truth — `print_step` marks these rows
+# `[ADVISORY]` and `--json` reports them under `advisory`, so "which rows can never fail"
+# is answerable at a glance instead of by reading eight enforcement scripts.
+#
+# NOT the same flag as `advisory=`: that one only preserves stdout on exit 0, and several
+# checks carrying it (check_docker, check_env_contract, check_doc_sprawl --strict,
+# check_lint_ratchet, check_subagent_flywheel) DO fail the gate on a real defect. Blocking
+# is about the exit code; `warn_only` is a claim about the check's contract.
+WARN_ONLY_CHECKS: set[str] = set()
+
+
 def run_optional_check(
     script_path: str,
     check_name: str,
     *args: str,
     module: str | None = None,
     advisory: bool = False,
+    warn_only: bool = False,
 ) -> tuple[str, bool, str]:
     """Run an optional enforcement check, skipping if script doesn't exist.
 
@@ -153,10 +169,18 @@ def run_optional_check(
         *args: Additional command arguments
         module: If provided, run as 'python -m <module>' instead of direct script
         advisory: If True, preserve stdout even on exit 0 (for warning-level checks)
+        warn_only: If True, this check has no failing exit path by contract. Implies
+            `advisory` (its stdout IS its whole product) and marks the row non-blocking
+            in every output mode. It never weakens enforcement: a warn_only check that
+            somehow exits non-zero still FAILS the gate, and says so — a broken contract
+            is a louder finding than a quiet one, not a quieter one.
 
     Returns:
         (check_name, passed, message) tuple
     """
+    if warn_only:
+        WARN_ONLY_CHECKS.add(check_name)
+        advisory = True
     full_path = PROJECT_ROOT / script_path
     if not full_path.exists():
         # VISIBLE, not silently green (fabrik-lib finding 2026-08-14): a deleted or
@@ -171,6 +195,13 @@ def run_optional_check(
     else:
         code, out = run_cmd([PYTHON, str(full_path)] + list(args))
     if code != 0:
+        if warn_only:
+            # The declaration is now false. Fail (never weaken enforcement) and name the
+            # broken contract, so the fix is "drop the warn_only flag", not "hunt the row".
+            out = (
+                f"{check_name} is registered warn_only=True but exited {code} — its "
+                f"contract changed; drop `warn_only=True` at its registration.\n{out}"
+            )
         return (check_name, False, out)
     # Advisory checks: preserve stdout (warnings) even on success
     return (check_name, True, out.strip() if advisory else "")
@@ -272,8 +303,16 @@ def print_header(title: str) -> None:
 
 
 def print_step(name: str, passed: bool, output: str = "") -> None:
-    """Print step result."""
-    status = f"{GREEN}PASS{RESET}" if passed else f"{RED}FAIL{RESET}"
+    """Print step result.
+
+    A row whose check was registered `warn_only=True` prints `[ADVISORY]`, not `[PASS]`.
+    Both are exit-0 rows, but only one of them COULD have been red — and an operator
+    reading a green gate has no other way to tell them apart.
+    """
+    if passed and name in WARN_ONLY_CHECKS:
+        status = f"{YELLOW}ADVISORY{RESET}"
+    else:
+        status = f"{GREEN}PASS{RESET}" if passed else f"{RED}FAIL{RESET}"
     print(f"  [{status}] {name}")
     if not passed and output:
         for line in output.split("\n")[:10]:  # Limit output
@@ -738,7 +777,13 @@ def run_consistency_checks(
             run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
         )
         results.append(
-            run_optional_check("scripts/enforcement/check_env_vars.py", ".env Updates (Secrets)")
+            # Named for what it CHECKS. It used to share the display name ".env Updates
+            # (Secrets)" with check_env_updates.py — two rows, one label, different
+            # severities: this one blocks on a hardcoded localhost DSN, that one could
+            # not fail at all. (check_env_updates is unwired below.)
+            run_optional_check(
+                "scripts/enforcement/check_env_vars.py", "Hardcoded localhost/127.0.0.1 Ban"
+            )
         )
         # Phantom imports — shipped code importing a module that is NOT IN THE REPO (gitignored, or vendored
         # but never `git add`ed). Green locally (the file sits on this disk), ModuleNotFoundError in CI and in
@@ -815,8 +860,9 @@ def run_consistency_checks(
             results.append(
                 run_optional_check(
                     "scripts/enforcement/check_mutation.py",
-                    "Mutation (advisory, opt-in FABRIK_MUTMUT)",
-                    advisory=True,
+                    "Mutation (opt-in FABRIK_MUTMUT)",
+                    # "Always exits 0" above is the contract; declare it so the row says so.
+                    warn_only=True,
                 )
             )
         finally:
@@ -824,20 +870,33 @@ def run_consistency_checks(
                 os.environ["FABRIK_MUTMUT"] = _mutmut_leak
         # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
         # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
-        # Advisory + fail-safe (always exits 0); the doc set is the registry SSOT.
+        # ADVISORY (B, 2026-08-16 registration audit). Fail-safe by design — every path of
+        # `main()` returns 0 — so `warn_only=True` is a statement of the check's real
+        # contract, not a downgrade. Measured before deciding: 16 of 44 /opt repos still
+        # ship a stub `docs/QUICKSTART.md`, so promoting it would red a third of the fleet
+        # the next time any of them touches a route.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_doc_stubs.py",
-                "Doc stub fill (advisory)",
-                advisory=True,
+                "Doc stub fill",
+                warn_only=True,
             )
         )
         # Script coupling header — each staged scripts/**/*.py declares (via a
-        # `# AFTER-EDIT:` header) the files to update when it changes. WARN-tier,
-        # touch-on-change (mirrors Doc Sync); never blocks.
+        # `# AFTER-EDIT:` header) the files to update when it changes. Touch-on-change
+        # (mirrors Doc Sync).
+        # ADVISORY (B, 2026-08-16 registration audit). CLAUDE.md documents this row as
+        # "Gate-enforced (WARN)" and the check's own docstring defers promotion until the
+        # active scripts are headered — they are not: 427 headerless `scripts/**/*.py`
+        # across 36 of 44 /opt repos, 107 in the hub alone. It was ALSO registered without
+        # `advisory`, so `run_optional_check` discarded its stdout on exit 0 and the WARNs
+        # it exists to emit reached nobody. `warn_only=True` restores the text and labels
+        # the row for what it is.
         results.append(
             run_optional_check(
-                "scripts/enforcement/check_script_headers.py", "Script Coupling Header"
+                "scripts/enforcement/check_script_headers.py",
+                "Script Coupling Header",
+                warn_only=True,
             )
         )
         # Print/console.log ban in production code
@@ -942,11 +1001,17 @@ def run_consistency_checks(
                 "INDEX.md ↔ docs tree drift",
             )
         )
+        # ADVISORY (B, 2026-08-16 registration audit). The check is honest in its own source
+        # (`return 0  # ALWAYS — WARN-only by contract`) and the hub currently carries 73
+        # WARNs, so promoting it would red the hub on its own docs before any project saw
+        # it. `warn_only=True` moves that contract into the gate's OUTPUT, where it was
+        # previously invisible — `advisory=True` alone kept the text but still printed
+        # `[PASS]`, indistinguishable from a check that can bite.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_retired_terms.py",
-                "Retired-Tech Tripwire (advisory)",
-                advisory=True,
+                "Retired-Tech Tripwire",
+                warn_only=True,
             )
         )
         results.append(
@@ -990,34 +1055,67 @@ def run_consistency_checks(
         )
         # (CONFIGURATION.md ← .env.example and QUICKSTART ← API routes are now
         # folded into "Doc Sync Matrix".)
-        results.append(
-            run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
-        )
+        # UNWIRED — check_env_updates.py (was ".env Updates (Secrets)", a display name it
+        # SHARED with the blocking check_env_vars.py row above; two rows, one label).
+        # Measured 2026-08-16: it compares `.env.example` against `.env`, and `.env` is
+        # gitignored, machine-local and secret-bearing — it is not part of the change under
+        # gate and legitimately omits every optional var, so the rule can never be a
+        # property of the commit. 482 divergences across 17 of 44 /opt repos (seo=87,
+        # trade-intelligence=56, brand-identiy-creator=56) confirm the convention was never
+        # adopted; making it visible would have added 87 warning lines to one repo's every
+        # gate run. Its second rule (".env.example updated but no .env exists") is a
+        # workstation nudge, not a repo invariant. Runnable by hand:
+        # `python scripts/enforcement/check_env_updates.py`.
+        #
+        # UNWIRED — check_test_coverage.py (was "Test Coverage (New Code)").
+        # Measured 2026-08-16: 2063 findings across 20 of 44 /opt repos, 295 in the hub.
+        # Its rule — every new public `def`/`class` under `src/` must have a test — is the
+        # rule this codebase explicitly REJECTS: the Behavior Contract is "one test per
+        # user-observable behavior, skip trivia … NOT 100%-coverage dogma". Its evidence is
+        # a name-substring proxy too (`function_tested` greps `<name>(` anywhere under
+        # `tests/`, so any collision with a test helper reads as covered), and it only sees
+        # `src/`, which the hub's own logic — `scripts/`, `libs/` — never enters. The real
+        # coverage gate is check_test_proposal + the phase-boundary review. Runnable by
+        # hand: `python scripts/enforcement/check_test_coverage.py`.
+        #
+        # ADVISORY (B, 2026-08-16 registration audit) — .env.example completeness.
+        # A real Doc Sync Matrix rule ("New env var → .env.example + CONFIGURATION.md") that
+        # NO other check covers: check_doc_sync only fires .env.example → CONFIGURATION.md,
+        # never code → .env.example. But 44 of 44 /opt repos already violate it — 2223
+        # undeclared vars, 240 in the hub — so a promotion is a fleet incident, not a gate.
+        # Decomposed by pattern before deciding: `os.getenv` 1720, `os.environ.get` 535,
+        # `os.environ[...]` 88, `settings.X` 1 — the finding is genuine reads, not a loose
+        # regex. It was registered without `advisory`, so its stdout was DISCARDED on exit
+        # 0: a check that could neither fail nor speak.
         results.append(
             run_optional_check(
-                "scripts/enforcement/check_test_coverage.py", "Test Coverage (New Code)"
+                "scripts/enforcement/check_env_example.py",
+                ".env.example Completeness",
+                warn_only=True,
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_env_example.py", ".env.example Completeness"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_compose_services.py", "Compose Services Docs"
-            )
-        )
+        # UNWIRED — check_compose_services.py (was "Compose Services Docs").
+        # Measured 2026-08-16, and unwired for its LOGIC, not its volume (30 findings across
+        # 19 of 44 repos). Two independent structural faults: (1) `get_new_services` only
+        # enters its services block when `services:` itself is an ADDED diff line, so it
+        # sees a brand-new compose file and is BLIND to the actual case — a service added to
+        # an existing compose, where `services:` is context; (2) `service_documented` is a
+        # case-insensitive substring over 4 docs, so `app`/`api`/`db`/`web` match any README
+        # trivially. The surviving intent (compose changed → SERVICES.md + OPERATIONS.md) is
+        # already carried by check_doc_sync (scripts/enforcement/check_doc_sync.py:324-328).
+        # Runnable by hand: `python scripts/enforcement/check_compose_services.py`.
         results.append(
             run_optional_check("scripts/enforcement/check_user_guide.py", "User Guide Presence")
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_reusable_modules.py",
-                "Reusable Module Tagging",
-                advisory=True,
-            )
-        )
+        # UNWIRED — check_reusable_modules.py (was "Reusable Module Tagging").
+        # Measured 2026-08-16: 0 findings fleet-wide, because the UNIVERSE is empty — not
+        # one of the 44 /opt repos has a `src/utils/` or `src/lib/` directory, the only two
+        # the check looks in, so `main()` returns at its `if not modules` guard in every
+        # repo on the box. The `[reusable]` INDEX.md tag it enforces IS a live convention
+        # (apidoccreator, site-provisioner, trade-intelligence, fabrik-citation-verifier all
+        # use it) — on `src/services/`, `src/api/`, `src/lib/*.ts`. It is the hardcoded
+        # two-directory layout that was never adopted, the same shape as check_watchdog
+        # above. Runnable by hand: `python scripts/enforcement/check_reusable_modules.py`.
         # Behavior-Contract test accompaniment — WARN when an ACTIVE plan-execution window
         # (lock baseline..HEAD) declares Given rows and touched source with ZERO test changes.
         # Whole-window by design; per-row coverage stays the phase-boundary review's. Always
@@ -1026,8 +1124,11 @@ def run_consistency_checks(
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_phase_tests.py",
-                "Phase Tests (advisory, plan-window)",
-                advisory=True,
+                "Phase Tests (plan-window)",
+                # No `return 1` exists in this script — both the warned and the fail-soft
+                # branch return 0. Declared, so the row prints [ADVISORY] rather than a
+                # [PASS] it could never have lost.
+                warn_only=True,
             )
         )
         # Ticket breadth — WARN when a ticket in a CHANGED plan set exposes many
@@ -1045,8 +1146,11 @@ def run_consistency_checks(
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_ticket_breadth.py",
-                "Ticket Breadth (advisory, plan sets)",
-                advisory=True,
+                "Ticket Breadth (plan sets)",
+                # `--strict` is its only non-zero exit (check_ticket_breadth.py:516) and the
+                # gate deliberately never passes it, so this ROW cannot fail even though the
+                # check can. Declared here so the two are not confused.
+                warn_only=True,
             )
         )
 
@@ -1172,6 +1276,14 @@ def run_consistency_checks(
                 "scripts/enforcement/check_vps_docs.py",
                 "VPS Docs Freshness",
                 module="scripts.enforcement.check_vps_docs",
+                # Every finding this check can construct is Severity.WARN, yet its
+                # `__main__` used to exit 1 on ANY finding — a warning-level condition
+                # redding a blocking gate row (it is red on the hub right now purely
+                # because two operations docs have not been regenerated). The exit code now
+                # follows the severity, `--strict` is the activation switch, and the row is
+                # declared for what it is. Promotion is a matter of the check growing an
+                # ERROR severity, not of the gate re-reading a WARN as a failure.
+                warn_only=True,
             )
         )
         validate_conv = PROJECT_ROOT / "scripts/enforcement/validate_conventions.py"
@@ -1765,11 +1877,22 @@ def main() -> int:
     if args.json:
         import json
 
+        # Rows that CANNOT fail, named. `passed` counts them like any other green row, so
+        # without this an operator reading `"passed": 21` cannot tell how many of those 21
+        # were ever at risk. Registered warn-only rows carry their whole product in stdout,
+        # so it ships here too (the `warnings` list below only collects ⚠-prefixed output).
+        advisory_rows = [
+            {"check": name, "output": output[:500]}
+            for name, ok, output in all_results
+            if ok and name in WARN_ONLY_CHECKS
+        ]
         result = {
             "status": "success" if not failed else "failure",
             "tier": tier,
             "passed": passed_count,
             "failed": len(failed),
+            "advisory": advisory_rows,
+            "blocking": passed_count - len(advisory_rows),
             "failures": [
                 {"check": name, "output": output[:500]}  # Truncate long outputs
                 for name, _, output in failed
@@ -1794,9 +1917,17 @@ def main() -> int:
         return 0 if not failed else 1
 
     # Human-readable output mode
+    advisory_names = [name for name, ok, _ in all_results if ok and name in WARN_ONLY_CHECKS]
     print_header("SUMMARY")
-    print(f"  {GREEN}Passed:{RESET} {passed_count}")
+    print(f"  {GREEN}Passed:{RESET} {passed_count} ({passed_count - len(advisory_names)} blocking)")
     print(f"  {RED}Failed:{RESET} {len(failed)}")
+    if advisory_names:
+        print(
+            f"  {YELLOW}Advisory:{RESET} {len(advisory_names)} "
+            f"(non-blocking — these rows can never go red)"
+        )
+        for name in advisory_names:
+            print(f"    - {name}")
 
     if failed:
         print(f"\n{RED}Failed checks:{RESET}")

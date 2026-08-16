@@ -516,9 +516,14 @@ def test_a_liveness_audit_that_did_not_run_yields_a_dash_not_zero(repo: Path) ->
 def test_liveness_context_reports_inert_checks_and_stale_docs() -> None:
     report = _heartbeat(_surface("a", "LIVE"))
     report["proofs"]["vacuity"]["findings"] = [
-        {"id": "check_ok", "verdict": "LIVE", "instrument_fault": ""},
-        {"id": "check_dead", "verdict": "DEAD", "instrument_fault": ""},
-        {"id": "check_unproven", "verdict": "UNKNOWN", "instrument_fault": "no canary authored"},
+        {"id": "check_ok", "verdict": "LIVE", "kind": "check", "instrument_fault": ""},
+        {"id": "check_dead", "verdict": "DEAD", "kind": "check", "instrument_fault": ""},
+        {
+            "id": "check_unproven",
+            "verdict": "UNKNOWN",
+            "kind": "check",
+            "instrument_fault": "no canary authored",
+        },
     ]
     report["proofs"]["doc_claim"] = {
         "findings": [{"id": "docs/workstation/x.md:9", "verdict": "DEAD", "instrument_fault": ""}],
@@ -526,6 +531,27 @@ def test_liveness_context_reports_inert_checks_and_stale_docs() -> None:
     }
     lines = "\n".join(km.liveness_context(report, ""))
 
+    assert "1 blocking rows proven able to FAIL" in lines
     assert "1 INERT (check_dead)" in lines
     assert "1 UNPROVEN" in lines
     assert "1 STALE across 19 workstation doc(s)" in lines
+
+
+def test_liveness_context_never_counts_an_advisory_row_as_able_to_fail() -> None:
+    """LIVE is not one thing.
+
+    A row declared `warn_only=True` in `final_gate.py`, and an unwired diagnostic, are LIVE when
+    they can SPEAK — neither has a failing exit path. Rolling them into "proven able to fail"
+    would overstate enforcement by exactly the count of rows that can never fail, which is the
+    finding the vacuity proof exists to surface.
+    """
+    report = _heartbeat(_surface("a", "LIVE"))
+    report["proofs"]["vacuity"]["findings"] = [
+        {"id": "check_real", "verdict": "LIVE", "kind": "check", "instrument_fault": ""},
+        {"id": "check_adv", "verdict": "LIVE", "kind": "check(advisory)", "instrument_fault": ""},
+        {"id": "check_off", "verdict": "LIVE", "kind": "check(unwired)", "instrument_fault": ""},
+    ]
+    lines = "\n".join(km.liveness_context(report, ""))
+
+    assert "1 blocking rows proven able to FAIL" in lines
+    assert "2 advisory/unwired proven to REPORT" in lines

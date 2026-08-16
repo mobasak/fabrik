@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — INERT GATE REGISTRATIONS: 8 checks that could not fail, decided one at a time (2026-08-16)
+
+The canary sweep proved **8 registered `final_gate.py` checks have no failing exit path**. Each was
+handed a real violation, each PRINTED it, each exited 0 — beside checks that genuinely block, in an
+IDENTICAL green `[PASS]` row. Four (`check_compose_services`, `check_env_example`, `check_env_updates`,
+`check_test_coverage`) were not even registered `advisory=True`, so `run_optional_check` discarded their
+stdout on exit 0: completely silent rows. Every decision below is measured, and the measurement is
+written where the registration is (full table: `docs/workflows/FINAL_GATE_WORKFLOW.md` § Advisory rows).
+
+- **Declared ADVISORY** (`warn_only=True` — the row prints `[ADVISORY]`, its stdout survives):
+  `check_env_example` (2223 undeclared vars, 44/44 `/opt` repos — a real Doc-Sync rule no other check
+  covers, unpromotable), `check_script_headers` (427 headerless scripts, 36/44 repos; CLAUDE.md already
+  documents it as WARN), `check_retired_terms` (73 open hub WARNs; `return 0  # ALWAYS` is its written
+  contract), `check_doc_stubs` (16/44 repos still ship a stub `docs/QUICKSTART.md`). Also declared:
+  `check_phase_tests`, `check_ticket_breadth`, `check_mutation`, `check_vps_docs` — already toothless in
+  the gate, now labelled as such.
+- **UNWIRED with the measurement that retired it** (hand-runnable diagnostics, no gate row):
+  `check_env_updates` (asserts about `.env` — gitignored, machine-local, never part of the commit under
+  gate; 482 divergences, 17/44 repos), `check_test_coverage` (2063 findings, 20/44 repos; its rule is the
+  100%-coverage dogma the Behavior Contract rejects, on a name-substring proxy), `check_compose_services`
+  (blind to a service added to an EXISTING compose — it only enters its services block when `services:`
+  is itself an ADDED diff line — and `service_documented` is a bare substring test; covered by
+  `check_doc_sync`), `check_reusable_modules` (universe empty: 0/44 repos have `src/utils/` or `src/lib/`).
+- **The display gap that hid all of it**: `warn_only=True` now marks a row `[ADVISORY]`, the SUMMARY lists
+  the non-blocking rows by name, and `--json` reports `advisory` + a `blocking` count (read `blocking`,
+  not `passed`). It is NOT `advisory=`, which only preserves stdout — several checks carrying that DO
+  block. A `warn_only` check that exits non-zero still fails, and the gate names the broken contract.
+- **`check_vps_docs` exit semantics**: every finding it can construct is `Severity.WARN`, yet its
+  `__main__` exited 1 on ANY finding — a warning-level condition redding a blocking Tier-3 row (live on
+  the hub, because two ops docs had not been regenerated). Exit now follows severity: ERROR fails,
+  `--strict` promotes WARN, matching `_check_runner.run_as_main`. The docs themselves are untouched —
+  regenerating them is `fabrik vps-sync`.
+- **`check_env_vars`'s row renamed** to "Hardcoded localhost/127.0.0.1 Ban": it shared the display name
+  ".env Updates (Secrets)" with `check_env_updates`, so two rows carried one label at two severities.
+- **The audit no longer punishes the fix**: `liveness_audit`'s vacuity proof judges a blocking row on
+  whether it can go RED and a declared-advisory/unwired one on whether it can SPEAK (new `reported`
+  signal, ast-parsed `warn_only` discovery that fails CLOSED). Vacuity went **LIVE 36 / DEAD 8 /
+  UNKNOWN 3 → LIVE 44 / DEAD 0 / UNKNOWN 3**, and DEAD now means exactly one thing: a gate row that
+  claims to block and cannot.
+- **Ratchets** in `tests/test_gate_check_canaries.py`: a warn-only check may never be registered as an
+  ordinary blocking row, and a `warn_only=True` declaration must be backed by a written contract — the
+  inverse, so the flag can never become a way to quietly disable a working check.
+- Tier-2 consistency count re-measured by instrumented execution: 39 → **35** (the doc's "38" had also
+  drifted one low). Tier 1 unchanged at 18.
+- **Two defects the new visibility exposed on its first run**, both fixed here. `check_script_headers`
+  split its coupled-file list on `[,\s]+` only, so the `a.py | b.md` style — the majority in
+  `scripts/sysadmin/` — parsed every pipe as a file named `|` and warned on its own edit; the separator
+  set now includes `|`. And `kaizen_metrics.liveness_context` reported every LIVE vacuity finding as
+  "proven able to fail", which after this change would overstate enforcement by exactly the count of
+  rows that cannot fail; it now splits blocking-rows-proven-to-FAIL from advisory/unwired-proven-to-REPORT.
+
 ### Changed — Apprise spec↔deploy reconciled: drop the never-deployed host port (2026-08-16)
 
 - `specs/infrastructure/apprise.yaml` declared `ports: "8005:8000"` but the deployed container never

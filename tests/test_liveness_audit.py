@@ -311,9 +311,13 @@ def test_a_vacuous_check_is_caught_by_its_canary(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     canary = {"form": "root", "files": {"compose.yaml": "bad\n"}, "expect": "anything at all"}
-    inst, went_red = la.run_canary("check_vacuous", canary, tmp_path)
+    inst, went_red, reported = la.run_canary("check_vacuous", canary, tmp_path)
     assert inst.ok, inst.fault
     assert went_red is False, "a check that exits 0 on its canary must not read as healthy"
+    assert reported is False, (
+        "this check prints the SAME line on both trees — it detected nothing, and a "
+        "`reported` of True here would let a silent advisory read as LIVE"
+    )
 
 
 def test_a_real_check_goes_red_on_its_canary(tmp_path: Path) -> None:
@@ -329,8 +333,9 @@ def test_a_real_check_goes_red_on_its_canary(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     canary = {"form": "root", "files": {"compose.yaml": "platform: linux/arm64\n"}, "expect": "arm64"}
-    inst, went_red = la.run_canary("check_real", canary, tmp_path)
+    inst, went_red, reported = la.run_canary("check_real", canary, tmp_path)
     assert inst.ok and went_red is True
+    assert reported is True, "it printed FAIL on the bad tree and PASS on the clean one"
 
 
 def test_a_check_that_cannot_be_invoked_is_unknown_not_inert(tmp_path: Path) -> None:
@@ -338,11 +343,11 @@ def test_a_check_that_cannot_be_invoked_is_unknown_not_inert(tmp_path: Path) -> 
     enforcement = tmp_path / "scripts" / "enforcement"
     enforcement.mkdir(parents=True)
     (enforcement / "check_crashy.py").write_text("raise RuntimeError('boom')\n", encoding="utf-8")
-    inst, went_red = la.run_canary(
+    inst, went_red, reported = la.run_canary(
         "check_crashy", {"form": "root", "files": {}, "expect": "x"}, tmp_path
     )
     assert not inst.ok and "crashed on a clean tree" in inst.fault
-    assert went_red is False
+    assert went_red is False and reported is False
 
 
 def test_a_check_without_a_canary_is_unproven_not_green(tmp_path: Path) -> None:
@@ -363,6 +368,114 @@ def test_a_check_without_a_canary_is_unproven_not_green(tmp_path: Path) -> None:
     uncanaried = [f for f in out["findings"] if f["id"].startswith("check_x")]
     assert len(uncanaried) == 8
     assert all("no canary authored" in f["instrument_fault"] for f in uncanaried)
+
+
+def _gate_with(tmp_path: Path, extra: str) -> Path:
+    """A final_gate.py fixture with enough registrations to clear the parse-guard floor."""
+    gate_dir = tmp_path / "scripts"
+    gate_dir.mkdir(parents=True, exist_ok=True)
+    gate = gate_dir / "final_gate.py"
+    filler = "\n".join(
+        f'run_optional_check("scripts/enforcement/check_filler{i}.py", "F{i}")' for i in range(6)
+    )
+    gate.write_text(f"{filler}\n{extra}\n", encoding="utf-8")
+    return gate
+
+
+def _speaker(tmp_path: Path, name: str) -> None:
+    """A check that REPORTS a violation and always exits 0 — the warn-only shape."""
+    enforcement = tmp_path / "scripts" / "enforcement"
+    enforcement.mkdir(parents=True, exist_ok=True)
+    (enforcement / f"{name}.py").write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "bad = [p for p in Path.cwd().rglob('*.yaml') if 'arm64' in p.read_text()]\n"
+        "print(f'WARNING: {len(bad)} violation(s)' if bad else 'OK')\n"
+        "sys.exit(0)\n",
+        encoding="utf-8",
+    )
+
+
+_SPEAKER_CANARY = {
+    "form": "cwd",
+    "warn_only": "always exits 0",
+    "files": {"compose.yaml": "platform: linux/arm64\n"},
+    "expect": "an arm64 platform pin",
+}
+
+
+def test_warn_only_registrations_are_read_off_the_gate(tmp_path: Path) -> None:
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_quiet.py", "Q", warn_only=True)\n'
+        'run_optional_check("scripts/enforcement/check_loud.py", "L", advisory=True)\n'
+        'run_optional_check("scripts/enforcement/check_off.py", "O", warn_only=False)',
+    )
+    declared = la.discover_warn_only_checks(gate)
+    assert declared == {"check_quiet"}, (
+        "advisory= only preserves stdout — several checks carrying it DO fail the gate — "
+        "so it must never be read as a non-blocking declaration"
+    )
+
+
+def test_an_unparseable_gate_declares_no_row_advisory(tmp_path: Path) -> None:
+    """Fail in the STRICT direction: unknown means blocking, never excused."""
+    gate = tmp_path / "final_gate.py"
+    gate.write_text("run_optional_check( this is not python\n", encoding="utf-8")
+    assert la.discover_warn_only_checks(gate) == set()
+
+
+def test_a_declared_advisory_row_that_speaks_is_live_not_inert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The audit must not punish the fix.
+
+    Once a warn-only check is honestly registered `warn_only=True`, the gate labels its
+    row [ADVISORY] and the operator can see it can never red. Reporting it INERT anyway
+    would make the truthful registration indistinguishable from the defect it replaced.
+    """
+    _speaker(tmp_path, "check_quiet")
+    _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_quiet.py", "Q", warn_only=True)',
+    )
+    monkeypatch.setattr(la, "CANARIES", {"check_quiet": _SPEAKER_CANARY})
+    monkeypatch.setattr(la, "UNREACHABLE", {})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_quiet")
+    assert found["verdict"] == "LIVE", found
+    assert found["kind"] == "check(advisory)"
+    assert "REPORTED" in found["detail"]
+
+
+def test_the_same_check_registered_as_a_blocking_row_is_still_inert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The teeth, kept: identical check, no declaration — the vacuous-green defect."""
+    _speaker(tmp_path, "check_quiet")
+    _gate_with(tmp_path, 'run_optional_check("scripts/enforcement/check_quiet.py", "Q")')
+    monkeypatch.setattr(la, "CANARIES", {"check_quiet": _SPEAKER_CANARY})
+    monkeypatch.setattr(la, "UNREACHABLE", {})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_quiet")
+    assert found["verdict"] == "DEAD" and found["reason_class"] == "inert", found
+    assert "can never go red" in found["detail"]
+
+
+def test_a_declared_advisory_row_that_says_nothing_is_dead(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Advisory is not a free pass: the output IS the product, so silence is death."""
+    enforcement = tmp_path / "scripts" / "enforcement"
+    enforcement.mkdir(parents=True, exist_ok=True)
+    (enforcement / "check_mute.py").write_text("print('OK')\n", encoding="utf-8")
+    _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_mute.py", "M", warn_only=True)',
+    )
+    monkeypatch.setattr(la, "CANARIES", {"check_mute": dict(_SPEAKER_CANARY)})
+    monkeypatch.setattr(la, "UNREACHABLE", {})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_mute")
+    assert found["verdict"] == "DEAD", found
+    assert "said nothing" in found["detail"]
 
 
 def test_a_broken_gate_parse_never_declares_anything_inert(tmp_path: Path) -> None:

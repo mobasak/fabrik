@@ -406,8 +406,16 @@ def liveness_context(report: dict | None, fault: str) -> list[str]:
     vac = _findings(report, "vacuity")
     inert = [f["id"] for f in vac if f["verdict"] == "DEAD"]
     unproven = [f["id"] for f in vac if f["verdict"] == "UNKNOWN"]
+    # LIVE is not one thing. A BLOCKING row is LIVE when it can go red; a row declared
+    # warn_only in final_gate.py (kind "check(advisory)") or unwired from it is LIVE when it
+    # can SPEAK -- it has no failing exit path at all. Reporting one total as "proven able to
+    # fail" would overstate enforcement by exactly the number of rows that can never fail,
+    # which is the whole finding this proof exists to surface.
+    live = [f for f in vac if f["verdict"] == "LIVE"]
+    can_fail = [f for f in live if f.get("kind") == "check"]
     out.append(
-        f"gate checks: {len([f for f in vac if f['verdict'] == 'LIVE'])} proven able to fail, "
+        f"gate checks: {len(can_fail)} blocking rows proven able to FAIL, "
+        f"{len(live) - len(can_fail)} advisory/unwired proven to REPORT (no failing exit path), "
         f"{len(inert)} INERT ({', '.join(inert) or 'none'}), {len(unproven)} UNPROVEN (no canary)"
     )
     stale = [f["id"] for f in _findings(report, "doc_claim") if f["verdict"] == "DEAD"]

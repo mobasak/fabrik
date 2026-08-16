@@ -1,6 +1,6 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-07-20
+**Last Updated:** 2026-08-16
 **Script:** `scripts/final_gate.py`
 
 > Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
@@ -162,8 +162,9 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally (the check every eyeball recount dropped — counts here are derived by instrumented execution)
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
-- **.env Updates (Secrets)** - `check_env_vars.py`
-  - Validates .env files don't contain actual secrets
+- **Hardcoded localhost/127.0.0.1 Ban** - `check_env_vars.py`
+  - Blocks a hardcoded `localhost` / `127.0.0.1` host or DSN outside a sanctioned env-var default
+  - Renamed 2026-08-16: it shared the display name ".env Updates (Secrets)" with `check_env_updates.py`, which could not fail at all (now unwired — see § Advisory rows)
 - **Imports Resolvable (clean checkout)** - `check_imports_resolvable.py` *(advisory)*
   - Catches shipped code importing a module not in the repo (gitignored/never `git add`ed) — green locally, `ModuleNotFoundError` in CI/deploy
 - **Lint Ratchet (repo-wide, no new debt)** - `check_lint_ratchet.py` *(advisory)* — repo-wide ruff count may only go down
@@ -172,11 +173,12 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Doc Sync Matrix** - `check_doc_sync.py`
   - The single "update docs when code changes" gate — consolidates what `check_changelog.py` / `check_index_md.py` / `check_configuration_md.py` / `check_openapi_sync.py` used to check (those 5 scripts still exist on disk but are dead code, never invoked — see § All Checks Reference)
 - **Subagent Flywheel (pool-or-declare — BLOCKING)** - `check_subagent_flywheel.py` — fails the gate when a substantial code change ran zero pool subagent runs and carries no `NO-POOL:` declaration
-- **Mutation (advisory, opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(advisory)* — through the gate it ALWAYS prints the pointer and exits 0: `final_gate.py` deliberately strips `FABRIK_MUTMUT` for this one child (a set flag would start a session-detached mutmut the gate's 120s timeout then orphans). A real mutation run happens only by DIRECT invocation (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the Sunday 05:00 cron
-- **Doc stub fill (advisory)** - `check_doc_stubs.py` *(advisory)*
-- **Script Coupling Header** - `check_script_headers.py`
+- **Mutation (opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(ADVISORY row)* — through the gate it ALWAYS prints the pointer and exits 0: `final_gate.py` deliberately strips `FABRIK_MUTMUT` for this one child (a set flag would start a session-detached mutmut the gate's 120s timeout then orphans). A real mutation run happens only by DIRECT invocation (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the Sunday 05:00 cron
+- **Doc stub fill** - `check_doc_stubs.py` *(ADVISORY row)*
+- **Script Coupling Header** - `check_script_headers.py` *(ADVISORY row)*
   - Each staged `scripts/**/*.py` declares, via a `# AFTER-EDIT:` header, the files to update when it changes (or `none`)
   - WARN-tier, touch-on-change (mirrors Doc Sync): warns on a missing header, or when a listed coupled file wasn't also staged; never blocks
+  - Before 2026-08-16 it was registered with neither `advisory` nor `warn_only`, so `run_optional_check` discarded its stdout on exit 0 — the warnings it exists to emit reached nobody
 - **Print/Console.log Ban** - `check_print_ban.py`
   - Bans `print()` in `.py` and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` production code
 - **No Host Ports on Traefik Services** - `check_no_host_ports.py`
@@ -198,14 +200,14 @@ trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped 
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
 no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
 
-**Phase 3: Repo Consistency** — inherits all **18** Tier-1 checks above (16 in the `tier in (1, 2)` block; TWO run unconditionally outside it: `check_convergence.py` AND `check_review_coverage.py` — the earlier "17/37" arithmetic silently dropped the second, a drift caught by the plan-2 closing review), **plus 19 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [advisory] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [advisory, plan-window]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **38 checks total**. (Counts verified 2026-08-11 by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 18, tier 2 → 38 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
+**Phase 3: Repo Consistency** — inherits all **18** Tier-1 checks above (16 in the `tier in (1, 2)` block; TWO run unconditionally outside it: `check_convergence.py` AND `check_review_coverage.py` — the earlier "17/37" arithmetic silently dropped the second, a drift caught by the plan-2 closing review), **plus 16 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **35 checks total**. (Re-measured 2026-08-16 after the registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`; the previous "19 / 38" had also drifted one low against `run_consistency_checks(tier=2)`'s real 39.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 18, tier 2 → 38 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
 
 **The Tier-2-only checks:**
-- **Phase Tests (advisory, plan-window)** - `check_phase_tests.py` *(advisory)*
+- **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
   - WARNs when an ACTIVE plan lock's window declares Behavior-Contract rows and ships lock-owned source with zero test changes
 - **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; blocking)
 - **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking)
-- **Retired-Tech Tripwire** - `check_retired_terms.py` (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing)
+- **Retired-Tech Tripwire** - `check_retired_terms.py` *(ADVISORY row)* (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing. 73 open WARNs in the hub, which is why it advises rather than blocks)
 - **Stage-Skip Artifact Gate** - `check_stage_artifacts.py`
   - Spec freshness + FROZEN header shape for a stage that was skipped
 - **Hooks Index Fresh** - `check_hooks_index.py`
@@ -226,20 +228,12 @@ no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (
 - **Plan-Set Contract (Spine+Tickets)** - `check_plan_tickets.py` — the spine↔ticket contract for the spine+ticket plan shape (Board↔files, Depends DAG + Merge Order, exclusive Touches, never-route routing cross-check, READ budget, Board staleness; sibling/DRAFT findings are advisory)
 - **README.md (Primary Entry Point)** - `check_readme_md.py`
   - Validates primary entry point documentation
-- **.env Updates (Secrets)** - `check_env_updates.py`
-  - Validates secrets not committed to git
-- **Test Coverage (New Code)** - `check_test_coverage.py`
-  - Ensures new code has test coverage
-- **.env.example Completeness** - `check_env_example.py`
-  - Validates all environment variables are documented
-- **Compose Services Docs** - `check_compose_services.py`
-  - Ensures Docker Compose services are documented
+- **.env.example Completeness** - `check_env_example.py` *(ADVISORY row)*
+  - Warns when a staged diff reads an env var that `.env.example` does not declare
+  - No other check covers code → `.env.example` (`check_doc_sync` only fires `.env.example` → `CONFIGURATION.md`), but 44 of 44 `/opt` repos already violate it (2223 undeclared vars, 240 in the hub), so it advises rather than blocks
 - **User Guide Presence** - `check_user_guide.py`
   - Verifies `docs/user-guide/` exists with `.md` files when `project.yaml` has `has_user_guide: true`
   - Skips silently when `has_user_guide` is false or absent
-- **Reusable Module Tagging** - `check_reusable_modules.py` *(advisory — warning only)*
-  - Checks `src/utils/` and `src/lib/` modules are tagged `[reusable]` in `INDEX.md`
-  - Surfaces warnings in yellow but does not fail the gate
 
 **Kilo CLI Health Check** - `check_kilo_health.sh` — runs at `tier >= 2`, i.e. Tier 2 **and** Tier 3, not Tier-2-only.
 
@@ -275,8 +269,9 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
   - Detects duplicate files and configurations
 - **Documentation Drift** - `docs_updater.py --check`
   - Ensures documentation matches code implementation
-- **VPS Docs Freshness** - `check_vps_docs.py`
+- **VPS Docs Freshness** - `check_vps_docs.py` *(ADVISORY row)*
   - Checks VPS-facing docs haven't gone stale against the live fleet
+  - Every finding it can construct is `Severity.WARN`; until 2026-08-16 its `__main__` exited 1 on ANY finding, so a missing `vps-status.md` under `docs/operations/` redded a blocking row. Exit now follows severity (ERROR fails; `--strict` promotes WARN), matching `_check_runner.run_as_main`
 - **Fabrik Conventions** - `validate_conventions.py --strict --git-diff`
   - Validates naming conventions and structure
 - **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)
@@ -294,6 +289,44 @@ intent is covered by the Doc Sync Matrix (`check_doc_sync.py`, Tier 1+2) and `do
 |------|--------|---------|
 | **Windsurf Extensions** | `sync_extensions.sh` | Sync to EXTENSIONS.md |
 | **Cascade Backup** | `sync_cascade_backup.sh` | Check backup freshness |
+
+---
+
+## Advisory rows — the ones that can never go red
+
+A check registered `run_optional_check(..., warn_only=True)` has **no failing exit path**. Its row prints
+`[ADVISORY]` instead of `[PASS]`, the SUMMARY lists it by name under `Advisory:`, and `--json` reports it
+under `advisory` alongside a `blocking` count. Read `blocking`, not `passed`: `passed` counts rows that
+were never at risk.
+
+**Why this exists.** On 2026-08-16 a canary sweep gave eight registered checks a real violation each. Each
+PRINTED the violation and each exited 0 — and produced a row identical to a check that genuinely blocks.
+Four of them (`check_compose_services`, `check_env_example`, `check_env_updates`, `check_test_coverage`)
+were not even registered `advisory=True`, so `run_optional_check` discarded their stdout on exit 0: fully
+silent green rows. Each was then decided on measured evidence — the reasoning is written at each
+registration in `final_gate.py`:
+
+| Check | Decision | Measured basis |
+|---|---|---|
+| `check_env_example` | ADVISORY | 2223 undeclared vars, 44/44 repos — a real uncovered Doc-Sync rule, unpromotable |
+| `check_script_headers` | ADVISORY | 427 headerless scripts, 36/44 repos (107 in the hub); CLAUDE.md documents it as WARN |
+| `check_retired_terms` | ADVISORY | 73 open WARNs in the hub; `return 0  # ALWAYS` is its written contract |
+| `check_doc_stubs` | ADVISORY | 16/44 repos still ship a stub `docs/QUICKSTART.md` |
+| `check_env_updates` | UNWIRED | asserts about `.env` — gitignored, machine-local, never part of the commit; 482 divergences, 17/44 repos |
+| `check_test_coverage` | UNWIRED | 2063 findings, 20/44 repos; its rule is the 100%-coverage dogma the Behavior Contract rejects |
+| `check_compose_services` | UNWIRED | blind to a service added to an EXISTING compose; `service_documented` is a substring match; covered by `check_doc_sync` |
+| `check_reusable_modules` | UNWIRED | universe is empty — 0/44 repos have `src/utils/` or `src/lib/` |
+
+`warn_only=` is **not** `advisory=`. `advisory=` only preserves stdout on exit 0; several checks carrying
+it (`check_docker`, `check_env_contract`, `check_doc_sprawl --strict`, `check_lint_ratchet`,
+`check_subagent_flywheel`) DO fail the gate on a real defect. A `warn_only` check that exits non-zero still
+fails, and the gate names the broken contract.
+
+**Enforcement of the enforcement.** `liveness_audit.py`'s vacuity proof judges a blocking row on whether it
+can go RED and an advisory/unwired one on whether it can SPEAK, so declaring a row honestly is no longer
+punished as INERT. Two ratchets in `tests/test_gate_check_canaries.py` hold the line: a warn-only check may
+never be registered as an ordinary blocking row, and a `warn_only=True` declaration must be backed by a
+written contract in `liveness_audit.CANARIES` / `UNREACHABLE`.
 
 ---
 
@@ -382,12 +415,9 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_test_proposal.py` — Enforces Behavior Contract / One-Test Rule documentation
 - `check_plan_tickets.py` — Spine↔ticket plan-set contract (see Tier-2 list)
 - `check_readme_md.py` — Validates README.md structure
-- `check_env_updates.py` — Prevents secret commits
-- `check_env_vars.py` — Validates .env doesn't contain actual secrets
+- `check_env_vars.py` — Bans hardcoded `localhost`/`127.0.0.1` hosts and DSNs (row: "Hardcoded localhost/127.0.0.1 Ban")
 - `check_schema_sync.py` — Checks DB models match schema.sql (advisory)
-- `check_test_coverage.py` — Ensures new code has tests
-- `check_env_example.py` — Validates .env.example completeness
-- `check_compose_services.py` — Documents Docker services
+- `check_env_example.py` — Validates .env.example completeness (ADVISORY row)
 - `check_docker.py` — Enforces amd64, no-Alpine, HEALTHCHECK
 - `check_secrets.py` — Scans for hardcoded secrets
 - `check_env_contract.py` — Validates env var contracts
@@ -399,9 +429,9 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_imports_resolvable.py` — Phantom-import guard (clean-checkout parity, advisory)
 - `check_lint_ratchet.py` — Repo-wide ruff count may only go down (advisory)
 - `check_subagent_flywheel.py` — Pool-or-declare subagent flywheel (BLOCKING)
-- `check_mutation.py` — Mutation testing (advisory; a real run only via direct `FABRIK_MUTMUT=1` invocation or the Sunday cron — the gate strips the flag for its own child, orphan protection)
-- `check_doc_stubs.py` — Doc stub force-fill (advisory)
-- `check_script_headers.py` — Script `# AFTER-EDIT:` coupling header
+- `check_mutation.py` — Mutation testing (ADVISORY row; a real run only via direct `FABRIK_MUTMUT=1` invocation or the Sunday cron — the gate strips the flag for its own child, orphan protection)
+- `check_doc_stubs.py` — Doc stub force-fill (ADVISORY row)
+- `check_script_headers.py` — Script `# AFTER-EDIT:` coupling header (ADVISORY row)
 - `check_print_ban.py` — Bans `print()`/`console.log()` in production code
 - `check_no_host_ports.py` — No host-bound ports on Traefik-routed compose services
 - `check_traefik_labels.py` — Full Traefik label set on `traefik.enable=true` services
@@ -409,14 +439,13 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_undeclared_imports.py` — Undeclared-import guard vs requirements.txt
 - `check_synced_unmodified.py` — Fabrik-synced files match `/opt/fabrik` canonical bytes
 - `check_user_guide.py` — User-guide presence when `project.yaml::has_user_guide` is true
-- `check_reusable_modules.py` — Reusable-module `[reusable]` tagging in INDEX.md (advisory)
 - `check_doc_sprawl.py` — Documentation sprawl/duplication detection (HEAD-or-rename existing-file test)
 - `check_doc_links.py` — Live-tree link integrity (docs-truth durability gate)
 - `check_doc_index.py` — INDEX.md ↔ docs tree bidirectional drift
-- `check_retired_terms.py` — Retired-tech advisory tripwire (always exit 0)
+- `check_retired_terms.py` — Retired-tech tripwire (ADVISORY row, always exit 0)
 - `check_watchdog.py` — Watchdog monitoring scripts present
 - `check_duplicates.py` — Duplicate file/config detection
-- `check_vps_docs.py` — VPS-facing docs freshness vs the live fleet
+- `check_vps_docs.py` — VPS-facing docs freshness vs the live fleet (ADVISORY row; exit follows severity)
 - `docs_updater.py --check` — Documentation drift vs code implementation
 - `check_kilo_health.sh` — Kilo CLI installation/config (runs at `tier >= 2`)
 
@@ -575,19 +604,15 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 - Complete configuration reference
 - Prevents configuration errors
 
-#### check_env_updates.py
+#### check_env_updates.py — UNWIRED 2026-08-16
 
-**Purpose:** Ensures no secrets are committed to git.
+**Purpose (actual):** compares `.env.example` against the local `.env` and reminds you which declared
+variables have no local value. It never scanned code for secrets — that is `check_secrets.py`.
 
-**Validates:**
-- No API keys in code
-- No passwords or tokens
-- No private keys or certificates
-- Proper use of os.getenv() for secrets
-
-**Why this matters:**
-- Prevents credential leakage in version control
-- Enforces security best practices
+**Why it is no longer a gate row:** `.env` is gitignored, machine-local and secret-bearing, so it is not
+part of the change under gate and legitimately omits every optional variable. 482 divergences across 17 of
+44 `/opt` repos. It also shared the display name ".env Updates (Secrets)" with the blocking
+`check_env_vars.py` row. Runnable by hand: `python scripts/enforcement/check_env_updates.py`.
 
 **Skips:**
 - Test files only
@@ -649,46 +674,36 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 - API docs must be trustworthy
 - Prevents integration issues
 
-#### check_test_coverage.py
+#### check_test_coverage.py — UNWIRED 2026-08-16
 
-**Purpose:** Ensures new code has appropriate test coverage.
+**Purpose (actual):** greps `tests/` for the NAME of each new public `def`/`class` added under `src/`. It
+cannot tell a meaningful test from a name collision, and it never sees `scripts/` or `libs/`.
 
-**Validates:**
-- New functions have tests
-- Critical paths are covered
-- Edge cases are considered
-- Tests are meaningful (not just coverage)
+**Why it is no longer a gate row:** 2063 findings across 20 of 44 `/opt` repos (295 in the hub), and its
+rule — a test per public symbol — is the 100%-coverage dogma the Behavior Contract explicitly rejects.
+Coverage is enforced by `check_test_proposal.py` plus the phase-boundary review. Runnable by hand:
+`python scripts/enforcement/check_test_coverage.py`.
 
-**Why this matters:**
-- Maintains code quality
-- Catches regressions early
+#### check_env_example.py — ADVISORY row
 
-#### check_env_example.py
+**Purpose:** warns when the staged diff reads an environment variable (`os.getenv`, `os.environ[...]`,
+`os.environ.get`, `settings.X`) that `.env.example` does not declare.
 
-**Purpose:** Ensures all environment variables are documented.
+**Why it advises rather than blocks:** it is the only check covering the Doc Sync Matrix rule "New env var
+→ `.env.example`" (`check_doc_sync` only fires `.env.example` → `CONFIGURATION.md`), but all 44 `/opt`
+repos already violate it — 2223 undeclared vars, 240 in the hub. Decomposed by pattern so the volume is not
+mistaken for a loose regex: `os.getenv` 1720, `os.environ.get` 535, `os.environ[...]` 88, `settings.X` 1.
 
-**Validates:**
-- Every env var in code has entry in .env.example
-- Descriptions are clear and accurate
-- Default values are provided where appropriate
+#### check_compose_services.py — UNWIRED 2026-08-16
 
-**Why this matters:**
-- Enables easy setup for new developers
-- Documents all configuration options
+**Purpose (actual):** looks for each newly-added compose service NAME as a case-insensitive substring of
+`docs/SERVICES.md` / `README.md`. It never inspected ports, env vars or volumes.
 
-#### check_compose_services.py
-
-**Purpose:** Ensures Docker Compose services are documented.
-
-**Validates:**
-- All services have descriptions
-- Port mappings are documented
-- Environment variables are listed
-- Volume mounts are explained
-
-**Why this matters:**
-- Provides clear deployment documentation
-- Helps with service understanding
+**Why it is no longer a gate row:** two structural faults, not volume. `get_new_services` only enters its
+services block when `services:` is itself an ADDED diff line, so it sees a brand-new compose file and is
+blind to a service added to an EXISTING one — the actual case. And a substring test passes trivially for
+`app`/`api`/`db`/`web`. The surviving intent (compose changed → `SERVICES.md` + `OPERATIONS.md`) is carried
+by `check_doc_sync.py`. Runnable by hand: `python scripts/enforcement/check_compose_services.py`.
 
 #### check_docker.py
 

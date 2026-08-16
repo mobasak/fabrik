@@ -103,9 +103,18 @@ another repo's business, counted but not listed.
 
 ### PROOF 2 — VACUITY CANARY ("can it fail?")
 
-Every check `final_gate.py` registers (parsed from its source — 43 today) is run against a
-**deliberately-bad fixture** and must exit non-zero. A check that stays green on its own canary is
-**INERT** and reported.
+Every check `final_gate.py` registers (parsed from its source — 39 today: 31 blocking, 8 declared
+`warn_only=True`) is run against a **deliberately-bad fixture**. What the fixture must prove depends on
+what the row CLAIMS:
+
+- a **blocking** row must be able to go RED. A check that stays green on its own canary is **INERT**.
+- a row declared `warn_only=True`, and an **unwired** hand-runnable diagnostic, must be able to SPEAK —
+  it has no failing exit path, so its output IS its product. It reads LIVE when the bad tree produces
+  output the clean tree did not, and DEAD when it is handed a real violation and says nothing.
+
+Without that fork, honestly declaring a row advisory would keep reporting it INERT forever — the audit
+would punish the fix. With it, DEAD keeps exactly one meaning: **a gate row that claims to block and
+cannot**.
 
 Control first: the same check on a **clean** tree must exit 0 without a traceback. If the invocation
 itself is broken, we have measured our harness and not the check → UNKNOWN, never INERT.
@@ -115,8 +124,9 @@ by construction. Where no fixture can REACH the check, it is reported **UNPROVEN
 named (`liveness_audit.UNREACHABLE`) — neither green nor red, the third state again.
 
 The deliberately-**unwired** diagnostics (`check_ports`, `check_deps_sync`, `check_watchdog`,
-`check_health`) are audited too: a hand-runnable check that silently exits 0 is the same trap in a
-different hat.
+`check_health`, and since 2026-08-16 `check_env_updates`, `check_test_coverage`,
+`check_compose_services`, `check_reusable_modules`) are audited too: a hand-runnable check that
+silently exits 0 is the same trap in a different hat.
 
 **Invocation forms** (`CANARIES[<check>]["form"]`), because the corpus is not uniform: `root` /
 `module` (the `_check_runner` `--root` contract), `cwd` and `gitcwd` (the many checks that read
@@ -125,13 +135,17 @@ fixture, the only way to reach a check whose repo root is `Path(__file__).parent
 split into `base` (both trees), `files` (the BAD tree — the violation), `clean` (the control only,
 for rules whose violation is an ABSENCE) and `staged` (written after the `git commit` step).
 
-**`warn_only` — the inverted canary.** Eight registered checks have **no non-zero exit path at all**
+**`warn_only` — the inverted canary.** Eight registered checks had **no non-zero exit path at all**
 (`check_compose_services`, `check_doc_stubs`, `check_env_example`, `check_env_updates`,
 `check_retired_terms`, `check_reusable_modules`, `check_script_headers`, `check_test_coverage`). Their
-fixture is a real violation, the check REPORTS it, and it exits 0 — so they occupy a `final_gate.py`
-row that no defect can ever turn red. They are declared `warn_only` with the source line that makes
-them toothless, reported DEAD/inert with that evidence, and `tests/test_gate_check_canaries.py`
-asserts they still print the finding (and shouts if one ever grows teeth).
+fixture is a real violation, the check REPORTS it, and it exits 0 — so each occupied a `final_gate.py`
+row that no defect could ever turn red. Each was decided on measured fleet evidence (the reasoning lives
+at its registration; the table is in `docs/workflows/FINAL_GATE_WORKFLOW.md` § Advisory rows): four are
+now declared `warn_only=True` and print `[ADVISORY]`, four are unwired to hand-runnable diagnostics. The
+`warn_only` key in `CANARIES` still records the source line that makes each toothless, and
+`tests/test_gate_check_canaries.py` asserts they still print the finding — plus two ratchets: a
+warn-only check may never be registered as an ordinary blocking row, and a `warn_only=True` declaration
+must be backed by a written contract (a false declaration would be a silent downgrade of a real check).
 
 The whole corpus is asserted as tests in `tests/test_gate_check_canaries.py`, including a `NEUTERS`
 set that deletes one check's core rule and proves its canary then goes GREEN — a canary that survives
@@ -232,17 +246,22 @@ parsed, 20 docs enumerated, 28 claims extracted. What it found on its first run:
   reported as one instead of hidden behind a green.
 - **UNKNOWN ×4 (doc-claim)** — four `hook_file` claims naming files that exist but are wired outside the
   `settings.json` layer this oracle can read.
-- **LIVE ×36 (vacuity)** — every canaried check went red on its fixture. Was 7 when this file landed;
-  the corpus was completed the same day (see `tests/test_gate_check_canaries.py`).
-- **DEAD ×8 (vacuity)** — the `warn_only` set: registered like ordinary checks, structurally unable to
-  exit non-zero. The number is a real defect count, not a canary failure.
+- **LIVE ×44 (vacuity)** — 36 canaried checks went red on their fixture; the other 8 are the decided
+  `warn_only` set, each REPORTING its violation on an advisory or unwired row. Was 7 when this file
+  landed; the corpus was completed the same day (see `tests/test_gate_check_canaries.py`).
+- **DEAD ×0 (vacuity)** — was 8: the `warn_only` set, registered like ordinary checks and structurally
+  unable to exit non-zero. Four are now declared `warn_only=True`, four are unwired; none occupies a
+  blocking row it cannot lose. DEAD now counts only rows that claim to block and cannot.
 - **UNKNOWN ×3 (vacuity)** — `check_vps_docs` (hardcoded absolute `/opt/fabrik` root), `check_phase_tests`
-  and `check_mutation` (need an active plan lock / mutmut respectively — and both return 0 everywhere
-  anyway). Recorded in `liveness_audit.UNREACHABLE` with the obstruction named. 3 is the honest size of
-  the remaining gap; it was 40.
-- **`check_vps_docs` is RED on the hub today** — `docs/operations/vps-status.md` and `vps-urls.md` do not
-  exist, so the Tier-2 row fails. Its findings are `Severity.WARN` yet its `__main__` exits 1 on any
-  finding at all.
+  and `check_mutation` (need an active plan lock / mutmut respectively — and all three return 0
+  everywhere anyway, so all three are registered `warn_only=True`). Recorded in
+  `liveness_audit.UNREACHABLE` with the obstruction named. 3 is the honest size of the remaining gap; it
+  was 40.
+- **`check_vps_docs` no longer reds the hub** — `vps-status.md` and `vps-urls.md` under `docs/operations/` still do
+  not exist (regenerating them is `fabrik vps-sync`, the fleet agent's beat), but every finding the check
+  can construct is `Severity.WARN` while its `__main__` exited 1 on ANY finding. Its exit now follows the
+  severity — ERROR fails, `--strict` promotes WARN — matching `_check_runner.run_as_main`; pinned by
+  `tests/test_check_vps_docs_severity.py`.
 - **`reboot-sweep` LIVE** — last `arg=sweep` 4.4 h ago, 21 occurrences. The exact finding that was
   reported to the operator as "NEVER run".
 
@@ -256,3 +275,7 @@ parsed, 20 docs enumerated, 28 claims extracted. What it found on its first run:
 - `tests/test_check_activation_anti_vacuity.py` — the canary fixtures PROOF 2 reuses
 - `tests/test_gate_check_canaries.py` — the whole canary corpus as tests, plus the coverage ratchet
   (a new `run_optional_check(...)` with no canary and no `UNREACHABLE` reason fails the suite)
+- `tests/test_final_gate_advisory_display.py` — the gate's output must distinguish an `[ADVISORY]` row
+  from a passing blocking one, in both the human view and `--json`
+- `tests/test_check_vps_docs_severity.py` — a WARN finding must not fail a gate row; an ERROR still must
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` § Advisory rows — the per-check decisions and their measurements

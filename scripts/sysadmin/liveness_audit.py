@@ -63,6 +63,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import datetime as dt
 import json
 import os
@@ -711,6 +712,54 @@ def _unregistered(
 # A gate check registered in final_gate.py: run_optional_check("scripts/enforcement/x.py", ...)
 _REGISTERED = re.compile(r'run_optional_check\(\s*"(scripts/enforcement/[a-z_0-9]+\.py)"')
 
+# WHAT "CAN IT FAIL?" MEANS FOR A ROW THAT NEVER CLAIMED TO (2026-08-16).
+#
+# `final_gate.py` now declares its non-blocking rows at the registration:
+# `run_optional_check(..., warn_only=True)`. That declaration changes what a green canary
+# PROVES, so the verdict rule forks on it:
+#
+#   * a BLOCKING row must be able to go RED. A green canary there is the vacuous-check
+#     defect — DEAD (inert) — and that is the count that matters.
+#   * a row DECLARED warn-only, and an UNWIRED hand-runnable diagnostic, must be able to
+#     SPEAK. Their contract is to report, so LIVE means "it reported the violation (or
+#     went red)"; DEAD means it was handed a real violation and said nothing.
+#
+# Without the fork, correctly declaring a row advisory would have kept reporting it INERT
+# forever — the audit would punish the fix. With it, "DEAD" keeps exactly one meaning: a
+# gate row that claims to block and cannot.
+
+
+def discover_warn_only_checks(gate: Path) -> set[str]:
+    """Check names `final_gate.py` registers with `warn_only=True`.
+
+    Parsed with `ast`, not a regex: these registrations carry multi-line comment blocks
+    and nested calls, and a mis-parse here would silently re-classify a blocking row as
+    advisory. Any parse failure returns the EMPTY set — every row then reads as blocking,
+    which is the strict direction (it can accuse a real advisory of being inert; it can
+    never excuse a real inert check).
+    """
+    try:
+        tree = ast.parse(read_text(gate))
+    except (OSError, SyntaxError, ValueError):
+        return set()
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Name) and func.id == "run_optional_check"):
+            continue
+        declared = any(
+            kw.arg == "warn_only" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+            for kw in node.keywords
+        )
+        if not declared or not node.args:
+            continue
+        first = node.args[0]
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            names.add(Path(first.value).stem)
+    return names
+
 # ── Shared canary fixture bodies (kept out of the table so the table stays readable) ──
 _MODEL_PY = (
     "from sqlalchemy import Column, String\n\n\n"
@@ -813,9 +862,17 @@ _README_OK = "# Project\n\n## Overview\n\nx\n\n## Quick Start\n\nx\n\n## Documen
 # "strict": the check reports this class at WARN level, so `--strict` — its documented
 #           activation switch — is what turns the finding into a non-zero exit.
 # "warn_only": this check has NO non-zero exit path at all. The fixture is still a REAL
-#           violation and the check still REPORTS it — that is the evidence. The canary is
-#           expected to stay green, and the DEAD verdict it produces is the finding, not a
-#           harness failure. The value says whose contract makes it toothless.
+#           violation and the check still REPORTS it — that is the evidence, and for these
+#           the report IS the pass condition (see the verdict fork above `_REGISTERED`).
+#           The value says whose contract makes it toothless. A `warn_only` check that is
+#           still registered as an ORDINARY final_gate row is the vacuous-green defect and
+#           reads DEAD; one registered `warn_only=True`, or unwired, reads LIVE as long as
+#           it speaks.
+# "row_warn_only": the CHECK can fail, but the GATE ROW cannot, because the registration
+#           withholds the flag that arms it (check_ticket_breadth exits 1 only under
+#           `--strict`, which final_gate deliberately never passes). The canary still goes
+#           RED — it runs with `strict` — so this key documents the ROW, not the check, and
+#           is what justifies its `warn_only=True` registration.
 #
 # The compose/env fixtures are the ones tests/test_check_activation_anti_vacuity.py already
 # proved RED; reused rather than reinvented so the two agree by construction.
@@ -1062,6 +1119,10 @@ CANARIES: dict[str, dict[str, Any]] = {
         "form": "cwd",
         "git": "add",
         "strict": True,
+        "row_warn_only": (
+            "exits 1 only under --strict (check_ticket_breadth.py:516) and final_gate never "
+            "passes it — a heuristic that hard-failed would block planning on a guess"
+        ),
         "args": ["--project-root", "{fixture}"],
         "base": {f"{_PLAN_DIR}/2026-01-01-plan-canary.md": _SPINE_OK},
         "clean": {f"{_PLAN_DIR}/T01-thing.md": _TICKET_NARROW},
@@ -1114,9 +1175,16 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     # ── WARN-ONLY BY CONTRACT: these have NO non-zero exit path ──────────────────────
     # Each fixture below is a REAL violation and each check REPORTS it — and then exits 0.
-    # They are registered in final_gate.py exactly like the checks above, so they occupy a
-    # green row that no defect can ever turn red. That is the finding; the canary is the
-    # evidence for it, not a failure of the canary.
+    # On 2026-08-16 all eight were registered in final_gate.py exactly like the checks
+    # above, occupying green rows no defect could turn red. Their registrations were then
+    # decided one at a time on measured evidence (the reasoning is written where each
+    # registration is, in final_gate.py):
+    #   DECLARED ADVISORY (`warn_only=True`, row prints [ADVISORY]) — check_env_example,
+    #     check_script_headers, check_retired_terms, check_doc_stubs.
+    #   UNWIRED (hand-runnable diagnostics, no gate row) — check_env_updates,
+    #     check_test_coverage, check_reusable_modules, check_compose_services.
+    # The canaries stay for both groups: a diagnostic that says nothing is the same trap
+    # wearing a different hat, and these are the fixtures that prove they still speak.
     "check_env_updates": {
         "form": "cwd",
         "warn_only": "check_env_updates.check_env_updates() returns `True, errors` on every path",
@@ -1193,17 +1261,19 @@ UNREACHABLE: dict[str, str] = {
     "check_vps_docs": (
         'reads the absolute literal `FABRIK_ROOT = Path("/opt/fabrik")`; it has no --root, '
         "reads no env var, and ignores cwd — a fixture cannot reach it without writing into "
-        "the real hub docs tree"
+        "the real hub docs tree. Its exit semantics are covered instead by "
+        "tests/test_check_vps_docs_severity.py, which drives `main()` directly: every "
+        "finding it can construct is Severity.WARN, so it is registered warn_only=True"
     ),
     "check_phase_tests": (
         "needs an ACTIVE plan lock plus a real baseline_commit whose git window ships source "
         "without tests; and it returns 0 on every path anyway "
-        "(`return 0` in both the warned and the fail-soft branch)"
+        "(`return 0` in both the warned and the fail-soft branch) — registered warn_only=True"
     ),
     "check_mutation": (
         "needs mutmut installed AND FABRIK_MUTMUT set, and would then run a full mutation "
         "campaign inside the audit; it has no `return 1` at all — every branch of `_main()` "
-        "and the fail-soft wrapper returns 0"
+        "and the fail-soft wrapper returns 0 — registered warn_only=True"
     ),
 }
 
@@ -1285,8 +1355,17 @@ def _prepare(fixture: Path, canary: dict[str, Any], repo_root: Path, *, bad: boo
     return ""
 
 
-def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Instrument, bool]:
-    """Run a check against a deliberately-bad fixture. True == it went red (it CAN fail).
+def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Instrument, bool, bool]:
+    """Run a check against a deliberately-bad fixture.
+
+    Returns `(instrument, went_red, reported)`:
+
+    * `went_red`  -- the bad tree produced a non-zero exit. The only thing that counts for
+      a BLOCKING row.
+    * `reported`  -- the bad tree produced output the clean tree did NOT. This is the whole
+      product of a warn-only row, and the difference between an advisory that works and a
+      silent one. Measured as a diff against the control so a check that prints the same
+      banner either way ("✅ … PASSED") cannot pass as having detected anything.
 
     Control first: the same check on a CLEAN tree must exit 0 without a traceback. If the
     invocation itself is broken we have measured our harness, not the check -- UNKNOWN.
@@ -1294,7 +1373,7 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
     script = repo_root / "scripts" / "enforcement" / f"{name}.py"
     inst_name = f"canary[{name}]"
     if not script.is_file():
-        return Instrument.broken(inst_name, f"no such check script: {script}"), False
+        return Instrument.broken(inst_name, f"no such check script: {script}"), False, False
 
     def invoke(fixture: Path) -> subprocess.CompletedProcess[str] | None:
         argv, cwd, env = _argv(name, canary, script, fixture, repo_root)
@@ -1305,14 +1384,15 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
         clean.mkdir()
         fault = _prepare(clean, canary, repo_root, bad=False)
         if fault:
-            return Instrument.broken(inst_name, fault), False
+            return Instrument.broken(inst_name, fault), False, False
         control = invoke(clean)
         if control is None:
-            return Instrument.broken(inst_name, "the check could not be executed at all"), False
+            return Instrument.broken(inst_name, "the check could not be executed at all"), False, False
         blob = control.stdout + control.stderr
         if "Traceback (most recent call last)" in blob:
             return (
                 Instrument.broken(inst_name, f"the check crashed on a clean tree: {blob.strip()[:180]}"),
+                False,
                 False,
             )
         if control.returncode != 0:
@@ -1323,20 +1403,31 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
                     "would prove nothing",
                 ),
                 False,
+                False,
             )
+        # Normalise the control's own tempdir out before it becomes the baseline: the two
+        # fixtures live at different paths, and a check that echoes its root would then
+        # look like it had "reported" something in every run.
+        control_blob = blob.replace(str(clean), "{fixture}")
 
     with tempfile.TemporaryDirectory() as td:
         bad = Path(td) / "bad"
         bad.mkdir()
         fault = _prepare(bad, canary, repo_root, bad=True)
         if fault:
-            return Instrument.broken(inst_name, fault), False
+            return Instrument.broken(inst_name, fault), False, False
         red = invoke(bad)
         if red is None:
-            return Instrument.broken(inst_name, "the check could not be executed on the canary"), False
+            return (
+                Instrument.broken(inst_name, "the check could not be executed on the canary"),
+                False,
+                False,
+            )
         if "Traceback (most recent call last)" in (red.stdout + red.stderr):
-            return Instrument.broken(inst_name, "the check crashed on the canary fixture"), False
-    return Instrument.proven(inst_name), red.returncode != 0
+            return Instrument.broken(inst_name, "the check crashed on the canary fixture"), False, False
+        bad_blob = (red.stdout + red.stderr).replace(str(bad), "{fixture}")
+    reported = bad_blob.replace(control_blob, "").strip() != ""
+    return Instrument.proven(inst_name), red.returncode != 0, reported
 
 
 def _argv(
@@ -1365,13 +1456,23 @@ def _argv(
 
 def proof_vacuity(repo_root: Path) -> dict[str, Any]:
     """Can it fail? A check that stays green on its own canary asserts nothing."""
-    inst, names = discover_registered_checks(repo_root / "scripts" / "final_gate.py")
+    gate = repo_root / "scripts" / "final_gate.py"
+    inst, names = discover_registered_checks(gate)
     findings: list[Finding] = []
     wired = set(names)
+    declared_advisory = discover_warn_only_checks(gate) & wired
     # The deliberately-UNWIRED diagnostics are audited too: a hand-runnable check that
     # silently exits 0 is the same trap wearing a different hat.
     for name in sorted(wired | set(CANARIES) | set(UNREACHABLE)):
-        kind = "check" if name in wired else "check(unwired)"
+        if name not in wired:
+            kind = "check(unwired)"
+        elif name in declared_advisory:
+            kind = "check(advisory)"
+        else:
+            kind = "check"
+        # A blocking row is judged on whether it can RED; an advisory row and an unwired
+        # diagnostic are judged on whether they can SPEAK. See the note above CANARIES.
+        blocking = kind == "check"
         canary = CANARIES.get(name)
         if canary is None:
             why = UNREACHABLE.get(name)
@@ -1396,20 +1497,40 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                 )
             )
             continue
-        cinst, went_red = run_canary(name, canary, repo_root)
+        cinst, went_red, reported = run_canary(name, canary, repo_root)
         how = " under --strict" if canary.get("strict") else ""
         warn_only = canary.get("warn_only")
+        alive = went_red if blocking else (went_red or reported)
         if went_red:
             detail = f"canary went RED{how} on {canary['expect']}"
-        elif warn_only:
-            # Expected, and the point: the check REPORTS the violation and still exits 0.
+            if not blocking and canary.get("row_warn_only"):
+                detail += (
+                    " — but the GATE ROW cannot: it is registered warn_only=True because "
+                    f"the check {canary['row_warn_only']}"
+                )
+        elif blocking:
+            # The defect this whole proof exists for: a row that claims to block and cannot.
+            spoke = "the check REPORTS it and exits 0 anyway" if reported else "the check asserts nothing"
             detail = (
-                f"canary stayed GREEN{how} on {canary['expect']} — the check REPORTS it and "
-                f"exits 0 anyway: WARN-only by contract ({warn_only}), yet registered in "
-                "final_gate.py as an ordinary check, so this gate row can never go red"
+                f"canary stayed GREEN{how} on {canary['expect']} — {spoke}"
+                + (f": WARN-only by contract ({warn_only})" if warn_only else "")
+                + ", yet registered in final_gate.py as an ordinary check, so this gate row "
+                "can never go red"
             )
+        elif reported:
+            # Declared advisory (or unwired): reporting IS the contract, and it is met.
+            role = (
+                "declared warn_only=True in final_gate.py, so the row is labelled [ADVISORY]"
+                if kind == "check(advisory)"
+                else "unwired from final_gate.py — a hand-runnable diagnostic, occupying no gate row"
+            )
+            detail = f"canary REPORTED {canary['expect']} and exited 0 — {role}"
         else:
-            detail = f"canary stayed GREEN{how} on {canary['expect']} — the check asserts nothing"
+            detail = (
+                f"canary stayed GREEN{how} on {canary['expect']} AND said nothing — a "
+                f"{'declared-advisory row' if kind == 'check(advisory)' else 'diagnostic'} "
+                "whose only product is its output, producing none"
+            )
         if warn_only and went_red:
             # The contract changed under us: a check declared toothless just grew teeth.
             detail += " — its `warn_only` declaration in CANARIES is now STALE, drop it"
@@ -1419,14 +1540,16 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                 id=name,
                 kind=kind,
                 instrument=cinst if inst.ok else inst,
-                verdict=Verdict.LIVE if went_red else Verdict.DEAD,
+                verdict=Verdict.LIVE if alive else Verdict.DEAD,
                 detail=detail,
-                reason_class="inert",
+                reason_class="inert" if blocking else "silent",
             )
         )
     return {
         "findings": [f.as_dict() for f in findings],
         "registered": len(names),
+        "blocking": len(wired - declared_advisory),
+        "advisory": len(declared_advisory),
         "registry_instrument_fault": inst.fault,
         "summary": _tally(findings),
     }
@@ -1791,7 +1914,11 @@ def render(report: Report) -> str:
                 for line in hooks.get("unregistered", []):
                     out.append(f"      ! {line}")
         if key == "vacuity":
-            out.append(f"  registered checks parsed from final_gate.py: {block.get('registered')}")
+            out.append(
+                f"  registered checks parsed from final_gate.py: {block.get('registered')}"
+                f"  ({block.get('blocking')} blocking, {block.get('advisory')} declared"
+                " warn_only — rows that can never go red)"
+            )
         if key == "doc_claim":
             out.append(f"  docs enumerated: {block.get('docs')}   claims extracted: {block.get('claims')}")
         out.append("")

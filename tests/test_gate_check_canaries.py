@@ -26,8 +26,12 @@ Three obligations, and they are the file's whole content:
 
 The `warn_only` entries are a deliberate inversion: those checks have NO non-zero exit
 path at all, their canary is EXPECTED to stay green, and the assertion is that they still
-PRINT the violation. They are registered in `final_gate.py` like any other check while
-being structurally unable to red it — the finding is recorded here rather than hidden.
+PRINT the violation. Eight of them were registered in `final_gate.py` like any other check
+while being structurally unable to red it. Each has since been decided on measured
+evidence — four DECLARED advisory (`warn_only=True`, so the row prints `[ADVISORY]`), four
+UNWIRED to hand-runnable diagnostics — and
+`test_a_warn_only_check_is_never_registered_as_a_blocking_row` is the ratchet that stops
+the honest-green-row state from silently reverting.
 """
 
 from __future__ import annotations
@@ -74,7 +78,7 @@ def test_the_check_rejects_its_bad_fixture_and_accepts_the_clean_one(name: str) 
     without a traceback — so `inst.ok` already carries "the clean tree passed", and
     `went_red` carries "the bad tree failed". Both halves, one call.
     """
-    inst, went_red = la.run_canary(name, la.CANARIES[name], REPO_ROOT)
+    inst, went_red, _ = la.run_canary(name, la.CANARIES[name], REPO_ROOT)
     assert inst.ok, f"{name}: the canary harness is broken, not the check: {inst.fault}"
     assert went_red, (
         f"{name} stayed GREEN on {la.CANARIES[name]['expect']} — it is registered in "
@@ -122,6 +126,45 @@ def test_every_registered_gate_check_is_accounted_for() -> None:
         f"{len(unaccounted)} registered check(s) have neither a canary nor an UNREACHABLE "
         f"reason: {unaccounted}. Author the pair in liveness_audit.CANARIES, or — if a "
         "fixture genuinely cannot reach it — record WHY in UNREACHABLE."
+    )
+
+
+def test_a_warn_only_check_is_never_registered_as_a_blocking_row() -> None:
+    """The ratchet for the 2026-08-16 finding, stated as an invariant.
+
+    A check with no failing exit path may be registered `warn_only=True` (its row prints
+    `[ADVISORY]`) or not registered at all. What it may NOT be is an ordinary gate row: a
+    green that no defect can turn red, sitting in the same column as one that bites.
+    """
+    gate = REPO_ROOT / "scripts" / "final_gate.py"
+    _, registered = la.discover_registered_checks(gate)
+    declared = la.discover_warn_only_checks(gate)
+    undeclared = sorted(set(WARN_ONLY) & set(registered) - declared)
+    assert not undeclared, (
+        f"{undeclared} have NO non-zero exit path (see their `warn_only` note in "
+        "liveness_audit.CANARIES) yet are registered in final_gate.py as ordinary blocking "
+        "rows. Add `warn_only=True` to the registration, or unwire the check with the "
+        "measurement that retired it."
+    )
+
+
+def test_every_declared_advisory_row_is_a_check_that_really_cannot_fail() -> None:
+    """The inverse ratchet: `warn_only=True` is a claim, and a false one hides teeth.
+
+    Declaring a check non-blocking makes the gate stop presenting it as enforcement. If
+    the check CAN fail, that declaration is a downgrade smuggled in as a label — so every
+    declared row must be one whose contract is written down in CANARIES/UNREACHABLE.
+    """
+    gate = REPO_ROOT / "scripts" / "final_gate.py"
+    declared = la.discover_warn_only_checks(gate)
+    assert declared, "the warn_only registrations vanished — the display fork is dead code"
+    documented = {
+        n for n, c in la.CANARIES.items() if c.get("warn_only") or c.get("row_warn_only")
+    } | set(la.UNREACHABLE)
+    undocumented = sorted(declared - documented)
+    assert not undocumented, (
+        f"{undocumented} are registered warn_only=True but nothing records WHY they cannot "
+        "fail. Add the `warn_only` note to their CANARIES entry, or an UNREACHABLE reason."
     )
 
 
@@ -179,7 +222,7 @@ def test_the_canary_goes_green_against_a_neutered_check(name: str, tmp_path: Pat
     )
     target.write_text(text.replace(old, new), encoding="utf-8")
 
-    inst, went_red = la.run_canary(name, la.CANARIES[name], fake_root)
+    inst, went_red, _ = la.run_canary(name, la.CANARIES[name], fake_root)
     assert inst.ok, f"{name}: neutered copy could not be measured: {inst.fault}"
     assert not went_red, (
         f"{name}: the canary went RED against a check whose rule was DELETED — it is "

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: none
+# AFTER-EDIT: tests/enforcement/test_check_script_headers.py
 """Enforce the `# AFTER-EDIT:` coupling header on staged scripts.
 
 Every script self-declares which files must be updated when *it* changes, via a header
@@ -24,6 +24,12 @@ import sys
 from pathlib import Path
 
 HEADER_RE = re.compile(r"#\s*AFTER-EDIT:\s*(.+)", re.IGNORECASE)
+# Both separators the corpus actually uses: `a.py, b.md` AND `a.py | b.md`. The pipe form is the
+# majority style in scripts/sysadmin/ and was parsed as FILENAMES — every pipe became a coupled
+# file named "|" that was obviously never staged, so those scripts warned on every edit. Invisible
+# until 2026-08-16, because the check was registered without `advisory`/`warn_only` and
+# `run_optional_check` discarded its stdout on exit 0.
+SEPARATORS = re.compile(r"[,|\s]+")
 NONE_VALUES = {"none", "n/a", "na", "-", ""}
 SKIP_PATTERNS = ("tests/", "test_", "_test.py", "__pycache__/", "/__init__.py")
 HEADER_SCAN_LINES = 25
@@ -63,7 +69,7 @@ def main() -> int:
         listed = m.group(1).strip()
         if listed.lower() in NONE_VALUES:
             continue
-        coupled = [c for c in re.split(r"[,\s]+", listed) if c]
+        coupled = [c for c in SEPARATORS.split(listed) if c]
         missing = [c for c in coupled if c not in staged_set]
         if missing:
             warnings.append(
