@@ -106,7 +106,20 @@ def _checklist_section(text: str) -> str | None:
     return text[m.start() : m.end() + (nxt.start() if nxt else len(text))]
 
 
-SURFACE = re.compile(r"^Surface:\s*\S+", re.M)
+# ⚠️ Bold-tolerant. This was `^Surface:\s*\S+`, which a markdown-natural `**Surface:** <hash>` does
+# not match — and the failure text said "no `Surface:` hash line", i.e. ABSENT, when the line was
+# right there. A checker that reports the wrong reason costs more than one that reports nothing.
+# Leading whitespace stays disallowed on purpose: the contract wants this line at column 0, where a
+# cross-run anchor is greppable.
+SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
+
+# An honest IN-PROGRESS review. The /fabrik-review methodology requires the report to exist BEFORE
+# pass 1 ("a review that exists only in chat does not exist"), while every other rule here treats a
+# persisted report as one that must already be converged. Those two cannot both hold, and the gap
+# was being worked around by holding the report uncommitted across passes — which is precisely the
+# state this file cannot see. Declaring the status makes the in-progress case legal and VISIBLE,
+# instead of hidden in someone's working tree.
+IN_PROGRESS = re.compile(r"^\**Status:\**\s*IN-PROGRESS\b", re.M | re.I)
 PASS2 = re.compile(r"\bPass\s*2\b")
 RUBRIC_RUN = re.compile(r"review_rubric\.py")
 _PATHISH = re.compile(r"[\w-]+[./][\w./-]+")
@@ -161,10 +174,16 @@ def check_file(p: Path) -> list[str]:
         errs.append(
             f"{len(bare)} CLEAN row(s) without evidence (name the files/paths hunted): {bare[:3]}"
         )
-    founds = re.findall(r"found:\s*(\d+)", text)
-    if founds and int(founds[-1]) != 0 and not blocked_ok:
+    # ⚠️ Read LEDGER ROWS, not every "found:" in the file. This was `findall(r"found:\s*(\d+)")`
+    # taking the LAST match anywhere — so a prose line after the ledger ("cumulative found: 70",
+    # or a quoted example) silently became "the final round", in either direction: it could
+    # manufacture a failure, or mask a real non-quiet exit with a stray `found: 0`.
+    # A ledger row always carries BOTH counters, which is what distinguishes it from prose.
+    rows_with_both = re.findall(r"found:\s*(\d+)\s*(?:,|·|\|)?\s*fixed:\s*\d+", text)
+    founds = rows_with_both or re.findall(r"found:\s*(\d+)", text)
+    if founds and int(founds[-1]) != 0 and not blocked_ok and not IN_PROGRESS.search(text):
         errs.append(
-            f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts)"
+            f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
         )
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
@@ -226,13 +245,59 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     return errs
 
 
+def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
+    """Reports that are COMMITTED and still record a non-quiet exit round.
+
+    ⚠️ The hole this closes: every other obligation here is scoped to `git status`, which is right
+    for the common case — re-proving every historical report on every gate run is noise nobody
+    reads. But it means a report is only ever checked while UNCOMMITTED, and the documented
+    workflow is write-report → commit-with-fixes → run-gate. By then it is invisible, so
+    **committing an unconverged review was enough to pass the check that polices reviews** —
+    green-by-absence inside the check whose whole job is refusing green-by-absence.
+
+    Deliberately narrow: only the exit-round condition, never the full obligation set. Demanding a
+    `Surface:` line or a rubric invocation from every report ever written would retro-grade history
+    across ~46 synced repos and get this check disabled — and a disabled check protects nothing.
+    Measured before shipping: 0 of 49 existing hub reports are flagged by this.
+    """
+    out: list[str] = []
+    for p in sorted((root / REVIEWS_DIR).rglob("*.md")):
+        if p in skip or "archived/" in str(p.relative_to(root)):
+            continue
+        text = p.read_text(encoding="utf-8", errors="replace")
+        if _checklist_section(text) is None or IN_PROGRESS.search(text):
+            continue
+        if BLOCKED_HEAD.search(text):
+            continue
+        rows = re.findall(r"found:\s*(\d+)\s*(?:,|·|\|)?\s*fixed:\s*\d+", text)
+        if rows and int(rows[-1]) != 0:
+            out.append(
+                f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round (found: {rows[-1]}) "
+                "— committing a review does not converge it. Finish the loop, BLOCKED-escalate the "
+                "stuck finding, or mark the report `Status: IN-PROGRESS`."
+            )
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
     args = ap.parse_args()
     root = Path(args.root).resolve()
     failures: list[str] = []
-    for p in _changed_md(root, REVIEWS_DIR):
+    changed = _changed_md(root, REVIEWS_DIR)
+    # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
+    # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
+    # every historical report across ~46 synced repos on the next sync, on artifacts whose authors
+    # may not even be active — and a gate that reds someone's unrelated commit is a gate that gets
+    # switched off (the death this corpus has already seen once, with check_doc_sprawl).
+    # The BLOCKING path stays where the author can still act: the report in their working tree.
+    stale = _committed_nonquiet(root, skip=set(changed))
+    if stale:
+        print("check_review_coverage: ADVISORY — committed review(s) still recording a non-quiet exit:")
+        for s in stale:
+            print(f"  ⚠ {s}")
+    for p in changed:
         if CERT_REPORT.search(p.name):
             for e in check_cert_dispositions(p, root):
                 failures.append(f"{p.relative_to(root)}: {e}")

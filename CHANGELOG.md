@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_review_coverage: committing an unconverged review passed the check that polices reviews (2026-08-16)
+
+Reported by fabrik-lib (mail `01M055WGEBP5J4W9TXYBDTVZ6C`), found while their own report went from
+legitimately red to green purely by being committed. Four defects, all in
+`scripts/enforcement/check_review_coverage.py` (**synced — distributes fleet-wide**):
+
+- **Diff-scoped, so only ever checked while UNCOMMITTED.** The documented workflow is write-report →
+  commit-with-fixes → run-gate, by which point the report is invisible to the check. Green-by-absence
+  inside the check whose entire job is refusing green-by-absence. Now also scanned by CONTENT across
+  the reviews tree — **advisory, not blocking**: hard-failing would retro-grade historical reports in
+  ~46 repos on artifacts whose authors may be long gone, and a gate that reds an unrelated commit is a
+  gate that gets switched off (the death `check_doc_sprawl` already died). Blocking stays where the
+  author can still act — the report in their working tree. It immediately surfaced one real case.
+- **The `found:` parser took the LAST match in the file**, so any prose after the ledger became "the
+  final round". Measured both directions: a trailing "cumulative found: 0" made a genuinely non-quiet
+  exit (`found: 4`) read as **quiet** — the parser could HIDE an unconverged review, not merely
+  false-fail one. Now reads ledger ROWS (`found: N … fixed: N`), which is what distinguishes a row
+  from prose.
+- **`Surface:` had to be unbolded at column 0**, so a markdown-natural `**Surface:** <hash>` was
+  invisible — and the message said "no `Surface:` hash line", i.e. absent, when the line was present.
+  Now bold-tolerant; still anchored at column 0 so the cross-run anchor stays greppable.
+- **No IN-PROGRESS state existed.** `/fabrik-review` requires the report to exist *before* pass 1,
+  while this check treated any persisted report as one that must already be converged — so an honest
+  in-progress review could not keep the gate green, and the workaround was holding it uncommitted
+  across passes (exactly the state the check cannot see). `Status: IN-PROGRESS` is now permitted.
+
 ### Added — TICKET-BREADTH CHECK: broad tickets are now measured, not merely deprecated (2026-08-16)
 
 - Operator: *"if tickets are broad, why aren't we narrowing them?"* The answer could not be another
