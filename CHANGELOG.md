@@ -19,8 +19,16 @@ commands + 13 fragments, 56 rule packs, 57 gate checks, 5 hooks, 12 scaffold typ
 scripts, 21 crons), not the review commands.
 
 First real run (2026-08-16, 10 projects, 579 task-completing responses): rules-compliance 36%
-overall, ranging 73% (trade-intelligence) to 7% (tryton-crm); fleet review rounds 4.8 (n=117/216)
-across 11 projects; subagent failure 4%, p50 latency 37s, $0.74/day.
+overall, ranging 73% (trade-intelligence) to 7% (tryton-crm); subagent failure 4%, p50 latency
+37s, $0.74/day.
+
+Review rounds are scoped to the TICKET ERA, not a 30-day window: the box switched to
+spine+ticket plan sets on 2026-08-09, and averaging across both eras yields 4.8 — a target for
+neither. Ticket sets alone measure **3.2 (n=12/16)**, so the switch bought roughly a third off
+review cost, which the mixed figure hid. The lone outlier is the hub's own
+`login-once-credentials-T01` at 8 rounds (5 independent risk classes) against 2-4 for
+trade-intelligence's tickets — exactly what `docs/reference/ticket-breadth.md` predicts, since
+rounds track risk classes rather than line count.
 
 Two of the first-run metrics were the collector's OWN bugs and were fixed before any of it was
 believed — a reminder that the instrument gets verified before the number does:

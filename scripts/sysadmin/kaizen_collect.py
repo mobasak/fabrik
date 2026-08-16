@@ -62,6 +62,7 @@ _NEXT_LINE = re.compile(r"^NEXT:\s*\S", re.M)
 _RULES_ACTIVE = re.compile(r"^RULES ACTIVE:", re.M)
 _BLOCKED = re.compile(r"^BLOCKED:\s*\S", re.M)
 _DATED_LEDGER = re.compile(r"^(\d{4})-(\d{2})-(\d{2})-")
+_TICKET_FILE = re.compile(r"^T\d{2}[a-z]?-.+\.md$")
 
 # Round parsing is NOT re-implemented here. A naive "table row starting with a number"
 # regex scored a tryton-crm user-test ledger at 1440 rounds by matching a data table,
@@ -274,24 +275,50 @@ def measure_subagents(day: dt.date, ledger: Path = SUBAGENT_LEDGER) -> dict[str,
     return out
 
 
+def _ticket_plan_slugs() -> dict[str, set[str]]:
+    """Plan-set slugs that are TICKET-based, per project.
+
+    A set qualifies when its plan directory holds at least one `T##[a-z]?-<slug>.md`
+    ticket — the shape check_plans.py enforces. Anything else is a pre-ticket
+    single-file plan.
+    """
+    out: dict[str, set[str]] = {}
+    for plan_dir in sorted(Path("/opt").glob("*/docs/development/plans/*/")):
+        try:
+            if not any(_TICKET_FILE.match(f.name) for f in plan_dir.iterdir() if f.is_file()):
+                continue
+        except OSError:
+            continue
+        project = plan_dir.parents[3].name
+        out.setdefault(project, set()).add(plan_dir.name)
+    return out
+
+
 def measure_review_rounds_fleetwide(day: dt.date, window_days: int = 30) -> Metric:
-    """Rounds-per-plan across ALL /opt projects, not just the hub's 49 ledgers."""
-    start = day - dt.timedelta(days=window_days)
+    """Rounds-per-plan for TICKET-BASED plan sets only.
+
+    Averaging across a 30-day window mixes two planning eras and produces a number that
+    is a target for neither. The box switched to spine+ticket plan sets on 2026-08-09;
+    measured across both eras the mean is 4.8, and measured on ticket sets alone it is
+    3.2 — the improvement the switch actually bought, which the mixed figure hides.
+    Ledgers from pre-ticket plans are EXCLUDED, not down-weighted.
+    """
+    del window_days  # era membership, not recency, is the selector
+    ticket_sets = _ticket_plan_slugs()
+    if not ticket_sets:
+        return Metric.unavailable(
+            "no ticket-based plan set found under /opt/*/docs/development/plans/ "
+            "(a set qualifies on holding at least one T##-<slug>.md ticket)"
+        )
     scored: list[int] = []
     unmarked = 0
     projects: set[str] = set()
-    for reviews in sorted(Path("/opt").glob("*/docs/development/reviews")):
+    for project, slugs in sorted(ticket_sets.items()):
+        reviews = Path("/opt") / project / "docs" / "development" / "reviews"
         if not reviews.is_dir():
             continue
         for path in sorted(reviews.glob("*.md")):
-            m = _DATED_LEDGER.match(path.name)
-            if not m:
-                continue
-            try:
-                when = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-            except ValueError:
-                continue
-            if not (start <= when <= day):
+            if not any(path.name.startswith(s) for s in slugs):
                 continue
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
@@ -300,7 +327,7 @@ def measure_review_rounds_fleetwide(day: dt.date, window_days: int = 30) -> Metr
             # Two dialects in the wild: `## Round 3` headings and `| Round | 3 |` tables.
             # Reading only the first undercounted a 16-round ledger to zero.
             rounds = ledger_rounds(text)
-            projects.add(path.parents[3].name)
+            projects.add(project)
             if rounds:
                 scored.append(max(rounds))
             else:
@@ -308,14 +335,14 @@ def measure_review_rounds_fleetwide(day: dt.date, window_days: int = 30) -> Metr
     total = len(scored) + unmarked
     if not scored:
         return Metric.unavailable(
-            f"no review ledger in the last {window_days}d carries a machine-readable round "
-            f"marker ({total} ledger(s) seen across {len(projects)} project(s))"
+            f"no ticket-era review ledger carries a machine-readable round marker "
+            f"({total} ledger(s) seen across {len(projects)} project(s))"
         )
     mean = sum(scored) / len(scored)
     return Metric(
         value=f"{mean:.1f} (n={len(scored)}/{total})",
         detail=(
-            f"across {len(projects)} project(s), last {window_days}d; "
+            f"TICKET-ERA only, across {len(projects)} project(s); "
             f"worst: {sorted(scored, reverse=True)[:5]}; {unmarked} ledger(s) carry no "
             "machine-readable round marker and are EXCLUDED (never counted as zero)"
         ),
