@@ -730,6 +730,38 @@ APPRISE_STATELESS_URLS=tgram://BOTTOKEN/CHATID  # set in /opt/apprise/.env
   `postgres-main`. One-time provisioning: `sudo -u postgres createdb -O <user> fabrik_services`,
   then `psql "$SERVICES_REGISTRY_DSN" -f db/services_registry_schema.sql`.
 
+## Alert delivery (`libs/alerting`)
+
+Every alert this box raises — quota-drain warnings, keepalive failures, CI health,
+watchdog incidents, the fabrik-mail digest — routes through `libs/alerting`. It tries
+SSH → VPS Apprise first, then the direct Telegram Bot API, then logs a per-method
+post-mortem naming which method failed and why.
+
+**Prove the path end to end** (an operator or a cron can run this):
+
+```bash
+python -m alerting --selftest            # delivers a real message; exit 1 if none worked
+python -m alerting --selftest --dry-run  # configuration only, sends nothing
+```
+
+| Variable | Purpose |
+|---|---|
+| `TELEGRAM_FULL_BOT_TOKEN` | The **complete** bot token, `<bot_id>:<secret>`. Preferred. |
+| `TELEGRAM_BOT_ID` | Numeric bot id; composed with `TELEGRAM_BOT_TOKEN` when no full token is set. |
+| `TELEGRAM_BOT_TOKEN` | The **secret half** of the token (or a complete colon-shaped token). |
+| `TELEGRAM_CHAT_ID` | Target chat/user id. |
+| `ALERT_VPS_HOST` | SSH alias for the Apprise hop (default `vps`). |
+| `ALERT_APPRISE_URL` | Apprise URL as seen *from the VPS* (default `http://apprise:8000`). |
+| `ALERT_ENABLED` | `0` disables; `1` forces on; unset auto-enables when any delivery var is set. |
+| `ALERT_MIN_INTERVAL` | Dedup window in seconds per alert title (default `300`). |
+
+⚠️ **The Telegram credential is split.** A usable token is `<bot_id>:<secret>`, but
+`/opt/fabrik/.env` has historically stored only the secret half in `TELEGRAM_BOT_TOKEN`.
+Posting to `/bot<secret>/sendMessage` returns HTTP **404 Not Found**, which reads like a
+dead endpoint rather than a malformed credential — that is exactly how alert delivery
+stayed broken unnoticed (2026-08-16 liveness audit). Set `TELEGRAM_FULL_BOT_TOKEN`, or
+supply `TELEGRAM_BOT_ID` so the halves can be composed.
+
 ## See Also
 
 - [.env.example](../.env.example) - Complete list of all environment variables

@@ -165,3 +165,15 @@ def check_file(file_path: Path) -> list[CheckResult]:
         )
 
     return results
+
+
+if __name__ == "__main__":  # pragma: no cover — CLI entry (see _check_runner)
+    # Package-relative only: final_gate registers this one with `module=`
+    # (`python -m scripts.enforcement.check_deps_sync`).
+    from ._check_runner import main_for
+
+    main_for(
+        check_file,
+        check_name="check_deps_sync",
+        description="requirements.txt and pyproject.toml declare the same dependency set",
+    )

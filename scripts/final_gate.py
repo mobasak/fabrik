@@ -1054,32 +1054,72 @@ def run_consistency_checks(
     if tier == 3:
         # Systemic / infra-focused checks only. Showstoppers (secrets, schema sync, etc.)
         # are handled in Tier 1 / Tier 2 and are not repeated here.
+        # ── ANTI-VACUITY NOTE (2026-08-16 liveness audit) ──────────────────────────
+        # Six checks used to be registered here that could not fail: they defined
+        # only `check_file()`, with no `__main__` and no top-level call, so running
+        # them exited 0 with EMPTY output. Six green rows, zero assertions. Their
+        # logic was reachable only through `validate_conventions.py`'s Cascade
+        # `post_write_code` path, and Cascade is dormant.
+        #
+        # All six now have a real `__main__` (see `_check_runner.py`) and were RUN
+        # against this repo and all 45 /opt repos before being wired. Two earned
+        # their place; four are UNWIRED below with the measurement that retired them,
+        # because an honest missing check beats a fake green one. The unwired four
+        # keep their `__main__` and stay runnable by hand as diagnostics.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_docker.py",
-                "Docker (amd64, No-Alpine, HEALTHCHECK)",
+                "Docker (amd64 platform, No-Alpine builds, HEALTHCHECK)",
+                # ACTIVATED. Fails on ERROR only. What it found on activation:
+                # 5 of 45 fleet repos ship `platform: linux/arm64` in a production
+                # compose deployed to an x86_64 VPS (candle, image-generation,
+                # llm_batch_processor, trading-core, web-scraper) — a true defect
+                # class that was invisible for as long as the check was vacuous.
+                # Compose `image: *-alpine` was demoted ERROR→WARN in the check: the
+                # No-Alpine invariant targets *built* images (musl), and
+                # `redis:7-alpine`/`postgres:16-alpine` are vendor images running in
+                # production on vps1. `advisory` keeps the WARN text visible on a pass.
+                advisory=True,
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_ports.py",
-                "Port Registration (PORTS.md)",
-            )
-        )
+        # UNWIRED — check_ports.py ("Port Registration (PORTS.md)").
+        # Activated and measured 2026-08-16: 0 ERRORs possible (every finding is WARN,
+        # so it could never fail), and 59 WARNs fleet-wide are dominated by two
+        # structurally wrong rules. (1) The per-technology range rule keys on the
+        # FILE's suffix, not the service's technology — it flags `port 3000` inside a
+        # Python test and inside `scaffold.py` (which legitimately emits 3000 for
+        # frontend scaffolds) as "outside Python services range". (2) The PORTS.md
+        # registration rule cannot tell a service's own listening port from a CLIENT
+        # connection port, so `5432` in a Postgres test reads as an unregistered port.
+        # Fixing this needs a service-port model the checker does not have. Runnable
+        # by hand: `python scripts/enforcement/check_ports.py`.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_env_contract.py",
                 ".env Contract Sync",
                 module="scripts.enforcement.check_env_contract",
+                # ACTIVATED. Fails on ERROR (a compose-required var missing from an
+                # existing `.env.example`); doc-coverage findings stay WARN. Two
+                # false-positive classes were fixed in the check first, both measured:
+                # a missing `.env.example` used to make EVERY compose var an error
+                # (13 in the hub alone, all from `infra/vps1/*` deploy units), and
+                # YAML COMMENTS were parsed as references, so the scaffolder's
+                # template boilerplate `${VAR:?}` made 17 of 45 repos "require" a
+                # variable named VAR. After both fixes the fleet blast radius is
+                # 2 of 45 repos / 12 errors, and the hub's single error was a real
+                # defect (apps/example-api referenced ${POSTGRES_PASSWORD} without
+                # declaring it), fixed in this same change.
+                advisory=True,
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_deps_sync.py",
-                "Dependencies Sync",
-                module="scripts.enforcement.check_deps_sync",
-            )
-        )
+        # UNWIRED — check_deps_sync.py ("Dependencies Sync").
+        # Activated and measured 2026-08-16: 0 ERRORs possible, and 202 WARNs
+        # fleet-wide. It compares requirements.txt against pyproject's
+        # `project.dependencies` ONLY — it has no notion of optional-dependency
+        # groups, dev extras, or pinned transitives, so a pip-compile-style
+        # requirements.txt diverges by construction. The signal is real but the
+        # model is too coarse to gate on. Runnable by hand:
+        # `python -m scripts.enforcement.check_deps_sync`.
         # (check_docs.py removed — it was hardcoded to src/fabrik/ and dead in every
         # scaffolded project; "new module → doc" intent is covered by the Doc Sync
         # Matrix + INDEX.)
@@ -1098,18 +1138,26 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_watchdog.py",
-                "Watchdog Scripts",
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_health.py",
-                "Health Endpoint Validation",
-            )
-        )
+        # UNWIRED — check_watchdog.py ("Watchdog Scripts").
+        # Activated and measured 2026-08-16: 0 ERRORs possible, 62 WARNs fleet-wide,
+        # 26 in the hub alone. It demands a per-project `scripts/watchdog.*` beside
+        # every compose file — a scaffold-era convention that was never adopted and
+        # is not how watchdogging actually works here (the real watchdog is the
+        # box-level sidecar under `scripts/sysadmin/`, not a file per deploy unit).
+        # Every infra compose in the repo "violates" it. Obsolete, not under-enforced.
+        # Runnable by hand: `python scripts/enforcement/check_watchdog.py`.
+        #
+        # UNWIRED — check_health.py ("Health Endpoint Validation").
+        # Activated and measured 2026-08-16: 0 ERRORs possible, 21 WARNs fleet-wide.
+        # Its valuable rule ("health endpoint may not test dependencies") cannot tell
+        # a service that HAS no dependencies from one that skips probing them — the
+        # hub's only hit is `templates/mobile-app/server/.../health.py`, where the
+        # module docstring explains that the project ships `needs_database: false`
+        # and `{"status": "ok"}` IS the complete health signal. Its other rule fires
+        # on repo layout (`tests/test_health.py` absent), not on health correctness.
+        # The CLAUDE.md "health endpoint tests real deps" invariant stays enforced by
+        # review, not by this heuristic. Runnable by hand:
+        # `python scripts/enforcement/check_health.py`.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_duplicates.py",

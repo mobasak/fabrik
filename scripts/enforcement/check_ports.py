@@ -95,3 +95,16 @@ def check_file(file_path: Path) -> list[CheckResult]:
                 )
 
     return results
+
+
+if __name__ == "__main__":  # pragma: no cover — CLI entry (see _check_runner)
+    try:
+        from ._check_runner import main_for
+    except ImportError:  # standalone run (final_gate executes `python <path>`)
+        from _check_runner import main_for  # type: ignore[no-redef]
+
+    main_for(
+        check_file,
+        check_name="check_ports",
+        description="Service ports appear in PORTS.md and sit in their technology's range",
+    )

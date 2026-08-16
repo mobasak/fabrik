@@ -23,6 +23,20 @@ COMPOSE_OPTIONAL_PATTERN = re.compile(r"\$\{([A-Z][A-Z0-9_]+):-")  # ${VAR:-defa
 COMPOSE_SIMPLE_PATTERN = re.compile(r"\$\{([A-Z][A-Z0-9_]+)\}")  # ${VAR}
 CONFIG_DOC_PATTERN = re.compile(r"`([A-Z][A-Z0-9_]+)`")
 
+# A `#` at line start or after whitespace begins a YAML comment. Stripping these
+# before extraction is load-bearing (2026-08-16, on activating this check's
+# __main__): the scaffolder's compose template carries the literal boilerplate
+# `#   3. Environment variables (use ${VAR:?} for required vars)` and a commented-out
+# `# - DATABASE_URL=${DATABASE_URL}`. Parsing those as real references made every
+# scaffolded repo "require" a variable named VAR — 17 of 45 fleet repos red, on
+# comment text alone. A `#` glued inside a value (`pa#ss`) is deliberately kept.
+# KNOWN TRADEOFF, chosen deliberately: this is not a YAML parser, so a `${VAR}` that
+# appears after a space-preceded `#` INSIDE a quoted string (`command: sh -c "echo #
+# ${TOKEN}"`) is also dropped. That direction is a false NEGATIVE — a requirement this
+# check fails to demand — which is the safe way to be wrong for a gate that fails the
+# build, and the opposite of the false-positive flood it replaces.
+COMMENT_PATTERN = re.compile(r"(?m)(?:^|\s)#.*$")
+
 # Standard vars that don't need documentation
 STANDARD_VARS = {
     "PORT",
@@ -53,7 +67,7 @@ def extract_compose_vars(path: Path) -> tuple[set[str], set[str]]:
     if not path.exists():
         return set(), set()
 
-    content = path.read_text()
+    content = COMMENT_PATTERN.sub("", path.read_text())
     required = set(COMPOSE_REQUIRED_PATTERN.findall(content))
     optional = set(COMPOSE_OPTIONAL_PATTERN.findall(content))
     simple = set(COMPOSE_SIMPLE_PATTERN.findall(content))
@@ -104,6 +118,18 @@ def check_file(file_path: Path) -> list[CheckResult]:
         compose_file = project_root / "compose.yml"
     config_doc = project_root / "docs" / "CONFIGURATION.md"
 
+    # NO CONTRACT, NO VERDICT (2026-08-16, on activating this check's __main__).
+    # `extract_env_example_vars` returns an empty set for a missing file, so every
+    # single compose var then read as "required var not in .env.example" — an ERROR
+    # each. Measured across the fleet that was 106 errors in 17/45 repos, and 13 in
+    # the hub, entirely from compose files that legitimately have no sibling
+    # `.env.example`: `infra/vps1/apprise/`, `infra/vps1/glitchtip/` and friends are
+    # deploy units whose secrets live in the VPS's own `.env`, not in this repo.
+    # A missing `.env.example` means there is no contract to check, not that every
+    # variable violates it.
+    if not env_example.exists():
+        return results
+
     # Extract all vars
     env_vars = extract_env_example_vars(env_example)
     compose_required, compose_optional = extract_compose_vars(compose_file)
@@ -147,3 +173,16 @@ def check_file(file_path: Path) -> list[CheckResult]:
             )
 
     return results
+
+
+if __name__ == "__main__":  # pragma: no cover — CLI entry (see _check_runner)
+    # Package-relative only: final_gate registers this one with `module=`
+    # (`python -m scripts.enforcement.check_env_contract`), because the module's
+    # own imports are relative and a bare script run cannot resolve them.
+    from ._check_runner import main_for
+
+    main_for(
+        check_file,
+        check_name="check_env_contract",
+        description=".env.example / compose.yaml / docs/CONFIGURATION.md declare the same vars",
+    )

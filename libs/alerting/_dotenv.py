@@ -32,6 +32,12 @@ DOTENV_KEYS: tuple[str, ...] = (
     "ALERT_ENABLED",
     "ALERT_MIN_INTERVAL",
     "ALERT_VPS_HOST",
+    # The Telegram credential is SPLIT in /opt/fabrik/.env: TELEGRAM_BOT_TOKEN holds
+    # only the secret half. All three are curated so `telegram.resolve_bot_token()`
+    # can assemble a usable `id:secret` — loading only the secret half is what made
+    # every direct-Telegram fallback 404 (2026-08-16 liveness audit).
+    "TELEGRAM_FULL_BOT_TOKEN",
+    "TELEGRAM_BOT_ID",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
 )

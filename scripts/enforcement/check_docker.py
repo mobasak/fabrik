@@ -100,9 +100,19 @@ def check_file(file_path: Path) -> list[CheckResult]:
                 results.append(
                     CheckResult(
                         check_name="docker",
-                        severity=Severity.ERROR,
+                        # WARN, not ERROR (2026-08-16, on activating this check's
+                        # __main__). The No-Alpine invariant exists because musl
+                        # breaks *built* Python/Node images — which is why a
+                        # Dockerfile `FROM …alpine` below is still an ERROR. A
+                        # compose `image:` is a PRE-BUILT upstream artifact, and
+                        # `redis:7-alpine` / `postgres:16-alpine` / `nginx:stable-alpine`
+                        # are the vendors' own supported images running in production
+                        # on vps1 today. Failing the gate on them would red the hub
+                        # permanently and demand a risky rebuild of production
+                        # Postgres for no correctness gain.
+                        severity=Severity.WARN,
                         message="Alpine image detected in compose file."
-                        " Use Debian/Ubuntu slim-bookworm.",
+                        " Prefer Debian/Ubuntu slim-bookworm where a variant exists.",
                         file_path=str(file_path),
                         line_number=line_num,
                         fix_hint="Use debian:bookworm-slim or specific -bookworm-slim variants",
@@ -195,3 +205,16 @@ def check_file(file_path: Path) -> list[CheckResult]:
                 pass
 
     return results
+
+
+if __name__ == "__main__":  # pragma: no cover — CLI entry (see _check_runner)
+    try:
+        from ._check_runner import main_for
+    except ImportError:  # standalone run (final_gate executes `python <path>`)
+        from _check_runner import main_for  # type: ignore[no-redef]
+
+    main_for(
+        check_file,
+        check_name="check_docker",
+        description="Docker conventions: no Alpine base, amd64 platform, HEALTHCHECK, port parity",
+    )

@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — LIVENESS: alert delivery was dead, and six gate checks could not fail (2026-08-16)
+
+Stop-the-bleeding pass on surfaces that were DECLARED and never actually asserted anything.
+
+- **Alert delivery restored.** `python scripts/mail.py digest` printed
+  `Alert FAILED (all delivery methods)`, and every alert this box raises — quota drain,
+  keepalive, CI health, watchdog, the mail digest — routes through `libs/alerting`, so the
+  operator had been receiving **nothing**. Two independent causes, neither visible:
+  (1) `/opt/fabrik/.env` **splits** the Telegram credential — `TELEGRAM_BOT_TOKEN` holds only the
+  secret half, and posting to `/bot<secret>/sendMessage` returns HTTP **404**, which reads like a
+  dead endpoint rather than a malformed token; (2) the SSH→Apprise primary fails with remote curl
+  exit 6 (`apprise` does not resolve on vps1 — container gone). `telegram.resolve_bot_token()` now
+  prefers `TELEGRAM_FULL_BOT_TOKEN`, composes `TELEGRAM_BOT_ID` + secret, and refuses a colon-less
+  token outright; all three keys were added to the `_dotenv` curated set. **No secret was invented —
+  the working credential was already on the box.** Verified live: a real Telegram message delivered.
+- **Failures are now diagnosable.** Each leg returns a `DeliveryAttempt` (method, ok, cause,
+  config), and a total failure logs one line *per method* with an actionable cause instead of a
+  single line naming neither. New `python -m alerting --selftest` (`--dry-run` for config only)
+  proves the path end to end and exits non-zero when nothing works.
+- **Six vacuous Tier-3 checks activated or honestly unwired.** `check_docker`, `check_ports`,
+  `check_env_contract`, `check_deps_sync`, `check_watchdog` and `check_health` defined only
+  `check_file()` — no `__main__`, no top-level call — so `final_gate.py` ran them, got exit 0 and
+  empty output, and counted six PASSes that asserted nothing. All six now have a real entry point
+  (`scripts/enforcement/_check_runner.py`: repo walk, dedup, ERROR fails, `--strict` promotes WARN),
+  and each was RUN against this repo and all 45 `/opt` repos before being wired.
+
 ### Added — Postgres registrar provisions the cost-budget RESERVATION lane (2026-08-16)
 
 Requested by fabrik-lib and routed here by infra (fabrik-mail `01M00SRW2Y4AYNAYP6G928TZ0A`); claimed
