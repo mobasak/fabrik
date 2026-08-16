@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-15T06:00:44.122392
+**Last Updated:** 2026-08-16T05:30:23.536439
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -22,7 +22,7 @@
 | 13 | **gemini-3.5-flash** | google | 1535 | ~ | $1.50 | $9.00 | 1048K | ✓ | ✓ | ✓ | 3 | 215 | ✅ |
 | 14 | **gemini-3.6-flash** | google | 1535 | ~ | $0.75 | $3.75 | 1048K | ✓ | ✓ | ✓ | 2 | 512 | ✅ |
 | 15 | **gemini-3.1-pro-preview** | google | 1531 | 80.2 | $2.00 | $12.00 | 1048K | ✓ | ✓ | ✓ | 3 | 161 | ✅ |
-| 16 | **glm-5.2** | z-ai | 1525 | ~ | $0.49 | $1.54 | 1048K |  | ✓ | ✓ | 2 | 1194 | ✅ |
+| 16 | **glm-5.2** | z-ai | 1525 | ~ | $0.46 | $1.45 | 1048K |  | ✓ | ✓ | 2 | 1266 | ✅ |
 | 17 | **muse-spark-1.1** | meta | 1521 | ~ | $1.25 | $4.25 | 1048K | ✓ | ✓ | ✓ | 2 | 435 | ✅ |
 | 18 | **grok-4.20** | x-ai | 1518 | ~ | $1.25 | $2.50 | 2000K | ✓ | ✓ | ✓ | 2 | 694 | ✅ |
 | 19 | **glm-5.1** | z-ai | 1506 | ~ | $0.97 | $3.04 | 204K |  | ✓ | ✓ | 2 | 598 | ✅ |
@@ -39,7 +39,7 @@
 | 30 | **gemini-2.5-pro** | google | 1465 | 32.6 | $1.25 | $10.00 | 1048K | ✓ | ✓ | ✓ | 3 | 188 | ✅ |
 | 31 | **gemini-2.5-pro-preview** | google | 1465 | 32.6 | $1.25 | $10.00 | 1048K | ✓ | ✓ | ✓ | 3 | 188 | ✅ |
 | 32 | **gpt-5.2** | openai | 1465 | 64.9 | $1.75 | $14.00 | 400K | ✓ | ✓ | ✓ | 3 | 134 | ✅ |
-| 33 | **deepseek-v4-flash** | deepseek | 1465 | ~ | $0.08 | $0.16 | 1048K |  | ✓ | ✓ | 1 | 10327 | ✅ |
+| 33 | **deepseek-v4-flash** | deepseek | 1465 | ~ | $0.06 | $0.13 | 1048K |  | ✓ | ✓ | 1 | 13027 | ✅ |
 | 34 | **claude-sonnet-4.5** | anthropic | 1464 | 46.5 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 122 | ✅ |
 | 35 | **qwen3.5-397b-a17b** | qwen | 1463 | ~ | $0.39 | $2.34 | 262K | ✓ | ✓ | ✓ | 2 | 790 | ✅ |
 | 36 | **gemma-4-31b-it** | google | 1462 | ~ | $0.10 | $0.34 | 262K | ✓ | ✓ | ✓ | 1 | 5221 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-08-15:** Auto-updated from benchmarks
+- **2026-08-16:** Auto-updated from benchmarks
