@@ -111,12 +111,31 @@ Control first: the same check on a **clean** tree must exit 0 without a tracebac
 itself is broken, we have measured our harness and not the check → UNKNOWN, never INERT.
 
 The compose/env fixtures are reused from `tests/test_check_activation_anti_vacuity.py`, so the two agree
-by construction. Where a canary cannot be authored cheaply (most checks derive their root from `__file__`
-or need repo context), the check is reported **UNPROVEN** — neither green nor red, the third state again.
+by construction. Where no fixture can REACH the check, it is reported **UNPROVEN** with the obstruction
+named (`liveness_audit.UNREACHABLE`) — neither green nor red, the third state again.
 
 The deliberately-**unwired** diagnostics (`check_ports`, `check_deps_sync`, `check_watchdog`,
 `check_health`) are audited too: a hand-runnable check that silently exits 0 is the same trap in a
 different hat.
+
+**Invocation forms** (`CANARIES[<check>]["form"]`), because the corpus is not uniform: `root` /
+`module` (the `_check_runner` `--root` contract), `cwd` and `gitcwd` (the many checks that read
+`Path.cwd()` and the git diff), and `copy` — a copy of `scripts/enforcement/` staged INSIDE the
+fixture, the only way to reach a check whose repo root is `Path(__file__).parents[2]`. A fixture is
+split into `base` (both trees), `files` (the BAD tree — the violation), `clean` (the control only,
+for rules whose violation is an ABSENCE) and `staged` (written after the `git commit` step).
+
+**`warn_only` — the inverted canary.** Eight registered checks have **no non-zero exit path at all**
+(`check_compose_services`, `check_doc_stubs`, `check_env_example`, `check_env_updates`,
+`check_retired_terms`, `check_reusable_modules`, `check_script_headers`, `check_test_coverage`). Their
+fixture is a real violation, the check REPORTS it, and it exits 0 — so they occupy a `final_gate.py`
+row that no defect can ever turn red. They are declared `warn_only` with the source line that makes
+them toothless, reported DEAD/inert with that evidence, and `tests/test_gate_check_canaries.py`
+asserts they still print the finding (and shouts if one ever grows teeth).
+
+The whole corpus is asserted as tests in `tests/test_gate_check_canaries.py`, including a `NEUTERS`
+set that deletes one check's core rule and proves its canary then goes GREEN — a canary that survives
+a broken check proves nothing about a working one.
 
 ### PROOF 3 — DOC-CLAIM BINDING ("is the doc true?")
 
@@ -213,9 +232,17 @@ parsed, 20 docs enumerated, 28 claims extracted. What it found on its first run:
   reported as one instead of hidden behind a green.
 - **UNKNOWN ×4 (doc-claim)** — four `hook_file` claims naming files that exist but are wired outside the
   `settings.json` layer this oracle can read.
-- **UNKNOWN ×40 (vacuity)** — 40 of 43 registered gate checks have **no canary** and are therefore
-  UNPROVEN. That number is the honest size of the remaining gap.
-- **LIVE ×7 (vacuity)** — all seven canaried checks went red on their fixtures.
+- **LIVE ×36 (vacuity)** — every canaried check went red on its fixture. Was 7 when this file landed;
+  the corpus was completed the same day (see `tests/test_gate_check_canaries.py`).
+- **DEAD ×8 (vacuity)** — the `warn_only` set: registered like ordinary checks, structurally unable to
+  exit non-zero. The number is a real defect count, not a canary failure.
+- **UNKNOWN ×3 (vacuity)** — `check_vps_docs` (hardcoded absolute `/opt/fabrik` root), `check_phase_tests`
+  and `check_mutation` (need an active plan lock / mutmut respectively — and both return 0 everywhere
+  anyway). Recorded in `liveness_audit.UNREACHABLE` with the obstruction named. 3 is the honest size of
+  the remaining gap; it was 40.
+- **`check_vps_docs` is RED on the hub today** — `docs/operations/vps-status.md` and `vps-urls.md` do not
+  exist, so the Tier-2 row fails. Its findings are `Severity.WARN` yet its `__main__` exits 1 on any
+  finding at all.
 - **`reboot-sweep` LIVE** — last `arg=sweep` 4.4 h ago, 21 occurrences. The exact finding that was
   reported to the operator as "NEVER run".
 
@@ -227,3 +254,5 @@ parsed, 20 docs enumerated, 28 claims extracted. What it found on its first run:
 - `docs/workstation/hooks-index.md` — every hook on the box, the registry's hook surfaces
 - `docs/workstation/wsl-startup-inventory.md` — what runs on boot (and the one stale claim above)
 - `tests/test_check_activation_anti_vacuity.py` — the canary fixtures PROOF 2 reuses
+- `tests/test_gate_check_canaries.py` — the whole canary corpus as tests, plus the coverage ratchet
+  (a new `run_optional_check(...)` with no canary and no `UNREACHABLE` reason fails the suite)

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — CANARY COVERAGE: 40 unproven gate checks down to 3 (2026-08-16)
+
+The liveness layer shipped reporting **40 of 43 registered gate checks UNPROVEN** — no canary, so
+nobody knew whether they could fail at all. A check that cannot fail buys exactly the same green as
+one that works, and six such checks had already been found the same day. The corpus is now complete:
+
+- **29 new canaries** in `liveness_audit.CANARIES`, each a discriminating PAIR (a real violation the
+  check must reject, a clean control it must accept). Vacuity now reads **LIVE 36 / DEAD 8 / UNKNOWN 3**
+  against a 7 / 0 / 40 baseline.
+- **The canary harness grew the forms the corpus actually needs**: `cwd` (checks that read `Path.cwd()`),
+  `copy` (a copy of `scripts/enforcement/` staged inside the fixture — the only way to reach a check
+  rooted at `Path(__file__).parents[2]`), `git: add|commit`, per-canary `args`/`env`/`timeout`, and a
+  `clean`-only fixture slot for rules whose violation is an ABSENCE (a model change with no migration
+  cannot be expressed by ADDING a file to the bad tree).
+- **8 checks found structurally unable to fail** — `check_compose_services`, `check_doc_stubs`,
+  `check_env_example`, `check_env_updates`, `check_retired_terms`, `check_reusable_modules`,
+  `check_script_headers`, `check_test_coverage`. Each REPORTS its violation and returns 0 on every
+  path while being registered in `final_gate.py` like an ordinary check. Declared `warn_only` with the
+  source line that makes them toothless, and reported DEAD with that evidence rather than left UNKNOWN.
+- **3 recorded as unprovable by construction** in `liveness_audit.UNREACHABLE`, obstruction named:
+
 ### Fixed — LINT RATCHET cleared: 39 → 0 repo-wide ruff errors, baseline LOCKED at zero (2026-08-16)
 
 `ruff check .` reported 39 errors against a baseline of 35, so `final_gate.py --lean` was red for every

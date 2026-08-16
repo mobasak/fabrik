@@ -490,10 +490,15 @@ class Box:
         return Path(os.path.expandvars(str(raw).replace("~", str(self.home), 1)))
 
 
-def _run(cmd: list[str], timeout: int = 30, cwd: Path | None = None) -> subprocess.CompletedProcess[str] | None:
+def _run(
+    cmd: list[str],
+    timeout: int = 30,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str] | None:
     try:
         return subprocess.run(  # noqa: S603 - fixed argv, no shell
-            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd, env=env
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -706,13 +711,112 @@ def _unregistered(
 # A gate check registered in final_gate.py: run_optional_check("scripts/enforcement/x.py", ...)
 _REGISTERED = re.compile(r'run_optional_check\(\s*"(scripts/enforcement/[a-z_0-9]+\.py)"')
 
+# ── Shared canary fixture bodies (kept out of the table so the table stays readable) ──
+_MODEL_PY = (
+    "from sqlalchemy import Column, String\n\n\n"
+    'class User(Base):\n    __tablename__ = "users"\n    email = Column(String)\n'
+)
+_SPEC_DB = "id: {{fixture}}/proj\nshape:\n  needs_database: true\ndepends:\n  postgres: {db}\n"
+_FROZEN_OK = (
+    "# Data Contract\n\n"
+    "**Status:** FROZEN\n**Version:** v1\n**Date:** 2026-08-16\n**Mode:** A\n"
+    "Any change = bump Version + re-freeze via `/fabrik-data-contract`.\n\n"
+    "| Field | Column |\n| --- | --- |\n| email | users.email |\n"
+)
+_FROZEN_BAD = (
+    "# Data Contract\n\n**Status:** FROZEN\n\n"
+    "| Field | Column |\n| --- | --- |\n| email | users.email |\n"
+)
+_COMPOSE_TRAEFIK = (
+    "services:\n  app:\n    image: x\n    labels:\n"
+    '      - "traefik.enable=true"\n    networks:\n      - fabrik\n'
+)
+_COMPOSE_TRAEFIK_PORTS = (
+    "services:\n  app:\n    image: x\n    ports:\n"
+    '      - "8080:8080"\n    labels:\n'
+    '      - "traefik.enable=true"\n    networks:\n      - fabrik\n'
+)
+_MANIFEST_HOOKS = 'AGENT_HOOK_FILES = [".claude/hooks/promise_guard.py"]\n'
+_DUPE_PY = "\n".join(
+    f"def step_{i}(payload):\n"
+    f"    total = payload.get('a', 0) + payload.get('b', 0)\n"
+    f"    if total > {i}:\n"
+    f"        return {{'ok': True, 'total': total, 'step': {i}}}\n"
+    f"    return {{'ok': False, 'total': total, 'step': {i}}}\n"
+    for i in range(12)
+)
+_PLAN_CONVERGED_OK = (
+    "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\n## Evidence\n\n"
+    "- src/app.py:42 — the call site\n\n"
+    '```\n$ python scripts/final_gate.py --check\n{"status": "success"}\n```\n\n'
+    "## Self-audit\n\n- checked every phase\n"
+)
+_PLAN_CONVERGED_BAD = "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\nAll done, trust me.\n"
+_REVIEW_OK = (
+    "# Review — plan x\n\nSurface: deadbeef0000 / diff md5 1234\n\n"
+    "Ran `review_rubric.py --changed src/app.py`. Pass 1 and Pass 2 complete.\n\n"
+    "## Coverage Checklist\n\n| Class | Verdict |\n| --- | --- |\n"
+    "| fail-open/fail-closed | CLEAN — hunted src/app.py, src/db.py |\n"
+    "| cost/quota accounting | CLEAN — hunted src/billing.py |\n"
+    "| boundary/sentinel/prefix | CLEAN — hunted src/parse.py |\n"
+    "| behavior-without-a-test | CLEAN — hunted tests/test_app.py |\n"
+)
+_REVIEW_BAD = _REVIEW_OK.replace(
+    "| fail-open/fail-closed | CLEAN — hunted src/app.py, src/db.py |",
+    "| fail-open/fail-closed | UNCHECKED |",
+)
+_PROPOSAL_OK = (
+    "# Plan\n\n## Behavior Contract\n\n"
+    "- **Given** an empty queue, **When** a job arrives, **Then** it is dispatched.\n"
+    "- **Given** a full queue, **When** a job arrives, **Then** it is rejected.\n"
+    "- **Mocked:** the Redis client is mocked; Postgres is real.\n"
+)
+_PROPOSAL_BAD = "# Plan\n\nWe will build the thing and it will be good.\n"
+_PLAN_DIR = "docs/development/plans/2026-01-01-plan-canary"
+_SPINE_OK = (
+    "# Plan canary\n\nStatus: DRAFT\n\n## Ticket Board\n\n| T01 | thing |\n\n"
+    "## Merge Order\n\n1. T01\n"
+)
+_SPINE_BAD = _SPINE_OK.replace("Status: DRAFT", "Status: BANANA")
+_TICKET_NARROW = (
+    "# T01 — narrow\n\nStatus: DRAFT\n\n## Touches\n\n- src/a.py\n\n"
+    "## Behavior Contract\n\n- **Given** x, **When** y, **Then** z.\n"
+)
+_TICKET_BROAD = (
+    "# T01 — broad\n\nStatus: DRAFT\n\n## Touches\n\n"
+    "- src/a.py\n- libs/b.py\n- scripts/c.py\n- .windsurf/rules/core/d.md\n\n"
+    "## Behavior Contract\n\n"
+    "- **Given** a, **When** b, **Then** c.\n"
+    "- **Given** d, **When** e, **Then** f.\n"
+    "- **Given** g, **When** h, **Then** i.\n"
+)
+_README_OK = "# Project\n\n## Overview\n\nx\n\n## Quick Start\n\nx\n\n## Documentation\n\nx\n"
+
 # Canaries — a deliberately-bad fixture per check, and the invocation form that reaches it.
-#   form "root":   the `_check_runner` script contract — `<script> --root <fixture>`, cwd=fixture
-#   form "module": the same runner in module form — `python -m scripts.enforcement.X --root ...`
-#                  from the repo root (relative-import checks crash any other way)
-#   form "gitcwd": a throwaway git repo (the diff-scoped checks read `git ls-files --others`)
-#   "strict": the check reports this class at WARN level, so `--strict` — its documented
-#             activation switch — is what turns the finding into a non-zero exit.
+#
+# FORM (how the check is reached):
+#   "root":   the `_check_runner` script contract — `<script> --root <fixture>`, cwd=fixture
+#   "module": the same runner in module form — `python -m scripts.enforcement.X --root ...`
+#             from the repo root (relative-import checks crash any other way)
+#   "cwd":    `<script>` with cwd=fixture and NO --root — the many checks that read `Path.cwd()`
+#   "gitcwd": "cwd" plus a throwaway `git init` (the diff-scoped checks read git)
+#   "copy":   a copy of `scripts/enforcement/` staged INSIDE the fixture and run from there —
+#             the only way to reach a check whose repo root is `Path(__file__).parents[2]`
+#             (check_doc_index, check_doc_links, check_imports_resolvable, check_lint_ratchet,
+#             check_retired_terms, check_subagent_flywheel, check_sync_trigger_coverage).
+#
+# FIXTURE (what lands where): "base" → both trees · "files" → the BAD tree only (the violation)
+#   · "clean" → the CONTROL only (for rules whose violation is an ABSENCE) · "staged" → written
+#   after the "commit" git step, so it lands in the index rather than in history.
+# "git": "init" | "add" (init + `git add -A`) | "commit" (init + add + commit, then "staged").
+# "args"/"env": extra argv / env, with `{fixture}` substituted (also substituted in file bodies).
+# "strict": the check reports this class at WARN level, so `--strict` — its documented
+#           activation switch — is what turns the finding into a non-zero exit.
+# "warn_only": this check has NO non-zero exit path at all. The fixture is still a REAL
+#           violation and the check still REPORTS it — that is the evidence. The canary is
+#           expected to stay green, and the DEAD verdict it produces is the finding, not a
+#           harness failure. The value says whose contract makes it toothless.
+#
 # The compose/env fixtures are the ones tests/test_check_activation_anti_vacuity.py already
 # proved RED; reused rather than reinvented so the two agree by construction.
 CANARIES: dict[str, dict[str, Any]] = {
@@ -766,6 +870,341 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {"leak.py": 'AWS_SECRET_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLEKEYXX"\n'},  # noqa
         "expect": "a hardcoded secret in the diff",
     },
+    # ── secrets / credentials / env contract ────────────────────────────────────────
+    "check_env_vars": {
+        "form": "gitcwd",
+        # noqa - the POINT of the fixture: a hardcoded host written into a throwaway tree so
+        # check_env_vars can be proven able to fail. check_env_vars flagging THIS very line
+        # (it did, at the Tier-1 gate) is the check working correctly on itself.
+        "files": {
+            "app/db.py": 'DB_HOST = "localhost"\nDATABASE_URL = "postgresql://u@localhost:5432/app"\n'  # noqa
+        },
+        "expect": "a hardcoded localhost DSN — the container's own loopback, not postgres-main",
+    },
+    # ── schema / data contract ──────────────────────────────────────────────────────
+    "check_schema_sync": {
+        "form": "cwd",
+        "git": "add",
+        "base": {"src/app/models.py": _MODEL_PY},
+        "clean": {"db/schema.sql": "CREATE TABLE users (email text);\n"},
+        "expect": "a DB model change with no schema.sql or migration beside it",
+    },
+    "check_spec_db_match": {
+        "form": "copy",
+        "base": {
+            "proj/.env.example": "PG_DATABASE=actual_db\n",
+            "specs/services/proj.yaml": _SPEC_DB.format(db="actual_db"),
+        },
+        "files": {"specs/services/proj.yaml": _SPEC_DB.format(db="expected_db")},
+        "expect": "a spec DB name that disagrees with the project's own .env",
+    },
+    "check_stage_artifacts": {
+        "form": "cwd",
+        "git": "add",
+        "args": ["--project-root", "{fixture}"],
+        "clean": {"docs/data-contract.md": _FROZEN_OK},
+        "files": {"docs/data-contract.md": _FROZEN_BAD},
+        "expect": "a FROZEN contract with no Version/Date/Mode header and no freeze rule",
+    },
+    # ── deploy correctness ──────────────────────────────────────────────────────────
+    "check_no_host_ports": {
+        "form": "cwd",
+        "args": ["--templates-dir", "{fixture}/templates"],
+        "base": {"templates/api/compose.yaml.j2": _COMPOSE_TRAEFIK},
+        "files": {"templates/api/compose.yaml.j2": _COMPOSE_TRAEFIK_PORTS},
+        "expect": "a host port on a Traefik-routed service — every middleware bypassed",
+    },
+    "check_traefik_labels": {
+        "form": "cwd",
+        "args": ["--templates-dir", "{fixture}/templates"],
+        "base": {"templates/api/keep.txt": "x\n"},
+        "files": {"templates/api/compose.yaml.j2": _COMPOSE_TRAEFIK},
+        "expect": "a Traefik-enabled service missing the mandatory §7 label set",
+    },
+    "check_undeclared_imports": {
+        "form": "cwd",
+        "git": "add",
+        "base": {"requirements.txt": "click\n", "src/a.py": "import click\n"},
+        "files": {"src/b.py": "import yaml\n"},
+        "expect": "an import in no requirements manifest — a fresh deploy crashes on it",
+    },
+    "check_imports_resolvable": {
+        "form": "copy",
+        "git": "add",
+        "base": {
+            ".gitignore": "src/vendored.py\n",
+            "src/vendored.py": "HELPER = 1\n",
+            "src/a.py": "import os\n\nprint(os)\n",
+        },
+        "files": {"src/b.py": "import vendored\n\nprint(vendored.HELPER)\n"},
+        "expect": "a phantom import resolving only to a gitignored file",
+    },
+    "check_synced_unmodified": {
+        "form": "cwd",
+        "args": ["--project-root", "{fixture}"],
+        "base": {"CLAUDE.md": "synced body\n"},
+        "clean": {".fabrik/synced.lock": '{"CLAUDE.md": "c0602ddd2b0b9ecbce84b7cd0a195133"}\n'},
+        "files": {".fabrik/synced.lock": '{"CLAUDE.md": "00000000000000000000000000000000"}\n'},
+        "expect": "a locally-forked copy of a fleet-synced file",
+    },
+    "check_sync_trigger_coverage": {
+        "form": "copy",
+        "files": {"commands/_sources/x.md": "# a hub-only corpus source\n"},
+        "expect": "a hub-shaped tree whose synced manifest has gone missing",
+    },
+    "check_hooks_index": {
+        "form": "cwd",
+        "args": ["--project-root", "{fixture}"],
+        # HOME is redirected INTO the fixture: the check unions in the user-level
+        # ~/.claude/settings.json hooks, and the operator's real ones would swamp the pair.
+        "env": {"HOME": "{fixture}/home"},
+        "base": {
+            "templates/governance/CLAUDE.md": "hub marker\n",
+            "scripts/fabrik_synced_manifest.py": _MANIFEST_HOOKS,
+        },
+        "clean": {"docs/workstation/hooks-index.md": "| promise_guard.py | live |\n"},
+        "files": {"docs/workstation/hooks-index.md": "| some_other_hook.py | live |\n"},
+        "expect": "a live hook missing from the hooks index",
+    },
+    # ── code quality / structure ────────────────────────────────────────────────────
+    "check_print_ban": {
+        "form": "cwd",
+        "git": "add",
+        "base": {"src/app.py": "import logging\n\nlog = logging.getLogger(__name__)\n"},
+        "files": {"src/worker.py": 'def run():\n    print("started")\n'},
+        "expect": "print() in production code",
+    },
+    "check_structure": {
+        "form": "cwd",
+        "args": ["--project-root", "{fixture}"],
+        "base": {"README.md": "# ok\n"},
+        "files": {"NOTES.md": "# a root .md that is not allowlisted\n"},
+        "expect": "a root-level .md outside ALLOWED_ROOT_MD",
+    },
+    "check_rule_size": {
+        "form": "cwd",
+        "base": {".windsurf/rules/core/ok.md": "small\n"},
+        "files": {".windsurf/rules/core/huge.md": "x" * 51_300},
+        "expect": "a rules pack over the 50KB auto-load context budget",
+    },
+    "check_opencode_json": {
+        "form": "cwd",
+        "base": {"opencode.json": '{"instructions": ["AGENTS-compact.md"]}\n'},
+        "files": {
+            "opencode.json": '{"instructions": ["AGENTS-compact.md", ".windsurf/rules/**/*.md"]}\n'
+        },
+        "expect": "opencode.json pulling the whole rules corpus into Kilo's context",
+    },
+    "check_duplicates": {
+        "form": "cwd",
+        "timeout": 180,
+        "base": {"src/a.py": _DUPE_PY},
+        "files": {"src/b.py": _DUPE_PY},
+        "expect": "copy-pasted code over the duplication threshold",
+    },
+    "check_lint_ratchet": {
+        "form": "copy",
+        "timeout": 180,
+        "base": {
+            # scripts/ is excluded so the ratchet measures the FIXTURE, not the copy of
+            # scripts/enforcement/ that the "copy" form had to stage to reach the check.
+            "pyproject.toml": '[tool.ruff]\nexclude = ["scripts"]\n',
+            ".fabrik/lint-baseline.json": '{"ruff_errors": 0}\n',
+        },
+        "files": {"src/debt.py": "import os\nimport sys\n"},
+        "expect": "new lint debt above the committed ratchet floor",
+    },
+    "check_subagent_flywheel": {
+        "form": "copy",
+        "git": "commit",
+        "timeout": 120,
+        "args": ["{fixture}/.fabrik/subagent-ledger.jsonl"],
+        "base": {"libs/subagents/__init__.py": "PLACEHOLDER = 1\n"},
+        "staged": {f"src/mod_{i}.py": f"VALUE = {i}\n" for i in range(12)},
+        "clean": {
+            ".fabrik/subagent-ledger.jsonl": '{"ts": 4102444800.0, "model": "x", "task_type": "review"}\n'
+        },
+        "expect": "a substantial code change with zero recorded pool runs",
+    },
+    # ── plans / reviews / docs ──────────────────────────────────────────────────────
+    "check_convergence": {
+        "form": "cwd",
+        "git": "add",
+        "args": ["--project-root", "{fixture}"],
+        "clean": {"docs/development/plans/2026-01-01-plan-1.md": _PLAN_CONVERGED_OK},
+        "files": {"docs/development/plans/2026-01-01-plan-1.md": _PLAN_CONVERGED_BAD},
+        "expect": "a plan claiming CONVERGED with no Evidence section",
+    },
+    "check_review_coverage": {
+        "form": "root",
+        "git": "add",
+        "clean": {"docs/development/reviews/r-review.md": _REVIEW_OK},
+        "files": {"docs/development/reviews/r-review.md": _REVIEW_BAD},
+        "expect": "a review shipping an UNCHECKED Coverage-Checklist class",
+    },
+    "check_test_proposal": {
+        "form": "cwd",
+        "git": "add",
+        "clean": {"docs/development/plans/2026-01-01-plan-1.md": _PROPOSAL_OK},
+        "files": {"docs/development/plans/2026-01-01-plan-1.md": _PROPOSAL_BAD},
+        "expect": "a new plan with no Behavior Contract",
+    },
+    "check_plan_tickets": {
+        "form": "cwd",
+        "git": "add",
+        "args": ["--project-root", "{fixture}"],
+        "base": {f"{_PLAN_DIR}/T01-thing.md": _TICKET_NARROW},
+        "clean": {f"{_PLAN_DIR}/2026-01-01-plan-canary.md": _SPINE_OK},
+        "files": {f"{_PLAN_DIR}/2026-01-01-plan-canary.md": _SPINE_BAD},
+        "expect": "a plan spine whose Status is not a pipeline value",
+    },
+    "check_ticket_breadth": {
+        "form": "cwd",
+        "git": "add",
+        "strict": True,
+        "args": ["--project-root", "{fixture}"],
+        "base": {f"{_PLAN_DIR}/2026-01-01-plan-canary.md": _SPINE_OK},
+        "clean": {f"{_PLAN_DIR}/T01-thing.md": _TICKET_NARROW},
+        "files": {f"{_PLAN_DIR}/T01-thing.md": _TICKET_BROAD},
+        "expect": "a ticket whose declared breadth is over the split threshold",
+    },
+    "check_doc_sync": {
+        "form": "cwd",
+        "git": "add",
+        "base": {"src/app.py": "def handler():\n    return 1\n"},
+        "clean": {"CHANGELOG.md": "## [Unreleased]\n\n### Added — thing (2026-08-16)\n"},
+        "expect": "a significant code change with no CHANGELOG entry",
+    },
+    "check_doc_index": {
+        "form": "copy",
+        "git": "add",
+        "base": {"INDEX.md": "# Index\n\n- [Ops](docs/ops.md)\n", "docs/ops.md": "# Ops\n"},
+        "files": {"docs/orphan.md": "# Orphan\n"},
+        "expect": "a live doc absent from INDEX.md",
+    },
+    "check_doc_links": {
+        "form": "copy",
+        "git": "add",
+        "base": {
+            "docs/ops.md": "# Ops\n\nSee [runbook](runbook.md).\n",
+            "docs/runbook.md": "# R\n",
+        },
+        "files": {"docs/broken.md": "# B\n\nSee [gone](does-not-exist.md).\n"},
+        "expect": "a markdown reference that resolves to nothing",
+    },
+    "check_doc_sprawl": {
+        "form": "gitcwd",
+        "strict": True,
+        "base": {"docs/reference/allowed.md": "# fine\n"},
+        "files": {"notes/scratch.md": "# not on the allowlist\n"},
+        "expect": "a new .md outside the doc allowlist",
+    },
+    "check_readme_md": {
+        "form": "cwd",
+        "git": "add",
+        "clean": {"README.md": _README_OK},
+        "files": {"README.md": "# Project\n\nSome prose, no required sections.\n"},
+        "expect": "a README missing the required entry-point sections",
+    },
+    "check_user_guide": {
+        "form": "cwd",
+        "base": {"project.yaml": "name: x\ntype: python-api\n"},
+        "files": {"project.yaml": "name: x\ntype: python-api\nhas_user_guide: true\n"},
+        "expect": "project.yaml promising a user guide the repo does not ship",
+    },
+    # ── WARN-ONLY BY CONTRACT: these have NO non-zero exit path ──────────────────────
+    # Each fixture below is a REAL violation and each check REPORTS it — and then exits 0.
+    # They are registered in final_gate.py exactly like the checks above, so they occupy a
+    # green row that no defect can ever turn red. That is the finding; the canary is the
+    # evidence for it, not a failure of the canary.
+    "check_env_updates": {
+        "form": "cwd",
+        "warn_only": "check_env_updates.check_env_updates() returns `True, errors` on every path",
+        "base": {".env.example": "API_KEY=\n", ".env": "API_KEY=real\n"},
+        "files": {".env.example": "API_KEY=\nDB_PASSWORD=\n"},
+        "expect": "a variable in .env.example that never reached .env",
+    },
+    "check_env_example": {
+        "form": "cwd",
+        "git": "add",
+        "warn_only": "check_env_example.main() prints '(This is a WARNING…)' and returns 0",
+        "base": {".env.example": "API_KEY=\n"},
+        "files": {"src/app.py": 'import os\n\nTOKEN = os.getenv("NEW_UNDECLARED_TOKEN")\n'},
+        "expect": "a new env var read by code and absent from .env.example",
+    },
+    "check_compose_services": {
+        "form": "cwd",
+        "git": "add",
+        "warn_only": "check_compose_services.main() prints '(This is a WARNING…)' and returns 0",
+        "base": {"docs/SERVICES.md": "# Services\n\n- app\n"},
+        "files": {
+            "compose.yaml": "services:\n  app:\n    image: x\n  undocumented_worker:\n    image: y\n"
+        },
+        "expect": "a new compose service documented nowhere",
+    },
+    "check_test_coverage": {
+        "form": "cwd",
+        "git": "add",
+        "warn_only": "check_test_coverage.main() prints '(This is a WARNING…)' and returns 0",
+        "files": {"src/billing.py": "def charge_customer(amount):\n    return amount * 2\n"},
+        "expect": "new public src/ code with no test anywhere",
+    },
+    "check_script_headers": {
+        "form": "cwd",
+        "git": "add",
+        "warn_only": "check_script_headers.main() ends `return 0  # WARN-only — never blocks`",
+        "files": {"scripts/deploy_thing.py": "def run():\n    return 1\n"},
+        "expect": "a scripts/ file with no `# AFTER-EDIT:` coupling header",
+    },
+    "check_reusable_modules": {
+        "form": "cwd",
+        "warn_only": "check_reusable_modules.main() returns 0 after printing the WARNING",
+        "base": {"INDEX.md": "# Index\n\n- src/utils/other.py\n"},
+        "files": {"src/utils/helper.py": "def helper():\n    return 1\n"},
+        "expect": "a src/utils module never tagged [reusable] in INDEX.md",
+    },
+    "check_retired_terms": {
+        "form": "copy",
+        "git": "add",
+        "warn_only": "check_retired_terms.main() ends `return 0  # ALWAYS — WARN-only by contract`",
+        "base": {"docs/ok.md": "# Ok\n\nWe use Traefik.\n"},
+        "files": {
+            "docs/live.md": "# Live\n\nDeploy the stack with Coolify and store data in Supabase.\n"
+        },
+        "expect": "unmarked retired-tech framing in a live doc",
+    },
+    "check_doc_stubs": {
+        "form": "cwd",
+        "git": "add",
+        "warn_only": "check_doc_stubs.main() returns 0 on every path (advisory by design)",
+        "base": {"docs/SERVICES.md": "# Acme Services\n\n- app\n"},
+        "files": {
+            "compose.yaml": "services:\n  app:\n    image: x\n",
+            "docs/SERVICES.md": "# [Project Name] Services\n\n- TODO\n",
+        },
+        "expect": "a doc left carrying template placeholders after its trigger fired",
+    },
+}
+
+# Registered checks a FIXTURE cannot reach, with the reason. Reported as UNKNOWN with the
+# obstruction named — never as green, and never as inert (we have not measured the check,
+# we have measured that we cannot address it).
+UNREACHABLE: dict[str, str] = {
+    "check_vps_docs": (
+        'reads the absolute literal `FABRIK_ROOT = Path("/opt/fabrik")`; it has no --root, '
+        "reads no env var, and ignores cwd — a fixture cannot reach it without writing into "
+        "the real hub docs tree"
+    ),
+    "check_phase_tests": (
+        "needs an ACTIVE plan lock plus a real baseline_commit whose git window ships source "
+        "without tests; and it returns 0 on every path anyway "
+        "(`return 0` in both the warned and the fail-soft branch)"
+    ),
+    "check_mutation": (
+        "needs mutmut installed AND FABRIK_MUTMUT set, and would then run a full mutation "
+        "campaign inside the audit; it has no `return 1` at all — every branch of `_main()` "
+        "and the fail-soft wrapper returns 0"
+    ),
 }
 
 
@@ -784,11 +1223,66 @@ def discover_registered_checks(gate: Path) -> tuple[Instrument, list[str]]:
     return Instrument.proven(name), names
 
 
+def _sub(text: str, fixture: Path) -> str:
+    return text.replace("{fixture}", str(fixture))
+
+
 def _materialise(files: dict[str, str], root: Path) -> None:
     for rel, body in files.items():
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(body, encoding="utf-8")
+        target.write_text(_sub(body, root), encoding="utf-8")
+
+
+def _prepare(fixture: Path, canary: dict[str, Any], repo_root: Path, *, bad: bool) -> str:
+    """Build one fixture tree. Returns "" or an INSTRUMENT fault (never a verdict).
+
+    `base` lands in BOTH the clean control and the bad canary — it is the scaffolding a
+    check needs before it can even run (an INDEX.md it dereferences, a project.yaml that
+    switches it on). `files` lands ONLY in the bad tree: that is the violation itself, and
+    keeping it separate is what makes the pair a discriminating test rather than two
+    unrelated runs. `clean` lands only in the CONTROL, for the rules whose violation is an
+    ABSENCE — a model change with no migration beside it cannot be expressed by adding a
+    file to the bad tree, only by removing one from it.
+    """
+    form = str(canary.get("form", "root"))
+    git_mode = str(canary.get("git") or ("init" if form == "gitcwd" else ""))
+    if git_mode:
+        if _run(["git", "init", "-q", str(fixture)]) is None:
+            return "git is unavailable for a diff-scoped canary"
+        for cfg in (("user.email", "canary@fabrik.local"), ("user.name", "canary")):
+            _run(["git", "-C", str(fixture), "config", *cfg])
+
+    if form == "copy":
+        # These checks anchor their repo root at `Path(__file__).parents[2]`, not at cwd —
+        # so the ONLY way to point them at a fixture is to run a copy of the real check
+        # from inside it. Same code, different root: still the check under test.
+        dest = fixture / "scripts" / "enforcement"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copytree(repo_root / "scripts" / "enforcement", dest, dirs_exist_ok=True)
+        except OSError as exc:
+            return f"could not stage a check copy into the fixture: {exc}"
+
+    _materialise(canary.get("base") or {}, fixture)
+    _materialise((canary.get("files") if bad else canary.get("clean")) or {}, fixture)
+
+    if git_mode in ("add", "commit"):
+        # `git add -A` only — never a commit, by default. Checks that read
+        # `git diff --cached HEAD` fall back to `--cached` on a repo with no HEAD, which
+        # is exactly this shape. "commit" additionally lands a HEAD first, for the checks
+        # that resolve a merge-base and go fail-safe-lenient when there is none.
+        if git_mode == "commit":
+            for argv in (
+                ["git", "-C", str(fixture), "add", "-A"],
+                ["git", "-C", str(fixture), "commit", "-q", "-m", "canary base", "--no-verify"],
+            ):
+                if _run(argv, timeout=60) is None:
+                    return "git is unavailable for a history-scoped canary"
+            _materialise(canary.get("staged") or {}, fixture)
+        if _run(["git", "-C", str(fixture), "add", "-A"]) is None:
+            return "git is unavailable for a staged-diff canary"
+    return ""
 
 
 def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Instrument, bool]:
@@ -801,18 +1295,17 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
     inst_name = f"canary[{name}]"
     if not script.is_file():
         return Instrument.broken(inst_name, f"no such check script: {script}"), False
-    form = str(canary.get("form", "root"))
-    strict = bool(canary.get("strict"))
 
     def invoke(fixture: Path) -> subprocess.CompletedProcess[str] | None:
-        argv, cwd = _argv(name, form, script, fixture, repo_root, strict)
-        return _run(argv, cwd=cwd)
+        argv, cwd, env = _argv(name, canary, script, fixture, repo_root)
+        return _run(argv, cwd=cwd, env=env, timeout=int(canary.get("timeout", 30)))
 
     with tempfile.TemporaryDirectory() as td:
         clean = Path(td) / "clean"
         clean.mkdir()
-        if form == "gitcwd" and _run(["git", "init", "-q", str(clean)]) is None:
-            return Instrument.broken(inst_name, "git is unavailable for a diff-scoped canary"), False
+        fault = _prepare(clean, canary, repo_root, bad=False)
+        if fault:
+            return Instrument.broken(inst_name, fault), False
         control = invoke(clean)
         if control is None:
             return Instrument.broken(inst_name, "the check could not be executed at all"), False
@@ -826,7 +1319,7 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
             return (
                 Instrument.broken(
                     inst_name,
-                    f"the check exits {control.returncode} on an EMPTY tree, so a red canary "
+                    f"the check exits {control.returncode} on a CLEAN tree, so a red canary "
                     "would prove nothing",
                 ),
                 False,
@@ -835,9 +1328,9 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
     with tempfile.TemporaryDirectory() as td:
         bad = Path(td) / "bad"
         bad.mkdir()
-        if form == "gitcwd" and _run(["git", "init", "-q", str(bad)]) is None:
-            return Instrument.broken(inst_name, "git is unavailable for a diff-scoped canary"), False
-        _materialise(canary.get("files") or {}, bad)
+        fault = _prepare(bad, canary, repo_root, bad=True)
+        if fault:
+            return Instrument.broken(inst_name, fault), False
         red = invoke(bad)
         if red is None:
             return Instrument.broken(inst_name, "the check could not be executed on the canary"), False
@@ -847,19 +1340,27 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
 
 
 def _argv(
-    name: str, form: str, script: Path, fixture: Path, repo_root: Path, strict: bool
-) -> tuple[list[str], Path]:
-    """The invocation form that actually reaches the check, and the cwd it needs."""
+    name: str, canary: dict[str, Any], script: Path, fixture: Path, repo_root: Path
+) -> tuple[list[str], Path, dict[str, str] | None]:
+    """The invocation form that actually reaches the check, and the cwd/env it needs."""
+    form = str(canary.get("form", "root"))
     if form == "module":
         argv = [sys.executable, "-m", f"scripts.enforcement.{name}", "--root", str(fixture)]
         cwd = repo_root
-    elif form == "gitcwd":
+    elif form == "copy":
+        argv = [sys.executable, str(fixture / "scripts" / "enforcement" / f"{name}.py")]
+        cwd = fixture
+    elif form in ("cwd", "gitcwd"):
         argv, cwd = [sys.executable, str(script)], fixture
     else:
         argv, cwd = [sys.executable, str(script), "--root", str(fixture)], fixture
-    if strict:
+    argv.extend(_sub(a, fixture) for a in canary.get("args") or ())
+    if canary.get("strict"):
         argv.append("--strict")
-    return argv, cwd
+    env: dict[str, str] | None = None
+    if canary.get("env"):
+        env = {**os.environ, **{k: _sub(v, fixture) for k, v in canary["env"].items()}}
+    return argv, cwd, env
 
 
 def proof_vacuity(repo_root: Path) -> dict[str, Any]:
@@ -869,10 +1370,11 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
     wired = set(names)
     # The deliberately-UNWIRED diagnostics are audited too: a hand-runnable check that
     # silently exits 0 is the same trap wearing a different hat.
-    for name in sorted(wired | set(CANARIES)):
+    for name in sorted(wired | set(CANARIES) | set(UNREACHABLE)):
         kind = "check" if name in wired else "check(unwired)"
         canary = CANARIES.get(name)
         if canary is None:
+            why = UNREACHABLE.get(name)
             findings.append(
                 finding(
                     proof="vacuity",
@@ -880,16 +1382,37 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                     kind=kind,
                     instrument=Instrument.broken(
                         f"canary[{name}]",
-                        "no canary authored — this check is UNPROVEN, which is neither green "
+                        f"no canary is REACHABLE — {why}"
+                        if why
+                        else "no canary authored — this check is UNPROVEN, which is neither green "
                         "nor red",
                     ),
                     verdict=Verdict.UNKNOWN,
-                    detail="registered in final_gate.py, never proven able to fail",
+                    detail=(
+                        "registered in final_gate.py, unprovable by construction"
+                        if why
+                        else "registered in final_gate.py, never proven able to fail"
+                    ),
                 )
             )
             continue
         cinst, went_red = run_canary(name, canary, repo_root)
         how = " under --strict" if canary.get("strict") else ""
+        warn_only = canary.get("warn_only")
+        if went_red:
+            detail = f"canary went RED{how} on {canary['expect']}"
+        elif warn_only:
+            # Expected, and the point: the check REPORTS the violation and still exits 0.
+            detail = (
+                f"canary stayed GREEN{how} on {canary['expect']} — the check REPORTS it and "
+                f"exits 0 anyway: WARN-only by contract ({warn_only}), yet registered in "
+                "final_gate.py as an ordinary check, so this gate row can never go red"
+            )
+        else:
+            detail = f"canary stayed GREEN{how} on {canary['expect']} — the check asserts nothing"
+        if warn_only and went_red:
+            # The contract changed under us: a check declared toothless just grew teeth.
+            detail += " — its `warn_only` declaration in CANARIES is now STALE, drop it"
         findings.append(
             finding(
                 proof="vacuity",
@@ -897,11 +1420,7 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                 kind=kind,
                 instrument=cinst if inst.ok else inst,
                 verdict=Verdict.LIVE if went_red else Verdict.DEAD,
-                detail=(
-                    f"canary went RED{how} on {canary['expect']}"
-                    if went_red
-                    else f"canary stayed GREEN{how} on {canary['expect']} — the check asserts nothing"
-                ),
+                detail=detail,
                 reason_class="inert",
             )
         )
