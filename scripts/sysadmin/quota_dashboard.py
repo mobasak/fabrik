@@ -130,10 +130,14 @@ def _row(acct: dict, active: str | None) -> str:
     ) -> str:
         if left is None:
             return '<td class="num muted">no reading<br><span class="sub">—</span></td>'
-        # A cached reading OLDER than the window it describes is not stale — it is EXPIRED.
-        # The 5-hour window it measured has since rolled over completely, so "100% left" would
-        # read as "plenty of quota" when it actually means "we have not looked in 8h". That is
-        # the permanently-green class: a cell that can only ever reassure. Say unknown instead.
+        # A cached reading OLDER than the window it describes measures a window that has since
+        # rolled over — so the NUMBER is not evidence. But the value is still derivable: an
+        # account that is not the active pointer cannot be burning FLEET quota (no session binds
+        # to it), so its rolled-over window is empty by construction. Say that, rather than
+        # printing an unearned percentage ("plenty free" — the permanently-green class) or a
+        # useless "unknown". The one blind spot is the operator's own claude.ai browser use,
+        # which no probe of ours can see — surfaced on capped accounts, which exist for exactly
+        # that reason.
         age = acct.get("age_s")
         if (
             acct.get("source") == "cache"
@@ -141,11 +145,24 @@ def _row(acct: dict, active: str | None) -> str:
             and isinstance(age, (int, float))
             and age >= window_s
         ):
+            blind = (
+                " · browser use is not visible here"
+                if acct.get("weekly_cap") is not None
+                else ""
+            )
+            note = (
+                f"idle — not the active pointer, so no fleet usage since this window rolled"
+                f"{blind}"
+                if not is_active
+                else f"last read {escape(_fmt_age(age))}, older than the "
+                f"{window_s / 3600:.0f}h window — re-reads on next use"
+            )
+            label = "idle" if not is_active else "unknown"
+            tone_i = "ok" if not is_active else "warn"
             return (
-                '<td class="num muted">unknown'
-                f'{_bar(0.0, "warn")}'
-                f'<span class="sub">last read {escape(_fmt_age(age))} — older than the '
-                f"{window_s / 3600:.0f}h window, which has since rolled</span></td>"
+                f'<td class="num"><span class="pct {tone_i}">{label}</span>'
+                f'{_bar(100.0 if not is_active else 0.0, tone_i)}'
+                f"<span class=\"sub\">{note}</span></td>"
             )
         tone = _tone(left)
         return (

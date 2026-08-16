@@ -163,14 +163,15 @@ def test_a_cached_reading_older_than_its_window_reads_unknown_not_100(tmp_path, 
     The weekly cell keeps its number at that age (a 7-day window is still meaningful)."""
     qd = _load(tmp_path, monkeypatch)
     payload = _payload(session=0.0, weekly=91.0)
+    payload["active"] = "someone-else"  # this row must NOT be the active pointer
     payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600})
     monkeypatch.setattr(qd, "_probe", lambda: payload)
 
     html = qd.generate()
 
-    assert "unknown" in html, "an expired 5h window must not render a percentage"
-    assert '<span class="pct ok">100%</span> left' not in html, "…least of all a reassuring 100%"
-    assert "which has since rolled" in html, "and it must say WHY it is unknown"
+    assert '<span class="pct ok">100%</span> left' not in html, "no unearned reassuring 100%"
+    assert "idle" in html, "a non-active account's rolled window is EMPTY by construction — say so"
+    assert "not the active pointer" in html, "and say why it is derivable, not measured"
     assert '<span class="pct warn">9%</span> left' in html, "the 7-day cell survives at 8.5h"
 
 
@@ -186,3 +187,29 @@ def test_a_cached_reading_younger_than_its_window_still_shows_the_number(tmp_pat
 
     assert '<span class="pct ok">60%</span> left' in html
     assert "which has since rolled" not in html
+
+
+def test_the_active_account_cannot_claim_idle_when_its_window_rolled(tmp_path, monkeypatch):
+    """The 'idle' shortcut is only sound because a non-active account cannot burn fleet quota.
+    The ACTIVE account can, so a rolled-over window there is genuinely unknown, not idle."""
+    qd = _load(tmp_path, monkeypatch)
+    payload = _payload(session=0.0, weekly=50.0)
+    payload["active"] = "mob"  # the row below IS mob
+    payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600})
+    monkeypatch.setattr(qd, "_probe", lambda: payload)
+
+    html = qd.generate()
+
+    assert "unknown" in html and ">idle<" not in html
+
+
+def test_a_capped_account_surfaces_the_browser_blind_spot(tmp_path, monkeypatch):
+    """A cap exists because the operator uses that account in the browser — usage no probe of
+    ours can see. An 'idle' cell there must not imply we checked."""
+    qd = _load(tmp_path, monkeypatch)
+    payload = _payload(session=0.0, weekly=91.0)
+    payload["active"] = "someone-else"
+    payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600, "weekly_cap": 90})
+    monkeypatch.setattr(qd, "_probe", lambda: payload)
+
+    assert "browser use is not visible here" in qd.generate()

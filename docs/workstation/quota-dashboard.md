@@ -36,7 +36,8 @@ design:
 | `RESERVED — fleet excluded` | weekly ≥ its cap: automated flips skip it, the remainder is the operator's (browser use). `--switch` may still target it, deliberately |
 | `WALLED` | weekly ≥ 100%: unusable until its reset |
 | `cached Nh ago` | the account is idle, so its token is stale; the reading is the last known one with its age |
-| `unknown` in a cell | the cached reading is OLDER than the window it describes (a 5h window read 8h ago has rolled over completely). Showing a percentage there could only ever reassure — it would mean "we have not looked", not "quota is free". The weekly cell still shows its number at that age, because a 7-day window survives an 8h-old reading |
+| `idle` in the session cell | the account is NOT the active pointer, so no session can be burning its quota — its 5-hour window is empty by construction, not by measurement. Shown when the cached reading is older than the window itself. On a capped account it adds "browser use is not visible here", because that usage is the one thing no probe of ours can see |
+| `unknown` in the session cell | the ACTIVE account with a reading older than its 5-hour window — it CAN be burning quota, so nothing is derivable and no number is shown; it re-reads on next use |
 | Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
