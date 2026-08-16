@@ -1142,6 +1142,18 @@ fabrik-lib module); future shared analytics tables land here too.
 
 COST_BUDGET_SCHEMA_PATH = "/opt/fabrik-lib/cost-budget/schema_pg.sql"
 
+COST_RESERVATIONS_SCHEMA_PATH = "/opt/fabrik-lib/cost-budget/schema_reservations_pg.sql"
+"""The cost-budget RESERVATION lane (`cost_reservations` + `cost_budget_month_totals`).
+
+Shipped as a separate file from `schema_pg.sql` on purpose, and it must stay that way:
+`cost_budget.py`'s WAL init `executescript`s the SQLite twin at runtime, so folding these
+tables into the accounting schema would materialize them in every project's local WAL DB.
+
+Provisioned centrally for the same reason `cost_ledger` is — `infrastructure.py` states the
+contract verbatim: a project with no Postgres need of its own still requires these tables,
+because host projects do not apply schema files themselves. Requested by fabrik-lib via
+fabrik-mail `01M00SRW2Y4AYNAYP6G928TZ0A`; applied fail-soft (see `ensure_shared_analytics_db`)."""
+
 SUBAGENTS_MODULE_ROOT = "/opt/fabrik-lib/subagents"
 """Path to the vendored subagents fabrik-lib module. Home of `SUBAGENT_RUNS_DDL`
 (read at apply-time via `python -c "from subagents.pg_ledger import SUBAGENT_RUNS_DDL"`)
@@ -1210,6 +1222,7 @@ def ensure_shared_analytics_db(
     container: str = POSTGRES_CONTAINER,
     grant_to_role: str | None = None,
     schema_path: str = COST_BUDGET_SCHEMA_PATH,
+    reservations_schema_path: str = COST_RESERVATIONS_SCHEMA_PATH,
     dry_run: bool = False,
 ) -> dict:
     """Idempotently provision the shared ``fabrik_analytics`` database +
@@ -1244,7 +1257,24 @@ def ensure_shared_analytics_db(
         ``{"status": "created" | "exists" | "dry_run",
            "database": "fabrik_analytics",
            "schema_applied": bool,
+           "reservations_applied": bool,
            "granted_to": role_or_None}``.
+
+    ``reservations_applied`` covers the cost-budget RESERVATION lane
+    (``cost_reservations`` + ``cost_budget_month_totals``), applied from
+    ``reservations_schema_path``. It is FAIL-SOFT — an unreadable path logs a
+    warning and leaves the flag ``False`` rather than raising, because
+    fabrik-lib ships a standalone ``init()`` for non-registrar consumers and a
+    missing path must not break ``fabrik apply`` for projects with no
+    reservation lane. ``cost_ledger`` remains fatal-on-missing: it is
+    load-bearing for every deploy.
+
+    GRANT divergence (deliberate): ``cost_ledger`` gets ``INSERT, SELECT`` —
+    append-only, because a role that can UPDATE an accounting record can
+    rewrite history. The reservation tables additionally get ``UPDATE``, since
+    settling or reclaiming a reservation mutates it in place
+    (``pending -> settled/abandoned``) and the month total is a running
+    aggregate. The widening never reaches ``cost_ledger``.
 
     Raises:
         ValueError:    ``grant_to_role`` failed identifier validation.
@@ -1266,6 +1296,9 @@ def ensure_shared_analytics_db(
     result: dict[str, Any] = {
         "database": FABRIK_ANALYTICS_DB,
         "schema_applied": False,
+        # Distinct from schema_applied: the reservation lane is fail-soft, so a caller must be
+        # able to tell "provisioned" from "skipped because fabrik-lib was absent".
+        "reservations_applied": False,
         "granted_to": grant_to_role,
     }
 
@@ -1347,9 +1380,53 @@ def ensure_shared_analytics_db(
         )
         logger.info("Applied SUBAGENT_RUNS_DDL to %s", FABRIK_ANALYTICS_DB)
 
+    # Step 2c (2026-08-16): the cost-budget RESERVATION lane, requested by fabrik-lib via
+    # fabrik-mail 01M00SRW2Y4AYNAYP6G928TZ0A. Same contract as cost_ledger above — host projects
+    # do not apply schema files themselves, so the registrar provisions these centrally.
+    #
+    # FAIL-SOFT, unlike the cost_ledger read a few lines up which raises FileNotFoundError. That
+    # asymmetry is deliberate: cost_ledger is load-bearing for every deploy, whereas fabrik-lib
+    # ships a standalone init() for non-registrar consumers of the reservation lane, so nothing is
+    # blocked when this file is absent. Hard-failing here would let a missing/renamed fabrik-lib
+    # path break `fabrik apply` for ~46 projects that have no reservation lane at all.
+    try:
+        reservations_ddl = Path(reservations_schema_path).read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.warning(
+            "Could not read the cost-budget reservation DDL from %s (%s); "
+            "cost_reservations / cost_budget_month_totals NOT applied. Consumers fall back to "
+            "fabrik-lib's standalone init().",
+            reservations_schema_path,
+            exc,
+        )
+    else:
+        payload = base64.b64encode(reservations_ddl.encode()).decode()
+        # ON_ERROR_STOP: this DDL carries RLS policies (ENABLE/FORCE ROW LEVEL SECURITY +
+        # CREATE POLICY). psql's default continue-on-error would return 0 having applied the
+        # TABLE but skipped the POLICY — a table that looks provisioned and is not isolated,
+        # which is the worst of the three possible outcomes.
+        ssh(
+            f"echo {payload} | base64 -d | sudo docker exec -i {container} "
+            f"psql -U postgres -d {FABRIK_ANALYTICS_DB} -v ON_ERROR_STOP=1 -tA"
+        )
+        result["reservations_applied"] = True
+        logger.info("Applied cost-budget reservation DDL from %s", reservations_schema_path)
+
     # Step 3: optional GRANT.
     if grant_to_role and grant_to_role != "postgres":
+        # ⚠️ The privilege sets DIVERGE, and the difference is the point of the request.
+        # cost_ledger stays APPEND-ONLY (INSERT, SELECT) — it is an accounting record, and a role
+        # that can UPDATE it can rewrite history.
+        # The reservation lane genuinely needs UPDATE: a reservation is settled or reclaimed in
+        # place (pending -> settled/abandoned), and the month total is a running aggregate. There
+        # is no way to express "settle this reservation" without it.
+        # Scoped to the two new tables only — this widening never reaches cost_ledger.
         grant_sql = f'GRANT INSERT, SELECT ON cost_ledger TO "{grant_to_role}";'
+        if result.get("reservations_applied"):
+            grant_sql += (
+                f'\nGRANT INSERT, SELECT, UPDATE ON cost_reservations TO "{grant_to_role}";'
+                f'\nGRANT INSERT, SELECT, UPDATE ON cost_budget_month_totals TO "{grant_to_role}";'
+            )
         payload = base64.b64encode(grant_sql.encode()).decode()
         ssh(
             f"echo {payload} | base64 -d | sudo docker exec -i {container} "
@@ -1371,6 +1448,7 @@ __all__ = (
     "ALLOCATIONS_PATH",
     "FABRIK_ANALYTICS_DB",
     "COST_BUDGET_SCHEMA_PATH",
+    "COST_RESERVATIONS_SCHEMA_PATH",
     "create_database",
     "drop_database",
     "ensure_shared_analytics_db",

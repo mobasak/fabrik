@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Postgres registrar provisions the cost-budget RESERVATION lane (2026-08-16)
+
+Requested by fabrik-lib and routed here by infra (fabrik-mail `01M00SRW2Y4AYNAYP6G928TZ0A`); claimed
+and implemented by fleet. `ensure_shared_analytics_db` now applies `cost_reservations` (RLS-armed,
+per-run) and `cost_budget_month_totals` (app-global aggregate) alongside `cost_ledger`, from
+`/opt/fabrik-lib/cost-budget/schema_reservations_pg.sql`. Consistent with the contract
+`infrastructure.py:454-458` already states verbatim: host projects do not apply schema files
+themselves, so these are provisioned centrally.
+
+- **FAIL-SOFT, unlike `cost_ledger`** — an unreadable path logs a warning and leaves
+  `reservations_applied: False` instead of raising. `cost_ledger` is load-bearing for every deploy
+  and stays fatal-on-missing; the reservation lane is not (fabrik-lib ships a standalone `init()`),
+  so a missing or renamed fabrik-lib path must never break `fabrik apply` for the ~46 projects that
+  have no reservation lane at all. Getting that asymmetry backwards is a fleet-wide outage.
+- **Applied with `ON_ERROR_STOP=1`** because the DDL carries RLS policies. psql's default
+  continue-on-error would create the TABLE, skip the POLICY, and still exit 0 — a table that looks
+  provisioned and is not isolated.
+- **GRANT divergence, decided explicitly rather than copy-pasted.** `cost_ledger` stays
+  **append-only** (`INSERT, SELECT`): a role that can UPDATE an accounting record can rewrite
+  history. The two new tables additionally get `UPDATE`, because settling or reclaiming a
+  reservation mutates it in place (`pending → settled/abandoned`) and the month total is a running
+  aggregate — there is no way to express "settle this reservation" without it. The widening is
+  scoped to the new tables and never reaches `cost_ledger`.
+- **First test coverage this function has ever had** (`tests/test_postgres_analytics_reservations.py`,
+  7 tests) despite running on every `fabrik apply`. Mutation-proven: granting `cost_ledger` UPDATE
+  and making the fail-soft path fatal each turn the suite red.
+
 ### Fixed — check_review_coverage: committing an unconverged review passed the check that polices reviews (2026-08-16)
 
 Reported by fabrik-lib (mail `01M055WGEBP5J4W9TXYBDTVZ6C`), found while their own report went from
