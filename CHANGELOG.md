@@ -13,15 +13,6 @@ All notable changes to this project will be documented in this file.
   reason; the 7-day cell keeps its number at that age, since a weekly window survives an
   8h-old reading. Both directions regression-tested (expired → unknown, 30-min-old → number).
 
-<<<<<<< ours
-### Changed — Doc Sync Matrix is a FLOOR, not a whitelist (2026-08-16)
-
-- Both `CLAUDE.md` copies (hub + `templates/governance/CLAUDE.md`, fleet-synced to ~46 projects): added a
-  clause under the Doc Sync Matrix header making explicit that the table is the **gate-enforced floor, not a
-  closed whitelist** — any doc a change makes stale/incomplete/wrong must be brought current in the same change,
-  listed row or not. Closes the too-literal "my change type isn't in the table → no doc owed" reading; the
-  gate catches only the keyed pairs, the rest is agent judgment.
-=======
 ### Added — KAIZEN MEASUREMENT TRIGGER: the weekly pass that was binding and never once ran (2026-08-16)
 
 - The roles spec made a weekly kaizen pass **binding for infra and fleet**, shipped both charters
@@ -58,7 +49,14 @@ All notable changes to this project will be documented in this file.
   `45 6 * * 1 cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_metrics.py --once >> $HOME/.claude/kaizen.log 2>&1`
   — sits after the 06:20 keepalive and the 06:30 fleet doc audit so the row measures a settled
   week; it is documented here for the operator to install, not installed by this change.
->>>>>>> theirs
+
+### Changed — Doc Sync Matrix is a FLOOR, not a whitelist (2026-08-16)
+
+- Both `CLAUDE.md` copies (hub + `templates/governance/CLAUDE.md`, fleet-synced to ~46 projects): added a
+  clause under the Doc Sync Matrix header making explicit that the table is the **gate-enforced floor, not a
+  closed whitelist** — any doc a change makes stale/incomplete/wrong must be brought current in the same change,
+  listed row or not. Closes the too-literal "my change type isn't in the table → no doc owed" reading; the
+  gate catches only the keyed pairs, the rest is agent judgment.
 
 ### Fixed — The excise manifest reported a false UNSOUND from the moment D.1 landed (2026-08-16)
 
