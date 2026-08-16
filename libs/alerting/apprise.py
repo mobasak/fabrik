@@ -41,6 +41,19 @@ _CURL_EXIT = {
 }
 
 
+APPRISE_CONTAINER = os.getenv("ALERT_APPRISE_CONTAINER", "apprise")
+
+
+def _in_network(url: str) -> bool:
+    """True when the URL names the container-network host (unreachable from the VPS shell)."""
+    return "//apprise:" in url or url.rstrip("/").endswith("//apprise")
+
+
+def _localise(url: str) -> str:
+    """Rewrite the container-network host to localhost for use INSIDE the container."""
+    return url.replace("//apprise:", "//localhost:").replace("//apprise/", "//localhost/")
+
+
 def try_send(title: str, body: str) -> DeliveryAttempt:
     """Attempt delivery and report the outcome with its cause."""
     vps_host = os.getenv("ALERT_VPS_HOST", VPS_HOST_DEFAULT)
@@ -56,10 +69,23 @@ def try_send(title: str, body: str) -> DeliveryAttempt:
     # and (b) let title/body (often error text) inject commands on the VPS. So
     # the payload never touches the command line: curl reads the body from stdin
     # (`--data-binary @-`), which ssh forwards from our stdin.
-    remote_cmd = (
-        "curl -sf -X POST -H 'Content-Type: application/json' "
-        f"--data-binary @- {shlex.quote(notify_url)}"
-    )
+    # ⚠️ `apprise` is CONTAINER-NETWORK DNS: it resolves on the `fabrik` docker network,
+    # NOT in the VPS host shell — and the spec's "8005:8000" mapping is not published on
+    # the deployed container (verified 2026-08-16: `docker port apprise` → nothing, while
+    # an in-network curl returns HTTP 200). So the old host-shell `curl http://apprise:8000`
+    # could never resolve, and reported exit 6 forever. Run the curl INSIDE the network by
+    # exec'ing the apprise container itself — it ships curl for its own healthcheck.
+    if _in_network(apprise_url):
+        inner = (
+            "curl -sf -X POST -H 'Content-Type: application/json' "
+            f"--data-binary @- {shlex.quote(_localise(notify_url))}"
+        )
+        remote_cmd = f"sudo docker exec -i {shlex.quote(APPRISE_CONTAINER)} sh -c {shlex.quote(inner)}"
+    else:
+        remote_cmd = (
+            "curl -sf -X POST -H 'Content-Type: application/json' "
+            f"--data-binary @- {shlex.quote(notify_url)}"
+        )
     try:
         result = subprocess.run(
             [
