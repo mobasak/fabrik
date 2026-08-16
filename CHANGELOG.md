@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen collector: measure agent behaviour fleet-wide, not the hub's own paperwork (2026-08-16)
+
+`kaizen_metrics.py` reads exactly one directory — this repo's `docs/development/reviews/*.md` (grep
+`/opt/` in it: zero hits). It scored 49 files while the real evidence sat unread: **5,317 session
+transcripts (8.2 GB, 98 projects)**, **3,292 subagent runs** with cost/latency/model/status, and
+**237 review ledgers** fleet-wide (49 hub + 188 elsewhere). Its one emitted row had 5 of 8 columns
+as `—`.
+
+`scripts/sysadmin/kaizen_collect.py` reads the execution record instead: sessions per project,
+rules-compliance, BLOCKED declarations, subagent economics (cost/latency/failure by task_type),
+fleet-wide review rounds, and run-record closure. Scope is all 203 infrastructure artifacts (27
+commands + 13 fragments, 56 rule packs, 57 gate checks, 5 hooks, 12 scaffold types, 12 synced core
+scripts, 21 crons), not the review commands.
+
+First real run (2026-08-16, 10 projects, 579 task-completing responses): rules-compliance 36%
+overall, ranging 73% (trade-intelligence) to 7% (tryton-crm); fleet review rounds 4.8 (n=117/216)
+across 11 projects; subagent failure 4%, p50 latency 37s, $0.74/day.
+
+Two of the first-run metrics were the collector's OWN bugs and were fixed before any of it was
+believed — a reminder that the instrument gets verified before the number does:
+- Subagent failure read 100% because the predicate was `status != "ok"`; the ledger's real
+  vocabulary is `done`/`error`/`capped`/`out_of_scope` and never contains `ok`. Real rate: 4%.
+- Fleet review rounds read 21.3 with a maximum of **1440**, because a naive "table row starting with
+  a number" regex matched a tryton-crm user-test DATA table. Now delegates to the proven,
+  header-aware `kaizen_metrics.ledger_rounds` rather than re-implementing it. Real mean: 4.8.
+
+Known residual, stated rather than hidden: the rules-compliance denominator counts ~36 final blocks
+per session, but the block is a TASK terminator meant to be emitted once. The metric currently
+conflates non-compliance with agents emitting the terminator repeatedly mid-run (the checkpoint-stall
+the governance forbids) — it must be split before it drives a fix.
+
 ### Fixed — the run record was armed on 3 of 27 commands (2026-08-16)
 
 `CLAUDE.md` makes opening a run record the first act of any `/fabrik-*` invocation, and the Stop
