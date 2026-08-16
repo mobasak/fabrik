@@ -104,6 +104,16 @@ counts are asserted daily before any number is consumed. Instrument health is me
 instrument ⇒ no actor dispatch (qwen3.8-max's preflight), and per-metric completeness gates action
 (gpt-5.6: "this metric is not actionable because 18% of the relevant events are unclassified").
 
+**The stream gets a coroner** (author-adversarial finding #3 — hooks go silent exactly when
+things get interesting: a mid-stream death fires no Stop hook and writes no closing event, so a
+hook-only meter has survivorship bias built in; this session died mid-stream twice on the day the
+spec was written). Two REQUIRED second sources close the hole: (a) the resume mesh's death/park
+markers (`/tmp/claude-sound-locks-*/`.errparked` + the notify log) — already written by machinery
+outside the session's process; (b) transcript tails (`isApiErrorMessage` rows — the mesh's own
+detection keys). The collector reconstructs `death` events post-hoc from these, and completeness
+accounting counts "transcript exists but no `session_end` event" as a first-class hole metric — a
+rising hole count is an instrument alarm, not background noise.
+
 **Backfill the noise floor** (opus-5, stated as a prerequisite): recompute the versioned metrics
 over the full historical corpus to establish per-metric variance BEFORE any adjudication — "you
 cannot detect a change you cannot distinguish from Tuesday."
@@ -236,6 +246,16 @@ cohort it.**
   **T2 — autonomous on green:** docs, command prose clarifications that change no MUST, additive
   non-blocking checks, fixtures (authored under the separation rule below), evidence-backed
   deletions of provably-dead artifacts.
+  **T1→T2 graduation, or the autonomous lane is economically pointless** (author-adversarial
+  finding #5 — everything high-value on this platform is enforcement-surface; without an earn-down
+  path the loop autonomously tidies the lobby while every fix that matters queues for a human who
+  asked to be out of the loop, and M4 converges to a frozen platform): a surface CLASS graduates
+  T1→T2 after **10 consecutive human-approved proposals in that class with zero reverts through
+  their long-arc windows**; graduation is per-class, logged in the fix ledger, and **auto-revoked**
+  by any auto-revert in the class (back to T1); two rejections in a class pause its proposals for
+  14 days. **Never graduates, ever:** scaffolds, Stop-hook semantics, gate semantics, the sync
+  mechanism, T0. The human's approval workload is designed to trend to zero on the classes the loop
+  proves itself on — that is the earn-down the vision requires.
 - **Staged promotion, never instant 46-repo sync**: shadow (non-enforcing `would_have_blocked`
   logging inside gate runs that happen anyway — grok's near-free variant; qwen3-max-thinking's
   dual-execution shadow at 2–3× compute is **rejected**, and the wave-1 fusion adjudicated
@@ -267,6 +287,11 @@ cohort it.**
   quota cost this spec's costing must carry, so cosmetic edits batch). Deletion stays
   evidence-backed only, and any diff shrinking a gate check or rule pack escalates to the operator
   even when green (sonnet-5: "deletion is the cheapest way to make an inconvenient check vanish").
+  **The budget binds the kaizen system itself** (author-adversarial finding #4 — this spec grew 70%
+  during its own review while preaching net-zero): the loop's artifacts (its docs, scripts, registry
+  schemas, and this spec) carry their own governance-mass line from M1, and loop-authored changes to
+  the loop obey the same delete→edit→consolidate→add ranking. A self-improvement system exempt from
+  its own law ratchets by construction.
 - **Verification the actor cannot weaken** (C-fix — the candidate gate alone is disqualified by
   this spec's own diagnosis; the panel's mechanisms, adopted): the orchestrator verifies every
   candidate with (a) the **frozen-reference gate** — the gate from the last human-blessed ref, run
@@ -337,6 +362,25 @@ cohort it.**
   merge (lease → rebase → re-run the full battery → else abort), every verdict emits a counter +
   structured line (`self-healing.md`), full audit trail in the event stream.
 
+## The builder is a guarded actor too (author-adversarial finding #2)
+
+Every guard above points at the future fixer; the system's biggest unverified actor during M0–M3 is
+the interactive session that BUILDS it — which, on the day this spec was written, produced three
+instrument bugs, two bad dispatch scripts and four false hook claims in one session. Binding rules
+for the build itself:
+
+- **Every kaizen component ships its own anti-vacuity canary in the same commit** (the discipline
+  proven live on `check_command_corpus.py --selftest`): known-bad input must fail, known-good must
+  pass, and the canary is proven discriminating red-on-revert against a real historical defect.
+- **The fixture harness is itself fixtured** (meta-fixture): a deliberately-broken fixture (one that
+  ERRORS, one that silently passes) must be detected by the harness's quarantine path — otherwise
+  the harness is the next vacuous check.
+- **Every milestone exits through a non-author review** (`/fabrik-review` with non-author finders —
+  the standing corpus law), and every M-gate proof is a runnable command with its output embedded,
+  never a claim.
+- **From M2 onward, the builder's own diffs to kaizen surfaces run through the weakening classifier
+  and invariants it just built** — the tools apply to their maker the day they exist.
+
 ## Quota posture (a consciously-held deviation, recorded)
 
 Ten of twelve consultants said the loop should run **metered-first** (gemini: "you are proposing
@@ -347,18 +391,27 @@ ranking, dossiers, critics, audits and adjudication are deterministic Python or 
 --fallback-model claude-opus-5`, full IDs — aliases resolve stale) per the operator's standing
 stack ruling (Claude Code OAuth for operational coding; metered API only for what OR can serve).
 The panel's mitigations are adopted with it: a **quota-reserve preflight** (below threshold: the
-loop measures and queues but does not dispatch — opus-5), a hard budget share, the fixer reported
+loop measures and queues but does not dispatch — opus-5), a **hard cap of 10% of the weekly quota
+share** (qwen3.8-2.4t's band; a cap breach parks the loop, it never borrows), the fixer reported
 as a line item in **quota per accepted improvement**, off-peak scheduling, and the **critic always
 on a different, metered family** (kimi/gemini: same-family review shares the blind spots — the
-verification argument, not just the cost one).
+verification argument, not just the cost one). **The cost figure is measured, not estimated**
+(author-adversarial finding #6 — the earlier "≈1–2% of daily burn" was pre-verification optimism;
+the calibration anchor from the spec's own review day: ONE Opus verification agent consumed ~234k
+subagent tokens and died twice, each retry re-burning): M3's ten propose-only dossiers measure the
+loop's real burn end-to-end, and the M4 budget is set from that measurement. Scope note recorded
+honestly: the operator's standing subscription-lane ruling was made for operational sysadmin loops;
+its extension to this new daily consumer is pinned by the operator's explicit amendment instruction
+(2026-08-17), and the M4 gate re-confirms it against the measured cost.
 
 ## Sequencing — autonomy is earned (M-gates)
 
 | M | Delivers | Autonomy | Gate to next |
 |---|---|---|---|
+| **M0** | **The shrink audit, FIRST** (author-adversarial finding #1 — building a full observatory to measure a city you suspect should be a village is backwards). No event stream needed: artifact usage is measurable from data that already exists — command invocations grep-able from the 5,317 transcripts, rule-pack applicability replayed by glob-matching git history, checks-that-never-failed from gate JSON history. Deliverable: a usage-evidence deletion report over all 203 artifacts + the operator's shrink ruling. Every later milestone is sized to the SURVIVING surface | none (read-only audit) | operator has ruled on the report; the artifact census the meter must cover is final |
 | **M1** | Event emitters in hooks + run-record machinery (full exposure metadata; `rule_activation`; platform-owned lifecycle audit); split compliance metrics + outcome tier (rework, fleet-health sweep, premature-stop, first-pass gate); versioned definitions + append-only derived-facts store + recompute; collector predicate fixtures + golden corpus; noise-floor backfill; paired-counter-metric registry; daily collector cron replaces weekly | none (measurement only) | 7 days of events; recompute reproduces history without overwriting it; denominators verified against hand-counted samples; per-metric variance established; activation logging verified to exist |
 | **M2** | Replay harness (rendered artifacts, stateful option); weekly vacuity/mutation harness + per-check known-bad fixtures + assertion-surface floor; behavioural canary suite (Stop hook + hooks + packs); finding registry + tested selection policy + fix ledger; deletion-candidate report (the shrink-first question, answered with evidence); hub-as-canary v0 | none (analysis only) | replay red-on-revert proven on ≥3 historical defects; every blocking check owns a fixture that FAILS; canaries catch all scripted delinquents; selection policy passes its fixture tests |
-| **M3** | Propose-only shadow actor: deterministic tier + headless dispatch in a fresh worktree filing dossiers + candidate diffs it **cannot promote**; frozen-reference verification + weakening classifier + invariants; mandatory different-family critic on enforcement diffs; quota-reserve preflight; kill switch + deadman live | proposes only | ≥10 dossiers; operator spot-audit finds no fabricated evidence; false-positive rate visible; zero T0 touches; worktree run-record keying verified |
+| **M3** | Propose-only shadow actor: deterministic tier + headless dispatch in a fresh worktree filing dossiers + candidate diffs it **cannot promote**; frozen-reference verification + weakening classifier + invariants; mandatory different-family critic on enforcement diffs; quota-reserve preflight; kill switch + deadman live | proposes only | ≥10 dossiers; operator spot-audit finds no fabricated evidence; false-positive rate visible; zero T0 touches; worktree run-record keying verified; **measured end-to-end quota burn published** (sets the M4 cap) |
 | **M4** | Promotion rights under Layer 3 in full: risk-tiered (T2 auto / T1 human-approved), one open hypothesis per metric family (3–4 total), off-peak promotion windows, cohort mechanism (channel field) built, exposure-count + long-arc adjudication, rollback drills scheduled | **operator gate — explicit approval required to enter** | ongoing: any guardrail regression auto-parks the loop; monthly promotion backtest |
 
 ## Rejected alternatives
@@ -464,7 +517,7 @@ fixtures + assertion-surface floor; **fix-pattern blacklisting via 5% stricter-o
 | 3 | Off-peak window for the actor (operator's working hours vary) | open, operator input at M3 | one-line question at M3 kickoff; default 05:00–06:00 (before the 06:xx cron train) |
 | 4 | Stop-hook mid-stream blind spot: a turn that dies mid-stream closes no run record and the Stop hook never fires (observed live 2026-08-16; mesh caught it, revival required the now-mandated armed self-watch) | mitigated, watch | M1's `death`/`revival` events make the residual rate measurable; revisit if >0 unrevived deaths/week |
 | 5 | Run records + Stop hook in a WORKTREE may key to the wrong tree (kimi's implementation check) — a fixer that cannot close its own record spins until quota dies | open, blocks M3 dispatch | verify the exact keying path before the first real dispatch; fail closed |
-| 6 | Should the first act be SHRINKING the surface? (fusion w2's closing addition: "spend a day asking whether 203 artifacts and 57 checks should become 60 and 20") — deletion findings are the cheapest fix class and shrink every later phase | open, operator conversation | M1's activation/usage data makes it answerable with evidence instead of taste; deletion-candidate report is an M2 deliverable |
+| 6 | ~~Should the first act be SHRINKING the surface?~~ **RESOLVED** (operator, 2026-08-17: "fix them properly") — promoted to **M0**, before the meter is built; the fusion w2 question ("203 and 57 → 60 and 20?") is answered with usage evidence from the EXISTING corpus, not deferred until after the observatory is sized for the unshrunk city | resolved | M0 delivers the report; the operator rules; M1+ size to the survivors |
 | 7 | The loop's own stopping/EV condition (fusion w2 blind spot: nobody defines when the loop is good enough to slow down, or proves it pays for its quota) | open by design | pre-register the loop's own success test at M3: quota spent vs. accepted improvements, reviewed monthly; a loop that cannot pay for itself gets demoted to weekly |
 | 8 | Rule-pack activation logging may not exist at all today (minimax: "the very first thing I would verify") — Layer 3's deletion evidence and the activation metrics depend on it | open, M1 first task | verify; if absent, adding it is M1's first mechanical deliverable |
 | 9 | The safe degraded configuration if the build stalls half-built (wave-2 fusion: "the most likely outcome and strictly worse than either endpoint if autonomous merge is on") | designed-for | each M-gate leaves a self-sufficient system; autonomy defaults OFF at every stage until its gate passes, so a stall anywhere leaves measurement-only or propose-only — never orphaned merge rights |
@@ -478,4 +531,4 @@ fixtures + assertion-surface floor; **fix-pattern blacklisting via 5% stricter-o
 - Replacing `kaizen_metrics.py`'s honesty rules — inherited verbatim (a metric that can't be
   measured prints `—` + reason; never 0-for-no-data; never a number it didn't compute).
 - The epic/ticket orchestrator route — this is feature-scale: each milestone is one operator-carried
-  plan (`/fabrik-plan-after-chat` per milestone, M1 first).
+  plan (`/fabrik-plan-after-chat` per milestone, **M0 — the shrink audit — first**).
