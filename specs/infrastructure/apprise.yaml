@@ -4,8 +4,9 @@ name: apprise
 type: docker
 domain: notify.vps1.ocoron.com
 image: caronc/apprise:latest
-ports:
-  - "8005:8000"
+# No host port: Traefik routes notify.vps1.ocoron.com to the container's internal
+# 8000 over the fabrik network, and alerting exec's curl inside the container
+# (libs/alerting/apprise.py). A published host port was never deployed and nothing needs one.
 networks:
   - fabrik
 healthcheck:

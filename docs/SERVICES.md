@@ -50,7 +50,7 @@ fabrik plan my-api      # Execute and exit
 | Browserless | browserless | 3000 | `https://browser.vps1.ocoron.com` | 🔑 API Key | Headless Chrome for scraping/extensions |
 | Gotenberg | gotenberg | 3003 | `https://pdf.vps1.ocoron.com` | ⚠️ Open | PDF generation |
 | ~~MinIO~~ | ~~minio~~ | ~~9000/9001~~ | ~~`s3.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed (object storage via Backblaze B2 / Cloudflare R2 directly) |
-| Apprise | apprise | 8005 | `https://notify.vps1.ocoron.com` | ⚠️ Open | Unified notifications |
+| Apprise | apprise | — (Traefik) | `https://notify.vps1.ocoron.com` | ⚠️ Open | Unified notifications (internal 8000; no host port) |
 | Meilisearch | meilisearch | 7700 | `https://search.vps1.ocoron.com` | 🔑 API Key | Fast full-text search |
 | Loki | loki | 3100 | internal only | 🔒 Internal | Log aggregation |
 | Promtail | promtail | — | internal only | 🔒 Internal | Log shipper (Docker → Loki) |

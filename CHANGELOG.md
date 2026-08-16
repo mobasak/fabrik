@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Apprise spec↔deploy reconciled: drop the never-deployed host port (2026-08-16)
+
+- `specs/infrastructure/apprise.yaml` declared `ports: "8005:8000"` but the deployed container never
+  published a host port (Traefik routes `notify.vps1.ocoron.com` over the fabrik network; alerting now
+  exec's curl inside the container). Dropped the vestigial port so the spec matches the deploy — the
+  spec↔deploy divergence flagged during the "Apprise is dead" false alarm (it was healthy; the alerting
+  bug was fixed in `ff0c2019`). Kept as infrastructure, not promoted to a `specs/services/` managed service.
+- Per the FLOOR-not-whitelist rule, reconciled the 4 docs that asserted the phantom host port:
+  `PORTS.md`, `docs/SERVICES.md`, `docs/reference/apis/EXTERNAL_SYSTEMS.md`, `docs/operations/n8n-webhooks.md`
+  (the last already self-contradicted at its own line 24) — all now say "Traefik-routed, internal 8000, no
+  host port." Incidentally clears the apprise/candle 8005 collision in `PORTS.md` (candle keeps 8005).
+
 ### Added — CANARY COVERAGE: 40 unproven gate checks down to 3 (2026-08-16)
 
 The liveness layer shipped reporting **40 of 43 registered gate checks UNPROVEN** — no canary, so

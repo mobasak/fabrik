@@ -16,10 +16,10 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 | **Auth** | Authelia SSO (302 → `auth.vps1.ocoron.com`) fronting the n8n owner-account login |
 | **Internal port** | 5678 |
 | **Apprise internal** | `http://apprise:8000/notify` (Docker network) |
-| **Apprise external** | `https://notify.vps1.ocoron.com` (port 8005→8000) |
+| **Apprise external** | `https://notify.vps1.ocoron.com` (Traefik → internal 8000; no host port) |
 | **Spec** | `specs/infrastructure/n8n.yaml` |
 
-> **Port Mapping:** Apprise maps `8005:8000` (external:internal).
+> **Port Mapping:** Apprise publishes **no host port** — Traefik routes `notify.vps1.ocoron.com` to the container's internal `8000` over the `fabrik` network.
 > - **n8n → Apprise** (inside Docker): `http://apprise:8000/notify`
 > - **External access**: `https://notify.vps1.ocoron.com` (Traefik reaches Apprise over the `fabrik` Docker network on internal port 8000 — the deployed compose publishes no host port)
 >

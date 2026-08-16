@@ -1293,7 +1293,7 @@ The shared infra services (also internal) are catalogued in their own sections a
 **Usage in Fabrik:**
 - Functions: Multi-channel notifications
 - Domain: `https://notify.vps1.ocoron.com`
-- Port: 8005
+- Port: 8000 (internal; Traefik-routed over the fabrik network — no host port published)
 
 **Supported Channels:**
 - Slack, Email, Telegram, Discord, Generic Webhook

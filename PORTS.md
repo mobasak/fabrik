@@ -31,7 +31,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
 | 3003 | gotenberg | specs/infrastructure/gotenberg.yaml | https://pdf.vps1.ocoron.com |
 | 9000/9001 | minio | specs/infrastructure/minio.yaml | [reserved — not yet deployed] |
-| 8005 | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com |
+| — | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com (Traefik over the fabrik network; internal 8000, no host port) |
 | 7700 | meilisearch | specs/infrastructure/meilisearch.yaml | https://search.vps1.ocoron.com |
 | 3100 | loki | specs/infrastructure/monitoring-stack.yaml | internal only |
 | 9090 | prometheus | specs/infrastructure/monitoring-stack.yaml | internal only |
