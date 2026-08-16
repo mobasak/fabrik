@@ -1335,6 +1335,29 @@ def test_fleet_tick_drain_mail_routes_mapped_slugs_to_existing_repos(tmp_path, m
     assert sorted(actions["mails"]) == ["fabrik", "seo"]
 
 
+def test_fleet_tick_drain_mail_broadcasts_when_account_slugs_map_to_no_repo(
+    tmp_path, monkeypatch, capsys
+):
+    """Pointer model: account-named slugs (ob/can/sarp/mob) match no /opt repo, so narrow
+    routing resolves EMPTY — under one-active-account-for-all-projects the advisory must then
+    BROADCAST to every mailbox repo, not silently mail nobody (only the Telegram would fire)."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "ob", "ob@ocoron.com"]) == 0
+    _pin(fleet, "ob", "ob@ocoron.com")
+    _fleet_creds(fleet, "ob", "tok-ob", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    _fake_oauth(monkeypatch, usages={"tok-ob": _usage_blob(96.0, 50.0)})
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo", "youtube"])
+    opt = tmp_path / "opt"  # deliberately holds NO 'ob' dir — the account slug maps nowhere
+    (opt / "fabrik").mkdir(parents=True)
+    monkeypatch.setattr(cr, "OPT_DIR", opt)
+
+    assert cr._cmd_tick() == 0
+
+    assert sorted(actions["mails"]) == ["fabrik", "seo", "youtube"]
+
+
 def test_fleet_tick_future_dated_stamp_never_suppresses_the_advisory(tmp_path, monkeypatch):
     """F54: a suppression stamp whose mtime sits in the FUTURE (WSL suspend/resume, NTP — the
     _last_switch_ts clock-skew class) must read EXPIRED, not 'suppressed until the wall clock

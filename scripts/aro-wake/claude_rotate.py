@@ -3549,7 +3549,11 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             " windows resume on reset"
         )
         _tick_telegram(msg)
-        repos = _fleet_slug_repos(row["slugs"])
+        # Pointer model: account slugs (ob/can/sarp/mob) map to no /opt repo, so narrow
+        # routing resolves EMPTY — and under one-active-account-for-all-projects a quota
+        # advisory concerns every coder anyway. Empty narrow routing → broadcast to every
+        # mailbox repo (the legacy drain's posture); per-project slugs still route narrowly.
+        repos = _fleet_slug_repos(row["slugs"]) or _mailbox_repos()
         if repos:
             _drain_mail(
                 repos,

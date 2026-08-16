@@ -73,6 +73,10 @@ in the same blind spot: the import-graph closure only traversed files *under*
 
 ### Added — Per-account weekly caps: caps.json reserves quota for operator browser use (2026-08-15)
 
+- Fleet quota advisories now BROADCAST to every mailbox repo when the account's slugs map
+  to no /opt repo (the pointer model's account-named slugs) — narrow per-project routing had
+  silently resolved to zero recipients, leaving coders without the reach-a-checkpoint warning.
+
 - Operator requirement: "do not consume ob@'s weekly quota more than 90% — I also use it in
   the claude.ai browser regularly." `<fleet-root>/caps.json` = `{"<email>": <cap%>}`; the cap
   binds the WEEKLY window only: (1) flip-away — the active account's effective weekly
