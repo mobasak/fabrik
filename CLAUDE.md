@@ -14,6 +14,40 @@ ships fleet-wide**: a synced-surface commit distributes to ~46 repos via the pre
 ## ⚠️ FIRST OUTPUT (every task-completing response; skip on read-only / clarifying turns)
 `RULES ACTIVE: CLAUDE-CODE | <3 rules from this file you applied or will apply>`
 
+## ⚠️ COMMAND RUN-RECORD — the pinned `RUN:` line (EVERY response, whenever a run is active)
+
+Invoking a `/fabrik-*` command means **opening a run record and keeping it current**. The record is
+one json per session (`scripts/command_run.py`; state in `~/.claude/state/command-runs/`), and it is
+what makes an in-flight command visible and un-abandonable.
+
+- **`start`** it as the command's first act — `python3 scripts/command_run.py start --command <name>
+  --phases <N> --terminal "<the condition that ends the run>"`; **`step --phase <N> --title "<t>"`**
+  at every phase; **`round --findings <N> --classes-swept a,b --classes-new c,d`** per convergence
+  pass; **`done --command <name> --evidence "<proof>"`** ONLY when the terminal condition is actually
+  met, or **`blocked --command <name> --reason "<one of the three sanctioned BLOCKED cases>"`**.
+  **Closing REQUIRES naming the run you are closing, and a name that is not the live one is refused**
+  — closing "whatever is live" is how a retried `done` silently ends the CALLER after a nested command
+  pops back to it, taking the pinned line and the Stop hook with it. Closing an already-closed record
+  is a warned no-op, never a mutation.
+- **While a run is active, EVERY response opens with the `RUN:` line — before `RULES ACTIVE`.** Produce
+  it with `python3 scripts/command_run.py line`; paste its output verbatim. Shape:
+  `RUN: /<command> · phase <c>/<t> (<title>) · round <r> · terminal: <condition>`.
+  **When no run is active the command prints nothing and the line is omitted entirely** — no `RUN:`
+  spam on conversational turns.
+- **Rounds converge by RE-SWEEPING a fixed class ledger, never by re-scoping.** The ledger persists
+  across rounds; only a round that sweeps a class clean retires it. A round that sweeps every known
+  class with **0 findings** IS the no-op round — `command_run.py` prints the TERMINAL verdict, and
+  that is when you call `done`. If findings start oscillating (43 → 11 → 30 → 13 → 22 instead of
+  5 → 3 → 0) the tool says so, loudly and advisorily: the loop is inventing a new brief each pass
+  instead of re-running the same one. Re-sweep the ledger; don't re-scope.
+- **The Stop hook is the enforcement, not this paragraph.** `.claude/hooks/final_gate_stop.py` BLOCKS
+  end-of-turn while a record says `running` — because prose alone cannot bind an agent that read this
+  contract hours ago and is now deciding, from memory, that round 3 is good enough (Lesson 116: a
+  documentation fix is invisible to every session already running; only a check at the moment the
+  output is still editable binds). The fail direction is deliberately asymmetric — a missing, corrupt
+  or stale (>12h) record fails OPEN and never traps you; only a live `running` record blocks, and it
+  warns through after the same 3 attempts every other cause uses.
+
 ## Orient (every task)
 0. **Task→skill routing:** step 0 applies to the operator request that STARTS a run — not to steps inside a command or plan already executing (the plan-execution override and invoked-command rule govern those). At that point, classify the request against the pipeline stages below and invoke the matching skill — a task that matches a stage and is executed without its skill is a defect, the sibling of "Invoked command = loaded command" (§ Behavior). Full command chain: § Pipeline (this table names stages only, it doesn't duplicate the chain).
 

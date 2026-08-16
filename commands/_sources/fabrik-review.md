@@ -8,6 +8,31 @@ first and then DEPTH.
 
 {{include:term-coverage}}
 {{include:grounding-code}}
+## Run record — open it FIRST, keep it current, close it only at the no-op round
+
+This command has **5 phases (0–4)** and exactly one terminal condition: **a full fresh round that
+returns `found: 0`**. Open the record before Phase 0 does anything else:
+
+```bash
+python3 scripts/command_run.py start --command fabrik-review --phases 5 \
+  --terminal "found:0 no-op round"
+```
+
+Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
+**one `round` call per Phase-4 pass** —
+`python3 scripts/command_run.py round --findings <this pass's found count> --classes-swept <the
+Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pass opened>`.
+The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
+fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class with
+`--findings 0`, `command_run.py` prints the TERMINAL verdict; **only then**
+`done --command fabrik-review --evidence "<the round number + its found: 0>"`. A genuinely stuck
+review exits via `blocked --command fabrik-review --reason "…"` on one of the three sanctioned cases —
+never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
+which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
+plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
+
+**Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes.**
+
 ## Phase 0 — Establish scope
 
 ### ⚠️ Synced files — CONTEXT, never a TARGET (settle this BEFORE dispatching finders)
@@ -252,6 +277,13 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`f
 
 **The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
 first pass found" is not an exit — those classes return to UNCHECKED until a fresh round re-adjudicates them.
+
+**Record the pass before you decide:** `python3 scripts/command_run.py round --findings <found> \
+--classes-swept <classes swept CLEAN this pass> --classes-new <classes this pass opened>`. Its TERMINAL
+verdict — every known class clean, `--findings 0` — is the machine-readable form of the EXIT above, and
+its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
+re-sweeping. Close the run at that verdict with
+`done --command fabrik-review --evidence "round <n> returned found: 0"`.
 
 ## Behavior Contract test generation — the pool authors, you curate (the fix for an untested behavior)
 

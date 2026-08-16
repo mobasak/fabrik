@@ -25,12 +25,15 @@ Contract (verified against https://code.claude.com/docs/en/hooks, 2026-06):
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
@@ -278,25 +281,158 @@ def _dirty_paths(root: Path) -> set[str]:
     return paths
 
 
+def _safe_sid(sid: str) -> str:
+    """A filename-safe session id that NEVER collides with a different raw id.
+
+    Byte-identical to ``scripts/command_run.py::_safe_sid`` (which cannot be imported
+    here — see the FIFTH-cause comment); the agreement is pinned by
+    ``test_hook_and_script_agree_on_every_record_filename``. Flattening ALONE collided
+    (`abc.xyz` and `abc xyz` → one file), so a short digest of the RAW id is appended
+    whenever flattening changed anything. uuid-shaped ids pass through unchanged, so
+    no live session's tmp files are renamed by this.
+    """
+    safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in sid)
+    if not safe:
+        return "nosession"
+    if safe != sid:
+        safe += "-" + hashlib.blake2s(sid.encode("utf-8", "replace"), digest_size=4).hexdigest()
+    return safe
+
+
+# These interpolate the session id into a tmp path. Unsanitized, a `/`-containing sid
+# escaped the tmp dir and the resulting OSError hit main()'s outermost except —
+# failing the WHOLE hook open and silently disabling all five causes.
 def _baseline_path(sid: str) -> Path:
-    return Path(tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
+    return Path(tempfile.gettempdir()) / f"fabrik-gate-baseline-{_safe_sid(sid)}.json"
 
 
 def _counter_path(sid: str) -> Path:
-    return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{_safe_sid(sid)}.attempts"
 
 
-def _read_counters(counter: Path) -> tuple[int, int, int, int]:
-    """(gate, commit, stall, push) attempts — tolerates older 3-slot files."""
+_COUNTER_SLOTS = 5
+
+
+def _read_counters(counter: Path) -> tuple[int, int, int, int, int]:
+    """(gate, commit, stall, push, run) attempts — tolerates older 3/4-slot files.
+
+    Each cause owns its OWN slot: exhausting one cause's cap must never starve
+    another's (the alternating-cause escape, 2026-08-07).
+    """
     try:
         raw = counter.read_text().strip()
         parts = raw.split(",")
-        vals = [int(p) for p in parts[:4]]
-        while len(vals) < 4:
+        vals = [int(p) for p in parts[:_COUNTER_SLOTS]]
+        while len(vals) < _COUNTER_SLOTS:
             vals.append(0)
-        return vals[0], vals[1], vals[2], vals[3]
+        return vals[0], vals[1], vals[2], vals[3], vals[4]
     except Exception:
-        return 0, 0, 0, 0
+        return 0, 0, 0, 0, 0
+
+
+# --- FIFTH cause: an in-flight COMMAND RUN RECORD ----------------------------
+# `scripts/command_run.py` writes ONE json per session recording which /fabrik-*
+# command is running, its phase c/t, its round count and its terminal condition.
+# A record that positively says state:"running" means the agent is MID-COMMAND —
+# stopping there is the "agents stop without reaching a no-op pass" defect.
+#
+# The resolver is duplicated here (≈10 lines) rather than imported from
+# scripts/command_run.py ON PURPOSE: a hook must not acquire an import that can
+# fail (missing file mid-sync, a project that never received the script, a
+# syntax error in it) — an ImportError here would degrade EVERY cause, not just
+# this one. The two copies share only an env var name and a filename convention.
+_STALE_H_DEFAULT = 12.0
+# Ordinary clock wobble on a live record. Same idiom (and value) as
+# claude_rotate.py's `_CLOCK_SKEW_TOLERANCE_S` — a stamp further in the FUTURE than
+# this is not evidence of freshness, it is a broken clock or a corrupted write.
+_CLOCK_SKEW_TOLERANCE_S = 60.0
+
+
+def _stale_bound_s() -> float | None:
+    """The staleness bound in seconds, or None when the operator disabled the trap.
+
+    `COMMAND_RUN_STALE_H=0` (or negative) means "don't trap me" — it must never mean
+    "block forever", which is what a naive `if stale_h > 0` guard turned it into. A
+    non-finite bound (`nan`, `inf`) is no bound at all: same verdict.
+    """
+    raw = os.environ.get("COMMAND_RUN_STALE_H")
+    if raw is None or raw.strip() == "":
+        return _STALE_H_DEFAULT * 3600
+    try:
+        hours = float(raw)
+    except ValueError:
+        return _STALE_H_DEFAULT * 3600  # garbage value → the default bound still applies
+    if not math.isfinite(hours) or hours <= 0:
+        return None
+    return hours * 3600
+
+
+def _run_record(sid: str) -> dict | None:
+    """This session's command-run record, or None.
+
+    FAIL OPEN, asymmetrically. Blocking an agent's stop is a strong act, so freshness
+    must be POSITIVELY PROVEN — anything else returns None:
+
+    - missing / corrupt / unreadable / not a dict
+    - `updated_ts` absent, non-numeric, boolean, or non-finite (`json.loads` accepts
+      bare `NaN` / `Infinity` literals, so those really do arrive here). The old
+      `isinstance(ts, (int, float))` gate SKIPPED the check for these shapes, which
+      meant each one blocked FOREVER, indistinguishable from a legitimate block.
+    - older than the staleness bound (an abandoned record from a dead session)
+    - further in the FUTURE than the clock-skew tolerance (unprovable, not fresh)
+    - the operator disabled the bound (`COMMAND_RUN_STALE_H<=0`)
+
+    Only state == "running" on a returned record ever blocks.
+    """
+    try:
+        raw_dir = os.environ.get("COMMAND_RUN_DIR")
+        base = Path(raw_dir) if raw_dir else Path.home() / ".claude" / "state" / "command-runs"
+        rec = json.loads((base / f"{_safe_sid(sid)}.json").read_text(encoding="utf-8"))
+        if not isinstance(rec, dict):
+            return None
+        bound_s = _stale_bound_s()
+        if bound_s is None:
+            return None
+        ts = rec.get("updated_ts")
+        if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts):
+            return None  # freshness unprovable → never block on it
+        age = time.time() - float(ts)
+        if age > bound_s or age < -_CLOCK_SKEW_TOLERANCE_S:
+            return None
+        return rec
+    except Exception:
+        return None
+
+
+def _run_block_reason(rec: dict, attempt: int) -> str:
+    cmd = rec.get("command") or "?"
+    cur, total = rec.get("phase") or 1, rec.get("phases") or "?"
+    rounds = rec.get("rounds") or []
+    title = (rec.get("phase_title") or "").strip()
+    where = f"phase {cur}/{total}" + (f" ({title})" if title else "")
+    if rounds:
+        where += f", round {len(rounds)}"
+    terminal = (rec.get("terminal") or "its own no-op / completion contract").strip()
+    classes = rec.get("classes") or {}
+    still_open = sorted(k for k, v in classes.items() if v != "clean")
+    open_note = (
+        f" Class ledger still OPEN: {', '.join(still_open)} — re-sweep them with the SAME "
+        "brief (re-scoping each round is what turns a review into 30 rounds)."
+        if still_open
+        else ""
+    )
+    return (
+        f"COMMAND STILL RUNNING (attempt {attempt}/{CAP}). /{cmd} is in flight at {where}; "
+        f"its terminal condition is: {terminal}.{open_note} An invoked command is the "
+        "deliverable — run it to that terminal condition, do not hand back control "
+        "mid-command. There are exactly TWO legitimate exits, and BOTH must name this "
+        f"run (--command {cmd}) — a mismatched name is refused rather than closing the "
+        f"wrong record: python3 scripts/command_run.py done --command {cmd} --evidence "
+        '"<proof the terminal condition is met>" when the contract IS met, or '
+        f"python3 scripts/command_run.py blocked --command {cmd} --reason "
+        '"<one of the three sanctioned BLOCKED cases: 3 consecutive same-test '
+        'failures | missing infra | an unresolvable spec contradiction>".'
+    )
 
 
 def _ahead_of_upstream(root: Path) -> int | None:
@@ -656,14 +792,19 @@ def main(argv: list[str]) -> int:
 
         def _stall_gate() -> int:
             """Final causes on an otherwise-allowed stop: the PUSH law (committed
-            work must be off-box — routine-push directive) then the promise-guard.
-            Independent counter slots, same reset-when-false + warn-through shape."""
+            work must be off-box — routine-push directive), the promise-guard, then
+            the in-flight COMMAND RUN RECORD. Independent counter slots, same
+            reset-when-false + warn-through shape."""
             counter = _counter_path(sid)
-            g, c, s_att, p_att = _read_counters(counter)
+            g, c, s_att, p_att, r_att = _read_counters(counter)
+            run = _run_record(sid)
+            run_active = bool(run) and (run or {}).get("state") == "running"
             ahead = _ahead_of_upstream(root)
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
-                counter.write_text(f"{g},{c},{s_att if stall else 0},{p_att}")
+                counter.write_text(
+                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0}"
+                )
                 reason = (
                     f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
                     "this branch are not on origin — an unpushed task is an "
@@ -680,20 +821,40 @@ def main(argv: list[str]) -> int:
                     "refs/wip is the only off-box copy until someone pushes.\n"
                 )
             s_action, s_att = decide_stall(bool(stall), s_att)
-            if s_action == "allow":
-                if g == 0 and c == 0 and p_att == 0:
+            if s_action in ("allow", "allow_warn_stall"):
+                if s_action == "allow_warn_stall":
+                    sys.stderr.write(
+                        f"Final message still ends in a stall after {CAP} blocked stops — "
+                        "stopping anyway.\n"
+                    )
+                # FIFTH cause, last word: a command run still in flight. It applies
+                # regardless of tree state — an agent that committed, pushed and
+                # narrated nothing can still be abandoning /fabrik-review at round 3.
+                r_action, r_att = decide_stall(run_active, r_att)
+                if r_action == "block_stall":
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att}")
+                    sys.stdout.write(
+                        json.dumps(
+                            {
+                                "decision": "block",
+                                "reason": _run_block_reason(run or {}, r_att),
+                            }
+                        )
+                        + "\n"
+                    )
+                    return 0
+                if r_action == "allow_warn_stall":
+                    sys.stderr.write(
+                        f"A command run is STILL marked running after {CAP} blocked stops — "
+                        "stopping anyway. Close it: python3 scripts/command_run.py "
+                        "done --command <name> --evidence … | blocked --command <name> --reason …\n"
+                    )
+                if g == 0 and c == 0 and p_att == 0 and r_att == 0:
                     counter.unlink(missing_ok=True)
                 else:
-                    counter.write_text(f"{g},{c},0,{p_att}")
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att}")
                 return 0
-            if s_action == "allow_warn_stall":
-                counter.write_text(f"{g},{c},0,{p_att}")
-                sys.stderr.write(
-                    f"Final message still ends in a stall after {CAP} blocked stops — "
-                    "stopping anyway.\n"
-                )
-                return 0
-            counter.write_text(f"{g},{c},{s_att},{p_att}")
+            counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0}")
             kind, snippet = stall  # type: ignore[misc]
             what = (
                 f'promises an action ("{snippet}") that was never dispatched'
@@ -778,7 +939,9 @@ def main(argv: list[str]) -> int:
                 new_failures = set()
 
         counter = _counter_path(sid)
-        gate_attempts, commit_attempts, stall_attempts, push_attempts = _read_counters(counter)
+        gate_attempts, commit_attempts, stall_attempts, push_attempts, run_attempts = (
+            _read_counters(counter)
+        )
 
         action, gate_attempts, commit_attempts = decide(
             True,
@@ -802,7 +965,7 @@ def main(argv: list[str]) -> int:
                 )
             # gate/commit causes resolved (or capped) → reset their counters, then
             # the push law + promise-guard still have the last word on THIS stop.
-            counter.write_text(f"0,0,{stall_attempts},{push_attempts}")
+            counter.write_text(f"0,0,{stall_attempts},{push_attempts},{run_attempts}")
             return _stall_gate()
 
         # Reset-when-cause-false applies to the stall AND push slots here too: a
@@ -810,9 +973,11 @@ def main(argv: list[str]) -> int:
         # mis-numbers) a brand-new streak (review finding — the same regression
         # class decide()'s own docstring documents; the p-slot edition was caught
         # by the routine-push whole-plan review).
+        _run_live = (_run_record(sid) or {}).get("state") == "running"
         counter.write_text(
             f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},"
-            f"{push_attempts if _ahead_of_upstream(root) else 0}"
+            f"{push_attempts if _ahead_of_upstream(root) else 0},"
+            f"{run_attempts if _run_live else 0}"
         )
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])

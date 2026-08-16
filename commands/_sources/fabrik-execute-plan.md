@@ -7,6 +7,27 @@ argument-hint: "<path to plan file>"
 
 You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan — it IS the approval. The plan and its design spec together govern this execution — `superpowers:subagent-driven-development` and `superpowers:executing-plans` are superseded by this command when invoked via `/fabrik-execute-plan`.
 
+## Run record — open it FIRST (this is the command that gets abandoned mid-flight)
+
+Before step 0, read the plan's phase count and open the record — `--phases` is **the plan's own phase
+count** (dispatcher mode: the Board's ticket count), not a fixed number:
+
+```bash
+python3 scripts/command_run.py start --command fabrik-execute-plan --phases <plan's phases> \
+  --terminal "every phase EXECUTED + its /fabrik-review round clean"
+```
+
+`step --phase <N> --title "<the plan's phase title>"` on entering each phase. **The `/fabrik-review` at a
+phase boundary opens its OWN nested record and restores this one when it closes** — so a green phase gate
+never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the
+nested review can never end the plan by accident (it is refused). Close this run with
+`done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>"` only when the
+LAST phase is EXECUTED; a real halt is
+`blocked --command fabrik-execute-plan --reason "…"` naming one of the
+three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec
+contradiction). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
+TASK terminator, and the record is what proves the task is actually over.
+
 ## Before You Start
 
 0. **Shape detection — which mode runs.** If `$ARGUMENTS` is a dated plan DIRECTORY

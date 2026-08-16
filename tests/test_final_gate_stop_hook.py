@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -292,7 +293,7 @@ def test_baseline_survives_resume_but_not_fresh_start(fake_project: Path) -> Non
 def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
     ctr.write_text("1,2,0")
-    assert hook._read_counters(ctr) == (1, 2, 0, 0)
+    assert hook._read_counters(ctr) == (1, 2, 0, 0, 0)
 
 
 def _run_stop_with_transcript(
@@ -947,8 +948,10 @@ def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(tmp
 
 def test_counter_format_round_trips(tmp_path: Path) -> None:
     c = tmp_path / "ctr"
-    for raw, expect in [("3", (3, 0, 0, 0)), ("3,1", (3, 1, 0, 0)), ("3,1,2", (3, 1, 2, 0)),
-                        ("", (0, 0, 0, 0)), ("x,y", (0, 0, 0, 0)), ("1,2,3,4", (1, 2, 3, 4))]:
+    for raw, expect in [("3", (3, 0, 0, 0, 0)), ("3,1", (3, 1, 0, 0, 0)),
+                        ("3,1,2", (3, 1, 2, 0, 0)), ("", (0, 0, 0, 0, 0)),
+                        ("x,y", (0, 0, 0, 0, 0)), ("1,2,3,4", (1, 2, 3, 4, 0)),
+                        ("1,2,3,4,5", (1, 2, 3, 4, 5))]:
         c.write_text(raw)
         assert hook._read_counters(c) == expect, raw
 
@@ -1014,3 +1017,200 @@ def test_negated_availability_is_a_conclusion(tmp_path: Path) -> None:
     _turn(tr, _user(), _asst_text(
         "Nothing further is dispatchable — every ticket is merged; the plan is EXECUTED."))
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+# --- FIFTH cause: an in-flight COMMAND RUN RECORD blocks the stop -------------
+# Operator complaint: "agents are still stopping without reaching a no ops pass or
+# fully executing the commands for no valid reason". A `running` record is the ONLY
+# state that blocks; missing / corrupt / unreadable / stale fails OPEN — the fail
+# direction is deliberately asymmetric so broken state can never trap an agent.
+
+
+def _running_record(**over: object) -> dict:
+    rec: dict = {
+        "session_id": "x",
+        "command": "fabrik-review",
+        "phases": 5,
+        "phase": 4,
+        "phase_title": "Converge",
+        "terminal": "found:0 no-op round",
+        "state": "running",
+        "rounds": [{"n": 1, "findings": 3, "swept": [], "new": []}],
+        "classes": {"auth": "open"},
+        "updated_ts": int(time.time()),
+    }
+    rec.update(over)
+    return rec
+
+
+def _run_stop_with_record(project: Path, tmp_path: Path, sid: str, rec: object) -> str:
+    """Run the Stop hook with a command-run record present; return stdout."""
+    run_dir = tmp_path / "command-runs"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    ctr.unlink(missing_ok=True)
+    if rec is not None:
+        body = rec if isinstance(rec, str) else json.dumps(rec)
+        (run_dir / f"{sid}.json").write_text(body)
+    env = {**os.environ, "FAKE_FAILS": "", "COMMAND_RUN_DIR": str(run_dir)}
+    proc = subprocess.run(
+        [sys.executable, str(_HOOK)],
+        input=json.dumps({"session_id": sid, "cwd": str(project), "hook_event_name": "Stop"}),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    ctr.unlink(missing_ok=True)
+    return proc.stdout.strip()
+
+
+def test_running_command_run_blocks_the_stop(fake_project: Path, tmp_path: Path) -> None:
+    out = _run_stop_with_record(fake_project, tmp_path, "s_run_running", _running_record())
+    assert out, "an in-flight command run must block the stop"
+    payload = json.loads(out)
+    assert payload["decision"] == "block"
+    reason = payload["reason"]
+    assert "/fabrik-review" in reason, reason
+    assert "4/5" in reason, reason  # phase c/t
+    assert "round 1" in reason, reason
+    assert "found:0 no-op round" in reason, reason  # the terminal condition
+    # Both exits, each PRE-FILLED with the live run's name — the agent must never have
+    # to guess it, and a close naming anything else is refused.
+    assert "done --command fabrik-review --evidence" in reason, reason
+    assert "blocked --command fabrik-review --reason" in reason, reason
+
+
+def test_done_record_does_not_block(fake_project: Path, tmp_path: Path) -> None:
+    rec = _running_record(state="done", evidence="found: 0 on round 4")
+    assert _run_stop_with_record(fake_project, tmp_path, "s_run_done", rec) == ""
+
+
+def test_blocked_record_does_not_block(fake_project: Path, tmp_path: Path) -> None:
+    rec = _running_record(state="blocked", blocked_reason="missing infra")
+    assert _run_stop_with_record(fake_project, tmp_path, "s_run_blocked", rec) == ""
+
+
+def test_corrupt_run_record_fails_open(fake_project: Path, tmp_path: Path) -> None:
+    assert _run_stop_with_record(fake_project, tmp_path, "s_run_corrupt", "{not json") == ""
+
+
+def test_missing_run_record_fails_open(fake_project: Path, tmp_path: Path) -> None:
+    assert _run_stop_with_record(fake_project, tmp_path, "s_run_missing", None) == ""
+
+
+def test_stale_run_record_fails_open(fake_project: Path, tmp_path: Path) -> None:
+    # >COMMAND_RUN_STALE_H (12h) without an update = an abandoned record from a dead
+    # session, not live work — never trap a new session on someone else's leftovers.
+    stale = _running_record(updated_ts=int(time.time()) - 20 * 3600)
+    assert _run_stop_with_record(fake_project, tmp_path, "s_run_stale", stale) == ""
+
+
+def test_run_record_cause_uses_the_shared_anti_trap_idiom() -> None:
+    # Same counter / reset-when-false / warn-through shape as every other cause.
+    assert hook.decide_stall(True, 0) == ("block_stall", 1)
+    assert hook.decide_stall(True, 2) == ("block_stall", 3)
+    assert hook.decide_stall(True, 3) == ("allow_warn_stall", 0)
+    assert hook.decide_stall(False, 2) == ("allow", 0)
+
+
+def test_counter_file_gains_a_fifth_slot_tolerating_older_files(tmp_path: Path) -> None:
+    ctr = tmp_path / "c.attempts"
+    ctr.write_text("1,2,3")  # a 3-slot file written before the 5th cause existed
+    assert hook._read_counters(ctr) == (1, 2, 3, 0, 0)
+    ctr.write_text("1,2,3,4,5")
+    assert hook._read_counters(ctr) == (1, 2, 3, 4, 5)
+
+
+# --- F-R2: freshness must be POSITIVELY PROVEN, or the record fails open ------
+# The isinstance() gate SKIPPED the staleness check for every unusual timestamp
+# shape, so each of these blocked forever, indistinguishable from a real block.
+# (json.loads accepts bare NaN / Infinity literals, so those reach the hook.)
+
+
+@pytest.mark.parametrize(
+    ("shape", "body"),
+    [
+        ("missing ts", '{"state": "running", "command": "x", "phases": 1, "phase": 1}'),
+        ("NaN ts", '{"state": "running", "command": "x", "updated_ts": NaN}'),
+        ("Infinity ts", '{"state": "running", "command": "x", "updated_ts": Infinity}'),
+        ("-Infinity ts", '{"state": "running", "command": "x", "updated_ts": -Infinity}'),
+        ("string ts", '{"state": "running", "command": "x", "updated_ts": "1755300000"}'),
+        ("bool ts", '{"state": "running", "command": "x", "updated_ts": true}'),
+        ("null ts", '{"state": "running", "command": "x", "updated_ts": null}'),
+    ],
+)
+def test_unprovable_freshness_fails_open(
+    fake_project: Path, tmp_path: Path, shape: str, body: str
+) -> None:
+    sid = "s_ts_" + shape.replace(" ", "_").replace("-", "n")
+    assert _run_stop_with_record(fake_project, tmp_path, sid, body) == "", shape
+
+
+def test_far_future_timestamp_fails_open(fake_project: Path, tmp_path: Path) -> None:
+    # A ts beyond the clock-skew tolerance is not evidence of freshness — it is a
+    # broken clock or a corrupted write. Unprovable → fail open.
+    future = _running_record(updated_ts=int(time.time()) + 86_400)
+    assert _run_stop_with_record(fake_project, tmp_path, "s_ts_future", future) == ""
+
+
+def test_small_forward_skew_still_blocks(fake_project: Path, tmp_path: Path) -> None:
+    # Within tolerance = an ordinary clock wobble on a LIVE record; must still block,
+    # or the escape hatch becomes "set your clock 1 second ahead".
+    skewed = _running_record(updated_ts=int(time.time()) + 5)
+    assert _run_stop_with_record(fake_project, tmp_path, "s_ts_skew", skewed) != ""
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf"])
+def test_stale_hours_that_disable_the_hatch_fail_open(
+    fake_project: Path, tmp_path: Path, value: str
+) -> None:
+    """`COMMAND_RUN_STALE_H=0` means "don't trap me" — it must never mean "block
+    forever". A non-finite bound is no bound at all, same verdict."""
+    run_dir = tmp_path / "command-runs"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    sid = "s_staleh_" + value
+    (run_dir / f"{sid}.json").write_text(json.dumps(_running_record()))
+    env = {
+        **os.environ,
+        "FAKE_FAILS": "",
+        "COMMAND_RUN_DIR": str(run_dir),
+        "COMMAND_RUN_STALE_H": value,
+    }
+    proc = subprocess.run(
+        [sys.executable, str(_HOOK)],
+        input=json.dumps({"session_id": sid, "cwd": str(fake_project), "hook_event_name": "Stop"}),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    Path(hook.tempfile.gettempdir()).joinpath(f"fabrik-gate-stop-{sid}.attempts").unlink(
+        missing_ok=True
+    )
+    assert proc.stdout.strip() == "", f"STALE_H={value}: {proc.stdout}"
+
+
+# --- F-R4 (adjacent, declared): tmp-path helpers must sanitize the session id --
+
+
+def test_tmp_path_helpers_sanitize_a_hostile_session_id() -> None:
+    """A `/`-containing sid made _counter_path/_baseline_path escape the tmp dir;
+    the resulting OSError hit the outermost except and failed the ENTIRE hook open,
+    silently disabling all five causes."""
+    sid = "a/b/../c"
+    for path in (hook._counter_path(sid), hook._baseline_path(sid)):
+        assert path.parent == Path(hook.tempfile.gettempdir()), path
+        assert "/" not in path.name.replace(str(path.parent), ""), path
+
+
+def test_tmp_path_helpers_keep_plain_ids_stable() -> None:
+    # Existing sessions' files must not be renamed by this change.
+    plain = "0198f2c1-4a7b-7e31-9a2c-1f3d5b7e9c11"
+    assert hook._counter_path(plain).name == f"fabrik-gate-stop-{plain}.attempts"
+    assert hook._baseline_path(plain).name == f"fabrik-gate-baseline-{plain}.json"
+
+
+def test_distinct_hostile_ids_get_distinct_tmp_files() -> None:
+    assert hook._counter_path("a.b") != hook._counter_path("a b")
+    assert hook._baseline_path("a.b") != hook._baseline_path("a b")

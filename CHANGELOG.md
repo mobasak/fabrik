@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — COMMAND RUN-RECORD protocol: pinned `RUN:` line, class ledger, Stop-hook 5th cause (2026-08-16)
+
+- `scripts/command_run.py` (stdlib only) — ONE json per session at
+  `~/.claude/state/command-runs/<session_id>.json` (`COMMAND_RUN_DIR` overridable) recording the
+  in-flight `/fabrik-*` command: `start` / `step` / `round` / `done` / `blocked` / `line` /
+  `status --json`. `line` prints the pinned
+  `RUN: /<cmd> · phase <c>/<t> (<title>) · round <r> · terminal: <condition>` and is **silent when
+  idle** (it runs on every reply). Fail-soft throughout — a corrupt or unwritable record never wedges
+  an agent.
+- **Convergence (the "reviews take 30 rounds" fix).** `round` maintains a class ledger that persists
+  across rounds — only a round that sweeps a class clean retires it. All-clean + 0 findings prints a
+  TERMINAL verdict (the no-op round). From round 5, a findings series that is no longer non-increasing
+  (`43 → 11 → 30 → 13 → 22`, a real peer run) triggers a loud **advisory** warning: the loop is
+  RE-SCOPING each round instead of RE-SWEEPING the ledger. Never blocks.
+- **Enforcement.** `.claude/hooks/final_gate_stop.py` gains a FIFTH cause: a record that says `running`
+  BLOCKS the stop, naming the command, phase, round, terminal condition and the two legitimate exits.
+  Same counter/reset/warn-through idiom as the other four (counter file now 5 slots, tolerant of older
+  3/4-slot files). Fail direction is asymmetric by design — missing / corrupt / stale (>12h,
+  `COMMAND_RUN_STALE_H`) fails OPEN.
+- **Integrity (round-1 review fixes).** Closing a run REQUIRES `--command <name>` and refuses a name
+  that is not the live run (rc 1, record untouched) — a retried `done` after a nested `/fabrik-review`
+  popped back to its caller would otherwise close `/fabrik-execute-plan` at phase 2/5 and disarm the
+  hook for every remaining phase; double-close is a warned no-op. Every mutating subcommand now holds
+  an exclusive `flock` across its read-modify-write (unlocked, 20 concurrent `round` calls lost 14 of
+  20 class-opens — subagents share the parent's `CLAUDE_SESSION_ID`). Session-id filenames get a
+  blake2s collision tag when flattening changes them, so `abc.xyz` and `abc xyz` can no longer share a
+  record — the hook's `_counter_path`/`_baseline_path` adopt the same helper, closing a pre-existing
+  path-escape that failed the ENTIRE hook open. Hook staleness now demands POSITIVELY PROVEN
+  freshness: missing/null/string/bool/`NaN`/`±Infinity`/far-future timestamps and a `≤0`/non-finite
+  `COMMAND_RUN_STALE_H` all fail OPEN instead of blocking forever.
+- **Fleet blast radius (~46 repos).** `command_run.py` joins `CORE_SCRIPTS` in
+  `scripts/fabrik_synced_manifest.py`; the contract text lands in BOTH `CLAUDE.md` and
+  `templates/governance/CLAUDE.md`; the hook is already in `AGENT_HOOK_FILES`. All four are
+  governance-sync trigger surfaces, so this commit distributes fleet-wide on the pre-commit sync.
+  `/fabrik-review`, `/fabrik-docs-review` and `/fabrik-execute-plan` are wired to the protocol in
+  `commands/_sources/`. Protocol doc: `docs/reference/command-run-protocol.md`.
+
 ### Added — Claude quota dashboard on localhost:5051 (2026-08-16)
 
 - `scripts/sysadmin/quota_dashboard.py` — a box-local page (stdlib only, loopback only)

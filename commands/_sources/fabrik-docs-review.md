@@ -8,6 +8,24 @@ DOCS UPDATE CONVERGENCE
 Converge the documentation to a fixed point — do not stop after one pass.
 
 {{include:grounding-artifact}}
+## Run record — open it FIRST, close it only at the edit-free pass
+
+**5 phases (0–4)**; terminal condition: **an edit-free reconciliation pass with the doc-sync gate green.**
+
+```bash
+python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
+  --terminal "edit-free pass + docs_updater --check green"
+```
+
+`step --phase <N> --title "<phase title>"` on entering each phase; one
+`round --findings <discrepancies this pass> --classes-swept <doc/claim classes swept clean>
+--classes-new <classes this pass opened>` per Phase-2/3 pass. The ledger is the doc set — re-sweep the
+SAME docs each pass rather than re-scoping to whichever doc looks suspicious now.
+`done --command fabrik-docs-review --evidence "<the edit-free pass + the verbatim gate line>"` at the
+TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…"` otherwise. **Always name the run
+you close** — a bare close would end the CALLER when this command runs nested inside one. **Open the
+`RUN:` line on every reply until the run closes.**
+
 ## Phase 0 — Establish scope
 
 ### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)
