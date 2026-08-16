@@ -273,7 +273,10 @@ def test_terminal_verdict_fires_on_all_swept_and_zero_findings(run_dir: Path) ->
     assert "TERMINAL" not in partial.stdout, partial.stdout  # swept, but findings > 0
     final = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth,concurrency")
     assert "TERMINAL" in final.stdout, final.stdout
-    assert "done --evidence" in final.stdout, final.stdout
+    # The hint must be RUNNABLE, not merely present: F-R1 made --command required, so a
+    # hint of the bare `done --evidence` form exits 2 at exactly the moment an agent is
+    # trying to close its run correctly. Pin the full form, with the live command named.
+    assert "done --command fabrik-review --evidence" in final.stdout, final.stdout
 
 
 def test_terminal_verdict_needs_a_non_empty_ledger(run_dir: Path) -> None:

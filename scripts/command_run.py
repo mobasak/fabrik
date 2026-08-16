@@ -24,7 +24,7 @@ Subcommands:
   start --command <name> --phases <N> [--terminal "<condition>"]
   step --phase <N> [--title "<t>"]
   round [--findings <N>] [--classes-swept a,b] [--classes-new c,d]
-  done --evidence "<proof>" | blocked --reason "<one of the three sanctioned cases>"
+  done --command <name> --evidence "<proof>" | blocked --command <name> --reason "<case>"
   line     — the pinned status line (silent when no run is active)
   status --json
 """
@@ -223,7 +223,8 @@ def _round_report(rec: dict[str, Any]) -> str:
             f"✅ TERMINAL VERDICT — round {len(rounds)} swept every known class "
             f"({', '.join(clean_c)}) clean and found 0 new findings. This IS the no-op "
             "round the contract demands. Close the run: "
-            'python3 scripts/command_run.py done --evidence "<proof>"'
+            f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
+            '--evidence "<proof>"'
         )
         # A terminal round CLOSES the loop — never also scold it for oscillating. The
         # drop TO zero is what non-increasing was asking for; the series test alone
