@@ -190,3 +190,10 @@ scripts/kilo_openrouter_routes_final.json
 scripts/kilo-benchmarks/embedding_assignments.json
 scripts/kilo-benchmarks/openrouter_routes.json
 scripts/kilo-benchmarks/shortlists.json
+
+# Tool scratch — regenerable, never committed.
+# mutmut's mutation-testing copy of src/+tests/ (185MB); its COPIES of driver
+# files also kept tripping the secrets gate with the originals' localhost URLs.
+mutants/
+# Serena MCP per-project config (tool-local)
+.serena/
