@@ -2,7 +2,15 @@
 
 > ## ⛔ SUPERSEDED 2026-08-12 — archived unexecuted. Do not execute this set.
 >
-> Superseded by **`docs/development/plans/archived/../2026-07-26-plan-1-ai-model-catalog-extraction.md`**
+> Superseded by **`docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md`**
+
+> **CLOSED OUT 2026-08-16.** The successor did not just supersede this set — it SHIPPED. All five of
+> its phases are `✅ EXECUTED`, the engine now lives at `/opt/ai-model-catalog/engine/` on its own
+> `30 5 * * *` cron, and fabrik is a consumer. This set's five tickets were never executed and never
+> need to be: T01 (golden oracle), T02 (import-graph audit) and T04 (shared cost-JSON relocation)
+> were all delivered by the successor's Phases A and E — and T02's idea outgrew a ticket, becoming
+> `scripts/kilo-benchmarks/tests/excise_manifest.py`, which computes the KEEP/DELETE set instead of
+> enumerating it. T03's three flywheel-safety gates live on as the successor's Phase A.0.
 > (the cross-repo monolith, phases A→E), which covers the same ground and more.
 >
 > **Why:** this set was authored before its own source plan was properly read, and it duplicated that
@@ -23,7 +31,7 @@
 Status: SUPERSEDED
 
 **Spec:** [docs/superpowers/specs/2026-07-26-catalog-extraction-design.md](../../../superpowers/specs/2026-07-26-catalog-extraction-design.md) (CONVERGED 2026-08-12, D5 resolved)
-**Prior art:** [docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md](../2026-07-26-plan-1-ai-model-catalog-extraction.md) (HARDENED — 11 review rounds, ~62 fixes; its E.1 import-graph audit is inherited wholesale as T02, not re-derived)
+**Prior art:** [docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md](../2026-07-26-plan-1-ai-model-catalog-extraction.md) (HARDENED — 11 review rounds, ~62 fixes; its E.1 import-graph audit is inherited wholesale as T02, not re-derived)
 
 ## Goal
 
@@ -168,7 +176,7 @@ Serialized: scripts/kilo-benchmarks/daily_refresh.sh — T01, T03
 | `agents-fabrik-core.md` infra invariant | WSL dev uses local PG via env; no container, no `postgres-main` in this plan's scope | `agents-fabrik-core.md:15` |
 | `specs/services/ai-model-catalog.yaml` `shape:` | **Unchanged by this plan** — no DB/cache/metrics/search/admin flag flips, because nothing deploys and no engine code moves here | read the `shape:` block (inspection, not `fabrik plan`) |
 | Spec §7 *Flywheel-safety invariant* | the three gates T03 implements, verbatim | `docs/superpowers/specs/2026-07-26-catalog-extraction-design.md` §7 |
-| Prior art E.1 (7 classification rules) | inherited wholesale as T02's classification arms — not re-derived | `docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md` § Phase E |
+| Prior art E.1 (7 classification rules) | inherited wholesale as T02's classification arms — not re-derived | `docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md` § Phase E |
 
 ## File Scope (owned paths)
 

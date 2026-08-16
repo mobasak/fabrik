@@ -49,7 +49,7 @@ Docs: INDEX.md (files added) — orchestrator-applied via Deltas
 ## Context Files
 - .windsurf/rules/core/10-python.md
 - .windsurf/rules/core/45-testing-strategy.md
-- docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md
+- docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md
 - scripts/claude_p_cost.py
 - scripts/kilo-benchmarks/derive_cost.py
 - scripts/kilo-benchmarks/rank_task_subagents.py
