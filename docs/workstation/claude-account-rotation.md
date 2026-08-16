@@ -1,344 +1,251 @@
-# Claude accounts — the login-once fleet (reference + rollout runbook)
+# Claude accounts — the pointer-rotation fleet (reference + runbook)
 
-**What it is:** four Claude Max subscriptions (`ob@`, `can@`, `sarp@`, `mob@` — the latter three
-are inbox-aliases of `ob@ocoron.com`) each stay permanently logged in, one OAuth chain per
-long-lived Claude window. Tool: `scripts/sysadmin/claude_rotate.py` (+ its AFTER-EDIT twin
-`scripts/aro-wake/claude_rotate.py` — byte-identical, every edit lands in both).
+**What it is:** four Claude Max subscriptions (`ob@`, `can@`, `sarp@`, `mob@` — the latter
+three are inbox-aliases of `ob@ocoron.com`), each permanently logged in to its OWN config dir,
+and **one pointer that selects which account every project uses right now**. The `*/5` cron
+tick moves that pointer toward quota headroom. Tool: `scripts/sysadmin/claude_rotate.py`
+(+ its AFTER-EDIT twin `scripts/aro-wake/claude_rotate.py` — byte-identical, every edit lands
+in both). Live view: `docs/workstation/quota-dashboard.md` (<http://localhost:5051/>).
 
-**The load-bearing rule:** OAuth refresh tokens are single-use. A chain that is *used* never
-needs a login — the CLI rolls it on every real turn; every relogin traces to sharing, swapping,
-or stranding a chain. So every long-lived window gets its OWN config dir: **one dir = one chain
-= one `/login`, ever**. Credential files never move between owners again.
+**The load-bearing rule:** OAuth refresh tokens are single-use, so a chain that is SHARED
+between processes gets invalidated out from under one of them — that was the morning relogin
+wave. Each account therefore owns one dir and one chain forever; **rotation moves a symlink,
+never a credential byte**. A flip cannot destroy a login, which is exactly what the retired
+file-swap rotation used to do.
 
-## The per-window dir model
+## Layout
 
-Fleet root: `~/.claude-fleet/` (override: `CLAUDE_FLEET_ROOT`). One kebab-case slug dir per
-long-lived window (`seo/`, `youtube/`, `fabrik-infra/`, `cron-ci-fix/`, …), plus
-`assignments.json` — the routing table (slug → account, pinned identity, bound project). Only
-`--new-dir` ever creates the root; readers (`--status`, `--sync-mcp`, `--keepalive`) never
-mkdir it. On an absent/empty root, `--status` and the tick keep the legacy behavior below
-live; `--sync-mcp`/`--sync-shared` and `--keepalive` have no legacy equivalent —
-`--keepalive` prints "nothing to do" and exits 0 either way, while the sync commands exit 1
-with "nothing to sync" on an ABSENT root (a loud misconfiguration signal) and exit 0
-silently on an empty one.
+```
+~/.claude-fleet/
+  ob/ can/ sarp/ mob/     one per ACCOUNT — each holds its own .credentials.json, logged in ONCE
+  active -> mob           the pointer every session follows (a relative symlink)
+  assignments.json        slug → account, pinned identity
+  caps.json               per-account weekly reserves, e.g. {"ob@ocoron.com": 90}
+```
 
-A window is bound to its dir by TWO environment variables — both, or the binding is a no-op:
+Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1327`). Only
+`--new-dir` creates the root; readers never mkdir it.
 
-- `CLAUDE_CONFIG_DIR` — relocates the CLI's config dir (credentials, `.claude.json`, sessions).
-- `CLAUDE_QUOTA_HOME` — the wall/resume layer (`claude-quota.py`) resolves its home from THIS
-  variable, not from `CLAUDE_CONFIG_DIR`; without it every window sleeps on every other
-  window's quota wall.
+## How a session binds to the pointer
 
-The dir's `.credentials.json` is written by exactly one owning context — that window, its
-own headless callers, and its own keepalive ping — and nothing else ever writes, copies, or
-relocates it.
-Two sanctioned in-memory READS exist: `--status`/`--tick` extract the dir's access token for
-the identity-pin and quota-usage probes (never logged, never persisted).
+Two environment variables — both, or the binding is a no-op:
 
-## The two-variable carrier
+- `CLAUDE_CONFIG_DIR` → `~/.claude-fleet/active` (the CLI's config dir: credentials,
+  `.claude.json`, sessions)
+- `CLAUDE_QUOTA_HOME` → the same path; the wall/resume layer (`claude-quota.py`) resolves its
+  home from THIS variable, not from `CLAUDE_CONFIG_DIR`.
 
-For a project repo the binding rides `<project>/.claude/settings.local.json`:
+They are exported from **two** places, and both are required:
+
+| File | Covers | Why both |
+|---|---|---|
+| `~/.bashrc` | terminals, login shells | interactive shells only |
+| `~/.vscode-server/server-env-setup` | **the VS Code extension host** | `.bashrc` returns early for non-interactive shells, so extension windows never read it — they silently fell back to the shared `~/.claude` and ignored the pointer entirely (2026-08-15; 15 sessions, caught by the occupancy monitor) |
+
+⚠️ The server-env file takes effect only after the VS Code **server** restarts:
+`wsl --shutdown` from Windows, then reopen. "Reload Window" is NOT enough — the server
+survives it.
+
+## Rotation — when the pointer moves, and where
+
+The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude_rotate.py`):
+
+- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **95**) on
+  either the 5-hour or the weekly window. A `caps.json` cap tightens the **weekly** leg only
+  (`weekly_thr = min(threshold, cap)`); the 5-hour leg is never cap-gated.
+- **Target:** the most weekly headroom among accounts that are alive, not walled, not
+  cap-walled, and not themselves already ≥ threshold on either window. A candidate ranked off
+  a CACHED reading is live-probed once before it can become the pointer.
+- **Never a dead chain:** the target's refresh token must pass the liveness gate
+  (`_chain_stale_reason`) — a dir whose chain expired can never become the fleet's pointer.
+- **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`), so a noisy boundary
+  cannot thrash. A missing/dangling pointer is repaired immediately, dwell-exempt.
+- **No headroom anywhere:** nothing flips; one advisory per account per 24h goes to Telegram
+  AND broadcasts to every project mailbox ("reach a commit-and-push checkpoint"). Work resumes
+  as windows reset.
+- **Manual:** `--switch <account>` flips now — pause- and dwell-exempt, the deliberate
+  override. It warns if the target carries a cap.
+
+Sessions ride through a flip: a running session keeps its in-memory token (up to 8h) and lands
+on the new account at its next renewal. No login is ever triggered.
+
+## Per-account caps — reserving quota for yourself
+
+`~/.claude-fleet/caps.json` maps an account email to a weekly percentage the FLEET may not
+exceed:
 
 ```json
-{"env": {"CLAUDE_CONFIG_DIR": "/home/ozgur/.claude-fleet/<slug>",
-         "CLAUDE_QUOTA_HOME": "/home/ozgur/.claude-fleet/<slug>"}}
+{"ob@ocoron.com": 90}
 ```
 
-- `settings.local.json`, never `settings.json` — the latter is a governance-synced surface
-  (`scripts/fabrik_synced_manifest.py`) and would be overwritten fleet-wide.
-- `--new-dir --project` MERGES the two keys into an existing carrier, preserving every other
-  key (three projects keep Claude Code permissions state in this file) and the file's mode; an
-  unparseable carrier is refused loudly, never overwritten.
-- The carrier is gitignored (the fleet-synced gitignore block lists
-  `.claude/settings.local.json` — per-project, machine-specific, never committed), so a fresh
-  git worktree checkout does NOT carry it and falls back to the shared `~/.claude`; copy the
-  parent checkout's carrier into a worktree you intend to run Claude in, and rely on the
-  carrier monitor (below) to name any silent fallback.
+At or above the cap the account is **cap-walled**: automated flips exclude it and `--status`
+says so, reserving the remainder for the operator's own claude.ai browser use. `--switch` may
+still target it deliberately. Keys are matched case-insensitively; a key matching no known
+account warns ("cap inactive") rather than failing silently.
 
-## Scaffolding a dir — `--new-dir` (the seeding contract)
+## `--status` — the board
 
 ```bash
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py \
-  --new-dir <slug> <account-email> [--project /opt/<repo>] [--from <slug|path>]
+python3 scripts/sysadmin/claude_rotate.py --status [--json]
 ```
 
-Creates `<fleet-root>/<slug>/` at 0700, seeds it, records the assignments row, writes the
-project's carrier when `--project` is given — and **never reads or writes a credential byte**:
-the dir is created empty of credentials and filled by ONE operator `/login`.
+- **Per-account grouping by pinned identity.** A `pending-login` row gets ONE
+  `api/oauth/profile` probe with that dir's own token; success pins the verified email
+  permanently.
+- **Quota: live or cached-with-age, never blind.** A reading is live while the dir's
+  credential mtime is under 8h (`_FLEET_TOKEN_FRESH_S`); otherwise the last-known row rides
+  with its age (`STALE — cached Nh ago`).
+- **Warnings, by name:** cap-walled accounts · a chain within 5 days of its refresh-token
+  lapse (`_CHAIN_EXPIRY_WARN_S`) · carrier problems · occupancy · identity mismatch.
+- `--json` carries `active`, `weekly_cap`/`cap_walled` per row, `pause`, and `fleet_warnings`.
 
-What lands where:
+### The occupancy monitor
 
-| Surface | Disposition | Why |
-|---|---|---|
-| `.credentials.json` | never touched — created by the operator's `/login` | one chain, one owner |
-| `.claude.json` | seeded COPY from the roster source (`--from`, a slug or path; default `~/.claude.json`) | MCP roster + per-project trust + onboarding carried over; the login replaces only its OAuth section |
-| `agents/`, `commands/`, `skills/`, `projects/` | symlink → canonical `~/.claude/…` | roster/governance/transcripts stay single-source; writes inside a symlinked DIR resolve to the canonical inode |
-| `settings.json` | COPY, never a symlink | the CLI writes config via tmp+rename, and `os.replace` onto a FILE symlink replaces the link — a symlink would silently fork off the canonical copy on the first settings write. The copy is re-pushed by `--sync-shared` |
-| `assignments.json` | one row: account, created stamp, `identity: pending-login`, optional `project` | the routing table `--status`, the tick and the drain mail all read |
-| `<project>/.claude/settings.local.json` | two-variable merge (with `--project`) | the carrier above |
+Counts LIVE Claude CLI processes (argv-basename match, never a substring) whose
+`/proc/<pid>/environ` carries **no non-empty `CLAUDE_CONFIG_DIR`** — those are on the shared
+`~/.claude` chain, ignoring the pointer. Above `CLAUDE_FLEET_OCCUPANCY_MAX` (default 3) it
+warns by name. This is the detector that caught the extension-host gap above; a count near
+zero is the healthy state.
 
-**Resumable, row-is-truth.** Every step is idempotent: a dir that exists but holds no
-credentials is an unfinished scaffold, and re-running COMPLETES it (seeds what is absent, links
-what is absent, finishes the carrier) — every partial failure converts to "fix the cause,
-re-run". For an existing slug the assignments ROW is truth; with `--project` omitted, a resume
-completes the binding the row already records. The whole body runs under the assignments flock,
-so concurrent runs serialize instead of losing each other's row.
+### The identity-mismatch net
 
-**The five refusal states** (rc 1 — exactly the cases where re-running would destroy or
-duplicate something; the hub policy refusal in the parenthetical below is a separate rc 1):
-
-1. The dir holds a `.credentials.json` — a LIVE chain, never re-seeded.
-2. The row names a DIFFERENT account — rebalancing is a deliberate re-login, not a
-   re-scaffold (to move a slug: edit the row's `account` AND reset its `identity` to
-   `"pending-login"` — grouping keys on the pinned identity, which is never re-probed
-   otherwise — then `/login` the new account in that dir).
-3. The row has no usable `account` value — corrupt, never claimed.
-4. The row is already bound to a DIFFERENT project — moving a binding is an operator action
-   (remove the old carrier, edit the row), never a scaffold side effect.
-5. The routing table cannot be parsed — never append to bytes that could not be read back.
-
-(`--project /opt/fabrik` is also refused — see the hub recipe below — and a malformed
-slug/email exits 2 with usage. Plain I/O failures — scaffold step, carrier write, row
-write, and the `--project` carrier-parse pre-flight — also exit 1 with one clean line;
-those are re-runnable, not refusals.)
-
-## Roster re-push — `--sync-mcp` / `--sync-shared`
-
-```bash
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --sync-mcp   [--from <slug|path>]
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --sync-shared [--from <slug|path>]
-```
-
-- `--sync-mcp` pushes the MCP roster into every fleet dir; `--sync-shared` additionally
-  re-pushes the `settings.json` copy.
-- The roster push is a section-level MERGE, never a file copy: each dir's own OAuth account and
-  per-project trust are preserved; a dir whose `.claude.json` cannot be parsed is SKIPPED, and
-  a `/login` landing mid-merge is detected (mtime re-check) and re-merged rather than clobbered.
-- ⚠️ **Default-source revert hazard:** with no `--from`, the source is `~/.claude.json` — the
-  shared ad-hoc dir. Once windows are migrated that file stops being the live roster, and a
-  default-source push would REVERT every dir to a stale one; the command prints a loud warning
-  when it takes the fallback while fleet dirs exist. Pass `--from <slug>` (a migrated dir) or
-  `--from <path>` to name the real source.
-
-## Fleet `--status` and the tick
-
-Both are feature-detected: **≥1 scaffolded fleet dir flips them into fleet mode**; on an
-empty-fleet box the legacy behavior below runs unchanged until the fleet root is populated.
-
-```bash
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status [--json]
-```
-
-- **Per-account grouping, pinned identity.** Dirs group by the identity in `assignments.json`.
-  A `pending-login` row gets one `api/oauth/profile` probe with that dir's OWN access token at
-  status/tick time; success pins the verified email permanently (never re-probed — the
-  dead-token identity gate that once lost a chain is not reintroduced), failure leaves it
-  pending and excluded from grouping.
-- **Quota: live or cached-with-age, never blind.** Usage is read once per account with the
-  freshest dir's token — live only while that credential file's mtime is <8h old (the CLI
-  rewrites it on every refresh, so mtime IS last-use). Otherwise the cached last-known row
-  rides with its age (`STALE — cached Nh ago`), else an honest "no quota reading yet".
-- `--status --json` carries a `"pause"` field (`null` running · `"marker"` operator-paused ·
-  `"error"` pause state unreadable) plus `fleet_warnings` — machine consumers must not read a
-  healthy-looking payload while switching is withheld or a carrier is missing.
-
-The `*/5` cron tick in fleet mode is telemetry + advisories ONLY — there is **structurally no
-successor logic** (no pick, no switch, no install — not paused, ABSENT):
-
-- ≥`ROTATE_DRAIN_THRESHOLD` (default 85) on either window fires ONE advisory Telegram per
-  account per 24h (dedupe stamp; a future-dated stamp is invalid and fires now — the clock-skew
-  clamp), plus graceful-drain fabrik-mail routed to the repos mapped to that account's slugs
-  (slug → `/opt/<slug>`; hub role slugs `fabrik-*` → the `fabrik` mailbox; slugs with no repo
-  are skipped).
-- A walled account's windows pause until their reset and resume on it; the other accounts'
-  windows are untouched.
-
-### The carrier-presence + occupancy monitor
-
-The binding fails OPEN and invisibly — a session whose carrier went missing just quietly
-rejoins the shared `~/.claude` chain. `--status` (text and JSON) therefore WARNs, by name:
-
-- Every mapped project (rows with a `project` binding) is checked for its
-  `settings.local.json` carrier: missing, unreadable, or lacking either variable → a named
-  warning. Hub role dirs and headless callers carry the env on the launch line, not a file, so
-  they are not carrier-checked.
-- **Occupancy:** the monitor counts LIVE Claude CLI processes (keyed on argv basename —
-  `claude`, or a `node`/`bun` launcher of it, never a substring match) whose
-  `/proc/<pid>/environ` carries **no non-empty `CLAUDE_CONFIG_DIR`** — those processes ARE on
-  the shared chain. Above `CLAUDE_FLEET_OCCUPANCY_MAX` (default 3: the operator's ad-hoc runs
-  plus a straggler) it warns that windows have silently rejoined. Fail-soft: when no process
-  can be inspected the count reads as unknown, never as a false all-clear. (An open-handle
-  count could not work: the CLI
-  opens and closes the credential file per read, so handle counts sit at 0.)
+A flip landing inside the CLI's ~1–2s credential-renewal window can write account A's rolled
+chain into account B's dir. Prevention is impossible from this side, so it is DETECTED: once
+per hour per account (`_IDENTITY_PROBE_INTERVAL_S`) the freshest dir's token is asked who it
+is; a mismatch against the pinned identity warns loudly, names the dir and both emails, and
+the verdict is sticky until a later probe clears it. **Recovery is ONE `/login` in that dir —
+never a credential-file copy.**
 
 ## Keepalive — the only recurring duty, automated
 
 ```bash
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive
+python3 scripts/sysadmin/claude_rotate.py --keepalive
 ```
 
 A chain idle ~30 days lapses. The weekly cron pings every fleet dir whose `.credentials.json`
-**mtime** (never content — the keepalive path reads no credential bytes) is >7 days old: one
-in-place `claude -p ping` bound to that dir's own env (`CLAUDE_CONFIG_DIR` +
-`CLAUDE_QUOTA_HOME` → the dir itself), so the CLI rolls THIS dir's own chain — the sole-owner
-path, not the retired temp-dir-copy `--touch` pattern. A future-skewed mtime counts as DUE
-(a spurious ping is harmless; a missed one risks the lapse); dirs with no credentials yet are
-skipped as pending-login. rc 0 when every stale dir refreshed, rc 1 + a Telegram alert (via the
-sound mesh's `mesh-notify`) on any failed ping. Per-ping timeout: `KEEPALIVE_TIMEOUT`
-(default 150s).
+**mtime** (never content) is older than 7 days (`_KEEPALIVE_MAX_IDLE_S`): one in-place
+`claude -p ping` bound to that dir, so the CLI rolls THAT dir's own chain. A future-skewed
+mtime counts as DUE. rc 0 when every stale dir refreshed; rc 1 + a Telegram alert on any
+failed ping. Per-ping timeout `KEEPALIVE_TIMEOUT` (default 150s).
 
 ## Recovery rules
 
 - **Reload, never login.** A window that lost auth mid-session holds a superseded pair in
-  memory; the dir's on-disk chain is current. Reload the window (VS Code "Developer: Reload
-  Window" / reopen the terminal session) — it re-reads the dir. `/login` is only ever for a dir
-  whose chain itself lapsed (keepalive alert) or a brand-new dir.
-- **DR rule: a fleet-dir restore = ONE `/login` in that dir, never a credentials-file
-  restore.** A stored chain is consumed the moment the live one rolls — restoring credential
-  bytes installs a spent single-use refresh token. Backups of fleet dirs exclude
-  `.credentials.json` by design (the successor plan's DR step); everything else (`.claude.json`,
-  links) restores normally, then one login re-creates the chain.
+  memory while the dir's on-disk chain is current. Reload the window — `/login` is only for a
+  dir whose chain itself lapsed (keepalive alert) or a brand-new dir.
+- **DR: a fleet-dir restore = ONE `/login` in that dir, never a credentials-file restore.** A
+  stored chain is consumed the moment the live one rolls, so restoring bytes installs a spent
+  single-use token. Backups exclude `.credentials.json` by design.
 
 ## Pause semantics — `--pause-switch` / `--resume-switch`
 
-The `switch-paused` marker (`~/.claude/state/switch-paused`) gates
-`_rotate_active_account` — the single choke point behind every automated credential swap on
-this box:
+The `switch-paused` marker (`~/.claude/state/switch-paused`) gates automated installs:
 
-- `run_claude`'s usage-limit/401 rotation retry (the CLI passthrough used by the keepalive shim
-  and sysadmin callers) and `--next` both route through it, so both inherit the gate.
-- `--switch <name>` does NOT route through the gate — it is the deliberate manual escape hatch.
-- The gate is checked once, at entry: **an install already past the gate completes** — the
-  marker gates NEW installs, it never aborts one in flight.
-- The pause state is tri-state: absent (running) · `marker` (operator pause; the tick prints
-  the withheld successor instead of installing, telemetry/keep-warm/drain warnings stay armed)
-  · `error` (the state dir cannot be READ → **fail closed**, nothing installs, but alerting
-  stays armed: an all-credentials-dead 401 alert still fires and names the fail-closed refusal.
-  With the operator's marker set, that all-dead alert is suppressed — the operator is at the
-  keyboard and owns the pool).
-- **A broken state dir → rc 1:** `--pause-switch` / `--resume-switch` report the unwritable
-  state dir and exit 1 rather than pretending; rotation is already refusing fail-closed while
-  the dir is unreadable.
-- `--status --json` reports the state in its `"pause"` field; the legacy text view shows a `⏸`
-  banner while paused.
+- The tick prints the withheld successor instead of flipping; telemetry, keep-warm and drain
+  warnings stay armed.
+- `--switch <name>` does NOT route through the gate — the deliberate manual escape hatch.
+- Tri-state: absent (running) · `marker` (operator pause) · `error` (state dir unreadable →
+  **fail closed**, nothing installs, but an all-credentials-dead 401 alert still fires).
+- A broken state dir makes `--pause-switch`/`--resume-switch` exit 1 rather than pretend.
+- `--status --json` reports it in `"pause"`.
+
+**In fleet mode the marker is no longer the only barrier:** with ≥1 fleet dir present,
+`_rotate_active_account` refuses structurally (first statement, before the pause check), so no
+straggler `~/.claude`-bound caller can trigger a legacy snapshot swap. Rotation is the pointer
+flip; nothing installs into `~/.claude`.
 
 ## Cron — the installed lines
 
 ```cron
 */5 * * * * flock -n $HOME/.claude/state/rotate.lock python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --tick >> $HOME/.claude/rotate-tick.log 2>&1
 20 6 * * 1 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive >> $HOME/.claude/keepalive.log 2>&1
+@reboot sleep 20 && /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
+*/10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
 
 The hourly `--drift-check` cron and the SessionStart drift-check hook are gone — a settings
 symlink would have run the drift-check from every fleet dir against its hardcoded `~/.claude`
-paths, re-creating the exact capture/retarget hazard this design retires.
+paths, re-creating the capture/retarget hazard this design retires.
 
-## Rollout runbook
+## Runbook
 
-### M2 — the hub's per-window env recipe
+### The logins (done — chains date from 2026-08-15, which is when their idle clocks start)
 
-The hub's 3 role windows share `/opt/fabrik` as cwd, so a cwd-keyed carrier cannot split them —
-and a settings `env` entry OVERRIDES each window's own environment, which would collapse all
-three onto ONE dir and ONE chain. **The hub gets NO carrier; `--new-dir` refuses
-`--project /opt/fabrik`.** Create the role dirs without `--project`:
+All four accounts are logged in, one login each, and no further login is expected. For
+reference, adding or re-homing an account is:
 
 ```bash
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --new-dir fabrik-infra <account-email>
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --new-dir fabrik-fleet <account-email>
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --new-dir fabrik-intel <account-email>
+python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --new-dir <account-slug> <account-email>
+CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/<slug>" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/<slug>" claude
+# then /login as that account, and /exit
 ```
 
-Then each hub window carries the two variables in its own environment, set beside the existing
-per-window `CLAUDE_AGENT`:
+The dir is created empty of credentials and filled by that ONE `/login`. Nothing copies a
+credential byte.
 
-```bash
-export CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/fabrik-infra"
-export CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/fabrik-infra"
-export CLAUDE_AGENT=infra
-```
+**Moving a slug to a different account:** reset that row's `identity` to `"pending-login"` in
+`assignments.json`, then one `/login` in the dir. `identity` is the field that matters —
+grouping, telemetry and flips all key on it, and it is never re-probed once pinned. The row's
+`account` field is bookkeeping read only by `--new-dir`'s ownership guard (and the caps
+known-account check), so a stale value changes no fleet behaviour; update it in the same edit
+anyway, or a later `--new-dir <slug> <new-email>` will be refused by the stale claim.
 
-Set them where the window already gets its `CLAUDE_AGENT` — the per-window launch profile /
-rc file, not a one-off terminal `export`, which dies with the session and silently lands the
-next session back on `~/.claude`. A hub terminal opened WITHOUT the env lands on `~/.claude`
-(the ad-hoc default) — visible in the occupancy monitor, never a corruption.
+### Everyday operation
 
-### M3 — the staged login round (the last logins ever)
-
-Batches of **3–4 dirs per account per day**, ~15 dirs total, so an upstream concurrent-grant
-cap surfaces on a small batch instead of the whole fleet:
-
-1. Scaffold the day's dirs: `--new-dir <slug> <account-email> --project /opt/<repo>` for
-   project windows (hub role dirs per M2; headless dirs without `--project`).
-2. ONE `/login` in each new dir's context: for a project window, open Claude in that repo (the
-   carrier routes it — it prompts because the dir is empty) and log in as the dir's account.
-   For a dir with no carrier:
-
-   ```bash
-   CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/<slug>" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/<slug>" claude
-   ```
-
-3. Verify: `--status` lists the new dirs (`pending-login` until first use pins the identity,
-   then grouped under their verified account).
-4. **Watch 24h before the next batch.** ⚠️ **ABORT signal — grant eviction:** a relogin prompt
-   appearing in an UNTOUCHED dir (one that was already working and is not part of today's
-   batch) means the provider evicted an existing grant when a new one was added. Stop the
-   batch, regroup to FEWER dirs per account (per-account dirs still beat today's single shared
-   file), and re-plan the remainder.
+| Want | Do |
+|---|---|
+| See the board | <http://localhost:5051/> or `--status` |
+| Move the fleet now | `--switch <account>` |
+| Reserve quota for browser use | edit `caps.json`, no restart needed |
+| Freeze automated flips | `--pause-switch` (`--resume-switch` to release) |
+| A window ignores the pointer | check the occupancy warning; it needs the env — for extension windows, `wsl --shutdown` + reopen |
 
 ## Legacy: the shared-file rotation pool — live until retirement
 
-The modes coexist, keyed on the fleet root: with it empty, EVERYTHING below is the live
-behavior; once it holds dirs, `--status`/`--tick` flip to the fleet view and this machinery
-governs only `~/.claude` itself — which stays the ad-hoc default for unmapped one-off runs
-until the M5 thinning. The shared-file machinery operates
-ONE `~/.claude/.credentials.json` swapped between per-account snapshot stores
-(`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do not build on it.
+The modes coexist, keyed on the fleet root: with it empty, the machinery below is the live
+behavior; with dirs present, `--status`/`--tick` run the fleet view and this governs only
+`~/.claude` itself, which stays the ad-hoc default for unmapped one-off runs until the M5
+thinning. It operates ONE `~/.claude/.credentials.json` swapped between per-account snapshot
+stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do not build on it.
 
-- `--list` · `--switch <name>` · `--next` — snapshot management; `--switch` swaps the live file
-  in place (running sessions lazily re-read on 401/expiry; never `pkill`, never `/logout`).
+- `--list` · `--switch <name>` · `--next` — snapshot management (in fleet mode `--switch`
+  routes to the pointer flip instead).
 - Legacy `--status` — per-store quota table; parked stores whose access token aged out show
-  "parked — quota unknown until used (refresh token valid)" (the fleet view retires exactly
-  this blindness).
-- Legacy tick — at `ROTATE_THRESHOLD` (default 95) on either window it switches to the
-  perishable-first successor (soonest weekly reset) under a 30-minute dwell; with no
-  installable sibling at the drain threshold it broadcasts the graceful-drain fabrik-mail +
-  one Telegram (24h suppress); keeps parked snapshots warm (expiry-keyed refresh).
-- `--capture-current` · `--drift-check` — snapshot the live chain into the active store
-  (identity-gated). The drift-check's cron/hook triggers are removed; the flag remains
-  invocable by hand until the sweep.
-- `--touch [<account>]` — the temp-dir-copy refresh for parked stores; superseded by
-  `--keepalive`'s in-place path.
-- Safety invariants: every credential write is atomic (tmp + rename) under the shared rotation
-  flock with a `.prev` rolling backup; nothing is filed without positive identity
-  verification; the tick never sends process signals.
-- Audit trail: `~/.claude/state/rotate-ledger.jsonl` (size-capped rotation).
+  "parked — quota unknown until used (refresh token valid)" — the blindness the fleet view retires.
+- Legacy tick — `ROTATE_THRESHOLD` (95) switching with a 30-minute dwell, graceful-drain mail
+  + one Telegram (24h suppress), keep-warm for parked snapshots.
+- `--capture-current` · `--drift-check` — snapshot the live chain (identity-gated); the cron
+  and hook triggers are removed, the flags remain invocable by hand until the sweep.
+- `--touch [<account>]` — the temp-dir-copy refresh; superseded by `--keepalive`'s in-place path.
+- Safety invariants: atomic credential writes under the rotation flock with a `.prev` backup;
+  nothing filed without positive identity verification; the tick never signals processes.
+- Audit trail: `~/.claude/state/rotate-ledger.jsonl` (size-capped), which now also records
+  every pointer `flip`.
 
 ## Successor plan (named, NOT done)
 
-The retirement is a follow-up plan, not shipped state:
-
 - **M4 retirement sweep** — retire the switch/capture/touch/drift machinery + the
   `manager-accounts` stores (archived to the DR store first), sweeping every consumer:
-  `capture-watch.sh`, the removed drift-check triggers' remnants, `claude-mesh-test.sh`
+  `capture-watch.sh` (box-local, `~/.claude/state/`), the removed drift-check triggers'
+  remnants, `claude-mesh-test.sh` (box-local, `~/.claude/bin/`)
   fixtures asserting retired argv, the cost-model repoints (`claude_p_cost.py` /
   `derive_cost.py` read `_MANAGER_ACCOUNTS` — repoint before archiving),
   `export_claude_state.sh`, `bootstrap-vps.sh`, and the aro-wake twin. The
-  `claude-sound.sh` `--switch`/`--next` mesh legs are a **named, owned step** in that sweep —
-  the sound system is never edited as a side effect. DR: `dr_claude_backup.sh` gains the
-  fleet-root backup **excluding `.credentials.json`** (the DR rule above).
-- **M5 thinning** — after M4, move the remaining unmapped `~/.claude` occupants (one-off
-  runs, stragglers the occupancy monitor names) onto fleet dirs until the shared chain has no
-  routine users left.
+  `claude-sound.sh` `--switch`/`--next` mesh legs are a **named, owned step** — the sound
+  system is never edited as a side effect. DR: `dr_claude_backup.sh` gains the fleet-root
+  backup **excluding `.credentials.json`**.
+- **M5 thinning** — move the remaining unmapped `~/.claude` occupants onto fleet dirs until
+  the shared chain has no routine users left.
 - **VPS follow-up** (separate spec, hard deadline **M4+30d**) — per-box dedicated logins,
-  retiring the hourly snapshot shipping. Until it lands the VPSes keep working off the sync of
-  the still-live `~/.claude`; the archived sibling stores stop rolling at M4 and lapse ~30
-  days later — the follow-up lands inside that window or those accounts need one login each on
-  the VPS side.
+  retiring the hourly snapshot shipping. Until it lands the VPSes work off the sync of the
+  still-live `~/.claude`; the archived sibling stores stop rolling at M4 and lapse ~30 days
+  later.
 
 ## Related
 
-- `docs/superpowers/specs/2026-08-15-login-once-credentials-design.md` (the design + adversary
-  findings + rejected alternatives: no login automation, no HTTP refresh, no per-account-only
-  dirs)
+- `docs/workstation/quota-dashboard.md` — the localhost:5051 board over this system
+- `docs/superpowers/specs/2026-08-15-login-once-credentials-design.md` — the design +
+  rejected alternatives (no login automation, no HTTP refresh)
+- `docs/development/reviews/2026-08-15-pointer-rotation-review.md` — the 4-round review that
+  caught dead-chain flips and vanishing mismatch warnings
 - `docs/workstation/hooks-index.md` §2c (the cron tick row)
-- `docs/reference/fabrik-mail.md` (the drain/advisory mail channel)
