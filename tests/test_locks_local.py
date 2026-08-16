@@ -106,12 +106,12 @@ def test_timeout_raises():
 def test_exception_inside_with_still_releases():
     file_lock = _import_file_lock()
 
-    class Boom(RuntimeError):
+    class BoomError(RuntimeError):
         pass
 
-    with pytest.raises(Boom):
+    with pytest.raises(BoomError):
         with file_lock("test-exception"):
-            raise Boom("oops")
+            raise BoomError("oops")
 
     # If the lock weren't released, this would timeout
     with file_lock("test-exception", timeout_seconds=1.0):

@@ -84,7 +84,7 @@ def test_reservation_ddl_uses_on_error_stop(run):
     )
 
 
-def test_a_missing_fabrik_lib_path_is_FAIL_SOFT(run, tmp_path):
+def test_a_missing_fabrik_lib_path_is_fail_soft(run, tmp_path):
     """The whole point of the asymmetry: a missing reservation file must not break `fabrik apply`."""
     result, calls = run(reservations_schema_path=str(tmp_path / "does-not-exist.sql"))
     assert result["reservations_applied"] is False, "must report the skip, not claim success"
@@ -92,7 +92,7 @@ def test_a_missing_fabrik_lib_path_is_FAIL_SOFT(run, tmp_path):
     assert calls, "the run aborted entirely instead of continuing past the missing optional file"
 
 
-def test_cost_ledger_stays_APPEND_ONLY_when_the_role_is_granted(run):
+def test_cost_ledger_stays_append_only_when_the_role_is_granted(run):
     """A role that can UPDATE cost_ledger can rewrite accounting history. It must never be granted."""
     _, calls = run(grant_to_role=ROLE)
     grants = [c for c in calls if "GRANT" in c or "R1JBTlQ" in c]
@@ -111,7 +111,7 @@ def test_cost_ledger_stays_APPEND_ONLY_when_the_role_is_granted(run):
         assert "DELETE" not in ln.upper(), f"cost_ledger granted DELETE: {ln}"
 
 
-def test_the_reservation_tables_DO_get_update(run):
+def test_the_reservation_tables_do_get_update(run):
     """Settle/reclaim mutate a reservation in place; without UPDATE the lane cannot function."""
     import base64
 
@@ -122,7 +122,7 @@ def test_the_reservation_tables_DO_get_update(run):
         if "echo " in c and "base64 -d" in c
     )
     for table in ("cost_reservations", "cost_budget_month_totals"):
-        line = [ln for ln in decoded.splitlines() if f"GRANT" in ln and table in ln]
+        line = [ln for ln in decoded.splitlines() if "GRANT" in ln and table in ln]
         assert line, f"no GRANT issued for {table}"
         assert "UPDATE" in line[0].upper(), f"{table} needs UPDATE to settle/reclaim: {line[0]}"
 

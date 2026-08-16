@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 # Ensure fresh state file for these scenarios
@@ -81,10 +82,7 @@ def main():
         kind = "serverless" if kw.get("needs_serverless") else "pod-h100"
         advice = gpu_rent.selection_advice(kind, **kw)
         picked = advice["recommendation"].get("provider")
-        if expected is None:
-            ok = picked in PROVIDERS
-        else:
-            ok = picked == expected
+        ok = picked in PROVIDERS if expected is None else picked == expected
         if not check(f"{label}: picked={picked} expected={expected or 'any'}", ok):
             fails.append(f"S2:{label}")
 
@@ -192,7 +190,7 @@ def main():
     for template_id in ("echo-handler", "vllm-openai"):
         path = f"/opt/fabrik/templates/modal/{template_id}.py.j2"
         try:
-            t = Template(open(path).read())
+            t = Template(Path(path).read_text())
             rendered = t.render(
                 name="fabrik-comp-test",
                 gpu="L4",
@@ -216,7 +214,7 @@ def main():
 
     src = inspect.getsource(vp)
     # Strip comments, then check
-    body_lines_v = [l for l in src.splitlines() if not l.lstrip().startswith("#")]
+    body_lines_v = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
     body_v = "\n".join(body_lines_v)
     ok = "/workergroups/" in body_v and "/autogroups/" not in body_v
     if not check("vast_provider.py uses /workergroups/ NOT /autogroups/ (B4 regression guard)", ok):

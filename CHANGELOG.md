@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — LINT RATCHET cleared: 39 → 0 repo-wide ruff errors, baseline LOCKED at zero (2026-08-16)
+
+`ruff check .` reported 39 errors against a baseline of 35, so `final_gate.py --lean` was red for every
+session on the shared tree. All 39 were fixed in the code — **no `# noqa`, no per-file ignore, no rule
+disabled in `pyproject.toml`**; `.fabrik/lint-baseline.json` ratchets 35 → 0 (zero-tolerance locked).
+
+- **`commands/assemble_commands.py` (26).** The command-corpus renderer, so every edit is proven, not
+  assumed: `--check` renders 27 commands + 27 skills byte-identical to installed, and `extract()` (which
+  `--check` does not cover) was run under HEAD's module and the edited module side by side — 16/16
+  sources byte-identical. Substantive items: **B023 ×2** — `sub()` closed over the loop variable `name`;
+  the call site is same-iteration so the late binding was accidentally correct, now bound explicitly via
+  `name=name` so a later refactor cannot misattribute a render error to the wrong command. **SIM222** —
+  `if first_only or True: break` was an unconditional break wearing a condition. **B905** —
+  `zip(idx, idx[1:])` pairs each section start with the NEXT one, so the sequences are *required* to
+  differ in length: `strict=False`. Plus E701/E702 ×18, E741, F841, UP031 ×2.
+- **Tests (10).** `test_final_gate_pydantic.py` **B017** — `pytest.raises(Exception)` would have passed
+  on an `ImportError` as happily as on the rejection it means; tightened to `ValidationError` + an
+  assertion that the message names the missing `id` field. `test_locks_local.py` N818, `test_gpu_rent.py`
+  F841, `test_postgres_analytics_reservations.py` N802 ×3 + F541, `test_gpu_comprehensive_scenarios.py`
+  SIM108 / SIM115 / E741.
+- **`templates/i18n-kit/adapters/sync_rn_locales.py` (3).** E741 `l` → `lang`.
+
 ### Added — LIVENESS LAYER: run-time proof that the machinery is actually running (2026-08-16)
 
 We verify correctness at write-time and never verify liveness at run-time. kaizen was "binding — weekly"

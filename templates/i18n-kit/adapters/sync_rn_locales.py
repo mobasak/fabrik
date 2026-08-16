@@ -125,9 +125,11 @@ def sync_lang(lang: str) -> bool:
 
 def generate_config(langs: list[str]) -> None:
     """Generate src/locales/i18n.ts config file."""
-    imports = "\n".join(f"import {l.replace('-', '_')} from './{l}.json';" for l in langs)
-    resources = "\n".join(f"  {l.replace('-', '_')}: {{ translation: {l.replace('-', '_')} }}," for l in langs)
-    supported = ", ".join(f"'{l}'" for l in langs)
+    imports = "\n".join(f"import {lang.replace('-', '_')} from './{lang}.json';" for lang in langs)
+    resources = "\n".join(
+        f"  {lang.replace('-', '_')}: {{ translation: {lang.replace('-', '_')} }}," for lang in langs
+    )
+    supported = ", ".join(f"'{lang}'" for lang in langs)
 
     config = I18NEXT_CONFIG.format(imports=imports, resources=resources, supported=supported)
     out = RN_LOCALES_DIR / "i18n.ts"

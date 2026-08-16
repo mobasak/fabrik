@@ -136,10 +136,17 @@ template: python-api
 domain: noid.example.com
 """,
     )
+    from pydantic import ValidationError
+
     from fabrik.spec_loader import load_spec
 
-    with pytest.raises(Exception):
+    # Tightened from a blind `Exception`: that would have passed on an ImportError
+    # or a FileNotFoundError just as happily as on the rejection we actually mean.
+    with pytest.raises(ValidationError) as exc_info:
         load_spec(str(spec_path))
+    assert "id" in str(exc_info.value), (
+        f"rejected, but not for the missing `id` field: {exc_info.value}"
+    )
 
 
 def test_live_gate_passes_against_current_repo_specs():

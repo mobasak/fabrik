@@ -281,8 +281,10 @@ PARAMS = {
 }
 
 def _sections(lines):
-    idx = [i for i, l in enumerate(lines) if re.match(r"^#{2,3} ", l)] + [len(lines)]
-    return list(zip(idx, idx[1:]))
+    idx = [i for i, line in enumerate(lines) if re.match(r"^#{2,3} ", line)] + [len(lines)]
+    # Deliberately ragged: `idx[1:]` is one shorter than `idx` — the pairing IS
+    # (start, next_start), so the sequences must NOT be the same length.
+    return list(zip(idx, idx[1:], strict=False))
 
 def extract():
     SRC.mkdir(exist_ok=True)
@@ -290,7 +292,7 @@ def extract():
         name = f.stem
         lines = f.read_text().split("\n")
         plan = EXTRACT.get(name, [])
-        out, consumed, done = [], set(), set()
+        out, done = [], set()
         secs = _sections(lines)
         repl = {}
         for block, frag, after in plan:
@@ -298,19 +300,25 @@ def extract():
             first_only = block.endswith("_first")
             for a, b in secs:
                 if pat.match(lines[a]) and a not in repl:
-                    if first_only and block in done: continue
-                    if not first_only and lines[a].startswith("### "): continue
-                    repl[a] = (b, frag, after); done.add(block)
-                    if first_only or True: break
+                    if first_only and block in done:
+                        continue
+                    if not first_only and lines[a].startswith("### "):
+                        continue
+                    repl[a] = (b, frag, after)
+                    done.add(block)
+                    break
         i = 0
         while i < len(lines):
             if i in repl:
                 b, frag, after = repl[i]
-                out.append("{{include:%s}}" % frag)
-                if after: out.append(after.strip("\n")); out.append("")
+                out.append("{{include:" + frag + "}}")
+                if after:
+                    out.append(after.strip("\n"))
+                    out.append("")
                 i = b
             else:
-                out.append(lines[i]); i += 1
+                out.append(lines[i])
+                i += 1
         (SRC / f.name).write_text("\n".join(out))
     print(f"extracted {len(list(SRC.glob('*.md')))} sources from {BACKUP}")
 
@@ -371,17 +379,27 @@ def render(dest: Path, skills_dest: Path | None = None):
     emitted: list[tuple[str, str]] = []
     for s in sorted(SRC.glob("*.md")):
         name, text = s.stem, s.read_text()
-        def sub(m):
+
+        # `name=name` binds THIS iteration's source name into the closure. The
+        # call site below is immediate (same iteration), so late binding was
+        # already benign — the default makes the guarantee explicit rather than
+        # incidental, so a later refactor that defers the call can't misattribute
+        # a render error to the wrong command.
+        def sub(m, name=name):
             fr = m.group(1)
             body = frags.get(fr)
-            if body is None: errs.append(f"{name}: unknown fragment {fr}"); return m.group(0)
+            if body is None:
+                errs.append(f"{name}: unknown fragment {fr}")
+                return m.group(0)
             for k, v in PARAMS.get(name, {}).get(fr, {}).items():
-                body2 = body.replace("{{%s}}" % k, v)
+                body2 = body.replace("{{" + k + "}}", v)
                 body = body2
             return body
+
         text = re.sub(r"^\{\{include:([\w-]+)\}\}$", sub, text, flags=re.M)
         leftover = re.findall(r"\{\{(?:include:)?[A-Za-z_-]+\}\}", text)
-        if leftover: errs.append(f"{name}: unresolved {sorted(set(leftover))}")
+        if leftover:
+            errs.append(f"{name}: unresolved {sorted(set(leftover))}")
         desc_raw = _description_of(text)  # captured BEFORE requoting — _emit_skill applies its own _yaml_dq
         text = _requote_command_description(text)
         # banner after frontmatter
@@ -393,7 +411,10 @@ def render(dest: Path, skills_dest: Path | None = None):
         (dest / s.name).write_text(text)
         emitted.append((name, desc_raw))
     if errs:  # gate BEFORE touching the skills tree — a failed render never mutates skills
-        print("RENDER ERRORS:"); [print(" -", e) for e in errs]; sys.exit(2)
+        print("RENDER ERRORS:")
+        for e in errs:
+            print(" -", e)
+        sys.exit(2)
     source_names = {n for n, _ in emitted}
     if skills_dest is not None:
         for name, desc in emitted:
@@ -418,7 +439,9 @@ def check():
         drift = []
         for f in sorted(tmp.glob("*.md")):
             inst = OUT / f.name
-            if not inst.exists(): drift.append(f"{f.name}: MISSING in {OUT}"); continue
+            if not inst.exists():
+                drift.append(f"{f.name}: MISSING in {OUT}")
+                continue
             if inst.read_text() != f.read_text():
                 d = list(difflib.unified_diff(f.read_text().splitlines(), inst.read_text().splitlines(), "rendered", "installed", lineterm=""))
                 drift.append(f"{f.name}: HAND-EDITED ({len(d)} diff lines)")
@@ -440,7 +463,10 @@ def check():
             if sk.parent.name not in src_names and SKILL_BANNER in sk.read_text():
                 drift.append(f"skills/{sk.parent.name}: ORPHAN (generated, no _source — re-render to prune)")
         if drift:
-            print("DRIFT:"); [print(" -", x) for x in drift]; sys.exit(1)
+            print("DRIFT:")
+            for x in drift:
+                print(" -", x)
+            sys.exit(1)
         print("check OK — installed commands + skills match rendered sources")
 
 if __name__ == "__main__":
@@ -449,8 +475,10 @@ if __name__ == "__main__":
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--dest", default=str(OUT))
     a = ap.parse_args()
-    if a.extract: extract()
-    elif a.check: check()
+    if a.extract:
+        extract()
+    elif a.check:
+        check()
     else:
         dest = Path(a.dest)
         # path-normalized: only emit skills when rendering to the REAL commands dir,

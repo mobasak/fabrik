@@ -1125,10 +1125,9 @@ def test_modal_create_endpoint_cleans_rendered_template_on_failure(monkeypatch, 
 def test_rented_context_manager_report_includes_model_and_template():
     """Iter-2 regression: rented() context manager's report dict must
     include template_id + model (was missing — iter-1 only patched rent())."""
-    c = _mock_client()
     # rented() is a context manager — we just need to peek into the report
     # state once it builds. Using dry-run isn't supported for rented(),
-    # so we mock the work + verify by source inspection instead.
+    # so we verify by source inspection instead (no client is constructed).
     import inspect
 
     src = inspect.getsource(gpu_rent.rented)
