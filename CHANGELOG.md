@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — LIVENESS LAYER: run-time proof that the machinery is actually running (2026-08-16)
+
+We verify correctness at write-time and never verify liveness at run-time. kaizen was "binding — weekly"
+in two charters and ran 0 times in 4 days. Six Tier-3 gate checks reported PASS while asserting nothing.
+The Claude-config DR backup had never once run from cron. Alerting was dead fleet-wide. Every one of
+those passed code review and had tests; none had proof it was running. `scripts/sysadmin/liveness_audit.py`
+(stdlib-only) is the proof, in three parts:
+
+- **PROOF 1 — HEARTBEAT.** `.fabrik/liveness-registry.json` (tracked, so it is reviewable in a diff)
+  declares 28 scheduled surfaces with an evidence channel and a max age; the audit ages each one and
+  reports OVERDUE. It also diffs the box against the registry — unregistered = unmonitored.
+- **PROOF 2 — VACUITY CANARY.** Each of the 43 checks registered in `final_gate.py` is run against a
+  deliberately-bad fixture and must exit non-zero; one that stays green on its canary is INERT. The
+  fixtures are reused from `tests/test_check_activation_anti_vacuity.py`. Checks with no cheap canary
+  are reported UNPROVEN — never green.
+- **PROOF 3 — DOC-CLAIM BINDING.** All `docs/workstation/*.md` are enumerated and their quoted cron
+  lines, loopback ports, systemd units and hook filenames verified against the live box.
+
+⚠️ **THE THREE-STATE RULE.** Three of the orchestrator's own probes lied on 2026-08-16 and each lie
+reached the operator as fact: `grep -c` on a log with one invalid UTF-8 byte (binary-suppressed, 21
+events hidden), `ls specs/services/ | grep apprise` (the spec is in `specs/infrastructure/`), and
+`ssh vps docker ps` (empty stdout because the ssh user is not in the `docker` group — 31 containers were
+
 ### Fixed — LIVENESS: alert delivery was dead, and six gate checks could not fail (2026-08-16)
 
 Stop-the-bleeding pass on surfaces that were DECLARED and never actually asserted anything.

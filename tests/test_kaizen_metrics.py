@@ -186,7 +186,10 @@ def test_unavailable_reasons_reach_stderr(
     err = capsys.readouterr().err
     assert "Gate first-pass rate" in err
     assert "Missed crons" in err
-    assert "cron-miss log" in err
+    # `Missed crons` is measured from the liveness audit's heartbeat proof. The fixture repo
+    # has no such script, so the cell must be a DASH that NAMES the missing instrument --
+    # never a plausible-looking 0.
+    assert "no liveness audit at" in err
 
 
 def test_missing_sound_log_yields_dash_not_zero(repo: Path, tmp_path: Path) -> None:
@@ -388,7 +391,8 @@ def test_mail_body_carries_the_row_and_the_dash_reasons(repo: Path, tmp_path: Pa
     body = km.compose_mail("infra", m, m.row(), None)
 
     assert "2026-08-17" in body
-    assert "cron-miss log" in body, "the analyst must see WHY a cell is a dash"
+    assert "no liveness audit at" in body, "the analyst must see WHY a cell is a dash"
+    assert "liveness audit: NOT RUN" in body, "mechanism health rides the hand-off mail"
     assert "first measured pass" in body
     assert "docs/reference/agents/infra.md" in body
 
@@ -435,3 +439,93 @@ def test_report_prints_the_tables_and_writes_nothing(
     assert "kaizen-log-infra.md" in out
     assert BASELINE in out
     assert log.read_text(encoding="utf-8") == before
+
+
+# ── `Missed crons`: fed by the liveness audit, bound by the honesty rule ─────────
+
+
+def _heartbeat(*findings: dict) -> dict:
+    return {
+        "summary": {"LIVE": 0, "DEAD": 0, "UNKNOWN": 0},
+        "proofs": {
+            "heartbeat": {"findings": list(findings), "unregistered": {"cron": {"owned": []}}},
+            "vacuity": {"findings": []},
+            "doc_claim": {"findings": [], "docs": 0},
+        },
+    }
+
+
+def _surface(sid: str, verdict: str, reason: str = "", fault: str = "") -> dict:
+    return {
+        "proof": "heartbeat", "id": sid, "kind": "cron", "verdict": verdict,
+        "detail": "", "instrument": "crontab -l", "instrument_fault": fault,
+        "reason_class": reason, "doc": "",
+    }
+
+
+def test_missed_crons_counts_dead_surfaces_over_proven_ones(repo: Path) -> None:
+    report = _heartbeat(
+        _surface("a", "LIVE"),
+        _surface("b", "DEAD", "overdue"),
+        _surface("c", "DEAD", "unscheduled"),
+    )
+    m = km.measure_missed_crons(repo, report, "")
+
+    assert m.measured and m.value == "2/3"
+    assert "b (overdue)" in m.detail and "c (unscheduled)" in m.detail
+
+
+def test_an_unknown_surface_is_never_rendered_as_a_number(repo: Path) -> None:
+    """THE honesty rule at the metric boundary.
+
+    An UNKNOWN means the probe's instrument failed. Counting it as a miss invents a defect;
+    counting it as healthy hides one. It belongs in NEITHER half of the fraction, and the
+    analyst must be told it was excluded and why.
+    """
+    report = _heartbeat(
+        _surface("a", "LIVE"),
+        _surface("b", "DEAD", "overdue"),
+        _surface("c", "UNKNOWN", fault="/tmp is volatile"),
+        _surface("d", "UNKNOWN", fault="crontab unreadable"),
+    )
+    m = km.measure_missed_crons(repo, report, "")
+
+    assert m.value == "1/2", "UNKNOWN leaked into the numerator or the denominator"
+    assert "2 surface(s) UNKNOWN" in m.detail
+    assert "c" in m.detail and "d" in m.detail
+
+
+def test_all_unknown_yields_a_dash_with_the_instrument_faults_named(repo: Path) -> None:
+    report = _heartbeat(
+        _surface("a", "UNKNOWN", fault="crontab -l returned no parseable cron entries")
+    )
+    m = km.measure_missed_crons(repo, report, "")
+
+    assert not m.measured
+    assert "no parseable cron entries" in (m.reason or "")
+    assert "not a miss" in (m.reason or "")
+
+
+def test_a_liveness_audit_that_did_not_run_yields_a_dash_not_zero(repo: Path) -> None:
+    m = km.measure_missed_crons(repo, None, "the liveness audit timed out")
+
+    assert not m.measured
+    assert "timed out" in (m.reason or "")
+
+
+def test_liveness_context_reports_inert_checks_and_stale_docs() -> None:
+    report = _heartbeat(_surface("a", "LIVE"))
+    report["proofs"]["vacuity"]["findings"] = [
+        {"id": "check_ok", "verdict": "LIVE", "instrument_fault": ""},
+        {"id": "check_dead", "verdict": "DEAD", "instrument_fault": ""},
+        {"id": "check_unproven", "verdict": "UNKNOWN", "instrument_fault": "no canary authored"},
+    ]
+    report["proofs"]["doc_claim"] = {
+        "findings": [{"id": "docs/workstation/x.md:9", "verdict": "DEAD", "instrument_fault": ""}],
+        "docs": 19,
+    }
+    lines = "\n".join(km.liveness_context(report, ""))
+
+    assert "1 INERT (check_dead)" in lines
+    assert "1 UNPROVEN" in lines
+    assert "1 STALE across 19 workstation doc(s)" in lines

@@ -522,6 +522,7 @@ docs/
 │   ├── fabrik-mail.md             # fabrik-mail box view: store /opt/fabrik-mail, components (mail.py + hook + digest), the 2-layer model, sync-exclusion, observe/troubleshoot (protocol is docs/reference/fabrik-mail.md)
 │   ├── hooks-index.md              # Every hook on the box in one page (4 layers) — freshness gate-enforced by check_hooks_index.py
 │   ├── kaizen.md                   # The weekly kaizen loop: the Monday 06:45 MEASUREMENT cron (kaizen_metrics.py — no agent, no quota) vs the agent's ≤90-min ANALYSIS pass; which of the 5 pinned metrics are real vs `—` and why; ISO-week idempotence; the fabrik-mail hand-off
+│   ├── liveness.md                 # The liveness layer (liveness_audit.py): three proofs — heartbeat (did the cron fire?), vacuity canary (can the gate check fail?), doc-claim binding (is the doc true?) — and the LIVE/DEAD/UNKNOWN three-state rule that stops absence-of-evidence being reported as evidence-of-absence
 │   ├── wip-backup-safety-net.md    # The */15 WIP snapshot cron: isolated-index tree snapshots to refs/wip + off-box push; recovery runbook
 │   ├── session-recall.md           # session-recall tool: what it does, feature list, file map (code in /opt/session-recall)
 │   ├── spine-ticket-plans-usage.md # Operator guide: the spine+ticket plan architecture — shape decision, set review, dispatcher execution, migration of old plans

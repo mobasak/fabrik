@@ -36,9 +36,22 @@ Today's verdicts (each re-derived at run time, never hardcoded):
                               that IS the analysis half's job. The countable context
                               (totals, new-in-window) rides the mail instead of the column.
   Review rounds /plan      -- REAL. `docs/development/reviews/*.md`, both ledger dialects.
-  Missed crons             -- UNAVAILABLE. The spec names a cron-miss log; none exists, and
-                              the per-job logs are untimestamped appends, so expected-vs-
-                              actual cannot be reconstructed.
+  Missed crons             -- REAL since 2026-08-16, via `liveness_audit.py --json`. The
+                              spec's cron-miss LOG still does not exist and never will (the
+                              per-job logs are untimestamped appends, so run COUNTS are not
+                              reconstructible) -- but the question behind the metric is
+                              answerable a different way: did each registered surface
+                              produce evidence inside its own budget? The cell is
+                              DEAD/(LIVE+DEAD) over the heartbeat proof's surfaces.
+
+                              ⚠️ The audit has THREE states, and an UNKNOWN is an instrument
+                              failure, not a miss. UNKNOWNs are excluded from BOTH halves of
+                              the fraction and named in the detail. Folding them into the
+                              denominator would report a healthier box than we measured;
+                              folding them into the numerator would invent defects. Either
+                              is the honesty rule broken by a number that looks fine.
+                              Mechanism health (inert checks, stale doc claims, unregistered
+                              surfaces) rides the hand-off mail as context.
 
 Modes:
   --once      measure, upsert one row per role, then mail the analysis half (fail-soft)
@@ -54,6 +67,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import re
 import statistics
 import subprocess
@@ -63,6 +77,10 @@ from pathlib import Path
 
 # The em-dash the existing kaizen tables already use for "not measured".
 DASH = "—"
+
+# The liveness audit runs three proofs, one of which spawns a subprocess per gate-check
+# canary. Generous, and fail-soft: a slow audit must never cost the measurement.
+LIVENESS_TIMEOUT = 900
 
 # Columns, in the order the shipped tables declare them. The script owns the five metric
 # cells; the last two are the analyst's and are only ever written as DASH here.
@@ -307,18 +325,114 @@ def lesson_context(lessons: Path, start: dt.date, end: dt.date) -> str:
     )
 
 
-def measure_missed_crons(repo_root: Path) -> Metric:
-    """UNAVAILABLE by construction -- the spec's cron-miss log was never built."""
-    return _unavailable(
-        "the roles spec names a cron-miss log as a signal; none exists on the box, and the "
-        "per-job cron logs are untimestamped appends, so expected-vs-actual run counts "
-        "cannot be reconstructed"
+def liveness_report(repo_root: Path, timeout: int = LIVENESS_TIMEOUT) -> tuple[dict | None, str]:
+    """Run the liveness audit and parse its JSON. Returns (report, fault) -- never raises.
+
+    A cron-miss log was never built and never will be: the per-job logs are untimestamped
+    appends, so expected-vs-actual RUN COUNTS are not reconstructible. What IS observable is
+    whether each declared surface produced evidence inside its own budget, which is the
+    question the metric was always asking. `liveness_audit.py` answers it.
+    """
+    script = repo_root / "scripts" / "sysadmin" / "liveness_audit.py"
+    if not script.is_file():
+        return None, f"no liveness audit at {script}"
+    try:
+        proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            [sys.executable, str(script), "--json", "--proof", "heartbeat,vacuity,doc_claim"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"the liveness audit could not be run: {type(exc).__name__}: {exc}"
+    try:
+        return json.loads(proc.stdout), ""
+    except json.JSONDecodeError:
+        tail = (proc.stderr or proc.stdout).strip()[-200:]
+        return None, f"the liveness audit emitted no parseable JSON: {tail}"
+
+
+def _findings(report: dict, proof: str) -> list[dict]:
+    return list(((report.get("proofs") or {}).get(proof) or {}).get("findings") or [])
+
+
+def measure_missed_crons(repo_root: Path, report: dict | None = None, fault: str = "") -> Metric:
+    """Registered scheduled surfaces that produced NO evidence inside their budget.
+
+    THE HONESTY RULE, sharpened: the liveness audit has three states, and an UNKNOWN is an
+    instrument failure, not a miss. UNKNOWNs are excluded from BOTH the numerator and the
+    denominator and reported by name -- rendering one as a number would be the same lie the
+    three-state rule exists to prevent, wearing a metric's clothes.
+    """
+    if report is None:
+        return _unavailable(fault or "the liveness audit produced no report")
+    cron_like = [f for f in _findings(report, "heartbeat") if f.get("kind") in ("cron", "service", "hook")]
+    if not cron_like:
+        return _unavailable("the liveness registry declares no scheduled surfaces to measure")
+
+    unknown = [f for f in cron_like if f["verdict"] == "UNKNOWN"]
+    proven = [f for f in cron_like if f["verdict"] in ("LIVE", "DEAD")]
+    if not proven:
+        return _unavailable(
+            f"all {len(unknown)} scheduled surface(s) reported UNKNOWN (instrument faults: "
+            + "; ".join(sorted({f['instrument_fault'] for f in unknown}))[:300]
+            + ") -- an instrument failure is not a miss and must not be counted as one"
+        )
+    missed = [f for f in proven if f["verdict"] == "DEAD"]
+    return Metric(
+        value=f"{len(missed)}/{len(proven)}",
+        detail=(
+            "missed: "
+            + (", ".join(f"{f['id']} ({f['reason_class']})" for f in missed) or "none")
+            + f"; {len(unknown)} surface(s) UNKNOWN and excluded from both numerator and "
+            "denominator: "
+            + (", ".join(f["id"] for f in unknown) or "none")
+        ),
     )
 
 
-def measure(repo_root: Path, sound_log: Path, when: dt.date) -> Measurement:
+def liveness_context(report: dict | None, fault: str) -> list[str]:
+    """Mechanism health for the hand-off mail. Counts only; never a verdict."""
+    if report is None:
+        return [f"liveness audit: NOT RUN -- {fault}"]
+    out: list[str] = []
+    summary = report.get("summary") or {}
+    out.append(
+        f"liveness overall: LIVE={summary.get('LIVE', 0)} DEAD={summary.get('DEAD', 0)} "
+        f"UNKNOWN={summary.get('UNKNOWN', 0)} (UNKNOWN = the probe's instrument could not be "
+        "proven -- never read it as DEAD)"
+    )
+    vac = _findings(report, "vacuity")
+    inert = [f["id"] for f in vac if f["verdict"] == "DEAD"]
+    unproven = [f["id"] for f in vac if f["verdict"] == "UNKNOWN"]
+    out.append(
+        f"gate checks: {len([f for f in vac if f['verdict'] == 'LIVE'])} proven able to fail, "
+        f"{len(inert)} INERT ({', '.join(inert) or 'none'}), {len(unproven)} UNPROVEN (no canary)"
+    )
+    stale = [f["id"] for f in _findings(report, "doc_claim") if f["verdict"] == "DEAD"]
+    docs = ((report.get("proofs") or {}).get("doc_claim") or {}).get("docs")
+    out.append(
+        f"doc claims: {len(stale)} STALE across {docs} workstation doc(s)"
+        + (f" -- {', '.join(stale)}" if stale else "")
+    )
+    unreg = ((report.get("proofs") or {}).get("heartbeat") or {}).get("unregistered") or {}
+    cron = unreg.get("cron") or {}
+    if cron.get("instrument_fault"):
+        out.append(f"unregistered surfaces: UNKNOWN -- {cron['instrument_fault']}")
+    else:
+        out.append(
+            f"unregistered owned cron lines: {len(cron.get('owned', []))} (unregistered = unmonitored)"
+        )
+    return out
+
+
+def measure(
+    repo_root: Path, sound_log: Path, when: dt.date, liveness: tuple[dict | None, str] | None = None
+) -> Measurement:
     start = when - dt.timedelta(days=WINDOW_DAYS - 1)
     lessons = repo_root / "docs" / "LESSONS_LEARNT.md"
+    report, fault = liveness if liveness is not None else liveness_report(repo_root)
     metrics = {
         "Gate first-pass rate": measure_gate_first_pass(repo_root),
         "Death-classes /wk": measure_death_classes(sound_log, start, when),
@@ -326,9 +440,10 @@ def measure(repo_root: Path, sound_log: Path, when: dt.date) -> Measurement:
         "Review rounds /plan": measure_review_rounds(
             repo_root / "docs" / "development" / "reviews", start, when
         ),
-        "Missed crons": measure_missed_crons(repo_root),
+        "Missed crons": measure_missed_crons(repo_root, report, fault),
     }
     context = [c for c in (lesson_context(lessons, start, when),) if c]
+    context += liveness_context(report, fault)
     return Measurement(date=when, window_start=start, metrics=metrics, context=context)
 
 

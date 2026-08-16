@@ -61,7 +61,7 @@ estimates, no proxies wearing another metric's name, and no plausible-looking pl
 | Death-classes /wk | **real** | `~/.claude/sound-debug.log`, `event=StopFailure` lines. Each carries the decider's death class as `error=<class>` (`rate_limit`, `authentication_failed`, `server_error`, `invalid_request`, …). Reported as `<occurrences> occ / <distinct classes> cls`; the per-class breakdown rides the mail. |
 | Lesson-class recurrence | `—` | `docs/LESSONS_LEARNT.md` entries carry **no class tag** — the headings are free prose. Recurrence needs semantic clustering, which *is* the analysis half's job. The countable context (entry count, in-window date stamps) goes in the mail instead of the column. |
 | Review rounds /plan | **real** | `docs/development/reviews/*.md`, windowed by the filename date. See below. |
-| Missed crons | `—` | The spec names a cron-miss log as a signal; **none exists on the box**, and the per-job cron logs are untimestamped appends, so expected-vs-actual run counts cannot be reconstructed. |
+| Missed crons | **real** (since 2026-08-16) | `scripts/sysadmin/liveness_audit.py --json`, heartbeat proof — `DEAD/(LIVE+DEAD)` over the registered scheduled surfaces. The spec's cron-miss LOG still does not exist and never will (the per-job logs are untimestamped appends, so run *counts* are not reconstructible), but the question behind the metric is answerable another way: did each registered surface produce evidence inside its own budget? ⚠️ The audit has THREE states, and an **UNKNOWN is an instrument failure, not a miss** — UNKNOWNs are excluded from BOTH halves of the fraction and named in the mail. All-UNKNOWN yields a `—` naming the faults. See `docs/workstation/liveness.md`. |
 
 Each verdict is re-derived at run time, never hardcoded — the day a gate-run ledger starts
 existing, the `Gate first-pass rate` reason changes on its own.
@@ -138,16 +138,21 @@ exactly the kind of ≤30-minute improvement the loop exists to produce:
 
 1. **Gate first-pass rate** needs `final_gate.py` (or the Stop hook) to append one line per run:
    timestamp, mode, verdict. Then the rate is a two-line computation.
-2. **Missed crons** needs a wrapper that stamps each job's start/end, or a heartbeat file per
-   job — enough to reconstruct expected-vs-actual.
-3. **Lesson-class recurrence** needs a class tag on `docs/LESSONS_LEARNT.md` entries. Until then
+2. **Lesson-class recurrence** needs a class tag on `docs/LESSONS_LEARNT.md` entries. Until then
    it stays the analyst's judgement, and that is the correct home for it.
+
+**`Missed crons` closed on 2026-08-16** — not by building the cron-miss log the spec asked for (that
+one is genuinely unbuildable from untimestamped appends), but by asking the answerable version of the
+question. The liveness layer's heartbeat proof supplies it, and the mail now also carries mechanism
+health: inert gate checks, stale doc claims, and surfaces present on the box but absent from the
+registry. See `docs/workstation/liveness.md`.
 
 ## Files
 
 | Path | Role |
 |---|---|
 | `scripts/sysadmin/kaizen_metrics.py` | the measurement half |
+| `scripts/sysadmin/liveness_audit.py` | supplies `Missed crons` + the mail's mechanism-health context (`docs/workstation/liveness.md`) |
 | `tests/test_kaizen_metrics.py` | behavior tests, incl. the honesty rule and idempotence |
 | `docs/reference/agents/kaizen-log-infra.md` | infra's log — one row per pass |
 | `docs/reference/agents/kaizen-log-fleet.md` | fleet's log — one row per pass |
