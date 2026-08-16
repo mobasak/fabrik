@@ -38,6 +38,25 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   the precondition command above is the guarantee YOU own; never lean on the flip re-run to catch what
   you skipped). Findings the checker raises are review findings: fix them in the set,
   don't route around the gate.
+- **Breadth advisory (mechanical, at the same moment):** `python scripts/enforcement/check_ticket_breadth.py
+  --plan-dir <dir>` (from the repo root) — run it with the precondition above, BEFORE the `CONVERGED`
+  flip, because the plan set is still editable here and is not editable after. It always exits 0; the
+  output is what matters. Each flagged ticket prints its components (Touches areas · Behavior-Contract
+  rows · code+governance mix), a predicted round cost, a concrete split, and — in the footer — **its
+  own measured accuracy**. **The measured basis: review rounds track how many independent RISK CLASSES
+  one ticket exposes, not its line count** — a 5-class ticket cost 8 rounds and 34 fixups; a one-line
+  ticket cost 1 (`docs/reference/ticket-breadth.md`). Silence = nothing flagged.
+  **Weigh a flag, don't obey it.** Measured at n=14: recall 2/3, precision 0.50, Spearman ρ=0.45 — it
+  is a screen, not a verdict, and roughly half of its flags are on tickets that turned out cheap.
+  For each flagged ticket, do ONE of two things and say which in the review notes: **split it** (apply
+  the suggested peel — update Touches, the Behavior Contract, the Ticket Board, Merge Order and Depends,
+  then re-run `check_plan_tickets`), or **keep it and record why** in the spine (one line: the classes
+  are genuinely coupled and a split would spread one invariant across tickets). Silently ignoring a
+  flag is the third option and it is not available — the threshold is provisional, your reasoning is
+  the calibration signal.
+  ⚠️ **A split NEVER separates tests from the code they prove** — the Behavior Contract requires the
+  test in the same ticket, and watched-fail-first requires both in one changeset. Test surfaces are
+  excluded from the score for this reason; when you peel an area, its tests move with it.
 
 ## Phase 1 — Grounding passes (adversarial, to a fixed point)
 

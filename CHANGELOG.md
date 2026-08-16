@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — TICKET-BREADTH CHECK: broad tickets are now measured, not merely deprecated (2026-08-16)
+
+- Operator: *"if tickets are broad, why aren't we narrowing them?"* The answer could not be another
+  rule — a rule an agent read hours ago does not bind it, and the same week's kaizen pass was
+  "binding — weekly" and ran **zero** times because nothing fired it. So it ships as a mechanical
+  check: `scripts/enforcement/check_ticket_breadth.py` (stdlib-only), which scores each ticket from
+  its own declared fields — distinct top-level `## Touches` areas + `## Behavior Contract` rows +
+  whether it mixes code with a fleet-synced surface — and warns with the components, a predicted
+  round cost and a concrete split.
+- **Measured basis** (this repo's review ledgers): 4.2 review rounds/plan (n=14/22, max 16); rounds
+  track independent RISK CLASSES, not line count. 2026-08-15 T01 (5 classes) cost 8 rounds and 34
+  fixups; T02b (one gitignore line) cost 1.
+- **Test surfaces are NOT a risk class and never a split target.** The first cut counted `tests/` as
+  an independent area and generated the actively harmful suggestion *"keep `scripts/` and peel off
+  `tests/`"* — an anti-pattern everywhere this syncs: tests ship WITH the behaviour they prove, or the
+  ticket cannot be red-on-revert proven and its `Gate:` passes while proving nothing. Companion test
+  paths are now excluded from every signal (area, governance-mix, split advice), still reported as
+  `[+N test surface(s), not counted]` so the exclusion is visible.
+- **Advisory by design** — always exits 0 on the gate (Tier-2, `Ticket Breadth (advisory, plan sets)`);
+  a heuristic that hard-failed would block planning on a guess, and a blocked plan is worse than a
+
 ### Fixed — Quota dashboard: an expired window read as "100% left" (2026-08-16)
 
 - Operator-caught: every idle account's 5-hour cell showed 100% remaining. The readings were

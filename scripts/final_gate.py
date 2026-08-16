@@ -1030,6 +1030,25 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
+        # Ticket breadth — WARN when a ticket in a CHANGED plan set exposes many
+        # independent risk classes (top-level Touches areas + Behavior-Contract rows +
+        # a code/governance-surface mix). Measured basis: review rounds track risk
+        # classes, not line count (docs/reference/ticket-breadth.md). ADVISORY by
+        # design — a heuristic that hard-failed would block planning on a guess, and
+        # a blocked plan is worse than a broad one; it always exits 0 here (--strict
+        # is the opt-in author-side ratchet, never wired to the gate). Tier-2-ONLY,
+        # matching check_phase_tests — --lean's count must not move.
+        # advisory=True preserves the warning text on exit 0; without it
+        # run_optional_check discards stdout and the whole check would be invisible.
+        # A MISSING script is NOT silently green: run_optional_check returns the
+        # "⚠ check not present, skipping" message that --json collects into warnings.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_ticket_breadth.py",
+                "Ticket Breadth (advisory, plan sets)",
+                advisory=True,
+            )
+        )
 
     # ── Tier 3: Full repo health (systemic-only) ──
     if tier == 3:
