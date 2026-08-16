@@ -150,7 +150,14 @@ intel's own beat runs no kaizen loop of its own — the beat is leaving in the e
 
 ## Open items
 
-- Kaizen cadence day/trigger (suggest: Monday, after the weekly cron batch lands).
+- ~~Kaizen cadence day/trigger (suggest: Monday, after the weekly cron batch lands).~~
+  **RESOLVED:** Monday 06:45 (`45 6 * * 1`), after the 06:20 keepalive and the 06:30 fleet doc
+  audit. The trigger is split — `scripts/sysadmin/kaizen_metrics.py --once` is the MECHANICAL
+  measurement half (cron, stdlib, no agent, no quota); it records the row and mails each role its
+  row + deltas, and that mail triggers the ≤90-min ANALYSIS pass. Of the five pinned metrics only
+  **review-rounds-per-plan** and **death-class occurrences/week** have a real source today; the
+  other three are written `—` with a recorded reason rather than a guessed number (see
+  `docs/workstation/kaizen.md` § The metrics).
 - Whether intel (as floater) also owns the epic/ticket dispatcher lane when idle.
 - The extraction hand-off checklist (beat transfer to /opt/ai-model-catalog's agents; intel
   charter shrink) — authored in that project's own /fabrik-spec, not here.

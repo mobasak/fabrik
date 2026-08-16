@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+<<<<<<< ours
 ### Changed — Doc Sync Matrix is a FLOOR, not a whitelist (2026-08-16)
 
 - Both `CLAUDE.md` copies (hub + `templates/governance/CLAUDE.md`, fleet-synced to ~46 projects): added a
@@ -11,6 +12,44 @@ All notable changes to this project will be documented in this file.
   closed whitelist** — any doc a change makes stale/incomplete/wrong must be brought current in the same change,
   listed row or not. Closes the too-literal "my change type isn't in the table → no doc owed" reading; the
   gate catches only the keyed pairs, the rest is agent judgment.
+=======
+### Added — KAIZEN MEASUREMENT TRIGGER: the weekly pass that was binding and never once ran (2026-08-16)
+
+- The roles spec made a weekly kaizen pass **binding for infra and fleet**, shipped both charters
+  and both log tables — and left the cadence trigger as an open item. Result: between 2026-08-12
+  and 2026-08-16 the pass ran **zero times**, and `docs/reference/agents/kaizen-log-{infra,fleet}.md`
+  still held only their baseline row of em-dashes. A binding rule with no mechanism is
+  documentation, not enforcement (Lesson 116's class).
+- `scripts/sysadmin/kaizen_metrics.py` (new, stdlib-only) is the **MEASUREMENT half** — deliberately
+  only half. Measurement is cheap and cron-able; analysis is a Claude session and quota is the
+  binding constraint, so the cron computes the numbers and mails them, and the agent's ≤90-min pass
+  starts with its input already gathered. Never spend quota to produce a number a script can
+  compute. Modes: `--once` (upsert + mail), `--dry-run`, `--report`.
+- **Honesty rule, load-bearing:** only two of the five pinned metrics have a real source, and the
+  script says so instead of inventing the rest. **Review rounds /plan** is real (both shipped
+  ledger dialects — numbered `## Round N` headings *and* `| Round |`/`| Pass |` tables; counting
+  headings alone would have scored the 16-round stalled-midstream ledger as 0) and prints its
+  coverage denominator, `4.4 (n=13/16)`. **Death-classes /wk** is real (`event=StopFailure` +
+  `error=<class>` in the Stop-hook sound log). **Gate first-pass rate**, **Lesson-class
+  recurrence** and **Missed crons** are written `—` with a one-line reason on stderr and in the
+  mail — no gate-run ledger exists, `LESSONS_LEARNT.md` has no class taxonomy, and the spec's
+  cron-miss log was never built. A wrong metric is worse than an absent one: it silently ends the
+  investigation it should start. A ledger with no round marker likewise shrinks `n` rather than
+  averaging in as zero rounds.
+- Idempotent by ISO week: a same-week re-run UPDATES that week's row instead of appending, and it
+  never stamps an analyst-filled cell back to `—` — the mechanical half must not destroy the
+  analytical half's output. The row is written BEFORE the hand-off mail, so a dead mail store costs
+  the notification and not the measurement (`ROW IS RECORDED`, exit 0).
+- 22 behavior tests in `tests/test_kaizen_metrics.py`, all on tmp paths (the live logs, the live
+  crontab and `~/.claude-fleet` are never touched). Seven load-bearing behaviors proven
+  red-on-revert, including the "no invented number" assertion, which checks for the *absence of a
+  digit* rather than the presence of a dash.
+- Docs: `docs/workstation/kaizen.md` (new) + INDEX row; both charters' § Kaizen now name the live
+  trigger; the spec's open item is marked RESOLVED. The cron line —
+  `45 6 * * 1 cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_metrics.py --once >> $HOME/.claude/kaizen.log 2>&1`
+  — sits after the 06:20 keepalive and the 06:30 fleet doc audit so the row measures a settled
+  week; it is documented here for the operator to install, not installed by this change.
+>>>>>>> theirs
 
 ### Fixed — The excise manifest reported a false UNSOUND from the moment D.1 landed (2026-08-16)
 

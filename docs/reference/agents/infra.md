@@ -19,7 +19,16 @@ and fabrik-mail.
 - fabrik-mail: `scripts/mail.py` + `.claude/hooks/mail_notify.py` + `/opt/fabrik-mail` store
   (fleet authored it; infra maintains it)
 
-## Kaizen (binding — weekly, Monday after the weekly cron batch, timeboxed ≤90 min)
+## Kaizen (binding — Monday 06:45 after the weekly cron batch, timeboxed ≤90 min)
+
+**Trigger (live, not an aspiration):** the `45 6 * * 1` cron runs
+`scripts/sysadmin/kaizen_metrics.py --once` — the MEASUREMENT half (stdlib, no agent, no quota).
+It appends this week's row and mails you (`--to fabrik`, kind `request`) the row plus its deltas.
+**That mail IS your pass trigger**: your ≤90 min is the ANALYSIS half, and it starts with the
+numbers already measured. Never spend quota computing what the cron computed. Cells the script
+writes as `—` name missing instrumentation, not a healthy zero — the reasons ride the mail and
+`~/.claude/kaizen.log`. Fill `Top friction fixed` + `Filed`; a re-run never overwrites them.
+Subsystem doc: `docs/workstation/kaizen.md`.
 
 Measure → analyze (recurrence × blast radius, evidence-cited) → improve (≤30 min fixes land
 in-pass; larger become specs or mailed handoffs — no silent TODOs) → control (every fix ships a

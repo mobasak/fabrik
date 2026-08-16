@@ -46,7 +46,10 @@
   `audit_authelia_gates` Mon 06:00), `ci_fix_dispatcher` (hourly :40), `sync-claude-accounts-to-fleet`
   (every 6 h), `daily_refresh.sh` (06:00) + `kilo_model_sync` (11:59), DR (`dr_env_backup` 03:30 + Sun 04:00
   recovery test), `cache-prune.sh` (Sun 03:00), calendar-orchestration (Sun 02:00), site-provisioner
-  watchlist/drop-feed/dns-recheck, trade-intelligence GTIP refresh (05:30), headless-Claude session prune (05:17)
+  watchlist/drop-feed/dns-recheck, trade-intelligence GTIP refresh (05:30), headless-Claude session prune (05:17),
+  Claude account rotation (`claude_rotate --tick` every 5 min; `--keepalive` Mon 06:20), quota dashboard
+  (`quota_dashboard --ensure` @reboot + every 10 min, serves localhost:5051), kaizen measurement
+  (`kaizen_metrics --once` Mon 06:45 — after the keepalive + fleet doc audit; `docs/workstation/kaizen.md`)
 - **timers:** `proxy_sync`, `ip_authorization`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
   (+ stock `apt-daily*`, `man-db`, `motd-news`, `systemd-tmpfiles-clean`, `e2scrub_all`)
 
