@@ -27,8 +27,8 @@ load_dotenv("/opt/fabrik/.env")
 FABRIK_ROOT = Path("/opt/fabrik")
 TZ = timezone(timedelta(hours=3))  # UTC+3
 
-VPS_STATUS = FABRIK_ROOT / "docs" / "operations" / "vps-status.md"
-VPS_URLS = FABRIK_ROOT / "docs" / "operations" / "vps-urls.md"
+VPS_STATUS = FABRIK_ROOT / "docs" / "infrastructure" / "vps-status.md"
+VPS_URLS = FABRIK_ROOT / "docs" / "infrastructure" / "vps-urls.md"
 VPS_INVENTORY = FABRIK_ROOT / "docs" / "infrastructure" / "vps-complete-inventory.md"
 
 DATE_PATTERN = re.compile(r"(\*\*(?:Last Updated|Date):\*\*\s*)\d{4}-\d{2}-\d{2}[^\n]*")

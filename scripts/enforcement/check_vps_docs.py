@@ -8,8 +8,10 @@ Parses 'Last Updated:' dates from VPS ops docs and flags them if stale
 SEVERITY CONTRACT (fixed 2026-08-16). Every finding this module can construct is
 ``Severity.WARN`` — a missing doc, an absent date header, a stale date. The entry point
 nevertheless exited 1 on ANY finding, so a warning-level condition failed a blocking gate
-row: the hub went red because ``docs/operations/vps-status.md`` and ``vps-urls.md`` had
-not been regenerated, which is a refresh chore, not a defect in the change under gate.
+row: the hub went red because this check pointed at ``docs/operations/`` where
+``vps-status.md`` / ``vps-urls.md`` never lived — they are in ``docs/infrastructure/``.
+A stale or absent VPS doc is a refresh chore (``fabrik vps-sync``), not a defect in the
+change under gate.
 
 The exit code now follows the severity, matching ``_check_runner.run_as_main``:
 
@@ -35,8 +37,8 @@ except ImportError:
 FABRIK_ROOT = Path("/opt/fabrik")
 
 VPS_DOCS = [
-    FABRIK_ROOT / "docs" / "operations" / "vps-status.md",
-    FABRIK_ROOT / "docs" / "operations" / "vps-urls.md",
+    FABRIK_ROOT / "docs" / "infrastructure" / "vps-status.md",
+    FABRIK_ROOT / "docs" / "infrastructure" / "vps-urls.md",
     FABRIK_ROOT / "docs" / "infrastructure" / "vps-complete-inventory.md",
 ]
 

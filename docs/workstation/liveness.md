@@ -257,8 +257,10 @@ parsed, 20 docs enumerated, 28 claims extracted. What it found on its first run:
   everywhere anyway, so all three are registered `warn_only=True`). Recorded in
   `liveness_audit.UNREACHABLE` with the obstruction named. 3 is the honest size of the remaining gap; it
   was 40.
-- **`check_vps_docs` no longer reds the hub** — `vps-status.md` and `vps-urls.md` under `docs/operations/` still do
-  not exist (regenerating them is `fabrik vps-sync`, the fleet agent's beat), but every finding the check
+- **`check_vps_docs` no longer reds the hub** — `vps-status.md` and `vps-urls.md` live in
+  `docs/infrastructure/`; `check_vps_docs` + `vps-sync` now point there (they had been mis-referenced as
+  `docs/operations/`, where the files never existed, and `fabrik vps-sync` refreshes them in place — the
+  fleet agent's beat), and every finding the check
   can construct is `Severity.WARN` while its `__main__` exited 1 on ANY finding. Its exit now follows the
   severity — ERROR fails, `--strict` promotes WARN — matching `_check_runner.run_as_main`; pinned by
   `tests/test_check_vps_docs_severity.py`.

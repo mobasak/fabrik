@@ -271,7 +271,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
   - Ensures documentation matches code implementation
 - **VPS Docs Freshness** - `check_vps_docs.py` *(ADVISORY row)*
   - Checks VPS-facing docs haven't gone stale against the live fleet
-  - Every finding it can construct is `Severity.WARN`; until 2026-08-16 its `__main__` exited 1 on ANY finding, so a missing `vps-status.md` under `docs/operations/` redded a blocking row. Exit now follows severity (ERROR fails; `--strict` promotes WARN), matching `_check_runner.run_as_main`
+  - Every finding it can construct is `Severity.WARN`; until 2026-08-16 its `__main__` exited 1 on ANY finding, so a `vps-status.md` the check couldn't find (it pointed at `docs/operations/`; the file is in `docs/infrastructure/`) redded a blocking row. Exit now follows severity (ERROR fails; `--strict` promotes WARN), matching `_check_runner.run_as_main`
 - **Fabrik Conventions** - `validate_conventions.py --strict --git-diff`
   - Validates naming conventions and structure
 - **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)

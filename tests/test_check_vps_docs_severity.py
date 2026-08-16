@@ -3,8 +3,9 @@
 WHY. Every `CheckResult` this module can construct is `Severity.WARN` — a missing doc, an
 absent `Last Updated:` header, a stale date. Its entry point nevertheless exited 1 on ANY
 finding, so a warning-level condition failed a BLOCKING Tier-3 gate row: the hub was red
-because `docs/operations/vps-status.md` and `vps-urls.md` had not been regenerated. That is
-a refresh chore (`fabrik vps-sync`), not a defect in the change under gate, and it is the
+because this check pointed at `docs/operations/` where `vps-status.md` / `vps-urls.md` never
+lived — they are in `docs/infrastructure/`. A stale VPS doc is a refresh chore (`fabrik vps-sync`),
+not a defect in the change under gate, and it is the
 mirror image of the vacuous-green class — a row that reds on nothing rather than one that
 greens on everything. Both teach an operator to stop reading the gate.
 
@@ -36,7 +37,7 @@ def _finding(severity: Severity) -> CheckResult:
         check_name="vps_doc_freshness",
         severity=severity,
         message=f"a {severity.name} condition",
-        file_path="/opt/fabrik/docs/operations/vps-status.md",
+        file_path="/opt/fabrik/docs/infrastructure/vps-status.md",
         fix_hint="Run `fabrik vps-sync` to regenerate VPS docs.",
     )
 

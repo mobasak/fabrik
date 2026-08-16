@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — VPS docs path mismatch: tooling pointed at docs/operations/ where the files never lived (2026-08-16)
+
+- `vps-status.md` (1054L) + `vps-urls.md` (371L) are canonical, git-tracked docs in `docs/infrastructure/`;
+  git history shows they were **created there** and never lived at `docs/operations/`. Yet `vps_sync.py:30-31`,
+  `check_vps_docs.py:38-39`, and `docs/workstation/liveness.md` all referenced the `operations/` path — which
+  redded the `check_vps_docs` WARN ("missing") + broke a doc-link. Repointed all three to `docs/infrastructure/`.
+  **Zero doc content touched** — this is a path reconciliation, not a regeneration (`vps-sync` only edits
+  existing files, so the quoted "regenerate via vps-sync" would have been a no-op and left the real docs
+  un-synced). Now `check_vps_docs` PASSes (0 warnings), the broken link clears, and Monday's liveness audit
+  refreshes the REAL docs. Truthful-doc fixes to `check_vps_docs.py`/`liveness.md`/`FINAL_GATE_WORKFLOW.md`
+  prose + the coupled `test_check_vps_docs_severity.py` fixture (still 5/5).
+
 ### Fixed — INERT GATE REGISTRATIONS: 8 checks that could not fail, decided one at a time (2026-08-16)
 
 The canary sweep proved **8 registered `final_gate.py` checks have no failing exit path**. Each was
