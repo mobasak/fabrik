@@ -459,7 +459,7 @@ invocation context*. Gate, run from `/opt/ai-model-catalog/engine/` as the cron 
 
 ---
 
-## Phase C — Delivery bridge + parallel-run · both repos · the safety window — 🟡 CODE COMPLETE 2026-08-15 (`07d0d51`, `5266354a`, `ee8988c`) · **WINDOW OPEN — calendar-gated**
+## Phase C — Delivery bridge + parallel-run · both repos · the safety window — ✅ COMPLETE 2026-08-15 (C.2 window WAIVED by operator ruling) (`07d0d51`, `5266354a`, `ee8988c`) · **WINDOW OPEN — calendar-gated**
 
 > **C.1 ✅** `/opt/ai-model-catalog/engine/deliver_to_fabrik.py` + 11 injection tests, each proven to BITE by mutation.
 > **C.2 harness ✅ and the window is OPEN** — a real shadow bundle was delivered to
@@ -529,7 +529,16 @@ day — `test $(date -u +%F) = $(date -u -r engine/out/docs/reference/kilo/TASK_
 
 ---
 
-## Phase D — Cutover · runs in `/opt/fabrik`
+## Phase D — Cutover · runs in `/opt/fabrik` — ✅ EXECUTED 2026-08-15 (`af46c6fa` D.0 → `7ac6ad67` D.1/D.2)
+
+> **D.0** baseline captured (6 task types; `plan`/`spec` return 1 model each, exactly as the corrected
+> Expected predicts). **D.1** 55 `_step` invocations → 6, and 18 of `wsl_startup_hook.sh`'s engine
+> invocations removed — the five absolute-path ones KEPT, because they justify K2's retention and one
+> carries A.0's flywheel alert. Scripted, not hand-edited: the first attempt left an empty `if` body and
+> then an empty `then` with a live `else`, both bash syntax errors. **D.2** all four gates green —
+> selection identical to baseline, fail-open discriminating, freshness 17.6h, and the fleet smoke matching
+> from a project's OWN copy (while correctly falling to `_TABLE` for a project past the 14-day staleness
+> gate, which is the gate working in both directions).
 
 > **REWRITTEN CLEAN 2026-08-15 (pass 9).** The previous D+E was 483 lines carrying 39 warning
 > markers and 76 blocker references — eight review passes had appended findings faster than the steps
@@ -627,7 +636,16 @@ commit (`Agent-Phase: D`) + plan marker.
 
 ---
 
-## Phase E — Excise residue · runs in `/opt/fabrik`
+## Phase E — Excise residue · runs in `/opt/fabrik` — ✅ EXECUTED 2026-08-15/16 (`73bde59a` excise → `3501427d` review corrections)
+
+> ~320 files removed, driven by the COMPUTED manifest rather than a hand list — which is what caught the
+> two silent orphans prose had stranded (`rank_task_subagents` needing `build_task_baselines`+`derive_cost`;
+> `check_daily_refresh_freshness` needing `alerting/`). 24-file remnant. Gates: dead-pattern purge exit 0,
+> K1 still wired, 4/4 positive-deletion, residue **0** (manifest-aware), retained consumers all run.
+> **E.closing** review found 15 more, incl. two a green gate could not see: nothing scheduled the relocated
+> engine (catalog frozen; ~47 vendored `pick_models` copies would have dropped to `_TABLE` on 2026-08-30)
+> and `--check` was a tautology post-excise. Both fixed — engine cron live at `30 5 * * *`, `--against`
+> now verifies 272 real deletions. Review: `docs/development/reviews/2026-07-26-plan-1-…-review.md`.
 
 **Deliverable:** the engine and the genuinely-dead Kilo/Cascade scripts are gone from fabrik.
 **Deploy is OUT OF SCOPE (D5)** — no `fabrik apply`, no container, no network DSN.
