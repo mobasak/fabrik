@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Doc Sync Matrix is a FLOOR, not a whitelist (2026-08-16)
+
+- Both `CLAUDE.md` copies (hub + `templates/governance/CLAUDE.md`, fleet-synced to ~46 projects): added a
+  clause under the Doc Sync Matrix header making explicit that the table is the **gate-enforced floor, not a
+  closed whitelist** — any doc a change makes stale/incomplete/wrong must be brought current in the same change,
+  listed row or not. Closes the too-literal "my change type isn't in the table → no doc owed" reading; the
+  gate catches only the keyed pairs, the rest is agent judgment.
+
 ### Fixed — The excise manifest reported a false UNSOUND from the moment D.1 landed (2026-08-16)
 
 - `scripts/kilo-benchmarks/tests/excise_manifest.py` — the ORDERING soundness check asserted

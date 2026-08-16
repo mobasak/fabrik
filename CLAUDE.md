@@ -136,6 +136,10 @@ Skip: stdlib, syntax, Fabrik conventions.
 | claim "converged"/"reviewed"/"in-sync"/"100%"/"zero unknowns" without embedded proof + the matching gate green | **PLAN** → `## Evidence` per Phase (≥1 `path:line` AND ≥1 fenced command-output block) + a `## Self-audit`; set `Status: CONVERGED` only after `final_gate.py --check`. **CODE REVIEW** → `docs/development/reviews/<plan>-review.md` embedding the verbatim `final_gate.py --json` `"status":"success"` + a per-Phase verdict. **DOCS** → `docs_updater.py --check` green + a per-file claim→proof line. A column *name* ≠ its values (read them); subagent summaries ≠ proof. `scripts/enforcement/check_convergence.py` fails the gate otherwise. Prompt templates: `docs/reference/convergence-prompts.md` |
 
 ## Doc Sync Matrix (update matched docs in same change — gate-enforced)
+⚠️ **This table is a FLOOR, not a whitelist.** It names the triggers the gate enforces mechanically; the binding
+rule is broader — **any doc a change makes stale, incomplete, or wrong must be brought current in the SAME
+change**, listed row or not. The gate catches only the keyed pairs; the "any relevant doc" part is your
+judgment. *"My change type isn't in the table"* is never a reason to leave a doc untrue.
 | Change | Update |
 |---|---|
 | New env var | `.env.example` + `docs/CONFIGURATION.md` |
