@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — ORIENT never told sessions to arm their self-watch, so deaths were recorded but never revived (2026-08-16)
+
+The box-local resume mesh works: a `Connection closed mid-response` this session was classified
+`api_error_stalled`, death-recorded and Telegrammed **within 2 seconds**. It then had nothing to
+revive, because revival needs an armed waker and this session had none — `CLAUDE_SOUND_AUTORESUME`
+is opt-in and unset, and `claude-selfwatch.sh` was never armed. A peer session (web-ecommerce-factory)
+had armed its own correctly, which is what made the gap visible.
+
+Root cause: the arming mandate lived only in `docs/workstation/hooks-index.md`, a doc sessions never
+load. Compliance therefore depended on an agent remembering prose — the exact failure mode Lesson 116
+says a check at the editable moment must replace. `session_orient.py` now carries the arming command
+in the ORIENT block itself, and directs any claim about hooks/mesh/death/revival to the index first
+(absolute path — the mesh is box-local, so it resolves from all ~46 repos).
+
+Also corrected there: ORIENT still advertised **FOUR** Stop-hook causes after the run-record cause
+made it five.
+
 ### Fixed — check_command_corpus red-gated every project it was synced to (2026-08-16)
 
 - The check hard-fails when `commands/_sources` holds nothing, but the command corpus exists **only
