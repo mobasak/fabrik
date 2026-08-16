@@ -168,7 +168,7 @@ Treat every intended step as unproven until verified against the real code/schem
 
 **Parallelism — the DEFAULT for multi-unit grounding.** With **2+ independent files/subsystems/dependencies
 to ground**, `fanout` one INDEPENDENT grounder per unit — **pool-default** (`fanout("research", …, mode="read_only",
-web_tools=["exa","brave","firecrawl","context7"])` for live search; recipe in § Subagents), native
+web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents), native
 `fabrik-researcher` for the authoritative verify-sample — run them **in parallel**, then merge + dedupe —
 **refute** any finding you can disprove by quoting the contradicting `path:line` before acting. Only a
 single-unit ground loops solo. Enumerate what you actually read (an empty check with no evidence does not count).

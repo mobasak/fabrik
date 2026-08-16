@@ -8,6 +8,7 @@ Reads (open NOTHING else to act): the artifact under review · its upstream INFR
 
 {{include:term-edit}}
 {{include:grounding-artifact}}
+{{include:subagents-core}}
 ## Phase 0 — Scope (the `type` selects the folder + its yardstick)
 
 Args name the **artifact path** + its **type**. If unset, infer from the path and state it.

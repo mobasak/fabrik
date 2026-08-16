@@ -45,14 +45,14 @@ the Phase 1 outcome and WAIT; an outcome stated but not confirmed is not yet act
    conclude dead from an unreachable host (that is an outage, not an absence). **Never** treat a catalog
    row, `PORTS.md` row, a `specs/services/*.yaml` file's mere existence, or a `.env` reference as evidence
    of liveness either way — the captcha case is the cautionary tale: the catalog/env rows still read
-   "live" after the service's DNS record was already gone (`CHANGELOG.md:79-84` — the corrected finding).
+   "live" after the service's DNS record was already gone (`CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07) — the corrected finding).
    The archived-source ≠ dead-service principle itself rests on the MECHANISM, not on any changelog
    anecdote: a hub-side `mv /opt/<name> /opt/archived/<name>` only relocates the SOURCE tree — it never
    touches the VPS runtime. The only thing that does is `fabrik destroy` (`_destroy_compose`'s `docker
    compose down` + remote `rm -rf`, `src/fabrik/orchestrator/destroyer.py:338-340`). So source location
    proves nothing about liveness in EITHER direction — archived source implies neither a live service nor
    a dead one. (One retirement entry briefly asserted "the deployed service stays live" and was corrected
-   the SAME DAY by a fresh DNS probe — `CHANGELOG.md:117-125` is cited here only as the retracted claim
+   the SAME DAY by a fresh DNS probe — `CHANGELOG.md` § "Changed — captcha project retired and archived; the deployed service stays live" (2026-08-07, the RETRACTED claim) is cited here only as the retracted claim
    itself, a cautionary tale about probe-vs-registry-row, never as evidence that anything stayed live.)
    Only a probe run THIS session counts.
 
@@ -60,7 +60,7 @@ the Phase 1 outcome and WAIT; an outcome stated but not confirmed is not yet act
 
 | Outcome | When | What happens |
 |---|---|---|
-| **archive-source-only** | Liveness probe = LIVE, and/or the consumer sweep found a live consumer with no migration need yet | Phase 2 moves the SOURCE project only; the deployed service is untouched — `CHANGELOG.md:129-130`'s wpf precedent (8 uncommitted files preserved exactly across the move) is the clean archive-source-only case. Captcha's move preserved 6 files the same way, but its "service stays live" claim was ITSELF RETRACTED the SAME DAY after a fresh DNS probe (`CHANGELOG.md:79-84`) — the file-preservation figure still stands, the liveness claim doesn't; that gap is the cautionary tale behind Phase 0 step 2's only-a-probe-run-THIS-session rule |
+| **archive-source-only** | Liveness probe = LIVE, and/or the consumer sweep found a live consumer with no migration need yet | Phase 2 moves the SOURCE project only; the deployed service is untouched — `CHANGELOG.md` § "Changed — wpf retired and archived" (2026-08-07)'s wpf precedent (8 uncommitted files preserved exactly across the move) is the clean archive-source-only case. Captcha's move preserved 6 files the same way, but its "service stays live" claim was ITSELF RETRACTED the SAME DAY after a fresh DNS probe (`CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07)) — the file-preservation figure still stands, the liveness claim doesn't; that gap is the cautionary tale behind Phase 0 step 2's only-a-probe-run-THIS-session rule |
 | **full decommission** | Liveness probe = DEAD, and no live consumer remains | Phase 2 moves the source AND names runtime teardown as a separate operator-gated step (below) — never executes it |
 | **migrate-consumers-first** | Consumer sweep found ≥1 live consumer with NO migration path named | STOP here. List each blocking consumer (`path:line`) + what it needs (e.g. an equivalent `fabrik-lib/<module>` capability, the captcha → `fabrik-lib/captcha-solve` precedent) — do not proceed to Phase 2 |
 
@@ -99,7 +99,7 @@ command exists to gate rather than silently execute.
    what actually proves nothing was lost, and matters most in that cross-device case.
 3. **Count after.** Re-run the same three counts at the new path. All three MUST match the "before"
    counts exactly — the wpf move preserved 8 uncommitted files, the captcha move preserved 6
-   (`CHANGELOG.md:120`, `:129-130`) precisely because this was verified, not assumed. A mismatch is a
+   (`CHANGELOG.md` § "Changed — captcha project retired and archived; the deployed service stays live" (2026-08-07, the RETRACTED claim), `CHANGELOG.md` § "Changed — wpf retired and archived" (2026-08-07)) precisely because this was verified, not assumed. A mismatch is a
    CRITICAL failure: stop, do not proceed to bookkeeping, report the discrepancy.
 4. **Hub bookkeeping** (each step is the mechanism, not a hand-edit):
    - `python scripts/sync_projects.py` — regenerates `data/projects.yaml` + `docs/PROJECT_CATALOG.md`.
@@ -110,7 +110,7 @@ command exists to gate rather than silently execute.
    - `python scripts/fleet_doc_audit.py` — regenerates the fleet audit report. Same location-based
      mechanism: `_excluded()` imports `sync_projects._is_excluded` (`scripts/fleet_doc_audit.py:43-60`) —
      by LOCATION, never a hardcoded name list (a hardcoded `RETIRED` set was tried and removed as dead
-     code + a silent revival trap, `CHANGELOG.md:85-87`). Do not add one back.
+     code + a silent revival trap, `CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07)). Do not add one back.
    - `PORTS.md` — annotate the project's row RETIRED + date + reason (never delete the row silently).
    - **Spec disposition.** If outcome was *full decommission* AND the operator has since confirmed the
      separately-gated runtime teardown actually ran: `git rm specs/services/<id>.yaml`. If outcome was
@@ -118,12 +118,12 @@ command exists to gate rather than silently execute.
      (source archived, service still deployed) — never delete a spec for a service still running. A spec
      left behind after a REAL teardown is an orphan trap: `fabrik apply` would resurrect the service and
      every fleet audit keeps counting it — exactly how `captcha.yaml` sat orphaned for weeks
-     (`CHANGELOG.md:40-43`).
+     (`CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07)).
    - **Memory record** — one entry that states BOTH facts as separate, dated clauses even when they land
      in the same note: "source archived to `/opt/archived/<name>` on `<date>`" is NOT "the service is
      decommissioned" — conflating them is the exact defect this command exists to prevent (a real entry
      briefly claimed "the deployed service stays live" after the service was in fact already dead;
-     corrected only by a fresh DNS probe, `CHANGELOG.md:77-91`).
+     corrected only by a fresh DNS probe, `CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07)).
    - CHANGELOG entry per the Doc Sync Matrix (`Changed` for archive-source-only, `Removed` once a real
      teardown lands).
 

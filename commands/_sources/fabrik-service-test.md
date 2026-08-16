@@ -285,7 +285,7 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
 - **≥1 pool `fanout` dispatch for gradeable breadth** (auto-records → `set_quality` back-fill):
   matrix-hole critique, boundary/invalid-value derivation from `data-contract.md`, error-catalog
   and status-code conformance audit, log/metric triage, finding-triage second opinions. All-native
-  = zero flywheel rows (advisory-WARN'd by `check_subagent_flywheel.py`).
+  = zero flywheel rows — `check_subagent_flywheel.py` BLOCKS a substantial code change that has none, unless it declares `NO-POOL: <reason>` in an in-cycle commit message (or sets `FABRIK_NO_POOL`).
   - **Pool unavailable (missing key, 402/quota exhausted mid-run, network) = a BLOCKED-env finding
     to REPORT, not a silent skip** (same as a missing sandbox key): record it, do the gradeable
     breadth INLINE so coverage doesn't suffer, and note the flywheel gets zero rows for this run and

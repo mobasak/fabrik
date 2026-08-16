@@ -247,7 +247,7 @@ Agent-Role: subagent
 Agent-Phase: B
 Agent-Task: 5
 Agent-Context: GDPR schema migration + Flask consent routes
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -262,7 +262,7 @@ Agent-Role: orchestrator
 Agent-Phase: B
 Agent-Context: merged 3 subagent branches, ran phase gate + review
 Conflicts-Resolved: 0
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -275,7 +275,7 @@ feat(scope): Phase D — File Cache
 Agent-Role: orchestrator
 Agent-Phase: D
 Agent-Context: inline execution, no subagents (low complexity)
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -288,7 +288,7 @@ fix(scope): Phase B review — null guard in audit_log.record_event
 Agent-Role: review-fix
 Agent-Phase: B
 Agent-Context: fixed CONFIRMED finding from /fabrik-review — missing None check on target_id
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -635,7 +635,7 @@ Agent-Role: subagent
 Agent-Phase: {X}
 Agent-Task: {N}
 Agent-Context: {one-line summary of what you did}
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
   )"
 
@@ -750,7 +750,7 @@ verdict in both the returned `results_table` and the DB row.
 
 **Pool-default (per `62` § Dispatch policy):** implementers `fanout` to the pool **by default** — the plumbing
 is proven (`from libs.subagents import fanout, set_quality` resolve + rows land in `subagent_runs`;
-`check_subagent_flywheel.py` WARNs on a pool run left unscored). Reserve **native** implementers for high-risk
+the flywheel check's Layer 2 warns on UNRECORDED runs, not unscored ones — `fanout` already records at dispatch, so nothing catches a missing score but you). Reserve **native** implementers for high-risk
 units (auth/schema/migrations/concurrency) + the decide/merge.
 
 The module captures cost / turns / latency automatically; **YOU supply the `set_quality` score** (0 = wrong/
@@ -823,7 +823,7 @@ Agent-Role: orchestrator
 Agent-Phase: {X}
 Agent-Context: merged {N} subagent branches, ran phase gate
 Conflicts-Resolved: {count}
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
    )"
    ```

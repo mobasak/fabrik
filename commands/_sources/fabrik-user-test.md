@@ -338,7 +338,7 @@ independent-eyes recall this command exists for. Floors, enforced:
 - **≥1 pool `fanout` dispatch for the gradeable non-browser breadth** (auto-records →
   `set_quality` back-fill): matrix-hole critique (Phase 2), boundary-value derivation from
   `data-contract.md`, extracted-string i18n/copy audit, crawler-output triage, finding-triage
-  second opinions. All-native here = zero flywheel rows (advisory-WARN'd by
+  second opinions. All-native here = zero flywheel rows — and `check_subagent_flywheel.py` BLOCKS on a substantial code change with zero pool runs unless the work declares `NO-POOL: <reason>` in an in-cycle commit (or sets `FABRIK_NO_POOL`) (
   `check_subagent_flywheel.py`).
   - **Pool unavailable (missing key, 402/quota exhausted mid-run, network) = a BLOCKED-env finding
     to REPORT, not a silent skip** (same treatment as a missing mail-catcher): record it in the

@@ -13,7 +13,7 @@ mutation beyond the report it writes.
 **Where this runs:** hub-side, from `/opt/fabrik` — the hub carries fleet SSH creds (deploy is
 trigger-not-execute; `agents-fabrik-core.md` § Deploy). A project itself cannot reach its own deployed VPS
 this way — this command is the hub-side exception to the local-Docker-bridge-namespace warning
-`commands/_sources/fabrik-catchup.md`:68-75 documents for project-side probes (the WSL box's local
+`commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe documents for project-side probes (the WSL box's local
 `fabrik` bridge is a different network from the fleet's and would silently probe the wrong thing), not a
 violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS probe any box can run) or
 `[hub-side]` (needs the fleet SSH path — `ssh <target_vps> ...` or a hub-container `exec`).
@@ -144,7 +144,7 @@ contract, otherwise name the dependency it's failing on.
 Pull a bounded recent window of THIS service's container logs from the TARGET VPS over the fleet SSH path
 (`ssh <target_vps> docker logs --since <window> <container>`) — never local Docker: the WSL box's local
 `fabrik` bridge is a different network from the fleet's `fabrik` network, and a local scan would silently
-hit the wrong container (or none) — the false-clean trap `commands/_sources/fabrik-catchup.md`:68-75
+hit the wrong container (or none) — the false-clean trap `commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe
 documents for project-side probes. Grep the window for crash/restart signatures: `Traceback`, `FATAL`,
 `OOMKilled`, `exit code`, a restart-loop timestamp pattern. Zero hits in the window = **PASS**. Any hit =
 **FAIL**, quote the line, route to `/fabrik-review` (application-side) unless the signature is clearly

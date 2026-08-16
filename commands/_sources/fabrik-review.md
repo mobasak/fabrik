@@ -10,7 +10,7 @@ first and then DEPTH.
 {{include:grounding-code}}
 ## Run record — open it FIRST, keep it current, close it only at the no-op round
 
-This command has **5 phases (0–4)** and exactly one terminal condition: **a full fresh round that
+This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a full fresh round that
 returns `found: 0`**. Open the record before Phase 0 does anything else:
 
 ```bash
@@ -114,7 +114,7 @@ model** — for differently-biased recall breadth that **auto-records to the fly
 **native `fabrik-reviewer`** (Opus) for the authoritative/high-risk pass (auth / `internal_auth` / migrations /
 schema / secrets / concurrency) + the decide/refute/merge you own. A high-risk surface needs the pool breadth
 *plus* the native pass; going all-native (skipping the pool layer) lands **zero** flywheel rows and
-`check_subagent_flywheel.py` advisory-WARNs it. (Evidence it earns its cost: cheap pool finders have caught
+`check_subagent_flywheel.py` BLOCKS it (exit 1) on a substantial code change, unless the run declares `NO-POOL: <reason>` in an in-cycle commit message or sets `FABRIK_NO_POOL`. (Evidence it earns its cost: cheap pool finders have caught
 real bugs that an Opus-only self-review missed — complementary recall, not redundant.) The two mechanisms:
 
 - **Claude finders (native · subscription · the authoritative pass):** the **`fabrik-reviewer`** Claude Code agent
@@ -292,7 +292,7 @@ When Phase-3's test-quality check finds a **behavior with no test** (or the plan
 1. **Suggest (pool, multi-model)** — `fanout("review", units=[<the same suggest task, code inlined> ×3], mode="read_only")` (3 UNITS → 3 agents on 3 diverse families — one unit = ONE agent; `k` only sizes the model draw, never the fan-out) to each propose the distinct user-observable behaviors; **union** them. A single suggester is the blind spot — diverse families catch what one misses, for cents.
 2. **Curate (you)** — evaluate the union: add missing behaviors, cut trivia/dupes, risk-order. You own *what* gets tested (the anti-bloat + anti-gap gate) before any authoring spend.
 3. **Author (pool, parallel)** — `fanout("code", units=[{"task":…, "owned_paths":[<test file>]}, …], mode="write")` — one cheap **pool** author per curated behavior, **disjoint `owned_paths`** so each writes its own test file in parallel. ⚠️ Tool-enabled authors see committed **HEAD** (`workspace.py` `worktree add --detach HEAD`) — **commit the code-under-test first** (or inline it), and each author **self-verifies collection** (`pytest` on its new test) before returning.
-4. **Report + score** — `fanout` returns `(results, results_table)` and auto-records each author UNSCORED; **back-fill** `set_quality(r.agent_id, <0–5>, project=…, task_type="code", model=r.model)` per author (⚠️ never `record_run`, which no-ops; `check_subagent_flywheel.py` WARNs on a pool run left unscored).
+4. **Report + score** — `fanout` returns `(results, results_table)` and auto-records each author UNSCORED; **back-fill** `set_quality(r.agent_id, <0–5>, project=…, task_type="code", model=r.model)` per author (⚠️ never `record_run`, which no-ops; the flywheel check's Layer 2 warns on UNRECORDED runs, not unscored ones — `fanout` already records at dispatch, so nothing catches a missing score but you).
 5. **Fix (you)** — review test-quality (would it fail if the behavior broke? real assertions, no mock-theater?), fix issues, then `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the **applied** code to confirm the tests kill mutants (advisory). You own final quality.
 
 So "test every behavior" (the Behavior Contract) costs **cents + minutes**, not hours of hand-writing — the maintenance-burden objection dissolves. (Proven 2026-07-08: a `pick_models("review")` suggest run proposed the 3 behaviors of a `clamp(x,lo,hi)` for $0.0019 and recorded a flywheel row.)

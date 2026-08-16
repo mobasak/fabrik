@@ -1131,6 +1131,18 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # Command-corpus integrity — the /fabrik-* commands must reference things that
+        # EXIST (web-tool names against the live WEB_TOOL_NAMES, chain targets, script
+        # paths, trailer models). BLOCKING: each is a true/false fact with no tolerance
+        # band. Founding case 2026-08-16 — four commands passed PROVIDER names as
+        # `web_tools`, so the loop advertised zero tools and every "grounded" research
+        # fan-out ran blind while still returning confident prose. Nothing caught it.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_command_corpus.py",
+                "Command Corpus (references resolve — BLOCKING)",
+            )
+        )
         # Ticket breadth — WARN when a ticket in a CHANGED plan set exposes many
         # independent risk classes (top-level Touches areas + Behavior-Contract rows +
         # a code/governance-surface mix). Measured basis: review rounds track risk

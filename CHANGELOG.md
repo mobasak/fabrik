@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command-corpus audit: research grounders were dispatched with NO tools (2026-08-16)
+
+The 27 `/fabrik-*` command sources had never been audited against the live implementation. The audit
+found a defect that silently voided the corpus's central promise:
+
+- **Research grounders ran blind.** `/fabrik-spec`, `/fabrik-spec-review`, `/fabrik-plan-after-chat` and
+  `/fabrik-data-contract` told agents to fan out with `web_tools=["exa","brave","firecrawl","context7"]`.
+  Those are PROVIDER names; `libs/subagents/web_tools.py::WEB_TOOL_NAMES` accepts only TOOL names, and
+  `loop.py:383-395` filters advertised schemas by that set — an unknown name yields an empty list, so
+  `merged.pop("tools")` ran each "grounder" with no tools at all while it still returned confident prose.
+  Nothing failed. Corrected to `["web_search","web_scrape","docs_lookup"]` per `62-using-subagents.md`;
+  the dead `mcp_servers=` (no `mcp_config` was ever passed, so MCP was off too) is dropped — `docs_lookup`
+  IS Context7.
+- **New BLOCKING gate check** `check_command_corpus.py` + `docs/reference/command-corpus-check.md`: four
+  mechanically decidable predicates (web-tool names against the LIVE registry, chain targets, script paths,
+  trailer models). `--selftest` proves each fires on known-bad input; separately proven red-on-revert
+  against the real historical defect. Path look-alikes (`/opt/fabrik-lib`, `/run/fabrik-autoheal`) are
+  deliberately NOT chain references — a naive matcher reports four breaks that never existed.
+- **Flywheel severity corrected** in `/fabrik-review`, `/fabrik-user-test`, `/fabrik-service-test`: they
+  called `check_subagent_flywheel.py` "advisory-WARN'd" when Layer 1 BLOCKS (exit 1), and none named the
+  sanctioned `NO-POOL: <reason>` / `FABRIK_NO_POOL` release valve — an agent could skip the pool believing
+  the cost was a warning, then red the gate at the end of a long run.
+- **`/fabrik-spec` prior-art search** pointed at an uninstalled plugin (`episodic-memory`); repointed to the
+  live `session-recall` MCP, so the duplicate-work check stops evaporating into "searched, found nothing".
+- **`/design-review`** allowlisted 7 MCP tools that no longer exist (`browser_tab_*`, `browser_install`,
+  `browser_navigate_forward`, `context7__get-library-docs`) and omitted their replacements; repaired against
+  the live servers (`browser_tabs`, `query-docs`, + `browser_find`/`fill_form`/`network_request`).
+- **Citation rot:** 8 `CHANGELOG.md:<line>` citations inside the *destructive* `/fabrik-decommission`
+  runbook had drifted ~2 700 lines onto unrelated text (the file is prepend-ordered, so line citations rot
+  by construction) — rewritten as stable dated-entry anchors; 2 drifted self-citations in
+  `/fabrik-deploy-verify` rewritten as section anchors.
+- **Also:** 6 commit templates stamped a retired model (`Claude Opus 4.8`) into provenance trailers;
+  `/fabrik-workflow-review` dispatched a pool+native fan-out with its Subagents contract configured but
+  never included; a boilerplate line spliced mid-sentence in `/fabrik-rules-review`; a false "unscored runs
+  get WARNed" safety net (Layer 2 keys on UNRECORDED, and `fanout` records at dispatch); and an assembler
+  docstring claiming `render()` injects the NEXT pointer into command bodies (it only writes the skill
+  wrapper — 8 of 27 hand-author it).
+
 ### Fixed — VPS docs path mismatch: tooling pointed at docs/operations/ where the files never lived (2026-08-16)
 
 - `vps-status.md` (1054L) + `vps-urls.md` (371L) are canonical, git-tracked docs in `docs/infrastructure/`;

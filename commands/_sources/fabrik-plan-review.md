@@ -140,7 +140,7 @@ validation gate is vague or unrunnable.
 
 **Parallelism — the DEFAULT for a multi-phase plan.** With **2+ phases, external dependencies, or TICKETS to
 ground**, `fanout` one INDEPENDENT grounder per phase/dependency/ticket — **pool-default** (`fanout("research",
-…, mode="read_only", web_tools=["exa","brave","firecrawl","context7"])` for live search; recipe in § Subagents),
+…, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents),
 native `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
 findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
 the next pass. Only a single-phase MONOLITH plan loops solo — a plan SET always fans out per ticket (the
