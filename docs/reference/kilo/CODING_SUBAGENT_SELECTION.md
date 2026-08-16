@@ -1,14 +1,14 @@
 # Coding subagent selection
 
-**Generated:** 2026-08-15 · **Source:** `scripts/kilo-benchmarks/kilo_agents.db` · **Generator:** `/opt/ai-model-catalog/engine/rank_coding_subagents.py`
+**Generated:** 2026-08-16 · **Source:** `engine/kilo_agents.db` · **Generator:** `engine/rank_coding_subagents.py` (ai-model-catalog)
 
-Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `scripts/kilo-benchmarks/daily_refresh.sh` after pricing and microbench data refreshes.
+Ranked candidates for coding-subagent dispatch across the GLM (z-ai), Kimi (moonshotai), Minimax, and DeepSeek families. Regenerated daily by `engine/daily_refresh.sh` (ai-model-catalog) after pricing and microbench data refreshes.
 
 > **Score composition**: 45% best-verified code score (max of SWE-bench-Verified and Aider-Polyglot; falls back to our own live HumanEval+/MBPP+ `coding_score` × 0.7 when neither external benchmark is populated) · 20% AA intelligence index · 15% Arena ELO · 10% output tok/s · 10% cost-inverse. Every component normalized to [0,1] before its weight is applied. Higher = better fit.
 
-> **Doc↔Code grade + pass@1**: coding capability. `†` = MEASURED — the measured **coding** grade from `/opt/ai-model-catalog/engine/microbench_coding_direct.py` (LiveCodeBench pass@1, shown in the `pass@1` column) wins when present; else the measured **review** grade from `microbench_review.py` (ground-truth planted-bug corpus — code-understanding proxy); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. `pass@1` = LiveCodeBench coding accuracy (contamination-free); `—` until the coding bench has run on that model. (The row **sort** is the composite `Score`, not the grade — the grade/pass@1 are the coding signal; `pick_models("code")` ranks on the measured `model_task_baseline` prior.)
+> **Doc↔Code grade + pass@1**: coding capability. `†` = MEASURED — the measured **coding** grade from `engine/microbench_coding_direct.py` (LiveCodeBench pass@1, shown in the `pass@1` column) wins when present; else the measured **review** grade from `microbench_review.py` (ground-truth planted-bug corpus — code-understanding proxy); unmarked = the heuristic composite of context size + verified code-understanding score + general intelligence. `pass@1` = LiveCodeBench coding accuracy (contamination-free); `—` until the coding bench has run on that model. (The row **sort** is the composite `Score`, not the grade — the grade/pass@1 are the coding signal; `pick_models("code")` ranks on the measured `model_task_baseline` prior.)
 
-> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `/opt/ai-model-catalog/engine/microbench_coding.py` has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.
+> **Column key** — `Reason` = native reasoning / thinking capability (may need `reasoning={"exclude":true}` in the request body for pure code — see API recipes). `Bench` = ✅ if `engine/microbench_coding.py` (ai-model-catalog) has run our own live HumanEval+/MBPP+ pass_at_1 on this model (`humaneval_score` populated); `—` = external benchmarks only, our own live signal is not yet available. Un-benched candidates worth prioritizing are listed under **Candidates not yet benched by us** below.
 
 ## Ranked table
 
@@ -22,25 +22,26 @@ Auto tier — OpenRouter output ≤ $1.5/Mtok. `pick_models` auto-selects freely
 | 2 | `deepseek/deepseek-v3.2` | ✅ | StreamLake | ✅ | — | 63 | 0.269 | 0.400 | 70.0 | 70.2 | — | 1431 | 163k | **B+†** | 78% | 0.551 |
 | 3 | `bytedance-seed/seed-2.0-mini` | ✅ | Seed | ✅ | ✅ | 135 | 0.100 | 0.400 | — | — | — | — | 262k | **A+†** | 90% | 0.474 |
 | 4 | `bytedance-seed/seed-1.6-flash` | ✅ | Seed | ✅ | ✅ | 132 | 0.075 | 0.300 | — | — | — | — | 262k | **A†** | 84% | 0.464 |
-| 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | SiliconFlow | — | ✅ | 104 | 0.070 | 0.280 | — | — | — | — | 262k | **C+** | — | 0.458 |
-| 6 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | ✅ | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B+†** | 74% | 0.452 |
-| 7 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | — | 0.440 |
-| 8 | `minimax/minimax-m3` | ✅ | CoreWeave | ✅ | — | 107 | 0.300 | 1.200 | — | — | 45 | 1485 | 1048k | **B†** | 67% | 0.427 |
-| 9 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **A+†** | 95% | 0.413 |
-| 10 | `deepseek/deepseek-v4-flash` | ✅ | DigitalOcean | ✅ | — | 110 | 0.081 | 0.162 | — | — | 38 | 1465 | 1048k | **A+†** | 94% | 0.402 |
-| 11 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 69 | 0.300 | 1.200 | — | — | 38 | 1448 | 204k | **A†** | 84% | 0.368 |
-| 12 | `qwen/qwen3-coder-next` | ✅ | Parasail | — | — | 123 | 0.120 | 0.800 | — | — | 21 | — | 262k | **A+†** | 90% | 0.253 |
-| 13 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | — | 0.225 |
-| 14 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **A†** | 80% | 0.224 |
-| 15 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **A+†** | 92% | 0.224 |
-| 16 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.250 | 0.950 | — | — | — | 1430 | 163k | **C+** | — | 0.210 |
-| 17 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | — | 0.182 |
-| 18 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | — | 0.172 |
-| 19 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 8k | **A†** | 83% | 0.163 |
-| 20 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.257 | 1.029 | — | — | — | 1337 | 163k | **C** | — | 0.160 |
-| 21 | `z-ai/glm-4.6v` | ✅ | Novita | ✅ | — | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | — | 0.157 |
-| 22 | `deepseek/deepseek-v3.1-terminus` | ✅ | DeepInfra | ✅ | — | 24 | 0.270 | 0.950 | — | — | — | — | 163k | **C** | — | 0.151 |
-| 23 | `minimax/minimax-01` | ✅ | Minimax | — | — | 22 | 0.200 | 1.100 | — | — | — | — | 1000k | **B** | — | 0.148 |
+| 5 | `qwen/qwen3-coder-30b-a3b-instruct` | ✅ | INVALID_ID_7079 | — | ✅ | 104 | 0.070 | 0.280 | — | — | — | — | 262k | **C+** | — | 0.458 |
+| 6 | `z-ai/glm-5.2` | ✅ | StreamLake | ✅ | — | 133 | 0.462 | 1.452 | — | — | 44 | 1525 | 1048k | **A+†** | 96% | 0.455 |
+| 7 | `qwen/qwen3-coder-flash` | ✅ | Alibaba | — | ✅ | 123 | 0.195 | 0.975 | — | — | — | — | 1000k | **B+†** | 74% | 0.452 |
+| 8 | `minimax/minimax-m2` | ✅ | Minimax | ✅ | — | 54 | 0.255 | 1.020 | 61.0 | — | — | — | 204k | **C+** | — | 0.440 |
+| 9 | `minimax/minimax-m3` | ✅ | CoreWeave | ✅ | — | 103 | 0.300 | 1.200 | — | — | 45 | 1485 | 1048k | **B†** | 67% | 0.426 |
+| 10 | `z-ai/glm-4.7-flash` | ✅ | DeepInfra | ✅ | ✅ | 54 | 0.060 | 0.400 | — | — | — | — | 202k | **A+†** | 95% | 0.413 |
+| 11 | `deepseek/deepseek-v4-flash` | ✅ | StreamLake | ✅ | — | 110 | 0.064 | 0.129 | — | — | 38 | 1465 | 1048k | **A+†** | 94% | 0.402 |
+| 12 | `minimax/minimax-m2.7` | ✅ | Mara | ✅ | — | 69 | 0.300 | 1.200 | — | — | 38 | 1448 | 204k | **A†** | 84% | 0.368 |
+| 13 | `qwen/qwen3-coder-next` | ✅ | Parasail | — | — | 142 | 0.120 | 0.800 | — | — | 21 | — | 262k | **A+†** | 90% | 0.255 |
+| 14 | `minimax/minimax-m2.1` | ✅ | Minimax | ✅ | — | 61 | 0.300 | 1.200 | — | — | — | 1430 | 204k | **B-** | — | 0.225 |
+| 15 | `z-ai/glm-4.5-air` | ✅ | Novita | ✅ | — | 105 | 0.130 | 0.850 | — | — | — | 1410 | 131k | **A†** | 80% | 0.224 |
+| 16 | `deepseek/deepseek-v3.2-exp` | ✅ | Novita | ✅ | — | 35 | 0.270 | 0.410 | — | — | — | 1431 | 163k | **A+†** | 92% | 0.224 |
+| 17 | `deepseek/deepseek-chat-v3.1` | ✅ | DeepInfra | ✅ | — | 23 | 0.250 | 0.950 | — | — | — | 1430 | 163k | **C+** | — | 0.210 |
+| 18 | `deepseek/deepseek-chat-v3-0324` | ✅ | DeepInfra | — | — | 27 | 0.270 | 1.120 | — | — | — | 1391 | 163k | **C** | — | 0.182 |
+| 19 | `minimax/minimax-m2-her` | ✅ | Minimax | — | — | 87 | 0.300 | 1.200 | — | — | — | — | 65k | **C** | — | 0.172 |
+| 20 | `deepseek/deepseek-r1-distill-llama-70b` | ✅ | Novita | ✅ | — | 45 | 0.800 | 0.800 | — | — | — | — | 8k | **A†** | 83% | 0.163 |
+| 21 | `deepseek/deepseek-chat` | ✅ | StreamLake | — | — | 42 | 0.257 | 1.029 | — | — | — | 1337 | 163k | **C** | — | 0.160 |
+| 22 | `z-ai/glm-4.6v` | ✅ | Novita | ✅ | — | 33 | 0.300 | 0.900 | — | — | — | — | 131k | **C** | — | 0.157 |
+| 23 | `deepseek/deepseek-v3.1-terminus` | ✅ | DeepInfra | ✅ | — | 24 | 0.270 | 0.950 | — | — | — | — | 163k | **C** | — | 0.151 |
+| 24 | `minimax/minimax-01` | ✅ | Minimax | — | — | 22 | 0.200 | 1.100 | — | — | — | — | 1000k | **B** | — | 0.148 |
 
 ### code-onrequest
 
@@ -53,26 +54,25 @@ On-request tier — OpenRouter output > $1.5/Mtok. Operator opt-in only: `pick_m
 | 3 | `z-ai/glm-4.5` | ✅ | Z.AI | ✅ | — | 69 | 0.600 | 2.200 | 64.2 | — | — | 1448 | 131k | **C+** | — | 0.520 |
 | 4 | `deepseek/deepseek-r1` | ✅ | Novita | ✅ | — | 18 | 0.700 | 2.500 | — | 71.4 | — | 1382 | 64k | **B** | — | 0.475 |
 | 5 | `moonshotai/kimi-k2.5` | ✅ | DigitalOcean | ✅ | — | 46 | 0.570 | 2.850 | 70.8 | — | — | — | 262k | **A+†** | 98% | 0.462 |
-| 6 | `deepseek/deepseek-v4-pro` | ✅ | StreamLake | ✅ | — | 78 | 1.168 | 2.336 | — | — | 44 | 1550 | 1048k | **A+†** | 92% | 0.455 |
-| 7 | `z-ai/glm-5.2` | ✅ | Baidu | ✅ | — | 123 | 0.490 | 1.540 | — | — | 44 | 1525 | 1048k | **A+†** | 96% | 0.453 |
-| 8 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 100% | 0.450 |
-| 9 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | — | 0.450 |
-| 10 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 98% | 0.443 |
-| 11 | `z-ai/glm-5.1` | ✅ | StreamLake | ✅ | — | 74 | 0.966 | 3.036 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.400 |
-| 12 | `moonshotai/kimi-k2.6` | ✅ | Baidu | ✅ | — | 40 | 0.650 | 3.410 | — | — | 44 | — | 262k | **A+†** | 98% | 0.282 |
-| 13 | `moonshotai/kimi-k2.7-code` | ✅ | Inceptron | ✅ | — | 37 | 0.710 | 3.500 | — | — | 43 | — | 262k | **A+†** | 98% | 0.276 |
-| 14 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 204k | **B** | — | 0.245 |
-| 15 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | ✅ | — | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | — | 0.196 |
-| 16 | `moonshotai/kimi-k2-0905` | ✅ | Novita | — | — | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | — | 0.183 |
-| 17 | `minimax/minimax-m1` | ✅ | Minimax | ✅ | — | 41 | 0.550 | 2.200 | — | — | — | 1369 | 1000k | **B** | — | 0.162 |
-| 18 | `z-ai/glm-4.5v` | ✅ | Novita | ✅ | — | 50 | 0.600 | 1.800 | — | — | — | — | 65k | **C** | — | 0.155 |
-| 19 | `qwen/qwen3-coder-plus` | ✅ | Alibaba | — | — | 36 | 0.650 | 3.250 | — | — | — | — | 1000k | **A†** | 88% | 0.135 |
-| 20 | `z-ai/glm-5-turbo` | ✅ | Z.AI | ✅ | — | 43 | 1.200 | 4.000 | — | — | — | — | 202k | **A+†** | 98% | 0.129 |
-| 21 | `z-ai/glm-5v-turbo` | ✅ | Z.AI | ✅ | — | 36 | 1.200 | 4.000 | — | — | — | — | 202k | **B+†** | 76% | 0.126 |
+| 6 | `deepseek/deepseek-v4-pro` | ✅ | StreamLake | ✅ | — | 84 | 1.168 | 2.336 | — | — | 44 | 1550 | 1048k | **A+†** | 92% | 0.457 |
+| 7 | `bytedance-seed/seed-2.0-lite` | ✅ | Seed | ✅ | ✅ | 73 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 100% | 0.450 |
+| 8 | `moonshotai/kimi-k2` | ✅ | Novita | — | — | 37 | 0.570 | 2.300 | — | 59.1 | — | 1402 | 131k | **C+** | — | 0.450 |
+| 9 | `bytedance-seed/seed-1.6` | ✅ | Seed | ✅ | ✅ | 48 | 0.250 | 2.000 | — | — | — | — | 262k | **A+†** | 98% | 0.443 |
+| 10 | `z-ai/glm-5.1` | ✅ | Baidu | ✅ | — | 74 | 0.966 | 3.036 | — | — | 40 | 1506 | 204k | **A+†** | 98% | 0.400 |
+| 11 | `moonshotai/kimi-k2.6` | ✅ | Baidu | ✅ | — | 40 | 0.650 | 3.410 | — | — | 44 | — | 262k | **A+†** | 98% | 0.282 |
+| 12 | `moonshotai/kimi-k2.7-code` | ✅ | Inceptron | ✅ | — | 40 | 0.710 | 3.500 | — | — | 43 | — | 262k | **A+†** | 98% | 0.277 |
+| 13 | `z-ai/glm-4.7` | ✅ | DeepInfra | ✅ | — | 70 | 0.400 | 1.750 | — | — | — | 1460 | 204k | **B** | — | 0.245 |
+| 14 | `deepseek/deepseek-r1-0528` | ✅ | DeepInfra | ✅ | — | 16 | 0.500 | 2.150 | — | — | — | 1436 | 163k | **C+** | — | 0.196 |
+| 15 | `moonshotai/kimi-k2-0905` | ✅ | Novita | — | — | 38 | 0.600 | 2.500 | — | — | — | 1403 | 262k | **B-** | — | 0.183 |
+| 16 | `minimax/minimax-m1` | ✅ | Minimax | ✅ | — | 41 | 0.550 | 2.200 | — | — | — | 1369 | 1000k | **B** | — | 0.162 |
+| 17 | `z-ai/glm-4.5v` | ✅ | Novita | ✅ | — | 50 | 0.600 | 1.800 | — | — | — | — | 65k | **C** | — | 0.155 |
+| 18 | `qwen/qwen3-coder-plus` | ✅ | Alibaba | — | — | 36 | 0.650 | 3.250 | — | — | — | — | 1000k | **A†** | 88% | 0.135 |
+| 19 | `z-ai/glm-5-turbo` | ✅ | Z.AI | ✅ | — | 43 | 1.200 | 4.000 | — | — | — | — | 202k | **A+†** | 98% | 0.129 |
+| 20 | `z-ai/glm-5v-turbo` | ✅ | Z.AI | ✅ | — | 36 | 1.200 | 4.000 | — | — | — | — | 202k | **B+†** | 76% | 0.126 |
 
 ## Candidates not yet benched by us
 
-Auto-tier coding candidates (OR-reachable, output ≤ $1.5/Mtok) with no live pass_at_1 from `/opt/ai-model-catalog/engine/microbench_coding.py` AND no external SWE-bench / Aider-Polyglot / AA-idx signal. Their composite score rests only on TPS + cost until benched, so their ranking is provisional — an explicit `microbench_coding.py --models <id> --datasets humaneval,mbpp` run would move them into (or out of) the top of the Auto tier.
+Auto-tier coding candidates (OR-reachable, output ≤ $1.5/Mtok) with no live pass_at_1 from `engine/microbench_coding.py` (ai-model-catalog) AND no external SWE-bench / Aider-Polyglot / AA-idx signal. Their composite score rests only on TPS + cost until benched, so their ranking is provisional — an explicit `microbench_coding.py --models <id> --datasets humaneval,mbpp` run would move them into (or out of) the top of the Auto tier.
 
 | Model | In $/M | Out $/M | db_tps | Ctx | Arena | Reason | Score (provisional) |
 |---|---:|---:|---:|---:|---:|:-:|---:|

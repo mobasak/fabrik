@@ -131,7 +131,7 @@ async def embed(texts: list[str], model: str = "qwen/qwen3-embedding-8b") -> lis
         return [item["embedding"] for item in resp.json()["data"]]
 ```
 
-<!-- EMBEDDING_WINNERS:START (auto-generated — do not edit between markers) -->
+<!-- EMBEDDING_WINNERS:START (auto-managed by embedding_export_markdown.py) -->
 | Role | Use when | Model | Cost | Context |
 |---|---|---|---|---|
 | **Code-specific** | Separate pipeline — IDE semantic search, codebase retrieval | `voyageai/voyage-code-4` | $0.12/M | 32k |
