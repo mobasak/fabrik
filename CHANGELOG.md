@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_command_corpus red-gated every project it was synced to (2026-08-16)
+
+- The check hard-fails when `commands/_sources` holds nothing, but the command corpus exists **only
+  in the hub** (`/opt/fabrik/commands/_sources` → rendered box-wide). Synced to ~46 projects, it
+  therefore failed BLOCKING in all of them for a directory they are not supposed to have. Caught in
+  ai-model-catalog, whose gate went from **46 passed / 0 failed to a hard failure** the moment a
+  governance-sync landed the file.
+- Now NOT-APPLICABLE where no corpus is expected, while still failing where one is: an absent corpus
+  in a project is correct, an absent-or-empty corpus in the hub is a real defect (the renderer would
+  prune installed commands box-wide). It keys on whether the assembler or sources directory exists.
+- Verified both directions: the hub still audits its real corpus (exit 0), and a repo with neither
+  the corpus nor the assembler is silent.
+
 ### Added — kaizen collector: measure agent behaviour fleet-wide, not the hub's own paperwork (2026-08-16)
 
 `kaizen_metrics.py` reads exactly one directory — this repo's `docs/development/reviews/*.md` (grep

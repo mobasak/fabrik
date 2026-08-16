@@ -101,7 +101,19 @@ def audit(
     problems: list[str] = []
     files = _corpus_files(sources, fragments, assembler)
     if not files:
-        return [f"{sources}: no command sources found — the corpus check has nothing to audit"]
+        # ⚠️ NOT-APPLICABLE, not a failure — this check is SYNCED to ~46 projects, and the command
+        # corpus exists ONLY in the hub (`/opt/fabrik/commands/_sources` → rendered box-wide).
+        # Every project therefore hit this branch and got a BLOCKING red gate for a directory it is
+        # not supposed to have. Measured 2026-08-16 in ai-model-catalog, whose gate went from
+        # 46 passed / 0 failed to a hard failure the moment a governance-sync landed this file.
+        #
+        # The distinction that matters: an ABSENT corpus in a project is correct; an absent or
+        # EMPTY corpus in the hub is a real defect (the renderer would prune installed commands
+        # box-wide). So fail only where the corpus is supposed to exist — i.e. where the assembler
+        # lives — and stay silent elsewhere.
+        if assembler.exists() or sources.exists():
+            return [f"{sources}: no command sources found — the corpus check has nothing to audit"]
+        return []
 
     valid_tools = _live_web_tool_names()
     known_commands = {p.stem for p in sources.glob("*.md")}
