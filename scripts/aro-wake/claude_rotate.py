@@ -3149,6 +3149,7 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
     caps = _account_caps()
     accounts: list[dict] = []
     cache_dirty = False
+    pings_used = 0  # per-run cap for stale-reading refresh pings (ROTATE_REFRESH_MAX_PER_RUN)
     for email in sorted(groups):
         members = sorted(groups[email], key=lambda m: m["slug"])
         with_creds = sorted(
@@ -3158,9 +3159,7 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
         )
         exps = [
             e
-            for e in (
-                _refresh_expiry_epoch(m["dir"] / ".credentials.json") for m in with_creds
-            )
+            for e in (_refresh_expiry_epoch(m["dir"] / ".credentials.json") for m in with_creds)
             if e is not None
         ]
         row = {
@@ -3235,6 +3234,39 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
             last = _identity_probe_result(slug)
             if last is not None and last != email:
                 row["identity_mismatches"].append({"slug": slug, "probe_email": last})
+        if windows is None and with_creds:
+            # ALWAYS-CURRENT READINGS (operator mandate 2026-08-18: the dashboard "must always
+            # show up-to-date usage" — parked stores previously went dark when their 8h access
+            # token died, and the 43h-stale walls it displayed were the incident's dashboard
+            # symptom). When the reading would fall to a cache row older than
+            # ROTATE_READING_MAX_AGE_S (default 1h), refresh THIS account's chain via the
+            # sole-owner keepalive ping (the CLI-lawful path — no credential byte touched by
+            # this script) and probe once more. Stamp-budgeted per account per interval and
+            # capped per run, so a dead chain is never hammered every tick. A FAILED ping is
+            # itself the signal: `ping_failed` marks the chain DEAD, and the flip leg treats a
+            # dead ACTIVE chain as a flip trigger (the 2026-08-17 21:00 outage sat undetected
+            # for 9h precisely because quota, not liveness, was the only trigger).
+            c = cache.get(email)
+            cached_age = (
+                now - float(c["ts"])
+                if isinstance(c, dict) and isinstance(c.get("ts"), (int, float))
+                else None
+            )
+            max_age = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
+            max_pings = int(_env_float("ROTATE_REFRESH_MAX_PER_RUN", 3.0))
+            if (
+                (cached_age is None or cached_age >= max_age)
+                and pings_used < max_pings
+                and _refresh_ping_due(email, now)
+            ):
+                pings_used += 1
+                _touch_refresh_stamp(email)
+                if _keepalive_ping(with_creds[0]["dir"]):
+                    tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
+                    if tok is not None:
+                        windows = _usage_windows(_oauth_get("usage", tok))
+                else:
+                    row["ping_failed"] = True
         if windows is not None:
             row.update(windows)
             row["source"] = "live"
@@ -3401,6 +3433,37 @@ def _fleet_advisory_stamp(email: str) -> Path:
         return Path(tempfile.gettempdir()) / f"claude-fleet-advisory-{safe}"
 
 
+def _fleet_refresh_stamp(email: str) -> Path:
+    """PER-ACCOUNT stale-reading refresh stamp — rate-limits the keepalive-ping refresh so a
+    dead chain is pinged at most once per interval, never on every 5-minute tick."""
+    safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
+    try:
+        return _rotate_state_dir() / f"fleet-refresh-{safe}"
+    except _STATE_DIR_ERRORS:
+        return Path(tempfile.gettempdir()) / f"claude-fleet-refresh-{safe}"
+
+
+def _refresh_ping_due(email: str, now: float) -> bool:
+    """True when this account's stale-reading refresh is allowed (stamp older than the
+    interval, or absent). Future-skewed stamps count as due — same safe direction as the
+    keepalive's clamp: a spurious ping is cheap, a silently skipped one leaves the operator
+    staring at a stale wall (the 2026-08-18 incident's dashboard symptom)."""
+    interval = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
+    stamp = _fleet_refresh_stamp(email)
+    try:
+        age = now - stamp.stat().st_mtime
+    except OSError:
+        return True
+    return age >= interval or age < -_CLOCK_SKEW_TOLERANCE_S
+
+
+def _touch_refresh_stamp(email: str) -> None:
+    try:
+        _fleet_refresh_stamp(email).touch()
+    except OSError:
+        pass  # a lost stamp costs one extra ping next tick, never the status itself
+
+
 def _fleet_slug_repos(slugs: list[str]) -> list[str]:
     """Drain-mail routing: slug → /opt/<slug> where that repo exists (hub role slugs
     ``fabrik-*`` → /opt/fabrik), intersected with the mailbox-capable repos. Slugs with no
@@ -3444,6 +3507,31 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     row = next((r for r in accounts if active_slug in (r.get("slugs") or [])), None)
     if row is None:
         print(f"tick: active {active_slug} — identity pending, no flip decision possible")
+        return
+    # DEAD-ACTIVE CHAIN IS A FLIP TRIGGER (root cause of the 2026-08-17 21:00 incident: the
+    # active chain died at 93% quota and the tick said "no flip" from cache for 9 hours while
+    # every screen begged for login). `ping_failed` = the stale-reading refresh ping could not
+    # roll this chain. Gate on a PROVEN-UP network — at least one OTHER account probed live
+    # this run — so a box-wide outage never triggers a pointless flip storm.
+    if row.get("ping_failed") and any(r.get("source") == "live" for r in accounts if r is not row):
+        pick = _validated_pick(accounts, {row["email"]})
+        if pick is not None:
+            slug, email = pick
+            if _flip_active(slug, ignore_dwell=True):
+                print(f"tick: active {row['email']} chain DEAD — flipped -> {email} ({slug})")
+                _tick_telegram(
+                    f"active account {row['email']} OAuth chain is DEAD (refresh ping failed;"
+                    f" siblings reachable) — auto-flipped to {email}. Its slot needs ONE"
+                    " /login when convenient."
+                )
+            else:
+                print(f"tick: active {row['email']} chain DEAD — flip to {slug} withheld")
+            return
+        print(f"tick: active {row['email']} chain DEAD and NO successor has headroom")
+        _tick_telegram(
+            f"active account {row['email']} OAuth chain is DEAD and no sibling has headroom —"
+            " every screen will prompt for login until ONE /login re-pins a chain"
+        )
         return
     utils = {}
     for key in ("five_hour", "seven_day"):

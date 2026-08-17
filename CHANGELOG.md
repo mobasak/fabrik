@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rotation: a dead ACTIVE chain now flips away + alerts; readings never go stale (2026-08-18)
+
+The 2026-08-17 21:00 incident: the active account's OAuth chain died mid-use at 93% quota. The tick
+only flips on quota ≥95%, so it read its stale cache — "93%, no flip" — for ~9 hours while every
+screen prompted for login. The operator's recovery login then landed inside the active slot,
+writing can@'s credentials into the mob dir (misattribution). Root cause: liveness of the active
+chain was never a flip trigger, and parked readings went dark by design.
+
+Two composed fixes in `claude_rotate.py` (+ aro-wake twin, byte-identical):
+
+- **Always-current readings** (operator mandate: the dashboard "must always show up-to-date
+  usage"): a reading that would fall to a cache row older than `ROTATE_READING_MAX_AGE_S`
+  (default 1h) refreshes that account's chain via the sole-owner keepalive ping (CLI-lawful) and
+  re-probes. Stamp-budgeted per account per interval, capped per run
+  (`ROTATE_REFRESH_MAX_PER_RUN`, default 3). Proven live: ob/sarp went from "cached 45h ago" to
+  live rows in one --status run.
+- **Dead-active flip trigger**: the refresh ping FAILING on the active account marks its chain
+  DEAD; with the network proven up (≥1 sibling probed live this run — a box-wide outage never
+  triggers a flip storm), the tick flips to the best validated sibling `ignore_dwell` and
+  Telegrams; with no successor it Telegrams the exact recovery act ("ONE /login").
+  Red-on-revert proven: the pre-fix code prints the incident's literal "93% — below 95%, no
+  flip" line and never flips.
+
+4 new tests (59 total green). Incident remediation also in this change window: pointer flipped to
+the operator's chosen can@ via validated --switch; incident backups relocated out of the fleet
+glob (a `backups/` dir was being adopted as a pending-login account slot).
+
 ### Fixed — ORIENT never told sessions to arm their self-watch, so deaths were recorded but never revived (2026-08-16)
 
 The box-local resume mesh works: a `Connection closed mid-response` this session was classified

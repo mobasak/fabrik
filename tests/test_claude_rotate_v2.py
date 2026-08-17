@@ -954,3 +954,103 @@ def test_t15u_non_finite_thresholds_fall_back_to_the_default(tmp_path, monkeypat
     (state / "switch-paused").touch()
     actions, _ = _tick(tmp_path, monkeypatch, [live, sib], live["name"], drain="nan")
     assert actions["mails"], "a nan drain threshold must not silently disable the warning"
+
+
+# ── 2026-08-18 incident fixes: stale-reading refresh ping + dead-active flip trigger ────────
+
+
+def _mk_fleet(tmp_path, monkeypatch, slugs=("alpha", "beta")):
+    """A minimal fleet: per-slug dirs with fresh-looking credentials + pinned identities."""
+    root = tmp_path / "fleet"
+    for s in slugs:
+        d = root / s
+        d.mkdir(parents=True)
+        (d / ".credentials.json").write_text("{}")
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(root))
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        cr, "_pin_pending_identities",
+        lambda dirs: {s: {"identity": f"{s}@test"} for s in slugs},
+    )
+    return root
+
+
+def test_stale_reading_triggers_refresh_ping_and_reprobe(tmp_path, monkeypatch):
+    """A cache row older than ROTATE_READING_MAX_AGE_S refreshes via the keepalive ping and
+    probes live — the dashboard never shows a wall older than the interval (operator mandate
+    2026-08-18)."""
+    root = _mk_fleet(tmp_path, monkeypatch, slugs=("alpha",))
+    now = 1_000_000.0
+    old = now - 100_000  # credential mtime far beyond _FLEET_TOKEN_FRESH_S
+    import os as _os
+    _os.utime(root / "alpha" / ".credentials.json", (old, old))
+    monkeypatch.setattr(cr, "_now", lambda: now)
+    monkeypatch.setattr(cr, "_load_usage_cache", lambda: {"alpha@test": {"ts": now - 90_000}})
+    pinged = []
+    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
+    monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(cr, "_oauth_get", lambda kind, tok: {"usage": True})
+    monkeypatch.setattr(
+        cr, "_usage_windows",
+        lambda payload: {"five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 2.0}},
+    )
+    monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
+    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
+    assert pinged == ["alpha"], "the stale account must be refresh-pinged exactly once"
+    assert accounts[0]["source"] == "live", "a successful ping must yield a LIVE reading"
+
+
+def test_failed_refresh_ping_marks_chain_dead_not_zero(tmp_path, monkeypatch):
+    """A FAILED refresh ping flags ping_failed and falls back to the honest cached row —
+    never a fabricated live reading."""
+    root = _mk_fleet(tmp_path, monkeypatch, slugs=("alpha",))
+    now = 1_000_000.0
+    old = now - 100_000
+    import os as _os
+    _os.utime(root / "alpha" / ".credentials.json", (old, old))
+    monkeypatch.setattr(cr, "_now", lambda: now)
+    monkeypatch.setattr(
+        cr, "_load_usage_cache",
+        lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
+    )
+    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: False)
+    monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
+    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
+    assert accounts[0]["ping_failed"] is True
+    assert accounts[0]["source"] == "cache", "failure keeps the honest stale row"
+
+
+def test_dead_active_chain_flips_when_network_proven_up(monkeypatch, capsys):
+    """The 2026-08-17 21:00 defect: a dead ACTIVE chain must flip away + alert, not sit on
+    'below threshold, no flip' from cache for 9 hours."""
+    accounts = [
+        {"email": "dead@test", "slugs": ["dead"], "ping_failed": True, "source": "cache",
+         "five_hour": None, "seven_day": {"utilization": 93.0}, "weekly_cap": None},
+        {"email": "alive@test", "slugs": ["alive"], "source": "live",
+         "five_hour": {"utilization": 5.0}, "seven_day": {"utilization": 5.0},
+         "weekly_cap": None},
+    ]
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "dead")
+    flips = []
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl: ("alive", "alive@test"))
+    alerts = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: alerts.append(msg))
+    cr._fleet_flip_leg([], accounts, threshold=95.0)
+    assert flips == ["alive"], "a dead active chain with a live sibling MUST flip"
+    assert alerts and "DEAD" in alerts[0]
+
+
+def test_dead_active_chain_does_not_flip_on_boxwide_outage(monkeypatch):
+    """No sibling probed live ⇒ the network itself may be down — flipping would thrash."""
+    accounts = [
+        {"email": "dead@test", "slugs": ["dead"], "ping_failed": True, "source": "cache",
+         "five_hour": None, "seven_day": {"utilization": 93.0}, "weekly_cap": None},
+        {"email": "also@test", "slugs": ["also"], "source": "cache",
+         "five_hour": None, "seven_day": {"utilization": 50.0}, "weekly_cap": None},
+    ]
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "dead")
+    flips = []
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    cr._fleet_flip_leg([], accounts, threshold=95.0)
+    assert flips == [], "a box-wide outage must never trigger a flip storm"
