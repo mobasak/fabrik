@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — refresh pings move to the tick only; the dashboard never blocks a page load on a probe (2026-08-18)
+
+The morning's stale-reading refresh pings shipped reachable from `--status` — and `--status` is
+what the quota dashboard shells out to on every stale page load. Each ping runs the claude CLI
+with a 150s timeout, up to 3 per run: `--status` could hang ~7½ minutes against the dashboard's
+60s probe cap, and `GET /` blocked synchronously on that probe, so every page load sat the full
+60s and the operator read the dashboard as "not reachable" (2026-08-18 evening). Two fixes,
+both defended by tests proven red on the pre-fix shape:
+
+- **`_fleet_account_rows(allow_pings=…)`** — only the `*/5` tick passes True; `--status` is a
+  pure read again (measured back to seconds, all four accounts still reading live, because the
+  tick keeps the cache fresh — freshness was never status's job).
+  `test_status_path_never_pings_even_when_stale` pins it. Twin synced byte-identical.
+- **`quota_dashboard._fresh_html`** — serves the last-written page instantly, always; a stale
+  page triggers one lock-guarded **background** regeneration instead of an inline probe
+  (measured: 60s hang → 2ms). The in-page reloader re-fetches within 60s, so one stale view
+  costs nothing; only a first-ever request with no page on disk generates inline.
+
 ### Added — the mega chain gets plan-review-grade enforcement: run records, corpus audit, md5 anti-cheat, a gate that reads its exit (2026-08-18)
 
 The four `fab-mega-*` commands had `/fabrik-plan-review`'s loop *language* and none of its

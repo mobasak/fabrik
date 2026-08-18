@@ -3119,7 +3119,9 @@ def _account_caps() -> dict[str, int]:
     return caps
 
 
-def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
+def _fleet_account_rows(
+    dirs: list[Path], *, allow_pings: bool = False
+) -> tuple[list[dict], list[dict]]:
     """(account rows, pending entries) — the fleet view's data, shared by --status and the tick.
 
     Grouping keys on the PINNED identity in assignments.json (never a live re-probe). Usage is
@@ -3127,6 +3129,13 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
     token is <8h old (mtime, the CLI's rewrite-on-refresh signal); otherwise the cached
     last-known row rides with its age, marked stale. The cache means an idle account is an
     upper bound with a date on it — never today's "parked — quota unknown" blindness.
+
+    ``allow_pings`` — ONLY the tick passes True. The stale-reading refresh ping shells out to
+    the claude CLI (150s timeout, up to 3 per run ≈ 7½ min worst case); leaving it reachable
+    from ``--status`` hung the quota dashboard behind its 60s probe cap on 2026-08-18 evening
+    (every page load blocked, the operator read it as "not reachable"). ``--status`` is a
+    report: it must stay a pure read that finishes in seconds, and it can — the */5 tick keeps
+    the cache fresh, so status never needs to ping to be current.
     """
     now = _now()
     table = _pin_pending_identities(dirs)
@@ -3255,7 +3264,8 @@ def _fleet_account_rows(dirs: list[Path]) -> tuple[list[dict], list[dict]]:
             max_age = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
             max_pings = int(_env_float("ROTATE_REFRESH_MAX_PER_RUN", 3.0))
             if (
-                (cached_age is None or cached_age >= max_age)
+                allow_pings
+                and (cached_age is None or cached_age >= max_age)
                 and pings_used < max_pings
                 and _refresh_ping_due(email, now)
             ):
@@ -3595,7 +3605,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     threshold = _env_float("ROTATE_THRESHOLD", 95.0)
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
     now = _now()
-    accounts, pending = _fleet_account_rows(dirs)
+    accounts, pending = _fleet_account_rows(dirs, allow_pings=True)
     _fleet_flip_leg(dirs, accounts, threshold)
     # Unmissable keepalive (2026-08-18): the weekly cron slot can be slept through — the tick
     # cannot, while WSL is up at all. quiet=True: the fresh-dir lines would spam every 5 min;

@@ -995,9 +995,33 @@ def test_stale_reading_triggers_refresh_ping_and_reprobe(tmp_path, monkeypatch):
         lambda payload: {"five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 2.0}},
     )
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
-    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
+    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
     assert pinged == ["alpha"], "the stale account must be refresh-pinged exactly once"
     assert accounts[0]["source"] == "live", "a successful ping must yield a LIVE reading"
+
+
+def test_status_path_never_pings_even_when_stale(tmp_path, monkeypatch):
+    """--status is a pure read: without allow_pings the stale branch must NOT shell out to
+    the claude CLI. On 2026-08-18 evening the pings ran from --status (150s each, up to 3),
+    the dashboard's 60s probe cap expired, and every page load hung — the operator read the
+    dashboard as 'not reachable'. Freshness is the tick's job; status only reports."""
+    root = _mk_fleet(tmp_path, monkeypatch, slugs=("alpha",))
+    now = 1_000_000.0
+    old = now - 100_000
+    import os as _os
+    _os.utime(root / "alpha" / ".credentials.json", (old, old))
+    monkeypatch.setattr(cr, "_now", lambda: now)
+    monkeypatch.setattr(
+        cr, "_load_usage_cache",
+        lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
+    )
+    def _boom(d):
+        raise AssertionError("--status must never invoke _keepalive_ping")
+    monkeypatch.setattr(cr, "_keepalive_ping", _boom)
+    monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
+    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
+    assert accounts[0]["source"] == "cache", "status serves the honest cached row instead"
+    assert "ping_failed" not in accounts[0]
 
 
 def test_failed_refresh_ping_marks_chain_dead_not_zero(tmp_path, monkeypatch):
@@ -1015,7 +1039,7 @@ def test_failed_refresh_ping_marks_chain_dead_not_zero(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(cr, "_keepalive_ping", lambda d: False)
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
-    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
+    accounts, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
     assert accounts[0]["ping_failed"] is True
     assert accounts[0]["source"] == "cache", "failure keeps the honest stale row"
 

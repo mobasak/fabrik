@@ -25,6 +25,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from html import escape
@@ -318,12 +319,36 @@ def generate() -> str:
     return html
 
 
+_regen_lock = threading.Lock()
+
+
+def _regen_async() -> None:
+    """One background regeneration at a time; drop the request if one is already running."""
+    if not _regen_lock.acquire(blocking=False):
+        return
+
+    def work() -> None:
+        try:
+            generate()
+        finally:
+            _regen_lock.release()
+
+    threading.Thread(target=work, daemon=True, name="quota-regen").start()
+
+
 def _fresh_html() -> str:
-    """Cached HTML when young enough, else a regeneration. Bounds probe volume."""
+    """The last-written page, always served instantly; a stale one triggers a BACKGROUND
+    regeneration. A request must never block on the probe: on 2026-08-18 evening the probe
+    hung (rotate --status shelling out to the claude CLI) and every page load sat on it for
+    its full 60s cap — the operator read the dashboard as "not reachable". The in-page
+    reloader re-fetches within 60s anyway, so serving one stale view costs nothing. Only a
+    first-ever request (no page on disk yet) generates inline."""
     try:
         age = time.time() - _HTML.stat().st_mtime
-        if age < MAX_AGE_S:
-            return _HTML.read_text(encoding="utf-8")
+        html = _HTML.read_text(encoding="utf-8")
+        if age >= MAX_AGE_S:
+            _regen_async()
+        return html
     except OSError:
         pass
     return generate()
