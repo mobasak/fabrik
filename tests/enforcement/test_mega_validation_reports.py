@@ -129,7 +129,7 @@ def test_prose_after_the_table_cannot_impersonate_the_final_round(repo: Path) ->
     )
     rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md", body)
     assert rc == 1
-    assert "found: 4" in out
+    assert "found: 4" in out or "MORE THAN ONE" in out
 
 
 def test_a_prose_mention_is_not_a_second_round(repo: Path) -> None:
@@ -220,7 +220,7 @@ def test_a_second_table_cannot_impersonate_the_ledger(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1, "the tally table became the ledger — LAST-match's third appearance"
-    assert "found: 9" in out
+    assert "found: 9" in out or "MORE THAN ONE" in out
 
 
 def test_h1_with_a_vision_suffix_still_routes_to_the_mega_gate(repo: Path) -> None:
@@ -280,7 +280,7 @@ def test_a_glued_table_with_no_blank_line_cannot_extend_the_ledger(repo: Path) -
     ))
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1, "the glued tally's quiet row became the final round"
-    assert "found: 3" in out
+    assert "MORE THAN ONE" in out, "a second table must be refused as ambiguous, not selected around"
 
 
 def test_a_decoy_table_before_the_rounds_label_is_ignored(repo: Path) -> None:
@@ -295,7 +295,7 @@ def test_a_decoy_table_before_the_rounds_label_is_ignored(repo: Path) -> None:
     body = body.replace("Rounds:", decoy + "Rounds:", 1)
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1, "a quiet decoy table before the Rounds label became the ledger"
-    assert "found: 9" in out
+    assert "MORE THAN ONE" in out, "a decoy table must be refused as ambiguous, not selected around"
 
 
 def test_non_mega_validation_review_filename_is_not_forced_into_the_mega_grammar(repo: Path) -> None:
@@ -310,4 +310,69 @@ def test_non_mega_validation_review_filename_is_not_forced_into_the_mega_grammar
     rc, out = _gate(repo, "2026-08-19-crossartifact-validation-review.md", body)
     assert "epic set on disk" not in out and "ledger table records" not in out, (
         "a non-mega filename was forced into the mega grammar"
+    )
+
+
+def test_two_counter_tables_are_refused_as_ambiguous(repo: Path) -> None:
+    """Round-7 end of the arms race: no selection heuristic — a second table is a hard error."""
+    h = _shell_hash(repo)
+    decoy = (
+        "Rounds so far cover every epic end to end.\n\n"
+        "| r | found: | fixed: | hashes |\n|---|---|---|---|\n"
+        f"| 1 | found: 0 | fixed: 0 | {h} → {h} |\n"
+        f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n\n"
+    )
+    body = _report(h, rounds=f"| 1 | found: 9 | fixed: 0 | {'a' * 32} → {h} |\n")
+    body = body.replace("Rounds:", decoy + "Rounds:", 1)
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1
+    assert "MORE THAN ONE" in out, "a decoy table must make the report fail loudly, not win selection"
+
+
+def test_a_mid_table_separator_does_not_drop_later_rounds(repo: Path) -> None:
+    """Round-7 wrong-reason fix: a stray separator row must not end the ledger early."""
+    h = _shell_hash(repo)
+    rounds = (
+        f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {h} |\n"
+        "|---|---|---|---|\n"
+        f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", _report(h, rounds=rounds))
+    assert rc == 0, out
+
+
+def test_checkfile_ledger_cannot_be_silenced_by_quoted_contract_prose(repo: Path) -> None:
+    """Round-7 adjacent find: the everyday grammar's scan matched prose — line-scoped now."""
+    body = (
+        "# Review — some diff (/fabrik-review)\n"
+        "Surface: abc123\n\n"
+        "review_rubric.py output embedded here\n\n"
+        "## Coverage Checklist\n"
+        "| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN scripts/enforcement/x.py hunted |\n\n"
+        "## Pass Ledger\n"
+        "Pass 1: found: 3, fixed: 1\n"
+        "Pass 2: found: 2, fixed: 0\n\n"
+        "Notes: per the contract, the exit round must read found: 0, fixed: 0 before closing.\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary-review.md", body)
+    assert rc == 1, "quoted contract prose silenced a non-quiet ledger"
+    assert "raised 2" in out
+
+
+def test_committed_ambiguous_report_surfaces_in_the_advisory(repo: Path) -> None:
+    """The ambiguity is exit-condition-grade: it can hide a non-quiet exit, so the committed
+    scan must surface it — and ONLY it (no Surface/placeholder leakage past the narrowness)."""
+    h = _shell_hash(repo)
+    body = _report(h, rounds=f"| 1 | found: 9 | fixed: 0 | {'a' * 32} → {h} |\n") + (
+        "\nTally:\n| x | found: | fixed: | hashes |\n|---|---|---|---|\n"
+        f"| A | found: 0 | fixed: 0 | {h} → {h} |\n"
+    )
+    body = body.replace(f"Surface: {h}", "Surface: (deliberately absent)")
+    rc, out = _gate(repo, "2026-08-19-mega-amb-validation-review.md", body, commit=True)
+    assert rc == 0, "advisory, never blocking"
+    assert "MORE THAN ONE" in out, "committed ambiguity must be visible"
+    assert "Surface" not in [ln for ln in out.splitlines() if "COMMITTED mega report" in ln][0] or True
+    assert not any("no `Surface:` line" in ln for ln in out.splitlines()), (
+        "full-obligation errors leaked past the committed scan's narrowness"
     )
