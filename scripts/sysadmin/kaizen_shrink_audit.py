@@ -179,17 +179,20 @@ def collect_check_activity(transcripts_root: Path, check_names: list[str]) -> Si
         return Signal.unavailable("no check names to search for")
     counts = dict.fromkeys(check_names, 0)
     # boundary-aware: `check_doc` must not count hits belonging to `check_doc_sync`,
-    # nor `python-api` inside `python-api-gpu` (name alphabet is [\w-])
-    pats = {
-        n: re.compile(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])") for n in check_names
-    }
+    # nor `python-api` inside `python-api-gpu` (name alphabet is [\w-]). One alternation
+    # regex, longest-first so the longer of two overlapping names wins the match — a
+    # per-name Python loop over the 8 GB corpus costs ~10 min per pass; this is one
+    # C-level pass.
+    ordered = sorted(check_names, key=len, reverse=True)
+    big = re.compile(
+        r"(?<![\w-])(?:" + "|".join(re.escape(n) for n in ordered) + r")(?![\w-])"
+    )
     for f in files:
         try:
             with f.open(errors="replace") as fh:
                 for line in fh:
-                    for name in check_names:
-                        if name in line:
-                            counts[name] += len(pats[name].findall(line))
+                    for hit in big.findall(line):
+                        counts[hit] += 1
         except OSError:
             continue
     return Signal(counts)
@@ -293,6 +296,26 @@ def collect_applicability(repo: Path, since_days: int) -> Signal:
     return Signal(out)
 
 
+# ── fragment includes: a fragment's usage channel is {{include:}} at render time ─────
+
+_INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
+
+
+def collect_includes(repo: Path) -> Signal:
+    """{fragment_stem: include_count} across command sources — the fragment class's real
+    usage channel (live false positive: 6 actively-included fragments read as deletable
+    when measured on ledger mentions alone)."""
+    sources = repo / "commands" / "_sources"
+    files = sorted(sources.glob("*.md")) if sources.is_dir() else []
+    if not files:
+        return Signal.unavailable(f"no command sources under {sources}")
+    counts: dict[str, int] = {}
+    for f in files:
+        for name in _INCLUDE_RE.findall(f.read_text(encoding="utf-8", errors="replace")):
+            counts[name] = counts.get(name, 0) + 1
+    return Signal(counts)
+
+
 # ── liveness verdicts ────────────────────────────────────────────────────────────────
 
 
@@ -327,6 +350,32 @@ def collect_liveness(sources: Sources) -> Signal:
     if not verdicts:
         return Signal.unavailable("liveness report contains no findings")
     return Signal(verdicts)
+
+
+def _cron_match_map(repo: Path) -> dict[str, str]:
+    """{script_basename: surface_id} from the liveness REGISTRY declarations — findings
+    key on surface ids, never script paths, so the cron join must go through
+    ``cron_match`` (live false positive: provably-live crons read as candidates)."""
+    reg = repo / ".fabrik" / "liveness-registry.json"
+    try:
+        surfaces = json.loads(reg.read_text(encoding="utf-8")).get("surfaces") or []
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, list[str]] = {}
+    for s in surfaces:
+        match, sid = s.get("cron_match"), s.get("id")
+        if isinstance(match, str) and isinstance(sid, str) and match:
+            out.setdefault(Path(match.split()[0]).name, []).append(sid)
+    return out
+
+
+def _best_verdict(verdicts: list[str]) -> str | None:
+    """One script can back several surfaces (rotate: tick + keepalive) — report the
+    strongest evidence: any LIVE beats any DEAD beats UNKNOWN."""
+    for want in ("LIVE", "DEAD"):
+        if want in verdicts:
+            return want
+    return verdicts[0] if verdicts else None
 
 
 # ── mentions: review ledgers fleet-wide + run records (supplementary) ────────────────
@@ -471,7 +520,7 @@ def enumerate_artifacts(sources: Sources) -> tuple[dict[str, list[str]], list[st
 
 _CLASS_MEASURABILITY = {
     "command": "invocations (both channels) + mentions",
-    "fragment": "mentions (fragments have no invocation channel)",
+    "fragment": "{{include:}} references from command sources (the render-time usage channel) + mentions",
     "rule-pack": "applicability only — no invocation channel; activation unknown until M1",
     "gate-check": "transcript gate-output hits + liveness + mentions",
     "hook": "liveness + mentions",
@@ -506,8 +555,13 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
     for k in mention_key.values():
         key_owners[k] = key_owners.get(k, 0) + 1
     men = collect_mentions(src, sorted(set(mention_key.values())))
-    chk = collect_check_activity(src.transcripts, census.get("gate-check", []))
-    scaffold_hits = collect_check_activity(src.transcripts, census.get("scaffold-type", []))
+    # ONE transcript pass for both name families (each pass walks the whole corpus)
+    combined = collect_check_activity(
+        src.transcripts, census.get("gate-check", []) + census.get("scaffold-type", [])
+    )
+    chk = scaffold_hits = combined
+    inc = collect_includes(src.repo)
+    cron_surfaces = _cron_match_map(src.repo)
 
     rows: list[dict] = []
     for cls, artifacts in census.items():
@@ -526,17 +580,21 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
                 "immune": None,
                 "verdict": None,
             }
-            if cls in ("command", "fragment"):
+            if cls == "command":
                 if inv.measurable:
                     c = inv.data.get(a)
-                    if cls == "command":
-                        row["invocations"] = {
-                            "typed": c["typed"] if c else 0,
-                            "skill": c["skill"] if c else 0,
-                        }
-                        row["last_seen"] = c["last_seen"] if c else None
+                    row["invocations"] = {
+                        "typed": c["typed"] if c else 0,
+                        "skill": c["skill"] if c else 0,
+                    }
+                    row["last_seen"] = c["last_seen"] if c else None
                 else:
                     note_parts.append(_note_for(inv, "invocations"))
+            if cls == "fragment":
+                if inc.measurable:
+                    row["invocations"] = {"includes": inc.data.get(a, 0)}
+                else:
+                    note_parts.append(_note_for(inc, "includes"))
             if cls == "rule-pack":
                 if app.measurable and a in app.data:
                     row["applicability_structural"] = app.data[a]["structural"]
@@ -558,6 +616,12 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
                 key = Path(a).name if "/" in a else a
                 stem = key[: -len(Path(key).suffix)] if Path(key).suffix else key
                 row["liveness"] = live.data.get(a) or live.data.get(key) or live.data.get(stem)
+                if row["liveness"] is None and cls == "cron":
+                    # cron findings key on registry surface ids — join via cron_match
+                    sids = cron_surfaces.get(key, [])
+                    row["liveness"] = _best_verdict(
+                        [live.data[s] for s in sids if s in live.data]
+                    )
             else:
                 note_parts.append(_note_for(live, "liveness"))
             if men.measurable:
@@ -577,6 +641,192 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
             row["evidence_note"] = "; ".join(p for p in note_parts if p)
             rows.append(row)
     return rows, notes
+
+
+# ── Phase B: verdict assignment + the report ─────────────────────────────────────────
+
+# verdict TOKENS are exactly these three; human-facing decoration ("keep — immune: …",
+# the applicability label) lives in evidence_note, never in the token (review finding:
+# decorated tokens read as extra verdict forms)
+VERDICTS = ("candidate", "keep", "unknown")
+
+
+def _usage_signals(row: dict) -> list[bool | None]:
+    """Per-class usage signals: True = usage-evidence, False = a measured zero,
+    None = unmeasured. Liveness LIVE is usage-evidence; DEAD is a measured zero;
+    UNKNOWN/absent is unmeasured (three-state, per the liveness audit's own law)."""
+    sig: list[bool | None] = []
+    inv = row.get("invocations")
+    if row["cls"] == "command":
+        sig.append(None if inv is None else (inv.get("typed", 0) + inv.get("skill", 0)) > 0)
+    elif row["cls"] == "fragment":
+        sig.append(None if inv is None else inv.get("includes", 0) > 0)
+    elif row["cls"] == "gate-check":
+        sig.append(None if inv is None else inv.get("gate_output_hits", 0) > 0)
+    elif row["cls"] == "scaffold-type":
+        sig.append(None if inv is None else inv.get("transcript_hits", 0) > 0)
+    if row["cls"] in ("gate-check", "hook", "cron", "core-script"):
+        lv = row.get("liveness")
+        sig.append(True if lv == "LIVE" else False if lv == "DEAD" else None)
+    men = row.get("mentions")
+    sig.append(None if men is None else men.get("ledgers", 0) > 0)
+    return sig
+
+
+def _append_note(row: dict, note: str) -> None:
+    row["evidence_note"] = "; ".join(p for p in (row["evidence_note"], note) if p)
+
+
+def assign_verdicts(rows: list[dict]) -> list[dict]:
+    """Fill immune + verdict on Phase A's evidence rows (mutates and returns).
+
+    candidate  — zero on EVERY measurable signal for its class AND not immune
+    keep       — immune (justification in evidence_note), or any usage-evidence
+    unknown    — rule packs always (applicability-only class — the only glob-activated
+                 class with no invocation channel), or every class signal unmeasurable
+    """
+    from kaizen_immune_list import JUSTIFICATIONS  # noqa: PLC0415 — sibling module
+
+    for row in rows:
+        # basename fallback: census keys drift between absolute and relative cron forms
+        # (live false positive: liveness_audit.py listed as candidate past its own entry)
+        just = JUSTIFICATIONS.get(row["artifact"]) or JUSTIFICATIONS.get(
+            Path(row["artifact"]).name
+        )
+        row["immune"] = just is not None
+        if just is not None:
+            row["verdict"] = "keep"
+            _append_note(row, f"keep — immune: {just}")
+            continue
+        if row["cls"] == "rule-pack":
+            row["verdict"] = "unknown"
+            continue
+        signals = [s for s in _usage_signals(row) if s is not None]
+        if not signals:
+            row["verdict"] = "unknown"
+            _append_note(row, "all class signals unmeasurable — routed to unknown, never candidate")
+            continue
+        row["verdict"] = "keep" if any(signals) else "candidate"
+    return rows
+
+
+def _fmt(v: object) -> str:
+    if v is None:
+        return "—"
+    if isinstance(v, dict):
+        return " ".join(f"{k}:{x}" for k, x in v.items())
+    return str(v)
+
+
+def render_report(rows: list[dict], census_notes: list[str], out: Path) -> str:
+    """The M0 report: per-class evidence tables (every row), the legend, the erratum,
+    the census-scope statement, and the ## Operator ruling section."""
+    today = dt.date.today().isoformat()
+    for r in rows:
+        if r.get("verdict") not in VERDICTS:  # decoration lives in evidence_note, never here
+            raise ValueError(
+                f"verdict token {r.get('verdict')!r} on {r['artifact']!r} is not one of {VERDICTS}"
+            )
+    by_cls: dict[str, list[dict]] = {}
+    for r in rows:
+        by_cls.setdefault(r["cls"], []).append(r)
+    n_candidates = sum(1 for r in rows if r["verdict"] == "candidate")
+
+    lines = [
+        "# Kaizen M0 — shrink-audit census report",
+        "",
+        f"Generated {today} by `scripts/sysadmin/kaizen_shrink_audit.py --report` "
+        f"over {len(rows)} artifacts in {len(by_cls)} classes.",
+        "",
+        "**Census scope:** final for METER SIZING only; re-opens on M1 activation data "
+        "(an M0-shrunk artifact may be M1-revived — the reconciliation is an ordinary "
+        "revival PR, not a contradiction). Deletions (post-ruling) are archive-moves, "
+        "revivable.",
+        "",
+        "**Evidence-substitution erratum (spec § M0):** the spec names "
+        '"checks-that-never-failed from gate JSON history" as an evidence stream — '
+        "**no gate JSON history exists** (`final_gate.py` prints JSON, stores nothing). "
+        "Substitutes used instead: per-check gate-output hits grepped from transcripts "
+        "+ the liveness audit's verdicts.",
+        "",
+        "## Legend — what each class's signals CAN say",
+        "",
+        "| Class | Measurable signals |",
+        "|---|---|",
+    ]
+    lines += [f"| {c} | {_CLASS_MEASURABILITY.get(c, '?')} |" for c in sorted(by_cls)]
+    lines += [
+        "",
+        "- The honesty rule: `—` = unmeasurable (reason in the row's note), never 0.",
+        "- Invocation zeros are zeros **within the transcript corpus scanned** "
+        "(per-session files selected by mtime; `last-seen` is a file-mtime date, a "
+        "range proxy).",
+        "- Liveness: `—` = the artifact declares no liveness surface; verdicts are "
+        "three-state (LIVE/DEAD/UNKNOWN).",
+        "- Rule packs are the applicability-only class: glob reach is NOT usage; their "
+        "rows are labelled `applicability-only — activation unknown until M1` and can "
+        "never be candidates.",
+        "- `immune` blocks AUTO-candidacy only (safety machinery presents as unused "
+        "precisely because it works); every immune row still shows its evidence, and "
+        "the operator's ruling is final on ALL rows.",
+        "",
+    ]
+    for cls in sorted(by_cls):
+        lines += [
+            f"## {cls} ({len(by_cls[cls])})",
+            "",
+            "| artifact | invocations | last-seen | applicability s/r | liveness | "
+            "mentions | immune | verdict | evidence note |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ]
+        for r in sorted(by_cls[cls], key=lambda x: x["artifact"]):
+            app = (
+                f"{_fmt(r['applicability_structural'])}/{_fmt(r['applicability_recent'])}"
+                if cls == "rule-pack"
+                else "—"
+            )
+            lines.append(
+                f"| `{r['artifact']}` | {_fmt(r['invocations'])} | {_fmt(r['last_seen'])} "
+                f"| {app} | {_fmt(r['liveness'])} | {_fmt(r['mentions'])} "
+                f"| {'yes' if r['immune'] else 'no'} | **{r['verdict']}** "
+                f"| {r['evidence_note'] or '—'} |"
+            )
+        lines.append("")
+    if census_notes:
+        lines += ["## Census notes", ""] + [f"- {n}" for n in census_notes] + [""]
+    lines += [
+        "## Operator ruling",
+        "",
+        f"{n_candidates} deletion candidate(s) — zero on every measurable class signal, "
+        "not immune. The ruling is the OPERATOR's act, recorded here; the audit never "
+        "self-rules. Tick to approve the archive-move (revivable), strike to keep:",
+        "",
+    ]
+    cands = [r for r in rows if r["verdict"] == "candidate"]
+    lines += [
+        f"- [ ] `{r['artifact']}` ({r['cls']}) — {r['evidence_note'] or 'zero on all measured signals'}"
+        for r in sorted(cands, key=lambda x: (x["cls"], x["artifact"]))
+    ] or ["- (none — no artifact met the candidate bar)"]
+    zero_immune = [
+        r for r in rows
+        if r["immune"] and not any(s for s in _usage_signals(r) if s)
+    ]
+    if zero_immune:
+        lines += [
+            "",
+            "### Informational — immune rows with zero usage-evidence",
+            "",
+            "Not candidates (immunity), listed so the shrink question is answered with "
+            "eyes open; ruling on these is equally yours:",
+            "",
+        ] + [
+            f"- `{r['artifact']}` ({r['cls']})"
+            for r in sorted(zero_immune, key=lambda x: (x["cls"], x["artifact"]))
+        ]
+    lines.append("")
+    text = "\n".join(lines)
+    out.write_text(text, encoding="utf-8")
+    return text
 
 
 # ── selftest: the duplex-fixture canary (a check that cannot fail is not a check) ────
@@ -698,6 +948,11 @@ def main(argv: list[str] | None = None) -> int:
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--json", action="store_true", help="run the census, print rows as JSON")
     g.add_argument("--selftest", action="store_true", help="duplex-fixture canary")
+    g.add_argument(
+        "--report",
+        action="store_true",
+        help="run the census + verdicts, write docs/workstation/kaizen-shrink-audit.md",
+    )
     ap.add_argument(
         "--since-days",
         type=int,
@@ -709,7 +964,20 @@ def main(argv: list[str] | None = None) -> int:
         return selftest()
     src = Sources(since_days=args.since_days)
     rows, notes = audit(src)
-    print(json.dumps({"rows": rows, "census_notes": notes, "total": len(rows)}, indent=1))
+    census_total = len(rows)
+    if args.report:
+        rows = assign_verdicts(rows)
+        assert len(rows) == census_total, "a verdict pass must never drop a census row"
+        out = src.repo / "docs" / "workstation" / "kaizen-shrink-audit.md"
+        render_report(rows, notes, out)
+        print(f"report: {out}")
+        print(f"census rows: {census_total} (all rendered)")
+        for cls in sorted({r['cls'] for r in rows}):
+            n = sum(1 for r in rows if r["cls"] == cls)
+            c = sum(1 for r in rows if r["cls"] == cls and r["verdict"] == "candidate")
+            print(f"  {cls}: {n} rows, {c} candidate(s)")
+        return 0
+    print(json.dumps({"rows": rows, "census_notes": notes, "total": census_total}, indent=1))
     return 0
 
 

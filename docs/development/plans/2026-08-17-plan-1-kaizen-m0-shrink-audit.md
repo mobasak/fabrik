@@ -65,7 +65,7 @@ Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md (§ Sequ
 | `.md` allowlist | report lives at `docs/workstation/kaizen-shrink-audit.md` (box-local system doc — Doc Sync Matrix "new subsystem → dedicated doc" row; kaizen.md precedent) | CLAUDE.md § HARD STOPS (allowlist) + § Doc Sync Matrix |
 | No `shape:` flags / no deploy | box-local script + report; no service, no spec, no cron in M0 | spec § Shape/infra |
 
-## Phase A — the evidence engine (`kaizen_shrink_audit.py`) with duplex fixtures — ✅ EXECUTED 2026-08-19
+## Phase A — the evidence engine (`kaizen_shrink_audit.py`) with duplex fixtures — ✅ EXECUTED 2026-08-19 (f9e253b1)
 
 **Files:** `scripts/sysadmin/kaizen_shrink_audit.py` (new; `# AFTER-EDIT:` header),
 `tests/test_kaizen_shrink_audit.py` (new).
@@ -131,7 +131,7 @@ Steps:
 - **Given** a pack whose globs matched no changed file in 60d, **When** applicability is computed,
   **Then** the row is labelled `applicability-only — activation unknown until M1`, never "unused".
 
-## Phase B — census, immune registry, report, operator-ruling section
+## Phase B — census, immune registry, report, operator-ruling section — ✅ EXECUTED 2026-08-19
 
 **Files:** `scripts/sysadmin/kaizen_immune_list.py` (new — the DATA lives as a reviewed Python list
 with per-entry one-line justifications, so the human can audit it),

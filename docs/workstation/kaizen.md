@@ -147,11 +147,29 @@ question. The liveness layer's heartbeat proof supplies it, and the mail now als
 health: inert gate checks, stale doc claims, and surfaces present on the box but absent from the
 registry. See `docs/workstation/liveness.md`.
 
+## M0 — the shrink audit (2026-08-19)
+
+The kaizen closed-loop v2 spec (`docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md`
+§ Sequencing) runs the SHRINK QUESTION first: before any meter is built, should ~203 governance
+artifacts and 57 checks become 60 and 20? `scripts/sysadmin/kaizen_shrink_audit.py --report`
+answers it with evidence — per artifact: invocations (BOTH channels: typed `<command-name>` rows
+AND Skill tool_use rows, keyed on JSON structure), rule-pack applicability (structural + recent,
+labelled `applicability-only — activation unknown until M1`, never usage), gate-output hits,
+liveness verdicts, and fleet-wide ledger mentions. `kaizen_immune_list.py` excludes safety
+machinery from AUTO-candidacy (rarely-fired guards present as "unused" precisely because they
+work); the operator's ruling — recorded in the report's `## Operator ruling` section — is the
+final say on every row. The census is final for METER SIZING only and re-opens on M1 activation
+data. The same honesty rule binds: unmeasurable prints `—` with its reason, never 0.
+
 ## Files
 
 | Path | Role |
 |---|---|
 | `scripts/sysadmin/kaizen_metrics.py` | the measurement half |
+| `scripts/sysadmin/kaizen_shrink_audit.py` | the M0 census engine (`--report` / `--json` / `--selftest`) |
+| `scripts/sysadmin/kaizen_immune_list.py` | the immune registry — per-entry justifications, never-route class enumerated live |
+| `tests/test_kaizen_shrink_audit.py` | duplex-fixture behavior tests for every collector + the verdict engine |
+| `docs/workstation/kaizen-shrink-audit.md` | the M0 census report + the operator's ruling |
 | `scripts/sysadmin/liveness_audit.py` | supplies `Missed crons` + the mail's mechanism-health context (`docs/workstation/liveness.md`) |
 | `tests/test_kaizen_metrics.py` | behavior tests, incl. the honesty rule and idempotence |
 | `docs/reference/agents/kaizen-log-infra.md` | infra's log — one row per pass |

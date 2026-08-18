@@ -43,3 +43,50 @@ Finders: pool deepseek/deepseek-v3.2-exp ×1 + google/gemini-3-flash-preview ×1
 Red-on-revert proof (plan § Phase A step 4): `_skill_names` neutered in place → 
 `test_transcript_invocations_counts_both_channels` FAILED; restored byte-identical
 (`cmp` clean) → 14 passed. The suite is discriminating, not decorative.
+
+## Phase B — immune registry, verdicts, report
+
+Surface: `kaizen_immune_list.py` (new), Phase B additions to `kaizen_shrink_audit.py`
+(includes collector, cron-liveness join, verdict engine, report renderer), tests, the
+generated report, doc rows (INDEX/kaizen.md/spec erratum/CHANGELOG).
+
+### Round 0 — the author's own live-census sanity pass (before any finder)
+
+The first real `--report` run listed **17 candidates**; three were absurd on sight and
+each traced to a defect class, all fixed with regressions seen RED first:
+
+| Defect | Failure it caused | Fix + regression |
+|---|---|---|
+| Fragments measured on ledger mentions | 6 actively-`{{include:}}`-ed fragments listed as deletable | `collect_includes()` — the render-time usage channel; `test_fragment_usage_is_include_references_not_ledger_mentions` |
+| Cron liveness never joined (findings key on surface ids via `cron_match`) | provably-live crons (quota_dashboard restarted that same hour) fell to candidate on mentions-only | `_cron_match_map()` + `_best_verdict()`; `test_cron_liveness_joins_via_registry_cron_match` |
+| Immune keys absolute-only | `liveness_audit.py` a candidate past its own immune entry | basename aliases in the registry; `test_immune_lookup_matches_relative_cron_forms` |
+
+Post-fix census: **198 rows, 9 candidates** — every remaining candidate spot-verified
+(the two fragments grep-confirmed never included; cron candidates carry honest
+UNKNOWN/DEAD liveness cells the operator sees).
+
+### Round 1 — 3 pool finders
+
+Finders: pool deepseek/deepseek-v3.2-exp ×1 + qwen/qwen3-max ×1 + google/gemini-3-flash-preview ×1 (errored: region 403) — round 1
+
+| # | Finder | Finding | Disposition |
+|---|---|---|---|
+| 1 | deepseek | H: rule packs with usage should be keep, not unknown | REFUTED — applicability is never usage (the plan's core premise); unknown-always for non-immune packs IS the design |
+| 2 | deepseek | H: basename immune fallback could over-immunize a same-named artifact | REFUTED as live defect — no basename collision exists in the census, and the failure direction is keep (safe); mention collisions are separately annotated |
+| 3 | deepseek | M: scaffold hits stored under a different key than read | REFUTED — `transcript_hits` on both sides (misread) |
+| 4 | deepseek | M: no runtime guard on the verdict-token enum | **CONFIRMED → FIXED** — `render_report` raises `ValueError` on any token outside the enum; `test_report_refuses_a_row_with_a_decorated_or_missing_verdict`, proven red-on-revert |
+| 5 | deepseek | L: `_best_verdict` may return None | REFUTED — None is the legal "no verdict" liveness value, handled by `_fmt`/`_usage_signals` |
+| 6 | deepseek | L: `_CLASS_MEASURABILITY` undefined | REFUTED — defined in the Phase A section (finder saw a slice) |
+| 7 | qwen | H×2 + M: ledger/transcript zeros must be `—` | REFUTED — re-litigates the settled scanned-universe-zero semantics (universe exists, legend states the window) |
+
+### Round 2 — fresh sweep of the updated surface
+
+Finders: pool deepseek/deepseek-v3.2-exp ×2 (one truncated output, re-dispatched with capture) — round 2
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | H: immune rows fall through without `continue` | REFUTED — the finder's "proposed fix" is byte-for-byte the shipped code; the `continue` exists |
+| 2 | H: `cron_match.split()[0]` grabs the cron schedule field | REFUTED — `cron_match` is a script+args substring (`'claude_rotate.py --tick'`), never a full cron line (registry inspected before the join was written); locked by `test_cron_liveness_joins_via_registry_cron_match` |
+
+**Round 2: found 0 CONFIRMED, 0 PLAUSIBLE — clean round. Phase B review exit reached.**
+26 tests green + `--selftest` green; token guard proven red-on-revert.
