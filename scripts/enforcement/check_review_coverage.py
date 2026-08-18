@@ -228,7 +228,7 @@ CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
 # non-quiet ledger and live placeholders — reproduced. The filename key means a mega-shaped
 # name can never route to a weaker grammar, whatever its title says.
 MEGA_REPORT_H1 = re.compile(r"\A#\s+Cross-Epic Validation Report\b")
-MEGA_FILENAME = re.compile(r"-validation-review\.md$")
+MEGA_FILENAME = re.compile(r"\bmega-.*-validation-review\.md$")  # the doc reserves …-mega-<slug>-validation-review.md; a bare suffix would force FUTURE non-mega reports (e.g. ettw-10) into the wrong grammar
 
 
 def _is_mega_report(path: Path, text: str) -> bool:
@@ -246,19 +246,31 @@ _MEGA_ROW = re.compile(r"^\s*\|.*?found:\s*(\d+).*?fixed:\s*(\d+).*$")
 
 
 def _mega_ledger_rows(body: str) -> list[tuple[int, int, str]]:
+    """The round ledger's counter rows — and ONLY its.
+
+    Two boundary rules, each a reproduced defeat (round-5 closing sweep):
+    * Once counter rows have started, the FIRST pipe line that is NOT a counter row ends the
+      ledger — a second table glued directly underneath (no blank line) starts with its own
+      header row, and v3 merged it in, letting a decoy quiet row become "the final round".
+    * When a line starting with `Rounds` exists (the template's label), the scan starts AFTER
+      it — a decoy counter table placed BEFORE the real ledger otherwise wins "first table".
+    """
+    lines = body.splitlines()
+    start_at = 0
+    for i, line in enumerate(lines):
+        if re.match(r"^\**Rounds\b", line, re.I):
+            start_at = i + 1
+            break
     rows: list[tuple[int, int, str]] = []
-    in_table = started = False
-    for line in body.splitlines():
-        if line.lstrip().startswith("|"):
-            in_table = True
-            m = _MEGA_ROW.match(line)
-            if m:
-                started = True
-                rows.append((int(m.group(1)), int(m.group(2)), line))
-        elif in_table:
-            if started:
-                break  # the ledger table ended; later tables are NOT the ledger
-            in_table = False
+    started = False
+    for line in lines[start_at:]:
+        is_pipe = line.lstrip().startswith("|")
+        m = _MEGA_ROW.match(line) if is_pipe else None
+        if m:
+            started = True
+            rows.append((int(m.group(1)), int(m.group(2)), line))
+        elif started:
+            break  # first non-counter line after counters began — header of a glued table, prose, blank: the ledger is over
     return rows
 _MEGA_SURFACE = re.compile(rf"^\**Surface:\**\s*({_MEGA_HEX})\b", re.M)  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 _FENCE = re.compile(r"^```.*?^```\s*$", re.M | re.S)

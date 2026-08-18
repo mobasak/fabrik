@@ -300,3 +300,20 @@ def test_templates_fallback_is_orch_scoped_and_files_only(tmp_path: Path):
     assert not any("99-probe.md" in p and "only_in_template" in p for p in problems), (
         "the orch doc's template-shipped ref must resolve"
     )
+
+
+def test_hub_absolute_script_citations_are_audited(tmp_path: Path):
+    """Round-5 defeat: /opt/fabrik/scripts/x.py citations were invisible to predicate 3 —
+    the orchestrator docs cite almost exclusively in that form."""
+    src, frag = tmp_path / "_sources", tmp_path / "_fragments"
+    src.mkdir(), frag.mkdir()
+    live = tmp_path / "scripts" / "really_here.py"
+    live.parent.mkdir()
+    live.write_text("#\n")
+    (src / "fabrik-real.md").write_text(
+        "run `/opt/fabrik/scripts/definitely_absent_xyz.py` then "
+        "`/opt/fabrik/scripts/really_here.py`\n{{include:run-record}}\n"
+    )
+    problems = audit(src, frag, tmp_path / "absent.py", tmp_path, traycer_skills=tmp_path / "no-orch")
+    assert any("definitely_absent_xyz" in p for p in problems), "absolute dead citation missed"
+    assert not any("really_here" in p for p in problems), "absolute LIVE citation false-flagged"

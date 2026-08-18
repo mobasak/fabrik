@@ -70,7 +70,12 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 _CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
 _WEB_TOOLS_RE = re.compile(r"web_tools\s*=\s*\[([^\]]*)\]")
 _NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "context7", not "context"
-_SCRIPT_RE = re.compile(r"(?<![\w/-])(scripts/[\w/-]+\.py)")
+# Both citation forms: bare `scripts/x.py` AND hub-absolute `/opt/fabrik/scripts/x.py` — the
+# orchestrator docs cite almost exclusively in the absolute form, and the lookbehind-only regex
+# was blind to every one of them (predicate 3 said "all sound" while it audited nothing there —
+# reproduced with a dead absolute citation, round-5 closing sweep). The absolute prefix is
+# stripped before resolution, so both forms check the same repo-rooted path.
+_SCRIPT_RE = re.compile(r"(?:/opt/fabrik/|(?<![\w/-]))(scripts/[\w/-]+\.py)")
 _TRAILER_RE = re.compile(r"Co-Authored-By:\s*(.+?)\s*<")
 
 

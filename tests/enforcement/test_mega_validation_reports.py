@@ -266,3 +266,48 @@ def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
         "the committed scan emitted full-obligation errors — that is the muting mechanism "
         "the narrowness contract names (only quiet-exit + moved-hash may surface)"
     )
+
+
+def test_a_glued_table_with_no_blank_line_cannot_extend_the_ledger(repo: Path) -> None:
+    """Round-5 defeat: no blank line = one table to the parser; a decoy quiet row won."""
+    h = _shell_hash(repo)
+    body = _report(h, rounds=(
+        f"| 1 | found: 9 | fixed: 2 | {'a' * 32} → {'b' * 32} |\n"
+        f"| 2 | found: 3 | fixed: 3 | {'b' * 32} → {h} |\n"
+        "| lens | found: | fixed: | hashes |\n"
+        "|---|---|---|---|\n"
+        f"| A | found: 0 | fixed: 0 | {h} → {h} |\n"
+    ))
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1, "the glued tally's quiet row became the final round"
+    assert "found: 3" in out
+
+
+def test_a_decoy_table_before_the_rounds_label_is_ignored(repo: Path) -> None:
+    h = _shell_hash(repo)
+    decoy = (
+        "Baseline:\n"
+        "| x | found: | fixed: | hashes |\n|---|---|---|---|\n"
+        f"| 0 | found: 0 | fixed: 0 | {h} → {h} |\n"
+        f"| 0 | found: 0 | fixed: 0 | {h} → {h} |\n\n"
+    )
+    body = _report(h, rounds=f"| 1 | found: 9 | fixed: 2 | {'a' * 32} → {h} |\n")
+    body = body.replace("Rounds:", decoy + "Rounds:", 1)
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1, "a quiet decoy table before the Rounds label became the ledger"
+    assert "found: 9" in out
+
+
+def test_non_mega_validation_review_filename_is_not_forced_into_the_mega_grammar(repo: Path) -> None:
+    """A future ettw-10 report named ...-crossartifact-validation-review.md is not mega's."""
+    body = (
+        "# Cross-Artifact Validation — ettw 10\n\nSurface: abc123\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open | CLEAN scripts/enforcement/check_review_coverage.py hunted |\n"
+        "Pass 2 ledger: found: 0, fixed: 0\nreview_rubric.py run recorded\n"
+        "boundary cost quota behavior-without-a-test untested behavior\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-crossartifact-validation-review.md", body)
+    assert "epic set on disk" not in out and "ledger table records" not in out, (
+        "a non-mega filename was forced into the mega grammar"
+    )
