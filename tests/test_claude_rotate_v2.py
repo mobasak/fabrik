@@ -1054,3 +1054,21 @@ def test_dead_active_chain_does_not_flip_on_boxwide_outage(monkeypatch):
     monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
     cr._fleet_flip_leg([], accounts, threshold=95.0)
     assert flips == [], "a box-wide outage must never trigger a flip storm"
+
+
+def test_keepalive_sweep_pings_only_idle_dirs(tmp_path, monkeypatch):
+    """The tick-folded keepalive (2026-08-18: the Monday cron slot was slept through) pings
+    a >7d-idle dir and leaves fresh dirs alone."""
+    import os as _os
+    root = tmp_path / "fleet"
+    for name in ("stale", "fresh"):
+        d = root / name
+        d.mkdir(parents=True)
+        (d / ".credentials.json").write_text("{}")
+    now = 2_000_000.0
+    _os.utime(root / "stale" / ".credentials.json", (now - 8 * 86400,) * 2)
+    _os.utime(root / "fresh" / ".credentials.json", (now - 1 * 86400,) * 2)
+    pinged = []
+    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
+    p, f = cr._keepalive_sweep([root / "stale", root / "fresh"], now, quiet=True)
+    assert pinged == ["stale"] and (p, f) == (1, 0)

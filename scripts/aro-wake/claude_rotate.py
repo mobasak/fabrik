@@ -3597,6 +3597,10 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     now = _now()
     accounts, pending = _fleet_account_rows(dirs)
     _fleet_flip_leg(dirs, accounts, threshold)
+    # Unmissable keepalive (2026-08-18): the weekly cron slot can be slept through — the tick
+    # cannot, while WSL is up at all. quiet=True: the fresh-dir lines would spam every 5 min;
+    # due pings and failures still print + alert.
+    _keepalive_sweep(dirs, now, quiet=True)
     for row in accounts:
         windows = [w for w in (row["five_hour"], row["seven_day"]) if isinstance(w, dict)]
         utils = [
@@ -3695,30 +3699,24 @@ def _keepalive_ping(cfg_dir: Path) -> bool:
         return False
 
 
-def _cmd_keepalive() -> int:
-    """Idle-chain keepalive: ping every fleet dir whose credential MTIME (never content — the
-    CLI rewrites the file on each refresh, so mtime IS last-use) is >7 days old, so no chain
-    ever reaches the ~30-day idle lapse. Cron-safe: one line per dir on stdout, rc 0 when
-    every stale dir refreshed (or none was stale), rc 1 when any ping failed — a failed ping
-    also alerts via mesh-notify (the ci_health_probe invocation, via _tick_telegram)."""
-    now = _now()
-    dirs = _fleet_dirs()
-    if not dirs:
-        print(f"keepalive: no fleet dirs under {_fleet_root()} — nothing to do")
-        return 0
+def _keepalive_sweep(dirs: list, now: float, quiet: bool = False) -> tuple[int, int]:
+    """The keepalive core: ping every dir whose credential mtime exceeds the idle ceiling.
+    Shared by the weekly cron command AND the 5-minute tick (2026-08-18: the Monday 06:20
+    cron missed its slot because WSL was asleep — cron has no catch-up, so a one-shot weekly
+    schedule can silently skip; the tick folding this in makes the idle check unmissable
+    while WSL is up at all: the stat is ~free, the ping fires only when a dir is >7d idle)."""
     pinged = failures = 0
     for d in dirs:
         try:
-            idle_s = now - (d / ".credentials.json").stat().st_mtime  # mtime only, never bytes
+            idle_s = now - (d / ".credentials.json").stat().st_mtime
         except OSError:
-            print(f"keepalive: {d.name} — no credentials yet (pending /login), skipped")
+            if not quiet:
+                print(f"keepalive: {d.name} — no credentials yet (pending /login), skipped")
             continue
-        # Clock-skew clamp (the _last_switch_ts class): an mtime AHEAD of now would read as
-        # "fresh" and silently skip a due ping. Safe direction: a spurious ping is harmless, a
-        # missed one risks the ~30-day idle lapse — future-skewed counts as DUE.
         skewed = idle_s < -_CLOCK_SKEW_TOLERANCE_S
         if not skewed and idle_s <= _KEEPALIVE_MAX_IDLE_S:
-            print(f"keepalive: {d.name} — fresh ({idle_s / 86400:.1f}d idle), no ping needed")
+            if not quiet:
+                print(f"keepalive: {d.name} — fresh ({idle_s / 86400:.1f}d idle), no ping needed")
             continue
         idle_desc = (
             "future-skewed mtime, treated as due" if skewed else f"{idle_s / 86400:.1f}d idle"
@@ -3734,6 +3732,21 @@ def _cmd_keepalive() -> int:
                 " refresh chain risks the ~30-day idle lapse; run one claude turn in that dir"
                 " (or ONE /login if it already lapsed)"
             )
+    return pinged, failures
+
+
+def _cmd_keepalive() -> int:
+    """Idle-chain keepalive: ping every fleet dir whose credential MTIME (never content — the
+    CLI rewrites the file on each refresh, so mtime IS last-use) is >7 days old, so no chain
+    ever reaches the ~30-day idle lapse. Cron-safe: one line per dir on stdout, rc 0 when
+    every stale dir refreshed (or none was stale), rc 1 when any ping failed — a failed ping
+    also alerts via mesh-notify (the ci_health_probe invocation, via _tick_telegram)."""
+    now = _now()
+    dirs = _fleet_dirs()
+    if not dirs:
+        print(f"keepalive: no fleet dirs under {_fleet_root()} — nothing to do")
+        return 0
+    pinged, failures = _keepalive_sweep(dirs, now, quiet=False)
     print(f"keepalive: done — {pinged} pinged, {failures} failed")
     return 1 if failures else 0
 

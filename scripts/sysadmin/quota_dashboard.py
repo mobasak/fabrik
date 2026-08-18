@@ -85,9 +85,7 @@ def _fmt_age(age_s: float | None) -> str:
 
 
 def _bar(remaining: float, tone: str) -> str:
-    return (
-        f'<div class="bar"><span class="fill {tone}" style="width:{max(0.0, min(100.0, remaining)):.1f}%"></span></div>'
-    )
+    return f'<div class="bar"><span class="fill {tone}" style="width:{max(0.0, min(100.0, remaining)):.1f}%"></span></div>'
 
 
 def _tone(remaining: float) -> str:
@@ -146,13 +144,10 @@ def _row(acct: dict, active: str | None) -> str:
             and age >= window_s
         ):
             blind = (
-                " · browser use is not visible here"
-                if acct.get("weekly_cap") is not None
-                else ""
+                " · browser use is not visible here" if acct.get("weekly_cap") is not None else ""
             )
             note = (
-                f"idle — not the active pointer, so no fleet usage since this window rolled"
-                f"{blind}"
+                f"idle — not the active pointer, so no fleet usage since this window rolled{blind}"
                 if not is_active
                 else f"last read {escape(_fmt_age(age))}, older than the "
                 f"{window_s / 3600:.0f}h window — re-reads on next use"
@@ -161,8 +156,8 @@ def _row(acct: dict, active: str | None) -> str:
             tone_i = "ok" if not is_active else "warn"
             return (
                 f'<td class="num"><span class="pct {tone_i}">{label}</span>'
-                f'{_bar(100.0 if not is_active else 0.0, tone_i)}'
-                f"<span class=\"sub\">{note}</span></td>"
+                f"{_bar(100.0 if not is_active else 0.0, tone_i)}"
+                f'<span class="sub">{note}</span></td>'
             )
         tone = _tone(left)
         return (
@@ -201,7 +196,9 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
     if pause == "marker":
         banner += '<div class="banner warn">Auto-rotation is PAUSED by the operator marker.</div>'
     elif pause == "error":
-        banner += '<div class="banner crit">Pause state unreadable — rotation is failing closed.</div>'
+        banner += (
+            '<div class="banner crit">Pause state unreadable — rotation is failing closed.</div>'
+        )
     if not accounts:
         banner += '<div class="banner warn">No fleet accounts reporting yet.</div>'
 
@@ -215,7 +212,6 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="{REFRESH_S}">
 <title>Claude quota — {escape(str(active or "no active account"))}</title>
 <style>
  :root {{ color-scheme: light dark;
@@ -269,7 +265,8 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 </style></head><body><div class="wrap">
 <header>
   <h1>Claude account quota — active: <span class="who">{escape(str(active or "none"))}</span></h1>
-  <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s</div>
+  <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s ·
+    <span id="conn">live</span></div>
 </header>
 {banner}
 <table>
@@ -279,7 +276,25 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 {warn_html}
 <footer>Rotation flips the active pointer at 95% on either window, or at an account's
 configured cap. Data regenerates on view, at most once every {int(MAX_AGE_S)}s.</footer>
-</div></body></html>"""
+</div><script>
+/* Health-gated auto-refresh (2026-08-18 — replaces meta http-equiv=refresh). The meta tag
+   died on the first failed load after a WSL restart: the browser's error page carries no
+   refresh tag, so the tab froze until a manual F5 — the operator hit this twice. This
+   reloader NEVER navigates on failure: it polls /health and reloads only when the server
+   answers, so the tab rides out server restarts, WSL restarts, and host hibernation, and
+   self-heals the moment the box is back. */
+(function () {{
+  var conn = document.getElementById("conn");
+  setInterval(function () {{
+    fetch("/health", {{cache: "no-store"}})
+      .then(function (r) {{ if (r.ok) location.reload(); }})
+      .catch(function () {{
+        if (conn) {{ conn.textContent = "server unreachable — retrying"; }}
+      }});
+  }}, {REFRESH_S} * 1000);
+}})();
+</script>
+</body></html>"""
 
 
 def generate() -> str:

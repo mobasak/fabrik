@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — dashboard tab survives WSL restarts; keepalive can no longer miss its slot (2026-08-18)
+
+Operator requirement: localhost:5051 "must always show up-to-date usage" as long as WSL is up,
+across host hibernation and WSL restarts. Two remaining holes closed:
+
+- **The browser tab froze permanently after any server outage.** The page used
+  `<meta http-equiv="refresh">`; the first refresh into a restarting WSL loads the browser's
+  error page, which carries no refresh tag — the tab then sits dead until a manual F5 (the
+  operator hit this twice). Replaced with a health-gated JS reloader: it polls `/health` and
+  reloads ONLY when the server answers, so it never navigates onto an error page, shows
+  "server unreachable — retrying" during the gap, and self-heals the moment the box is back.
+- **The weekly keepalive cron slot could be slept through** (Monday 06:20 was missed while the
+  host hibernated — cron has no catch-up; the log file simply never existed). The keepalive
+  core is refactored into `_keepalive_sweep`, and the 5-minute tick now runs it quiet: the
+  idle check is a stat per dir, the ping fires only >7d idle, and no scheduled moment exists
+  to miss. The weekly cron remains as documented double-coverage.
+
+1 new test (60 green); aro-wake twin byte-identical.
+
 ### Fixed — rotation: a dead ACTIVE chain now flips away + alerts; readings never go stale (2026-08-18)
 
 The 2026-08-17 21:00 incident: the active account's OAuth chain died mid-use at 93% quota. The tick
