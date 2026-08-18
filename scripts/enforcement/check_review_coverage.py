@@ -203,6 +203,66 @@ def check_file(p: Path) -> list[str]:
 #   any OPEN row  -> report must carry NOT-QUIET marker AND a ## RESUME section
 #   NOT-QUIET marker -> ## RESUME required
 CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
+
+# --- Mega cross-epic validation reports (fab-mega-04-validate) ---------------------------------
+# Third grammar, keyed on the report's own H1 rather than the filename — the filename carries a
+# free vision-slug. Until 2026-08-16 mega-04's report went ONLY to Telegram, so its exit was
+# read by no gate at all (plan-review's is read by check_convergence; this one by nobody). The
+# command now persists the report here, and these rules are its exit contract:
+# Surface hash + per-round ledger with hash pairs + min-2 rounds + quiet final round with an
+# unmoved hash + no surviving template placeholders.
+MEGA_REPORT_H1 = re.compile(r"^#\s+Cross-Epic Validation Report\s*$", re.M)
+# The Step-4 template's placeholder tokens, exactly — not a general [..] hunt, which would
+# false-positive on markdown links and literal prose brackets.
+_MEGA_PLACEHOLDERS = ("[PASS]", "[FAIL]", "[N]", "[M]", "[list]", "[none / list]")
+_MEGA_HASH_PAIR = re.compile(r"([0-9a-f]{4,})\S*\s*(?:→|->)\s*([0-9a-f]{4,})")
+_MEGA_LEDGER_ROW = re.compile(r"found:\s*(\d+)\s*(?:,|·|\|)?\s*fixed:\s*\d+")
+
+
+def check_mega_validation(path: Path) -> list[str]:
+    """The persisted mega-04 report must PROVE its adjudicated exit, not assert it."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if IN_PROGRESS.search(text):
+        return []  # the sanctioned mid-loop state — chased by the advisory scan, not blocked here
+    errs: list[str] = []
+    if not SURFACE.search(text):
+        errs.append(
+            "no `Surface:` hash line — the final SET hash from the Step-3 anti-cheat "
+            "(`find docs/development/epics -name '*.md' … | md5sum`) is the report's anchor"
+        )
+    rows = list(_MEGA_LEDGER_ROW.finditer(text))
+    if len(rows) < 2:
+        errs.append(
+            f"ledger records {len(rows)} round(s) — minimum two full rounds, ALWAYS (the round "
+            "that first completes the lenses is never the exit round)"
+        )
+    if rows and int(rows[-1].group(1)) != 0:
+        errs.append(
+            f"final ledger round raised {rows[-1].group(1)} (refuted counts as found) — the exit "
+            "round must be quiet, or the run must be `Status: IN-PROGRESS`"
+        )
+    if rows:
+        # the hash pair on the FINAL ledger row must be present and unmoved — a quiet ledger
+        # with a moved hash is a round that fixed something and called itself quiet
+        final_line = text[text.rfind("\n", 0, rows[-1].start()) + 1 :].split("\n", 1)[0]
+        pair = _MEGA_HASH_PAIR.search(final_line)
+        if pair is None:
+            errs.append(
+                "final ledger round carries no `md5(start) → md5(end)` pair — the hash equality "
+                "IS the proof the exit round was edit-free"
+            )
+        elif pair.group(1) != pair.group(2):
+            errs.append(
+                f"final round's hashes moved ({pair.group(1)}… → {pair.group(2)}…) — the set was "
+                "edited in the round that claims to be the no-op; run the next round"
+            )
+    leftover = [p for p in _MEGA_PLACEHOLDERS if p in text]
+    if leftover:
+        errs.append(
+            f"template placeholder(s) survived into the persisted report: {leftover} — a "
+            "placeholder is a lens nobody adjudicated wearing a verdict's clothes"
+        )
+    return errs
 HANDOFF_ROW = re.compile(r"^\s*[-*]?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M)
 REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
 PROOF_IN_ROW = re.compile(r"proof:\s*\S")
@@ -298,6 +358,10 @@ def main() -> int:
         for s in stale:
             print(f"  ⚠ {s}")
     for p in changed:
+        if MEGA_REPORT_H1.search(p.read_text(encoding="utf-8", errors="replace")):
+            for e in check_mega_validation(p):
+                failures.append(f"{p.relative_to(root)}: {e}")
+            continue  # a mega validation report is exit-proof-gated, not checklist-gated
         if CERT_REPORT.search(p.name):
             for e in check_cert_dispositions(p, root):
                 failures.append(f"{p.relative_to(root)}: {e}")

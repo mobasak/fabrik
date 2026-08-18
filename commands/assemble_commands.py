@@ -73,6 +73,97 @@ def _yaml_dq(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
+# ── Orchestrator-workflow wrappers (the Traycer mega chain) ──────────────────────────────
+# These commands' CANONICAL bodies live under docs/orchestrator/** — referenced by CLAUDE.md's
+# front door and the Traycer workflows — NOT in commands/_sources/. Their skill wrappers used
+# to be hand-written (docs/orchestrator/_traycer-skills/, no banner), which made them invisible
+# to this renderer, to `--check`'s drift detection, to the run-record wiring, and to
+# check_command_corpus's audit — all four at once (measured 2026-08-16: zero of the four mega
+# wrappers opened a run record, and none was among the corpus audit's 41 files). The wrappers
+# are now GENERATED from this table; the canonical docs stay exactly where they are.
+#   name -> (doc path relative to the repo root, skill description)
+ORCH_SOURCES = {
+    "fab-mega-00-trigger": (
+        "docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md",
+        "Mega-epic step 00: project intake -> grounded, confirmed Vision Summary. Use when "
+        "starting a new/existing multi-epic initiative or when the user types /fab-mega-00-trigger.",
+    ),
+    "fab-mega-02-decompose": (
+        "docs/orchestrator/mega-epic-breakdown/02-epic-decomposition-fabrik.md",
+        "Mega-epic step 02: split a confirmed Vision into independent epics + dependency graph. "
+        "Use after 00 confirms a multi-epic vision, or when the user types /fab-mega-02-decompose.",
+    ),
+    "fab-mega-03-expand": (
+        "docs/orchestrator/mega-epic-breakdown/03-expand-epic-files-fabrik.md",
+        "Mega-epic step 03: expand the confirmed epic proposal into full epic files and PERSIST "
+        "them to docs/development/epics/. Use when the user types /fab-mega-03-expand.",
+    ),
+    "fab-mega-04-validate": (
+        "docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md",
+        "Mega-epic step 04: converging cross-epic validation + ticket-set integrity gate (absorbs "
+        "retired 05) + emits the code-generated phased execution order. Use when the user types "
+        "/fab-mega-04-validate.",
+    ),
+}
+TRAYCER_SKILLS = ROOT.parent / "docs" / "orchestrator" / "_traycer-skills"
+
+
+def _orch_phase_count(text: str) -> int:
+    """`--phases` for an orchestrator doc: its `### Step N` headings, never a hand count.
+
+    The mega docs have no `## Phase N` headings, and their `##` section count is template
+    structure (Role / Input Contract / …), not run progress — `_phase_count`'s fallback would
+    claim a 12-phase run for a 1-step intake. Steps are what these workflows actually walk.
+    """
+    return max(len(re.findall(r"^#{3,4}\s+Step\s+\S", text, flags=re.M)), 1)
+
+
+def _render_orch_wrapper(name: str) -> str:
+    """The generated wrapper: pointer to the canonical doc + the run-record block.
+
+    The run record is the whole reason these are generated now — the wrapper is what loads at
+    invocation, so the record's COMMAND/PHASES ride it, computed from the doc (a hand-written
+    phase count drifts the moment a step is added, and a wrong count makes the pinned RUN:
+    line lie about where the run is)."""
+    doc_rel, desc = ORCH_SOURCES[name]
+    doc = ROOT.parent / doc_rel
+    body = doc.read_text(encoding="utf-8")  # missing doc = render error, never a silent skip
+    record = (FRAG / "run-record.md").read_text(encoding="utf-8").rstrip("\n")
+    record = record.replace("{{COMMAND}}", name).replace(
+        "{{PHASES}}", str(_orch_phase_count(body))
+    )
+    return (
+        f"---\n"
+        f"name: {name}\n"
+        f'description: "{_yaml_dq(desc)}"\n'
+        f"---\n\n"
+        f"{SKILL_BANNER}\n"
+        f"<!-- source-of-truth: /opt/fabrik/{doc_rel} + the ORCH_SOURCES table -->\n\n"
+        f"# {name} (thin wrapper → source-of-truth in /opt/fabrik)\n\n"
+        f"Read the command specification at:\n\n"
+        f"`/opt/fabrik/{doc_rel}`\n\n"
+        f"Follow it **exactly** as written. It is the canonical, git-tracked source; this\n"
+        f"skill is only the Traycer-invocation shim. Do not improvise beyond the spec.\n\n"
+        f"{record}\n"
+    )
+
+
+def _emit_orch_wrappers(skills_dest: Path, update_tracked: bool) -> None:
+    """Write the generated orchestrator wrappers; mirror to the tracked tree on real installs.
+
+    `update_tracked` is False for `--check`'s temp render — a read-only check must never
+    mutate docs/orchestrator/_traycer-skills/."""
+    for name in ORCH_SOURCES:
+        body = _render_orch_wrapper(name)
+        d = skills_dest / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SKILL.md").write_text(body)
+        if update_tracked:
+            t = TRAYCER_SKILLS / name
+            t.mkdir(parents=True, exist_ok=True)
+            (t / "SKILL.md").write_text(body)
+
+
 def _emit_skill(name: str, description: str, skills_dest: Path) -> None:
     """Write a thin SKILL.md wrapper so every command is ALSO a model-invokable
     skill. Triggering lives in `description`; the body redirects to the canonical
@@ -448,14 +539,21 @@ def render(dest: Path, skills_dest: Path | None = None):
     if skills_dest is not None:
         for name, desc in emitted:
             _emit_skill(name, desc, skills_dest)
+        # Orchestrator wrappers are generated too (run-record riding the wrapper). The tracked
+        # copies under docs/orchestrator/_traycer-skills/ update ONLY on a real install —
+        # check()'s temp render must stay read-only on the repo tree.
+        _emit_orch_wrappers(skills_dest, update_tracked=skills_dest.resolve() == SKILLS.resolve())
     # Prune orphans (ONLY files carrying our generator banner — never a hand-authored
     # or sibling skill/command): a renamed/deleted source must not leave an invokable stale.
+    # ⚠️ ORCH names must be in the keep-set: their wrappers now carry the banner, and without
+    # this union the prune would delete the four mega skills on every render.
+    keep = source_names | set(ORCH_SOURCES)
     for cmd in dest.glob("*.md"):
-        if cmd.stem not in source_names and BANNER.strip() in cmd.read_text():
+        if cmd.stem not in keep and BANNER.strip() in cmd.read_text():
             cmd.unlink()
     if skills_dest is not None:
         for sk in skills_dest.glob("*/SKILL.md"):
-            if sk.parent.name not in source_names and SKILL_BANNER in sk.read_text():
+            if sk.parent.name not in keep and SKILL_BANNER in sk.read_text():
                 shutil.rmtree(sk.parent)
     n = len(emitted)
     print(f"rendered {n} commands -> {dest}" + (f" + {n} skills -> {skills_dest}" if skills_dest else ""))
@@ -482,9 +580,23 @@ def check():
                 continue
             if inst.read_text() != sd.read_text():
                 drift.append(f"skills/{sd.parent.name}: HAND-EDITED SKILL.md")
+        # Orchestrator wrappers: the temp render already emitted them into tmp_sk (the loop
+        # above compared installed copies); ALSO compare the TRACKED copies, which a temp
+        # render deliberately never touches — a hand-edit there would otherwise sit silently
+        # until the next real install overwrote it.
+        for name in ORCH_SOURCES:
+            fresh = tmp_sk / name / "SKILL.md"
+            tracked = TRAYCER_SKILLS / name / "SKILL.md"
+            if not tracked.exists():
+                drift.append(f"_traycer-skills/{name}: MISSING tracked wrapper — render to create it")
+            elif fresh.exists() and tracked.read_text() != fresh.read_text():
+                drift.append(
+                    f"_traycer-skills/{name}: tracked wrapper differs from render "
+                    "(hand-edited, or the doc/fragment changed without a re-render)"
+                )
         # orphan detection: an installed GENERATED command/skill whose _source is gone
         # (catches a rename/delete that wasn't followed by a re-render — the prune).
-        src_names = {s.stem for s in SRC.glob("*.md")}
+        src_names = {s.stem for s in SRC.glob("*.md")} | set(ORCH_SOURCES)
         for cmd in sorted(OUT.glob("*.md")):
             if cmd.stem not in src_names and BANNER.strip() in cmd.read_text():
                 drift.append(f"{cmd.name}: ORPHAN (generated, no _source — re-render to prune)")

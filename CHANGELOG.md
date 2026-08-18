@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the mega chain gets plan-review-grade enforcement: run records, corpus audit, md5 anti-cheat, a gate that reads its exit (2026-08-18)
+
+The four `fab-mega-*` commands had `/fabrik-plan-review`'s loop *language* and none of its
+*machinery* — because their canonical bodies live under `docs/orchestrator/**` and their skill
+wrappers were hand-written, every enforcement layer structurally missed them at once: no run
+record (Stop hook disarmed), outside `check_command_corpus`'s 41 audited files, no md5 anti-cheat,
+and mega-04's exit report went **only to Telegram**, so no gate ever read it. All four closed:
+
+- **Wrappers are now GENERATED** — `assemble_commands.py` gains an `ORCH_SOURCES` table and emits
+  the four wrappers (tracked in `docs/orchestrator/_traycer-skills/` + installed) with the
+  run-record block injected, `--phases` computed from each doc's `### Step` headings (00→11,
+  02→5, 03→4, 04→5), banner-stamped, drift-checked by `--check`, and prune-safe (the orch names
+  join the keep-set — without that union the render would have deleted its own output).
+- **`check_command_corpus` audits the orchestrator corpus** — walks the tracked wrappers, resolves
+  each one's canonical doc, runs the standard predicates over it, fails a wrapper naming no doc or
+  a missing one, and requires `command_run.py start` in every GENERATED wrapper (mutation-proven).
+  First run caught a real defect: `scripts/validate_i18n.py` referenced 5× across three mega docs
+  resolves only via the scaffold template — script refs now accept `templates/**` delivery.
+  The section derives from `repo`/parameters everywhere; the real tree leaking into fixture audits
+  produced 28 false chain-ref failures in the selftest before that was pinned (selftest + 17 tests).
+- **mega-04 gets the md5 SET-hash anti-cheat** — the combined hash of `docs/development/epics/*.md`
+  recorded per round; the exit round must show `md5(start) == md5(end)` on top of its quiet ledger,
+  because a quiet ledger with a moved hash is a round that fixed something and called itself quiet.
+- **mega-04's report now PERSISTS** to `docs/development/reviews/…-validation-review.md`, and
+  `check_review_coverage` gains a third grammar (keyed on the report's H1) enforcing: `Surface:`
+  SET-hash line · ≥2 ledger rounds with hash pairs · quiet final round with an unmoved hash · no
+  surviving template placeholders (`[PASS]`/`[N]`/`[list]`) · `Status: IN-PROGRESS` as the only
+  sanctioned mid-loop state. Fixture-proven in all 8 directions.
+
+The ettw set (12 commands) shares the structural gap and is deliberately NOT wired here — its fix
+is extending `ORCH_SOURCES`, and the corpus check exempts hand-written wrappers from the record
+requirement precisely so today's gate stays green while that remains open.
+
 ### Fixed — dashboard tab survives WSL restarts; keepalive can no longer miss its slot (2026-08-18)
 
 Operator requirement: localhost:5051 "must always show up-to-date usage" as long as WSL is up,

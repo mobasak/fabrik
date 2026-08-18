@@ -184,12 +184,45 @@ Classify every surviving finding, then handle it autonomously — everything sho
 
 **LOOP:** every fixup dispatched → re-reviewed (Step 2) → re-classified — **until every verdict lens of the Step-4 report template carries an adjudicated PASS-with-evidence, with zero unresolved findings** (the template is the single source of the lens set). **The final round must itself be QUIET — `found: 0, fixed: 0`, counting every raised candidate including later-refuted ones** (a round that raised 3 and refuted all 3 owes the next round; the loop, not the checklist, decides when hunting stops). A quiet round alone is still not sufficient — every lens must ALSO be adjudicated (a quiet sample from finders that looked at too little proves nothing). **Minimum two full rounds, ALWAYS** (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched. **There is NO round ceiling** — while anything is still being raised, the next round is owed; the run loops until the exit holds. The ONLY non-quiet stop is the command's own **BLOCKED escalation** (a finding surviving 3 consecutive fix attempts → pause that finding, Telegram the operator, keep looping the rest) — never a self-declared residual. Keep the `found:`/`fixed:` ledger per round (`found` counts refuted candidates too).
 
+**Anti-cheat (mechanical, not vibes) — the SET hash** `[canonical: /fabrik-plan-review's combined-hash rule — same machinery, same reason]`: record the epic set's combined hash at the **start and end of every round**:
+
+```bash
+find docs/development/epics -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum
+```
+
+Fixups edit epic files, so a round that changed anything shows a different hash — which is exactly why **the exit round must show `md5(start) == md5(end)`** on top of its quiet ledger: identical hashes prove the final round was genuinely edit-free rather than asserted so. A quiet ledger with a moved hash is a round that fixed something and called itself quiet — run the next round. Record both hashes per round in the ledger; the Step-4 report's `Surface:` line carries the final hash, and `check_review_coverage.py` refuses the report without it.
+
 ### Step 4: Report + Hand Off
 
-At the adjudicated exit, post the report to the Telegram digest (not a per-finding prompt):
+**PERSIST the report FIRST, then post it.** The report is written to
+`docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` — Telegram is the
+notification, the file is the record. ⚠️ This is not bookkeeping, it is the enforcement seam: a
+report that only went to Telegram is invisible to every gate, which is precisely how this
+command's exit went un-policed until 2026-08-16 (`/fabrik-plan-review`'s exit is read by
+`check_convergence.py`; this one was read by nobody). `check_review_coverage.py` (run by
+`final_gate` and the Stop hook) now enforces the persisted report's grammar:
+
+- a `Surface:` line at column 0 carrying the **final SET hash** from Step 3's anti-cheat;
+- the **per-round `found:`/`fixed:` ledger with each round's start/end hash** — minimum two
+  rounds, final round `found: 0, fixed: 0` with `md5(start) == md5(end)`;
+- **every lens line adjudicated** — no `[PASS]`/`[N]`/`[list]` template placeholders may survive
+  into the persisted report (a placeholder is a lens nobody adjudicated wearing a verdict's
+  clothes);
+- `Status: IN-PROGRESS` at column 0 is the sanctioned escape for a run interrupted mid-loop —
+  never a way to ship an unconverged set.
+
+Then post the same report to the Telegram digest (not a per-finding prompt):
 
 ```markdown
 # Cross-Epic Validation Report
+Surface: <final combined md5 of docs/development/epics/*.md — from Step 3's anti-cheat>
+
+Rounds (found counts refuted candidates too; hashes from the Step-3 anti-cheat):
+| round | found: | fixed: | md5(start) → md5(end) |
+|------:|-------:|-------:|---|
+| 1 | found: 7 | fixed: 6 | a1b2… → 9f8e… |
+| 2 | found: 0 | fixed: 0 | 9f8e… → 9f8e… ✓ |
+
 ## Feature Coverage: [PASS] — [N] features across [M] epics · orphans: none · duplicates: none
 ## Epic Tickets: [PASS] — per-epic verdict with evidence
 ## Dependency Graph: [PASS] — no cycles · roots: [list] · parallel lanes: [list] (disjoint paths verified)

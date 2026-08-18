@@ -41,6 +41,30 @@ Five mechanically decidable facts — no judgement, no network:
 BLOCKING, because each is true/false with no tolerance band — and each was found violated
 in a corpus that looked healthy.
 
+## The orchestrator corpus (added 2026-08-16)
+
+The Traycer workflow commands (`fab-mega-*`, `fab-ettw-*`) keep their canonical bodies under
+`docs/orchestrator/**` — outside `commands/_sources/` — which is exactly how the whole set
+escaped this audit: none of their docs was among the audited files, zero of the four mega
+wrappers opened a run record, and a dead `scripts/` reference sat in three mega docs, all while
+the check reported "all sound".
+
+The audit now also walks `docs/orchestrator/_traycer-skills/*/SKILL.md` (hub-only; silently N/A
+in projects) and, per wrapper:
+
+- resolves the canonical doc the wrapper names and runs predicates 1–4 over it;
+- requires a wrapper that **names no doc**, or names a **missing** one, to fail — a wrapper
+  aiming agents at nothing is the founding failure shape;
+- requires `command_run.py start` in every wrapper carrying the GENERATED banner (those went
+  through `assemble_commands.py`'s `ORCH_SOURCES` table, which injects the record with a
+  computed phase count). Hand-written wrappers (the ettw set, as of 2026-08-16) are exempt from
+  the record requirement — the fix for those is extending `ORCH_SOURCES`, not hand-editing.
+
+Scripts referenced by these docs resolve against the hub root **or** `templates/**` — the
+orchestrator docs tell agents working *in a project* to run scripts the scaffold delivers
+(e.g. `scripts/validate_i18n.py` from `templates/i18n-kit/`), and hub-rooting alone called
+five live references dead.
+
 **The important negative:** path-shaped look-alikes are *not* chain references.
 `/opt/fabrik-lib`, `/run/fabrik-autoheal/pause` and `docs/reference/fabrik-mail.md` all
 contain a `fabrik-<word>` token. A naive matcher reports four broken chains that were
