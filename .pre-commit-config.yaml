@@ -55,7 +55,11 @@ repos:
         name: Command corpus matches rendered sources
         entry: bash -c 'if [ "$(pwd)" = "/opt/fabrik" ]; then python3 /opt/fabrik/commands/assemble_commands.py --check; fi'
         language: system
-        files: '^commands/'
+        # docs/orchestrator too: the orchestrator wrappers + their canonical docs render through
+        # the same assembler (ORCH_SOURCES), and a commit editing only those paths previously
+        # matched NO filter — the drift detector was dead on its own trigger surface (a doc edit
+        # silently drifts the tracked wrapper's computed --phases until the next commands/ commit).
+        files: '^(commands|docs/orchestrator)/'
         pass_filenames: false
 
       - id: governance-sync

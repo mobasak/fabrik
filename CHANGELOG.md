@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the mega enforcement survived its own review poorly: 24 findings, and the ettw chain is wired (2026-08-19)
+
+`/fabrik-review` on yesterday's `e2bf0f6e` (pool ×3 + native Opus + native Sonnet + first-hand):
+**24 candidates in pass 1**, the worst of them reproduced end-to-end. Fixed in one batch, then a
+fresh non-author closing sweep. The operator's decision to extend `ORCH_SOURCES` to the ettw chain
+is folded in — **all 17 orchestrator wrappers (4 mega + 13 ettw) are now generated**, with computed
+`--phases` and run records.
+
+The defeats that mattered (each now pinned by a committed test):
+
+- **The "md5 anti-cheat" never computed anything.** Two identical typed strings passed it; so did
+  `2026 -> 2026` — a year. The grammar now requires FULL (≥12-hex) hashes, CHAINED across rounds
+  (round N's end = round N+1's start), `Surface:` equal to the final end — and on the blocking
+  path it **recomputes the live epic-set hash** (byte-identical to the doc's shell pipeline,
+  proven by test) and refuses a report whose anchor doesn't match the tree.
+- **Quoting the template disabled the gate.** `MEGA_REPORT_H1` was an anywhere-in-file match, so
+  any review report quoting `# Cross-Epic Validation Report` (even fenced) rerouted away from the
+  checklist gate it owed. Now `\A`-anchored: the H1 must be the file's first line.
+- **Prose impersonated the ledger.** The final-round scan took the LAST `found:` match in the
+  file — the exact defect fixed in `check_file` two days ago, reintroduced one grammar over. A
+  quoted contract sentence after the table defeated both the quiet-exit rule and the hash rule.
+  Ledger rows are now TABLE LINES ONLY, and the final row must be quiet in BOTH counters.
+- **A fenced `Status: IN-PROGRESS` bought total exemption**; now it counts only in the header zone.
+  And committed mega reports were invisible to the advisory scan (green-by-absence, reopened one
+  grammar over) — the scan now speaks their grammar too, textual-only by design.
+- **A project acquiring `_traycer-skills/` crashed a BLOCKING gate.** The orch audit ran before
+  the hub gate, reaching the `libs.subagents` import (ModuleNotFoundError) plus 28 bogus chain-ref
+  failures against an empty command set. The section now runs only behind the hub gate, and
+  `_live_web_tool_names` takes `repo` with a None-sentinel (an empty set would have inverted
+  predicate 1 — caught in-fix).
+- **`--phases` lied for 3 of 4 mega docs.** Heading counts included mutually exclusive mode
+  branches (00: 11 headings, max walk 6) and half-steps (`Step 3.5` → phase 5 with integer steps
+  topping at 4). Now: distinct integer Step/Phase numbers — 00→6, 02→4, 03→4, 04→4; ettw's
+  `## Phase N` style counted too.
+- **Banner-stripping exempted a wrapper from the run-record requirement**; the record is now
+  required of EVERY wrapper (the full set is generated, so the carve-out died). The corpus
+  pre-commit hook's filter also gains `docs/orchestrator/` — the drift detector was dead on its
+  own trigger surface. Plus: doc-pointer traversal guard, templates fallback scoped to
+  orchestrator docs and files-only, ORCH↔_sources collision guard, stale tracked-dir drift check.
+- **Process finding against myself:** yesterday's "fixture-proven in 8 directions" left NO
+  committed test — the exact evidence-before-assertion violation the review found the real bugs
+  under. Now: 13 durable mega-grammar tests + 5 corpus tests + the updated fallback test, with
+  mutation-proven red.
+
+
 ### Fixed — refresh pings move to the tick only; the dashboard never blocks a page load on a probe (2026-08-18)
 
 The morning's stale-reading refresh pings shipped reachable from `--status` — and `--status` is

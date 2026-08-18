@@ -104,18 +104,102 @@ ORCH_SOURCES = {
         "retired 05) + emits the code-generated phased execution order. Use when the user types "
         "/fab-mega-04-validate.",
     ),
+    # The ettw chain (extended 2026-08-18, operator decision) — same machinery, 13 more entries.
+    "fab-ettw-00-trigger": (
+        "docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md",
+        "Epic-to-ticket step 00: orient on the project, verify constraints, improve owner "
+        "research, and route to the right workflow commands. Use when starting execution of a "
+        "single epic, or when the user types /fab-ettw-00-trigger.",
+    ),
+    "fab-ettw-01-decisions-lock": (
+        "docs/orchestrator/epic-to-ticket-workflow/01-decisions-lock-fabrik.md",
+        "Epic-to-ticket step 01: CREATE the epic's persisted Decisions-Lock artifact (DRAFT md "
+        "file + Traycer 'decisions' artifact) — goal, decisions, success criteria, scope, "
+        "INFRA-CHECK. 01R converges and locks it. Use after 00 routes to this epic, or when the "
+        "user types /fab-ettw-01-decisions-lock.",
+    ),
+    "fab-ettw-01r-decisions-review": (
+        "docs/orchestrator/epic-to-ticket-workflow/01R-decisions-review-fabrik.md",
+        "Epic-to-ticket step 01R: adversarially converge the DRAFT Decisions-Lock artifact to an "
+        "md5-verified no-op, then stop for the operator's confirm, which flips it to LOCKED "
+        "(Gate 1). Use right after 01, or when the user types /fab-ettw-01r-decisions-review.",
+    ),
+    "fab-ettw-02-core-flows": (
+        "docs/orchestrator/epic-to-ticket-workflow/02-core-flows-fabrik.md",
+        "Epic-to-ticket step 02: define the epic's core user/system flows. Use after the "
+        "decisions lock is set, or when the user types /fab-ettw-02-core-flows.",
+    ),
+    "fab-ettw-03-tech-plan": (
+        "docs/orchestrator/epic-to-ticket-workflow/03-tech-plan-fabrik.md",
+        "Epic-to-ticket step 03: produce the grounded technical implementation plan. Use after "
+        "core flows, or when the user types /fab-ettw-03-tech-plan.",
+    ),
+    "fab-ettw-04-deploy-plan": (
+        "docs/orchestrator/epic-to-ticket-workflow/04-deploy-plan-fabrik.md",
+        "Epic-to-ticket step 04: produce the deploy/registration plan (spec shape, fabrik apply "
+        "path). Use after the tech plan, or when the user types /fab-ettw-04-deploy-plan.",
+    ),
+    "fab-ettw-05-ticket-outline": (
+        "docs/orchestrator/epic-to-ticket-workflow/05-ticket-outline-fabrik.md",
+        "Epic-to-ticket step 05: outline the ticket set and its dependency graph for parallel "
+        "dispatch. Use after the deploy plan, or when the user types /fab-ettw-05-ticket-outline.",
+    ),
+    "fab-ettw-06-ticket-breakdown": (
+        "docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md",
+        "Epic-to-ticket step 06: expand the outline into full agent-executable tickets "
+        "(batched). Use after the ticket outline, or when the user types "
+        "/fab-ettw-06-ticket-breakdown.",
+    ),
+    "fab-ettw-07-execute": (
+        "docs/orchestrator/epic-to-ticket-workflow/07-execute-fabrik.md",
+        "Epic-to-ticket step 07: dispatch and execute the tickets. Use after ticket breakdown, "
+        "or when the user types /fab-ettw-07-execute.",
+    ),
+    "fab-ettw-08-implementation-validation": (
+        "docs/orchestrator/epic-to-ticket-workflow/08-implementation-validation-fabrik.md",
+        "Epic-to-ticket step 08: validate the implementation against the epic's decisions lock, "
+        "flows, and acceptance criteria. Use after execution, or when the user types "
+        "/fab-ettw-08-implementation-validation.",
+    ),
+    "fab-ettw-09-revise-requirements": (
+        "docs/orchestrator/epic-to-ticket-workflow/09-revise-requirements-fabrik.md",
+        "Epic-to-ticket step 09: revise requirements/tickets when validation surfaces gaps or "
+        "drift. Use when implementation validation finds gaps, or when the user types "
+        "/fab-ettw-09-revise-requirements.",
+    ),
+    "fab-ettw-10-cross-artifact-validation": (
+        "docs/orchestrator/epic-to-ticket-workflow/10-cross-artifact-validation-fabrik.md",
+        "Epic-to-ticket step 10: cross-artifact consistency validation across the decisions "
+        "lock, flows, plan, tickets, and code. Use before deploy, or when the user types "
+        "/fab-ettw-10-cross-artifact-validation.",
+    ),
+    "fab-ettw-11-deploy": (
+        "docs/orchestrator/epic-to-ticket-workflow/11-deploy-fabrik.md",
+        "Epic-to-ticket step 11: the release/deploy path (hand-off to hub-side fabrik apply). "
+        "Use after cross-artifact validation, or when the user types /fab-ettw-11-deploy.",
+    ),
 }
 TRAYCER_SKILLS = ROOT.parent / "docs" / "orchestrator" / "_traycer-skills"
 
 
 def _orch_phase_count(text: str) -> int:
-    """`--phases` for an orchestrator doc: its `### Step N` headings, never a hand count.
+    """`--phases` for an orchestrator doc: DISTINCT INTEGER step numbers, never a heading count.
 
-    The mega docs have no `## Phase N` headings, and their `##` section count is template
-    structure (Role / Input Contract / …), not run progress — `_phase_count`'s fallback would
-    claim a 12-phase run for a 1-step intake. Steps are what these workflows actually walk.
+    Three measured reasons a raw heading count lies (all from the live docs, 2026-08-18):
+    * `00-trigger` has 11 `### Step` headings, but they are two mutually exclusive MODE branches
+      (Step 0 + N1…N5, or Step 0 + E1…E5) — no run walks more than 6, so `--phases 11` makes the
+      pinned RUN: line permanently understate progress and the total unreachable.
+    * `02`/`04` carry half-steps (`Step 3.5`, `Step 1.5`) — counting them gave 5 phases for a walk
+      whose `step --phase` values (integers, per command_run.py) top out at 4.
+    * ettw `01R` uses `## Phase N` headings, which a Step-only regex counted as zero.
+    Distinct integer parts collapse all three: N1/E1 → 1 (parallel modes overlay), 3.5 → 3
+    (a half-step advances no integer phase), Phase headings count alongside Step ones.
     """
-    return max(len(re.findall(r"^#{3,4}\s+Step\s+\S", text, flags=re.M)), 1)
+    nums = {
+        int(m.group(1))
+        for m in re.finditer(r"^#{2,4}\s+(?:Step|Phase)\s+[A-Za-z]?(\d+)", text, flags=re.M)
+    }
+    return max(len(nums), 1)
 
 
 def _render_orch_wrapper(name: str) -> str:
@@ -138,7 +222,9 @@ def _render_orch_wrapper(name: str) -> str:
         f'description: "{_yaml_dq(desc)}"\n'
         f"---\n\n"
         f"{SKILL_BANNER}\n"
-        f"<!-- source-of-truth: /opt/fabrik/{doc_rel} + the ORCH_SOURCES table -->\n\n"
+        f"<!-- source-of-truth for THIS wrapper: /opt/fabrik/{doc_rel} + the ORCH_SOURCES table "
+        f"in assemble_commands.py (NOT _sources/ — the banner above is the generic generator "
+        f"stamp; orchestrator wrappers render from the canonical doc named below) -->\n\n"
         f"# {name} (thin wrapper → source-of-truth in /opt/fabrik)\n\n"
         f"Read the command specification at:\n\n"
         f"`/opt/fabrik/{doc_rel}`\n\n"
@@ -536,6 +622,13 @@ def render(dest: Path, skills_dest: Path | None = None):
             print(" -", e)
         sys.exit(2)
     source_names = {n for n, _ in emitted}
+    collisions = source_names & set(ORCH_SOURCES)
+    if collisions:
+        # _emit_orch_wrappers runs AFTER _emit_skill and writes the same skills_dest/<name>/ —
+        # a shared name would silently clobber the command's generated skill with the
+        # orchestrator wrapper, and check() could not tell (same banner). Refuse to render.
+        print(f"RENDER ERRORS:\n - ORCH_SOURCES collides with commands/_sources: {sorted(collisions)}")
+        sys.exit(2)
     if skills_dest is not None:
         for name, desc in emitted:
             _emit_skill(name, desc, skills_dest)
@@ -593,6 +686,16 @@ def check():
                 drift.append(
                     f"_traycer-skills/{name}: tracked wrapper differs from render "
                     "(hand-edited, or the doc/fragment changed without a re-render)"
+                )
+        # A tracked wrapper dir whose name is no longer in ORCH_SOURCES: render's prune only
+        # cleans the INSTALLED copy, and the loop above iterates ORCH_SOURCES so it can never
+        # see a directory belonging to a REMOVED name — that tracked dir would sit stale
+        # forever, still invokable-looking in git, pointing at whatever it last pointed at.
+        for sk in sorted(TRAYCER_SKILLS.glob("*/SKILL.md")):
+            if sk.parent.name not in ORCH_SOURCES and SKILL_BANNER in sk.read_text():
+                drift.append(
+                    f"_traycer-skills/{sk.parent.name}: ORPHAN tracked wrapper (name not in "
+                    "ORCH_SOURCES) — delete the directory or restore the table entry"
                 )
         # orphan detection: an installed GENERATED command/skill whose _source is gone
         # (catches a rename/delete that wasn't followed by a re-render — the prune).

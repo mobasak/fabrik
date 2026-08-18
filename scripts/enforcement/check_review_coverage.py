@@ -205,58 +205,136 @@ def check_file(p: Path) -> list[str]:
 CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
 
 # --- Mega cross-epic validation reports (fab-mega-04-validate) ---------------------------------
-# Third grammar, keyed on the report's own H1 rather than the filename — the filename carries a
-# free vision-slug. Until 2026-08-16 mega-04's report went ONLY to Telegram, so its exit was
-# read by no gate at all (plan-review's is read by check_convergence; this one by nobody). The
-# command now persists the report here, and these rules are its exit contract:
-# Surface hash + per-round ledger with hash pairs + min-2 rounds + quiet final round with an
-# unmoved hash + no surviving template placeholders.
-MEGA_REPORT_H1 = re.compile(r"^#\s+Cross-Epic Validation Report\s*$", re.M)
-# The Step-4 template's placeholder tokens, exactly — not a general [..] hunt, which would
-# false-positive on markdown links and literal prose brackets.
+# Third grammar. Until 2026-08-16 mega-04's report went ONLY to Telegram, so its exit was read by
+# no gate at all. The first version of this grammar was itself reviewed (2026-08-18) and lost —
+# every rule below carries the scar of a reproduced defeat:
+#   * H1 anchored to the FILE START (`\A`), because an `re.M` content match routed ANY review file
+#     that merely QUOTED the template (even in a fence) away from the checklist gate.
+#   * Ledger rows are TABLE LINES ONLY, because a whole-text `found:` scan took a prose sentence
+#     after the table as "the final round" — the exact LAST-match defect check_file() above had
+#     already been fixed for, reintroduced one grammar over.
+#   * Hashes are FULL (≥12 hex), CHAINED (round N's end == round N+1's start), ANCHORED
+#     (`Surface:` == the final round's end) and — on the blocking, diff-scoped path — RECOMPUTED
+#     against the live epic set, because a text-only grammar was defeated by typing any two
+#     identical strings; `2026 -> 2026` (a year) passed as an "unmoved hash".
+#   * `Status: IN-PROGRESS` counts only in the report's HEADER ZONE, because an unanchored match
+#     accepted the escape hatch quoted inside a fence.
+#   * Placeholders are hunted on FENCE-STRIPPED text, so a meta-report quoting the template does
+#     not fail, while a real `[PASS]` on a lens line still does.
+MEGA_REPORT_H1 = re.compile(r"\A#\s+Cross-Epic Validation Report\s*$", re.M)
 _MEGA_PLACEHOLDERS = ("[PASS]", "[FAIL]", "[N]", "[M]", "[list]", "[none / list]")
-_MEGA_HASH_PAIR = re.compile(r"([0-9a-f]{4,})\S*\s*(?:→|->)\s*([0-9a-f]{4,})")
-_MEGA_LEDGER_ROW = re.compile(r"found:\s*(\d+)\s*(?:,|·|\|)?\s*fixed:\s*\d+")
+_MEGA_HEX = r"[0-9a-fA-F]{12,}"
+_MEGA_HASH_PAIR = re.compile(rf"({_MEGA_HEX})\s*(?:→|->)\s*({_MEGA_HEX})")
+# A ledger row is a markdown TABLE line carrying both counters. Prose can say anything; a table
+# row is what the Step-4 template mandates, and restricting to it is what makes quoting the
+# contract in prose harmless.
+_MEGA_ROW = re.compile(r"^\s*\|.*?found:\s*(\d+).*?fixed:\s*(\d+).*$", re.M)
+_MEGA_SURFACE = re.compile(rf"^\**Surface:\**\s*({_MEGA_HEX})\s*$", re.M)
+_FENCE = re.compile(r"^```.*?^```\s*$", re.M | re.S)
 
 
-def check_mega_validation(path: Path) -> list[str]:
-    """The persisted mega-04 report must PROVE its adjudicated exit, not assert it."""
+def _strip_fences(text: str) -> str:
+    return _FENCE.sub("", text)
+
+
+def epics_set_hash(root: Path) -> str | None:
+    """The Step-3 anti-cheat hash, byte-identical to the doc's shell pipeline.
+
+    `find docs/development/epics -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum` —
+    md5sum emits `<hex>  <path>\\n` (TWO spaces) per file with the path exactly as find printed
+    it; the outer md5 is over that text. Reproducing the byte format matters: an approximated hash that
+    "means the same" would never match what the agent recorded from the real command.
+    """
+    import hashlib  # noqa: PLC0415
+
+    epics = root / "docs" / "development" / "epics"
+    if not epics.is_dir():
+        return None
+    files = sorted(
+        str(p.relative_to(root)) for p in epics.rglob("*.md") if p.is_file()
+    )
+    lines = []
+    for rel in files:
+        h = hashlib.md5((root / rel).read_bytes()).hexdigest()  # noqa: S324 — integrity, not crypto
+        lines.append(f"{h}  {rel}\n")
+    return hashlib.md5("".join(lines).encode()).hexdigest()  # noqa: S324
+
+
+def check_mega_validation(path: Path, root: Path, live: bool = True) -> list[str]:
+    """The persisted mega-04 report must PROVE its adjudicated exit, not assert it.
+
+    ``live=True`` (the blocking, diff-scoped path) additionally recomputes the epic-set hash from
+    disk — the report just changed, so the tree IS the validation-time state and must match.
+    ``live=False`` (the advisory committed scan) skips the recompute: epics legitimately drift
+    during execution, and nagging every historical report forever is how an advisory gets muted.
+    """
     text = path.read_text(encoding="utf-8", errors="replace")
-    if IN_PROGRESS.search(text):
-        return []  # the sanctioned mid-loop state — chased by the advisory scan, not blocked here
+    body = _strip_fences(text)
+    # The sanctioned mid-loop state — declared in the HEADER ZONE (first 10 non-fence lines),
+    # where the template puts Status, not quotable from anywhere in the body.
+    header = "\n".join(body.splitlines()[:10])
+    if IN_PROGRESS.search(header):
+        return []
     errs: list[str] = []
-    if not SURFACE.search(text):
+    surface = _MEGA_SURFACE.search(body)
+    if surface is None:
         errs.append(
-            "no `Surface:` hash line — the final SET hash from the Step-3 anti-cheat "
-            "(`find docs/development/epics -name '*.md' … | md5sum`) is the report's anchor"
+            "no `Surface:` line carrying a FULL hash (≥12 hex) — record the final SET hash from "
+            "the Step-3 anti-cheat (`find docs/development/epics -name '*.md' … | md5sum`), "
+            "untruncated; `TBD`, prose, or a truncated stub do not anchor anything"
         )
-    rows = list(_MEGA_LEDGER_ROW.finditer(text))
+    rows: list[tuple[int, int, str]] = [
+        (int(m.group(1)), int(m.group(2)), m.group(0)) for m in _MEGA_ROW.finditer(body)
+    ]
     if len(rows) < 2:
         errs.append(
-            f"ledger records {len(rows)} round(s) — minimum two full rounds, ALWAYS (the round "
-            "that first completes the lenses is never the exit round)"
-        )
-    if rows and int(rows[-1].group(1)) != 0:
-        errs.append(
-            f"final ledger round raised {rows[-1].group(1)} (refuted counts as found) — the exit "
-            "round must be quiet, or the run must be `Status: IN-PROGRESS`"
+            f"ledger table records {len(rows)} round(s) — minimum two full rounds, ALWAYS, as "
+            "TABLE rows carrying `found:` and `fixed:` (prose mentions do not count)"
         )
     if rows:
-        # the hash pair on the FINAL ledger row must be present and unmoved — a quiet ledger
-        # with a moved hash is a round that fixed something and called itself quiet
-        final_line = text[text.rfind("\n", 0, rows[-1].start()) + 1 :].split("\n", 1)[0]
-        pair = _MEGA_HASH_PAIR.search(final_line)
-        if pair is None:
+        f_found, f_fixed, f_line = rows[-1]
+        if f_found != 0 or f_fixed != 0:
             errs.append(
-                "final ledger round carries no `md5(start) → md5(end)` pair — the hash equality "
-                "IS the proof the exit round was edit-free"
+                f"final ledger round reads found: {f_found}, fixed: {f_fixed} — the exit round "
+                "must be quiet in BOTH counters (a fix in the final round means the round that "
+                "changed the set called itself the no-op), or the run is `Status: IN-PROGRESS`"
             )
-        elif pair.group(1) != pair.group(2):
+        pairs = [_MEGA_HASH_PAIR.search(line) for _, _, line in rows]
+        if pairs[-1] is None:
             errs.append(
-                f"final round's hashes moved ({pair.group(1)}… → {pair.group(2)}…) — the set was "
-                "edited in the round that claims to be the no-op; run the next round"
+                "final ledger round carries no full `md5(start) → md5(end)` pair (≥12 hex each) "
+                "— the hash equality IS the proof the exit round was edit-free"
             )
-    leftover = [p for p in _MEGA_PLACEHOLDERS if p in text]
+        else:
+            start_h, end_h = pairs[-1].group(1).lower(), pairs[-1].group(2).lower()
+            if start_h != end_h:
+                errs.append(
+                    f"final round's hashes moved ({start_h[:8]}… → {end_h[:8]}…) — the set was "
+                    "edited in the round that claims to be the no-op; run the next round"
+                )
+            if surface is not None and surface.group(1).lower() != end_h:
+                errs.append(
+                    "`Surface:` does not equal the final round's md5(end) — the anchor must BE "
+                    "the hash the exit round ended on, not an unrelated value"
+                )
+        # Adjacent-round chaining: round N ends where round N+1 starts, or a round's edits were
+        # made off the books between reviews.
+        for i in range(len(pairs) - 1):
+            a, b = pairs[i], pairs[i + 1]
+            if a is not None and b is not None and a.group(2).lower() != b.group(1).lower():
+                errs.append(
+                    f"round {i + 1} ended at {a.group(2).lower()[:8]}… but round {i + 2} started "
+                    f"at {b.group(1).lower()[:8]}… — the set changed BETWEEN reviewed rounds"
+                )
+    if live and surface is not None:
+        live_hash = epics_set_hash(root)
+        if live_hash is not None and live_hash != surface.group(1).lower():
+            errs.append(
+                f"the epic set on disk hashes to {live_hash[:12]}… but the report anchors "
+                f"{surface.group(1).lower()[:12]}… — either the set changed since validation "
+                "(re-run fab-mega-04-validate) or the recorded hash was never computed"
+            )
+    leftover = [p for p in _MEGA_PLACEHOLDERS if p in body]
     if leftover:
         errs.append(
             f"template placeholder(s) survived into the persisted report: {leftover} — a "
@@ -325,6 +403,15 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
         if p in skip or "archived/" in str(p.relative_to(root)):
             continue
         text = p.read_text(encoding="utf-8", errors="replace")
+        # Mega validation reports have their OWN grammar and no Coverage Checklist — the
+        # checklist filter below skipped them entirely, so a committed unconverged mega report
+        # was invisible here, re-opening this function's founding hole one grammar over
+        # (found 2026-08-18, the day the grammar shipped). live=False: epics legitimately
+        # drift during execution, so the committed scan checks the TEXTUAL contract only.
+        if MEGA_REPORT_H1.match(text):
+            for e in check_mega_validation(p, root, live=False):
+                out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
+            continue
         if _checklist_section(text) is None or IN_PROGRESS.search(text):
             continue
         if BLOCKED_HEAD.search(text):
@@ -358,8 +445,11 @@ def main() -> int:
         for s in stale:
             print(f"  ⚠ {s}")
     for p in changed:
-        if MEGA_REPORT_H1.search(p.read_text(encoding="utf-8", errors="replace")):
-            for e in check_mega_validation(p):
+        # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
+        # review file that merely QUOTED the template (even fenced) route here and skip the
+        # checklist gate it actually owed — reproduced 2026-08-18.
+        if MEGA_REPORT_H1.match(p.read_text(encoding="utf-8", errors="replace")):
+            for e in check_mega_validation(p, root, live=True):
                 failures.append(f"{p.relative_to(root)}: {e}")
             continue  # a mega validation report is exit-proof-gated, not checklist-gated
         if CERT_REPORT.search(p.name):

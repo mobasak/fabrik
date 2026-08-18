@@ -55,15 +55,28 @@ in projects) and, per wrapper:
 - resolves the canonical doc the wrapper names and runs predicates 1–4 over it;
 - requires a wrapper that **names no doc**, or names a **missing** one, to fail — a wrapper
   aiming agents at nothing is the founding failure shape;
-- requires `command_run.py start` in every wrapper carrying the GENERATED banner (those went
-  through `assemble_commands.py`'s `ORCH_SOURCES` table, which injects the record with a
-  computed phase count). Hand-written wrappers (the ettw set, as of 2026-08-16) are exempt from
-  the record requirement — the fix for those is extending `ORCH_SOURCES`, not hand-editing.
+- requires `command_run.py start` in **every** wrapper — no banner condition. The first
+  version required it only of GENERATED wrappers, which meant deleting the banner line
+  exempted a wrapper from the one thing the predicate proves (reproduced 2026-08-18). The
+  whole set (4 mega + 13 ettw) is generated from `ORCH_SOURCES` now, so the honest rule has
+  no carve-out; a new hand-written wrapper fails until added to the table, which is the fix.
+- refuses a wrapper whose doc pointer escapes `docs/orchestrator/` (path traversal via `..`),
+  and — in the hub (assembler present) — flags a missing `_traycer-skills/` tree instead of
+  going silently N/A.
 
-Scripts referenced by these docs resolve against the hub root **or** `templates/**` — the
-orchestrator docs tell agents working *in a project* to run scripts the scaffold delivers
-(e.g. `scripts/validate_i18n.py` from `templates/i18n-kit/`), and hub-rooting alone called
-five live references dead.
+Scripts referenced by the **orchestrator docs** resolve against the hub root **or**
+`templates/**` (files only — a directory named like a script is not a delivery): those docs
+tell agents working *in a project* to run scripts the scaffold delivers (e.g.
+`scripts/validate_i18n.py` from `templates/i18n-kit/`), and hub-rooting alone called five live
+references dead. The fallback is **scoped to orchestrator docs** — a hub COMMAND source's
+`scripts/` reference stays hub-rooted, or a genuinely deleted hub script whose name survives
+in a scaffold template would read as alive.
+
+The section runs only **behind the hub gate** (a non-empty command corpus): the first version
+audited orchestrator docs before that branch, so a project-shaped tree carrying
+`_traycer-skills/` reached the `libs.subagents` import and crashed a BLOCKING gate with a
+ModuleNotFoundError, plus 28 bogus chain-ref failures against an empty command set —
+reproduced 2026-08-18, fixed the same day.
 
 **The important negative:** path-shaped look-alikes are *not* chain references.
 `/opt/fabrik-lib`, `/run/fabrik-autoheal/pause` and `docs/reference/fabrik-mail.md` all

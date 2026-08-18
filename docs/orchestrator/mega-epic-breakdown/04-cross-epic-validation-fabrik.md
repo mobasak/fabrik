@@ -190,7 +190,9 @@ Classify every surviving finding, then handle it autonomously — everything sho
 find docs/development/epics -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum
 ```
 
-Fixups edit epic files, so a round that changed anything shows a different hash — which is exactly why **the exit round must show `md5(start) == md5(end)`** on top of its quiet ledger: identical hashes prove the final round was genuinely edit-free rather than asserted so. A quiet ledger with a moved hash is a round that fixed something and called itself quiet — run the next round. Record both hashes per round in the ledger; the Step-4 report's `Surface:` line carries the final hash, and `check_review_coverage.py` refuses the report without it.
+Fixups edit epic files, so a round that changed anything shows a different hash — which is exactly why **the exit round must show `md5(start) == md5(end)`** on top of its quiet ledger: identical hashes prove the final round was genuinely edit-free rather than asserted so. A quiet ledger with a moved hash is a round that fixed something and called itself quiet — run the next round.
+
+**Record hashes IN FULL (all 32 hex chars), per round, and let them CHAIN**: round N's `md5(end)` must equal round N+1's `md5(start)` (a gap means the set changed between reviewed rounds, off the books), and the Step-4 report's `Surface:` line carries the final `md5(end)` verbatim. `check_review_coverage.py` machine-verifies all of it — full-length hashes, the chain, Surface == final end, a both-counters-quiet final row — **and recomputes the live epic-set hash against `Surface:` when the report is gated**, so a hash that was typed rather than computed cannot pass. Truncated hashes fail; that is deliberate (`2026 -> 2026` — a year — once passed as an "unmoved hash").
 
 ### Step 4: Report + Hand Off
 
@@ -215,13 +217,13 @@ Then post the same report to the Telegram digest (not a per-finding prompt):
 
 ```markdown
 # Cross-Epic Validation Report
-Surface: <final combined md5 of docs/development/epics/*.md — from Step 3's anti-cheat>
+Surface: <final md5(end), FULL 32 hex — from Step 3's anti-cheat, never truncated>
 
-Rounds (found counts refuted candidates too; hashes from the Step-3 anti-cheat):
+Rounds (found counts refuted candidates too; FULL hashes, chained — round N's end = round N+1's start):
 | round | found: | fixed: | md5(start) → md5(end) |
 |------:|-------:|-------:|---|
-| 1 | found: 7 | fixed: 6 | a1b2… → 9f8e… |
-| 2 | found: 0 | fixed: 0 | 9f8e… → 9f8e… ✓ |
+| 1 | found: 7 | fixed: 6 | <32-hex-A> → <32-hex-B> |
+| 2 | found: 0 | fixed: 0 | <32-hex-B> → <32-hex-B> |
 
 ## Feature Coverage: [PASS] — [N] features across [M] epics · orphans: none · duplicates: none
 ## Epic Tickets: [PASS] — per-epic verdict with evidence
