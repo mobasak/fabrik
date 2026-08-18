@@ -49,6 +49,17 @@ ruling is the operator's act; the audit never self-rules. Census final for METER
 re-opens on M1 activation data. Spec erratum recorded: no gate JSON history exists —
 transcript-embedded gate outputs + liveness verdicts substituted.
 
+Executed 2026-08-19 through a 9-pass review (ledger:
+`docs/development/reviews/2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md`): the first live
+census named 17 candidates of which 8 were false — every false one a wrong evidence channel or
+broken join (fragments on ledger mentions instead of `{{include:}}`; cron/hook/core-script
+liveness never joining because findings key on registry surface ids, not script paths; immune
+keys drifting between path forms; a `PYTHONPATH=` token minted as a phantom cron artifact;
+54% of the transcript corpus — subagent files — unscanned; the audit's own transcript echoes
+contaminating its next run). All fixed behind red-first regressions (41 tests), closing at
+found: 0/fixed: 0 with a grounded native reviewer concurring. Final census: **199 rows, 9
+spot-verified candidates**, Tier-2 gate 45/0. Lesson 127.
+
 ### Fixed — the mega enforcement survived its own review poorly: 24 findings, and the ettw chain is wired (2026-08-19)
 
 `/fabrik-review` on yesterday's `e2bf0f6e` (pool ×3 + native Opus + native Sonnet + first-hand):

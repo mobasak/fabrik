@@ -1,0 +1,22 @@
+{
+ "plan": "docs/development/plans/archived/2026-08-17-plan-1-kaizen-m0-shrink-audit.md",
+ "owned_paths": [
+  "scripts/sysadmin/kaizen_shrink_audit.py",
+  "scripts/sysadmin/kaizen_immune_list.py",
+  "tests/test_kaizen_shrink_audit.py",
+  "docs/workstation/kaizen-shrink-audit.md",
+  "docs/workstation/kaizen.md",
+  "docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md",
+  "docs/development/reviews/2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-18T23:51:16.162085+08:00",
+ "status": "released",
+ "baseline_commit": "36286fb2",
+ "baseline_gate": {
+  "status": "success",
+  "red_checks": []
+ },
+ "completed_at": "2026-08-19T01:35:11.846818+08:00",
+ "final_commit": "pending \u2014 recorded post-commit"
+}

@@ -1,6 +1,8 @@
 # Kaizen M0 — the shrink audit (usage-evidence census over all 203 governance artifacts)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-19
+Completion: Phases A (f9e253b1) · B (9a98cde7) · C (this commit); final gate Tier-2 `"status": "success"` (45 passed, 0 failed); census report at docs/workstation/kaizen-shrink-audit.md (199 rows, 9 candidates) awaiting the operator's ruling — presenting the ruling IS the plan's terminal act, per § Phase C step 4.
+Whole-plan review: docs/development/reviews/2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md (9 passes to found: 0, fixed: 0)
 Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md (§ Sequencing M0 — operator-approved 2026-08-17, commit 3cd798ae)
 
 ## What we already agreed
@@ -131,7 +133,7 @@ Steps:
 - **Given** a pack whose globs matched no changed file in 60d, **When** applicability is computed,
   **Then** the row is labelled `applicability-only — activation unknown until M1`, never "unused".
 
-## Phase B — census, immune registry, report, operator-ruling section — ✅ EXECUTED 2026-08-19
+## Phase B — census, immune registry, report, operator-ruling section — ✅ EXECUTED 2026-08-19 (9a98cde7)
 
 **Files:** `scripts/sysadmin/kaizen_immune_list.py` (new — the DATA lives as a reviewed Python list
 with per-entry one-line justifications, so the human can audit it),
@@ -179,7 +181,7 @@ Steps:
 - **Given** a rule-pack row, **When** rendered, **Then** it carries the literal label
   `applicability-only — activation unknown until M1`.
 
-## Phase C — receipt: full gate, docs convergence, non-author review
+## Phase C — receipt: full gate, docs convergence, non-author review — ✅ EXECUTED 2026-08-19
 
 **Files:** `docs/development/reviews/2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md` (receipt),
 `docs/LESSONS_LEARNT.md` (entry or `none` — decided at run time).

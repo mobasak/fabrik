@@ -358,7 +358,7 @@ def _row(**kw) -> dict:
 def test_immune_entries_all_carry_justifications():
     from kaizen_immune_list import IMMUNE, JUSTIFICATIONS
 
-    assert IMMUNE == frozenset(JUSTIFICATIONS)
+    assert frozenset(JUSTIFICATIONS) == IMMUNE
     assert all(isinstance(j, str) and j.strip() for j in JUSTIFICATIONS.values())
     # plan-named members: rare-by-design commands, the Stop hook, the never-route script
     for member in ("fabrik-decommission", "fabrik-upstream", "final_gate_stop.py", "final_gate.py"):
@@ -512,7 +512,6 @@ def test_report_refuses_a_row_with_a_decorated_or_missing_verdict(tmp_path: Path
     """Phase B review finding: the token enum had no runtime guard — a future bug
     assigning 'keep — immune: …' as the TOKEN would render silently."""
     import pytest
-
     from kaizen_shrink_audit import render_report
 
     bad = _row(artifact="x", cls="command", verdict="keep — immune: nope")
@@ -532,11 +531,300 @@ def test_report_covers_every_census_row_and_carries_the_ruling_section(tmp_path:
     out = tmp_path / "report.md"
     text = render_report(rows, notes, out)
     assert out.exists()
-    assert text.count("\n| ") >= len(rows), "every census row must render"
+    # count ARTIFACT rows only — legend + table headers also start with "| ", and a
+    # header-inclusive count passed even with zero artifact rows (closing-review finding)
+    artifact_rows = [ln for ln in text.splitlines() if ln.startswith("| `")]
+    assert len(artifact_rows) == len(rows), "every census row must render, none twice"
     assert "## Operator ruling" in text
     assert "applicability-only — activation unknown until M1" in text
     assert "no gate JSON history exists" in text, "the evidence-substitution erratum"
     assert "final for METER SIZING" in text, "the census-scope statement"
+
+
+# ── Phase C closing-review findings (native non-author reviewer) ────────────────────
+
+
+def test_cron_census_prefers_the_script_over_env_assignments(tmp_path: Path):
+    """H: `PYTHONPATH=/opt/fabrik/src …/audit_x.py` keyed on `/opt/fabrik/src` — a
+    phantom directory artifact that swallowed two LIVE crons."""
+    src = _mk_sources_tree(tmp_path)
+    src.crontab_text = (
+        "0 * * * * PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python "
+        "/opt/fabrik/scripts/audit_authelia_gates.py\n"
+        "5 * * * * PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python "
+        "/opt/fabrik/scripts/audit_all_registrars.py\n"
+    )
+    census, _ = enumerate_artifacts(src)
+    assert census["cron"] == [
+        "/opt/fabrik/scripts/audit_authelia_gates.py",
+        "/opt/fabrik/scripts/audit_all_registrars.py",
+    ], census["cron"]
+
+
+def test_immune_lookup_reaches_the_stem_of_a_pathed_check(tmp_path: Path):
+    """H: the same file rendered `immune: keep` as a gate-check and `[ ] candidate` as
+    a cron — the lookup must reach the stem (`check_mutation`) from the path form."""
+    from kaizen_shrink_audit import assign_verdicts
+
+    rows = assign_verdicts([
+        _row(artifact="scripts/enforcement/check_mutation.py", cls="cron",
+             mentions={"ledgers": 0, "run_records": 0}),
+    ])
+    assert rows[0]["immune"] is True
+    assert rows[0]["verdict"] == "keep"
+
+
+def test_hook_liveness_joins_via_registry_command_contains(tmp_path: Path):
+    """H: hook surfaces key on `evidence.command_contains`; without that join every
+    hook row falsely read 'declares no liveness surface' — the exact defect class the
+    cron join fixed, left unfixed for hooks."""
+    from kaizen_shrink_audit import assign_verdicts, audit
+
+    src = _mk_sources_tree(tmp_path)
+    fabrik_dir = src.repo / ".fabrik"
+    fabrik_dir.mkdir(exist_ok=True)
+    (fabrik_dir / "liveness-registry.json").write_text(
+        json.dumps({"surfaces": [
+            {"id": "probe-hook", "kind": "hook",
+             "evidence": {"type": "hook", "command_contains": "stop_probe.py"}},
+        ]})
+    )
+    src.liveness_json.write_text(
+        json.dumps({"proofs": {"h": {"findings": [{"id": "probe-hook", "verdict": "LIVE"}]}}})
+    )
+    rows = assign_verdicts(audit(src)[0])
+    hook = next(r for r in rows if r["cls"] == "hook")
+    assert hook["liveness"] == "LIVE"
+    assert hook["verdict"] == "keep"
+
+
+def test_transcript_walk_includes_subagent_session_files(tmp_path: Path):
+    """M: 5,848 of 11,270 transcript files live at <proj>/<session>/subagents/*.jsonl —
+    a non-recursive glob scanned 46% of the corpus while presenting as the whole."""
+    proj = tmp_path / "projects" / "-opt-probe"
+    sub = proj / "session-uuid" / "subagents"
+    _write_transcript(
+        sub, "agent-x.jsonl",
+        [{"type": "user", "message": {"content": "<command-name>/fabrik-probe</command-name>"}}],
+    )
+    sig = collect_invocations(tmp_path / "projects")
+    assert sig.measurable and sig.data.get("fabrik-probe", {}).get("typed") == 1
+
+
+def test_mentions_are_boundary_aware(tmp_path: Path):
+    """M: `fabrik-deploy` credited 16 ledger mentions of which 9 belonged to
+    fabrik-deploy-plan/-plan-review/-verify — a keep verdict resting on other
+    commands' names."""
+    led = tmp_path / "opt" / "proj" / "docs" / "development" / "reviews"
+    led.mkdir(parents=True)
+    (led / "r.md").write_text(
+        "ran fabrik-deploy-plan then fabrik-deploy-plan-review then fabrik-deploy once\n"
+    )
+    sig = collect_mentions(
+        Sources(repo=tmp_path, reviews_root=tmp_path / "opt", run_records=tmp_path / "rr"),
+        ["fabrik-deploy", "fabrik-deploy-plan", "fabrik-deploy-plan-review"],
+    )
+    assert sig.data["fabrik-deploy"]["ledgers"] == 1
+    assert sig.data["fabrik-deploy-plan"]["ledgers"] == 1
+    assert sig.data["fabrik-deploy-plan-review"]["ledgers"] == 1
+
+
+def test_enumerate_notes_every_unenumerable_class(tmp_path: Path):
+    """M: 5 of 8 classes dropped SILENTLY when their registry was absent — the
+    docstring promised a note per unreadable registry and kept it for only 3."""
+    src = Sources(
+        repo=tmp_path / "bare",
+        transcripts=tmp_path / "t",
+        reviews_root=tmp_path / "opt",
+        run_records=tmp_path / "rr",
+        crontab_text="",
+    )
+    (tmp_path / "bare").mkdir()
+    census, notes = enumerate_artifacts(src)
+    assert census == {}
+    for cls in ("command", "fragment", "rule-pack", "gate-check", "hook",
+                "scaffold-type", "core-script"):
+        assert any(cls in n for n in notes), f"missing-class note owed for {cls}: {notes}"
+
+
+def test_assign_verdicts_is_idempotent():
+    """L: a second verdict pass duplicated every immune justification into the note.
+    Round-3 hardening: the FIRST guard used split('; ') and was defeated by every
+    justification that itself contains '; ' — 58 of 68 immune rows (the never-route
+    class and the Stop hook); this test now uses a semicolon-bearing member."""
+    from kaizen_shrink_audit import assign_verdicts
+
+    rows = [
+        _row(artifact="fabrik-decommission", cls="command"),  # semicolon-free
+        _row(artifact="check_changelog", cls="gate-check"),  # never-route: has '; '
+        _row(artifact="final_gate_stop.py", cls="hook"),  # Stop hook: has '; '
+    ]
+    for _ in range(3):
+        assign_verdicts(rows)
+    for r in rows:
+        assert r["evidence_note"].count("keep — immune:") == 1, r["evidence_note"]
+
+
+def test_includes_count_only_whole_line_markers(tmp_path: Path):
+    """L: the assembler substitutes only whole-line {{include:x}} markers — a
+    mid-sentence mention must not credit the fragment with a render-time inclusion."""
+    from kaizen_shrink_audit import collect_includes
+
+    repo = tmp_path / "repo"
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    (repo / "commands" / "_sources" / "fabrik-x.md").write_text(
+        "{{include:run-record}}\nsee the {{include:grounding-code}} marker in prose\n"
+    )
+    sig = collect_includes(repo)
+    assert sig.data.get("run-record") == 1
+    assert "grounding-code" not in sig.data
+
+
+def test_typed_channel_ignores_tool_result_echoes(tmp_path: Path):
+    """L (observer effect): a session that merely DISCUSSES the candidate list writes
+    literal <command-name> strings into its transcript via tool results — those must
+    not count as invocations, or every audited candidate flips to keep next run."""
+    proj = tmp_path / "projects" / "-opt-probe"
+    _write_transcript(
+        proj, "s.jsonl",
+        [
+            {"type": "user", "message": {"content": "<command-name>/fabrik-real</command-name>"}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "t1",
+                 "content": "grep hit: <command-name>/fabrik-echoed</command-name>"},
+            ]}},
+            {"type": "assistant", "message": {"content": [
+                {"type": "text",
+                 "text": "the report lists <command-name>/fabrik-echoed</command-name>"},
+            ]}},
+        ],
+    )
+    sig = collect_invocations(tmp_path / "projects")
+    assert sig.data.get("fabrik-real", {}).get("typed") == 1
+    assert "fabrik-echoed" not in sig.data, "tool-result/assistant echoes are not invocations"
+
+
+def test_applicability_recent_counts_only_still_tracked_files(tmp_path: Path):
+    """L: a pack whose only 'recent' matches are DELETED files read as recently
+    applicable (75-workers-jobs rendered 0/15 on 15 deleted paths)."""
+    import subprocess
+
+    repo = _mk_repo(tmp_path)
+    doomed = repo / "src" / "doomed.py"
+    doomed.write_text("x = 2\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=False)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-qm", "add"], cwd=repo, capture_output=True, check=False)
+    doomed.unlink()
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=False)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-qm", "rm"], cwd=repo, capture_output=True, check=False)
+    sig = collect_applicability(repo, since_days=60)
+    row = sig.data[".windsurf/rules/core/10-probe.md"]
+    assert row["structural"] == 1
+    assert row["recent"] == 1, "the deleted file must not count as recent applicability"
+
+
+def test_core_script_liveness_joins_via_registry(tmp_path: Path):
+    """Verification round: the registry join covered cron+hook but not core-script —
+    the legend advertises 'core-script: liveness + mentions' while mail.py's DEAD
+    surface never reached the operator (the same false '—' the hook fix removed)."""
+    from kaizen_shrink_audit import assign_verdicts, audit
+
+    src = _mk_sources_tree(tmp_path)
+    (src.repo / "scripts" / "fabrik_synced_manifest.py").write_text(
+        'CORE_SCRIPTS = ["mail.py"]\n'
+    )
+    fabrik_dir = src.repo / ".fabrik"
+    fabrik_dir.mkdir(exist_ok=True)
+    (fabrik_dir / "liveness-registry.json").write_text(
+        json.dumps({"surfaces": [{"id": "fabrik-mail-digest", "cron_match": "mail.py digest"}]})
+    )
+    src.liveness_json.write_text(
+        json.dumps(
+            {"proofs": {"h": {"findings": [{"id": "fabrik-mail-digest", "verdict": "DEAD"}]}}}
+        )
+    )
+    rows = assign_verdicts(audit(src)[0])
+    cs = next(r for r in rows if r["cls"] == "core-script")
+    assert cs["liveness"] == "DEAD", "the declared surface's verdict must reach the row"
+
+
+def test_sidechain_user_rows_are_not_typed_invocations(tmp_path: Path):
+    """Verification round: a dispatched subagent's BRIEF is a type:user row with string
+    content — quoting a literal marker in a brief must not count as an operator
+    keystroke (the observer-effect door re-opened by the rglob fix)."""
+    proj = tmp_path / "projects" / "-opt-probe"
+    sub = proj / "session" / "subagents"
+    _write_transcript(
+        sub, "agent-x.jsonl",
+        [{"type": "user", "isSidechain": True,
+          "message": {"content": "review the row <command-name>/fabrik-briefed</command-name>"}}],
+    )
+    _write_transcript(
+        proj, "main.jsonl",
+        [{"type": "user",
+          "message": {"content": "<command-name>/fabrik-genuine</command-name>"}}],
+    )
+    sig = collect_invocations(tmp_path / "projects")
+    assert sig.data.get("fabrik-genuine", {}).get("typed") == 1
+    assert "fabrik-briefed" not in sig.data, "a subagent brief is not an operator keystroke"
+
+
+def test_unreadable_crontab_earns_exactly_one_note(tmp_path: Path):
+    """Verification round: an unreadable crontab produced TWO contradictory census
+    notes — the precise cause diluted by a generic second line."""
+    import kaizen_shrink_audit as ksa
+
+    src = _mk_sources_tree(tmp_path)
+    src.crontab_text = None  # force the crontab -l path
+    orig = ksa.subprocess.run
+
+    def _fail(cmd, **kw):
+        if cmd[:1] == ["crontab"]:
+            raise OSError("no crontab binary")
+        return orig(cmd, **kw)
+
+    ksa.subprocess.run, run_backup = _fail, ksa.subprocess.run
+    try:
+        _, notes = enumerate_artifacts(src)
+    finally:
+        ksa.subprocess.run = run_backup
+    assert len([n for n in notes if "cron" in n.split(" ")[0] or "crontab" in n]) == 1, notes
+
+
+def test_append_note_dedupes_whole_segments_not_substrings():
+    """Verification round: the idempotency guard was a substring test — a distinct
+    shorter note swallowed by a longer existing one loses operator evidence. Round-3:
+    a note CONTAINING '; ' must also dedupe (split-on-separator cannot tell)."""
+    from kaizen_shrink_audit import _append_note
+
+    row = {"evidence_note": "all class signals unmeasurable — routed to unknown, never candidate"}
+    _append_note(row, "all class signals unmeasurable")
+    assert row["evidence_note"].endswith("; all class signals unmeasurable"), row["evidence_note"]
+    semi = {"evidence_note": ""}
+    _append_note(semi, "keep — immune: gate machinery; usage-evidence cannot prove it useless")
+    _append_note(semi, "keep — immune: gate machinery; usage-evidence cannot prove it useless")
+    assert semi["evidence_note"].count("keep — immune:") == 1, semi["evidence_note"]
+
+
+def test_missing_class_note_survives_a_path_containing_a_class_name(tmp_path: Path):
+    """Round-3: the missing-class guard was a substring test over notes embedding repo
+    PATHS — a repo at .../my-hooks-repo/ suppressed the hook class's note, silently
+    dropping the class again."""
+    repo = tmp_path / "my-hooks-repo" / "commands-lab"
+    (repo / "src" / "fabrik").mkdir(parents=True)
+    (repo / "src" / "fabrik" / "scaffold.py").write_text("SCAFFOLD_TYPES = 3\n")  # unreadable shape
+    src = Sources(
+        repo=repo,
+        transcripts=tmp_path / "t",
+        reviews_root=tmp_path / "opt",
+        run_records=tmp_path / "rr",
+        crontab_text="",
+    )
+    _, notes = enumerate_artifacts(src)
+    assert any(n.startswith("hook registry") for n in notes), notes
+    assert any(n.startswith("command registry") for n in notes), notes
 
 
 def test_audit_composes_rows_with_immune_and_verdict_none(tmp_path: Path):

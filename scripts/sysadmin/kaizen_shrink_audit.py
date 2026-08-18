@@ -69,7 +69,7 @@ class Signal:
         return self.data is not None
 
     @classmethod
-    def unavailable(cls, reason: str) -> "Signal":
+    def unavailable(cls, reason: str) -> Signal:
         return cls(data=None, reason=reason)
 
 
@@ -98,8 +98,40 @@ def _transcript_files(root: Path) -> list[Path]:
     out: list[Path] = []
     for proj in sorted(root.iterdir()):
         if proj.is_dir():
-            out.extend(sorted(proj.glob("*.jsonl")))
+            # rglob, not glob: 5,848 of 11,270 transcript files live at
+            # <proj>/<session>/subagents/*.jsonl — a depth-2 walk scanned 46% of the
+            # corpus while presenting as the whole (closing-review finding)
+            out.extend(sorted(proj.rglob("*.jsonl")))
     return out
+
+
+def _typed_names(line: str) -> list[str]:
+    """Typed `<command-name>` invocations in one row — USER text only, never echoes.
+
+    The observer effect (closing-review finding): a session that merely DISCUSSES a
+    command writes the literal marker into its transcript via tool results and
+    assistant prose — counting those flips every audited candidate to keep on the
+    next run. Only a user message's own text is an operator-typed invocation.
+    """
+    if "<command-name>" not in line:
+        return []
+    try:
+        d = json.loads(line)
+    except ValueError:
+        return []
+    if d.get("type") != "user" or d.get("isSidechain"):
+        # a sidechain user row is a dispatched subagent's BRIEF, not an operator
+        # keystroke — a brief quoting a literal marker must not flip a candidate
+        return []
+    content = (d.get("message") or {}).get("content")
+    names: list[str] = []
+    if isinstance(content, str):
+        names += _CMD_RE.findall(content)
+    elif isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                names += _CMD_RE.findall(block.get("text", ""))
+    return names
 
 
 def _skill_names(line: str) -> list[str]:
@@ -149,7 +181,7 @@ def collect_invocations(transcripts_root: Path) -> Signal:
             with f.open(errors="replace") as fh:  # UTF-8 dirt must never skip a file
                 for line in fh:
                     hits: list[tuple[str, str]] = []
-                    hits += [(m, "typed") for m in _CMD_RE.findall(line)]
+                    hits += [(m, "typed") for m in _typed_names(line)]
                     hits += [(s, "skill") for s in _skill_names(line)]
                     for name, channel in hits:
                         row = counts.setdefault(
@@ -275,7 +307,10 @@ def collect_applicability(repo: Path, since_days: int) -> Signal:
     recent_raw = _git_lines(
         repo, "log", f"--since={since_days} days", "--name-only", "--pretty=format:"
     )
-    recent = set(recent_raw or [])
+    # intersect with the current tree: a pack whose only "recent" matches are DELETED
+    # files is not recently applicable (closing-review finding: 75-workers-jobs read
+    # 0/15 on 15 deleted paths)
+    recent = set(recent_raw or []) & set(tracked)
     out: dict[str, dict] = {}
     for pack in packs:
         rel = str(pack.relative_to(repo))
@@ -298,7 +333,10 @@ def collect_applicability(repo: Path, since_days: int) -> Signal:
 
 # ── fragment includes: a fragment's usage channel is {{include:}} at render time ─────
 
-_INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
+# whole-line only, matching the assembler: `assemble_commands.py` substitutes
+# `^{{include:x}}$` (re.M) and reports anything else as leftover — a mid-sentence
+# mention must not credit the fragment with a render-time inclusion
+_INCLUDE_RE = re.compile(r"^\{\{include:([\w-]+)\}\}\s*$", re.M)
 
 
 def collect_includes(repo: Path) -> Signal:
@@ -352,10 +390,12 @@ def collect_liveness(sources: Sources) -> Signal:
     return Signal(verdicts)
 
 
-def _cron_match_map(repo: Path) -> dict[str, str]:
-    """{script_basename: surface_id} from the liveness REGISTRY declarations — findings
-    key on surface ids, never script paths, so the cron join must go through
-    ``cron_match`` (live false positive: provably-live crons read as candidates)."""
+def _registry_surface_map(repo: Path) -> dict[str, list[str]]:
+    """{script_basename: [surface_id, ...]} from the liveness REGISTRY declarations —
+    findings key on surface ids, never script paths, so the join must go through the
+    declaration: ``cron_match`` for crons, ``evidence.command_contains`` for hooks
+    (both defect classes hit live: provably-live crons and all five hooks read as
+    having no liveness at all)."""
     reg = repo / ".fabrik" / "liveness-registry.json"
     try:
         surfaces = json.loads(reg.read_text(encoding="utf-8")).get("surfaces") or []
@@ -363,8 +403,13 @@ def _cron_match_map(repo: Path) -> dict[str, str]:
         return {}
     out: dict[str, list[str]] = {}
     for s in surfaces:
-        match, sid = s.get("cron_match"), s.get("id")
-        if isinstance(match, str) and isinstance(sid, str) and match:
+        sid = s.get("id")
+        if not isinstance(sid, str):
+            continue
+        match = s.get("cron_match")
+        if not (isinstance(match, str) and match):
+            match = (s.get("evidence") or {}).get("command_contains")
+        if isinstance(match, str) and match:
             out.setdefault(Path(match.split()[0]).name, []).append(sid)
     return out
 
@@ -392,14 +437,21 @@ def collect_mentions(sources: Sources, names: list[str]) -> Signal:
             f"no review ledgers under {sources.reviews_root}/*/docs/development/reviews/"
         )
     counts = {n: {"ledgers": 0, "run_records": 0} for n in names}
+    # boundary-aware, longest-first (same law as collect_check_activity): a bare
+    # substring count credited `fabrik-deploy` with 9 of `fabrik-deploy-plan*`'s
+    # mentions — a keep verdict resting on other commands' names (closing review)
+    ordered = sorted(names, key=len, reverse=True)
+    big = re.compile(
+        r"(?<![\w-])(?:" + "|".join(re.escape(n) for n in ordered) + r")(?![\w-])"
+    )
     for f in ledgers:
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for n in names:
-            if n in text:
-                counts[n]["ledgers"] += text.count(n)
+        for hit in big.findall(text):
+            if hit in counts:
+                counts[hit]["ledgers"] += 1
     rr = sources.run_records
     if rr.is_dir():
         for f in sorted(rr.glob("*.json")):
@@ -465,6 +517,18 @@ def _crontab_lines(sources: Sources) -> list[str] | None:
 
 
 _CRON_TARGET_RE = re.compile(r"(/opt/fabrik/[^\s'\"]+|scripts/[^\s'\"]+)")
+_SCRIPT_EXT = (".py", ".sh", ".js")
+
+
+def _cron_target(line: str) -> str:
+    """The artifact a cron line runs — the first SCRIPT-shaped token, never an env
+    assignment (closing-review finding: `PYTHONPATH=/opt/fabrik/src …/audit_x.py`
+    keyed on `/opt/fabrik/src`, a phantom directory that swallowed two LIVE crons)."""
+    tokens = _CRON_TARGET_RE.findall(line)
+    for t in tokens:
+        if t.endswith(_SCRIPT_EXT):
+            return t
+    return tokens[0] if tokens else line[:80]
 
 
 def enumerate_artifacts(sources: Sources) -> tuple[dict[str, list[str]], list[str]]:
@@ -473,6 +537,7 @@ def enumerate_artifacts(sources: Sources) -> tuple[dict[str, list[str]], list[st
     repo = sources.repo
     census: dict[str, list[str]] = {}
     notes: list[str] = []
+    noted_classes: set[str] = set()  # classes already covered by a PRECISE note
 
     def _stems(rel: str, pattern: str) -> list[str]:
         d = repo / rel
@@ -494,6 +559,7 @@ def enumerate_artifacts(sources: Sources) -> tuple[dict[str, list[str]], list[st
         census["scaffold-type"] = sorted(types)
     else:
         notes.append(f"scaffold-type registry unreadable ({scaffold}) — class not enumerated")
+        noted_classes.add("scaffold-type")
 
     manifest = repo / "scripts" / "fabrik_synced_manifest.py"
     core = _ast_names(manifest, "CORE_SCRIPTS") if manifest.exists() else None
@@ -501,18 +567,30 @@ def enumerate_artifacts(sources: Sources) -> tuple[dict[str, list[str]], list[st
         census["core-script"] = sorted(core)
     else:
         notes.append(f"core-script registry unreadable ({manifest}) — class not enumerated")
+        noted_classes.add("core-script")
 
     crons = _crontab_lines(sources)
     if crons is None:
         notes.append("crontab unreadable — cron class not enumerated")
+        noted_classes.add("cron")
     else:
         seen: list[str] = []
         for ln in crons:
-            m = _CRON_TARGET_RE.search(ln)
-            target = m.group(1) if m else ln[:80]
+            target = _cron_target(ln)
             if target not in seen:
                 seen.append(target)
         census["cron"] = seen
+    # EVERY unenumerable class earns a note — 5 of 8 dropped silently before the
+    # closing review (a report header saying "5 classes" with no hint 57 gate checks
+    # were never censused is a silent drop the operator rules on)
+    # a precise note (e.g. "crontab unreadable") must not be diluted by the generic
+    # one — tracked as an explicit class SET, never a substring test over note text
+    # (a repo path containing a class name suppressed the hook note; round-3 finding)
+    for cls in ("command", "fragment", "rule-pack", "gate-check", "hook", "cron"):
+        if not census.get(cls):
+            census.pop(cls, None)
+            if cls not in noted_classes:
+                notes.append(f"{cls} registry empty or missing — class not enumerated")
     return {k: v for k, v in census.items() if v}, notes
 
 
@@ -561,7 +639,7 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
     )
     chk = scaffold_hits = combined
     inc = collect_includes(src.repo)
-    cron_surfaces = _cron_match_map(src.repo)
+    registry_surfaces = _registry_surface_map(src.repo)
 
     rows: list[dict] = []
     for cls, artifacts in census.items():
@@ -616,9 +694,12 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
                 key = Path(a).name if "/" in a else a
                 stem = key[: -len(Path(key).suffix)] if Path(key).suffix else key
                 row["liveness"] = live.data.get(a) or live.data.get(key) or live.data.get(stem)
-                if row["liveness"] is None and cls == "cron":
-                    # cron findings key on registry surface ids — join via cron_match
-                    sids = cron_surfaces.get(key, [])
+                if row["liveness"] is None and cls in ("cron", "hook", "core-script"):
+                    # these classes' findings key on registry surface ids — join via the
+                    # registry declaration (cron_match / evidence.command_contains);
+                    # core-script included per its own legend row (verification round:
+                    # mail.py's DEAD digest surface never reached the operator)
+                    sids = registry_surfaces.get(key, [])
                     row["liveness"] = _best_verdict(
                         [live.data[s] for s in sids if s in live.data]
                     )
@@ -674,7 +755,18 @@ def _usage_signals(row: dict) -> list[bool | None]:
 
 
 def _append_note(row: dict, note: str) -> None:
-    row["evidence_note"] = "; ".join(p for p in (row["evidence_note"], note) if p)
+    """Idempotent by WHOLE NOTE. Notes are tracked as a list on the row (`_notes`,
+    renderer-invisible) because the joined string cannot be split back reliably —
+    justifications themselves contain '; ' (58 of 68 immune rows), which defeated a
+    split-on-separator guard, while a bare substring guard swallowed distinct shorter
+    notes (both hit in review rounds)."""
+    notes = row.setdefault(
+        "_notes", [row["evidence_note"]] if row.get("evidence_note") else []
+    )
+    if note in notes:
+        return
+    notes.append(note)
+    row["evidence_note"] = "; ".join(notes)
 
 
 def assign_verdicts(rows: list[dict]) -> list[dict]:
@@ -685,13 +777,23 @@ def assign_verdicts(rows: list[dict]) -> list[dict]:
     unknown    — rule packs always (applicability-only class — the only glob-activated
                  class with no invocation channel), or every class signal unmeasurable
     """
-    from kaizen_immune_list import JUSTIFICATIONS  # noqa: PLC0415 — sibling module
+    try:
+        from kaizen_immune_list import JUSTIFICATIONS  # noqa: PLC0415 — sibling module
+    except ImportError:  # caller imported this module by file location (closing review)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from kaizen_immune_list import JUSTIFICATIONS  # noqa: PLC0415
 
     for row in rows:
-        # basename fallback: census keys drift between absolute and relative cron forms
-        # (live false positive: liveness_audit.py listed as candidate past its own entry)
-        just = JUSTIFICATIONS.get(row["artifact"]) or JUSTIFICATIONS.get(
-            Path(row["artifact"]).name
+        # lookup ladder: exact → basename → stem. Census keys drift between forms
+        # (absolute/relative cron paths, `.py`-suffixed vs stem check names) — the
+        # closing review found the SAME file immune as a gate-check and a tickable
+        # candidate as a cron.
+        name = row["artifact"]
+        base = Path(name).name
+        just = (
+            JUSTIFICATIONS.get(name)
+            or JUSTIFICATIONS.get(base)
+            or JUSTIFICATIONS.get(Path(base).stem)
         )
         row["immune"] = just is not None
         if just is not None:
@@ -769,6 +871,10 @@ def render_report(rows: list[dict], census_notes: list[str], out: Path) -> str:
         "- `immune` blocks AUTO-candidacy only (safety machinery presents as unused "
         "precisely because it works); every immune row still shows its evidence, and "
         "the operator's ruling is final on ALL rows.",
+        "- Census boundary: REPO-owned artifacts only — hooks = this repo's "
+        "`.claude/hooks/*.py` (box-level hooks like the sound system are "
+        "liveness-audited, never censused here); crons = the user crontab's "
+        "`/opt/fabrik` lines.",
         "",
     ]
     for cls in sorted(by_cls):

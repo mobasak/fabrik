@@ -152,8 +152,10 @@ registry. See `docs/workstation/liveness.md`.
 The kaizen closed-loop v2 spec (`docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md`
 § Sequencing) runs the SHRINK QUESTION first: before any meter is built, should ~203 governance
 artifacts and 57 checks become 60 and 20? `scripts/sysadmin/kaizen_shrink_audit.py --report`
-answers it with evidence — per artifact: invocations (BOTH channels: typed `<command-name>` rows
-AND Skill tool_use rows, keyed on JSON structure), rule-pack applicability (structural + recent,
+answers it with evidence — per artifact: invocations (BOTH channels, each keyed on JSON
+structure: typed `<command-name>` markers in USER text and Skill tool_use blocks — tool-result
+and assistant echoes never count, so a session merely discussing a candidate cannot flip its
+verdict), rule-pack applicability (structural + recent,
 labelled `applicability-only — activation unknown until M1`, never usage), gate-output hits,
 liveness verdicts, and fleet-wide ledger mentions. `kaizen_immune_list.py` excludes safety
 machinery from AUTO-candidacy (rarely-fired guards present as "unused" precisely because they
