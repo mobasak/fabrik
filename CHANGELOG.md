@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the closing sweep defeated the fixed grammar again: 12 more findings, 6 reproduced (2026-08-19)
+
+The review loop's first closing sweep (fresh non-author Opus) was NOT quiet — proof the loop's
+no-ceiling rule earns its keep. The worst, each now pinned by a committed test:
+
+- **A second counter table impersonated the ledger** — the LAST-match defect's THIRD appearance
+  in this file. `_mega_ledger_rows` now reads the FIRST contiguous counter table only.
+- **An H1 with a vision suffix escaped EVERY gate** (mega, checklist, cert — exit 0 with a
+  non-quiet ledger and live placeholders). Routing now keys the suffix-tolerant `\A` H1 OR the
+  reserved `-validation-review.md` filename — fail-closed both ways.
+- **`epics_set_hash` was NOT byte-identical to the doc's pipeline** — locale collation vs byte
+  order on case and nested paths; an honest agent got accused of never computing the hash. The
+  doc pins `LC_ALL=C`; the parity test's fixture (previously two flat lowercase files — the one
+  class where the orders can't differ) now carries mixed-case + nested paths. An empty epic set
+  yields no anchor instead of the shell's md5-of-nothing artifact.
+- **Bold `### **Step N**` headings counted as ZERO** — ettw-00 shipped `--phases 1` for an
+  8-step workflow, recreating the exact pinned-line lie the counter was rewritten to prevent;
+  `Step 0` no longer makes the total unreachable (mega-00: 6→5).
+- The `IN-PROGRESS` escape's header-zone rule is now learnable (template `Status:` slot at line
+  3, documented, and the failure message says where); a `Surface:` line with a trailing
+  annotation is no longer reported as absent (the wrong-reason class, third sighting); hashes
+  are exactly 32 hex (12-char "full-ish" let truncation pass wherever the recompute is skipped);
+  the committed advisory scan honors its documented narrowness via `scope="exit"`; the wrapper
+  renderer gains the desc-length + leftover-token guards its sibling always had;
+  `_canonical_trailer_model` takes `repo`.
+
+
+### Added — kaizen M0: the shrink-audit census over every governance artifact (2026-08-19)
+
+The v2 spec's first milestone, run BEFORE any meter is built: should ~200 artifacts and 57
+checks shrink? `scripts/sysadmin/kaizen_shrink_audit.py --report` now answers with evidence —
+per artifact across 8 classes (commands, fragments, rule packs, gate checks, hooks, crons,
+core scripts, scaffold types): invocations from BOTH transcript channels (typed
+`<command-name>` rows + Skill tool_use rows keyed on JSON structure — 145-vs-4 measured skew),
+fragment `{{include:}}` references, rule-pack glob applicability (structural + recent, labelled
+applicability-only, never usage), gate-output hits, liveness verdicts joined through the
+registry's `cron_match`, and fleet-wide ledger mentions. `kaizen_immune_list.py` excludes
+safety machinery from auto-candidacy with per-entry justifications (never-route class
+enumerated live). The honesty rule is load-bearing: unmeasurable prints `—` with its reason,
+never 0 — locked by duplex fixtures per collector, `--selftest`, and red-on-revert proof.
+Report: `docs/workstation/kaizen-shrink-audit.md` with the `## Operator ruling` section — the
+ruling is the operator's act; the audit never self-rules. Census final for METER SIZING only;
+re-opens on M1 activation data. Spec erratum recorded: no gate JSON history exists —
+transcript-embedded gate outputs + liveness verdicts substituted.
+
 ### Fixed — the mega enforcement survived its own review poorly: 24 findings, and the ettw chain is wired (2026-08-19)
 
 `/fabrik-review` on yesterday's `e2bf0f6e` (pool ×3 + native Opus + native Sonnet + first-hand):

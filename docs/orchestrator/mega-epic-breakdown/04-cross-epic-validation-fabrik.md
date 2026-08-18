@@ -187,8 +187,12 @@ Classify every surviving finding, then handle it autonomously — everything sho
 **Anti-cheat (mechanical, not vibes) — the SET hash** `[canonical: /fabrik-plan-review's combined-hash rule — same machinery, same reason]`: record the epic set's combined hash at the **start and end of every round**:
 
 ```bash
-find docs/development/epics -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum
+find docs/development/epics -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum | md5sum
 ```
+
+(`LC_ALL=C` is load-bearing: locale collation orders `Alpha.md`/`alpha.md` and nested paths
+differently from byte order, and the gate recomputes this hash in byte order — a locale-sorted
+hash reads as "never computed". Reproduced 2026-08-19.)
 
 Fixups edit epic files, so a round that changed anything shows a different hash — which is exactly why **the exit round must show `md5(start) == md5(end)`** on top of its quiet ledger: identical hashes prove the final round was genuinely edit-free rather than asserted so. A quiet ledger with a moved hash is a round that fixed something and called itself quiet — run the next round.
 
@@ -210,14 +214,17 @@ command's exit went un-policed until 2026-08-16 (`/fabrik-plan-review`'s exit is
 - **every lens line adjudicated** — no `[PASS]`/`[N]`/`[list]` template placeholders may survive
   into the persisted report (a placeholder is a lens nobody adjudicated wearing a verdict's
   clothes);
-- `Status: IN-PROGRESS` at column 0 is the sanctioned escape for a run interrupted mid-loop —
-  never a way to ship an unconverged set.
+- `Status: IN-PROGRESS` at column 0 **within the report's first 10 lines** (the template slots
+  it at line 3) is the sanctioned escape for a run interrupted mid-loop — never a way to ship an
+  unconverged set. Below line 10 it is ignored, deliberately: an escape hatch that works from
+  anywhere in the body is quotable from anywhere in the body.
 
 Then post the same report to the Telegram digest (not a per-finding prompt):
 
 ```markdown
 # Cross-Epic Validation Report
 Surface: <final md5(end), FULL 32 hex — from Step 3's anti-cheat, never truncated>
+Status: <omit when converged; `Status: IN-PROGRESS` for an interrupted run — the gate reads this ONLY from the report's first 10 lines, which is why its slot is here>
 
 Rounds (found counts refuted candidates too; FULL hashes, chained — round N's end = round N+1's start):
 | round | found: | fixed: | md5(start) → md5(end) |

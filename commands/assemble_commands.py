@@ -197,8 +197,17 @@ def _orch_phase_count(text: str) -> int:
     """
     nums = {
         int(m.group(1))
-        for m in re.finditer(r"^#{2,4}\s+(?:Step|Phase)\s+[A-Za-z]?(\d+)", text, flags=re.M)
+        for m in re.finditer(
+            r"^#{2,4}\s+\**(?:Step|Phase)\s+[A-Za-z]?(\d+)", text, flags=re.M
+        )
     }
+    # ettw-00 writes every heading as `### **Step 1: …**` — without the \** tolerance it counted
+    # ZERO and shipped `--phases 1` for an 8-step workflow (closing-sweep finding). And a
+    # `Step 0` label needs dropping when other steps exist: `command_run.py step --phase 0`
+    # clamps to 1, so counting 0 as its own phase makes the final total unreachable and the
+    # pinned RUN: line reads finished-minus-one forever.
+    if 0 in nums and len(nums) > 1:
+        nums.discard(0)
     return max(len(nums), 1)
 
 
@@ -210,12 +219,22 @@ def _render_orch_wrapper(name: str) -> str:
     phase count drifts the moment a step is added, and a wrong count makes the pinned RUN:
     line lie about where the run is)."""
     doc_rel, desc = ORCH_SOURCES[name]
+    if len(desc) > 1024:
+        raise SystemExit(
+            f"_render_orch_wrapper: {name}: description is {len(desc)} chars, over the "
+            "1024-char skill limit — trim the ORCH_SOURCES entry"
+        )
     doc = ROOT.parent / doc_rel
     body = doc.read_text(encoding="utf-8")  # missing doc = render error, never a silent skip
     record = (FRAG / "run-record.md").read_text(encoding="utf-8").rstrip("\n")
     record = record.replace("{{COMMAND}}", name).replace(
         "{{PHASES}}", str(_orch_phase_count(body))
     )
+    leftover = re.findall(r"\{\{[\w:-]+\}\}", record)
+    if leftover:
+        # a token added to the fragment but not substituted here would ship literally into all
+        # 17 wrappers — the same guard render() has for command bodies, which this path bypassed
+        raise SystemExit(f"_render_orch_wrapper: {name}: unresolved {sorted(set(leftover))}")
     return (
         f"---\n"
         f"name: {name}\n"

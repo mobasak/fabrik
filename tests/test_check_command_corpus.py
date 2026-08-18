@@ -202,7 +202,7 @@ def test_template_shipped_scripts_resolve(tmp_path: Path):
     assert any("never_anywhere" in p for p in problems)
 
 
-def test_EVERY_wrapper_must_open_a_run_record_banner_or_not(tmp_path: Path):
+def test_every_wrapper_must_open_a_run_record_banner_or_not(tmp_path: Path):
     """Deleting the GENERATED banner exempted a wrapper from the one thing the predicate proves.
 
     Reproduced 2026-08-18; the carve-out died when the whole set (mega + ettw) came under
@@ -238,14 +238,27 @@ def test_traversal_in_the_doc_pointer_is_refused(tmp_path: Path):
 
 
 def test_project_with_orch_dir_but_no_corpus_stays_silent_and_does_not_crash(tmp_path: Path):
-    """The fleet hazard: v1 reached the libs.subagents import and ModuleNotFoundError'd a
-    BLOCKING gate in any project that acquired _traycer-skills/ (reproduced 2026-08-18)."""
+    """The fleet hazard: a project acquiring _traycer-skills/ must be silently N/A.
+
+    Honesty note (closing-sweep finding): this fixture cannot reproduce v1's actual crash —
+    v1's `_live_web_tool_names()` read the module-level REPO (the real hub, which has
+    libs/subagents), so the ModuleNotFoundError only fired in a genuinely separate repo. What
+    this test DOES pin: (a) the ordering fix — the orch section never runs without a hub
+    corpus, so the 28 bogus chain-ref problems v1 emitted here are gone; (b) the None-sentinel
+    below, which is the guard that would stop the crash in a repo without the pool vendored.
+    """
     _orch_fixture(tmp_path, wrapper_extra="command_run.py start\n")
     problems = audit(
         tmp_path / "_sources", tmp_path / "_fragments", tmp_path / "absent.py", tmp_path,
         traycer_skills=tmp_path / "_traycer-skills",
     )
     assert problems == [], f"a project-shaped tree must be silently N/A, got: {problems[:3]}"
+    from check_command_corpus import _live_web_tool_names  # noqa: PLC0415
+
+    assert _live_web_tool_names(tmp_path) is None, (
+        "the crash guard: a repo without libs/subagents must yield the skip-sentinel, "
+        "never an import attempt (None, not an empty set — empty inverts predicate 1)"
+    )
 
 
 def test_hub_with_assembler_but_missing_wrapper_tree_is_a_defect(tmp_path: Path):

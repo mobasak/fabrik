@@ -91,11 +91,16 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     return frozenset(WEB_TOOL_NAMES)
 
 
-def _canonical_trailer_model() -> str | None:
-    """The Co-Authored-By model named in CLAUDE.md's own trailer example."""
-    if not CLAUDE_MD.exists():
+def _canonical_trailer_model(repo: Path = REPO) -> str | None:
+    """The Co-Authored-By model named in CLAUDE.md's own trailer example.
+
+    ``repo``-derived like everything else — the module-constant version silently graded every
+    fixture audit against the real hub's CLAUDE.md, making predicate 4 untestable in isolation
+    (the same poisons-any-other-caller class this file already documents twice)."""
+    claude_md = repo / "CLAUDE.md"
+    if not claude_md.exists():
         return None
-    found = _TRAILER_RE.findall(CLAUDE_MD.read_text(encoding="utf-8", errors="replace"))
+    found = _TRAILER_RE.findall(claude_md.read_text(encoding="utf-8", errors="replace"))
     return found[0] if found else None
 
 
@@ -216,7 +221,7 @@ def audit(
 
     valid_tools = _live_web_tool_names(repo)
     known_commands = {p.stem for p in sources.glob("*.md")}
-    canonical_model = _canonical_trailer_model()
+    canonical_model = _canonical_trailer_model(repo)
     orch_doc_set = set(orch_docs)
 
     # 5. RUN RECORD — CLAUDE.md makes opening one the first act of any /fabrik-* invocation,

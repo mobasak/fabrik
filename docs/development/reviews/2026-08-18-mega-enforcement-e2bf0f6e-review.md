@@ -154,6 +154,9 @@ HUB surface — both enforcement scripts are fleet-synced (widest blast radius; 
 | ops floor / 12-factor | CLEAN | no compose/ports/logfile surface; scripts are gate CLIs (stdout-by-design) |
 | cost/quota/limit accounting | CLEAN | no cost surface; pool dispatch recorded + scored (deepseek 4/5; gemini empty; qwen lost to my print truncation — noted, unscored) |
 | behavior-without-a-test | FIXED(n) | subsumed by the test-quality row: every fixed behavior above carries a durable regression test |
+| ledger-table selection (round 3) | FIXED(1) | the LAST-match defect's THIRD appearance: a second counter table impersonated the ledger — _mega_ledger_rows now takes the FIRST contiguous counter table only; pinned by test_a_second_table_cannot_impersonate_the_ledger |
+| H1-routing escape (round 3) | FIXED(1) | a vision-suffixed H1 fell through EVERY gate; routing now keys the \\A-matched H1 (suffix-tolerant, BOM/blank-tolerant) OR the reserved filename — fail-closed; two tests pin both keys |
+| hash locale parity (round 3) | FIXED(1) | LC_ALL=C pinned in the doc pipeline + code comment; empty set → None; the parity test now carries mixed-case + nested fixtures (the classes where it CAN fail); the false "never computed" accusation reworded to name sibling-edit timing + both exits |
 
 ## Pass Ledger
 
@@ -161,7 +164,9 @@ HUB surface — both enforcement scripts are fleet-synced (widest blast radius; 
 |---|---|---|---|
 | Pass 1 | WIDE | found: 24 · new: 24 · fixed: 0 | pool fanout ×3 (deepseek-v3.2 · gemini-3-flash(empty) · qwen3-max(lost to my print truncation)) + native fabrik-reviewer Opus (gates/regex/fail-open) + native Sonnet (assembler/tests/contracts) + orchestrator first-hand (2 findings incl. the committed-mega-invisible hole) |
 | Pass 2 | SCOPED (fix diff + callers) | found: 3 · new: 3 · fixed: 27 | orchestrator re-check of every fix + 46-test suite incl. mutation probes (anchor revert → red → restore) — the 3: reversed old template test, empty-set inversion in _live_web_tool_names, stray chars in a docstring |
-| Pass 3 | WIDE (closing) | (in flight — filled from the finder's ACTUAL result, never pre-written) | FRESH non-author native fabrik-reviewer (Opus), full class sweep over the post-fix surface |
+| Pass 3 | WIDE (closing #1) | found: 12 · new: 12 · fixed: 0 | FRESH non-author native fabrik-reviewer (Opus) — NOT quiet: 6 CONFIRMED reproduced (second-table ledger hijack; H1-suffix escaping EVERY gate; hash NOT byte-identical to the shell pipeline — locale collation, with the parity test unable to fail; bold-Step docs shipping --phases 1; IN-PROGRESS positional rule unlearnable; Surface trailing-annotation wrong-reason) + 6 PLAUSIBLE (committed-scan narrowness breach; 12-vs-32 hex; recompute timing hazard; wrapper guards missing; crash-path test honesty; trailer repo param) |
+| Pass 4 | SCOPED (round-3 fix diff + callers) | found: 0 · new: 0 · fixed: 12 | orchestrator re-verification: 52 tests green (19 mega-grammar incl. mixed-case+nested LC_ALL=C parity, second-table, H1-suffix, filename routing, narrow committed scan; corpus honesty fix), corpus + selftest + review-coverage green, wrappers re-rendered (mega-00 --phases 5, ettw-00 8), check OK. Round-4 ledger sweep: TERMINAL verdict, all 12 classes clean |
+| Pass 5 | WIDE (closing #2) | (in flight — filled from the finder's ACTUAL result, never pre-written) | FRESH non-author native fabrik-reviewer (Opus), full sweep over the round-3-fixed surface |
 
 Refuted along the way (counted in pass 1's found): indented doc-pointer false-negative (fail-closed with actionable message — acceptable); header-style ledger table (fails closed, wrong-ish message — acceptable); UTF-8 replace message precision (negligible); banner-spoof false-positive (superseded — record now required of all wrappers); wrapper glob depth + first-match doc pointer (accepted residual: generation enforces shape; traversal guard bounds the damage).
 

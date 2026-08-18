@@ -22,7 +22,7 @@ fifth cause reads it: while a record says `running`, ending the turn is BLOCKED.
 machinery that stops a command being abandoned half-executed — it only protects you if you open it.
 
 ```bash
-python3 scripts/command_run.py start --command fab-mega-00-trigger --phases 6 \
+python3 scripts/command_run.py start --command fab-mega-00-trigger --phases 5 \
   --terminal "<this command's own terminal condition, in your words>"
 ```
 

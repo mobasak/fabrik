@@ -37,7 +37,7 @@ def _shell_hash(repo: Path) -> str:
     """The Step-3 anti-cheat pipeline VERBATIM — the value a real mega-04 run records."""
     out = subprocess.run(
         ["bash", "-c",
-         "find docs/development/epics -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum"],
+         "find docs/development/epics -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum | md5sum"],
         cwd=repo, capture_output=True, text=True, timeout=15, check=True,
     ).stdout
     return out.split()[0]
@@ -77,8 +77,25 @@ def _report(h: str, *, rounds: str | None = None, surface: str | None = None) ->
 
 
 def test_python_hash_is_byte_identical_to_the_shell_pipeline(repo: Path) -> None:
-    """If these ever diverge, every honest report fails the live recompute — the gate dies."""
+    """If these ever diverge, every honest report fails the live recompute — the gate dies.
+
+    The first version's fixture was two flat lowercase files — the one input class where locale
+    and byte order cannot differ, so it could not fail for the reason it exists (closing-sweep
+    finding). Mixed case and nesting are exactly where `sort` without LC_ALL=C diverges; both
+    are in the fixture now, and the doc's pipeline pins LC_ALL=C to match.
+    """
+    epics = repo / "docs/development/epics"
+    (epics / "Alpha-b.md").write_text("upper\n")
+    (epics / "sub").mkdir()
+    (epics / "sub" / "a.md").write_text("nested\n")
+    (epics / "sub-x.md").write_text("dash-vs-slash\n")
     assert epics_set_hash(repo) == _shell_hash(repo)
+
+
+def test_empty_epic_set_yields_no_anchor(tmp_path: Path) -> None:
+    """No epics = nothing validated; the shell's md5sum-of-nothing artifact is not an anchor."""
+    (tmp_path / "docs/development/epics").mkdir(parents=True)
+    assert epics_set_hash(tmp_path) is None
 
 
 def test_honest_report_with_real_hashes_passes(repo: Path) -> None:
@@ -96,7 +113,7 @@ def test_fabricated_identical_strings_no_longer_pass(repo: Path) -> None:
 
 def test_a_year_is_not_a_hash(repo: Path) -> None:
     h = _shell_hash(repo)
-    rounds = f"| 1 | found: 1 | fixed: 1 | 2025 → 2026 |\n| 2 | found: 0 | fixed: 0 | 2026 → 2026 |\n"
+    rounds = "| 1 | found: 1 | fixed: 1 | 2025 → 2026 |\n| 2 | found: 0 | fixed: 0 | 2026 → 2026 |\n"
     rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md",
                     _report(h, rounds=rounds))
     assert rc == 1
@@ -124,7 +141,7 @@ def test_a_prose_mention_is_not_a_second_round(repo: Path) -> None:
     assert "minimum two" in out
 
 
-def test_final_round_must_be_quiet_in_BOTH_counters(repo: Path) -> None:
+def test_final_round_must_be_quiet_in_both_counters(repo: Path) -> None:
     h = _shell_hash(repo)
     rounds = f"| 1 | found: 3 | fixed: 2 | {'a' * 32} → {h} |\n| 2 | found: 0 | fixed: 3 | {h} → {h} |\n"
     rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md", _report(h, rounds=rounds))
@@ -164,7 +181,6 @@ def test_quoting_the_template_does_not_reroute_a_normal_review(repo: Path) -> No
 
 
 def test_fenced_in_progress_is_not_an_exemption_but_header_zone_is(repo: Path) -> None:
-    h = _shell_hash(repo)
     fenced = _report("f" * 32) + "\n```\nStatus: IN-PROGRESS\n```\n"
     rc, _ = _gate(repo, "2026-08-18-mega-vision-validation-review.md", fenced)
     assert rc == 1, "a fenced quote of the escape hatch bought a total exemption in v1"
@@ -191,3 +207,62 @@ def test_committed_unconverged_mega_report_surfaces_in_the_advisory_scan(repo: P
     rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md", bad, commit=True)
     assert "COMMITTED mega report" in out, "the advisory scan must name the committed report"
     assert rc == 0, "advisory, never blocking — retro-grading history is how a gate gets muted"
+
+
+def test_a_second_table_cannot_impersonate_the_ledger(repo: Path) -> None:
+    """Round-3 defeat: a later per-lens tally table with a quiet row masked a non-quiet exit."""
+    h = _shell_hash(repo)
+    body = _report(h, rounds=f"| 1 | found: 9 | fixed: 3 | {'a' * 32} → {h} |\n") + (
+        "\n## Per-lens tally\n"
+        "| lens | found: | fixed: | hashes |\n|---|---|---|---|\n"
+        f"| A | found: 0 | fixed: 0 | {h} → {h} |\n"
+        f"| B | found: 0 | fixed: 0 | {h} → {h} |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1, "the tally table became the ledger — LAST-match's third appearance"
+    assert "found: 9" in out
+
+
+def test_h1_with_a_vision_suffix_still_routes_to_the_mega_gate(repo: Path) -> None:
+    """Round-3 defeat: a suffixed title fell through EVERY gate and exited green."""
+    bad = _report("f" * 32, rounds=f"| 1 | found: 9 | fixed: 3 | {'b' * 32} → {'c' * 32} |\n")
+    bad = bad.replace(
+        "# Cross-Epic Validation Report", "# Cross-Epic Validation Report — Project Chimera", 1
+    )
+    rc, out = _gate(repo, "2026-08-19-report.md", bad)  # filename deliberately non-mega
+    assert rc == 1, "the suffixed H1 escaped the mega gate entirely"
+    assert "found: 9" in out or "epic set on disk" in out
+
+
+def test_the_reserved_filename_routes_even_with_a_foreign_title(repo: Path) -> None:
+    """Fail-closed backstop: a mega-shaped NAME can never reach a weaker grammar."""
+    rc, out = _gate(
+        repo, "2026-08-19-mega-chimera-validation-review.md",
+        "# Some Other Title\n\nno ledger at all\n",
+    )
+    assert rc == 1
+    assert "ledger table records 0 round" in out or "Surface" in out
+
+
+def test_surface_with_a_trailing_annotation_is_not_absent(repo: Path) -> None:
+    """Wrong-reason class, third sighting: `Surface: <hash> (note)` reported as 'no Surface line'."""
+    h = _shell_hash(repo)
+    body = _report(h).replace(f"Surface: {h}", f"Surface: {h}  (combined md5, 2 files)")
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 0, out
+
+
+def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
+    """The advisory honors its documented narrowness: quiet-exit + moved-hash, nothing else."""
+    bad = (
+        "# Cross-Epic Validation Report\n\nRounds:\n"
+        "| round | found: | fixed: | hashes |\n|---|---|---|---|\n"
+        "| 1 | found: 0 | fixed: 0 | (none recorded) |\n"
+        "\n## Overall: PASS — but no Surface, one round, no hashes, [PASS] placeholder\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-old-validation-review.md", bad, commit=True)
+    assert rc == 0
+    assert "COMMITTED mega report" not in out, (
+        "the committed scan emitted full-obligation errors — that is the muting mechanism "
+        "the narrowness contract names (only quiet-exit + moved-hash may surface)"
+    )
