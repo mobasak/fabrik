@@ -1,6 +1,6 @@
 # Kaizen M0 — the shrink audit (usage-evidence census over all 203 governance artifacts)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md (§ Sequencing M0 — operator-approved 2026-08-17, commit 3cd798ae)
 
 ## What we already agreed
@@ -65,7 +65,7 @@ Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md (§ Sequ
 | `.md` allowlist | report lives at `docs/workstation/kaizen-shrink-audit.md` (box-local system doc — Doc Sync Matrix "new subsystem → dedicated doc" row; kaizen.md precedent) | CLAUDE.md § HARD STOPS (allowlist) + § Doc Sync Matrix |
 | No `shape:` flags / no deploy | box-local script + report; no service, no spec, no cron in M0 | spec § Shape/infra |
 
-## Phase A — the evidence engine (`kaizen_shrink_audit.py`) with duplex fixtures
+## Phase A — the evidence engine (`kaizen_shrink_audit.py`) with duplex fixtures — ✅ EXECUTED 2026-08-19
 
 **Files:** `scripts/sysadmin/kaizen_shrink_audit.py` (new; `# AFTER-EDIT:` header),
 `tests/test_kaizen_shrink_audit.py` (new).
