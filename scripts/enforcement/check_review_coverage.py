@@ -652,7 +652,23 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     produced false BLOCKING failures on an honest, fully-closed report — the fourth time a
     fenced example defeated a reader in this file's history.
     """
-    text = _strip_fences(path.read_text(encoding="utf-8", errors="replace"))
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    text = _strip_fences(raw)
+    # PRESENCE FLOOR (round 39): fence-stripping with no floor made an unclosed fence erase
+    # every real HANDOFF/NOT-QUIET/RESUME row below it — the one reader whose siblings all
+    # error loud on emptiness returned [] and PASSED. Balanced fences stay legitimate quoting;
+    # grammar content that exists in the RAW text but not after stripping can only mean the
+    # fenced-to-EOF truncation ate it — fail with the one-line fix, never silently pass.
+    balanced_stripped = _FENCE.sub("", raw)
+    dangling = re.search(r"^```", balanced_stripped, re.M)
+    if dangling and HANDOFF_ROW.findall(balanced_stripped[dangling.start():]):
+        # only a REMAINING opener (post balanced-pair strip) with grammar below it is the
+        # defect — a raw-vs-stripped diff cannot tell legitimate balanced quoting from
+        # truncation, and the first version of this floor failed honest balanced examples
+        return [
+            "disposition rows exist below an UNCLOSED code fence — the fenced-to-EOF rule "
+            "treats everything after a dangling ``` as quoted material. Close the fence."
+        ]
     errs: list[str] = []
     rows = HANDOFF_ROW.findall(text)
     open_rows = [r for r in rows if r[1] == "OPEN"]
@@ -796,7 +812,8 @@ def main() -> int:
         # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
         # review file that merely QUOTED the template (even fenced) route here and skip the
         # checklist gate it actually owed — reproduced 2026-08-18.
-        if _is_mega_report(p, p.read_text(encoding="utf-8", errors="replace")):
+        body = p.read_text(encoding="utf-8", errors="replace")
+        if _is_mega_report(p, body):
             for e in check_mega_validation(p, root, live=True):
                 failures.append(f"{p.relative_to(root)}: {e}")
             continue  # a mega validation report is exit-proof-gated, not checklist-gated
@@ -809,7 +826,11 @@ def main() -> int:
             # ("…-fabrik-user-test-first-run-feedback.md"), so this is not adversarial-only.
             # A filename is a routing HINT; the checklist heading is an OBLIGATION — a report
             # carrying both shapes answers to both gates.
-            if _checklist_section(p.read_text(encoding="utf-8", errors="replace")) is None:
+            # STRIPPED text for the routing decision (round 39): the raw-text detector routed
+            # an honest cert report into check_file's full obligation set because a FENCED
+            # documentation example quoted the checklist heading — the mirror image of the
+            # class the same commit closed for the HANDOFF grammar, one call site over.
+            if _checklist_section(_strip_fences(body)) is None:
                 continue
         for e in check_file(p):
             failures.append(f"{p.relative_to(root)}: {e}")

@@ -780,3 +780,29 @@ def test_template_status_boilerplate_is_a_leftover(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-mega-boiler-validation-review.md", body)
     assert rc == 1, "shipped template boilerplate on the Status line read as adjudicated"
     assert "boilerplate" in out or "placeholder" in out
+
+
+def test_grammar_below_an_unclosed_fence_fails_a_cert_report_loudly(repo: Path) -> None:
+    """Round-39 finding 1: the fence-strip erased real HANDOFF rows below a dangling ``` and
+    the floor-less cert grammar passed clean. Unverifiable content is loud, never silent."""
+    body = (
+        "# Certification run\n\nPasted terminal output:\n```\n$ some command\n"
+        "\nHANDOFF P1 OPEN real finding — repro: docs/x.md — route: /fabrik-review\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-thing2-user-test-r1.md", body)
+    assert rc == 1, "real dispositions below an unclosed fence were silently erased"
+    assert "UNCLOSED" in out
+
+
+def test_fenced_checklist_quote_does_not_route_a_cert_report_to_check_file(repo: Path) -> None:
+    """Round-39 finding 2: the routing decision read RAW text, so a fenced documentation
+    example quoting the checklist heading force-routed an honest cert report into five
+    fabricated obligations."""
+    body = (
+        "# Certification run — all clear\n\nGrammar note (example only):\n"
+        "```\n## Coverage Checklist\n| x | UNCHECKED |  |\n```\n\n"
+        "HANDOFF P1 CLOSED thing — repro: docs/x.md — proof: green run\n"
+    )
+    (repo / "docs/x.md").write_text("# repro\n")
+    rc, out = _gate(repo, "2026-08-20-thing3-user-test-r1.md", body)
+    assert rc == 0, f"a fenced checklist quote fabricated obligations: {out}"
