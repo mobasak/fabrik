@@ -363,7 +363,7 @@ def measure_run_records(records: Path = RUN_RECORDS) -> Metric:
         if not isinstance(d, dict):
             continue
         opened += 1
-        if d.get("status") == "running":
+        if d.get("state") == "running":
             running += 1
     if not opened:
         return Metric.unavailable(
