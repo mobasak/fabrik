@@ -32,6 +32,7 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import calendar
 import contextlib
 import fcntl
 import hashlib
@@ -341,6 +342,11 @@ def _mutate(sid: str, args: argparse.Namespace) -> int:
             "terminal": args.terminal,
             "state": "running",
             "started_at": _now(),
+            # numeric epoch alongside the display string — round 33: the close parsed
+            # started_at with its %z DROPPED and re-interpreted the wall clock in the CLOSE
+            # process's timezone, shifting the run-binding window by whole hours across any
+            # TZ/DST difference between the two processes
+            "started_epoch": time.time(),
             # the repo the run REVIEWS, resolved once at start — round 31 reproduced the close
             # check running against whatever repo the shell happened to be cd'd into
             "repo_root": _repo_root(),
@@ -438,11 +444,32 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
         # count; a file must be modified at-or-after the run began (mtime), or HEAD must be a
         # commit from this run's window touching reviews/ (line-anchored, not substring).
         root = rec.get("repo_root") or None
-        started = rec.get("started_at", "")
-        try:
-            started_epoch = time.mktime(time.strptime(started[:19], "%Y-%m-%dT%H:%M:%S"))
-        except Exception:
-            started_epoch = 0.0
+        if root is None:
+            # Round 33: `"" or None` silently fell back to the CLOSE process's cwd — the
+            # wrong-repo hole reborn for any run started outside a git repo. Unverifiable
+            # means REFUSE, not guess.
+            msg = (
+                f"REFUSED — this /{live} run has no repo_root on record (start ran outside a "
+                "git repo), so its report cannot be verified. Close as `blocked`, or restart "
+                "the record from the repo under review."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
+        # mtime binding is DECLARATIVE evidence (adjudicated round 33): os.utime forgery is
+        # trivial and out of scope on a single-operator box — this is self-discipline, not a
+        # security boundary; the same residual class as BLOCKED-section sincerity.
+        started_epoch = rec.get("started_epoch") or 0.0
+        if not started_epoch:
+            # legacy record without the numeric field: parse WITH the offset the string
+            # carries (round 33: truncating %z re-interpreted the wall clock in the close
+            # process's local zone — hours of drift either direction across TZ/DST)
+            started = rec.get("started_at", "")
+            try:
+                t = time.strptime(started, "%Y-%m-%dT%H:%M:%S%z")
+                started_epoch = calendar.timegm(t) - (t.tm_gmtoff or 0)
+            except Exception:
+                started_epoch = 0.0
         ok_artifact = None  # None = unverifiable (fail open); False = verified absent
         try:
             porcelain = subprocess.run(

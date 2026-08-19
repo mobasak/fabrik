@@ -429,3 +429,53 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
                         "--evidence", "e"], cwd=repo, env=env,
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 1, "a deletion (of a pre-run file) satisfied the artifact check"
+
+
+def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
+    """Round-33: the staleness branch was only ever tested confounded with deletion — a
+    stale-but-PRESENT untracked file must be refused on mtime alone."""
+    import os
+    import subprocess
+    import sys
+    import time as _t
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
+    d = repo / "docs/development/reviews"
+    d.mkdir(parents=True)
+    stale = d / "stale-review.md"
+    stale.write_text("# stale but present\n")
+    past = _t.time() - 3600
+    os.utime(stale, (past, past))
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "3", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "a stale-but-present file satisfied the check on presence alone"
+
+
+def test_review_started_outside_any_repo_refuses_done(tmp_path):
+    """Round-33: repo_root='' fell back to the CLOSE cwd — the wrong-repo hole reborn.
+    Unverifiable must refuse, not guess."""
+    import os
+    import subprocess
+    import sys
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    norepo = tmp_path / "norepo"
+    norepo.mkdir()
+    dirty = tmp_path / "dirty"
+    dirty.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=dirty, check=True, timeout=15)
+    (dirty / "docs/development/reviews").mkdir(parents=True)
+    (dirty / "docs/development/reviews/x-review.md").write_text("# unrelated\n")
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "3", "--terminal", "t"], cwd=norepo, env=env, check=True, timeout=15)
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=dirty, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "a rootless record closed against the close-cwd's dirt"
+    assert "no repo_root" in r.stdout
