@@ -823,3 +823,34 @@ def test_fenced_checklist_quote_is_not_a_subject_anywhere(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-howto2-review.md", body + "\nStatus: nothing\n", commit=True)
     assert rc == 0
     assert "howto2" not in out, "the committed scan also misclassified the quoting doc"
+
+
+def test_unclosed_fence_swallowing_the_checklist_fails_loudly(repo: Path) -> None:
+    """Round-43 finding 1: an unclosed fence BEFORE the heading made an obligated report
+    invisible to the primary gate AND the committed advisory."""
+    body = (
+        "# Review\n\nPasted transcript:\n```\n$ some output\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-swallow-review.md", body)
+    assert rc == 1, "a swallowed checklist exempted the report silently"
+    assert "UNCLOSED" in out
+    rc, out = _gate(repo, "2026-08-20-swallow2-review.md", body, commit=True)
+    assert rc == 0
+    assert "UNCLOSED" in out, "the committed advisory missed the swallowed checklist"
+
+
+def test_fenced_surface_example_does_not_satisfy_the_obligation(repo: Path) -> None:
+    """Round-43 finding 2: the three obligation checks were the last raw-text seam — a fenced
+    example quoting Surface: satisfied the cross-run anchor."""
+    body = (
+        "# Review — some diff (/fabrik-review)\n\n"
+        "Example header format:\n```\nSurface: abcdef1234567890\nPass 2 example\nreview_rubric.py\n```\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN scripts/x.py hunted |\n\n"
+        "## Pass Ledger\n| Pass 1 | x | found: 0 · fixed: 0 | y |\n| Pass 2 | x | found: 0 · fixed: 0 | y |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-fencedsurf-review.md", body)
+    assert rc == 1, "a fenced Surface example satisfied the obligation"
+    assert "Surface" in out

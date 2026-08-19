@@ -209,9 +209,32 @@ def _blocked_ok(text: str) -> bool:
     return _blocked_sections(text) >= 1
 
 
+def _swallowed_checklist(raw: str) -> bool:
+    """A real checklist heading exists in the RAW text but an UNCLOSED fence swallowed it.
+
+    Round 43: the definition-site strip (round 41) generalized fenced-to-EOF truncation to
+    every caller — an unclosed fence BEFORE the heading made an obligated report invisible to
+    the primary gate AND the committed advisory (reproduced: 4 UNCHECKED rows, no Surface, OK).
+    The cert grammar got its presence floor in round 40; this is the checklist grammar's.
+    """
+    if _checklist_section(raw) is not None:
+        return False
+    if not any(
+        CHECKLIST_HEAD.match(h.group(0)) for h in re.finditer(r"^#{1,4} .*$", raw, re.M)
+    ):
+        return False
+    return bool(re.search(r"^```", _FENCE.sub("", raw), re.M))
+
+
 def check_file(p: Path) -> list[str]:
     errs: list[str] = []
     text = p.read_text(encoding="utf-8", errors="replace")
+    if _swallowed_checklist(text):
+        return [
+            "the Coverage Checklist sits below an UNCLOSED code fence — the fenced-to-EOF rule "
+            "treats everything after a dangling ``` as quoted material, which would silently "
+            "exempt this report from every obligation. Close the fence."
+        ]
     section = _checklist_section(text)
     if section is None:
         # SUBJECT-BY-STRUCTURE (round 27, retiring two rounds of substring tuning): the
@@ -223,16 +246,20 @@ def check_file(p: Path) -> list[str]:
         # "did the command emit its artifact at all" is the run-record + Stop hook's moment,
         # not a text-matching one.
         return errs
-    # contract obligations recorded in the artifact itself
-    if not SURFACE.search(text):
+    # contract obligations recorded in the artifact itself — searched on STRIPPED text
+    # (round 43): these three were the last raw-text seam, and a FENCED example quoting
+    # "Surface: <hash>" satisfied the cross-run-anchor obligation while every sibling check
+    # in this same function had long since gone fence-safe
+    text_s = _strip_fences(text)
+    if not SURFACE.search(text_s):
         errs.append(
             "no `Surface:` hash line (cross-run anchor) — record `git rev-parse HEAD` + diff md5"
         )
-    if not RUBRIC_RUN.search(text):
+    if not RUBRIC_RUN.search(text_s):
         errs.append(
             "no review_rubric.py invocation recorded — checklist classes must derive from the rubric, not memory"
         )
-    if not PASS2.search(text):
+    if not PASS2.search(text_s):
         errs.append(
             "no `Pass 2` in the ledger — minimum two rounds ALWAYS (a clean pass 1 still needs its confirming round)"
         )
@@ -747,6 +774,12 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # docstring above names (closing-sweep finding, 2026-08-19).
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
+            continue
+        if _swallowed_checklist(text):
+            out.append(
+                f"{p.relative_to(root)}: COMMITTED with its Coverage Checklist below an "
+                "UNCLOSED code fence — invisible to every obligation. Close the fence."
+            )
             continue
         if _checklist_section(text) is None:
             # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
