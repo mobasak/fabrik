@@ -125,6 +125,42 @@ RUBRIC_RUN = re.compile(r"review_rubric\.py")
 _PATHISH = re.compile(r"[\w-]+[./][\w./-]+")
 
 
+def _in_progress(text: str) -> bool:
+    """Header-zone IN-PROGRESS — the ONE definition every reader uses.
+
+    Round 15 reproduced body-deep escapes in the everyday readers: an appendix sentence
+    documenting the escape hatch ("mark the report:\nStatus: IN-PROGRESS") exempted a committed
+    non-quiet report entirely. The mega grammar was header-zoned in round 7; the everyday
+    readers were not — the same per-reader-hardening root the first breaker firing named for
+    the ledger, recurring for the escapes. Scoped to the first 10 fence-stripped lines, where
+    the template slots Status.
+    """
+    header = "\n".join(_strip_fences(text).splitlines()[:10])
+    return bool(IN_PROGRESS.search(header))
+
+
+def _blocked_ok(text: str) -> bool:
+    """Sanctioned-BLOCKED — fence-stripped, and the 3-attempts evidence must live INSIDE a
+    BLOCKED section, not anywhere in the document.
+
+    Round 15: a "### BLOCKED — example" template heading in an appendix plus CLAUDE.md's own
+    "3 consecutive same-test failures" phrase elsewhere set blocked_ok and exempted BOTH the
+    UNCHECKED-row and quiet-exit checks. Proximity closes the split-decoy; a fully-formed
+    UNFENCED example section remains textually indistinguishable from a real escalation —
+    that residual is accepted and documented: examples belong in code fences.
+    """
+    body = _strip_fences(text)
+    attempts = re.compile(
+        r"3\b.{0,40}attempt|attempt.{0,40}\b3\b|three (?:consecutive|failed)", re.I | re.S
+    )
+    for m in BLOCKED_HEAD.finditer(body):
+        nxt = re.search(r"^#{1,4}\s", body[m.end():], re.M)
+        section = body[m.end(): m.end() + (nxt.start() if nxt else len(body))]
+        if attempts.search(section):
+            return True
+    return False
+
+
 def check_file(p: Path) -> list[str]:
     errs: list[str] = []
     text = p.read_text(encoding="utf-8", errors="replace")
@@ -152,9 +188,7 @@ def check_file(p: Path) -> list[str]:
     if not rows:
         errs.append("Coverage Checklist has no table rows")
         return errs
-    blocked_ok = bool(BLOCKED_HEAD.search(text)) and bool(
-        re.search(r"3\b.{0,40}attempt|attempt.{0,40}\b3\b|three (?:consecutive|failed)", text, re.I)
-    )
+    blocked_ok = _blocked_ok(text)
     unchecked = [r.strip() for r in rows if UNCHECKED.search(r)]
     noverdict = [r.strip() for r in rows if not UNCHECKED.search(r) and not VERDICT.search(r)]
     if unchecked and not blocked_ok:
@@ -191,7 +225,7 @@ def check_file(p: Path) -> list[str]:
     # all because this path and the mega path were hardened separately. They no longer are.
     ev_tables, ev_prose, ordered_rows = _ledger_shapes(text)
     groups = len(ev_tables) + (1 if ev_prose else 0)
-    if groups > 1 and not IN_PROGRESS.search(text):
+    if groups > 1 and not _in_progress(text) and not blocked_ok:
         errs.append(
             f"counter rows appear in {groups} separate groups (tables/prose runs) — the ledger "
             "must be ONE group, because the exit check reads the LAST row and a decoy group "
@@ -199,7 +233,7 @@ def check_file(p: Path) -> list[str]:
             "appendix example row). Quote examples inside code fences"
         )
     founds = [str(f) for f, _x, _ln in ordered_rows]
-    if founds and int(founds[-1]) != 0 and not blocked_ok and not IN_PROGRESS.search(text):
+    if founds and int(founds[-1]) != 0 and not blocked_ok and not _in_progress(text):
         errs.append(
             f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
         )
@@ -412,8 +446,7 @@ def check_mega_validation(
     body = _strip_fences(text)
     # The sanctioned mid-loop state — declared in the HEADER ZONE (first 10 non-fence lines),
     # where the template puts Status, not quotable from anywhere in the body.
-    header = "\n".join(body.splitlines()[:10])
-    if IN_PROGRESS.search(header):
+    if _in_progress(text):
         return []
     errs: list[str] = []
     surface = _MEGA_SURFACE.search(body)
@@ -597,7 +630,7 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
-        if _checklist_section(text) is None or IN_PROGRESS.search(text):
+        if _checklist_section(text) is None or _in_progress(text):
             continue
         if BLOCKED_HEAD.search(text):
             continue
@@ -607,7 +640,8 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 f"{p.relative_to(root)}: COMMITTED with counter rows in multiple groups — the "
                 "exit round is forgeable by a decoy group; consolidate to ONE ledger"
             )
-            continue
+            # NO continue (round-15 finding 4): the non-quiet check below still runs, so a
+            # decoy-group report that is ALSO non-quiet surfaces both facts, not just one.
         rows = [str(f) for f, _x, _ln in ordered_rows]
         if rows and int(rows[-1]) != 0:
             out.append(

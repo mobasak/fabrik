@@ -553,3 +553,48 @@ def test_prose_only_mega_refusal_does_not_also_claim_more_than_one_table(repo: P
     assert rc == 1
     assert "only as Pass-style prose" in out
     assert "MORE THAN ONE" not in out, "wrong-reason double message returned"
+
+
+def _everyday(rows: str, extra: str = "") -> str:
+    return (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
+        "## Pass Ledger\n" + rows + extra
+    )
+
+
+def test_body_deep_in_progress_does_not_exempt_the_everyday_grammar(repo: Path) -> None:
+    """Round-15 finding 1: an appendix sentence documenting the escape hatch exempted a
+    non-quiet report. IN-PROGRESS lives in the header zone, for EVERY reader."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 3, fixed: 1\n",
+        "\nIf a finding resists 3 fix attempts, mark the report:\nStatus: IN-PROGRESS\nand loop.\n",
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary8-review.md", body)
+    assert rc == 1, "a body-deep Status: IN-PROGRESS quote exempted the everyday grammar"
+
+
+def test_decoy_blocked_heading_without_section_evidence_does_not_exempt(repo: Path) -> None:
+    """Round-15 finding 2: a template '### BLOCKED — example' heading plus a FAR-AWAY 3-attempts
+    phrase set blocked_ok. The attempts evidence must live inside the BLOCKED section."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 3, fixed: 1\n",
+        "\n## Appendix — template reference\n### BLOCKED — example finding\n(fill in)\n"
+        "## Notes\nCLAUDE.md quotes '3 consecutive same-test failures' as the halt bar.\n",
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary9-review.md", body)
+    assert rc == 1, "a split decoy (BLOCKED heading + distant attempts phrase) exempted the gate"
+
+
+def test_genuine_blocked_report_with_stuck_round_prose_is_not_group_refused(repo: Path) -> None:
+    """Round-15 finding 3: a real BLOCKED escalation documenting the stuck round as a Pass-line
+    in its own section was refused as a second group. blocked_ok exempts the group rule."""
+    body = _everyday(
+        "| Pass 1 | sweep | found: 3 · fixed: 2 | x |\n| Pass 2 | re-check | found: 1 · fixed: 0 | x |\n",
+        "\n## BLOCKED — flaky oracle in scripts/x.py\n3 consecutive failed attempts on the same "
+        "test; escalated to the operator.\nPass 3: found: 1, fixed: 0 (the stuck finding)\n",
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary10-review.md", body)
+    assert rc == 0, f"a sanctioned BLOCKED report was refused: {out}"
