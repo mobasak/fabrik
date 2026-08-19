@@ -37,6 +37,7 @@ import fcntl
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 from collections.abc import Iterator
@@ -413,6 +414,42 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
         print(msg)
         return 1
 
+    if args.cmd == "done" and live in ("fabrik-review", "fabrik-repo-review"):
+        # ARTIFACT-BY-FILESYSTEM (2026-08-19): check_review_coverage retired its command-name
+        # sniff on the stated ground that "did the command emit its artifact" is THIS record's
+        # enforcement moment — and a closing sweep then proved the claim false: `done` accepted
+        # any evidence STRING, so a review run could close having written nothing. The claim is
+        # now mechanically true: a review's `done` requires a changed/untracked report under
+        # docs/development/reviews/ (git status) or one committed at HEAD — never a sentence
+        # about one.
+        try:
+            porcelain = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all",
+                 "--", "docs/development/reviews/"],
+                capture_output=True, text=True, timeout=10, check=True,
+            ).stdout
+        except Exception:
+            porcelain = None  # a broken git must not wedge the close — fail open HERE only
+        if porcelain is not None and not any(
+            ln[3:].strip().endswith(".md") for ln in porcelain.splitlines()
+        ):
+            try:
+                head_files = subprocess.run(
+                    ["git", "show", "--name-only", "--format=", "HEAD"],
+                    capture_output=True, text=True, timeout=10, check=True,
+                ).stdout
+            except Exception:
+                head_files = ""
+            if "docs/development/reviews/" not in head_files:
+                msg = (
+                    f"REFUSED — closing /{live} with done requires its persisted report: no "
+                    "changed, untracked, or HEAD-committed docs/development/reviews/*.md found. "
+                    "A review that exists only in chat does not exist. Write the report (or "
+                    "close as `blocked` if genuinely halted)."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                print(msg)
+                return 1
     rec["state"] = args.cmd
     if args.cmd == "done":
         rec["evidence"] = args.evidence

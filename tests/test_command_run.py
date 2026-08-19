@@ -334,3 +334,34 @@ def test_no_warning_while_still_non_increasing_past_round_five(run_dir: Path) ->
     _start(run_dir)
     outs = [_cr(run_dir, "round", "--findings", str(n)).stdout for n in (40, 30, 20, 10, 5, 0)]
     assert all("NON-CONVERGENCE" not in o for o in outs), outs
+
+
+def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
+    """Round-29 (mega-enforcement loop): the subject-sniff was retired on the claim that THIS
+    record enforces artifact emission — and the claim was then proven false (`done` accepted
+    any evidence string). Now mechanically true: a review's done needs a report on disk."""
+    import os
+    import subprocess
+    import sys
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    repo = tmp_path / "repo"; repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
+    (repo / "x.txt").write_text("x")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+                   cwd=repo, check=True, timeout=15)
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "3", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "reviewed, all clean"],
+                       cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "done closed a review run with NO report anywhere"
+    assert "persisted report" in r.stdout
+    # writing the report unlocks the close
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    (repo / "docs/development/reviews/2026-08-19-x-review.md").write_text("# r\n")
+    r2 = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                         "--evidence", "report written"],
+                        cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    assert r2.returncode == 0, r2.stdout + r2.stderr

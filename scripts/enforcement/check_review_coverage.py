@@ -34,7 +34,10 @@ from pathlib import Path
 
 REVIEWS_DIR = "docs/development/reviews/"
 
-CHECKLIST_HEAD = re.compile(r"coverage checklist", re.I)
+# Anchored to the heading's START (round 29): a bare substring made `## Non-coverage checklist
+# items` a subject. A heading that BEGINS "Coverage Checklist" — including "(deferred)" variants —
+# is gated on purpose: deferring the checklist is precisely what the gate refuses.
+CHECKLIST_HEAD = re.compile(r"^#{1,4}\s+\**coverage checklist\b", re.I)
 # RETIRED as a subject test (round 27) — kept only as documentation of what NOT to reintroduce:
 # a command-name substring is a proxy for "is this a review report" that fails both directions
 # (prose explaining the process trips it; a paraphrasing report escapes it). Subject-ness is the
@@ -105,8 +108,10 @@ def _table_rows(section: str) -> list[str]:
 
 def _checklist_section(text: str) -> str | None:
     m = None
-    for h in re.finditer(r"^#{2,4} .*$", text, re.M):
-        if CHECKLIST_HEAD.search(h.group(0)):
+    # #{1,4}: H1 included (round 29) — a report titling its checklist `# Coverage Checklist`
+    # escaped every obligation, and no command source ever told authors which level to use.
+    for h in re.finditer(r"^#{1,4} .*$", text, re.M):
+        if CHECKLIST_HEAD.match(h.group(0)):
             m = h
             break
     if m is None:

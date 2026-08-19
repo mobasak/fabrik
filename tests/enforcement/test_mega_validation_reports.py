@@ -727,3 +727,19 @@ def test_a_real_checklist_heading_is_still_fully_gated(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-19-real14-review.md", body)
     assert rc == 1
     assert "Surface" in out and "UNCHECKED" in out
+
+
+def test_h1_checklist_heading_is_still_a_subject(repo: Path) -> None:
+    """Round-29: `# Coverage Checklist` (H1) escaped every obligation — no source ever told
+    authors which level to use, so the level window must include H1."""
+    body = "# Coverage Checklist\n| C | V | E |\n|---|---|---|\n| x | UNCHECKED |  |\n"
+    rc, out = _gate(repo, "2026-08-19-h1-review.md", body)
+    assert rc == 1, "an H1 checklist escaped the gate"
+    assert "UNCHECKED" in out
+
+
+def test_heading_substring_needs_the_phrase_at_start(repo: Path) -> None:
+    """Round-29: `## Non-coverage checklist items` was a subject via bare substring."""
+    body = "# Notes\n\n## Non-coverage checklist items\n\nprose only\n"
+    rc, out = _gate(repo, "2026-08-19-noncov-review.md", body)
+    assert rc == 0, f"a mid-phrase heading became a subject: {out}"
