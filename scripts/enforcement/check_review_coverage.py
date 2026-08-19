@@ -616,6 +616,12 @@ def check_mega_validation(
                 "mark the report `Status: IN-PROGRESS` (first 10 lines) until you do"
             )
     leftover = [p for p in _MEGA_PLACEHOLDERS if p in body]
+    # the template's Status line uses an ANGLE-bracket placeholder the square-bracket list
+    # missed (round 37): a shipped literal "Status: <omit when converged; …>" read as fully
+    # adjudicated. Header-zone scoped, like Status itself.
+    header10 = "\n".join(body.splitlines()[:10])
+    if re.search(r"^\**Status:\**\s*<", header10, re.M):
+        leftover.append("Status: <template boilerplate>")
     if leftover:
         errs.append(
             f"template placeholder(s) survived into the persisted report: {leftover} — a "
@@ -639,8 +645,14 @@ RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)
 
 
 def check_cert_dispositions(path: Path, root: Path) -> list[str]:
-    """Disposition rows in a certification report must be provable, not prose."""
-    text = path.read_text(encoding="utf-8", errors="replace")
+    """Disposition rows in a certification report must be provable, not prose.
+
+    Fence-stripped like every sibling grammar (round 37): this was the ONE grammar never
+    brought under the discipline, and a fenced documentation example of the HANDOFF grammar
+    produced false BLOCKING failures on an honest, fully-closed report — the fourth time a
+    fenced example defeated a reader in this file's history.
+    """
+    text = _strip_fences(path.read_text(encoding="utf-8", errors="replace"))
     errs: list[str] = []
     rows = HANDOFF_ROW.findall(text)
     open_rows = [r for r in rows if r[1] == "OPEN"]
@@ -791,7 +803,14 @@ def main() -> int:
         if CERT_REPORT.search(p.name):
             for e in check_cert_dispositions(p, root):
                 failures.append(f"{p.relative_to(root)}: {e}")
-            continue  # a certification report is disposition-gated, not checklist-gated
+            # NO `continue` past a present checklist (round 37): the filename substring routed
+            # a checklist-obligated report — real UNCHECKED rows and all — to the looser cert
+            # grammar and exited green. The corpus already holds an organic precedent name
+            # ("…-fabrik-user-test-first-run-feedback.md"), so this is not adversarial-only.
+            # A filename is a routing HINT; the checklist heading is an OBLIGATION — a report
+            # carrying both shapes answers to both gates.
+            if _checklist_section(p.read_text(encoding="utf-8", errors="replace")) is None:
+                continue
         for e in check_file(p):
             failures.append(f"{p.relative_to(root)}: {e}")
     if failures:

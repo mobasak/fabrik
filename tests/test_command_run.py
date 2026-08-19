@@ -479,3 +479,21 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 1, "a rootless record closed against the close-cwd's dirt"
     assert "no repo_root" in r.stdout
+
+
+def test_blocked_works_on_a_rootless_record(tmp_path):
+    """Round-37 finding 4: the only true exit for a rootless record must STAY open — a
+    refactor moving the artifact check above the done/blocked branch would strand it."""
+    import os
+    import subprocess
+    import sys
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    norepo = tmp_path / "norepo"
+    norepo.mkdir()
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "3", "--terminal", "t"], cwd=norepo, env=env, check=True, timeout=15)
+    r = subprocess.run([sys.executable, script, "blocked", "--command", "fabrik-review",
+                        "--reason", "rootless-record"], cwd=norepo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 0, f"blocked no longer closes a rootless record: {r.stdout}{r.stderr}"

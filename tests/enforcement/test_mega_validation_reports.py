@@ -743,3 +743,40 @@ def test_heading_substring_needs_the_phrase_at_start(repo: Path) -> None:
     body = "# Notes\n\n## Non-coverage checklist items\n\nprose only\n"
     rc, out = _gate(repo, "2026-08-19-noncov-review.md", body)
     assert rc == 0, f"a mid-phrase heading became a subject: {out}"
+
+
+def test_cert_filename_does_not_exempt_a_present_checklist(repo: Path) -> None:
+    """Round-37 finding 1: a -user-test- filename routed a checklist-obligated report to the
+    looser cert grammar and exited green with live UNCHECKED rows."""
+    body = (
+        "# Review of the user-test workflow\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-fabrik-user-test-workflow-review.md", body)
+    assert rc == 1, "the filename substring exempted a present checklist"
+    assert "UNCHECKED" in out
+
+
+def test_fenced_handoff_example_does_not_fail_a_cert_report(repo: Path) -> None:
+    """Round-37 finding 2: the cert grammar never fence-stripped — a documentation example
+    produced false BLOCKING failures on an honest report."""
+    body = (
+        "# Certification run — all clear\n\nGrammar reference (example only):\n"
+        "```\nHANDOFF P1 CLOSED example — repro: docs/does/not/exist.md — proof: n/a\n```\n"
+        "\nNo real findings this run.\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-thing-user-test-r1.md", body)
+    assert rc == 0, f"a fenced example failed an honest cert report: {out}"
+
+
+def test_template_status_boilerplate_is_a_leftover(repo: Path) -> None:
+    """Round-37 finding 3: the angle-bracket Status placeholder escaped the leftover scan."""
+    h = _shell_hash(repo)
+    body = _report(h).replace(
+        f"Surface: {h}",
+        f"Surface: {h}\nStatus: <omit when converged; `Status: IN-PROGRESS` for an interrupted run>",
+    )
+    rc, out = _gate(repo, "2026-08-20-mega-boiler-validation-review.md", body)
+    assert rc == 1, "shipped template boilerplate on the Status line read as adjudicated"
+    assert "boilerplate" in out or "placeholder" in out
