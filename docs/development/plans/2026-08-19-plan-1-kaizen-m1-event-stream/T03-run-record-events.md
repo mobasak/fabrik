@@ -24,24 +24,27 @@ Consumes: T01 `emit()`.
 Produces:
 - Events at every record mutation: `run_open` (command, phases, terminal), `phase` (n, title),
   `round` (findings, classes), `run_close` (verdict: done/blocked + evidence summary hash) —
-  emitted inside `start/step/round/done/blocked` handlers, fail-open.
+  emitted AFTER the record `save()` returns and OUTSIDE the record lock, each call wrapped
+  (a raising emitter can never abort or corrupt a record mutation — tested by monkeypatching
+  emit to raise mid-verb).
 - **sid honesty fix for the `nosession` collision** (grounded root cause: Bash-tool shells carry
   empty `CLAUDE_SESSION_ID`, `scripts/command_run.py:60-61`): when the sid resolves to `nosession`,
   the record STILL works as today (no behavior break for the Stop hook) but every emitted event
   carries `sid_source: "none"` — and `command_run.py` gains `--session-from-events` OPTIONAL
-  resolution: if `$KAIZEN_EVENTS_DIR` has exactly ONE session file whose events name this cwd
-  within the last N minutes, adopt that sid (deterministic-join-or-nothing; ambiguity → today's
-  behavior). The collision itself is thereby measurable (events show N distinct cwds mutating
+  resolution: candidates = ALL session files with ANY event naming this cwd since the run's own start time
+  (never a sliding N-minute window — a boundary can hide the second candidate and mis-adopt);
+  adopt ONLY when exactly one distinct sid remains over that whole window, else refuse
+  (deterministic-join-or-nothing; both branches tested). The collision itself is thereby measurable (events show N distinct cwds mutating
   `nosession.json`) even where it is not yet solvable.
 - The record dict gains `closed_by` (`agent` today; `coroner`/`ttl` written by T05) — additive,
-  default absent, so existing consumers (the Stop hook reads `status`) are untouched.
+  default absent, so existing consumers are untouched — the Stop hook keys on `state == "running"` ONLY (.claude/hooks/final_gate_stop.py:385,801), and `closed_by` is additive.
 
 ## Steps
 
 1. TDD: extend `tests/test_command_run.py` — each CLI verb emits its event (tmp events dir);
    `nosession` emission carries `sid_source: "none"`; `--session-from-events` adopts a
    single-candidate sid and REFUSES an ambiguous one; existing record behavior byte-stable
-   (the Stop hook contract: `status`/`pinned_line` unchanged). RUN RED first.
+   (the Stop hook contract: the `state` field + `pinned_line` unchanged). RUN RED first.
 2. Implement (emission wrapped fail-open; import via the same additive-path fallback as T02 —
    command_run.py is fleet-synced and must degrade to today's behavior where kaizen_events is
    absent).

@@ -23,8 +23,10 @@ Noise floor before adjudication (docs/superpowers/specs/2026-08-16-kaizen-closed
 Consumes: T06 `metric_registry` (definitions + hashes) + the derived-facts writer.
 Produces:
 - `--backfill` — walks the HISTORICAL transcript corpus (pre-event era) ONCE, derives per-session
-  facts rows marked `era: "transcript"` (vs `era: "event"`) using the REUSED M0 extractors —
-  appended to the same derived-facts store, versioned. Metrics only computable in the event era
+  facts rows marked `era: "transcript"` (vs `era: "event"`) using the REUSED M0 EXTRACTORS (the file-walking + structure-keyed channel functions — the
+  extraction machinery, NOT M0's row schema) — transcript-era rows populate the SAME
+  derived-facts schema as event-era rows, with every event-only field an explicit `—`,
+  appended to the same store, versioned. Metrics only computable in the event era
   report `—` for transcript-era rows (honesty rule), never a proxy wearing the metric's name.
 - The noise-floor report `~/.claude/state/kaizen/noise-floor@v1.md`: per metric — weekly
   mean, variance, n, the definition hash, and the era split; the variance is what M2's

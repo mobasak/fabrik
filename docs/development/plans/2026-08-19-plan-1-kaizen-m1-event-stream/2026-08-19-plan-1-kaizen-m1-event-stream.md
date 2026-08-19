@@ -1,6 +1,6 @@
 # Kaizen M1 — the typed append-only event stream (measure truthfully)
 
-Status: DRAFT
+Status: CONVERGED
 Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer 1 + § Sequencing M1 (operator dispatch 2026-08-19: "then /fabrik-plan-after-chat for M1")
 
 ## What we already agreed
@@ -236,6 +236,21 @@ Serialized: scripts/sysadmin/kaizen_collect_v2.py — T06, T08
   (`:416-445`, `:498`) before the `--json` report — one choke point for `gate_run`.
 - Activation seam: `scripts/select_rules.py:144-156` prints ACTIVE packs from frontmatter
   glob-matching — the same computation the `rule_activation` event serializes.
+- Review convergence (2026-08-19, `/fabrik-plan-review`): 3 rounds — r1 six CONFIRMED
+  coder-misbuild tightenings (emitter half), r2 four CONFIRMED (meter half, incl. the
+  concurrency-flag definition and golden-mismatch refusal semantics), r3 full-set fresh sweep
+  **NO FINDINGS** (the no-op round). Grounded corrections applied mid-review: the hook payload
+  sid field EXISTS (`session_id`, `.claude/hooks/session_orient.py:99`), and the record's
+  blocking field is `state` (`.claude/hooks/final_gate_stop.py:385,801`), joined by
+  `died`/`expired` (`scripts/command_run.py:416` sets `state` to the closing verb). Grammar
+  gate clean:
+
+  ```console
+  $ python3 scripts/enforcement/check_plan_tickets.py --plan-dir docs/development/plans/2026-08-19-plan-1-kaizen-m1-event-stream
+  (no findings)
+  $ echo $?
+  0
+  ```
 
 ## Self-audit
 

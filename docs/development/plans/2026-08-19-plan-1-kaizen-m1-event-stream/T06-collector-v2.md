@@ -26,7 +26,10 @@ Consumes: event files (T02–T05 vocabulary) under an overridable root; the hole
 Produces:
 - `derived_facts` — append-only JSONL at `~/.claude/state/kaizen/derived-facts.jsonl`: ONE compact
   row per session (event counts by type, gate outcomes, run verdicts, death class, exposure,
-  concurrency flag computed here from overlapping session windows per cwd) + `facts_version`.
+  concurrency flag DEFINED as: two sessions overlap iff their [first-event-ts, last-event-ts]
+  windows intersect AND their exposure.project values are equal; a session missing project
+  is EXCLUDED from the computation and counted in unclassified_rate — never guessed) +
+  `facts_version`.
   A session is re-derived ONLY at version bump — never re-parsed daily (the spec's derived-facts law, 2026-08-16-kaizen-closed-loop-v2-design.md:88-90).
 - `metric_registry` — versioned definitions: id, version, formula doc, definition hash,
   **`counter_metric` REQUIRED — loading a definition without one raises** (schema constraint).
@@ -35,7 +38,11 @@ Produces:
   · `rule_activation` (labeled invocation-time) · `unclassified_rate` + `hole_count`
   (instrument health, metric zero) — each with its registered pair.
 - Series output: `~/.claude/state/kaizen/series/<metric>@v<N>.jsonl` — append-only; a definition
-  change writes a NEW versioned series; publication REFUSES if the golden corpus assertion fails.
+  change writes a NEW versioned series; publication REFUSES if the golden corpus assertion fails — refusal semantics (the recovery
+  path, specified): exit non-zero, emit an `instrument_alarm` event, publish NOTHING, and the
+  daily kaizen-log row renders `—` with reason `instrument red: golden mismatch`; the
+  wake-proof runner stamps only on success so the next hourly slot retries; the hand-off mail
+  carries the alarm. Refusing loudly IS the fail posture — garbage is never published.
 - `read_rows(since) -> list[dict]` + `registry()` for T07/T08.
 - Daily mode `--daily`: consolidate yesterday's events → facts → series → the kaizen-log row +
   hand-off mail (carrying over kaizen_metrics' ISO-week idempotence and analyst-cell preservation

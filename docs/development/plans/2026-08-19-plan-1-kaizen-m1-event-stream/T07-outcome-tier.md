@@ -27,8 +27,11 @@ Produces:
   (default 7) by a later commit whose subject matches fix-shape (`fix(`/`revert`/`hotfix`) —
   mined from `git log --format` + `--name-only` across `/opt/*` repos READ-ONLY; denominator
   printed with every rate; repos without trailers reported `—` with reason.
-- `fleet_health_sweep` — `--sweep` mode: for each pilot project (the hub + projects with a test
-  command detectable from their manifests), create a CLEAN worktree from HEAD in a temp dir
+- `fleet_health_sweep` — `--sweep` mode: for each pilot project — the set is CONFIG, not heuristic guesswork:
+  `KAIZEN_SWEEP_PROJECTS` (comma list, DEFAULT `fabrik` — the hub pilots alone); a listed
+  project's test command detects as: `pyproject.toml`/`pytest.ini` present → `uv run pytest`
+  if `.venv` exists, else compile-only; `package.json` with a `test` script → skipped in the
+  pilot (node runtimes vary) and reported `—` with reason, create a CLEAN worktree from HEAD in a temp dir
   (NEVER the live tree), run install-less checks only (compile/pytest-if-venv-exists/
   final_gate --check where synced) under a per-project timeout (`KAIZEN_SWEEP_TIMEOUT_S`, default
   300); emit `fleet_health` events; report `swept n/46 — the rest —` with reasons (no venv, no

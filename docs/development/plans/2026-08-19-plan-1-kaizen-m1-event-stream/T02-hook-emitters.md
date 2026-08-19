@@ -24,10 +24,12 @@ Wire the session-lifecycle emitters into the PROJECT-synced hooks (fabrik_synced
 
 ## Interfaces
 
-Consumes: T01 `emit()`/`resolve_sid()`. The hooks import `kaizen_events` via an ADDITIVE
-sys.path fallback to `<project>/scripts/sysadmin` AND `/opt/fabrik/scripts/sysadmin` — in a
-project without the module (sync lag) the import fails silently and the hook behaves exactly as
-today (fail-open at the import layer).
+Consumes: T01 `emit()`/`resolve_sid()`. The hooks import `kaizen_events` via an ADDITIVE,
+IDEMPOTENT sys.path append (`if p not in sys.path`) of `<project>/scripts/sysadmin` then
+`/opt/fabrik/scripts/sysadmin`, wrapped `try: import kaizen_events / except Exception:
+kaizen_events = None`, and every emit site guards `if kaizen_events:` — in a project without
+the module (sync lag) the hook behaves exactly as today (fail-open at the import layer, proven
+by the byte-compare test).
 Produces: `session_start` (from session_orient.py — carries cwd/project + exposure),
 `session_end` (from final_gate_stop.py's Stop pass-through when it does NOT block),
 `stop_block` (cause field: gate-red / uncommitted / unpushed / promise-stall / run-record —
@@ -37,10 +39,12 @@ sanctioned-skip marker the hook already recognizes).
 
 ## Steps
 
-1. **Probe the hook stdin payload live FIRST** (residual #2's self-service step): dump the JSON
-   keys a SessionStart + Stop hook receive (one throwaway run, printed to stderr) — ground the
-   session-id field name; wire `resolve_sid(payload_sid)`. If a layer lacks it: `unknown`, never
-   a guess.
+1. **The payload sid is GROUNDED (plan-review, 2026-08-19):** the hook stdin JSON carries
+   `session_id` — documented at .claude/hooks/final_gate_stop.py:21 and already READ at
+   .claude/hooks/session_orient.py:99. Wire `resolve_sid(data.get("session_id"))` from the hook's EXISTING defensive payload parse
+   (final_gate_stop.py:756-757 already does `json.loads(raw) if raw.strip() else {}` — emitters
+   NEVER add a second stdin read); absent → `unknown`, never a guess. (The live probe step is
+   retired — the fact is cited, not assumed.)
 2. TDD: `tests/test_kaizen_hook_emitters.py` drives each hook as a subprocess with a fixture
    stdin payload + `KAIZEN_EVENTS_DIR=tmp` and asserts the seam contract (a parseable line with
    schema/ts/sid/event + exposure) per event type — plus the fail-open case: module absent →

@@ -30,9 +30,11 @@ Produces:
   marker/tail key; exposure joined from the session's last trusted events, unjoinable fields
   literal `unknown`) appended to THAT session's event file, marked `reconstructed: true`; a
   matching `revival` event where the mesh log shows one.
-- Record closure: a `running` record attributed to a death closes `verdict: "died"`,
-  `closed_by: "coroner"`; a `running` record past `KAIZEN_RUN_TTL_H` (default 12, matching the
-  Stop hook's stale-fail-open horizon) with no death evidence closes `verdict: "expired"`,
+- Record closure: a record with `state: "running"` attributed to a death gets
+  `state: "died"`, `closed_by: "coroner"` — the Stop hook blocks ONLY on
+  `state == "running"` (.claude/hooks/final_gate_stop.py:385,801; `done`/`blocked` set
+  `state` to the verb, scripts/command_run.py:416 — `died`/`expired` join that vocabulary); a `state: "running"` record past `KAIZEN_RUN_TTL_H` (default 12, matching the
+  Stop hook's stale-fail-open horizon) with no death evidence gets `state: "expired"`,
   `closed_by: "ttl"`. Never any other mutation of records.
 - The hole metric: `holes = transcripts-with-activity − sessions-with-session_end`, per day,
   reported to T06 as a first-class instrument-health input.
@@ -45,9 +47,9 @@ Produces:
    (busy, no death → untouched). RUN RED first.
 2. Implement sweep (stdlib; every marker/transcript read `errors="replace"`; sound-system paths
    opened read-only — no write, no delete, ever).
-3. Closure tests: fixture `running` record + death → died/coroner; stale no-death → expired/ttl;
-   closed record → no-op; the Stop hook's reading of a coroner-closed record verified (it treats
-   non-`running` as closed — cite the hook line in the test comment).
+3. Closure tests: fixture running-state record + death → died/coroner; stale no-death →
+   expired/ttl; closed record → no-op; the Stop hook's reading of a coroner-closed record
+   verified (only `state == "running"` blocks — .claude/hooks/final_gate_stop.py:385).
 4. `--selftest` duplex canary. Gate: `uv run pytest tests/test_kaizen_coroner.py -q` green.
 
 ## Behavior Contract

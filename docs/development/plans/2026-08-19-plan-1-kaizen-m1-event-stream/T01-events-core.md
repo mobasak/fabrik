@@ -43,11 +43,15 @@ Produces:
 1. TDD first (watched-fail-first): `tests/test_kaizen_events.py` —
    fail-open (monkeypatch open to raise → emit returns False, no exception), per-sid file naming
    (two sids → two files), single-line JSON parseability, unknown-sid fallback, line length
-   asserted < 4096 (PIPE_BUF margin; oversize fields truncated with a `truncated: true` marker).
+   asserted < 4096 (PIPE_BUF margin; oversize FIELD VALUES are truncated BEFORE serialization
+   with a `truncated: true` marker — the emitted line is ALWAYS valid JSON; a test parses the
+   truncated line back).
    RUN RED, then implement to green.
 2. Implement `kaizen_events.py` (stdlib only; `# AFTER-EDIT:` header listing the consumer tickets'
    files). O_APPEND single `write()` per event. Exposure resolver with every field defaulting to
-   `unknown`/`—`, never raising.
+   `unknown`/`—`, never raising — every subprocess/git/filesystem probe inside its own
+   try/except (CalledProcessError, OSError, ValueError all included; a non-repo cwd yields
+   `unknown`, tested).
 3. `--selftest` duplex canary (M0 discipline): emits into a temp dir and asserts both ways
    (good emit lands + parses; injected failure returns False and leaves no partial line).
 4. Author `docs/workstation/kaizen-event-stream.md`: the schema table, the fail-open law, the
