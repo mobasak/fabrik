@@ -189,7 +189,15 @@ def check_file(p: Path) -> list[str]:
     # defeated the previous scan three ways (a checklist evidence cell "audit found: 0, fixed: 0"
     # after the ledger; a FENCED example Pass-line; the same two against the committed scan) —
     # all because this path and the mega path were hardened separately. They no longer are.
-    _, _, ordered_rows = _ledger_shapes(text)
+    ev_tables, ev_prose, ordered_rows = _ledger_shapes(text)
+    groups = len(ev_tables) + (1 if ev_prose else 0)
+    if groups > 1 and not IN_PROGRESS.search(text):
+        errs.append(
+            f"counter rows appear in {groups} separate groups (tables/prose runs) — the ledger "
+            "must be ONE group, because the exit check reads the LAST row and a decoy group "
+            "after the real ledger becomes the exit round (round-13, reproduced with an "
+            "appendix example row). Quote examples inside code fences"
+        )
     founds = [str(f) for f, _x, _ln in ordered_rows]
     if founds and int(founds[-1]) != 0 and not blocked_ok and not IN_PROGRESS.search(text):
         errs.append(
@@ -286,8 +294,15 @@ _MEGA_ROW = re.compile(r"^\s*\|.*?\|\s*found:\s*(\d+)\s*\|\s*fixed:\s*(\d+)\s*\|
 # strict token of either kind is not an honest single-round row — it is IGNORED, so a crafted
 # decoy goes inert instead of winning the parse.
 _PASS_HEAD = re.compile(r"^\s*\|?\s*\**Pass\s*\d", re.I)
-_FOUND_TOK = re.compile(r"(?<![\w-])found:\s*(\d+)(?=\s*(?:[·,;|)]|$))", re.M)
-_FIXED_TOK = re.compile(r"(?<![\w-])fixed:\s*(\d+)(?=\s*(?:[·,;|)]|$))", re.M)
+# The separator is "anything that is not a word": round-13 measured the whitelist version
+# against the repo's own committed corpus and whole ledgers evaporated — `fixed: 0.` (period),
+# `found: 0\`` (backtick), `fixed: 0 → EXIT` (arrow), `fixed: 2 (seams…)` (paren) all went
+# inert, and an inert FINAL row shifts ordered[-1] to the previous round: the fail-open
+# direction, reproduced with a "BLOCKED next round" report that passed as quiet. `(?!\s*\w)`
+# keeps the round-11 defense intact ("found: 0 clean" continues into a word → still rejected)
+# while accepting every punctuation the corpus actually writes.
+_FOUND_TOK = re.compile(r"(?<![\w-])found:\s*(\d+)(?!\s*\w)", re.M)
+_FIXED_TOK = re.compile(r"(?<![\w-])fixed:\s*(\d+)(?!\s*\w)", re.M)
 
 
 def _pass_counters(line: str) -> tuple[int, int] | None:
@@ -416,7 +431,7 @@ def check_mega_validation(
             "in a mega report the table is the ONLY sanctioned ledger shape, and prose counters "
             "next to it are how a real non-quiet history hides behind a quiet decoy table"
         )
-        rows = None
+        rows = []
     elif len(tables) > 1:
         rows = None
     elif prose_rows and not tables:
@@ -425,7 +440,7 @@ def check_mega_validation(
             "are not a ledger. In a mega report the TABLE is the only sanctioned shape (prose is "
             "exempt from cell-anchoring by construction, which is exactly where the decoy lives)"
         )
-        rows = None
+        rows = []
     else:
         rows = tables[0] if tables else []
     if rows is None:
@@ -440,7 +455,9 @@ def check_mega_validation(
             "decoy target — three were defeated in this grammar's own review"
         )
         rows = []
-    if rows is not None and len(rows) < 2 and not any("MORE THAN ONE" in e for e in errs):
+    if len(rows) < 2 and not any(
+        "MORE THAN ONE" in e or "OUTSIDE the ledger table" in e for e in errs
+    ):
         errs.append(
             f"ledger table records {len(rows)} round(s) — minimum two full rounds, ALWAYS, as "
             "TABLE rows carrying `found:` and `fixed:` (prose mentions do not count)"
@@ -584,7 +601,13 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             continue
         if BLOCKED_HEAD.search(text):
             continue
-        _, _, ordered_rows = _ledger_shapes(text)
+        c_tables, c_prose, ordered_rows = _ledger_shapes(text)
+        if len(c_tables) + (1 if c_prose else 0) > 1:
+            out.append(
+                f"{p.relative_to(root)}: COMMITTED with counter rows in multiple groups — the "
+                "exit round is forgeable by a decoy group; consolidate to ONE ledger"
+            )
+            continue
         rows = [str(f) for f, _x, _ln in ordered_rows]
         if rows and int(rows[-1]) != 0:
             out.append(

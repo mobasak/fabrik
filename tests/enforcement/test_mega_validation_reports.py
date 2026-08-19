@@ -440,12 +440,14 @@ def test_narrative_counters_in_a_cell_cannot_swap_the_real_values(repo: Path) ->
     """Round-11 defeat 1, both directions: lazy capture let 'sample found: 0 clean' mask a real
     found: 4, and 'previously found: 6 stray' flag a quiet round. Token-anchoring kills both;
     a line with two strict tokens is not an honest row and goes inert."""
+    # one consistent TABLE ledger — mixing prose Pass-lines with table rows is itself refused
+    # since round 13 (group ambiguity), so the token behavior is probed within one group
     base = (
         "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
         "review_rubric.py output embedded\n\n"
         "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
-        "## Pass Ledger\nPass 1: found: 3, fixed: 1\n{row}\n"
+        "## Pass Ledger\n| Pass 1 | initial | found: 3 · fixed: 1 | notes |\n{row}\n"
     )
     masked = base.format(
         row="| Pass 2 | WIDE (triage sample found: 0 clean, full sweep) found: 4 · fixed: 0 | finder |"
@@ -487,3 +489,67 @@ def test_prose_only_ledger_is_not_a_mega_ledger(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1, "a prose-only ledger satisfied the mega grammar"
     assert "only as Pass-style prose" in out or "ledger table records 0" in out
+
+
+def test_corpus_punctuation_styles_parse_as_counters(repo: Path) -> None:
+    """Round-13 defeat 1: the separator whitelist evaporated the repo's own committed ledgers
+    (backtick, period, arrow, paren). Every real style must parse; prose continuation must not."""
+    import check_review_coverage as crc
+
+    for line, expect in [
+        ("**Pass 3: `found: 0, fixed: 0`**", (0, 0)),
+        ("Pass 5: found: 0, fixed: 0. All 14 verified.", (0, 0)),
+        ("| Pass 2 | sweep | found: 3 · fixed: 2 (seams partition) | x |", (3, 2)),
+        ("Pass 2: found: 3, fixed: 0 → not done, BLOCKED next round", (3, 0)),
+        ("Pass 2: sample found: 0 clean, full sweep found: 4, fixed: 0.", None),  # two tokens? no: 'clean' kills the first -> one strict pair
+    ]:
+        got = crc._pass_counters(line)
+        if expect is None:
+            assert got == (4, 0), f"prose-continuation guard drifted: {line!r} -> {got}"
+        else:
+            assert got == expect, f"{line!r} -> {got}, wanted {expect}"
+
+
+def test_arrow_terminated_nonquiet_final_round_fires(repo: Path) -> None:
+    """Round-13's reproduced fail-open: the inert arrow row let a BLOCKED report pass as quiet."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
+        "## Pass Ledger\n"
+        "Pass 1: found: 0, fixed: 0\n"
+        "Pass 2: found: 3, fixed: 0 → not done, BLOCKED next round\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary6-review.md", body)
+    assert rc == 1, "the arrow-terminated non-quiet final round went inert (fail-open)"
+    assert "raised 3" in out
+
+
+def test_appendix_decoy_group_is_refused_in_the_everyday_grammar(repo: Path) -> None:
+    """Round-13 defeat 2: an example table row after the prose ledger became ordered[-1]."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 3, fixed: 0\nPass 2: found: 3, fixed: 0\n\n"
+        "Appendix — example format:\n"
+        "| Pass 99 | example only | found: 0 · fixed: 0 | n/a |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary7-review.md", body)
+    assert rc == 1, "the appendix decoy row became the exit round"
+    assert "separate groups" in out
+
+
+def test_prose_only_mega_refusal_does_not_also_claim_more_than_one_table(repo: Path) -> None:
+    """Round-13 defeat 3 (wrong-reason): zero tables must not be reported as 'MORE THAN ONE'."""
+    h = _shell_hash(repo)
+    body = (
+        "# Cross-Epic Validation Report\n"
+        f"Surface: {h}\n\nPass 1: found: 7, fixed: 6\nPass 2: found: 0, fixed: 0\n\n## Overall: PASS\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1
+    assert "only as Pass-style prose" in out
+    assert "MORE THAN ONE" not in out, "wrong-reason double message returned"
