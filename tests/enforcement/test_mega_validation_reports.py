@@ -675,3 +675,36 @@ def test_checklist_branch_committed_in_progress_is_nagged(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-19-ordinary13-review.md", body, commit=True)
     assert rc == 0
     assert "COMMITTED as Status: IN-PROGRESS" in out
+
+
+def test_prose_quote_of_the_command_is_not_report_shaped(repo: Path) -> None:
+    """Round-25 findings 1+2: quoting /fabrik-review in prose made a notes doc a subject —
+    blocking-failed when changed, nagged forever when committed with a Status line."""
+    body = "# Plan Convergence Notes\n\nNext, run /fabrik-review to adjudicate the diff.\n"
+    rc, out = _gate(repo, "2026-08-19-notes-review.md", body)
+    assert rc == 0, f"a prose quote hard-failed the blocking gate: {out}"
+    body2 = "# Spec Convergence Notes\nStatus: IN-PROGRESS\n\nWe then ran /fabrik-review here.\n"
+    rc, out = _gate(repo, "2026-08-19-notes2-review.md", body2, commit=True)
+    assert rc == 0
+    assert "notes2" not in out, "a prose-quoting non-subject doc was nagged"
+
+
+def test_note_lines_print_after_the_advisory_header(repo: Path) -> None:
+    """Round-25 finding 3: a NOTE printing first broke the emitter's startswith-⚠ opt-in
+    and silently re-hid the advisory payload from the gate JSON."""
+    committed = (
+        "# Review — old (/fabrik-review)\nSurface: abc\n\nreview_rubric.py ran\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN scripts/x.py |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 2, fixed: 0\n"
+    )
+    _gate(repo, "2026-08-19-old-review.md", committed, commit=True)
+    (repo / "docs/development/reviews/2026-08-19-draft-review.md").write_text("# draft\n")
+    import subprocess
+    import sys as _s
+    r = subprocess.run(
+        [_s.executable, str(CHECK), "--root", str(repo)], capture_output=True, text=True, timeout=30
+    )
+    out = r.stdout
+    assert "COMMITTED with a non-quiet" in out and "NOTE:" in out, "fixture must exercise both"
+    assert out.lstrip().startswith("⚠"), f"stdout does not lead with ⚠:\n{out[:200]}"

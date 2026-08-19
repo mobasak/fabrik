@@ -49,8 +49,16 @@ RECURRENCE = {
 }
 
 
-def _changed_md(root: Path, prefix: str) -> list[Path]:
-    """Changed/untracked .md under ``prefix`` (git status), excluding archived/."""
+def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str]]:
+    """Changed/untracked .md under ``prefix`` (git status), excluding archived/.
+
+    Returns (paths, notes) — NOTE lines are RETURNED, not printed: round 25 reproduced a NOTE
+    printing before the ⚠-first advisory header, which broke final_gate's startswith("⚠")
+    opt-in and silently re-hid the whole advisory payload from --json whenever an untracked
+    draft co-occurred with a committed advisory. Print order is part of the emitter protocol;
+    only main() may decide it.
+    """
+    notes: list[str] = []
     try:
         out = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=all", "--", prefix],
@@ -60,7 +68,7 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
             check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
+        return [], notes
     paths = []
     for line in out.splitlines():
         rel = line[3:].split(" -> ")[-1].strip().strip('"')
@@ -70,10 +78,10 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
         # not-yet-staged) in-flight draft. The checklist is enforced at the
         # staging/commit moment, never against another agent's mid-write scratch.
         if line[:2] == "??":
-            print(f"NOTE: skip untracked in-flight draft (checked at staging): {rel}")
+            notes.append(f"NOTE: skip untracked in-flight draft (checked at staging): {rel}")
             continue
         paths.append(root / rel)
-    return paths
+    return paths, notes
 
 
 def _table_rows(section: str) -> list[str]:
@@ -188,7 +196,12 @@ def check_file(p: Path) -> list[str]:
     text = p.read_text(encoding="utf-8", errors="replace")
     section = _checklist_section(text)
     if section is None:
-        if COMMAND_MARK.search(text):
+        # Round 25: COMMAND_MARK alone fired on docs merely QUOTING the command in prose
+        # ("run /fabrik-review to adjudicate…"), hard-failing spec/plan convergence notes the
+        # module docstring exempts. A doc is this gate's subject only when it is REPORT-shaped:
+        # the command named AND the report apparatus present (a Surface anchor or a recorded
+        # rubric run) — a report missing its checklist still fails, prose quotes never do.
+        if COMMAND_MARK.search(text) and (SURFACE.search(text) or RUBRIC_RUN.search(text)):
             errs.append(
                 "names /fabrik-review or /fabrik-repo-review but emits NO Coverage Checklist"
             )
@@ -690,7 +703,9 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
-        if _checklist_section(text) is None and not COMMAND_MARK.search(text):
+        if _checklist_section(text) is None and not (
+            COMMAND_MARK.search(text) and (SURFACE.search(text) or RUBRIC_RUN.search(text))
+        ):
             # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
             # round 23: the IN-PROGRESS advisory below was firing on EVERY reviews/*.md with a
             # Status line, misattributing docs the module docstring explicitly exempts
@@ -737,7 +752,7 @@ def main() -> int:
     args = ap.parse_args()
     root = Path(args.root).resolve()
     failures: list[str] = []
-    changed = _changed_md(root, REVIEWS_DIR)
+    changed, skip_notes = _changed_md(root, REVIEWS_DIR)
     # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
     # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
     # every historical report across ~46 synced repos on the next sync, on artifacts whose authors
@@ -753,6 +768,11 @@ def main() -> int:
         print("⚠ check_review_coverage ADVISORY — committed review(s) needing attention:")
         for s in stale:
             print(f"  ⚠ {s}")
+    for note in skip_notes:
+        # AFTER the ⚠ block, never before it — a NOTE printing first broke the emitter's
+        # startswith("⚠") opt-in and re-hid the advisory whenever an untracked draft
+        # co-occurred with a committed advisory (round 25, reproduced end-to-end)
+        print(note)
     for p in changed:
         # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
         # review file that merely QUOTED the template (even fenced) route here and skip the
