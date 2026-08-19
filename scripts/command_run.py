@@ -450,8 +450,11 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
             # means REFUSE, not guess.
             msg = (
                 f"REFUSED — this /{live} run has no repo_root on record (start ran outside a "
-                "git repo), so its report cannot be verified. Close as `blocked`, or restart "
-                "the record from the repo under review."
+                "git repo, or the record predates the field), so its report cannot be "
+                "verified. The ONLY exit is `blocked --command "
+                f"{live} --reason rootless-record` — a fresh `start` NESTS under this record "
+                "rather than replacing it (round 35: an operator following a 'restart' remedy "
+                "closed the child, saw DONE, and the rootless parent kept blocking forever)."
             )
             sys.stderr.write(f"[command_run] {msg}\n")
             print(msg)
