@@ -237,6 +237,17 @@ def _round_report(rec: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _repo_root() -> str:
+    """The toplevel of the repo the invoking shell is in at START time — "" if none."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10, check=True,
+        ).stdout.strip()
+    except Exception:
+        return ""
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S%z")
 
@@ -330,6 +341,9 @@ def _mutate(sid: str, args: argparse.Namespace) -> int:
             "terminal": args.terminal,
             "state": "running",
             "started_at": _now(),
+            # the repo the run REVIEWS, resolved once at start — round 31 reproduced the close
+            # check running against whatever repo the shell happened to be cd'd into
+            "repo_root": _repo_root(),
             "rounds": [],
             "classes": {},
             "stack": stack,
@@ -415,41 +429,63 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
         return 1
 
     if args.cmd == "done" and live in ("fabrik-review", "fabrik-repo-review"):
-        # ARTIFACT-BY-FILESYSTEM (2026-08-19): check_review_coverage retired its command-name
-        # sniff on the stated ground that "did the command emit its artifact" is THIS record's
-        # enforcement moment — and a closing sweep then proved the claim false: `done` accepted
-        # any evidence STRING, so a review run could close having written nothing. The claim is
-        # now mechanically true: a review's `done` requires a changed/untracked report under
-        # docs/development/reviews/ (git status) or one committed at HEAD — never a sentence
-        # about one.
+        # ARTIFACT-BY-FILESYSTEM, RUN-BOUND (rounds 29+31). Round 29 proved `done` accepted any
+        # evidence STRING; the first fix then shipped green-by-accident (its own bundled ledger
+        # edit satisfied it) and round 31 reproduced four more holes: no cwd pinning (a wrong
+        # repo's dirt passed; a subdir invocation false-refused), deletions counted as artifacts,
+        # any HEAD touch of reviews/ counted regardless of WHEN, and the check had no binding to
+        # THIS run at all. Now: git runs in the repo recorded at START; only non-deleted *.md
+        # count; a file must be modified at-or-after the run began (mtime), or HEAD must be a
+        # commit from this run's window touching reviews/ (line-anchored, not substring).
+        root = rec.get("repo_root") or None
+        started = rec.get("started_at", "")
+        try:
+            started_epoch = time.mktime(time.strptime(started[:19], "%Y-%m-%dT%H:%M:%S"))
+        except Exception:
+            started_epoch = 0.0
+        ok_artifact = None  # None = unverifiable (fail open); False = verified absent
         try:
             porcelain = subprocess.run(
                 ["git", "status", "--porcelain", "--untracked-files=all",
                  "--", "docs/development/reviews/"],
-                capture_output=True, text=True, timeout=10, check=True,
+                capture_output=True, text=True, timeout=10, check=True, cwd=root,
             ).stdout
+            ok_artifact = False
+            for ln in porcelain.splitlines():
+                if ln[:2].strip() == "D" or not ln[3:].strip().endswith(".md"):
+                    continue
+                f = Path(root or ".") / ln[3:].split(" -> ")[-1].strip().strip('"')
+                if f.is_file() and f.stat().st_mtime >= started_epoch - 2:
+                    ok_artifact = True
+                    break
+            if ok_artifact is False:
+                try:
+                    head = subprocess.run(
+                        ["git", "show", "--name-only", "--format=%ct", "HEAD"],
+                        capture_output=True, text=True, timeout=10, check=True, cwd=root,
+                    ).stdout.splitlines()
+                except Exception:
+                    head = []  # no commits yet = no HEAD artifact; NOT "broken git" (round 31:
+                    # the outer fail-open swallowed this and closed an empty repo clean)
+                head_epoch = float(head[0]) if head and head[0].isdigit() else 0.0
+                # exact >=, no grace: a commit made BEFORE start is a previous task's artifact
+                # (round 31: the 60s grace let the pre-run commit in the same minute count)
+                if head_epoch >= started_epoch and any(
+                    h.startswith("docs/development/reviews/") for h in head
+                ):
+                    ok_artifact = True
         except Exception:
-            porcelain = None  # a broken git must not wedge the close — fail open HERE only
-        if porcelain is not None and not any(
-            ln[3:].strip().endswith(".md") for ln in porcelain.splitlines()
-        ):
-            try:
-                head_files = subprocess.run(
-                    ["git", "show", "--name-only", "--format=", "HEAD"],
-                    capture_output=True, text=True, timeout=10, check=True,
-                ).stdout
-            except Exception:
-                head_files = ""
-            if "docs/development/reviews/" not in head_files:
-                msg = (
-                    f"REFUSED — closing /{live} with done requires its persisted report: no "
-                    "changed, untracked, or HEAD-committed docs/development/reviews/*.md found. "
-                    "A review that exists only in chat does not exist. Write the report (or "
-                    "close as `blocked` if genuinely halted)."
-                )
-                sys.stderr.write(f"[command_run] {msg}\n")
-                print(msg)
-                return 1
+            ok_artifact = None  # broken git must not wedge the close — fail open HERE only
+        if ok_artifact is False:
+            msg = (
+                f"REFUSED — closing /{live} with done requires its persisted report: no "
+                "docs/development/reviews/*.md written or committed SINCE THIS RUN STARTED "
+                f"in {root or 'the current repo'}. A review that exists only in chat does not "
+                "exist. Write the report (or close as `blocked` if genuinely halted)."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
     rec["state"] = args.cmd
     if args.cmd == "done":
         rec["evidence"] = args.evidence

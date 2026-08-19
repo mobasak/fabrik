@@ -51,7 +51,7 @@ def _cr(run_dir: Path, *args: str, sid: str = "s1") -> subprocess.CompletedProce
 
 
 def _start(run_dir: Path, **kw: str) -> None:
-    _cr(run_dir, "start", "--command", "fabrik-review", "--phases", "5",
+    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
         "--terminal", "found:0 no-op round", **kw)
 
 
@@ -70,7 +70,7 @@ def test_line_exact_format(run_dir: Path) -> None:
         _cr(run_dir, "round", "--findings", "1")
     out = _cr(run_dir, "line").stdout.rstrip("\n")
     assert out == (
-        "RUN: /fabrik-review · phase 2/5 (Independent finders) · round 3 "
+        "RUN: /fabrik-probe · phase 2/5 (Independent finders) · round 3 "
         "· terminal: found:0 no-op round"
     ), out
 
@@ -80,7 +80,7 @@ def test_line_omits_round_segment_before_any_round(run_dir: Path) -> None:
     _cr(run_dir, "step", "--phase", "1", "--title", "Establish scope")
     out = _cr(run_dir, "line").stdout.rstrip("\n")
     assert "· round" not in out, out
-    assert out.startswith("RUN: /fabrik-review · phase 1/5 (Establish scope)"), out
+    assert out.startswith("RUN: /fabrik-probe · phase 1/5 (Establish scope)"), out
 
 
 def test_command_name_normalises_leading_slash(run_dir: Path) -> None:
@@ -115,7 +115,7 @@ def test_unwritable_state_dir_fails_soft(tmp_path: Path) -> None:
     blocker = tmp_path / "blocker"
     blocker.write_text("x")
     bad = blocker / "nested"
-    assert _cr(bad, "start", "--command", "fabrik-review", "--phases", "5").returncode == 0
+    assert _cr(bad, "start", "--command", "fabrik-probe", "--phases", "5").returncode == 0
     p = _cr(bad, "line")
     assert p.returncode == 0 and p.stdout == "", p
 
@@ -125,14 +125,14 @@ def test_unwritable_state_dir_fails_soft(tmp_path: Path) -> None:
 
 def test_done_clears_the_pinned_line(run_dir: Path) -> None:
     _start(run_dir)
-    _cr(run_dir, "done", "--command", "fabrik-review", "--evidence", "found: 0 on round 4")
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "found: 0 on round 4")
     assert _cr(run_dir, "line").stdout == ""
     assert _rec(run_dir)["state"] == "done"
 
 
 def test_blocked_clears_the_pinned_line(run_dir: Path) -> None:
     _start(run_dir)
-    _cr(run_dir, "blocked", "--command", "fabrik-review", "--reason", "missing infra — no DB")
+    _cr(run_dir, "blocked", "--command", "fabrik-probe", "--reason", "missing infra — no DB")
     assert _cr(run_dir, "line").stdout == ""
     rec = _rec(run_dir)
     assert rec["state"] == "blocked" and "missing infra" in rec["blocked_reason"]
@@ -142,17 +142,17 @@ def test_blocked_clears_the_pinned_line(run_dir: Path) -> None:
 
 
 def _start_nested(run_dir: Path) -> None:
-    """A plan execution at phase 2/5 with a /fabrik-review nested inside it."""
+    """A plan execution at phase 2/5 with a /fabrik-probe nested inside it."""
     _cr(run_dir, "start", "--command", "fabrik-execute-plan", "--phases", "5",
         "--terminal", "every phase EXECUTED")
     _cr(run_dir, "step", "--phase", "2", "--title", "Phase B")
-    _cr(run_dir, "start", "--command", "fabrik-review", "--phases", "5",
+    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
         "--terminal", "found:0 no-op round")
 
 
 def test_nested_done_restores_and_reprints_the_parent_line(run_dir: Path) -> None:
     _start_nested(run_dir)
-    out = _cr(run_dir, "done", "--command", "fabrik-review", "--evidence", "round 3 found: 0").stdout
+    out = _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 3 found: 0").stdout
     assert "RUN: /fabrik-execute-plan · phase 2/5 (Phase B)" in out, out
     assert _rec(run_dir)["state"] == "running"
     assert _rec(run_dir)["command"] == "fabrik-execute-plan"
@@ -162,11 +162,11 @@ def test_duplicate_done_cannot_close_the_restored_parent(run_dir: Path) -> None:
     """THE probe: a retried/duplicated `done` must not close /fabrik-execute-plan at 2/5,
     silencing the pinned line and disarming the hook for the remaining 3 phases."""
     _start_nested(run_dir)
-    _cr(run_dir, "done", "--command", "fabrik-review", "--evidence", "round 3 found: 0")
-    dup = _cr(run_dir, "done", "--command", "fabrik-review", "--evidence", "round 3 found: 0")
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 3 found: 0")
+    dup = _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 3 found: 0")
     assert dup.returncode == 1, dup
     assert "fabrik-execute-plan" in (dup.stdout + dup.stderr), dup
-    assert "fabrik-review" in (dup.stdout + dup.stderr), dup
+    assert "fabrik-probe" in (dup.stdout + dup.stderr), dup
     assert _rec(run_dir)["state"] == "running", "the parent must still be live"
     assert _cr(run_dir, "line").stdout.startswith("RUN: /fabrik-execute-plan · phase 2/5")
 
@@ -176,7 +176,7 @@ def test_done_refuses_a_command_that_is_not_the_live_run(run_dir: Path) -> None:
     p = _cr(run_dir, "done", "--command", "fabrik-docs-review", "--evidence", "x")
     assert p.returncode == 1, p
     both = p.stdout + p.stderr
-    assert "fabrik-review" in both and "fabrik-docs-review" in both, both
+    assert "fabrik-probe" in both and "fabrik-docs-review" in both, both
     assert _rec(run_dir)["state"] == "running"
 
 
@@ -189,8 +189,8 @@ def test_blocked_refuses_a_command_that_is_not_the_live_run(run_dir: Path) -> No
 
 def test_double_close_of_a_top_level_run_is_a_warned_noop(run_dir: Path) -> None:
     _start(run_dir)
-    _cr(run_dir, "done", "--command", "fabrik-review", "--evidence", "round 4 found: 0")
-    again = _cr(run_dir, "done", "--command", "fabrik-review", "--evidence", "round 4 found: 0")
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 4 found: 0")
+    again = _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 4 found: 0")
     assert again.returncode == 0, again
     assert "already" in (again.stdout + again.stderr).lower(), again
     rec = _rec(run_dir)
@@ -230,8 +230,8 @@ def test_concurrent_rounds_are_never_lost(run_dir: Path) -> None:
 def test_distinct_session_ids_never_share_a_record(run_dir: Path) -> None:
     """`abc.xyz` and `abc xyz` both sanitize to `abc_xyz` — an innocent session
     would inherit (and be blocked by) another session's run."""
-    _cr(run_dir, "start", "--command", "fabrik-review", "--phases", "5", sid="abc.xyz")
-    assert _cr(run_dir, "line", sid="abc.xyz").stdout.startswith("RUN: /fabrik-review")
+    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", sid="abc.xyz")
+    assert _cr(run_dir, "line", sid="abc.xyz").stdout.startswith("RUN: /fabrik-probe")
     assert _cr(run_dir, "line", sid="abc xyz").stdout == "", "a different session must be idle"
 
 
@@ -276,7 +276,7 @@ def test_terminal_verdict_fires_on_all_swept_and_zero_findings(run_dir: Path) ->
     # The hint must be RUNNABLE, not merely present: F-R1 made --command required, so a
     # hint of the bare `done --evidence` form exits 2 at exactly the moment an agent is
     # trying to close its run correctly. Pin the full form, with the live command named.
-    assert "done --command fabrik-review --evidence" in final.stdout, final.stdout
+    assert "done --command fabrik-probe --evidence" in final.stdout, final.stdout
 
 
 def test_terminal_verdict_needs_a_non_empty_ledger(run_dir: Path) -> None:
@@ -366,3 +366,66 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
                          "--evidence", "report written"],
                         cwd=repo, env=env, capture_output=True, text=True, timeout=15)
     assert r2.returncode == 0, r2.stdout + r2.stderr
+
+
+def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
+    """Round-31: no cwd pinning — a wrong repo's dirt passed, a subdir invocation false-refused."""
+    import os
+    import subprocess
+    import sys
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    repo_a = tmp_path / "a"
+    repo_b = tmp_path / "b"
+    for r in (repo_a, repo_b):
+        r.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=r, check=True, timeout=15)
+    (repo_b / "docs/development/reviews").mkdir(parents=True)
+    (repo_b / "docs/development/reviews/old-review.md").write_text("# unrelated dirt\n")
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "3", "--terminal", "t"], cwd=repo_a, env=env, check=True, timeout=15)
+    # close from repo B (wrong repo, dirty reviews/): must still refuse — the check runs in A
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo_b, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "wrong-repo dirt satisfied the artifact check"
+    # write the real report in A, close from a SUBDIR of A: must succeed
+    (repo_a / "docs/development/reviews").mkdir(parents=True)
+    (repo_a / "docs/development/reviews/2026-08-19-a-review.md").write_text("# r\n")
+    sub = repo_a / "scripts"
+    sub.mkdir()
+    r2 = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                         "--evidence", "e"], cwd=sub, env=env,
+                        capture_output=True, text=True, timeout=15)
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+
+
+def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
+    """Round-31: a git rm of an old report — or a file predating the run — satisfied the check."""
+    import os
+    import subprocess
+    import sys
+    import time as _t
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
+    d = repo / "docs/development/reviews"
+    d.mkdir(parents=True)
+    old = d / "old-review.md"
+    old.write_text("# old\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+                   cwd=repo, check=True, timeout=15)
+    past = _t.time() - 3600
+    os.utime(old, (past, past))
+    _t.sleep(1.1)  # run-binding is second-granular: the pre-run commit must be < started_at
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "3", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(["git", "rm", "-q", "docs/development/reviews/old-review.md"],
+                   cwd=repo, check=True, timeout=15)
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "a deletion (of a pre-run file) satisfied the artifact check"
