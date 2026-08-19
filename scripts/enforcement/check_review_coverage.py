@@ -142,6 +142,15 @@ def _in_progress(text: str) -> bool:
 def _blocked_sections(text: str) -> int:
     """How many BLOCKED sections carry their own in-section 3-attempts evidence.
 
+    ⚠️ THE HONEST BOUNDARY (adjudicated round 21, ending three rounds of window tuning):
+    BLOCKED evidence is DECLARATIVE, not provable. A forger who writes the attempts phrase
+    inside their decoy section defeats any window; the window only ever defended against
+    ACCIDENTAL harvest of pre-existing prose (the EOF-bleed). Form is checkable; sincerity is
+    not — the real backstop is the operator reading the Telegram escalation the contract
+    requires. The same undecidability holds for one escalation honestly covering two related
+    rows (the 1:1 minimum false-fails it; authors split the section). Both residuals are
+    accepted HERE, once, rather than re-tuned per round.
+
     Round 19: the cardinality check counted BARE headings (findall), so N-1 empty decoy
     headings plus one real escalation waived N unchecked rows — a pure headcount wearing a
     correlation's clothes. Only EVIDENCED sections count now.
@@ -655,6 +664,14 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
         # (found 2026-08-18, the day the grammar shipped). live=False: epics legitimately
         # drift during execution, so the committed scan checks the TEXTUAL contract only.
         if _is_mega_report(p, text):
+            if _in_progress(text):
+                # same cloak-closure as the checklist branch below: the sanctioned mid-loop
+                # state stays sanctioned but VISIBLE on every run
+                out.append(
+                    f"{p.relative_to(root)}: COMMITTED as Status: IN-PROGRESS — the loop that "
+                    "opened it has not closed; finish it, or this line stands forever"
+                )
+                continue
             # scope="exit" honors this function's documented narrowness: only the quiet-exit +
             # moved-hash conditions, never the full obligation set — demanding Surface/rounds/
             # placeholders of every historical report forever is the muting mechanism the
@@ -662,7 +679,18 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
-        if _checklist_section(text) is None or _in_progress(text):
+        if _in_progress(text):
+            # Round 21: IN-PROGRESS exempted a committed report from EVERY check FOREVER —
+            # a permanent, self-declared invisibility cloak (reproduced: no Surface, one
+            # round, live placeholders, silent on every future gate run). The sanctioned
+            # mid-loop state stays sanctioned, but it is now VISIBLE on every run — an
+            # advisory that only quiets when the loop actually finishes.
+            out.append(
+                f"{p.relative_to(root)}: COMMITTED as Status: IN-PROGRESS — the loop that "
+                "opened it has not closed; finish it, or this line stands forever"
+            )
+            continue
+        if _checklist_section(text) is None:
             continue
         if _blocked_ok(text):
             # the SAME contract as every other reader — round 17 found this call site still

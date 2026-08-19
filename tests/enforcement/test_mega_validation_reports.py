@@ -632,3 +632,14 @@ def test_long_bounded_blocked_section_with_late_evidence_is_accepted(repo: Path)
     )
     rc, out = _gate(repo, "2026-08-19-ordinary12-review.md", body)
     assert rc == 0, f"a bounded section with late evidence was rejected: {out}"
+
+
+def test_committed_in_progress_report_is_visible_not_cloaked(repo: Path) -> None:
+    """Round-21 finding 2: IN-PROGRESS made a committed report permanently invisible."""
+    body = (
+        "# Cross-Epic Validation Report\nSurface: none-yet\nStatus: IN-PROGRESS\n\n"
+        "Rounds:\n| r | found: | fixed: | h |\n|---|---|---|---|\n| 1 | found: 9 | fixed: 0 | tbd |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-cloak-validation-review.md", body, commit=True)
+    assert rc == 0, "advisory, never blocking"
+    assert "COMMITTED as Status: IN-PROGRESS" in out, "the cloak is still invisible"
