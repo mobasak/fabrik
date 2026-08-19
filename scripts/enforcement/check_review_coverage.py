@@ -574,6 +574,17 @@ def check_mega_validation(
                 )
     if live and surface is not None:
         live_hash = epics_set_hash(root)
+        if live_hash is None:
+            # Round 23, fail-open reproduced: with no epics dir a fully FABRICATED hash chain
+            # passed the blocking gate — the recompute IS the anti-cheat, and skipping it on
+            # absence is worse than the typed-identical-strings defeat it was built against.
+            # A mega report claims to have validated an epic set; against NOTHING the claim is
+            # unverifiable — fail loudly, don't shrug.
+            errs.append(
+                "the epic set at docs/development/epics is absent or empty — a mega validation "
+                "report cannot be verified against nothing. If the epics were archived after "
+                "the run, mark the report IN-PROGRESS or gate from the pre-archive tree"
+            )
         if live_hash is not None and live_hash != surface.group(1).lower():
             errs.append(
                 f"the epic set on disk hashes to {live_hash[:12]}… but the report anchors "
@@ -678,6 +689,11 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # docstring above names (closing-sweep finding, 2026-08-19).
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
+            continue
+        if _checklist_section(text) is None and not COMMAND_MARK.search(text):
+            # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
+            # round 23: the IN-PROGRESS advisory below was firing on EVERY reviews/*.md with a
+            # Status line, misattributing docs the module docstring explicitly exempts
             continue
         if _in_progress(text):
             # Round 21: IN-PROGRESS exempted a committed report from EVERY check FOREVER —

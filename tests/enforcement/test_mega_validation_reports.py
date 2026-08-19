@@ -643,3 +643,35 @@ def test_committed_in_progress_report_is_visible_not_cloaked(repo: Path) -> None
     rc, out = _gate(repo, "2026-08-19-mega-cloak-validation-review.md", body, commit=True)
     assert rc == 0, "advisory, never blocking"
     assert "COMMITTED as Status: IN-PROGRESS" in out, "the cloak is still invisible"
+
+
+def test_absent_epic_set_fails_the_blocking_gate_loudly(tmp_path: Path) -> None:
+    """Round-23 finding 1: no epics dir = the anti-cheat silently skipped = a fabricated
+    hash chain passed the BLOCKING gate. Unverifiable must mean FAIL, not shrug."""
+    import subprocess as sp
+    sp.run(["git", "init", "-q"], cwd=tmp_path, check=True, timeout=15)
+    fake = "d" * 32
+    body = _report(fake)  # no docs/development/epics at all
+    rc, out = _gate(tmp_path, "2026-08-19-mega-fab-validation-review.md", body)
+    assert rc == 1, "a fabricated chain passed with the epic set absent"
+    assert "cannot be verified against nothing" in out
+
+
+def test_non_checklist_review_doc_with_status_line_is_not_nagged(repo: Path) -> None:
+    """Round-23 finding 3: the advisory misattributed spec/plan convergence artifacts."""
+    body = "# Plan-Review Convergence Notes\nStatus: IN-PROGRESS\n\nprose only, no checklist\n"
+    rc, out = _gate(repo, "2026-08-19-other-artifact-review.md", body, commit=True)
+    assert rc == 0
+    assert "other-artifact" not in out, "a non-subject doc was nagged forever"
+
+
+def test_checklist_branch_committed_in_progress_is_nagged(repo: Path) -> None:
+    """Round-23 finding 4 (coverage): the SECOND grammar branch, committed, was untested."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\nStatus: IN-PROGRESS\n\n"
+        "review_rubric.py output\n\n## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary13-review.md", body, commit=True)
+    assert rc == 0
+    assert "COMMITTED as Status: IN-PROGRESS" in out

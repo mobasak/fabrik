@@ -767,6 +767,10 @@ def run_consistency_checks(
         run_optional_check(
             "scripts/enforcement/check_review_coverage.py",
             "Coverage Checklist (reviews)",
+            # round 23: without advisory=True the committed-scan lines (non-quiet exits,
+            # standing IN-PROGRESS nags) were DISCARDED on success — the visibility feature
+            # existed only for direct invocations, never for the documented gate path
+            advisory=True,
         )
     )
 
