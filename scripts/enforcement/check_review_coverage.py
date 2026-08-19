@@ -107,6 +107,14 @@ def _table_rows(section: str) -> list[str]:
 
 
 def _checklist_section(text: str) -> str | None:
+    # FENCE-STRIPPED AT THE DEFINITION (round 41): round 39 patched ONE call site while the
+    # three older, busier ones kept reading raw text — a fenced documentation example quoting
+    # the heading false-BLOCKED an honest how-to doc with five fabricated obligations through
+    # check_file. Per-call-site patching is the same per-reader-hardening root the breaker
+    # named twice; stripping HERE means every caller (present and future) inherits, and the
+    # returned section slice comes from stripped text, so fenced example rows inside a real
+    # checklist are excluded from _table_rows as well.
+    text = _strip_fences(text)
     m = None
     # #{1,4}: H1 included (round 29) — a report titling its checklist `# Coverage Checklist`
     # escaped every obligation, and no command source ever told authors which level to use.
@@ -756,8 +764,6 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 "opened it has not closed; finish it, or this line stands forever"
             )
             continue
-        if _checklist_section(text) is None:
-            continue
         if _blocked_ok(text):
             # the SAME contract as every other reader — round 17 found this call site still
             # raw-matching BLOCKED_HEAD (no fence-strip, no evidence), one commit after the
@@ -830,7 +836,7 @@ def main() -> int:
             # an honest cert report into check_file's full obligation set because a FENCED
             # documentation example quoted the checklist heading — the mirror image of the
             # class the same commit closed for the HANDOFF grammar, one call site over.
-            if _checklist_section(_strip_fences(body)) is None:
+            if _checklist_section(body) is None:  # strips at the definition since round 41
                 continue
         for e in check_file(p):
             failures.append(f"{p.relative_to(root)}: {e}")

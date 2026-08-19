@@ -806,3 +806,20 @@ def test_fenced_checklist_quote_does_not_route_a_cert_report_to_check_file(repo:
     (repo / "docs/x.md").write_text("# repro\n")
     rc, out = _gate(repo, "2026-08-20-thing3-user-test-r1.md", body)
     assert rc == 0, f"a fenced checklist quote fabricated obligations: {out}"
+
+
+def test_fenced_checklist_quote_is_not_a_subject_anywhere(repo: Path) -> None:
+    """Round-41: the fenced-example defeat lived in _checklist_section's OLDER call sites —
+    an honest how-to doc quoting the heading in a fence was false-BLOCKED with five
+    fabricated obligations. Stripped at the DEFINITION now: every caller inherits."""
+    body = (
+        "# How to write a review — internal documentation\n\n"
+        "Example of the required section format:\n```\n## Coverage Checklist\n\n"
+        "| Class | Verdict | Evidence |\n|---|---|---|\n| example | UNCHECKED |  |\n```\n\n"
+        "That is all this doc contains.\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-howto-review.md", body)
+    assert rc == 0, f"a fenced heading quote made a how-to doc a subject: {out}"
+    rc, out = _gate(repo, "2026-08-20-howto2-review.md", body + "\nStatus: nothing\n", commit=True)
+    assert rc == 0
+    assert "howto2" not in out, "the committed scan also misclassified the quoting doc"
