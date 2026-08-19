@@ -151,11 +151,17 @@ def _blocked_ok(text: str) -> bool:
     """
     body = _strip_fences(text)
     attempts = re.compile(
-        r"3\b.{0,40}attempt|attempt.{0,40}\b3\b|three (?:consecutive|failed)", re.I | re.S
+        r"3\b.{0,40}(?:attempt|failure)|(?:attempt|failure).{0,40}\b3\b"
+        r"|three (?:consecutive|failed)",
+        re.I | re.S,
     )
     for m in BLOCKED_HEAD.finditer(body):
         nxt = re.search(r"^#{1,4}\s", body[m.end():], re.M)
-        section = body[m.end(): m.end() + (nxt.start() if nxt else len(body))]
+        span = nxt.start() if nxt else len(body) - m.end()
+        # 600-char window: a last-heading section runs to EOF, and round 17 reproduced a bare
+        # BLOCKED heading harvesting an unrelated attempts phrase from distant closing prose.
+        # The escalation's evidence belongs AT the escalation, not somewhere below it.
+        section = body[m.end(): m.end() + min(span, 600)]
         if attempts.search(section):
             return True
     return False
@@ -190,6 +196,12 @@ def check_file(p: Path) -> list[str]:
         return errs
     blocked_ok = _blocked_ok(text)
     unchecked = [r.strip() for r in rows if UNCHECKED.search(r)]
+    if unchecked and blocked_ok:
+        # cheap cardinality correlation (round 17): ONE unrelated BLOCKED section was waiving
+        # EVERY unchecked row. The contract pauses THAT finding, not the document — at minimum
+        # each unchecked row needs its own evidenced BLOCKED section.
+        if len(BLOCKED_HEAD.findall(_strip_fences(text))) < len(unchecked):
+            blocked_ok = False
     noverdict = [r.strip() for r in rows if not UNCHECKED.search(r) and not VERDICT.search(r)]
     if unchecked and not blocked_ok:
         errs.append(
@@ -497,12 +509,17 @@ def check_mega_validation(
         )
     if rows:
         f_found, f_fixed, f_line = rows[-1]
-        if f_found != 0 or f_fixed != 0:
+        # _blocked_ok: the mega command's own doc promises the BLOCKED escalation as the ONLY
+        # sanctioned non-quiet stop — round 17 found the grammar never consumed it, so a
+        # properly escalated report's only recourse was the document-wide IN-PROGRESS flag,
+        # a strictly worse contract than the one documented.
+        if (f_found != 0 or f_fixed != 0) and not _blocked_ok(text):
             errs.append(
                 f"final ledger round reads found: {f_found}, fixed: {f_fixed} — the exit round "
                 "must be quiet in BOTH counters (a fix in the final round means the round that "
                 "changed the set called itself the no-op), or declare `Status: IN-PROGRESS` "
-                "within the report's FIRST 10 LINES (the template's slot is line 3)"
+                "within the report's FIRST 10 LINES (the template's slot is line 3), or carry "
+                "a real `## BLOCKED` escalation with its 3-attempts evidence in-section"
             )
         pairs = [_MEGA_HASH_PAIR.search(line) for _, _, line in rows]
         if pairs[-1] is None:
@@ -632,7 +649,10 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             continue
         if _checklist_section(text) is None or _in_progress(text):
             continue
-        if BLOCKED_HEAD.search(text):
+        if _blocked_ok(text):
+            # the SAME contract as every other reader — round 17 found this call site still
+            # raw-matching BLOCKED_HEAD (no fence-strip, no evidence), one commit after the
+            # centralization claimed "every reader"; a claim is only as true as its grep
             continue
         c_tables, c_prose, ordered_rows = _ledger_shapes(text)
         if len(c_tables) + (1 if c_prose else 0) > 1:

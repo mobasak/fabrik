@@ -582,7 +582,7 @@ def test_decoy_blocked_heading_without_section_evidence_does_not_exempt(repo: Pa
     body = _everyday(
         "Pass 1: found: 0, fixed: 0\nPass 2: found: 3, fixed: 1\n",
         "\n## Appendix — template reference\n### BLOCKED — example finding\n(fill in)\n"
-        "## Notes\nCLAUDE.md quotes '3 consecutive same-test failures' as the halt bar.\n",
+        "## Notes\nElsewhere we failed 3 attempts at an unrelated deploy.\n",
     )
     rc, out = _gate(repo, "2026-08-19-ordinary9-review.md", body)
     assert rc == 1, "a split decoy (BLOCKED heading + distant attempts phrase) exempted the gate"
