@@ -70,14 +70,22 @@ skipped and why. (HUB mode: every pack is in scope unless `$ARGUMENTS` narrows i
 
 The packs are independent, so this step MUST fan out — **pool-default per the dispatch policy**: one
 unit per applicable pack via `fanout("review", units, repo=REPO, project=<project>,
-mode="read_only")` (each unit's prompt = its pack's text + the Phase-0 ground truth, inlined), with
-`set_quality` back-fill after Phase 3 adjudication; reserve a native finder only for a pack whose
-subject is auth/schema/migrations/concurrency. (Only loop solo if ≤2 packs apply.) Each per-pack
-finder:
+mode="read_only")`, with `set_quality` back-fill after Phase 3 adjudication. Add a **native**
+finder on top for any pack whose subject is authoritative/high-risk (auth, schema, migrations,
+secrets, concurrency — the same reservation every review command uses); a 1–2-pack audit still
+dispatches through `fanout` (it records to the flywheel either way).
+
+**Division of labor — read_only units cannot touch the filesystem, so build their prompts
+accordingly:** each unit's prompt inlines its pack's text + the Phase-0 ground truth + the
+RELEVANT CODE EXCERPTS you (the orchestrator) select for that pack's subject (grep-driven —
+config files, the entrypoint, the modules the pack governs). The unit then:
 
 - Extracts that pack's "Done When" / requirements / Banned Patterns.
-- For EACH requirement, VERIFIES against real code with a `path:line` citation — never assert from
-  memory; a file/column NAME ≠ its behavior (read it). Run greps/queries where needed.
+- For EACH requirement, judges it against the inlined excerpts and cites `path:line` from them —
+  and **explicitly flags any requirement its excerpts cannot decide** (`UNVERIFIABLE-FROM-EXCERPTS`)
+  instead of guessing. YOU verify every flagged item AND every cited `path:line` yourself with
+  real tools in Phase 3 — exhaustively, not a sample; a finder verdict on code it never saw is
+  not evidence, and a fabricated citation survives exactly as long as nobody opens it.
 - Classifies each item:
   - ✅ COMPLIANT — with `path:line` proof.
   - 🟡 DEVIATION — deliberate + ADR-accepted (cite the ADR line); NOT a gap.
@@ -86,16 +94,23 @@ finder:
     project's resilience/backlog/plan docs, e.g. `RESILIENCE.md`, `STRATEGIC_BACKLOG.md`,
     `docs/development/plans/*`).
 
-Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations)
-so its verdicts are grounded, not guessed.
+Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted
+deviations) + its selected excerpts — nothing else, so its verdicts are grounded, not guessed.
+
+**HUB mode:** the per-pack unit's requirement list IS the blast-radius checklist from the mode
+section (contradiction with sibling packs, backward-compatibility, false-positive risk on
+mandated patterns, glob reach) — judged against the pack's own text + the sibling packs you
+inline + `python scripts/select_rules.py` output, since there is no project code to audit.
 
 ## Phase 3 — Merge + refute (kill false gaps)
 
-Merge and dedupe all per-pack findings. Then adversarially try to REFUTE every ❌ GAP before it
-reaches the table: is it actually ADR-accepted (cite the ADR line) or spec-consistent-off (cite the
-shape flag)? If so, reclassify it as 🟡 DEVIATION. Only gaps that survive this refutation are real.
-Equally, do not let a finder's ✅ COMPLIANT stand without its `path:line` proof. Back-fill
-`set_quality` scores for the pool finders here (confirmed-gap yield + proof quality).
+Merge and dedupe all per-pack findings. Resolve every `UNVERIFIABLE-FROM-EXCERPTS` flag yourself
+with real tools (grep/Read) — those items are finder QUESTIONS, never findings. Then adversarially
+try to REFUTE every ❌ GAP before it reaches the table: is it actually ADR-accepted (cite the ADR
+line) or spec-consistent-off (cite the shape flag)? If so, reclassify it as 🟡 DEVIATION. Only gaps
+that survive this refutation are real. Equally, do not let a finder's ✅ COMPLIANT stand without a
+`path:line` you spot-checked. Back-fill `set_quality` scores for the pool finders here
+(confirmed-gap yield + proof quality).
 
 ## Phase 4 — Iterate to a stable audit (no-op pass), then output
 
