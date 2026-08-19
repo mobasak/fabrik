@@ -439,6 +439,45 @@ def test_exposure_headless_is_env_driven_both_ways(tmp_path, monkeypatch):
     assert kaizen_events.exposure(refresh=True)["headless"] is False
 
 
+def test_exposure_cwd_pins_the_probes_to_the_callers_directory(tmp_path, monkeypatch):
+    """T02 amendment: a SUBPROCESS sensor (every hook) has no guarantee its own process
+    cwd is the session's project. Unpinned, it stamps project A's events with project
+    B's commit — silently, and unfixably after the fact."""
+    other = tmp_path / "other"
+    (other / "scripts").mkdir(parents=True)
+    (other / "scripts" / "x.py").write_text("x")
+    for args in (
+        ["init", "-q", "-b", "master"],
+        ["add", "scripts/x.py"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "other"],
+    ):
+        subprocess.run(["git", *args], cwd=other, check=True, timeout=30, capture_output=True)
+    other_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=other, capture_output=True, text=True, timeout=30
+    ).stdout.strip()
+
+    monkeypatch.chdir(REPO)  # the process cwd is THIS repo — the contaminating value
+    assert kaizen_events.exposure(refresh=True, cwd=str(other))["commit"] == other_head
+    assert kaizen_events.exposure(refresh=True, cwd=str(other))["project"] == UNKNOWN_PROJECT
+    # ...and a pinned answer must never be served from, or poison, the shared cache.
+    assert kaizen_events.exposure(refresh=True)["project"] == "fabrik"
+
+
+UNKNOWN_PROJECT = "unknown"
+
+
+@pytest.mark.parametrize("bad", [0, -1, float("nan"), float("inf"), "2", None, True])
+def test_probe_timeout_rejects_anything_unusable(bad):
+    """A caller on a hot path passes a small bound; garbage must fall back to the
+    default, never to 0 (which subprocess reads as "time out immediately") and never to
+    a bool (which is an int and would silently mean 1 second)."""
+    assert kaizen_events._probe_timeout(bad) == kaizen_events.DEFAULT_PROBE_TIMEOUT_S
+
+
+def test_probe_timeout_keeps_a_usable_bound():
+    assert kaizen_events._probe_timeout(2.0) == 2.0
+
+
 # ── concurrency + the module's own canary ────────────────────────────────────────────
 
 

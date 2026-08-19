@@ -51,7 +51,7 @@ Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | events-core: schema + emitter library + exposure resolver | — | ⚡ | ✅ | 19754de5 |
-| T02 | hook emitters: session lifecycle + stop_block/final_block + operator_override | T01 | ⚡ | ⬜ | |
+| T02 | hook emitters: session lifecycle + stop_block/final_block + operator_override | T01 | ⚡ | ✅ | 10-finding native acceptance, all red-proven; merged (squash of a151cccc+fd587961) |
 | T03 | run-record events + sid plumbing + lifecycle audit | T01 | ⚡ | ⬜ | |
 | T04 | sensor emitters: gate_run per-check + rule_activation | T01 | ⚡ | ⬜ | |
 | T05 | the coroner: death/revival reconstruction + record closure + hole metric | T01, T03 | — | ⬜ | |

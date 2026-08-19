@@ -14,6 +14,7 @@ any error exits 0 (a broken orientation must never block a session).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -24,6 +25,79 @@ from pathlib import Path
 # Read at most this much of MEMORY.md when counting entries (bound reads by
 # bytes — a pathological index must not spike every SessionStart).
 _MEMORY_READ_BYTES = 256 * 1024
+
+# --- Kaizen M1 event stream (additive sensor, fail-open at the IMPORT layer) ---
+# The emitter lives at ONE place per box, so both candidates are tried: this repo's own
+# copy first, then the hub's. The degraded state is the module being unimportable at
+# BOTH — a box that has no kaizen_events at all — and there the hook must behave
+# EXACTLY as it did before the sensor existed. Hence the guarded import (never an
+# ImportError reaching a session) and a second guard at every emit site. Paths are
+# APPENDED (stdlib always wins) and only when absent (idempotent under re-import).
+kaizen_events = None
+try:
+    for _p in (
+        str(Path(__file__).resolve().parents[2] / "scripts" / "sysadmin"),
+        "/opt/fabrik/scripts/sysadmin",
+    ):
+        if _p not in sys.path:
+            sys.path.append(_p)
+    import kaizen_events  # type: ignore[no-redef]
+except Exception:
+    kaizen_events = None
+
+# SessionStart's whole budget is 10s (.claude/settings.json). A hung git probe must
+# cost this hook milliseconds, not the orientation itself.
+_PROBE_TIMEOUT_S = 2.0
+
+
+@contextlib.contextmanager
+def _quiet():
+    """Mute stderr for the duration — hook-side, so `kaizen_events` keeps its own
+    honest `_warn` channel for every OTHER caller. A hook's stderr is part of its
+    observable output, and the sensor must not add a byte to it."""
+    try:
+        devnull = open(os.devnull, "w")  # noqa: SIM115 - closed in the finally below
+    except OSError:  # pragma: no cover - /dev/null is always there
+        yield
+        return
+    try:
+        with contextlib.redirect_stderr(devnull):
+            yield
+    finally:
+        devnull.close()
+
+
+def _kaizen(event: str, sid: object, probe_cwd: str | None = None, **fields: object) -> None:
+    """Fire-and-forget event. Module absent or ANY failure → silent no-op.
+
+    ``emit`` already swallows everything, but the outermost guard lives HERE so a
+    future emitter that does raise still cannot cost a session its orientation.
+    ``probe_cwd`` pins exposure to the PAYLOAD's project rather than this process's
+    cwd — a hook subprocess has no guarantee the two agree.
+    """
+    if not kaizen_events:
+        return
+    try:
+        with _quiet():
+            exp = kaizen_events.exposure(cwd=probe_cwd, probe_timeout_s=_PROBE_TIMEOUT_S)
+            kaizen_events.emit(
+                event, kaizen_events.resolve_sid(sid), exposure_override=exp, **fields
+            )
+    except Exception:
+        pass
+
+
+def _instrumented(cwd: str) -> bool:
+    """Does a Stop hook run here? The sensors must instrument ONE universe.
+
+    `final_gate_stop.py` returns early when `scripts/final_gate.py` is absent, so a
+    `session_start` emitted outside that universe is a session the collector can never
+    see closed — a fabricated hole in exactly the metric this stream exists to measure.
+    """
+    try:
+        return (Path(cwd) / "scripts" / "final_gate.py").exists()
+    except OSError:
+        return False
 
 
 def _memory_line(cwd: str) -> str:
@@ -180,6 +254,24 @@ def main() -> int:
         " config and reporting absence as fact; the mesh writes to"
         " `/tmp/claude-sound-locks-$(id -u)/`. Searching one plausible location is not evidence."
     )
+
+    # Kaizen M1 — LAST, deliberately. This hook IS the session's birth certificate, but
+    # the ORIENT block above is its actual product: emitting first put the whole block
+    # behind a sensor that can be slow or throw. Two guards, both about not lying to the
+    # collector: only where a Stop hook also runs (symmetric universe), and only on a
+    # real session BIRTH — a resume/compact is the same session continuing, which is why
+    # the --baseline path special-cases them too. An ABSENT source is treated as a
+    # startup: a harness that stops sending the field must degrade to over-counting, not
+    # to a silently dead metric. The RAW payload id is passed, never the flattened `sid`
+    # above — flattening is many-to-one, and the emitter's own sanitizer is injective.
+    if _instrumented(cwd) and str(data.get("source") or "startup") == "startup":
+        _kaizen(
+            "session_start",
+            data.get("session_id"),
+            probe_cwd=cwd,
+            cwd=cwd,
+            source=str(data.get("source") or ""),
+        )
     return 0
 
 

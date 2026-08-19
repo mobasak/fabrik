@@ -66,6 +66,10 @@ MAX_LINE_BYTES = 4096
 # Bound on each candidate plan read by the exposure probe — one page, never a full file.
 PLAN_HEAD_BYTES = 4096
 
+# Default per-probe git timeout. Batch callers keep it; a caller on an interactive hot
+# path (the hooks) passes `probe_timeout_s=` something small.
+DEFAULT_PROBE_TIMEOUT_S = 10.0
+
 # Progressive shrink passes: (max chars per string, max items per list/dict).
 _PASSES = ((512, 200), (128, 50), (32, 10))
 
@@ -86,8 +90,15 @@ _RESERVED_KEYS = frozenset(
 #: The M1 vocabulary (spec :57-63 + the coroner's `session_end`). An event outside it
 #: is still written — losing data is worse than a typo — but warns on stderr so a
 #: misspelled sensor is visible the day it ships.
+#:
+#: `stop_pass` vs `session_end`: the Stop hook fires once per TURN, so its
+#: pass-through is `stop_pass` — a session-scoped "end" name would make every turn
+#: look like a session ending, and session liveliness is derived from the LAST
+#: `stop_pass` timestamp instead. `session_end` stays in the vocabulary for the
+#: coroner's genuinely session-scoped, post-hoc close.
 EVENT_TYPES = (
     "session_start",
+    "stop_pass",
     "session_end",
     "run_open",
     "phase",
@@ -176,48 +187,85 @@ def reset_cache() -> None:
     _exposure_cache = None
 
 
-def exposure(refresh: bool = False) -> dict:
+def exposure(
+    refresh: bool = False,
+    cwd: str | None = None,
+    probe_timeout_s: float = DEFAULT_PROBE_TIMEOUT_S,
+) -> dict:
     """Stratification metadata stamped on every event — each probe independently guarded.
 
     Unstamped events cannot be attributed after the fact: three accounts rotate every
     ~2 days, so the model mix changes intrinsically through the week and that drift
     would otherwise be attributed to whatever merged that day (spec :97-104).
 
-    Fields: ``commit`` (git HEAD of the repo cwd resolves into), ``account`` (the
+    Fields: ``commit`` (git HEAD of the repo *cwd* resolves into), ``account`` (the
     ``~/.claude-fleet/active`` symlink target), ``model`` (env; the collector backfills
     from transcripts), ``project`` (cwd-derived ``/opt/<name>``), ``headless`` (bool),
     ``plan_era`` (newest ``IN-PROGRESS`` plan stem, else ``—``). Unmeasurable is
-    ``unknown``/``—``, never a guess, never an exception. Memoized per process: a
-    subprocess-per-event git probe would tax every sensor for a value that does not
-    move within a run.
+    ``unknown``/``—``, never a guess, never an exception.
+
+    ``cwd`` pins the three cwd-derived probes (``commit``/``project``/``plan_era``) to a
+    directory the CALLER names, via ``git -C``. A sensor that runs in a subprocess (every
+    hook) has no guarantee its own process cwd is the session's project — without this it
+    stamps events for project A with project B's commit, silently. ``None`` keeps the
+    historical behaviour (the process cwd).
+
+    ``probe_timeout_s`` bounds each git probe. The 10 s default suits batch callers; a
+    caller sitting on an interactive hot path (the hooks, whose SessionStart budget is
+    10 s TOTAL) passes something small — a hung git must cost the session milliseconds,
+    not its whole budget. A non-positive or non-finite value falls back to the default.
+
+    Memoized per process for the ``cwd=None`` call only — a cwd-pinned probe is a
+    caller-specific answer that must never be served from, or poison, the shared cache.
 
     The concurrency flag is COLLECTOR-side (overlapping session windows), not here.
     """
     global _exposure_cache
-    if _exposure_cache is not None and not refresh:
+    if cwd is None and _exposure_cache is not None and not refresh:
         return dict(_exposure_cache)
-    root = _git_toplevel()
+    timeout = _probe_timeout(probe_timeout_s)
+    root = _git_toplevel(cwd, timeout)
     data = {
-        "commit": _git_head(),
+        "commit": _git_head(cwd, timeout),
         "account": _fleet_account(),
         "model": _model(),
-        "project": _project(),
+        "project": _project(cwd),
         "headless": _headless(),
         "plan_era": _plan_era(root),
     }
-    _exposure_cache = data
+    if cwd is None:
+        _exposure_cache = data
     return dict(data)
 
 
-def _git(args: list[str]) -> str | None:
-    """One git probe, fully guarded. ``None`` means "not measurable", never a guess."""
+def _probe_timeout(value: object) -> float:
+    """A usable positive, finite timeout — anything else is the default.
+
+    ``nan`` fails every comparison and ``inf`` fails the upper bound, so both fall
+    through without a `math` import; a bool is an int and would silently mean 1 s.
+    """
     try:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return DEFAULT_PROBE_TIMEOUT_S
+        return float(value) if 0 < float(value) <= 3600 else DEFAULT_PROBE_TIMEOUT_S
+    except (TypeError, ValueError):  # pragma: no cover - defence in depth
+        return DEFAULT_PROBE_TIMEOUT_S
+
+
+def _git(args: list[str], cwd: str | None = None, timeout: float = DEFAULT_PROBE_TIMEOUT_S) -> str | None:
+    """One git probe, fully guarded. ``None`` means "not measurable", never a guess.
+
+    ``cwd`` is applied as ``git -C <dir>`` rather than a subprocess cwd: it needs no
+    chdir-able parent and it survives a caller whose own cwd was deleted under it.
+    """
+    try:
+        prefix = ["git"] if cwd is None else ["git", "-C", str(cwd)]
         out = subprocess.run(
-            ["git", *args],
-            cwd=os.getcwd(),
+            [*prefix, *args],
+            cwd=os.getcwd() if cwd is None else None,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=timeout,
             check=True,
         )
         return out.stdout.strip() or None
@@ -228,16 +276,16 @@ def _git(args: list[str]) -> str | None:
         return None
 
 
-def _git_head() -> str:
-    return _git(["rev-parse", "HEAD"]) or UNKNOWN
+def _git_head(cwd: str | None = None, timeout: float = DEFAULT_PROBE_TIMEOUT_S) -> str:
+    return _git(["rev-parse", "HEAD"], cwd, timeout) or UNKNOWN
 
 
-def _git_toplevel() -> Path:
-    top = _git(["rev-parse", "--show-toplevel"])
+def _git_toplevel(cwd: str | None = None, timeout: float = DEFAULT_PROBE_TIMEOUT_S) -> Path:
+    top = _git(["rev-parse", "--show-toplevel"], cwd, timeout)
     if top:
         return Path(top)
     try:
-        return Path(os.getcwd())
+        return Path(cwd) if cwd else Path(os.getcwd())
     except OSError:  # pragma: no cover - cwd deleted under us
         return Path("/")
 
@@ -266,10 +314,10 @@ def _model() -> str:
     return UNKNOWN
 
 
-def _project() -> str:
+def _project(cwd: str | None = None) -> str:
     """cwd-derived ``/opt/<name>`` — worktrees under it resolve to the same project."""
     try:
-        parts = Path(os.getcwd()).resolve().parts
+        parts = Path(cwd or os.getcwd()).resolve().parts
         if len(parts) >= 3 and parts[1] == "opt":
             return parts[2]
     except (OSError, ValueError):

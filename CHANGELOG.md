@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T02: the session-lifecycle hook emitters, and an event stream that measures itself honestly (2026-08-19)
+
+The two synced session hooks now emit the kaizen M1 event stream at their existing decision
+points: `session_start` (`session_orient.py`), and `stop_pass` / `stop_block` (five causes) /
+`final_block_emitted` / `operator_override` (`final_gate_stop.py`). Every added line sits inside a
+fail-open seam — a guarded import, a per-site guard, and a hook-side stderr mute — so a box without
+`kaizen_events` runs the hooks byte-identically on stdout AND stderr (proven by a control run that
+refuses the module at every path).
+
+Four instrument defects were designed out rather than shipped and measured later. The per-turn
+event is `stop_pass`, not `session_end` — the Stop hook fires once per TURN, so session liveliness
+is the last `stop_pass` timestamp and the hole is "no `stop_pass` ever". `operator_override` now
+requires an enforcement cause that was actually WAIVED (the promise-guard records the waiver), not
+merely a message containing the marker vocabulary — matching the marker alone fired on the mandated
+`NEXT: operator decision: …` footer of nearly every operator-gated task end. Message-shaped events
+are emitted only on the exit that ENDS the turn, because a blocked stop is retried and the same
+final message was being counted up to `CAP+1` times. And the anti-trap give-up branches now emit
+`stop_block` with `outcome: warned_through`, so enforcement the agent simply outlasted is no longer
+indistinguishable from a clean pass.
+
+`kaizen_events.exposure()` gained `cwd=` (pins `commit`/`project`/`plan_era` via `git -C`) and
+`probe_timeout_s=`: a hook is a subprocess with no guarantee its own cwd is the session's project,
+and unpinned it stamped one project's events with another's commit. Hooks pass the payload cwd and
+a 2 s bound, and resolve exposure lazily on first emit (~14 ms, against SessionStart's 10 s budget).
+Both legacy hook suites now pin `KAIZEN_EVENTS_DIR` to tmp — unisolated, a routine box-wide `pytest`
+seeded the operator's real event store with 37 synthetic sessions the collector would have counted.
+
 ### Changed — M0 rulings round 3: update_agents_toc retired, the Authelia audit's phantom inventory corrected, the real GAP diagnosed to one line (2026-08-19)
 
 Operator ruled archive on `update_agents_toc.py` (its target `AGENTS.md` has been a 9-line

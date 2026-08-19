@@ -16,7 +16,16 @@ HOOK = FABRIK / ".claude/hooks/session_orient.py"
 
 
 def _run(cwd: Path, home: Path, stdin: str, extra_env: dict | None = None) -> tuple[int, str]:
-    env = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+    # KAIZEN_EVENTS_DIR is pinned EXPLICITLY, not left to fall out of the tmp HOME: the
+    # hook emits kaizen events, and "the default happens to resolve under our tmp home"
+    # is a coupling one refactor away from seeding the operator's real event store with
+    # synthetic sessions (38 such files found and purged 2026-08-19 from the sibling
+    # suite, which launches the hook with the developer's real environment).
+    env = {
+        "HOME": str(home),
+        "PATH": "/usr/bin:/bin",
+        "KAIZEN_EVENTS_DIR": str(home / "kaizen-events"),
+    }
     env.update(extra_env or {})
     proc = subprocess.run(
         [sys.executable, str(HOOK)],
@@ -179,7 +188,13 @@ def test_huge_memory_index_is_bounded_and_output_survives_c_locale(tmp_path: Pat
         capture_output=True,
         text=True,
         timeout=15,
-        env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0"},
+        env={
+            "HOME": str(tmp_path),
+            "PATH": "/usr/bin:/bin",
+            "LC_ALL": "C",
+            "PYTHONCOERCECLOCALE": "0",
+            "KAIZEN_EVENTS_DIR": str(tmp_path / "kaizen-events"),
+        },
     )
     assert proc.returncode == 0
     assert len(proc.stdout) > 200, "C locale must not silently swallow the whole block"

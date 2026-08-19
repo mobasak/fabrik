@@ -25,6 +25,7 @@ Contract (verified against https://code.claude.com/docs/en/hooks, 2026-06):
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -37,6 +38,102 @@ import time
 from pathlib import Path
 
 CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
+
+# --- Kaizen M1 event stream (additive sensor, fail-open at the IMPORT layer) ---
+# The emitter lives at ONE place per box, so both candidates are tried: this repo's own
+# copy first, then the hub's. The degraded state is the module being unimportable at
+# BOTH — a box that has no kaizen_events at all — and there this hook must behave
+# EXACTLY as it did before the sensor existed, on stdout AND stderr. Hence the guarded
+# import (never an ImportError that would degrade all five enforcement causes — the
+# same reasoning the FIFTH-cause comment gives for not importing command_run.py) and a
+# second guard at every emit site. Paths are APPENDED (stdlib always wins) and only when
+# absent (idempotent).
+kaizen_events = None
+try:
+    for _p in (
+        str(Path(__file__).resolve().parents[2] / "scripts" / "sysadmin"),
+        "/opt/fabrik/scripts/sysadmin",
+    ):
+        if _p not in sys.path:
+            sys.path.append(_p)
+    import kaizen_events  # type: ignore[no-redef]
+except Exception:
+    kaizen_events = None
+
+# The Stop hook sits on the interactive hot path. A hung git probe must cost the turn
+# milliseconds, not the hook's 120s budget.
+_PROBE_TIMEOUT_S = 2.0
+
+_kaizen_probe_cwd: str | None = None
+_kaizen_exposure: dict | None = None
+_kaizen_exposure_ready = False
+
+
+@contextlib.contextmanager
+def _quiet():
+    """Mute stderr for the duration — hook-side, so `kaizen_events` keeps its own
+    honest `_warn` channel for every OTHER caller. This hook's stderr carries the
+    warn-through notices the agent is meant to read; the sensor must not add a byte."""
+    try:
+        devnull = open(os.devnull, "w")  # noqa: SIM115 - closed in the finally below
+    except OSError:  # pragma: no cover - /dev/null is always there
+        yield
+        return
+    try:
+        with contextlib.redirect_stderr(devnull):
+            yield
+    finally:
+        devnull.close()
+
+
+def _kaizen_bind(cwd: str) -> None:
+    """Pin exposure to the PAYLOAD's project. A hook subprocess has no guarantee its own
+    cwd is the session's repo, and an unpinned probe stamps project A's events with
+    project B's commit — silently, and unfixably after the fact."""
+    global _kaizen_probe_cwd
+    _kaizen_probe_cwd = cwd
+
+
+def _kaizen(event: str, sid: object, **fields: object) -> None:
+    """Fire-and-forget event. Module absent or ANY failure → silent no-op.
+
+    ``sid`` is the RAW payload id, never this hook's ``"nosession"`` fallback: that
+    fallback is a SHARED name every id-less session would merge into, and the event
+    stream's honesty rule is that an unattributable event goes to ``unknown`` (the
+    collector's unclassified bucket) rather than into a neighbour's stream.
+
+    Exposure is resolved at most ONCE per process, lazily on the first emit — a Stop
+    that never emits pays nothing, and one that emits three times still probes once.
+    """
+    global _kaizen_exposure, _kaizen_exposure_ready
+    if not kaizen_events:
+        return
+    try:
+        with _quiet():
+            if not _kaizen_exposure_ready:
+                _kaizen_exposure_ready = True
+                _kaizen_exposure = kaizen_events.exposure(
+                    cwd=_kaizen_probe_cwd, probe_timeout_s=_PROBE_TIMEOUT_S
+                )
+            kaizen_events.emit(
+                event,
+                kaizen_events.resolve_sid(sid),
+                exposure_override=_kaizen_exposure,
+                **fields,
+            )
+    except Exception:
+        pass
+
+
+#: The mandated 6-line FINAL OUTPUT block, by its line-anchored keys. ALL six must be
+#: present: the conversational two-line ``STATE:``/``NEXT:`` footer shares one of them,
+#: and counting that as a task terminator would inflate the completion metric with
+#: every chat turn.
+_FINAL_BLOCK_KEYS = ("GATE:", "DOCS UPDATED:", "CHANGELOG:", "LESSONS LEARNT:", "DONE:", "NEXT:")
+
+
+def _final_block_seen(text: str) -> bool:
+    return all(re.search(rf"^\s*{re.escape(k)}", text, re.M) for k in _FINAL_BLOCK_KEYS)
 
 
 def decide(
@@ -587,13 +684,8 @@ def _is_dispatch(tool: dict) -> bool:
 _TAIL_READ_BYTES = 2 * 1024 * 1024
 
 
-def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
-    """(final assistant text, tool_use list of the final turn) or None on any gap.
-
-    Text comes ONLY from the LAST assistant entry (an empty final message stays
-    empty — never inherit an older message's promise; review finding). Tools are
-    collected across the whole final turn, back to the last REAL user message.
-    """
+def _tail_lines(transcript_path: str) -> list[str] | None:
+    """The transcript's last ``_TAIL_READ_BYTES``, split into whole lines, or None."""
     try:
         with open(transcript_path, "rb") as f:
             f.seek(0, 2)
@@ -605,6 +697,50 @@ def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
     lines = raw.splitlines()
     if size > _TAIL_READ_BYTES and lines:
         lines = lines[1:]  # first line of a mid-file slice is almost surely partial
+    return lines
+
+
+def _final_message_text(transcript_path: str) -> str:
+    """EVERY text block of the last assistant entry, joined in order.
+
+    Distinct from :func:`_final_turn`, which takes only the FIRST text block because
+    the stall guard reasons about one contiguous message tail. A 6-line FINAL OUTPUT
+    block routinely spans several blocks in one entry, and reading only the first
+    under-counts the terminator contract.
+    """
+    lines = _tail_lines(transcript_path)
+    if not lines:
+        return ""
+    for line in reversed(lines):
+        if '"type"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
+        if entry.get("type") != "assistant":
+            continue
+        content = (entry.get("message") or {}).get("content")
+        if not isinstance(content, list):
+            continue
+        return "\n".join(
+            str(b.get("text") or "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+    return ""
+
+
+def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
+    """(final assistant text, tool_use list of the final turn) or None on any gap.
+
+    Text comes ONLY from the LAST assistant entry (an empty final message stays
+    empty — never inherit an older message's promise; review finding). Tools are
+    collected across the whole final turn, back to the last REAL user message.
+    """
+    lines = _tail_lines(transcript_path)
+    if lines is None:
+        return None
     text = ""
     seen_assistant_entry = False
     tools: list[dict] = []
@@ -665,8 +801,52 @@ def _midrun_marker(root: Path, authored: set[str]) -> bool:
     return False
 
 
-def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple[str, str] | None:
-    """Return ("promise"|"permission", snippet) when the final message is a stall, else None."""
+def _line_exempt(tail: str, match: re.Match[str]) -> bool:
+    """Human-gate wording exempts only the stall it sits WITH — the line carrying the
+    match (review finding: the mandated 'NEXT: operator decision: …' line was disarming
+    genuine promises message-wide)."""
+    ls = tail.rfind("\n", 0, match.start()) + 1
+    le = tail.find("\n", match.end())
+    return bool(_GATE_EXEMPT_LOCAL_RE.search(tail[ls : le if le != -1 else len(tail)]))
+
+
+def _quoted(tail: str, match: re.Match[str]) -> bool:
+    """A match directly preceded by a quote char is a QUOTATION (discussing the phrase,
+    not making it) — live FP: the guard's author quoting 'I'll run it' as an example.
+    Conservative: only the immediately preceding non-space character is inspected."""
+    before = tail[: match.start()].rstrip()
+    return bool(before) and before[-1] in "\"'`“‘«"
+
+
+def _in_quote(tail: str, start: int) -> bool:
+    """Inside an open quote span: the nearest quote char in the preceding 80 chars has
+    no closing mate before the match. Obligation matches begin at the work-noun, rarely
+    at the quote's first token, so the preceding-char check alone misses mid-quote
+    snippets (live FP: a report QUOTING a stall snippet was itself stall-blocked).
+    Straight apostrophes are excluded (possessives)."""
+    window = tail[max(0, start - 80) : start]
+    for opener, closer in (('"', '"'), ("“", "”"), ("«", "»"), ("`", "`")):
+        i = window.rfind(opener)
+        if i != -1 and closer not in window[i + 1 :]:
+            return True
+    return False
+
+
+def _detect_stall(
+    transcript_path: str,
+    root: Path,
+    authored: set[str],
+    waived: list[tuple[str, str]] | None = None,
+) -> tuple[str, str] | None:
+    """Return ("promise"|"permission", snippet) when the final message is a stall, else None.
+
+    ``waived`` is an optional OUT-parameter recording ``(kind, marker)`` for every stall
+    that MATCHED and was then exempted by a sanctioned-skip marker. From the outside a
+    waived stall and a message with no stall at all both look like ``None`` — and only
+    the first is an operator override. Without this ledger the override metric can only
+    be approximated by matching the marker vocabulary alone, which fires on the mandated
+    ``NEXT: operator decision: …`` footer of nearly every operator-gated task end.
+    """
     try:
         turn = _final_turn(transcript_path)
         if not turn:
@@ -675,70 +855,64 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
         if not text:
             return None
         tail = text[-600:]
-        # The BLOCKED escalation exempts globally: its header must not be split
-        # away from its own detail by the tail cut (review finding).
-        if _GATE_EXEMPT_GLOBAL_RE.search(text):
-            return None
+        # The BLOCKED escalation exempts GLOBALLY: its header must not be split away
+        # from its own detail by the tail cut (review finding). It is held as a flag
+        # consulted by every loop rather than an early return, so a stall it waives is
+        # still SEEN (and recorded) on the way past — the return value is unchanged,
+        # since a truthy flag exempts every match there is.
+        escalation = _GATE_EXEMPT_GLOBAL_RE.search(text)
+        dispatched = any(_is_dispatch(t) for t in tools)
 
-        def _line_exempt(match: re.Match[str]) -> bool:
-            """Human-gate wording exempts only the stall it sits WITH — the line
-            carrying the match (review finding: the mandated 'NEXT: operator
-            decision: …' line was disarming genuine promises message-wide)."""
-            ls = tail.rfind("\n", 0, match.start()) + 1
-            le = tail.find("\n", match.end())
-            return bool(_GATE_EXEMPT_LOCAL_RE.search(tail[ls : le if le != -1 else len(tail)]))
-
-        def _quoted(match: re.Match[str]) -> bool:
-            """A match directly preceded by a quote char is a QUOTATION (discussing
-            the phrase, not making it) — live FP: the guard's author quoting
-            'I'll run it' as an example. Conservative: only the immediately
-            preceding non-space character is inspected."""
-            before = tail[: match.start()].rstrip()
-            return bool(before) and before[-1] in "\"'`“‘«"
+        def _waive(match: re.Match[str]) -> None:
+            if waived is None:
+                return
+            if escalation:
+                waived.append(("blocked-escalation", escalation.group(0)))
+            else:
+                waived.append(("human-gate", match.group(0)))
 
         # First UNQUOTED verb match with an action object in reach — a quoted
         # example must not MASK a later genuine promise (review finding).
         for m in _PROMISE_VERB_RE.finditer(tail):
-            if _quoted(m) or _line_exempt(m):
+            if _quoted(tail, m):
                 continue
             if not _ACTION_OBJECT_RE.search(tail[m.end() : m.end() + 60]):
                 continue  # conversational verb with no work object — not a promise
-            if not any(_is_dispatch(t) for t in tools):
+            if escalation or _line_exempt(tail, m):
+                _waive(m)  # a real cause, waved through by a sanctioned marker
+                continue
+            if not dispatched:
                 return "promise", m.group(0)
             break  # promise exists but was KEPT (work dispatched this turn)
-        def _in_quote(start: int) -> bool:
-            """Inside an open quote span: the nearest quote char in the preceding
-            80 chars has no closing mate before the match. Obligation matches
-            begin at the work-noun, rarely at the quote's first token, so the
-            preceding-char check alone misses mid-quote snippets (live FP: a
-            report QUOTING a stall snippet was itself stall-blocked). Straight
-            apostrophes are excluded (possessives)."""
-            window = tail[max(0, start - 80) : start]
-            for opener, closer in (('"', '"'), ("“", "”"), ("«", "»"), ("`", "`")):
-                i = window.rfind(opener)
-                if i != -1 and closer not in window[i + 1 :]:
-                    return True
-            return False
 
         for m in _OBLIGATION_RE.finditer(tail):
-            if _quoted(m) or _in_quote(m.start()) or _line_exempt(m):
+            if _quoted(tail, m) or _in_quote(tail, m.start()):
                 continue
             if _NEGATED_BEFORE_RE.search(tail[max(0, m.start() - 48) : m.start()]):
                 continue  # "no adversarial or confirming pass is owed" — a conclusion
-            if not any(_is_dispatch(t) for t in tools):
+            if escalation or _line_exempt(tail, m):
+                _waive(m)
+                continue
+            if not dispatched:
                 return "promise", m.group(0)
             break  # obligation named AND work dispatched this turn — kept
         # Continuation claims + NEXT:-round footers share the obligation loop's
         # protections; neither needs the negation guard (no negated form exists).
         for pattern in (_CONTINUATION_CLAIM_RE, _NEXT_ROUND_RE):
             for m in pattern.finditer(tail):
-                if _quoted(m) or _in_quote(m.start()) or _line_exempt(m):
+                if _quoted(tail, m) or _in_quote(tail, m.start()):
                     continue
-                if not any(_is_dispatch(t) for t in tools):
+                if escalation or _line_exempt(tail, m):
+                    _waive(m)
+                    continue
+                if not dispatched:
                     return "promise", m.group(0).strip()
                 break  # claim exists but work was dispatched this turn — kept
         for m in _PERMISSION_RE.finditer(tail):
-            if _quoted(m) or _line_exempt(m):
+            if _quoted(tail, m):
+                continue
+            if escalation or _line_exempt(tail, m):
+                _waive(m)
                 continue
             if _midrun_marker(root, authored):
                 return "permission", m.group(0)
@@ -751,12 +925,59 @@ def _detect_stall(transcript_path: str, root: Path, authored: set[str]) -> tuple
         return None
 
 
+def _kaizen_pass(
+    sid: object,
+    transcript_path: str,
+    waived: list[tuple[str, str]],
+    warned: list[str],
+) -> None:
+    """The NON-BLOCKING exit — the only place a Stop actually ends the turn.
+
+    Every message-shaped observation lives here, not at the top of the Stop path,
+    because a blocked turn is RETRIED: the agent fixes the cause and stops again, and
+    the same final message is re-read each time. Emitting from the entry point counted
+    one task terminator once per retry (up to CAP+1 times), which is a multiplier on
+    exactly the metric the terminator contract is measured by.
+
+    - ``stop_pass`` — this TURN passed. Not `session_end`: the Stop hook fires once per
+      turn, so session liveliness is the LAST `stop_pass` timestamp, and a session that
+      never produced one is the hole.
+    - ``final_block_emitted`` — the mandated 6-line FINAL OUTPUT block was written.
+    - ``operator_override`` — an enforcement cause fired and a sanctioned-skip marker
+      waved it through (:func:`_detect_stall`'s waiver ledger). The marker ALONE is not
+      an override: it is the routine vocabulary of every operator-gated task end.
+
+    Guard order matters: the module check comes FIRST, so a box without the emitter
+    does not even pay the transcript read.
+    """
+    if not kaizen_events:
+        return
+    _kaizen(
+        "stop_pass",
+        sid,
+        outcome="warned_through" if warned else "clean",
+        warned=sorted(set(warned)),
+    )
+    try:
+        if transcript_path and _final_block_seen(_final_message_text(transcript_path)):
+            _kaizen("final_block_emitted", sid)
+    except Exception:
+        pass
+    if waived:
+        kind, marker = waived[0]
+        _kaizen("operator_override", sid, marker=marker, kind=kind)
+
+
 def main(argv: list[str]) -> int:
     try:
         raw = sys.stdin.read()
         data = json.loads(raw) if raw.strip() else {}
         root = Path(data.get("cwd") or os.getcwd()).resolve()
         sid = str(data.get("session_id") or "nosession")
+        # The RAW id for the event stream — see _kaizen's docstring on why the
+        # "nosession" fallback above must never become an event's sid.
+        ev_sid = data.get("session_id")
+        _kaizen_bind(str(root))
 
         if not (root / "scripts" / "final_gate.py").exists():
             return 0  # not a fabrik-style project → nothing to enforce
@@ -788,7 +1009,14 @@ def main(argv: list[str]) -> int:
                 authored_map = _session_files(transcript_p, root)
             except Exception:
                 authored_map = {}
-        stall = _detect_stall(transcript_p, root, set(authored_map)) if transcript_p else None
+        # `waived` collects stalls a sanctioned marker waved through; `warned` collects
+        # causes whose anti-trap cap was exhausted this turn. Both are read only at the
+        # exits, so nothing is emitted before the decision is actually made.
+        waived: list[tuple[str, str]] = []
+        warned: list[str] = []
+        stall = (
+            _detect_stall(transcript_p, root, set(authored_map), waived) if transcript_p else None
+        )
 
         def _stall_gate() -> int:
             """Final causes on an otherwise-allowed stop: the PUSH law (committed
@@ -813,12 +1041,24 @@ def main(argv: list[str]) -> int:
                     "tree → `git pull --rebase=merges` then push · conflict → "
                     "`git rebase --abort` + report · NEVER --force."
                 )
+                _kaizen(
+                    "stop_block",
+                    ev_sid,
+                    cause="unpushed",
+                    outcome="blocked",
+                    attempt=p_att,
+                    ahead=ahead,
+                )
                 sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
                 return 0
             if p_action == "allow_warn_stall":
                 sys.stderr.write(
                     f"Work still unpushed after {CAP} blocked stops — stopping anyway; "
                     "refs/wip is the only off-box copy until someone pushes.\n"
+                )
+                warned.append("unpushed")
+                _kaizen(
+                    "stop_block", ev_sid, cause="unpushed", outcome="warned_through", attempt=CAP
                 )
             s_action, s_att = decide_stall(bool(stall), s_att)
             if s_action in ("allow", "allow_warn_stall"):
@@ -827,12 +1067,28 @@ def main(argv: list[str]) -> int:
                         f"Final message still ends in a stall after {CAP} blocked stops — "
                         "stopping anyway.\n"
                     )
+                    warned.append("promise-stall")
+                    _kaizen(
+                        "stop_block",
+                        ev_sid,
+                        cause="promise-stall",
+                        outcome="warned_through",
+                        attempt=CAP,
+                    )
                 # FIFTH cause, last word: a command run still in flight. It applies
                 # regardless of tree state — an agent that committed, pushed and
                 # narrated nothing can still be abandoning /fabrik-review at round 3.
                 r_action, r_att = decide_stall(run_active, r_att)
                 if r_action == "block_stall":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att}")
+                    _kaizen(
+                        "stop_block",
+                        ev_sid,
+                        cause="run-record",
+                        outcome="blocked",
+                        attempt=r_att,
+                        command=str((run or {}).get("command") or "?"),
+                    )
                     sys.stdout.write(
                         json.dumps(
                             {
@@ -849,10 +1105,21 @@ def main(argv: list[str]) -> int:
                         "stopping anyway. Close it: python3 scripts/command_run.py "
                         "done --command <name> --evidence … | blocked --command <name> --reason …\n"
                     )
+                    warned.append("run-record")
+                    _kaizen(
+                        "stop_block",
+                        ev_sid,
+                        cause="run-record",
+                        outcome="warned_through",
+                        attempt=CAP,
+                    )
                 if g == 0 and c == 0 and p_att == 0 and r_att == 0:
                     counter.unlink(missing_ok=True)
                 else:
                     counter.write_text(f"{g},{c},0,{p_att},{r_att}")
+                # The ONE pass-through: every enforcement cause declined to block, so
+                # this Stop really ends the turn.
+                _kaizen_pass(ev_sid, transcript_p, waived, warned)
                 return 0
             counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0}")
             kind, snippet = stall  # type: ignore[misc]
@@ -868,6 +1135,14 @@ def main(argv: list[str]) -> int:
                 "checkpoint-stall is a named live defect). Legitimate stops must name "
                 "their human gate explicitly (design approval, Gate 2, operator "
                 "decision, or a formatted BLOCKED: escalation)."
+            )
+            _kaizen(
+                "stop_block",
+                ev_sid,
+                cause="promise-stall",
+                outcome="blocked",
+                attempt=s_att,
+                kind=kind,
             )
             sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
             return 0
@@ -957,11 +1232,23 @@ def main(argv: list[str]) -> int:
                     f"final_gate still RED after {CAP} attempts — stopping anyway. "
                     "Run: python scripts/final_gate.py --lean --json\n"
                 )
+                warned.append("gate-red")
+                _kaizen(
+                    "stop_block", ev_sid, cause="gate-red", outcome="warned_through", attempt=CAP
+                )
             elif action == "allow_warn_commit":
                 sys.stderr.write(
                     f"Session-authored files STILL UNCOMMITTED after {CAP} blocked stops — "
                     "stopping anyway. Commit your own work: git commit -- <your files> "
                     "(pathspecs + Agent Provenance Trailers).\n"
+                )
+                warned.append("uncommitted")
+                _kaizen(
+                    "stop_block",
+                    ev_sid,
+                    cause="uncommitted",
+                    outcome="warned_through",
+                    attempt=CAP,
                 )
             # gate/commit causes resolved (or capped) → reset their counters, then
             # the push law + promise-guard still have the last word on THIS stop.
@@ -996,6 +1283,14 @@ def main(argv: list[str]) -> int:
                 "(git commit -- <your files>); never bundle files you didn't author. "
                 "Then PUSH it — commit-and-push is the task-end law (never --force)."
             )
+            _kaizen(
+                "stop_block",
+                ev_sid,
+                cause="uncommitted",
+                outcome="blocked",
+                attempt=commit_attempts,
+                files=len(own_uncommitted),
+            )
             sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
             return 0
         reason = (
@@ -1004,6 +1299,14 @@ def main(argv: list[str]) -> int:
             'is not complete until `final_gate.py --lean` shows "status":"success". '
             f"New failing checks: {', '.join(sorted(new_failures))}. "
             "Fix them, then finish. Run: python scripts/final_gate.py --lean --json"
+        )
+        _kaizen(
+            "stop_block",
+            ev_sid,
+            cause="gate-red",
+            outcome="blocked",
+            attempt=gate_attempts,
+            checks=sorted(new_failures),
         )
         # stdout is the hook's channel to Claude Code (not logging) — write directly
         # so the print/console.log ban doesn't false-positive on a required emit.

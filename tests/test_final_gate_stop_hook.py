@@ -23,6 +23,22 @@ _spec = importlib.util.spec_from_file_location("final_gate_stop", _HOOK)
 hook = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hook)
 
+
+@pytest.fixture(autouse=True)
+def _isolate_kaizen_events(tmp_path_factory, monkeypatch) -> None:
+    """Keep this suite's kaizen events out of the OPERATOR's real event store.
+
+    The hook under test emits to ``$KAIZEN_EVENTS_DIR`` (default
+    ``~/.claude/state/events``), and every helper below launches it with
+    ``{**os.environ, …}`` — i.e. the developer's REAL home. Unisolated, a routine
+    box-wide `pytest` run seeded the live store with synthetic session files (38 found
+    and purged 2026-08-19), which the kaizen collector would then have measured as real
+    sessions. Autouse + `os.environ` so it reaches every launch site at once, including
+    any added later.
+    """
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path_factory.mktemp("kaizen-events")))
+
+
 # --- pure decide() loop-guard -------------------------------------------------
 
 

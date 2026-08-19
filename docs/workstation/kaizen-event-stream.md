@@ -76,7 +76,7 @@ degrades to `unknown` alone.
 
 | Field | Source | When unmeasurable |
 |---|---|---|
-| `commit` | `git rev-parse HEAD` in the session's cwd | `unknown` (non-repo cwd, no `git` binary) |
+| `commit` | `git rev-parse HEAD` in the session's cwd (`git -C` when the caller pins one) | `unknown` (non-repo cwd, no `git` binary) |
 | `account` | the `~/.claude-fleet/active` symlink target's name | `unknown` |
 | `model` | `$CLAUDE_MODEL` → `$ANTHROPIC_MODEL` | `unknown` — the collector backfills from transcripts |
 | `project` | cwd-derived `/opt/<name>` (worktrees resolve to the same project) | `unknown` |
@@ -95,7 +95,8 @@ emit-side — a session cannot know its own overlaps.
 **Cost.** Resolving exposure is a cold-path cost paid once per process: **~4.6 ms median** (7 runs,
 range 3.8–5.2 ms) — two `git rev-parse` subprocesses plus one bounded 4 KiB read per candidate plan
 (never a full file, however large the plan). Cached lookups after that are ~0.01 ms. Accepted as
-instrument overhead: a session that emits dozens of events pays it once.
+instrument overhead: a session that emits dozens of events pays it once. The hooks resolve it
+**lazily, on their first emit**, so a Stop that emits nothing pays nothing at all.
 
 ## Event vocabulary (schema 1)
 
@@ -103,22 +104,44 @@ Required fields are beyond the envelope. Producers are the M1 tickets that wire 
 
 | Event | Required fields | Producer |
 |---|---|---|
-| `session_start` | `cwd`, `project` | `.claude/hooks/session_orient.py` |
-| `session_end` | — | `.claude/hooks/final_gate_stop.py` (Stop pass-through, i.e. it did NOT block) |
+| `session_start` | `cwd`, `project` | `.claude/hooks/session_orient.py` — only where a Stop hook also runs (payload cwd has `scripts/final_gate.py`) and only on `source=startup` |
+| `stop_pass` | `outcome` (`clean`\|`warned_through`), `warned` | `.claude/hooks/final_gate_stop.py` — the Stop pass-through, i.e. it did NOT block |
+| `session_end` | — | `scripts/sysadmin/kaizen_coroner.py` — the genuinely session-scoped, post-hoc close |
 | `run_open` | `command`, `phases`, `terminal` | `scripts/command_run.py start` |
 | `phase` | `n`, `title` | `scripts/command_run.py step` |
 | `round` | `findings`, `classes_swept`, `classes_new` | `scripts/command_run.py round` |
 | `run_close` | `verdict` (`done`\|`blocked`), `evidence_hash` | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `packs: [{pack, globs_fired}]` — labelled *invocation-time* activation | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
-| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`) | `.claude/hooks/final_gate_stop.py` |
-| `final_block_emitted` | — | `.claude/hooks/final_gate_stop.py` |
+| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`), `outcome` (`blocked`\|`warned_through`) | `.claude/hooks/final_gate_stop.py` |
+| `final_block_emitted` | — | `.claude/hooks/final_gate_stop.py` — emitted on the NON-BLOCKING exit only |
 | `death` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
 | `revival` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
-| `operator_override` | `marker` | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data |
+| `operator_override` | `marker`, `kind` (`human-gate`\|`blocked-escalation`) | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data |
 
 An event outside this list is still written (losing data is worse than a typo) but warns on stderr,
 so a misspelled sensor is visible the day it ships.
+
+**The Stop hook fires once per TURN, not once per session.** So its pass-through is `stop_pass`,
+and **session liveliness derives from a session's LAST `stop_pass` timestamp** — the hole in the
+data is a session that produced **no `stop_pass` ever**, not a missing "session end". `session_end`
+is reserved for the coroner's post-hoc close of a session that is already gone.
+
+**`stop_block.outcome` separates enforcement that HELD from enforcement that gave up.** After `CAP`
+consecutive blocked stops each cause warns through and lets the turn end; that give-up used to be
+indistinguishable from a clean pass, so a cause the agent simply outlasted counted as enforcement
+working. A warned-through turn emits `stop_block` with `outcome: warned_through` **and** carries the
+cause in its `stop_pass.warned`.
+
+**`operator_override` requires a cause that was actually WAIVED**, not merely a message containing
+the marker vocabulary. The promise-guard records `(kind, marker)` whenever a stall MATCHES and is
+then exempted by a sanctioned-skip marker; only that ledger produces the event. Matching the marker
+alone fired on the mandated `NEXT: operator decision: …` footer of nearly every operator-gated task
+end — the normal way a fabrik turn finishes, not an override.
+
+**Message-shaped events are emitted only at the exit that ends the turn.** A blocked stop is
+RETRIED, and the same final message is re-read on every retry — emitting `final_block_emitted` at
+the hook's entry point counted one task terminator up to `CAP+1` times.
 
 ## API
 
@@ -129,7 +152,20 @@ kaizen_events.emit("phase", sid=session_id, n=2, title="collector")   # -> bool,
 kaizen_events.resolve_sid(explicit)                    # explicit -> $CLAUDE_SESSION_ID -> "unknown"
 kaizen_events.resolve_sid_with_source(explicit)        # -> (sid, "explicit" | "env" | "none")
 kaizen_events.exposure()                               # memoized dict; exposure(refresh=True) re-probes
+kaizen_events.exposure(cwd=payload_cwd, probe_timeout_s=2.0)   # pinned + hot-path bounded
 ```
+
+`exposure()` takes two optional parameters beyond `refresh`:
+
+- **`cwd`** pins the three cwd-derived probes (`commit`, `project`, `plan_era`) to a directory the
+  caller names, via `git -C`. A sensor running in a **subprocess** — every hook — has no guarantee
+  its own process cwd is the session's project; unpinned, it stamps project A's events with project
+  B's commit, silently and unfixably after the fact. Hooks pass the payload's `cwd`. The result is
+  **not** memoized (a caller-specific answer must never poison the shared cache); `cwd=None` keeps
+  the historical process-cwd behaviour and its cache.
+- **`probe_timeout_s`** (default `10.0`) bounds each git probe. A caller on an interactive hot path
+  passes something small — the hooks use `2.0`, because SessionStart's whole budget is 10 s. A
+  non-positive or non-finite value falls back to the default.
 
 `emit()` takes one more keyword-only parameter, **`exposure_override` — producer-restricted**: a post-hoc
 producer (only the coroner today, reconstructing a `death` from a session that is already gone)
