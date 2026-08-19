@@ -344,7 +344,8 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     import subprocess
     import sys
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
-    repo = tmp_path / "repo"; repo.mkdir()
+    repo = tmp_path / "repo"
+    repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
     (repo / "x.txt").write_text("x")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
