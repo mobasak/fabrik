@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — M0 rulings round 2: fabrik-rules-review rebuilt to run at all, the three weekly crons made wake-proof (2026-08-19)
+
+Operator ruled keep+refresh on `/fabrik-rules-review` — and the refresh found the structural
+cause of its zero usage: the source declared itself HUB-only while its phases audited
+`project.yaml`/spec files that only exist in projects, so it could not run anywhere. Rewritten
+with two detected modes (PROJECT: compliance audit vs the synced packs, pack defects filed via
+`/fabrik-upstream`; HUB: the packs themselves, blast-radius checklist), positioned as the
+whole-surface complement to `/fabrik-review`'s per-diff rubric floor, dispatch modernized to
+pool-default + `set_quality`; corpus re-rendered clean. The three Monday-06:xx weekly crons
+(`audit_authelia_gates`, `fleet_doc_audit`, `kaizen_metrics`) moved to
+`scripts/sysadmin/weekly_catchup.sh` — an hourly stamp check that fires each job when ≥1 week
+since last success, so host hibernation can never silently eat a week again (cron has no
+catch-up; the 2026-08-17 week was lost). All three legs live-proven: the missed kaizen
+measurement caught up immediately, fleet-doc-audit committed its 2026-08-19 report (log moved
+out of volatile /tmp; liveness registry updated), and the revived Authelia audit found real
+drift (1 GAP + 2 MISSING) — relayed to fleet. Per-job rc semantics: audit exit 1 =
+ran-with-findings, stamped (else it would re-audit hourly forever).
+
 ### Changed — the first M0 shrink ruling applied: the kilo enforcers retired fleet-wide, two census errata recorded (2026-08-19)
 
 Operator ruled on the census's kilo candidates: `kilo_code_review.py` + `kilo_docs_enforcer.py`

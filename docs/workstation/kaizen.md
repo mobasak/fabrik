@@ -22,17 +22,18 @@ session counting review rounds is a pass that will not run. The cron measures; t
 ## What runs, and when
 
 ```
-45 6 * * 1 cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_metrics.py --once >> $HOME/.claude/kaizen.log 2>&1
+27 * * * * flock -n $HOME/.claude/state/weekly-kaizen.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_metrics.py >> $HOME/.claude/kaizen.log 2>&1
 ```
 
-Monday 06:45, chosen to land **after** the existing Monday-morning batch so the row measures a
-settled week rather than racing it:
-
-- `20 6 * * 1` — `claude_rotate.py --keepalive` (the weekly account keepalive)
-- `30 6 * * 1` — `fleet_doc_audit.py --commit` (writes `docs/infrastructure/probe-reports/`)
-
-06:45 clears both with margin. The measurement window is the **7 days ending on the run date**,
-so a Monday run covers the previous Tuesday through that Monday.
+**Wake-proof weekly via the hourly catch-up runner** (M0 shrink ruling 2026-08-19): the former
+fixed Monday-06:45 slot was silently slept through whenever the host hibernated through Monday
+morning (cron has no catch-up; the 2026-08-17 week was lost, the census read the cron as DEAD).
+`scripts/sysadmin/weekly_catchup.sh` checks a success stamp hourly and runs the measurement only
+when ≥ ~1 week has passed — the weekly cadence survives any sleep pattern, and a missed week
+catches up within an hour of the box waking. The sibling weekly jobs
+(`fleet_doc_audit.py --commit` at :17, `audit_authelia_gates.py` at :07) ride the same runner.
+The measurement window is the **7 days ending on the run date**; ISO-week idempotence (below)
+makes the exact weekday of the catch-up run irrelevant.
 
 ## Modes
 

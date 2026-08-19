@@ -1,255 +1,338 @@
 {
-  "version": 1,
-  "note": "Declared surfaces for scripts/sysadmin/liveness_audit.py PROOF 1 (heartbeat). Lives in .fabrik/ because that is already the repo's TRACKED machine-state directory (lint-baseline.json, plan-locks/*.json) — the registry must be versioned and reviewable in a diff, not a box-local untracked file that would itself be an unmonitored surface. JSON keeps the audit stdlib-only.",
-  "ownership": {
-    "comment": "A crontab line is THIS repo's business when it contains one of these. Everything else is a foreign surface: counted, never listed, never our OVERDUE.",
-    "cron_owned_substrings": [
-      "/opt/fabrik",
-      "scripts/mail.py",
-      "claude_rotate",
-      "claude-reboot-sweep",
-      "sync-claude-accounts",
-      "dr_claude_backup",
-      "$HOME/.claude/",
-      "/home/ozgur/.claude/"
-    ]
-  },
-  "surfaces": [
-    {
-      "id": "cron-daemon",
-      "kind": "service",
-      "why": "the meta-surface: if cron itself is not running, every cron verdict below is meaningless",
-      "evidence": { "type": "unit", "unit": "cron.service", "expect": "enabled" },
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "claude-rotate-tick",
-      "kind": "cron",
-      "why": "the */5 quota-rotation tick — the pointer flip that keeps every project on a live account",
-      "cron_match": "claude_rotate.py --tick",
-      "evidence": { "type": "log", "path": "~/.claude/rotate-tick.log" },
-      "max_age_hours": 1,
-      "doc": "docs/workstation/claude-account-rotation.md"
-    },
-    {
-      "id": "claude-keepalive",
-      "kind": "cron",
-      "why": "weekly ping so no account chain lapses at ~30 idle days",
-      "cron_match": "claude_rotate.py --keepalive",
-      "evidence": { "type": "log", "path": "~/.claude/keepalive.log" },
-      "max_age_hours": 192,
-      "doc": "docs/workstation/claude-account-rotation.md"
-    },
-    {
-      "id": "quota-dashboard",
-      "kind": "cron",
-      "why": "localhost:5051 account-quota board; the --ensure cron only APPENDS on action, so the log mtime is not a heartbeat — the listening port is",
-      "cron_match": "quota_dashboard.py --ensure",
-      "evidence": { "type": "port", "port": 5051 },
-      "doc": "docs/workstation/quota-dashboard.md"
-    },
-    {
-      "id": "ci-health-probe",
-      "kind": "cron",
-      "why": "hourly probe for CI that NEVER RAN (billing refusal / invalid workflow)",
-      "cron_match": "ci_health_probe.py",
-      "evidence": { "type": "log", "path": "~/.claude/ci-health.log" },
-      "max_age_hours": 3,
-      "doc": "docs/workstation/ci-health-probe.md"
-    },
-    {
-      "id": "ci-fix-dispatcher",
-      "kind": "cron",
-      "why": "hourly poll of GitHub failures -> local coder-AI fix",
-      "cron_match": "ci_fix_dispatcher.py",
-      "evidence": { "type": "log", "path": "~/.local/state/ci-fix/cron.log" },
-      "max_age_hours": 3,
-      "doc": "docs/workstation/ci-health-probe.md"
-    },
-    {
-      "id": "kaizen-measurement",
-      "kind": "cron",
-      "why": "the mechanical half of the weekly kaizen loop — the surface whose 4-day silence started this audit",
-      "cron_match": "kaizen_metrics.py",
-      "evidence": { "type": "log", "path": "~/.claude/kaizen.log" },
-      "max_age_hours": 192,
-      "doc": "docs/workstation/kaizen.md"
-    },
-    {
-      "id": "fabrik-mail-digest",
-      "kind": "cron",
-      "why": "daily unacked/quarantined mail digest — the doc promised it 'so nothing rots silently'",
-      "cron_match": "mail.py digest",
-      "evidence": { "type": "log", "path": "~/.claude/mail-digest.log" },
-      "max_age_hours": 30,
-      "doc": "docs/workstation/fabrik-mail.md"
-    },
-    {
-      "id": "wip-backup",
-      "kind": "cron",
-      "why": "*/15 WIP snapshot to refs/wip + off-box push — the net under every uncommitted change",
-      "cron_match": "wip_backup.sh",
-      "evidence": { "type": "log", "path": "/tmp/wip-backup.log", "volatile": true },
-      "max_age_hours": 1,
-      "doc": "docs/workstation/wip-backup-safety-net.md"
-    },
-    {
-      "id": "fleet-doc-audit",
-      "kind": "cron",
-      "why": "weekly mechanical doc-rot detector across the fleet",
-      "cron_match": "fleet_doc_audit.py",
-      "evidence": { "type": "log", "path": "/tmp/fleet_doc_audit.log", "volatile": true },
-      "max_age_hours": 192,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "mutation-sweep",
-      "kind": "cron",
-      "why": "weekly mutation run — the only thing that proves the test suite can fail",
-      "cron_match": "check_mutation.py",
-      "evidence": { "type": "log", "path": "/tmp/fabrik-mutation.log", "volatile": true },
-      "max_age_hours": 192,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "dr-claude-backup",
-      "kind": "cron",
-      "why": "Claude-config DR mirror to the private git store — the surface that had NEVER run from cron",
-      "cron_match": "dr_claude_backup.sh",
-      "evidence": { "type": "log", "path": "~/.claude/dr-claude-backup.log" },
-      "max_age_hours": 30,
-      "doc": "docs/workstation/claude-config-backup-restore.md"
-    },
-    {
-      "id": "claude-fleet-sync",
-      "kind": "cron",
-      "why": "hourly active-account sync to the VPS standbys; a >1h gap re-opens the token-exhaustion incident",
-      "cron_match": "sync-claude-accounts-to-fleet.sh",
-      "evidence": { "type": "log", "path": "~/.cache/claude-fleet-sync.log" },
-      "max_age_hours": 3,
-      "doc": "docs/workstation/claude-account-rotation.md"
-    },
-    {
-      "id": "registrar-drift-audit",
-      "kind": "cron",
-      "why": "hourly drift audit across all registrars x all specs",
-      "cron_match": "audit_all_registrars.py",
-      "evidence": { "type": "log", "path": "/var/log/fabrik-audit-all.log" },
-      "max_age_hours": 3,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "authelia-gate-audit",
-      "kind": "cron",
-      "why": "weekly Authelia gating audit (Lesson 32 incident)",
-      "cron_match": "audit_authelia_gates.py",
-      "evidence": { "type": "log", "path": "/var/log/fabrik-audit.log" },
-      "max_age_hours": 192,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "dr-env-backup",
-      "kind": "cron",
-      "why": "daily .env DR mirror",
-      "cron_match": "dr_env_backup.sh",
-      "evidence": { "type": "log", "path": "/var/log/dr-env-backup.log" },
-      "max_age_hours": 30,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "dr-env-recovery-test",
-      "kind": "cron",
-      "why": "weekly restore rehearsal — a backup nobody restores is not a backup",
-      "cron_match": "dr_env_recovery_test.sh",
-      "evidence": { "type": "log", "path": "/var/log/dr-env-recovery-test.log" },
-      "max_age_hours": 192,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "kilo-model-sync",
-      "kind": "cron",
-      "why": "daily model-catalog sync feeding the subagent pool's selection docs",
-      "cron_match": "kilo_model_sync.py",
-      "evidence": { "type": "log", "path": "/opt/fabrik/.droid/kilo_model_sync.log" },
-      "max_age_hours": 30,
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "ai-catalog-daily-refresh",
-      "kind": "cron",
-      "why": "daily selection-doc + catalog regeneration",
-      "cron_match": "kilo-benchmarks/daily_refresh.sh",
-      "evidence": { "type": "none" },
-      "doc": "docs/workstation/wsl-startup-inventory.md"
-    },
-    {
-      "id": "reboot-sweep",
-      "kind": "cron",
-      "why": "the @reboot sound/state sweep. Its own log is a 17-byte fossil; the REAL evidence is the Stop-hook log, which carries an invalid UTF-8 byte that makes GNU grep silently suppress every match (the false 'never ran' finding of 2026-08-16).",
-      "cron_match": "claude-reboot-sweep.sh",
-      "evidence": {
-        "type": "log_marker",
-        "path": "~/.claude/sound-debug.log",
-        "marker": "arg=sweep"
-      },
-      "max_age_hours": 720,
-      "doc": "docs/workstation/hooks-index.md"
-    },
-    {
-      "id": "stop-sound-hook",
-      "kind": "hook",
-      "why": "the Stop hook — also the only writer of the StopFailure death-class log kaizen measures",
-      "evidence": { "type": "hook", "command_contains": "claude-sound.sh" },
-      "doc": "docs/workstation/hooks-index.md"
-    },
-    {
-      "id": "session-recall-hook",
-      "kind": "hook",
-      "why": "SessionStart context injection from the local session index",
-      "evidence": { "type": "hook", "command_contains": "session_context.py" },
-      "doc": "docs/workstation/session-recall.md"
-    },
-    {
-      "id": "session-start-tap",
-      "kind": "hook",
-      "why": "SessionStart tap feeding the claude-manager session index",
-      "evidence": { "type": "hook", "command_contains": "session-start-tap.js" },
-      "doc": "docs/workstation/hooks-index.md"
-    },
-    {
-      "id": "stop-gate-hook",
-      "kind": "hook",
-      "why": "the Stop hook that blocks a turn ending on an uncommitted/unpushed task or a live command run",
-      "evidence": { "type": "hook", "command_contains": "final_gate_stop.py" },
-      "doc": "docs/workstation/hooks-index.md"
-    },
-    {
-      "id": "skill-router-hook",
-      "kind": "hook",
-      "why": "bare-prose -> /fabrik-* command routing; without it stage routing is manual",
-      "evidence": { "type": "hook", "command_contains": "skill_router.py" },
-      "doc": "docs/workstation/agent-command-routing-and-gates.md"
-    },
-    {
-      "id": "mail-notify-hook",
-      "kind": "hook",
-      "why": "surfaces unread fabrik-mail into the session; the durable cross-repo channel's doorbell",
-      "evidence": { "type": "hook", "command_contains": "mail_notify.py" },
-      "doc": "docs/workstation/fabrik-mail.md"
-    },
-    {
-      "id": "agent-role-hook",
-      "kind": "hook",
-      "why": "SessionStart charter overlay for the infra/fleet/intel roles",
-      "evidence": { "type": "hook", "command_contains": "agent_role.py" },
-      "doc": "docs/workstation/hooks-index.md"
-    },
-    {
-      "id": "session-orient-hook",
-      "kind": "hook",
-      "why": "SessionStart orientation injection",
-      "evidence": { "type": "hook", "command_contains": "session_orient.py" },
-      "doc": "docs/workstation/hooks-index.md"
-    }
+ "version": 1,
+ "note": "Declared surfaces for scripts/sysadmin/liveness_audit.py PROOF 1 (heartbeat). Lives in .fabrik/ because that is already the repo's TRACKED machine-state directory (lint-baseline.json, plan-locks/*.json) \u2014 the registry must be versioned and reviewable in a diff, not a box-local untracked file that would itself be an unmonitored surface. JSON keeps the audit stdlib-only.",
+ "ownership": {
+  "comment": "A crontab line is THIS repo's business when it contains one of these. Everything else is a foreign surface: counted, never listed, never our OVERDUE.",
+  "cron_owned_substrings": [
+   "/opt/fabrik",
+   "scripts/mail.py",
+   "claude_rotate",
+   "claude-reboot-sweep",
+   "sync-claude-accounts",
+   "dr_claude_backup",
+   "$HOME/.claude/",
+   "/home/ozgur/.claude/"
   ]
+ },
+ "surfaces": [
+  {
+   "id": "cron-daemon",
+   "kind": "service",
+   "why": "the meta-surface: if cron itself is not running, every cron verdict below is meaningless",
+   "evidence": {
+    "type": "unit",
+    "unit": "cron.service",
+    "expect": "enabled"
+   },
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "claude-rotate-tick",
+   "kind": "cron",
+   "why": "the */5 quota-rotation tick \u2014 the pointer flip that keeps every project on a live account",
+   "cron_match": "claude_rotate.py --tick",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/rotate-tick.log"
+   },
+   "max_age_hours": 1,
+   "doc": "docs/workstation/claude-account-rotation.md"
+  },
+  {
+   "id": "claude-keepalive",
+   "kind": "cron",
+   "why": "weekly ping so no account chain lapses at ~30 idle days",
+   "cron_match": "claude_rotate.py --keepalive",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/keepalive.log"
+   },
+   "max_age_hours": 192,
+   "doc": "docs/workstation/claude-account-rotation.md"
+  },
+  {
+   "id": "quota-dashboard",
+   "kind": "cron",
+   "why": "localhost:5051 account-quota board; the --ensure cron only APPENDS on action, so the log mtime is not a heartbeat \u2014 the listening port is",
+   "cron_match": "quota_dashboard.py --ensure",
+   "evidence": {
+    "type": "port",
+    "port": 5051
+   },
+   "doc": "docs/workstation/quota-dashboard.md"
+  },
+  {
+   "id": "ci-health-probe",
+   "kind": "cron",
+   "why": "hourly probe for CI that NEVER RAN (billing refusal / invalid workflow)",
+   "cron_match": "ci_health_probe.py",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/ci-health.log"
+   },
+   "max_age_hours": 3,
+   "doc": "docs/workstation/ci-health-probe.md"
+  },
+  {
+   "id": "ci-fix-dispatcher",
+   "kind": "cron",
+   "why": "hourly poll of GitHub failures -> local coder-AI fix",
+   "cron_match": "ci_fix_dispatcher.py",
+   "evidence": {
+    "type": "log",
+    "path": "~/.local/state/ci-fix/cron.log"
+   },
+   "max_age_hours": 3,
+   "doc": "docs/workstation/ci-health-probe.md"
+  },
+  {
+   "id": "kaizen-measurement",
+   "kind": "cron",
+   "why": "the mechanical half of the weekly kaizen loop \u2014 the surface whose 4-day silence started this audit",
+   "cron_match": "kaizen_metrics.py",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/kaizen.log"
+   },
+   "max_age_hours": 192,
+   "doc": "docs/workstation/kaizen.md"
+  },
+  {
+   "id": "fabrik-mail-digest",
+   "kind": "cron",
+   "why": "daily unacked/quarantined mail digest \u2014 the doc promised it 'so nothing rots silently'",
+   "cron_match": "mail.py digest",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/mail-digest.log"
+   },
+   "max_age_hours": 30,
+   "doc": "docs/workstation/fabrik-mail.md"
+  },
+  {
+   "id": "wip-backup",
+   "kind": "cron",
+   "why": "*/15 WIP snapshot to refs/wip + off-box push \u2014 the net under every uncommitted change",
+   "cron_match": "wip_backup.sh",
+   "evidence": {
+    "type": "log",
+    "path": "/tmp/wip-backup.log",
+    "volatile": true
+   },
+   "max_age_hours": 1,
+   "doc": "docs/workstation/wip-backup-safety-net.md"
+  },
+  {
+   "id": "fleet-doc-audit",
+   "kind": "cron",
+   "why": "weekly mechanical doc-rot detector across the fleet (wake-proof via weekly_catchup.sh; log moved out of volatile /tmp 2026-08-19)",
+   "cron_match": "fleet_doc_audit.py",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/fleet-doc-audit.log"
+   },
+   "max_age_hours": 192,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "mutation-sweep",
+   "kind": "cron",
+   "why": "weekly mutation run \u2014 the only thing that proves the test suite can fail",
+   "cron_match": "check_mutation.py",
+   "evidence": {
+    "type": "log",
+    "path": "/tmp/fabrik-mutation.log",
+    "volatile": true
+   },
+   "max_age_hours": 192,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "dr-claude-backup",
+   "kind": "cron",
+   "why": "Claude-config DR mirror to the private git store \u2014 the surface that had NEVER run from cron",
+   "cron_match": "dr_claude_backup.sh",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/dr-claude-backup.log"
+   },
+   "max_age_hours": 30,
+   "doc": "docs/workstation/claude-config-backup-restore.md"
+  },
+  {
+   "id": "claude-fleet-sync",
+   "kind": "cron",
+   "why": "hourly active-account sync to the VPS standbys; a >1h gap re-opens the token-exhaustion incident",
+   "cron_match": "sync-claude-accounts-to-fleet.sh",
+   "evidence": {
+    "type": "log",
+    "path": "~/.cache/claude-fleet-sync.log"
+   },
+   "max_age_hours": 3,
+   "doc": "docs/workstation/claude-account-rotation.md"
+  },
+  {
+   "id": "registrar-drift-audit",
+   "kind": "cron",
+   "why": "hourly drift audit across all registrars x all specs",
+   "cron_match": "audit_all_registrars.py",
+   "evidence": {
+    "type": "log",
+    "path": "/var/log/fabrik-audit-all.log"
+   },
+   "max_age_hours": 3,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "authelia-gate-audit",
+   "kind": "cron",
+   "why": "weekly Authelia gating audit (Lesson 32 incident)",
+   "cron_match": "audit_authelia_gates.py",
+   "evidence": {
+    "type": "log",
+    "path": "/var/log/fabrik-audit.log"
+   },
+   "max_age_hours": 192,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "dr-env-backup",
+   "kind": "cron",
+   "why": "daily .env DR mirror",
+   "cron_match": "dr_env_backup.sh",
+   "evidence": {
+    "type": "log",
+    "path": "/var/log/dr-env-backup.log"
+   },
+   "max_age_hours": 30,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "dr-env-recovery-test",
+   "kind": "cron",
+   "why": "weekly restore rehearsal \u2014 a backup nobody restores is not a backup",
+   "cron_match": "dr_env_recovery_test.sh",
+   "evidence": {
+    "type": "log",
+    "path": "/var/log/dr-env-recovery-test.log"
+   },
+   "max_age_hours": 192,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "kilo-model-sync",
+   "kind": "cron",
+   "why": "daily model-catalog sync feeding the subagent pool's selection docs",
+   "cron_match": "kilo_model_sync.py",
+   "evidence": {
+    "type": "log",
+    "path": "/opt/fabrik/.droid/kilo_model_sync.log"
+   },
+   "max_age_hours": 30,
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "ai-catalog-daily-refresh",
+   "kind": "cron",
+   "why": "daily selection-doc + catalog regeneration",
+   "cron_match": "kilo-benchmarks/daily_refresh.sh",
+   "evidence": {
+    "type": "none"
+   },
+   "doc": "docs/workstation/wsl-startup-inventory.md"
+  },
+  {
+   "id": "reboot-sweep",
+   "kind": "cron",
+   "why": "the @reboot sound/state sweep. Its own log is a 17-byte fossil; the REAL evidence is the Stop-hook log, which carries an invalid UTF-8 byte that makes GNU grep silently suppress every match (the false 'never ran' finding of 2026-08-16).",
+   "cron_match": "claude-reboot-sweep.sh",
+   "evidence": {
+    "type": "log_marker",
+    "path": "~/.claude/sound-debug.log",
+    "marker": "arg=sweep"
+   },
+   "max_age_hours": 720,
+   "doc": "docs/workstation/hooks-index.md"
+  },
+  {
+   "id": "stop-sound-hook",
+   "kind": "hook",
+   "why": "the Stop hook \u2014 also the only writer of the StopFailure death-class log kaizen measures",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "claude-sound.sh"
+   },
+   "doc": "docs/workstation/hooks-index.md"
+  },
+  {
+   "id": "session-recall-hook",
+   "kind": "hook",
+   "why": "SessionStart context injection from the local session index",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "session_context.py"
+   },
+   "doc": "docs/workstation/session-recall.md"
+  },
+  {
+   "id": "session-start-tap",
+   "kind": "hook",
+   "why": "SessionStart tap feeding the claude-manager session index",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "session-start-tap.js"
+   },
+   "doc": "docs/workstation/hooks-index.md"
+  },
+  {
+   "id": "stop-gate-hook",
+   "kind": "hook",
+   "why": "the Stop hook that blocks a turn ending on an uncommitted/unpushed task or a live command run",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "final_gate_stop.py"
+   },
+   "doc": "docs/workstation/hooks-index.md"
+  },
+  {
+   "id": "skill-router-hook",
+   "kind": "hook",
+   "why": "bare-prose -> /fabrik-* command routing; without it stage routing is manual",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "skill_router.py"
+   },
+   "doc": "docs/workstation/agent-command-routing-and-gates.md"
+  },
+  {
+   "id": "mail-notify-hook",
+   "kind": "hook",
+   "why": "surfaces unread fabrik-mail into the session; the durable cross-repo channel's doorbell",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "mail_notify.py"
+   },
+   "doc": "docs/workstation/fabrik-mail.md"
+  },
+  {
+   "id": "agent-role-hook",
+   "kind": "hook",
+   "why": "SessionStart charter overlay for the infra/fleet/intel roles",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "agent_role.py"
+   },
+   "doc": "docs/workstation/hooks-index.md"
+  },
+  {
+   "id": "session-orient-hook",
+   "kind": "hook",
+   "why": "SessionStart orientation injection",
+   "evidence": {
+    "type": "hook",
+    "command_contains": "session_orient.py"
+   },
+   "doc": "docs/workstation/hooks-index.md"
+  }
+ ]
 }

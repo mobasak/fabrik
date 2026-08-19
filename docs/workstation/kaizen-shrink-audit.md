@@ -274,24 +274,32 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
   `CORE_SCRIPTS`, and project copies pruned fleet-wide via the new `RETIRED_CORE_SCRIPTS`
   mechanism (delisting alone would have left untracked orphan noise in ~46 repos).
 - [x] `kilo_docs_enforcer.py` (core-script) — **RULED: ARCHIVE** — same ruling, same mechanism.
-- [ ] `fabrik-rules-review` (command) — zero on all measured signals. *Grounding for the ruling:
-  authored in the T06b corpus buildout (6ca63bad) as a standalone rules-pack gap-audit command;
-  never invoked in 12 days because pack compliance is already enforced inside `/fabrik-review`
-  via the injected `review_rubric.py` floor — a genuine redundancy candidate.*
+- [x] `fabrik-rules-review` (command) — **RULED: KEEP + FULL REFRESH** (operator, 2026-08-19).
+  Executed: the source was self-contradictory — it declared itself HUB-only while Phases 0–2
+  audited `project.yaml`/spec files that only exist in PROJECTS, so it could not run anywhere
+  (the structural cause of its zero usage). Rewritten with two detected modes (PROJECT =
+  compliance audit vs the synced packs, pack defects filed via `/fabrik-upstream`; HUB = the
+  packs themselves, blast-radius checklist), positioned explicitly as the whole-surface
+  complement to `/fabrik-review`'s per-diff rubric floor, dispatch modernized to the
+  pool-default + `set_quality` law, Shape flags re-grounded against `spec_loader.py::Shape`;
+  corpus re-rendered clean.
 - [ ] `update_agents_toc.py` (core-script) — zero invocations AND no live code consumer found
-  (the enforcement watcher only WATCHES it; `docs_updater.py` mentions are comments) — awaiting
-  ruling.
-- [ ] `/opt/fabrik/scripts/audit_authelia_gates.py` (cron) — **evidence reinterpreted, not a
-  dead artifact**: a Monday 06:00 weekly audit whose log last wrote Monday 2026-08-10 — the
-  2026-08-17 slot was slept through (host hibernation), the same missed-Monday class as the
-  keepalive cron. Remedy is a wake-proof schedule, deletion only if the Authelia-drift audit
-  itself is unwanted.
-- [ ] `scripts/fleet_doc_audit.py` (cron) — same Monday-06:30 class; its log lives in `/tmp`
-  (cleared on WSL restart), so liveness reads UNKNOWN. Its output feeds `/fabrik-catchup`'s
-  fleet head start. Same remedy question as above.
-- [ ] `scripts/sysadmin/kaizen_metrics.py` (cron) — same Monday-06:45 class (liveness DEAD);
-  additionally scheduled for replacement by M1's typed event stream — reasonable to keep until
-  M1 lands, rescheduled, then retire WITH M1.
+  (the enforcement watcher only WATCHES it; `docs_updater.py` mentions are comments). Answered
+  for the ruling 2026-08-19: it regenerates a Table of Contents in `AGENTS.md`, which has been
+  a 9-line pointer stub since 2026-07-19 ("do not add content here") — nothing is lost by
+  archiving. Recommendation: archive. **Awaiting ruling.**
+- [x] `/opt/fabrik/scripts/audit_authelia_gates.py` (cron) — **RULED: WAKE-PROOF RESCHEDULE**
+  (operator, 2026-08-19). Executed: now on the hourly `weekly_catchup.sh` stamp-check runner
+  (fires when ≥1 week since last success; a slept-through Monday catches up within an hour of
+  waking; rc=1 = ran-with-findings, stamped). First revived run after 9 lost days:
+  `4 OK, 1 GAP, 2 MISSING` — the drift finding relayed to fleet (Authelia is their beat) via
+  fabrik-mail.
+- [x] `scripts/fleet_doc_audit.py` (cron) — **RULED: WAKE-PROOF RESCHEDULE** — same runner;
+  log moved from volatile `/tmp` to `~/.claude/fleet-doc-audit.log` (liveness registry
+  updated); first revived run committed `probe-reports/fleet-doc-audit-2026-08-19.md`.
+- [x] `scripts/sysadmin/kaizen_metrics.py` (cron) — **RULED: WAKE-PROOF RESCHEDULE** — same
+  runner; the missed 2026-08-17 measurement caught up immediately (both kaizen logs appended);
+  still slated for retirement WITH M1's typed event stream.
 - ~~`grounding-research` (fragment)~~ — **STRUCK: false candidate** (census erratum). Its content
   is INLINED (version-marker convention `n3k-research-clause v1`) into the orchestrator docs
   (`epic-to-ticket-workflow/03-tech-plan-fabrik.md` + siblings) — the include-collector only
