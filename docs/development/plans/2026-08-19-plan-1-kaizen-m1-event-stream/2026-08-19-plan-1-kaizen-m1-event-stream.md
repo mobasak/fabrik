@@ -1,6 +1,6 @@
 # Kaizen M1 — the typed append-only event stream (measure truthfully)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer 1 + § Sequencing M1 (operator dispatch 2026-08-19: "then /fabrik-plan-after-chat for M1")
 
 ## What we already agreed
@@ -50,7 +50,7 @@ Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | events-core: schema + emitter library + exposure resolver | — | ⚡ | ⬜ | |
+| T01 | events-core: schema + emitter library + exposure resolver | — | ⚡ | ✅ | 19754de5 |
 | T02 | hook emitters: session lifecycle + stop_block/final_block + operator_override | T01 | ⚡ | ⬜ | |
 | T03 | run-record events + sid plumbing + lifecycle audit | T01 | ⚡ | ⬜ | |
 | T04 | sensor emitters: gate_run per-check + rule_activation | T01 | ⚡ | ⬜ | |
