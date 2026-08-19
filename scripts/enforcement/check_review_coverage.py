@@ -746,7 +746,11 @@ def main() -> int:
     # The BLOCKING path stays where the author can still act: the report in their working tree.
     stale = _committed_nonquiet(root, skip=set(changed))
     if stale:
-        print("check_review_coverage: ADVISORY — committed review(s) still recording a non-quiet exit:")
+        # ⚠ FIRST character matters: final_gate's --json ships a passing check's stdout only
+        # when it STARTS with ⚠ (the opt-in the emitter documents). Round 23-25: the advisory
+        # was invisible through the documented gate path because this header spoke first —
+        # the emitter was correct all along; this check never spoke its protocol.
+        print("⚠ check_review_coverage ADVISORY — committed review(s) needing attention:")
         for s in stale:
             print(f"  ⚠ {s}")
     for p in changed:
