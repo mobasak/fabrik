@@ -598,3 +598,37 @@ def test_genuine_blocked_report_with_stuck_round_prose_is_not_group_refused(repo
     )
     rc, out = _gate(repo, "2026-08-19-ordinary10-review.md", body)
     assert rc == 0, f"a sanctioned BLOCKED report was refused: {out}"
+
+
+def test_bare_decoy_blocked_headings_do_not_inflate_the_cardinality(repo: Path) -> None:
+    """Round-19 finding 1: N-1 empty decoy headings + 1 real escalation waived N rows."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open | UNCHECKED |  |\n| cost quota | UNCHECKED |  |\n"
+        "| boundary untested behavior | UNCHECKED |  |\n\n"
+        "## Pass Ledger\n| Pass 1 | x | found: 3 · fixed: 3 | y |\n| Pass 2 | x | found: 0 · fixed: 0 | y |\n\n"
+        "## BLOCKED — real one in scripts/x.py\nfailed 3 attempts on the same test; escalated.\n\n"
+        "### BLOCKED — decoy A\n(TBD)\n\n### BLOCKED — decoy B\n(TBD)\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary11-review.md", body)
+    assert rc == 1, "bare decoy headings inflated the evidenced-section count"
+    assert "UNCHECKED" in out
+
+
+def test_long_bounded_blocked_section_with_late_evidence_is_accepted(repo: Path) -> None:
+    """Round-19 finding 3: the repo's own committed style puts the attempts phrase ~2KB in."""
+    filler = "repro detail line\n" * 80
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
+        "## Pass Ledger\n| Pass 1 | x | found: 1 · fixed: 0 | y |\n| Pass 2 | x | found: 1 · fixed: 0 | y |\n\n"
+        "## BLOCKED — deep repro in scripts/x.py\n" + filler +
+        "After all of the above: failed 3 attempts on the same test; escalated to the operator.\n\n"
+        "## Closing\ndone.\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary12-review.md", body)
+    assert rc == 0, f"a bounded section with late evidence was rejected: {out}"

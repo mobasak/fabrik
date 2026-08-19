@@ -139,15 +139,18 @@ def _in_progress(text: str) -> bool:
     return bool(IN_PROGRESS.search(header))
 
 
-def _blocked_ok(text: str) -> bool:
-    """Sanctioned-BLOCKED — fence-stripped, and the 3-attempts evidence must live INSIDE a
-    BLOCKED section, not anywhere in the document.
+def _blocked_sections(text: str) -> int:
+    """How many BLOCKED sections carry their own in-section 3-attempts evidence.
 
-    Round 15: a "### BLOCKED — example" template heading in an appendix plus CLAUDE.md's own
-    "3 consecutive same-test failures" phrase elsewhere set blocked_ok and exempted BOTH the
-    UNCHECKED-row and quiet-exit checks. Proximity closes the split-decoy; a fully-formed
-    UNFENCED example section remains textually indistinguishable from a real escalation —
-    that residual is accepted and documented: examples belong in code fences.
+    Round 19: the cardinality check counted BARE headings (findall), so N-1 empty decoy
+    headings plus one real escalation waived N unchecked rows — a pure headcount wearing a
+    correlation's clothes. Only EVIDENCED sections count now.
+
+    Window: the full section when a next heading bounds it (round 19 measured the repo's own
+    committed escalation style at 2048 chars of repro history before the attempts phrase — a
+    600-char cap false-failed real corpus data); the 600-char cap applies ONLY to a section
+    running to EOF, where round 17 reproduced a bare heading harvesting unrelated trailing
+    prose.
     """
     body = _strip_fences(text)
     attempts = re.compile(
@@ -155,16 +158,20 @@ def _blocked_ok(text: str) -> bool:
         r"|three (?:consecutive|failed)",
         re.I | re.S,
     )
+    n = 0
     for m in BLOCKED_HEAD.finditer(body):
         nxt = re.search(r"^#{1,4}\s", body[m.end():], re.M)
-        span = nxt.start() if nxt else len(body) - m.end()
-        # 600-char window: a last-heading section runs to EOF, and round 17 reproduced a bare
-        # BLOCKED heading harvesting an unrelated attempts phrase from distant closing prose.
-        # The escalation's evidence belongs AT the escalation, not somewhere below it.
-        section = body[m.end(): m.end() + min(span, 600)]
+        section = (
+            body[m.end(): m.end() + nxt.start()] if nxt else body[m.end(): m.end() + 600]
+        )
         if attempts.search(section):
-            return True
-    return False
+            n += 1
+    return n
+
+
+def _blocked_ok(text: str) -> bool:
+    """At least one evidenced BLOCKED escalation exists — see _blocked_sections."""
+    return _blocked_sections(text) >= 1
 
 
 def check_file(p: Path) -> list[str]:
@@ -200,7 +207,7 @@ def check_file(p: Path) -> list[str]:
         # cheap cardinality correlation (round 17): ONE unrelated BLOCKED section was waiving
         # EVERY unchecked row. The contract pauses THAT finding, not the document — at minimum
         # each unchecked row needs its own evidenced BLOCKED section.
-        if len(BLOCKED_HEAD.findall(_strip_fences(text))) < len(unchecked):
+        if _blocked_sections(text) < len(unchecked):
             blocked_ok = False
     noverdict = [r.strip() for r in rows if not UNCHECKED.search(r) and not VERDICT.search(r)]
     if unchecked and not blocked_ok:
@@ -513,13 +520,21 @@ def check_mega_validation(
         # sanctioned non-quiet stop — round 17 found the grammar never consumed it, so a
         # properly escalated report's only recourse was the document-wide IN-PROGRESS flag,
         # a strictly worse contract than the one documented.
-        if (f_found != 0 or f_fixed != 0) and not _blocked_ok(text):
+        # Round 19 reverted round 18 here: gating this by _blocked_ok was the WRONG design —
+        # the hash-moved and Surface checks below are the anti-cheat and cannot be BLOCKED-gated
+        # (that would let a forged BLOCKED section bypass the hash proof), so a half-gated exit
+        # was inconsistent AND a bypass seed. The mega contract's real shape: a BLOCKED
+        # escalation pauses a finding MID-RUN, and a mid-run report persists as
+        # Status: IN-PROGRESS with its ## BLOCKED section. BLOCKED never converts a non-quiet
+        # exit into a done one.
+        if f_found != 0 or f_fixed != 0:
             errs.append(
                 f"final ledger round reads found: {f_found}, fixed: {f_fixed} — the exit round "
                 "must be quiet in BOTH counters (a fix in the final round means the round that "
                 "changed the set called itself the no-op), or declare `Status: IN-PROGRESS` "
-                "within the report's FIRST 10 LINES (the template's slot is line 3), or carry "
-                "a real `## BLOCKED` escalation with its 3-attempts evidence in-section"
+                "within the report's FIRST 10 LINES (the template's slot is line 3). A "
+                "BLOCKED escalation mid-run persists as IN-PROGRESS + its `## BLOCKED` section "
+                "— BLOCKED never converts a non-quiet exit into a done one"
             )
         pairs = [_MEGA_HASH_PAIR.search(line) for _, _, line in rows]
         if pairs[-1] is None:
