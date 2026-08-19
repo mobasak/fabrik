@@ -3,7 +3,7 @@
 
 Syncs to all /opt projects:
 - Core scripts (6): final_gate.py, kilo_code_review.py, kilo_docs_enforcer.py,
-  docs_updater.py, update_agents_toc.py, health_checker.py
+  docs_updater.py, health_checker.py
 - Enforcement directory (scripts/enforcement/*)
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml

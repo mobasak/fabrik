@@ -28,7 +28,6 @@ CORE_SCRIPTS = [
     "final_gate.py",
     "docs_updater.py",
     "doc_reconcile.py",  # Tier-1 doc-reconcile loop (pool author → verify → converge); agents run it per phase
-    "update_agents_toc.py",
     "health_checker.py",
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
     "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
@@ -44,6 +43,7 @@ CORE_SCRIPTS = [
 RETIRED_CORE_SCRIPTS = [
     "kilo_code_review.py",  # M0 shrink ruling 2026-08-19 — Kilo CLI retired 2026-07-19
     "kilo_docs_enforcer.py",  # M0 shrink ruling 2026-08-19 — Kilo CLI retired 2026-07-19
+    "update_agents_toc.py",  # M0 shrink ruling 2026-08-19 — its target AGENTS.md is a 9-line stub since 2026-07-19
 ]
 
 # Long Command Monitoring System → project ``scripts/`` (sourced from

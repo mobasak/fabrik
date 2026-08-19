@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — M0 rulings round 3: update_agents_toc retired, the Authelia audit's phantom inventory corrected, the real GAP diagnosed to one line (2026-08-19)
+
+Operator ruled archive on `update_agents_toc.py` (its target `AGENTS.md` has been a 9-line
+pointer stub since 2026-07-19) — moved to `scripts/archived/`, delisted, project copies pruned
+via `RETIRED_CORE_SCRIPTS`. The revived Authelia audit's three findings triaged: the two
+MISSING rows (`coolify`, `netdata`) were PHANTOM — both platforms left the fleet 2026-05-30
+and the audit's canonical inventory still expected their routers for 11 weeks (inventory
+corrected 7 → 5); the one real GAP (GlitchTip double-auth) diagnosed to a single compose
+label on vps1 (`glitchtip-web.middlewares=authelia-forward@docker`, against §8.13 app-layer
+TOTP) — remote mutation is classifier-fenced for this session, so the ready-to-run one-line
+fix was handed to fleet by mail with verification steps.
+
 ### Changed — M0 rulings round 2: fabrik-rules-review rebuilt to run at all, the three weekly crons made wake-proof (2026-08-19)
 
 Operator ruled keep+refresh on `/fabrik-rules-review` — and the refresh found the structural

@@ -170,7 +170,7 @@
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
 - [scripts/traycer_mirror.py](INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](INDEX.md) (owner: infra): Traycer Report Writer
-- [scripts/update_agents_toc.py](INDEX.md) (owner: infra): Update AGENTS.md Table of Contents
+- [scripts/archived/update_agents_toc.py](INDEX.md) (owner: infra): RETIRED 2026-08-19 (M0 shrink ruling) — was: Update AGENTS.md Table of Contents; its target has been a 9-line pointer stub since 2026-07-19
 - [scripts/update_vps_docs.py](INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/vps_sync.py](INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
 

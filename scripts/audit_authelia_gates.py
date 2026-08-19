@@ -24,11 +24,11 @@ router backing an admin dashboard matches the canonical inventory. It's
 designed for a weekly systemd timer piping exit-1 output into
 Alertmanager → Telegram. Any GAP is a potential 2FA-bypass bug.
 
-The canonical inventory (7 hosts)
+The canonical inventory (5 hosts)
 ---------------------------------
-6 services EXPECTED to carry ``authelia-forward@docker``:
-  auto (n8n) · backup (Backrest) · coolify (Coolify UI) · monitor
-  (Grafana) · netdata · notify (Apprise)
+4 services EXPECTED to carry ``authelia-forward@docker``:
+  auto (n8n) · backup (Backrest) · monitor (Grafana) · notify (Apprise)
+  (coolify + netdata rows removed 2026-08-19 — both platforms left the fleet 2026-05-30)
 
 1 service EXPECTED to NOT carry it (app-layer auth per §8.13):
   errors (GlitchTip — django-allauth native TOTP)
@@ -51,14 +51,16 @@ Invocation
     # Print the canonical inventory without touching the VPS:
     python scripts/audit_authelia_gates.py --inventory
 
-    # Override the Traefik API URL (for debugging; default works on VPS):
-    python scripts/audit_authelia_gates.py --api-url http://127.0.0.1:8080/api/http/routers
+    # Override the Traefik API URL (for debugging; default works on VPS —
+    # also settable via the TRAEFIK_API_URL env var):
+    python scripts/audit_authelia_gates.py --api-url "$TRAEFIK_API_URL"
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,7 +76,8 @@ if (_REPO_ROOT / "src").is_dir() and str(_REPO_ROOT / "src") not in sys.path:
 
 from fabrik.drivers.ssh import ssh  # noqa: E402 — deliberate late import after sys.path edit
 
-DEFAULT_TRAEFIK_API_URL = "http://127.0.0.1:8080/api/http/routers"
+# Evaluated ON THE VPS (over SSH) — Traefik's API is deliberately loopback-only there.
+DEFAULT_TRAEFIK_API_URL = os.getenv("TRAEFIK_API_URL", "http://127.0.0.1:8080/api/http/routers")
 
 # --------------------------------------------------------------------------- #
 # Canonical inventory
@@ -124,12 +127,9 @@ ADMIN_DASHBOARDS: tuple[Dashboard, ...] = (
         authelia_expected=True,
         rationale="two_factor — Backrest UI has no built-in auth",
     ),
-    Dashboard(
-        host="coolify",
-        service="Coolify UI",
-        authelia_expected=True,
-        rationale="two_factor + ^/api/ bypass (§8.11)",
-    ),
+    # coolify: REMOVED from the inventory 2026-08-19 — Coolify was fully decommissioned
+    # 2026-05-30 (agents-fabrik.md § Platform); the audit kept expecting its router and
+    # reported a phantom MISSING for 11 weeks (surfaced by the M0-revived weekly run).
     Dashboard(
         host="errors",
         service="GlitchTip",
@@ -142,12 +142,8 @@ ADMIN_DASHBOARDS: tuple[Dashboard, ...] = (
         authelia_expected=True,
         rationale="two_factor + ^/api/ bypass for annotations token",
     ),
-    Dashboard(
-        host="netdata",
-        service="Netdata",
-        authelia_expected=True,
-        rationale="two_factor — Netdata has no native auth",
-    ),
+    # netdata: REMOVED from the inventory 2026-08-19 — Netdata was removed from the
+    # fleet 2026-05-30 (agents-fabrik.md § Monitoring); same phantom-MISSING class.
     Dashboard(
         host="notify",
         service="Apprise",
@@ -155,7 +151,7 @@ ADMIN_DASHBOARDS: tuple[Dashboard, ...] = (
         rationale="two_factor — Apprise has no native auth",
     ),
 )
-assert len(ADMIN_DASHBOARDS) == 7, (
+assert len(ADMIN_DASHBOARDS) == 5, (
     "Canonical inventory size changed — update plan §8 acceptance criterion"
 )
 

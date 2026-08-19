@@ -283,11 +283,10 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
   complement to `/fabrik-review`'s per-diff rubric floor, dispatch modernized to the
   pool-default + `set_quality` law, Shape flags re-grounded against `spec_loader.py::Shape`;
   corpus re-rendered clean.
-- [ ] `update_agents_toc.py` (core-script) — zero invocations AND no live code consumer found
-  (the enforcement watcher only WATCHES it; `docs_updater.py` mentions are comments). Answered
-  for the ruling 2026-08-19: it regenerates a Table of Contents in `AGENTS.md`, which has been
-  a 9-line pointer stub since 2026-07-19 ("do not add content here") — nothing is lost by
-  archiving. Recommendation: archive. **Awaiting ruling.**
+- [x] `update_agents_toc.py` (core-script) — **RULED: ARCHIVE** (operator, 2026-08-19: "retire
+  and archive it"). It regenerated a Table of Contents in `AGENTS.md`, a 9-line pointer stub
+  since 2026-07-19 — nothing lost. Executed: moved to `scripts/archived/`, delisted from
+  `CORE_SCRIPTS`, project copies pruned via `RETIRED_CORE_SCRIPTS`.
 - [x] `/opt/fabrik/scripts/audit_authelia_gates.py` (cron) — **RULED: WAKE-PROOF RESCHEDULE**
   (operator, 2026-08-19). Executed: now on the hourly `weekly_catchup.sh` stamp-check runner
   (fires when ≥1 week since last success; a slept-through Monday catches up within an hour of

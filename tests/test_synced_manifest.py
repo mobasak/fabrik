@@ -122,7 +122,7 @@ def test_retired_core_scripts_are_pruned_project_side(tmp_path: Path) -> None:
 
 def test_retired_and_live_script_lists_are_disjoint() -> None:
     assert not set(m.RETIRED_CORE_SCRIPTS) & set(m.CORE_SCRIPTS)
-    for name in ("kilo_code_review.py", "kilo_docs_enforcer.py"):
+    for name in ("kilo_code_review.py", "kilo_docs_enforcer.py", "update_agents_toc.py"):
         assert name in m.RETIRED_CORE_SCRIPTS, name
         assert name not in m.CORE_SCRIPTS, name
 

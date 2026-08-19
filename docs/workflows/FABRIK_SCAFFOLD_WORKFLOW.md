@@ -343,7 +343,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   ├── docs_updater.py              # Documentation drift checker
 │   ├── final_gate.py                # Pre-commit quality gate
 │   ├── health_checker.py            # Health endpoint checker
-│   ├── update_agents_toc.py         # AGENTS.md TOC updater
 │   ├── runc                         # Check job status
 │   ├── rund                         # Run detached command
 │   ├── rundsh                       # Shell into container
@@ -435,7 +434,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `scripts/final_gate.py` | Copied from Fabrik | Pre-commit quality gate |
 | `scripts/health_checker.py` | Copied from Fabrik | Health endpoint checker |
 | `scripts/docs_updater.py` | Copied from Fabrik | Documentation drift checker |
-| `scripts/update_agents_toc.py` | Copied from Fabrik | AGENTS.md TOC updater |
 | **Enforcement Scripts (35)** | | |
 | `scripts/enforcement/*.py` | Copied from Fabrik | Individual quality gate checks (full dir copy from `/opt/fabrik/scripts/enforcement/`) |
 | **Dev Tooling** | | |
