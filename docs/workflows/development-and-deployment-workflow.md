@@ -135,7 +135,7 @@ python scripts/final_gate.py --systemic --json # Tier 3: epic closure (repo heal
 
 The gate iterates **up to 3 times** internally, auto-fixing where it can. The coder iterates externally until `"status": "success"`. On success the gate **auto-stages** changes (`git add` only). The coder does NOT commit or push — that is the owner's decision. Maximum **5 external review iterations** before the coder escalates.
 
-Optional manual review tools: [`scripts/kilo_code_review.py`](../../scripts/kilo_code_review.py) (AI multi-agent review on staged diff), [`scripts/kilo_docs_enforcer.py`](../../scripts/kilo_docs_enforcer.py) (bulk doc generation).
+(The former Kilo review tools — `kilo_code_review.py`, `kilo_docs_enforcer.py` — were retired to `scripts/archived/` by the M0 shrink ruling 2026-08-19; review runs through `/fabrik-review`.)
 
 ## 8. Lessons learnt
 

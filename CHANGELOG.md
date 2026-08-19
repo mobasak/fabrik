@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the first M0 shrink ruling applied: the kilo enforcers retired fleet-wide, two census errata recorded (2026-08-19)
+
+Operator ruled on the census's kilo candidates: `kilo_code_review.py` + `kilo_docs_enforcer.py`
+archived (hub copies revivable at `scripts/archived/`). Executing the ruling exposed a missing
+mechanism: delisting a script from `CORE_SCRIPTS` leaves an orphan copy in ~46 projects that
+turns into untracked noise the moment the regenerated gitignore block stops covering it — the
+manifest now carries `RETIRED_CORE_SCRIPTS` and the sync prunes those names project-side
+(behavior test seen red first). Two candidates STRUCK as census errata with grounded evidence:
+the `grounding-research`/`grounding-rules-cite` fragments are inlined (version-marker
+convention) into 5+ orchestrator docs — invisible to the `{{include:}}` collector; and the
+three Monday-06:xx cron candidates were reinterpreted — not dead artifacts but slept-through
+Monday slots (the keepalive-cron hibernation class), remedy = wake-proof scheduling, recorded
+in the report's ruling section. Collector refinements filed as M1 inputs.
+
 ### Fixed — the closing sweep defeated the fixed grammar again: 12 more findings, 6 reproduced (2026-08-19)
 
 The review loop's first closing sweep (fresh non-author Opus) was NOT quiet — proof the loop's

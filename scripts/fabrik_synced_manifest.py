@@ -26,8 +26,6 @@ FABRIK_ROOT = Path("/opt/fabrik")
 # Core enforcement scripts → project ``scripts/`` (sourced from FABRIK_ROOT/scripts/).
 CORE_SCRIPTS = [
     "final_gate.py",
-    "kilo_code_review.py",
-    "kilo_docs_enforcer.py",
     "docs_updater.py",
     "doc_reconcile.py",  # Tier-1 doc-reconcile loop (pool author → verify → converge); agents run it per phase
     "update_agents_toc.py",
@@ -37,6 +35,15 @@ CORE_SCRIPTS = [
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
     "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/ack/requeue/digest)
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
+]
+
+# Scripts RETIRED from CORE_SCRIPTS — the sync DELETES these from every project copy.
+# Delisting alone is not retirement: the regenerated gitignore block stops covering a
+# delisted name, so a left-behind copy surfaces as untracked noise in ~46 repos (found
+# at the M0 shrink ruling). Hub copies live on, revivable, in scripts/archived/.
+RETIRED_CORE_SCRIPTS = [
+    "kilo_code_review.py",  # M0 shrink ruling 2026-08-19 — Kilo CLI retired 2026-07-19
+    "kilo_docs_enforcer.py",  # M0 shrink ruling 2026-08-19 — Kilo CLI retired 2026-07-19
 ]
 
 # Long Command Monitoring System → project ``scripts/`` (sourced from

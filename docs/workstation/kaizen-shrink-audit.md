@@ -269,12 +269,33 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
 
 9 deletion candidate(s) — zero on every measurable class signal, not immune. The ruling is the OPERATOR's act, recorded here; the audit never self-rules. Tick to approve the archive-move (revivable), strike to keep:
 
-- [ ] `fabrik-rules-review` (command) — zero on all measured signals
-- [ ] `kilo_code_review.py` (core-script) — zero on all measured signals
-- [ ] `kilo_docs_enforcer.py` (core-script) — zero on all measured signals
-- [ ] `update_agents_toc.py` (core-script) — zero on all measured signals
-- [ ] `/opt/fabrik/scripts/audit_authelia_gates.py` (cron) — zero on all measured signals
-- [ ] `scripts/fleet_doc_audit.py` (cron) — zero on all measured signals
-- [ ] `scripts/sysadmin/kaizen_metrics.py` (cron) — zero on all measured signals
-- [ ] `grounding-research` (fragment) — zero on all measured signals
-- [ ] `grounding-rules-cite` (fragment) — zero on all measured signals
+- [x] `kilo_code_review.py` (core-script) — **RULED: ARCHIVE** (operator, 2026-08-19: "kilo is
+  retired, you can archive them"). Executed: moved to `scripts/archived/`, delisted from
+  `CORE_SCRIPTS`, and project copies pruned fleet-wide via the new `RETIRED_CORE_SCRIPTS`
+  mechanism (delisting alone would have left untracked orphan noise in ~46 repos).
+- [x] `kilo_docs_enforcer.py` (core-script) — **RULED: ARCHIVE** — same ruling, same mechanism.
+- [ ] `fabrik-rules-review` (command) — zero on all measured signals. *Grounding for the ruling:
+  authored in the T06b corpus buildout (6ca63bad) as a standalone rules-pack gap-audit command;
+  never invoked in 12 days because pack compliance is already enforced inside `/fabrik-review`
+  via the injected `review_rubric.py` floor — a genuine redundancy candidate.*
+- [ ] `update_agents_toc.py` (core-script) — zero invocations AND no live code consumer found
+  (the enforcement watcher only WATCHES it; `docs_updater.py` mentions are comments) — awaiting
+  ruling.
+- [ ] `/opt/fabrik/scripts/audit_authelia_gates.py` (cron) — **evidence reinterpreted, not a
+  dead artifact**: a Monday 06:00 weekly audit whose log last wrote Monday 2026-08-10 — the
+  2026-08-17 slot was slept through (host hibernation), the same missed-Monday class as the
+  keepalive cron. Remedy is a wake-proof schedule, deletion only if the Authelia-drift audit
+  itself is unwanted.
+- [ ] `scripts/fleet_doc_audit.py` (cron) — same Monday-06:30 class; its log lives in `/tmp`
+  (cleared on WSL restart), so liveness reads UNKNOWN. Its output feeds `/fabrik-catchup`'s
+  fleet head start. Same remedy question as above.
+- [ ] `scripts/sysadmin/kaizen_metrics.py` (cron) — same Monday-06:45 class (liveness DEAD);
+  additionally scheduled for replacement by M1's typed event stream — reasonable to keep until
+  M1 lands, rescheduled, then retire WITH M1.
+- ~~`grounding-research` (fragment)~~ — **STRUCK: false candidate** (census erratum). Its content
+  is INLINED (version-marker convention `n3k-research-clause v1`) into the orchestrator docs
+  (`epic-to-ticket-workflow/03-tech-plan-fabrik.md` + siblings) — the include-collector only
+  sees `{{include:}}` markers in `commands/_sources/`, and inline-by-content reuse is invisible
+  to it. Verdict corrected to keep; collector refinement filed as an M1 input.
+- ~~`grounding-rules-cite` (fragment)~~ — **STRUCK: false candidate** — same erratum (marker
+  `rule-grounding-cite v1`, live in 5+ orchestrator docs).

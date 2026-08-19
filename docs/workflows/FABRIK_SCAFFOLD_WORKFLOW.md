@@ -343,8 +343,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   ├── docs_updater.py              # Documentation drift checker
 │   ├── final_gate.py                # Pre-commit quality gate
 │   ├── health_checker.py            # Health endpoint checker
-│   ├── kilo_code_review.py          # AI code review
-│   ├── kilo_docs_enforcer.py        # Documentation enforcer
 │   ├── update_agents_toc.py         # AGENTS.md TOC updater
 │   ├── runc                         # Check job status
 │   ├── rund                         # Run detached command
@@ -436,8 +434,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | **Quality Gates** | | |
 | `scripts/final_gate.py` | Copied from Fabrik | Pre-commit quality gate |
 | `scripts/health_checker.py` | Copied from Fabrik | Health endpoint checker |
-| `scripts/kilo_code_review.py` | Copied from Fabrik | AI code review |
-| `scripts/kilo_docs_enforcer.py` | Copied from Fabrik | Documentation enforcer |
 | `scripts/docs_updater.py` | Copied from Fabrik | Documentation drift checker |
 | `scripts/update_agents_toc.py` | Copied from Fabrik | AGENTS.md TOC updater |
 | **Enforcement Scripts (35)** | | |
@@ -603,9 +599,9 @@ After file creation, `fabrik scaffold` also:
 
 > See [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) for details on `project.yaml` schema and sync mechanism.
 
-#### Kilo Workflow Integration
+#### Review-artifact directory
 
-`fabrik scaffold` now provisions the `.droid/` directory required by `kilo_code_review.py` automatically:
+`fabrik scaffold` provisions the `.droid/` directory used for review-context artifacts:
 
 | Path | Purpose |
 |------|---------|
@@ -613,7 +609,8 @@ After file creation, `fabrik scaffold` also:
 | `.droid/.gitignore` | Commits `review-context/` only; blocks runtime files |
 | `.droid/review-context/.gitkeep` | Ensures directory is tracked by git |
 
-**Result:** Running `kilo_code_review.py review src/` works immediately after scaffold — no manual `.droid/` setup needed.
+(The Kilo consumer of this directory — `kilo_code_review.py` — was retired to `scripts/archived/`
+by the M0 shrink ruling 2026-08-19; the directory remains for review-context artifacts.)
 
 **Developer shortcuts (all available immediately after scaffold):**
 

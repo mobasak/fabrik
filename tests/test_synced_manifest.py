@@ -101,6 +101,32 @@ def test_ports_md_is_seed_exempt() -> None:
     assert "PORTS.md" in m.SEEDED_NOT_ENFORCED
 
 
+def test_retired_core_scripts_are_pruned_project_side(tmp_path: Path) -> None:
+    """M0 shrink ruling 2026-08-19 (kilo retired): a script delisted from CORE_SCRIPTS
+    must be REMOVED from project copies by the sync — the regenerated gitignore block
+    stops covering it, so a left-behind copy surfaces as untracked noise in 46 repos."""
+    scripts_dir = tmp_path / "proj" / "scripts"
+    scripts_dir.mkdir(parents=True)
+    (scripts_dir / "kilo_code_review.py").write_text("# retired copy\n")
+    (scripts_dir / "final_gate.py").write_text("# live\n")
+    results = sync.prune_retired_scripts(scripts_dir, dry_run=False)
+    assert not (scripts_dir / "kilo_code_review.py").exists()
+    assert (scripts_dir / "final_gate.py").exists(), "live scripts are never pruned"
+    assert any(r.action == "DELETE" for r in results)
+    # dry-run reports without deleting
+    (scripts_dir / "kilo_docs_enforcer.py").write_text("# retired copy\n")
+    dry = sync.prune_retired_scripts(scripts_dir, dry_run=True)
+    assert (scripts_dir / "kilo_docs_enforcer.py").exists()
+    assert any(r.action == "DELETE" for r in dry)
+
+
+def test_retired_and_live_script_lists_are_disjoint() -> None:
+    assert not set(m.RETIRED_CORE_SCRIPTS) & set(m.CORE_SCRIPTS)
+    for name in ("kilo_code_review.py", "kilo_docs_enforcer.py"):
+        assert name in m.RETIRED_CORE_SCRIPTS, name
+        assert name not in m.CORE_SCRIPTS, name
+
+
 def test_gitignore_block_collapses_windsurf_and_groups() -> None:
     groups = m.gitignore_dest_paths()
     dirs = groups["Rule packs, workflows and synced reference dirs"]

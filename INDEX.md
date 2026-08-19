@@ -155,7 +155,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── final_gate.py                # Mandatory pre-commit quality gate
 │   ├── ci_fix_dispatcher.py         # GitHub CI failure → headless coder-AI fix run (hourly cron)
 │   ├── docs_updater.py              # Auto-update docs structure
-│   ├── kilo_code_review.py          # Kilo-based code review runner
+│   ├── archived/                    # Retired scripts (revivable) — kilo_code_review.py + kilo_docs_enforcer.py (M0 shrink ruling 2026-08-19; Kilo CLI retired 2026-07-19)
 │   ├── create_pg_dev_db.sh          # PostgreSQL dev database creation helper
 │   ├── enforcement/                 # Convention check scripts (check_*.py)
 │   └── utils/                       # Shared script utilities
@@ -522,7 +522,7 @@ docs/
 │   ├── fabrik-mail.md             # fabrik-mail box view: store /opt/fabrik-mail, components (mail.py + hook + digest), the 2-layer model, sync-exclusion, observe/troubleshoot (protocol is docs/reference/fabrik-mail.md)
 │   ├── hooks-index.md              # Every hook on the box in one page (4 layers) — freshness gate-enforced by check_hooks_index.py
 │   ├── kaizen.md                   # The weekly kaizen loop: the Monday 06:45 MEASUREMENT cron (kaizen_metrics.py — no agent, no quota) vs the agent's ≤90-min ANALYSIS pass; which of the 5 pinned metrics are real vs `—` and why; ISO-week idempotence; the fabrik-mail hand-off
-│   ├── kaizen-shrink-audit.md      # The M0 census report (kaizen_shrink_audit.py --report + kaizen_immune_list.py): per-artifact usage evidence over all governance classes, verdicts candidate/keep/unknown, the immune registry, and the ## Operator ruling section — the shrink question answered with evidence
+│   ├── kaizen-shrink-audit.md      # The M0 census report (kaizen_shrink_audit.py --report + kaizen_immune_list.py): per-artifact usage evidence over all governance classes, verdicts candidate/keep/unknown, the immune registry, and the ## Operator ruling section — the shrink question answered with evidence; ruled candidates archive-move to scripts/archived/ (revivable), synced copies pruned via RETIRED_CORE_SCRIPTS
 │   ├── liveness.md                 # The liveness layer (liveness_audit.py): three proofs — heartbeat (did the cron fire?), vacuity canary (can the gate check fail?), doc-claim binding (is the doc true?) — and the LIVE/DEAD/UNKNOWN three-state rule that stops absence-of-evidence being reported as evidence-of-absence
 │   ├── wip-backup-safety-net.md    # The */15 WIP snapshot cron: isolated-index tree snapshots to refs/wip + off-box push; recovery runbook
 │   ├── session-recall.md           # session-recall tool: what it does, feature list, file map (code in /opt/session-recall)
@@ -620,8 +620,8 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [2026-08-15-plan-1-login-once-credentials-review.md](docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md) | Whole-plan validation of the login-once credential architecture (T01–T05): per-ticket verdicts, embedded Tier-2 gate success (46/0), docs-review 3-pass CONVERGED ledger, D7 found: 0, named residuals + successor-plan pointers. |
 | [2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md](docs/development/reviews/2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md) | Whole-plan review of the M0 shrink-audit build: 9-pass ledger to found: 0/fixed: 0, coverage checklist, embedded Tier-2 gate success (45/0), the native-reviewer arc (14+5+3 findings, all closed), per-phase verdicts A/B/C. |
 | [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
-| [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
-| [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
+| [archived/kilo_code_review.py](scripts/archived/kilo_code_review.py) | RETIRED (M0 shrink ruling 2026-08-19) — Kilo CLI code review runner; project copies pruned via RETIRED_CORE_SCRIPTS |
+| [archived/kilo_docs_enforcer.py](scripts/archived/kilo_docs_enforcer.py) | RETIRED (M0 shrink ruling 2026-08-19) — Kilo docs enforcement; project copies pruned via RETIRED_CORE_SCRIPTS |
 | [check_commit_trailers.py](scripts/check_commit_trailers.py) | **commit-msg** hook (hub-local, not synced) rejecting a commit whose `Agent-Role:` trailer git cannot parse — the last point the message is still editable, since a pushed bad block needs a force-push. Delegates to `git interpret-trailers --parse`. Tests: `/opt/ai-model-catalog/engine/tests/test_commit_trailer_guard.py (ai-model-catalog)`. |
 | [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (33 enforcement scripts) |
 | [mail.py](scripts/mail.py) | fabrik-mail store + protocol — `send/list/read/ack/requeue/digest` for the durable hub↔project AI mailbox (`/opt/fabrik-mail/<repo>/{inbox,archive}`). tmp-then-O_EXCL publish, hand-rolled Crockford-base32 ULID ids (no dep), machinery-presence recipient validation + star-topology enforcement, secret-refusal, 64 KB cap, malformed-quarantine, hub-guarded Telegram digest. Tests: `tests/test_mail.py`. |
@@ -833,7 +833,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 ### Core Scripts
 
 - `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from the agent manifest
-- `scripts/kilo_code_review.py` - Code review (Step 4 in the workflow)
+- `scripts/archived/kilo_code_review.py` - RETIRED 2026-08-19 (was: Code review, Step 4 in the Kilo workflow)
 - `scripts/kilo_model_sync.py` - Syncs the model catalog + pricing
 - `scripts/gather_envs.py` - External Services Registry Phase 1: consolidate all `/opt/*/.env` → `secrets/all-envs.env` (dedup-by-value, `#svc`-annotated by category from `service_catalog.json`, idempotent)
 - `scripts/classify_services.py` - Web-grounds uncatalogued (`category=?`) providers via the OpenRouter pool (names + public URLs only), merges into `service_catalog.json`
@@ -902,9 +902,10 @@ consumer orchestrator, `rank_task_subagents.py` + `check_daily_refresh_freshness
 transitive dependencies the manifest derived — `alerting/`, `build_task_baselines.py`, `derive_cost.py`,
 `update_gateway_counts.py` — which a hand-written list had stranded.
 
-**Post-excise corrections (2026-08-16, from the E.closing review):** `agent_selector.py` is RETAINED —
-`scripts/kilo_docs_enforcer.py:66-70` needs it and exits 2 without it, and that script is fleet-synced
-`CORE_SCRIPTS` on 47 project copies. Nothing inside `kilo-benchmarks/` references it, so the import-graph
+**Post-excise corrections (2026-08-16, from the E.closing review):** `agent_selector.py` was RETAINED
+because `kilo_docs_enforcer.py:66-70` needed it (then fleet-synced `CORE_SCRIPTS` on 47 project copies;
+that enforcer was RETIRED to `scripts/archived/` by the M0 shrink ruling 2026-08-19 and its project
+copies pruned — `agent_selector.py`'s retention can be revisited at the next census). Nothing inside `kilo-benchmarks/` references it, so the import-graph
 closure never saw the edge; `excise_manifest.py` now scans the fabrik-side CONSUMERS too and rediscovered it
 independently. Also retained: `tests/test_flywheel_safety.py` and `tests/test_commit_trailer_guard.py`, which
 test RETAINED surfaces (the A.0 flywheel tripwire and the commit-msg governance guard) rather than engine code.

@@ -45,6 +45,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     GOVERNANCE_FILES,
     GOVERNANCE_TEMPLATES,
     REFERENCE_DOCS,
+    RETIRED_CORE_SCRIPTS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
     VENDORED_DIRS,
@@ -296,6 +297,24 @@ def _atomic_copy(source: Path, destination: Path) -> None:
         raise
 
 
+def prune_retired_scripts(scripts_dir: Path, dry_run: bool = False) -> list[SyncResult]:
+    """Delete project copies of RETIRED_CORE_SCRIPTS (M0 shrink ruling mechanism).
+
+    Delisting a script from CORE_SCRIPTS is not retirement by itself: the regenerated
+    gitignore block stops covering the name, so a left-behind copy surfaces as
+    untracked noise in every project. The hub keeps the canonical copy, revivable,
+    under scripts/archived/.
+    """
+    results: list[SyncResult] = []
+    for name in RETIRED_CORE_SCRIPTS:
+        dest = scripts_dir / name
+        if dest.is_file():
+            if not dry_run:
+                dest.unlink()
+            results.append(SyncResult("DELETE", dest, dest, "retired core script pruned"))
+    return results
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -410,6 +429,10 @@ def sync_scripts_to_project(
                     source, destination, dry_run=dry_run, backup=backup, force=force
                 )
                 file_results.append(result)
+
+        # Prune RETIRED core scripts — delisting alone leaves an orphan copy that the
+        # regenerated gitignore block no longer covers (untracked noise in ~46 repos).
+        file_results.extend(prune_retired_scripts(scripts_dir, dry_run=dry_run))
 
         # Sync run-system scripts (Long Command Monitoring System)
         # Source from templates/scaffold/scripts/ so the canonical path matches what

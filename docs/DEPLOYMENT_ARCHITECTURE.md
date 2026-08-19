@@ -343,7 +343,7 @@ Single entry point for all tier-based quality checks:
 | `scripts/generate_vps_inventory.py` | Generates VPS container/service inventory. Called by `_post_deploy_sync()`. |
 | `scripts/update_vps_docs.py` | Refreshes VPS status documentation. Called by `_post_deploy_sync()`. |
 | `scripts/provision_grafana.sh` | One-shot Grafana setup (dashboards, datasources). |
-| `scripts/docs_updater.py` + `scripts/kilo_docs_enforcer.py` | Auto-update docs (CHANGELOG, INDEX, README). |
+| `scripts/docs_updater.py` | Auto-update docs (CHANGELOG, INDEX, README). (`kilo_docs_enforcer.py` retired to `scripts/archived/`, M0 shrink ruling 2026-08-19.) |
 | `scripts/watchdog.sh` | Sample watchdog that services copy into their repo. |
 
 ---
