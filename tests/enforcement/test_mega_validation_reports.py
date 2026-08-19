@@ -708,3 +708,22 @@ def test_note_lines_print_after_the_advisory_header(repo: Path) -> None:
     out = r.stdout
     assert "COMMITTED with a non-quiet" in out and "NOTE:" in out, "fixture must exercise both"
     assert out.lstrip().startswith("⚠"), f"stdout does not lead with ⚠:\n{out[:200]}"
+
+
+def test_prose_discussing_a_coverage_checklist_is_not_a_subject(repo: Path) -> None:
+    """Round-27: the heading-only rule — discussing the concept is not carrying the artifact."""
+    body = (
+        "# Plan Convergence Notes\n\nWe debated whether this ticket needs a coverage checklist "
+        "before merging, but decided it's out of scope. It internally invokes "
+        "`python scripts/review_rubric.py` anyway. Run /fabrik-review later.\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-notes3-review.md", body)
+    assert rc == 0, f"prose about the process became a subject: {out}"
+
+
+def test_a_real_checklist_heading_is_still_fully_gated(repo: Path) -> None:
+    """The structural contract's other half: the heading alone pulls the full obligation set."""
+    body = "# Anything\n\n## Coverage Checklist\n| C | V | E |\n|---|---|---|\n| x | UNCHECKED |  |\n"
+    rc, out = _gate(repo, "2026-08-19-real14-review.md", body)
+    assert rc == 1
+    assert "Surface" in out and "UNCHECKED" in out

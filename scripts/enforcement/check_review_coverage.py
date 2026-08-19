@@ -35,7 +35,11 @@ from pathlib import Path
 REVIEWS_DIR = "docs/development/reviews/"
 
 CHECKLIST_HEAD = re.compile(r"coverage checklist", re.I)
-COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")
+# RETIRED as a subject test (round 27) — kept only as documentation of what NOT to reintroduce:
+# a command-name substring is a proxy for "is this a review report" that fails both directions
+# (prose explaining the process trips it; a paraphrasing report escapes it). Subject-ness is the
+# checklist HEADING; artifact-emission enforcement is the run-record's moment.
+COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")  # noqa: F841 — retired, see above
 VERDICT = re.compile(r"\b(CLEAN|FIXED\s*\(?\d*\)?|REFUTED)\b")
 UNCHECKED = re.compile(r"\bUNCHECKED\b")
 BLOCKED_HEAD = re.compile(r"^#{2,4}\s*.*BLOCKED", re.M)
@@ -106,10 +110,11 @@ def _checklist_section(text: str) -> str | None:
             m = h
             break
     if m is None:
-        # table introduced without its own heading — fall back to the first
-        # table that follows the phrase "Coverage Checklist" anywhere.
-        i = text.lower().find("coverage checklist")
-        return text[i:] if i != -1 else None
+        # HEADING-ONLY (round 27): the prose fallback ("coverage checklist" anywhere) was an
+        # independent subject path — a convergence note merely DISCUSSING the concept was
+        # hard-failed with four obligations it never owed. A checklist without its heading is
+        # not a checklist; the /fabrik-review skeleton mandates the heading from pass 0.
+        return None
     nxt = re.search(r"^#{2,4} ", text[m.end() :], re.M)
     return text[m.start() : m.end() + (nxt.start() if nxt else len(text))]
 
@@ -196,15 +201,14 @@ def check_file(p: Path) -> list[str]:
     text = p.read_text(encoding="utf-8", errors="replace")
     section = _checklist_section(text)
     if section is None:
-        # Round 25: COMMAND_MARK alone fired on docs merely QUOTING the command in prose
-        # ("run /fabrik-review to adjudicate…"), hard-failing spec/plan convergence notes the
-        # module docstring exempts. A doc is this gate's subject only when it is REPORT-shaped:
-        # the command named AND the report apparatus present (a Surface anchor or a recorded
-        # rubric run) — a report missing its checklist still fails, prose quotes never do.
-        if COMMAND_MARK.search(text) and (SURFACE.search(text) or RUBRIC_RUN.search(text)):
-            errs.append(
-                "names /fabrik-review or /fabrik-repo-review but emits NO Coverage Checklist"
-            )
+        # SUBJECT-BY-STRUCTURE (round 27, retiring two rounds of substring tuning): the
+        # command-name sniff was a literal-substring proxy for "is this a review report" and
+        # failed BOTH ways — prose explaining the review process hard-failed (quoting the
+        # command + the rubric filename), while a real report paraphrasing either token
+        # escaped entirely, so the sniff provided only theater. A doc is this gate's subject
+        # when it carries the checklist HEADING (the skeleton mandates it from pass 0);
+        # "did the command emit its artifact at all" is the run-record + Stop hook's moment,
+        # not a text-matching one.
         return errs
     # contract obligations recorded in the artifact itself
     if not SURFACE.search(text):
@@ -703,9 +707,7 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
-        if _checklist_section(text) is None and not (
-            COMMAND_MARK.search(text) and (SURFACE.search(text) or RUBRIC_RUN.search(text))
-        ):
+        if _checklist_section(text) is None:
             # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
             # round 23: the IN-PROGRESS advisory below was firing on EVERY reviews/*.md with a
             # Status line, misattributing docs the module docstring explicitly exempts
