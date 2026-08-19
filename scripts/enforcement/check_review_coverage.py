@@ -184,13 +184,13 @@ def check_file(p: Path) -> list[str]:
     # ("the exit round must read found: 0, fixed: 0") anywhere after the ledger — the same
     # LAST-match class the mega grammar was hardened against three times, alive in the
     # everyday grammar next door (round-7 closing sweep, reproduced against check_file).
-    ledger_lines = [
-        ln for ln in text.splitlines()
-        if re.match(r"^\s*\|", ln) or re.match(r"^\**Pass\s*\d", ln, re.I)
-    ]
-    ledger_text = "\n".join(ledger_lines)
-    rows_with_both = re.findall(r"found:\s*(\d+)\s*(?:,|·|\|)?\s*fixed:\s*\d+", ledger_text)
-    founds = rows_with_both or re.findall(r"found:\s*(\d+)", ledger_text)
+    # ONE extraction contract with the mega grammar (_ledger_shapes): fence-stripped, and only
+    # LEDGER-SHAPED lines count — a cell-anchored counter row or a Pass-labelled line. Round 9
+    # defeated the previous scan three ways (a checklist evidence cell "audit found: 0, fixed: 0"
+    # after the ledger; a FENCED example Pass-line; the same two against the committed scan) —
+    # all because this path and the mega path were hardened separately. They no longer are.
+    _, _, ordered_rows = _ledger_shapes(text)
+    founds = [str(f) for f, _x, _ln in ordered_rows]
     if founds and int(founds[-1]) != 0 and not blocked_ok and not IN_PROGRESS.search(text):
         errs.append(
             f"final ledger round raised {founds[-1]} (refuted counts as found) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
@@ -252,7 +252,6 @@ _MEGA_HASH_PAIR = re.compile(rf"({_MEGA_HEX})\s*(?:→|->)\s*({_MEGA_HEX})")
 # contiguous table that contains any such row. v2 matched counter rows ANYWHERE, so a later
 # `## Per-lens tally` table with a quiet row silently became "the final round", masking a
 # non-quiet exit — the LAST-match defect's THIRD appearance in this file, one table over.
-_MEGA_ROW = re.compile(r"^\s*\|.*?found:\s*(\d+).*?fixed:\s*(\d+).*$")
 _MEGA_SURFACE = re.compile(rf"^\**Surface:\**\s*({_MEGA_HEX})\b", re.M)  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
@@ -263,45 +262,65 @@ def _strip_fences(text: str) -> str:
     return _FENCE.sub("", text)
 
 
-def _mega_ledger_rows(body: str) -> list[tuple[int, int, str]] | None:
-    """The round ledger's counter rows — by a UNIQUENESS contract, not label matching.
+# CELL-ANCHORED: the counters must be their own table cells (`| found: N | fixed: M |`), exactly
+# as the template writes them. A prose phrase inside ONE evidence cell ("review found: 3 issues,
+# fixed: 3 before merge") no longer reads as a counter row — that false-positive rejected an
+# honest converged report as "ambiguous" (round-9 closing sweep, reproduced).
+_MEGA_ROW = re.compile(r"^\s*\|.*?\|\s*found:\s*(\d+)\s*\|\s*fixed:\s*(\d+)\s*\|")
+# A Pass-ANCHORED prose counter line ("Pass 2: found: 0, fixed: 0"). The everyday grammar's
+# native shape — and, inside a MEGA report, a decoy vector: hide the real non-quiet history in
+# prose and let a quiet table be the only table (round-9 finding 1).
+_PASS_LINE = re.compile(r"^\s*\|?\s*\**Pass\s*\d.*?found:\s*(\d+).*?fixed:\s*(\d+)", re.I)
 
-    Three generations of label/position heuristics each lost a text-matching arms race
-    (whole-text scan → first table → Rounds-label anchor; every round of review defeated the
-    current one with a decoy the heuristic mis-selected). The structural end of that race:
-    **the report may contain exactly ONE counter table.** Prose cannot match (table lines
-    only); a decoy cannot win selection (there is no selection); adding a decoy — before,
-    after, or glued — makes the report FAIL LOUDLY as ambiguous instead of quietly
-    mis-reading. Returns None for "more than one table" (a distinct error from zero rows).
 
-    Separator rows (dashes/colons/pipes only) are skipped WITHIN a table rather than ending
-    it — a stray copy/paste separator between two real rounds was dropping every later round
-    and failing a converged report for the wrong reason.
+def _ledger_shapes(
+    text: str,
+) -> tuple[list[list[tuple[int, int, str]]], list[tuple[int, int, str]], list[tuple[int, int, str]]]:
+    """ONE extraction contract for every ledger reader in this file.
+
+    Returns (counter TABLES, prose PASS-lines) from fence-stripped text. Nine review rounds of
+    this file's own history are condensed here: THREE parallel ledger-reading implementations
+    (the mega grammar, check_file, the committed advisory) were each hardened separately, and
+    every closing sweep found the newest hardening absent from a sibling path — the loop's
+    stall circuit-breaker finally named the triple implementation itself as the foundation
+    error. Every reader now consumes THIS function; a hardening lands once or not at all.
+
+    Shapes: a counter TABLE is a contiguous run of cell-anchored rows (separator rows skipped
+    in-table; any other line ends it). A PASS-line is a Pass-anchored line carrying both
+    counters — matched even when written as a table row (`| Pass 1 | … |`), in which case it is
+    counted in its table, not double-counted as prose.
     """
+    body = _strip_fences(text)
     tables: list[list[tuple[int, int, str]]] = []
+    prose: list[tuple[int, int, str]] = []
+    ordered: list[tuple[int, int, str]] = []
     current: list[tuple[int, int, str]] = []
     for line in body.splitlines():
         stripped = line.strip()
         if stripped.startswith("|"):
             if re.fullmatch(r"[|\-: ]+", stripped):
                 continue  # separator row — never data, never a boundary
-            m = _MEGA_ROW.match(line)
+            m = _MEGA_ROW.match(line) or _PASS_LINE.match(line)
             if m:
-                current.append((int(m.group(1)), int(m.group(2)), line))
+                row = (int(m.group(1)), int(m.group(2)), line)
+                current.append(row)
+                ordered.append(row)
                 continue
-            # a pipe line that is NOT a counter row (another table's header, a lens row):
-            # ends the current counter table if one was open
             if current:
                 tables.append(current)
                 current = []
-        elif current:
-            tables.append(current)
-            current = []
+        else:
+            if current:
+                tables.append(current)
+                current = []
+            m = _PASS_LINE.match(line)
+            if m:
+                row = (int(m.group(1)), int(m.group(2)), line)
+                prose.append(row)
+                ordered.append(row)
     if current:
         tables.append(current)
-    if len(tables) > 1:
-        return None
-    return tables[0] if tables else []
+    return tables, prose, ordered
 
 
 def epics_set_hash(root: Path) -> str | None:
@@ -360,7 +379,19 @@ def check_mega_validation(
             "the Step-3 anti-cheat (`find docs/development/epics -name '*.md' … | md5sum`), "
             "untruncated; `TBD`, prose, or a truncated stub do not anchor anything"
         )
-    rows = _mega_ledger_rows(body)
+    tables, prose_rows, _ = _ledger_shapes(text)
+    rows: list[tuple[int, int, str]] | None
+    if prose_rows and tables:
+        errs.append(
+            "counter lines exist OUTSIDE the ledger table (Pass-style prose alongside a table) — "
+            "in a mega report the table is the ONLY sanctioned ledger shape, and prose counters "
+            "next to it are how a real non-quiet history hides behind a quiet decoy table"
+        )
+        rows = None
+    elif len(tables) > 1:
+        rows = None
+    else:
+        rows = tables[0] if tables else list(prose_rows)
     if rows is None:
         # NOT an early return: that bypassed the scope filter below, so the committed advisory
         # leaked full-obligation errors for ambiguous reports (narrowness breach) — and routing
@@ -435,7 +466,7 @@ def check_mega_validation(
         # docstring): only the exit-round conditions. Everything else — Surface presence, hash
         # length, round minimums, placeholders — stays a blocking-path obligation, or the
         # advisory nags every historical report forever and gets muted.
-        keep = ("final ledger round reads", "hashes moved", "MORE THAN ONE")
+        keep = ("final ledger round reads", "hashes moved", "MORE THAN ONE", "OUTSIDE the ledger table")
         errs = [e for e in errs if any(k in e for k in keep)]
     return errs
 HANDOFF_ROW = re.compile(r"^\s*[-*]?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M)
@@ -517,11 +548,8 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             continue
         if BLOCKED_HEAD.search(text):
             continue
-        ledger_text = "\n".join(
-            ln for ln in text.splitlines()
-            if re.match(r"^\s*\|", ln) or re.match(r"^\**Pass\s*\d", ln, re.I)
-        )
-        rows = re.findall(r"found:\s*(\d+)\s*(?:,|·|\|)?\s*fixed:\s*\d+", ledger_text)
+        _, _, ordered_rows = _ledger_shapes(text)
+        rows = [str(f) for f, _x, _ln in ordered_rows]
         if rows and int(rows[-1]) != 0:
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round (found: {rows[-1]}) "

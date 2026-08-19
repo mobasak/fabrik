@@ -376,3 +376,61 @@ def test_committed_ambiguous_report_surfaces_in_the_advisory(repo: Path) -> None
     assert not any("no `Surface:` line" in ln for ln in out.splitlines()), (
         "full-obligation errors leaked past the committed scan's narrowness"
     )
+
+
+def test_prose_pass_lines_beside_a_table_are_refused_in_a_mega_report(repo: Path) -> None:
+    """Round-9 defeat 1: hide the real non-quiet history in Pass-prose, let a quiet decoy be
+    the only table. Both shapes present = provenance ambiguity = refusal."""
+    h = _shell_hash(repo)
+    body = _report(h).replace(
+        "Rounds:",
+        f"Pass 1: found: 9, fixed: 0, hashes {'b' * 32} → {h}\n"
+        f"Pass 2: found: 0, fixed: 0, hashes {h} → {h}\n\nRounds:",
+        1,
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1, "prose counters beside the table must be refused"
+    assert "OUTSIDE the ledger table" in out
+
+
+def test_checklist_evidence_cell_cannot_mask_a_nonquiet_everyday_ledger(repo: Path) -> None:
+    """Round-9 defeat 2: '| fail-open | CLEAN | audit found: 0, fixed: 0 issues |' after the
+    real ledger won LAST-match. Cell-anchoring excludes in-cell prose counters."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Pass Ledger\nPass 1: found: 3, fixed: 1\nPass 2: found: 2, fixed: 0\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | audit found: 0, fixed: 0 issues in scripts/x.py |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary2-review.md", body)
+    assert rc == 1, "an evidence cell masked the non-quiet ledger"
+    assert "raised 2" in out
+
+
+def test_fenced_pass_line_cannot_be_the_final_round(repo: Path) -> None:
+    """Round-9 defeat 3: an appendix example in a code fence counted as the real exit round."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Pass Ledger\nPass 1: found: 3, fixed: 1\nPass 2: found: 2, fixed: 0\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
+        "Appendix — example format:\n```\nPass 3: found: 0, fixed: 0\n```\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary3-review.md", body)
+    assert rc == 1, "a fenced example Pass-line silenced the real non-quiet exit"
+    assert "raised 2" in out
+
+
+def test_evidence_cell_counters_do_not_make_an_honest_mega_report_ambiguous(repo: Path) -> None:
+    """Round-9 defeat 4 (false-fail): '| Epic 1 | PASS | review found: 3 issues, fixed: 3 |'
+    is prose inside ONE cell, not a counter row — an honest report must still pass."""
+    h = _shell_hash(repo)
+    body = _report(h) + (
+        "\n## Epic Tickets: PASS — per-epic verdict\n"
+        "| epic | verdict | evidence |\n|---|---|---|\n"
+        "| Epic 1 | PASS | structural review found: 3 issues, fixed: 3 before merge |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 0, out
