@@ -219,11 +219,20 @@ def _swallowed_checklist(raw: str) -> bool:
     """
     if _checklist_section(raw) is not None:
         return False
-    if not any(
-        CHECKLIST_HEAD.match(h.group(0)) for h in re.finditer(r"^#{1,4} .*$", raw, re.M)
-    ):
+    # POSITION-ANCHORED, the cert floor's discriminator (round 40) ported verbatim in shape —
+    # round 45 reproduced the raw-text version false-BLOCKING an honest how-to doc whose only
+    # "heading" lived in a BALANCED quoted fence, because any unrelated dangling opener
+    # elsewhere completed the trigger. Only a heading genuinely BELOW the dangling opener
+    # (i.e. in the region the fenced-to-EOF rule swallows) is the defect.
+    balanced_stripped = _FENCE.sub("", raw)
+    dangling = re.search(r"^```", balanced_stripped, re.M)
+    if not dangling:
         return False
-    return bool(re.search(r"^```", _FENCE.sub("", raw), re.M))
+    swallowed_region = balanced_stripped[dangling.start():]
+    return any(
+        CHECKLIST_HEAD.match(h.group(0))
+        for h in re.finditer(r"^#{1,4} .*$", swallowed_region, re.M)
+    )
 
 
 def check_file(p: Path) -> list[str]:

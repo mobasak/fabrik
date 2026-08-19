@@ -854,3 +854,17 @@ def test_fenced_surface_example_does_not_satisfy_the_obligation(repo: Path) -> N
     rc, out = _gate(repo, "2026-08-20-fencedsurf-review.md", body)
     assert rc == 1, "a fenced Surface example satisfied the obligation"
     assert "Surface" in out
+
+
+def test_unrelated_dangling_fence_does_not_false_fire_the_floor(repo: Path) -> None:
+    """Round-45: a balanced-fenced heading quote + an unrelated dangling transcript fence
+    false-BLOCKED a doc that owes nothing — the floor now position-anchors like cert's."""
+    body = (
+        "# How to write a review — internal documentation\n\n"
+        "Example of the required section format:\n```\n## Coverage Checklist\n\n"
+        "| Class | Verdict | Evidence |\n|---|---|---|\n| example | UNCHECKED |  |\n```\n\n"
+        "That is all this doc contains.\n\n"
+        "Appendix — pasted terminal session (fence deliberately unclosed):\n```\n$ ls\nfoo.txt\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-howto3-review.md", body)
+    assert rc == 0, f"an unrelated dangling fence false-fired the floor: {out}"
