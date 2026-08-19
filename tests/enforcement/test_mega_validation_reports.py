@@ -434,3 +434,56 @@ def test_evidence_cell_counters_do_not_make_an_honest_mega_report_ambiguous(repo
     )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 0, out
+
+
+def test_narrative_counters_in_a_cell_cannot_swap_the_real_values(repo: Path) -> None:
+    """Round-11 defeat 1, both directions: lazy capture let 'sample found: 0 clean' mask a real
+    found: 4, and 'previously found: 6 stray' flag a quiet round. Token-anchoring kills both;
+    a line with two strict tokens is not an honest row and goes inert."""
+    base = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 3, fixed: 1\n{row}\n"
+    )
+    masked = base.format(
+        row="| Pass 2 | WIDE (triage sample found: 0 clean, full sweep) found: 4 · fixed: 0 | finder |"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary4-review.md", masked)
+    assert rc == 1, "the decoy 'found: 0' masked the real found: 4"
+    (repo / "docs/development/reviews/2026-08-19-ordinary4-review.md").unlink()
+
+    false_flag = base.format(
+        row="| Pass 2 | WIDE (previously found: 6 stray before triage) found: 0 · fixed: 0 | finder |"
+    )
+    rc, out = _gate(repo, "2026-08-19-ordinary5-review.md", false_flag)
+    assert rc == 0, f"a genuinely quiet round was false-flagged: {out}"
+
+
+def test_unclosed_fence_does_not_leak_examples_into_the_ledger(repo: Path) -> None:
+    """Round-11 defeat 2: a forgotten closing fence made a quoted example the final round
+    (everyday) and a phantom second table (mega, false ambiguity)."""
+    h = _shell_hash(repo)
+    body = _report(h) + (
+        "\nAppendix — example format (fence deliberately unclosed):\n```\n"
+        "| r | found: | fixed: | hashes |\n|---|---|---|---|\n"
+        f"| 9 | found: 5 | fixed: 0 | {h} → {h} |\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 0, f"an unclosed-fence example produced a phantom table: {out}"
+
+
+def test_prose_only_ledger_is_not_a_mega_ledger(repo: Path) -> None:
+    """Round-11 defeat 3: a mega report with NO table passed every check off pure prose —
+    the shape that is exempt from cell-anchoring by construction."""
+    h = _shell_hash(repo)
+    body = (
+        "# Cross-Epic Validation Report\n"
+        f"Surface: {h}\n\n"
+        f"Pass 1: found: 7, fixed: 6\nPass 2: found: 0, fixed: 0\n\n"
+        "## Overall: PASS\n"
+    )
+    rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+    assert rc == 1, "a prose-only ledger satisfied the mega grammar"
+    assert "only as Pass-style prose" in out or "ledger table records 0" in out

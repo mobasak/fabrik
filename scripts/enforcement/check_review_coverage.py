@@ -259,7 +259,17 @@ _FENCE = re.compile(r"^```.*?^```\s*$", re.M | re.S)
 
 
 def _strip_fences(text: str) -> str:
-    return _FENCE.sub("", text)
+    stripped = _FENCE.sub("", text)
+    # An UNCLOSED fence (the closer forgotten — the mega template's own doc does this when
+    # quoting examples) left the "fenced" example as LIVE text: round-11 reproduced a phantom
+    # second table (false ambiguity on an honest report) and a fenced example row becoming the
+    # final round. A remaining opener is by construction unmatched — treat it as fenced-to-EOF:
+    # content after it is quoted material, never live ledger. Fail-closed: an honest ledger
+    # placed BELOW an unclosed fence reads as absent (loud), not as whatever the example says.
+    m = re.search(r"^```", stripped, re.M)
+    if m:
+        stripped = stripped[: m.start()]
+    return stripped
 
 
 # CELL-ANCHORED: the counters must be their own table cells (`| found: N | fixed: M |`), exactly
@@ -267,10 +277,27 @@ def _strip_fences(text: str) -> str:
 # fixed: 3 before merge") no longer reads as a counter row — that false-positive rejected an
 # honest converged report as "ambiguous" (round-9 closing sweep, reproduced).
 _MEGA_ROW = re.compile(r"^\s*\|.*?\|\s*found:\s*(\d+)\s*\|\s*fixed:\s*(\d+)\s*\|")
-# A Pass-ANCHORED prose counter line ("Pass 2: found: 0, fixed: 0"). The everyday grammar's
-# native shape — and, inside a MEGA report, a decoy vector: hide the real non-quiet history in
-# prose and let a quiet table be the only table (round-9 finding 1).
-_PASS_LINE = re.compile(r"^\s*\|?\s*\**Pass\s*\d.*?found:\s*(\d+).*?fixed:\s*(\d+)", re.I)
+# A Pass-ANCHORED counter line ("Pass 2: found: 0, fixed: 0" / "| Pass 1 | … |"). The counters
+# are TOKEN-anchored, not lazily scanned: round-11 reproduced both failure directions of the
+# lazy version — a narrative phrase "sample found: 0 clean" earlier in the cell masked the real
+# "found: 4" (quiet-forgery), and "previously found: 6 stray" flagged a genuinely quiet round
+# (false-fail); "attempted-fixed: 2" swapped the fixed count. A token must stand alone
+# (no word/hyphen prefix; a separator or EOL after the number), and a line with more than one
+# strict token of either kind is not an honest single-round row — it is IGNORED, so a crafted
+# decoy goes inert instead of winning the parse.
+_PASS_HEAD = re.compile(r"^\s*\|?\s*\**Pass\s*\d", re.I)
+_FOUND_TOK = re.compile(r"(?<![\w-])found:\s*(\d+)(?=\s*(?:[·,;|)]|$))", re.M)
+_FIXED_TOK = re.compile(r"(?<![\w-])fixed:\s*(\d+)(?=\s*(?:[·,;|)]|$))", re.M)
+
+
+def _pass_counters(line: str) -> tuple[int, int] | None:
+    if not _PASS_HEAD.match(line):
+        return None
+    founds = _FOUND_TOK.findall(line)
+    fixeds = _FIXED_TOK.findall(line)
+    if len(founds) != 1 or len(fixeds) != 1:
+        return None
+    return int(founds[0]), int(fixeds[0])
 
 
 def _ledger_shapes(
@@ -300,9 +327,11 @@ def _ledger_shapes(
         if stripped.startswith("|"):
             if re.fullmatch(r"[|\-: ]+", stripped):
                 continue  # separator row — never data, never a boundary
-            m = _MEGA_ROW.match(line) or _PASS_LINE.match(line)
-            if m:
-                row = (int(m.group(1)), int(m.group(2)), line)
+            m = _MEGA_ROW.match(line)
+            pc = _pass_counters(line) if m is None else None
+            if m or pc:
+                pair = (int(m.group(1)), int(m.group(2))) if m else pc
+                row = (pair[0], pair[1], line)
                 current.append(row)
                 ordered.append(row)
                 continue
@@ -313,9 +342,9 @@ def _ledger_shapes(
             if current:
                 tables.append(current)
                 current = []
-            m = _PASS_LINE.match(line)
-            if m:
-                row = (int(m.group(1)), int(m.group(2)), line)
+            pc = _pass_counters(line)
+            if pc:
+                row = (pc[0], pc[1], line)
                 prose.append(row)
                 ordered.append(row)
     if current:
@@ -390,8 +419,15 @@ def check_mega_validation(
         rows = None
     elif len(tables) > 1:
         rows = None
+    elif prose_rows and not tables:
+        errs.append(
+            "the ledger exists only as Pass-style prose — counter lines OUTSIDE the ledger table "
+            "are not a ledger. In a mega report the TABLE is the only sanctioned shape (prose is "
+            "exempt from cell-anchoring by construction, which is exactly where the decoy lives)"
+        )
+        rows = None
     else:
-        rows = tables[0] if tables else list(prose_rows)
+        rows = tables[0] if tables else []
     if rows is None:
         # NOT an early return: that bypassed the scope filter below, so the committed advisory
         # leaked full-obligation errors for ambiguous reports (narrowness breach) — and routing
