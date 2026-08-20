@@ -43,13 +43,17 @@
 - **cron:** youtube `recovery_sweep` + `start_all.sh ensure` (every 5 min), youtube RAG indexing
   (`rag_claim_index` hourly, `rag_claim_embed_index` hourly, `rag_daily_index` daily) + logrotate/job-prune
   (daily 04:00/04:05) + financials (weekly), fabrik audits (`audit_all_registrars` hourly,
-  `audit_authelia_gates` Mon 06:00), `ci_fix_dispatcher` (hourly :40), `sync-claude-accounts-to-fleet`
+  `audit_authelia_gates` weekly via the wake-proof `weekly_catchup.sh` hourly stamp-check at :07),
+  `ci_fix_dispatcher` (hourly :40), `sync-claude-accounts-to-fleet`
   (every 6 h), `daily_refresh.sh` (06:00) + `kilo_model_sync` (11:59), DR (`dr_env_backup` 03:30 + Sun 04:00
   recovery test), `cache-prune.sh` (Sun 03:00), calendar-orchestration (Sun 02:00), site-provisioner
   watchlist/drop-feed/dns-recheck, trade-intelligence GTIP refresh (05:30), headless-Claude session prune (05:17),
   Claude account rotation (`claude_rotate --tick` every 5 min; `--keepalive` Mon 06:20), quota dashboard
   (`quota_dashboard --ensure` @reboot + every 10 min, serves localhost:5051), kaizen measurement
-  (`kaizen_metrics --once` Mon 06:45 — after the keepalive + fleet doc audit; `docs/workstation/kaizen.md`)
+  (DAILY since the M1 cutover 2026-08-20: `weekly_catchup.sh kaizen_collect_v2.py` collector +
+  `weekly_catchup.sh kaizen_outcomes.py` nightly fleet-health sweep, both hourly stamp-checks that
+  fire once per day — crontab lines pending the operator's post-wipe crontab restore; the weekly
+  `kaizen_metrics.py` is retired to `scripts/sysadmin/archived/` — `docs/workstation/kaizen.md`)
 - **timers:** `proxy_sync`, `ip_authorization`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
   (+ stock `apt-daily*`, `man-db`, `motd-news`, `systemd-tmpfiles-clean`, `e2scrub_all`)
 

@@ -58,7 +58,7 @@ Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer
 | T06 | collector v2: derived-facts store + versioned metrics + paired-counter registry | T01, T02, T03, T04, T05 | — | ✅ | 4-round acceptance (5+3+4+4 native findings incl. 2 SEVERE double-count classes), all red-proven; merged (squash of d2b0223f+783a41e8+d7b95780+aa66b450+eb6fc946) |
 | T07 | outcome tier: rework miner + fleet-health sweep + premature-stop | T06 | ⚡ | ✅ | 3-round acceptance (7+6→0 native findings, 4 confirmed live-reproduced), all red-proven; merged (squash of 1f94cb4d+9fa1b454+1223a59a) |
 | T08 | noise-floor backfill + variance report | T06 | ⚡ | ✅ | 2-round acceptance (5→4 doc/perf, 0 functional survivors), ownership-law fix recovered 59 orphans; merged (squash of d9e11145+5374447e+279f9171 + 2 docstring folds) |
-| T09 | integration: daily cutover, kaizen_metrics retirement, docs, receipts | T07, T08 | — | ⬜ | |
+| T09 | integration: daily cutover, kaizen_metrics retirement, docs, receipts | T07, T08 | — | ✅ | 2-round acceptance (5→4, functional 0 at close), retirement trap defused, live --daily smoke + idempotence proven; merged (squash of f21bdae6+7f29344c + doc folds) |
 
 ## Merge Order
 

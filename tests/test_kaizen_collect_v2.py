@@ -1150,6 +1150,62 @@ def test_first_ever_rows_emit_no_alarm(tmp_path: Path, monkeypatch: pytest.Monke
     ), "first-ever absences must not alarm"
 
 
+def _transcript_era_row(day: str, sid: str = "tr-legacy") -> dict:
+    """A T08 backfill row, verbatim shape (kaizen_backfill.derive_transcript_session):
+    every event-only field is the DASH string, never a dict."""
+    return {
+        "facts_version": kc.FACTS_VERSION,
+        "era": "transcript",
+        "sid": sid,
+        "day": day,
+        "derived_at": "2026-08-20T00:00:00+00:00",
+        "first_ts": None,
+        "last_ts": None,
+        "project": "fabrik",
+        "events": DASH,
+        "gate": DASH,
+        "runs": DASH,
+        "stop_causes": DASH,
+        "death_class": DASH,
+        "concurrent": None,
+        "concurrent_reason": "transcript era: concurrency is event-only",
+        "lines_total": 10,
+        "lines_unclassified": 2,
+        "unclassified_reasons": {"unparseable-json": 2},
+        "invocations": {"typed": {}, "skill": {}},
+    }
+
+
+def test_daily_excludes_transcript_era_rows(tmp_path: Path) -> None:
+    """T09 era filter (T08's standing finding): the real store holds era:"transcript"
+    rows whose day falls in the CURRENT week — daily()'s day/week row selection must
+    exclude every non-event-era row, or compute_metrics crashes on their dash strings
+    ('str' object has no attribute 'get')."""
+    day = dt.date.today()
+    st = tmp_path / "state"
+    st.mkdir(parents=True)
+    assert kc.append_facts([_transcript_era_row(day.isoformat())], st) == 1
+    rc, _, st_out, log = _green_daily(tmp_path, day)
+    assert rc == 0, "daily() must not crash on a transcript-era row in the day/week window"
+    assert st_out == st
+    # The transcript row stays in the store (read_rows still serves it for T08's
+    # report) but contributes to NO published metric input.
+    assert any(r.get("era") == "transcript" for r in kc.read_rows(state=st))
+    text = log.read_text(encoding="utf-8")
+    assert f"| {day.isoformat()} |" in text, "the kaizen-log row still lands"
+
+
+def test_predecessors_never_serve_a_transcript_era_baseline(tmp_path: Path) -> None:
+    """The delta seam's subtraction base is a published-day baseline; a transcript row
+    (dash-string fields, lines counted from prose) must never be one."""
+    st = tmp_path / "state"
+    st.mkdir(parents=True)
+    kc.append_facts([_transcript_era_row("2026-08-10", sid="s")], st)
+    assert kc.predecessors("2026-08-11", state=st) == {}, (
+        "a transcript-era row must not become a delta baseline"
+    )
+
+
 def test_malformed_log_row_preserved_verbatim(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

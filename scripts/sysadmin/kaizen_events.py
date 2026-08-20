@@ -125,6 +125,8 @@ EVENT_TYPES = (
     "death",
     "revival",
     "operator_override",
+    "fleet_health",
+    "instrument_alarm",
 )
 
 _exposure_cache: dict | None = None
@@ -270,7 +272,9 @@ def _probe_timeout(value: object) -> float:
         return DEFAULT_PROBE_TIMEOUT_S
 
 
-def _git(args: list[str], cwd: str | None = None, timeout: float = DEFAULT_PROBE_TIMEOUT_S) -> str | None:
+def _git(
+    args: list[str], cwd: str | None = None, timeout: float = DEFAULT_PROBE_TIMEOUT_S
+) -> str | None:
     """One git probe, fully guarded. ``None`` means "not measurable", never a guess.
 
     ``cwd`` is applied as ``git -C <dir>`` rather than a subprocess cwd: it needs no

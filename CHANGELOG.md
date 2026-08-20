@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — kaizen M1 T09: the daily cutover — v2 collector live, the v1 weekly meter retired (2026-08-21)
+
+The M1 loop is integrated: `kc.daily()` and the outcome-tier readers exclude T08's transcript-era
+rows (the dash-string crash class is dead at every seam), `fleet_health` + `instrument_alarm`
+joined the event vocabulary, and `weekly_catchup.sh` carries the two DAILY jobs
+(`kaizen_collect_v2.py --daily`, `kaizen_outcomes.py --sweep`) with a retired-key branch so the
+live crontab's old `kaizen_metrics.py` line nudges once a day instead of erroring hourly.
+`kaizen_metrics.py` is archived per the M0 operator ruling; the liveness registry re-points at the
+v2 surfaces (54h budgets, arithmetic stated). Live smoke: 341 real sessions derived, 3 series
+published, idempotent re-run. Docs converged (kaizen.md rewritten, event-stream schema finalized,
+14-metric registry table). The two crontab LINES ride the operator's pending post-wipe restore;
+the M1→M2 7-day gate clock starts at the first cron-driven daily run.
+
 ### Added — kaizen M1 T08: the noise floor — 11k historical sessions backfilled, variance before adjudication (2026-08-20)
 
 `scripts/sysadmin/kaizen_backfill.py` walks the pre-event transcript corpus once (11,270 files →

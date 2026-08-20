@@ -1,181 +1,139 @@
-# Kaizen — the weekly continuous-improvement loop (measurement half + analysis half)
+# Kaizen — the continuous-improvement loop (daily measurement half + analysis half)
 
 The roles spec (`docs/superpowers/specs/2026-08-12-hub-agent-roles-design.md` § Continuous
-improvement) makes a weekly kaizen pass **binding for infra and fleet**. It shipped the charters
-and the two empty log tables, then left the cadence trigger as an open item — so between
-2026-08-12 and 2026-08-16 the pass ran **zero times** and both logs still held only their
-baseline row of em-dashes. A binding rule with no mechanism is documentation, not enforcement.
-
-This page describes the mechanism that closes it.
+improvement) makes the kaizen pass **binding for infra and fleet**. M0 (2026-08-19) shrank the
+governance surface it measures; M1 (2026-08-20) replaced the prose-reading weekly meter with a
+**typed event stream + a daily collector**: sensors emit one JSON line at the moment a thing
+happens, and the collector reads events instead of guessing at transcripts. The stream schema,
+emitter laws and the full metric registry live in `docs/workstation/kaizen-event-stream.md`.
 
 ## The split: measurement is mechanical, analysis is not
 
 | Half | Who runs it | Cost | What it produces |
 |---|---|---|---|
-| **Measurement** | `scripts/sysadmin/kaizen_metrics.py`, from cron | stdlib-only, no agent, **no Claude quota** | one row per role in the kaizen logs + a hand-off mail |
+| **Measurement** | `scripts/sysadmin/kaizen_collect_v2.py --daily` + `scripts/sysadmin/kaizen_outcomes.py --sweep`, from cron | stdlib-only, no agent, **no Claude quota** | derived facts + versioned metric series daily, one kaizen-log row per role weekly, a hand-off mail |
 | **Analysis** | the infra / fleet agent, ≤90 min timebox | one Claude session | the `Top friction fixed` + `Filed` cells, and the fixes behind them |
 
 The rule that shapes everything here: **never spend Claude quota to produce a number a script
-can compute.** Three of four accounts sit near their weekly wall most weeks; a pass that burns a
-session counting review rounds is a pass that will not run. The cron measures; the agent thinks.
+can compute.** The cron measures; the agent thinks.
 
-## What runs, and when
+## What runs, and when (M1 cutover, 2026-08-20)
 
 ```
-27 * * * * flock -n $HOME/.claude/state/weekly-kaizen.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_metrics.py >> $HOME/.claude/kaizen.log 2>&1
+27 * * * * flock -n $HOME/.claude/state/daily-kaizen-collect.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_collect_v2.py >> $HOME/.claude/kaizen.log 2>&1
+41 * * * * flock -n $HOME/.claude/state/daily-kaizen-sweep.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_outcomes.py >> $HOME/.claude/kaizen-sweep.log 2>&1
 ```
 
-**Wake-proof weekly via the hourly catch-up runner** (M0 shrink ruling 2026-08-19): the former
-fixed Monday-06:45 slot was silently slept through whenever the host hibernated through Monday
-morning (cron has no catch-up; the 2026-08-17 week was lost, the census read the cron as DEAD).
-`scripts/sysadmin/weekly_catchup.sh` checks a success stamp hourly and runs the measurement only
-when ≥ ~1 week has passed — the weekly cadence survives any sleep pattern, and a missed week
-catches up within an hour of the box waking. The sibling weekly jobs
-(`fleet_doc_audit.py --commit` at :17, `audit_authelia_gates.py` at :07) ride the same runner.
-The measurement window is the **7 days ending on the run date**; ISO-week idempotence (below)
-makes the exact weekday of the catch-up run irrelevant.
+Both ride the **wake-proof stamp-check runner** (`scripts/sysadmin/weekly_catchup.sh`, M0 shrink
+ruling): the cron fires hourly, the runner runs the job only when its success stamp is older than
+the job's period (1 day for these two; the sibling audit jobs stay weekly), and the stamp is
+touched only on success — a night the box hibernated through is caught up within an hour of
+waking, and a failing job retries hourly with every attempt in the log. The retired weekly meter
+`kaizen_metrics.py` lives in `scripts/sysadmin/archived/` (operator ruling, M0); its old
+`weekly_catchup.sh kaizen_metrics.py` crontab line is replaced by the two lines above.
 
-## Modes
+### The daily collector pass (`kaizen_collect_v2.py --daily`)
 
-| Mode | Effect |
-|---|---|
-| `--once` | measure, upsert one row per role, then mail the analysis half. The cron mode. |
-| `--dry-run` | print the row that *would* be written. Touches nothing. |
-| `--report` | print both current tables. |
+One pass per day, default day = **yesterday** (a session is consolidated on the day its record is
+complete). In order:
 
-Useful flags: `--date <ISO>` (measure as of another day), `--no-mail` (skip the hand-off),
-`--repo-root` / `--sound-log` (redirect the sources; the tests use them).
+1. **Golden gate** — the hand-labelled corpus (`tests/fixtures/kaizen-golden/`) must derive to
+   its expected counts, or the run refuses: exit non-zero, `instrument_alarm` event, NOTHING
+   published, the log row rendered all `—`. Instrument health is metric zero.
+2. **Derive** — each session file whose mtime falls on the day becomes one row in the append-only
+   derived-facts store (`~/.claude/state/kaizen/derived-facts.jsonl`, keyed
+   `(sid, facts_version, day)`). Torn lines are counted with a reason, never crashed on.
+3. **Publish** — per-day deltas (a grown file never re-counts earlier days) append to the
+   versioned series files (`~/.claude/state/kaizen/series/<metric>@v<N>.jsonl`).
+4. **Log row + mail** — the ISO-week row is upserted into both role logs and the metrics mail
+   goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
+   never the row).
 
-## The metrics — which are real, which are `—`, and why
+Metric inputs are **event-era only**: T08's backfill shares the store with `era: "transcript"`
+rows (every event-only field an honest `—`), and `daily()` excludes them from its day/week
+selection and delta baselines (the T09 era filter). Useful flags: `--day <ISO>`, `--no-mail`,
+`--golden-check`, `--selftest`.
 
-The spec pins five. **Only two have a real source today.** The other three are written as `—`
-with the reason emitted to stderr (so it lands in `~/.claude/kaizen.log`) and carried in the
-hand-off mail.
+### The nightly sweep (`kaizen_outcomes.py --sweep`) — runbook
 
-This is the load-bearing rule of the whole subsystem: **a wrong metric is worse than an absent
-one, because it silently ends the investigation it should have started.** There are no
-estimates, no proxies wearing another metric's name, and no plausible-looking placeholders.
+For each project in `KAIZEN_SWEEP_PROJECTS` (comma list, default `fabrik` — config, never
+heuristic discovery), the sweep clones HEAD into a temp dir (`git clone --shared` — the live tree
+is never executed in) and runs **install-less** checks under a per-project
+`KAIZEN_SWEEP_TIMEOUT_S` budget (default 300 s): `compileall`, pytest via the project's OWN
+existing `.venv`, `final_gate.py --check` where synced. Timeout / no venv / no tests / node
+project → honest `—` with the reason. Each project emits one `fleet_health` event; the report
+line reads `swept n/N — the rest —`. Sibling modes for the analyst: `--rework` (git-mined rework
+rate across `/opt/*`, `KAIZEN_REWORK_DAYS` window) and `--stops` (session-level premature-stop
+read from the derived-facts rows).
 
-| Column | Status | Source / reason |
+## The kaizen-log row — which cells are real now
+
+Same eight columns as before (the daily upsert must not reshape the shipped tables); the
+mechanical cells are computed over the ISO week's event-era rows:
+
+| Column | Status | Source |
 |---|---|---|
-| Gate first-pass rate | `—` | **Nothing records gate runs.** `final_gate.py --post-kilo` would write `.droid/gate_issues.jsonl`; that file has never existed, and no hook keeps a pass/fail record. A *rate* also needs a denominator of gate RUNS, which nothing counts — so even if the issues file appeared, it would not suffice. |
-| Death-classes /wk | **real** | `~/.claude/sound-debug.log`, `event=StopFailure` lines. Each carries the decider's death class as `error=<class>` (`rate_limit`, `authentication_failed`, `server_error`, `invalid_request`, …). Reported as `<occurrences> occ / <distinct classes> cls`; the per-class breakdown rides the mail. |
-| Lesson-class recurrence | `—` | `docs/LESSONS_LEARNT.md` entries carry **no class tag** — the headings are free prose. Recurrence needs semantic clustering, which *is* the analysis half's job. The countable context (entry count, in-window date stamps) goes in the mail instead of the column. |
-| Review rounds /plan | **real** | `docs/development/reviews/*.md`, windowed by the filename date. See below. |
-| Missed crons | **real** (since 2026-08-16) | `scripts/sysadmin/liveness_audit.py --json`, heartbeat proof — `DEAD/(LIVE+DEAD)` over the registered scheduled surfaces. The spec's cron-miss LOG still does not exist and never will (the per-job logs are untimestamped appends, so run *counts* are not reconstructible), but the question behind the metric is answerable another way: did each registered surface produce evidence inside its own budget? ⚠️ The audit has THREE states, and an **UNKNOWN is an instrument failure, not a miss** — UNKNOWNs are excluded from BOTH halves of the fraction and named in the mail. All-UNKNOWN yields a `—` naming the faults. See `docs/workstation/liveness.md`. |
+| Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed `gate_run` succeeded, from `gate_run` events. |
+| Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. |
+| Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
+| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. |
+| Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
+| Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 
-Each verdict is re-derived at run time, never hardcoded — the day a gate-run ledger starts
-existing, the `Gate first-pass rate` reason changes on its own.
+**Idempotence** — the row is keyed by ISO week: a same-week re-run updates that week's row;
+mechanical cells win, but a cell the script would write as `—` yields to whatever a human/agent
+put there. On a golden refusal the mechanical cells are stamped `—` regardless while the analyst
+cells still survive. **A wrong metric is worse than an absent one** — unmeasurable renders `—`
+with its reason on stderr and in the mail, never a fabricated 0.
 
-### Reading `Review rounds /plan`
+## The noise floor and the M1→M2 gate
 
-Rendered as `4.4 (n=13/16)`: mean 4.4 rounds across the **13 in-window ledgers that carry a
-machine-readable round marker**, out of **16 in-window ledgers total**.
+`scripts/sysadmin/kaizen_backfill.py` walked the pre-event transcript corpus once
+(`era: "transcript"` rows in the same store) and writes the per-metric variance report —
+**`~/.claude/state/kaizen/noise-floor@v1.md`** (regenerate: `kaizen_backfill.py --report`).
+M2's adjudication reads the variance column: a change it cannot distinguish from that floor is
+Tuesday, not a signal.
 
-Two ledger dialects ship in `docs/development/reviews/`, and both are read:
-
-1. numbered headings — `## Round 3`, `### Round-2 REFUTED`, `## Round 7 (2026-08-15)`
-2. a round table — `| Round | Finder | … |` or `| Pass | scope | … |`, one body row per round
-
-Counting only headings would have scored the 16-round `2026-08-11-plan-2-stalled-midstream-resume`
-ledger as **0** and dragged the mean toward a comfortable lie. The per-ledger score is the
-**highest** round number reached.
-
-A ledger with neither marker is **not** scored as zero rounds — it had rounds, it just did not
-machine-mark them. It shrinks `n` instead, which is why the denominator is printed in the cell:
-a mean over 13 of 16 ledgers is a different claim from a mean over 16 of 16, and the reader can
-see which one they are getting. The measured set also skews toward loops disciplined enough to
-keep a ledger, so treat the number as a **floor**.
-
-## Reading a row
-
-```
-| Date | Gate first-pass rate | Death-classes /wk | Lesson-class recurrence | Review rounds /plan | Missed crons | Top friction fixed | Filed (spec/mail) |
-| 2026-08-17 | — | 430 occ / 4 cls | — | 4.4 (n=13/16) | — | — | — |
-```
-
-- `Date` — the run date; the window is the 7 days ending there.
-- The five metric cells — the script's, rewritten on every same-week run.
-- `Top friction fixed` / `Filed (spec/mail)` — **the analyst's**. The script only ever writes `—`
-  there, and a re-run never stamps your text back to `—` (see idempotence).
-
-## Idempotence
-
-The row is keyed by **ISO week**. Monday's cron appends; any further run in the same ISO week
-**updates that week's row** rather than appending a second one, so a manual re-run cannot
-double-count a week.
-
-On a same-week update, mechanical cells are recomputed and win — but a cell the script would
-write as `—` yields to whatever is already there. If the analyst hand-counted a gate rate, or
-filled `Top friction fixed`, the Monday-plus-one re-run preserves it. The mechanical half must
-never destroy the analytical half's output.
+**The M1→M2 gate is calendar time, not execution time:** M2 opens only after (a) **7 days of
+daily event collection** from the cutover's first daily cron run (the window START date is
+recorded in the plan spine's completion stamp), and (b) **variance sign-off** — the noise-floor
+report regenerated over those event-era days and reviewed against hand-counts. Neither is
+claimable at plan-execution end; the gate review is a named operator-triggered follow-up.
 
 ## How the analysis half is triggered
 
-After the row is on disk — **in that order; a mail failure must never cost the measurement** —
-the script sends one fabrik-mail per role:
-
-```
-python scripts/mail.py send --to fabrik --kind request
-```
-
-The body carries that week's row, the **deltas vs the previous row**, the grounding behind each
-measured cell, and every `—` with its reason. So the agent's ≤90-min pass opens with its input
-already gathered: it analyzes (recurrence × blast radius, evidence-cited), improves (≤30-min
-fixes land in-pass; larger become a spec or a mailed handoff), controls (every fix ships a
-regression guard) — then fills `Top friction fixed` and `Filed`.
-
-The mail is best-effort. A dead mail store costs the notification, not the row: the failure is
-reported on stderr with `ROW IS RECORDED` and the script exits 0.
-
-The three sessions share ONE `fabrik` mailbox, so `--to fabrik` reaches whichever session claims
-it first (ack-rename is the lock). Both role mails land in the same inbox; the body names the
-role in its title.
-
-## The `—` cells are the backlog
-
-They are not cosmetic gaps — each names a piece of missing instrumentation, and closing one is
-exactly the kind of ≤30-minute improvement the loop exists to produce:
-
-1. **Gate first-pass rate** needs `final_gate.py` (or the Stop hook) to append one line per run:
-   timestamp, mode, verdict. Then the rate is a two-line computation.
-2. **Lesson-class recurrence** needs a class tag on `docs/LESSONS_LEARNT.md` entries. Until then
-   it stays the analyst's judgement, and that is the correct home for it.
-
-**`Missed crons` closed on 2026-08-16** — not by building the cron-miss log the spec asked for (that
-one is genuinely unbuildable from untimestamped appends), but by asking the answerable version of the
-question. The liveness layer's heartbeat proof supplies it, and the mail now also carries mechanism
-health: inert gate checks, stale doc claims, and surfaces present on the box but absent from the
-registry. See `docs/workstation/liveness.md`.
+Unchanged from v1 in shape: after the row is on disk — in that order; a mail failure must never
+cost the measurement — the collector mails the metrics with every `—` reason to the shared
+`fabrik` mailbox (`scripts/mail.py send --to fabrik --kind request`; ack-rename is the claim
+lock). The agent's ≤90-min pass opens with its input gathered: analyze (recurrence × blast
+radius, evidence-cited), improve (≤30-min fixes land in-pass; larger become a spec or a mailed
+handoff), control (every fix ships a regression guard) — then fill `Top friction fixed` and
+`Filed`.
 
 ## M0 — the shrink audit (2026-08-19)
 
-The kaizen closed-loop v2 spec (`docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md`
-§ Sequencing) runs the SHRINK QUESTION first: before any meter is built, should ~203 governance
-artifacts and 57 checks become 60 and 20? `scripts/sysadmin/kaizen_shrink_audit.py --report`
-answers it with evidence — per artifact: invocations (BOTH channels, each keyed on JSON
-structure: typed `<command-name>` markers in USER text and Skill tool_use blocks — tool-result
-and assistant echoes never count, so a session merely discussing a candidate cannot flip its
-verdict), rule-pack applicability (structural + recent,
-labelled `applicability-only — activation unknown until M1`, never usage), gate-output hits,
-liveness verdicts, and fleet-wide ledger mentions. `kaizen_immune_list.py` excludes safety
-machinery from AUTO-candidacy (rarely-fired guards present as "unused" precisely because they
-work); the operator's ruling — recorded in the report's `## Operator ruling` section — is the
-final say on every row. The census is final for METER SIZING only and re-opens on M1 activation
-data. The same honesty rule binds: unmeasurable prints `—` with its reason, never 0.
+Before any meter was built, the shrink question ran first: per-artifact invocation census
+(structure-keyed, both channels), rule-pack applicability, liveness verdicts —
+`scripts/sysadmin/kaizen_shrink_audit.py --report`, immune list in
+`kaizen_immune_list.py`, the operator's ruling recorded in
+`docs/workstation/kaizen-shrink-audit.md`. The census is final for meter sizing only and
+re-opens on M1 activation data.
 
 ## Files
 
 | Path | Role |
 |---|---|
-| `scripts/sysadmin/kaizen_metrics.py` | the measurement half |
-| `scripts/sysadmin/kaizen_shrink_audit.py` | the M0 census engine (`--report` / `--json` / `--selftest`) |
-| `scripts/sysadmin/kaizen_immune_list.py` | the immune registry — per-entry justifications, never-route class enumerated live |
-| `tests/test_kaizen_shrink_audit.py` | duplex-fixture behavior tests for every collector + the verdict engine |
-| `docs/workstation/kaizen-shrink-audit.md` | the M0 census report + the operator's ruling |
-| `scripts/sysadmin/liveness_audit.py` | supplies `Missed crons` + the mail's mechanism-health context (`docs/workstation/liveness.md`) |
-| `tests/test_kaizen_metrics.py` | behavior tests, incl. the honesty rule and idempotence |
-| `docs/reference/agents/kaizen-log-infra.md` | infra's log — one row per pass |
-| `docs/reference/agents/kaizen-log-fleet.md` | fleet's log — one row per pass |
-| `docs/reference/agents/{infra,fleet}.md` § Kaizen | the binding charter rule this implements |
-| `~/.claude/kaizen.log` | the cron's stdout/stderr, incl. every `—` reason |
+| `scripts/sysadmin/kaizen_events.py` | the typed event emitter (three laws; schema + vocabulary in `kaizen-event-stream.md`) |
+| `scripts/sysadmin/kaizen_collect_v2.py` | the daily collector — derived facts, versioned series, golden gate, log row + mail |
+| `scripts/sysadmin/kaizen_coroner.py` | post-hoc death/revival reconstruction + session closure + the hole metric |
+| `scripts/sysadmin/kaizen_outcomes.py` | outcome tier: rework miner, fleet-health sweep, premature-stop reader |
+| `scripts/sysadmin/kaizen_backfill.py` | one-time transcript-era backfill + the noise-floor report |
+| `scripts/sysadmin/weekly_catchup.sh` | wake-proof stamp-check runner (daily kaizen jobs + weekly audits) |
+| `scripts/sysadmin/archived/kaizen_metrics.py` | the RETIRED weekly v1 meter (M0 operator ruling) |
+| `scripts/sysadmin/kaizen_shrink_audit.py` / `kaizen_immune_list.py` | the M0 census engine + immune registry |
+| `scripts/sysadmin/liveness_audit.py` | the `Missed crons` answer + mechanism health (`docs/workstation/liveness.md`) |
+| `tests/test_kaizen_{events,collect_v2,coroner,outcomes,backfill,hook_emitters,sensor_emitters}.py` + `tests/test_command_run.py` | the M1 behavior suites |
+| `tests/fixtures/kaizen-golden/` | the hand-labelled corpus behind the golden gate |
+| `docs/reference/agents/kaizen-log-{infra,fleet}.md` | the role logs — one row per ISO week |
+| `~/.claude/state/kaizen/` | derived-facts store, series, `noise-floor@v1.md` |
+| `~/.claude/kaizen.log` / `~/.claude/kaizen-sweep.log` | the crons' stdout/stderr, incl. every `—` reason |

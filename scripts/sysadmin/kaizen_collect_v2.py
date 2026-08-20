@@ -81,6 +81,12 @@ SCHEMA = 1
 DASH = "—"
 UNKNOWN = "unknown"
 GOLDEN_MISMATCH_REASON = "instrument red: golden mismatch"
+#: The era this collector's metrics are DEFINED over. T08's backfill appends
+#: ``era: "transcript"`` rows to the SAME store (dash-string fields — honest ``—``,
+#: not dicts); every metric input read in :func:`daily` excludes them, or
+#: :func:`compute_metrics` crashes on the dashes. ``read_rows`` itself stays
+#: era-blind — T08's noise-floor report needs both eras from it.
+ERA_EVENT = "event"
 
 #: Sanctioned run_close verdicts (docs/workstation/kaizen-event-stream.md § vocabulary).
 RUN_CLOSE_VERDICTS = frozenset({"done", "blocked"})
@@ -437,6 +443,14 @@ def append_facts(rows: list[dict], state: Path | None = None) -> int:
     return len(fresh)
 
 
+def _event_era(row: dict) -> bool:
+    """True for event-era rows — a missing/empty ``era`` IS event era (rows the
+    collector itself derived predate the field). T09 era filter (T08's standing
+    finding): transcript rows land in the current week for real, and their dash
+    strings crash :func:`compute_metrics`."""
+    return row.get("era", ERA_EVENT) in (ERA_EVENT, "", None)
+
+
 def _parse_ts(value: object) -> dt.datetime | None:
     """ISO string → aware datetime (naive assumed UTC); anything else → None."""
     if not isinstance(value, str):
@@ -641,6 +655,8 @@ def predecessors(before_day: str, state: Path | None = None) -> dict[str, dict]:
     st = state or state_dir()
     out: dict[str, dict] = {}
     for row in _iter_facts(st):
+        if not _event_era(row):
+            continue  # a transcript-era row is never a delta baseline (T09 era filter)
         sid, ver, day = row.get("sid"), row.get("facts_version"), row.get("day")
         if not (isinstance(sid, str) and isinstance(ver, int) and isinstance(day, str)):
             continue
@@ -684,6 +700,14 @@ METRIC_DEFS: tuple[dict, ...] = (
         "formula": (
             "stop_block events with cause in {run-record, promise-stall} / all stop "
             "verdicts (stop_pass + stop_block)."
+        ),
+        # NOT part of the def hash (versioned-definitions law: _def_hash bases on
+        # id/version/formula/counter_metric only) — descriptive cross-reference:
+        "cross_reference": (
+            "EVENT-level (share of stop VERDICTS premature). Its SESSION-level "
+            "sibling is premature_stop (T07, kaizen_outcomes.py): sessions with a "
+            "premature-cause stop_block over sessions with any stop verdict. Same "
+            "PREMATURE_CAUSES vocabulary, different unit — read them together."
         ),
     },
     {
@@ -1194,7 +1218,10 @@ def log_cells(day: dt.date, metrics: dict[str, MetricResult], rows: list[dict]) 
         rounds = DASH
         _warn(f"Review rounds /plan = {DASH} — no session carries a round event")
     _warn(f"Lesson-class recurrence = {DASH} — no class taxonomy on lessons (analysis-half job)")
-    _warn(f"Missed crons = {DASH} — not an event-stream metric (rides liveness until T09)")
+    _warn(
+        f"Missed crons = {DASH} — not an event-stream metric; the liveness audit owns it "
+        "(docs/workstation/liveness.md)"
+    )
     return [
         day.isoformat(),
         metrics["first_attempt_gate_pass"].cell,
@@ -1337,7 +1364,12 @@ def daily(
     fresh_paths = [f for f in todays if (f.stem, FACTS_VERSION, day_stamp) not in known]
     appended = append_facts(derive_batch(fresh_paths, day_stamp), st)
 
-    all_rows = read_rows(state=st)
+    # T09 era filter: every metric input below is event-era only. T08's backfill
+    # shares this store with era:"transcript" rows (dash-string fields) whose days
+    # land in the current week for real — unfiltered, compute_metrics crashes on
+    # the dashes. read_rows stays era-blind for T08's report; the filter is here,
+    # at the consumption seam.
+    all_rows = [r for r in read_rows(state=st) if _event_era(r)]
     day_rows = [r for r in all_rows if r.get("day") == day_stamp]
     # The publish seam (see delta_row): store rows stay cumulative; the DAY series
     # gets each row minus its predecessor, so a grown file's earlier days are never

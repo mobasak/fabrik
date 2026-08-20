@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/kaizen_metrics.py | none
+# AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
 """Kaizen collector — measure how agents ACTUALLY behave, fleet-wide, daily.
 
 WHY THIS REPLACES THE OLD DATA LAYER
@@ -69,6 +69,9 @@ _TICKET_FILE = re.compile(r"^T\d{2}[a-z]?-.+\.md$")
 # which would have made the fleet mean meaningless. kaizen_metrics.ledger_rounds is
 # header-aware (the table's first column must actually be Round/Pass) and handles both
 # shipped dialects.
+# kaizen_metrics.py retired to archived/ (T09 cutover, M0 operator ruling) —
+# ledger_rounds stays importable from there for this superseded v1 collector.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "archived"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kaizen_metrics import ledger_rounds  # noqa: E402
 

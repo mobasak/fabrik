@@ -503,6 +503,49 @@ def test_stop_block_causes_units_are_events(tmp_path: Path) -> None:
     assert "4 stop verdicts" in causes.cell  # the cell states the same unit
 
 
+def _transcript_fact(sid: str = "tr-legacy") -> dict:
+    """A T08 backfill row, verbatim shape: event-only fields are DASH strings."""
+    return {
+        "facts_version": 1,
+        "era": "transcript",
+        "sid": sid,
+        "day": "2026-08-19",
+        "events": DASH,
+        "gate": DASH,
+        "runs": DASH,
+        "stop_causes": DASH,
+        "death_class": DASH,
+        "lines_total": 10,
+        "lines_unclassified": 2,
+        "unclassified_reasons": {"unparseable-json": 2},
+    }
+
+
+def test_premature_stop_survives_transcript_era_rows(tmp_path: Path) -> None:
+    """T09 wave 2 (confirmed live 2026-08-20): the real store holds era:"transcript"
+    rows whose events/stop_causes are DASH strings — _stop_verdicts crashed on them.
+    They must be excluded from the read, and the event-era rows still measure."""
+    _seed_facts(
+        tmp_path,
+        [
+            _transcript_fact(),
+            _fact("s1", events={"stop_pass": 1, "stop_block": 1}, stop_causes={"run-record": 1}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert prem.measurable
+    assert prem.numerator == 1 and prem.denominator == 1
+    assert causes.value == {"run-record": 1}
+
+
+def test_review_rounds_survives_transcript_era_rows(tmp_path: Path) -> None:
+    """Same class: runs is a DASH string on transcript rows — review_rounds crashed."""
+    _seed_facts(tmp_path, [_transcript_fact(), _fact("s1", runs={"rounds_max": 3})])
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "3.0" in rounds.cell and "n=1" in rounds.cell
+
+
 def test_review_rounds_pair_from_rows(tmp_path: Path) -> None:
     _seed_facts(
         tmp_path,

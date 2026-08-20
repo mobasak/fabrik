@@ -19,15 +19,19 @@ and fabrik-mail.
 - fabrik-mail: `scripts/mail.py` + `.claude/hooks/mail_notify.py` + `/opt/fabrik-mail` store
   (fleet authored it; infra maintains it)
 
-## Kaizen (binding — Monday 06:45 after the weekly cron batch, timeboxed ≤90 min)
+## Kaizen (binding — weekly analysis pass, timeboxed ≤90 min)
 
-**Trigger (live, not an aspiration):** the `45 6 * * 1` cron runs
-`scripts/sysadmin/kaizen_metrics.py --once` — the MEASUREMENT half (stdlib, no agent, no quota).
-It appends this week's row and mails you (`--to fabrik`, kind `request`) the row plus its deltas.
-**That mail IS your pass trigger**: your ≤90 min is the ANALYSIS half, and it starts with the
-numbers already measured. Never spend quota computing what the cron computed. Cells the script
-writes as `—` name missing instrumentation, not a healthy zero — the reasons ride the mail and
-`~/.claude/kaizen.log`. Fill `Top friction fixed` + `Filed`; a re-run never overwrites them.
+**Trigger:** the hourly wake-proof cron
+(`weekly_catchup.sh kaizen_collect_v2.py`, M1 cutover 2026-08-20; the crontab line rides the
+operator's pending crontab restore — until it lands the collector runs only by hand) fires the
+DAILY collector —
+the MEASUREMENT half (stdlib, no agent, no quota). It consolidates yesterday's typed events,
+upserts the ISO-week row daily, and mails you (`--to fabrik`, kind `request`) the metrics.
+**Those mails ARE your pass trigger**: your weekly ≤90 min is the ANALYSIS half, and it starts
+with the numbers already measured. Never spend quota computing what the cron computed. Cells the
+script writes as `—` name missing instrumentation, not a healthy zero — the reasons ride the
+mail and `~/.claude/kaizen.log`. Fill `Top friction fixed` + `Filed`; a re-run never overwrites
+them.
 Subsystem doc: `docs/workstation/kaizen.md`.
 
 Measure → analyze (recurrence × blast radius, evidence-cited) → improve (≤30 min fixes land

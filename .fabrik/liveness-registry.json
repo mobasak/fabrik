@@ -88,13 +88,27 @@
   {
    "id": "kaizen-measurement",
    "kind": "cron",
-   "why": "the mechanical half of the weekly kaizen loop \u2014 the surface whose 4-day silence started this audit",
-   "cron_match": "kaizen_metrics.py",
+   "why": "the mechanical half of the kaizen loop, DAILY since the M1 cutover (kaizen_collect_v2 --daily via weekly_catchup.sh; kaizen_metrics.py retired to archived/)",
+   "cron_match": "kaizen_collect_v2.py",
    "evidence": {
     "type": "log",
     "path": "~/.claude/kaizen.log"
    },
-   "max_age_hours": 192,
+   "max_age_hours": 54,
+   "max_age_note": "24.5h worst-case daily cadence (stamp period 23.5h + up to 1h hourly tick) + ~24h absolute margin ≈ 54 — one slept afternoon must not flip DEAD",
+   "doc": "docs/workstation/kaizen.md"
+  },
+  {
+   "id": "kaizen-sweep",
+   "kind": "cron",
+   "why": "the nightly fleet-health sweep (T07 outcome tier) \u2014 clean HEAD worktrees, install-less checks, one fleet_health event per swept project",
+   "cron_match": "kaizen_outcomes.py",
+   "evidence": {
+    "type": "log",
+    "path": "~/.claude/kaizen-sweep.log"
+   },
+   "max_age_hours": 54,
+   "max_age_note": "24.5h worst-case daily cadence (stamp period 23.5h + up to 1h hourly tick) + ~24h absolute margin ≈ 54 — one slept afternoon must not flip DEAD",
    "doc": "docs/workstation/kaizen.md"
   },
   {

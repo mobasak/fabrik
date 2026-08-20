@@ -120,6 +120,8 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `death` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
 | `revival` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
 | `operator_override` | `marker`, `kind` (`human-gate`\|`blocked-escalation`) | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data |
+| `fleet_health` | `project`, `swept`, `cell`, `reason`, `checks` (`{check: verdict}`), `duration_s` | `scripts/sysadmin/kaizen_outcomes.py --sweep` — one per swept project (T07's nightly outcome tier) |
+| `instrument_alarm` | `reason`, `mismatches` (first 10) | `scripts/sysadmin/kaizen_collect_v2.py` — golden-corpus refusal or a delta darkening; instrument health is metric zero |
 
 An event outside this list is still written (losing data is worse than a typo) but warns on stderr,
 so a misspelled sensor is visible the day it ships.
@@ -151,6 +153,48 @@ counter, incremented under the same flock that serializes the mutation, so it is
 even when twenty subagents share one session id. **Order a run's stream by `(command, seq)`, never by
 `ts`** — timestamps are millisecond-quantized and concurrent events collide inside one millisecond.
 Details: `docs/reference/command-run-protocol.md` § Events.
+
+## Consumers — the derived-facts store and the metric registry
+
+The daily collector (`scripts/sysadmin/kaizen_collect_v2.py --daily`, T06) parses each session's
+event file ONCE into a one-row JSONL store (`~/.claude/state/kaizen/derived-facts.jsonl`,
+append-only, keyed `(sid, facts_version, day)`), publishes per-day deltas into versioned series
+files (`series/<metric>@v<N>.jsonl` — a definition change writes a NEW file, never rewrites), and
+refuses to publish anything unless the hand-labelled golden corpus
+(`tests/fixtures/kaizen-golden/`) derives to its expected counts first. T08's backfill
+(`scripts/sysadmin/kaizen_backfill.py`) shares the SAME store with `era: "transcript"` rows —
+every event-only field an honest `—` string — and writes the noise-floor report
+(`noise-floor@v1.md` beside the store). The collector's metric inputs are **event-era only**
+(`daily()` filters `era != "event"` rows out of its day/week selection and delta baselines — the
+T09 era filter; `read_rows` itself stays era-blind because T08's report needs both eras).
+
+Every metric is registered with a version, a definition hash, and a **reciprocal counter pair**
+(an unpaired definition refuses to load — a schema constraint). The full M1 registry
+(`kaizen_outcomes.registry()` = T06's eight + T07's six):
+
+| Metric | Counter pair | Level | Source |
+|---|---|---|---|
+| `rules_compliance` | `terminator_spam` | run_close events | T06 collector |
+| `terminator_spam` | `rules_compliance` | final_block_emitted / closures | T06 collector |
+| `premature_stop_rate` | `first_attempt_gate_pass` | EVENT-level stop verdicts | T06 collector |
+| `first_attempt_gate_pass` | `premature_stop_rate` | sessions, first gate_run | T06 collector |
+| `gate_failure_taxonomy` | `rule_activation` | per-check fail distribution | T06 collector |
+| `rule_activation` | `gate_failure_taxonomy` | run-closing sessions | T06 collector |
+| `unclassified_rate` | `hole_count` | instrument health (metric zero) | T06 collector |
+| `hole_count` | `unclassified_rate` | coroner holes | T06 collector |
+| `rework_rate` | `review_rounds` | git-mined commits, `/opt/*` | T07 `--rework` |
+| `review_rounds` | `rework_rate` | round-carrying sessions | T07 (from store rows) |
+| `fleet_health` | `sweep_coverage` | swept projects, all checks green | T07 `--sweep` |
+| `sweep_coverage` | `fleet_health` | swept / configured pilot set | T07 `--sweep` |
+| `premature_stop` | `stop_block_causes` | SESSION-level premature stops | T07 `--stops` |
+| `stop_block_causes` | `premature_stop` | full cause histogram (events) | T07 `--stops` |
+
+`premature_stop_rate` (T06, event-level) and `premature_stop` (T07, session-level) share the
+`PREMATURE_CAUSES` vocabulary and cross-reference each other in their definitions — read them
+together. The cross-reference rides a non-hashed `cross_reference` field, so the published
+definition hashes are unchanged (the versioned-definitions law). The loop doc — cadence, cron
+lines, runbooks, the M1→M2 gate — is `docs/workstation/kaizen.md`; noise-floor method and
+variance live in `noise-floor@v1.md` (regenerate: `kaizen_backfill.py --report`).
 
 ## API
 

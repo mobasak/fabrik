@@ -31,6 +31,13 @@ All three register in T06's paired-counter registry (a schema constraint — an
 unpaired metric refuses to load): rework_rate ⟂ review_rounds, fleet_health ⟂
 sweep_coverage, premature_stop ⟂ stop_block_causes.
 
+POPULATION NOTE — the store-reading metrics (``premature_stop``,
+``stop_block_causes``, ``review_rounds``) compute over EVENT-era rows only
+(``kc._event_era``): T08's transcript-era backfill rows carry ``—`` in every
+event-only field and are excluded, not coerced. The registered formula strings
+predate this narrowing and stay verbatim (a formula edit is a def-hash version
+bump); this note is the in-band record.
+
 THE HONESTY RULE (inherited, binding)
 -------------------------------------
 An unmeasurable metric renders ``—`` with its reason — never a fabricated 0. A
@@ -45,15 +52,15 @@ environment, i.e. install. The install-less mandate is the binding rule, so the
 sweep runs the LIVE project's existing ``.venv/bin/python -m pytest`` with the
 clone as cwd: same interpreter + deps, zero installs, live tree untouched.
 
-NIGHTLY CRON ENTRY (authored per T07 — T09 INSTALLS it; this module never writes a crontab)
--------------------------------------------------------------------------------------------
-Wake-proof stamp-check, the scripts/sysadmin/weekly_catchup.sh:1-28 pattern at a nightly
-period: the entry runs HOURLY and fires only when the success stamp is >= ~1 day old
-(86400 - 1800 s slack so hourly drift never skips a night), so a night the box hibernated
-through is caught up within an hour of waking. The stamp is touched ONLY on success, so a
-failing sweep retries hourly and its log shows every attempt:
+NIGHTLY CRON ENTRY (a job key in weekly_catchup.sh's table since T09; the crontab LINE
+itself rides the operator's crontab install — this module never writes a crontab)
+-----------------------------------------------------------------------------------------
+The sweep is a job key in scripts/sysadmin/weekly_catchup.sh (T09 cutover): the runner owns
+the wake-proof stamp-check — hourly cron tick, fires only when the daily success stamp is
+>= ~1 day old (86400 - 1800 s slack), stamp touched ONLY on success so a failing sweep
+retries hourly with every attempt in the log. The crontab line:
 
-17 * * * * S="$HOME/.claude/state/nightly-kaizen_outcomes.stamp"; now=$(date +%s); { [ -f "$S" ] && [ $(( now - $(stat -c %Y "$S") )) -lt 84600 ]; } || { /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/kaizen_outcomes.py --sweep >> "$HOME/cron-logs/kaizen-sweep.log" 2>&1 && touch "$S"; }
+41 * * * * flock -n $HOME/.claude/state/daily-kaizen-sweep.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_outcomes.py >> $HOME/.claude/kaizen-sweep.log 2>&1
 
 Config via env: ``KAIZEN_REWORK_DAYS`` (7), ``KAIZEN_SWEEP_PROJECTS`` (``fabrik``),
 ``KAIZEN_SWEEP_TIMEOUT_S`` (300), plus T06's ``KAIZEN_STATE_DIR`` / T01's
@@ -600,7 +607,10 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
             MetricResult.unavailable("premature_stop", reason),
             MetricResult.unavailable("stop_block_causes", reason),
         )
-    rows = kc.read_rows(state=state)
+    # Event-era only (T09 era filter): T08's transcript-era rows carry DASH strings
+    # in events/stop_causes — unfiltered they crash _stop_verdicts, and their lines
+    # are prose, not stop verdicts.
+    rows = [r for r in kc.read_rows(state=state) if kc._event_era(r)]
     if not rows:
         reason = "no derived-facts rows (events store empty or missing)"
         return (
@@ -659,7 +669,8 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
 
 def review_rounds(state: Path | None = None) -> MetricResult:
     """Mean max-round per round-carrying session (rework_rate's counter pair)."""
-    rows = kc.read_rows(state=state)
+    # Event-era only — transcript rows' `runs` is a DASH string (see premature_stop).
+    rows = [r for r in kc.read_rows(state=state) if kc._event_era(r)]
     vals = [
         int((r.get("runs") or {}).get("rounds_max", 0))
         for r in rows

@@ -21,7 +21,7 @@ import pytest
 
 _SPEC = importlib.util.spec_from_file_location(
     "kaizen_metrics",
-    Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "kaizen_metrics.py",
+    Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "archived" / "kaizen_metrics.py",
 )
 assert _SPEC and _SPEC.loader
 km = importlib.util.module_from_spec(_SPEC)
@@ -457,9 +457,15 @@ def _heartbeat(*findings: dict) -> dict:
 
 def _surface(sid: str, verdict: str, reason: str = "", fault: str = "") -> dict:
     return {
-        "proof": "heartbeat", "id": sid, "kind": "cron", "verdict": verdict,
-        "detail": "", "instrument": "crontab -l", "instrument_fault": fault,
-        "reason_class": reason, "doc": "",
+        "proof": "heartbeat",
+        "id": sid,
+        "kind": "cron",
+        "verdict": verdict,
+        "detail": "",
+        "instrument": "crontab -l",
+        "instrument_fault": fault,
+        "reason_class": reason,
+        "doc": "",
     }
 
 

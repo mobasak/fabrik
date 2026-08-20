@@ -1,25 +1,56 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/workstation/kaizen.md, .fabrik/liveness-registry.json | none
 #
-# Wake-proof weekly runner (M0 shrink ruling, 2026-08-19). The three Monday-06:xx
-# crons silently missed their slots whenever the host hibernated through Monday
-# morning (cron has no catch-up; the 2026-08-17 week was lost). This runs HOURLY
-# and fires the named job only when its success stamp is >= ~7 days old — the
-# weekly cadence survives any sleep pattern, and a missed week is caught up
-# within an hour of the box waking.
+# Wake-proof periodic runner (M0 shrink ruling, 2026-08-19). Fixed cron slots are
+# silently missed whenever the host hibernates through them (cron has no catch-up;
+# the 2026-08-17 kaizen week was lost that way). This runs HOURLY from cron and
+# fires the named job only when its success stamp is older than the job's PERIOD
+# (weekly or daily, minus 30 min slack so hourly drift never skips a cycle) — the
+# cadence survives any sleep pattern, and a missed cycle is caught up within an
+# hour of the box waking.
 #
-# Contract: quiet when fresh (exit 0, no output — the job logs stay weekly, which
-# is exactly what the liveness registry's max_age_hours heartbeat expects);
-# stamp touched ONLY on job success, so a failing job retries hourly and its
-# log shows every attempt. Job keys are the SCRIPT FILENAMES so the liveness
+# Contract: quiet when fresh (exit 0, no output — job logs stay at the job's own
+# cadence, which is exactly what the liveness registry's max_age_hours heartbeat
+# expects); stamp touched ONLY on job success, so a failing job retries hourly and
+# its log shows every attempt. Job keys are the SCRIPT FILENAMES so the liveness
 # registry's cron_match entries keep matching the crontab lines.
 set -u
 
-JOB="${1:?usage: weekly_catchup.sh <job-key: audit_authelia_gates.py|fleet_doc_audit.py|kaizen_metrics.py>}"
+JOB="${1:?usage: weekly_catchup.sh <job-key: audit_authelia_gates.py|fleet_doc_audit.py|kaizen_collect_v2.py|kaizen_outcomes.py>}"
 STATE="$HOME/.claude/state"
 mkdir -p "$STATE"
-STAMP="$STATE/weekly-${JOB}.stamp"
-PERIOD=$(( 7*86400 - 1800 ))  # a week minus 30 min slack so hourly drift never skips a week
+
+WEEKLY=$(( 7*86400 - 1800 ))  # cadence minus 30 min slack so hourly drift never skips
+DAILY=$(( 86400 - 1800 ))
+# Key validation FIRST — a retired job's leftover stamp must never mask the
+# retirement behind a quiet fresh-stamp exit (kaizen_metrics.py, 2026-08-20).
+# RETIRED keys exit 0 (never noise-rc: the live crontab still carries the old line
+# until the operator swaps it — hourly rc=2 forever is the trap) and nudge ONCE per
+# day via their own stamp, so the pending crontab edit stays visible without spam.
+case "$JOB" in
+    kaizen_metrics.py)
+        NUDGE="$STATE/retired-${JOB}.nudge"
+        now=$(date +%s)
+        if [ -f "$NUDGE" ] && [ $(( now - $(stat -c %Y "$NUDGE") )) -lt "$DAILY" ]; then
+            exit 0
+        fi
+        echo "weekly_catchup: kaizen_metrics.py retired (M1 T09) — superseded by kaizen_collect_v2.py; update the crontab line"
+        touch "$NUDGE"
+        exit 0
+        ;;
+    kaizen_collect_v2.py|kaizen_outcomes.py)
+        PERIOD=$DAILY
+        STAMP="$STATE/daily-${JOB}.stamp"
+        ;;
+    audit_authelia_gates.py|fleet_doc_audit.py)
+        PERIOD=$WEEKLY
+        STAMP="$STATE/weekly-${JOB}.stamp"
+        ;;
+    *)
+        echo "weekly_catchup: unknown job '${JOB}'" >&2
+        exit 2
+        ;;
+esac
 
 now=$(date +%s)
 if [ -f "$STAMP" ]; then
@@ -40,8 +71,16 @@ case "$JOB" in
     fleet_doc_audit.py)
         cd /opt/fabrik && .venv/bin/python scripts/fleet_doc_audit.py --commit
         ;;
-    kaizen_metrics.py)
-        cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_metrics.py --once
+    kaizen_collect_v2.py)
+        # The DAILY kaizen collector (M1 cutover): consolidates YESTERDAY's events
+        # into derived facts, series and the kaizen-log row. Replaced the retired
+        # weekly kaizen_metrics.py (scripts/sysadmin/archived/, M0 operator ruling).
+        cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_collect_v2.py --daily
+        ;;
+    kaizen_outcomes.py)
+        # The nightly fleet-health sweep (T07 outcome tier): clean HEAD worktrees,
+        # install-less checks, one fleet_health event per swept project.
+        cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_outcomes.py --sweep
         ;;
     *)
         echo "weekly_catchup: unknown job '${JOB}'" >&2

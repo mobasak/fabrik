@@ -615,3 +615,37 @@ def test_probe_timeout_defaults_to_the_previous_bound(_isolated_events_dir, monk
     kaizen_events.reset_cache()
     kaizen_events.exposure()
     assert seen and set(seen) == {10.0}, seen
+
+
+def test_fleet_health_is_vocabulary_no_unknown_event_warn(_isolated_events_dir, capsys):
+    """T09: fleet_health joined EVENT_TYPES (T07 emits one per swept project) - the
+    unknown-event stderr warn must be gone for it."""
+    assert "fleet_health" in kaizen_events.EVENT_TYPES
+    assert kaizen_events.emit(
+        "fleet_health",
+        sid="sweeper",
+        project="fabrik",
+        swept=True,
+        cell="ok",
+        reason="",
+        checks={"compile": "pass"},
+        duration_s=1.2,
+    )
+    assert "unknown event type" not in capsys.readouterr().err
+    row = _lines(_isolated_events_dir / "sweeper.jsonl")[-1]
+    assert row["event"] == "fleet_health" and row["swept"] is True
+
+
+def test_instrument_alarm_is_vocabulary_no_unknown_event_warn(_isolated_events_dir, capsys):
+    """T09 wave 2: instrument_alarm (T06 golden refusal / delta darkening) joins
+    EVENT_TYPES - the unknown-event stderr warn must be gone for it."""
+    assert "instrument_alarm" in kaizen_events.EVENT_TYPES
+    assert kaizen_events.emit(
+        "instrument_alarm",
+        sid="collector",
+        reason="instrument red: golden mismatch",
+        mismatches=["totals.lines_total: expected 1, derived 2"],
+    )
+    assert "unknown event type" not in capsys.readouterr().err
+    row = _lines(_isolated_events_dir / "collector.jsonl")[-1]
+    assert row["event"] == "instrument_alarm"

@@ -3,7 +3,7 @@
 **Date:** 2026-08-16
 **Status:** ✅ CURRENT
 **Code:** `scripts/sysadmin/liveness_audit.py` · registry `.fabrik/liveness-registry.json` · tests `tests/test_liveness_audit.py`
-**Consumer:** `scripts/sysadmin/kaizen_metrics.py` (the `Missed crons` column + the hand-off mail's mechanism-health context)
+**Consumer:** the operator's mechanism-health review; the kaizen `Missed crons` column consumed it via the now-retired `scripts/sysadmin/archived/kaizen_metrics.py` — since the M1 cutover the daily collector renders that cell `—` and defers here (§ Feeding kaizen)
 
 ---
 
@@ -195,18 +195,23 @@ credential file. Its only writes are to its own temp fixtures.
 40 6 * * 1 cd /opt/fabrik && .venv/bin/python scripts/sysadmin/liveness_audit.py --json >> $HOME/.claude/liveness.log 2>&1
 ```
 
-06:40 Monday, five minutes before kaizen's 06:45 measurement, so kaizen consumes fresh liveness data.
+06:40 Monday — ahead of the weekly kaizen ANALYSIS pass, so it consumes fresh liveness data
+(the retired weekly 06:45 measurement slot is gone; the daily collector reads no liveness data).
 The audit prints this line at the end of every human run.
 
 ---
 
 ## Feeding kaizen
 
-`kaizen_metrics.py` shells out to `liveness_audit.py --json` (fail-soft, 900 s) and turns the heartbeat
-proof into the **`Missed crons`** column — a metric the roles spec pinned and which had been an em-dash
-since it was written, because the cron-miss LOG it named was never built and never will be (the per-job
-logs are untimestamped appends, so run *counts* are not reconstructible). The answerable question is:
-did each registered surface produce evidence inside its own budget?
+The answerable question behind the roles spec's `Missed crons` metric is: did each registered
+surface produce evidence inside its own budget? The cron-miss LOG the spec named was never built
+and never will be (the per-job logs are untimestamped appends, so run *counts* are not
+reconstructible) — this audit's heartbeat proof is the answer. The retired weekly meter
+(`scripts/sysadmin/archived/kaizen_metrics.py`) shelled out to `liveness_audit.py --json`
+(fail-soft, 900 s) to fill that column; since the M1 cutover (2026-08-20) the daily collector
+(`kaizen_collect_v2.py`) renders the cell `—` with this audit named as the owner — run
+`liveness_audit.py` directly (bare = human report, `--json` = machine-readable) for the current
+verdicts.
 
 The cell is `DEAD / (LIVE + DEAD)` over the heartbeat surfaces. ⚠️ **UNKNOWNs are excluded from BOTH
 halves and named in the detail.** Folding them into the denominator reports a healthier box than we
