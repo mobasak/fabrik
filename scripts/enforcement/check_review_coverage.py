@@ -483,25 +483,28 @@ def _kept_lines(text: str) -> list[str]:
 
     Round 58 blanked comments in _strip_fences but _indented_grammar_error rebuilt its lines
     from RAW text — the two walks disagreed, and the very next sweep reproduced both wrong
-    verdicts that divergence permits (a vanished non-quiet ledger row; a false BLOCKQUOTED
-    refusal on a renderer-invisible comment example). One constructor, no siblings to drift.
+    verdicts that divergence permits. One constructor, no siblings to drift.
 
-    Fenced regions are DROPPED (a dangling opener drops to EOF — the round-11 fail-closed
-    contract); comment lines become BARE BLANK LINES, not deletions, because a renderer ends
-    the enclosing block there — an indented line after a comment is a code block, and only a
-    blank line preserves that judgment in _split_indented.
+    EVERYTHING quoted is BLANKED, never dropped (round 83): fenced regions, comment regions,
+    and a dangling opener's tail all become bare blank lines. Dropping fences destroyed
+    physical line adjacency while comment-blanking preserved it, and the adjacency-sensitive
+    consumers (the setext `live[idx+1]` check, `_ledger_shapes`' prev_nonblank boundary)
+    false-fired on the seam: a title + fence + `---` sequence read as a setext heading, and
+    a fence between prose ledger rows split one honest quiet run into two "groups". Blanking
+    also matches the renderer at every boundary: the enclosing block ends there, so an
+    indented line after a quoted region is a code block (the blank-preceded rule holds).
     """
-    fences, comments, dangling, _c_dangling = _block_regions(text)
-    drop: set[int] = set()
-    for a, b in fences:
-        drop.update(range(a, b + 1))
+    fences, comments, dangling = _block_regions(text)[:3]
+    lines = text.splitlines(keepends=True)
     blank: set[int] = set()
+    for a, b in fences:
+        blank.update(range(a, b + 1))
     for a, b in comments:
         blank.update(range(a, b + 1))
-    lines = text.splitlines(keepends=True)
     if dangling is not None:
-        drop.update(range(dangling, len(lines)))
-    return ["\n" if i in blank and i not in drop else ln for i, ln in enumerate(lines) if i not in drop]
+        # the round-11 fail-closed contract: content below a dangling opener is quoted
+        blank.update(range(dangling, len(lines)))
+    return ["\n" if i in blank else ln for i, ln in enumerate(lines)]
 
 
 def _strip_fences(text: str) -> str:

@@ -1490,3 +1490,27 @@ def test_quoted_setext_heading_in_matching_context_is_refused(repo: Path) -> Non
     rc, out = _gate(repo, "2026-08-20-quoted-setext-review.md", body)
     assert rc == 1, "a same-context quoted setext heading escaped the refusal"
     assert "SETEXT-style heading" in out
+
+
+def test_dropped_fence_adjacency_does_not_forge_a_setext_heading(repo: Path) -> None:
+    """Round-83 HIGH 1: dropping fence regions (while comments blanked) destroyed physical
+    adjacency — a plain `Coverage Checklist` paragraph + fenced example + `---` divider
+    became artificially adjacent and read as a setext heading, hard-refusing an honest
+    converged report. Fences now blank like comments; positions always survive."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n",
+        "\nCoverage Checklist\n```\nexample content\n```\n---\n\nMore notes.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-fence-adjacency-review.md", body)
+    assert rc == 0, f"a fence seam forged a setext heading on an honest report: {out}"
+
+
+def test_dropped_fence_adjacency_does_not_split_a_ledger_run(repo: Path) -> None:
+    """Round-83 HIGH 2 (same root): a fence between prose ledger rows made the following
+    `---` read as a run boundary via stale adjacency, splitting one honest quiet ledger
+    into two groups and firing the multi-group refusal."""
+    body = _everyday(
+        "Pass 1: found: 3, fixed: 3\n```\nexample\n```\n---\nPass 2: found: 0, fixed: 0\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-fence-split-review.md", body)
+    assert rc == 0, f"a fence seam split an honest quiet ledger into groups: {out}"
