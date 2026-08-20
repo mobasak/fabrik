@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T05: the coroner — post-hoc death/revival reconstruction and record closure (2026-08-20)
+
+`scripts/sysadmin/kaizen_coroner.py` sweeps the resume-mesh's markers, notify log, and transcript
+tails (all READ-ONLY, byte-identity test-pinned) and, for each session with death evidence and no
+`session_end`, appends reconstructed `death`/`revival`/`session_end` events (`sid_source: join`,
+`reconstructed: true`, exposure joined from the dead session's own last events or literal
+`unknown`). Running run-records attributed to a death close `died`/`closed_by: coroner`; running
+past the 12 h TTL with no evidence close `expired`/`ttl` — the close re-loads and re-checks state
+INSIDE `command_run._record_lock`, so a live agent's concurrent mutation always survives. Every
+false-death class found at acceptance is a regression test: aged-out transcripts still overrule
+markers, oversized recovery lines grow the tail window (4 MiB cap, unreadable fails toward ALIVE),
+and the newest-first walk never passes a still-retrying api_error. `holes()` (transcripts with
+activity minus sessions with `session_end`) feeds T06 as instrument health.
+
 ### Added — kaizen M1 T04: gate_run and rule_activation sensor emitters (2026-08-20)
 
 `scripts/final_gate.py` emits one `gate_run` event per invocation (tier, mode, status, every
