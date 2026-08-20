@@ -117,7 +117,21 @@ def _table_rows(section: str) -> list[str]:
             continue
         nxt = phys[i + 1].strip() if i + 1 < len(phys) else ""
         run_initial = i == 0 or not phys[i - 1].lstrip().startswith("|")
-        if run_initial and nxt.startswith("|") and re.fullmatch(r"[|\-: ]+", nxt):
+
+        def _cells(row: str) -> int:
+            return len(row.strip().strip("|").split("|"))
+
+        if (
+            run_initial
+            and nxt.startswith("|")
+            and re.fullmatch(r"[|\-: ]+", nxt)
+            # GFM: the delimiter row must MATCH the header's cell count, or the whole block
+            # is a plain PARAGRAPH — round 93 reproduced a 2-cell UNCHECKED row over a
+            # 1-cell `|---|` being skipped as "the header" of a table no renderer sees,
+            # silently exempting visible obligation text. Cell counts must agree for the
+            # pair to be a real header.
+            and _cells(ln) == _cells(nxt)
+        ):
             # The run's ONE header row — first pipe-row of its physical run, separator
             # literally next (round 89: adjacency alone let a stray separator swallow the
             # DATA row above it, chainably; run-initial kills the chain because every stray

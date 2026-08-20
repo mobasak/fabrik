@@ -1624,3 +1624,21 @@ def test_vocabulary_naming_header_is_not_data(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-20-vocab-header-review.md", body)
     assert rc == 0, f"a vocabulary-naming header was counted as a data row: {out}"
+
+
+def test_mismatched_separator_does_not_make_a_header(repo: Path) -> None:
+    """Round-93 CRITICAL: GFM requires the delimiter row to match the header's cell count —
+    otherwise the block renders as a plain PARAGRAPH. The structural test skipped a 2-cell
+    UNCHECKED row over a 1-cell `|---|` as 'the header' of a table no renderer sees,
+    silently exempting visible obligation text (a round-92 regression)."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n"
+        "| sql-injection-in-query-builder | UNCHECKED still to hunt |\n|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-mismatch-separator-review.md", body)
+    assert rc == 1, "a mismatched separator made a paragraph row into a skipped 'header'"
+    assert "UNCHECKED" in out
