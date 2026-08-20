@@ -116,13 +116,14 @@ def _table_rows(section: str) -> list[str]:
         # `| : | : |` and blank cells, forming a phantom header pair no renderer forms and
         # swallowing the row above. The rule is closed and fully specified; enforcing it
         # precisely ends the separator sub-chase definitionally.
+        # Per-cell validation ONLY (round 101): GFM puts the pipe requirement on the HEADER
+        # row, not the delimiter — a bare `---` IS a valid separator under a 1-column
+        # pipe-bounded header (renderer-verified), and round 100's pipe-presence gate here
+        # false-failed exactly that honest shape. The setext/thematic ambiguity is carried
+        # structurally by the callers: candidate rows are pipe-filtered before the
+        # anywhere-skip, and the header pair only forms under a pipe-bounded header with
+        # matching cell counts (`Title\n---` never pairs — Title carries no pipe).
         r = re.sub(r"\\\|", "\x00", row.strip())
-        if "|" not in r:
-            # a bare --- carries no pipe: it is a thematic break or a setext underline to a
-            # renderer, never a table separator (round 99 — requiring a LEADING pipe was
-            # too strict the other way: GFM's delimiter row may be pipe-less, `---|---`,
-            # and the unrecognized separator false-failed an honest header as data)
-            return False
         if r.startswith("|"):
             r = r[1:]
         if r.endswith("|"):

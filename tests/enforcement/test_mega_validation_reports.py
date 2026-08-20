@@ -1712,3 +1712,18 @@ def test_valid_separator_shapes_are_recognized(repo: Path) -> None:
         )
         rc, out = _gate(repo, f"2026-08-21-valid-sep{i}-review.md", body)
         assert rc == 0, f"valid separator {sep!r} was unrecognized and the header failed as data: {out}"
+
+
+def test_one_column_table_with_bare_dash_separator_is_valid(repo: Path) -> None:
+    """Round-101: GFM puts the pipe requirement on the HEADER, not the delimiter — a bare
+    `---` under a 1-column pipe-bounded header forms a real table (renderer-verified), and
+    round 100's pipe-presence gate false-failed it as a verdict-less data row."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Verdict |\n---\n"
+        "| CLEAN — fail-open cost boundary untested behavior, scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-onecol-review.md", body)
+    assert rc == 0, f"a valid 1-column table with a bare --- separator was false-failed: {out}"
