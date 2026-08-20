@@ -116,8 +116,19 @@ def _table_rows(section: str) -> list[str]:
         if re.fullmatch(r"[|\-: ]+", ln.strip()):
             continue
         nxt = phys[i + 1].strip() if i + 1 < len(phys) else ""
-        if nxt.startswith("|") and re.fullmatch(r"[|\-: ]+", nxt):
-            continue  # a header row — its separator is physically next
+        run_initial = i == 0 or not phys[i - 1].lstrip().startswith("|")
+        if (
+            run_initial
+            and nxt.startswith("|")
+            and re.fullmatch(r"[|\-: ]+", nxt)
+            and not (UNCHECKED.search(ln) or VERDICT.search(ln))
+        ):
+            # The run's ONE header row — first pipe-row of its physical run, separator
+            # literally next (round 89: adjacency alone let a stray separator swallow the
+            # DATA row above it, chainably). A would-be header carrying verdict grammar is
+            # counted as data instead — a renderer shows that UNCHECKED header cell to the
+            # operator, so silently skipping it would be the same fail-open one seam over.
+            continue
         out.append(ln)
     return out
 

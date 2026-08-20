@@ -1572,3 +1572,36 @@ def test_stray_separator_cannot_erase_the_preceding_row(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-stray-separator-review.md", body)
     assert rc == 1, "a stray separator erased the UNCHECKED row before it"
     assert "UNCHECKED" in out
+
+
+def test_adjacent_stray_separator_cannot_swallow_a_data_row(repo: Path) -> None:
+    """Round-89: physical adjacency alone still let a stray `|---|` DIRECTLY under a data
+    row swallow it as a 'header' — chainably, wiping any number of UNCHECKED rows. A header
+    must be run-initial (previous physical line not a pipe-row) and verdict-free."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
+        "| auth-tenant-isolation | UNCHECKED |\n|---|\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-adjacent-separator-review.md", body)
+    assert rc == 1, "an adjacent stray separator swallowed the UNCHECKED row above it"
+    assert "UNCHECKED" in out
+
+
+def test_headerless_table_with_verdict_grammar_stays_counted(repo: Path) -> None:
+    """Round-89 (second seam): a run-initial row followed by a separator IS a header to a
+    renderer — but if it carries verdict grammar (an UNCHECKED living in a header cell,
+    visible to the operator), it is counted as data, never silently skipped."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+        "| auth-tenant-isolation UNCHECKED |\n|---|\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-headerless-verdict-review.md", body)
+    assert rc == 1, "an UNCHECKED living in a header cell was silently skipped"
