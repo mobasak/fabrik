@@ -1246,6 +1246,7 @@ def test_numbered_handoff_row_cannot_vanish(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-20-user-test-numbered.md", body)
     assert rc == 1, "a numbered OPEN HANDOFF row vanished from the cert gate"
+    assert "NOT-QUIET" in out, "the row must fail for the disposition reason, not incidentally"
 
 
 def test_numbered_pass_row_cannot_vanish(repo: Path) -> None:
@@ -1277,3 +1278,25 @@ def test_list_marker_recap_is_refused_loudly_not_silently(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-recap-review.md", body)
     assert rc == 1
     assert "separate groups" in out, "the recap impersonation must get the loud multi-group remedy"
+
+
+def test_every_commonmark_list_marker_reaches_both_grammars(repo: Path) -> None:
+    """Round-69 HIGH: the marker tolerance was re-typed per regex and per round (`-`, then
+    `1.`, then `+`/`1)` still missing) — _LIST_MARK is now defined once and shared, and this
+    pin sweeps the COMPLETE CommonMark marker set through both grammars so no variant can
+    vanish a renderer-visible obligation again."""
+    for i, mark in enumerate(["+", "1)", "*", "2."]):
+        body = (
+            "# cert\n\nDispositions:\n\n"
+            f"{mark} HANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n"
+        )
+        rc, out = _gate(repo, f"2026-08-20-user-test-mark{i}.md", body)
+        assert rc == 1, f"marker {mark!r} vanished a HANDOFF row"
+        assert "NOT-QUIET" in out, f"marker {mark!r} failed for the wrong reason"
+        body = _everyday(
+            "Pass 1: found: 5, fixed: 5\nPass 2: found: 0, fixed: 0\n",
+            f"\n{mark} Pass 3: found: 7, fixed: 0\n",
+        )
+        rc, out = _gate(repo, f"2026-08-20-mark{i}-pass-review.md", body)
+        assert rc == 1, f"marker {mark!r} vanished a non-quiet final Pass row"
+        assert "final ledger round raised 7" in out, f"marker {mark!r}: wrong reason"

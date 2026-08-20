@@ -626,11 +626,13 @@ _MEGA_ROW = re.compile(r"^\s*\|.*?\|\s*found:\s*(\d+)\s*\|\s*fixed:\s*(\d+)\s*\|
 # (no word/hyphen prefix; a separator or EOL after the number), and a line with more than one
 # strict token of either kind is not an honest single-round row — it is IGNORED, so a crafted
 # decoy goes inert instead of winning the parse.
-# List-marker tolerance (round 65): `- Pass 3: found: 7, fixed: 0` renders as a fully
-# visible list item, and HANDOFF_ROW next door already tolerated [-*] — the one ledger-row
-# grammar without it silently vanished a bulleted non-quiet final round from check_file AND
-# the committed advisory (both share this extractor).
-_PASS_HEAD = re.compile(r"^\s*(?:[-*]|\d+\.)?\s*\|?\s*\**Pass\s*\d", re.I)
+# THE list-marker fragment, defined ONCE (round 69): rounds 65→67→69 each found the next
+# marker variant missing from one grammar (`-` then `1.` then `+`/`1)`), because the
+# tolerance was re-typed per regex. CommonMark's marker set is CLOSED — bullets `-`/`+`/`*`,
+# ordinals `digits.`/`digits)` — so one shared fragment ends the variant chase definitionally
+# and the two ledger-row grammars can never drift again.
+_LIST_MARK = r"(?:[-*+]|\d+[.)])?"
+_PASS_HEAD = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*\d", re.I)
 # The separator is "anything that is not a word": round-13 measured the whitelist version
 # against the repo's own committed corpus and whole ledgers evaporated — `fixed: 0.` (period),
 # `found: 0\`` (backtick), `fixed: 0 → EXIT` (arrow), `fixed: 2 (seams…)` (paren) all went
@@ -896,11 +898,11 @@ def check_mega_validation(
     return errs
 
 
-# Numbered-list tolerance matches _PASS_HEAD (round 67: round 66 aligned only one of the two
-# ledger-row grammars, and a numbered `1. HANDOFF P1 OPEN …` — renderer-visible — vanished
-# from findall AND from _grammar_shaped's refusal net, waiving every downstream obligation).
+# Shares _LIST_MARK with _PASS_HEAD (rounds 67/69: each grammar re-typing its own marker
+# tolerance is how a renderer-visible `1. HANDOFF …` / `1) HANDOFF …` kept vanishing from
+# findall AND from _grammar_shaped's refusal net, waiving every downstream obligation).
 HANDOFF_ROW = re.compile(
-    r"^\s*(?:[-*]|\d+\.)?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M
+    r"^\s*" + _LIST_MARK + r"\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M
 )
 REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
 PROOF_IN_ROW = re.compile(r"proof:\s*\S")
