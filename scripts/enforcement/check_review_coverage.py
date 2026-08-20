@@ -626,7 +626,11 @@ _MEGA_ROW = re.compile(r"^\s*\|.*?\|\s*found:\s*(\d+)\s*\|\s*fixed:\s*(\d+)\s*\|
 # (no word/hyphen prefix; a separator or EOL after the number), and a line with more than one
 # strict token of either kind is not an honest single-round row — it is IGNORED, so a crafted
 # decoy goes inert instead of winning the parse.
-_PASS_HEAD = re.compile(r"^\s*\|?\s*\**Pass\s*\d", re.I)
+# List-marker tolerance (round 65): `- Pass 3: found: 7, fixed: 0` renders as a fully
+# visible list item, and HANDOFF_ROW next door already tolerated [-*] — the one ledger-row
+# grammar without it silently vanished a bulleted non-quiet final round from check_file AND
+# the committed advisory (both share this extractor).
+_PASS_HEAD = re.compile(r"^\s*(?:[-*]|\d+\.)?\s*\|?\s*\**Pass\s*\d", re.I)
 # The separator is "anything that is not a word": round-13 measured the whitelist version
 # against the repo's own committed corpus and whole ledgers evaporated — `fixed: 0.` (period),
 # `found: 0\`` (backtick), `fixed: 0 → EXIT` (arrow), `fixed: 2 (seams…)` (paren) all went

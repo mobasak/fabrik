@@ -1220,3 +1220,17 @@ def test_in_progress_cert_report_is_exempt_and_nagged(repo: Path) -> None:
     assert "user-test-midloop2" in out and "IN-PROGRESS" in out, (
         "the committed scan lost the standing advisory on the newly committed cert report"
     )
+
+
+def test_bulleted_pass_row_cannot_vanish(repo: Path) -> None:
+    """Round-65 HIGH: `- Pass 3: found: 7, fixed: 0` renders as a fully visible list item,
+    but _PASS_HEAD had no list-marker tolerance (HANDOFF_ROW next door did) — the bulleted
+    non-quiet final round was invisible to the ledger extractor and the report exited green
+    on both the blocking path and the committed advisory."""
+    body = _everyday(
+        "Pass 1: found: 5, fixed: 5\nPass 2: found: 0, fixed: 0\n",
+        "\n- Pass 3: found: 7, fixed: 0\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-bulleted-pass-review.md", body)
+    assert rc == 1, "a bulleted non-quiet final round vanished from the ledger extractor"
+    assert "final ledger round raised 7" in out
