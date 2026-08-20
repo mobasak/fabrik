@@ -1128,3 +1128,46 @@ def test_setext_checklist_heading_is_refused(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-setext-review.md", body)
     assert rc == 1, "a setext checklist heading made the document a silent non-subject"
     assert "SETEXT-style heading" in out
+
+
+def test_comment_separated_indented_row_is_still_refused(repo: Path) -> None:
+    """Round-59 CRITICAL (fail-open half): _indented_grammar_error rebuilt its lines from RAW
+    text while _strip_fences blanked comments — the walks disagreed, so an indented Pass row
+    separated from prose only by a comment line was quoted to one reader and live to the
+    other, vanishing a visibly non-quiet ledger line without any refusal."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n",
+        "\nRound 3 notes:\n<!-- internal -->\n    Pass 3: found: 5, fixed: 0\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-comment-indent-review.md", body)
+    assert rc == 1, "a comment-separated indented Pass row escaped both the strip and the refusal"
+    assert "INDENTED grammar-shaped line" in out
+
+
+def test_grammar_example_inside_a_comment_is_not_refused(repo: Path) -> None:
+    """Round-59 CRITICAL (fail-closed half): a renderer-invisible HTML comment wrapping a
+    blockquoted HANDOFF example false-fired the BLOCKQUOTED refusal, hard-blocking an honest
+    document — the raw-text walk saw the comment's content as live."""
+    body = (
+        "# How to write a cert report — internal documentation\n\n"
+        "<!--\n> HANDOFF P1 OPEN example row for docs — repro: x — route: /fabrik-review y\n-->\n\n"
+        "That is all this doc contains.\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-comment-example-review.md", body)
+    assert rc == 0, f"a comment-wrapped example false-fired the refusal: {out}"
+
+
+def test_inline_comment_opener_cannot_eat_a_fence(repo: Path) -> None:
+    """Round-59 HIGH: the position-blind comment regex let a mid-paragraph `<!--` (INLINE
+    HTML to a renderer, never a block comment) absorb text through a `-->` quoted inside a
+    later real fence, eating the fence opener and false-firing UNCLOSED on an unambiguous
+    document. Block comments open only at line-leading `<!--`."""
+    body = (
+        "# How to write a review — internal documentation\n\n"
+        "Some prose <!-- unterminated note about example:\n"
+        "```python\nvalue = \"-->\"\nprint(\"real fence content\")\n```\n\n"
+        "more prose\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-inline-comment-review.md", body)
+    assert rc == 0, f"an inline <!-- ate a real fence and false-fired UNCLOSED: {out}"
+    assert "UNCLOSED" not in out

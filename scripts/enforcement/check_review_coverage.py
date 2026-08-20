@@ -400,19 +400,6 @@ _MEGA_SURFACE = re.compile(
 )  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
-# HTML comments are INVISIBLE to a renderer but were live to every regex in this file —
-# round 57 reproduced `<!--\nStatus: IN-PROGRESS\n-->` in the header zone silently exempting
-# a whole document from every obligation. Comments are blanked (characters → spaces, newlines
-# kept, so line counts and indexes stay stable for the fence scanner) before ANY grammar or
-# fence logic runs; an unclosed `<!--` absorbs to EOF, matching renderer behavior and failing
-# CLOSED (content after it reads as absent, loudly — never as live grammar).
-_HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
-
-
-def _blank_comments(text: str) -> str:
-    return _HTML_COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
-
-
 # A fence delimiter line, either GFM flavor, 0–3 leading spaces (valid CommonMark — editor
 # auto-indent and list-quoting produce these routinely).
 _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
@@ -433,10 +420,50 @@ def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
     None). A closer is a same-flavor marker of >= the opener's length with nothing but
     whitespace after it; anything else inside an open fence is content.
     """
-    regions: list[tuple[int, int]] = []
+    fences, _comments, dangling = _block_regions(text)
+    return fences, dangling
+
+
+# A block-level HTML comment opener: line-leading (0–3 spaces). A mid-paragraph `<!--` is
+# INLINE HTML to a renderer, not a block comment — round 59 reproduced the fence-unaware
+# blanking regex letting a prose `<!--` eat a real fence opener through a `-->` quoted
+# INSIDE the fence, false-firing UNCLOSED on an unambiguous document.
+_COMMENT_OPEN = re.compile(r"^ {0,3}<!--(.*)$")
+
+
+def _block_regions(
+    text: str,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]], int | None]:
+    """ONE sequential block scanner: fences and HTML comments, mutually exclusive.
+
+    A renderer reads block structure sequentially — a `<!--` inside an open fence is fence
+    content; a fence marker inside an open comment is comment content (HTML block type 2 runs
+    until a line containing `-->`, and fences do not interrupt it); a mid-paragraph `<!--` is
+    inline, never a block comment. Round 58 blanked comments with a position-blind regex and
+    round 59 reproduced both cross-contaminations. An unclosed block comment absorbs to EOF,
+    matching renderer behavior and failing CLOSED. Returns (fence regions, comment regions,
+    dangling fence opener index) as inclusive line-index pairs.
+    """
+    fences: list[tuple[int, int]] = []
+    comments: list[tuple[int, int]] = []
     open_at: int | None = None
     open_marker = ""
-    for i, ln in enumerate(_blank_comments(text).splitlines()):
+    c_open: int | None = None
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        if c_open is not None:
+            if "-->" in ln:
+                comments.append((c_open, i))
+                c_open = None
+            continue
+        if open_at is None:
+            mc = _COMMENT_OPEN.match(ln)
+            if mc:
+                if "-->" in mc.group(1):
+                    comments.append((i, i))
+                else:
+                    c_open = i
+                continue
         m = _FENCE_LINE.match(ln)
         if not m:
             continue
@@ -450,28 +477,41 @@ def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
                 continue
             open_at, open_marker = i, marker
         elif marker[0] == open_marker[0] and len(marker) >= len(open_marker) and not rest.strip():
-            regions.append((open_at, i))
+            fences.append((open_at, i))
             open_at = None
-    return regions, open_at
+    if c_open is not None:
+        comments.append((c_open, len(lines) - 1))
+    return fences, comments, open_at
+
+
+def _kept_lines(text: str) -> list[str]:
+    """The ONE live-line constructor every structural reader shares (round 59).
+
+    Round 58 blanked comments in _strip_fences but _indented_grammar_error rebuilt its lines
+    from RAW text — the two walks disagreed, and the very next sweep reproduced both wrong
+    verdicts that divergence permits (a vanished non-quiet ledger row; a false BLOCKQUOTED
+    refusal on a renderer-invisible comment example). One constructor, no siblings to drift.
+
+    Fenced regions are DROPPED (a dangling opener drops to EOF — the round-11 fail-closed
+    contract); comment lines become BARE BLANK LINES, not deletions, because a renderer ends
+    the enclosing block there — an indented line after a comment is a code block, and only a
+    blank line preserves that judgment in _split_indented.
+    """
+    fences, comments, dangling = _block_regions(text)
+    drop: set[int] = set()
+    for a, b in fences:
+        drop.update(range(a, b + 1))
+    blank: set[int] = set()
+    for a, b in comments:
+        blank.update(range(a, b + 1))
+    lines = text.splitlines(keepends=True)
+    if dangling is not None:
+        drop.update(range(dangling, len(lines)))
+    return ["\n" if i in blank and i not in drop else ln for i, ln in enumerate(lines) if i not in drop]
 
 
 def _strip_fences(text: str) -> str:
-    text = _blank_comments(text)
-    regions, dangling = _fence_regions(text)
-    drop: set[int] = set()
-    for a, b in regions:
-        drop.update(range(a, b + 1))
-    lines = text.splitlines(keepends=True)
-    if dangling is not None:
-        # An UNCLOSED fence (the closer forgotten — the mega template's own doc does this when
-        # quoting examples) left the "fenced" example as LIVE text: round-11 reproduced a
-        # phantom second table and a fenced example row becoming the final round. A dangling
-        # opener is by construction unmatched — fenced-to-EOF: content after it is quoted
-        # material, never live ledger. Fail-closed: an honest ledger BELOW an unclosed fence
-        # reads as absent (loud), not as whatever the example says.
-        drop.update(range(dangling, len(lines)))
-    kept = [ln for i, ln in enumerate(lines) if i not in drop]
-    live, _quoted = _split_indented(kept)
+    live, _quoted = _split_indented(_kept_lines(text))
     return "".join(live)
 
 
@@ -548,14 +588,7 @@ def _indented_grammar_error(text: str) -> str | None:
     sees. All three costumes of one root (hand-rolled fragments of markdown block structure)
     get the one refusal: out-dent/ATX it if live, fence it if quoted.
     """
-    regions, dangling = _fence_regions(text)
-    drop: set[int] = set()
-    for a, b in regions:
-        drop.update(range(a, b + 1))
-    lines = text.splitlines(keepends=True)
-    if dangling is not None:
-        drop.update(range(dangling, len(lines)))
-    live, quoted = _split_indented([ln for i, ln in enumerate(lines) if i not in drop])
+    live, quoted = _split_indented(_kept_lines(text))
     for ln in quoted:
         content = ln.strip()
         if content and _grammar_shaped(content):
