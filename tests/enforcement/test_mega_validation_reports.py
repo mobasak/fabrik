@@ -1347,3 +1347,16 @@ def test_blockquoted_and_setext_headings_also_bound_prose_runs(repo: Path) -> No
         rc, out = _gate(repo, f"2026-08-20-heading-form{i}-review.md", body)
         assert rc == 1, f"decoy after heading form {i} silently became the final round"
         assert "separate groups" in out, f"heading form {i}: wrong reason"
+
+
+def test_bare_hash_heading_bounds_a_prose_run(repo: Path) -> None:
+    """Round-75: a lone `#` is a valid empty ATX heading to a renderer, but the boundary
+    regex required a trailing space — the decoy bypass revived one syntax over again."""
+    body = _everyday(
+        "Pass 1: found: 3, fixed: 0\nPass 2: found: 2, fixed: 0\n",
+        "\n#\nAppendix — unrelated retro note\n\n"
+        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-bare-hash-review.md", body)
+    assert rc == 1, "a decoy after a bare-# heading silently became the final round"
+    assert "separate groups" in out

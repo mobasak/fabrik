@@ -693,7 +693,10 @@ def _ledger_shapes(
     # ATX with optional blockquote prefixes, or a setext underline directly under a non-blank
     # line (an underline after a blank is a thematic break, not a heading — same-section,
     # the adjudicated author-declares-exit residual).
-    atx_boundary = re.compile(r"^ {0,3}(?:>\s*)*#{1,6}\s")
+    # (?:\s|$): CommonMark accepts a BARE `#` at end-of-line as a valid empty ATX heading
+    # (round 75 — the required-trailing-space form let a lone `#` divider fail to bound the
+    # run, reviving the decoy bypass one syntax over yet again).
+    atx_boundary = re.compile(r"^ {0,3}(?:>\s*)*#{1,6}(?:\s|$)")
     setext_underline = re.compile(r"^ {0,3}(?:>\s*)*(=+|-+)\s*$")
     prev_nonblank = False
     for line in body.splitlines():
