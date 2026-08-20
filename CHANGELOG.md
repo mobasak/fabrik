@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T06: collector v2 — an append-only derived-facts store whose published numbers cannot double-count (2026-08-20)
+
+`scripts/sysadmin/kaizen_collect_v2.py` derives per-session facts from the M1 event stream into an
+append-only store (`(sid, facts_version, day)` rows), publishes versioned per-day metric series, and
+enforces a paired-counter registry (every metric names its reciprocal counter or the registry refuses
+to load). Four acceptance rounds killed two SEVERE double-count classes before first production run:
+the derive-once key that froze growing files (unknown.jsonl went permanently dark after day one) and
+cumulative rows published as per-day series values (day-2 re-counting day-1's lines). Published day
+values are now deltas against a chronological cross-version baseline; a shrunken source darks the sid
+for the day and raises `instrument_alarm` instead of publishing a negative or a lie. Golden-corpus
+selftest gates the derivation; 64 tests, every functional fix watched RED first.
+
 ### Fixed — tryton-crm deploy spec omitted the offer-send bridge env/secret (release blocker) (2026-08-20)
 
 - `specs/services/tryton-crm.yaml` did not declare `BRIDGE_URL`, `OFFER_SEND_TIMEOUT` (env), or

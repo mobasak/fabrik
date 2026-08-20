@@ -1,0 +1,10 @@
+{"schema":1,"ts":"2026-08-18T09:00:00.000+00:00","sid":"golden-charlie","sid_source":"explicit","event":"session_start","exposure":{"commit":"redacted","account":"redacted","model":"unknown","headless":false,"plan_era":"—"},"cwd":"/opt/somewhere","source":"startup"}
+{"schema":1,"ts":"2026-08-18T09:01:00.000+00:00","sid":"golden-charlie","sid_source":"env","event":"pha
+[1,2,3]
+{"schema":1,"ts":"2026-08-18T09:03:00.000+00:00","sid":"golden-charlie","sid_source":"env","exposure":{}}
+{"schema":1,"ts":"2026-08-18T09:04:00.000+00:00","sid":"golden-charlie","sid_source":"none","event":"stop_pass","exposure":{},"outcome":"clean","warned":[]}
+{"schema":1,"ts":"2026-08-18T09:05:00.000+00:00","sid":"someone-else","sid_source":"env","event":"phase","exposure":{},"n":1,"title":"x"}
+{"schema":99,"ts":"2026-08-18T09:06:00.000+00:00","sid":"golden-charlie","sid_source":"env","event":"stop_pass","exposure":{},"outcome":"clean","warned":[]}
+{"schema":1,"ts":"2026-08-18T09:07:00.000+00:00","sid":"golden-charlie","sid_source":"env","event":"gate_run","exposure":{},"tier":2,"mode":{},"status":"success","checks":"not-a-list"}
+{"schema":1,"ts":"2026-08-18T09:08:00.000+00:00","sid":"golden-charlie","sid_source":"env","event":"run_close","exposure":{},"verdict":"maybe","evidence_hash":"","closed_by":"agent"}
+{"schema":1,"ts":"2026-08-18T09:30:00.000+00:00","sid":"golden-charlie","sid_source":"explicit","event":"stop_pass","exposure":{"commit":"redacted","account":"redacted","model":"unknown","headless":false,"plan_era":"—"},"outcome":"clean","warned":[]}
