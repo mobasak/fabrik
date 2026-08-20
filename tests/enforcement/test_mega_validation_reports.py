@@ -1300,3 +1300,31 @@ def test_every_commonmark_list_marker_reaches_both_grammars(repo: Path) -> None:
         rc, out = _gate(repo, f"2026-08-20-mark{i}-pass-review.md", body)
         assert rc == 1, f"marker {mark!r} vanished a non-quiet final Pass row"
         assert "final ledger round raised 7" in out, f"marker {mark!r}: wrong reason"
+
+
+def test_prose_decoy_in_a_later_section_is_refused(repo: Path) -> None:
+    """Round-71 HIGH: prose Pass-lines collapsed into ONE flat group however far apart, so a
+    retro sentence in a later section that parsed as a counter silently became the final
+    round — the one decoy shape the multi-group guard could not see (table cases fired;
+    prose+prose did not). Prose runs are now heading-bounded groups."""
+    body = _everyday(
+        "Pass 1: found: 3, fixed: 0\nPass 2: found: 4, fixed: 0\n",
+        "\n## Appendix — unrelated retro note\n\n"
+        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-prose-decoy-review.md", body)
+    assert rc == 1, "a prose decoy past a heading silently became the final round"
+    assert "separate groups" in out
+
+
+def test_wrapped_continuation_prose_ledger_is_one_group(repo: Path) -> None:
+    """Round-71 regression guard (the 2026-08-04 corpus style): an honest prose ledger whose
+    rows wrap with continuation prose within ONE section must stay one group — breaking runs
+    on arbitrary prose false-fired it; the boundary is structural (a heading)."""
+    body = _everyday(
+        "Pass 1 — found: 3, fixed: 3 (seams partition; the coverage dispatch was re-run\n"
+        "inline after a quota kill; all anchors re-verified against the tree)\n"
+        "Pass 2 — found: 0, fixed: 0. All refs byte-verified; render clean.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-wrapped-prose-review.md", body)
+    assert rc == 0, f"an honest wrapped-continuation prose ledger was split into groups: {out}"

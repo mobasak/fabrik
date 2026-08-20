@@ -330,7 +330,7 @@ def check_file(p: Path) -> list[str]:
     # after the ledger; a FENCED example Pass-line; the same two against the committed scan) —
     # all because this path and the mega path were hardened separately. They no longer are.
     ev_tables, ev_prose, ordered_rows = _ledger_shapes(text)
-    groups = len(ev_tables) + (1 if ev_prose else 0)
+    groups = len(ev_tables) + len(ev_prose)
     if groups > 1 and not _in_progress(text) and not blocked_ok:
         errs.append(
             f"counter rows appear in {groups} separate groups (tables/prose runs) — the ledger "
@@ -661,7 +661,8 @@ def _ledger_shapes(
 ]:
     """ONE extraction contract for every ledger reader in this file.
 
-    Returns (counter TABLES, prose PASS-lines) from fence-stripped text. Nine review rounds of
+    Returns (counter TABLES, prose PASS-line RUNS, document-order rows) from fence-stripped
+    text. Nine review rounds of
     this file's own history are condensed here: THREE parallel ledger-reading implementations
     (the mega grammar, check_file, the committed advisory) were each hardened separately, and
     every closing sweep found the newest hardening absent from a sibling path — the loop's
@@ -675,12 +676,23 @@ def _ledger_shapes(
     """
     body = _strip_fences(text)
     tables: list[list[tuple[int, int, str]]] = []
-    prose: list[tuple[int, int, str]] = []
+    # Prose runs are POSITIONAL groups like tables (round 71: a flat prose list made every
+    # prose Pass-line in the document ONE group, so a retro sentence in a later SECTION that
+    # parsed as a counter silently became the final round with NO multi-group refusal — the
+    # only decoy shape the guard could not see). The run boundary is STRUCTURAL — a heading —
+    # not arbitrary prose: honest prose ledgers wrap rows with continuation lines (the
+    # 2026-08-04 corpus report does; breaking on any prose false-fired it), but a ledger
+    # lives in ONE section, so a counter line past the next heading is a separate group.
+    prose_runs: list[list[tuple[int, int, str]]] = []
     ordered: list[tuple[int, int, str]] = []
     current: list[tuple[int, int, str]] = []
+    p_run: list[tuple[int, int, str]] = []
     for line in body.splitlines():
         stripped = line.strip()
         if stripped.startswith("|"):
+            if p_run:
+                prose_runs.append(p_run)
+                p_run = []
             if re.fullmatch(r"[|\-: ]+", stripped):
                 continue  # separator row — never data, never a boundary
             m = _MEGA_ROW.match(line)
@@ -701,11 +713,16 @@ def _ledger_shapes(
             pc = _pass_counters(line)
             if pc:
                 row = (pc[0], pc[1], line)
-                prose.append(row)
+                p_run.append(row)
                 ordered.append(row)
+            elif p_run and re.match(r"^ {0,3}#{1,6}\s", line):
+                prose_runs.append(p_run)
+                p_run = []
     if current:
         tables.append(current)
-    return tables, prose, ordered
+    if p_run:
+        prose_runs.append(p_run)
+    return tables, prose_runs, ordered
 
 
 def epics_set_hash(root: Path) -> str | None:
@@ -1039,7 +1056,7 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # centralization claimed "every reader"; a claim is only as true as its grep
             continue
         c_tables, c_prose, ordered_rows = _ledger_shapes(text)
-        if len(c_tables) + (1 if c_prose else 0) > 1:
+        if len(c_tables) + len(c_prose) > 1:
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with counter rows in multiple groups — the "
                 "exit round is forgeable by a decoy group; consolidate to ONE ledger"
