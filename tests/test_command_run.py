@@ -10,6 +10,7 @@ Highest-risk behaviours (one test per user-observable behaviour):
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib.util
 import json
 import subprocess
@@ -36,27 +37,95 @@ def run_dir(tmp_path: Path) -> Path:
     return d
 
 
-def _cr(run_dir: Path, *args: str, sid: str = "s1") -> subprocess.CompletedProcess[str]:
+def _cr(
+    run_dir: Path,
+    *args: str,
+    sid: str | None = "s1",
+    cwd: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "COMMAND_RUN_DIR": str(run_dir),
+        # Never let a test emit into the operator's real event store.
+        "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
+    }
+    if sid is not None:
+        env["CLAUDE_SESSION_ID"] = sid
+    env.update(extra_env or {})
     return subprocess.run(
         [sys.executable, str(_SCRIPT), *args],
         capture_output=True,
         text=True,
         timeout=30,
-        env={
-            "PATH": "/usr/bin:/bin",
-            "COMMAND_RUN_DIR": str(run_dir),
-            "CLAUDE_SESSION_ID": sid,
-        },
+        cwd=str(cwd) if cwd else None,
+        env=env,
     )
 
 
+#: The fixture command name. It MUST NOT be one of the names `_close` special-cases
+#: (`fabrik-review`, `fabrik-repo-review` — scripts/command_run.py `_close`), whose `done`
+#: additionally requires a persisted `docs/development/reviews/*.md` from `git status`/HEAD.
+#: Using a real review command here made the suite a TIME BOMB: it passed while HEAD
+#: happened to be a commit that touched a review report, and went red the moment a commit
+#: that did not became HEAD. Only `test_review_done_refused_without_a_persisted_report`,
+#: which exists to test that guard, may name a special-cased command.
+_PROBE = "fabrik-probe"
+
+
 def _start(run_dir: Path, **kw: str) -> None:
-    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5",
         "--terminal", "found:0 no-op round", **kw)
 
 
 def _rec(run_dir: Path, sid: str = "s1") -> dict:
     return json.loads(_cr(run_dir, "status", "--json", sid=sid).stdout)
+
+
+# --- kaizen event-stream helpers ---------------------------------------------
+
+
+def _events_dir(run_dir: Path) -> Path:
+    return run_dir.parent / "events"
+
+
+def _events(run_dir: Path, stem: str) -> list[dict]:
+    path = _events_dir(run_dir) / f"{stem}.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+def _iso(offset_s: float = 0.0) -> str:
+    return (dt.datetime.now(dt.UTC) + dt.timedelta(seconds=offset_s)).isoformat(
+        timespec="milliseconds"
+    )
+
+
+def _seed_event(
+    run_dir: Path,
+    stem: str,
+    *,
+    sid: str | None = None,
+    cwd: Path | str | None = None,
+    project: str = "",
+    ts: str | None = None,
+    event: str = "session_start",
+) -> None:
+    d = _events_dir(run_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    row: dict = {
+        "schema": 1,
+        "ts": ts or _iso(),
+        "sid": sid or stem,
+        "sid_source": "env",
+        "event": event,
+        "exposure": {"project": project or "unknown"},
+    }
+    if cwd is not None:
+        row["cwd"] = str(Path(cwd).resolve())
+    with open(d / f"{stem}.jsonl", "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
 
 
 # --- the pinned line ----------------------------------------------------------
@@ -212,6 +281,7 @@ def test_concurrent_rounds_are_never_lost(run_dir: Path) -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env={"PATH": "/usr/bin:/bin", "COMMAND_RUN_DIR": str(run_dir),
+                 "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
                  "CLAUDE_SESSION_ID": "s1"},
         )
         for i in range(n)
@@ -343,7 +413,8 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     import os
     import subprocess
     import sys
-    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"),
+               KAIZEN_EVENTS_DIR=str(tmp_path / "events"))
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
@@ -497,3 +568,454 @@ def test_blocked_works_on_a_rootless_record(tmp_path):
                         "--reason", "rootless-record"], cwd=norepo, env=env,
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 0, f"blocked no longer closes a rootless record: {r.stdout}{r.stderr}"
+# --- T03: kaizen lifecycle events --------------------------------------------
+#
+# The record is the Stop hook's 5th cause and is fleet-synced, so the events are
+# STRICTLY additive: emitted after `save()` returns, outside the record lock, each
+# call wrapped. The tests below pin both halves — the events land, AND nothing an
+# existing consumer reads (the `state` field, the pinned line, the record's shape)
+# moved a byte.
+
+
+def test_start_emits_run_open(run_dir: Path) -> None:
+    _start(run_dir)
+    rows = _events(run_dir, "s1")
+    assert [r["event"] for r in rows] == ["run_open"], rows
+    row = rows[0]
+    assert row["command"] == "fabrik-probe", row
+    assert row["phases"] == 5, row
+    assert row["terminal"] == "found:0 no-op round", row
+    assert row["sid"] == "s1" and row["sid_source"] == "env", row
+    assert isinstance(row.get("exposure"), dict), row
+
+
+def test_step_and_round_emit_their_events(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "step", "--phase", "2", "--title", "Independent finders")
+    _cr(run_dir, "round", "--findings", "3", "--classes-swept", "auth", "--classes-new", "races")
+    rows = _events(run_dir, "s1")
+    assert [r["event"] for r in rows] == ["run_open", "phase", "round"], rows
+    assert rows[1]["n"] == 2 and rows[1]["title"] == "Independent finders", rows[1]
+    assert rows[2]["findings"] == 3, rows[2]
+    assert rows[2]["classes_swept"] == ["auth"], rows[2]
+    assert rows[2]["classes_new"] == ["races"], rows[2]
+
+
+def test_done_emits_run_close_with_a_verdict_and_evidence_hash(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 4 found: 0")
+    row = _events(run_dir, "s1")[-1]
+    assert row["event"] == "run_close", row
+    assert row["verdict"] == "done", row
+    assert row["command"] == "fabrik-probe", row
+    assert row["closed_by"] == "agent", row
+    # a HASH of the evidence, never the evidence prose itself
+    assert isinstance(row["evidence_hash"], str) and len(row["evidence_hash"]) >= 8, row
+    assert "found: 0" not in json.dumps(row), row
+
+
+def test_blocked_emits_run_close_with_the_blocked_verdict(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "blocked", "--command", "fabrik-probe", "--reason", "missing infra — no DB")
+    row = _events(run_dir, "s1")[-1]
+    assert row["event"] == "run_close" and row["verdict"] == "blocked", row
+    assert row["closed_by"] == "agent", row
+
+
+def test_closed_by_is_written_on_the_record(run_dir: Path) -> None:
+    """`closed_by` is additive — absent while running, `agent` once an agent closes it."""
+    _start(run_dir)
+    assert "closed_by" not in _rec(run_dir), _rec(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x")
+    rec = _rec(run_dir)
+    assert rec["closed_by"] == "agent" and rec["state"] == "done", rec
+
+
+def test_a_refused_close_mutates_nothing_and_emits_nothing(run_dir: Path) -> None:
+    _start(run_dir)
+    before = len(_events(run_dir, "s1"))
+    assert _cr(run_dir, "done", "--command", "fabrik-docs-review", "--evidence", "x").returncode == 1
+    assert len(_events(run_dir, "s1")) == before, "a refused close is not a mutation"
+    assert _rec(run_dir)["state"] == "running"
+
+
+def test_readers_emit_nothing(run_dir: Path) -> None:
+    _start(run_dir)
+    before = len(_events(run_dir, "s1"))
+    _cr(run_dir, "line")
+    _cr(run_dir, "status", "--json")
+    assert len(_events(run_dir, "s1")) == before, "line/status are read-only"
+
+
+def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> None:
+    """The Stop hook's contract: `state` semantics + the pinned line stay byte-stable."""
+    _start(run_dir)
+    _cr(run_dir, "step", "--phase", "2", "--title", "Independent finders")
+    rec = _rec(run_dir)
+    # Exact, not a subset: a field silently appearing in a fleet-synced record that the
+    # Stop hook and every project's copy also read is exactly what this pins. `event_seq`
+    # is the one T03 addition, and it is additive — no existing consumer reads it.
+    # `started_epoch` + `repo_root` are the review-guard's (mega-enforcement round-31/33).
+    assert set(rec) == {
+        "session_id", "command", "phases", "phase", "phase_title", "terminal",
+        "state", "started_at", "started_epoch", "repo_root", "rounds", "classes",
+        "stack", "updated_at", "updated_ts", "event_seq",
+    }, sorted(rec)
+    assert rec["state"] == "running"
+    assert _cr(run_dir, "line").stdout.rstrip("\n") == (
+        "RUN: /fabrik-probe · phase 2/5 (Independent finders) · terminal: found:0 no-op round"
+    )
+
+
+def _shim(tmp_path: Path, name: str, body: str) -> dict[str, str]:
+    """A `kaizen_events` stand-in earlier on sys.path than the real one."""
+    d = tmp_path / name
+    d.mkdir()
+    (d / "kaizen_events.py").write_text(body, encoding="utf-8")
+    return {"PYTHONPATH": str(d)}
+
+
+def test_a_raising_emitter_never_corrupts_a_record(run_dir: Path, tmp_path: Path) -> None:
+    """The emitter is a SENSOR: it may fail, and the record must not notice."""
+    boom = _shim(
+        tmp_path,
+        "boom",
+        "UNKNOWN = 'unknown'\n"
+        "def events_dir():\n    raise RuntimeError('boom')\n"
+        "def emit(*a, **k):\n    raise RuntimeError('boom')\n",
+    )
+    for argv in (
+        ["start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t"],
+        ["step", "--phase", "2", "--title", "Independent finders"],
+        ["round", "--findings", "0", "--classes-swept", "auth"],
+    ):
+        p = _cr(run_dir, *argv, extra_env=boom)
+        assert p.returncode == 0, p.stdout + p.stderr
+    rec = _rec(run_dir)
+    assert rec["state"] == "running" and rec["phase"] == 2, rec
+    assert rec["classes"] == {"auth": "clean"} and len(rec["rounds"]) == 1, rec
+    assert _cr(run_dir, "line", extra_env=boom).stdout.startswith(
+        "RUN: /fabrik-probe · phase 2/5 (Independent finders) · round 1"
+    )
+    p = _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x", extra_env=boom)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert _rec(run_dir)["state"] == "done"
+
+
+def test_an_absent_kaizen_module_behaves_exactly_as_today(run_dir: Path, tmp_path: Path) -> None:
+    gone = _shim(tmp_path, "gone", "raise ImportError('not synced to this project yet')\n")
+    assert _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
+               "--terminal", "t", extra_env=gone).returncode == 0
+    assert _rec(run_dir)["state"] == "running"
+    assert _events(run_dir, "s1") == []
+
+
+# --- T03: sid honesty — the `nosession` collision made MEASURABLE -------------
+
+
+def test_nosession_events_carry_sid_source_none(run_dir: Path) -> None:
+    """An empty CLAUDE_SESSION_ID (every Bash-tool shell) must not be laundered into
+    an attributed session: the record still works, the EVENT says `none`."""
+    assert _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
+               "--terminal", "t", sid=None).returncode == 0
+    assert (run_dir / "nosession.json").is_file(), "the record naming must not move"
+    rows = _events(run_dir, "unknown")
+    assert [r["event"] for r in rows] == ["run_open"], rows
+    assert rows[0]["sid_source"] == "none", rows[0]
+    assert rows[0]["sid"] == "unknown", rows[0]
+
+
+def test_adopt_sid_adopts_a_single_candidate(run_dir: Path, tmp_path: Path) -> None:
+    """Before a record exists the window is the WHOLE store — a session that named this
+    cwd an hour ago (its `session_start`, which always predates the run) is a candidate.
+
+    Anchoring `start` on the record it is itself writing made this race the clock: the
+    candidate was included only when both landed inside one second-truncated `started_at`.
+    """
+    work = tmp_path / "work"
+    work.mkdir()
+    _seed_event(run_dir, "sessA", cwd=work, ts=_iso(-3600))
+    p = _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
+            "--adopt-sid", sid=None, cwd=work)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert (run_dir / "nosession.json").is_file(), "adoption must NOT rename the record"
+    rows = _events(run_dir, "sessA")
+    assert [r["event"] for r in rows] == ["session_start", "run_open"], (rows, p.stderr)
+    assert rows[1]["sid"] == "sessA", rows[1]
+    assert rows[1]["sid_source"] == "join", "an adopted sid must be labelled, never laundered"
+    assert _events(run_dir, "unknown") == []
+
+
+def test_adopt_sid_refuses_an_ambiguous_join(run_dir: Path, tmp_path: Path) -> None:
+    """Deterministic-join-or-nothing: two candidates means the event stays `unknown`."""
+    work = tmp_path / "work"
+    work.mkdir()
+    _seed_event(run_dir, "sessA", cwd=work)
+    _seed_event(run_dir, "sessB", cwd=work)
+    p = _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
+            "--adopt-sid", sid=None, cwd=work)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert len(_events(run_dir, "sessA")) == 1 and len(_events(run_dir, "sessB")) == 1
+    rows = _events(run_dir, "unknown")
+    assert [r["event"] for r in rows] == ["run_open"], rows
+    assert rows[0]["sid_source"] == "none", rows[0]
+
+
+def test_adopt_sid_ignores_a_session_that_never_named_this_cwd(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    _seed_event(run_dir, "sessA", cwd=work)
+    _seed_event(run_dir, "sessB", cwd=other)
+    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
+        "--adopt-sid", sid=None, cwd=work)
+    assert [r["event"] for r in _events(run_dir, "sessA")] == ["session_start", "run_open"]
+    assert len(_events(run_dir, "sessB")) == 1
+
+
+def test_adopt_sid_window_starts_at_the_runs_own_start(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Once a run exists the window is anchored to ITS start — a session whose only
+    trace of this cwd predates the run is not a candidate."""
+    work = tmp_path / "work"
+    work.mkdir()
+    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
+        sid=None, cwd=work)
+    _seed_event(run_dir, "stale", cwd=work, ts=_iso(-3600))
+    _cr(run_dir, "round", "--findings", "1", "--adopt-sid", sid=None, cwd=work)
+    assert len(_events(run_dir, "stale")) == 1, "a pre-run event must not adopt"
+    assert [r["event"] for r in _events(run_dir, "unknown")] == ["run_open", "round"]
+    # an event INSIDE the window does adopt
+    _seed_event(run_dir, "live", cwd=work, ts=_iso(5))
+    _cr(run_dir, "round", "--findings", "0", "--adopt-sid", sid=None, cwd=work)
+    assert [r["event"] for r in _events(run_dir, "live")] == ["session_start", "round"]
+
+
+def test_adopt_sid_is_ignored_when_a_real_sid_exists(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """An honest sid always wins — the join is a fallback, never an override."""
+    work = tmp_path / "work"
+    work.mkdir()
+    _seed_event(run_dir, "sessA", cwd=work)
+    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
+        "--adopt-sid", sid="s1", cwd=work)
+    assert [r["event"] for r in _events(run_dir, "s1")] == ["run_open"]
+    assert len(_events(run_dir, "sessA")) == 1
+
+
+# --- acceptance round: the join reads TAILS, and refuses what it cannot prove --
+
+
+def _seed_bulk(run_dir: Path, stem: str, *, rows: int, other: Path, tail_cwd: Path | None) -> None:
+    """A LONG session file: `rows` events naming some OTHER cwd, and — when `tail_cwd` is
+    given — one final event naming it. Padded so the file exceeds the tail window."""
+    d = _events_dir(run_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    pad = "p" * 200
+
+    def row(cwd: Path) -> str:
+        return json.dumps({
+            "schema": 1, "ts": _iso(), "sid": stem, "sid_source": "env", "event": "round",
+            "exposure": {"project": "unknown"}, "cwd": str(cwd.resolve()), "pad": pad,
+        }) + "\n"
+
+    with open(d / f"{stem}.jsonl", "a", encoding="utf-8") as fh:
+        for _ in range(rows):
+            fh.write(row(other))
+        if tail_cwd is not None:
+            fh.write(row(tail_cwd))
+
+
+def test_join_reads_the_tail_of_a_long_session_file(run_dir: Path, tmp_path: Path) -> None:
+    """A head-bounded scan makes a long-lived session INVISIBLE — and invisibility here is
+    not a missed adoption but the WRONG one: the second candidate vanishes and the join
+    hands this run's events to somebody else's stream."""
+    work, other = tmp_path / "work", tmp_path / "other"
+    work.mkdir()
+    other.mkdir()
+    _seed_bulk(run_dir, "long", rows=5200, other=other, tail_cwd=work)
+    _seed_event(run_dir, "short", cwd=work)
+    p = _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t",
+            "--adopt-sid", sid=None, cwd=work)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert [r["event"] for r in _events(run_dir, "unknown")] == ["run_open"], (
+        "two sessions name this cwd — the join must REFUSE, not adopt the visible one"
+    )
+    assert len(_events(run_dir, "short")) == 1, "the short candidate must not be adopted"
+
+
+def test_join_adopts_a_candidate_only_the_tail_proves(run_dir: Path, tmp_path: Path) -> None:
+    """The other half of the same fix: the tail must actually be READ, not merely bounded."""
+    work, other = tmp_path / "work", tmp_path / "other"
+    work.mkdir()
+    other.mkdir()
+    _seed_bulk(run_dir, "long", rows=5200, other=other, tail_cwd=work)
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t",
+        "--adopt-sid", sid=None, cwd=work)
+    assert [r["event"] for r in _events(run_dir, "long")][-1:] == ["run_open"]
+    assert _events(run_dir, "unknown") == []
+
+
+def test_join_refuses_when_a_session_is_too_long_to_prove_absence(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Absence is only evidence when the whole file was read. A file past the tail window
+    showing no match is UNPROVABLE, and unprovable resolves toward refusal."""
+    work, other = tmp_path / "work", tmp_path / "other"
+    work.mkdir()
+    other.mkdir()
+    _seed_bulk(run_dir, "long", rows=5200, other=other, tail_cwd=None)
+    _seed_event(run_dir, "short", cwd=work)
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t",
+        "--adopt-sid", sid=None, cwd=work)
+    assert [r["event"] for r in _events(run_dir, "unknown")] == ["run_open"], (
+        "one proven candidate + one unprovable session is not a deterministic join"
+    )
+    assert len(_events(run_dir, "short")) == 1
+
+
+def test_start_never_inherits_a_previous_runs_anchor(run_dir: Path, tmp_path: Path) -> None:
+    """The start verb's window is the WHOLE store. Reading the anchor off whatever record
+    happened to be lying around filters the store by a FINISHED run's clock, hiding older
+    candidates and turning a two-candidate refusal into a wrong adoption."""
+    work = tmp_path / "work"
+    work.mkdir()
+    _seed_event(run_dir, "sessA", cwd=work, ts=_iso(-3600))
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t",
+        sid=None, cwd=work)
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x", sid=None, cwd=work)
+    _seed_event(run_dir, "sessB", cwd=work, ts=_iso())
+    before = len(_events(run_dir, "unknown"))
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t",
+        "--adopt-sid", sid=None, cwd=work)
+    assert len(_events(run_dir, "unknown")) == before + 1, (
+        "sessA predates the closed run — a stale anchor would hide it and adopt sessB"
+    )
+    assert len(_events(run_dir, "sessA")) == 1 and len(_events(run_dir, "sessB")) == 1
+
+
+def test_session_flag_prefix_is_still_unambiguous(run_dir: Path) -> None:
+    """`--session-from-events` shared the `--sess` prefix with `--session`, so argparse
+    stopped accepting the abbreviation. The replacement flag may not re-collide."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    p = _cr(run_dir, "--sess", "s1", "line")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert p.stdout.startswith(f"RUN: /{_PROBE}"), (p.stdout, p.stderr)
+
+
+# --- acceptance round: the stream is ORDER-FAITHFUL and self-describing -------
+
+
+def test_every_event_carries_a_monotonic_seq_and_its_command(run_dir: Path) -> None:
+    """Timestamps are millisecond-quantized and concurrent writers interleave, so `ts`
+    cannot order a stream. `(command, seq)` can."""
+    _start(run_dir)
+    _cr(run_dir, "step", "--phase", "2", "--title", "T")
+    _cr(run_dir, "round", "--findings", "1")
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x")
+    rows = _events(run_dir, "s1")
+    assert [r["seq"] for r in rows] == [1, 2, 3, 4], rows
+    assert {r["command"] for r in rows} == {_PROBE}, rows
+    assert _rec(run_dir)["event_seq"] == 4
+
+
+def test_seq_survives_the_concurrent_writer_scramble(run_dir: Path) -> None:
+    """Concurrent `round` processes land in any order, but the seqs must be a DENSE 1..N —
+    that is what makes the stream repairable after the fact."""
+    _start(run_dir)
+    n = 12
+    procs = [
+        subprocess.Popen(
+            [sys.executable, str(_SCRIPT), "round", "--findings", "1", "--classes-new", f"c{i}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env={"PATH": "/usr/bin:/bin", "COMMAND_RUN_DIR": str(run_dir),
+                 "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)), "CLAUDE_SESSION_ID": "s1"},
+        )
+        for i in range(n)
+    ]
+    for p in procs:
+        p.wait(timeout=90)
+    seqs = sorted(r["seq"] for r in _events(run_dir, "s1"))
+    assert seqs == list(range(1, n + 2)), seqs  # the run_open is seq 1
+
+
+def test_nested_run_close_is_attributable_without_replaying_the_stack(run_dir: Path) -> None:
+    """A nested close is the one event whose meaning depends on state the collector does
+    not have. It must say, in the line itself, what it went back to."""
+    _start_nested(run_dir)
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "round 3 found: 0")
+    row = _events(run_dir, "s1")[-1]
+    assert row["event"] == "run_close" and row["command"] == _PROBE, row
+    assert row["resumed"] == "fabrik-execute-plan", row
+    assert row["resumed_phase"] == 2, row
+    assert row["resumed_rounds"] == 0, row
+
+
+# --- acceptance round: in-process seams (the flush hole, the emit kwargs) -----
+
+
+def _in_process(tmp_path: Path, monkeypatch, name: str):
+    """command_run loaded as a module against tmp state — for the seams a subprocess
+    cannot reach (an injected mid-verb exception; the kwargs handed to emit())."""
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "runs"))
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events"))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "s1")
+    return _load(name, _SCRIPT)
+
+
+def test_an_exception_after_save_still_flushes_the_event(tmp_path: Path, monkeypatch) -> None:
+    """The mutation is PERSISTED the moment save() returns. If anything in the tail after
+    it raises, the record and the stream disagree forever — the event is simply missing,
+    and no collector logic can invent it."""
+    cr = _in_process(tmp_path, monkeypatch, "cr_flush_hole")
+    assert cr.main(["start", "--command", _PROBE, "--phases", "3"]) == 0
+
+    def _boom(rec: dict) -> str:
+        raise RuntimeError("injected tail failure")
+
+    monkeypatch.setattr(cr, "_round_report", _boom)
+    assert cr.main(["round", "--findings", "2"]) == 0, "a tail bug must not wedge the agent"
+    rows = [json.loads(ln) for ln in
+            (tmp_path / "events" / "s1.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [r["event"] for r in rows] == ["run_open", "round"], rows
+    assert rows[1]["findings"] == 2 and rows[1]["seq"] == 2, rows[1]
+
+
+def test_flush_bounds_the_exposure_probe_and_labels_a_joined_sid(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Two contracts on the emit call itself: the exposure probe is BOUNDED (it shells out
+    to git on an agent's hot path, after the mutation is already durable), and an adopted
+    sid is labelled `join`, never laundered into `explicit`."""
+    cr = _in_process(tmp_path, monkeypatch, "cr_emit_kwargs")
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    calls: list[dict] = []
+
+    class _Fake:
+        UNKNOWN = "unknown"
+
+        @staticmethod
+        def events_dir() -> Path:
+            return tmp_path / "events"
+
+        @staticmethod
+        def emit(event, sid=None, **kw):
+            calls.append({"event": event, "sid": sid, **kw})
+            return True
+
+    monkeypatch.setattr(cr, "_kaizen", lambda: _Fake)
+    (tmp_path / "events").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "events" / "sessA.jsonl").write_text(
+        json.dumps({"schema": 1, "ts": _iso(-60), "sid": "sessA", "event": "session_start",
+                    "cwd": str(Path.cwd().resolve())}) + "\n", encoding="utf-8")
+    assert cr.main(["start", "--command", _PROBE, "--phases", "3", "--adopt-sid"]) == 0
+    assert len(calls) == 1, calls
+    assert calls[0]["sid"] == "sessA", calls[0]
+    assert calls[0]["sid_source"] == "join", calls[0]
+    assert calls[0]["probe_timeout_s"] == 2.0, calls[0]

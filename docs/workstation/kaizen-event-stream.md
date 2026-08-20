@@ -55,7 +55,7 @@ empty universe and a clean result must stay distinguishable.
 | `schema` | int | Schema version (currently **1**). Bump on any breaking envelope change; the collector keys off it. |
 | `ts` | str | UTC ISO-8601, millisecond precision. |
 | `sid` | str | Session id, sanitized to `[A-Za-z0-9_-]` — identical to the file stem, so value and file can never diverge. Sanitization is **injective**: if it changed or truncated the raw id, an 8-hex digest of the raw value is appended (`a/b` and `a.b` must never merge into one stream). A clean id passes through untouched. |
-| `sid_source` | str | `explicit` \| `env` (`$CLAUDE_SESSION_ID`) \| `none`. `none` makes the `nosession` collision measurable even where it is not yet solvable. |
+| `sid_source` | str | `explicit` \| `env` (`$CLAUDE_SESSION_ID`) \| `none` \| `join`. `none` makes the `nosession` collision measurable even where it is not yet solvable; `join` marks an id a sensor **reconstructed** from this stream (`command_run.py --adopt-sid`) — an inferred id must never be indistinguishable from one the session actually carried. |
 | `event` | str | One of the vocabulary below. |
 | `exposure` | obj | Stratification metadata (next section). |
 | `truncated` | bool | Present only when a value was clipped. |
@@ -101,16 +101,18 @@ instrument overhead: a session that emits dozens of events pays it once. The hoo
 ## Event vocabulary (schema 1)
 
 Required fields are beyond the envelope. Producers are the M1 tickets that wire each sensor.
+Every `scripts/command_run.py` row additionally carries `command` + `seq` + `persisted` + `cwd`
+(the paragraph below the table), not just `run_open`.
 
 | Event | Required fields | Producer |
 |---|---|---|
 | `session_start` | `cwd`, `project` | `.claude/hooks/session_orient.py` — only where a Stop hook also runs (payload cwd has `scripts/final_gate.py`) and only on `source=startup` |
 | `stop_pass` | `outcome` (`clean`\|`warned_through`), `warned` | `.claude/hooks/final_gate_stop.py` — the Stop pass-through, i.e. it did NOT block |
 | `session_end` | — | `scripts/sysadmin/kaizen_coroner.py` — the genuinely session-scoped, post-hoc close |
-| `run_open` | `command`, `phases`, `terminal` | `scripts/command_run.py start` |
+| `run_open` | `command`, `phases`, `terminal`, `nested` | `scripts/command_run.py start` |
 | `phase` | `n`, `title` | `scripts/command_run.py step` |
-| `round` | `findings`, `classes_swept`, `classes_new` | `scripts/command_run.py round` |
-| `run_close` | `verdict` (`done`\|`blocked`), `evidence_hash` | `scripts/command_run.py done`/`blocked` |
+| `round` | `n`, `findings`, `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
+| `run_close` | `verdict` (`done`\|`blocked`), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds` | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `packs: [{pack, globs_fired}]` — labelled *invocation-time* activation | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
 | `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`), `outcome` (`blocked`\|`warned_through`) | `.claude/hooks/final_gate_stop.py` |
@@ -122,6 +124,7 @@ Required fields are beyond the envelope. Producers are the M1 tickets that wire 
 An event outside this list is still written (losing data is worse than a typo) but warns on stderr,
 so a misspelled sensor is visible the day it ships.
 
+<<<<<<< ours
 **The Stop hook fires once per TURN, not once per session.** So its pass-through is `stop_pass`,
 and **session liveliness derives from a session's LAST `stop_pass` timestamp** — the hole in the
 data is a session that produced **no `stop_pass` ever**, not a missing "session end". `session_end`
@@ -143,6 +146,13 @@ end — the normal way a fabrik turn finishes, not an override.
 RETRIED, and the same final message is re-read on every retry — emitting `final_block_emitted` at
 the hook's entry point counted one task terminator up to `CAP+1` times.
 
+Every `command_run.py` event additionally carries `cwd`, `persisted` (did the record's `save()`
+succeed), and the ordering pair **`command` + `seq`**. `seq` comes from the record's `event_seq`
+counter, incremented under the same flock that serializes the mutation, so it is dense and gap-free
+even when twenty subagents share one session id. **Order a run's stream by `(command, seq)`, never by
+`ts`** — timestamps are millisecond-quantized and concurrent events collide inside one millisecond.
+Details: `docs/reference/command-run-protocol.md` § Events.
+
 ## API
 
 ```python
@@ -162,10 +172,23 @@ kaizen_events.exposure(cwd=payload_cwd, probe_timeout_s=2.0)   # pinned + hot-pa
   its own process cwd is the session's project; unpinned, it stamps project A's events with project
   B's commit, silently and unfixably after the fact. Hooks pass the payload's `cwd`. The result is
   **not** memoized (a caller-specific answer must never poison the shared cache); `cwd=None` keeps
-  the historical process-cwd behaviour and its cache.
+  the historical process-cwd behaviour and its cache. A repeat `cwd=None` call served from the
+  cache runs NO probes at all, so its `probe_timeout_s` is moot.
 - **`probe_timeout_s`** (default `10.0`) bounds each git probe. A caller on an interactive hot path
   passes something small — the hooks use `2.0`, because SessionStart's whole budget is 10 s. A
   non-positive or non-finite value falls back to the default.
+
+Two further keyword-only parameters on `emit()`:
+
+- **`sid_source`** — provenance-restricted, validated against `SID_SOURCES`
+  (`explicit`/`env`/`none`/`join`). A sensor that RECONSTRUCTED the id passes `"join"`; an unvetted
+  value warns and keeps the resolved source, since a stray label would silently open a new bucket in
+  every collector query. `None` resolves exactly as before.
+- **`probe_timeout_s`** — forwarded to `exposure()` for a caller on a hot path (`None` keeps
+  the 10s default). `command_run.py`'s post-save flush passes **2.0**: the mutation is already
+  durable, so waiting buys nothing and `unknown` beats latency in front of an agent.
+
+Both are parameters, not caller fields, so neither can reach the payload or be `f_`-re-keyed.
 
 `emit()` takes one more keyword-only parameter, **`exposure_override` — producer-restricted**: a post-hoc
 producer (only the coroner today, reconstructing a `death` from a session that is already gone)

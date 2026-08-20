@@ -20,6 +20,18 @@ Fail-soft EVERYWHERE: a corrupt or unwritable record must never wedge an agent, 
 fail direction is deliberate and asymmetric: only a record that positively says
 ``running`` blocks; missing/corrupt/stale fails OPEN.
 
+Every MUTATION also appends one kaizen event (``run_open``/``phase``/``round``/
+``run_close``) — see § events below. The events are strictly ADDITIVE: they are emitted
+after ``save()`` returns, OUTSIDE the record lock, each call wrapped, so a broken emitter
+can never abort or corrupt a record mutation. The flush sits in a ``finally``, so an
+ordinary exception anywhere in a verb's post-save tail cannot silently drop the event for
+a mutation that already landed on disk. What is NOT covered — and is ACCEPTED as fail-open
+telemetry rather than papered over — is a ``BaseException`` escape or an outright process
+death (``SIGKILL``, OOM) between ``save()`` and the append: the record moves and the
+stream does not. That residue belongs to the collector's hole metric, which counts
+mutations with no matching event; hiding it behind a signal handler would trade a
+measurable gap for an unmeasurable one.
+
 Subcommands:
   start --command <name> --phases <N> [--terminal "<condition>"]
   step --phase <N> [--title "<t>"]
@@ -34,6 +46,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import contextlib
+import datetime as dt
 import fcntl
 import hashlib
 import json
@@ -50,6 +63,16 @@ from typing import Any
 NON_CONVERGENCE_MIN_ROUNDS = 5
 # How many trailing findings counts must be non-increasing to look convergent.
 CONVERGENCE_WINDOW = 3
+# Bound on how much of one session's event file the sid join reads — the join is a
+# best-effort fallback, never a reason to slurp a long-lived session's whole stream. It is
+# read from the TAIL: a head-bounded scan hides exactly the sessions that have been busiest
+# in this cwd, and a hidden candidate does not merely cost an adoption — it removes the
+# second candidate that would have forced a REFUSAL, turning ambiguity into a confident
+# wrong answer.
+JOIN_TAIL_BYTES = 512 * 1024
+# The exposure probe shells out to git. The flush runs after the mutation is already
+# durable, so waiting buys nothing: take `unknown` over latency on an agent's hot path.
+JOIN_PROBE_TIMEOUT_S = 2.0
 
 
 def _state_dir() -> Path:
@@ -258,35 +281,295 @@ def _touch(rec: dict[str, Any]) -> None:
     rec["updated_ts"] = int(time.time())
 
 
+# ── kaizen events ────────────────────────────────────────────────────────────────────
+#
+# The record is the Stop hook's fifth cause and this file is fleet-synced, so the event
+# stream is bolted on the OUTSIDE of it: emitted after `save()` returns, outside the
+# record lock, every call wrapped. A project that has not yet received `kaizen_events`
+# — and a `kaizen_events` that raises on every call — must both behave exactly as this
+# script did before events existed.
+
+_EVENTS_UNSET: Any = object()
+_events_mod: Any = _EVENTS_UNSET
+
+
+def _kaizen() -> Any:
+    """The kaizen emitter module, or ``None`` — imported LAZILY, exactly once, fail-open.
+
+    The ``sys.path`` additions are ADDITIVE and IDEMPOTENT (appended, never inserted, and
+    only when absent), so importing this module can never shadow a caller's own packages.
+    """
+    global _events_mod
+    if _events_mod is _EVENTS_UNSET:
+        _events_mod = None
+        try:
+            for extra in (
+                str(Path(__file__).resolve().parent / "sysadmin"),
+                "/opt/fabrik/scripts/sysadmin",
+            ):
+                if extra not in sys.path:
+                    sys.path.append(extra)
+            import kaizen_events
+
+            _events_mod = kaizen_events
+        except Exception:
+            _events_mod = None
+    return _events_mod
+
+
+def _cwd() -> str:
+    try:
+        return str(Path.cwd().resolve())
+    except OSError:
+        return "unknown"
+
+
+def _project_of(cwd: str) -> str:
+    """``/opt/<name>``'s ``<name>`` — the same derivation ``kaizen_events.exposure`` uses."""
+    parts = Path(cwd).parts
+    return parts[2] if len(parts) >= 3 and parts[1] == "opt" else ""
+
+
+def _parse_ts(raw: str) -> dt.datetime | None:
+    """An AWARE datetime, or None. A naive timestamp is treated as unusable rather than
+    assumed to be local — a wrong assumption here silently mis-windows the join."""
+    try:
+        parsed = dt.datetime.fromisoformat(raw.strip()) if raw.strip() else None
+    except ValueError:
+        return None
+    return parsed if parsed and parsed.tzinfo is not None else None
+
+
+def _names_cwd(row: dict[str, Any], cwd: str, project: str) -> bool:
+    """Does this event name the directory this run is executing in?
+
+    An event carrying an explicit ``cwd`` (``session_start``, and this script's own
+    events) is matched EXACTLY — that is the precise key. Everything else is matched on
+    ``exposure.project``, which is deliberately coarse: in a repo with three concurrent
+    sessions it makes the join AMBIGUOUS, which is the honest answer.
+    """
+    raw = row.get("cwd")
+    if isinstance(raw, str) and raw:
+        return raw == cwd
+    exp = row.get("exposure")
+    return bool(project) and isinstance(exp, dict) and exp.get("project") == project
+
+
+def _naming_sid(path: Path, cwd: str, project: str, anchor: dt.datetime | None) -> tuple[str, bool]:
+    """``(sid, provable)`` for one session file, reading its TAIL.
+
+    ``sid`` is the id of an event naming ``cwd`` inside the window, or "". ``provable`` is
+    False when the file was larger than :data:`JOIN_TAIL_BYTES` and nothing matched — the
+    absence of a match is then a fact about the WINDOW READ, not about the session, and
+    the caller must not treat it as evidence.
+
+    The tail is the right end to read: a session's newest events are the ones that can
+    still be in this run's window, and the first partial line after the seek is discarded
+    so a half-record is never parsed.
+    """
+    try:
+        size = path.stat().st_size
+        truncated = size > JOIN_TAIL_BYTES
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            if truncated:
+                fh.seek(size - JOIN_TAIL_BYTES)
+                fh.readline()  # discard the partial line the seek landed inside
+            for raw in fh:
+                try:
+                    row = json.loads(raw)
+                except ValueError:
+                    continue  # a torn line is dropped, never guessed at
+                if not isinstance(row, dict) or not _names_cwd(row, cwd, project):
+                    continue
+                if anchor is not None:
+                    ts = _parse_ts(str(row.get("ts") or ""))
+                    if ts is None or ts < anchor:
+                        continue
+                sid = str(row.get("sid") or "").strip()
+                return sid or path.stem, True
+    except OSError:
+        return "", True  # an unreadable file is not a hidden candidate, it is no candidate
+    return "", not truncated
+
+
+def _sid_from_events(started_at: str) -> tuple[str, str]:
+    """``(sid, why)`` — DETERMINISTIC JOIN OR NOTHING; ``sid`` is "" when it refuses.
+
+    A Bash-tool shell carries an EMPTY ``CLAUDE_SESSION_ID``, so every such invocation
+    resolves to `nosession` and their events would pile into one unattributable bucket.
+    This optional join recovers the real sid from the event stream — but only when the
+    answer is unambiguous.
+
+    The window is every event naming this cwd since THIS run's own start (the whole
+    window, never a trailing N minutes: a sliding boundary can hide the second candidate
+    and mis-adopt). The `start` verb has no run to anchor on — there is no such thing as
+    "since a run that has not begun" — so its window is the whole store, and the anchor is
+    never read off whatever record happens to be lying in the file: that would filter the
+    store by a FINISHED run's clock and hide the older candidate whose presence is the only
+    reason to refuse.
+
+    EVERY unresolved shape resolves toward refusal:
+    - two or more proven candidates → refuse (ambiguity is not a coin flip);
+    - a session whose file is too long to prove absence over → refuse, because "no match in
+      the last 512 KiB" is not "no match";
+    - a session whose events carry a clock running BACKWARDS relative to the anchor → its
+      events fall outside the window and it simply is not a candidate. That is accepted
+      fail-safe: a skewed clock makes a session indistinguishable from one that never named
+      this cwd, and the join has no second source of time to arbitrate with. It costs an
+      adoption, never a wrong one.
+
+    The ambiguity is not lost by refusing — it becomes visible in the `unknown` stream as
+    N distinct cwds mutating one record, which is the measurement this feature exists for.
+    """
+    mod = _kaizen()
+    if mod is None:
+        return "", "kaizen_events unavailable"
+    try:
+        anchor = _parse_ts(started_at)
+        cwd, project = _cwd(), _project_of(_cwd())
+        skip = {"nosession", str(getattr(mod, "UNKNOWN", "unknown"))}
+        found: set[str] = set()
+        unprovable: list[str] = []
+        for path in sorted(mod.events_dir().glob("*.jsonl")):
+            if path.stem in skip:
+                continue
+            sid, provable = _naming_sid(path, cwd, project, anchor)
+            if sid and sid not in skip:
+                found.add(sid)
+            elif not provable:
+                unprovable.append(path.stem)
+        if unprovable:
+            return "", (
+                f"{len(unprovable)} session(s) too long to prove absence over "
+                f"({', '.join(sorted(unprovable)[:3])}) — refusing to guess"
+            )
+        if len(found) == 1:
+            return found.pop(), "single candidate"
+        if found:
+            return "", f"{len(found)} sessions name {cwd} in this window — refusing to guess"
+        return "", f"no event names {cwd} in this window"
+    except Exception as e:  # the join is a convenience — it never breaks a mutation
+        return "", f"join failed ({e})"
+
+
+def _flush_events(args: argparse.Namespace, outbox: dict[str, Any]) -> None:
+    """Emit the mutation's events. Runs with the record lock RELEASED and the save done."""
+    events: list[tuple[str, dict[str, Any]]] = outbox.get("events") or []
+    if not events:
+        return
+    mod = _kaizen()
+    if mod is None:
+        return
+    # `--session` is passed through; a bare env id is left to the emitter to resolve so
+    # it is labelled `env` and not laundered into `explicit`.
+    explicit = (getattr(args, "session", None) or "").strip()
+    env_sid = (os.environ.get("CLAUDE_SESSION_ID") or "").strip()
+    sid: str | None = explicit or None
+    # `None` = let the emitter resolve and label it (`env`); `"join"` = RECONSTRUCTED here,
+    # which is neither explicit nor env and must never be reported as either.
+    source: str | None = None
+    if not explicit and not env_sid and getattr(args, "adopt_sid", False):
+        adopted, why = _sid_from_events(str(outbox.get("started_at") or ""))
+        if adopted:
+            sid, source = adopted, "join"
+        else:
+            sys.stderr.write(f"[command_run] --adopt-sid: no join ({why}).\n")
+    for event, fields in events:
+        try:
+            payload = dict(fields)
+            payload["cwd"] = _cwd()
+            mod.emit(
+                event, sid, sid_source=source, probe_timeout_s=JOIN_PROBE_TIMEOUT_S, **payload
+            )
+        except Exception as e:
+            sys.stderr.write(f"[command_run] event not emitted ({e}) — the record is unaffected.\n")
+
+
+def _queue(
+    rec: dict[str, Any], outbox: dict[str, Any], event: str, fields: dict[str, Any]
+) -> dict[str, Any]:
+    """Queue one event and stamp it ORDER-FAITHFUL and SELF-DESCRIBING. Flock HELD.
+
+    ``seq`` comes from a per-session counter incremented on the record under the same lock
+    that serializes the mutation, so it is dense and gap-free even when twenty subagents
+    write at once. It has to exist because the alternatives do not order anything: ``ts``
+    is millisecond-quantized (concurrent events collide) and file order is whatever the
+    kernel interleaved. The collector orders by ``(command, seq)``.
+
+    ``command`` names the run being mutated, so a line means something on its own — a
+    nested `/fabrik-review` inside `/fabrik-execute-plan` is otherwise attributable only by
+    replaying the whole stack, which the collector cannot do from a single line.
+
+    Returns the queued field dict so the caller can stamp `persisted` once `save()` answers.
+    The queue happens BEFORE the save: `main()` flushes in a `finally`, so an event that is
+    already queued survives any failure in the tail.
+    """
+    seq = int(rec.get("event_seq") or 0) + 1
+    rec["event_seq"] = seq
+    stamped = dict(fields, seq=seq, command=rec.get("command") or "", persisted=False)
+    outbox["events"].append((event, stamped))
+    return stamped
+
+
+def _evidence_hash(text: str) -> str:
+    """A fingerprint of the closing evidence — the stream records THAT it was given, and
+    whether it changed between retries, without copying an agent's prose into the store."""
+    return hashlib.blake2s((text or "").encode("utf-8", "replace"), digest_size=8).hexdigest()
+
+
 def _build_parser() -> argparse.ArgumentParser:
+    # ⚠️ NOT `--session-*`: argparse resolves abbreviations, so a second flag sharing the
+    # `--sess` prefix makes the long-standing `--sess <id>` spelling AMBIGUOUS and every
+    # caller using it starts exiting 2. The name is deliberately in a different namespace.
+    join_help = (
+        "when no session id resolves, adopt one from the kaizen event stream — ONLY if "
+        "exactly one session provably named this cwd in the window (else refuse). Affects "
+        "the EVENTS only; the record file is named as it always was."
+    )
     ap = argparse.ArgumentParser(prog="command_run.py", description=__doc__)
     ap.add_argument("--session", help="session id (default: $CLAUDE_SESSION_ID)")
+    ap.add_argument("--adopt-sid", action="store_true", help=join_help)
+
+    # The session flags are accepted on EITHER side of the subcommand: argparse would
+    # otherwise reject `round --adopt-sid`, which is the only spelling an agent naturally
+    # reaches for. `SUPPRESS` keeps the subparser copy from resetting a value the
+    # top-level parser already captured.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--session", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    common.add_argument(
+        "--adopt-sid",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help=join_help,
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("start", help="begin a command run")
+    p = sub.add_parser("start", help="begin a command run", parents=[common])
     p.add_argument("--command", required=True, help="e.g. fabrik-review")
     p.add_argument("--phases", required=True, type=int)
     p.add_argument("--terminal", default="", help="the run's terminal condition")
 
-    p = sub.add_parser("step", help="advance to a phase")
+    p = sub.add_parser("step", help="advance to a phase", parents=[common])
     p.add_argument("--phase", required=True, type=int)
     p.add_argument("--title", default="")
 
-    p = sub.add_parser("round", help="record one convergence round")
+    p = sub.add_parser("round", help="record one convergence round", parents=[common])
     p.add_argument("--findings", type=int, default=0)
     p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
 
-    p = sub.add_parser("done", help="terminal: the contract is met")
+    p = sub.add_parser("done", help="terminal: the contract is met", parents=[common])
     p.add_argument("--command", required=True, help="the run you are closing — must be the LIVE one")
     p.add_argument("--evidence", required=True)
 
-    p = sub.add_parser("blocked", help="terminal: one of the three sanctioned BLOCKED cases")
+    p = sub.add_parser(
+        "blocked", help="terminal: one of the three sanctioned BLOCKED cases", parents=[common]
+    )
     p.add_argument("--command", required=True, help="the run you are closing — must be the LIVE one")
     p.add_argument("--reason", required=True)
 
-    sub.add_parser("line", help="print the pinned status line (silent when idle)")
-    p = sub.add_parser("status", help="print the record")
+    sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
+    p = sub.add_parser("status", help="print the record", parents=[common])
     p.add_argument("--json", action="store_true", default=True)
     return ap
 
@@ -313,16 +596,33 @@ def main(argv: list[str]) -> int:
 
         # Every MUTATING subcommand loads, modifies and saves under one exclusive
         # flock — the read-modify-write is otherwise lossy under concurrent subagents.
-        with _record_lock(sid):
-            return _mutate(sid, args)
+        # Events are QUEUED under the lock and emitted after it drops: a sensor must
+        # never hold the lock an agent's next mutation is waiting on, and must never sit
+        # between a mutation and its `save()`. The flush is a `finally` because the queue
+        # is filled BEFORE `save()` — so a bug anywhere in a verb's tail (a report
+        # formatter, a print) cannot leave a persisted mutation with no event, which is a
+        # disagreement between record and stream that nothing downstream can ever repair.
+        outbox: dict[str, Any] = {"events": [], "started_at": ""}
+        try:
+            rc = 0
+            with _record_lock(sid):
+                rc = _mutate(sid, args, outbox)
+        finally:
+            _flush_events(args, outbox)
+        return rc
     except Exception as e:  # fail-soft — a state bug must never wedge an agent
         sys.stderr.write(f"[command_run] error, continuing: {e}\n")
         return 0
 
 
-def _mutate(sid: str, args: argparse.Namespace) -> int:
-    """The mutating subcommands. Runs with the record's flock HELD."""
+def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
+    """The mutating subcommands. Runs with the record's flock HELD.
+
+    Appends ``(event, fields)`` to ``outbox["events"]`` — it never EMITS, so no sensor
+    failure can land between a mutation and its ``save()``.
+    """
     rec = load(sid)
+    outbox["started_at"] = rec.get("started_at") or ""
 
     if args.cmd == "start":
         parent = rec if rec.get("state") == "running" else None
@@ -353,9 +653,21 @@ def _mutate(sid: str, args: argparse.Namespace) -> int:
             "rounds": [],
             "classes": {},
             "stack": stack,
+            # Session-monotonic, so a nested run and a later run keep ascending rather
+            # than restarting at 1 and colliding in the same session's stream.
+            "event_seq": int(rec.get("event_seq") or 0),
         }
+        # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
+        # never this record's own start (that would exclude every candidate landing
+        # microseconds earlier, and `started_at` is second-truncated so WHICH ones would
+        # depend on the second boundary), and never the PREVIOUS record's start, which
+        # would filter the store by a finished run's clock.
+        outbox["started_at"] = ""
+        fields = _queue(new, outbox, "run_open", {
+            "phases": new["phases"], "terminal": new["terminal"], "nested": bool(stack),
+        })
         _touch(new)
-        save(sid, new)
+        fields["persisted"] = save(sid, new)
         print(pinned_line(new))
         return 0
 
@@ -369,8 +681,9 @@ def _mutate(sid: str, args: argparse.Namespace) -> int:
     if args.cmd == "step":
         rec["phase"] = max(1, args.phase)
         rec["phase_title"] = args.title
+        fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)
-        save(sid, rec)
+        fields["persisted"] = save(sid, rec)
         print(pinned_line(rec))
         return 0
 
@@ -388,18 +701,27 @@ def _mutate(sid: str, args: argparse.Namespace) -> int:
             {"n": len(rounds) + 1, "findings": args.findings, "swept": swept, "new": new_c}
         )
         rec["rounds"], rec["classes"] = rounds, classes
+        fields = _queue(rec, outbox, "round", {
+            "n": len(rounds),
+            "findings": args.findings,
+            "classes_swept": swept,
+            "classes_new": new_c,
+            "classes_open": sorted(k for k, v in classes.items() if v != "clean"),
+        })
         _touch(rec)
-        save(sid, rec)
+        fields["persisted"] = save(sid, rec)
         print(_round_report(rec))
         return 0
 
     if args.cmd in ("done", "blocked"):
-        return _close(sid, rec, args)
+        return _close(sid, rec, args, outbox)
 
     return 0
 
 
-def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
+def _close(
+    sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict[str, Any]
+) -> int:
     """`done` / `blocked` — close ONLY the run the caller NAMED. Flock held.
 
     Closing whatever happens to be live is how this design reintroduces the very
@@ -517,23 +839,42 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
             print(msg)
             return 1
     rec["state"] = args.cmd
+    # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
+    # on `state == "running"` alone). `agent` is the only value this script writes; the
+    # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.
+    rec["closed_by"] = "agent"
     if args.cmd == "done":
         rec["evidence"] = args.evidence
     else:
         rec["blocked_reason"] = args.reason
     _touch(rec)
     stack = list(rec.get("stack") or [])
-    if stack:
-        parent = stack.pop()
+    parent = stack.pop() if stack else None
+    fields = _queue(rec, outbox, "run_close", {
+        "verdict": args.cmd,
+        "closed_by": "agent",
+        "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
+        "rounds": len(rec.get("rounds") or []),
+        # A nested close is the one event whose meaning lives OUTSIDE the line: "resuming"
+        # is only informative if it says what, and at what point. Without these the
+        # collector would have to replay the whole stack to learn that the run continues.
+        "resumed": (parent or {}).get("command") or "",
+        "resumed_phase": (parent or {}).get("phase") or 0,
+        "resumed_rounds": len((parent or {}).get("rounds") or []),
+    })
+    if parent is not None:
         closed = {k: v for k, v in rec.items() if k != "stack"}
         parent["stack"] = stack
         parent.setdefault("nested", []).append(closed)
+        # The counter belongs to the SESSION, not to the record that happens to hold it —
+        # a restored parent must keep ascending from where the nested run left off.
+        parent["event_seq"] = rec.get("event_seq")
         _touch(parent)
-        save(sid, parent)
+        fields["persisted"] = save(sid, parent)
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
         print(pinned_line(parent))
         return 0
-    save(sid, rec)
+    fields["persisted"] = save(sid, rec)
     print(f"{args.cmd.upper()} /{rec.get('command')} — run record closed.")
     return 0
 

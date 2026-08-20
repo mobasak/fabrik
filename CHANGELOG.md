@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T03: run-record lifecycle events, sid honesty, and closed_by (2026-08-20)
+
+`scripts/command_run.py` (fleet-synced) now emits `run_open`/`phase`/`round`/`run_close` after each
+record mutation is durable — queued under the flock, flushed outside it in a `try/finally`, every
+emit individually wrapped so a raising emitter can never corrupt a record or change the CLI's
+output. Events are ordered by a `(command, seq)` pair (`event_seq` incremented under the record
+lock), a bare `$CLAUDE_SESSION_ID` is labelled `env`/`none` — never laundered into `explicit` — and
+the optional `--adopt-sid` join recovers a nosession record's real sid ONLY on exactly one provable
+candidate (512 KiB tail reads; any unprovable session refuses the whole join). Records gain the
+additive `closed_by`; the Stop hook still keys on `state` alone. 13 acceptance findings + a 4-L
+residue round, all closed red-first.
+
 ### Added — kaizen M1 T02: the session-lifecycle hook emitters, and an event stream that measures itself honestly (2026-08-19)
 
 The two synced session hooks now emit the kaizen M1 event stream at their existing decision

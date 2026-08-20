@@ -26,13 +26,22 @@ One file per session: `$COMMAND_RUN_DIR/<session_id>.json`, default
   "terminal": "found:0 no-op round", "state": "running",
   "rounds": [{"n": 1, "findings": 5, "swept": ["auth"], "new": ["concurrency"]}],
   "classes": {"auth": "clean", "concurrency": "open"},
-  "updated_ts": 1755300000, "stack": []
+  "updated_ts": 1755300000, "stack": [], "event_seq": 7
 }
 ```
 
 `state` ∈ `running` · `done` · `blocked`. `stack` parks a **caller's** record when a command nests
 (`/fabrik-execute-plan` → `/fabrik-review` at a phase boundary) so the nested `done` restores the parent
 instead of erasing it — a green phase gate must never read as "the plan is finished".
+
+Two additive fields carry the event stream (§ Events) and are read by nothing that existed before them:
+
+| Field | Meaning |
+|---|---|
+| `closed_by` | who closed the run — `agent` (this script) · `coroner` / `ttl` (the kaizen coroner, for runs no agent came back to close). Absent while `running`. |
+| `event_seq` | per-session event counter, incremented under the record's flock. Session-monotonic: a nested run continues it, and a restored parent inherits where the nested run left off. |
+
+The Stop hook keys on `state == "running"` **alone**, so neither field can change when a stop blocks.
 
 ## CLI
 
@@ -45,6 +54,11 @@ instead of erasing it — a green phase gate must never read as "the plan is fin
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
 | `line` | the pinned status line; **silent + rc 0 when no run is active** |
 | `status --json` | the record (`{}` when there is none) |
+
+Two flags are accepted on **either side** of the subcommand (`--adopt-sid round` and
+`round --adopt-sid` both parse): `--session <id>` and `--adopt-sid` (§ Events). ⚠️ The join flag is
+deliberately **not** named `--session-*`: argparse resolves abbreviations, so a second `--sess…` flag
+makes the long-standing `--sess <id>` spelling ambiguous and every caller using it starts exiting 2.
 
 Every **mutating** subcommand (`start` · `step` · `round` · `done` · `blocked`) holds an exclusive
 `fcntl.flock` over the record across its whole read-modify-write. Subagents routinely inherit the
@@ -126,6 +140,46 @@ Coverage is now structural rather than remembered:
   their richer, round-aware blocks and satisfy it that way.
 
 See `docs/reference/command-corpus-check.md` § Predicate 5.
+
+## Events — every mutation also appends one kaizen line
+
+Each mutating verb appends one typed event to the kaizen stream
+(`docs/workstation/kaizen-event-stream.md`): `start` → `run_open`, `step` → `phase`, `round` →
+`round`, `done`/`blocked` → `run_close`. A **refused** close and an already-closed no-op emit
+nothing — they are not mutations. `line` and `status` are readers and emit nothing.
+
+The emission is bolted on the **outside** of the record: queued under the flock, emitted after
+`save()` returns with the lock released, each call individually wrapped. A raising emitter, or a
+project that has not yet received `kaizen_events`, behaves exactly as this script did before events
+existed (the import is a lazy, additive `sys.path` append behind `try/except`; the hub copy is the
+fallback, which is intended — this is a one-box design, not a distributed one). The flush sits in a
+`finally` and the queue is filled *before* `save()`, so a bug in a verb's tail cannot leave a
+persisted mutation with no event. A `BaseException` escape or a `SIGKILL` between the two is
+**accepted, measurable residue** — it belongs to the collector's hole metric, and hiding it behind a
+signal handler would trade a countable gap for an uncountable one.
+
+Every line carries `seq` (from `event_seq`) and `command`, so the collector orders by
+`(command, seq)` rather than by `ts` — timestamps are millisecond-quantized and concurrent subagents
+collide in the same millisecond. `run_close` additionally carries `resumed` / `resumed_phase` /
+`resumed_rounds`, so a nested close is attributable without replaying the stack.
+
+### `--adopt-sid` — recovering a session id, or refusing to
+
+Bash-tool shells carry an **empty** `CLAUDE_SESSION_ID`, so the record falls to `nosession` and the
+events would pile into one unattributable bucket. `--adopt-sid` optionally recovers the id from the
+event stream: candidates are the sessions whose events name **this cwd** in the window. For `start`
+the window is the whole store (a run that has not begun has nothing to anchor on); for every other
+verb it is anchored to the live run's `started_at`. It adopts
+**only** when exactly one candidate is proven, and the adopted line is labelled `sid_source: join` —
+never laundered into `explicit`. The record filename never moves, so nothing the Stop hook reads
+changes.
+
+Every unresolved shape resolves toward **refusal**: two candidates, or a session whose file is longer
+than the 512 KiB tail the join reads (absence over a partial read is not absence), or a session whose
+clock runs backwards relative to the anchor (indistinguishable from one that never named this cwd —
+accepted fail-safe; it costs an adoption, never a wrong one). Refusing is not a loss: the collision
+becomes visible in the `unknown` stream as N distinct cwds mutating one record, which is the
+measurement the flag exists for.
 
 ## Enforcement — the Stop hook's fifth cause
 

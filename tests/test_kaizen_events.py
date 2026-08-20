@@ -548,3 +548,70 @@ def test_selftest_restores_every_env_var_it_mutates(_isolated_events_dir, monkey
     assert os.environ["CLAUDE_SESSION_ID"] == "caller-session"
     assert os.environ["KAIZEN_EVENTS_DIR"] == events_dir
     assert kaizen_events.resolve_sid_with_source(None) == ("caller-session", "env")
+
+
+# --- T03 acceptance round: sid_source override + a bounded exposure probe -----
+
+
+def _row(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
+
+
+def test_sid_source_override_labels_a_joined_sid(_isolated_events_dir, monkeypatch):
+    """A sid recovered by joining the stream is neither `explicit` (nobody passed it) nor
+    `env` (it was not there). Without a fourth value the join has to lie about its own
+    provenance, and the collector cannot tell a real id from a reconstructed one."""
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    assert kaizen_events.emit("run_open", "sessA", sid_source="join", command="fabrik-probe")
+    row = _row(Path(os.environ["KAIZEN_EVENTS_DIR"]) / "sessA.jsonl")
+    assert row["sid"] == "sessA" and row["sid_source"] == "join", row
+
+
+def test_sid_source_override_is_validated_against_the_vocabulary(_isolated_events_dir):
+    """An unknown label would silently become a new bucket in every collector query."""
+    assert kaizen_events.emit("run_open", "sessB", sid_source="telepathy")
+    row = _row(Path(os.environ["KAIZEN_EVENTS_DIR"]) / "sessB.jsonl")
+    assert row["sid_source"] == "explicit", "an invalid label falls back to the resolved one"
+
+
+def test_sid_source_override_of_none_resolves_as_before(_isolated_events_dir, monkeypatch):
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "from-env")
+    assert kaizen_events.emit("run_open")
+    row = _row(Path(os.environ["KAIZEN_EVENTS_DIR"]) / "from-env.jsonl")
+    assert row["sid_source"] == "env", row
+
+
+def test_probe_timeout_is_forwarded_to_the_git_probes(_isolated_events_dir, monkeypatch):
+    """`exposure()` shells out to git. Sensors on an agent's hot path must be able to
+    bound that: the default 10s is a latency budget nobody chose."""
+    seen: list[float] = []
+    real = kaizen_events.subprocess.run
+
+    def _spy(*a, **kw):
+        seen.append(kw.get("timeout"))
+        return real(*a, **kw)
+
+    monkeypatch.setattr(kaizen_events.subprocess, "run", _spy)
+    kaizen_events.reset_cache()
+    kaizen_events.exposure(probe_timeout_s=2.0)
+    assert seen and set(seen) == {2.0}, seen
+
+    seen.clear()
+    kaizen_events.reset_cache()
+    assert kaizen_events.emit("run_open", "sessC", probe_timeout_s=3.0)
+    assert seen and set(seen) == {3.0}, seen
+    assert "probe_timeout_s" not in _row(Path(os.environ["KAIZEN_EVENTS_DIR"]) / "sessC.jsonl")
+
+
+def test_probe_timeout_defaults_to_the_previous_bound(_isolated_events_dir, monkeypatch):
+    seen: list[float] = []
+    real = kaizen_events.subprocess.run
+
+    def _spy(*a, **kw):
+        seen.append(kw.get("timeout"))
+        return real(*a, **kw)
+
+    monkeypatch.setattr(kaizen_events.subprocess, "run", _spy)
+    kaizen_events.reset_cache()
+    kaizen_events.exposure()
+    assert seen and set(seen) == {10.0}, seen

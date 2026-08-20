@@ -33,7 +33,9 @@ THE THREE LAWS
 3. **Honesty over guessing.** An unresolvable session id is the literal ``unknown``
    (the collector's unclassified-rate input) and never a shared bucket merged into a
    neighbour's stream. An unmeasurable exposure field is ``unknown`` (or ``—`` for
-   plan era) with no fabrication and no exception.
+   plan era) with no fabrication and no exception. A RECONSTRUCTED id says so:
+   ``sid_source: join`` (:data:`SID_SOURCES`) — an inferred id must never be
+   indistinguishable from one the session actually carried.
 
 Box-local, stdlib only. Config via env: ``KAIZEN_EVENTS_DIR`` (default
 ``~/.claude/state/events/``), ``CLAUDE_SESSION_ID``, ``CLAUDE_MODEL`` /
@@ -57,6 +59,18 @@ from pathlib import Path
 SCHEMA = 1
 UNKNOWN = "unknown"
 NOT_MEASURED = "—"
+
+#: How a line's ``sid`` was obtained. ``explicit``/``env``/``none`` are resolved here;
+#: ``join`` is passed in by a sensor that RECONSTRUCTED the id (today: command_run.py's
+#: `--adopt-sid`, which recovers it from this stream when the shell carries none). A
+#: reconstructed id is neither explicit nor env, and without its own label the join would
+#: have to misreport its provenance — the collector could not then tell a real session id
+#: from an inferred one, which is precisely the honesty this field exists to provide.
+SID_SOURCES = frozenset({"explicit", "env", "none", "join"})
+
+#: Default bound on each ``git`` probe in :func:`exposure`. Callers on a hot path (a
+#: mutation's post-save tail) pass a smaller ``probe_timeout_s``.
+DEFAULT_PROBE_TIMEOUT_S = 10.0
 
 # A defensive bound on one event, not the atomicity mechanism (that is O_APPEND's inode
 # lock on a regular file). It also matches PIPE_BUF, keeps a torn-line blast radius
@@ -217,6 +231,10 @@ def exposure(
 
     Memoized per process for the ``cwd=None`` call only — a cwd-pinned probe is a
     caller-specific answer that must never be served from, or poison, the shared cache.
+    A later ``cwd=None`` call served from the cache runs NO probes at all, so its
+    ``probe_timeout_s`` is moot — the bound applies to probes actually run, and a sensor
+    that fires after a state mutation is already durable (``command_run.py``'s post-save
+    flush) passes a small value and takes ``unknown`` over a stall.
 
     The concurrency flag is COLLECTOR-side (overlapping session windows), not here.
     """
@@ -489,6 +507,8 @@ def emit(
     sid: str | None = None,
     *,
     exposure_override: dict | None = None,
+    sid_source: str | None = None,
+    probe_timeout_s: float | None = None,
     **fields: object,
 ) -> bool:
     """Append ONE JSON line to ``$KAIZEN_EVENTS_DIR/<sid>.jsonl``. Never raises.
@@ -504,12 +524,32 @@ def emit(
     one verbatim rather than stamping the coroner's own process. It is a parameter, not
     a caller field, so it is never ``f_``-re-keyed; anything that is not a dict is
     ignored in favour of the live exposure.
+
+    ``sid_source`` is keyword-only and provenance-restricted the same way: a sensor that
+    RECONSTRUCTED the id (``command_run.py``'s ``--adopt-sid`` join) passes ``"join"`` so
+    the line does not claim the id was handed to it. It is validated against
+    :data:`SID_SOURCES`; anything else warns and keeps the RESOLVED source, because an
+    unvetted label would silently open a new bucket in every collector query.
+
+    ``probe_timeout_s`` bounds the exposure probe's ``git`` calls for a caller on a hot
+    path; ``None`` keeps :data:`DEFAULT_PROBE_TIMEOUT_S`. Both are parameters, so neither
+    can reach the payload as a caller field.
     """
     try:
         if event not in EVENT_TYPES:
             _warn(f"unknown event type {event!r} (emitted anyway)")
         resolved, source = resolve_sid_with_source(sid)
-        exp = exposure_override if isinstance(exposure_override, dict) else exposure()
+        if sid_source is not None:
+            if sid_source in SID_SOURCES:
+                source = sid_source
+            else:
+                _warn(f"invalid sid_source {sid_source!r} — keeping the resolved {source!r}")
+        if isinstance(exposure_override, dict):
+            exp = exposure_override
+        elif probe_timeout_s is None:
+            exp = exposure()
+        else:
+            exp = exposure(probe_timeout_s=probe_timeout_s)
         line = build_line(event, resolved, source, fields, exp)
         directory = events_dir()
         directory.mkdir(parents=True, exist_ok=True)
