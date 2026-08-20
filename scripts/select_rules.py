@@ -15,14 +15,33 @@ project.yaml::type for context. Usage: python scripts/select_rules.py [--project
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import functools
+import io
 import json
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# Kaizen M1 sensor (T04) — OBSERVATION ONLY. Additive, idempotent path append + a
+# defensive import: this file is fleet-synced, and a project that never receives the
+# box-local module must behave exactly as before (byte-compared in the T04 tests).
+_KAIZEN_DIR = str(Path(__file__).resolve().parent / "sysadmin")
+if _KAIZEN_DIR not in sys.path:
+    sys.path.append(_KAIZEN_DIR)
+try:
+    import kaizen_events  # noqa: E402
+except Exception:  # pragma: no cover - absence is the normal case in a project
+    kaizen_events = None  # type: ignore[assignment]
+
+# This script had no stderr channel before T04: the emitter's `_warn` (its only failure
+# channel) must not become one. Muted at the call site only — every other caller of
+# `kaizen_events` keeps the honest warning. `2.0` bounds exposure()'s git probes; the
+# sensor fires after the packs are resolved, so `unknown` beats a hung git probe.
+_KAIZEN_PROBE_TIMEOUT_S = 2.0
 
 _FM = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 _GLOBS = re.compile(r"^globs:\s*\[(.*?)\]", re.MULTILINE | re.DOTALL)
@@ -146,7 +165,26 @@ def main() -> int:
     ap.add_argument("--project-root", type=Path, default=Path.cwd())
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
-    data = collect(args.project_root.resolve())
+    root = args.project_root.resolve()
+    data = collect(root)
+
+    # Kaizen sensor (T04) — OBSERVATION ONLY: which packs this INVOCATION activated, and
+    # the glob that fired each (collect() short-circuits on the first hit, so the fired
+    # set is recomputed here — off the cached tree walk — rather than by changing it).
+    # Honest label: invocation-time, NOT per-edit; per-edit needs a PostToolUse surface (M2).
+    if kaizen_events:
+        _packs = [
+            {"pack": e["pack"], "globs_fired": [g for g in e["globs"] if _glob_has_match(root, g)]}
+            for e in data["active"]
+        ]
+        with contextlib.redirect_stderr(io.StringIO()):  # the sensor owns no stderr here
+            kaizen_events.emit(
+                "rule_activation",
+                kind="select_rules",
+                label="invocation-time",
+                packs=_packs,
+                probe_timeout_s=_KAIZEN_PROBE_TIMEOUT_S,
+            )
 
     if args.json:
         print(json.dumps(data, indent=2))

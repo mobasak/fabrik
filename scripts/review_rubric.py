@@ -30,6 +30,8 @@ every project venv with no extra deps. Reuses select_rules' frontmatter parser +
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import re
 import sys
 from pathlib import Path
@@ -38,6 +40,22 @@ _SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPTS))
 
 import select_rules  # noqa: E402 - the shared frontmatter parser + glob tail-matching
+
+# Kaizen M1 sensor (T04) — OBSERVATION ONLY, and defensively imported: this file is
+# fleet-synced, so a project without the box-local module must behave exactly as before.
+_KAIZEN_DIR = str(_SCRIPTS / "sysadmin")
+if _KAIZEN_DIR not in sys.path:
+    sys.path.append(_KAIZEN_DIR)
+try:
+    import kaizen_events  # noqa: E402
+except Exception:  # pragma: no cover - absence is the normal case in a project
+    kaizen_events = None  # type: ignore[assignment]
+
+# This emitter is a pure CLI writer: stdout carries the rubric and stderr carried nothing
+# before T04. The sensor's failure channel (`kaizen_events._warn`) is muted at the call
+# site so it stays that way — never in `kaizen_events`, whose other callers want it.
+# `2.0` bounds exposure()'s git probes; the rubric is already delivered by then.
+_KAIZEN_PROBE_TIMEOUT_S = 2.0
 
 # ⚠️ LOCKSTEP CONTRACT: this file uses select_rules' PRIVATE symbols (_FM, _parse_frontmatter,
 # _tail_matches, _expand_braces). Both files are co-synced fleet-wide (fabrik_synced_manifest
@@ -266,10 +284,38 @@ def main() -> int:
     )
     ap.add_argument("--project-root", type=Path, default=Path.cwd())
     args = ap.parse_args()
+    root = args.project_root.resolve()
+    rubric = ""
     try:
-        print(build_rubric(args.changed, args.workflow, args.project_root.resolve()), end="")
-    except BrokenPipeError:  # `| head` closing the pipe is fine for a CLI emitter
-        return 0
+        rubric = build_rubric(args.changed, args.workflow, root)
+        print(rubric, end="")
+    except BrokenPipeError:
+        # `| head` closing the pipe is fine for a CLI emitter — and it is a COMPLETED
+        # run: the rubric was built and delivered as far as the consumer wanted it, so
+        # it still owes its event. Falling through (not returning) is deliberate.
+        pass
+
+    # Kaizen sensor (T04) — OBSERVATION ONLY: the packs this invocation actually injected,
+    # read back off the rubric it just built (`### <pack>.md [ (hit: …)]`) so the sensor can
+    # never disagree with what the reviewer was armed with. A FLOOR pack that is ABSENT on
+    # disk still gets a heading + a "(pack missing…)" placeholder — none of its content
+    # reached the reviewer, so it is reported as a gap, never counted as injected.
+    # Invocation-time by label: per-EDIT activation needs a PostToolUse surface (M2).
+    if kaizen_events and rubric:
+        _dir = root / ".windsurf" / "rules"
+        _named = [h[4:].split("  (hit:")[0] for h in rubric.splitlines() if h.startswith("### ")]
+        _named = [p for p in _named if p.endswith(".md")]  # not the 12-FACTOR axis block
+        _packs = [{"pack": p} for p in _named if (_dir / p).is_file()]
+        _missing = [p for p in _named if not (_dir / p).is_file()]
+        with contextlib.redirect_stderr(io.StringIO()):  # the sensor owns no stderr here
+            kaizen_events.emit(
+                "rule_activation",
+                kind="rubric_injection",
+                label="invocation-time",
+                packs=_packs,
+                packs_missing=_missing,
+                probe_timeout_s=_KAIZEN_PROBE_TIMEOUT_S,
+            )
     return 0
 
 

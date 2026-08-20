@@ -38,11 +38,31 @@ Workflow Doc: docs/workflows/FINAL_GATE_WORKFLOW.md
 """
 
 import argparse
+import contextlib
+import io
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# Kaizen M1 sensor (T04) — OBSERVATION ONLY. Additive, idempotent path append + a
+# defensive import: a project that never receives the box-local module behaves exactly
+# as before (proven by the byte-compare in tests/test_kaizen_sensor_emitters.py).
+_KAIZEN_DIR = str(Path(__file__).resolve().parent / "sysadmin")
+if _KAIZEN_DIR not in sys.path:
+    sys.path.append(_KAIZEN_DIR)
+try:
+    import kaizen_events  # noqa: E402
+except Exception:  # pragma: no cover - absence is the normal case in a project
+    kaizen_events = None  # type: ignore[assignment]
+
+# The gate had no stderr channel of its own before T04, so the emitter's `_warn` (its
+# ONLY failure channel) would have made a broken event store visible in the gate's
+# output. Muted at the call site, never in `kaizen_events`: every other caller keeps
+# the honest warning. `2.0` bounds exposure()'s git probes — the sensor fires after the
+# verdict is settled, so an `unknown` field beats making the fleet's gate wait on git.
+_KAIZEN_PROBE_TIMEOUT_S = 2.0
 
 # Paths
 PROJECT_ROOT = Path.cwd()  # Use current working directory, not script location
@@ -1888,6 +1908,27 @@ def main() -> int:
                 print(f"  {GREEN}✓ Changes staged{RESET}")
             elif not ok and not args.json:
                 print(f"  {RED}✗ Failed to stage: {out}{RESET}")
+
+    # Kaizen sensor (T04) — OBSERVATION ONLY: ONE gate_run per invocation, at the single
+    # point where every check has assembled and nothing downstream can still change one.
+    # It reads `all_results`; it never writes it, and emit() never raises (fail-open).
+    if kaizen_events:
+        _mode = {k: bool(getattr(args, k)) for k in ("check", "lean", "systemic", "json")}
+        _adv = WARN_ONLY_CHECKS  # rows that cannot fail — labelled, never counted as pass
+        _checks = [
+            {"name": n, "outcome": "fail" if not ok else "advisory" if n in _adv else "pass"}
+            for n, ok, _ in all_results
+        ]
+        _status = "success" if not failed else "failure"
+        with contextlib.redirect_stderr(io.StringIO()):  # not one byte on the gate's stderr
+            kaizen_events.emit(
+                "gate_run",
+                tier=tier,
+                mode=_mode,
+                status=_status,
+                checks=_checks,
+                probe_timeout_s=_KAIZEN_PROBE_TIMEOUT_S,
+            )
 
     # JSON output mode
     if args.json:

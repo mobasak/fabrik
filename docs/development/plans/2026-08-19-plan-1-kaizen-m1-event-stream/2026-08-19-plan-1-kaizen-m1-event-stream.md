@@ -53,7 +53,7 @@ Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer
 | T01 | events-core: schema + emitter library + exposure resolver | — | ⚡ | ✅ | 19754de5 |
 | T02 | hook emitters: session lifecycle + stop_block/final_block + operator_override | T01 | ⚡ | ✅ | 10-finding native acceptance, all red-proven; merged (squash of a151cccc+fd587961) |
 | T03 | run-record events + sid plumbing + lifecycle audit | T01 | ⚡ | ✅ | 13-finding round 1 + 4-L round 2, all closed; merged (squash of 9610a1bb+96035db7+20aba0dd) |
-| T04 | sensor emitters: gate_run per-check + rule_activation | T01 | ⚡ | ⬜ | |
+| T04 | sensor emitters: gate_run per-check + rule_activation | T01 | ⚡ | ✅ | 6-finding acceptance (1 confirmed + 3 fixed, 2 no-change), pool claim refuted; merged (squash of 6a82a5c5+33e67f01) |
 | T05 | the coroner: death/revival reconstruction + record closure + hole metric | T01, T03 | — | ⬜ | |
 | T06 | collector v2: derived-facts store + versioned metrics + paired-counter registry | T01, T02, T03, T04, T05 | — | ⬜ | |
 | T07 | outcome tier: rework miner + fleet-health sweep + premature-stop | T06 | ⚡ | ⬜ | |

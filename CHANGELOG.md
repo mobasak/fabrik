@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T04: gate_run and rule_activation sensor emitters (2026-08-20)
+
+`scripts/final_gate.py` emits one `gate_run` event per invocation (tier, mode, status, every
+executed check with its outcome, advisory rows labelled) at the single point where the verdict is
+settled; `scripts/select_rules.py` and `scripts/review_rubric.py` emit `rule_activation` naming
+the packs that actually reached the caller (a missing floor pack is named in `packs_missing`,
+never claimed as injected). All observation-only: emitter stderr is muted at the call sites, so a
+box with an unwritable event store runs all three byte-identically on stdout AND stderr; a piped
+`| head` rubric run still lands its event; every site bounds exposure probes at 2 s.
+
 ### Added — kaizen M1 T03: run-record lifecycle events, sid honesty, and closed_by (2026-08-20)
 
 `scripts/command_run.py` (fleet-synced) now emits `run_open`/`phase`/`round`/`run_close` after each
