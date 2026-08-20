@@ -37,6 +37,7 @@ def _isolated_events_dir(tmp_path, monkeypatch):
     d = tmp_path / "events"
     monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(d))
     monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     kaizen_events.reset_cache()
     yield d
     kaizen_events.reset_cache()
@@ -199,11 +200,17 @@ def test_unserializable_field_still_emits(_isolated_events_dir):
 
 def test_resolve_sid_precedence(monkeypatch):
     monkeypatch.setenv("CLAUDE_SESSION_ID", "from-env")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "from-code-env")
     assert kaizen_events.resolve_sid("explicit-one") == "explicit-one"
     assert kaizen_events.resolve_sid(None) == "from-env"
-    monkeypatch.setenv("CLAUDE_SESSION_ID", "")  # Bash-tool shells carry it empty
+    # Bash-tool shells: CLAUDE_SESSION_ID empty, the harness's CLAUDE_CODE_SESSION_ID set —
+    # the missing second candidate was the nosession/unknown collision (fixed 2026-08-21)
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "")
+    assert kaizen_events.resolve_sid(None) == "from-code-env"
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "")
     assert kaizen_events.resolve_sid(None) == kaizen_events.UNKNOWN
     monkeypatch.delenv("CLAUDE_SESSION_ID")
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     assert kaizen_events.resolve_sid(None) == kaizen_events.UNKNOWN
 
 
@@ -562,6 +569,7 @@ def test_sid_source_override_labels_a_joined_sid(_isolated_events_dir, monkeypat
     `env` (it was not there). Without a fourth value the join has to lie about its own
     provenance, and the collector cannot tell a real id from a reconstructed one."""
     monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     assert kaizen_events.emit("run_open", "sessA", sid_source="join", command="fabrik-probe")
     row = _row(Path(os.environ["KAIZEN_EVENTS_DIR"]) / "sessA.jsonl")
     assert row["sid"] == "sessA" and row["sid_source"] == "join", row

@@ -92,13 +92,20 @@ sys.modules["kaizen_events"] = mod
 
 def _env(tmp: Path, **extra: str) -> dict[str, str]:
     """A hermetic hook environment: our own TMPDIR (baseline/counter files), our own
-    command-run dir, our own events dir. ``CLAUDE_SESSION_ID`` is stripped — the test
+    command-run dir, our own events dir. Both session-id vars are stripped — the test
     process is itself a Claude session and would otherwise donate its id to a payload
-    that deliberately carries none."""
+    that deliberately carries none (CLAUDE_CODE_SESSION_ID joined the resolver chain
+    2026-08-21)."""
     env = {
         k: v
         for k, v in os.environ.items()
-        if k not in ("CLAUDE_SESSION_ID", "KAIZEN_EVENTS_DIR", "PYTHONPATH")
+        if k
+        not in (
+            "CLAUDE_SESSION_ID",
+            "CLAUDE_CODE_SESSION_ID",
+            "KAIZEN_EVENTS_DIR",
+            "PYTHONPATH",
+        )
     }
     for sub in ("tmpdir", "runs"):
         (tmp / sub).mkdir(parents=True, exist_ok=True)

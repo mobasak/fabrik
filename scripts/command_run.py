@@ -13,7 +13,9 @@ Three operator complaints, one record:
    cause: a `running` record BLOCKS the stop (`.claude/hooks/final_gate_stop.py`).
 
 ONE json per session at ``$COMMAND_RUN_DIR`` (default ``~/.claude/state/command-runs``),
-named ``<session_id>.json``; the session id comes from ``CLAUDE_SESSION_ID`` or ``--session``.
+named ``<session_id>.json``; the session id comes from ``--session``, ``CLAUDE_SESSION_ID``,
+or ``CLAUDE_CODE_SESSION_ID`` (the harness exports the latter to Bash-tool shells; the Stop
+hook keys on the same uuid from its payload, so records and hook lookups agree).
 
 Fail-soft EVERYWHERE: a corrupt or unwritable record must never wedge an agent, and
 ``line``/``status`` never raise — they go silent instead. The Stop hook's matching
@@ -83,7 +85,22 @@ def _state_dir() -> Path:
 
 
 def _session_id(explicit: str | None) -> str:
-    return explicit or os.environ.get("CLAUDE_SESSION_ID") or "nosession"
+    """Explicit → CLAUDE_SESSION_ID → CLAUDE_CODE_SESSION_ID → the literal nosession.
+
+    Bash-tool shells carry an EMPTY ``CLAUDE_SESSION_ID`` but DO carry the harness's
+    ``CLAUDE_CODE_SESSION_ID`` (the real session uuid — the same id the Stop hook keys
+    its record lookup on from its stdin payload). Before this chain existed, every
+    concurrent session in a repo resolved to ONE ``nosession.json``: sibling ``start``
+    calls clobbered each other's live records, ``line`` pinned a sibling's run, and a
+    retried ``done`` could close a run it never opened (observed live three times,
+    2026-08-20). ``nosession`` remains only for environments carrying neither var.
+    """
+    return (
+        explicit
+        or os.environ.get("CLAUDE_SESSION_ID")
+        or os.environ.get("CLAUDE_CODE_SESSION_ID")
+        or "nosession"
+    )
 
 
 def _safe_sid(sid: str) -> str:

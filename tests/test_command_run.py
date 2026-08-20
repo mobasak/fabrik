@@ -1019,3 +1019,42 @@ def test_flush_bounds_the_exposure_probe_and_labels_a_joined_sid(
     assert calls[0]["sid"] == "sessA", calls[0]
     assert calls[0]["sid_source"] == "join", calls[0]
     assert calls[0]["probe_timeout_s"] == 2.0, calls[0]
+
+
+def test_code_session_id_env_keys_the_record(tmp_path):
+    """The nosession collision (observed live 3x, 2026-08-20): Bash-tool shells carry an
+    empty CLAUDE_SESSION_ID but DO carry CLAUDE_CODE_SESSION_ID (the real session uuid the
+    Stop hook keys on) — without the second candidate, every concurrent session wrote ONE
+    nosession.json and sibling starts clobbered each other's live records."""
+    run_dir = tmp_path / "runs"
+    r = _cr(
+        run_dir, "start", "--command", "fabrik-probe", "--phases", "1",
+        sid=None,
+        extra_env={"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": "uuid-alpha"},
+    )
+    assert r.returncode == 0, r.stderr
+    assert (run_dir / "uuid-alpha.json").exists(), "record not keyed by CLAUDE_CODE_SESSION_ID"
+    assert not (run_dir / "nosession.json").exists(), "still colliding into nosession.json"
+
+
+def test_session_id_precedence_and_isolation(tmp_path):
+    """Precedence: explicit > CLAUDE_SESSION_ID > CLAUDE_CODE_SESSION_ID; two sessions
+    with distinct code-session ids never share a record file."""
+    run_dir = tmp_path / "runs"
+    r = _cr(
+        run_dir, "start", "--command", "fabrik-probe", "--phases", "1",
+        sid="legacy-var",
+        extra_env={"CLAUDE_CODE_SESSION_ID": "uuid-beta"},
+    )
+    assert r.returncode == 0, r.stderr
+    assert (run_dir / "legacy-var.json").exists(), "CLAUDE_SESSION_ID must outrank the code var"
+    for uuid in ("uuid-a", "uuid-b"):
+        r = _cr(
+            run_dir, "start", "--command", "fabrik-probe", "--phases", "1",
+            sid=None,
+            extra_env={"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": uuid},
+        )
+        assert r.returncode == 0, r.stderr
+    assert (run_dir / "uuid-a.json").exists() and (run_dir / "uuid-b.json").exists(), (
+        "concurrent sessions must get distinct record files"
+    )

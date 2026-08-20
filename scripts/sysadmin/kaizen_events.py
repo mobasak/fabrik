@@ -144,7 +144,7 @@ def _warn(msg: str) -> None:
 
 
 def resolve_sid(explicit: str | None = None) -> str:
-    """Session id: explicit -> ``$CLAUDE_SESSION_ID`` -> the literal ``unknown``.
+    """Explicit -> ``$CLAUDE_SESSION_ID`` -> ``$CLAUDE_CODE_SESSION_ID`` -> ``unknown``.
 
     Never a shared bucket name: an event that cannot be attributed is counted in the
     collector's unclassified-rate, not silently merged into another session's stream.
@@ -157,14 +157,17 @@ def resolve_sid(explicit: str | None = None) -> str:
 def resolve_sid_with_source(explicit: str | None = None) -> tuple[str, str]:
     """``(sid, source)`` where source is ``explicit`` | ``env`` | ``none``.
 
-    The source is emitted with every event so the `nosession` collision (Bash-tool
-    shells carry an empty ``CLAUDE_SESSION_ID``) is measurable even where it is not
-    yet solvable.
+    The source is emitted with every event so residual unattributed events stay
+    measurable. Bash-tool shells carry an empty ``CLAUDE_SESSION_ID`` but the harness
+    exports ``CLAUDE_CODE_SESSION_ID`` (the real session uuid) — the missing second
+    candidate was why every Bash-side event landed in the shared ``unknown`` bucket
+    while the hooks' payload-sourced events were attributed.
     """
     try:
         for candidate, source in (
             (explicit, "explicit"),
             (os.getenv("CLAUDE_SESSION_ID", ""), "env"),
+            (os.getenv("CLAUDE_CODE_SESSION_ID", ""), "env"),
         ):
             if candidate is None or not str(candidate).strip():
                 continue
@@ -614,7 +617,10 @@ def selftest() -> int:
         # Every env var this canary mutates is saved here and restored in the finally —
         # the selftest is importable, so leaking `CLAUDE_SESSION_ID` out of it would
         # silently re-attribute every later emit in the SAME process.
-        prior_env = {k: os.environ.get(k) for k in ("KAIZEN_EVENTS_DIR", "CLAUDE_SESSION_ID")}
+        prior_env = {
+            k: os.environ.get(k)
+            for k in ("KAIZEN_EVENTS_DIR", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
+        }
         os.environ["KAIZEN_EVENTS_DIR"] = tmp
         try:
             # GOOD: the event lands, parses, and carries the envelope + exposure.
@@ -662,6 +668,7 @@ def selftest() -> int:
 
             # BAD: an unresolvable sid is `unknown`, in its OWN file.
             os.environ.pop("CLAUDE_SESSION_ID", None)
+            os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
             expect(emit("stop_block", cause="selftest"), "unknown-sid emit must return True")
             unknown_path = Path(tmp) / f"{UNKNOWN}.jsonl"
             expect(unknown_path.is_file(), "unknown sid must land in its own unknown.jsonl")

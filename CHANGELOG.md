@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command-run records no longer collide across concurrent sessions (2026-08-21)
+
+Bash-tool shells carry an empty `CLAUDE_SESSION_ID`, so every concurrent session in a repo
+resolved its run record to ONE shared `nosession.json`: sibling `start` calls clobbered each
+other's live records, `line` pinned a sibling's run, and a retried `done` could close a run it
+never opened (observed live three times during the mega-enforcement review loop). The resolvers
+in `scripts/command_run.py` and `scripts/sysadmin/kaizen_events.py` now fall through to
+`CLAUDE_CODE_SESSION_ID` — the real session uuid the harness exports to Bash and the same id
+the Stop hook keys its lookup on — so records, events, and hook lookups agree per session.
+`nosession`/`unknown` remain only for environments carrying neither var. Red-proven pins in
+`tests/test_command_run.py` + `tests/test_kaizen_events.py`; the hook-emitter and events test
+harnesses now strip both vars for hermeticity; `docs/reference/command-run-protocol.md` updated.
+
 ### Fixed — quota dashboard showed a stale weekly % after the reset date had passed (2026-08-21)
 
 - `quota_dashboard.py`'s "rolled-over" detection only treated a cached reading as stale when its

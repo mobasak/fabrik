@@ -17,8 +17,10 @@ Contract text: `CLAUDE.md` § COMMAND RUN-RECORD (hub) and `templates/governance
 ## State
 
 One file per session: `$COMMAND_RUN_DIR/<session_id>.json`, default
-`~/.claude/state/command-runs/<session_id>.json`. The session id comes from `CLAUDE_SESSION_ID` or
-`--session`. Writes are atomic (tmp + `os.replace`).
+`~/.claude/state/command-runs/<session_id>.json`. The session id comes from `--session`,
+`CLAUDE_SESSION_ID`, or `CLAUDE_CODE_SESSION_ID` (the harness exports the latter to Bash-tool
+shells; it is the same uuid the Stop hook keys its lookup on, so records and hook agree).
+Writes are atomic (tmp + `os.replace`).
 
 ```json
 {
@@ -165,7 +167,8 @@ collide in the same millisecond. `run_close` additionally carries `resumed` / `r
 
 ### `--adopt-sid` — recovering a session id, or refusing to
 
-Bash-tool shells carry an **empty** `CLAUDE_SESSION_ID`, so the record falls to `nosession` and the
+A shell carrying **neither** session-id var (Bash-tool shells carry an empty `CLAUDE_SESSION_ID`
+but do carry `CLAUDE_CODE_SESSION_ID`, so in practice this is rare) falls to `nosession` and the
 events would pile into one unattributable bucket. `--adopt-sid` optionally recovers the id from the
 event stream: candidates are the sessions whose events name **this cwd** in the window. For `start`
 the window is the whole store (a run that has not begun has nothing to anchor on); for every other
@@ -242,7 +245,7 @@ the command?", that moment is the Stop hook.
 | Env var | Default | Effect |
 |---|---|---|
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
-| `CLAUDE_SESSION_ID` | `nosession` | record filename (`--session` overrides) |
+| `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then `nosession`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
 
 ## Tests
