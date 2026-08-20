@@ -1591,10 +1591,12 @@ def test_adjacent_stray_separator_cannot_swallow_a_data_row(repo: Path) -> None:
     assert "UNCHECKED" in out
 
 
-def test_headerless_table_with_verdict_grammar_stays_counted(repo: Path) -> None:
-    """Round-89 (second seam): a run-initial row followed by a separator IS a header to a
-    renderer — but if it carries verdict grammar (an UNCHECKED living in a header cell,
-    visible to the operator), it is counted as data, never silently skipped."""
+def test_headerless_table_with_verdict_grammar_is_a_forgery_residual(repo: Path) -> None:
+    """Round-91 ADJUDICATION (re-anchoring the round-89 second seam): a run-initial row
+    followed by a separator IS a table header to a renderer — restructuring an obligation
+    INTO one is deliberate forgery, out of threat model, and the text stays visible to the
+    operator in the rendered header cell. Judging header CONTENT false-failed honest
+    vocabulary-naming headers (round 91), so the header test is structural only."""
     body = (
         "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
         "review_rubric.py output embedded\n\n"
@@ -1604,4 +1606,21 @@ def test_headerless_table_with_verdict_grammar_stays_counted(repo: Path) -> None
         "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-headerless-verdict-review.md", body)
-    assert rc == 1, "an UNCHECKED living in a header cell was silently skipped"
+    assert rc == 0, f"the structural header test should skip a renderer-true header: {out}"
+
+
+def test_vocabulary_naming_header_is_not_data(repo: Path) -> None:
+    """Round-91 HIGH: the round-90 verdict-free header condition false-failed an honest
+    header that legitimately documents the column's allowed values — the header test is
+    structural (run-initial + separator-next), never content-judged."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n"
+        "| Class | Verdict (CLEAN, FIXED, REFUTED, or still UNCHECKED) | Notes |\n"
+        "|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted | ok |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-vocab-header-review.md", body)
+    assert rc == 0, f"a vocabulary-naming header was counted as a data row: {out}"

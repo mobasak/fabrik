@@ -117,17 +117,17 @@ def _table_rows(section: str) -> list[str]:
             continue
         nxt = phys[i + 1].strip() if i + 1 < len(phys) else ""
         run_initial = i == 0 or not phys[i - 1].lstrip().startswith("|")
-        if (
-            run_initial
-            and nxt.startswith("|")
-            and re.fullmatch(r"[|\-: ]+", nxt)
-            and not (UNCHECKED.search(ln) or VERDICT.search(ln))
-        ):
+        if run_initial and nxt.startswith("|") and re.fullmatch(r"[|\-: ]+", nxt):
             # The run's ONE header row — first pipe-row of its physical run, separator
             # literally next (round 89: adjacency alone let a stray separator swallow the
-            # DATA row above it, chainably). A would-be header carrying verdict grammar is
-            # counted as data instead — a renderer shows that UNCHECKED header cell to the
-            # operator, so silently skipping it would be the same fail-open one seam over.
+            # DATA row above it, chainably; run-initial kills the chain because every stray
+            # separator is itself a pipe-row). The header's CONTENT is not judged (round 91):
+            # an honest header naming the verdict vocabulary (`| Class | Verdict (CLEAN, …,
+            # UNCHECKED) |`) false-failed converged reports, while an obligation deliberately
+            # restructured INTO a header row is forgery — out of threat model, and visible to
+            # the operator in the rendered table anyway. Two adjudicated residuals: that
+            # forgery shape, and a pipe-row caption above the header (both rows then count
+            # as data and fail LOUD noverdict errors — remedy: drop the caption).
             continue
         out.append(ln)
     return out
