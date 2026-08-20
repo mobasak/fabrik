@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T07: the outcome tier — rework mined from provenance, fleet health from clean clones, premature stops from the oracle (2026-08-20)
+
+`scripts/sysadmin/kaizen_outcomes.py`: `rework_rate` mines /opt/* repos read-only (a commit is
+rework when its files are re-touched within KAIZEN_REWORK_DAYS by a fix-shaped commit; trailer-less
+repos dash honestly); `--sweep` runs install-less checks in a clean temp clone of HEAD (never the
+live tree, process-group-killed on timeout, honest `—` reasons) and emits `fleet_health` events;
+`premature_stop` reads the stop_block oracle over T06's derived facts, counting only T06's
+PREMATURE_CAUSES so legitimate enforcement holds don't inflate it. Three reciprocal metric pairs
+join the validated registry. Three acceptance rounds to a found:0 no-op; 28 tests, every functional
+fix watched RED first. The sweep's first honest reading is itself a finding: a clean HEAD clone of
+the hub fails its suite install-less.
+
 ### Added — kaizen M1 T06: collector v2 — an append-only derived-facts store whose published numbers cannot double-count (2026-08-20)
 
 `scripts/sysadmin/kaizen_collect_v2.py` derives per-session facts from the M1 event stream into an
