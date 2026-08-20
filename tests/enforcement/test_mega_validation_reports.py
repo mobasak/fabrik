@@ -1360,3 +1360,46 @@ def test_bare_hash_heading_bounds_a_prose_run(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-bare-hash-review.md", body)
     assert rc == 1, "a decoy after a bare-# heading silently became the final round"
     assert "separate groups" in out
+
+
+def test_list_wrapped_checklist_heading_cannot_desubject(repo: Path) -> None:
+    """Round-77 CRITICAL: `- ## Coverage Checklist` renders as a real h2 nested in a list
+    item, but the column-0 heading scan never saw it — the whole report silently became a
+    non-subject (every obligation bypassed) on the blocking path AND the committed scan.
+    Refused loudly, consistent with the blockquote adjudication of round 57."""
+    for i, mark in enumerate(["-", "1.", "+"]):
+        body = (
+            "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+            f"{mark} ## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+            "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
+            "Pass 1: found: 4, fixed: 0\n"
+        )
+        rc, out = _gate(repo, f"2026-08-20-listwrap{i}-review.md", body)
+        assert rc == 1, f"a {mark}-wrapped checklist heading de-subjected the report"
+        assert "LIST-WRAPPED" in out, f"marker {mark}: wrong reason"
+
+
+def test_list_wrapped_divider_cannot_hide_a_decoy(repo: Path) -> None:
+    """Round-77 HIGH (same root): `1. # Appendix` is a real heading to a renderer but not to
+    the run boundary — the decoy after it merged into the real ledger's group. The refusal
+    net now catches the wrapped heading before any parsing."""
+    body = _everyday(
+        "Pass 1: found: 3, fixed: 0\nPass 2: found: 4, fixed: 0\n",
+        "\n1. # Appendix — unrelated retro note\n\n"
+        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-listwrap-divider-review.md", body)
+    assert rc == 1, "a decoy behind a list-wrapped divider silently became the final round"
+    assert "LIST-WRAPPED" in out
+
+
+def test_bulleted_rows_stay_live_despite_the_list_wrap_refusal(repo: Path) -> None:
+    """Round-77 regression guard: bulleted Pass/HANDOFF ROWS are sanctioned live rows (the
+    _LIST_MARK tolerance of rounds 65-70) and `- #123 fixed` prose is not a heading — the
+    new refusal must not touch either."""
+    body = _everyday(
+        "Pass 1: found: 5, fixed: 5\nPass 2: found: 0, fixed: 0\n",
+        "\nNotes:\n- #123 fixed upstream in the vendor tree.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-listwrap-safe-review.md", body)
+    assert rc == 0, f"prose bullet or live row false-fired the list-wrap refusal: {out}"

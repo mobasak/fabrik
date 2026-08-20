@@ -556,6 +556,15 @@ def _grammar_shaped(dedented: str) -> bool:
 
 
 _BLOCKQUOTE = re.compile(r"^ {0,3}>")
+# A list-item wrapper (`- ## Coverage Checklist`, `1. # Appendix`) renders its content as a
+# REAL heading nested in the list item — round 77 found the list-marker hardening (rounds
+# 65-69) and the heading hardening (rounds 57-76) were never cross-applied, so a wrapped
+# checklist heading silently de-subjected a whole report and a wrapped divider defeated the
+# run boundary. Narrow by design: only heading/declaration shapes are refused — bulleted
+# Pass/HANDOFF ROWS are sanctioned LIVE rows (the _LIST_MARK tolerance), and `- #123 fixed`
+# prose is not a heading (# must be followed by whitespace or EOL).
+_LIST_WRAP = re.compile(r"^ {0,3}(?:[-*+]|\d+[.)])\s+")
+_WRAPPED_HEADINGISH = re.compile(r"#{1,6}(?:\s|$)|\**(?:Status|Surface):", re.I)
 _SETEXT_UNDERLINE = re.compile(r"^ {0,3}(=+|-+)\s*$")
 _SETEXT_TITLE = re.compile(
     r"^ {0,3}\**\s*(coverage checklist|cross-epic validation report)\b", re.I
@@ -599,6 +608,14 @@ def _indented_grammar_error(text: str) -> str | None:
                     f"BLOCKQUOTED grammar-shaped line ({content[:70]!r}): it renders as "
                     "visible content but is invisible to this gate's anchors — un-quote it "
                     "if it is live, or put it in a ``` fence if it is a quoted example"
+                )
+        elif _LIST_WRAP.match(ln):
+            content = _LIST_WRAP.sub("", ln, count=1).strip()
+            if _WRAPPED_HEADINGISH.match(content):
+                return (
+                    f"LIST-WRAPPED heading/declaration ({content[:70]!r}): it renders as a "
+                    "real heading but is invisible to this gate's anchors — un-wrap it if it "
+                    "is live, or put it in a ``` fence if it is a quoted example"
                 )
         elif (
             _SETEXT_TITLE.match(ln)
