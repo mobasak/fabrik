@@ -117,9 +117,14 @@ def _table_rows(section: str) -> list[str]:
         # swallowing the row above. The rule is closed and fully specified; enforcing it
         # precisely ends the separator sub-chase definitionally.
         r = re.sub(r"\\\|", "\x00", row.strip())
-        if not r.startswith("|"):
+        if "|" not in r:
+            # a bare --- carries no pipe: it is a thematic break or a setext underline to a
+            # renderer, never a table separator (round 99 — requiring a LEADING pipe was
+            # too strict the other way: GFM's delimiter row may be pipe-less, `---|---`,
+            # and the unrecognized separator false-failed an honest header as data)
             return False
-        r = r[1:]
+        if r.startswith("|"):
+            r = r[1:]
         if r.endswith("|"):
             r = r[:-1]
         cells = r.split("|")

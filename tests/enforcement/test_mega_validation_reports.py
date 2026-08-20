@@ -1693,3 +1693,22 @@ def test_invalid_delimiter_row_cannot_make_a_header(repo: Path) -> None:
         rc, out = _gate(repo, f"2026-08-21-invalid-sep{i}-review.md", body)
         assert rc == 1, f"separator {sep!r} swallowed the UNCHECKED row above it"
         assert "UNCHECKED" in out, f"separator {sep!r}: wrong reason"
+
+
+def test_valid_separator_shapes_are_recognized(repo: Path) -> None:
+    """Round-99: the leading-pipe requirement was too strict the OTHER way — GFM's delimiter
+    row may be pipe-less (`---|---`), and the unrecognized separator false-failed an honest
+    header as a verdict-less data row. Sweep the VALID boundary: pipe-less, colon-aligned,
+    and mixed forms must all pair with their header (a bare `---` stays excluded — it is a
+    setext underline/thematic break, never a table separator)."""
+    for i, sep in enumerate(["---|---", "|:---|---:|", "| :---: | :--- |"]):
+        body = (
+            "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+            "review_rubric.py output embedded\n\n"
+            "## Coverage Checklist\n"
+            f"| Class | Verdict |\n{sep}\n"
+            "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+            "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+        )
+        rc, out = _gate(repo, f"2026-08-21-valid-sep{i}-review.md", body)
+        assert rc == 0, f"valid separator {sep!r} was unrecognized and the header failed as data: {out}"
