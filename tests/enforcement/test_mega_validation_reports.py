@@ -1642,3 +1642,36 @@ def test_mismatched_separator_does_not_make_a_header(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-21-mismatch-separator-review.md", body)
     assert rc == 1, "a mismatched separator made a paragraph row into a skipped 'header'"
     assert "UNCHECKED" in out
+
+
+def test_doubled_pipe_typo_cannot_swallow_a_row(repo: Path) -> None:
+    """Round-95 HIGH: Python's strip('|') ate a DOUBLED leading pipe, collapsing a 3-cell
+    typo'd row onto a 2-cell separator — 'match' — and swallowing a live UNCHECKED row as
+    the header of a table no renderer forms (GFM strips exactly ONE boundary pipe)."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n"
+        "|| sql-injection-in-query-builder | UNCHECKED still to hunt |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-doubled-pipe-review.md", body)
+    assert rc == 1, "a doubled-pipe typo swallowed the UNCHECKED row as a phantom header"
+    assert "UNCHECKED" in out
+
+
+def test_escaped_pipe_header_is_still_a_header(repo: Path) -> None:
+    """Round-95 MEDIUM (mirror): `\\|` is an ESCAPED pipe — content, not a delimiter. The
+    naive split counted 3 cells for an honest vocabulary header over a 2-cell separator and
+    false-failed a fully converged report."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n"
+        "| Class | Verdict (CLEAN\\|FIXED\\|REFUTED) |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-escaped-pipe-review.md", body)
+    assert rc == 0, f"an escaped-pipe vocabulary header was counted as a data row: {out}"

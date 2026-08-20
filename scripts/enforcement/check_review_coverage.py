@@ -109,6 +109,20 @@ def _table_rows(section: str) -> list[str]:
     # no-nesting fail-open the parity and refusal nets never see. A row is a header only if
     # its separator is the literally next line.
     phys = section.splitlines()
+
+    def _cells(row: str) -> int:
+        # GFM-faithful cell count (round 95): exactly ONE optional boundary pipe strips per
+        # side — Python's strip("|") ate a DOUBLED leading pipe, collapsing a 3-cell typo'd
+        # row onto a 2-cell separator ("match") and swallowing a live UNCHECKED row as a
+        # header of a table no renderer forms; and `\|` is an ESCAPED pipe (content, not a
+        # delimiter), whose naive split false-failed an honest vocabulary header.
+        r = re.sub(r"\\\|", "\x00", row.strip())
+        if r.startswith("|"):
+            r = r[1:]
+        if r.endswith("|"):
+            r = r[:-1]
+        return len(r.split("|"))
+
     out: list[str] = []
     for i, ln in enumerate(phys):
         if not ln.lstrip().startswith("|"):
@@ -117,10 +131,6 @@ def _table_rows(section: str) -> list[str]:
             continue
         nxt = phys[i + 1].strip() if i + 1 < len(phys) else ""
         run_initial = i == 0 or not phys[i - 1].lstrip().startswith("|")
-
-        def _cells(row: str) -> int:
-            return len(row.strip().strip("|").split("|"))
-
         if (
             run_initial
             and nxt.startswith("|")
