@@ -1328,3 +1328,22 @@ def test_wrapped_continuation_prose_ledger_is_one_group(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-20-wrapped-prose-review.md", body)
     assert rc == 0, f"an honest wrapped-continuation prose ledger was split into groups: {out}"
+
+
+def test_blockquoted_and_setext_headings_also_bound_prose_runs(repo: Path) -> None:
+    """Round-73 HIGH: the round-72 boundary was ATX-only — a blockquoted `> ## Appendix` or
+    a setext underline (both real heading elements to a renderer) failed to close the prose
+    run, so the round-71 decoy bypass survived one heading syntax over."""
+    decoy_tail_bq = (
+        "\n> ## Appendix — unrelated retro note\n\n"
+        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n"
+    )
+    decoy_tail_setext = (
+        "\nAppendix — unrelated retro note\n-------------------------------\n\n"
+        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n"
+    )
+    for i, tail in enumerate([decoy_tail_bq, decoy_tail_setext]):
+        body = _everyday("Pass 1: found: 3, fixed: 0\nPass 2: found: 4, fixed: 0\n", tail)
+        rc, out = _gate(repo, f"2026-08-20-heading-form{i}-review.md", body)
+        assert rc == 1, f"decoy after heading form {i} silently became the final round"
+        assert "separate groups" in out, f"heading form {i}: wrong reason"

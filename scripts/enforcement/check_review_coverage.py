@@ -687,6 +687,15 @@ def _ledger_shapes(
     ordered: list[tuple[int, int, str]] = []
     current: list[tuple[int, int, str]] = []
     p_run: list[tuple[int, int, str]] = []
+    # A run boundary is ANY renderer-heading form (round 73: the ATX-only regex let a
+    # blockquoted `> ## Appendix` or a setext underline — both real heading elements to a
+    # renderer — fail to close the run, reviving the round-71 decoy bypass one syntax over):
+    # ATX with optional blockquote prefixes, or a setext underline directly under a non-blank
+    # line (an underline after a blank is a thematic break, not a heading — same-section,
+    # the adjudicated author-declares-exit residual).
+    atx_boundary = re.compile(r"^ {0,3}(?:>\s*)*#{1,6}\s")
+    setext_underline = re.compile(r"^ {0,3}(?:>\s*)*(=+|-+)\s*$")
+    prev_nonblank = False
     for line in body.splitlines():
         stripped = line.strip()
         if stripped.startswith("|"):
@@ -715,9 +724,13 @@ def _ledger_shapes(
                 row = (pc[0], pc[1], line)
                 p_run.append(row)
                 ordered.append(row)
-            elif p_run and re.match(r"^ {0,3}#{1,6}\s", line):
+            elif p_run and (
+                atx_boundary.match(line)
+                or (setext_underline.match(line) and prev_nonblank)
+            ):
                 prose_runs.append(p_run)
                 p_run = []
+        prev_nonblank = bool(stripped)
     if current:
         tables.append(current)
     if p_run:
