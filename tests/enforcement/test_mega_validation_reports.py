@@ -473,7 +473,11 @@ def test_unclosed_fence_does_not_leak_examples_into_the_ledger(repo: Path) -> No
         f"| 9 | found: 5 | fixed: 0 | {h} → {h} |\n"
     )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
-    assert rc == 0, f"an unclosed-fence example produced a phantom table: {out}"
+    # CONTRACT CHANGE (round 47): parity precondition — the deliberately-unclosed appendix
+    # fence now fails accurately ("close the fence") instead of being silently tolerated;
+    # the original defect (a phantom table from the leak) stays impossible either way.
+    assert rc == 1
+    assert "UNCLOSED" in out and "odd count" in out
 
 
 def test_prose_only_ledger_is_not_a_mega_ledger(repo: Path) -> None:
@@ -867,4 +871,9 @@ def test_unrelated_dangling_fence_does_not_false_fire_the_floor(repo: Path) -> N
         "Appendix — pasted terminal session (fence deliberately unclosed):\n```\n$ ls\nfoo.txt\n"
     )
     rc, out = _gate(repo, "2026-08-20-howto3-review.md", body)
-    assert rc == 0, f"an unrelated dangling fence false-fired the floor: {out}"
+    # CONTRACT CHANGE (round 47): fence PARITY is now a precondition — round 45's complaint
+    # was the WRONG-REASON message (accusing a checklist that didn't exist), not that flagging
+    # a genuinely dangling fence is wrong. The doc DOES have an unclosed fence; the accurate
+    # one-keystroke message is correct, and undecidable intent-guessing is retired.
+    assert rc == 1
+    assert "UNCLOSED" in out and "odd count" in out

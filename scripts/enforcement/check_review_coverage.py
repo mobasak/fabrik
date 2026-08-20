@@ -209,41 +209,33 @@ def _blocked_ok(text: str) -> bool:
     return _blocked_sections(text) >= 1
 
 
-def _swallowed_checklist(raw: str) -> bool:
-    """A real checklist heading exists in the RAW text but an UNCLOSED fence swallowed it.
+def _fence_parity_error(text: str) -> str | None:
+    """ODD fence-marker count = the document's structure is unverifiable. One rule, no floors.
 
-    Round 43: the definition-site strip (round 41) generalized fenced-to-EOF truncation to
-    every caller — an unclosed fence BEFORE the heading made an obligated report invisible to
-    the primary gate AND the committed advisory (reproduced: 4 UNCHECKED rows, no Surface, OK).
-    The cert grammar got its presence floor in round 40; this is the checklist grammar's.
+    Round 47 ended the fence arms race by proving it undecidable: regex pairing mis-paired a
+    true unclosed opener with a later balanced pair's opener (erasing a real checklist and a
+    real HANDOFF row — fail-open in BOTH floors, the cert one latent since round 40), and the
+    round-45 and round-47 fixtures are STRUCTURALLY IDENTICAL — only the author's intent about
+    which fence went unclosed differs, which no parser can know. What IS decidable: a finished
+    markdown document has matching fences. Odd parity → one loud structural error naming the
+    one-keystroke fix, in every grammar, before any other obligation is judged.
     """
-    if _checklist_section(raw) is not None:
-        return False
-    # POSITION-ANCHORED, the cert floor's discriminator (round 40) ported verbatim in shape —
-    # round 45 reproduced the raw-text version false-BLOCKING an honest how-to doc whose only
-    # "heading" lived in a BALANCED quoted fence, because any unrelated dangling opener
-    # elsewhere completed the trigger. Only a heading genuinely BELOW the dangling opener
-    # (i.e. in the region the fenced-to-EOF rule swallows) is the defect.
-    balanced_stripped = _FENCE.sub("", raw)
-    dangling = re.search(r"^```", balanced_stripped, re.M)
-    if not dangling:
-        return False
-    swallowed_region = balanced_stripped[dangling.start():]
-    return any(
-        CHECKLIST_HEAD.match(h.group(0))
-        for h in re.finditer(r"^#{1,4} .*$", swallowed_region, re.M)
-    )
+    n = len(re.findall(r"^```", text, re.M))
+    if n % 2 == 1:
+        return (
+            f"UNCLOSED code fence ({n} fence markers — an odd count): ambiguous fencing makes "
+            "every obligation unverifiable (a dangling fence can swallow or fabricate "
+            "checklists, ledgers and dispositions). Close the fence."
+        )
+    return None
 
 
 def check_file(p: Path) -> list[str]:
     errs: list[str] = []
     text = p.read_text(encoding="utf-8", errors="replace")
-    if _swallowed_checklist(text):
-        return [
-            "the Coverage Checklist sits below an UNCLOSED code fence — the fenced-to-EOF rule "
-            "treats everything after a dangling ``` as quoted material, which would silently "
-            "exempt this report from every obligation. Close the fence."
-        ]
+    pe = _fence_parity_error(text)
+    if pe:
+        return [pe]
     section = _checklist_section(text)
     if section is None:
         # SUBJECT-BY-STRUCTURE (round 27, retiring two rounds of substring tuning): the
@@ -537,6 +529,9 @@ def check_mega_validation(
     during execution, and nagging every historical report forever is how an advisory gets muted.
     """
     text = path.read_text(encoding="utf-8", errors="replace")
+    pe = _fence_parity_error(text)
+    if pe:
+        return [pe]
     body = _strip_fences(text)
     # The sanctioned mid-loop state — declared in the HEADER ZONE (first 10 non-fence lines),
     # where the template puts Status, not quotable from anywhere in the body.
@@ -703,16 +698,9 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     # error loud on emptiness returned [] and PASSED. Balanced fences stay legitimate quoting;
     # grammar content that exists in the RAW text but not after stripping can only mean the
     # fenced-to-EOF truncation ate it — fail with the one-line fix, never silently pass.
-    balanced_stripped = _FENCE.sub("", raw)
-    dangling = re.search(r"^```", balanced_stripped, re.M)
-    if dangling and HANDOFF_ROW.findall(balanced_stripped[dangling.start():]):
-        # only a REMAINING opener (post balanced-pair strip) with grammar below it is the
-        # defect — a raw-vs-stripped diff cannot tell legitimate balanced quoting from
-        # truncation, and the first version of this floor failed honest balanced examples
-        return [
-            "disposition rows exist below an UNCLOSED code fence — the fenced-to-EOF rule "
-            "treats everything after a dangling ``` as quoted material. Close the fence."
-        ]
+    pe = _fence_parity_error(raw)
+    if pe:
+        return [pe]
     errs: list[str] = []
     rows = HANDOFF_ROW.findall(text)
     open_rows = [r for r in rows if r[1] == "OPEN"]
@@ -784,11 +772,9 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
-        if _swallowed_checklist(text):
-            out.append(
-                f"{p.relative_to(root)}: COMMITTED with its Coverage Checklist below an "
-                "UNCLOSED code fence — invisible to every obligation. Close the fence."
-            )
+        pe = _fence_parity_error(text)
+        if pe:
+            out.append(f"{p.relative_to(root)}: COMMITTED with an {pe}")
             continue
         if _checklist_section(text) is None:
             # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
