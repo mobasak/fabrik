@@ -1234,3 +1234,46 @@ def test_bulleted_pass_row_cannot_vanish(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-bulleted-pass-review.md", body)
     assert rc == 1, "a bulleted non-quiet final round vanished from the ledger extractor"
     assert "final ledger round raised 7" in out
+
+
+def test_numbered_handoff_row_cannot_vanish(repo: Path) -> None:
+    """Round-67 HIGH: round 66 gave _PASS_HEAD numbered-list tolerance but left HANDOFF_ROW
+    with only [-*] — a numbered `1. HANDOFF P1 OPEN …` (renderer-visible) vanished from
+    findall and from the refusal net, waiving evidence, NOT-QUIET and RESUME at once."""
+    body = (
+        "# cert\n\nDispositions:\n\n"
+        "1. HANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-user-test-numbered.md", body)
+    assert rc == 1, "a numbered OPEN HANDOFF row vanished from the cert gate"
+
+
+def test_numbered_pass_row_cannot_vanish(repo: Path) -> None:
+    """Round-67 LOW (coverage for the round-66 `\\d+.` branch, which shipped unexercised):
+    a numbered non-quiet final Pass row must be read as the exit round."""
+    body = _everyday(
+        "Pass 1: found: 5, fixed: 5\nPass 2: found: 0, fixed: 0\n",
+        "\n3. Pass 3: found: 7, fixed: 0\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-numbered-pass-review.md", body)
+    assert rc == 1, "a numbered non-quiet final round vanished from the ledger extractor"
+    assert "final ledger round raised 7" in out
+
+
+def test_list_marker_recap_is_refused_loudly_not_silently(repo: Path) -> None:
+    """Round-67 MEDIUM, ADJUDICATED as the established loud-refusal design: a list-marker
+    narrative recap (`1. Pass 1: found: 3 (initial sweep), fixed: 3 (…)`) is textually
+    identical to real corpus ledger styles (round 13 measured parentheticals in committed
+    ledgers), so token-tightening would evaporate honest ledgers — undecidable. The
+    multi-group guard refuses it LOUDLY with the one-keystroke remedy (fence the recap),
+    never silently in either direction."""
+    body = _everyday(
+        "| r | found: | fixed: | notes |\n|---|---|---|---|\n"
+        "| 1 | found: 3 | fixed: 3 | sweep |\n| 2 | found: 0 | fixed: 0 | quiet |\n",
+        "\nRound history, narrative:\n\n"
+        "1. Pass 1: found: 3 (initial sweep), fixed: 3 (initial sweep)\n"
+        "2. Pass 2: found: 0 (confirming round), fixed: 0 (confirming round)\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-recap-review.md", body)
+    assert rc == 1
+    assert "separate groups" in out, "the recap impersonation must get the loud multi-group remedy"

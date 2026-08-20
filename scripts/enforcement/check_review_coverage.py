@@ -896,7 +896,12 @@ def check_mega_validation(
     return errs
 
 
-HANDOFF_ROW = re.compile(r"^\s*[-*]?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M)
+# Numbered-list tolerance matches _PASS_HEAD (round 67: round 66 aligned only one of the two
+# ledger-row grammars, and a numbered `1. HANDOFF P1 OPEN …` — renderer-visible — vanished
+# from findall AND from _grammar_shaped's refusal net, waiving every downstream obligation).
+HANDOFF_ROW = re.compile(
+    r"^\s*(?:[-*]|\d+\.)?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M
+)
 REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
 PROOF_IN_ROW = re.compile(r"proof:\s*\S")
 CODE_WRONG_ROUTE = re.compile(r"route:\s*/fabrik-review\b")
