@@ -225,12 +225,21 @@ def _fence_parity_error(text: str) -> str | None:
     quote both defeats and false-fires) → one loud structural error naming the one-keystroke
     fix, in every grammar, before any other obligation is judged.
     """
-    _, dangling = _fence_regions(text)
+    _fences, _comments, dangling, c_dangling = _block_regions(text)
     if dangling is not None:
         return (
             "UNCLOSED code fence (a ``` or ~~~ fence is opened and never closed): a dangling "
             "fence makes every obligation after it unverifiable (it can swallow or fabricate "
             "checklists, ledgers and dispositions). Close the fence."
+        )
+    if c_dangling is not None:
+        # Round 61: absorb-to-EOF alone was SILENT — a forgotten `-->` swallowed the
+        # checklist heading (or every HANDOFF row), de-subjected the report, and the gate
+        # passed clean. The dangling comment gets the same loud treatment as a dangling
+        # fence: one structural error naming the one-keystroke fix, before any obligation.
+        return (
+            "UNCLOSED HTML comment (`<!--` opened and never closed): it absorbs everything "
+            "after it, swallowing checklists, ledgers and dispositions. Close it with `-->`."
         )
     return None
 
@@ -420,7 +429,7 @@ def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
     None). A closer is a same-flavor marker of >= the opener's length with nothing but
     whitespace after it; anything else inside an open fence is content.
     """
-    fences, _comments, dangling = _block_regions(text)
+    fences, _comments, dangling, _c_dangling = _block_regions(text)
     return fences, dangling
 
 
@@ -433,7 +442,7 @@ _COMMENT_OPEN = re.compile(r"^ {0,3}<!--(.*)$")
 
 def _block_regions(
     text: str,
-) -> tuple[list[tuple[int, int]], list[tuple[int, int]], int | None]:
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]], int | None, int | None]:
     """ONE sequential block scanner: fences and HTML comments, mutually exclusive.
 
     A renderer reads block structure sequentially — a `<!--` inside an open fence is fence
@@ -441,8 +450,11 @@ def _block_regions(
     until a line containing `-->`, and fences do not interrupt it); a mid-paragraph `<!--` is
     inline, never a block comment. Round 58 blanked comments with a position-blind regex and
     round 59 reproduced both cross-contaminations. An unclosed block comment absorbs to EOF,
-    matching renderer behavior and failing CLOSED. Returns (fence regions, comment regions,
-    dangling fence opener index) as inclusive line-index pairs.
+    matching renderer behavior. Returns (fence regions, comment regions, dangling fence
+    opener index, dangling comment opener index) as inclusive line-index pairs — the dangling
+    comment is surfaced explicitly because absorb-to-EOF alone is NOT fail-closed: round 61
+    reproduced a forgotten `-->` swallowing the checklist heading, de-subjecting the whole
+    report into a clean pass. The parity precondition reports it loudly instead.
     """
     fences: list[tuple[int, int]] = []
     comments: list[tuple[int, int]] = []
@@ -481,7 +493,7 @@ def _block_regions(
             open_at = None
     if c_open is not None:
         comments.append((c_open, len(lines) - 1))
-    return fences, comments, open_at
+    return fences, comments, open_at, c_open
 
 
 def _kept_lines(text: str) -> list[str]:
@@ -497,7 +509,7 @@ def _kept_lines(text: str) -> list[str]:
     the enclosing block there — an indented line after a comment is a code block, and only a
     blank line preserves that judgment in _split_indented.
     """
-    fences, comments, dangling = _block_regions(text)
+    fences, comments, dangling, _c_dangling = _block_regions(text)
     drop: set[int] = set()
     for a, b in fences:
         drop.update(range(a, b + 1))
@@ -916,6 +928,12 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     fenced example defeated a reader in this file's history.
     """
     raw = path.read_text(encoding="utf-8", errors="replace")
+    if _in_progress(raw):
+        # The ONE escape hatch every reader honors (round 61 closed the asymmetry: cert was
+        # the single grammar without it, hard-blocking a legitimately mid-loop cert report
+        # that the workflow explicitly sanctions committing). Parity binds at the flip; the
+        # committed scan keeps the standing IN-PROGRESS advisory on cert files too.
+        return []
     text = _strip_fences(raw)
     # PRESENCE FLOOR (round 39): fence-stripping with no floor made an unclosed fence erase
     # every real HANDOFF/NOT-QUIET/RESUME row below it — the one reader whose siblings all
@@ -997,7 +1015,7 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
         subject = _checklist_section(text) is not None
-        if subject and _in_progress(text):
+        if (subject or CERT_REPORT.search(p.name)) and _in_progress(text):
             # The sanctioned mid-loop state stays sanctioned but VISIBLE on every run — an
             # advisory that only quiets when the loop actually finishes (never a cloak that
             # exempts the report from every check). Checked BEFORE parity: a mid-loop report

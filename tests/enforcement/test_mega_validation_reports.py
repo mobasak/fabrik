@@ -1171,3 +1171,47 @@ def test_inline_comment_opener_cannot_eat_a_fence(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-inline-comment-review.md", body)
     assert rc == 0, f"an inline <!-- ate a real fence and false-fired UNCLOSED: {out}"
     assert "UNCLOSED" not in out
+
+
+def test_dangling_comment_cannot_desubject_a_report(repo: Path) -> None:
+    """Round-61 CRITICAL: a forgotten `-->` absorbed everything after it SILENTLY — the
+    checklist heading vanished, the report became a non-subject, and a genuinely non-quiet
+    all-UNCHECKED report passed clean. The dangling comment now gets the dangling fence's
+    loud treatment."""
+    body = (
+        "# Review — some diff (/fabrik-review)\n\n"
+        "<!-- TODO revisit\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
+        "Pass 1: found: 4, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-dangling-comment-review.md", body)
+    assert rc == 1, "a dangling comment de-subjected the report into a clean pass"
+    assert "UNCLOSED HTML comment" in out
+
+
+def test_dangling_comment_cannot_swallow_handoff_rows(repo: Path) -> None:
+    """Round-61 CRITICAL (cert half): the same forgotten `-->` erased every HANDOFF row, so
+    a P0 OPEN row owing evidence, NOT-QUIET and RESUME vanished on all three grounds."""
+    body = (
+        "# cert\n\n<!-- note to self\n\n"
+        "HANDOFF P0 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-user-test-comment.md", body)
+    assert rc == 1, "a dangling comment swallowed every HANDOFF row silently"
+    assert "UNCLOSED HTML comment" in out
+
+
+def test_in_progress_cert_report_is_exempt_and_nagged(repo: Path) -> None:
+    """Round-61 MEDIUM-HIGH: cert was the ONE grammar without the IN-PROGRESS escape,
+    hard-blocking a legitimately mid-loop cert report the workflow sanctions committing.
+    Exempt on the live path; the committed scan keeps the standing advisory (no cloak)."""
+    body = (
+        "# fabrik-user-test-checkout\nStatus: IN-PROGRESS\n\n"
+        "HANDOFF P0 OPEN checkout crashes on empty cart — repro: docs/x.md — route: /fabrik-review src/x\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-user-test-midloop.md", body)
+    assert rc == 0, f"a mid-loop cert report was hard-blocked despite the escape hatch: {out}"
+    rc, out = _gate(repo, "2026-08-20-user-test-midloop2.md", body, commit=True)
+    assert rc == 0
+    assert "IN-PROGRESS" in out, "the committed scan lost the standing advisory on a cert report"
