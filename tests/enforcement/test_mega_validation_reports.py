@@ -1699,8 +1699,8 @@ def test_valid_separator_shapes_are_recognized(repo: Path) -> None:
     """Round-99: the leading-pipe requirement was too strict the OTHER way — GFM's delimiter
     row may be pipe-less (`---|---`), and the unrecognized separator false-failed an honest
     header as a verdict-less data row. Sweep the VALID boundary: pipe-less, colon-aligned,
-    and mixed forms must all pair with their header (a bare `---` stays excluded — it is a
-    setext underline/thematic break, never a table separator)."""
+    and mixed forms must all pair with their header. (A bare `---` pairs only under a
+    1-column pipe-bounded header when the table actually continues — rounds 101/103.)"""
     for i, sep in enumerate(["---|---", "|:---|---:|", "| :---: | :--- |"]):
         body = (
             "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
@@ -1727,3 +1727,21 @@ def test_one_column_table_with_bare_dash_separator_is_valid(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-21-onecol-review.md", body)
     assert rc == 0, f"a valid 1-column table with a bare --- separator was false-failed: {out}"
+
+
+def test_section_divider_after_an_orphan_row_is_not_a_separator(repo: Path) -> None:
+    """Round-103 CRITICAL (the loop's final finding — operator-terminated after this): a
+    house-style `---` divider directly under an orphan 1-cell pipe row paired as a phantom
+    1-column header, silently dropping the row's UNCHECKED obligation. A pipe-less
+    separator now also requires the table to continue."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+        "| auth-tenant-isolation UNCHECKED |\n---\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-divider-orphan-review.md", body)
+    assert rc == 1, "a section divider converted the orphan UNCHECKED row into a phantom header"
+    assert "UNCHECKED" in out

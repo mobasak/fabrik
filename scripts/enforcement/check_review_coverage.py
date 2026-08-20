@@ -161,6 +161,15 @@ def _table_rows(section: str) -> list[str]:
             # silently exempting visible obligation text. Cell counts must agree for the
             # pair to be a real header.
             and _cells(ln) == _cells(nxt)
+            # A PIPE-LESS separator (bare ---) additionally requires the table to actually
+            # CONTINUE (a pipe row after it) — round 103: our own house-style section
+            # divider `---` directly under an orphan 1-cell pipe row otherwise converted
+            # that row into a phantom header, silently dropping its obligation. A real
+            # 1-column table has data rows; an orphan row + divider does not.
+            and (
+                "|" in phys[i + 1]
+                or (i + 2 < len(phys) and phys[i + 2].lstrip().startswith("|"))
+            )
         ):
             # The run's ONE header row — first pipe-row of its physical run, separator
             # literally next (round 89: adjacency alone let a stray separator swallow the
