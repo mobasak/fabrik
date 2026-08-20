@@ -215,14 +215,16 @@ def _fence_parity_error(text: str) -> str | None:
     real HANDOFF row — fail-open in BOTH floors, the cert one latent since round 40), and the
     round-45 and round-47 fixtures are STRUCTURALLY IDENTICAL — only the author's intent about
     which fence went unclosed differs, which no parser can know. What IS decidable: a finished
-    markdown document has matching fences. Odd parity → one loud structural error naming the
-    one-keystroke fix, in every grammar, before any other obligation is judged.
+    markdown document has matching fences. A dangling opener (per the sequential, flavor-aware
+    scan in _fence_regions — round 51 killed raw per-flavor counting, which a cross-flavor
+    quote both defeats and false-fires) → one loud structural error naming the one-keystroke
+    fix, in every grammar, before any other obligation is judged.
     """
-    n = len(re.findall(r"^```", text, re.M)) % 2 + len(re.findall(r"^~~~", text, re.M)) % 2
-    if n:
+    _, dangling = _fence_regions(text)
+    if dangling is not None:
         return (
-            "UNCLOSED code fence (an odd count of ``` or ~~~ markers): ambiguous fencing makes "
-            "every obligation unverifiable (a dangling fence can swallow or fabricate "
+            "UNCLOSED code fence (a ``` or ~~~ fence is opened and never closed): a dangling "
+            "fence makes every obligation after it unverifiable (it can swallow or fabricate "
             "checklists, ledgers and dispositions). Close the fence."
         )
     return None
@@ -393,27 +395,57 @@ _MEGA_SURFACE = re.compile(
 )  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
-_FENCE = re.compile(r"^```.*?^```\s*$", re.M | re.S)
-# GFM fences come in TWO flavors, and a closer must match its opener's (a ``` inside a ~~~
-# block is content, not a fence). Round 49: tilde fences were invisible to _strip_fences AND
-# the parity count — a ~~~-wrapped fake all-CLEAN checklist shadowed the real UNCHECKED one
-# and the gate exited green. Per-flavor regexes cannot cross-match; tildes strip FIRST so a
-# backtick marker quoted inside a tilde block never reaches the backtick pass.
-_FENCE_TILDE = re.compile(r"^~~~.*?^~~~\s*$", re.M | re.S)
+# A fence delimiter line, either GFM flavor, 0–3 leading spaces (valid CommonMark — editor
+# auto-indent and list-quoting produce these routinely).
+_FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
+    """Sequential, flavor-aware fence scan — the ONE fence authority every reader shares.
+
+    CommonMark parses fences SEQUENTIALLY: inside an open ``` fence a ~~~ line is CONTENT,
+    and a closer must match its opener's flavor with at least its length. Round 51 proved
+    per-flavor raw counting fails both ways: a lone marker of the OTHER flavor quoted inside
+    a real fence cancels the count (a camouflaged dangling fence swallowed a live checklist
+    and a HANDOFF row — fail-open through the parity precondition itself), and an honest doc
+    quoting the other flavor was rejected as UNCLOSED (false-fire). Only a sequential scan
+    is faithful to how a renderer will actually read the document.
+
+    Returns (closed regions as inclusive line-index pairs, index of a dangling opener or
+    None). A closer is a same-flavor marker of >= the opener's length with nothing but
+    whitespace after it; anything else inside an open fence is content.
+    """
+    regions: list[tuple[int, int]] = []
+    open_at: int | None = None
+    open_marker = ""
+    for i, ln in enumerate(text.splitlines()):
+        m = _FENCE_LINE.match(ln)
+        if not m:
+            continue
+        marker, rest = m.group(1), m.group(2)
+        if open_at is None:
+            open_at, open_marker = i, marker
+        elif marker[0] == open_marker[0] and len(marker) >= len(open_marker) and not rest.strip():
+            regions.append((open_at, i))
+            open_at = None
+    return regions, open_at
 
 
 def _strip_fences(text: str) -> str:
-    stripped = _FENCE.sub("", _FENCE_TILDE.sub("", text))
-    # An UNCLOSED fence (the closer forgotten — the mega template's own doc does this when
-    # quoting examples) left the "fenced" example as LIVE text: round-11 reproduced a phantom
-    # second table (false ambiguity on an honest report) and a fenced example row becoming the
-    # final round. A remaining opener is by construction unmatched — treat it as fenced-to-EOF:
-    # content after it is quoted material, never live ledger. Fail-closed: an honest ledger
-    # placed BELOW an unclosed fence reads as absent (loud), not as whatever the example says.
-    m = re.search(r"^```", stripped, re.M)
-    if m:
-        stripped = stripped[: m.start()]
-    return stripped
+    regions, dangling = _fence_regions(text)
+    drop: set[int] = set()
+    for a, b in regions:
+        drop.update(range(a, b + 1))
+    lines = text.splitlines(keepends=True)
+    if dangling is not None:
+        # An UNCLOSED fence (the closer forgotten — the mega template's own doc does this when
+        # quoting examples) left the "fenced" example as LIVE text: round-11 reproduced a
+        # phantom second table and a fenced example row becoming the final round. A dangling
+        # opener is by construction unmatched — fenced-to-EOF: content after it is quoted
+        # material, never live ledger. Fail-closed: an honest ledger BELOW an unclosed fence
+        # reads as absent (loud), not as whatever the example says.
+        drop.update(range(dangling, len(lines)))
+    return "".join(ln for i, ln in enumerate(lines) if i not in drop)
 
 
 # CELL-ANCHORED: the counters must be their own table cells (`| found: N | fixed: M |`), exactly

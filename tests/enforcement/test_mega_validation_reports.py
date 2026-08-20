@@ -477,7 +477,7 @@ def test_unclosed_fence_does_not_leak_examples_into_the_ledger(repo: Path) -> No
     # fence now fails accurately ("close the fence") instead of being silently tolerated;
     # the original defect (a phantom table from the leak) stays impossible either way.
     assert rc == 1
-    assert "UNCLOSED" in out and "odd count" in out
+    assert "UNCLOSED" in out and "never closed" in out
 
 
 def test_prose_only_ledger_is_not_a_mega_ledger(repo: Path) -> None:
@@ -876,7 +876,7 @@ def test_unrelated_dangling_fence_does_not_false_fire_the_floor(repo: Path) -> N
     # a genuinely dangling fence is wrong. The doc DOES have an unclosed fence; the accurate
     # one-keystroke message is correct, and undecidable intent-guessing is retired.
     assert rc == 1
-    assert "UNCLOSED" in out and "odd count" in out
+    assert "UNCLOSED" in out and "never closed" in out
 
 
 def test_tilde_fenced_checklist_example_is_not_a_subject(repo: Path) -> None:
@@ -902,7 +902,7 @@ def test_dangling_tilde_fence_fails_parity(repo: Path) -> None:
     body = _report(h) + "\nAppendix — pasted session (fence unclosed):\n~~~\n$ ls\nfoo.txt\n"
     rc, out = _gate(repo, "2026-08-20-mega-vision-validation-review.md", body)
     assert rc == 1, "a dangling tilde fence was invisible to parity"
-    assert "UNCLOSED" in out and "odd count" in out
+    assert "UNCLOSED" in out and "never closed" in out
 
 
 def test_in_progress_precedes_parity(repo: Path) -> None:
@@ -931,3 +931,40 @@ def test_in_progress_precedes_parity(repo: Path) -> None:
     assert "midloop2-review.md: COMMITTED with an" not in out, (
         "the committed advisory gave the wrong-reason UNCLOSED line instead of IN-PROGRESS"
     )
+
+
+def test_cross_flavor_camouflage_cannot_hide_a_dangling_fence(repo: Path) -> None:
+    """Round-51 CONFIRMED: per-flavor raw counting let a lone marker of the OTHER flavor,
+    quoted as content inside a real fence, cancel the count — a camouflaged dangling fence
+    swallowed a live UNCHECKED checklist and the gate exited green (fail-open through the
+    parity precondition itself). The sequential scan reads it as a renderer would."""
+    body = (
+        "# Review\n\nPasted transcript (fence deliberately unclosed):\n```\n$ some output\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
+        "Later, a REAL tilde block quoting a bare backtick fence line:\n~~~\n```\n~~~\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-camouflage-review.md", body)
+    assert rc == 1, "a cross-flavor quote camouflaged a dangling fence into a green exit"
+    assert "UNCLOSED" in out
+
+
+def test_cross_flavor_quote_inside_a_closed_fence_is_content(repo: Path) -> None:
+    """Round-51 PLAUSIBLE (mirror): an honest doc quoting the other flavor's marker inside a
+    properly-closed fence was rejected as UNCLOSED by the raw count. Sequential scan: content."""
+    body = (
+        "# How to write a review — internal documentation\n\n"
+        "Fence syntax example (a bare tilde marker as content):\n```\n~~~\n```\n\n"
+        "That is all this doc contains.\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-flavorquote-review.md", body)
+    assert rc == 0, f"an honest cross-flavor quote false-fired the parity precondition: {out}"
+
+
+def test_indented_closer_is_a_valid_fence_closer(repo: Path) -> None:
+    """Round-51 PLAUSIBLE: a closer indented 1-3 spaces is a valid CommonMark fence closer
+    (editor auto-indent), but the column-0 anchors missed it and flagged the doc UNCLOSED."""
+    h = _shell_hash(repo)
+    body = _report(h) + "\nAppendix:\n```\n$ ls\n   ```\n\nprose after the closed fence.\n"
+    rc, out = _gate(repo, "2026-08-20-mega-vision-validation-review.md", body)
+    assert rc == 0, f"an indented closer was invisible and the doc was falsely UNCLOSED: {out}"
