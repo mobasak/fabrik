@@ -654,8 +654,21 @@ def _indented_grammar_error(text: str) -> str | None:
                 "is live, or put it in a ``` fence if it is a quoted example"
             )
         if _SETEXT_TITLE.match(content) and idx + 1 < len(live):
-            nxt, _q2, _l2 = _peel(live[idx + 1])
-            if re.fullmatch(r"(=+|-+)", nxt):
+            raw_next = live[idx + 1]
+            nxt, q2, l2 = _peel(raw_next)
+            # SAME container context required (round 81): per CommonMark a setext underline
+            # binds its title only within one block context — a quoted/wrapped title over a
+            # bare `---` is a paragraph plus a thematic break, NOT a heading, and the
+            # depth-blind check false-fired on honest prose mentioning the title above a
+            # divider. Quote depth must match exactly; a list-wrapped title's underline is
+            # marker-less but continuation-indented (≥2 spaces).
+            indent = len(raw_next) - len(raw_next.lstrip(" "))
+            if (
+                re.fullmatch(r"(=+|-+)", nxt)
+                and q2 == n_quote
+                and l2 == 0
+                and (n_list == 0 or indent >= 2)
+            ):
                 return (
                     f"SETEXT-style heading ({content[:70]!r} over an underline): it renders "
                     "as a real heading but the gate anchors on ATX only — write it as an ATX "

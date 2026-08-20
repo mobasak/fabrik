@@ -1460,3 +1460,33 @@ def test_honest_status_surface_bullets_stay_live(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-20-honest-bullets-review.md", body)
     assert rc == 0, f"honest Status/Surface bullets false-fired the refusal: {out}"
+
+
+def test_quoted_title_mention_over_a_divider_is_not_a_heading(repo: Path) -> None:
+    """Round-81 HIGH: the round-80 setext check was depth-blind — a quoted/bulleted prose
+    mention of the checklist title directly above an unrelated `---` divider (paragraph +
+    thematic break to a renderer, NOT a heading) hard-refused a fully converged report."""
+    for i, mention in enumerate(
+        ["> Coverage Checklist section reference below for context",
+         "- Coverage Checklist row explained further down"]
+    ):
+        body = _everyday(
+            "Pass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n",
+            f"\n{mention}\n---\n\nMore notes.\n",
+        )
+        rc, out = _gate(repo, f"2026-08-20-divider{i}-review.md", body)
+        assert rc == 0, f"mention form {i} false-fired the setext refusal: {out}"
+
+
+def test_quoted_setext_heading_in_matching_context_is_refused(repo: Path) -> None:
+    """Round-81 coverage: a setext title WITH its underline in the SAME blockquote context
+    IS a real heading to a renderer and stays refused."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "> Coverage Checklist\n> -----\n\n"
+        "| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-quoted-setext-review.md", body)
+    assert rc == 1, "a same-context quoted setext heading escaped the refusal"
+    assert "SETEXT-style heading" in out
