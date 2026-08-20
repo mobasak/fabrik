@@ -1514,3 +1514,40 @@ def test_dropped_fence_adjacency_does_not_split_a_ledger_run(repo: Path) -> None
     )
     rc, out = _gate(repo, "2026-08-20-fence-split-review.md", body)
     assert rc == 0, f"a fence seam split an honest quiet ledger into groups: {out}"
+
+
+def test_fence_inside_the_checklist_cannot_hide_rows(repo: Path) -> None:
+    """Round-85 HIGH: a fenced example inside the checklist table became blank lines (round
+    84's blanking), and _table_rows' break-at-first-non-pipe truncated extraction at the
+    seam — every row after it, UNCHECKED included, went silently uncounted (fail-open,
+    proven red on the parent commit's dropping behavior too... the DROP era collected across
+    the vanished fence; only the blanking era truncated). The section is the contract now."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n"
+        "```\nexample fenced content that should not matter\n```\n"
+        "| another-class | UNCHECKED | pending |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-fence-in-table-review.md", body)
+    assert rc == 1, "an UNCHECKED row after an in-table fence went silently uncounted"
+    assert "UNCHECKED" in out
+
+
+def test_comment_inside_the_checklist_cannot_hide_rows(repo: Path) -> None:
+    """Round-85 MEDIUM (same root, pre-existing since the round-58 comment blanking): an
+    HTML comment between checklist rows truncated extraction identically."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n"
+        "<!-- reviewer note -->\n"
+        "| another-class | UNCHECKED | pending |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-comment-in-table-review.md", body)
+    assert rc == 1, "an UNCHECKED row after an in-table comment went silently uncounted"
+    assert "UNCHECKED" in out

@@ -92,18 +92,26 @@ def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str]]:
 
 
 def _table_rows(section: str) -> list[str]:
-    """Data rows of the FIRST contiguous markdown table in ``section`` (skips
-    header + rule). Stops at the first non-table line so a Pass Ledger emitted
-    under the same heading is never mistaken for checklist rows."""
-    rows: list[str] = []
-    in_table = False
-    for line in section.splitlines():
-        if line.lstrip().startswith("|"):
-            rows.append(line)
-            in_table = True
-        elif in_table:
-            break
-    return list(rows[2:]) if len(rows) >= 3 else []
+    """ALL visible data rows in the checklist section (round 85).
+
+    The first-contiguous-run contract predated the blanking rule: a quoted region (fence or
+    comment) inside the table becomes blank lines, and the old break-at-first-non-pipe
+    truncated extraction there — every row AFTER the seam (UNCHECKED ones included) went
+    silently uncounted, a clean fail-open bypass. The SECTION is the contract, not the run:
+    every pipe-row under the checklist heading counts, with separator rows skipped anywhere
+    and a header row skipped structurally (a row whose next pipe-row is its separator). A
+    second same-section table (a Pass Ledger missing its own heading) now false-fires LOUD
+    verdict errors instead of being silently confused — the remedy is its mandated heading.
+    """
+    lines = [ln for ln in section.splitlines() if ln.lstrip().startswith("|")]
+    out: list[str] = []
+    for i, ln in enumerate(lines):
+        if re.fullmatch(r"[|\-: ]+", ln.strip()):
+            continue
+        if i + 1 < len(lines) and re.fullmatch(r"[|\-: ]+", lines[i + 1].strip()):
+            continue  # a header row — its separator follows it
+        out.append(ln)
+    return out
 
 
 def _checklist_section(text: str) -> str | None:
