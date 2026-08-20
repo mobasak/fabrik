@@ -968,3 +968,53 @@ def test_indented_closer_is_a_valid_fence_closer(repo: Path) -> None:
     body = _report(h) + "\nAppendix:\n```\n$ ls\n   ```\n\nprose after the closed fence.\n"
     rc, out = _gate(repo, "2026-08-20-mega-vision-validation-review.md", body)
     assert rc == 0, f"an indented closer was invisible and the doc was falsely UNCLOSED: {out}"
+
+
+def test_indented_code_block_cannot_mask_the_final_round(repo: Path) -> None:
+    """Round-53 CRITICAL: CommonMark INDENTED code blocks (4+ spaces after a blank line) are
+    quoted content to a renderer, but the grammar read them live — with an all-prose ledger
+    (one group by construction, so the multi-group guard is silent) an indented quiet Pass
+    row became the document-order final round, masking a real non-quiet exit (fail-open,
+    reproduced end-to-end and cross-checked against markdown-it-py)."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 7, fixed: 6\n",
+        "\nAppendix — indented example of a quiet row:\n\n"
+        "    Pass 99: found: 0, fixed: 0\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-indented-mask-review.md", body)
+    assert rc == 1, "an indented fake quiet row masked a non-quiet final round"
+    assert "final ledger round raised 7" in out
+
+
+def test_indented_example_row_does_not_false_fire_unchecked(repo: Path) -> None:
+    """Renderer-agreement contract pin (coverage, not a defeat pin — this path already held
+    on the pre-fix code via the row anchoring): an indented example row quoted inside the
+    checklist section must never count as a live UNCHECKED obligation, now guaranteed at the
+    definition site by the indented-block strip rather than by each reader's anchoring."""
+    body = (
+        "# Review — some diff (/fabrik-review)\n\n"
+        f"Surface: {'b' * 32}\n"
+        "review_rubric.py output embedded.\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN scripts/x.py hunted |\n\n"
+        "Row-format example, indented as code:\n\n"
+        "    | example class | UNCHECKED |  |\n\n"
+        "## Pass Ledger\n| Pass 1 | x | found: 0 · fixed: 0 | y |\n"
+        "| Pass 2 | x | found: 0 · fixed: 0 | y |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-indented-example-review.md", body)
+    assert rc == 0, f"an indented (renderer-quoted) example row read as a live obligation: {out}"
+
+
+def test_backtick_info_string_with_backtick_is_not_an_opener(repo: Path) -> None:
+    """Round-53 MEDIUM: CommonMark forbids a backtick in a backtick fence's info string — a
+    one-line ```demo``` illustration is a paragraph to a renderer, but the scanner read it as
+    a dangling opener and false-fired UNCLOSED, swallowing the real checklist after it."""
+    body = (
+        "# How to write a review — internal documentation\n\n"
+        "```demo``` — a one-line illustration of inline fence syntax.\n\n"
+        "That is all this doc contains.\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-inline-backticks-review.md", body)
+    assert rc == 0, f"a one-line backtick illustration false-fired UNCLOSED: {out}"
+    assert "UNCLOSED" not in out

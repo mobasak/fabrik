@@ -424,6 +424,12 @@ def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
             continue
         marker, rest = m.group(1), m.group(2)
         if open_at is None:
+            if marker[0] == "`" and "`" in rest:
+                # CommonMark: a backtick fence's info string may not contain a backtick —
+                # a one-line ```demo``` illustration is a PARAGRAPH to a renderer, and
+                # reading it as a dangling opener false-fired UNCLOSED on honest prose
+                # (round 53). Tilde info strings may contain anything, including tildes.
+                continue
             open_at, open_marker = i, marker
         elif marker[0] == open_marker[0] and len(marker) >= len(open_marker) and not rest.strip():
             regions.append((open_at, i))
@@ -445,7 +451,31 @@ def _strip_fences(text: str) -> str:
         # material, never live ledger. Fail-closed: an honest ledger BELOW an unclosed fence
         # reads as absent (loud), not as whatever the example says.
         drop.update(range(dangling, len(lines)))
-    return "".join(ln for i, ln in enumerate(lines) if i not in drop)
+    kept = [ln for i, ln in enumerate(lines) if i not in drop]
+    # CommonMark INDENTED code blocks (4+ spaces or a tab, preceded by a blank line) are
+    # QUOTED content to a renderer, exactly like a fenced block — round 53 reproduced a fake
+    # quiet Pass row inside a plain indented appendix masking a real non-quiet final round
+    # (fail-open through document order), and an indented example row false-firing UNCHECKED.
+    # The blank-line precondition is CommonMark's own paragraph-continuation rule: an indented
+    # line directly under prose is a lazy continuation, still live. Container-relative indent
+    # (a fence nested under list bullets) is the accepted residual — review reports do not
+    # nest their ledgers in lists, and the divergence there fails CLOSED (absent, loud),
+    # never open.
+    out: list[str] = []
+    prev_blank = True
+    i = 0
+    _indented = re.compile(r"^(?: {4,}|\t)")
+    while i < len(kept):
+        ln = kept[i]
+        if prev_blank and ln.strip() and _indented.match(ln):
+            while i < len(kept) and (not kept[i].strip() or _indented.match(kept[i])):
+                i += 1
+            prev_blank = True
+            continue
+        out.append(ln)
+        prev_blank = not ln.strip()
+        i += 1
+    return "".join(out)
 
 
 # CELL-ANCHORED: the counters must be their own table cells (`| found: N | fixed: M |`), exactly
