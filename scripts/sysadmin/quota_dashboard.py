@@ -138,11 +138,14 @@ def _row(acct: dict, active: str | None) -> str:
         # which no probe of ours can see — surfaced on capped accounts, which exist for exactly
         # that reason.
         age = acct.get("age_s")
-        if (
-            acct.get("source") == "cache"
-            and window_s
-            and isinstance(age, (int, float))
-            and age >= window_s
+        # A cached reading is stale-past-rollover if EITHER its age exceeds the window OR the
+        # reading's own reset time has already passed. The second clause is the failure the
+        # operator hit: a ~47h cache of a 7-DAY window (age < window) whose weekly reset date is
+        # already in the past still printed "91% used, resets <past date> (due)" — but that window
+        # HAS rolled over, so the number is no longer evidence.
+        reset_passed = reset is not None and float(reset) <= time.time()
+        if acct.get("source") == "cache" and (
+            reset_passed or (window_s and isinstance(age, (int, float)) and age >= window_s)
         ):
             blind = (
                 " · browser use is not visible here" if acct.get("weekly_cap") is not None else ""

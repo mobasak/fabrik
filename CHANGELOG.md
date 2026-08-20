@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — quota dashboard showed a stale weekly % after the reset date had passed (2026-08-21)
+
+- `quota_dashboard.py`'s "rolled-over" detection only treated a cached reading as stale when its
+  **age ≥ the window duration**. The weekly window is 7 days but idle-account caches are ~47h old,
+  so `47h < 168h` fell through and printed the pre-reset "91% used · resets <past date> (due)" for
+  `ob@`/`sarp@` whose weekly reset had already occurred. Added the missing clause: a cached reading
+  whose **own reset time is already in the past** is also rolled-over → shown as `idle` (window
+  empty by construction), not an unearned percentage. Restarted the `:5051` server; doc note in
+  `docs/workstation/quota-dashboard.md` extended to match.
+
 ### Changed — kaizen M1 T09: the daily cutover — v2 collector live, the v1 weekly meter retired (2026-08-21)
 
 The M1 loop is integrated: `kc.daily()` and the outcome-tier readers exclude T08's transcript-era
