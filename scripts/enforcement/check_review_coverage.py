@@ -564,7 +564,21 @@ _BLOCKQUOTE = re.compile(r"^ {0,3}>")
 # Pass/HANDOFF ROWS are sanctioned LIVE rows (the _LIST_MARK tolerance), and `- #123 fixed`
 # prose is not a heading (# must be followed by whitespace or EOL).
 _LIST_WRAP = re.compile(r"^ {0,3}(?:[-*+]|\d+[.)])\s+")
-_WRAPPED_HEADINGISH = re.compile(r"#{1,6}(?:\s|$)|\**(?:Status|Surface):", re.I)
+# Declaration shapes match the ACTUAL anchors, not any English "Status:/Surface:" bullet —
+# round 79 reproduced `- Surface: 3 new endpoints added this round` (ordinary review prose)
+# hard-blocking an honest converged report. A wrapped declaration is only refusable when it
+# would have BEEN an anchor unwrapped: Status: IN-PROGRESS, or Surface: carrying a hash.
+_WRAPPED_HEADINGISH = re.compile(
+    r"#{1,6}(?:\s|$)"
+    r"|\**Status:\**\s*IN-PROGRESS\b"
+    r"|\**Surface:\**\s*[0-9a-fA-F]{12,}",
+    re.I,
+)
+# One container-prefix consumer for the normalization loop (round 79: containers COMPOSE —
+# `- > ## …`, `> - ## …`, nested lists — and per-costume elif branches test exactly one
+# level, so every composition revived the bypass one nesting deeper. Strip to a fixpoint,
+# judge the residual once).
+_CONTAINER = re.compile(r"^ {0,3}(?:(>) ?|([-*+]|\d+[.)])\s+)")
 _SETEXT_UNDERLINE = re.compile(r"^ {0,3}(=+|-+)\s*$")
 _SETEXT_TITLE = re.compile(
     r"^ {0,3}\**\s*(coverage checklist|cross-epic validation report)\b", re.I
@@ -600,33 +614,53 @@ def _indented_grammar_error(text: str) -> str | None:
                 "indented blocks as quoted code, but this line looks load-bearing — out-dent "
                 "it if it is live, or put it in a ``` fence if it is a quoted example"
             )
+    def _peel(line: str) -> tuple[str, int, int]:
+        content, n_quote, n_list = line, 0, 0
+        while True:
+            m = _CONTAINER.match(content)
+            if not m:
+                return content.strip(), n_quote, n_list
+            if m.group(1):
+                n_quote += 1
+            else:
+                n_list += 1
+            content = content[m.end() :]
+
     for idx, ln in enumerate(live):
-        if _BLOCKQUOTE.match(ln):
-            content = re.sub(r"^(?: {0,3}> ?)+", "", ln).strip()
-            if content and _grammar_shaped(content):
-                return (
-                    f"BLOCKQUOTED grammar-shaped line ({content[:70]!r}): it renders as "
-                    "visible content but is invisible to this gate's anchors — un-quote it "
-                    "if it is live, or put it in a ``` fence if it is a quoted example"
-                )
-        elif _LIST_WRAP.match(ln):
-            content = _LIST_WRAP.sub("", ln, count=1).strip()
-            if _WRAPPED_HEADINGISH.match(content):
-                return (
-                    f"LIST-WRAPPED heading/declaration ({content[:70]!r}): it renders as a "
-                    "real heading but is invisible to this gate's anchors — un-wrap it if it "
-                    "is live, or put it in a ``` fence if it is a quoted example"
-                )
-        elif (
-            _SETEXT_TITLE.match(ln)
-            and idx + 1 < len(live)
-            and _SETEXT_UNDERLINE.match(live[idx + 1])
-        ):
+        content, n_quote, n_list = _peel(ln)
+        if not content:
+            continue
+        wrapped = n_quote + n_list > 0
+        # A single list marker is the SANCTIONED live-row tolerance (_LIST_MARK, rounds
+        # 65-70) — bulleted Pass/HANDOFF rows parse as live and are never refused. Any
+        # blockquote, and any second container level, puts the residual beyond every
+        # anchor's reach: grammar-shaped residuals there are refused.
+        if (n_quote >= 1 or n_list >= 2) and _grammar_shaped(content):
+            flavor = "BLOCKQUOTED" if n_list == 0 else "CONTAINER-WRAPPED"
             return (
-                f"SETEXT-style heading ({ln.strip()[:70]!r} over an underline): it renders "
-                "as a real heading but the gate anchors on ATX only — write it as an ATX "
-                "heading (## …)"
+                f"{flavor} grammar-shaped line ({content[:70]!r}): it renders as "
+                "visible content but is invisible to this gate's anchors — un-quote it "
+                "if it is live, or put it in a ``` fence if it is a quoted example"
             )
+        if wrapped and _WRAPPED_HEADINGISH.match(content):
+            flavor = (
+                "BLOCKQUOTED"
+                if n_list == 0
+                else ("LIST-WRAPPED" if n_quote == 0 else "CONTAINER-WRAPPED")
+            )
+            return (
+                f"{flavor} heading/declaration ({content[:70]!r}): it renders as a "
+                "real heading but is invisible to this gate's anchors — un-wrap it if it "
+                "is live, or put it in a ``` fence if it is a quoted example"
+            )
+        if _SETEXT_TITLE.match(content) and idx + 1 < len(live):
+            nxt, _q2, _l2 = _peel(live[idx + 1])
+            if re.fullmatch(r"(=+|-+)", nxt):
+                return (
+                    f"SETEXT-style heading ({content[:70]!r} over an underline): it renders "
+                    "as a real heading but the gate anchors on ATX only — write it as an ATX "
+                    "heading (## …)"
+                )
     return None
 
 

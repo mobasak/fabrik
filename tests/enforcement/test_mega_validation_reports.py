@@ -1342,11 +1342,16 @@ def test_blockquoted_and_setext_headings_also_bound_prose_runs(repo: Path) -> No
         "\nAppendix — unrelated retro note\n-------------------------------\n\n"
         "Pass 2 of onboarding docs: found: 0, fixed: 0.\n"
     )
-    for i, tail in enumerate([decoy_tail_bq, decoy_tail_setext]):
+    # CONTRACT CHANGE (round 79): a blockquoted heading is now REFUSED by the container
+    # normalization before the boundary ever parses (earlier, louder, remedy named); the
+    # generic setext divider still exercises the run-boundary path. Both stay loud rc==1.
+    for i, (tail, reason) in enumerate(
+        [(decoy_tail_bq, "heading/declaration"), (decoy_tail_setext, "separate groups")]
+    ):
         body = _everyday("Pass 1: found: 3, fixed: 0\nPass 2: found: 4, fixed: 0\n", tail)
         rc, out = _gate(repo, f"2026-08-20-heading-form{i}-review.md", body)
         assert rc == 1, f"decoy after heading form {i} silently became the final round"
-        assert "separate groups" in out, f"heading form {i}: wrong reason"
+        assert reason in out, f"heading form {i}: wrong reason"
 
 
 def test_bare_hash_heading_bounds_a_prose_run(repo: Path) -> None:
@@ -1403,3 +1408,55 @@ def test_bulleted_rows_stay_live_despite_the_list_wrap_refusal(repo: Path) -> No
     )
     rc, out = _gate(repo, "2026-08-20-listwrap-safe-review.md", body)
     assert rc == 0, f"prose bullet or live row false-fired the list-wrap refusal: {out}"
+
+
+def test_composed_containers_cannot_hide_grammar(repo: Path) -> None:
+    """Round-79 CRITICALs: container prefixes COMPOSE (`- > ## …`, `> - ## …`), and the
+    per-costume elif branches tested exactly one level — every composition revived the
+    bypass one nesting deeper (de-subjected checklist; decoy-merged divider). The
+    normalization loop peels to a fixpoint and judges the residual once."""
+    for i, wrap in enumerate(["- > ", "> - "]):
+        body = (
+            "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+            f"{wrap}## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+            "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
+            "Pass 1: found: 4, fixed: 0\n"
+        )
+        rc, out = _gate(repo, f"2026-08-20-composed{i}-review.md", body)
+        assert rc == 1, f"composition {wrap!r} de-subjected the report"
+    body = _everyday(
+        "Pass 1: found: 3, fixed: 0\nPass 2: found: 4, fixed: 0\n",
+        "\n- > ## Appendix — unrelated retro note\n\n"
+        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-composed-divider-review.md", body)
+    assert rc == 1, "a composed-container divider hid the decoy merge"
+
+
+def test_list_wrapped_setext_checklist_is_refused(repo: Path) -> None:
+    """Round-79 HIGH: `- Coverage Checklist` over an indented underline renders as a real
+    h2 in the list item, but the elif chain never reached the setext branch for a
+    list-matched line — full de-subjecting. The setext check now runs on the peeled
+    residual of both lines."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "- Coverage Checklist\n  -----\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-listsetext-review.md", body)
+    assert rc == 1, "a list-wrapped setext checklist title de-subjected the report"
+    assert "SETEXT-style heading" in out
+
+
+def test_honest_status_surface_bullets_stay_live(repo: Path) -> None:
+    """Round-79 MEDIUM: the wrapped-declaration refusal matched ANY English `Status:` or
+    `Surface:` bullet — `- Surface: 3 new endpoints added this round` hard-blocked an honest
+    converged report. Refusable only when the residual would have BEEN an anchor unwrapped
+    (Status: IN-PROGRESS, or Surface: carrying a ≥12-hex hash)."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n",
+        "\n## Notes\n\n- Surface: 3 new endpoints added this round\n"
+        "- Status: green across all services\n",
+    )
+    rc, out = _gate(repo, "2026-08-20-honest-bullets-review.md", body)
+    assert rc == 0, f"honest Status/Surface bullets false-fired the refusal: {out}"
