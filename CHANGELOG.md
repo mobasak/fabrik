@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen M1 T08: the noise floor — 11k historical sessions backfilled, variance before adjudication (2026-08-20)
+
+`scripts/sysadmin/kaizen_backfill.py` walks the pre-event transcript corpus once (11,270 files →
+11,264 store rows, byte-bounded streamed reads, md5-proven idempotent re-run) into T06's store as
+`era:"transcript"` rows — every event-only field an explicit `—`, never a proxy. Era exclusion is
+ownership-decided, never mtime-decided (the fix recovered 59 orphaned transcripts on its first real
+run). The real `~/.claude/state/kaizen/noise-floor@v1.md` now carries weekly mean/variance/n per
+registered metric × era with definition hashes — M2's adjudication baseline. 22 tests, red-first
+throughout, two branches proven by mutation.
+
 ### Added — kaizen M1 T07: the outcome tier — rework mined from provenance, fleet health from clean clones, premature stops from the oracle (2026-08-20)
 
 `scripts/sysadmin/kaizen_outcomes.py`: `rework_rate` mines /opt/* repos read-only (a commit is
