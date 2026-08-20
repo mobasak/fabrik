@@ -1675,3 +1675,21 @@ def test_escaped_pipe_header_is_still_a_header(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-21-escaped-pipe-review.md", body)
     assert rc == 0, f"an escaped-pipe vocabulary header was counted as a data row: {out}"
+
+
+def test_invalid_delimiter_row_cannot_make_a_header(repo: Path) -> None:
+    """Round-97 CRITICAL: GFM requires every delimiter cell to carry at least one hyphen
+    (`:?-+:?`) — the coarse character-class test accepted colon-only/blank cells, forming a
+    phantom header pair no renderer forms and swallowing the UNCHECKED row above it."""
+    for i, sep in enumerate(["|::|::|", "| : | : |", "|  |  |"]):
+        body = (
+            "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+            "review_rubric.py output embedded\n\n"
+            "## Coverage Checklist\n"
+            f"| sql-injection-hunt | UNCHECKED |\n{sep}\n"
+            "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+            "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+        )
+        rc, out = _gate(repo, f"2026-08-21-invalid-sep{i}-review.md", body)
+        assert rc == 1, f"separator {sep!r} swallowed the UNCHECKED row above it"
+        assert "UNCHECKED" in out, f"separator {sep!r}: wrong reason"

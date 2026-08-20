@@ -110,6 +110,21 @@ def _table_rows(section: str) -> list[str]:
     # its separator is the literally next line.
     phys = section.splitlines()
 
+    def _is_separator(row: str) -> bool:
+        # The REAL GFM delimiter-row grammar, per cell (round 97): each cell is `:?-+:?`
+        # with at least one hyphen — the coarse character-class test accepted `|::|::|`,
+        # `| : | : |` and blank cells, forming a phantom header pair no renderer forms and
+        # swallowing the row above. The rule is closed and fully specified; enforcing it
+        # precisely ends the separator sub-chase definitionally.
+        r = re.sub(r"\\\|", "\x00", row.strip())
+        if not r.startswith("|"):
+            return False
+        r = r[1:]
+        if r.endswith("|"):
+            r = r[:-1]
+        cells = r.split("|")
+        return bool(cells) and all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in cells)
+
     def _cells(row: str) -> int:
         # GFM-faithful cell count (round 95): exactly ONE optional boundary pipe strips per
         # side — Python's strip("|") ate a DOUBLED leading pipe, collapsing a 3-cell typo'd
@@ -127,14 +142,13 @@ def _table_rows(section: str) -> list[str]:
     for i, ln in enumerate(phys):
         if not ln.lstrip().startswith("|"):
             continue
-        if re.fullmatch(r"[|\-: ]+", ln.strip()):
+        if _is_separator(ln):
             continue
         nxt = phys[i + 1].strip() if i + 1 < len(phys) else ""
         run_initial = i == 0 or not phys[i - 1].lstrip().startswith("|")
         if (
             run_initial
-            and nxt.startswith("|")
-            and re.fullmatch(r"[|\-: ]+", nxt)
+            and _is_separator(nxt)
             # GFM: the delimiter row must MATCH the header's cell count, or the whole block
             # is a plain PARAGRAPH — round 93 reproduced a 2-cell UNCHECKED row over a
             # 1-cell `|---|` being skipped as "the header" of a table no renderer sees,
