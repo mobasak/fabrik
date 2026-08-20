@@ -982,15 +982,19 @@ def test_indented_code_block_cannot_mask_the_final_round(repo: Path) -> None:
         "    Pass 99: found: 0, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-20-indented-mask-review.md", body)
+    # CONTRACT CHANGE (round 55): the silent strip round 54 answered this with itself failed
+    # open the other way (a live indented row VANISHED) — an indented grammar-shaped line is
+    # now refused loudly as undecidable, same adjudication as fence parity.
     assert rc == 1, "an indented fake quiet row masked a non-quiet final round"
-    assert "final ledger round raised 7" in out
+    assert "INDENTED grammar-shaped line" in out
 
 
-def test_indented_example_row_does_not_false_fire_unchecked(repo: Path) -> None:
-    """Renderer-agreement contract pin (coverage, not a defeat pin — this path already held
-    on the pre-fix code via the row anchoring): an indented example row quoted inside the
-    checklist section must never count as a live UNCHECKED obligation, now guaranteed at the
-    definition site by the indented-block strip rather than by each reader's anchoring."""
+def test_indented_example_row_is_refused_as_undecidable(repo: Path) -> None:
+    """Round-55 adjudication: an indented grammar-shaped line is undecidable — quoted to a
+    renderer, load-bearing to the eye. Round 54 stripped it silently and the next sweep
+    reproduced live rows VANISHING (an UNCHECKED checklist row and an OPEN HANDOFF row
+    invisible to their gates). Refused loudly instead, like fence parity: never counted as
+    live (masking stays impossible), never silently dropped (vanishing stays impossible)."""
     body = (
         "# Review — some diff (/fabrik-review)\n\n"
         f"Surface: {'b' * 32}\n"
@@ -1003,7 +1007,8 @@ def test_indented_example_row_does_not_false_fire_unchecked(repo: Path) -> None:
         "| Pass 2 | x | found: 0 · fixed: 0 | y |\n"
     )
     rc, out = _gate(repo, "2026-08-20-indented-example-review.md", body)
-    assert rc == 0, f"an indented (renderer-quoted) example row read as a live obligation: {out}"
+    assert rc == 1, "an indented grammar-shaped line was silently adjudicated one way or the other"
+    assert "INDENTED grammar-shaped line" in out
 
 
 def test_backtick_info_string_with_backtick_is_not_an_opener(repo: Path) -> None:
@@ -1018,3 +1023,52 @@ def test_backtick_info_string_with_backtick_is_not_an_opener(repo: Path) -> None
     rc, out = _gate(repo, "2026-08-20-inline-backticks-review.md", body)
     assert rc == 0, f"a one-line backtick illustration false-fired UNCLOSED: {out}"
     assert "UNCLOSED" not in out
+
+
+def test_indented_unchecked_row_cannot_vanish(repo: Path) -> None:
+    """Round-55 CRITICAL 1: the round-54 silent strip made a genuinely-live UNCHECKED
+    checklist row (blank line above, 4-space indent — a routine editor accident) VANISH from
+    check_file entirely: zero errors on a plainly unadjudicated report."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
+        "    | the-actual-risky-finding | UNCHECKED |  |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-vanish-unchecked-review.md", body)
+    assert rc == 1, "an indented live UNCHECKED row vanished from the checklist gate"
+    assert "INDENTED grammar-shaped line" in out
+
+
+def test_indented_handoff_row_cannot_vanish(repo: Path) -> None:
+    """Round-55 CRITICAL 2: same vector, cert grammar — an indented OPEN HANDOFF row routed
+    to /fabrik-review with no evidence vanished from HANDOFF_ROW.findall, and the emptied
+    rows list also waived the NOT-QUIET obligation."""
+    body = (
+        "# cert\n\nDispositions:\n\n"
+        "    HANDOFF P1 OPEN some risky finding — repro: tests/t.py — route: /fabrik-review src/x\n\n"
+        "## RESUME\nre-run the journey\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-user-test-vanish.md", body)
+    assert rc == 1, "an indented OPEN HANDOFF row vanished from the cert gate"
+    assert "INDENTED grammar-shaped line" in out
+
+
+def test_indented_filler_cannot_shrink_the_header_zone(repo: Path) -> None:
+    """Round-55 CRITICAL 3: the 10-line header zone was sliced from STRIPPED text, so
+    blank-line-preceded indented filler above a body-deep Status: IN-PROGRESS shrank the
+    document and pulled the line into the zone — a whole-grammar exemption. The zone now
+    anchors to RAW line positions (stripped within the slice)."""
+    filler = "".join(f"\n    filler line {i}\n" for i in range(7))
+    body = (
+        "# Review — some diff (/fabrik-review)\n"
+        + filler
+        + "\nprose\n\nStatus: IN-PROGRESS\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    assert body.splitlines().index("Status: IN-PROGRESS") >= 10, "fixture: Status must be body-deep"
+    rc, out = _gate(repo, "2026-08-20-shrink-zone-review.md", body)
+    assert rc == 1, "indented filler shrank the header zone and exempted the whole grammar"

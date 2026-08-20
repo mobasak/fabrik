@@ -161,8 +161,13 @@ def _in_progress(text: str) -> bool:
     the ledger, recurring for the escapes. Scoped to the first 10 fence-stripped lines, where
     the template slots Status.
     """
-    header = "\n".join(_strip_fences(text).splitlines()[:10])
-    return bool(IN_PROGRESS.search(header))
+    # RAW first-10-lines slice, stripped WITHIN the slice (round 55): the zone was sliced
+    # from the stripped text, so blank-line-preceded indented filler above a body-deep Status
+    # shrank the document and pulled the line into the zone — a whole-grammar exemption by
+    # indentation. The raw slice pins the zone to physical position; stripping within it
+    # still defeats a fenced/indented example QUOTING the Status line inside the zone.
+    header = "".join(text.splitlines(keepends=True)[:10])
+    return bool(IN_PROGRESS.search(_strip_fences(header)))
 
 
 def _blocked_sections(text: str) -> int:
@@ -239,7 +244,7 @@ def check_file(p: Path) -> list[str]:
     # binds at the flip; the standing IN-PROGRESS advisory keeps the pressure on meanwhile.
     if _in_progress(text):
         return errs
-    pe = _fence_parity_error(text)
+    pe = _fence_parity_error(text) or _indented_grammar_error(text)
     if pe:
         return [pe]
     section = _checklist_section(text)
@@ -452,30 +457,85 @@ def _strip_fences(text: str) -> str:
         # reads as absent (loud), not as whatever the example says.
         drop.update(range(dangling, len(lines)))
     kept = [ln for i, ln in enumerate(lines) if i not in drop]
-    # CommonMark INDENTED code blocks (4+ spaces or a tab, preceded by a blank line) are
-    # QUOTED content to a renderer, exactly like a fenced block — round 53 reproduced a fake
-    # quiet Pass row inside a plain indented appendix masking a real non-quiet final round
-    # (fail-open through document order), and an indented example row false-firing UNCHECKED.
-    # The blank-line precondition is CommonMark's own paragraph-continuation rule: an indented
-    # line directly under prose is a lazy continuation, still live. Container-relative indent
-    # (a fence nested under list bullets) is the accepted residual — review reports do not
-    # nest their ledgers in lists, and the divergence there fails CLOSED (absent, loud),
-    # never open.
-    out: list[str] = []
+    live, _quoted = _split_indented(kept)
+    return "".join(live)
+
+
+_INDENTED_LINE = re.compile(r"^(?: {4,}|\t)")
+
+
+def _split_indented(kept: list[str]) -> tuple[list[str], list[str]]:
+    """Split fence-stripped lines into (live, indented-code-block content).
+
+    CommonMark INDENTED code blocks (4+ spaces or a tab, preceded by a blank line) are QUOTED
+    content to a renderer, exactly like a fenced block — round 53 reproduced a fake quiet Pass
+    row inside a plain indented appendix masking a real non-quiet final round. The blank-line
+    precondition is CommonMark's own paragraph-continuation rule: an indented line directly
+    under prose is a lazy continuation, still live. Container-relative indent (a fence nested
+    under list bullets) is the accepted residual — review reports do not nest their ledgers in
+    lists, and the divergence there fails CLOSED, never open. The quoted half is returned, not
+    discarded, so _indented_grammar_error can refuse the ambiguous constructions (round 55).
+    """
+    live: list[str] = []
+    quoted: list[str] = []
     prev_blank = True
     i = 0
-    _indented = re.compile(r"^(?: {4,}|\t)")
     while i < len(kept):
         ln = kept[i]
-        if prev_blank and ln.strip() and _indented.match(ln):
-            while i < len(kept) and (not kept[i].strip() or _indented.match(kept[i])):
+        if prev_blank and ln.strip() and _INDENTED_LINE.match(ln):
+            while i < len(kept) and (not kept[i].strip() or _INDENTED_LINE.match(kept[i])):
+                quoted.append(kept[i])
                 i += 1
             prev_blank = True
             continue
-        out.append(ln)
+        live.append(ln)
         prev_blank = not ln.strip()
         i += 1
-    return "".join(out)
+    return live, quoted
+
+
+def _grammar_shaped(dedented: str) -> bool:
+    """Does a line LOOK load-bearing to this file's grammars? (table row, Pass-counter line,
+    HANDOFF row, Status/Surface declaration, checklist/BLOCKED heading)."""
+    return bool(
+        dedented.startswith("|")
+        or _pass_counters(dedented) is not None
+        or HANDOFF_ROW.match(dedented)
+        or re.match(r"\**(?:Status|Surface):", dedented, re.I)
+        or CHECKLIST_HEAD.match(dedented)
+        or (dedented.startswith("#") and "BLOCKED" in dedented)
+    )
+
+
+def _indented_grammar_error(text: str) -> str | None:
+    """An INDENTED grammar-shaped line is undecidable — refuse it loudly (round 55).
+
+    Round 54 stripped indented code blocks silently (a renderer quotes them), and the very
+    next sweep reproduced the mirror failure THREE ways: a live UNCHECKED checklist row, an
+    OPEN HANDOFF row, and enough indented filler to shrink a body-deep Status: IN-PROGRESS
+    into the header zone — each accidentally (or deliberately) indented, each silently
+    VANISHING from its grammar, cleanly bypassing the gate. Quoted-as-live fails open one way;
+    stripped-as-quoted fails open the other. What is decidable: the ambiguity itself. Same
+    adjudication as fence parity — one loud error naming the one-keystroke fix, before any
+    obligation is judged. Fenced quoting stays free: a FENCED example may quote anything.
+    """
+    regions, dangling = _fence_regions(text)
+    drop: set[int] = set()
+    for a, b in regions:
+        drop.update(range(a, b + 1))
+    lines = text.splitlines(keepends=True)
+    if dangling is not None:
+        drop.update(range(dangling, len(lines)))
+    _live, quoted = _split_indented([ln for i, ln in enumerate(lines) if i not in drop])
+    for ln in quoted:
+        content = ln.strip()
+        if content and _grammar_shaped(content):
+            return (
+                f"INDENTED grammar-shaped line ({content[:70]!r}): a renderer reads 4-space-"
+                "indented blocks as quoted code, but this line looks load-bearing — out-dent "
+                "it if it is live, or put it in a ``` fence if it is a quoted example"
+            )
+    return None
 
 
 # CELL-ANCHORED: the counters must be their own table cells (`| found: N | fixed: M |`), exactly
@@ -609,7 +669,7 @@ def check_mega_validation(
     text = path.read_text(encoding="utf-8", errors="replace")
     if _in_progress(text):
         return []  # the sanctioned mid-loop state — parity binds at the flip (round 49)
-    pe = _fence_parity_error(text)
+    pe = _fence_parity_error(text) or _indented_grammar_error(text)
     if pe:
         return [pe]
     body = _strip_fences(text)
@@ -781,7 +841,7 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     # error loud on emptiness returned [] and PASSED. Balanced fences stay legitimate quoting;
     # grammar content that exists in the RAW text but not after stripping can only mean the
     # fenced-to-EOF truncation ate it — fail with the one-line fix, never silently pass.
-    pe = _fence_parity_error(raw)
+    pe = _fence_parity_error(raw) or _indented_grammar_error(raw)
     if pe:
         return [pe]
     errs: list[str] = []
@@ -868,12 +928,12 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 "opened it has not closed; finish it, or this line stands forever"
             )
             continue
-        pe = _fence_parity_error(text)
+        pe = _fence_parity_error(text) or _indented_grammar_error(text)
         if pe:
-            # NOT subject-gated: a dangling fence defeats subject-detection itself (the
-            # swallowed-heading case), so gating on subject-ness would silence exactly the
-            # docs the parity rule exists to catch. Odd parity is objectively broken markdown
-            # with a one-keystroke fix; corpus measured at 0 odd-parity files — no retro-nag.
+            # NOT subject-gated: a dangling fence (or a vanishing indented grammar line)
+            # defeats subject-detection itself — the swallowed-heading case — so gating on
+            # subject-ness would silence exactly the docs these rules exist to catch. Both are
+            # one-keystroke fixes; corpus measured at 0 flagged committed files — no retro-nag.
             out.append(f"{p.relative_to(root)}: COMMITTED with an {pe}")
             continue
         if not subject:
