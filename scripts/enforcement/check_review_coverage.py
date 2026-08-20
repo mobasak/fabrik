@@ -103,13 +103,21 @@ def _table_rows(section: str) -> list[str]:
     second same-section table (a Pass Ledger missing its own heading) now false-fires LOUD
     verdict errors instead of being silently confused — the remedy is its mandated heading.
     """
-    lines = [ln for ln in section.splitlines() if ln.lstrip().startswith("|")]
+    # PHYSICAL adjacency for the header test (round 87): looking ahead in the FILTERED pipe
+    # list let a stray separator-shaped line anywhere later in the section (a stale template
+    # artifact, prose to a renderer) erase whichever row preceded it in pipe-order — a
+    # no-nesting fail-open the parity and refusal nets never see. A row is a header only if
+    # its separator is the literally next line.
+    phys = section.splitlines()
     out: list[str] = []
-    for i, ln in enumerate(lines):
+    for i, ln in enumerate(phys):
+        if not ln.lstrip().startswith("|"):
+            continue
         if re.fullmatch(r"[|\-: ]+", ln.strip()):
             continue
-        if i + 1 < len(lines) and re.fullmatch(r"[|\-: ]+", lines[i + 1].strip()):
-            continue  # a header row — its separator follows it
+        nxt = phys[i + 1].strip() if i + 1 < len(phys) else ""
+        if nxt.startswith("|") and re.fullmatch(r"[|\-: ]+", nxt):
+            continue  # a header row — its separator is physically next
         out.append(ln)
     return out
 

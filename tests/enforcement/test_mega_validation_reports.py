@@ -1551,3 +1551,24 @@ def test_comment_inside_the_checklist_cannot_hide_rows(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-20-comment-in-table-review.md", body)
     assert rc == 1, "an UNCHECKED row after an in-table comment went silently uncounted"
     assert "UNCHECKED" in out
+
+
+def test_stray_separator_cannot_erase_the_preceding_row(repo: Path) -> None:
+    """Round-87 CRITICAL: the round-86 header-skip looked ahead in the FILTERED pipe list,
+    so a stray `|---|---|` anywhere later in the section (prose to a renderer — a stale
+    template artifact) erased whichever row preceded it in pipe-order, silently uncounting
+    a live UNCHECKED row with no fence/indent involved. The header test is now physical
+    adjacency: a row is a header only if its separator is the literally next line."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
+        "| auth-tenant-isolation | UNCHECKED |\n\n"
+        "Appendix note explaining the layout below, prose only.\n\n"
+        "|---|---|\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-stray-separator-review.md", body)
+    assert rc == 1, "a stray separator erased the UNCHECKED row before it"
+    assert "UNCHECKED" in out
