@@ -124,7 +124,6 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 An event outside this list is still written (losing data is worse than a typo) but warns on stderr,
 so a misspelled sensor is visible the day it ships.
 
-<<<<<<< ours
 **The Stop hook fires once per TURN, not once per session.** So its pass-through is `stop_pass`,
 and **session liveliness derives from a session's LAST `stop_pass` timestamp** — the hole in the
 data is a session that produced **no `stop_pass` ever**, not a missing "session end". `session_end`
