@@ -1072,3 +1072,59 @@ def test_indented_filler_cannot_shrink_the_header_zone(repo: Path) -> None:
     assert body.splitlines().index("Status: IN-PROGRESS") >= 10, "fixture: Status must be body-deep"
     rc, out = _gate(repo, "2026-08-20-shrink-zone-review.md", body)
     assert rc == 1, "indented filler shrank the header zone and exempted the whole grammar"
+
+
+def test_html_comment_status_does_not_exempt(repo: Path) -> None:
+    """Round-57 CRITICAL 1: an HTML comment carrying Status: IN-PROGRESS in the first 10 raw
+    lines — invisible to a renderer, live to the raw regex — silently exempted a document
+    with an UNCHECKED row, no Surface, and a non-quiet ledger from EVERY obligation."""
+    body = (
+        "# Review — some diff (/fabrik-review)\n"
+        "<!--\nStatus: IN-PROGRESS\n-->\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-comment-cloak-review.md", body)
+    assert rc == 1, "a commented-out Status line exempted the whole grammar"
+
+
+def test_blockquoted_checklist_heading_is_refused(repo: Path) -> None:
+    """Round-57 CRITICAL 2: a `> ## Coverage Checklist` blockquote renders as a real heading
+    but was invisible to the ATX column-0 anchor — the document silently became a non-subject
+    despite a live UNCHECKED row and a non-quiet ledger."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "> ## Coverage Checklist\n> | Item | Verdict |\n> |---|---|\n"
+        "> | fail-open handling | UNCHECKED |\n\n"
+        "Pass 1: found: 3, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-blockquote-review.md", body)
+    assert rc == 1, "a blockquoted checklist made the document a silent non-subject"
+    assert "BLOCKQUOTED grammar-shaped line" in out
+
+
+def test_blockquoted_handoff_row_is_refused(repo: Path) -> None:
+    """Round-57 CRITICAL 3: a blockquoted OPEN HANDOFF row rendered plainly visible but
+    vanished from HANDOFF_ROW.findall — the cert gate returned [] on an unevidenced
+    code-wrong row and waived NOT-QUIET with it."""
+    body = (
+        "# cert\n\n"
+        "> HANDOFF P1 OPEN some risky finding — repro: tests/t.py — route: /fabrik-review src/x\n\n"
+        "## RESUME\nre-run the journey\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-user-test-bq.md", body)
+    assert rc == 1, "a blockquoted OPEN HANDOFF row vanished from the cert gate"
+    assert "BLOCKQUOTED grammar-shaped line" in out
+
+
+def test_setext_checklist_heading_is_refused(repo: Path) -> None:
+    """Round-57 (same class): `Coverage Checklist` over a `---` underline renders as a real
+    h2 but the ATX-only anchor never sees it — silent non-subject."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "Coverage Checklist\n------------------\n| Item | Verdict |\n|---|---|\n"
+        "| fail-open handling | UNCHECKED |\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-setext-review.md", body)
+    assert rc == 1, "a setext checklist heading made the document a silent non-subject"
+    assert "SETEXT-style heading" in out

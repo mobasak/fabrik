@@ -400,6 +400,19 @@ _MEGA_SURFACE = re.compile(
 )  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
+# HTML comments are INVISIBLE to a renderer but were live to every regex in this file —
+# round 57 reproduced `<!--\nStatus: IN-PROGRESS\n-->` in the header zone silently exempting
+# a whole document from every obligation. Comments are blanked (characters → spaces, newlines
+# kept, so line counts and indexes stay stable for the fence scanner) before ANY grammar or
+# fence logic runs; an unclosed `<!--` absorbs to EOF, matching renderer behavior and failing
+# CLOSED (content after it reads as absent, loudly — never as live grammar).
+_HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
+
+
+def _blank_comments(text: str) -> str:
+    return _HTML_COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
 # A fence delimiter line, either GFM flavor, 0–3 leading spaces (valid CommonMark — editor
 # auto-indent and list-quoting produce these routinely).
 _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
@@ -423,7 +436,7 @@ def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
     regions: list[tuple[int, int]] = []
     open_at: int | None = None
     open_marker = ""
-    for i, ln in enumerate(text.splitlines()):
+    for i, ln in enumerate(_blank_comments(text).splitlines()):
         m = _FENCE_LINE.match(ln)
         if not m:
             continue
@@ -443,6 +456,7 @@ def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
 
 
 def _strip_fences(text: str) -> str:
+    text = _blank_comments(text)
     regions, dangling = _fence_regions(text)
     drop: set[int] = set()
     for a, b in regions:
@@ -507,8 +521,15 @@ def _grammar_shaped(dedented: str) -> bool:
     )
 
 
+_BLOCKQUOTE = re.compile(r"^ {0,3}>")
+_SETEXT_UNDERLINE = re.compile(r"^ {0,3}(=+|-+)\s*$")
+_SETEXT_TITLE = re.compile(
+    r"^ {0,3}\**\s*(coverage checklist|cross-epic validation report)\b", re.I
+)
+
+
 def _indented_grammar_error(text: str) -> str | None:
-    """An INDENTED grammar-shaped line is undecidable — refuse it loudly (round 55).
+    """An INDENTED, BLOCKQUOTED, or SETEXT-headed grammar-shaped line is refused loudly (r55/57).
 
     Round 54 stripped indented code blocks silently (a renderer quotes them), and the very
     next sweep reproduced the mirror failure THREE ways: a live UNCHECKED checklist row, an
@@ -518,6 +539,14 @@ def _indented_grammar_error(text: str) -> str | None:
     stripped-as-quoted fails open the other. What is decidable: the ambiguity itself. Same
     adjudication as fence parity — one loud error naming the one-keystroke fix, before any
     obligation is judged. Fenced quoting stays free: a FENCED example may quote anything.
+
+    Round 57 generalized the class (the breaker's third firing): BLOCKQUOTED grammar lines
+    (`> ## Coverage Checklist`, `> HANDOFF P1 OPEN …`) render as fully-visible, load-bearing
+    content but were invisible to every column-0-anchored regex — a de-subjecting/vanishing
+    escape identical in effect to the indent one; and a SETEXT-style title (`Coverage
+    Checklist` over a `---` underline) renders as a real heading the ATX-only anchor never
+    sees. All three costumes of one root (hand-rolled fragments of markdown block structure)
+    get the one refusal: out-dent/ATX it if live, fence it if quoted.
     """
     regions, dangling = _fence_regions(text)
     drop: set[int] = set()
@@ -526,7 +555,7 @@ def _indented_grammar_error(text: str) -> str | None:
     lines = text.splitlines(keepends=True)
     if dangling is not None:
         drop.update(range(dangling, len(lines)))
-    _live, quoted = _split_indented([ln for i, ln in enumerate(lines) if i not in drop])
+    live, quoted = _split_indented([ln for i, ln in enumerate(lines) if i not in drop])
     for ln in quoted:
         content = ln.strip()
         if content and _grammar_shaped(content):
@@ -534,6 +563,25 @@ def _indented_grammar_error(text: str) -> str | None:
                 f"INDENTED grammar-shaped line ({content[:70]!r}): a renderer reads 4-space-"
                 "indented blocks as quoted code, but this line looks load-bearing — out-dent "
                 "it if it is live, or put it in a ``` fence if it is a quoted example"
+            )
+    for idx, ln in enumerate(live):
+        if _BLOCKQUOTE.match(ln):
+            content = re.sub(r"^(?: {0,3}> ?)+", "", ln).strip()
+            if content and _grammar_shaped(content):
+                return (
+                    f"BLOCKQUOTED grammar-shaped line ({content[:70]!r}): it renders as "
+                    "visible content but is invisible to this gate's anchors — un-quote it "
+                    "if it is live, or put it in a ``` fence if it is a quoted example"
+                )
+        elif (
+            _SETEXT_TITLE.match(ln)
+            and idx + 1 < len(live)
+            and _SETEXT_UNDERLINE.match(live[idx + 1])
+        ):
+            return (
+                f"SETEXT-style heading ({ln.strip()[:70]!r} over an underline): it renders "
+                "as a real heading but the gate anchors on ATX only — write it as an ATX "
+                "heading (## …)"
             )
     return None
 
