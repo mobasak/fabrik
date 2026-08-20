@@ -1,0 +1,89 @@
+{
+  "plan": "docs/development/plans/2026-08-19-plan-1-kaizen-m1-event-stream/2026-08-19-plan-1-kaizen-m1-event-stream.md",
+  "owned_paths": [
+    "scripts/sysadmin/kaizen_events.py",
+    "scripts/sysadmin/kaizen_coroner.py",
+    "scripts/sysadmin/kaizen_collect_v2.py",
+    "scripts/sysadmin/kaizen_outcomes.py",
+    "scripts/sysadmin/kaizen_backfill.py",
+    "scripts/sysadmin/weekly_catchup.sh",
+    "scripts/sysadmin/archived/kaizen_metrics.py",
+    "scripts/sysadmin/kaizen_metrics.py",
+    ".fabrik/liveness-registry.json",
+    "scripts/command_run.py",
+    "scripts/select_rules.py",
+    "scripts/final_gate.py",
+    "scripts/review_rubric.py",
+    ".claude/hooks/final_gate_stop.py",
+    ".claude/hooks/session_orient.py",
+    ".claude/settings.json",
+    "tests/test_kaizen_events.py",
+    "tests/test_kaizen_hook_emitters.py",
+    "tests/test_kaizen_sensor_emitters.py",
+    "tests/test_kaizen_coroner.py",
+    "tests/test_kaizen_collect_v2.py",
+    "tests/test_kaizen_outcomes.py",
+    "tests/test_kaizen_backfill.py",
+    "tests/test_command_run.py",
+    "tests/fixtures/kaizen-golden/",
+    "docs/workstation/kaizen-event-stream.md",
+    "docs/workstation/kaizen.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-19T18:44:02.431232+08:00",
+  "status": "active",
+  "baseline_commit": "4202c384",
+  "tickets": {
+    "T01": {
+      "state": "merged",
+      "commit": "8d277886"
+    },
+    "T02": {
+      "state": "merged",
+      "commit": "7823e74a",
+      "worktree": null
+    },
+    "T03": {
+      "state": "merged",
+      "commit": "0776ac60",
+      "worktree": null
+    },
+    "T04": {
+      "state": "merged",
+      "commit": "5f186035",
+      "worktree": null
+    },
+    "T05": {
+      "state": "merged",
+      "commit": "a07e4e70",
+      "worktree": null
+    },
+    "T06": {
+      "state": "merged",
+      "commit": "6442c251",
+      "worktree": null
+    },
+    "T07": {
+      "state": "merged",
+      "commit": "145d8cfe",
+      "worktree": null
+    },
+    "T08": {
+      "state": "merged",
+      "commit": "4c09852d",
+      "worktree": null
+    },
+    "T09": {
+      "state": "merged",
+      "commit": "284d0fe1",
+      "worktree": null
+    }
+  },
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "state": "completed",
+  "completed_at": "2026-08-21",
+  "plan_path": "docs/development/plans/archived/2026-08-19-plan-1-kaizen-m1-event-stream"
+}

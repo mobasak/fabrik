@@ -94,7 +94,7 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
 | `scripts/enforcement/check_mutation.py` | — | — | — | UNKNOWN | ledgers:1 run_records:0 | yes | **keep** | keep — immune: under never-route prefix scripts/enforcement/ (check_plan_tickets.py::NEVER_ROUTE_PREFIXES) — gate machinery; usage-evidence cannot prove a guard useless |
 | `scripts/fleet_doc_audit.py` | — | — | — | UNKNOWN | ledgers:0 run_records:0 | no | **candidate** | — |
 | `scripts/kilo_model_sync.py` | — | — | — | LIVE | ledgers:0 run_records:0 | no | **keep** | — |
-| `scripts/sysadmin/kaizen_metrics.py` | — | — | — | DEAD | ledgers:0 run_records:0 | no | **candidate** | — |
+| `scripts/sysadmin/archived/kaizen_metrics.py` (at census time: `sysadmin/`; archived at the M1 T09 cutover) | — | — | — | DEAD | ledgers:0 run_records:0 | no | **candidate** | — |
 | `scripts/sysadmin/liveness_audit.py` | — | — | — | — | ledgers:1 run_records:0 | yes | **keep** | keep — immune: the guard's guard — proves the scheduled surfaces themselves are alive |
 
 ## fragment (13)
@@ -296,7 +296,7 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
 - [x] `scripts/fleet_doc_audit.py` (cron) — **RULED: WAKE-PROOF RESCHEDULE** — same runner;
   log moved from volatile `/tmp` to `~/.claude/fleet-doc-audit.log` (liveness registry
   updated); first revived run committed `probe-reports/fleet-doc-audit-2026-08-19.md`.
-- [x] `scripts/sysadmin/kaizen_metrics.py` (cron) — **RULED: WAKE-PROOF RESCHEDULE** — same
+- [x] `scripts/sysadmin/archived/kaizen_metrics.py` (cron; archived at the M1 T09 cutover) — **RULED: WAKE-PROOF RESCHEDULE** — same
   runner; the missed 2026-08-17 measurement caught up immediately (both kaizen logs appended);
   still slated for retirement WITH M1's typed event stream.
 - ~~`grounding-research` (fragment)~~ — **STRUCK: false candidate** (census erratum). Its content

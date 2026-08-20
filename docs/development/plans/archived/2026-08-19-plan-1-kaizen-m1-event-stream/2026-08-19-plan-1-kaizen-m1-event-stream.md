@@ -1,6 +1,6 @@
 # Kaizen M1 — the typed append-only event stream (measure truthfully)
 
-Status: IN-PROGRESS
+Status: EXECUTED
 Spec: docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md § Layer 1 + § Sequencing M1 (operator dispatch 2026-08-19: "then /fabrik-plan-after-chat for M1")
 
 ## What we already agreed
@@ -268,6 +268,53 @@ Serialized: scripts/sysadmin/kaizen_collect_v2.py — T06, T08
   (select_rules/rubric runs), not per-edit glob firing — the per-edit variant needs a PostToolUse
   hook that does not exist today and is recorded as a residual, not silently claimed.
 - Fixed point not yet claimed — that is `/fabrik-plan-review`'s flip.
+
+## Execution Evidence (D7 — 2026-08-21)
+
+All 9 tickets merged with accepted per-ticket review ledgers
+(`docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-T0[1-9]-review.md`), every
+merge a squash-apply with Board flip + ledger + CHANGELOG in one orchestrator commit: T01
+8d277886 · T02 7823e74a · T03 0776ac60 · T04 5f186035 · T05 a07e4e70 · T06 6442c251 · T07
+145d8cfe · T08 4c09852d · T09 284d0fe1. Acceptance totals: native finders 12+10+13+6+6+
+(5+3+4+4)+(7+6+0)+(5+4)+(5+4) findings across per-ticket rounds, every functional fix seen RED
+first (or red-on-revert with byte-identical restore); pool finders recorded every round
+(flywheel rows landed), yield ≈0 — the native-catches-what-pool-misses pattern held for all
+nine tickets.
+
+Whole-plan receipts, run on the merged tree this turn:
+
+```console
+$ uv run pytest tests/test_kaizen_events.py tests/test_kaizen_hook_emitters.py \
+    tests/test_command_run.py tests/test_kaizen_sensor_emitters.py tests/test_kaizen_coroner.py \
+    tests/test_kaizen_collect_v2.py tests/test_kaizen_outcomes.py tests/test_kaizen_backfill.py \
+    tests/test_kaizen_metrics.py tests/test_kaizen_collect.py -q
+1 failed, 332 passed in 53.93s   # the one: a byte-compare vs concurrent sibling git activity —
+                                 # green in isolation and at file level (13 passed) same turn
+$ uv run python scripts/final_gate.py --check --json
+"status": "success"   # 44 passed, 0 failed
+```
+
+Live artifacts, real store (`scripts/sysadmin/kaizen_collect_v2.py --daily`, T09 smoke): 341
+real sessions derived for 2026-08-20, 3 series published (`hole_count=10`,
+`premature_stop_rate 5% (2/38)`, `unclassified_rate 19% (172/901)`), idempotent 0-append
+re-run; the backfill store holds 11,264 rows (2026-05-17..2026-08-20, md5-proven no-op re-run)
+and `~/.claude/state/kaizen/noise-floor@v1.md` carries all 14 registered metrics × both eras.
+
+**Completion stamp / the M1→M2 gate clock:** the 7-day event-collection window STARTS at the
+first cron-driven daily run — which awaits the operator's one-command crontab restore (the
+Aug-19 wipe recovery; the two daily kaizen lines are in the prepared rebuild). Until then the
+collector runs by hand and liveness truthfully reports the surfaces unscheduled. The M1→M2
+review (7 days of events + variance sign-off vs `noise-floor@v1.md` + denominators vs
+hand-counts) is a NAMED operator-triggered follow-up — not claimable here.
+
+Post-plan residuals (recorded, owner named): the headless-export gap
+(`scripts/ci_fix_dispatcher.py:208`, `scripts/sysadmin/claude-run.sh:53,55` lack
+`CLAUDE_MESH_HEADLESS` — two lines, orchestrator follow-up); `weekly_catchup.sh` has no
+automated test harness (pre-existing class; the T09 retired-key branch was manually verified
+twice); the forward-direction store-key pinning (a transcript-era row can pre-claim a
+`(sid, version, day)` key an event row would later want — narrow UUID-collision window, T06/T08
+ledgers); the sweep's honest first reading — a clean HEAD clone of the hub fails its suite
+install-less (pytest rc=2) — is a REAL repo finding awaiting triage.
 
 ## Residual unknowns
 
