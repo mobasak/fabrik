@@ -21,6 +21,7 @@ sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
 
 import kaizen_backfill as kb  # noqa: E402
 import kaizen_collect_v2 as kc  # noqa: E402
+import kaizen_outcomes as ko  # noqa: E402
 
 DASH = kc.DASH
 
@@ -101,7 +102,7 @@ def test_backfill_marks_era_and_dashes_event_only_fields(tmp_path: Path) -> None
     assert row["first_ts"] == "2026-06-05T10:00:00.000+00:00"
     assert row["last_ts"] == "2026-06-05T10:02:00.000+00:00"
     # Every event-only field is an explicit `—` — never a fabricated zero/empty.
-    for field in ("events", "gate", "runs", "stop_causes", "death_class"):
+    for field in ("events", "gate", "runs", "stop_causes", "death_classes"):
         assert row[field] == DASH, field
     assert row["concurrent"] is None
     assert "exposure.project" in row["concurrent_reason"]
@@ -583,3 +584,26 @@ def test_progress_line_every_n_files(
 def test_report_cli_mode_writes_report(tmp_path: Path) -> None:
     assert kb.main(["--report"]) == 0
     assert (kc.state_dir() / "noise-floor@v1.md").is_file()
+
+
+# ── review fix-wave: adjudicated findings, red-first ─────────────────────────────────
+
+
+def test_report_covers_the_full_registry(tmp_path: Path) -> None:
+    """M7: the noise-floor report unions T06's registry with the outcome tier — every
+    registered metric appears, each with an event-era and a transcript-era row."""
+    text = kb.render_report()
+    full = ko.registry()
+    assert len(full) == 14
+    for mid in full:
+        assert f"| {mid} |" in text, f"{mid} missing from the noise-floor report"
+
+
+def test_empty_corpus_backfill_is_a_clean_noop(tmp_path: Path) -> None:
+    """B2: an empty transcript corpus walks to a clean no-op — zero files, zero rows
+    appended, the report still written, no crash."""
+    summary = kb.run_backfill()
+    assert summary["files"] == 0
+    assert summary["appended"] == 0
+    assert Path(str(summary["report"])).is_file()
+    assert not kc.facts_path(kc.state_dir()).exists(), "nothing derived from nothing"

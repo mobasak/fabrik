@@ -51,8 +51,9 @@ The Stop hook blocks ONLY on ``state == "running"``
 (.claude/hooks/final_gate_stop.py:482,1029,1263 — verified on the merged file
 2026-08-20), so a coroner-closed record never pins its project.
 
-The hole metric: ``holes = transcripts-with-activity − sessions-with-session_end`` per
-day — :func:`holes` returns the NUMBER for T06 to consume as a first-class
+The hole metric: ``holes = transcripts-with-activity − sessions-with-a-stop_pass-or-
+session_end`` per day (a normally-ended session's liveliness is its last ``stop_pass``
+— H4) — :func:`holes` returns the NUMBER for T06 to consume as a first-class
 instrument-health input.
 
 HARD BOUNDARIES
@@ -192,6 +193,9 @@ class CoronerReport:
     session_ends: list[str] = dataclasses.field(default_factory=list)
     records_died: list[str] = dataclasses.field(default_factory=list)
     records_expired: list[str] = dataclasses.field(default_factory=list)
+    #: Markers whose transcript EXISTS but yielded no conclusive verdict — skipped,
+    #: counted (L3): ambiguous evidence must never close a possibly-live session.
+    inconclusive: list[str] = dataclasses.field(default_factory=list)
     holes_today: int = 0
     errors: list[str] = dataclasses.field(default_factory=list)
 
@@ -447,14 +451,28 @@ def _recent_transcripts(transcripts_dir: Path, now: float) -> dict[str, Path]:
 # ── the session's own event stream: session_end presence + last trusted exposure ─────
 
 
-def _stream_state(events_dir: Path, sid: str) -> tuple[bool, bool, dict | None]:
-    """``(has_session_end, has_reconstructed_death, last_trusted_exposure)``.
+def _event_file_sid(sid: str) -> str:
+    """The FILENAME stem the emitter writes this sid's events under.
+
+    The emitter sanitizes INJECTIVELY (``kaizen_events._safe_sid`` appends a digest
+    whenever the mapping changed the value) — reading the RAW sid's path for a
+    rewritten sid misses the session's own stream and breaks sweep idempotence
+    (M2). The SAME function is used, never a copy; without the emitter no events
+    were written under a digested name either, so the raw sid is the honest read.
+    """
+    return kaizen_events._safe_sid(sid) if kaizen_events is not None else str(sid)
+
+
+def _stream_state(events_dir: Path, sid: str) -> tuple[bool, bool, bool, dict | None]:
+    """``(has_session_end, has_stop_pass, has_reconstructed_death, last_exposure)``.
 
     "Trusted" = a parseable event this session emitted itself (not coroner-
-    reconstructed) carrying an exposure dict — the newest one wins the join.
+    reconstructed) carrying an exposure dict — the newest one wins the join. The
+    file is resolved through the EMITTER's sid→filename mapping (M2).
     """
-    path = events_dir / f"{sid}.jsonl"
+    path = events_dir / f"{_event_file_sid(sid)}.jsonl"
     has_end = False
+    has_stop_pass = False
     has_recon_death = False
     last_exposure: dict | None = None
     for raw in _tail_lines(path, EVENTS_SCAN_BYTES):
@@ -468,12 +486,14 @@ def _stream_state(events_dir: Path, sid: str) -> tuple[bool, bool, dict | None]:
             continue
         if row.get("event") == "session_end":
             has_end = True
+        if row.get("event") == "stop_pass":
+            has_stop_pass = True
         if row.get("event") == "death" and row.get("reconstructed"):
             has_recon_death = True
         exp = row.get("exposure")
         if isinstance(exp, dict) and not row.get("reconstructed"):
             last_exposure = exp
-    return has_end, has_recon_death, last_exposure
+    return has_end, has_stop_pass, has_recon_death, last_exposure
 
 
 def _join_exposure(last: dict | None) -> dict:
@@ -591,21 +611,54 @@ def _close_records(
                 rec["updated_ts"] = int(now)
                 if _command_run_save(stem, rec):
                     (report.records_died if dead else report.records_expired).append(raw_sid)
+                    if not dead:
+                        _emit_ttl_end(sources, raw_sid, report)
         except Exception as exc:
             _warn(f"record close for {stem} failed open: {exc!r}")
             continue
+
+
+def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None:
+    """A TTL closure leaves an event trail too (M3): ``session_end`` with
+    ``closed_by: ttl``, exposure joined from the session's own stream, idempotent
+    (an existing ``session_end`` — this pass's or an earlier one's — is never
+    duplicated; a later sweep never re-reaches here because the record is no longer
+    ``running``)."""
+    if kaizen_events is None:
+        report.errors.append(f"kaizen_events unavailable — ttl session_end for {raw_sid} skipped")
+        return
+    try:
+        has_end, _, _, last_exposure = _stream_state(sources.events_dir, raw_sid)
+        if has_end:
+            return
+        if kaizen_events.emit(
+            "session_end",
+            sid=raw_sid,
+            exposure_override=_join_exposure(last_exposure),
+            sid_source="join",
+            reconstructed=True,
+            closed_by="ttl",
+        ):
+            report.session_ends.append(raw_sid)
+    except Exception as exc:  # pragma: no cover - emit() itself never raises
+        _warn(f"ttl session_end for {raw_sid} failed open: {exc!r}")
 
 
 # ── the hole metric — for T06 ────────────────────────────────────────────────────────
 
 
 def holes(sources: Sources | None = None, day: dt.date | None = None) -> int:
-    """``transcripts-with-activity − sessions-with-session_end`` for one day.
+    """``transcripts-with-activity − sessions-with-a-stop_pass-or-session_end`` for
+    one day.
 
-    A first-class instrument-health input (spec :121-123): a transcript that was active
-    on ``day`` (mtime date, local time) whose event stream never got a ``session_end``
-    is a hole — a session the instrument lost. Returns the NUMBER; T06 consumes it.
-    Fail-open: any error inside is a skipped session, and the function never raises.
+    A first-class instrument-health input (spec :121-123): a transcript active on
+    ``day`` (mtime date, local time) whose event stream carries NO ``stop_pass`` and
+    no ``session_end`` is a hole — a session the instrument lost. A normally-ended
+    session's liveliness is its last ``stop_pass`` (kaizen-event-stream.md — the
+    Stop hook fires per TURN, so most sessions end on a stop_pass, not a
+    session_end); counting those as holes made every normal session a hole (H4).
+    Returns the NUMBER; T06 consumes it. Fail-open: any error inside is a skipped
+    session, and the function never raises.
     """
     try:
         src = sources or Sources.default()
@@ -628,7 +681,11 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int:
                         active.add(path.stem)
                 except (OSError, OverflowError, ValueError):
                     continue
-        closed = sum(1 for sid in active if _stream_state(src.events_dir, sid)[0])
+        closed = 0
+        for sid in active:
+            has_end, has_stop_pass, _, _ = _stream_state(src.events_dir, sid)
+            if has_end or has_stop_pass:
+                closed += 1
         return len(active) - closed
     except Exception as exc:
         _warn(f"holes() failed open ({exc!r}) -> 0")
@@ -651,7 +708,7 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
         with _pinned_env(
             {"KAIZEN_EVENTS_DIR": str(src.events_dir), "COMMAND_RUN_DIR": str(src.runs_dir)}
         ):
-            deaths = _gather_deaths(src, clock)
+            deaths = _gather_deaths(src, clock, report)
             evidence = set()
             for death in deaths:
                 evidence.add(death.sid)
@@ -683,7 +740,7 @@ def _find_transcript(transcripts_dir: Path, sid: str) -> Path | None:
     return None
 
 
-def _gather_deaths(src: Sources, now: float) -> list[_Death]:
+def _gather_deaths(src: Sources, now: float, report: CoronerReport | None = None) -> list[_Death]:
     """Every session with death evidence: markers first, then transcript tails.
 
     A marker whose transcript positively shows recovery (``"alive"``) is a survivor —
@@ -691,8 +748,10 @@ def _gather_deaths(src: Sources, now: float) -> list[_Death]:
     session the transcript proves came back, HOWEVER OLD the transcript (resolved
     directly by sid, never through the lookback filter). A marker whose own epoch is
     older than the lookback is skipped entirely: a death older than the sweep's
-    horizon is not this sweep's business. An inconclusive transcript never overrules
-    a marker.
+    horizon is not this sweep's business. A marker whose transcript EXISTS but is
+    INCONCLUSIVE (verdict None) is SKIPPED with a counted reason (L3): ambiguous
+    evidence must never close a possibly-live session — only a marker with NO
+    transcript at all closes on the marker alone (explicit evidence, uncontradicted).
     """
     transcripts = _recent_transcripts(src.transcripts_dir, now)
     lookback = _lookback_s()
@@ -704,8 +763,15 @@ def _gather_deaths(src: Sources, now: float) -> list[_Death]:
         if epoch is not None and now - epoch > lookback:
             continue  # aged out — must not fire forever
         tpath = transcripts.get(safe_sid) or _find_transcript(src.transcripts_dir, safe_sid)
-        verdict = verdicts.setdefault(safe_sid, _tail_verdict(tpath) if tpath else None)
+        if safe_sid not in verdicts:
+            verdicts[safe_sid] = _tail_verdict(tpath) if tpath else None
+        verdict = verdicts[safe_sid]
         if verdict == "alive":
+            continue
+        if tpath is not None and verdict is None:
+            # L3: the transcript exists and answered NOTHING — skip, counted.
+            if report is not None:
+                report.inconclusive.append(safe_sid)
             continue
         try:
             died_at = (
@@ -735,7 +801,7 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
         report.errors.append("kaizen_events unavailable — reconstruction skipped")
         return
     for death in deaths:
-        has_end, has_recon, last_exposure = _stream_state(src.events_dir, death.sid)
+        has_end, _, has_recon, last_exposure = _stream_state(src.events_dir, death.sid)
         if has_end:
             continue  # already closed — idempotence
         joined = _join_exposure(last_exposure)

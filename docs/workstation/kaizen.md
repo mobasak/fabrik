@@ -22,7 +22,15 @@ can compute.** The cron measures; the agent thinks.
 ```
 27 * * * * flock -n $HOME/.claude/state/daily-kaizen-collect.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_collect_v2.py >> $HOME/.claude/kaizen.log 2>&1
 41 * * * * flock -n $HOME/.claude/state/daily-kaizen-sweep.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_outcomes.py >> $HOME/.claude/kaizen-sweep.log 2>&1
+53 * * * * flock -n $HOME/.claude/state/daily-kaizen-coroner.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_coroner.py >> $HOME/.claude/kaizen-coroner.log 2>&1
 ```
+
+The third line is the **daily coroner sweep** (`kaizen_coroner.py --sweep`): post-hoc
+death/revival reconstruction plus closure of run records that can no longer close themselves —
+the hole metric and the record TTLs depend on it, and nothing else on the box runs it. Each
+job's liveness evidence is its **success stamp** (`~/.claude/state/daily-<job>.stamp`, touched
+only on success — the log files are also written by nudges and failures, so they are not
+heartbeats); the three surfaces are registered in `.fabrik/liveness-registry.json`.
 
 Both ride the **wake-proof stamp-check runner** (`scripts/sysadmin/weekly_catchup.sh`, M0 shrink
 ruling): the cron fires hourly, the runner runs the job only when its success stamp is older than
@@ -40,9 +48,12 @@ complete). In order:
 1. **Golden gate** — the hand-labelled corpus (`tests/fixtures/kaizen-golden/`) must derive to
    its expected counts, or the run refuses: exit non-zero, `instrument_alarm` event, NOTHING
    published, the log row rendered all `—`. Instrument health is metric zero.
-2. **Derive** — each session file whose mtime falls on the day becomes one row in the append-only
+2. **Derive** — each session file whose mtime date is **at or after the day** (anything still
+   alive: the never-quiescing `unknown.jsonl` and still-active sessions included; the keyed
+   dedup + the delta seam keep later re-derivations honest) becomes one row in the append-only
    derived-facts store (`~/.claude/state/kaizen/derived-facts.jsonl`, keyed
-   `(sid, facts_version, day)`). Torn lines are counted with a reason, never crashed on.
+   `(sid, facts_version, day)`). Torn lines are counted with a reason, never crashed on;
+   truncated lines count envelope-only (reason `truncated`).
 3. **Publish** — per-day deltas (a grown file never re-counts earlier days) append to the
    versioned series files (`~/.claude/state/kaizen/series/<metric>@v<N>.jsonl`).
 4. **Log row + mail** — the ISO-week row is upserted into both role logs and the metrics mail
@@ -64,7 +75,9 @@ existing `.venv`, `final_gate.py --check` where synced. Timeout / no venv / no t
 project → honest `—` with the reason. Each project emits one `fleet_health` event; the report
 line reads `swept n/N — the rest —`. Sibling modes for the analyst: `--rework` (git-mined rework
 rate across `/opt/*`, `KAIZEN_REWORK_DAYS` window) and `--stops` (session-level premature-stop
-read from the derived-facts rows).
+read from the derived-facts rows over the last `KAIZEN_OUTCOMES_WINDOW_DAYS` days, default 7 —
+never all-time cumulative). The store-derived outcome series (`premature_stop`,
+`stop_block_causes`, `review_rounds`) additionally publish from the daily collector pass.
 
 ## The kaizen-log row — which cells are real now
 
@@ -73,18 +86,20 @@ mechanical cells are computed over the ISO week's event-era rows:
 
 | Column | Status | Source |
 |---|---|---|
-| Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed `gate_run` succeeded, from `gate_run` events. |
-| Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. |
+| Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
+| Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. Renders `—` while the store holds no death/session_end evidence at all (the coroner has never run) — a `0` there would be fabricated. |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
 | Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 
 **Idempotence** — the row is keyed by ISO week: a same-week re-run updates that week's row;
-mechanical cells win, but a cell the script would write as `—` yields to whatever a human/agent
-put there. On a golden refusal the mechanical cells are stamped `—` regardless while the analyst
-cells still survive. **A wrong metric is worse than an absent one** — unmeasurable renders `—`
-with its reason on stderr and in the mail, never a fabricated 0.
+mechanical cells always take the newly computed value **including a dash** (a fresh honest `—`
+must never republish the previous run's stale number under a new date); only the ANALYST cells
+(`Top friction fixed`, `Filed`) yield a `—` to whatever a human/agent put there. On a golden
+refusal the mechanical cells are stamped `—` regardless while the analyst cells still survive.
+**A wrong metric is worse than an absent one** — unmeasurable renders `—` with its reason on
+stderr and in the mail, never a fabricated 0.
 
 ## The noise floor and the M1→M2 gate
 

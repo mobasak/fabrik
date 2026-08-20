@@ -34,9 +34,10 @@ sweep_coverage, premature_stop ⟂ stop_block_causes.
 POPULATION NOTE — the store-reading metrics (``premature_stop``,
 ``stop_block_causes``, ``review_rounds``) compute over EVENT-era rows only
 (``kc._event_era``): T08's transcript-era backfill rows carry ``—`` in every
-event-only field and are excluded, not coerced. The registered formula strings
-predate this narrowing and stay verbatim (a formula edit is a def-hash version
-bump); this note is the in-band record.
+event-only field and are excluded, not coerced. They are additionally WINDOWED
+(``KAIZEN_OUTCOMES_WINDOW_DAYS``, default 7, on ``last_ts``) — an all-time
+cumulative read would let ancient history swamp the current week's signal. The
+window is stated in the v2 formulas (a formula edit is a def-hash version bump).
 
 THE HONESTY RULE (inherited, binding)
 -------------------------------------
@@ -63,7 +64,8 @@ retries hourly with every attempt in the log. The crontab line:
 41 * * * * flock -n $HOME/.claude/state/daily-kaizen-sweep.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_outcomes.py >> $HOME/.claude/kaizen-sweep.log 2>&1
 
 Config via env: ``KAIZEN_REWORK_DAYS`` (7), ``KAIZEN_SWEEP_PROJECTS`` (``fabrik``),
-``KAIZEN_SWEEP_TIMEOUT_S`` (300), plus T06's ``KAIZEN_STATE_DIR`` / T01's
+``KAIZEN_SWEEP_TIMEOUT_S`` (300), ``KAIZEN_OUTCOMES_WINDOW_DAYS`` (7 — the
+store-reading metrics' last_ts window), plus T06's ``KAIZEN_STATE_DIR`` / T01's
 ``KAIZEN_EVENTS_DIR`` through the modules that own them. Box-local, stdlib only.
 """
 
@@ -72,6 +74,7 @@ from __future__ import annotations
 import argparse
 import collections
 import dataclasses
+import datetime as dt
 import json
 import os
 import re
@@ -137,6 +140,19 @@ def _pct(num: int, den: int) -> str:
     return f"{100 * num / den:.0f}% ({num}/{den})"
 
 
+def _window_days() -> int:
+    """The store-reading metrics' window (L7): ``KAIZEN_OUTCOMES_WINDOW_DAYS``,
+    default 7 — an all-time cumulative read would let ancient history swamp the
+    current week's signal."""
+    return _env_int("KAIZEN_OUTCOMES_WINDOW_DAYS", 7)
+
+
+def _window_since() -> str:
+    return (dt.datetime.now(dt.UTC) - dt.timedelta(days=_window_days())).isoformat(
+        timespec="seconds"
+    )
+
+
 # ── rework_rate — read-only git mining across /opt/* repos ────────────────────────────
 
 
@@ -188,6 +204,12 @@ def _mine_commits(repo: Path, lookback_days: int) -> list[_Commit] | None:
     # --name-status with explicit -M: rename detection is pinned ON (not left to the
     # host's diff.renames config) so an R* pair is deterministically visible and can be
     # excluded from the fix-side intersection — a pure rename is not rework.
+    #
+    # NUL-delimited (M4): \x1e/\x1f CAN legally appear inside a commit subject, and an
+    # injected one used to split the record mid-subject — the commit lost its file
+    # list and the metric silently deflated. NUL cannot appear in a subject (git
+    # rejects it), so the format's four %x00 delimiters are injection-proof: each
+    # record contributes exactly (sha, ts, subject, name-status tail) — four tokens.
     out = _git_out(
         repo,
         [
@@ -195,37 +217,34 @@ def _mine_commits(repo: Path, lookback_days: int) -> list[_Commit] | None:
             "--no-merges",
             "-M",
             f"--since={lookback_days} days ago",
-            "--format=%x1e%H%x1f%ct%x1f%s",
+            "--format=%x00%H%x00%ct%x00%s%x00",
             "--name-status",
         ],
     )
     if out is None:
         return None
     commits: list[_Commit] = []
-    for record in out.split("\x1e"):
-        if not record.strip():
-            continue
-        lines = record.splitlines()
-        head = lines[0].split("\x1f")
-        if len(head) != 3:
-            continue  # a malformed record is skipped, never guessed at
-        sha, raw_ts, subject = head
+    parts = out.split("\x00")
+    # parts[0] is the (empty) prefix before the first record; then groups of four.
+    for idx in range(1, len(parts) - 2, 4):
+        sha, raw_ts, subject = parts[idx], parts[idx + 1], parts[idx + 2]
+        tail = parts[idx + 3] if idx + 3 < len(parts) else ""
         try:
             ts = int(raw_ts)
         except ValueError:
-            continue
+            continue  # a malformed record is skipped, never guessed at
         files: set[str] = set()
         fix_files: set[str] = set()
-        for ln in lines[1:]:
-            parts = ln.rstrip("\n").split("\t")
-            if len(parts) < 2 or not parts[0].strip():
+        for ln in tail.splitlines():
+            parts_ln = ln.rstrip("\n").split("\t")
+            if len(parts_ln) < 2 or not parts_ln[0].strip():
                 continue
-            status = parts[0].strip()
-            if status.startswith(("R", "C")) and len(parts) >= 3:
-                files.update((parts[1], parts[2]))  # both sides are matchable...
+            status = parts_ln[0].strip()
+            if status.startswith(("R", "C")) and len(parts_ln) >= 3:
+                files.update((parts_ln[1], parts_ln[2]))  # both sides are matchable...
                 continue  # ...but a rename/copy pair modifies nothing — never fix-side
-            files.add(parts[1])
-            fix_files.add(parts[1])
+            files.add(parts_ln[1])
+            fix_files.add(parts_ln[1])
         commits.append(
             _Commit(
                 sha=sha,
@@ -462,7 +481,13 @@ def sweep_one(name: str, root: Path, timeout_s: int) -> SweepResult:
         return finish(SweepResult(name, DASH, reason="node project — pilot skips node runtimes"))
 
     checks: dict[str, str] = {}
-    with tempfile.TemporaryDirectory(prefix=f"kaizen-sweep-{name}-") as tmp:
+    # ignore_cleanup_errors (L2): a CHECK_UNREAPABLE child (D-state, survived
+    # SIGKILL) can hold the temp worktree busy — cleanup then raises out of the
+    # sweep. The unreapable path already warned; losing a temp dir is the fail-open
+    # cost, crashing the sweep is not.
+    with tempfile.TemporaryDirectory(
+        prefix=f"kaizen-sweep-{name}-", ignore_cleanup_errors=True
+    ) as tmp:
         clone = Path(tmp) / name
         rc = _run_check(
             ["git", "clone", "--quiet", "--shared", str(src), str(clone)],
@@ -609,10 +634,14 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         )
     # Event-era only (T09 era filter): T08's transcript-era rows carry DASH strings
     # in events/stop_causes — unfiltered they crash _stop_verdicts, and their lines
-    # are prose, not stop verdicts.
-    rows = [r for r in kc.read_rows(state=state) if kc._event_era(r)]
+    # are prose, not stop verdicts. Windowed (L7): only rows whose last_ts falls in
+    # the KAIZEN_OUTCOMES_WINDOW_DAYS window — never all-time cumulative.
+    rows = [r for r in kc.read_rows(since=_window_since(), state=state) if kc._event_era(r)]
     if not rows:
-        reason = "no derived-facts rows (events store empty or missing)"
+        reason = (
+            f"no derived-facts rows in the {_window_days()}d window "
+            "(events store empty, missing, or aged out)"
+        )
         return (
             MetricResult.unavailable("premature_stop", reason),
             MetricResult.unavailable("stop_block_causes", reason),
@@ -670,7 +699,8 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
 def review_rounds(state: Path | None = None) -> MetricResult:
     """Mean max-round per round-carrying session (rework_rate's counter pair)."""
     # Event-era only — transcript rows' `runs` is a DASH string (see premature_stop).
-    rows = [r for r in kc.read_rows(state=state) if kc._event_era(r)]
+    # Windowed (L7), same window as the stops pair.
+    rows = [r for r in kc.read_rows(since=_window_since(), state=state) if kc._event_era(r)]
     vals = [
         int((r.get("runs") or {}).get("rounds_max", 0))
         for r in rows
@@ -706,11 +736,12 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "review_rounds",
-        "version": 1,
+        "version": 2,
         "counter_metric": "rework_rate",
         "formula": (
-            "mean rounds_max across round-carrying sessions (derived-facts rows) — "
-            "rounds down must never buy rework up."
+            "mean rounds_max across round-carrying sessions (derived-facts rows whose "
+            "last_ts falls in the last KAIZEN_OUTCOMES_WINDOW_DAYS days, default 7 — "
+            "never all-time cumulative) — rounds down must never buy rework up."
         ),
     },
     {
@@ -734,26 +765,29 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "premature_stop",
-        "version": 1,
+        "version": 2,
         "counter_metric": "stop_block_causes",
         "formula": (
             "SESSION-level: sessions with a stop_block whose cause is premature "
             "(PREMATURE_CAUSES: run-record / promise-stall) over sessions with any "
-            "stop verdict, from derived-facts rows — the Stop-hook oracle, read. "
-            "Cross-reference: premature_stop_rate (T06) is the EVENT-level share of "
-            "stop VERDICTS premature; non-premature causes (gate-red, uncommitted "
-            "holds) never count here."
+            "stop verdict, from derived-facts rows whose last_ts falls in the last "
+            "KAIZEN_OUTCOMES_WINDOW_DAYS days (default 7 — never all-time "
+            "cumulative) — the Stop-hook oracle, read. Cross-reference: "
+            "premature_stop_rate (T06) is the EVENT-level share of stop VERDICTS "
+            "premature; non-premature causes (gate-red, uncommitted holds) never "
+            "count here."
         ),
     },
     {
         "id": "stop_block_causes",
-        "version": 1,
+        "version": 2,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
             "and legitimate causes alike — the rate's shape, so a falling rate cannot "
             "hide a cause-mix shift. EVENT units throughout (numerator, denominator "
-            "and cell). Dashes WITH premature_stop when no stop verdict exists (a "
+            "and cell), over the same KAIZEN_OUTCOMES_WINDOW_DAYS window as its pair "
+            "(default 7). Dashes WITH premature_stop when no stop verdict exists (a "
             "pair never fabricates clean)."
         ),
     },

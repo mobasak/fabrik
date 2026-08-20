@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 whole-implementation review: 27 findings, six of them metrics that lied (2026-08-21)
+
+The operator-mandated /fabrik-review closing loop over the full M1 surface (12 files, all nine
+tickets) raised 33 candidates in its first non-author sweep; 27 confirmed and fixed red-first,
+6 refuted with code evidence. The six HIGH were all cross-component instrument lies the
+per-ticket rounds structurally missed: the daily selector dropped every still-active session and
+unknown.jsonl forever; unclassified_rate published 0% while ~39% of live lines were
+unattributable; rule_activation published a fabricated 0% over an unattributable event family;
+hole_count counted every healthy session as a hole; the retired-job nudge kept the liveness
+heartbeat green while the cutover was never installed (the coroner had NO schedule at all — it
+now has a daily weekly_catchup job + registry surface with success-stamp evidence); and a
+dash-valued day republished the previous day's measured number under a fresh date. Derived-facts
+schema bumped to FACTS_VERSION 2; five metric formulas re-versioned per the definition-hash law;
+attribution-floor honesty guards dash any metric whose event family lives mostly in the unknown
+stream. 380-test battery green.
+
 ### Fixed — command-run records no longer collide across concurrent sessions (2026-08-21)
 
 Bash-tool shells carry an empty `CLAUDE_SESSION_ID`, so every concurrent session in a repo

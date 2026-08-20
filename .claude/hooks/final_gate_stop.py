@@ -964,8 +964,18 @@ def _kaizen_pass(
     except Exception:
         pass
     if waived:
+        # ONE event per turn, carrying the WHOLE waiver ledger (P2): recording only
+        # waived[0] under-counted turns where several stalls were waved through.
+        # marker/kind keep the first entry for consumer continuity.
         kind, marker = waived[0]
-        _kaizen("operator_override", sid, marker=marker, kind=kind)
+        _kaizen(
+            "operator_override",
+            sid,
+            marker=marker,
+            kind=kind,
+            stalls=len(waived),
+            kinds=[k for k, _ in waived],
+        )
 
 
 def main(argv: list[str]) -> int:

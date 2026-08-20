@@ -16,9 +16,13 @@
 # registry's cron_match entries keep matching the crontab lines.
 set -u
 
-JOB="${1:?usage: weekly_catchup.sh <job-key: audit_authelia_gates.py|fleet_doc_audit.py|kaizen_collect_v2.py|kaizen_outcomes.py>}"
+JOB="${1:?usage: weekly_catchup.sh <job-key: audit_authelia_gates.py|fleet_doc_audit.py|kaizen_collect_v2.py|kaizen_outcomes.py|kaizen_coroner.py>}"
 STATE="$HOME/.claude/state"
 mkdir -p "$STATE"
+# Repo root + interpreter, overridable for tests (a worktree run must not depend on
+# the main tree's uncommitted state). Live crontab lines never set these.
+ROOT="${FABRIK_ROOT:-/opt/fabrik}"
+PY="${FABRIK_PY:-$ROOT/.venv/bin/python}"
 
 WEEKLY=$(( 7*86400 - 1800 ))  # cadence minus 30 min slack so hourly drift never skips
 DAILY=$(( 86400 - 1800 ))
@@ -38,7 +42,7 @@ case "$JOB" in
         touch "$NUDGE"
         exit 0
         ;;
-    kaizen_collect_v2.py|kaizen_outcomes.py)
+    kaizen_collect_v2.py|kaizen_outcomes.py|kaizen_coroner.py)
         PERIOD=$DAILY
         STAMP="$STATE/daily-${JOB}.stamp"
         ;;
@@ -66,21 +70,30 @@ OK_MAX=0
 case "$JOB" in
     audit_authelia_gates.py)
         OK_MAX=1
-        PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py
+        PYTHONPATH="$ROOT/src" "$PY" "$ROOT/scripts/audit_authelia_gates.py"
         ;;
     fleet_doc_audit.py)
-        cd /opt/fabrik && .venv/bin/python scripts/fleet_doc_audit.py --commit
+        cd "$ROOT" && "$PY" scripts/fleet_doc_audit.py --commit
         ;;
     kaizen_collect_v2.py)
         # The DAILY kaizen collector (M1 cutover): consolidates YESTERDAY's events
         # into derived facts, series and the kaizen-log row. Replaced the retired
         # weekly kaizen_metrics.py (scripts/sysadmin/archived/, M0 operator ruling).
-        cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_collect_v2.py --daily
+        cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_collect_v2.py --daily
         ;;
     kaizen_outcomes.py)
         # The nightly fleet-health sweep (T07 outcome tier): clean HEAD worktrees,
         # install-less checks, one fleet_health event per swept project.
-        cd /opt/fabrik && .venv/bin/python scripts/sysadmin/kaizen_outcomes.py --sweep
+        cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_outcomes.py --sweep
+        ;;
+    kaizen_coroner.py)
+        # The DAILY coroner sweep (review fix-wave H5): post-hoc death/revival
+        # reconstruction + closure of run records that can no longer close
+        # themselves. Nothing else on the box runs it — the hole metric and the
+        # record TTLs depend on this job. Crontab line (operator install, same
+        # pattern as the siblings):
+        #   53 * * * * flock -n $HOME/.claude/state/daily-kaizen-coroner.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_coroner.py >> $HOME/.claude/kaizen-coroner.log 2>&1
+        cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_coroner.py --sweep
         ;;
     *)
         echo "weekly_catchup: unknown job '${JOB}'" >&2

@@ -724,6 +724,67 @@ def test_coroner_emissions_carry_sid_source_join(sources):
         assert event["sid_source"] == "join", f"{event['event']} claims {event['sid_source']}"
 
 
+# ── review fix-wave: adjudicated findings, red-first ─────────────────────────────────
+
+
+def test_holes_excludes_sessions_with_stop_pass(sources):
+    """H4: a normally-ended session (stop_pass events, no session_end) is NOT a hole
+    — liveliness is the last stop_pass (kaizen-event-stream.md); a hole is a session
+    with activity but NO stop_pass AND no session_end."""
+    _write_transcript(sources, "normal-1", [_normal_assistant_row()])
+    _write_transcript(sources, "lost-1", [_normal_assistant_row()])
+    assert kaizen_events.emit("stop_pass", sid="normal-1", outcome="clean")
+    assert kc.holes(sources) == 1, "only the stop_pass-less session is a hole"
+
+
+def test_weird_sid_sweep_is_idempotent(sources):
+    """M2: the emitter digests a sanitized sid into its filename — the coroner's
+    stream reads must use the SAME resolution or every sweep re-appends the death."""
+    sid = "sess.weird"
+    _write_transcript(sources, sid, [_stall_row(FIVE_TEXTS[0])])
+    for _ in range(3):
+        kc.sweep(sources, now=time.time())
+    fname = kaizen_events._safe_sid(sid)
+    assert fname != sid, "precondition: the sanitized filename differs from the raw sid"
+    path = sources.events_dir / f"{fname}.jsonl"
+    rows = [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
+    deaths = [r for r in rows if r.get("event") == "death"]
+    ends = [r for r in rows if r.get("event") == "session_end"]
+    assert (len(deaths), len(ends)) == (1, 1), "a triple sweep must stabilize (M2)"
+
+
+def test_ttl_expiry_emits_session_end_with_cause_ttl(sources):
+    """M3: a TTL closure must leave an event trail — session_end, closed_by ttl —
+    idempotently (a later sweep never re-emits for a no-longer-running record)."""
+    stale = "stale-ttl-1"
+    _write_record(sources, stale, age_s=13 * 3600)
+    report = kc.sweep(sources, now=time.time())
+    assert stale in report.records_expired
+    ends = [r for r in _events(sources, stale) if r.get("event") == "session_end"]
+    assert len(ends) == 1, "the TTL close must emit exactly one session_end"
+    assert ends[0].get("closed_by") == "ttl"
+    assert ends[0].get("sid_source") == "join"
+    kc.sweep(sources, now=time.time())
+    ends = [r for r in _events(sources, stale) if r.get("event") == "session_end"]
+    assert len(ends) == 1, "a second sweep must not re-emit"
+
+
+def test_inconclusive_transcript_never_kills_a_marker(sources):
+    """L3: a marker whose transcript EXISTS but is inconclusive must not close a
+    possibly-live session — skipped with a counted reason. A marker with no
+    transcript at all stays explicit evidence (the selftest's synthetic arm)."""
+    sid = "inconclusive-1"
+    _write_marker(sources, sid, "rate_limit")
+    _write_record(sources, sid)
+    # Newest record: an api-error assistant row OUTSIDE the five-text death family —
+    # the walk stops inconclusive (verdict None), the session may still be live.
+    _write_transcript(sources, sid, [_stall_row("Some other transient error")])
+    report = kc.sweep(sources, now=time.time())
+    assert sid not in report.deaths_reconstructed
+    assert sid in report.inconclusive, "the skip must be counted, never silent"
+    assert _record(sources, sid)["state"] == "running", "a possibly-live record stays open"
+
+
 # ── CLI: the duplex selftest canary ──────────────────────────────────────────────────
 
 

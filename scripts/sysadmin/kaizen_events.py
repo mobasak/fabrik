@@ -68,8 +68,9 @@ NOT_MEASURED = "—"
 #: from an inferred one, which is precisely the honesty this field exists to provide.
 SID_SOURCES = frozenset({"explicit", "env", "none", "join"})
 
-#: Default bound on each ``git`` probe in :func:`exposure`. Callers on a hot path (a
-#: mutation's post-save tail) pass a smaller ``probe_timeout_s``.
+#: Default bound on each ``git`` probe in :func:`exposure`. Batch callers keep it; a
+#: caller on an interactive hot path (the hooks, a mutation's post-save tail) passes a
+#: smaller ``probe_timeout_s``.
 DEFAULT_PROBE_TIMEOUT_S = 10.0
 
 # A defensive bound on one event, not the atomicity mechanism (that is O_APPEND's inode
@@ -80,9 +81,9 @@ MAX_LINE_BYTES = 4096
 # Bound on each candidate plan read by the exposure probe — one page, never a full file.
 PLAN_HEAD_BYTES = 4096
 
-# Default per-probe git timeout. Batch callers keep it; a caller on an interactive hot
-# path (the hooks) passes `probe_timeout_s=` something small.
-DEFAULT_PROBE_TIMEOUT_S = 10.0
+#: The exposure schema keys — every emitted line's ``exposure`` carries ALL of them
+#: (a partial ``exposure_override`` is merged over an all-``unknown`` baseline).
+EXPOSURE_KEYS = ("commit", "account", "model", "project", "headless", "plan_era")
 
 # Progressive shrink passes: (max chars per string, max items per list/dict).
 _PASSES = ((512, 200), (128, 50), (32, 10))
@@ -451,15 +452,24 @@ class _Clipper:
 def _free_key(key: str, payload: dict) -> str:
     """Rescue a caller key that collides with the envelope by prefixing ``f_``.
 
-    The prefix LOOPS: a caller sending both ``schema`` and ``f_schema`` must lose
-    neither, and a single-shot prefix would silently overwrite whichever was placed
-    first. Bounded so a pathological payload cannot spin.
+    The prefix LOOPS UNTIL FREE (P1): the key strictly grows each pass, so against a
+    fixed payload it terminates — a fixed iteration count with a PREDICTABLE
+    fallback name (``<key>_<len(payload)>``) was collidable by a crafted 9-deep
+    payload, silently overwriting a field. Past the 64-char cap a counter suffix
+    takes over, itself looped until free (the counter strictly grows, so it
+    terminates too); no field value is ever lost.
     """
-    for _ in range(8):
-        if key not in payload and key not in _RESERVED_KEYS:
-            return key
+    while (key in payload or key in _RESERVED_KEYS) and len(key) < 64:
         key = f"f_{key}"
-    return f"{key}_{len(payload)}"
+    if key not in payload and key not in _RESERVED_KEYS:
+        return key
+    stem = key[:57]  # room for "_" + a counter within the 64-char key budget
+    n = len(payload)
+    while True:
+        candidate = f"{stem}_{n}"
+        if candidate not in payload and candidate not in _RESERVED_KEYS:
+            return candidate
+        n += 1
 
 
 def build_line(event: str, sid: str, sid_source: str, fields: dict, exp: dict) -> str:
@@ -527,10 +537,12 @@ def emit(
     ``exposure_override`` is keyword-only (a dict passed positionally is a caller field
     mistake, never an override) and **producer-restricted**: a post-hoc producer (the coroner,
     reconstructing a `death` from a session that is already gone) passes the exposure it
-    joined from that session's own last trusted events, and it REPLACES the resolved
-    one verbatim rather than stamping the coroner's own process. It is a parameter, not
-    a caller field, so it is never ``f_``-re-keyed; anything that is not a dict is
-    ignored in favour of the live exposure.
+    joined from that session's own last trusted events, and it replaces the resolved
+    one — merged over an all-``unknown`` :data:`EXPOSURE_KEYS` baseline, so a PARTIAL
+    override can never ship a partial exposure (P3) — rather than stamping the
+    coroner's own process. It is a parameter, not a caller field, so it is never
+    ``f_``-re-keyed; anything that is not a dict is ignored in favour of the live
+    exposure.
 
     ``sid_source`` is keyword-only and provenance-restricted the same way: a sensor that
     RECONSTRUCTED the id (``command_run.py``'s ``--adopt-sid`` join) passes ``"join"`` so
@@ -552,7 +564,10 @@ def emit(
             else:
                 _warn(f"invalid sid_source {sid_source!r} — keeping the resolved {source!r}")
         if isinstance(exposure_override, dict):
-            exp = exposure_override
+            # P3: a PARTIAL override must not ship a partial exposure — the collector
+            # trusts every line to carry the whole schema. Merge over an all-unknown
+            # baseline; the producer's values win, missing keys degrade honestly.
+            exp = {**dict.fromkeys(EXPOSURE_KEYS, UNKNOWN), **exposure_override}
         elif probe_timeout_s is None:
             exp = exposure()
         else:

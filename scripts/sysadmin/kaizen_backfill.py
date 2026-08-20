@@ -257,7 +257,7 @@ def derive_transcript_session(path: Path, project: str | None, day: str) -> dict
         "gate": DASH,
         "runs": DASH,
         "stop_causes": DASH,
-        "death_class": DASH,
+        "death_classes": DASH,
         "concurrent": None,
         "concurrent_reason": _CONCURRENT_REASON,
         "lines_total": lines_total,
@@ -539,9 +539,22 @@ def _span(rows: list[dict]) -> str:
     return f"{days[0]}..{days[-1]}" if days else DASH
 
 
+def _full_registry() -> dict[str, dict]:
+    """The FULL metric registry — T06's set plus the outcome tier (M7): the noise
+    floor must cover every registered metric, not just T06's eight. Guarded: a box
+    mid-sync without kaizen_outcomes falls back to T06's set, warned."""
+    try:
+        import kaizen_outcomes  # noqa: PLC0415 - lazy; same directory
+
+        return kaizen_outcomes.registry()
+    except Exception as exc:
+        _warn(f"kaizen_outcomes unavailable ({exc!r}) — report covers T06 metrics only")
+        return kc.registry()
+
+
 def render_report(state: Path | None = None) -> str:
     st = state or kc.state_dir()
-    reg = kc.registry()
+    reg = _full_registry()
     all_rows = kc.read_rows(state=st)
     tr_rows = [r for r in all_rows if _era_of(r) == ERA_TRANSCRIPT]
     ev_rows = [r for r in all_rows if _era_of(r) == ERA_EVENT]

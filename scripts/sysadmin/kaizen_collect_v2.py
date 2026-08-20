@@ -55,6 +55,7 @@ import collections
 import contextlib
 import dataclasses
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
@@ -76,7 +77,11 @@ except Exception:  # pragma: no cover - a box mid-sync
     kaizen_events = None  # type: ignore[assignment]
 
 REPO = Path(__file__).resolve().parents[2]
-FACTS_VERSION = 1
+#: v2 (review fix-wave 2026-08-21): death_classes list (every death kept), truncated
+#: lines counted envelope-only, malformed-field reason codes, events_unattributed on
+#: the unknown row. The derived-row shape changed, so the version bumps and the golden
+#: corpus is re-labelled — the derived-facts law.
+FACTS_VERSION = 2
 SCHEMA = 1
 DASH = "—"
 UNKNOWN = "unknown"
@@ -145,7 +150,10 @@ def series_path(metric: str, version: int, state: Path | None = None) -> Path:
 
 
 def parse_line(raw: str, file_stem: str) -> tuple[dict | None, str | None]:
-    """``(event_row, None)`` for a good line, ``(None, reason_code)`` otherwise."""
+    """``(event_row, None)`` for a good line, ``(None, reason_code)`` otherwise —
+    with ONE dual case: a clipped line (``truncated``/``fields_dropped``) returns
+    ``(row, "truncated")``, both non-None, so the caller can count its intact
+    ENVELOPE while refusing its partial payload (M1)."""
     if not raw.strip():
         return None, "blank-line"
     try:
@@ -183,6 +191,13 @@ def parse_line(raw: str, file_stem: str) -> tuple[dict | None, str | None]:
         dt.datetime.fromisoformat(ts)
     except ValueError:
         return None, "invalid-ts"
+    if row.get("truncated") or row.get("fields_dropped"):
+        # M1: a clipped line parses, but its caller-field payload is PARTIAL — feeding
+        # it into a distribution metric would count a fragment as the whole (a clipped
+        # 120-check gate_run would land as a 50-check taxonomy). The envelope
+        # (event/ts/exposure) is intact and still counts; the payload never does. The
+        # ROW rides back with the reason so the caller can do envelope-only counting.
+        return row, "truncated"
     reason = _check_typed(event, row)
     if reason:
         return None, reason
@@ -241,6 +256,7 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
         return None
 
     events: collections.Counter[str] = collections.Counter()
+    events_unattr: collections.Counter[str] = collections.Counter()
     reasons: collections.Counter[str] = collections.Counter()
     projects: collections.Counter[str] = collections.Counter()
     stop_causes: collections.Counter[str] = collections.Counter()
@@ -254,27 +270,57 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
     done_evidenced = 0
     blocked = 0
     rounds_max = 0
-    death_class: str | None = None
+    death_classes: list[str] = []
     first_dt: dt.datetime | None = None
     last_dt: dt.datetime | None = None
 
-    for raw in lines:
-        row, reason = parse_line(raw, path.stem)
-        if row is None:
-            reasons[reason or "unclassified"] += 1
-            continue
-        event = str(row["event"])
-        events[event] += 1
+    def _window(row: dict) -> None:
+        nonlocal first_dt, last_dt
         when = dt.datetime.fromisoformat(str(row["ts"]))
         first_dt = when if first_dt is None or when < first_dt else first_dt
         last_dt = when if last_dt is None or when > last_dt else last_dt
+
+    for raw in lines:
+        row, reason = parse_line(raw, path.stem)
+        if reason is not None:
+            reasons[reason] += 1
+            if row is not None:
+                # A truncated line (M1): the ENVELOPE is intact — the event name,
+                # timestamps and exposure count; the partial payload never feeds a
+                # metric below.
+                events[str(row["event"])] += 1
+                _window(row)
+                proj = _project_of(row)
+                if proj:
+                    projects[proj] += 1
+            elif reason == "unattributable-sid":
+                # H3 input: the unknown bucket cannot make session facts, but its
+                # event NAMES are envelope truth — the attribution-honesty guard
+                # needs to know which numerator families sit here unattributable.
+                with contextlib.suppress(ValueError):
+                    obj = json.loads(raw)
+                    name = obj.get("event") if isinstance(obj, dict) else None
+                    if isinstance(name, str) and name:
+                        events_unattr[name] += 1
+            continue
+        if row is None:  # pragma: no cover - parse_line never returns (None, None)
+            continue
+        event = str(row["event"])
+        events[event] += 1
+        _window(row)
         proj = _project_of(row)
         if proj:
             projects[proj] += 1
         if event == "gate_run":
             gate_runs += 1
             status = str(row.get("status"))
-            if first_status is None:
+            # L5: a --check run (the Stop hook's automatic --lean --check self-review
+            # included) is diagnostic, never the session's FIRST ATTEMPT — only a
+            # non-check run may define first_status. A missing mode is a pre-mode
+            # emitter line and counts (it cannot be proven a check run).
+            mode = row.get("mode")
+            is_check = isinstance(mode, dict) and bool(mode.get("check"))
+            if first_status is None and not is_check:
                 first_status = status
             if status == "success":
                 gate_pass += 1
@@ -291,6 +337,10 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
                 ev = row.get("evidence_hash")
                 if isinstance(ev, str) and ev:
                     done_evidenced += 1
+                elif ev is not None:
+                    # M8: a present-but-malformed evidence hash is an instrument
+                    # defect, counted — never silently "unevidenced".
+                    reasons["malformed-evidence_hash"] += 1
             else:
                 blocked += 1
         elif event == "round":
@@ -299,8 +349,12 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             cause = row.get("cause")
             if isinstance(cause, str) and cause:
                 stop_causes[cause] += 1
+            else:
+                # M8: cause is a required field of stop_block — missing or
+                # non-string is counted, never a silent drop.
+                reasons["malformed-stop_block-cause"] += 1
         elif event == "death":
-            death_class = str(row["class"])
+            death_classes.append(str(row["class"]))
 
     return {
         "facts_version": FACTS_VERSION,
@@ -315,6 +369,9 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
         # the lexicographically first name — deterministic, never insertion order.
         "project": (min(projects.items(), key=lambda kv: (-kv[1], kv[0]))[0] if projects else None),
         "events": dict(events),
+        # Envelope event-name counts of the UNKNOWN bucket's lines (empty for every
+        # attributed session) — the attribution-honesty guard's input (H3/M5).
+        "events_unattributed": dict(events_unattr),
         "gate": {
             "runs": gate_runs,
             "first_status": first_status,
@@ -330,7 +387,9 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             "rounds_max": rounds_max,
         },
         "stop_causes": dict(stop_causes),
-        "death_class": death_class,
+        # Every death class, in order of occurrence (M9) — a session can die more
+        # than once (death -> revival -> death) and each class is data.
+        "death_classes": death_classes,
         "concurrent": None,
         "concurrent_reason": None,
         "lines_total": len(lines),
@@ -374,6 +433,25 @@ def derive_batch(paths: list[Path], day: str | None = None) -> list[dict]:
 
 
 # ── the derived-facts store — append-only JSONL, re-derived only at version bump ─────
+
+
+@contextlib.contextmanager
+def _store_lock(target: Path) -> Iterator[None]:
+    """EXCLUSIVE inter-process lock over a read-keys→append seam (L6).
+
+    ``O_APPEND`` keeps each individual write atomic, but the DEDUP decision — read
+    the known keys, then append what is missing — is two steps: a daily run and a
+    backfill racing it both read "absent" and both append. flock on a sibling
+    ``.lock`` file serializes the whole seam; closing the fd releases it, and a
+    crashed holder's lock dies with its process (flock, not a stale lockfile
+    protocol)."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(f"{target}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 def _iter_facts(state: Path) -> Iterator[dict]:
@@ -424,23 +502,26 @@ def append_facts(rows: list[dict], state: Path | None = None) -> int:
     """Append rows not already present at their (sid, facts_version, day). Append-only:
     nothing is ever rewritten; a version bump — or a later derivation day for a file
     that grew — appends NEW rows alongside the old. The key is enforced against the
-    call's OWN batch too: a duplicate inside one call appends exactly once."""
+    call's OWN batch too: a duplicate inside one call appends exactly once. The whole
+    read-keys→append seam runs under :func:`_store_lock` (L6) — two processes racing
+    the same key must land it exactly once."""
     st = state or state_dir()
-    known = known_fact_keys(st)
-    fresh: list[dict] = []
-    for r in rows:
-        key = _fact_key(r)
-        if key in known:
-            continue
-        known.add(key)
-        fresh.append(r)
-    if not fresh:
-        return 0
-    st.mkdir(parents=True, exist_ok=True)
-    with open(facts_path(st), "a", encoding="utf-8") as fh:
-        for row in fresh:
-            fh.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
-    return len(fresh)
+    with _store_lock(facts_path(st)):
+        known = known_fact_keys(st)
+        fresh: list[dict] = []
+        for r in rows:
+            key = _fact_key(r)
+            if key in known:
+                continue
+            known.add(key)
+            fresh.append(r)
+        if not fresh:
+            return 0
+        st.mkdir(parents=True, exist_ok=True)
+        with open(facts_path(st), "a", encoding="utf-8") as fh:
+            for row in fresh:
+                fh.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+        return len(fresh)
 
 
 def _event_era(row: dict) -> bool:
@@ -547,6 +628,7 @@ _DELTA_SCALARS: tuple[tuple[str | None, tuple[str, ...]], ...] = (
 #: (container key or None, counter-map field name) — additive {name: count} maps.
 _DELTA_MAPS: tuple[tuple[str | None, str], ...] = (
     (None, "events"),
+    (None, "events_unattributed"),
     (None, "unclassified_reasons"),
     (None, "stop_causes"),
     ("gate", "failed_checks"),
@@ -587,9 +669,11 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
     return None, so that sid publishes NOTHING that day — never a negative.
 
     Non-additive fields are point-in-time, not deltas: ``gate.first_status`` is kept
-    only when the predecessor had no gate runs (a session's first attempt counts once,
-    on the day it appeared); ``rounds_max``/``death_class``/``concurrent``/window
-    timestamps carry the current row's values.
+    only when the predecessor had not already recorded one (a session's first NON-check
+    attempt counts once, on the day it appeared — a predecessor whose runs were all
+    ``--check`` has ``first_status: None`` and has NOT consumed the first attempt, L5);
+    ``rounds_max``/``death_classes``/``concurrent``/window timestamps carry the current
+    row's values.
     """
     if prev is None:
         out = dict(cur)  # the store row is never mutated
@@ -618,7 +702,7 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
         dst = out[container] if container else out
         dst[field] = diff_map
     prev_gate = prev.get("gate") or {}
-    if int(prev_gate.get("runs", 0) or 0) > 0:
+    if prev_gate.get("first_status") is not None:
         out["gate"]["first_status"] = None
     out["delta_of"] = prev.get("day")
     return out
@@ -671,26 +755,58 @@ def predecessors(before_day: str, state: Path | None = None) -> dict[str, dict]:
     return out
 
 
+def read_week_rows(week: tuple[int, int], state: Path | None = None) -> list[dict]:
+    """The latest row per sid WITHIN one ISO week — the weekly log-cell input (L1).
+
+    The global latest-per-sid collapse (:func:`read_rows`) answers "current state";
+    filtering IT by week drops a sid whose newest row moved to a later week, silently
+    vacating that sid's earlier week. The weekly read collapses PER WEEK instead:
+    only rows whose ``day`` falls in the week compete, ranked ``(facts_version, day)``
+    with append order as the final tie-break, exactly like :func:`read_rows`."""
+    st = state or state_dir()
+
+    def rank(r: dict) -> tuple[int, str]:
+        day = r.get("day")
+        return (int(r.get("facts_version", 0)), day if isinstance(day, str) else "")
+
+    best: dict[str, dict] = {}
+    for row in _iter_facts(st):
+        sid, day = row.get("sid"), row.get("day")
+        if not isinstance(sid, str) or not isinstance(day, str):
+            continue
+        if _iso_week(day) != week:
+            continue
+        cur = best.get(sid)
+        if cur is None or rank(row) >= rank(cur):
+            best[sid] = row
+    return sorted(best.values(), key=lambda r: str(r.get("sid")))
+
+
 # ── the metric registry — paired counters are a SCHEMA constraint ─────────────────────
 
 METRIC_DEFS: tuple[dict, ...] = (
     {
         "id": "rules_compliance",
-        "version": 1,
+        "version": 2,
         "counter_metric": "terminator_spam",
         "formula": (
             "run_close events with verdict done AND a non-empty evidence_hash / all "
             "run_close events (denominator = run-record closures). Coroner/TTL closures "
-            "emit no run_close; they ride hole_count."
+            "emit no run_close; they ride hole_count. Renders — when attributed "
+            "run_close occurrences are below the 20% attribution floor of the family "
+            "total (the unknown stream holds the mass) — an attributed sliver is not "
+            "the population."
         ),
     },
     {
         "id": "terminator_spam",
-        "version": 1,
+        "version": 2,
         "counter_metric": "rules_compliance",
         "formula": (
             "final_block_emitted events / run-record closures — above 1.0 means task "
-            "terminators were emitted without a matching closed run."
+            "terminators were emitted without a matching closed run. Renders — under "
+            "the same 20% run_close attribution floor as rules_compliance (the pair "
+            "dashes together)."
         ),
     },
     {
@@ -712,12 +828,14 @@ METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "first_attempt_gate_pass",
-        "version": 1,
+        "version": 2,
         "counter_metric": "premature_stop_rate",
         "formula": (
-            "sessions whose FIRST attributed gate_run has status success / sessions "
-            "with >=1 attributed gate_run. Unattributed gate_runs sit in the unknown "
-            "bucket and ride unclassified_rate."
+            "sessions whose FIRST attributed NON-check gate_run (mode.check false — "
+            "the Stop hook's automatic --lean --check self-review never defines a "
+            "first attempt) has status success / sessions whose first such run fell "
+            "in the window. Unattributed gate_runs sit in the unknown bucket and "
+            "ride unclassified_rate."
         ),
     },
     {
@@ -731,31 +849,39 @@ METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "rule_activation",
-        "version": 1,
+        "version": 2,
         "counter_metric": "gate_failure_taxonomy",
         "formula": (
             "sessions with >=1 attributed rule_activation event / sessions with >=1 "
             "run-record closure. Labelled INVOCATION-TIME activation (select_rules / "
-            "rubric runs) — per-edit glob firing is an M2 residual, not measured here."
+            "rubric runs) — per-edit glob firing is an M2 residual, not measured here. "
+            "Renders — when attributed rule_activation occurrences are below the 20% "
+            "attribution floor of the family total (sensor events unattributable in "
+            "the unknown stream) — never a fabricated 0%."
         ),
     },
     {
         "id": "unclassified_rate",
-        "version": 1,
+        "version": 2,
         "counter_metric": "hole_count",
         "formula": (
-            "(unclassified lines + sessions excluded from concurrency for a missing "
-            "exposure.project) / (total lines + sessions). Instrument health, metric "
-            "zero."
+            "unclassified lines (torn/malformed/truncated, PLUS the unknown stream's "
+            "lines via their unattributable-sid reason) / total event lines observed. "
+            "Sessions missing exposure.project are a STRATIFICATION gap (concurrency-"
+            "excluded, visible in concurrent_reason), not instrument unhealth — they "
+            "count in neither term. Instrument health, metric zero."
         ),
     },
     {
         "id": "hole_count",
-        "version": 1,
+        "version": 2,
         "counter_metric": "unclassified_rate",
         "formula": (
-            "kaizen_coroner.holes(): transcripts-with-activity minus sessions-with-"
-            "session_end for the day. Instrument health, metric zero."
+            "kaizen_coroner.holes(): transcripts-with-activity minus sessions with a "
+            "stop_pass OR session_end for the day — the documented liveliness "
+            "semantics (a normally-ended session's liveliness is its last stop_pass; "
+            "session_end is the coroner's post-hoc close). Instrument health, metric "
+            "zero."
         ),
     },
 )
@@ -831,6 +957,40 @@ def _pct(num: int, den: int) -> str:
     return f"{100 * num / den:.0f}% ({num}/{den})"
 
 
+#: The attribution-honesty floor (H3/M5): when a metric's numerator event family sits
+#: mostly in the UNKNOWN stream, the attributed sliver is not the population —
+#: publishing it would fabricate precision (a 0% rule_activation while every
+#: rule_activation event is unattributable; an n=1 rules_compliance against 38
+#: unknown closures). Below this attributed share the metric renders ``—`` with the
+#: reason. The floor is part of the affected metrics' formulas (def-hashed, v2).
+ATTRIBUTED_MIN_SHARE = 0.2
+
+
+def _unattributed_count(rows: list[dict], names: tuple[str, ...]) -> int:
+    total = 0
+    for r in rows:
+        ev = r.get("events_unattributed")
+        if isinstance(ev, dict):
+            total += sum(int(ev.get(n, 0) or 0) for n in names)
+    return total
+
+
+def _attribution_guard(
+    rows: list[dict], names: tuple[str, ...], attributed: int, what: str
+) -> str | None:
+    """``None`` when attribution is trustworthy, else the ``—`` reason (H3/M5)."""
+    unattributed = _unattributed_count(rows, names)
+    if unattributed <= 0:
+        return None
+    total = attributed + unattributed
+    if attributed / total < ATTRIBUTED_MIN_SHARE:
+        return (
+            f"{what} unattributable — {attributed} attributed vs {unattributed} in "
+            f"the unknown stream (below the {ATTRIBUTED_MIN_SHARE:.0%} attribution floor)"
+        )
+    return None
+
+
 def compute_metrics(
     rows: list[dict], holes: int | None = None, holes_reason: str = "no hole source provided"
 ) -> dict[str, MetricResult]:
@@ -846,7 +1006,10 @@ def compute_metrics(
 
     closures = runs("done") + runs("blocked")
     evidenced = runs("done_evidenced")
-    if closures:
+    # H3/M5: the run-record pair is guarded by the attribution floor — an n=1
+    # attributed closure against an unknown-stream mass publishes NOTHING.
+    closure_guard = _attribution_guard(rows, ("run_close",), closures, "run-record events")
+    if closures and closure_guard is None:
         out["rules_compliance"] = MetricResult(
             id="rules_compliance",
             cell=_pct(evidenced, closures),
@@ -865,13 +1028,14 @@ def compute_metrics(
             denominator=closures,
         )
     else:
-        out["rules_compliance"] = MetricResult.unavailable(
-            "rules_compliance", "no run-record closures in the window"
-        )
         blocks = esum("final_block_emitted")
+        out["rules_compliance"] = MetricResult.unavailable(
+            "rules_compliance", closure_guard or "no run-record closures in the window"
+        )
         out["terminator_spam"] = MetricResult.unavailable(
             "terminator_spam",
-            f"no run-record closures to normalize against ({blocks} terminator block(s) seen)",
+            closure_guard
+            or f"no run-record closures to normalize against ({blocks} terminator block(s) seen)",
         )
 
     stops = esum("stop_pass") + esum("stop_block")
@@ -941,7 +1105,12 @@ def compute_metrics(
         if int((r.get("runs") or {}).get("done", 0)) + int((r.get("runs") or {}).get("blocked", 0))
         > 0
     ]
-    if closure_rows:
+    # H3: when the rule_activation family lives only in the unknown stream, a 0%
+    # over attributed sessions is a fabrication — the sensors fired, unattributably.
+    activation_guard = _attribution_guard(
+        rows, ("rule_activation",), esum("rule_activation"), "sensor events"
+    )
+    if closure_rows and activation_guard is None:
         activated = sum(
             1 for r in closure_rows if int((r.get("events") or {}).get("rule_activation", 0)) > 0
         )
@@ -955,30 +1124,33 @@ def compute_metrics(
         )
     else:
         out["rule_activation"] = MetricResult.unavailable(
-            "rule_activation", "no session closed a run record in the window"
+            "rule_activation",
+            activation_guard or "no session closed a run record in the window",
         )
 
+    # H2: lines over lines. The unknown stream's lines count in the numerator via
+    # their unattributable-sid reason; a session missing exposure.project is a
+    # STRATIFICATION gap (visible in concurrent_reason), not instrument unhealth —
+    # it inflates neither term.
     total_lines = sum(int(r.get("lines_total", 0)) for r in rows)
     uncl_lines = sum(int(r.get("lines_unclassified", 0)) for r in rows)
     excluded = sum(1 for r in rows if r.get("concurrent_reason") == "missing exposure.project")
-    den = total_lines + len(rows)
-    if den:
-        num = uncl_lines + excluded
+    if total_lines:
         out["unclassified_rate"] = MetricResult(
             id="unclassified_rate",
-            cell=_pct(num, den),
+            cell=_pct(uncl_lines, total_lines),
             detail=(
-                f"{uncl_lines} unclassified line(s) + {excluded} session(s) excluded from "
-                f"concurrency (missing exposure.project) over {total_lines} lines + "
-                f"{len(rows)} sessions"
+                f"{uncl_lines} unclassified line(s) (unknown-stream lines included) "
+                f"over {total_lines} lines; {excluded} session(s) missing "
+                "exposure.project are a stratification gap, counted in neither term"
             ),
-            value=num / den,
-            numerator=num,
-            denominator=den,
+            value=uncl_lines / total_lines,
+            numerator=uncl_lines,
+            denominator=total_lines,
         )
     else:
         out["unclassified_rate"] = MetricResult.unavailable(
-            "unclassified_rate", "no lines or sessions in the window"
+            "unclassified_rate", "no lines in the window"
         )
 
     if holes is None:
@@ -987,7 +1159,10 @@ def compute_metrics(
         out["hole_count"] = MetricResult(
             id="hole_count",
             cell=str(int(holes)),
-            detail="transcripts with activity but no session_end (coroner hole metric)",
+            detail=(
+                "transcripts with activity but no stop_pass and no session_end "
+                "(coroner hole metric)"
+            ),
             value=int(holes),
             numerator=int(holes),
             denominator=None,
@@ -1030,22 +1205,25 @@ def publish_series(
         if m is None or not m.measurable:
             continue  # an unmeasurable metric publishes NOTHING — the row renders `—`
         path = series_path(mid, int(mdef["version"]), st)
-        if day in _series_days(path):
-            continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        row = {
-            "day": day,
-            "metric": mid,
-            "version": mdef["version"],
-            "def_hash": mdef["hash"],
-            "value": m.value,
-            "numerator": m.numerator,
-            "denominator": m.denominator,
-            "cell": m.cell,
-        }
-        with open(path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
-        written.append(path)
+        # L6: the read-days→append seam is the same two-step race as the facts store
+        # — locked per series file so concurrent publishers stay idempotent.
+        with _store_lock(path):
+            if day in _series_days(path):
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            row = {
+                "day": day,
+                "metric": mid,
+                "version": mdef["version"],
+                "def_hash": mdef["hash"],
+                "value": m.value,
+                "numerator": m.numerator,
+                "denominator": m.denominator,
+                "cell": m.cell,
+            }
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+            written.append(path)
     return written
 
 
@@ -1142,16 +1320,18 @@ def _iso_week(value: str) -> tuple[int, int] | None:
 
 
 def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
-    """kaizen_metrics semantics, carried over: mechanical cells win, analyst-filled
-    cells survive; a mechanical ``—`` yields to whatever a human/agent put there.
-    ``force_dash`` (golden refusal) stamps the mechanical cells ``—`` regardless —
-    a red instrument publishes no numbers — while the analyst cells still survive."""
+    """Mechanical cells ALWAYS take the newly computed value — a dash included: a
+    fresh honest ``—`` under an advanced date must never republish the previous
+    day's stale number (H6). Only the ANALYST cells keep the yield rule (a ``—``
+    yields to whatever the analysis half put there — the script never overwrites a
+    human's cell with a dash). ``force_dash`` (golden refusal) stamps the mechanical
+    cells ``—`` regardless while the analyst cells still survive."""
     merged = list(new)
     for i in range(1, len(new)):
         if force_dash and i not in _ANALYST_CELLS:
             merged[i] = DASH
             continue
-        if merged[i] == DASH and i < len(old) and old[i] not in ("", DASH):
+        if i in _ANALYST_CELLS and merged[i] == DASH and i < len(old) and old[i] not in ("", DASH):
             merged[i] = old[i]
     return merged
 
@@ -1197,13 +1377,43 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     return True
 
 
-def log_cells(day: dt.date, metrics: dict[str, MetricResult], rows: list[dict]) -> list[str]:
+def log_cells(
+    day: dt.date,
+    metrics: dict[str, MetricResult],
+    rows: list[dict],
+    all_rows: list[dict] | None = None,
+) -> list[str]:
     """Map the v2 metrics onto the shipped kaizen-log columns. Unmapped columns stay
-    ``—`` with the reason on stderr — never a fabricated value."""
+    ``—`` with the reason on stderr — never a fabricated value. ``all_rows`` is the
+    whole store's row universe: the death cell needs to know whether the CORONER has
+    ever produced evidence anywhere, not just this week (M9)."""
+
+    def _ev(r: dict, name: str) -> int:
+        events = r.get("events")
+        return int(events.get(name, 0)) if isinstance(events, dict) else 0
+
+    universe = rows if all_rows is None else all_rows
     if rows:
-        occ = sum(int((r.get("events") or {}).get("death", 0)) for r in rows)
-        classes = {r.get("death_class") for r in rows if r.get("death_class")}
-        deaths = f"{occ} occ / {len(classes)} cls"
+        occ = sum(_ev(r, "death") for r in rows)
+        classes = {
+            c
+            for r in rows
+            if isinstance(r.get("death_classes"), list)
+            for c in r["death_classes"]
+            if c
+        }
+        # M9: a "0 occ / 0 cls" while NOTHING in the store carries coroner output
+        # (no death, no session_end, ever) is a fabricated zero — the coroner has
+        # simply never run. A coroner-backed zero still prints.
+        coroner_evidence = any(_ev(r, "death") or _ev(r, "session_end") for r in universe)
+        if occ == 0 and not coroner_evidence:
+            deaths = DASH
+            _warn(
+                f"Death-classes /wk = {DASH} — no death/session_end event anywhere in "
+                "the store: the coroner has never run, a 0 would be fabricated"
+            )
+        else:
+            deaths = f"{occ} occ / {len(classes)} cls"
     else:
         deaths = DASH
         _warn(f"Death-classes /wk = {DASH} — no derived sessions in the window")
@@ -1283,13 +1493,40 @@ def _emit_alarm(reason: str, mismatches: list[str]) -> None:
 # ── daily mode ────────────────────────────────────────────────────────────────────────
 
 
-def _coroner_holes(day: dt.date) -> tuple[int | None, str]:
+def _coroner_holes(day: dt.date, events: Path | None = None) -> tuple[int | None, str]:
+    """The coroner hole probe. ``events`` pins the probe's event store to the SAME
+    dir this daily pass consumes (L4) — the default-source probe silently counted a
+    different store's holes whenever ``daily(events=…)`` was overridden."""
     try:
         import kaizen_coroner  # noqa: PLC0415 - lazy; same directory
 
-        return int(kaizen_coroner.holes(day=day)), ""
+        sources = None
+        if events is not None:
+            sources = dataclasses.replace(kaizen_coroner.Sources.default(), events_dir=events)
+        return int(kaizen_coroner.holes(sources, day=day)), ""
     except Exception as exc:
         return None, f"coroner unavailable: {exc!r}"
+
+
+def _publish_outcome_series(day_stamp: str, st: Path) -> list[Path]:
+    """T07's STORE-DERIVED outcome metrics (premature_stop / stop_block_causes /
+    review_rounds) ride the same daily publish (M7): the noise floor needs their
+    series days and nothing else appends them daily. The sweep/rework tiers keep
+    their own runners — a daily pass must never mine git or clone worktrees.
+    Guarded + fail-open: a box without kaizen_outcomes costs the outcome series
+    only, never the T06 publish."""
+    try:
+        import kaizen_outcomes  # noqa: PLC0415 - lazy; avoids a module-import cycle
+
+        reg = kaizen_outcomes.registry()
+        prem, causes = kaizen_outcomes.premature_stop(state=st)
+        rounds = kaizen_outcomes.review_rounds(state=st)
+        results = {m.id: m for m in (prem, causes, rounds)}
+        sub = {mid: reg[mid] for mid in results if mid in reg}
+        return publish_series(day_stamp, results, sub, st)
+    except Exception as exc:
+        _warn(f"outcome-tier series publish failed open: {exc!r}")
+        return []
 
 
 def daily(
@@ -1308,11 +1545,14 @@ def daily(
     mismatch: exit non-zero, emit ``instrument_alarm``, publish NOTHING, render the
     log row ``—`` (reason on stderr + mail).
 
-    Session files are selected by mtime date (a session is derived on the day it
-    stops writing — the day its record is complete), and the concurrency flag is
-    computed within that day's derivation batch: rows are immutable once appended
-    (the derived-facts law), so a session late-derived on a re-run sees only its own
-    batch's windows. Honest limit, stated here rather than papered over.
+    Session files are selected by mtime date >= the target day — anything still
+    ALIVE at or after the day (H1: strict equality permanently excluded the
+    never-quiescing ``unknown.jsonl`` and deferred every still-active session; the
+    keyed dedup and the delta seam keep the later re-derivations honest). The
+    concurrency flag is computed within that day's derivation batch: rows are
+    immutable once appended (the derived-facts law), so a session late-derived on a
+    re-run sees only its own batch's windows. Honest limit, stated here rather than
+    papered over.
 
     The DAY series is published from per-day DELTAS (see delta_row) so a grown file
     never re-counts earlier days. The human-facing weekly log cells, by contrast,
@@ -1323,6 +1563,13 @@ def daily(
     root = repo_root or REPO
     ev = events or events_dir()
     st = state or state_dir()
+    # M6: validate the registry BEFORE any state mutation — a broken definition set
+    # must refuse loudly (alarm + raise), never after facts were already appended.
+    try:
+        reg = registry()
+    except Exception as exc:
+        _emit_alarm(f"metric registry invalid: {exc!r}", [])
+        raise
     logs = (
         log_paths
         if log_paths is not None
@@ -1356,7 +1603,11 @@ def daily(
     todays: list[Path] = []
     for f in candidates:
         try:
-            if dt.date.fromtimestamp(f.stat().st_mtime) == day:
+            # H1: anything ALIVE at or after the target day. Strict equality
+            # permanently excluded unknown.jsonl (it never quiesces — its mtime is
+            # always today) and deferred every still-active session forever. The
+            # keyed dedup + delta seam keep later re-derivations honest.
+            if dt.date.fromtimestamp(f.stat().st_mtime) >= day:
                 todays.append(f)
         except (OSError, OverflowError, ValueError):
             continue
@@ -1396,20 +1647,19 @@ def daily(
     if holes_fn is not None and callable(holes_fn):
         holes, holes_reason = holes_fn(day), ""
     else:
-        holes, holes_reason = _coroner_holes(day)
+        holes, holes_reason = _coroner_holes(day, ev)
     metrics_day = compute_metrics(day_deltas, holes, holes_reason or "no hole source provided")
-    reg = registry()
     written = publish_series(day_stamp, metrics_day, reg, st)
+    # M7: the store-derived outcome tier publishes its series days here too —
+    # guarded, fail-open (a warn, never a lost T06 publish).
+    written += _publish_outcome_series(day_stamp, st)
 
     week = day.isocalendar()[:2]
-    week_rows = [
-        r
-        for r in all_rows
-        if isinstance(r.get("day"), str)
-        and (_iso_week(r["day"]) == week if _iso_week(r["day"]) else False)
-    ]
+    # L1: per-week latest per sid — filtering the GLOBAL latest-per-sid collapse by
+    # week drops a sid whose newest row moved to a later week.
+    week_rows = [r for r in read_week_rows(week, st) if _event_era(r)]
     metrics_week = compute_metrics(week_rows, holes, holes_reason or "no hole source provided")
-    cells = log_cells(day, metrics_week, week_rows)
+    cells = log_cells(day, metrics_week, week_rows, all_rows=all_rows)
     for lp in logs:
         upsert_log_row(lp, cells)
 
@@ -1531,22 +1781,26 @@ def selftest() -> int:
             "a torn line must count as unclassified with its reason",
         )
 
-        # ARM 4 — a definition version bump leaves the published v-file byte-identical.
-        v1_files = sorted((st / "series").glob("*@v1.jsonl"))
-        before = {p: p.read_bytes() for p in v1_files}
+        # ARM 4 — a definition version bump leaves the published files byte-identical.
+        published = sorted((st / "series").glob("*.jsonl"))
+        before = {p: p.read_bytes() for p in published}
         bumped = {
-            mid: {**d, "version": 2, "hash": _def_hash({**d, "version": 2})}
+            mid: {
+                **d,
+                "version": int(d["version"]) + 1,
+                "hash": _def_hash({**d, "version": int(d["version"]) + 1}),
+            }
             for mid, d in registry().items()
         }
         metrics = compute_metrics(rows, holes=1)
         publish_series(dt.date.today().isoformat(), metrics, bumped, st)
         expect(
-            all(p.read_bytes() == before[p] for p in v1_files),
-            "recompute at v2 must leave every v1 series byte-identical",
+            all(p.read_bytes() == before[p] for p in published),
+            "recompute at a bumped version must leave every published series byte-identical",
         )
         expect(
-            any((st / "series").glob("*@v2.jsonl")),
-            "recompute at v2 must write NEW versioned series files",
+            bool(set((st / "series").glob("*.jsonl")) - set(published)),
+            "recompute at a bumped version must write NEW versioned series files",
         )
 
     if failures:

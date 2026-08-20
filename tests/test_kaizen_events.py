@@ -167,8 +167,9 @@ def test_shadow_rescue_prefix_loops_until_free(_isolated_events_dir):
 
 def test_exposure_override_replaces_the_resolved_exposure(_isolated_events_dir):
     """The coroner reconstructs events post-hoc: its exposure is joined from the dead
-    session's own last trusted events, so it REPLACES the live one instead of stamping
-    the coroner's process. Producer-restricted — never a caller field."""
+    session's own last trusted events, so it replaces the live one instead of stamping
+    the coroner's process — merged over the all-unknown baseline (P3), so a partial
+    override still ships every schema key. Producer-restricted — never a caller field."""
     override = {"commit": "deadbeef", "account": "mob", "model": "claude-opus-5"}
     assert (
         kaizen_events.emit("death", sid="s1", exposure_override=override, reconstructed=True)
@@ -176,7 +177,10 @@ def test_exposure_override_replaces_the_resolved_exposure(_isolated_events_dir):
     )
 
     row = _lines(_isolated_events_dir / "s1.jsonl")[0]
-    assert row["exposure"] == override
+    assert row["exposure"] == {
+        **dict.fromkeys(kaizen_events.EXPOSURE_KEYS, kaizen_events.UNKNOWN),
+        **override,
+    }
     assert row["reconstructed"] is True
     assert "f_exposure_override" not in row
 
@@ -657,3 +661,38 @@ def test_instrument_alarm_is_vocabulary_no_unknown_event_warn(_isolated_events_d
     assert "unknown event type" not in capsys.readouterr().err
     row = _lines(_isolated_events_dir / "collector.jsonl")[-1]
     assert row["event"] == "instrument_alarm"
+
+
+# ── review fix-wave: adjudicated findings, red-first ─────────────────────────────────
+
+
+def test_free_key_survives_a_crafted_nine_deep_collision(_isolated_events_dir):
+    """P1: the 8-iteration fallback key (``<key>_<len(payload)>``) was predictable
+    and collidable — a crafted 9-deep payload silently overwrote a field. The rescue
+    must loop until the key is actually FREE; no field value may be lost."""
+    fields: dict[str, object] = {}
+    name = "f_schema"
+    for i in range(8):
+        fields[name] = f"chain-{i}"
+        name = f"f_{name}"
+    # The old fallback name for the final "schema" field: 8 f_ prefixes + the payload
+    # size at that point (5 envelope keys + exposure + 9 caller fields = 15).
+    fields["f_f_f_f_f_f_f_f_schema_15"] = "victim"
+    fields["schema"] = "attacker"
+    line = kaizen_events.build_line("round", "sid", "explicit", fields, {"project": "x"})
+    row = json.loads(line)
+    values = {str(v) for v in row.values()}
+    assert "victim" in values, "the crafted collision must not overwrite an earlier field"
+    assert "attacker" in values, "the colliding field itself must also survive"
+    assert row["schema"] == kaizen_events.SCHEMA, "the envelope is never shadowed"
+
+
+def test_partial_exposure_override_is_merged_over_unknown_baseline(_isolated_events_dir):
+    """P3: a partial exposure_override must not ship a partial exposure — every
+    schema key is present, the missing ones the literal unknown."""
+    assert kaizen_events.emit("death", sid="p3", exposure_override={"project": "px"})
+    row = _lines(_isolated_events_dir / "p3.jsonl")[-1]
+    exp = row["exposure"]
+    assert exp["project"] == "px"
+    for key in ("commit", "account", "model", "headless", "plan_era"):
+        assert exp[key] == kaizen_events.UNKNOWN, f"{key} must degrade to unknown, not vanish"

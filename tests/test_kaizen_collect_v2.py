@@ -375,8 +375,9 @@ def test_missing_project_excluded_and_counted(tmp_path: Path) -> None:
     metrics = kc.compute_metrics(list(rows.values()), holes=0)
     m = metrics["unclassified_rate"]
     assert m.measurable
-    # 0 bad lines + 1 excluded session over 4 lines + 2 sessions
-    assert (m.numerator, m.denominator) == (1, 6)
+    # H2: 0 bad lines over 4 lines — the project-less session is a stratification
+    # gap (visible in concurrent_reason), never instrument unhealth.
+    assert (m.numerator, m.denominator) == (0, 4)
 
 
 # ── the derived-facts store: append-only, re-derived only at version bump ────────────
@@ -449,7 +450,7 @@ def test_series_day_is_idempotent(tmp_path: Path) -> None:
     assert first
     again = kc.publish_series("2026-08-18", metrics, reg, st)
     assert again == [], "a day already published is never re-appended"
-    path = kc.series_path("rules_compliance", 1, st)
+    path = kc.series_path("rules_compliance", 2, st)
     assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
@@ -499,20 +500,18 @@ def test_metric_values_over_the_golden_rows() -> None:
         metrics["premature_stop_rate"].numerator,
         metrics["premature_stop_rate"].denominator,
     ) == (1, 8)
-    assert (
-        metrics["first_attempt_gate_pass"].numerator,
-        metrics["first_attempt_gate_pass"].denominator,
-    ) == (0, 1)
+    # L5: golden-alpha's two gate_runs are BOTH --check runs — no session has a
+    # non-check first attempt, so the metric honestly dashes.
+    assert not metrics["first_attempt_gate_pass"].measurable
     assert metrics["gate_failure_taxonomy"].value == {"Doc Sync Matrix": 1}
-    assert (metrics["rule_activation"].numerator, metrics["rule_activation"].denominator) == (
-        0,
-        2,
-    )
-    # 10 unclassified lines + 1 concurrency-excluded session over 33 lines + 5 sessions
+    # H3: every rule_activation occurrence sits in the unknown stream — dash, not 0%.
+    assert not metrics["rule_activation"].measurable
+    assert "unattributable" in metrics["rule_activation"].detail
+    # H2: 10 unclassified lines over 33 lines — lines over lines, no session terms.
     assert (
         metrics["unclassified_rate"].numerator,
         metrics["unclassified_rate"].denominator,
-    ) == (11, 38)
+    ) == (10, 33)
     assert metrics["hole_count"].cell == "3"
 
 
@@ -533,7 +532,8 @@ def test_log_row_iso_week_idempotence_and_analyst_preservation(tmp_path: Path) -
             lines[i] = "| " + " | ".join(cells) + " |"
     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
     # Tuesday, same ISO week: the row UPDATES in place; analyst cells survive; a
-    # mechanical `—` yields to the analyst's earlier value — never stamped back.
+    # mechanical `—` PUBLISHES (H6 — a fresh honest dash must never republish the
+    # earlier number under a new date); only analyst cells yield.
     tuesday = ["2026-08-18", "67% (2/3)", DASH, DASH, "3.0 (n=2)", DASH, DASH, DASH]
     assert kc.upsert_log_row(log, tuesday)
     lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.startswith("| 2026")]
@@ -541,7 +541,7 @@ def test_log_row_iso_week_idempotence_and_analyst_preservation(tmp_path: Path) -
     cells = [c.strip() for c in lines[0].strip().strip("|").split("|")]
     assert cells[0] == "2026-08-18"
     assert cells[1] == "67% (2/3)", "a fresher mechanical value wins"
-    assert cells[2] == "1 occ / 1 cls", "a mechanical dash yields to the earlier real value"
+    assert cells[2] == DASH, "a mechanical dash publishes — no stale republish (H6)"
     assert cells[6] == "fixed the gate" and cells[7] == "filed spec-42", (
         "the analysis half's cells survive the re-run"
     )
@@ -817,7 +817,7 @@ def test_published_day_series_never_recounts_earlier_days(tmp_path: Path) -> Non
     unk.write_text(_unknown_line(_TS) + "\n" + _unknown_line(_TS) + "\n", encoding="utf-8")
     _backdate(unk, yesterday)
     assert kc.daily(yesterday, **_daily_args(tmp_path)) == 0
-    spath = kc.series_path("unclassified_rate", 1, st)
+    spath = kc.series_path("unclassified_rate", 2, st)
     rows = [json.loads(ln) for ln in spath.read_text(encoding="utf-8").splitlines()]
     day1 = next(r for r in rows if r["day"] == yesterday.isoformat())
     assert day1["numerator"] == 2
@@ -832,7 +832,7 @@ def test_published_day_series_never_recounts_earlier_days(tmp_path: Path) -> Non
         "a published day value must never re-count a line already counted in an "
         "earlier published day"
     )
-    assert day2["denominator"] == 11  # 10 fresh lines + 1 session
+    assert day2["denominator"] == 10  # 10 fresh lines — lines over lines (H2)
 
 
 def test_delta_row_shrunk_file_publishes_nothing(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1004,7 +1004,7 @@ def test_version_bump_day_does_not_recount_earlier_days(
     args = _daily_args(tmp_path)
     args["golden"] = bumped
     assert kc.daily(dt.date.today(), **args) == 0
-    spath = kc.series_path("unclassified_rate", 1, st)
+    spath = kc.series_path("unclassified_rate", 2, st)
     rows = [json.loads(ln) for ln in spath.read_text(encoding="utf-8").splitlines()]
     day2 = next(r for r in rows if r["day"] == dt.date.today().isoformat())
     assert day2["numerator"] == 10, (
@@ -1166,7 +1166,7 @@ def _transcript_era_row(day: str, sid: str = "tr-legacy") -> dict:
         "gate": DASH,
         "runs": DASH,
         "stop_causes": DASH,
-        "death_class": DASH,
+        "death_classes": DASH,
         "concurrent": None,
         "concurrent_reason": "transcript era: concurrency is event-only",
         "lines_total": 10,
@@ -1219,3 +1219,396 @@ def test_malformed_log_row_preserved_verbatim(
     assert malformed in text, "the malformed row must survive byte-identical"
     assert "| 2026-08-18 |" in text, "our row still lands (appended alongside, warned)"
     assert "malformed" in capsys.readouterr().err
+
+
+# ── review fix-wave: adjudicated findings, red-first ─────────────────────────────────
+
+
+def test_daily_selects_files_alive_at_or_after_the_day(tmp_path: Path) -> None:
+    """H1: `mtime date == day` permanently excluded unknown.jsonl (it never quiesces)
+    and deferred every still-active session — selection is mtime-date >= day."""
+    ev = tmp_path / "events"
+    ev.mkdir()
+    yesterday = dt.date.today() - dt.timedelta(days=1)
+    # Both files are STILL BEING WRITTEN — fresh (today) mtime, no backdating.
+    (ev / "unknown.jsonl").write_text(_unknown_line(_TS) + "\n", encoding="utf-8")
+    _session(ev, "active", [_line("active", "session_start", _TS, cwd="/opt/x")])
+    assert kc.daily(yesterday, **_daily_args(tmp_path)) == 0
+    sids = {r["sid"]: r for r in kc.read_rows(state=tmp_path / "state")}
+    assert "unknown" in sids, "the never-quiescing accumulator must be derived (H1)"
+    assert "active" in sids, "a still-active session must get its day row (H1)"
+    assert sids["unknown"]["day"] == yesterday.isoformat()
+
+
+def test_truncated_line_is_envelope_only(tmp_path: Path) -> None:
+    """M1: a clipped line (truncated / fields_dropped) lands as reason "truncated"
+    with envelope counts only — its partial payload never feeds a distribution."""
+    clipped = json.loads(
+        _line(
+            "t",
+            "gate_run",
+            _TS,
+            status="failure",
+            checks=[{"name": f"c{i}", "outcome": "fail"} for i in range(50)],
+        )
+    )
+    clipped["truncated"] = True
+    dropped = json.loads(_line("t", "gate_run", "2026-08-18T10:30:00.000+00:00"))
+    dropped["truncated"] = True
+    dropped["fields_dropped"] = True
+    good = _line(
+        "t",
+        "gate_run",
+        "2026-08-18T11:00:00.000+00:00",
+        status="success",
+        checks=[{"name": "ruff", "outcome": "pass"}],
+    )
+    path = _session(
+        tmp_path / "ev",
+        "t",
+        [json.dumps(clipped, ensure_ascii=False), json.dumps(dropped, ensure_ascii=False), good],
+    )
+    row = kc.derive_session(path)
+    assert row is not None
+    assert row["unclassified_reasons"] == {"truncated": 2}
+    assert row["events"] == {"gate_run": 3}, "the envelope (event name) still counts"
+    assert row["gate"]["runs"] == 1, "a clipped payload must never feed gate stats"
+    assert row["gate"]["failed_checks"] == {}, "no 50-check taxonomy from a clipped line"
+    assert row["last_ts"] == "2026-08-18T11:00:00.000+00:00", "envelope ts still windows"
+
+
+def test_malformed_evidence_hash_and_stop_cause_are_counted(tmp_path: Path) -> None:
+    """M8: a malformed run_close.evidence_hash / stop_block.cause is COUNTED with a
+    reason, never silently dropped."""
+    lines = [
+        _line("m8", "run_close", _TS, verdict="done", evidence_hash=42),
+        _line("m8", "stop_block", _TS, cause=7, outcome="blocked"),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "m8", lines))
+    assert row is not None
+    assert row["unclassified_reasons"].get("malformed-evidence_hash") == 1
+    assert row["unclassified_reasons"].get("malformed-stop_block-cause") == 1
+    assert row["runs"]["done"] == 1 and row["runs"]["done_evidenced"] == 0
+    assert row["stop_causes"] == {}
+
+
+def test_all_death_classes_kept_not_just_the_last(tmp_path: Path) -> None:
+    """M9: every death class in the session survives — never only the last one."""
+    lines = [
+        _line("d", "death", _TS, **{"class": "rate_limit"}),
+        _line("d", "death", "2026-08-18T11:00:00.000+00:00", **{"class": "api_error_stalled"}),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "d", lines))
+    assert row is not None
+    assert row["death_classes"] == ["rate_limit", "api_error_stalled"]
+
+
+def test_first_status_ignores_check_mode_gate_runs(tmp_path: Path) -> None:
+    """L5: the Stop hook's automatic --lean --check self-review must never define the
+    first attempt — first_status considers only NON-check gate runs."""
+    lines = [
+        _line(
+            "g",
+            "gate_run",
+            _TS,
+            status="failure",
+            checks=[],
+            mode={"check": True, "lean": True, "systemic": False, "json": True},
+        ),
+        _line(
+            "g",
+            "gate_run",
+            "2026-08-18T11:00:00.000+00:00",
+            status="success",
+            checks=[],
+            mode={"check": False, "lean": False, "systemic": False, "json": True},
+        ),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "g", lines))
+    assert row is not None
+    assert row["gate"]["first_status"] == "success"
+    assert row["gate"]["runs"] == 2, "check runs still count as runs"
+
+
+def test_delta_first_status_survives_a_check_only_predecessor() -> None:
+    """L5 delta seam: a predecessor whose runs were all --check (first_status None)
+    has NOT consumed the session's first attempt — the current row keeps it."""
+    base = {
+        "sid": "s",
+        "facts_version": kc.FACTS_VERSION,
+        "events": {},
+        "unclassified_reasons": {},
+        "stop_causes": {},
+        "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0},
+        "lines_total": 1,
+        "lines_unclassified": 0,
+    }
+    prev = {
+        **json.loads(json.dumps(base)),
+        "day": "2026-08-17",
+        "gate": {"runs": 1, "first_status": None, "pass": 1, "fail": 0, "failed_checks": {}},
+    }
+    cur = {
+        **json.loads(json.dumps(base)),
+        "day": "2026-08-18",
+        "lines_total": 2,
+        "gate": {"runs": 2, "first_status": "success", "pass": 2, "fail": 0, "failed_checks": {}},
+    }
+    delta = kc.delta_row(cur, prev)
+    assert delta is not None
+    assert delta["gate"]["first_status"] == "success"
+
+
+def test_unknown_row_counts_unattributed_event_families(tmp_path: Path) -> None:
+    """H3 input: the unknown bucket cannot make session facts, but its event NAMES
+    are envelope truth the attribution-honesty guard needs."""
+    act = json.loads(_line("unknown", "rule_activation", _TS, packs=[]))
+    act["sid_source"] = "none"
+    path = _session(
+        tmp_path / "ev",
+        "unknown",
+        [_unknown_line(_TS), json.dumps(act, ensure_ascii=False)],
+    )
+    row = kc.derive_session(path)
+    assert row is not None
+    assert row["events"] == {}
+    assert row["events_unattributed"] == {"gate_run": 1, "rule_activation": 1}
+
+
+def test_unclassified_rate_is_lines_over_lines(tmp_path: Path) -> None:
+    """H2: numerator = unclassified lines (unknown-stream lines included via their
+    unattributable-sid reason); denominator = total lines observed. A session missing
+    exposure.project is a stratification gap, NOT instrument unhealth."""
+    d = tmp_path / "ev"
+    paths = [
+        _windowed(d, "a", "p1", "2026-08-18T10:00:00+00:00", "2026-08-18T12:00:00+00:00"),
+        _windowed(d, "n", None, "2026-08-18T10:00:00+00:00", "2026-08-18T12:00:00+00:00"),
+    ]
+    rows = kc.derive_batch(paths)
+    m = kc.compute_metrics(rows, holes=0)["unclassified_rate"]
+    assert m.measurable
+    assert (m.numerator, m.denominator) == (0, 4), (
+        "no session-count inflation, no numerator for a mere stratification gap"
+    )
+
+
+def test_rule_activation_dashes_when_family_is_unattributable() -> None:
+    """H3: zero attributed rule_activation occurrences while the unknown stream holds
+    some → the metric renders — with the reason, never a fabricated 0%."""
+    rows = kc.derive_batch(sorted(GOLDEN.glob("*.jsonl")))
+    m = kc.compute_metrics(rows, holes=0)["rule_activation"]
+    assert not m.measurable
+    assert "unattributable" in m.detail
+
+
+def test_run_record_metrics_dash_below_attribution_floor() -> None:
+    """M5: n=1 attributed closure against an unknown-stream mass publishes NOTHING —
+    below the documented attribution floor both paired metrics dash together."""
+
+    def _row(sid: str, done: int, unattr: dict) -> dict:
+        return {
+            "sid": sid,
+            "facts_version": kc.FACTS_VERSION,
+            "day": "2026-08-18",
+            "events": {"run_close": done, "final_block_emitted": done},
+            "events_unattributed": unattr,
+            "unclassified_reasons": {},
+            "stop_causes": {},
+            "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
+            "runs": {
+                "opened": done,
+                "done": done,
+                "done_evidenced": done,
+                "blocked": 0,
+                "rounds_max": 0,
+            },
+            "lines_total": done,
+            "lines_unclassified": 0,
+        }
+
+    starved = [_row("s", 1, {}), _row("unknown", 0, {"run_close": 38})]
+    metrics = kc.compute_metrics(starved, holes=0)
+    assert not metrics["rules_compliance"].measurable
+    assert "run-record events unattributable" in metrics["rules_compliance"].detail
+    assert not metrics["terminator_spam"].measurable
+    # Control: attribution above the floor stays measured.
+    healthy = [_row("s", 10, {}), _row("unknown", 0, {"run_close": 1})]
+    metrics = kc.compute_metrics(healthy, holes=0)
+    assert metrics["rules_compliance"].measurable
+    assert metrics["terminator_spam"].measurable
+
+
+def test_mechanical_dash_never_republishes_stale_number(tmp_path: Path) -> None:
+    """H6: an all-dash mechanical day over a measured earlier row publishes dashes
+    under the advanced date — only the ANALYST cells keep the yield rule."""
+    log = tmp_path / "log.md"
+    log.write_text(LOG_STUB, encoding="utf-8")
+    monday = ["2026-08-17", "50% (1/2)", "1 occ / 1 cls", DASH, "2.0 (n=1)", DASH, "note", "filed"]
+    assert kc.upsert_log_row(log, monday)
+    all_dash = ["2026-08-18"] + [DASH] * (len(kc.COLUMNS) - 1)
+    assert kc.upsert_log_row(log, all_dash)
+    (line,) = [ln for ln in log.read_text(encoding="utf-8").splitlines() if "| 2026" in ln]
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    assert cells[0] == "2026-08-18", "the date advances"
+    assert cells[1] == DASH and cells[2] == DASH and cells[4] == DASH, (
+        "a fresh honest dash must never republish yesterday's number"
+    )
+    assert cells[6] == "note" and cells[7] == "filed", "analyst cells still yield"
+
+
+def test_daily_validates_registry_before_mutating_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M6: a broken registry must refuse BEFORE any state mutation — alarm + raise,
+    nothing derived, nothing published."""
+    ev = tmp_path / "events"
+    ev.mkdir()
+    (ev / "unknown.jsonl").write_text(_unknown_line(_TS) + "\n", encoding="utf-8")
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(ev))
+
+    def _boom() -> dict:
+        raise ValueError("unpaired definition")
+
+    monkeypatch.setattr(kc, "registry", _boom)
+    with pytest.raises(ValueError, match="unpaired"):
+        kc.daily(dt.date.today(), **_daily_args(tmp_path))
+    assert not kc.facts_path(tmp_path / "state").exists(), (
+        "an invalid registry must be caught BEFORE the store is mutated"
+    )
+    alarms = [p for p in ev.glob("*.jsonl") if "instrument_alarm" in p.read_text(encoding="utf-8")]
+    assert alarms, "the refusal must raise the alarm channel, not only a traceback"
+
+
+def test_daily_publishes_outcome_tier_series(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M7: the store-derived outcome tier (premature_stop / stop_block_causes /
+    review_rounds) publishes its series days from the SAME daily pass."""
+    monkeypatch.setenv("KAIZEN_OUTCOMES_WINDOW_DAYS", "36500")
+    rc, _, st, _ = _green_daily(tmp_path, dt.date.today())
+    assert rc == 0
+    import kaizen_outcomes  # noqa: PLC0415
+
+    reg = kaizen_outcomes.registry()
+    for mid in ("premature_stop", "stop_block_causes", "review_rounds"):
+        path = kc.series_path(mid, int(reg[mid]["version"]), st)
+        assert path.exists(), f"{mid} series must gain its day from daily()"
+        days = {json.loads(ln)["day"] for ln in path.read_text().splitlines()}
+        assert dt.date.today().isoformat() in days
+
+
+def test_week_rows_are_per_week_latest_not_global(tmp_path: Path) -> None:
+    """L1: a sid's later-week row must not evict its earlier-week row from that
+    week's read — the latest-per-sid collapse is PER WEEK."""
+    st = tmp_path / "state"
+    st.mkdir(parents=True)
+    base = {
+        "sid": "x",
+        "facts_version": kc.FACTS_VERSION,
+        "events": {},
+        "unclassified_reasons": {},
+        "stop_causes": {},
+        "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
+        "lines_total": 1,
+        "lines_unclassified": 0,
+    }
+    week1 = {
+        **json.loads(json.dumps(base)),
+        "day": "2026-08-10",
+        "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 4},
+    }
+    week2 = {
+        **json.loads(json.dumps(base)),
+        "day": "2026-08-18",
+        "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 5},
+    }
+    assert kc.append_facts([week1, week2], st) == 2
+    wk = dt.date.fromisoformat("2026-08-10").isocalendar()[:2]
+    rows = kc.read_week_rows(wk, state=st)
+    assert [r["day"] for r in rows] == ["2026-08-10"], (
+        "the earlier week's row must be served for the earlier week"
+    )
+
+
+def test_death_cell_dashes_when_coroner_never_ran() -> None:
+    """M9: '0 occ / 0 cls' while the coroner has never run is a fabricated zero —
+    dash with the reason; a genuine coroner-backed zero still prints."""
+    base = {
+        "sid": "s",
+        "facts_version": kc.FACTS_VERSION,
+        "day": "2026-08-18",
+        "events": {"stop_pass": 1},
+        "death_classes": [],
+        "unclassified_reasons": {},
+        "stop_causes": {},
+        "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
+        "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0},
+        "lines_total": 1,
+        "lines_unclassified": 0,
+    }
+    rows = [base]
+    metrics = kc.compute_metrics(rows, holes=None, holes_reason="coroner unavailable")
+    cells = kc.log_cells(dt.date(2026, 8, 18), metrics, rows, all_rows=rows)
+    assert cells[2] == DASH, "no coroner evidence anywhere -> the cell dashes"
+    closed = json.loads(json.dumps(base))
+    closed["sid"] = "closed"
+    closed["events"] = {"session_end": 1}
+    rows2 = [base, closed]
+    cells2 = kc.log_cells(dt.date(2026, 8, 18), metrics, rows2, all_rows=rows2)
+    assert cells2[2] == "0 occ / 0 cls", "a coroner-backed zero is a genuine zero"
+
+
+def test_daily_passes_events_dir_to_coroner_hole_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L4: daily(events=...) must reach the coroner hole probe — the default-source
+    probe silently counted a DIFFERENT store's holes."""
+    import kaizen_coroner  # noqa: PLC0415
+
+    captured: dict[str, object] = {}
+
+    def _fake_holes(sources: object = None, day: object = None) -> int:
+        captured["sources"] = sources
+        return 0
+
+    monkeypatch.setattr(kaizen_coroner, "holes", _fake_holes)
+    args = _daily_args(tmp_path)
+    args["holes_fn"] = None
+    args["events"].mkdir(exist_ok=True)
+    assert kc.daily(dt.date.today(), **args) == 0
+    src = captured.get("sources")
+    assert src is not None, "daily must build injected Sources for the probe"
+    assert Path(src.events_dir) == args["events"]  # type: ignore[union-attr]
+
+
+def test_concurrent_append_facts_never_duplicates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L6: the read-known-keys -> append seam is under an inter-process lock; two
+    writers racing the same key append it exactly once."""
+    import threading  # noqa: PLC0415
+    import time as _time  # noqa: PLC0415
+
+    st = tmp_path / "state"
+    st.mkdir(parents=True)
+    row = {"sid": "s", "facts_version": kc.FACTS_VERSION, "day": "2026-08-18"}
+    real = kc.known_fact_keys
+
+    def _slow(state: Path | None = None) -> set:
+        out = real(state)
+        _time.sleep(0.4)  # widen the read->append window so the race is deterministic
+        return out
+
+    monkeypatch.setattr(kc, "known_fact_keys", _slow)
+    results: list[int] = []
+
+    def _worker() -> None:
+        results.append(kc.append_facts([dict(row)], st))
+
+    threads = [threading.Thread(target=_worker) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sum(results) == 1, "the same key must append exactly once under a race"
+    assert len(kc.facts_path(st).read_text().splitlines()) == 1

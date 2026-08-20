@@ -108,7 +108,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 |---|---|---|
 | `session_start` | `cwd`, `project` | `.claude/hooks/session_orient.py` — only where a Stop hook also runs (payload cwd has `scripts/final_gate.py`) and only on `source=startup` |
 | `stop_pass` | `outcome` (`clean`\|`warned_through`), `warned` | `.claude/hooks/final_gate_stop.py` — the Stop pass-through, i.e. it did NOT block |
-| `session_end` | — | `scripts/sysadmin/kaizen_coroner.py` — the genuinely session-scoped, post-hoc close |
+| `session_end` | `closed_by` (`coroner`\|`ttl`) | `scripts/sysadmin/kaizen_coroner.py` — the genuinely session-scoped, post-hoc close; a TTL-expired run record's close emits one too (`closed_by: ttl`) |
 | `run_open` | `command`, `phases`, `terminal`, `nested` | `scripts/command_run.py start` |
 | `phase` | `n`, `title` | `scripts/command_run.py step` |
 | `round` | `n`, `findings`, `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
@@ -119,7 +119,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `final_block_emitted` | — | `.claude/hooks/final_gate_stop.py` — emitted on the NON-BLOCKING exit only |
 | `death` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
 | `revival` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
-| `operator_override` | `marker`, `kind` (`human-gate`\|`blocked-escalation`) | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data |
+| `operator_override` | `marker`, `kind` (`human-gate`\|`blocked-escalation`), `stalls` (count of waived stalls this turn), `kinds` (every waived kind, in order) | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data; ONE event per turn carries the whole waiver ledger |
 | `fleet_health` | `project`, `swept`, `cell`, `reason`, `checks` (`{check: verdict}`), `duration_s` | `scripts/sysadmin/kaizen_outcomes.py --sweep` — one per swept project (T07's nightly outcome tier) |
 | `instrument_alarm` | `reason`, `mismatches` (first 10) | `scripts/sysadmin/kaizen_collect_v2.py` — golden-corpus refusal or a delta darkening; instrument health is metric zero |
 
@@ -189,9 +189,14 @@ Every metric is registered with a version, a definition hash, and a **reciprocal
 | `premature_stop` | `stop_block_causes` | SESSION-level premature stops | T07 `--stops` |
 | `stop_block_causes` | `premature_stop` | full cause histogram (events) | T07 `--stops` |
 
-`premature_stop_rate` (T06, event-level) and `premature_stop` (T07, session-level) share the
-`PREMATURE_CAUSES` vocabulary and cross-reference each other in their definitions — read them
-together. The cross-reference rides a non-hashed `cross_reference` field, so the published
+Truncated lines (`truncated`/`fields_dropped`) derive **envelope-only**: the event name, window
+and exposure count, the partial payload never feeds a distribution — the line rides the
+unclassified rate as reason `truncated`. Metrics whose numerator event family sits mostly in the
+`unknown` stream are guarded by the **20% attribution floor** (`rules_compliance`,
+`terminator_spam`, `rule_activation`): below it the metric renders `—` with the reason — an
+attributed sliver is not the population. `premature_stop_rate` (T06, event-level) and
+`premature_stop` (T07, session-level) share the `PREMATURE_CAUSES` vocabulary and cross-reference
+each other in their definitions — read them together. The cross-reference rides a non-hashed `cross_reference` field, so the published
 definition hashes are unchanged (the versioned-definitions law). The loop doc — cadence, cron
 lines, runbooks, the M1→M2 gate — is `docs/workstation/kaizen.md`; noise-floor method and
 variance live in `noise-floor@v1.md` (regenerate: `kaizen_backfill.py --report`).
@@ -236,9 +241,11 @@ Both are parameters, not caller fields, so neither can reach the payload or be `
 `emit()` takes one more keyword-only parameter, **`exposure_override` — producer-restricted**: a post-hoc
 producer (only the coroner today, reconstructing a `death` from a session that is already gone)
 passes the exposure it joined from that dead session's own last trusted events, and it **replaces**
-the resolved exposure verbatim instead of stamping the coroner's own process. It is a parameter,
-not a caller field, so it is never `f_`-re-keyed; a non-dict value is ignored in favour of the live
-exposure. No live sensor should pass it — stamping your own process is what `exposure()` is for.
+the resolved exposure instead of stamping the coroner's own process — merged over an all-`unknown`
+`EXPOSURE_KEYS` baseline, so a partial override still ships every schema key (missing ones the
+literal `unknown`, never absent). It is a parameter, not a caller field, so it is never
+`f_`-re-keyed; a non-dict value is ignored in favour of the live exposure. No live sensor should
+pass it — stamping your own process is what `exposure()` is for.
 
 ```python
 kaizen_events.emit("death", sid=dead_sid, exposure_override=joined, reconstructed=True)

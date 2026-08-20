@@ -14,6 +14,7 @@ constructor (see docs/workstation/liveness.md § Watched fail).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -294,6 +295,60 @@ def test_the_shipped_registry_parses_and_declares_surfaces() -> None:
         assert (surface.get("evidence") or {}).get("type") in {
             "log", "log_marker", "port", "unit", "hook", "none",
         }
+
+
+# ── review fix-wave: adjudicated findings, red-first (H5) ────────────────────────
+
+
+def test_kaizen_surfaces_use_success_stamps_and_the_coroner_is_registered() -> None:
+    """H5: the kaizen heartbeats' evidence is each job's SUCCESS STAMP (touched only
+    on job success) — ~/.claude/kaizen.log is also written by the retirement nudge,
+    so the log satisfied the heartbeat without the job ever succeeding. The coroner
+    joins as its own daily surface: nothing on the box ran it."""
+    registry, fault = la.load_registry(REPO_ROOT / la.DEFAULT_REGISTRY)
+    assert fault == "", fault
+    by_id = {s["id"]: s for s in registry["surfaces"]}
+
+    meas = by_id["kaizen-measurement"]
+    assert meas["evidence"]["path"] == "~/.claude/state/daily-kaizen_collect_v2.py.stamp"
+    assert "crontab" in meas["why"], "the why must name the pending crontab install"
+
+    sweep = by_id["kaizen-sweep"]
+    assert sweep["evidence"]["path"] == "~/.claude/state/daily-kaizen_outcomes.py.stamp"
+    assert "crontab" in sweep["why"], "the why must name the pending crontab install"
+
+    coroner = by_id.get("kaizen-coroner")
+    assert coroner is not None, "the coroner must be a registered surface (H5)"
+    assert coroner["kind"] == "cron"
+    assert coroner["cron_match"] == "kaizen_coroner.py"
+    assert coroner["evidence"]["type"] == "log"
+    assert coroner["evidence"]["path"] == "~/.claude/state/daily-kaizen_coroner.py.stamp"
+    assert coroner["max_age_hours"] == 54
+
+
+def test_weekly_catchup_runs_the_coroner_daily(tmp_path: Path) -> None:
+    """H5: kaizen_coroner.py is a daily job key in weekly_catchup.sh — sweep runs,
+    stamp touched on success, fresh stamp is a quiet no-op."""
+    for sub in ("locks", "events", "runs"):
+        (tmp_path / sub).mkdir()
+    env = dict(
+        os.environ,
+        HOME=str(tmp_path),
+        FABRIK_ROOT=str(REPO_ROOT),
+        FABRIK_PY="/opt/fabrik/.venv/bin/python",
+        CLAUDE_SOUND_LOCKDIR=str(tmp_path / "locks"),
+        KAIZEN_EVENTS_DIR=str(tmp_path / "events"),
+        COMMAND_RUN_DIR=str(tmp_path / "runs"),
+    )
+    script = REPO_ROOT / "scripts" / "sysadmin" / "weekly_catchup.sh"
+    argv = ["bash", str(script), "kaizen_coroner.py"]
+    first = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
+    assert first.returncode == 0, first.stdout + first.stderr
+    stamp = tmp_path / ".claude" / "state" / "daily-kaizen_coroner.py.stamp"
+    assert stamp.is_file(), "the success stamp must be touched on a green run"
+    second = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
+    assert second.returncode == 0
+    assert second.stdout.strip() == "", "a fresh stamp is a QUIET no-op (heartbeat law)"
 
 
 # ── PROOF 2: vacuity ─────────────────────────────────────────────────────────────

@@ -410,6 +410,9 @@ def _fact(sid: str, **over: object) -> dict:
         "facts_version": 1,
         "sid": sid,
         "day": "2026-08-19",
+        # Recent by construction: the store-reading metrics are WINDOWED on last_ts
+        # (L7) and a fixed fixture date would silently age out of the window.
+        "last_ts": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds"),
         "events": {},
         "runs": {},
         "stop_causes": {},
@@ -514,7 +517,7 @@ def _transcript_fact(sid: str = "tr-legacy") -> dict:
         "gate": DASH,
         "runs": DASH,
         "stop_causes": DASH,
-        "death_class": DASH,
+        "death_classes": DASH,
         "lines_total": 10,
         "lines_unclassified": 2,
         "unclassified_reasons": {"unparseable-json": 2},
@@ -586,3 +589,88 @@ def test_nightly_cron_entry_authored_not_installed(tmp_path: Path) -> None:
     assert "T09" in doc  # the installer is named — this module never installs
     assert "stamp" in doc  # wake-proof stamp-check pattern, not a bare nightly slot
     assert re.search(r"^\s*\d+ \* \* \* \*", doc, re.M)  # an hourly catch-up crontab line
+
+
+# ── review fix-wave: adjudicated findings, red-first ─────────────────────────────────
+
+
+def test_store_metrics_are_windowed_not_all_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L7: premature_stop / stop_block_causes / review_rounds read only the last
+    KAIZEN_OUTCOMES_WINDOW_DAYS days (default 7) — never all-time cumulative."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "old",
+                events={"stop_pass": 1, "stop_block": 1},
+                stop_causes={"run-record": 1},
+                runs={"rounds_max": 4},
+                last_ts="2026-01-01T00:00:00.000+00:00",
+            )
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable, "a months-old row must fall outside the default window"
+    assert not causes.measurable
+    assert not ko.review_rounds().measurable
+    monkeypatch.setenv("KAIZEN_OUTCOMES_WINDOW_DAYS", "36500")
+    prem2, causes2 = ko.premature_stop()
+    assert prem2.measurable and causes2.measurable
+    assert ko.review_rounds().measurable
+
+
+def test_windowed_formulas_are_version_bumped() -> None:
+    """L7: the window is stated in the formulas — a formula edit is a def-hash
+    version bump (the versioned-definitions law)."""
+    reg = ko.registry()
+    for mid in ("premature_stop", "stop_block_causes", "review_rounds"):
+        assert reg[mid]["version"] == 2, mid
+        assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
+
+
+def test_rework_survives_delimiter_injection_in_subject(tmp_path: Path) -> None:
+    """M4: \\x1e/\\x1f in a commit subject must not corrupt record parsing and
+    deflate the metric — mining is NUL-delimited (NUL cannot appear in a subject)."""
+    root = tmp_path / "opt"
+    repo = _repo(root, "proj")
+    _commit(repo, "a.py", "feat: add parser \x1e evil \x1f fields", days_ago=10)
+    _commit(repo, "a.py", "fix(parser): repair", days_ago=4, content="x = 2\n")
+    r = ko.mine_repo(repo, 7, now=time.time())
+    assert r.measurable, r.reason
+    assert (r.numerator, r.denominator) == (1, 1), (
+        "the injected commit must keep its files and be seen reworked"
+    )
+
+
+def test_sweep_one_survives_tempdir_cleanup_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L2: a CHECK_UNREAPABLE child can hold the temp worktree busy — a cleanup
+    error is swallowed (warned), never raised out of sweep_one."""
+    import shutil  # noqa: PLC0415
+    import tempfile as _tempfile  # noqa: PLC0415
+
+    root = tmp_path / "opt"
+    proj = _repo(root, "pilot")
+    _commit(proj, "mod.py", "feat: module", content="x = 1\n")
+    real_mkdtemp = _tempfile.mkdtemp
+
+    class _FakeTmp:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self._kwargs = kwargs
+            self._dir = real_mkdtemp(prefix=str(kwargs.get("prefix", "t")))
+
+        def __enter__(self) -> str:
+            return self._dir
+
+        def __exit__(self, *exc: object) -> bool:
+            if not self._kwargs.get("ignore_cleanup_errors"):
+                raise OSError(16, "device or resource busy")
+            shutil.rmtree(self._dir, ignore_errors=True)
+            return False
+
+    monkeypatch.setattr(ko.tempfile, "TemporaryDirectory", _FakeTmp)
+    res = ko.sweep_one("pilot", root, 120)
+    assert res.project == "pilot", "sweep_one must survive a busy temp worktree"

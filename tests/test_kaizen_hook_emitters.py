@@ -670,3 +670,28 @@ def test_module_absent_means_no_transcript_read(tmp_path: Path) -> None:
     )
     assert control.returncode == 0
     assert _events(tmp_path, "sidnoread") == []
+
+
+# --- review fix-wave: adjudicated findings, red-first -------------------------
+
+
+def test_one_override_event_carries_every_waived_stall() -> None:
+    """P2: two stalls waived in one turn emit ONE operator_override carrying
+    stalls=len(waived) + the kinds list — recording only waived[0] under-counted
+    the override ledger."""
+    import importlib.util  # noqa: PLC0415
+
+    spec = importlib.util.spec_from_file_location("fgs_p2_probe", STOP)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    captured: list[tuple[str, dict]] = []
+    mod._kaizen = lambda event, sid, **fields: captured.append((event, fields))
+    mod.kaizen_events = True  # truthy import guard — the seam under test is below it
+    waived = [("human-gate", "on your approval"), ("blocked-escalation", "BLOCKED: x")]
+    mod._kaizen_pass("sid-p2", "", waived, [])
+    overrides = [fields for event, fields in captured if event == "operator_override"]
+    assert len(overrides) == 1, "one turn, ONE override event"
+    assert overrides[0].get("stalls") == 2, "every waived stall must be counted"
+    assert overrides[0].get("kinds") == ["human-gate", "blocked-escalation"]
+    assert overrides[0].get("marker") == "on your approval", "first marker still carried"
