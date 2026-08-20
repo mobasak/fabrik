@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — tryton-crm deploy spec omitted the offer-send bridge env/secret (release blocker) (2026-08-20)
+
+- `specs/services/tryton-crm.yaml` did not declare `BRIDGE_URL`, `OFFER_SEND_TIMEOUT` (env), or
+  `BRIDGE_INTERNAL_TOKEN` (secret), though the project compose passes all three to `trytond`. On deploy
+  `BRIDGE_INTERNAL_TOKEN` was unset → `offer_wizard` fell back to `SERVICE_INTERNAL_SECRET_KEY`, which
+  fails closed at `ENVIRONMENT=production` → every offer-send 401'd (the certified quotation-delivery
+  feature DOA on first deploy). Reconciled the spec (fleet beat; tryton-crm could not edit a hub file).
+  ⚠ The spec now *declares* the secret via `from_env`, but the fix only completes when
+  `/opt/tryton-crm/.env` carries a `BRIDGE_INTERNAL_TOKEN` value matching a bridge `CONSUMER_TOKENS`
+  consumer — the hub currently exposes only `trade-intelligence`, so a CRM consumer token must be
+  provisioned or the 401 moves. Filed by tryton-crm (mail 01M0DP1A92WDTWSRT2022VCGJ2).
+
 ### Added — kaizen M1 T05: the coroner — post-hoc death/revival reconstruction and record closure (2026-08-20)
 
 `scripts/sysadmin/kaizen_coroner.py` sweeps the resume-mesh's markers, notify log, and transcript

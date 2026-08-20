@@ -60,6 +60,11 @@ env:
   # `crm-gotenberg` (project compose edit, relayed) and the bridge pointed at it explicitly (the
   # code default http://gotenberg:3000 would resolve to the basic-auth'd standalone → 401):
   GOTENBERG_URL: http://crm-gotenberg:3000
+  # crm_bridge offer-send path (compose passes these to trytond; declared here so `fabrik apply`
+  # injects them). Absent, trytond's offer_wizard cannot reach the bridge and offer-send is 401 DOA
+  # — the tryton-crm release blocker filed 2026-08-19 (spec↔compose reconciliation gap):
+  BRIDGE_URL: http://tryton-crm:8000          # trytond offer_wizard → the crm_bridge FastAPI service
+  OFFER_SEND_TIMEOUT: "240"
   # NOT declared (project-side deploy decisions, optional features with fail-soft paths):
   # EFATURA_* (e-invoice provider — unconfigured),
   # REDIS_URL (registrar-injected via needs_cache), TRYTOND_EMAIL__URI (SMTP — off until set).
@@ -91,6 +96,13 @@ secrets:
                                   # create_rpc_service_user.py IGNORES it and GENERATES its own
                                   # (printed once) — the deploy plan's S9→S10→S11 propagate the
                                   # real value into both .env copies and re-apply
+  - BRIDGE_INTERNAL_TOKEN         # trytond→bridge M2M token (offer_wizard.py:70). ⚠ its VALUE must
+                                  # equal a valid bridge CONSUMER_TOKENS entry, NOT
+                                  # SERVICE_INTERNAL_SECRET_KEY (that fails closed at
+                                  # ENVIRONMENT=production, internal_auth.py:38-45). from_env pulls it
+                                  # from /opt/tryton-crm/.env; that value must be a provisioned
+                                  # consumer token or the 401 simply moves (hub CONSUMER_TOKENS
+                                  # currently exposes only `trade-intelligence`).
   from_file: {}
 resources:
   memory: 512M
