@@ -414,24 +414,6 @@ _MEGA_SURFACE = re.compile(
 _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
-def _fence_regions(text: str) -> tuple[list[tuple[int, int]], int | None]:
-    """Sequential, flavor-aware fence scan — the ONE fence authority every reader shares.
-
-    CommonMark parses fences SEQUENTIALLY: inside an open ``` fence a ~~~ line is CONTENT,
-    and a closer must match its opener's flavor with at least its length. Round 51 proved
-    per-flavor raw counting fails both ways: a lone marker of the OTHER flavor quoted inside
-    a real fence cancels the count (a camouflaged dangling fence swallowed a live checklist
-    and a HANDOFF row — fail-open through the parity precondition itself), and an honest doc
-    quoting the other flavor was rejected as UNCLOSED (false-fire). Only a sequential scan
-    is faithful to how a renderer will actually read the document.
-
-    Returns (closed regions as inclusive line-index pairs, index of a dangling opener or
-    None). A closer is a same-flavor marker of >= the opener's length with nothing but
-    whitespace after it; anything else inside an open fence is content.
-    """
-    fences, _comments, dangling, _c_dangling = _block_regions(text)
-    return fences, dangling
-
 
 # A block-level HTML comment opener: line-leading (0–3 spaces). A mid-paragraph `<!--` is
 # INLINE HTML to a renderer, not a block comment — round 59 reproduced the fence-unaware

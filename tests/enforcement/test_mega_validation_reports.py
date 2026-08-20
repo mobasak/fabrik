@@ -1214,4 +1214,9 @@ def test_in_progress_cert_report_is_exempt_and_nagged(repo: Path) -> None:
     assert rc == 0, f"a mid-loop cert report was hard-blocked despite the escape hatch: {out}"
     rc, out = _gate(repo, "2026-08-20-user-test-midloop2.md", body, commit=True)
     assert rc == 0
-    assert "IN-PROGRESS" in out, "the committed scan lost the standing advisory on a cert report"
+    # File-specific assertion (round 63): _gate's git add -A sweeps the first file into this
+    # commit too, so a bare "IN-PROGRESS" substring could be satisfied by the sibling's line —
+    # the pin must prove the advisory fires for THIS file.
+    assert "user-test-midloop2" in out and "IN-PROGRESS" in out, (
+        "the committed scan lost the standing advisory on the newly committed cert report"
+    )
