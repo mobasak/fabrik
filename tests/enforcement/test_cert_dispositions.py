@@ -131,3 +131,15 @@ def test_prose_report_without_grammar_rows_passes(repo: Path) -> None:
     # zero-false-positive: a report using no grammar rows is not failed by this gate
     rc = _run(repo, "2026-08-03-user-test-app.md", "# cert\nAll green, nothing handed off.\n")
     assert rc == 0
+
+
+def test_tilde_fenced_handoff_example_does_not_false_fire(repo: Path) -> None:
+    """Round-49 finding 1 (cert half): a ~~~-fenced HANDOFF documentation example was not
+    stripped (only ``` fences were), so a quoting how-to doc failed the disposition gate."""
+    rc = _run(
+        repo,
+        "2026-08-20-user-test-howto.md",
+        "# How to write a cert report\n\nRow format example:\n~~~\n"
+        "HANDOFF P1 CLOSED example bug — proof: prose only\n~~~\n\nThat is all.\n",
+    )
+    assert rc == 0, "a tilde-fenced HANDOFF example false-fired the cert gate"

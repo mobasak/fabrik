@@ -195,10 +195,8 @@ def _blocked_sections(text: str) -> int:
     )
     n = 0
     for m in BLOCKED_HEAD.finditer(body):
-        nxt = re.search(r"^#{1,4}\s", body[m.end():], re.M)
-        section = (
-            body[m.end(): m.end() + nxt.start()] if nxt else body[m.end(): m.end() + 600]
-        )
+        nxt = re.search(r"^#{1,4}\s", body[m.end() :], re.M)
+        section = body[m.end() : m.end() + nxt.start()] if nxt else body[m.end() : m.end() + 600]
         if attempts.search(section):
             n += 1
     return n
@@ -220,10 +218,10 @@ def _fence_parity_error(text: str) -> str | None:
     markdown document has matching fences. Odd parity → one loud structural error naming the
     one-keystroke fix, in every grammar, before any other obligation is judged.
     """
-    n = len(re.findall(r"^```", text, re.M))
-    if n % 2 == 1:
+    n = len(re.findall(r"^```", text, re.M)) % 2 + len(re.findall(r"^~~~", text, re.M)) % 2
+    if n:
         return (
-            f"UNCLOSED code fence ({n} fence markers — an odd count): ambiguous fencing makes "
+            "UNCLOSED code fence (an odd count of ``` or ~~~ markers): ambiguous fencing makes "
             "every obligation unverifiable (a dangling fence can swallow or fabricate "
             "checklists, ledgers and dispositions). Close the fence."
         )
@@ -233,6 +231,12 @@ def _fence_parity_error(text: str) -> str | None:
 def check_file(p: Path) -> list[str]:
     errs: list[str] = []
     text = p.read_text(encoding="utf-8", errors="replace")
+    # IN-PROGRESS before parity (round 49): the sanctioned mid-loop state may legitimately
+    # carry a dangling appendix fence — the blocking gate was refusing to let the author ever
+    # COMMIT the exact document the committed advisory would then accept as mid-loop. Parity
+    # binds at the flip; the standing IN-PROGRESS advisory keeps the pressure on meanwhile.
+    if _in_progress(text):
+        return errs
     pe = _fence_parity_error(text)
     if pe:
         return [pe]
@@ -366,13 +370,17 @@ CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
 # non-quiet ledger and live placeholders — reproduced. The filename key means a mega-shaped
 # name can never route to a weaker grammar, whatever its title says.
 MEGA_REPORT_H1 = re.compile(r"\A#\s+Cross-Epic Validation Report\b")
-MEGA_FILENAME = re.compile(r"\bmega-(?:.*-)?validation-review\.md$")  # the doc reserves …-mega-<slug>-validation-review.md; a bare suffix would force FUTURE non-mega reports (e.g. ettw-10) into the wrong grammar
+MEGA_FILENAME = re.compile(
+    r"\bmega-(?:.*-)?validation-review\.md$"
+)  # the doc reserves …-mega-<slug>-validation-review.md; a bare suffix would force FUTURE non-mega reports (e.g. ettw-10) into the wrong grammar
 
 
 def _is_mega_report(path: Path, text: str) -> bool:
     return bool(MEGA_REPORT_H1.match(text.lstrip("\ufeff \n"))) or bool(
         MEGA_FILENAME.search(path.name)
     )
+
+
 _MEGA_PLACEHOLDERS = ("[PASS]", "[FAIL]", "[N]", "[M]", "[list]", "[none / list]")
 _MEGA_HEX = r"[0-9a-fA-F]{32}"  # FULL md5, exactly — the doc mandates all 32; 12-char "full-ish" let truncation pass wherever the live recompute is skipped
 _MEGA_HASH_PAIR = re.compile(rf"({_MEGA_HEX})\s*(?:→|->)\s*({_MEGA_HEX})")
@@ -380,14 +388,22 @@ _MEGA_HASH_PAIR = re.compile(rf"({_MEGA_HEX})\s*(?:→|->)\s*({_MEGA_HEX})")
 # contiguous table that contains any such row. v2 matched counter rows ANYWHERE, so a later
 # `## Per-lens tally` table with a quiet row silently became "the final round", masking a
 # non-quiet exit — the LAST-match defect's THIRD appearance in this file, one table over.
-_MEGA_SURFACE = re.compile(rf"^\**Surface:\**\s*({_MEGA_HEX})\b", re.M)  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
+_MEGA_SURFACE = re.compile(
+    rf"^\**Surface:\**\s*({_MEGA_HEX})\b", re.M
+)  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
 _FENCE = re.compile(r"^```.*?^```\s*$", re.M | re.S)
+# GFM fences come in TWO flavors, and a closer must match its opener's (a ``` inside a ~~~
+# block is content, not a fence). Round 49: tilde fences were invisible to _strip_fences AND
+# the parity count — a ~~~-wrapped fake all-CLEAN checklist shadowed the real UNCHECKED one
+# and the gate exited green. Per-flavor regexes cannot cross-match; tildes strip FIRST so a
+# backtick marker quoted inside a tilde block never reaches the backtick pass.
+_FENCE_TILDE = re.compile(r"^~~~.*?^~~~\s*$", re.M | re.S)
 
 
 def _strip_fences(text: str) -> str:
-    stripped = _FENCE.sub("", text)
+    stripped = _FENCE.sub("", _FENCE_TILDE.sub("", text))
     # An UNCLOSED fence (the closer forgotten — the mega template's own doc does this when
     # quoting examples) left the "fenced" example as LIVE text: round-11 reproduced a phantom
     # second table (false ambiguity on an honest report) and a fenced example row becoming the
@@ -437,7 +453,9 @@ def _pass_counters(line: str) -> tuple[int, int] | None:
 
 def _ledger_shapes(
     text: str,
-) -> tuple[list[list[tuple[int, int, str]]], list[tuple[int, int, str]], list[tuple[int, int, str]]]:
+) -> tuple[
+    list[list[tuple[int, int, str]]], list[tuple[int, int, str]], list[tuple[int, int, str]]
+]:
     """ONE extraction contract for every ledger reader in this file.
 
     Returns (counter TABLES, prose PASS-lines) from fence-stripped text. Nine review rounds of
@@ -506,9 +524,7 @@ def epics_set_hash(root: Path) -> str | None:
     # an HONEST report red with "the recorded hash was never computed", the most demoralizing
     # possible false accusation. Python str sort == byte sort for ASCII paths; epic naming is
     # gate-enforced ASCII kebab-case.
-    files = sorted(
-        str(p.relative_to(root)) for p in epics.rglob("*.md") if p.is_file()
-    )
+    files = sorted(str(p.relative_to(root)) for p in epics.rglob("*.md") if p.is_file())
     if not files:
         return None  # an empty epic set validates nothing — no anchor, not a fabricated one
     lines = []
@@ -529,14 +545,12 @@ def check_mega_validation(
     during execution, and nagging every historical report forever is how an advisory gets muted.
     """
     text = path.read_text(encoding="utf-8", errors="replace")
+    if _in_progress(text):
+        return []  # the sanctioned mid-loop state — parity binds at the flip (round 49)
     pe = _fence_parity_error(text)
     if pe:
         return [pe]
     body = _strip_fences(text)
-    # The sanctioned mid-loop state — declared in the HEADER ZONE (first 10 non-fence lines),
-    # where the template puts Status, not quotable from anywhere in the body.
-    if _in_progress(text):
-        return []
     errs: list[str] = []
     surface = _MEGA_SURFACE.search(body)
     if surface is None:
@@ -671,9 +685,16 @@ def check_mega_validation(
         # docstring): only the exit-round conditions. Everything else — Surface presence, hash
         # length, round minimums, placeholders — stays a blocking-path obligation, or the
         # advisory nags every historical report forever and gets muted.
-        keep = ("final ledger round reads", "hashes moved", "MORE THAN ONE", "OUTSIDE the ledger table")
+        keep = (
+            "final ledger round reads",
+            "hashes moved",
+            "MORE THAN ONE",
+            "OUTSIDE the ledger table",
+        )
         errs = [e for e in errs if any(k in e for k in keep)]
     return errs
+
+
 HANDOFF_ROW = re.compile(r"^\s*[-*]?\s*HANDOFF\s+P([0-3])\s+(OPEN|CLOSED)\b(.*)$", re.M)
 REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
 PROOF_IN_ROW = re.compile(r"proof:\s*\S")
@@ -772,25 +793,31 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             for e in check_mega_validation(p, root, live=False, scope="exit"):
                 out.append(f"{p.relative_to(root)}: COMMITTED mega report — {e}")
             continue
-        pe = _fence_parity_error(text)
-        if pe:
-            out.append(f"{p.relative_to(root)}: COMMITTED with an {pe}")
-            continue
-        if _checklist_section(text) is None:
-            # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
-            # round 23: the IN-PROGRESS advisory below was firing on EVERY reviews/*.md with a
-            # Status line, misattributing docs the module docstring explicitly exempts
-            continue
-        if _in_progress(text):
-            # Round 21: IN-PROGRESS exempted a committed report from EVERY check FOREVER —
-            # a permanent, self-declared invisibility cloak (reproduced: no Surface, one
-            # round, live placeholders, silent on every future gate run). The sanctioned
-            # mid-loop state stays sanctioned, but it is now VISIBLE on every run — an
-            # advisory that only quiets when the loop actually finishes.
+        subject = _checklist_section(text) is not None
+        if subject and _in_progress(text):
+            # The sanctioned mid-loop state stays sanctioned but VISIBLE on every run — an
+            # advisory that only quiets when the loop actually finishes (never a cloak that
+            # exempts the report from every check). Checked BEFORE parity: a mid-loop report
+            # with a dangling appendix fence gets THIS line, not a wrong-reason structural
+            # one — the parity obligation binds at the flip. Subject-gated: non-subject
+            # docs (spec/plan convergence artifacts) are never nagged.
             out.append(
                 f"{p.relative_to(root)}: COMMITTED as Status: IN-PROGRESS — the loop that "
                 "opened it has not closed; finish it, or this line stands forever"
             )
+            continue
+        pe = _fence_parity_error(text)
+        if pe:
+            # NOT subject-gated: a dangling fence defeats subject-detection itself (the
+            # swallowed-heading case), so gating on subject-ness would silence exactly the
+            # docs the parity rule exists to catch. Odd parity is objectively broken markdown
+            # with a one-keystroke fix; corpus measured at 0 odd-parity files — no retro-nag.
+            out.append(f"{p.relative_to(root)}: COMMITTED with an {pe}")
+            continue
+        if not subject:
+            # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
+            # round 23: the IN-PROGRESS advisory was firing on EVERY reviews/*.md with a
+            # Status line, misattributing docs the module docstring explicitly exempts
             continue
         if _blocked_ok(text):
             # the SAME contract as every other reader — round 17 found this call site still

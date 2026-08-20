@@ -877,3 +877,57 @@ def test_unrelated_dangling_fence_does_not_false_fire_the_floor(repo: Path) -> N
     # one-keystroke message is correct, and undecidable intent-guessing is retired.
     assert rc == 1
     assert "UNCLOSED" in out and "odd count" in out
+
+
+def test_tilde_fenced_checklist_example_is_not_a_subject(repo: Path) -> None:
+    """Round-49 finding 1: `_strip_fences` stripped only backtick fences — a how-to doc
+    quoting the checklist inside GFM's OTHER fence flavor (~~~) false-fired as a subject."""
+    body = (
+        "# How to write a review — internal documentation\n\n"
+        "Example of the required section format:\n~~~\n## Coverage Checklist\n\n"
+        "| Class | Verdict | Evidence |\n|---|---|---|\n| example | UNCHECKED |  |\n~~~\n\n"
+        "That is all this doc contains.\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-tilde-howto-review.md", body)
+    assert rc == 0, f"a tilde-fenced checklist quote made a how-to doc a subject: {out}"
+    rc, out = _gate(repo, "2026-08-20-tilde-howto2-review.md", body, commit=True)
+    assert rc == 0
+    assert "tilde-howto2" not in out, "the committed scan also misread the tilde fence"
+
+
+def test_dangling_tilde_fence_fails_parity(repo: Path) -> None:
+    """Round-49 finding 1 (parity half): the parity precondition counted only ``` markers,
+    so an unclosed ~~~ fence — the same unverifiable-structure defect — passed silently."""
+    h = _shell_hash(repo)
+    body = _report(h) + "\nAppendix — pasted session (fence unclosed):\n~~~\n$ ls\nfoo.txt\n"
+    rc, out = _gate(repo, "2026-08-20-mega-vision-validation-review.md", body)
+    assert rc == 1, "a dangling tilde fence was invisible to parity"
+    assert "UNCLOSED" in out and "odd count" in out
+
+
+def test_in_progress_precedes_parity(repo: Path) -> None:
+    """Round-49 finding 2: parity fired BEFORE the IN-PROGRESS escape, so a sanctioned
+    mid-loop report with a dangling appendix fence was blocked (live) and wrong-reason
+    advised (committed). The parity obligation binds at the flip, not mid-loop."""
+    mega = (
+        "# Cross-Epic Validation Report\n"
+        "Status: IN-PROGRESS\n\n"
+        "round 3 running.\n\nAppendix (fence unclosed):\n```\n$ pytest\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-mega-vision-validation-review.md", mega)
+    assert rc == 0, f"a mid-loop mega report with a dangling fence was blocked: {out}"
+    checklist = (
+        "# Review — some diff (/fabrik-review)\n"
+        "Status: IN-PROGRESS\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
+        "Appendix (fence unclosed):\n```\n$ pytest\n"
+    )
+    rc, out = _gate(repo, "2026-08-20-midloop-review.md", checklist)
+    assert rc == 0, f"a mid-loop checklist report with a dangling fence was blocked: {out}"
+    rc, out = _gate(repo, "2026-08-20-midloop2-review.md", checklist, commit=True)
+    assert rc == 0
+    assert "IN-PROGRESS" in out, "the committed advisory lost the mid-loop line"
+    assert "midloop2-review.md: COMMITTED with an" not in out, (
+        "the committed advisory gave the wrong-reason UNCLOSED line instead of IN-PROGRESS"
+    )
