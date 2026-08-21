@@ -253,7 +253,10 @@ def test_surface_with_a_trailing_annotation_is_not_absent(repo: Path) -> None:
 
 
 def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
-    """The advisory honors its documented narrowness: quiet-exit + moved-hash, nothing else."""
+    """The advisory honors its narrowness for the RETRO-GRADE set (Surface presence, round
+    minimums, placeholders — the muting mechanism), while STRUCTURAL anti-cheat errors
+    survive by design (rounds 127-130: the missing final hash pair IS the exit proof, so a
+    quiet exit without it is exactly what the committed scan exists to catch)."""
     bad = (
         "# Cross-Epic Validation Report\n\nRounds:\n"
         "| round | found: | fixed: | hashes |\n|---|---|---|---|\n"
@@ -262,9 +265,10 @@ def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-19-mega-old-validation-review.md", bad, commit=True)
     assert rc == 0
-    assert "COMMITTED mega report" not in out, (
-        "the committed scan emitted full-obligation errors — that is the muting mechanism "
-        "the narrowness contract names (only quiet-exit + moved-hash may surface)"
+    for retro in ("no `Surface:` line", "minimum two full rounds", "template placeholder"):
+        assert retro not in out, f"a retro-grade error surfaced on the committed path: {retro}"
+    assert "carries no full" in out, (
+        "the structural missing-hash-pair error (the exit proof itself) must survive"
     )
 
 
@@ -2031,3 +2035,24 @@ def test_committed_mega_keeps_the_structural_errors(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-21-mega-vb-validation-review.md", gap, commit=True)
     assert rc == 0
     assert "but round" in out, "the committed mega path dropped the chain-gap error"
+
+
+def test_committed_mega_keeps_hash_pair_and_surface_anchor_errors(repo: Path) -> None:
+    """Round-129 HIGH: the keep filter also dropped the missing-final-hash-pair and
+    Surface≠end-hash errors on the committed path — the anti-cheat CORE (the hash equality
+    IS the exit proof). Errors are now classified at emission; structural survives every
+    scope by default."""
+    h = _shell_hash(repo)
+    nopair = _report(h, rounds=(
+        f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {h} |\n"
+        "| 2 | found: 0 | fixed: 0 | (hashes omitted) |\n"
+    ))
+    rc, out = _gate(repo, "2026-08-21-mega-vc-validation-review.md", nopair, commit=True)
+    assert rc == 0
+    assert "carries no full" in out, "the committed path dropped the missing-hash-pair error"
+    mismatch = _report(h, surface="d" * 32)
+    rc, out = _gate(repo, "2026-08-21-mega-vd-validation-review.md", mismatch, commit=True)
+    assert rc == 0
+    assert "does not equal the final round" in out, (
+        "the committed path dropped the Surface/end-hash mismatch error"
+    )

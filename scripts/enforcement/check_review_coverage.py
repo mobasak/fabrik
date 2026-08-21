@@ -999,6 +999,14 @@ def check_mega_validation(
         return [pe]
     body = _strip_fences(text)
     errs: list[str] = []
+    # RETRO-GRADE errors (round 129, replacing the substring keep-filter): classified at
+    # EMISSION, not filtered after — three keep-tuple rounds in a row (127/128/129) each
+    # found another structural error the substring filter silently dropped on the committed
+    # path, because every new error had to be manually re-registered. Now a new error lands
+    # in `errs` (structural — survives every scope, the fail-closed default) unless it is
+    # explicitly retro-grade: the set that would nag every historical report forever and get
+    # the advisory muted (Surface presence, round minimums, placeholders).
+    retro: list[str] = []
     # The THIRD ledger consumer (round 125): the unparsed-row legibility check reached
     # check_file and the committed scan in rounds 121-124 but never this grammar — a
     # trailing `Pass 3: found: 7 issues remain, still triaging` after a quiet table
@@ -1012,7 +1020,7 @@ def check_mega_validation(
         )
     surface = _MEGA_SURFACE.search(body)
     if surface is None:
-        errs.append(
+        retro.append(
             "no `Surface:` line carrying a FULL hash (≥12 hex) — record the final SET hash from "
             "the Step-3 anti-cheat (`find docs/development/epics -name '*.md' … | md5sum`), "
             "untruncated; `TBD`, prose, or a truncated stub do not anchor anything"
@@ -1052,7 +1060,7 @@ def check_mega_validation(
     if len(rows) < 2 and not any(
         "MORE THAN ONE" in e or "OUTSIDE the ledger table" in e for e in errs
     ):
-        errs.append(
+        retro.append(
             f"ledger table records {len(rows)} round(s) — minimum two full rounds, ALWAYS, as "
             "TABLE rows carrying `found:` and `fixed:` (prose mentions do not count)"
         )
@@ -1134,28 +1142,15 @@ def check_mega_validation(
     if re.search(r"^\**Status:\**\s*<", header10, re.M):
         leftover.append("Status: <template boilerplate>")
     if leftover:
-        errs.append(
+        retro.append(
             f"template placeholder(s) survived into the persisted report: {leftover} — a "
             "placeholder is a lens nobody adjudicated wearing a verdict's clothes"
         )
     if scope == "exit":
-        # The committed advisory scan's contract is NARROW by design (see _committed_nonquiet's
-        # docstring): the exit-round conditions PLUS the structural/anti-cheat checks that are
-        # drift-independent (round 127: the keep-filter silently dropped the round-126
-        # legibility error — green-by-absence one path over — and the adjacent-round chain
-        # gap, which is INTERNAL history consistency, not live epic state). What stays
-        # blocking-path-only: Surface presence, hash length, round minimums, placeholders —
-        # the retro-grade set that would nag every historical report forever and get muted.
-        keep = (
-            "final ledger round reads",
-            "hashes moved",
-            "MORE THAN ONE",
-            "OUTSIDE the ledger table",
-            "does not parse",
-            "but round",
-        )
-        errs = [e for e in errs if any(k in e for k in keep)]
-    return errs
+        # The committed advisory keeps every STRUCTURAL error (classified at emission —
+        # see the `retro` note above); only the retro-grade set is blocking-path-only.
+        return errs
+    return errs + retro
 
 
 # Shares _LIST_MARK with _PASS_HEAD (rounds 67/69: each grammar re-typing its own marker
