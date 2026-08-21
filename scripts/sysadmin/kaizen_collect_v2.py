@@ -755,12 +755,17 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
     goes honestly quiet per-field instead of lying. A field measured by NEITHER row
     stays absent (neither schema knew it).
 
+    ``death_classes`` IS delta'd (W6-1): the store list is append-ordered ("every
+    death class, in order of occurrence"), so the day's NEW classes are the suffix
+    beyond the predecessor's length — never the lifetime list (the "0 occ / 2 cls"
+    mixed-semantics shape). A shorter current list is a shrink (publish nothing);
+    a baseline that never measured the list is a root-law ``None``.
+
     Non-additive fields are point-in-time, not deltas: ``gate.first_status`` is kept
     only when the predecessor had not already recorded one (a session's first NON-check
     attempt counts once, on the day it appeared — a predecessor whose runs were all
     ``--check`` has ``first_status: None`` and has NOT consumed the first attempt, L5);
-    ``rounds_max``/``death_classes``/``concurrent``/window timestamps carry the current
-    row's values.
+    ``rounds_max``/``concurrent``/window timestamps carry the current row's values.
     """
     if prev is None:
         out = dict(cur)  # the store row is never mutated
@@ -812,6 +817,19 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
             )
             return None
         _dst(container)[field] = diff_map
+    cur_dc = cur.get("death_classes")
+    prev_dc = prev.get("death_classes")
+    if isinstance(cur_dc, list) and isinstance(prev_dc, list):
+        if len(cur_dc) < len(prev_dc):
+            _warn(
+                f"delta_row: {cur.get('sid')!r} shrank (death_classes lost entries) — "
+                "publishing NOTHING for it this day"
+            )
+            return None
+        # W6-1: the day's NEW classes — the in-order suffix beyond the baseline.
+        out["death_classes"] = cur_dc[len(prev_dc) :]
+    elif isinstance(cur_dc, list) or isinstance(prev_dc, list):
+        out["death_classes"] = None  # ROOT LAW — one side measured, no baseline
     prev_gate = prev.get("gate") or {}
     if prev_gate.get("first_status") is not None:
         gate_dst = _dst("gate")
@@ -1049,6 +1067,40 @@ METRIC_DEFS: tuple[dict, ...] = (
             "unreadable transcripts dir, crashed sweep) is None → the cell renders "
             "— with the reason, never a measured-looking 0. Instrument health, "
             "metric zero."
+        ),
+    },
+    {
+        "id": "death_occurrences",
+        # v1 (fix-wave 6, W6-1): the death cell's day series — the weekly log cell
+        # aggregates PUBLISHED day points, never a row recompute.
+        "version": 1,
+        "counter_metric": "death_classes",
+        "formula": (
+            "attributed death events summed over the day's delta rows (envelope "
+            "count — a truncated death line still counts). Measurable only on a day "
+            "whose rows carry coroner evidence (a death or session_end event): a 0 "
+            "without evidence would fabricate a coroner that never ran (M9, "
+            "day-scoped). Attribution-floor guarded like every event-family metric. "
+            "The weekly log cell is the SUM of the ISO week's published day values — "
+            "the single-source law: weekly cells aggregate the published day series."
+            + _BUMP_GAP_SENTENCE
+        ),
+    },
+    {
+        "id": "death_classes",
+        # v1 (fix-wave 6, W6-1): the class half of the death cell's day series.
+        "version": 1,
+        "counter_metric": "death_occurrences",
+        "formula": (
+            "the {class: count} distribution of the day's NEW death classes — the "
+            "delta suffix of the session's in-order death_classes list beyond its "
+            "predecessor's length, never the lifetime list (a legacy v1 scalar "
+            "death_class coerces to a one-element list). Paired with "
+            "death_occurrences: occurrence volume must never hide class breadth, "
+            "and vice versa. Same coroner-evidence measurability gate and "
+            "attribution floor as its pair. The weekly log cell MERGES the ISO "
+            "week's published day maps (classes unioned, counts summed) — the "
+            "single-source law." + _BUMP_GAP_SENTENCE
         ),
     },
 )
@@ -1622,6 +1674,69 @@ def compute_metrics(
             "unclassified_rate", "no lines in the window" + _gap_note("unclassified_rate")
         )
 
+    # ── the death pair (W6-1) — the weekly cell's ONLY source is these day points ─
+    occ_total = 0
+    coroner_evidence = 0
+    death_map: collections.Counter[str] = collections.Counter()
+    for r in rows:
+        if _events_gap(r):
+            gaps["death_occurrences"] += 1
+        else:
+            events = r.get("events") or {}
+            occ_total += int(events.get("death", 0) or 0)
+            coroner_evidence += int(events.get("death", 0) or 0) + int(
+                events.get("session_end", 0) or 0
+            )
+        dc = r.get("death_classes")
+        if "death_classes" in r and dc is None:
+            gaps["death_classes"] += 1  # root law — measured with no baseline
+        elif isinstance(dc, list):
+            death_map.update(str(c) for c in dc if c)
+        else:
+            # W2-F6 mixed-store compatibility: a FACTS_VERSION-1 row carries a
+            # SCALAR death_class — coerce it to a one-element list at read.
+            legacy = r.get("death_class")
+            if isinstance(legacy, str) and legacy:
+                death_map[legacy] += 1
+    death_guard = _attribution_guard(rows, ("death",), occ_total, "death events")
+    if death_guard is not None:
+        out["death_occurrences"] = MetricResult.unavailable(
+            "death_occurrences", death_guard + _gap_note("death_occurrences")
+        )
+        out["death_classes"] = MetricResult.unavailable(
+            "death_classes", death_guard + _gap_note("death_classes")
+        )
+    elif coroner_evidence <= 0:
+        no_coroner = (
+            "no coroner evidence in the day's rows (no death or session_end event) — "
+            "a 0 would fabricate a coroner run (M9, day-scoped)"
+        )
+        out["death_occurrences"] = MetricResult.unavailable(
+            "death_occurrences", no_coroner + _gap_note("death_occurrences")
+        )
+        out["death_classes"] = MetricResult.unavailable(
+            "death_classes", no_coroner + _gap_note("death_classes")
+        )
+    else:
+        out["death_occurrences"] = MetricResult(
+            id="death_occurrences",
+            cell=str(occ_total),
+            detail="attributed death events in the day's delta rows"
+            + _gap_note("death_occurrences"),
+            value=occ_total,
+            numerator=occ_total,
+            denominator=None,
+        )
+        classes_cell = ", ".join(f"{c}={n}" for c, n in death_map.most_common())
+        out["death_classes"] = MetricResult(
+            id="death_classes",
+            cell=classes_cell or "clean (0 classified deaths)",
+            detail="the day's NEW death classes (delta suffix)" + _gap_note("death_classes"),
+            value=dict(death_map),
+            numerator=sum(death_map.values()),
+            denominator=None,
+        )
+
     if holes is None:
         out["hole_count"] = MetricResult.unavailable("hole_count", holes_reason)
     else:
@@ -1860,119 +1975,130 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     return True
 
 
-def log_cells(
-    day: dt.date,
-    metrics: dict[str, MetricResult],
-    rows: list[dict],
-    all_rows: list[dict] | None = None,
-    unknown_by_day: dict[str, dict] | None = None,
-) -> list[str]:
-    """Map the v2 metrics onto the shipped kaizen-log columns. Unmapped columns stay
-    ``—`` with the reason on stderr — never a fabricated value. ``all_rows`` is the
-    whole store's row universe: the death cell needs to know whether the CORONER has
-    ever produced evidence anywhere, not just this week (M9). ``unknown_by_day`` is
-    the unknown accumulator's day-keyed store rows (:func:`_unknown_rows_by_day`) —
-    the rounds cell's windowed attribution seam (W4-1); when None it is rebuilt from
-    the universe (direct callers without a store)."""
+#: The weekly cells' shared dash reason (W6-1).
+NO_WEEK_DAYS = "no published days this week"
 
-    def _ev(r: dict, name: str) -> int:
-        events = r.get("events")
-        return int(events.get(name, 0)) if isinstance(events, dict) else 0
 
-    universe = rows if all_rows is None else all_rows
-    if rows:
-        occ = sum(_ev(r, "death") for r in rows)
-        # W2-F6 mixed-store compatibility: a FACTS_VERSION-1 row carries a SCALAR
-        # ``death_class`` — coerce it to a one-element list at read, never let the
-        # list filter hide a classified death ("N occ / 0 cls").
-        classes: set[str] = set()
-        for r in rows:
-            dc = r.get("death_classes")
-            if isinstance(dc, list):
-                classes.update(str(c) for c in dc if c)
-            else:
-                legacy = r.get("death_class")
-                if isinstance(legacy, str) and legacy:
-                    classes.add(legacy)
-        # M9: a "0 occ / 0 cls" while NOTHING in the store carries coroner output
-        # (no death, no session_end, ever) is a fabricated zero — the coroner has
-        # simply never run. A coroner-backed zero still prints.
-        coroner_evidence = any(_ev(r, "death") or _ev(r, "session_end") for r in universe)
-        if occ == 0 and not coroner_evidence:
-            deaths = DASH
-            _warn(
-                f"Death-classes /wk = {DASH} — no death/session_end event anywhere in "
-                "the store: the coroner has never run, a 0 would be fabricated"
-            )
-        else:
-            deaths = f"{occ} occ / {len(classes)} cls"
-    else:
-        deaths = DASH
-        _warn(f"Death-classes /wk = {DASH} — no derived sessions in the window")
-    # One value row per sid: daily() feeds per-day DELTA rows since W5-5, so a sid
-    # re-derived on several week days would otherwise count into the mean once per
-    # day. rounds_max is point-in-time (the delta carries the current row's value)
-    # — the latest in-week row per sid is the session's value.
-    latest_by_sid: dict[str, dict] = {}
-    for r in rows:
-        sid = str(r.get("sid"))
-        cur = latest_by_sid.get(sid)
-        if cur is None or str(r.get("day") or "") >= str(cur.get("day") or ""):
-            latest_by_sid[sid] = r
-    rounded = [
-        int((r.get("runs") or {}).get("rounds_max", 0) or 0)
-        for r in latest_by_sid.values()
-        if int((r.get("runs") or {}).get("rounds_max", 0) or 0) > 0
-    ]
-    # W4-1 (supersedes S3's knowability rule): the rounds cell is WINDOWED (this
-    # ISO week, Monday..day) and the window's unattributed round mass IS computable
-    # — the unknown accumulator's rows are day-keyed (H1), so the windowed count is
-    # the sum of its per-day deltas over the week's elapsed days (the published-
-    # series delta seam, _windowed_unattributed). Guarded by the same 20% floor as
-    # every attribution guard: publishes when healthy, dashes when the unknown
-    # stream holds the window's mass, HEALS when attribution improves — never the
-    # lifetime ratchet (any unknown mass, ever, dashing forever) and never the
-    # false 100% (a pre-v3 absent-field unknown row read as a measured 0).
-    # W5-1 like-with-like: daily() feeds this cell the week's DELTA rows, so the
-    # attributed operand below is the week's round GROWTH — the same measurement
-    # kind as the unknown-stream operand. An unknowable unknown mass dashes with
-    # its TRUE cause (W5-2), never a blanket pre-v3 claim.
-    if unknown_by_day is None:
-        unknown_by_day = {}
-        for r in universe:
-            if r.get("sid") != UNKNOWN or not _event_era(r):
-                continue
-            d = r.get("day")
-            if isinstance(d, str):
-                cur = unknown_by_day.get(d)
-                if cur is None or int(r.get("facts_version", 0) or 0) >= int(
-                    cur.get("facts_version", 0) or 0
-                ):
-                    unknown_by_day[d] = r
+def _week_days(day: dt.date) -> list[str]:
+    """The ISO week's ELAPSED day stamps, Monday..``day`` inclusive."""
     week_start = day - dt.timedelta(days=day.isoweekday() - 1)
-    week_days = [
+    return [
         (week_start + dt.timedelta(days=k)).isoformat() for k in range((day - week_start).days + 1)
     ]
-    rounds_unattr, unattr_cause = _windowed_unattributed(unknown_by_day, ("round",), week_days)
-    attr_rounds = sum(_ev(r, "round") for r in rows)
-    if rounds_unattr is None:
-        rounds = DASH
-        _warn(
-            f"Review rounds /plan = {DASH} — "
-            + unattributed_unknowable_reason(unattr_cause, "round events")
-        )
-    elif rounds_unattr > 0 and (attr_rounds / (attr_rounds + rounds_unattr) < ATTRIBUTED_MIN_SHARE):
-        rounds = DASH
-        _warn(
-            f"Review rounds /plan = {DASH} — round events unattributable — "
-            f"{attr_rounds} attributed vs {rounds_unattr} in the unknown stream this "
-            f"window (below the {ATTRIBUTED_MIN_SHARE:.0%} attribution floor)"
-        )
-    elif rounded:
-        rounds = f"{sum(rounded) / len(rounded):.1f} (n={len(rounded)})"
-    else:
-        rounds = DASH
-        _warn(f"Review rounds /plan = {DASH} — no session carries a round event")
+
+
+def series_points(
+    metric: str, version: int, days: list[str], state: Path | None = None
+) -> list[dict]:
+    """The metric's PUBLISHED day points for ``days``, read from the current
+    registry version's series file only — the weekly cells' single source (W6-1).
+    A missing file or torn line contributes nothing (the day was never published)."""
+    window = set(days)
+    out: list[dict] = []
+    try:
+        with open(series_path(metric, version, state), encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                try:
+                    row = json.loads(raw)
+                except ValueError:
+                    continue
+                if isinstance(row, dict) and row.get("day") in window:
+                    out.append(row)
+    except OSError:
+        return []
+    return out
+
+
+def _point_int(point: dict, field: str) -> int | None:
+    val = point.get(field)
+    if isinstance(val, bool) or not isinstance(val, int):
+        return None
+    return val
+
+
+def _ratio_cell(points: list[dict], label: str) -> str:
+    """SUM the week's published day numerators/denominators — a per-day mean of
+    means would re-weight sessions by derivation day (the 33% dilution shape)."""
+    num = den = counted = 0
+    for p in points:
+        n, d = _point_int(p, "numerator"), _point_int(p, "denominator")
+        if n is None or d is None or d <= 0:
+            continue
+        num += n
+        den += d
+        counted += 1
+    if not counted:
+        _warn(f"{label} = {DASH} — {NO_WEEK_DAYS}")
+        return DASH
+    return _pct(num, den)
+
+
+def _rounds_cell(points: list[dict]) -> str:
+    """The weekly mean over review_rounds' published day values, weighted by
+    their n's (numerator = the day's summed rounds, denominator = its n)."""
+    num = den = 0
+    for p in points:
+        n, d = _point_int(p, "numerator"), _point_int(p, "denominator")
+        if n is None or d is None or d <= 0:
+            continue
+        num += n
+        den += d
+    if not den:
+        _warn(f"Review rounds /plan = {DASH} — {NO_WEEK_DAYS}")
+        return DASH
+    return f"{num / den:.1f} (n={den})"
+
+
+def _death_cell(occ_points: list[dict], cls_points: list[dict]) -> str:
+    """The week's REAL occ/cls: occurrences summed from death_occurrences day
+    points, classes merged from death_classes day maps — both already
+    delta-honest at publish (the day's NEW deaths only)."""
+    occ = 0
+    counted = 0
+    for p in occ_points:
+        n = _point_int(p, "numerator")
+        if n is None:
+            continue
+        occ += n
+        counted += 1
+    if not counted:
+        _warn(f"Death-classes /wk = {DASH} — {NO_WEEK_DAYS}")
+        return DASH
+    merged: set[str] = set()
+    for p in cls_points:
+        val = p.get("value")
+        if isinstance(val, dict):
+            merged.update(str(k) for k in val)
+    return f"{occ} occ / {len(merged)} cls"
+
+
+def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> list[str]:
+    """THE SINGLE-SOURCE LAW (W6-1): every mechanical weekly cell aggregates THE
+    PUBLISHED DAY SERIES — the one already-delta-honest source — and NEVER
+    recomputes from store rows (mixed row semantics fabricated cells: lifetime
+    ``rounds_max`` under a growth guard, delta occ against point-in-time death
+    classes, per-(sid,day) rows diluting per-session shares into per-row shares).
+
+    Aggregation per metric kind: ratio cells SUM the ISO week's published day
+    numerators/denominators; the death cell sums occurrences and merges the day
+    class maps; the rounds cell is the n-weighted weekly mean of review_rounds'
+    day points. A day the series lacks contributes nothing — its honesty gates
+    (attribution floor, coroner evidence, bump-day gaps) already spoke at publish
+    time. A week with NO published days for a metric renders ``—`` with the
+    reason (:data:`NO_WEEK_DAYS`). ``reg`` is the CURRENT full registry
+    (T06 + outcome tier) — only current-version series files are read."""
+    days = _week_days(day)
+
+    def _pts(mid: str) -> list[dict]:
+        mdef = reg.get(mid)
+        if mdef is None:
+            _warn(f"weekly cell metric {mid} missing from the registry — {DASH}")
+            return []
+        return series_points(mid, int(mdef["version"]), days, state)
+
+    gate_cell = _ratio_cell(_pts("first_attempt_gate_pass"), "Gate first-pass rate")
+    deaths = _death_cell(_pts("death_occurrences"), _pts("death_classes"))
+    rounds = _rounds_cell(_pts("review_rounds"))
     _warn(f"Lesson-class recurrence = {DASH} — no class taxonomy on lessons (analysis-half job)")
     _warn(
         f"Missed crons = {DASH} — not an event-stream metric; the liveness audit owns it "
@@ -1980,7 +2106,7 @@ def log_cells(
     )
     return [
         day.isoformat(),
-        metrics["first_attempt_gate_pass"].cell,
+        gate_cell,
         deaths,
         DASH,
         rounds,
@@ -2131,10 +2257,11 @@ def daily(
     about.
 
     The DAY series is published from per-day DELTAS (see delta_row) so a grown file
-    never re-counts earlier days. The human-facing weekly log cells read the SAME
-    delta seam windowed to the ISO week's elapsed days (window_delta_rows, W5-5) —
-    like with like: a cumulative row never leaks lifetime mass into a week-scoped
-    cell or message. The machine-consumed publication is the series + read_rows."""
+    never re-counts earlier days. **THE SINGLE-SOURCE LAW (W6-1):** the human-facing
+    weekly log cells aggregate THE PUBLISHED DAY SERIES — the one already-delta-honest
+    source — and never recompute from store rows (see :func:`log_cells`); the human
+    row is thereby provably consistent with the machine series. The machine-consumed
+    publication is the series + read_rows."""
     root = repo_root or REPO
     ev = events or events_dir()
     st = state or state_dir()
@@ -2271,25 +2398,18 @@ def daily(
     # guarded, fail-open (a warn, never a lost T06 publish).
     written += _publish_outcome_series(day_stamp, st)
 
-    # W5-5 (falls out of W5-1): the weekly call consumes the WEEK'S day-scoped
-    # delta rows — the same delta seam as the day series, windowed to the ISO
-    # week's elapsed days (Monday..day). A cumulative row must never leak lifetime
-    # mass (blocks_seen, first_status, closure counts) into a week-scoped message.
-    week_start = day - dt.timedelta(days=day.isoweekday() - 1)
-    week_days = [
-        (week_start + dt.timedelta(days=k)).isoformat() for k in range((day - week_start).days + 1)
-    ]
-    week_deltas = window_delta_rows(week_days, st)
-    metrics_week = compute_metrics(week_deltas, holes, holes_reason or "no hole source provided")
-    cells = log_cells(
-        day,
-        metrics_week,
-        week_deltas,
-        all_rows=all_rows,
-        # W4-1: the rounds cell's windowed attribution seam reads the accumulator's
-        # day-keyed store rows, never the collapsed universe.
-        unknown_by_day=_unknown_rows_by_day(st),
-    )
+    # W6-1 (supersedes W5-5's week recompute): the weekly log cells aggregate THE
+    # PUBLISHED DAY SERIES just written above — the single-source law (see
+    # log_cells). No store row is re-read for a weekly cell; the full registry
+    # (T06 + outcome tier) pins the current series versions.
+    try:
+        import kaizen_outcomes  # noqa: PLC0415 - lazy; avoids a module-import cycle
+
+        full_reg = kaizen_outcomes.registry()
+    except Exception as exc:
+        _warn(f"outcome registry unavailable ({exc!r}) — weekly cells use the T06 set only")
+        full_reg = reg
+    cells = log_cells(day, full_reg, state=st)
     for lp in logs:
         upsert_log_row(lp, cells)
 

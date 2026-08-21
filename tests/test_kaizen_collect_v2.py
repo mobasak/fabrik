@@ -91,6 +91,8 @@ def test_registry_m1_set_loads_with_hashes() -> None:
         "rule_activation",
         "unclassified_rate",
         "hole_count",
+        "death_occurrences",
+        "death_classes",
     }
     for mid, d in reg.items():
         assert d["counter_metric"] in reg and d["counter_metric"] != mid
@@ -1542,34 +1544,6 @@ def test_week_rows_are_per_week_latest_not_global(tmp_path: Path) -> None:
     )
 
 
-def test_death_cell_dashes_when_coroner_never_ran() -> None:
-    """M9: '0 occ / 0 cls' while the coroner has never run is a fabricated zero —
-    dash with the reason; a genuine coroner-backed zero still prints."""
-    base = {
-        "sid": "s",
-        "facts_version": kc.FACTS_VERSION,
-        "day": "2026-08-18",
-        "events": {"stop_pass": 1},
-        "death_classes": [],
-        "unclassified_reasons": {},
-        "stop_causes": {},
-        "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
-        "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0},
-        "lines_total": 1,
-        "lines_unclassified": 0,
-    }
-    rows = [base]
-    metrics = kc.compute_metrics(rows, holes=None, holes_reason="coroner unavailable")
-    cells = kc.log_cells(dt.date(2026, 8, 18), metrics, rows, all_rows=rows)
-    assert cells[2] == DASH, "no coroner evidence anywhere -> the cell dashes"
-    closed = json.loads(json.dumps(base))
-    closed["sid"] = "closed"
-    closed["events"] = {"session_end": 1}
-    rows2 = [base, closed]
-    cells2 = kc.log_cells(dt.date(2026, 8, 18), metrics, rows2, all_rows=rows2)
-    assert cells2[2] == "0 occ / 0 cls", "a coroner-backed zero is a genuine zero"
-
-
 def test_daily_passes_events_dir_to_coroner_hole_probe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1790,86 +1764,6 @@ def test_repopulated_metrics_publish_at_current_version(tmp_path: Path) -> None:
         assert not kc.series_path("gate_failure_taxonomy", old, st).exists()
     for old in range(1, prem_ver):
         assert not kc.series_path("premature_stop_rate", old, st).exists()
-
-
-def test_log_cells_rounds_dash_when_round_family_unattributable(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """W2-F2: a mean over n=1 attributed round-carrying sessions while the round
-    mass sits in the unknown stream is fabricated precision — the cell dashes."""
-    day = dt.date(2026, 8, 18)
-    r1 = _w2_row(
-        "s1",
-        "2026-08-18",
-        events={"round": 1},
-        runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
-    )
-    unk_base = _w2_row(
-        "unknown",
-        "2026-08-10",
-        project=None,
-        events_unattributed={},
-        concurrent_reason="unattributable-sid",
-    )
-    unk = _w2_row(
-        "unknown",
-        "2026-08-18",
-        project=None,
-        events_unattributed={"round": 47},
-        concurrent_reason="unattributable-sid",
-    )
-    metrics = kc.compute_metrics([r1, unk], holes=0)
-    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk, unk_base])
-    assert cells[4] == DASH, "the rounds cell must dash under the attribution floor"
-    err = capsys.readouterr().err
-    assert "Review rounds" in err and "unattributable" in err
-
-
-def test_log_cells_rounds_heal_when_unknown_mass_is_out_of_window(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """W4-1 (supersedes W2-F2's universe read): unknown round mass derived in an
-    EARLIER week is not THIS week's mass — the windowed per-day delta seam heals
-    the cell instead of dashing forever on the monotone accumulator's lifetime
-    history (the exact ratchet the windowed guard exists to kill)."""
-    day = dt.date(2026, 8, 18)
-    r1 = _w2_row(
-        "s1",
-        "2026-08-18",
-        events={"round": 1},
-        runs={"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 2},
-    )
-    unk_earlier_week = _w2_row(
-        "unknown",
-        "2026-08-07",
-        project=None,
-        events_unattributed={"round": 47},
-        concurrent_reason="unattributable-sid",
-    )
-    metrics = kc.compute_metrics([r1], holes=0)
-    cells = kc.log_cells(day, metrics, [r1], all_rows=[r1, unk_earlier_week])
-    assert cells[4] == "2.0 (n=1)", "pre-window unknown mass must not dash this week's cell"
-
-
-def test_log_cells_death_cell_accepts_v1_scalar_death_class() -> None:
-    """W2-F6: a FACTS_VERSION-1 row carries a SCALAR death_class — the class count
-    must see it ('2 occ / 0 cls' hid a classified death)."""
-    legacy = {
-        "facts_version": 1,
-        "sid": "legacy",
-        "day": "2026-08-18",
-        "events": {"death": 2},
-        "death_class": "rate_limit",
-        "runs": {},
-        "stop_causes": {},
-        "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
-        "lines_total": 4,
-        "lines_unclassified": 0,
-        "unclassified_reasons": {},
-    }
-    metrics = kc.compute_metrics([legacy], holes=0)
-    cells = kc.log_cells(dt.date(2026, 8, 18), metrics, [legacy], all_rows=[legacy])
-    assert cells[2] == "2 occ / 1 cls"
 
 
 def test_era_filter_precedes_latest_per_sid_collapse(tmp_path: Path) -> None:
@@ -2165,66 +2059,6 @@ def test_continuing_sessions_claim_keys_on_noncheck_runs() -> None:
     m2 = kc.compute_metrics([continuing], holes=0)["first_attempt_gate_pass"]
     assert not m2.measurable
     assert "continuing sessions only" in m2.detail
-
-
-def test_log_cells_rounds_publish_when_window_share_meets_floor() -> None:
-    """W4-1 (supersedes S3's knowability rule): the window's unattributed count IS
-    computable — the unknown accumulator's day-keyed rows subtract into per-day
-    deltas — so an in-window share above the 20% floor (100 vs 10 = 91%) publishes
-    instead of dashing on mere unknown-mass existence."""
-    day = dt.date(2026, 8, 18)
-    r1 = _w2_row(
-        "s1",
-        "2026-08-18",
-        events={"round": 100},
-        runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
-    )
-    unk_base = _w2_row(
-        "unknown",
-        "2026-08-10",
-        project=None,
-        events_unattributed={},
-        concurrent_reason="unattributable-sid",
-    )
-    unk = _w2_row(
-        "unknown",
-        "2026-08-18",
-        project=None,
-        events_unattributed={"round": 10},
-        concurrent_reason="unattributable-sid",
-    )
-    metrics = kc.compute_metrics([r1, unk], holes=0)
-    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk, unk_base])
-    assert cells[4] == "3.0 (n=1)", "a healthy windowed share must publish — no ratchet"
-
-
-def test_log_cells_rounds_dash_on_pre_v3_unknown_row_in_window(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """W4-1 root law: a live-shape v1 unknown row (events_unattributed ABSENT) in
-    the window is NOT a measured 0 — the old guard read absent as 0 and published
-    over a store that never measured attribution. The cell dashes with the pre-v3
-    reason."""
-    day = dt.date(2026, 8, 18)
-    r1 = _w2_row(
-        "s1",
-        "2026-08-18",
-        events={"round": 1},
-        runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
-    )
-    unk = _w2_row(
-        "unknown",
-        "2026-08-18",
-        project=None,
-        concurrent_reason="unattributable-sid",
-    )
-    unk["facts_version"] = 1
-    unk.pop("events_unattributed", None)
-    metrics = kc.compute_metrics([r1], holes=0)
-    cells = kc.log_cells(day, metrics, [r1], all_rows=[r1, unk])
-    assert cells[4] == DASH, "an absent-field unknown row must dash, never publish as 0"
-    err = capsys.readouterr().err
-    assert "pre-v3 rows in window" in err
 
 
 def _publish_stub_day(tmp_path: Path, day: str) -> None:
@@ -2576,3 +2410,167 @@ def test_daily_weekly_cells_read_window_deltas_not_cumulative_rows(tmp_path: Pat
         "the first attempt was consumed LAST week — this week's cell must not "
         "re-count the cumulative row's lifetime first_status"
     )
+
+
+# ── fix-wave 6 (W6-1: the single-source law — weekly cells read the DAY SERIES) ──────
+
+
+def _plant_point(st: Path, metric: str, version: int, day: str, **fields: object) -> None:
+    """Plant one published day point directly in the metric's series file."""
+    p = kc.series_path(metric, version, st)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    row = {"day": day, "metric": metric, "version": version, **fields}
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
+
+
+def _full_reg() -> dict:
+    import kaizen_outcomes  # noqa: PLC0415
+
+    return kaizen_outcomes.registry()
+
+
+def test_weekly_cells_aggregate_the_published_day_series(tmp_path: Path) -> None:
+    """W6-1: mechanical weekly cells aggregate THE PUBLISHED DAY SERIES — ratio
+    cells sum the week's day numerators/denominators (per-session shares can
+    never dilute into per-row shares), the death cell sums occurrences and merges
+    the day class maps, the rounds cell is the n-weighted weekly mean of the
+    review_rounds day points."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    day = dt.date(2026, 8, 18)  # Tuesday; the elapsed week is the 17th..18th
+    fa_v = int(reg["first_attempt_gate_pass"]["version"])
+    _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-17", numerator=2, denominator=2)
+    _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-18", numerator=1, denominator=3)
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    _plant_point(st, "death_occurrences", do_v, "2026-08-17", value=2, numerator=2)
+    _plant_point(st, "death_occurrences", do_v, "2026-08-18", value=1, numerator=1)
+    _plant_point(st, "death_classes", dc_v, "2026-08-17", value={"rate_limit": 1, "oom": 1})
+    _plant_point(st, "death_classes", dc_v, "2026-08-18", value={"oom": 1})
+    rr_v = int(reg["review_rounds"]["version"])
+    _plant_point(st, "review_rounds", rr_v, "2026-08-17", value=3.0, numerator=6, denominator=2)
+    _plant_point(st, "review_rounds", rr_v, "2026-08-18", value=9.0, numerator=9, denominator=1)
+    # a point OUTSIDE the ISO week contributes nothing
+    _plant_point(st, "review_rounds", rr_v, "2026-08-10", value=50.0, numerator=50, denominator=1)
+    cells = kc.log_cells(day, reg, state=st)
+    assert cells[1] == "60% (3/5)", "ratio cells sum the week's day num/den"
+    assert cells[2] == "3 occ / 2 cls", "the death cell is the week's real occ/cls"
+    assert cells[4] == "5.0 (n=3)", "the rounds cell is the n-weighted weekly mean"
+
+
+def test_weekly_cells_dash_when_the_series_has_no_published_days(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W6-1 (the round-6 probes): NO row recompute exists — a store full of
+    lifetime rows (rounds_max=9, two lifetime death classes) with NO published
+    day points this week renders — for every mechanical cell: the 9.0 (n=1)
+    zero-growth rounds cell and the '0 occ / 2 cls' mixed-semantics shape are
+    structurally dead."""
+    st = tmp_path / "state"
+    row = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"round": 0},
+        runs={"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 9},
+        death_classes=["rate_limit", "oom"],
+    )
+    kc.append_facts([row], st)
+    cells = kc.log_cells(dt.date(2026, 8, 18), _full_reg(), state=st)
+    assert cells[1] == DASH and cells[2] == DASH and cells[4] == DASH, (
+        "store rows must be unreachable from a weekly cell — series or dash"
+    )
+    err = capsys.readouterr().err
+    assert "no published days this week" in err
+
+
+def test_weekly_cells_read_only_the_current_registry_version(tmp_path: Path) -> None:
+    """W6-1: a retired version's series file is history — the weekly cell reads
+    only the CURRENT registry version's file."""
+    st = tmp_path / "state"
+    _plant_point(st, "review_rounds", 1, "2026-08-18", value=9.0, numerator=9, denominator=1)
+    cells = kc.log_cells(dt.date(2026, 8, 18), _full_reg(), state=st)
+    assert cells[4] == DASH, "a stale-version series file must not feed the cell"
+
+
+def test_delta_row_death_classes_is_the_new_suffix() -> None:
+    """W6-1: death_classes is DELTA'd — the in-order suffix beyond the
+    predecessor's list, never the lifetime list; a shorter list is a shrink
+    (publish nothing); a baseline that never measured the list is a root-law
+    None."""
+    prev = _w2_row("s", "2026-08-17", events={"death": 2}, death_classes=["a", "b"])
+    cur = _w2_row("s", "2026-08-18", events={"death": 3}, death_classes=["a", "b", "c"])
+    d = kc.delta_row(cur, prev)
+    assert d is not None and d["death_classes"] == ["c"], "only the day's NEW classes"
+    shrunk = _w2_row("s", "2026-08-18", events={"death": 2}, death_classes=["a"])
+    assert kc.delta_row(shrunk, prev) is None, "a shorter class list is a shrink"
+    legacy_prev = _w2_row("s", "2026-08-17", events={"death": 2})
+    legacy_prev.pop("death_classes")
+    d2 = kc.delta_row(cur, legacy_prev)
+    assert d2 is not None and d2["death_classes"] is None, (
+        "no same-field baseline — root-law None, never the lifetime list"
+    )
+
+
+def test_death_pair_measures_only_with_coroner_evidence() -> None:
+    """W6-1: the death pair publishes a day point only when the day's rows carry
+    coroner evidence (a death or session_end event) — a 0 without evidence would
+    fabricate a coroner run (M9, day-scoped); a session_end-backed zero is a
+    genuine measured 0."""
+    quiet = _w2_row("s", "2026-08-18", events={"stop_pass": 1}, death_classes=[])
+    m = kc.compute_metrics([quiet], holes=0)
+    assert not m["death_occurrences"].measurable and not m["death_classes"].measurable
+    assert "coroner" in m["death_occurrences"].detail
+    dead = _w2_row(
+        "s",
+        "2026-08-18",
+        events={"death": 2, "session_end": 1},
+        death_classes=["rate_limit", "oom"],
+    )
+    m2 = kc.compute_metrics([dead], holes=0)
+    assert m2["death_occurrences"].measurable and m2["death_occurrences"].cell == "2"
+    assert m2["death_classes"].value == {"rate_limit": 1, "oom": 1}
+    closed = _w2_row("s", "2026-08-18", events={"session_end": 1}, death_classes=[])
+    m3 = kc.compute_metrics([closed], holes=0)
+    assert m3["death_occurrences"].measurable and m3["death_occurrences"].cell == "0", (
+        "a session_end-backed zero is a genuine coroner-backed 0"
+    )
+
+
+def test_death_classes_accepts_v1_scalar_death_class() -> None:
+    """W2-F6 carried forward into the day metric: a FACTS_VERSION-1 row carries a
+    SCALAR death_class — the class distribution must see it."""
+    legacy = {
+        "facts_version": 1,
+        "sid": "legacy",
+        "day": "2026-08-18",
+        "events": {"death": 2},
+        "death_class": "rate_limit",
+        "runs": {},
+        "stop_causes": {},
+        "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
+        "lines_total": 4,
+        "lines_unclassified": 0,
+        "unclassified_reasons": {},
+    }
+    m = kc.compute_metrics([legacy], holes=0)
+    assert m["death_occurrences"].cell == "2"
+    assert m["death_classes"].value == {"rate_limit": 1}
+
+
+def test_daily_weekly_row_is_fed_by_the_day_series(tmp_path: Path) -> None:
+    """W6-1 end to end: daily() publishes the day series first and the weekly log
+    row aggregates THOSE points — the golden corpus's death lands in the log row
+    as the week's real occ/cls."""
+    rc, _, st, log = _green_daily(tmp_path, dt.date.today())
+    assert rc == 0
+    do_v = int(_full_reg()["death_occurrences"]["version"])
+    assert kc.series_path("death_occurrences", do_v, st).is_file(), (
+        "the death pair publishes day points"
+    )
+    text = log.read_text(encoding="utf-8")
+    row_line = next(
+        ln for ln in text.splitlines() if ln.startswith(f"| {dt.date.today().isoformat()}")
+    )
+    cells = [c.strip() for c in row_line.strip().strip("|").split("|")]
+    assert cells[2] == "1 occ / 1 cls", "golden-bravo's rate_limit death, from the series"

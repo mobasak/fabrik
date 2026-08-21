@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 6: the single-source law — weekly cells read the day series (2026-08-21)
+
+Round 6's structural centerpiece (W6-1): the weekly log cells still RECOMPUTED from store rows
+with mixed semantics (lifetime `rounds_max` under a growth guard; delta occurrences against
+point-in-time death classes — the "0 occ / 2 cls" shape; per-(sid,day) rows diluting
+per-session shares into per-row shares). Now every mechanical weekly cell AGGREGATES THE
+PUBLISHED DAY SERIES: ratios sum the ISO week's day numerators/denominators, the death cell
+sums `death_occurrences` and merges `death_classes` day maps (a NEW registered pair, v1 —
+delta-suffix classes, coroner-evidence-gated per day), the rounds cell is the n-weighted weekly
+mean of `review_rounds` day points; a week with no published days dashes "no published days
+this week", and `compute_metrics(week_deltas)` is deleted — no row recompute exists.
+Satellites: W6-2 — attributed-side bootstrap symmetry (a first-ever delta row carrying family
+mass whose `first_ts` predates the window is bootstrap-unmeasurable: excluded + counted; dash
+when the population empties); W6-3 — `stop_block_causes` sums causes over verdict-bearing rows
+only (numerator ⊆ denominator structurally); W6-4 — the empty-window dash names its MEASURED
+cause (empty store · transcript-era only · rows out of window); W6-5 — window arithmetic
+unified on LOCAL calendar days (the store's day stamps are local; the newest derivable stamp
+under the daily cron is yesterday). Def bumps: review_rounds v7, premature_stop v6,
+stop_block_causes v6; registry pins updated.
+
 ### Fixed — kaizen M1 review fix-wave 5: one window, one population — like with like (2026-08-21)
 
 Round 5's root (W5-1): the attribution guard still mixed measurement KINDS — the unattributed

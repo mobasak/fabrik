@@ -172,7 +172,7 @@ T09 era filter; `read_rows` itself stays era-blind because T08's report needs bo
 
 Every metric is registered with a version, a definition hash, and a **reciprocal counter pair**
 (an unpaired definition refuses to load — a schema constraint). The full M1 registry
-(`kaizen_outcomes.registry()` = T06's eight + T07's six):
+(`kaizen_outcomes.registry()` = T06's ten + T07's six):
 
 | Metric | Counter pair | Level | Source |
 |---|---|---|---|
@@ -184,6 +184,8 @@ Every metric is registered with a version, a definition hash, and a **reciprocal
 | `rule_activation` | `gate_failure_taxonomy` | run-closing sessions | T06 collector |
 | `unclassified_rate` | `hole_count` | instrument health (metric zero) | T06 collector |
 | `hole_count` | `unclassified_rate` | coroner holes | T06 collector |
+| `death_occurrences` | `death_classes` | day's death events (coroner-evidence-gated) | T06 collector |
+| `death_classes` | `death_occurrences` | day's NEW class distribution (delta suffix) | T06 collector |
 | `rework_rate` | `review_rounds` | git-mined commits, `/opt/*` | T07 `--rework` |
 | `review_rounds` | `rework_rate` | round-carrying sessions | T07 (from store rows) |
 | `fleet_health` | `sweep_coverage` | swept projects, all checks green | T07 `--sweep` |
@@ -206,11 +208,16 @@ occurrence count (the population the value is computed over — check-run mass c
 non-check sliver), and it counts NON-check runs only (`mode.check` false — the Stop hook's
 automatic `--lean --check` self-review is diagnostic, never taxonomy population; the same
 rationale as `first_attempt_gate_pass`). The WINDOWED store metrics (`review_rounds`,
-`premature_stop`, `stop_block_causes`, and the weekly rounds log cell) use the **windowed
-attribution guard**, and since W5-1 BOTH of its operands — and the value population — come from
-the SAME source with the SAME semantics: the window's day-scoped DELTA rows
-(`window_delta_rows`; every sid's in-window store rows delta'd against its nearest earlier row,
-so a lifetime session contributes only its in-window growth). The unattributed operand is the
+`premature_stop`, `stop_block_causes`) use the **windowed attribution guard**, and since W5-1
+BOTH of its operands — and the value population — come from the SAME source with the SAME
+semantics: the window's day-scoped DELTA rows over the last `KAIZEN_OUTCOMES_WINDOW_DAYS`
+LOCAL calendar days including today (`window_delta_rows`; every sid's in-window store rows
+delta'd against its nearest earlier row, so a lifetime session contributes only its in-window
+growth). Attributed-side bootstrap symmetry (W6-2): a first-ever attributed delta row carrying
+family mass whose `first_ts` predates the window is bootstrap-unmeasurable — excluded from
+both operands and counted. The weekly log cells no longer run any guard of their own: they
+AGGREGATE the published day series (the single-source law, W6-1 — see
+`docs/workstation/kaizen.md` § The kaizen-log row). The unattributed operand is the
 `unknown` accumulator's per-day delta mass over the same window days; the same 20% floor applies.
 The guard publishes (share stated) when healthy, dashes when the unknown stream holds the
 window's mass, and HEALS when attribution improves. An unknowable unknown mass dashes with its

@@ -410,10 +410,13 @@ def _fact(sid: str, **over: object) -> dict:
         "facts_version": 1,
         "sid": sid,
         # Recent by construction: since W5-1 there is ONE window — the last
-        # KAIZEN_OUTCOMES_WINDOW_DAYS calendar DAYS including today — and both the
+        # KAIZEN_OUTCOMES_WINDOW_DAYS calendar DAYS including today (LOCAL days
+        # since W6-5, matching the store's dt.date.today() stamps) — and both the
         # value population and the attribution guard read it; fixed fixture dates
-        # would silently age out of it.
-        "day": dt.datetime.now(dt.UTC).date().isoformat(),
+        # would silently age out of it. first_ts today = born in-window (W6-2):
+        # a first-ever row without it is bootstrap-excluded.
+        "day": dt.date.today().isoformat(),
+        "first_ts": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds"),
         "last_ts": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds"),
         "events": {},
         "events_unattributed": {},
@@ -635,11 +638,13 @@ def test_windowed_formulas_are_version_bumped() -> None:
     reg = ko.registry()
     # review_rounds: v2 added the window (L7), v3 the attribution floor (W2-F2),
     # v4 the window-scoped knowability guard (S3), v5 the windowed-delta guard on
-    # the 20% floor (W4-1), v6 the one-window day-scoped delta population (W5-1).
-    # The stops pair took S3 at v3, W4-1 at v4, W5-1 at v5.
-    for mid, ver in (("premature_stop", 5), ("stop_block_causes", 5), ("review_rounds", 6)):
+    # the 20% floor (W4-1), v6 the one-window day-scoped delta population (W5-1),
+    # v7 the LOCAL day window + attributed bootstrap symmetry (W6-2/W6-5). The
+    # stops pair took S3 at v3, W4-1 at v4, W5-1 at v5, W6 at v6.
+    for mid, ver in (("premature_stop", 6), ("stop_block_causes", 6), ("review_rounds", 7)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
+        assert "LOCAL calendar days" in reg[mid]["formula"], mid
 
 
 def test_rework_survives_delimiter_injection_in_subject(tmp_path: Path) -> None:
@@ -846,14 +851,19 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
             "fdb59d0957a0ee826018bb69ef4faffda3f213f1324f05d645eec396f468d2c4",
         ),
         "hole_count": (3, "3e8a9a9f518e04e865431476fcebad9d4e104fa5b3d8f59fbb9e411d08d41439"),
+        "death_occurrences": (
+            1,
+            "b728c7b15f7caeb5ae55bbdc5e2207ae3000b2290ecb37c3a46dcd72228c048b",
+        ),
+        "death_classes": (1, "4344dc33b44011e212fdac04c9e3d75572acfdb6f3e5c9766ad1d774117541c3"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
-        "review_rounds": (6, "eb74401bfec01cd8fe351dfc68b669c4d7078c96cb22e8d18ce6b44b993e2647"),
+        "review_rounds": (7, "b80165e5b9c90ce3a7b63cc1d57b9f344fd918616329ebf5f48b4adcbba163bd"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (5, "6103d071cc1ca4645308c2e0355cad1be8114f113f81779e885de9bd85c848e2"),
+        "premature_stop": (6, "37e07bea8e31290ec6b64ee3dca85c1d949daa38a8116baff1849561081fa562"),
         "stop_block_causes": (
-            5,
-            "1cfcad08631c74f2cfaeb7a0aa8389400b4c0ce9ebb132410845bf51205014ab",
+            6,
+            "b480aac3cdb7e1ff9d61c11075ab2f0ca647ce2935de8681c3020ed73658dfdf",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
@@ -867,7 +877,8 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
 
 
 def _days_ago(n: int) -> str:
-    return (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=n)).isoformat()
+    # LOCAL days (W6-5) — the store's day stamps are dt.date.today() locals.
+    return (dt.date.today() - dt.timedelta(days=n)).isoformat()
 
 
 def test_stops_pair_guard_operands_are_windowed_deltas_like_for_like(tmp_path: Path) -> None:
@@ -1007,3 +1018,161 @@ def test_stops_pair_states_the_share_when_knowable(tmp_path: Path) -> None:
     assert prem.measurable and causes.measurable
     assert "100% attributed" in prem.detail
     assert "100% attributed" in causes.detail
+
+
+# ── fix-wave 6 (W6: bootstrap symmetry, causes scope, measured reasons, local days) ──
+
+
+def test_outcome_metrics_exclude_pre_window_bootstrap_rows(tmp_path: Path) -> None:
+    """W6-2 (the round-6 probe): a 60-day session whose FIRST-EVER derivation
+    lands in-window (delta_of None, family mass > 0, first_ts predating the
+    window) dumped lifetime backlog as its 'delta' — bootstrap-unmeasurable: the
+    stops pair and review_rounds dash with the bootstrap reason, never
+    40.0 (n=1) / 100%."""
+    born = (dt.datetime.now(dt.UTC) - dt.timedelta(days=60)).isoformat(timespec="milliseconds")
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "sixty",
+                first_ts=born,
+                events={"stop_pass": 90, "stop_block": 10, "round": 40},
+                stop_causes={"run-record": 10},
+                runs={"rounds_max": 40},
+            )
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable, (
+        "a lifetime dump must never publish as the window's 100%"
+    )
+    assert "bootstrap" in prem.detail
+    assert causes.detail == prem.detail
+    rounds = ko.review_rounds()
+    assert not rounds.measurable, "40 lifetime rounds must never publish as 40.0 (n=1)"
+    assert "bootstrap" in rounds.detail
+
+
+def test_in_window_born_first_row_is_not_bootstrap(tmp_path: Path) -> None:
+    """W6-2 counter-direction: a first-ever row whose first_ts proves the session
+    was BORN in-window carries no pre-window backlog — its lifetime IS in-window
+    growth, so the steady-state single-derivation session still measures."""
+    _seed_facts(
+        tmp_path,
+        [_fact("fresh", events={"stop_pass": 1, "round": 2}, runs={"rounds_max": 2})],
+    )
+    prem, _causes = ko.premature_stop()
+    assert prem.measurable, "an in-window-born session is real in-window growth"
+    rounds = ko.review_rounds()
+    assert rounds.measurable and "2.0" in rounds.cell
+
+
+def test_bootstrap_exclusion_is_counted_when_population_survives(tmp_path: Path) -> None:
+    """W6-2: beside a measurable fresh session the metric publishes over the
+    survivors and COUNTS the bootstrap exclusion in its detail."""
+    born = (dt.datetime.now(dt.UTC) - dt.timedelta(days=60)).isoformat(timespec="milliseconds")
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("sixty", first_ts=born, events={"round": 40}, runs={"rounds_max": 40}),
+            _fact("fresh", events={"round": 2}, runs={"rounds_max": 2}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "2.0" in rounds.cell and "n=1" in rounds.cell, (
+        "the bootstrap row's 40 lifetime rounds must stay out of the mean"
+    )
+    assert "bootstrap" in rounds.detail, "the exclusion is counted, never silent"
+
+
+def test_unprovable_first_ts_with_mass_is_bootstrap_excluded(tmp_path: Path) -> None:
+    """W6-2: a first-ever row carrying family mass whose first_ts cannot prove an
+    in-window birth (absent/unparseable) is excluded — unprovable is not
+    measurable."""
+    row = _fact("noft", events={"stop_pass": 5})
+    row["first_ts"] = None
+    _seed_facts(tmp_path, [row])
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "bootstrap" in prem.detail
+
+
+def test_stop_block_causes_sum_over_verdict_bearing_rows_only(tmp_path: Path) -> None:
+    """W6-3: a causes-without-verdicts row must not leak into the histogram —
+    causes are summed over verdict-bearing rows only, restoring the numerator ⊆
+    denominator invariant structurally."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", events={"stop_pass": 1, "stop_block": 1}, stop_causes={"run-record": 1}),
+            _fact("weird", events={}, stop_causes={"gate-red": 3}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert prem.measurable and causes.measurable
+    assert causes.value == {"run-record": 1}, "the verdict-less row's causes never count"
+    assert causes.numerator is not None and causes.denominator is not None
+    assert causes.numerator <= causes.denominator, "numerator ⊆ denominator structurally"
+
+
+def test_empty_window_reason_names_the_measured_cause(tmp_path: Path) -> None:
+    """W6-4: the empty-window dash states WHICH measured cause applies — empty
+    store · transcript-era-only store · rows exist but none dated in-window —
+    never the guessed 'the daily derivation did not run'."""
+    prem_a, _ = ko.premature_stop(state=tmp_path / "empty")
+    assert "no derivation in window" in prem_a.detail
+    assert "store is empty" in prem_a.detail
+    assert "did not run" not in prem_a.detail
+    tr_state = tmp_path / "tr"
+    ko.kc.append_facts(
+        [
+            {
+                "facts_version": 1,
+                "sid": "t",
+                "day": dt.date.today().isoformat(),
+                "era": "transcript",
+            }
+        ],
+        tr_state,
+    )
+    prem_b, _ = ko.premature_stop(state=tr_state)
+    assert "transcript-era" in prem_b.detail
+    assert "did not run" not in prem_b.detail
+    old_state = tmp_path / "old"
+    ko.kc.append_facts(
+        [{"facts_version": 1, "sid": "s", "day": "2026-01-01", "events": {"stop_pass": 1}}],
+        old_state,
+    )
+    prem_c, _ = ko.premature_stop(state=old_state)
+    assert "none dated in-window" in prem_c.detail
+    assert "2026-01-01" in prem_c.detail, "the newest derived day is named"
+    assert "did not run" not in prem_c.detail
+    rounds_c = ko.review_rounds(state=old_state)
+    assert "none dated in-window" in rounds_c.detail
+
+
+def test_window_day_stamps_are_local_calendar_days() -> None:
+    """W6-5: the store's day stamps are LOCAL dates (dt.date.today() at
+    derivation) — the window arithmetic must be local too, never a UTC/local mix
+    that silently drops the boundary day."""
+    import time as _time  # noqa: PLC0415
+
+    utc_now = dt.datetime.now(dt.UTC)
+    zone = "Etc/GMT-14" if utc_now.hour >= 12 else "Etc/GMT+12"
+    old_tz = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = zone
+        _time.tzset()
+        assert dt.date.today() != dt.datetime.now(dt.UTC).date(), (
+            "fixture zone must split local from UTC"
+        )
+        stamps = ko._window_day_stamps()
+        assert stamps[0] == dt.date.today().isoformat(), "the window is LOCAL days"
+        assert len(stamps) == ko._window_days()
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        _time.tzset()

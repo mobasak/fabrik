@@ -63,7 +63,10 @@ complete). In order:
    claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
 4. **Log row + mail** — the ISO-week row is upserted into both role logs and the metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
-   never the row).
+   never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
+   THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row
+   recompute; the human row is thereby provably consistent with the machine series (see § The
+   kaizen-log row).
 
 Metric inputs are **event-era only**: T08's backfill shares the store with `era: "transcript"`
 rows (every event-only field an honest `—`), and `daily()` excludes them from its day/week
@@ -100,34 +103,48 @@ line reads `swept n/N — the rest —`. Sibling modes for the analyst: `--rewor
 rate across `/opt/*`, `KAIZEN_REWORK_DAYS` window) and `--stops` (session-level premature-stop).
 The store-derived outcome series (`premature_stop`, `stop_block_causes`, `review_rounds`)
 additionally publish from the daily collector pass. All three compute over ONE window with ONE
-population (W5-1): the last `KAIZEN_OUTCOMES_WINDOW_DAYS` calendar days including today
-(default 7), read as day-scoped DELTA rows — every sid's in-window store rows delta'd against
-its nearest earlier row (`window_delta_rows`), so a lifetime session contributes only its
-in-window growth, never all-time cumulative. Value and attribution guard measure the SAME delta
-rows: attributed in-window growth vs the `unknown` accumulator's per-day delta mass, held to the
-20% attribution floor. The guard publishes (share stated) when healthy, dashes when the unknown
-stream holds the window's mass, and heals when attribution improves; an unknowable unknown mass
-dashes with its TRUE cause — accumulator shrank · pre-v3 rows in window (no
-`events_unattributed` field — absent ≠ 0) · bump-day gap · bootstrap window (the accumulator's
-first derivation carries pre-window backlog, so the first window after store bootstrap is
-expected unmeasurable; family-scoped — a bootstrap row with zero family mass is a knowable 0).
-A window holding no derived delta rows at all dashes "no derivation in window" (a derivation
-gap is never a knowable 0). Never a lifetime ratio (fails open on a bad week) and never a
-lifetime-knowability rule (ratchets permanently dead).
+population (W5-1): the last `KAIZEN_OUTCOMES_WINDOW_DAYS` LOCAL calendar days including today
+(default 7; the store's day stamps are local dates — W6-5 — and under the daily cron the newest
+derivable stamp is yesterday), read as day-scoped DELTA rows — every sid's in-window store rows
+delta'd against its nearest earlier row (`window_delta_rows`), so a lifetime session
+contributes only its in-window growth, never all-time cumulative. Attributed-side bootstrap
+symmetry (W6-2): a first-ever attributed delta row carrying family mass whose `first_ts`
+predates the window dumped lifetime backlog as its "delta" — bootstrap-unmeasurable, excluded
+from value AND guard operands and counted (a `first_ts`-proven in-window birth stays: its
+lifetime IS in-window growth); the metric dashes with the bootstrap reason when the exclusion
+empties the population. Value and attribution guard measure the SAME delta rows: attributed
+in-window growth vs the `unknown` accumulator's per-day delta mass, held to the 20% attribution
+floor. The guard publishes (share stated) when healthy, dashes when the unknown stream holds
+the window's mass, and heals when attribution improves; an unknowable unknown mass dashes with
+its TRUE cause — accumulator shrank · pre-v3 rows in window (no `events_unattributed` field —
+absent ≠ 0) · bump-day gap · bootstrap window (the accumulator's first derivation carries
+pre-window backlog, so the first window after store bootstrap is expected unmeasurable;
+family-scoped — a bootstrap row with zero family mass is a knowable 0).
+`stop_block_causes` sums causes over VERDICT-BEARING rows only (numerator ⊆ denominator
+structurally, W6-3). A window holding no derived delta rows at all dashes "no derivation in
+window" naming the MEASURED cause — empty store · transcript-era only · rows exist but none
+dated in-window (W6-4) — never a knowable 0. Never a lifetime ratio (fails open on a bad week)
+and never a lifetime-knowability rule (ratchets permanently dead).
 
 ## The kaizen-log row — which cells are real now
 
-Same eight columns as before (the daily upsert must not reshape the shipped tables); the
-mechanical cells are computed over the ISO week's day-scoped event-era DELTA rows (W5-5:
-`window_delta_rows` over the week's elapsed days — a cumulative row must not leak lifetime
-mass into a week-scoped cell):
+Same eight columns as before (the daily upsert must not reshape the shipped tables).
+**THE SINGLE-SOURCE LAW (W6-1, supersedes W5-5's week recompute):** every mechanical cell
+aggregates the ISO week's PUBLISHED DAY SERIES points (current registry version only) — never
+a store-row recompute (mixed row semantics fabricated cells: lifetime `rounds_max` under a
+growth guard, delta occurrences against point-in-time death classes, per-(sid,day) rows
+diluting per-session shares into per-row shares). Ratio cells SUM the week's day
+numerators/denominators; the death cell sums occurrences and merges the day class maps; the
+rounds cell is the n-weighted weekly mean of `review_rounds`' day points. A day the series
+lacks contributes nothing (its honesty gates already spoke at publish time); a week with no
+published days for a metric renders `—` ("no published days this week"):
 
 | Column | Status | Source |
 |---|---|---|
-| Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
-| Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. Renders `—` while the store holds no death/session_end evidence at all (the coroner has never run) — a `0` there would be fabricated. |
+| Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass` day points, week-summed — sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
+| Death-classes /wk | **real** (M1) | the `death_occurrences` ⟂ `death_classes` day series (coroner-reconstructed, delta-honest at publish: the day's NEW deaths/classes only) — `<occurrences> occ / <distinct classes> cls`. A day without coroner evidence (no death/session_end event) publishes nothing — a `0` there would be fabricated (M9, day-scoped). |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
-| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` (one value row per sid, its latest in-week delta row). Like with like (W5-1): the weekly call reads the ISO week's day-scoped delta rows, so the attributed operand is the week's round GROWTH against the `unknown` accumulator's per-day delta mass on the 20% floor — publishes when healthy, dashes when swamped, heals when attribution improves; an unknowable unknown mass renders `—` with its TRUE cause (shrank / pre-v3 rows in window / bump-day gap / bootstrap window). |
+| Review rounds /plan | **real** (M1) | `review_rounds` day points, n-weighted weekly mean. All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) lives at DAY-publish time in `kaizen_outcomes.review_rounds` — an unpublished day simply contributes nothing here. |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 

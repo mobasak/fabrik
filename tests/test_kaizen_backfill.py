@@ -594,7 +594,7 @@ def test_report_covers_the_full_registry(tmp_path: Path) -> None:
     registered metric appears, each with an event-era and a transcript-era row."""
     text = kb.render_report()
     full = ko.registry()
-    assert len(full) == 14
+    assert len(full) == 16  # W6-1 added the death_occurrences/death_classes pair
     for mid in full:
         assert f"| {mid} |" in text, f"{mid} missing from the noise-floor report"
 
