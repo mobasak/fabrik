@@ -833,8 +833,11 @@ def _unparsed_pass_lines(text: str) -> list[str]:
     triaging` dropped its round entirely, and the prose branch — unlike the table branch —
     has no fail-closed ambiguity split). The check now lives with the SUBJECT-scoped ledger
     consumers: any Pass-headed line with a loose counter token that `_pass_counters` cannot
-    parse is reported loudly there (punctuate or fence — symmetric with the parsing-recap
-    multi-group adjudication). Multi-strict lines stay INERT (the round-11 decoy contract).
+    parse is reported loudly there with the punctuation/fencing remedy. Unlike the
+    multi-group and non-quiet-exit checks, this one is NOT blocked_ok-gated (round 123):
+    structural LEGIBILITY binds regardless of BLOCKED — an escalated report's found:
+    history matters most — matching parity and the costume refusals, which also run
+    unconditionally. Multi-strict lines stay INERT (the round-11 decoy contract).
     """
     out: list[str] = []
     # A ROW claims its number with a delimiter (`Pass 1:` / `Pass 1 (WIDE) —` / `| Pass 1 |`);
@@ -1304,16 +1307,20 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # round 23: the IN-PROGRESS advisory was firing on EVERY reviews/*.md with a
             # Status line, misattributing docs the module docstring explicitly exempts
             continue
+        for bad in _unparsed_pass_lines(text)[:1]:
+            # BEFORE the blocked_ok skip (round 123): structural LEGIBILITY binds regardless
+            # of BLOCKED — the found: history matters MOST when escalating, and the live
+            # gate already enforces this unconditionally (the two paths disagreed, with the
+            # advisory silently waiving what the blocking gate refuses).
+            out.append(
+                f"{p.relative_to(root)}: COMMITTED with a Pass-shaped ledger line that does "
+                f"not parse ({bad[:70]!r}) — punctuate the counts or fence the quote"
+            )
         if _blocked_ok(text):
             # the SAME contract as every other reader — round 17 found this call site still
             # raw-matching BLOCKED_HEAD (no fence-strip, no evidence), one commit after the
             # centralization claimed "every reader"; a claim is only as true as its grep
             continue
-        for bad in _unparsed_pass_lines(text)[:1]:
-            out.append(
-                f"{p.relative_to(root)}: COMMITTED with a Pass-shaped ledger line that does "
-                f"not parse ({bad[:70]!r}) — punctuate the counts or fence the quote"
-            )
         c_tables, c_prose, ordered_rows = _ledger_shapes(text)
         if len(c_tables) + len(c_prose) > 1:
             out.append(

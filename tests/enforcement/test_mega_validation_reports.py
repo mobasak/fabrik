@@ -1976,3 +1976,24 @@ def test_untracked_draft_is_never_labeled_committed(repo: Path) -> None:
     outall = r.stdout + r.stderr
     assert "COMMITTED" not in outall, f"an untracked draft was labeled COMMITTED: {outall}"
     assert "untracked in-flight draft" in outall, "the NOTE skip must still name it"
+
+
+def test_blocked_does_not_waive_ledger_legibility(repo: Path) -> None:
+    """Round-123: the live and committed paths disagreed — the committed advisory's
+    blocked_ok skip silently waived an unparseable Pass row the blocking gate refuses.
+    Structural LEGIBILITY binds regardless of BLOCKED (an escalated report's found:
+    history matters most); only adjudication checks are BLOCKED-gated."""
+    body = _everyday(
+        "Pass 1 — native review | found: 4C+2P (four critical, two positive) | finder\n"
+        "Pass 2: found: 0, fixed: 0\n",
+        "\n## BLOCKED — the stuck finding\nrepro history: 3 consecutive attempts failed "
+        "(same test failing three times); escalated to the operator via Telegram.\n",
+    )
+    rc, out = _gate(repo, "2026-08-21-blocked-legibility-review.md", body)
+    assert rc == 1, "BLOCKED waived an unparseable ledger row on the live path"
+    assert "not parse" in out
+    rc, out = _gate(repo, "2026-08-21-blocked-legibility2-review.md", body, commit=True)
+    assert rc == 0
+    assert "blocked-legibility2" in out and "not parse" in out, (
+        "the committed advisory silently waived what the blocking gate refuses"
+    )
