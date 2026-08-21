@@ -845,6 +845,10 @@ def _close(
                     # is excluded everywhere the review grammars read; here too
                     continue
                 f = Path(root or ".") / ln[3:].split(" -> ")[-1].strip().strip('"')
+                if f.is_symlink():
+                    # round 139: an untracked symlink named *.md pointing at ANY fresh
+                    # unrelated file satisfied the floor with zero review content
+                    continue
                 if f.is_file() and f.stat().st_mtime >= started_epoch - 2:
                     ok_artifact = True
                     candidates.append(f)
@@ -859,8 +863,19 @@ def _close(
                 # (bounded), and the SAME filter — live .md outside archived/ — decides
                 # both the gate and the candidates.
                 try:
+                    # round 139 rebuilt the walk's three seams: %at not %ct (rebase — the
+                    # exit ladder's own `git pull --rebase` — rewrites committer time, so a
+                    # STALE replayed leftover looked fresh; author time survives replay, and
+                    # a cherry-picked old report failing closed is the right direction);
+                    # -m (a report finalized only in a merge-conflict resolution listed NO
+                    # files in the default merge-suppressed log — false refusal); and the
+                    # run's own TIME window instead of a commit count (55 phase/doc commits
+                    # after the report pushed it past -n 50 — false refusal; the -n 500 is
+                    # a runaway backstop, not the bound).
+                    since = str(int(started_epoch))
                     log = subprocess.run(
-                        ["git", "log", "--name-only", "--format=%ct", "-n", "50", "HEAD"],
+                        ["git", "log", "-m", "--name-only", "--format=%at",
+                         f"--since={since}", "-n", "500", "HEAD"],
                         capture_output=True, text=True, timeout=10, check=True, cwd=root,
                     ).stdout.splitlines()
                 except Exception:
@@ -871,10 +886,10 @@ def _close(
                     if ln.strip().isdigit():
                         commit_epoch = float(ln.strip())
                         continue
-                    # >= floor(start), no broader grace: a commit made BEFORE start is a
-                    # previous task's artifact (round 31: the 60s grace let the pre-run
-                    # commit count) — but git's %ct is WHOLE seconds while started_epoch is
-                    # fractional, so a same-second commit truncates below start and was
+                    # >= floor(start), no broader grace: a commit AUTHORED before start is
+                    # a previous task's artifact (round 31: the 60s grace let the pre-run
+                    # commit count) — git timestamps are WHOLE seconds while started_epoch
+                    # is fractional, so a same-second commit truncates below start and was
                     # false-refused (round 137, reproduced); within the shared second,
                     # "before" is indeterminate and resolves toward not refusing.
                     if (
@@ -885,7 +900,7 @@ def _close(
                     ):
                         ok_artifact = True
                         hf = Path(root or ".") / ln
-                        if hf.is_file():
+                        if hf.is_file() and not hf.is_symlink():
                             candidates.append(hf)
         except Exception:
             ok_artifact = None  # broken git must not wedge the close — fail open HERE only

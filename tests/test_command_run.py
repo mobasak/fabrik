@@ -1219,3 +1219,90 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
                         "--evidence", "refiled"], cwd=repo, env=env,
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 1, "an archived/ re-file satisfied the artifact floor"
+
+
+def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_runs(tmp_path):
+    """Round-139, four live-reproduced seams in the round-138 walk: an untracked symlink
+    decoy satisfied the floor; a rebase-replayed stale leftover looked fresh (%ct rewritten
+    — %at survives replay); a report finalized only in a merge-conflict resolution listed no
+    files (default merge suppression); and 55 follow-up commits pushed the report past the
+    -n 50 bound. One walk now: %at, -m, the run's own time window, no symlinks."""
+    import subprocess
+    script = "/opt/fabrik/scripts/command_run.py"
+
+    def _commit(repo, *paths, msg="x", env_extra=None):
+        import os as _os
+        subprocess.run(["git", "add", "-f", *paths], cwd=repo, check=True, timeout=15)
+        full = dict(_os.environ, **(env_extra or {}))
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", msg], cwd=repo, check=True, timeout=15, env=full)
+
+    # (1) symlink decoy → REFUSED
+    env, repo = _artifact_repo(tmp_path, name="sym")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    target = tmp_path / "sym" / "decoy_target.txt"
+    target.write_text("unrelated\n")
+    (repo / "docs/development/reviews/fake-review.md").symlink_to(target)
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "a symlink decoy satisfied the artifact floor"
+
+    # (2) stale leftover with an OLD author date but a fresh committer date (rebase replay)
+    env, repo = _artifact_repo(tmp_path, name="rebase")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    stale = repo / "docs/development/reviews/stale-review.md"
+    stale.write_text("# old abandoned review\n")
+    import os as _os
+    _commit(repo, "docs/development/reviews", msg="replayed",
+            env_extra={"GIT_AUTHOR_DATE": "2020-06-01T00:00:00 +0000"})
+    _os.utime(stale, (1, 1))
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "a rebase-replayed stale leftover satisfied the freshness floor"
+
+    # (3) report finalized only inside a merge commit → must CLOSE
+    env, repo = _artifact_repo(tmp_path, name="merge")
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    f = repo / "docs/development/reviews/m-review.md"
+    f.write_text("base\n")
+    _commit(repo, "docs/development/reviews", msg="base-report")
+    subprocess.run(["git", "checkout", "-q", "-b", "side"], cwd=repo, check=True, timeout=15)
+    f.write_text("side version\n")
+    _commit(repo, "docs/development/reviews", msg="side")
+    subprocess.run(["git", "checkout", "-q", "-"], cwd=repo, check=True, timeout=15)
+    f.write_text("main version\n")
+    _commit(repo, "docs/development/reviews", msg="main")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    m = subprocess.run(["git", "merge", "side"], cwd=repo, capture_output=True, text=True, timeout=15)
+    assert m.returncode != 0, "fixture must conflict"
+    f.write_text("# resolved during this run — closed clean\n")
+    _commit(repo, "docs/development/reviews", msg="merge-resolve")
+    _os.utime(f, (1, 1))
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 0, f"a merge-resolved report was false-refused: {r.stdout}"
+
+    # (4) 55 commits after the report → must CLOSE
+    env, repo = _artifact_repo(tmp_path, name="long")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    rep = repo / "docs/development/reviews/long-review.md"
+    rep.write_text("# closed clean\n")
+    _commit(repo, "docs/development/reviews", msg="report")
+    for i in range(55):
+        (repo / "f.txt").write_text(f"{i}\n")
+        _commit(repo, "f.txt", msg=f"phase-{i}")
+    _os.utime(rep, (1, 1))
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 0, f"a long run's report was false-refused: {r.stdout}"
