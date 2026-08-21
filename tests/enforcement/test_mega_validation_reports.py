@@ -1812,3 +1812,40 @@ def test_committed_cert_report_with_open_row_is_nagged(repo: Path) -> None:
     assert "COMMITTED cert report" in out and "NOT-QUIET" in out, (
         "a committed unresolved cert report escaped the committed scan"
     )
+
+
+def test_cert_routing_is_not_defeatable_by_casing(repo: Path) -> None:
+    """Round-111 LOW: CERT_REPORT without re.I let a `-User-Test-` filename skip both the
+    blocking and committed cert checks entirely — fail-open by rename/casing."""
+    body = (
+        "# cert\n\n"
+        "HANDOFF P0 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-User-Test-cased.md", body)
+    assert rc == 1, "a cased cert filename skipped the disposition gate"
+
+
+def test_unfenced_handoff_mention_in_cert_named_doc_is_the_loud_remedy(repo: Path) -> None:
+    """Round-111 ADJUDICATION (documented, not a defect): a line-initial unfenced HANDOFF
+    row in a cert-NAMED doc is textually indistinguishable from a live disposition — the
+    recap-impersonation adjudication one grammar over. The LIVE gate blocks it at staging
+    with the fencing remedy, so the committed-nag state is unreachable through the gate;
+    fencing the example (the one-keystroke remedy every grammar gives) silences both."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
+        "Retro of the prior gauntlet; the row we traced was:\n\n"
+        "HANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-postmortem-user-test-failures-review.md", body)
+    assert rc == 1, "the live gate must give the loud fencing remedy at staging"
+    fenced = body.replace(
+        "HANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x",
+        "```\nHANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n```",
+    )
+    rc, out = _gate(repo, "2026-08-21-postmortem2-user-test-failures-review.md", fenced, commit=True)
+    assert rc == 0
+    assert "postmortem2" not in out, "the fenced example must silence both paths"

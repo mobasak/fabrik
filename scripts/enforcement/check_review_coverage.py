@@ -439,7 +439,9 @@ def check_file(p: Path) -> list[str]:
 #   OPEN routed to /fabrik-review (code-wrong) without evidence:  FAIL
 #   any OPEN row  -> report must carry NOT-QUIET marker AND a ## RESUME section
 #   NOT-QUIET marker -> ## RESUME required
-CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$")
+# re.I (round 111): routing by filename must not be defeatable by casing — a `-User-Test-`
+# name silently skipped BOTH the blocking and committed cert checks (fail-open by rename).
+CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$", re.I)
 
 # --- Mega cross-epic validation reports (fab-mega-04-validate) ---------------------------------
 # Third grammar. Until 2026-08-16 mega-04's report went ONLY to Telegram, so its exit was read by
