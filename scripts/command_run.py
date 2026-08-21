@@ -480,7 +480,14 @@ def _flush_events(args: argparse.Namespace, outbox: dict[str, Any]) -> None:
     # `--session` is passed through; a bare env id is left to the emitter to resolve so
     # it is labelled `env` and not laundered into `explicit`.
     explicit = (getattr(args, "session", None) or "").strip()
-    env_sid = (os.environ.get("CLAUDE_SESSION_ID") or "").strip()
+    # The FULL env chain, matching _session_id (round 105): gating the join on
+    # CLAUDE_SESSION_ID alone made it fire in the COMMON Bash-shell case (empty legacy
+    # var, populated CLAUDE_CODE_SESSION_ID) — the record landed under the real sid
+    # while the event was join-attributed into a SIBLING session's stream, reopening
+    # the cross-session collision one layer over (events vs record).
+    env_sid = (
+        os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+    ).strip()
     sid: str | None = explicit or None
     # `None` = let the emitter resolve and label it (`env`); `"join"` = RECONSTRUCTED here,
     # which is neither explicit nor env and must never be reported as either.

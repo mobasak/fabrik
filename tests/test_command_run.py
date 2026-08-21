@@ -995,6 +995,7 @@ def test_flush_bounds_the_exposure_probe_and_labels_a_joined_sid(
     sid is labelled `join`, never laundered into `explicit`."""
     cr = _in_process(tmp_path, monkeypatch, "cr_emit_kwargs")
     monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     calls: list[dict] = []
 
     class _Fake:
@@ -1058,3 +1059,36 @@ def test_session_id_precedence_and_isolation(tmp_path):
     assert (run_dir / "uuid-a.json").exists() and (run_dir / "uuid-b.json").exists(), (
         "concurrent sessions must get distinct record files"
     )
+
+
+def test_adopt_join_declines_when_code_session_id_resolves(tmp_path, monkeypatch):
+    """Round-105 MEDIUM: the adopt-join gate checked only CLAUDE_SESSION_ID, so on a
+    Bash-tool shell (empty legacy var, populated CLAUDE_CODE_SESSION_ID) the record landed
+    under the real sid while the EVENT was join-attributed into a sibling's stream — the
+    cross-session collision reopened one layer over. The gate now honors the full chain."""
+    cr = _in_process(tmp_path, monkeypatch, "cr_adopt_code")
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sidA-real")
+    calls: list[dict] = []
+
+    class _Fake:
+        UNKNOWN = "unknown"
+
+        @staticmethod
+        def events_dir() -> Path:
+            return tmp_path / "events"
+
+        @staticmethod
+        def emit(event, sid=None, **kw):
+            calls.append({"event": event, "sid": sid, **kw})
+            return True
+
+    monkeypatch.setattr(cr, "_kaizen", lambda: _Fake)
+    (tmp_path / "events").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "events" / "sessB.jsonl").write_text(
+        json.dumps({"schema": 1, "ts": _iso(-60), "sid": "sessB", "event": "session_start",
+                    "cwd": str(Path.cwd().resolve())}) + "\n", encoding="utf-8")
+    assert cr.main(["start", "--command", _PROBE, "--phases", "1", "--adopt-sid"]) == 0
+    assert len(calls) == 1, calls
+    assert calls[0]["sid_source"] != "join", calls[0]
+    assert calls[0]["sid"] != "sessB", "the event was join-attributed into a sibling's stream"

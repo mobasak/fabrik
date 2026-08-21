@@ -1714,10 +1714,13 @@ def test_valid_separator_shapes_are_recognized(repo: Path) -> None:
         assert rc == 0, f"valid separator {sep!r} was unrecognized and the header failed as data: {out}"
 
 
-def test_one_column_table_with_bare_dash_separator_is_valid(repo: Path) -> None:
-    """Round-101: GFM puts the pipe requirement on the HEADER, not the delimiter — a bare
-    `---` under a 1-column pipe-bounded header forms a real table (renderer-verified), and
-    round 100's pipe-presence gate false-failed it as a verdict-less data row."""
+def test_bare_dash_under_a_pipe_row_is_refused_as_ambiguous(repo: Path) -> None:
+    """Round-105 ADJUDICATION (re-anchoring the round-102 pin): a bare `---` directly under
+    a pipe-row is undecidable — GFM forms a 1-column table whose HEADER is the row above
+    (round 104's zero-body-row premise was false), while the author plausibly meant a
+    house-style divider; multi-item checklists split by `---` silently dropped every item
+    but the last. Refused loudly with the one-keystroke remedies (`|---|` or a blank line),
+    the fence-parity adjudication."""
     body = (
         "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
         "review_rubric.py output embedded\n\n"
@@ -1726,7 +1729,8 @@ def test_one_column_table_with_bare_dash_separator_is_valid(repo: Path) -> None:
         "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-onecol-review.md", body)
-    assert rc == 0, f"a valid 1-column table with a bare --- separator was false-failed: {out}"
+    assert rc == 1
+    assert "AMBIGUOUS bare" in out
 
 
 def test_section_divider_after_an_orphan_row_is_not_a_separator(repo: Path) -> None:
@@ -1745,3 +1749,33 @@ def test_section_divider_after_an_orphan_row_is_not_a_separator(repo: Path) -> N
     rc, out = _gate(repo, "2026-08-21-divider-orphan-review.md", body)
     assert rc == 1, "a section divider converted the orphan UNCHECKED row into a phantom header"
     assert "UNCHECKED" in out
+
+
+def test_divider_split_checklist_cannot_drop_items(repo: Path) -> None:
+    """Round-105 CRITICAL: a multi-item checklist split by house-style `---` dividers
+    dropped every item but the last (each row + divider paired as a phantom 1-column
+    header — pre-existing before round 104 and untouched by its single-orphan fix). The
+    ambiguity refusal now fires before any gate parses."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n\n"
+        "| UNCHECKED: fail-open sweep pending |\n---\n"
+        "| UNCHECKED: cost-quota sweep pending |\n---\n"
+        "| CLEAN — boundary/sentinel swept, scripts/x.py hunted |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-divider-chain-review.md", body)
+    assert rc == 1, "a divider-split checklist silently dropped its UNCHECKED items"
+    assert "AMBIGUOUS bare" in out
+
+
+def test_blank_separated_divider_stays_unambiguous(repo: Path) -> None:
+    """Round-105 boundary: a blank-line-separated `---` after a pipe row is an unambiguous
+    thematic break — never refused."""
+    body = _everyday(
+        "Pass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n",
+        "\n| note: appendix table reference |\n\n---\n\nMore prose.\n",
+    )
+    rc, out = _gate(repo, "2026-08-21-blank-divider-review.md", body)
+    assert rc == 0, f"a blank-separated divider false-fired the ambiguity refusal: {out}"

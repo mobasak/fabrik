@@ -161,15 +161,14 @@ def _table_rows(section: str) -> list[str]:
             # silently exempting visible obligation text. Cell counts must agree for the
             # pair to be a real header.
             and _cells(ln) == _cells(nxt)
-            # A PIPE-LESS separator (bare ---) additionally requires the table to actually
-            # CONTINUE (a pipe row after it) — round 103: our own house-style section
-            # divider `---` directly under an orphan 1-cell pipe row otherwise converted
-            # that row into a phantom header, silently dropping its obligation. A real
-            # 1-column table has data rows; an orphan row + divider does not.
-            and (
-                "|" in phys[i + 1]
-                or (i + 2 < len(phys) and phys[i + 2].lstrip().startswith("|"))
-            )
+            # PIPED separators only (round 105): a bare `---` under a pipe-row is
+            # AMBIGUOUS (setext underline / thematic-break divider / 1-column table
+            # separator — GFM forms a real zero-body-row table, so round 104's
+            # "requires continuation" premise was false, and a multi-item checklist
+            # split by house-style `---` dividers silently dropped every item but the
+            # last). The ambiguity is refused loudly by _indented_grammar_error before
+            # any gate parses; here the pairing simply never forms without a pipe.
+            and "|" in phys[i + 1]
         ):
             # The run's ONE header row — first pipe-row of its physical run, separator
             # literally next (round 89: adjacency alone let a stray separator swallow the
@@ -735,6 +734,22 @@ def _indented_grammar_error(text: str) -> str | None:
                 f"{flavor} heading/declaration ({content[:70]!r}): it renders as a "
                 "real heading but is invisible to this gate's anchors — un-wrap it if it "
                 "is live, or put it in a ``` fence if it is a quoted example"
+            )
+        if (
+            ln.lstrip().startswith("|")
+            and idx + 1 < len(live)
+            and re.fullmatch(r" {0,3}-+\s*", live[idx + 1].rstrip("\n"))
+        ):
+            # A bare `---` DIRECTLY under a pipe-row is undecidable (round 105): GFM
+            # forms a 1-column table whose header is the row above (its obligation text
+            # visible in a <th> but invisible to every anchor), while the author
+            # plausibly meant a section divider. Same adjudication as fence parity —
+            # refuse with the one-keystroke remedies. A blank-line-separated `---`
+            # stays an unambiguous thematic break.
+            return (
+                f"AMBIGUOUS bare `---` directly under a pipe row ({ln.strip()[:60]!r}): "
+                "write `|---|` if it is a table separator, or put a blank line before "
+                "`---` if it is a section divider"
             )
         if _SETEXT_TITLE.match(content) and idx + 1 < len(live):
             raw_next = live[idx + 1]

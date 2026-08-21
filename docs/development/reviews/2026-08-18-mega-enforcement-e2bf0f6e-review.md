@@ -1,10 +1,11 @@
 # Review — mega-chain enforcement commit `e2bf0f6e` (/fabrik-review)
 
 Surface: e2bf0f6ee8b024e30d60077570245f88e5f1c36e + show-md5 6ca9cdef704ea9850c9a45e28b668e93
-Status: OPERATOR-TERMINATED (2026-08-21) — NOT a converged quiet-round exit. 51 fresh non-author
-closing sweeps ran; every one of the ~160 findings was fixed with a red-proven pin or explicitly
-adjudicated; the operator stopped the loop at round 103 as disproportionate (see § Terminal
-adjudication). The residual class is named there, once, rather than swept again.
+Status: IN-PROGRESS — the 2026-08-21 termination was a MISREADING (the operator was asking why
+the loop was slow, not ordering a stop) and the operator resumed it the same day; the loop runs
+under Lesson 129's rule: a latent-only zero-corpus-incidence finding pauses for an explicit
+operator proportionality decision instead of another round. § Terminal adjudication (below)
+records the suspension episode and the adjudicated GFM-fidelity residual — both still binding.
 
 **Scope:** the 11 files of `e2bf0f6e` (assembler ORCH_SOURCES + 4 generated wrappers +
 check_command_corpus orchestrator section + check_review_coverage MEGA grammar + mega-04
@@ -278,7 +279,10 @@ HUB surface — both enforcement scripts are fleet-synced (widest blast radius; 
 | Pass 101 | WIDE (closing #50) | found: 1 · new: 1 · fixed: 0 | FRESH non-author finder, HIGH/CONFIRMED against markdown-it's own table rule: GFM puts the pipe requirement on the HEADER row, not the delimiter — a bare `---` IS a valid separator under a 1-column pipe-bounded header, and round 100's pipe-presence gate (plus its docstring's blanket "never a table separator" claim) false-failed exactly that honest converged shape. The finder verified the 2-column+bare-`---` case falls to the pre-existing adjudicated setext residual in renderer and script alike, and re-verified escape precedence in all four readers + the corpus baseline. |
 | Pass 102 | FIX (disambiguation carried structurally) | found: 0 · new: 0 · fixed: 1 | `_is_separator` is per-cell validation ONLY — the setext/thematic ambiguity is already carried by the callers (candidate rows are pipe-filtered before the anywhere-skip; the header pair only forms under a pipe-bounded header with matching cell counts, so `Title\n---` never pairs). Pin red-proven on HEAD; 449 tests green; corpus baseline unchanged. |
 | Pass 103 | WIDE (closing #51 — the loop's last) | found: 2 · new: 2 · fixed: 0 | FRESH non-author finder: (1) CRITICAL — round 102's per-cell-only separator let our own house-style `---` section divider, directly under an orphan 1-cell pipe row, pair as a phantom 1-column header and silently drop the row's UNCHECKED obligation (10 bare `---` dividers exist in the committed corpus — real house style, not latent); (2) LOW — the round-99 pin's docstring still claimed "a bare --- is never a table separator", contradicted by the round-102 pin beside it. |
-| Pass 104 | FIX (final) | found: 0 · new: 0 · fixed: 2 | A pipe-less separator additionally requires the table to CONTINUE (a pipe row after it) — an orphan row + divider never pairs; the stale docstring corrected. Pin red-proven on HEAD; 508 tests green; corpus baseline unchanged. The OPERATOR then terminated the loop (see § Terminal adjudication) — no further sweep was dispatched, and no quiet round is claimed. |
+| Pass 104 | FIX (believed final) | found: 0 · new: 0 · fixed: 2 | A pipe-less separator additionally requires the table to CONTINUE (a pipe row after it) — an orphan row + divider never pairs; the stale docstring corrected. Pin red-proven on HEAD; 508 tests green. The loop was then suspended on a misread operator message and RESUMED the same day — and round 105 proved this very fix's premise false. |
+| Pass 105 | WIDE (closing #52, resumed) | found: 2 · new: 2 · fixed: 0 | FRESH non-author finder over 6bc6fbd1 + 3c010847: (1) CRITICAL — round 104's premise was FALSE (GFM forms a real table with ZERO body rows, renderer-verified), and the continuation condition only handled the single-orphan case: a multi-item checklist split by house-style `---` dividers silently dropped every item but the last (each row + divider paired as a phantom header — pre-existing before 104 too, so the "final fix" never closed its named class); (2) MEDIUM — the `--adopt-sid` join gate checked only CLAUDE_SESSION_ID, so on a Bash shell (empty legacy var, populated CLAUDE_CODE_SESSION_ID) the record landed under the real sid while the EVENT was join-attributed into a sibling's stream — the 3c010847 collision reopened one layer over. |
+| Pass 106 | FIX + ADJUDICATION | found: 0 · new: 0 · fixed: 2 | The bare-`---`-under-a-pipe-row shape is ADJUDICATED UNDECIDABLE (a 1-column table header to the renderer, a section divider to the plausible author) and refused loudly with one-keystroke remedies (`|---|` or a blank line) — the fence-parity treatment, ending the pipe-less pairing sub-class definitionally; `_table_rows` pairs only piped separators; the round-102 valid-1-column pin re-anchored to the refusal contract; blank-separated dividers pinned unambiguous. The adopt-join gate honors the full env chain; the in-process flush test hermeticized against the ambient CODE var. 3 pins red-proven on HEAD; 564 tests green; corpus baseline: exactly the one standing 2026-08-10 advisory. |
+| Pass 107 | WIDE (closing #53) | (in flight — filled from the finder's ACTUAL result, never pre-written) | FRESH non-author finder |
 
 Refuted along the way (counted in pass 1's found): indented doc-pointer false-negative (fail-closed with actionable message — acceptable); header-style ledger table (fails closed, wrong-ish message — acceptable); UTF-8 replace message precision (negligible); banner-spoof false-positive (superseded — record now required of all wrappers); wrapper glob depth + first-match doc pointer (accepted residual: generation enforces shape; traversal guard bounds the damage).
 
@@ -326,7 +330,7 @@ $ python scripts/final_gate.py --check --json
 }
 ```
 
-## Terminal adjudication — OPERATOR-TERMINATED, 2026-08-21
+## Terminal adjudication — the 2026-08-21 suspension episode (loop since RESUMED)
 
 The loop did NOT reach its contractual exit (a fresh quiet round); the operator stopped it at
 round 103 as disproportionate, and that call was correct. The honest split of what the 51
