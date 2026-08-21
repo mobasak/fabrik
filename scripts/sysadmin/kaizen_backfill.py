@@ -361,7 +361,7 @@ def run_backfill(
 
     # Phase 1 — cheap filters (stat/ownership/known-key), grouped by store key so a
     # duplicate key is resolved deterministically instead of by walk order.
-    groups: dict[tuple[str, int, str], list[Path]] = {}
+    groups: dict[tuple[str, int, str, str], list[Path]] = {}
     for f in files:
         try:
             mday = dt.date.fromtimestamp(f.stat().st_mtime)
@@ -375,8 +375,11 @@ def run_backfill(
             bump("skipped_event_owned")
             continue
         # S9: the skip key carries TRANSCRIPT_FACTS_VERSION, matching the row it
-        # would append — resumability survives event-schema bumps.
-        key = (f.stem, TRANSCRIPT_FACTS_VERSION, mday.isoformat())
+        # would append — resumability survives event-schema bumps. W4-3: the key
+        # carries the ERA too — a live v1 EVENT row at (sid, 1, day) must never
+        # mask the transcript derivation at the same triple (the version constants
+        # are era-independent, so the numbers collide by construction).
+        key = (f.stem, TRANSCRIPT_FACTS_VERSION, mday.isoformat(), ERA_TRANSCRIPT)
         if key in known:
             bump("skipped_known")
             continue
@@ -572,12 +575,35 @@ def _full_registry() -> dict[str, dict]:
         return kc.registry()
 
 
+def _census_rows(st: Path) -> tuple[list[dict], list[dict]]:
+    """(transcript rows, event rows) — the latest row per (era, sid) across the
+    WHOLE store. The corpus census counts eras from ERA FIELDS (W4-3): the
+    version-ranked ``read_rows`` collapse serves one row per sid, so on a mixed
+    store the higher-versioned event row swallowed its transcript sibling and the
+    census under-counted the transcript corpus."""
+
+    def rank(r: dict) -> tuple[int, str]:
+        day = r.get("day")
+        return (int(r.get("facts_version", 0) or 0), day if isinstance(day, str) else "")
+
+    best: dict[tuple[str, str], dict] = {}
+    for row in kc._iter_facts(st):
+        sid = row.get("sid")
+        if not isinstance(sid, str):
+            continue
+        key = (_era_of(row), sid)
+        cur = best.get(key)
+        if cur is None or rank(row) >= rank(cur):
+            best[key] = row
+    tr = [r for (era, _sid), r in sorted(best.items()) if era == ERA_TRANSCRIPT]
+    ev = [r for (era, _sid), r in sorted(best.items()) if era == ERA_EVENT]
+    return tr, ev
+
+
 def render_report(state: Path | None = None) -> str:
     st = state or kc.state_dir()
     reg = _full_registry()
-    all_rows = kc.read_rows(state=st)
-    tr_rows = [r for r in all_rows if _era_of(r) == ERA_TRANSCRIPT]
-    ev_rows = [r for r in all_rows if _era_of(r) == ERA_EVENT]
+    tr_rows, ev_rows = _census_rows(st)
 
     lines = [
         "# Kaizen noise floor @v1",

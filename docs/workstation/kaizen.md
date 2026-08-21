@@ -101,12 +101,15 @@ rate across `/opt/*`, `KAIZEN_REWORK_DAYS` window) and `--stops` (session-level 
 read from the derived-facts rows over the last `KAIZEN_OUTCOMES_WINDOW_DAYS` days, default 7 —
 never all-time cumulative). The store-derived outcome series (`premature_stop`,
 `stop_block_causes`, `review_rounds`) additionally publish from the daily collector pass. All
-three are WINDOWED and therefore carry the window-scoped attribution guard: the timeless
-`unknown` accumulator makes a windowed unattributed count unknowable, so they publish (with the
-share stated: 100% attributed) only when the unknown stream holds zero events of their family,
-and dash with reason "attribution share unmeasurable in this window (timeless unknown
-accumulator)" otherwise — never a lifetime ratio, which fails open on a bad week and ratchets
-permanently dead.
+three are WINDOWED and therefore carry the windowed attribution guard: the `unknown`
+accumulator's store rows are day-keyed, so the window's unattributed mass is the sum of its
+per-day deltas over the window days (the published-series delta seam), held to the 20%
+attribution floor against the window's attributed events. The guard publishes (share stated)
+when healthy, dashes when the unknown stream holds the window's mass, and heals when
+attribution improves; a window touching pre-v3 unknown rows (no `events_unattributed` field —
+absent ≠ 0) dashes with reason "window attribution share unmeasurable (pre-v3 rows in
+window)". Never a lifetime ratio (fails open on a bad week) and never a lifetime-knowability
+rule (ratchets permanently dead).
 
 ## The kaizen-log row — which cells are real now
 
@@ -118,7 +121,7 @@ mechanical cells are computed over the ISO week's event-era rows:
 | Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
 | Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. Renders `—` while the store holds no death/session_end evidence at all (the coroner has never run) — a `0` there would be fabricated. |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
-| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. Window-scoped attribution guard (the cell is windowed to the ISO week, but the `unknown` accumulator is TIMELESS, so a windowed unattributed count is unknowable): the cell publishes only when the unknown stream holds ZERO round events (share knowable, 100% attributed); any unknown round mass renders `—` with reason "attribution share unmeasurable in this window (timeless unknown accumulator)". |
+| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. Windowed attribution guard (the cell is windowed to the ISO week's elapsed days): the `unknown` accumulator's day-keyed rows subtract into per-day deltas, and the week's unattributed round mass rides the 20% attribution floor against the week's attributed rounds — publishes when healthy, dashes when swamped, heals when attribution improves; a pre-v3 unknown row in the week (no `events_unattributed` field) renders `—` with reason "window attribution share unmeasurable (pre-v3 rows in window)". |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 

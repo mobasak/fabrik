@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 4: the windowed attribution guard + satellites (2026-08-21)
+
+Round 4's root (W4-1): the windowed-attribution guard was wrong in BOTH directions — an ABSENT
+events_unattributed (every live v1 row) read as a measured 0 printed "100% attributed" over a
+store that never measured attribution, and once any lifetime unknown mass existed the
+knowability rule dashed review_rounds/premature_stop/stop_block_causes/the weekly rounds cell
+FOREVER (the monotone accumulator IS a ratchet). The windowed count is in fact computable: the
+unknown accumulator's store rows are day-keyed (H1), so kc._windowed_unattributed sums its
+per-day deltas over the window days (delta_row reuse — the published-series seam) and all four
+consumers guard on the 20% attribution floor against the window's attributed events —
+publishing when healthy, dashing when swamped, HEALING when attribution improves, and dashing
+"window attribution share unmeasurable (pre-v3 rows in window)" when an in-window unknown row
+lacks the field (absent ≠ 0, root law). Def bumps: review_rounds v5, premature_stop v4,
+stop_block_causes v4. Satellites: first_attempt_gate_pass performs its formula's promised
+bump-gap accounting (W4-2); the derived-facts store key carries the ERA, so
+TRANSCRIPT_FACTS_VERSION=1 can never collide with live v1 EVENT rows, and the noise-floor
+census counts per (era, sid) instead of letting the version-ranked collapse swallow transcript
+rows (W4-3); rules_compliance gates on its consumed runs.* baselines only — an events-map gap
+drops the row from terminator_spam alone (W4-4, v4); and the "no closures" message counts
+terminator blocks across ALL rows, never a fabricated "(0 seen)" over excluded gap rows
+(W4-5). All red-first (17 tests watched fail on the pre-fix tree); battery green.
+
 ### Fixed — kaizen M1 review fix-wave 3: the delta-baseline root law + seven satellites (2026-08-21)
 
 Round 3's foundational seam, closed as a design law: **a delta is only computable against a

@@ -634,3 +634,68 @@ def test_event_schema_bump_does_not_rederive_transcripts(
     second = kb.run_backfill()
     assert second["appended"] == 0, "an event-schema bump must not re-derive transcripts"
     assert second["skipped_known"] == 1
+
+
+# ── fix-wave 4 (W4-3: era-aware keys + era-field census, red-first) ──────────────────
+
+
+def test_v1_event_row_never_masks_the_transcript_skip_key(tmp_path: Path) -> None:
+    """W4-3: TRANSCRIPT_FACTS_VERSION (1) collides numerically with live v1 EVENT
+    rows — the era-blind skip key read the event row's (sid, 1, day) as "already
+    derived" and silently skipped the transcript. The key carries the era, so only
+    a TRANSCRIPT-era row at the triple counts as known."""
+    # A v1 EVENT-era store row for an unrelated sid at the same day the transcript
+    # will key on — NOT event ownership for the transcript's sid, but under the
+    # era-blind key its (sid, 1, day) triple would collide if sids matched; prove
+    # the era split directly through known_fact_keys.
+    kc.append_facts(
+        [{"facts_version": 1, "sid": "cccc4444", "day": "2026-06-05", "lines_total": 1}]
+    )
+    keys = kc.known_fact_keys(kc.state_dir())
+    assert ("cccc4444", 1, "2026-06-05", "event") in keys
+    assert ("cccc4444", 1, "2026-06-05", "transcript") not in keys, (
+        "an event-era row must not occupy the transcript era's key space"
+    )
+    # And the transcript row lands beside it — same (sid, version, day), new era.
+    appended = kc.append_facts(
+        [
+            {
+                "facts_version": kb.TRANSCRIPT_FACTS_VERSION,
+                "era": "transcript",
+                "sid": "cccc4444",
+                "day": "2026-06-05",
+                "events": DASH,
+                "lines_total": 5,
+            }
+        ]
+    )
+    assert appended == 1, "a v1 event row must never mask the transcript derivation"
+
+
+def test_census_counts_eras_from_era_fields_on_a_mixed_store(tmp_path: Path) -> None:
+    """W4-3: read_rows' version-ranked collapse serves ONE row per sid, so a sid
+    holding both eras had its transcript row swallowed by the higher-versioned
+    event row and the corpus census under-counted. The census counts per
+    (era, sid) from era fields."""
+    kc.append_facts(
+        [
+            {
+                "facts_version": kb.TRANSCRIPT_FACTS_VERSION,
+                "era": "transcript",
+                "sid": "abcd9999",
+                "day": "2026-06-05",
+                "events": DASH,
+                "lines_total": 3,
+            },
+            {
+                "facts_version": kc.FACTS_VERSION,
+                "sid": "abcd9999",
+                "day": "2026-08-18",
+                "events": {},
+                "lines_total": 1,
+            },
+        ]
+    )
+    text = kb.render_report()
+    assert "1 transcript-era session(s)" in text, "the event row must not swallow the census"
+    assert "1 event-era session(s)" in text

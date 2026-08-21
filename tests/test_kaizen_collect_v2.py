@@ -1818,12 +1818,13 @@ def test_log_cells_rounds_dash_when_round_family_unattributable(
     assert "Review rounds" in err and "unattributable" in err
 
 
-def test_log_cells_rounds_guard_uses_the_store_universe(
+def test_log_cells_rounds_heal_when_unknown_mass_is_out_of_window(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """W2-F2: the unknown accumulator's row may sit outside the week (its derivation
-    day is whenever it last grew) — the guard reads the UNIVERSE, like M9's
-    coroner-evidence check, so a week slice cannot hide the unknown mass."""
+    """W4-1 (supersedes W2-F2's universe read): unknown round mass derived in an
+    EARLIER week is not THIS week's mass — the windowed per-day delta seam heals
+    the cell instead of dashing forever on the monotone accumulator's lifetime
+    history (the exact ratchet the windowed guard exists to kill)."""
     day = dt.date(2026, 8, 18)
     r1 = _w2_row(
         "s1",
@@ -1840,7 +1841,7 @@ def test_log_cells_rounds_guard_uses_the_store_universe(
     )
     metrics = kc.compute_metrics([r1], holes=0)
     cells = kc.log_cells(day, metrics, [r1], all_rows=[r1, unk_earlier_week])
-    assert cells[4] == DASH
+    assert cells[4] == "2.0 (n=1)", "pre-window unknown mass must not dash this week's cell"
 
 
 def test_log_cells_death_cell_accepts_v1_scalar_death_class() -> None:
@@ -2159,12 +2160,11 @@ def test_continuing_sessions_claim_keys_on_noncheck_runs() -> None:
     assert "continuing sessions only" in m2.detail
 
 
-def test_log_cells_rounds_dash_even_when_lifetime_share_passes_floor(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """S3 (weekly consumer): the unknown accumulator is TIMELESS, so a windowed
-    unattributed count is UNKNOWABLE — any unknown round mass dashes the cell, even
-    when the lifetime share passes the old 20% floor (the fails-open case)."""
+def test_log_cells_rounds_publish_when_window_share_meets_floor() -> None:
+    """W4-1 (supersedes S3's knowability rule): the window's unattributed count IS
+    computable — the unknown accumulator's day-keyed rows subtract into per-day
+    deltas — so an in-window share above the 20% floor (100 vs 10 = 91%) publishes
+    instead of dashing on mere unknown-mass existence."""
     day = dt.date(2026, 8, 18)
     r1 = _w2_row(
         "s1",
@@ -2181,9 +2181,36 @@ def test_log_cells_rounds_dash_even_when_lifetime_share_passes_floor(
     )
     metrics = kc.compute_metrics([r1, unk], holes=0)
     cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk])
-    assert cells[4] == DASH, "lifetime share 91% must not buy a windowed publish"
+    assert cells[4] == "3.0 (n=1)", "a healthy windowed share must publish — no ratchet"
+
+
+def test_log_cells_rounds_dash_on_pre_v3_unknown_row_in_window(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """W4-1 root law: a live-shape v1 unknown row (events_unattributed ABSENT) in
+    the window is NOT a measured 0 — the old guard read absent as 0 and published
+    over a store that never measured attribution. The cell dashes with the pre-v3
+    reason."""
+    day = dt.date(2026, 8, 18)
+    r1 = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"round": 1},
+        runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
+    )
+    unk = _w2_row(
+        "unknown",
+        "2026-08-18",
+        project=None,
+        concurrent_reason="unattributable-sid",
+    )
+    unk["facts_version"] = 1
+    unk.pop("events_unattributed", None)
+    metrics = kc.compute_metrics([r1], holes=0)
+    cells = kc.log_cells(day, metrics, [r1], all_rows=[r1, unk])
+    assert cells[4] == DASH, "an absent-field unknown row must dash, never publish as 0"
     err = capsys.readouterr().err
-    assert "unmeasurable in this window" in err
+    assert "pre-v3 rows in window" in err
 
 
 def _publish_stub_day(tmp_path: Path, day: str) -> None:
@@ -2231,3 +2258,137 @@ def test_backpublish_refusal_diagnoses_a_clock_jump(
     err = capsys.readouterr().err
     assert "clock" in err.lower()
     assert "FUTURE" in err
+
+
+# ── fix-wave 4 (windowed attribution + consumed-field gates, red-first) ──────────────
+
+
+def test_windowed_unattributed_sums_per_day_deltas() -> None:
+    """W4-1: the window's unattributed mass is the sum of the unknown accumulator's
+    per-day DELTAS over the window days — cumulative rows subtract (delta seam),
+    never re-count, and pre-window mass stays out."""
+    d1 = _w2_row("unknown", "2026-08-10", events_unattributed={"round": 40})
+    d2 = _w2_row("unknown", "2026-08-17", events_unattributed={"round": 45})
+    d3 = _w2_row("unknown", "2026-08-18", events_unattributed={"round": 47})
+    by_day = {"2026-08-10": d1, "2026-08-17": d2, "2026-08-18": d3}
+    got = kc._windowed_unattributed(by_day, ("round",), ["2026-08-17", "2026-08-18"])
+    assert got == 7, "45-40 on 08-17 plus 47-45 on 08-18 — never the cumulative 47"
+    assert kc._windowed_unattributed(by_day, ("round",), ["2026-08-19", "2026-08-20"]) == 0
+    assert kc._windowed_unattributed({}, ("round",), ["2026-08-18"]) == 0, (
+        "a fresh store measured nothing unattributable — a knowable 0"
+    )
+
+
+def test_windowed_unattributed_pre_v3_rows_are_unknowable() -> None:
+    """W4-1 root law: an in-window unknown row without the events_unattributed
+    field (a live v1 row), or one whose delta has no same-field baseline, makes the
+    window's count None — absent ≠ 0."""
+    v1 = _w2_row("unknown", "2026-08-18")
+    v1["facts_version"] = 1
+    v1.pop("events_unattributed", None)
+    assert kc._windowed_unattributed({"2026-08-18": v1}, ("round",), ["2026-08-18"]) is None
+    # A measured current row over an absent-field v1 baseline: bump-day gap → None.
+    v3 = _w2_row("unknown", "2026-08-19", events_unattributed={"round": 50})
+    by_day = {"2026-08-18": v1, "2026-08-19": v3}
+    assert kc._windowed_unattributed(by_day, ("round",), ["2026-08-19"]) is None
+
+
+def test_first_attempt_bump_gap_rows_are_counted_and_noted() -> None:
+    """W4-2: the v3 formula promises bump-gap accounting — a row outside the
+    population whose non-check split was measured with no same-field baseline
+    (runs_noncheck None, root law) is counted into gaps and the note appended."""
+    measured = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"gate_run": 1},
+        gate={
+            "runs": 1,
+            "first_status": "success",
+            "pass": 1,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 1,
+            "failed_checks_noncheck": {},
+        },
+    )
+    gap = _w2_row("s2", "2026-08-19", events={"gate_run": 4})
+    gap["gate"] = {
+        "runs": 4,
+        "first_status": None,
+        "pass": 0,
+        "fail": 4,
+        "failed_checks": {"mypy": 1},
+        "runs_noncheck": None,
+        "failed_checks_noncheck": None,
+    }
+    m = kc.compute_metrics([measured, gap], holes=0)["first_attempt_gate_pass"]
+    assert m.measurable
+    assert (m.numerator, m.denominator) == (1, 1)
+    assert "bump-day gap" in m.detail
+    assert "1 row(s) excluded" in m.detail
+
+
+def test_rules_compliance_survives_events_map_gap_it_never_consumes() -> None:
+    """W4-4: rules_compliance reads runs.* baselines only — an events-map bump-day
+    gap must not drop its fully-measured row; terminator_spam (which consumes the
+    events map) keeps the events gate and dashes with the gap noted."""
+    row = _w2_row(
+        "s1",
+        "2026-08-19",
+        runs={"opened": 2, "done": 2, "done_evidenced": 1, "blocked": 0, "rounds_max": 0},
+    )
+    row["events"] = None  # root-law gap on a map rules_compliance never reads
+    metrics = kc.compute_metrics([row], holes=0)
+    rc = metrics["rules_compliance"]
+    assert rc.measurable, "an unconsumed events-map gap must not drop the row"
+    assert (rc.numerator, rc.denominator) == (1, 2)
+    ts = metrics["terminator_spam"]
+    assert not ts.measurable
+    assert "bump-day gap" in ts.detail
+
+
+def test_no_closures_message_counts_blocks_on_excluded_rows() -> None:
+    """W4-5: blocks OBSERVED on gap-excluded rows must appear in the 'no closures'
+    message — '(0 terminator block(s) seen)' over a store that saw 2 is fabricated.
+    The metric population stays gap-filtered; only the message counts all rows."""
+    gap = _w2_row("s1", "2026-08-19", events={"final_block_emitted": 2})
+    gap["runs"] = {
+        "opened": None,
+        "done": None,
+        "done_evidenced": None,
+        "blocked": None,
+        "rounds_max": 0,
+    }
+    ts = kc.compute_metrics([gap], holes=0)["terminator_spam"]
+    assert not ts.measurable
+    assert "2 terminator block(s) seen" in ts.detail
+
+
+def test_fact_keys_are_era_aware(tmp_path: Path) -> None:
+    """W4-3: TRANSCRIPT_FACTS_VERSION (1) collides numerically with live v1 EVENT
+    rows — an era-blind (sid, version, day) key let the event row silently mask the
+    transcript derivation at the same triple. The key carries the era."""
+    st = tmp_path / "state"
+    event_v1 = {
+        "facts_version": 1,
+        "sid": "aaaa1111",
+        "day": "2026-06-05",
+        "events": {},
+        "lines_total": 1,
+    }
+    assert kc.append_facts([event_v1], st) == 1
+    transcript = {
+        "facts_version": 1,
+        "era": "transcript",
+        "sid": "aaaa1111",
+        "day": "2026-06-05",
+        "events": DASH,
+        "lines_total": 5,
+    }
+    assert kc.append_facts([transcript], st) == 1, (
+        "a v1 EVENT row must never mask the transcript derivation at (sid, day)"
+    )
+    assert kc.append_facts([dict(transcript)], st) == 0, "same-era re-append stays a no-op"
+    keys = kc.known_fact_keys(st)
+    assert ("aaaa1111", 1, "2026-06-05", "event") in keys
+    assert ("aaaa1111", 1, "2026-06-05", "transcript") in keys

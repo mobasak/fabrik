@@ -605,39 +605,55 @@ def run_sweep(
 # ── premature_stop + the counter pairs read from T06's rows ──────────────────────────
 
 
-def _window_attribution_guard(
-    names: tuple[str, ...], what: str, state: Path | None
-) -> tuple[str | None, str]:
-    """S3 — ``(dash_reason, publish_note)`` for a WINDOWED store metric.
+def _window_day_stamps() -> list[str]:
+    """The guard's window as calendar-day stamps: the last ``_window_days()`` days
+    plus today — the day-granular cover of the value's ``last_ts`` window."""
+    today = dt.datetime.now(dt.UTC).date()
+    return [(today - dt.timedelta(days=k)).isoformat() for k in range(_window_days() + 1)]
 
-    The guard's operands must come from the SAME population as the value it
-    protects — a WINDOW of rows. But the unknown accumulator is TIMELESS (its row
-    carries no per-event timestamps), so a windowed unattributed count is
-    UNKNOWABLE whenever the unknown stream holds ANY mass of the family; a lifetime
-    ratio both fails open on a bad week (one attributed cell publishes under a fat
-    lifetime share) and ratchets permanently dead once lifetime unattributed
-    exceeds a floor. The knowability rule replaces the floor: the share is knowable
-    ONLY when the unknown stream holds ZERO occurrences of the family — then the
-    window is 100% attributed and the note states it; otherwise dash with the
-    reason. Reads the UNWINDOWED era-filtered store: the timeless unknown row can
-    never appear in a windowed slice."""
-    universe = kc.read_rows(state=state, event_era_only=True)
-    unattributed = kc._unattributed_count(universe, names)
+
+def _window_attribution_guard(
+    names: tuple[str, ...], what: str, state: Path | None, attributed: int
+) -> tuple[str | None, str]:
+    """W4-1 — ``(dash_reason, publish_note)`` for a WINDOWED store metric.
+
+    The unknown accumulator's LINES are timeless, but its store ROWS are day-keyed
+    (H1), so the window's unattributed mass IS computable: the sum of the
+    accumulator's per-day deltas over the window days — the published-series delta
+    seam (``kc._windowed_unattributed``, reusing ``delta_row``). Guarded by the same
+    20% attribution floor as the unwindowed metrics: publishes (share stated) when
+    healthy, dashes when the unknown stream holds the window's mass, and HEALS when
+    attribution improves. This replaces BOTH prior failure modes: the lifetime
+    knowability rule (any unknown mass, ever, dashed the metric FOREVER — a
+    monotone-accumulator ratchet) and the false 100% (a pre-v3 absent-field unknown
+    row read as a measured 0). A window touching pre-v3 unknown rows is honestly
+    unmeasurable — absent ≠ 0, the root law."""
+    rows_by_day = kc._unknown_rows_by_day(state)
+    unattributed = kc._windowed_unattributed(rows_by_day, names, _window_day_stamps())
     if unattributed is None:
         return (
-            f"attribution share unmeasurable in this window ({what}: "
-            "events_unattributed measured with no same-field baseline — bump-day gap)",
+            f"window attribution share unmeasurable (pre-v3 rows in window) — {what}: "
+            "an unknown-accumulator row in the window lacks a same-field "
+            "events_unattributed baseline (absent ≠ 0, root law)",
             "",
         )
     if unattributed > 0:
+        total = attributed + unattributed
+        if attributed / total < kc.ATTRIBUTED_MIN_SHARE:
+            return (
+                f"{what} unattributable in the window — {attributed} attributed vs "
+                f"{unattributed} in the unknown stream (below the "
+                f"{kc.ATTRIBUTED_MIN_SHARE:.0%} attribution floor)",
+                "",
+            )
         return (
-            "attribution share unmeasurable in this window (timeless unknown "
-            f"accumulator holds {unattributed} unattributable {what})",
-            "",
+            None,
+            f"; window attribution share: {100 * attributed / total:.0f}% attributed "
+            f"({attributed} attributed vs {unattributed} unknown-stream {what})",
         )
     return (
         None,
-        f"; window attribution share knowable: 100% attributed (0 unknown-stream {what})",
+        f"; window attribution share: 100% attributed (0 unknown-stream {what} in the window)",
     )
 
 
@@ -668,15 +684,6 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
             MetricResult.unavailable("premature_stop", reason),
             MetricResult.unavailable("stop_block_causes", reason),
         )
-    # S3: windowed value ⇒ window-scoped guard — knowability, not a lifetime floor.
-    guard, note = _window_attribution_guard(
-        ("stop_pass", "stop_block"), "stop-verdict events", state
-    )
-    if guard is not None:
-        return (
-            MetricResult.unavailable("premature_stop", guard),
-            MetricResult.unavailable("stop_block_causes", guard),
-        )
     # Event-era only (T09 era filter): T08's transcript-era rows carry DASH strings
     # in events/stop_causes — unfiltered they crash _stop_verdicts, and their lines
     # are prose, not stop verdicts. The filter runs INSIDE the reader, BEFORE the
@@ -684,6 +691,19 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
     # sibling must not swallow the sid. Windowed (L7): only rows whose last_ts falls
     # in the KAIZEN_OUTCOMES_WINDOW_DAYS window — never all-time cumulative.
     rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
+    # W4-1: windowed value ⇒ window-scoped guard — the windowed unknown-stream delta
+    # mass against the windowed attributed stop verdicts, on the 20% floor.
+    guard, note = _window_attribution_guard(
+        ("stop_pass", "stop_block"),
+        "stop-verdict events",
+        state,
+        sum(_stop_verdicts(r) for r in rows),
+    )
+    if guard is not None:
+        return (
+            MetricResult.unavailable("premature_stop", guard),
+            MetricResult.unavailable("stop_block_causes", guard),
+        )
     if not rows:
         reason = (
             f"no derived-facts rows in the {_window_days()}d window "
@@ -747,19 +767,24 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
 def review_rounds(state: Path | None = None) -> MetricResult:
     """Mean max-round per round-carrying session (rework_rate's counter pair).
 
-    S3 (supersedes W2-F2's lifetime floor): the value is WINDOWED, so the guard is
-    window-scoped — see :func:`_window_attribution_guard`. The unknown accumulator
-    is TIMELESS (no last_ts — every line unattributable), so the window's
-    unattributed round count is unknowable whenever the unknown stream holds any
-    round mass: publish with the share stated only when it is knowable (zero
-    unknown-stream round events → 100% attributed), dash with the reason
-    otherwise."""
-    guard, note = _window_attribution_guard(("round",), "round events", state)
-    if guard is not None:
-        return MetricResult.unavailable("review_rounds", guard)
+    W4-1 (supersedes S3's knowability rule): the value is WINDOWED, so the guard is
+    window-scoped — the unknown accumulator's day-keyed rows subtract into per-day
+    deltas, and the window's unattributed round mass rides the 20% attribution
+    floor against the window's attributed round events; see
+    :func:`_window_attribution_guard`. Publishes (share stated) when healthy,
+    dashes when swamped or when the window touches pre-v3 unknown rows, and heals
+    when attribution improves."""
     # Event-era only, filtered INSIDE the reader before the collapse (W2-F7).
     # Windowed (L7), same window as the stops pair.
     rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
+    guard, note = _window_attribution_guard(
+        ("round",),
+        "round events",
+        state,
+        sum(int((r.get("events") or {}).get("round", 0) or 0) for r in rows),
+    )
+    if guard is not None:
+        return MetricResult.unavailable("review_rounds", guard)
     vals = [
         int((r.get("runs") or {}).get("rounds_max", 0))
         for r in rows
@@ -795,22 +820,26 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "review_rounds",
-        # v4 (fix-wave 3, S3): the lifetime attribution floor is replaced by the
-        # window-knowability rule — the guard's operands come from the SAME
-        # (windowed) population as the value.
-        "version": 4,
+        # v4 (fix-wave 3, S3): window-knowability guard. v5 (fix-wave 4, W4-1):
+        # the knowability rule — itself a permanent ratchet once any unknown mass
+        # existed — is replaced by the WINDOWED unattributed count (the unknown
+        # accumulator's day-keyed per-day deltas) on the 20% attribution floor.
+        "version": 5,
         "counter_metric": "rework_rate",
         "formula": (
             "mean rounds_max across round-carrying sessions (derived-facts rows whose "
             "last_ts falls in the last KAIZEN_OUTCOMES_WINDOW_DAYS days, default 7 — "
             "never all-time cumulative) — rounds down must never buy rework up. "
-            "Window-scoped attribution guard: the unknown accumulator is timeless, so "
-            "the window's unattributed round count is knowable ONLY when the unknown "
-            "stream holds zero round events — then the metric publishes with the "
-            "share stated (100% attributed); any unknown-stream round mass renders — "
-            "with reason 'attribution share unmeasurable in this window (timeless "
-            "unknown accumulator)'. Never a lifetime ratio: it fails open on a bad "
-            "week and ratchets permanently dead."
+            "Window-scoped attribution guard: the unknown accumulator's store rows "
+            "are day-keyed, so the window's unattributed round count is the sum of "
+            "its per-day deltas over the window days (the published-series delta "
+            "seam); the metric publishes with the share stated when windowed "
+            "attributed rounds meet the 20% attribution floor against that mass, "
+            "dashes below the floor, and dashes 'window attribution share "
+            "unmeasurable (pre-v3 rows in window)' when an in-window unknown row "
+            "lacks a same-field events_unattributed baseline (absent ≠ 0, root "
+            "law). Never a lifetime ratio and never a lifetime ratchet: the guard "
+            "heals when attribution improves."
         ),
     },
     {
@@ -834,9 +863,10 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "premature_stop",
-        # v3 (fix-wave 3, S3): window-scoped attribution guard added — knowability,
-        # not a lifetime floor.
-        "version": 3,
+        # v3 (fix-wave 3, S3): window-knowability guard. v4 (fix-wave 4, W4-1):
+        # windowed unattributed count (day-keyed unknown deltas) on the 20% floor —
+        # the knowability rule was a permanent ratchet.
+        "version": 4,
         "counter_metric": "stop_block_causes",
         "formula": (
             "SESSION-level: sessions with a stop_block whose cause is premature "
@@ -846,19 +876,22 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "cumulative) — the Stop-hook oracle, read. Cross-reference: "
             "premature_stop_rate (T06) is the EVENT-level share of stop VERDICTS "
             "premature; non-premature causes (gate-red, uncommitted holds) never "
-            "count here. Window-scoped attribution guard: the unknown accumulator "
-            "is timeless, so the window's unattributed stop-verdict count is "
-            "knowable ONLY when the unknown stream holds zero stop-verdict events — "
-            "then the pair publishes with the share stated (100% attributed); any "
-            "unknown-stream stop mass renders — with reason 'attribution share "
-            "unmeasurable in this window (timeless unknown accumulator)'."
+            "count here. Window-scoped attribution guard: the unknown accumulator's "
+            "store rows are day-keyed, so the window's unattributed stop-verdict "
+            "count is the sum of its per-day deltas over the window days (the "
+            "published-series delta seam); the pair publishes with the share stated "
+            "when windowed attributed stop verdicts meet the 20% attribution floor "
+            "against that mass, dashes below the floor, and dashes 'window "
+            "attribution share unmeasurable (pre-v3 rows in window)' when an "
+            "in-window unknown row lacks a same-field events_unattributed baseline "
+            "(absent ≠ 0, root law). The guard heals when attribution improves."
         ),
     },
     {
         "id": "stop_block_causes",
-        # v3 (fix-wave 3, S3): window-scoped attribution guard added — the pair
-        # dashes together under it.
-        "version": 3,
+        # v3 (fix-wave 3, S3): window-knowability guard. v4 (fix-wave 4, W4-1): the
+        # pair rides the windowed-delta guard together — floor, heal, pre-v3 dash.
+        "version": 4,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
@@ -867,9 +900,9 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "and cell), over the same KAIZEN_OUTCOMES_WINDOW_DAYS window as its pair "
             "(default 7). Dashes WITH premature_stop when no stop verdict exists (a "
             "pair never fabricates clean), and under the same window-scoped "
-            "attribution guard as premature_stop (knowable only at zero "
-            "unknown-stream stop-verdict events; otherwise 'attribution share "
-            "unmeasurable in this window (timeless unknown accumulator)')."
+            "attribution guard as premature_stop (the windowed unknown-stream "
+            "per-day delta mass on the 20% attribution floor; pre-v3 rows in the "
+            "window dash the pair — absent ≠ 0)."
         ),
     },
 )

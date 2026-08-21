@@ -206,11 +206,16 @@ occurrence count (the population the value is computed over — check-run mass c
 non-check sliver), and it counts NON-check runs only (`mode.check` false — the Stop hook's
 automatic `--lean --check` self-review is diagnostic, never taxonomy population; the same
 rationale as `first_attempt_gate_pass`). The WINDOWED store metrics (`review_rounds`,
-`premature_stop`, `stop_block_causes`, and the weekly rounds log cell) instead use the
-**window-knowability guard**: the `unknown` accumulator is timeless, so a windowed unattributed
-count is unknowable — they publish (share stated: 100% attributed) only when the unknown stream
-holds zero events of their family, and dash with reason "attribution share unmeasurable in this
-window (timeless unknown accumulator)" otherwise. `hole_count` dashes when the
+`premature_stop`, `stop_block_causes`, and the weekly rounds log cell) use the **windowed
+attribution guard**: the `unknown` accumulator's LINES are timeless but its store ROWS are
+day-keyed, so the window's unattributed mass is the sum of its per-day deltas over the window
+days (the published-series delta seam) — guarded by the same 20% floor against the window's
+attributed events. The guard publishes (share stated) when healthy, dashes when the unknown
+stream holds the window's mass, and HEALS when attribution improves; a window touching pre-v3
+unknown rows (no `events_unattributed` field — absent ≠ 0, the root law) dashes with reason
+"window attribution share unmeasurable (pre-v3 rows in window)". Never a lifetime ratio (fails
+open on a bad week) and never a lifetime-knowability rule (ratchets permanently dead once any
+unknown mass ever existed). `hole_count` dashes when the
 coroner is BLIND (missing/unreadable transcripts dir → `holes()` returns None, mapped to `—`
 reason "transcripts unreadable"); an empty-but-readable dir stays a measured 0 — and a CRASHED
 coroner sweep reports `holes_today: null` (unmeasured), never a measured-looking 0. `premature_stop_rate` (T06, event-level) and

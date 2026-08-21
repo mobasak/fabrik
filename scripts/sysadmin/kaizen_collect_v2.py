@@ -488,29 +488,42 @@ def _iter_facts(state: Path) -> Iterator[dict]:
         return
 
 
-def known_fact_keys(state: Path | None = None) -> set[tuple[str, int, str | None]]:
-    """``(sid, facts_version, derived day)`` triples already in the store.
+def _row_era(row: dict) -> str:
+    """The row's era STRING — a missing/empty ``era`` is the event era (rows the
+    collector itself derived predate the field; see :func:`_event_era`)."""
+    era = row.get("era")
+    return era if isinstance(era, str) and era else ERA_EVENT
+
+
+def known_fact_keys(state: Path | None = None) -> set[tuple[str, int, str | None, str]]:
+    """``(sid, facts_version, derived day, era)`` tuples already in the store.
 
     The day is part of the key (the growth carve-out): a completed session's file
     never grows, so it is derived once — but a file that DOES grow onto a later day
     (the ``unknown`` accumulator, a resumed session) derives AGAIN on that day into a
-    NEW appended row. A same-version, same-day re-run stays a no-op."""
+    NEW appended row. A same-version, same-day re-run stays a no-op.
+
+    The ERA is part of the key too (W4-3): the eras carry INDEPENDENT version
+    constants (``FACTS_VERSION`` here, T08's ``TRANSCRIPT_FACTS_VERSION``), so an
+    era-blind key let a live v1 EVENT row at ``(sid, 1, day)`` silently mask the
+    transcript derivation at the same triple — two different derivations, one key."""
     st = state or state_dir()
-    out: set[tuple[str, int, str | None]] = set()
+    out: set[tuple[str, int, str | None, str]] = set()
     for row in _iter_facts(st):
         sid, ver = row.get("sid"), row.get("facts_version")
         day = row.get("day")
         if isinstance(sid, str) and isinstance(ver, int):
-            out.add((sid, ver, day if isinstance(day, str) else None))
+            out.add((sid, ver, day if isinstance(day, str) else None, _row_era(row)))
     return out
 
 
-def _fact_key(row: dict) -> tuple[str, int, str | None]:
+def _fact_key(row: dict) -> tuple[str, int, str | None, str]:
     day = row.get("day")
     return (
         str(row.get("sid")),
         int(row.get("facts_version", 0)),
         day if isinstance(day, str) else None,
+        _row_era(row),
     )
 
 
@@ -893,7 +906,10 @@ METRIC_DEFS: tuple[dict, ...] = (
     {
         "id": "rules_compliance",
         # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
-        "version": 3,
+        # v4 (fix-wave 4, W4-4): the gap gate is scoped to CONSUMED fields — an
+        # events-map gap this metric never reads no longer drops its row (the
+        # population widened, so the version bumps).
+        "version": 4,
         "counter_metric": "terminator_spam",
         "formula": (
             "run_close events with verdict done AND a non-empty evidence_hash / all "
@@ -901,7 +917,9 @@ METRIC_DEFS: tuple[dict, ...] = (
             "emit no run_close; they ride hole_count. Renders — when attributed "
             "run_close occurrences are below the 20% attribution floor of the family "
             "total (the unknown stream holds the mass) — an attributed sliver is not "
-            "the population." + _BUMP_GAP_SENTENCE
+            "the population. Gap gate scoped to consumed fields: this metric reads "
+            "runs.* baselines only, so an events-map bump-day gap gaps its counter "
+            "(which consumes the events map), never this metric." + _BUMP_GAP_SENTENCE
         ),
     },
     {
@@ -1137,6 +1155,73 @@ def _attribution_guard(
     return None
 
 
+def _unknown_rows_by_day(state: Path | None = None) -> dict[str, dict]:
+    """The UNKNOWN accumulator's store rows keyed by day (latest ``facts_version``
+    per day, event-era only) — the windowed-attribution seam's input (W4-1). The
+    accumulator's rows are DAY-KEYED since H1 (the growth carve-out re-derives the
+    forever-growing file each day it grew), so consecutive rows subtract into
+    per-day deltas exactly like the published series."""
+    st = state or state_dir()
+    out: dict[str, dict] = {}
+    for row in _iter_facts(st):
+        if row.get("sid") != UNKNOWN or not _event_era(row):
+            continue
+        day = row.get("day")
+        if not isinstance(day, str):
+            continue
+        cur = out.get(day)
+        if cur is None or int(row.get("facts_version", 0) or 0) >= int(
+            cur.get("facts_version", 0) or 0
+        ):
+            out[day] = row
+    return out
+
+
+def _windowed_unattributed(
+    rows_by_day: dict[str, dict], families: tuple[str, ...], window: list[str]
+) -> int | None:
+    """The WINDOW's unattributed event mass for ``families`` — or ``None`` when it
+    is unknowable (W4-1, replacing both the lifetime ratchet and the false 100%).
+
+    The unknown accumulator's lines are timeless, but its store rows are DAY-KEYED
+    (H1), so a windowed count IS computable: the sum of the accumulator's per-day
+    DELTAS over the window days — the published-series delta seam, reusing
+    :func:`delta_row` (each in-window unknown row minus its nearest earlier unknown
+    row; a day with no unknown row published no delta and contributes nothing —
+    its growth, if any, rides the next derived row's delta, landing in whatever
+    window that row's day falls in, exactly as the series would publish it).
+
+    Unknowable — ``None``, never a guess — when any in-window unknown row's
+    ``events_unattributed`` comes out ABSENT (a pre-v3 row: the field was never
+    measured; absent ≠ 0, the root law) or ``None`` (measured with no same-field
+    baseline in its predecessor — the bump-day gap), or when the accumulator
+    SHRANK against its baseline. A store with no unknown rows at all measured
+    nothing unattributable — a knowable 0."""
+    if not rows_by_day:
+        return 0  # fresh store: no unknown stream has ever been derived
+    days_sorted = sorted(rows_by_day)
+    total = 0
+    for day in sorted(window):
+        row = rows_by_day.get(day)
+        if row is None:
+            continue  # no delta published for this day — nothing lands in-window here
+        prev_day = None
+        for d in days_sorted:
+            if d >= day:
+                break
+            prev_day = d
+        delta = delta_row(row, rows_by_day[prev_day] if prev_day is not None else None)
+        if delta is None:
+            return None  # the accumulator shrank — this window's mass is unknowable
+        if "events_unattributed" not in delta:
+            return None  # pre-v3 rows in window: the field was never measured (absent ≠ 0)
+        ev = delta["events_unattributed"]
+        if not isinstance(ev, dict):
+            return None  # bump-day gap: measured with no same-field baseline
+        total += sum(int(ev.get(n, 0) or 0) for n in families)
+    return total
+
+
 def compute_metrics(
     rows: list[dict], holes: int | None = None, holes_reason: str = "no hole source provided"
 ) -> dict[str, MetricResult]:
@@ -1166,19 +1251,35 @@ def compute_metrics(
         return "events" in r and r["events"] is None
 
     # ── the run-record pair ──────────────────────────────────────────────────────
+    # W4-4: the gap gates are SPLIT per consumed fields — rules_compliance reads
+    # runs.* only, so an events-map gap it never consumes must not drop its
+    # fully-measured row; terminator_spam additionally reads
+    # events.final_block_emitted and keeps the events gate on top of the runs gate.
     closures = 0
     evidenced = 0
+    ts_closures = 0
     blocks = 0
+    blocks_seen = 0
     for r in rows:
+        ev_map = r.get("events")
+        if isinstance(ev_map, dict):
+            # W4-5: blocks OBSERVED anywhere — the "no closures" message must never
+            # fabricate "(0 terminator block(s) seen)" while excluded gap rows saw
+            # blocks. The metric population below stays gap-filtered.
+            blocks_seen += int(ev_map.get("final_block_emitted", 0) or 0)
         done = _measured_int(r, "runs", "done")
         blocked = _measured_int(r, "runs", "blocked")
         evid = _measured_int(r, "runs", "done_evidenced")
-        if done is None or blocked is None or evid is None or _events_gap(r):
+        if done is None or blocked is None or evid is None:
             gaps["rules_compliance"] += 1
             gaps["terminator_spam"] += 1
             continue
         closures += done + blocked
         evidenced += evid
+        if _events_gap(r):
+            gaps["terminator_spam"] += 1
+            continue
+        ts_closures += done + blocked
         blocks += int((r.get("events") or {}).get("final_block_emitted", 0) or 0)
     # H3/M5: the run-record pair is guarded by the attribution floor — an n=1
     # attributed closure against an unknown-stream mass publishes NOTHING.
@@ -1193,26 +1294,28 @@ def compute_metrics(
             numerator=evidenced,
             denominator=closures,
         )
-        out["terminator_spam"] = MetricResult(
-            id="terminator_spam",
-            cell=f"{blocks / closures:.2f} ({blocks}/{closures})",
-            detail="final_block_emitted per run-record closure (>1.00 = spam)"
-            + _gap_note("terminator_spam"),
-            value=blocks / closures,
-            numerator=blocks,
-            denominator=closures,
-        )
     else:
         out["rules_compliance"] = MetricResult.unavailable(
             "rules_compliance",
             (closure_guard or "no run-record closures in the window")
             + _gap_note("rules_compliance"),
         )
+    if ts_closures and closure_guard is None:
+        out["terminator_spam"] = MetricResult(
+            id="terminator_spam",
+            cell=f"{blocks / ts_closures:.2f} ({blocks}/{ts_closures})",
+            detail="final_block_emitted per run-record closure (>1.00 = spam)"
+            + _gap_note("terminator_spam"),
+            value=blocks / ts_closures,
+            numerator=blocks,
+            denominator=ts_closures,
+        )
+    else:
         out["terminator_spam"] = MetricResult.unavailable(
             "terminator_spam",
             (
                 closure_guard
-                or f"no run-record closures to normalize against ({blocks} terminator "
+                or f"no run-record closures to normalize against ({blocks_seen} terminator "
                 "block(s) seen)"
             )
             + _gap_note("terminator_spam"),
@@ -1254,12 +1357,25 @@ def compute_metrics(
     # diagnostic --check runs happened.
     first_rows = [r for r in rows if (r.get("gate") or {}).get("first_status") is not None]
     noncheck_rows = [r for r in rows if (_gate_noncheck(r) or 0) > 0]
+    # W4-2: the v3 formula's promised bump-gap accounting, performed. A row OUTSIDE
+    # the population (no first_status this window) whose non-check split was
+    # measured with no same-field baseline (runs_noncheck: None, root law) cannot
+    # say whether any non-check run happened — it is excluded from the
+    # continuing-session annotation and COUNTED as this metric's bump-day gap.
+    for r in rows:
+        raw_first_gate = r.get("gate")
+        first_gate: dict = raw_first_gate if isinstance(raw_first_gate, dict) else {}
+        if first_gate.get("first_status") is not None:
+            continue  # in the population — fully measured for this metric
+        if "runs_noncheck" in first_gate and first_gate["runs_noncheck"] is None:
+            gaps["first_attempt_gate_pass"] += 1
     if first_rows:
         first_pass = sum(1 for r in first_rows if r["gate"].get("first_status") == "success")
         out["first_attempt_gate_pass"] = MetricResult(
             id="first_attempt_gate_pass",
             cell=_pct(first_pass, len(first_rows)),
-            detail="sessions whose FIRST attributed gate_run happened this window and passed",
+            detail="sessions whose FIRST attributed gate_run happened this window and passed"
+            + _gap_note("first_attempt_gate_pass"),
             value=first_pass / len(first_rows),
             numerator=first_pass,
             denominator=len(first_rows),
@@ -1268,7 +1384,8 @@ def compute_metrics(
         out["first_attempt_gate_pass"] = MetricResult.unavailable(
             "first_attempt_gate_pass",
             "no session had its first attributed gate_run in the window"
-            + (" (continuing sessions only)" if noncheck_rows else ""),
+            + (" (continuing sessions only)" if noncheck_rows else "")
+            + _gap_note("first_attempt_gate_pass"),
         )
 
     # ── gate-failure taxonomy ────────────────────────────────────────────────────
@@ -1640,11 +1757,15 @@ def log_cells(
     metrics: dict[str, MetricResult],
     rows: list[dict],
     all_rows: list[dict] | None = None,
+    unknown_by_day: dict[str, dict] | None = None,
 ) -> list[str]:
     """Map the v2 metrics onto the shipped kaizen-log columns. Unmapped columns stay
     ``—`` with the reason on stderr — never a fabricated value. ``all_rows`` is the
     whole store's row universe: the death cell needs to know whether the CORONER has
-    ever produced evidence anywhere, not just this week (M9)."""
+    ever produced evidence anywhere, not just this week (M9). ``unknown_by_day`` is
+    the unknown accumulator's day-keyed store rows (:func:`_unknown_rows_by_day`) —
+    the rounds cell's windowed attribution seam (W4-1); when None it is rebuilt from
+    the universe (direct callers without a store)."""
 
     def _ev(r: dict, name: str) -> int:
         events = r.get("events")
@@ -1685,28 +1806,49 @@ def log_cells(
         for r in rows
         if int((r.get("runs") or {}).get("rounds_max", 0)) > 0
     ]
-    # S3 (was W2-F2): the rounds cell is WINDOWED (this ISO week) but the unknown
-    # accumulator is TIMELESS — its row carries no per-event timestamps, so the
-    # week's unattributed round count is UNKNOWABLE whenever the unknown stream
-    # holds ANY round mass. The guard therefore keys on knowability, not a lifetime
-    # floor (which both failed open on a bad week and ratcheted permanently dead):
-    # publish only when the window's attribution share is knowable (zero
-    # unknown-stream round events → 100% attributed). Reads the UNIVERSE (like
-    # M9's coroner-evidence check): the unknown row keys on its last derivation
-    # day and may sit outside the week.
-    rounds_unattr = _unattributed_count(universe, ("round",))
-    if rounds_unattr is None or rounds_unattr > 0:
+    # W4-1 (supersedes S3's knowability rule): the rounds cell is WINDOWED (this
+    # ISO week, Monday..day) and the window's unattributed round mass IS computable
+    # — the unknown accumulator's rows are day-keyed (H1), so the windowed count is
+    # the sum of its per-day deltas over the week's elapsed days (the published-
+    # series delta seam, _windowed_unattributed). Guarded by the same 20% floor as
+    # every attribution guard: publishes when healthy, dashes when the unknown
+    # stream holds the window's mass, HEALS when attribution improves — never the
+    # lifetime ratchet (any unknown mass, ever, dashing forever) and never the
+    # false 100% (a pre-v3 absent-field unknown row read as a measured 0).
+    # The attributed operand is the week rows' cumulative round counts — the same
+    # honest week-cell boundary daily() states for every weekly cell.
+    if unknown_by_day is None:
+        unknown_by_day = {}
+        for r in universe:
+            if r.get("sid") != UNKNOWN or not _event_era(r):
+                continue
+            d = r.get("day")
+            if isinstance(d, str):
+                cur = unknown_by_day.get(d)
+                if cur is None or int(r.get("facts_version", 0) or 0) >= int(
+                    cur.get("facts_version", 0) or 0
+                ):
+                    unknown_by_day[d] = r
+    week_start = day - dt.timedelta(days=day.isoweekday() - 1)
+    week_days = [
+        (week_start + dt.timedelta(days=k)).isoformat() for k in range((day - week_start).days + 1)
+    ]
+    rounds_unattr = _windowed_unattributed(unknown_by_day, ("round",), week_days)
+    attr_rounds = sum(_ev(r, "round") for r in rows)
+    if rounds_unattr is None:
         rounds = DASH
-        why = (
-            "attribution share unmeasurable in this window (bump-day gap: "
-            "events_unattributed measured with no same-field baseline)"
-            if rounds_unattr is None
-            else (
-                "attribution share unmeasurable in this window (timeless unknown "
-                f"accumulator holds {rounds_unattr} unattributable round event(s))"
-            )
+        _warn(
+            f"Review rounds /plan = {DASH} — window attribution share unmeasurable "
+            "(pre-v3 rows in window): an unknown-accumulator row in the week lacks a "
+            "same-field events_unattributed baseline (absent ≠ 0, root law)"
         )
-        _warn(f"Review rounds /plan = {DASH} — {why}")
+    elif rounds_unattr > 0 and (attr_rounds / (attr_rounds + rounds_unattr) < ATTRIBUTED_MIN_SHARE):
+        rounds = DASH
+        _warn(
+            f"Review rounds /plan = {DASH} — round events unattributable — "
+            f"{attr_rounds} attributed vs {rounds_unattr} in the unknown stream this "
+            f"window (below the {ATTRIBUTED_MIN_SHARE:.0%} attribution floor)"
+        )
     elif rounded:
         rounds = f"{sum(rounded) / len(rounded):.1f} (n={len(rounded)})"
     else:
@@ -1966,7 +2108,9 @@ def daily(
         except (OSError, OverflowError, ValueError):
             continue
     known = known_fact_keys(st)
-    fresh_paths = [f for f in todays if (f.stem, FACTS_VERSION, day_stamp) not in known]
+    # W4-3: the key carries the era — an event derivation is only masked by an
+    # EVENT-era row at the same (sid, version, day), never a transcript sibling.
+    fresh_paths = [f for f in todays if (f.stem, FACTS_VERSION, day_stamp, ERA_EVENT) not in known]
     appended = append_facts(derive_batch(fresh_paths, day_stamp), st)
 
     # T09 era filter: every metric input below is event-era only. T08's backfill
@@ -2015,7 +2159,15 @@ def daily(
     # the collapse (W2-F7), inside the reader.
     week_rows = read_week_rows(week, st, event_era_only=True)
     metrics_week = compute_metrics(week_rows, holes, holes_reason or "no hole source provided")
-    cells = log_cells(day, metrics_week, week_rows, all_rows=all_rows)
+    cells = log_cells(
+        day,
+        metrics_week,
+        week_rows,
+        all_rows=all_rows,
+        # W4-1: the rounds cell's windowed attribution seam reads the accumulator's
+        # day-keyed store rows, never the collapsed universe.
+        unknown_by_day=_unknown_rows_by_day(st),
+    )
     for lp in logs:
         upsert_log_row(lp, cells)
 

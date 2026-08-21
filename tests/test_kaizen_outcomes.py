@@ -409,11 +409,13 @@ def _fact(sid: str, **over: object) -> dict:
     row: dict = {
         "facts_version": 1,
         "sid": sid,
-        "day": "2026-08-19",
         # Recent by construction: the store-reading metrics are WINDOWED on last_ts
-        # (L7) and a fixed fixture date would silently age out of the window.
+        # (L7) and the attribution guard is windowed on the DAY (W4-1) — fixed
+        # fixture dates would silently age out of both windows.
+        "day": dt.datetime.now(dt.UTC).date().isoformat(),
         "last_ts": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds"),
         "events": {},
+        "events_unattributed": {},
         "runs": {},
         "stop_causes": {},
     }
@@ -626,9 +628,9 @@ def test_windowed_formulas_are_version_bumped() -> None:
     version bump (the versioned-definitions law)."""
     reg = ko.registry()
     # review_rounds: v2 added the window (L7), v3 the attribution floor (W2-F2),
-    # v4 the window-scoped knowability guard (S3). The stops pair took the S3 guard
-    # at v3.
-    for mid, ver in (("premature_stop", 3), ("stop_block_causes", 3), ("review_rounds", 4)):
+    # v4 the window-scoped knowability guard (S3), v5 the windowed-delta guard on
+    # the 20% floor (W4-1). The stops pair took the S3 guard at v3 and W4-1 at v4.
+    for mid, ver in (("premature_stop", 4), ("stop_block_causes", 4), ("review_rounds", 5)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
 
@@ -683,10 +685,9 @@ def test_sweep_one_survives_tempdir_cleanup_failure(
 
 
 def test_review_rounds_dashes_when_round_family_unattributable(tmp_path: Path) -> None:
-    """W2-F2: a mean over n=1 attributed round-carrying sessions while the round
-    mass sits in the unknown stream is fabricated precision — dash with the
-    attribution reason. The unknown accumulator is TIMELESS (no last_ts), so the
-    guard must read the unwindowed store universe, never the windowed slice."""
+    """W2-F2 (guard windowed by W4-1): a mean over n=1 attributed round-carrying
+    sessions while the WINDOW's round mass sits in the unknown stream is fabricated
+    precision — 1 vs 47 is below the 20% floor, dash with the attribution reason."""
     _seed_facts(
         tmp_path,
         [
@@ -714,13 +715,15 @@ def test_review_rounds_still_measures_when_attribution_is_healthy(tmp_path: Path
 
 
 # ── fix-wave 3 (S3 window-scoped guards + S5 registry pin, red-first) ────────────────
+# S3's knowability rule is superseded by W4-1's windowed-delta guard (fix-wave 4):
+# the unknown accumulator's rows are day-keyed, so the windowed count is computable.
 
 
-def test_review_rounds_dashes_even_when_lifetime_share_passes_floor(tmp_path: Path) -> None:
-    """S3: the unknown accumulator is TIMELESS — a windowed unattributed count is
-    UNKNOWABLE, so ANY unknown round mass dashes the windowed metric. The lifetime
-    20% floor failed open here: 100 attributed vs 10 unknown (91%) published a
-    windowed mean whose window share nobody can know."""
+def test_review_rounds_publishes_when_window_share_meets_floor(tmp_path: Path) -> None:
+    """W4-1 (supersedes S3's knowability ratchet): the window's unattributed count
+    IS computable from the unknown accumulator's day-keyed per-day deltas — 100
+    attributed vs 10 unknown in-window (91%) meets the 20% floor and publishes
+    with the share stated, instead of dashing on mere unknown-mass existence."""
     _seed_facts(
         tmp_path,
         [
@@ -729,15 +732,37 @@ def test_review_rounds_dashes_even_when_lifetime_share_passes_floor(tmp_path: Pa
         ],
     )
     rounds = ko.review_rounds()
-    assert not rounds.measurable, "lifetime share must not buy a windowed publish"
-    assert "unmeasurable in this window" in rounds.detail
-    assert "timeless" in rounds.detail
+    assert rounds.measurable, "a healthy windowed share must publish — no lifetime ratchet"
+    assert "91% attributed" in rounds.detail
+
+
+def test_review_rounds_heals_when_unknown_mass_is_pre_window(tmp_path: Path) -> None:
+    """W4-1 heal direction: last month's unknown round mass is not THIS window's
+    mass — the guard heals when attribution improves instead of ratcheting
+    permanently dead on the monotone accumulator's lifetime."""
+    old_day = (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=30)).isoformat()
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", runs={"rounds_max": 3}, events={"round": 1}),
+            _fact(
+                "unknown",
+                day=old_day,
+                last_ts=None,
+                events={},
+                events_unattributed={"round": 470},
+            ),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable, "pre-window unknown mass must not dash the current window"
+    assert "100% attributed" in rounds.detail
 
 
 def test_stops_pair_dashes_when_unknown_holds_stop_mass(tmp_path: Path) -> None:
-    """S3: premature_stop / stop_block_causes are windowed — unknown-stream stop
-    events make the window's attribution share unknowable; the pair dashes together
-    with the stated reason."""
+    """W4-1: premature_stop / stop_block_causes dash together when the WINDOW's
+    unknown-stream stop mass swamps the attributed share (below the 20% floor) —
+    4 attributed vs 100 unknown is a sliver, not the population."""
     _seed_facts(
         tmp_path,
         [
@@ -746,14 +771,37 @@ def test_stops_pair_dashes_when_unknown_holds_stop_mass(tmp_path: Path) -> None:
                 events={"stop_pass": 3, "stop_block": 1},
                 stop_causes={"run-record": 1},
             ),
-            _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 12}),
+            _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 100}),
         ],
     )
     prem, causes = ko.premature_stop()
     assert not prem.measurable and not causes.measurable
-    assert "unmeasurable in this window" in prem.detail
-    assert "timeless" in prem.detail
+    assert "unattributable in the window" in prem.detail
+    assert "attribution floor" in prem.detail
     assert causes.detail == prem.detail, "the pair dashes together"
+
+
+def test_stops_pair_dash_on_pre_v3_unknown_row_in_window(tmp_path: Path) -> None:
+    """W4-1 root law: a live-shape v1 unknown row (events_unattributed ABSENT) in
+    the window is not a measured 0 — the old guard printed '100% attributed' over a
+    store that never measured attribution. The pair dashes with the pre-v3 reason."""
+    unk = _fact("unknown", last_ts=None, events={})
+    unk.pop("events_unattributed", None)
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                events={"stop_pass": 3, "stop_block": 1},
+                stop_causes={"run-record": 1},
+            ),
+            unk,
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "pre-v3 rows in window" in prem.detail
+    assert causes.detail == prem.detail
 
 
 def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
@@ -763,7 +811,7 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
     versioned-definitions law made mechanical). A version bump without a formula
     edit, or vice versa, is equally caught."""
     pinned = {
-        "rules_compliance": (3, "bb1985ad2f20a38defa7fdc876197b5871be4c1aad1d8e0a943da6aeff91310f"),
+        "rules_compliance": (4, "be837b4449c15df7ff7916588350ac20856e9b1af75f2f9ea80e3c16bcd94135"),
         "terminator_spam": (3, "0838226b9136f445aeccb48455a970554f82b3ad6d5a7970e6e8cf65e31a1b59"),
         "premature_stop_rate": (
             3,
@@ -784,13 +832,13 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         ),
         "hole_count": (3, "3e8a9a9f518e04e865431476fcebad9d4e104fa5b3d8f59fbb9e411d08d41439"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
-        "review_rounds": (4, "42aef0d3c9340e0f3c134f7a21326e3521a96010c7cebd9a42643d6777f04b3b"),
+        "review_rounds": (5, "135532aee00da8ff6c35d84b4ee1914d56adfaba5568f311f25fc539cdcc2b5b"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (3, "410f15bcd84770c0c75ae553c12a97ac6c000ca9fbc396164e0e56d184a7ed07"),
+        "premature_stop": (4, "bd539c057c1fb50ca5e21f359b6ea52db57236c876f64805743053d406b61b8f"),
         "stop_block_causes": (
-            3,
-            "a727054bf507a50e76aa672c23b36d6709488f277ecb339e3acfe5bede6fa30a",
+            4,
+            "9ee11cb23cd3a728cad8dc9fc80af11b7bb0aee0c8555cffccf48e004c0eb732",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
