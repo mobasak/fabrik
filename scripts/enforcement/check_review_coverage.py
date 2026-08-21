@@ -1112,7 +1112,11 @@ REPRO_IN_ROW = re.compile(r"repro:\s*([\w./-]+)")
 PROOF_IN_ROW = re.compile(r"proof:\s*\S")
 CODE_WRONG_ROUTE = re.compile(r"route:\s*/fabrik-review\b")
 EVIDENCE_IN_ROW = re.compile(r"evidence:\s*\S")
-NOT_QUIET = re.compile(r"NOT-QUIET")
+# LINE-INITIAL (round 113): the marker is a DECLARATION on its own line (the template's
+# shape, incl. the truncation defense a zero-row NOT-QUIET report still owes) — a
+# mid-sentence prose mention ("the NOT-QUIET marker exists so…") in a cert-NAMED retro
+# false-failed on both paths once round 112's re.I widened the filename space.
+NOT_QUIET = re.compile(r"^\s*\**(?:ledger:\s*\**)?NOT-QUIET\b", re.M | re.I)
 RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)
 
 

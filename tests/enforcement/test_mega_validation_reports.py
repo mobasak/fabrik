@@ -1849,3 +1849,22 @@ def test_unfenced_handoff_mention_in_cert_named_doc_is_the_loud_remedy(repo: Pat
     rc, out = _gate(repo, "2026-08-21-postmortem2-user-test-failures-review.md", fenced, commit=True)
     assert rc == 0
     assert "postmortem2" not in out, "the fenced example must silence both paths"
+
+
+def test_notquiet_prose_without_rows_is_not_a_ledger_claim(repo: Path) -> None:
+    """Round-113 HIGH: the NOT-QUIET-without-RESUME check was unconditional on rows — a
+    cert-NAMED prose doc merely DISCUSSING the marker (zero HANDOFF rows; e.g. a retro
+    about this very rule, in the filename space round 112's re.I widened) false-failed on
+    both the blocking and committed paths. The discriminator is POSITION, not row count (a
+    zero-row line-initial NOT-QUIET declaration still owes its RESUME — the truncation
+    defense): a declaration leads its line (optionally `ledger:`-prefixed, the corpus
+    style); a mid-sentence mention is prose."""
+    body = (
+        "# Notes on the cert grammar\n\n"
+        "The NOT-QUIET marker exists so a truncated run may never present itself as quiet.\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-New-User-Test-strategy-notes.md", body)
+    assert rc == 0, f"prose mentioning NOT-QUIET false-failed as an unresolved ledger: {out}"
+    rc, out = _gate(repo, "2026-08-21-Service-Test-retro-notes.md", body, commit=True)
+    assert rc == 0
+    assert "Service-Test-retro" not in out, "the committed advisory false-fired on prose"
