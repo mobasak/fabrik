@@ -1121,8 +1121,13 @@ EVIDENCE_IN_ROW = re.compile(r"evidence:\s*\S")
 # obligation a real declaration exists to carry — fail-open, the mirror of round 113's
 # false-fail. A declaration is the marker plus at most a parenthetical and punctuation;
 # a sentence that continues with prose is discussion.
+# Wrappers admit backticks (round 117): the command sources' own canonical instruction is
+# the bold+code-span form ``ledger: **`NOT-QUIET (routes outstanding)`**`` — the anchor must
+# accept what the canon instructs. The tail stays parenthetical-only; an em-dash tail fails
+# CLOSED with the accepted form named in the message (right-message, not wrong-ish).
 NOT_QUIET = re.compile(
-    r"^\s*\**(?:ledger:\s*)?\**NOT-QUIET\b\s*(?:\([^)\n]*\))?[\s*.!]*$", re.M | re.I
+    r"^\s*[*`]*(?:ledger:\s*)?[*`]*NOT-QUIET\b\s*(?:\([^)\n]*\))?[\s*`.!]*$",
+    re.M | re.I,
 )
 RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)
 
@@ -1172,7 +1177,9 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
         if not NOT_QUIET.search(text):
             errs.append(
                 f"{len(open_rows)} OPEN HANDOFF row(s) but the ledger is not marked "
-                "NOT-QUIET (routes outstanding) — a truncated run may never present itself as quiet"
+                "NOT-QUIET (routes outstanding) — a truncated run may never present itself "
+                "as quiet. Write the declaration as its own line: "
+                "`ledger: NOT-QUIET (routes outstanding)`"
             )
         if not RESUME_HEAD.search(text):
             errs.append(f"{len(open_rows)} OPEN HANDOFF row(s) but no ## RESUME section")

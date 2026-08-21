@@ -1884,3 +1884,27 @@ def test_notquiet_discussion_sentence_cannot_satisfy_the_obligation(repo: Path) 
     rc, out = _gate(repo, "2026-08-21-user-test-discussion.md", body)
     assert rc == 1, "a discussion sentence satisfied the NOT-QUIET obligation"
     assert "not marked NOT-QUIET" in out
+
+
+def test_canonical_bold_code_span_declaration_is_recognized(repo: Path) -> None:
+    """Round-117 HIGH: the command sources' own canonical instruction is the bold+code-span
+    form — the round-116 anchor rejected the very markdown the canon tells authors to
+    write, hard-blocking an honest truncated run. The anchor accepts what the canon
+    instructs; an em-dash tail still fails closed, now with the accepted form NAMED in the
+    message."""
+    body = (
+        "# cert\n\n"
+        "HANDOFF P1 OPEN backend bug — repro: tests/t.py — route: /fabrik-data-contract\n\n"
+        "ledger: **`NOT-QUIET (routes outstanding)`**\n\n"
+        "## RESUME\n- the row above; re-invoke /fabrik-service-test\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-user-test-canonical.md", body)
+    assert rc == 0, f"the canon's own declaration form was rejected: {out}"
+    emdash = body.replace(
+        "ledger: **`NOT-QUIET (routes outstanding)`**", "NOT-QUIET — 3 routes outstanding"
+    )
+    rc, out = _gate(repo, "2026-08-21-user-test-emdash.md", emdash)
+    assert rc == 1
+    assert "ledger: NOT-QUIET (routes outstanding)" in out, (
+        "the failure must name the accepted declaration form"
+    )
