@@ -735,6 +735,17 @@ def _indented_grammar_error(text: str) -> str | None:
                 "visible content but is invisible to this gate's anchors — un-quote it "
                 "if it is live, or put it in a ``` fence if it is a quoted example"
             )
+        if n_list == 1 and n_quote == 0 and content.startswith("|"):
+            # A LIST-WRAPPED pipe row (round 133): `- | class | UNCHECKED |` renders as a
+            # BULLET carrying pipe text — not a table row — so it parses in neither row
+            # extractor, and the single-list-marker tolerance only sanctions the PARSING
+            # bulleted forms (Pass/HANDOFF prose lines). Visible to a human, invisible to
+            # every anchor → the costume refusal, with the one-keystroke remedies.
+            return (
+                f"LIST-WRAPPED pipe row ({content[:70]!r}): it renders as a bullet, not a "
+                "table row, and no extractor can read it — un-wrap it if it is live, or "
+                "put it in a ``` fence if it is a quoted example"
+            )
         if wrapped and _WRAPPED_HEADINGISH.match(content):
             flavor = (
                 "BLOCKQUOTED"
@@ -1188,7 +1199,8 @@ EVIDENCE_IN_ROW = re.compile(r"evidence:\s*\S")
 # accept what the canon instructs. The tail stays parenthetical-only; an em-dash tail fails
 # CLOSED with the accepted form named in the message (right-message, not wrong-ish).
 NOT_QUIET = re.compile(
-    r"^\s*[*`]*(?:ledger:\s*)?[*`]*NOT-QUIET\b\s*(?:\([^)\n]*\))?[\s*`.!]*$",
+    r"^\s*(?:[-*+]|\d+[.)])?\s*[*`]*(?:ledger:\s*)?[*`]*NOT-QUIET\b\s*"
+    r"(?:\([^)\n]*\))?[\s*`.!]*$",
     re.M | re.I,
 )
 RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)

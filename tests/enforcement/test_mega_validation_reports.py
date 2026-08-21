@@ -2074,3 +2074,35 @@ def test_every_round_owes_its_hash_pair(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-21-mega-vf-validation-review.md", body, commit=True)
     assert rc == 0
     assert "round 1 carries no full" in out, "the committed path dropped the per-round proof"
+
+
+def test_list_wrapped_pipe_row_is_refused_not_vanished(repo: Path) -> None:
+    """Round-133 HIGH: `- | class | UNCHECKED |` renders as a bullet (not a table row),
+    parses in neither extractor, and the single-list tolerance didn't refuse it — a real
+    unadjudicated finding sat visible to a human and invisible to every anchor. Both the
+    checklist and mega ledgers were bypassable this way."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
+        "- | sql-injection-in-search | UNCHECKED |\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-bulleted-pipe-review.md", body)
+    assert rc == 1, "a list-wrapped pipe row vanished from every extractor unflagged"
+    assert "LIST-WRAPPED pipe row" in out
+
+
+def test_bulleted_notquiet_declaration_is_recognized(repo: Path) -> None:
+    """Round-133 MEDIUM: a bulleted `- NOT-QUIET (routes outstanding)` declaration
+    false-failed as unmarked — the declaration anchor now carries the same list-marker
+    tolerance every row grammar has."""
+    body = (
+        "# cert\n\n"
+        "HANDOFF P1 OPEN backend bug — repro: tests/t.py — route: /fabrik-data-contract\n\n"
+        "- NOT-QUIET (routes outstanding)\n\n"
+        "## RESUME\n- the row above; re-invoke /fabrik-service-test\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-user-test-bulleted-nq.md", body)
+    assert rc == 0, f"a bulleted NOT-QUIET declaration was not recognized: {out}"
