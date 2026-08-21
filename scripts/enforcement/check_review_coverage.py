@@ -56,7 +56,7 @@ RECURRENCE = {
 }
 
 
-def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str]]:
+def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Path]]:
     """Changed/untracked .md under ``prefix`` (git status), excluding archived/.
 
     Returns (paths, notes) — NOTE lines are RETURNED, not printed: round 25 reproduced a NOTE
@@ -75,8 +75,9 @@ def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str]]:
             check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return [], notes
+        return [], notes, []
     paths = []
+    untracked: list[Path] = []
     for line in out.splitlines():
         rel = line[3:].split(" -> ")[-1].strip().strip('"')
         if not (rel.endswith(".md") and "archived/" not in rel and (root / rel).is_file()):
@@ -86,9 +87,10 @@ def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str]]:
         # staging/commit moment, never against another agent's mid-write scratch.
         if line[:2] == "??":
             notes.append(f"NOTE: skip untracked in-flight draft (checked at staging): {rel}")
+            untracked.append(root / rel)
             continue
         paths.append(root / rel)
-    return paths, notes
+    return paths, notes, untracked
 
 
 def _table_rows(section: str) -> list[str]:
@@ -408,6 +410,13 @@ def check_file(p: Path) -> list[str]:
     # defeated the previous scan three ways (a checklist evidence cell "audit found: 0, fixed: 0"
     # after the ledger; a FENCED example Pass-line; the same two against the committed scan) —
     # all because this path and the mega path were hardened separately. They no longer are.
+    bad_rows = _unparsed_pass_lines(text)
+    if bad_rows:
+        errs.append(
+            f"{len(bad_rows)} Pass-shaped ledger line(s) do not parse ({bad_rows[0][:70]!r}): "
+            "a count trailed by a word (or a missing counter) is ambiguous — punctuate the "
+            "counts (`found: N, fixed: M`) if the row is live, or fence it if quoted"
+        )
     ev_tables, ev_prose, ordered_rows = _ledger_shapes(text)
     groups = len(ev_tables) + len(ev_prose)
     if groups > 1 and not _in_progress(text) and not blocked_ok:
@@ -760,26 +769,6 @@ def _indented_grammar_error(text: str) -> str | None:
                 "write `|---|` if it is a table separator, or put a blank line before "
                 "`---` if it is a section divider"
             )
-        if _PASS_HEAD.match(ln) and _pass_counters(ln) is None:
-            loose = re.findall(r"(?<![\w-])(found|fixed):\s*\d+", ln)
-            strict_f = len(_FOUND_TOK.findall(ln))
-            strict_x = len(_FIXED_TOK.findall(ln))
-            if (
-                {"found", "fixed"} <= set(loose)
-                and max(strict_f, strict_x) <= 1
-            ):
-                # A counter-SHAPED Pass row that half-parses VANISHED silently (round 119,
-                # live corpus hit: `fixed: 0 this pass → fix wave dispatched` — the
-                # word-trailed token fails the anti-decoy guard, so the whole row with its
-                # real found: 33 dropped out of the ledger and a non-quiet report read as
-                # quiet). Undecidable between a sloppy live row and a quote → loud, with
-                # the one-keystroke remedy. Lines with MULTIPLE strict tokens of a kind
-                # stay INERT (the round-11 crafted-decoy contract, unchanged).
-                return (
-                    f"counter-shaped Pass row that does not parse ({ln.strip()[:70]!r}): "
-                    "a count trailed by a word is ambiguous — punctuate it "
-                    "(`fixed: 0,` / `fixed: 0 —`) if the row is live, or fence it if quoted"
-                )
         if _SETEXT_TITLE.match(content) and idx + 1 < len(live):
             raw_next = live[idx + 1]
             nxt, q2, l2 = _peel(raw_next)
@@ -833,6 +822,34 @@ _PASS_HEAD = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*\d", re.I)
 # while accepting every punctuation the corpus actually writes.
 _FOUND_TOK = re.compile(r"(?<![\w-])found:\s*(\d+)(?!\s*\w)", re.M)
 _FIXED_TOK = re.compile(r"(?<![\w-])fixed:\s*(\d+)(?!\s*\w)", re.M)
+
+
+def _unparsed_pass_lines(text: str) -> list[str]:
+    """Pass-shaped ledger lines that carry counter tokens but do NOT parse (round 121).
+
+    Round 120 refused these in the GLOBAL precondition — over-broad (it hard-blocked
+    non-subject narrative docs, against the round-27 doctrine) and under-broad (a line with
+    only ONE loose token kind still vanished silently: `Pass 1: found: 12 new issues, still
+    triaging` dropped its round entirely, and the prose branch — unlike the table branch —
+    has no fail-closed ambiguity split). The check now lives with the SUBJECT-scoped ledger
+    consumers: any Pass-headed line with a loose counter token that `_pass_counters` cannot
+    parse is reported loudly there (punctuate or fence — symmetric with the parsing-recap
+    multi-group adjudication). Multi-strict lines stay INERT (the round-11 decoy contract).
+    """
+    out: list[str] = []
+    # A ROW claims its number with a delimiter (`Pass 1:` / `Pass 1 (WIDE) —` / `| Pass 1 |`);
+    # a possessive or bare narrative (`Pass 2's found: 0 close did NOT survive…`, live
+    # corpus) is prose — round 121's first cut retro-nagged a historical report on it.
+    row_shaped = re.compile(
+        r"^\s*(?:[-*+]|\d+[.)])?\s*\|?\s*\**Pass\s*\d+[a-z]?\**\s*[:—\-–(|·]", re.I
+    )
+    for ln in _strip_fences(text).splitlines():
+        if not row_shaped.match(ln) or _pass_counters(ln) is not None:
+            continue
+        loose = re.findall(r"(?<![\w-])(?:found|fixed):\s*\d+", ln)
+        if loose and len(_FOUND_TOK.findall(ln)) <= 1 and len(_FIXED_TOK.findall(ln)) <= 1:
+            out.append(ln.strip())
+    return out
 
 
 def _pass_counters(line: str) -> tuple[int, int] | None:
@@ -1292,6 +1309,11 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # raw-matching BLOCKED_HEAD (no fence-strip, no evidence), one commit after the
             # centralization claimed "every reader"; a claim is only as true as its grep
             continue
+        for bad in _unparsed_pass_lines(text)[:1]:
+            out.append(
+                f"{p.relative_to(root)}: COMMITTED with a Pass-shaped ledger line that does "
+                f"not parse ({bad[:70]!r}) — punctuate the counts or fence the quote"
+            )
         c_tables, c_prose, ordered_rows = _ledger_shapes(text)
         if len(c_tables) + len(c_prose) > 1:
             out.append(
@@ -1316,14 +1338,17 @@ def main() -> int:
     args = ap.parse_args()
     root = Path(args.root).resolve()
     failures: list[str] = []
-    changed, skip_notes = _changed_md(root, REVIEWS_DIR)
+    changed, skip_notes, untracked = _changed_md(root, REVIEWS_DIR)
     # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
     # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
     # every historical report across ~46 synced repos on the next sync, on artifacts whose authors
     # may not even be active — and a gate that reds someone's unrelated commit is a gate that gets
     # switched off (the death this corpus has already seen once, with check_doc_sprawl).
     # The BLOCKING path stays where the author can still act: the report in their working tree.
-    stale = _committed_nonquiet(root, skip=set(changed))
+    # untracked joins the skip set (round 121): an untracked file is neither changed nor
+    # COMMITTED — the rglob scanned it anyway and labeled a sibling's mid-write scratch
+    # "COMMITTED", the exact shared-tree misattribution the '??' carve-out exists to avoid.
+    stale = _committed_nonquiet(root, skip=set(changed) | set(untracked))
     if stale:
         # ⚠ FIRST character matters: final_gate's --json ships a passing check's stdout only
         # when it STARTS with ⚠ (the opt-in the emitter documents). Round 23-25: the advisory

@@ -1914,14 +1914,15 @@ def test_half_parsed_counter_row_is_refused_not_vanished(repo: Path) -> None:
     """Round-119 HIGH (live corpus hit, a sibling's real draft): `fixed: 0 this pass → …`
     fails the anti-decoy word guard, so the whole row — real found: 33 included — vanished
     from the ledger and a non-quiet report read as quiet. A counter-shaped row that
-    half-parses is refused loudly with the punctuation remedy; multi-strict decoy lines
-    stay inert per the round-11 contract."""
+    half-parses is reported loudly with the punctuation remedy — SUBJECT-scoPED since
+    round 121 (the global-precondition form false-fired non-subject narrative docs);
+    multi-strict decoy lines stay inert per the round-11 contract."""
     body = _everyday(
         "Pass 1 (WIDE) — dispatch | found: 33 (new: 33) | fixed: 0 this pass → fix wave dispatched\n",
     )
     rc, out = _gate(repo, "2026-08-21-halfparsed-review.md", body)
     assert rc == 1, "a half-parsed counter row vanished silently with its found: 33"
-    assert "does not parse" in out
+    assert "not parse" in out
     punctuated = _everyday(
         "Pass 1: found: 33, fixed: 33\nPass 2: found: 0, fixed: 0\n",
     )
@@ -1929,3 +1930,49 @@ def test_half_parsed_counter_row_is_refused_not_vanished(repo: Path) -> None:
     # the first fixture is still in the repo, so assert per-file: the punctuated form
     # itself must raise nothing
     assert "halfparsed2" not in out, f"the punctuated remedy form must pass: {out}"
+
+
+def test_single_token_pass_line_cannot_vanish(repo: Path) -> None:
+    """Round-121 HIGH 1: a Pass line with only ONE counter kind (`found: 12 new issues,
+    still triaging` — no fixed: at all) vanished with its whole round; the prose branch,
+    unlike the table branch, had no fail-closed split. Now reported by the subject-scoped
+    ledger check."""
+    body = _everyday(
+        "Pass 1: found: 12 new issues, still triaging\n"
+        "Pass 2: found: 12 new issues, still triaging\n",
+    )
+    rc, out = _gate(repo, "2026-08-21-singletoken-review.md", body)
+    assert rc == 1, "single-token Pass lines vanished and an unproven report read quiet"
+    assert "not parse" in out
+
+
+def test_nonsubject_narrative_pass_prose_is_not_refused(repo: Path) -> None:
+    """Round-121 HIGH 2: the round-120 GLOBAL refusal hard-blocked a plain narrative doc
+    with no Coverage Checklist at all — against the round-27 non-subject doctrine. The
+    check is subject-scoped now."""
+    body = (
+        "# Deploy retro notes\n\n"
+        "Pass 1: the deploy succeeded on retry, fixed: 3 configs after testing "
+        "found: 12 issues in staging.\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-narrative-notes.md", body)
+    assert rc == 0, f"a non-subject narrative doc was refused: {out}"
+
+
+def test_untracked_draft_is_never_labeled_committed(repo: Path) -> None:
+    """Round-121 MEDIUM: the committed rglob scanned untracked files and labeled a
+    sibling's mid-write scratch COMMITTED — the shared-tree misattribution the '??'
+    carve-out exists to avoid. Untracked paths now join the skip set."""
+    import subprocess as sp
+    (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
+    (repo / "docs/development/reviews/2026-08-21-sibling-draft-review.md").write_text(
+        "# Review draft\n\n## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\nPass 1: found: 5, fixed: 0\n"
+    )
+    r = sp.run(
+        [sys.executable, str(CHECK), "--root", str(repo)],
+        capture_output=True, text=True, timeout=30,
+    )
+    outall = r.stdout + r.stderr
+    assert "COMMITTED" not in outall, f"an untracked draft was labeled COMMITTED: {outall}"
+    assert "untracked in-flight draft" in outall, "the NOTE skip must still name it"
