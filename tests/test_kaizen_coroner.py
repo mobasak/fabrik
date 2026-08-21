@@ -491,6 +491,37 @@ def test_holes_zero_when_every_active_session_is_closed(sources):
     assert kc.holes(sources) == 0
 
 
+def test_holes_missing_transcripts_dir_is_unmeasurable(sources):
+    """W2-F3: a coroner that cannot SEE the transcripts is a blind instrument —
+    it returns None (unmeasurable), never a perfect 0."""
+    import dataclasses  # noqa: PLC0415
+
+    blind = dataclasses.replace(sources, transcripts_dir=sources.transcripts_dir / "nope")
+    assert kc.holes(blind) is None
+
+
+def test_holes_empty_but_readable_transcripts_dir_is_zero(sources, tmp_path):
+    """W2-F3: an empty-but-readable dir is a MEASURED zero — no transcripts, no
+    holes; only unreadability dashes."""
+    import dataclasses  # noqa: PLC0415
+
+    empty = tmp_path / "empty-projects"
+    empty.mkdir()
+    src = dataclasses.replace(sources, transcripts_dir=empty)
+    assert kc.holes(src) == 0
+
+
+def test_holes_internal_error_is_unmeasurable(sources, monkeypatch):
+    """W2-F3: any internal error is an unmeasurable None, never a fabricated 0."""
+    _write_transcript(sources, SID, [_normal_assistant_row()])
+
+    def _boom(*a: object) -> tuple:
+        raise RuntimeError("stream state exploded")
+
+    monkeypatch.setattr(kc, "_stream_state", _boom)
+    assert kc.holes(sources) is None
+
+
 # ── read-only sound-system boundary + fail-open ──────────────────────────────────────
 
 

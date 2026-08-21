@@ -424,21 +424,27 @@ def test_series_version_bump_leaves_v1_byte_identical(tmp_path: Path) -> None:
     st = tmp_path / "state"
     rows = kc.derive_batch(sorted(GOLDEN.glob("*.jsonl")))
     metrics = kc.compute_metrics(rows, holes=1)
-    reg_v1 = kc.registry()
-    kc.publish_series("2026-08-18", metrics, reg_v1, st)
-    v1_files = sorted((st / "series").glob("*@v1.jsonl"))
-    assert v1_files, "measurable metrics must publish v1 series"
-    hashes_before = {p: p.read_bytes() for p in v1_files}
+    reg_base = kc.registry()
+    kc.publish_series("2026-08-18", metrics, reg_base, st)
+    base_files = sorted((st / "series").glob("*@v*.jsonl"))
+    assert base_files, "measurable metrics must publish series at their registry versions"
+    hashes_before = {p: p.read_bytes() for p in base_files}
 
-    reg_v2 = {
-        mid: {**d, "version": 2, "hash": kc._def_hash({**d, "version": 2})}
-        for mid, d in reg_v1.items()
+    reg_bumped = {
+        mid: {
+            **d,
+            "version": int(d["version"]) + 1,
+            "hash": kc._def_hash({**d, "version": int(d["version"]) + 1}),
+        }
+        for mid, d in reg_base.items()
     }
-    kc.publish_series("2026-08-18", metrics, reg_v2, st)
-    assert all(p.read_bytes() == hashes_before[p] for p in v1_files), (
-        "a definition change writes a NEW versioned series — v1 stays byte-identical"
+    kc.publish_series("2026-08-18", metrics, reg_bumped, st)
+    assert all(p.read_bytes() == hashes_before[p] for p in base_files), (
+        "a definition change writes a NEW versioned series — the old files stay byte-identical"
     )
-    assert sorted((st / "series").glob("*@v2.jsonl")), "v2 series files must exist"
+    assert set((st / "series").glob("*@v*.jsonl")) - set(base_files), (
+        "the bumped versions must land in NEW files"
+    )
 
 
 def test_series_day_is_idempotent(tmp_path: Path) -> None:
@@ -500,18 +506,24 @@ def test_metric_values_over_the_golden_rows() -> None:
         metrics["premature_stop_rate"].numerator,
         metrics["premature_stop_rate"].denominator,
     ) == (1, 8)
-    # L5: golden-alpha's two gate_runs are BOTH --check runs — no session has a
-    # non-check first attempt, so the metric honestly dashes.
-    assert not metrics["first_attempt_gate_pass"].measurable
-    assert metrics["gate_failure_taxonomy"].value == {"Doc Sync Matrix": 1}
+    # L5: golden-alpha's first two gate_runs are --check runs — only the 11:40
+    # NON-check failure defines its first attempt (0/1 sessions passed first try).
+    assert metrics["first_attempt_gate_pass"].measurable
+    assert (
+        metrics["first_attempt_gate_pass"].numerator,
+        metrics["first_attempt_gate_pass"].denominator,
+    ) == (0, 1)
+    # W2-F1: the taxonomy counts NON-check fails only — the check runs' Doc Sync
+    # Matrix fail is diagnostic, never taxonomy.
+    assert metrics["gate_failure_taxonomy"].value == {"mypy": 1}
     # H3: every rule_activation occurrence sits in the unknown stream — dash, not 0%.
     assert not metrics["rule_activation"].measurable
     assert "unattributable" in metrics["rule_activation"].detail
-    # H2: 10 unclassified lines over 33 lines — lines over lines, no session terms.
+    # H2: 10 unclassified lines over 34 lines — lines over lines, no session terms.
     assert (
         metrics["unclassified_rate"].numerator,
         metrics["unclassified_rate"].denominator,
-    ) == (10, 33)
+    ) == (10, 34)
     assert metrics["hole_count"].cell == "3"
 
 
@@ -579,7 +591,7 @@ def test_daily_green_path_publishes(tmp_path: Path) -> None:
     assert rc == 0
     rows = kc.read_rows(state=st)
     assert len(rows) == 5, "all five golden sessions derive into facts"
-    assert any((st / "series").glob("*@v1.jsonl")), "series rows published"
+    assert any((st / "series").glob("*@v*.jsonl")), "series rows published"
     text = log.read_text(encoding="utf-8")
     assert f"| {dt.date.today().isoformat()} |" in text, "the kaizen-log row landed"
 
@@ -1612,3 +1624,346 @@ def test_concurrent_append_facts_never_duplicates(
         t.join()
     assert sum(results) == 1, "the same key must append exactly once under a race"
     assert len(kc.facts_path(st).read_text().splitlines()) == 1
+
+
+# ── fix-wave 2 (whole-M1 closing sweep F1-F9, red-first) ─────────────────────────────
+
+
+def _w2_row(sid: str, day: str, **over: object) -> dict:
+    """A minimal well-formed derived-facts row for direct metric-input construction."""
+    row: dict = {
+        "facts_version": kc.FACTS_VERSION,
+        "sid": sid,
+        "day": day,
+        "first_ts": f"{day}T10:00:00.000+00:00",
+        "last_ts": f"{day}T11:00:00.000+00:00",
+        "project": "proj-a",
+        "events": {},
+        "events_unattributed": {},
+        "gate": {
+            "runs": 0,
+            "first_status": None,
+            "pass": 0,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 0,
+            "failed_checks_noncheck": {},
+        },
+        "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0},
+        "stop_causes": {},
+        "death_classes": [],
+        "concurrent": None,
+        "concurrent_reason": None,
+        "lines_total": 1,
+        "lines_unclassified": 0,
+        "unclassified_reasons": {},
+    }
+    row.update(over)
+    return row
+
+
+def test_derive_session_splits_noncheck_gate_fields(tmp_path: Path) -> None:
+    """W2-F1: the derived row separates diagnostic --check gate runs from real
+    completion runs — the taxonomy's population is the NON-check side only."""
+    lines = [
+        _line(
+            "mix",
+            "gate_run",
+            "2026-08-18T10:00:00.000+00:00",
+            status="failure",
+            mode={"check": True, "lean": True, "systemic": False, "json": True},
+            checks=[{"name": "docs", "outcome": "fail"}],
+        ),
+        _line(
+            "mix",
+            "gate_run",
+            "2026-08-18T10:10:00.000+00:00",
+            status="failure",
+            mode={"check": False, "lean": False, "systemic": False, "json": True},
+            checks=[{"name": "mypy", "outcome": "fail"}],
+        ),
+        _line(
+            "mix",
+            "gate_run",
+            "2026-08-18T10:20:00.000+00:00",
+            status="success",
+            mode={"check": False, "lean": False, "systemic": False, "json": True},
+            checks=[{"name": "mypy", "outcome": "pass"}],
+        ),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "mix", lines))
+    assert row is not None
+    assert row["gate"]["runs"] == 3
+    assert row["gate"]["runs_noncheck"] == 2
+    assert row["gate"]["failed_checks"] == {"docs": 1, "mypy": 1}
+    assert row["gate"]["failed_checks_noncheck"] == {"mypy": 1}
+    assert row["gate"]["first_status"] == "failure", "L5: first NON-check run defines it"
+
+
+def test_taxonomy_excludes_check_mode_gate_runs(tmp_path: Path) -> None:
+    """W2-F1: a session whose gate runs are ALL --check (the Stop hook's --lean
+    --check self-review) must never render the taxonomy — 'clean (0 failing checks
+    over N runs)' from diagnostic runs is a fabrication."""
+    lines = [
+        _line(
+            "chk",
+            "gate_run",
+            "2026-08-18T10:00:00.000+00:00",
+            status="success",
+            mode={"check": True, "lean": True, "systemic": False, "json": True},
+            checks=[{"name": "ruff", "outcome": "pass"}],
+        ),
+        _line(
+            "chk",
+            "gate_run",
+            "2026-08-18T10:30:00.000+00:00",
+            status="success",
+            mode={"check": True, "lean": True, "systemic": False, "json": True},
+            checks=[{"name": "ruff", "outcome": "pass"}],
+        ),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "chk", lines))
+    assert row is not None
+    metrics = kc.compute_metrics([row], holes=0)
+    tax = metrics["gate_failure_taxonomy"]
+    assert not tax.measurable, "check-only sessions are not taxonomy population"
+    assert "clean" not in tax.cell
+    assert "non-check" in tax.detail
+
+
+def test_taxonomy_dashes_under_gate_run_attribution_floor() -> None:
+    """W2-F1: when the gate_run family sits mostly in the unknown stream, the
+    attributed sliver must not publish — dash with the attribution reason."""
+    attributed = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"gate_run": 1},
+        gate={
+            "runs": 1,
+            "first_status": "failure",
+            "pass": 0,
+            "fail": 1,
+            "failed_checks": {"mypy": 1},
+            "runs_noncheck": 1,
+            "failed_checks_noncheck": {"mypy": 1},
+        },
+    )
+    unk = _w2_row(
+        "unknown",
+        "2026-08-18",
+        project=None,
+        events_unattributed={"gate_run": 40},
+        concurrent_reason="unattributable-sid",
+    )
+    metrics = kc.compute_metrics([attributed, unk], holes=0)
+    tax = metrics["gate_failure_taxonomy"]
+    assert not tax.measurable, "1 attributed vs 40 unknown gate_runs is below the floor"
+    assert "unattributable" in tax.detail
+    assert "attribution floor" in tax.detail
+
+
+def test_repopulated_metrics_publish_at_v2(tmp_path: Path) -> None:
+    """W2-F5: premature_stop_rate and gate_failure_taxonomy changed input population
+    under the wave — their series must land at @v2 (never appending
+    differently-defined points into the @v1 files)."""
+    ev = tmp_path / "events"
+    lines = [
+        _line(
+            "s1",
+            "gate_run",
+            "2026-08-18T10:00:00.000+00:00",
+            status="failure",
+            mode={"check": False, "lean": False, "systemic": False, "json": True},
+            checks=[{"name": "mypy", "outcome": "fail"}],
+        ),
+        _line("s1", "stop_block", "2026-08-18T11:00:00.000+00:00", cause="run-record"),
+        _line("s1", "stop_pass", "2026-08-18T12:00:00.000+00:00", outcome="clean"),
+    ]
+    _session(ev, "s1", lines)
+    assert kc.daily(dt.date.today(), **_daily_args(tmp_path)) == 0
+    st = tmp_path / "state"
+    assert kc.series_path("gate_failure_taxonomy", 2, st).is_file()
+    assert kc.series_path("premature_stop_rate", 2, st).is_file()
+    assert not kc.series_path("gate_failure_taxonomy", 1, st).exists()
+    assert not kc.series_path("premature_stop_rate", 1, st).exists()
+
+
+def test_log_cells_rounds_dash_when_round_family_unattributable(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """W2-F2: a mean over n=1 attributed round-carrying sessions while the round
+    mass sits in the unknown stream is fabricated precision — the cell dashes."""
+    day = dt.date(2026, 8, 18)
+    r1 = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"round": 1},
+        runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
+    )
+    unk = _w2_row(
+        "unknown",
+        "2026-08-18",
+        project=None,
+        events_unattributed={"round": 47},
+        concurrent_reason="unattributable-sid",
+    )
+    metrics = kc.compute_metrics([r1, unk], holes=0)
+    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk])
+    assert cells[4] == DASH, "the rounds cell must dash under the attribution floor"
+    err = capsys.readouterr().err
+    assert "Review rounds" in err and "unattributable" in err
+
+
+def test_log_cells_rounds_guard_uses_the_store_universe(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """W2-F2: the unknown accumulator's row may sit outside the week (its derivation
+    day is whenever it last grew) — the guard reads the UNIVERSE, like M9's
+    coroner-evidence check, so a week slice cannot hide the unknown mass."""
+    day = dt.date(2026, 8, 18)
+    r1 = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"round": 1},
+        runs={"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 2},
+    )
+    unk_earlier_week = _w2_row(
+        "unknown",
+        "2026-08-07",
+        project=None,
+        events_unattributed={"round": 47},
+        concurrent_reason="unattributable-sid",
+    )
+    metrics = kc.compute_metrics([r1], holes=0)
+    cells = kc.log_cells(day, metrics, [r1], all_rows=[r1, unk_earlier_week])
+    assert cells[4] == DASH
+
+
+def test_log_cells_death_cell_accepts_v1_scalar_death_class() -> None:
+    """W2-F6: a FACTS_VERSION-1 row carries a SCALAR death_class — the class count
+    must see it ('2 occ / 0 cls' hid a classified death)."""
+    legacy = {
+        "facts_version": 1,
+        "sid": "legacy",
+        "day": "2026-08-18",
+        "events": {"death": 2},
+        "death_class": "rate_limit",
+        "runs": {},
+        "stop_causes": {},
+        "gate": {"runs": 0, "first_status": None, "pass": 0, "fail": 0, "failed_checks": {}},
+        "lines_total": 4,
+        "lines_unclassified": 0,
+        "unclassified_reasons": {},
+    }
+    metrics = kc.compute_metrics([legacy], holes=0)
+    cells = kc.log_cells(dt.date(2026, 8, 18), metrics, [legacy], all_rows=[legacy])
+    assert cells[2] == "2 occ / 1 cls"
+
+
+def test_era_filter_precedes_latest_per_sid_collapse(tmp_path: Path) -> None:
+    """W2-F7: a transcript-era row that OUTRANKS its event-era sibling (T08 backfill)
+    must not swallow the sid — the era filter runs BEFORE the collapse."""
+    st = tmp_path / "state"
+    ev_row = {"facts_version": 2, "sid": "s", "day": "2026-08-18", "lines_total": 1}
+    tr_row = {
+        "facts_version": 2,
+        "sid": "s",
+        "day": "2026-08-19",
+        "era": "transcript",
+        "lines_total": 5,
+    }
+    kc.append_facts([ev_row, tr_row], st)
+    rows = kc.read_rows(state=st, event_era_only=True)
+    assert [r["day"] for r in rows if r["sid"] == "s"] == ["2026-08-18"], (
+        "the sid's event-era row must survive an outranking transcript sibling"
+    )
+    week = dt.date(2026, 8, 18).isocalendar()[:2]
+    wrows = kc.read_week_rows(week, st, event_era_only=True)
+    assert [r["day"] for r in wrows if r["sid"] == "s"] == ["2026-08-18"]
+    # The era-blind default still serves the newest row — T08's report reads both eras.
+    blind = kc.read_rows(state=st)
+    assert [r["day"] for r in blind if r["sid"] == "s"] == ["2026-08-19"]
+
+
+def test_daily_refuses_out_of_order_older_day(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W2-F4: an explicit --day older than the newest published series day would
+    derive every alive file's CURRENT cumulative content under the old day and
+    double-publish (append-only, unrepairable) — refuse, mutate nothing."""
+    ev = tmp_path / "events"
+    _session(ev, "s1", [_line("s1", "stop_pass", _TS, outcome="clean")])
+    day_n = dt.date.today()
+    assert kc.daily(day_n, **_daily_args(tmp_path)) == 0
+    st = tmp_path / "state"
+    log = tmp_path / "log.md"
+    snapshot = {p: p.read_bytes() for p in st.rglob("*") if p.is_file()}
+    log_before = log.read_bytes()
+
+    rc = kc.daily(day_n - dt.timedelta(days=2), **_daily_args(tmp_path))
+    assert rc != 0, "an out-of-order older day must refuse"
+    err = capsys.readouterr().err
+    assert day_n.isoformat() in err, "the refusal names the conflicting newest day"
+    assert "kaizen_backfill" in err, "the refusal points historical backfill at its owner"
+    after = {p: p.read_bytes() for p in st.rglob("*") if p.is_file()}
+    assert after == snapshot, "the refused run must not mutate the state store"
+    assert log.read_bytes() == log_before, "the refused run must not touch the log"
+
+
+def test_coroner_holes_none_maps_to_transcripts_unreadable_dash(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """W2-F3: a blind coroner (missing/unreadable transcripts dir) returns None —
+    the collector dashes hole_count with the reason, never publishes a perfect 0."""
+    import kaizen_coroner  # noqa: PLC0415 - same directory
+
+    monkeypatch.setattr(kaizen_coroner, "holes", lambda *a, **k: None)
+    holes, reason = kc._coroner_holes(dt.date.today(), tmp_path / "ev")
+    assert holes is None
+    assert reason == "transcripts unreadable"
+    metrics = kc.compute_metrics([], holes=holes, holes_reason=reason)
+    assert not metrics["hole_count"].measurable
+    assert "transcripts unreadable" in metrics["hole_count"].detail
+
+
+def test_bare_completion_gate_run_emits_noncheck_mode(tmp_path: Path) -> None:
+    """W2-F9: the first_attempt_gate_pass population is satisfiable — a bare (no
+    --check) completion gate emits ONE gate_run with mode.check false. Runs in a
+    disposable shared clone so the bare gate's fixers can never touch the live
+    tree; the events dir is a tmp dir, never the real store."""
+    import os  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(REPO), str(clone)],
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+    events = tmp_path / "gate-events"
+    env = dict(os.environ, KAIZEN_EVENTS_DIR=str(events), CLAUDE_SESSION_ID="w2-f9-bare")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(clone / "scripts" / "final_gate.py"),
+            "--lean",
+            "--json",
+            "--no-stage",
+        ],
+        cwd=str(clone),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    assert proc.returncode in (0, 1), proc.stderr[-2000:]
+    rows = [
+        json.loads(ln)
+        for ln in (events / "w2-f9-bare.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
+    ]
+    gate_rows = [r for r in rows if r.get("event") == "gate_run"]
+    assert len(gate_rows) == 1, "exactly ONE gate_run per bare invocation"
+    assert gate_rows[0]["mode"]["check"] is False, "a bare run is a completion run"
+    assert gate_rows[0]["status"] in ("success", "failure")

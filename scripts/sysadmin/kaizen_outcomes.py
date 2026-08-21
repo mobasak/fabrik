@@ -634,9 +634,11 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         )
     # Event-era only (T09 era filter): T08's transcript-era rows carry DASH strings
     # in events/stop_causes — unfiltered they crash _stop_verdicts, and their lines
-    # are prose, not stop verdicts. Windowed (L7): only rows whose last_ts falls in
-    # the KAIZEN_OUTCOMES_WINDOW_DAYS window — never all-time cumulative.
-    rows = [r for r in kc.read_rows(since=_window_since(), state=state) if kc._event_era(r)]
+    # are prose, not stop verdicts. The filter runs INSIDE the reader, BEFORE the
+    # latest-per-sid collapse (W2-F7) — a transcript row that outranks its event-era
+    # sibling must not swallow the sid. Windowed (L7): only rows whose last_ts falls
+    # in the KAIZEN_OUTCOMES_WINDOW_DAYS window — never all-time cumulative.
+    rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
     if not rows:
         reason = (
             f"no derived-facts rows in the {_window_days()}d window "
@@ -697,10 +699,21 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
 
 
 def review_rounds(state: Path | None = None) -> MetricResult:
-    """Mean max-round per round-carrying session (rework_rate's counter pair)."""
-    # Event-era only — transcript rows' `runs` is a DASH string (see premature_stop).
+    """Mean max-round per round-carrying session (rework_rate's counter pair).
+
+    W2-F2: guarded by T06's attribution floor over the ROUND family — a mean over
+    an attributed sliver while the round mass sits in the unknown stream is
+    fabricated precision. The guard reads the UNWINDOWED era-filtered store: the
+    unknown accumulator is TIMELESS (no last_ts — every line unattributable), so
+    the windowed slice can never see it."""
+    # Event-era only, filtered INSIDE the reader before the collapse (W2-F7).
     # Windowed (L7), same window as the stops pair.
-    rows = [r for r in kc.read_rows(since=_window_since(), state=state) if kc._event_era(r)]
+    rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
+    universe = kc.read_rows(state=state, event_era_only=True)
+    attributed = sum(int((r.get("events") or {}).get("round", 0) or 0) for r in universe)
+    guard = kc._attribution_guard(universe, ("round",), attributed, "round events")
+    if guard is not None:
+        return MetricResult.unavailable("review_rounds", guard)
     vals = [
         int((r.get("runs") or {}).get("rounds_max", 0))
         for r in rows
@@ -736,12 +749,16 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "review_rounds",
-        "version": 2,
+        "version": 3,
         "counter_metric": "rework_rate",
         "formula": (
             "mean rounds_max across round-carrying sessions (derived-facts rows whose "
             "last_ts falls in the last KAIZEN_OUTCOMES_WINDOW_DAYS days, default 7 — "
-            "never all-time cumulative) — rounds down must never buy rework up."
+            "never all-time cumulative) — rounds down must never buy rework up. "
+            "Renders — when attributed round occurrences are below the 20% "
+            "attribution floor of the family total across the era-filtered store "
+            "(the unknown stream holds the mass) — an attributed sliver is not the "
+            "population."
         ),
     },
     {

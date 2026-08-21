@@ -196,7 +196,8 @@ class CoronerReport:
     #: Markers whose transcript EXISTS but yielded no conclusive verdict — skipped,
     #: counted (L3): ambiguous evidence must never close a possibly-live session.
     inconclusive: list[str] = dataclasses.field(default_factory=list)
-    holes_today: int = 0
+    #: None = unmeasurable — holes() was blind this sweep (W2-F3), not "no holes".
+    holes_today: int | None = 0
     errors: list[str] = dataclasses.field(default_factory=list)
 
 
@@ -647,7 +648,7 @@ def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None
 # ── the hole metric — for T06 ────────────────────────────────────────────────────────
 
 
-def holes(sources: Sources | None = None, day: dt.date | None = None) -> int:
+def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | None:
     """``transcripts-with-activity − sessions-with-a-stop_pass-or-session_end`` for
     one day.
 
@@ -657,8 +658,12 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int:
     session's liveliness is its last ``stop_pass`` (kaizen-event-stream.md — the
     Stop hook fires per TURN, so most sessions end on a stop_pass, not a
     session_end); counting those as holes made every normal session a hole (H4).
-    Returns the NUMBER; T06 consumes it. Fail-open: any error inside is a skipped
-    session, and the function never raises.
+    Returns the NUMBER; T06 consumes it.
+
+    W2-F3: a coroner that cannot SEE is a blind instrument — a missing/unreadable
+    transcripts dir or any internal error returns **None** (unmeasurable; T06 maps
+    it to the honest ``—``), never a perfect 0. An EMPTY but readable dir stays a
+    measured 0 (no transcripts, no holes). The function still never raises.
     """
     try:
         src = sources or Sources.default()
@@ -666,8 +671,9 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int:
         active: set[str] = set()
         try:
             project_dirs = [d for d in src.transcripts_dir.iterdir() if d.is_dir()]
-        except OSError:
-            return 0
+        except OSError as exc:
+            _warn(f"holes(): transcripts dir unreadable ({exc!r}) -> unmeasurable")
+            return None
         for pdir in project_dirs:
             try:
                 files = list(pdir.glob("*.jsonl"))
@@ -688,8 +694,8 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int:
                 closed += 1
         return len(active) - closed
     except Exception as exc:
-        _warn(f"holes() failed open ({exc!r}) -> 0")
-        return 0
+        _warn(f"holes() failed open ({exc!r}) -> unmeasurable")
+        return None
 
 
 # ── the sweep ────────────────────────────────────────────────────────────────────────

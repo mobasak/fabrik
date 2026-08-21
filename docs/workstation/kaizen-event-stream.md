@@ -178,7 +178,7 @@ Every metric is registered with a version, a definition hash, and a **reciprocal
 | `terminator_spam` | `rules_compliance` | final_block_emitted / closures | T06 collector |
 | `premature_stop_rate` | `first_attempt_gate_pass` | EVENT-level stop verdicts | T06 collector |
 | `first_attempt_gate_pass` | `premature_stop_rate` | sessions, first gate_run | T06 collector |
-| `gate_failure_taxonomy` | `rule_activation` | per-check fail distribution | T06 collector |
+| `gate_failure_taxonomy` | `rule_activation` | per-check fail distribution (non-check runs) | T06 collector |
 | `rule_activation` | `gate_failure_taxonomy` | run-closing sessions | T06 collector |
 | `unclassified_rate` | `hole_count` | instrument health (metric zero) | T06 collector |
 | `hole_count` | `unclassified_rate` | coroner holes | T06 collector |
@@ -193,8 +193,13 @@ Truncated lines (`truncated`/`fields_dropped`) derive **envelope-only**: the eve
 and exposure count, the partial payload never feeds a distribution — the line rides the
 unclassified rate as reason `truncated`. Metrics whose numerator event family sits mostly in the
 `unknown` stream are guarded by the **20% attribution floor** (`rules_compliance`,
-`terminator_spam`, `rule_activation`): below it the metric renders `—` with the reason — an
-attributed sliver is not the population. `premature_stop_rate` (T06, event-level) and
+`terminator_spam`, `rule_activation`, `gate_failure_taxonomy`, `review_rounds` and the weekly
+rounds log cell): below it the metric renders `—` with the reason — an attributed sliver is not
+the population. `gate_failure_taxonomy` additionally counts NON-check runs only (`mode.check`
+false — the Stop hook's automatic `--lean --check` self-review is diagnostic, never taxonomy
+population; the same rationale as `first_attempt_gate_pass`). `hole_count` dashes when the
+coroner is BLIND (missing/unreadable transcripts dir → `holes()` returns None, mapped to `—`
+reason "transcripts unreadable"); an empty-but-readable dir stays a measured 0. `premature_stop_rate` (T06, event-level) and
 `premature_stop` (T07, session-level) share the `PREMATURE_CAUSES` vocabulary and cross-reference
 each other in their definitions — read them together. The cross-reference rides a non-hashed `cross_reference` field, so the published
 definition hashes are unchanged (the versioned-definitions law). The loop doc — cadence, cron

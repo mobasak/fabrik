@@ -62,8 +62,21 @@ complete). In order:
 
 Metric inputs are **event-era only**: T08's backfill shares the store with `era: "transcript"`
 rows (every event-only field an honest `—`), and `daily()` excludes them from its day/week
-selection and delta baselines (the T09 era filter). Useful flags: `--day <ISO>`, `--no-mail`,
-`--golden-check`, `--selftest`.
+selection and delta baselines (the T09 era filter, applied INSIDE the readers BEFORE the
+latest-per-sid collapse — a transcript row that outranks its event-era sibling must not swallow
+the sid). Useful flags: `--day <ISO>`, `--no-mail`, `--golden-check`, `--selftest`.
+
+**The one-day forward smear (documented, bounded, honest):** the pass consolidates yesterday
+with the mtime>=day selector, so a file still alive when the pass runs is derived with its
+CURRENT cumulative content — lines written today (before the pass) land in yesterday's
+published day. The smear is bounded to one day forward (the pass runs daily), and cross-day
+totals stay honest: the delta seam subtracts the predecessor row, so a smeared line is counted
+once — the smear shifts which day it lands in, never how many land.
+
+**Out-of-order refusal:** an explicit `--day` strictly OLDER than the newest day already
+published in the series store is REFUSED (nonzero rc, zero mutation) — under the mtime>=day
+selector it would derive every alive file's current cumulative content under the old day and
+double-publish into the append-only series. Historical backfill is `kaizen_backfill.py`'s job.
 
 ### The nightly sweep (`kaizen_outcomes.py --sweep`) — runbook
 
@@ -89,7 +102,7 @@ mechanical cells are computed over the ISO week's event-era rows:
 | Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
 | Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. Renders `—` while the store holds no death/session_end evidence at all (the coroner has never run) — a `0` there would be fabricated. |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
-| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. |
+| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. Guarded by the 20% attribution floor over the round family (store universe): when the round mass sits in the `unknown` stream, the cell renders `—` — a mean over an attributed sliver is fabricated precision. |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 

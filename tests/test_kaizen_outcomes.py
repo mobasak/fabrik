@@ -625,8 +625,9 @@ def test_windowed_formulas_are_version_bumped() -> None:
     """L7: the window is stated in the formulas — a formula edit is a def-hash
     version bump (the versioned-definitions law)."""
     reg = ko.registry()
-    for mid in ("premature_stop", "stop_block_causes", "review_rounds"):
-        assert reg[mid]["version"] == 2, mid
+    # review_rounds is at 3: v2 added the window (L7), v3 the attribution floor (W2-F2).
+    for mid, ver in (("premature_stop", 2), ("stop_block_causes", 2), ("review_rounds", 3)):
+        assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
 
 
@@ -674,3 +675,37 @@ def test_sweep_one_survives_tempdir_cleanup_failure(
     monkeypatch.setattr(ko.tempfile, "TemporaryDirectory", _FakeTmp)
     res = ko.sweep_one("pilot", root, 120)
     assert res.project == "pilot", "sweep_one must survive a busy temp worktree"
+
+
+# ── fix-wave 2 (whole-M1 closing sweep, red-first) ───────────────────────────────────
+
+
+def test_review_rounds_dashes_when_round_family_unattributable(tmp_path: Path) -> None:
+    """W2-F2: a mean over n=1 attributed round-carrying sessions while the round
+    mass sits in the unknown stream is fabricated precision — dash with the
+    attribution reason. The unknown accumulator is TIMELESS (no last_ts), so the
+    guard must read the unwindowed store universe, never the windowed slice."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", runs={"rounds_max": 3}, events={"round": 1}),
+            _fact(
+                "unknown",
+                last_ts=None,
+                events={},
+                events_unattributed={"round": 47},
+            ),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert not rounds.measurable, "n=1 attributed vs 47 unknown rounds is below the floor"
+    assert rounds.cell == DASH
+    assert "unattributable" in rounds.detail
+
+
+def test_review_rounds_still_measures_when_attribution_is_healthy(tmp_path: Path) -> None:
+    """W2-F2 counter-case: no unknown-stream round mass — the mean still publishes."""
+    _seed_facts(tmp_path, [_fact("s1", runs={"rounds_max": 3}, events={"round": 3})])
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "3.0" in rounds.cell and "n=1" in rounds.cell

@@ -79,9 +79,12 @@ except Exception:  # pragma: no cover - a box mid-sync
 REPO = Path(__file__).resolve().parents[2]
 #: v2 (review fix-wave 2026-08-21): death_classes list (every death kept), truncated
 #: lines counted envelope-only, malformed-field reason codes, events_unattributed on
-#: the unknown row. The derived-row shape changed, so the version bumps and the golden
-#: corpus is re-labelled — the derived-facts law.
-FACTS_VERSION = 2
+#: the unknown row. v3 (fix-wave 2, same day): the gate dict splits the NON-check side
+#: out (``runs_noncheck`` / ``failed_checks_noncheck``) so the failure taxonomy can
+#: exclude diagnostic --check runs (W2-F1, the L5 rationale). The derived-row shape
+#: changed, so the version bumps and the golden corpus is re-labelled — the
+#: derived-facts law.
+FACTS_VERSION = 3
 SCHEMA = 1
 DASH = "—"
 UNKNOWN = "unknown"
@@ -261,7 +264,9 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
     projects: collections.Counter[str] = collections.Counter()
     stop_causes: collections.Counter[str] = collections.Counter()
     failed_checks: collections.Counter[str] = collections.Counter()
+    failed_checks_noncheck: collections.Counter[str] = collections.Counter()
     gate_runs = 0
+    gate_runs_noncheck = 0
     gate_pass = 0
     gate_fail = 0
     first_status: str | None = None
@@ -320,6 +325,8 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             # emitter line and counts (it cannot be proven a check run).
             mode = row.get("mode")
             is_check = isinstance(mode, dict) and bool(mode.get("check"))
+            if not is_check:
+                gate_runs_noncheck += 1
             if first_status is None and not is_check:
                 first_status = status
             if status == "success":
@@ -329,6 +336,10 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             for c in row.get("checks") or []:
                 if c.get("outcome") == "fail":
                     failed_checks[str(c.get("name"))] += 1
+                    if not is_check:
+                        # W2-F1: the failure taxonomy's population — a --check
+                        # run's fails are diagnostic, never taxonomy (L5 rationale).
+                        failed_checks_noncheck[str(c.get("name"))] += 1
         elif event == "run_open":
             opened += 1
         elif event == "run_close":
@@ -378,6 +389,11 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             "pass": gate_pass,
             "fail": gate_fail,
             "failed_checks": dict(failed_checks),
+            # The NON-check side (W2-F1): the taxonomy's population. A pre-mode
+            # emitter line counts here too (it cannot be proven a check run) — the
+            # same disposition first_status takes.
+            "runs_noncheck": gate_runs_noncheck,
+            "failed_checks_noncheck": dict(failed_checks_noncheck),
         },
         "runs": {
             "opened": opened,
@@ -545,11 +561,18 @@ def _parse_ts(value: object) -> dt.datetime | None:
     return parsed
 
 
-def read_rows(since: str | None = None, state: Path | None = None) -> list[dict]:
+def read_rows(
+    since: str | None = None, state: Path | None = None, event_era_only: bool = False
+) -> list[dict]:
     """Rows for T07/T08: the LATEST appended row per sid at its newest
     ``facts_version`` (a grown file's later-day re-derivation supersedes the earlier
     row; history stays verbatim in the store), optionally filtered to
     ``last_ts >= since``.
+
+    ``event_era_only`` applies the era filter BEFORE the latest-per-sid collapse
+    (W2-F7): a transcript-era row (T08 backfill) that outranks its event-era sibling
+    must not swallow the sid — filtering the collapsed result loses the event row
+    entirely. The default stays era-blind for T08's noise-floor report.
 
     Timestamps are compared as PARSED datetimes (naive assumed UTC) — string
     comparison misorders equal instants of different fraction widths. Disposition of
@@ -583,6 +606,8 @@ def read_rows(since: str | None = None, state: Path | None = None) -> list[dict]
         sid = row.get("sid")
         if not isinstance(sid, str):
             continue
+        if event_era_only and not _event_era(row):
+            continue  # W2-F7: filter BEFORE the collapse — see the docstring
         cur = best.get(sid)
         if cur is None or rank(row) >= rank(cur):
             best[sid] = row
@@ -622,7 +647,7 @@ def read_rows(since: str | None = None, state: Path | None = None) -> list[dict]
 #: (container key, count field names) — every additive count that is delta'd.
 _DELTA_SCALARS: tuple[tuple[str | None, tuple[str, ...]], ...] = (
     (None, ("lines_total", "lines_unclassified")),
-    ("gate", ("runs", "pass", "fail")),
+    ("gate", ("runs", "pass", "fail", "runs_noncheck")),
     ("runs", ("opened", "done", "done_evidenced", "blocked")),
 )
 #: (container key or None, counter-map field name) — additive {name: count} maps.
@@ -632,6 +657,7 @@ _DELTA_MAPS: tuple[tuple[str | None, str], ...] = (
     (None, "unclassified_reasons"),
     (None, "stop_causes"),
     ("gate", "failed_checks"),
+    ("gate", "failed_checks_noncheck"),
 )
 
 
@@ -755,14 +781,17 @@ def predecessors(before_day: str, state: Path | None = None) -> dict[str, dict]:
     return out
 
 
-def read_week_rows(week: tuple[int, int], state: Path | None = None) -> list[dict]:
+def read_week_rows(
+    week: tuple[int, int], state: Path | None = None, event_era_only: bool = False
+) -> list[dict]:
     """The latest row per sid WITHIN one ISO week — the weekly log-cell input (L1).
 
     The global latest-per-sid collapse (:func:`read_rows`) answers "current state";
     filtering IT by week drops a sid whose newest row moved to a later week, silently
     vacating that sid's earlier week. The weekly read collapses PER WEEK instead:
     only rows whose ``day`` falls in the week compete, ranked ``(facts_version, day)``
-    with append order as the final tie-break, exactly like :func:`read_rows`."""
+    with append order as the final tie-break, exactly like :func:`read_rows`.
+    ``event_era_only`` filters BEFORE the collapse, same rationale (W2-F7)."""
     st = state or state_dir()
 
     def rank(r: dict) -> tuple[int, str]:
@@ -776,6 +805,8 @@ def read_week_rows(week: tuple[int, int], state: Path | None = None) -> list[dic
             continue
         if _iso_week(day) != week:
             continue
+        if event_era_only and not _event_era(row):
+            continue  # W2-F7: filter BEFORE the collapse
         cur = best.get(sid)
         if cur is None or rank(row) >= rank(cur):
             best[sid] = row
@@ -811,7 +842,10 @@ METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "premature_stop_rate",
-        "version": 1,
+        # v2: the derived-row input population changed under the 2026-08-21 fix wave
+        # (malformed stop_block causes counted, truncated lines envelope-only) — the
+        # same def_hash must never span differently-populated points in one series.
+        "version": 2,
         "counter_metric": "first_attempt_gate_pass",
         "formula": (
             "stop_block events with cause in {run-record, promise-stall} / all stop "
@@ -840,11 +874,16 @@ METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "gate_failure_taxonomy",
-        "version": 1,
+        "version": 2,
         "counter_metric": "rule_activation",
         "formula": (
-            "per-check fail counts across attributed gate_run events — the value is "
-            "the {check: count} distribution, not a scalar."
+            "per-check fail counts across attributed NON-check gate_run events "
+            "(mode.check false — the Stop hook's automatic --lean --check "
+            "self-review is diagnostic, never taxonomy population; the L5 "
+            "rationale). The value is the {check: count} distribution, not a "
+            "scalar. Renders — when attributed gate_run occurrences are below the "
+            "20% attribution floor of the family total (the unknown stream holds "
+            "the mass) — an attributed sliver is not the population."
         ),
     },
     {
@@ -1078,25 +1117,38 @@ def compute_metrics(
             "no session had its first attributed gate_run in the window"
             + (" (continuing sessions only)" if gate_rows else ""),
         )
-    if gate_rows:
+    # W2-F1: the taxonomy is guarded twice. (a) Attribution floor — when the
+    # gate_run family sits mostly in the unknown stream, the attributed sliver is
+    # not the population. (b) Population — only NON-check runs count (the Stop
+    # hook's --lean --check self-review is diagnostic; L5 rationale). A legacy row
+    # without the non-check split (facts_version < 3) reads 0 and is excluded —
+    # the honest under-count direction.
+    gate_guard = _attribution_guard(rows, ("gate_run",), esum("gate_run"), "gate_run events")
+    tax_rows = [r for r in rows if int((r.get("gate") or {}).get("runs_noncheck", 0) or 0) > 0]
+    if tax_rows and gate_guard is None:
         taxonomy: collections.Counter[str] = collections.Counter()
         gate_total = 0
-        for r in gate_rows:
-            gate_total += int(r["gate"].get("runs", 0))
-            for name, count in (r["gate"].get("failed_checks") or {}).items():
+        for r in tax_rows:
+            gate_total += int(r["gate"].get("runs_noncheck", 0))
+            for name, count in (r["gate"].get("failed_checks_noncheck") or {}).items():
                 taxonomy[str(name)] += int(count)
         top = ", ".join(f"{n}={c}" for n, c in taxonomy.most_common(3))
         out["gate_failure_taxonomy"] = MetricResult(
             id="gate_failure_taxonomy",
-            cell=top or f"clean (0 failing checks over {gate_total} runs)",
-            detail="per-check fail counts across attributed gate_run events",
+            cell=top or f"clean (0 failing checks over {gate_total} non-check runs)",
+            detail="per-check fail counts across attributed non-check gate_run events",
             value=dict(taxonomy),
             numerator=sum(taxonomy.values()),
             denominator=gate_total,
         )
     else:
         out["gate_failure_taxonomy"] = MetricResult.unavailable(
-            "gate_failure_taxonomy", "no session carries an attributed gate_run"
+            "gate_failure_taxonomy",
+            gate_guard
+            or (
+                "no session carries an attributed non-check gate_run "
+                "(check-mode runs are diagnostic, never taxonomy population)"
+            ),
         )
 
     closure_rows = [
@@ -1171,6 +1223,20 @@ def compute_metrics(
 
 
 # ── series publication — append-only, versioned, idempotent per day ──────────────────
+
+
+def _latest_series_day(state: Path | None = None) -> str | None:
+    """The newest ``day`` across every published series file, or None when nothing
+    is published — :func:`daily`'s out-of-order guard reads this (W2-F4)."""
+    st = state or state_dir()
+    days: set[str] = set()
+    try:
+        files = list((st / "series").glob("*.jsonl"))
+    except OSError:
+        return None
+    for p in files:
+        days |= _series_days(p)
+    return max(days) if days else None
 
 
 def _series_days(path: Path) -> set[str]:
@@ -1395,13 +1461,18 @@ def log_cells(
     universe = rows if all_rows is None else all_rows
     if rows:
         occ = sum(_ev(r, "death") for r in rows)
-        classes = {
-            c
-            for r in rows
-            if isinstance(r.get("death_classes"), list)
-            for c in r["death_classes"]
-            if c
-        }
+        # W2-F6 mixed-store compatibility: a FACTS_VERSION-1 row carries a SCALAR
+        # ``death_class`` — coerce it to a one-element list at read, never let the
+        # list filter hide a classified death ("N occ / 0 cls").
+        classes: set[str] = set()
+        for r in rows:
+            dc = r.get("death_classes")
+            if isinstance(dc, list):
+                classes.update(str(c) for c in dc if c)
+            else:
+                legacy = r.get("death_class")
+                if isinstance(legacy, str) and legacy:
+                    classes.add(legacy)
         # M9: a "0 occ / 0 cls" while NOTHING in the store carries coroner output
         # (no death, no session_end, ever) is a fabricated zero — the coroner has
         # simply never run. A coroner-backed zero still prints.
@@ -1422,7 +1493,16 @@ def log_cells(
         for r in rows
         if int((r.get("runs") or {}).get("rounds_max", 0)) > 0
     ]
-    if rounded:
+    # W2-F2: the round-family attribution guard — a mean over an attributed sliver
+    # while the round mass sits in the unknown stream is fabricated precision. The
+    # guard reads the UNIVERSE (like M9's coroner-evidence check): the unknown
+    # accumulator's row keys on its last derivation day and may sit outside the week.
+    rounds_attributed = sum(_ev(r, "round") for r in universe)
+    rounds_guard = _attribution_guard(universe, ("round",), rounds_attributed, "round events")
+    if rounds_guard is not None:
+        rounds = DASH
+        _warn(f"Review rounds /plan = {DASH} — {rounds_guard}")
+    elif rounded:
         rounds = f"{sum(rounded) / len(rounded):.1f} (n={len(rounded)})"
     else:
         rounds = DASH
@@ -1496,14 +1576,21 @@ def _emit_alarm(reason: str, mismatches: list[str]) -> None:
 def _coroner_holes(day: dt.date, events: Path | None = None) -> tuple[int | None, str]:
     """The coroner hole probe. ``events`` pins the probe's event store to the SAME
     dir this daily pass consumes (L4) — the default-source probe silently counted a
-    different store's holes whenever ``daily(events=…)`` was overridden."""
+    different store's holes whenever ``daily(events=…)`` was overridden.
+
+    W2-F3: ``holes()`` returns None when it is BLIND (missing/unreadable transcripts
+    dir, internal error) — mapped to the honest dash with its reason, never a
+    published perfect 0. An empty-but-readable dir stays a measured 0."""
     try:
         import kaizen_coroner  # noqa: PLC0415 - lazy; same directory
 
         sources = None
         if events is not None:
             sources = dataclasses.replace(kaizen_coroner.Sources.default(), events_dir=events)
-        return int(kaizen_coroner.holes(sources, day=day)), ""
+        holes = kaizen_coroner.holes(sources, day=day)
+        if holes is None:
+            return None, "transcripts unreadable"
+        return int(holes), ""
     except Exception as exc:
         return None, f"coroner unavailable: {exc!r}"
 
@@ -1554,6 +1641,21 @@ def daily(
     re-run sees only its own batch's windows. Honest limit, stated here rather than
     papered over.
 
+    **The one-day forward smear (W2-F8, documented not hidden):** the standard cron
+    pass consolidates YESTERDAY with the mtime>=day selector, so a file still alive
+    when the pass runs is derived with its CURRENT cumulative content — lines
+    written TODAY (before the pass) land in yesterday's published day. The smear is
+    bounded to one day forward (the pass runs daily, so a line can only ever be
+    pulled into the single previous day), and cross-day totals stay honest: the
+    delta seam subtracts the predecessor row, so a smeared line is counted ONCE —
+    the smear shifts which day it lands in, never how many land.
+
+    **Out-of-order refusal (W2-F4):** a ``day`` strictly OLDER than the newest day
+    already published in the series store is REFUSED (nonzero rc, zero mutation) —
+    under the mtime>=day selector it would derive every alive file's current
+    cumulative content under the old day and double-publish into the append-only
+    series, unrepairably. Historical backfill is ``kaizen_backfill``'s job.
+
     The DAY series is published from per-day DELTAS (see delta_row) so a grown file
     never re-counts earlier days. The human-facing weekly log cells, by contrast,
     read the latest row per sid within the ISO week — one row per sid, so no
@@ -1570,6 +1672,21 @@ def daily(
     except Exception as exc:
         _emit_alarm(f"metric registry invalid: {exc!r}", [])
         raise
+    # W2-F4: REFUSE an out-of-order older day BEFORE anything mutates. Under the
+    # mtime>=day selector an older day would derive every alive file's CURRENT
+    # cumulative content under that old day and double-publish into the append-only
+    # series (unrepairable). Same-day re-runs stay idempotent; newer days proceed.
+    day_stamp = day.isoformat()
+    newest_published = _latest_series_day(st)
+    if newest_published is not None and day_stamp < newest_published:
+        _warn(
+            f"REFUSED: --day {day_stamp} is OLDER than the newest published series "
+            f"day {newest_published} — the mtime>=day selector would derive current "
+            "cumulative content under the old day and double-publish into the "
+            "append-only series. Nothing was written. Historical backfill is "
+            "kaizen_backfill's job."
+        )
+        return 1
     logs = (
         log_paths
         if log_paths is not None
@@ -1595,7 +1712,6 @@ def daily(
             send_mail(root, body)
         return 1
 
-    day_stamp = day.isoformat()
     try:
         candidates = sorted(ev.glob("*.jsonl"))
     except OSError:
@@ -1618,9 +1734,10 @@ def daily(
     # T09 era filter: every metric input below is event-era only. T08's backfill
     # shares this store with era:"transcript" rows (dash-string fields) whose days
     # land in the current week for real — unfiltered, compute_metrics crashes on
-    # the dashes. read_rows stays era-blind for T08's report; the filter is here,
-    # at the consumption seam.
-    all_rows = [r for r in read_rows(state=st) if _event_era(r)]
+    # the dashes. read_rows stays era-blind by DEFAULT for T08's report; here the
+    # filter runs INSIDE the reader, BEFORE the latest-per-sid collapse (W2-F7) —
+    # a transcript row that outranks its event-era sibling must not swallow the sid.
+    all_rows = read_rows(state=st, event_era_only=True)
     day_rows = [r for r in all_rows if r.get("day") == day_stamp]
     # The publish seam (see delta_row): store rows stay cumulative; the DAY series
     # gets each row minus its predecessor, so a grown file's earlier days are never
@@ -1656,8 +1773,9 @@ def daily(
 
     week = day.isocalendar()[:2]
     # L1: per-week latest per sid — filtering the GLOBAL latest-per-sid collapse by
-    # week drops a sid whose newest row moved to a later week.
-    week_rows = [r for r in read_week_rows(week, st) if _event_era(r)]
+    # week drops a sid whose newest row moved to a later week. Era filter BEFORE
+    # the collapse (W2-F7), inside the reader.
+    week_rows = read_week_rows(week, st, event_era_only=True)
     metrics_week = compute_metrics(week_rows, holes, holes_reason or "no hole source provided")
     cells = log_cells(day, metrics_week, week_rows, all_rows=all_rows)
     for lp in logs:
@@ -1725,13 +1843,24 @@ def selftest() -> int:
         log = root / "kaizen-log.md"
         log.write_text(_SELFTEST_LOG, encoding="utf-8")
 
+        # Hermetic env: blank the session ids too — run from a live Claude session,
+        # ARM 1's instrument_alarm otherwise lands in `<live sid>.jsonl` instead of
+        # unknown.jsonl and ARM 2 then derives SIX sessions, not five (pre-existing
+        # environmental flake, fixed in fix-wave 2).
+        pinned = {
+            "KAIZEN_EVENTS_DIR": str(ev),
+            "KAIZEN_STATE_DIR": str(st),
+            "CLAUDE_CODE_SESSION_ID": "",
+            "CLAUDE_SESSION_ID": "",
+        }
+
         # ARM 1 — tampered expectations must REFUSE: alarm, nothing published, dashes.
         tampered = root / "golden"
         shutil.copytree(repo_golden, tampered)
         exp = json.loads((tampered / "expected.json").read_text(encoding="utf-8"))
         exp["totals"]["lines_total"] += 1
         (tampered / "expected.json").write_text(json.dumps(exp), encoding="utf-8")
-        with _pinned_env({"KAIZEN_EVENTS_DIR": str(ev), "KAIZEN_STATE_DIR": str(st)}):
+        with _pinned_env(pinned):
             rc = daily(
                 dt.date(2026, 8, 18),
                 events=ev,
@@ -1755,7 +1884,7 @@ def selftest() -> int:
         # ARM 2 — the good corpus as live events must publish.
         for f in repo_golden.glob("*.jsonl"):
             shutil.copy(f, ev / f.name)  # fresh mtime = today
-        with _pinned_env({"KAIZEN_EVENTS_DIR": str(ev), "KAIZEN_STATE_DIR": str(st)}):
+        with _pinned_env(pinned):
             rc = daily(
                 dt.date.today(),
                 events=ev,

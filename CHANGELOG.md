@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review closing sweep: nine findings, fix-wave 2 (2026-08-21)
+
+The /fabrik-review whole-M1 loop's closing sweep, executed red-first. gate_failure_taxonomy no
+longer publishes "clean" from diagnostic --check runs or an unattributable sliver — the derived
+gate dict splits the non-check side out (FACTS_VERSION 3, golden corpus re-labelled with a
+non-check gate_run fixture) and the taxonomy joins the 20% attribution floor (v2, with
+premature_stop_rate v2 per the def-hash law after the wave's population change). review_rounds
+is guarded in BOTH consumers (the weekly log cell and kaizen_outcomes v3) over the round
+family's store-universe attribution — the unknown accumulator is timeless, so the windowed
+slice alone could never see its mass. kaizen_coroner.holes() returns None when blind
+(missing/unreadable transcripts dir, internal error) and the collector dashes hole_count with
+"transcripts unreadable" — an empty-but-readable dir stays a measured 0. daily() REFUSES an
+explicit --day older than the newest published series day (zero mutation; backfill is
+kaizen_backfill's job) and documents the bounded one-day forward mtime smear. log_cells accepts
+FACTS_VERSION-1 scalar death_class rows. The event-era filter moved INSIDE both store readers,
+BEFORE the latest-per-sid collapse, so an outranking transcript-era row cannot swallow a sid
+(kaizen_outcomes reuses the same seam). The bare-completion gate emission (gate_run with
+mode.check false) is proven and pinned as a test, and the collector selftest is hermetic
+against a live session's CLAUDE_CODE_SESSION_ID (pre-existing flake: the ARM-1 alarm landed in
+the live sid's file and derived a sixth session).
+
 ### Fixed — kaizen M1 whole-implementation review: 27 findings, six of them metrics that lied (2026-08-21)
 
 The operator-mandated /fabrik-review closing loop over the full M1 surface (12 files, all nine
