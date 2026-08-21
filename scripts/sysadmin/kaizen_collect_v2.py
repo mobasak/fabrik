@@ -88,6 +88,12 @@ FACTS_VERSION = 3
 SCHEMA = 1
 DASH = "—"
 UNKNOWN = "unknown"
+#: :func:`_windowed_unattributed`'s unknowable CAUSES (W5-2) — the verdict rides back as
+#: ``(None, cause)`` so every consumer prints the TRUE cause, never a blanket claim.
+UNATTR_SHRUNK = "shrunk"
+UNATTR_PRE_V3 = "pre-v3-absent"
+UNATTR_BUMP_GAP = "bump-day-gap"
+UNATTR_BOOTSTRAP = "bootstrap"
 GOLDEN_MISMATCH_REASON = "instrument red: golden mismatch"
 #: The era this collector's metrics are DEFINED over. T08's backfill appends
 #: ``era: "transcript"`` rows to the SAME store (dash-string fields — honest ``—``,
@@ -808,7 +814,15 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
         _dst(container)[field] = diff_map
     prev_gate = prev.get("gate") or {}
     if prev_gate.get("first_status") is not None:
-        out["gate"]["first_status"] = None
+        gate_dst = _dst("gate")
+        gate_dst["first_status"] = None
+        # W5-4: this null means CONSUMED (the predecessor already recorded the
+        # session's first attempt — out of the population BY DESIGN), not
+        # unmeasured. The marker lets consumers tell the two apart: without it, a
+        # consumed row whose non-check split also gapped (runs_noncheck None) was
+        # miscounted as a bump-day gap. Root-law-safe: the marker is set only
+        # where the suppression provably fired; its absence claims nothing.
+        gate_dst["first_status_consumed"] = True
     out["delta_of"] = prev.get("day")
     return out
 
@@ -863,7 +877,10 @@ def predecessors(before_day: str, state: Path | None = None) -> dict[str, dict]:
 def read_week_rows(
     week: tuple[int, int], state: Path | None = None, event_era_only: bool = False
 ) -> list[dict]:
-    """The latest row per sid WITHIN one ISO week — the weekly log-cell input (L1).
+    """The latest row per sid WITHIN one ISO week — the per-week CUMULATIVE view
+    (L1). Since W5-5 the weekly LOG call reads :func:`window_delta_rows` instead
+    (a cumulative row leaks lifetime mass into a week-scoped message); this reader
+    remains the inspection seam for per-week cumulative state.
 
     The global latest-per-sid collapse (:func:`read_rows`) answers "current state";
     filtering IT by week drops a sid whose newest row moved to a later week, silently
@@ -1155,33 +1172,71 @@ def _attribution_guard(
     return None
 
 
-def _unknown_rows_by_day(state: Path | None = None) -> dict[str, dict]:
-    """The UNKNOWN accumulator's store rows keyed by day (latest ``facts_version``
-    per day, event-era only) — the windowed-attribution seam's input (W4-1). The
-    accumulator's rows are DAY-KEYED since H1 (the growth carve-out re-derives the
-    forever-growing file each day it grew), so consecutive rows subtract into
-    per-day deltas exactly like the published series."""
+def _rows_by_sid_day(state: Path | None = None) -> dict[str, dict[str, dict]]:
+    """Event-era store rows keyed ``sid → day → row`` (latest ``facts_version`` per
+    (sid, day)) — the windowed delta seams' shared index (W5-1). Every sid's rows
+    are DAY-KEYED since H1 (the growth carve-out re-derives grown files each day
+    they grew), so consecutive rows subtract into per-day deltas exactly like the
+    published series."""
     st = state or state_dir()
-    out: dict[str, dict] = {}
+    out: dict[str, dict[str, dict]] = {}
     for row in _iter_facts(st):
-        if row.get("sid") != UNKNOWN or not _event_era(row):
+        if not _event_era(row):
             continue
-        day = row.get("day")
-        if not isinstance(day, str):
+        sid, day = row.get("sid"), row.get("day")
+        if not isinstance(sid, str) or not isinstance(day, str):
             continue
-        cur = out.get(day)
+        by_day = out.setdefault(sid, {})
+        cur = by_day.get(day)
         if cur is None or int(row.get("facts_version", 0) or 0) >= int(
             cur.get("facts_version", 0) or 0
         ):
-            out[day] = row
+            by_day[day] = row
+    return out
+
+
+def _unknown_rows_by_day(state: Path | None = None) -> dict[str, dict]:
+    """The UNKNOWN accumulator's store rows keyed by day (latest ``facts_version``
+    per day, event-era only) — the windowed-attribution seam's input (W4-1)."""
+    return _rows_by_sid_day(state).get(UNKNOWN, {})
+
+
+def window_delta_rows(days: list[str], state: Path | None = None) -> list[dict]:
+    """The window's day-scoped DELTA rows for EVERY sid — attributed sessions AND
+    the unknown accumulator alike (W5-1: like with like, everywhere).
+
+    For each sid, each store row whose ``day`` falls in ``days`` is delta'd against
+    the sid's nearest EARLIER row (any ``facts_version`` — the chronological-
+    baseline law :func:`predecessors` states) via :func:`delta_row`, so a lifetime
+    session contributes only its in-window GROWTH. The root law rides along:
+    absent-field baselines come out ``None`` per field, and a shrink publishes
+    nothing for that (sid, day) — warned by delta_row, exactly like the day series.
+    A row with no earlier row at all IS its own delta (``delta_of: None``).
+
+    This is the ONE population every windowed consumer measures over — the
+    published value and its attribution guard describe the same window, built from
+    the same rows with the same semantics. Rows come back sorted (sid, day); a sid
+    may contribute several rows (one per in-window derivation day)."""
+    window = set(days)
+    out: list[dict] = []
+    for _sid, by_day in sorted(_rows_by_sid_day(state).items()):
+        days_sorted = sorted(by_day)
+        for i, day in enumerate(days_sorted):
+            if day not in window:
+                continue
+            prev = by_day[days_sorted[i - 1]] if i > 0 else None
+            delta = delta_row(by_day[day], prev)
+            if delta is not None:
+                out.append(delta)
     return out
 
 
 def _windowed_unattributed(
     rows_by_day: dict[str, dict], families: tuple[str, ...], window: list[str]
-) -> int | None:
-    """The WINDOW's unattributed event mass for ``families`` — or ``None`` when it
-    is unknowable (W4-1, replacing both the lifetime ratchet and the false 100%).
+) -> tuple[int | None, str | None]:
+    """The WINDOW's unattributed event mass for ``families`` — ``(total, None)``
+    when knowable, ``(None, cause)`` when not (W4-1 + W5-2: the cause travels so
+    every consumer prints the TRUE reason, never a blanket claim).
 
     The unknown accumulator's lines are timeless, but its store rows are DAY-KEYED
     (H1), so a windowed count IS computable: the sum of the accumulator's per-day
@@ -1191,14 +1246,25 @@ def _windowed_unattributed(
     its growth, if any, rides the next derived row's delta, landing in whatever
     window that row's day falls in, exactly as the series would publish it).
 
-    Unknowable — ``None``, never a guess — when any in-window unknown row's
-    ``events_unattributed`` comes out ABSENT (a pre-v3 row: the field was never
-    measured; absent ≠ 0, the root law) or ``None`` (measured with no same-field
-    baseline in its predecessor — the bump-day gap), or when the accumulator
-    SHRANK against its baseline. A store with no unknown rows at all measured
-    nothing unattributable — a knowable 0."""
+    Unknowable causes — ``(None, cause)``, never a guess:
+
+    - :data:`UNATTR_SHRUNK` — the accumulator went BACKWARDS against its baseline
+      (rotation/truncation); the window's mass is unknowable.
+    - :data:`UNATTR_PRE_V3` — an in-window row's ``events_unattributed`` is ABSENT
+      (a pre-v3 row: the field was never measured; absent ≠ 0, the root law).
+    - :data:`UNATTR_BUMP_GAP` — the field came out ``None`` (measured with no
+      same-field baseline in its predecessor — the bump-day gap).
+    - :data:`UNATTR_BOOTSTRAP` (W5-3) — the accumulator's FIRST-EVER derivation
+      lands in-window carrying family mass: its "delta" is the whole cumulative
+      row, i.e. pre-window backlog dumped on one day — the split is unknowable,
+      so the first window after store bootstrap is expected unmeasurable.
+      FAMILY-SCOPED: a bootstrap row whose family mass is 0 dumped nothing for
+      that family and contributes a knowable 0.
+
+    A store with no unknown rows at all measured nothing unattributable — a
+    knowable ``(0, None)``."""
     if not rows_by_day:
-        return 0  # fresh store: no unknown stream has ever been derived
+        return 0, None  # fresh store: no unknown stream has ever been derived
     days_sorted = sorted(rows_by_day)
     total = 0
     for day in sorted(window):
@@ -1212,14 +1278,47 @@ def _windowed_unattributed(
             prev_day = d
         delta = delta_row(row, rows_by_day[prev_day] if prev_day is not None else None)
         if delta is None:
-            return None  # the accumulator shrank — this window's mass is unknowable
+            return None, UNATTR_SHRUNK
         if "events_unattributed" not in delta:
-            return None  # pre-v3 rows in window: the field was never measured (absent ≠ 0)
+            return None, UNATTR_PRE_V3
         ev = delta["events_unattributed"]
         if not isinstance(ev, dict):
-            return None  # bump-day gap: measured with no same-field baseline
-        total += sum(int(ev.get(n, 0) or 0) for n in families)
-    return total
+            return None, UNATTR_BUMP_GAP
+        mass = sum(int(ev.get(n, 0) or 0) for n in families)
+        if delta.get("delta_of") is None and mass > 0:
+            return None, UNATTR_BOOTSTRAP  # W5-3: first derivation carries backlog
+        total += mass
+    return total, None
+
+
+def unattributed_unknowable_reason(cause: str | None, what: str) -> str:
+    """The human sentence for a ``(None, cause)`` windowed-unattributed verdict —
+    both consumers (the log's rounds cell, the outcome tier's guard) print the
+    TRUE cause (W5-2), never a blanket "pre-v3" claim."""
+    if cause == UNATTR_SHRUNK:
+        return (
+            f"window attribution share unmeasurable (unknown accumulator shrank) — "
+            f"{what}: an in-window unknown-accumulator row went backwards against "
+            "its baseline (rotation/truncation) — the window's unattributed mass "
+            "is unknowable"
+        )
+    if cause == UNATTR_BUMP_GAP:
+        return (
+            f"window attribution share unmeasurable (bump-day gap) — {what}: an "
+            "unknown-accumulator row in the window measured events_unattributed "
+            "with no same-field baseline in its predecessor (root law)"
+        )
+    if cause == UNATTR_BOOTSTRAP:
+        return (
+            f"window attribution share unmeasurable — bootstrap window: the unknown "
+            f"accumulator's first derivation carries pre-window backlog ({what}; "
+            "the first window after store bootstrap is expected unmeasurable)"
+        )
+    return (
+        f"window attribution share unmeasurable (pre-v3 rows in window) — {what}: "
+        "an unknown-accumulator row in the window lacks a same-field "
+        "events_unattributed baseline (absent ≠ 0, root law)"
+    )
 
 
 def compute_metrics(
@@ -1239,6 +1338,10 @@ def compute_metrics(
         n = gaps.get(mid, 0)
         if not n:
             return ""
+        if mid == "first_attempt_gate_pass":
+            # W5-4: these rows were never IN the population, so "excluded" would
+            # overclaim — they are simply unmeasurable for this metric this window.
+            return f"; {n} row(s) unmeasurable this window — bump-day gap"
         return (
             f"; {n} row(s) excluded — bump-day gap (a field measured with no "
             "same-field baseline is unmeasurable, root law)"
@@ -1367,6 +1470,11 @@ def compute_metrics(
         first_gate: dict = raw_first_gate if isinstance(raw_first_gate, dict) else {}
         if first_gate.get("first_status") is not None:
             continue  # in the population — fully measured for this metric
+        if first_gate.get("first_status_consumed") is True:
+            # W5-4: the predecessor already recorded this session's first attempt —
+            # the row is OUT of the population BY DESIGN (delta_row's suppression
+            # marker), never a bump-day gap, whatever its non-check split says.
+            continue
         if "runs_noncheck" in first_gate and first_gate["runs_noncheck"] is None:
             gaps["first_attempt_gate_pass"] += 1
     if first_rows:
@@ -1801,10 +1909,20 @@ def log_cells(
     else:
         deaths = DASH
         _warn(f"Death-classes /wk = {DASH} — no derived sessions in the window")
+    # One value row per sid: daily() feeds per-day DELTA rows since W5-5, so a sid
+    # re-derived on several week days would otherwise count into the mean once per
+    # day. rounds_max is point-in-time (the delta carries the current row's value)
+    # — the latest in-week row per sid is the session's value.
+    latest_by_sid: dict[str, dict] = {}
+    for r in rows:
+        sid = str(r.get("sid"))
+        cur = latest_by_sid.get(sid)
+        if cur is None or str(r.get("day") or "") >= str(cur.get("day") or ""):
+            latest_by_sid[sid] = r
     rounded = [
-        int((r.get("runs") or {}).get("rounds_max", 0))
-        for r in rows
-        if int((r.get("runs") or {}).get("rounds_max", 0)) > 0
+        int((r.get("runs") or {}).get("rounds_max", 0) or 0)
+        for r in latest_by_sid.values()
+        if int((r.get("runs") or {}).get("rounds_max", 0) or 0) > 0
     ]
     # W4-1 (supersedes S3's knowability rule): the rounds cell is WINDOWED (this
     # ISO week, Monday..day) and the window's unattributed round mass IS computable
@@ -1815,8 +1933,10 @@ def log_cells(
     # stream holds the window's mass, HEALS when attribution improves — never the
     # lifetime ratchet (any unknown mass, ever, dashing forever) and never the
     # false 100% (a pre-v3 absent-field unknown row read as a measured 0).
-    # The attributed operand is the week rows' cumulative round counts — the same
-    # honest week-cell boundary daily() states for every weekly cell.
+    # W5-1 like-with-like: daily() feeds this cell the week's DELTA rows, so the
+    # attributed operand below is the week's round GROWTH — the same measurement
+    # kind as the unknown-stream operand. An unknowable unknown mass dashes with
+    # its TRUE cause (W5-2), never a blanket pre-v3 claim.
     if unknown_by_day is None:
         unknown_by_day = {}
         for r in universe:
@@ -1833,14 +1953,13 @@ def log_cells(
     week_days = [
         (week_start + dt.timedelta(days=k)).isoformat() for k in range((day - week_start).days + 1)
     ]
-    rounds_unattr = _windowed_unattributed(unknown_by_day, ("round",), week_days)
+    rounds_unattr, unattr_cause = _windowed_unattributed(unknown_by_day, ("round",), week_days)
     attr_rounds = sum(_ev(r, "round") for r in rows)
     if rounds_unattr is None:
         rounds = DASH
         _warn(
-            f"Review rounds /plan = {DASH} — window attribution share unmeasurable "
-            "(pre-v3 rows in window): an unknown-accumulator row in the week lacks a "
-            "same-field events_unattributed baseline (absent ≠ 0, root law)"
+            f"Review rounds /plan = {DASH} — "
+            + unattributed_unknowable_reason(unattr_cause, "round events")
         )
     elif rounds_unattr > 0 and (attr_rounds / (attr_rounds + rounds_unattr) < ATTRIBUTED_MIN_SHARE):
         rounds = DASH
@@ -2012,11 +2131,10 @@ def daily(
     about.
 
     The DAY series is published from per-day DELTAS (see delta_row) so a grown file
-    never re-counts earlier days. The human-facing weekly log cells, by contrast,
-    read the latest row per sid within the ISO week — one row per sid, so no
-    within-week double count, but a forever-growing accumulator's pre-week lines are
-    visible in its cumulative row there. Honest boundary, stated not hidden; the
-    machine-consumed publication is the series + read_rows."""
+    never re-counts earlier days. The human-facing weekly log cells read the SAME
+    delta seam windowed to the ISO week's elapsed days (window_delta_rows, W5-5) —
+    like with like: a cumulative row never leaks lifetime mass into a week-scoped
+    cell or message. The machine-consumed publication is the series + read_rows."""
     root = repo_root or REPO
     ev = events or events_dir()
     st = state or state_dir()
@@ -2153,16 +2271,20 @@ def daily(
     # guarded, fail-open (a warn, never a lost T06 publish).
     written += _publish_outcome_series(day_stamp, st)
 
-    week = day.isocalendar()[:2]
-    # L1: per-week latest per sid — filtering the GLOBAL latest-per-sid collapse by
-    # week drops a sid whose newest row moved to a later week. Era filter BEFORE
-    # the collapse (W2-F7), inside the reader.
-    week_rows = read_week_rows(week, st, event_era_only=True)
-    metrics_week = compute_metrics(week_rows, holes, holes_reason or "no hole source provided")
+    # W5-5 (falls out of W5-1): the weekly call consumes the WEEK'S day-scoped
+    # delta rows — the same delta seam as the day series, windowed to the ISO
+    # week's elapsed days (Monday..day). A cumulative row must never leak lifetime
+    # mass (blocks_seen, first_status, closure counts) into a week-scoped message.
+    week_start = day - dt.timedelta(days=day.isoweekday() - 1)
+    week_days = [
+        (week_start + dt.timedelta(days=k)).isoformat() for k in range((day - week_start).days + 1)
+    ]
+    week_deltas = window_delta_rows(week_days, st)
+    metrics_week = compute_metrics(week_deltas, holes, holes_reason or "no hole source provided")
     cells = log_cells(
         day,
         metrics_week,
-        week_rows,
+        week_deltas,
         all_rows=all_rows,
         # W4-1: the rounds cell's windowed attribution seam reads the accumulator's
         # day-keyed store rows, never the collapsed universe.

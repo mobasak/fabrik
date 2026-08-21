@@ -207,15 +207,21 @@ non-check sliver), and it counts NON-check runs only (`mode.check` false — the
 automatic `--lean --check` self-review is diagnostic, never taxonomy population; the same
 rationale as `first_attempt_gate_pass`). The WINDOWED store metrics (`review_rounds`,
 `premature_stop`, `stop_block_causes`, and the weekly rounds log cell) use the **windowed
-attribution guard**: the `unknown` accumulator's LINES are timeless but its store ROWS are
-day-keyed, so the window's unattributed mass is the sum of its per-day deltas over the window
-days (the published-series delta seam) — guarded by the same 20% floor against the window's
-attributed events. The guard publishes (share stated) when healthy, dashes when the unknown
-stream holds the window's mass, and HEALS when attribution improves; a window touching pre-v3
-unknown rows (no `events_unattributed` field — absent ≠ 0, the root law) dashes with reason
-"window attribution share unmeasurable (pre-v3 rows in window)". Never a lifetime ratio (fails
-open on a bad week) and never a lifetime-knowability rule (ratchets permanently dead once any
-unknown mass ever existed). `hole_count` dashes when the
+attribution guard**, and since W5-1 BOTH of its operands — and the value population — come from
+the SAME source with the SAME semantics: the window's day-scoped DELTA rows
+(`window_delta_rows`; every sid's in-window store rows delta'd against its nearest earlier row,
+so a lifetime session contributes only its in-window growth). The unattributed operand is the
+`unknown` accumulator's per-day delta mass over the same window days; the same 20% floor applies.
+The guard publishes (share stated) when healthy, dashes when the unknown stream holds the
+window's mass, and HEALS when attribution improves. An unknowable unknown mass dashes with its
+TRUE cause (W5-2): accumulator **shrank**; **pre-v3 rows in window** (no `events_unattributed`
+field — absent ≠ 0, the root law); **bump-day gap** (measured with no same-field baseline); or
+**bootstrap window** — the accumulator's first derivation carries pre-window backlog, so the
+first window after store bootstrap is expected unmeasurable (family-scoped: a bootstrap row with
+zero family mass is a knowable 0). A window with NO derived delta rows at all is a derivation
+gap — "no derivation in window", never a knowable 0. Never a lifetime ratio (fails open on a bad
+week) and never a lifetime-knowability rule (ratchets permanently dead once any unknown mass
+ever existed). `hole_count` dashes when the
 coroner is BLIND (missing/unreadable transcripts dir → `holes()` returns None, mapped to `—`
 reason "transcripts unreadable"); an empty-but-readable dir stays a measured 0 — and a CRASHED
 coroner sweep reports `holes_today: null` (unmeasured), never a measured-looking 0. `premature_stop_rate` (T06, event-level) and

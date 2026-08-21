@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 5: one window, one population — like with like (2026-08-21)
+
+Round 5's root (W5-1): the attribution guard still mixed measurement KINDS — the unattributed
+operand was a per-day delta sum while the attributed operand was each window-touching session's
+LIFETIME cumulative events map (probe: a 60-day session's 60 verdicts vouched for a window whose
+true attributed growth was 0 — published 92% while the honest verdict was a below-floor dash).
+Foundation fix: `kc.window_delta_rows(days)` serves EVERY sid's in-window store rows delta'd
+against its nearest earlier row (root law intact), and premature_stop / stop_block_causes /
+review_rounds now compute BOTH guard operands AND their value populations over those same
+day-scoped delta rows under ONE window definition (the last KAIZEN_OUTCOMES_WINDOW_DAYS calendar
+days including today — the N+1 asymmetry and the last_ts value window are gone); a window with
+no derived delta rows dashes "no derivation in window", never a knowable 0 (def bumps:
+review_rounds v6, premature_stop v5, stop_block_causes v5). Satellites: W5-2 —
+`_windowed_unattributed` returns `(value, cause)` and both consumers print the TRUE cause
+(shrunk / pre-v3-absent / bump-day-gap), never a blanket pre-v3 claim; W5-3 — the accumulator's
+first-ever derivation landing in-window dashes with the honest bootstrap reason (family-scoped:
+zero family mass stays a knowable 0), documented as expected-unmeasurable; W5-4 — a delta row
+whose first attempt was CONSUMED by its predecessor carries a `first_status_consumed` marker and
+is out-of-population, never a first_attempt bump-day gap, and that metric's gap note says
+"unmeasurable this window" instead of claiming an exclusion; W5-5 — daily()'s weekly
+compute_metrics/log_cells call consumes the ISO week's delta rows, so blocks_seen and every
+week-scoped message count the week's growth, not lifetime mass. 11 watched-fail regression
+tests; wave-4 fixtures re-grounded with pre-window unknown baselines.
+
 ### Fixed — kaizen M1 review fix-wave 4: the windowed attribution guard + satellites (2026-08-21)
 
 Round 4's root (W4-1): the windowed-attribution guard was wrong in BOTH directions — an ABSENT

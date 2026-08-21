@@ -25,19 +25,23 @@ metrics computed from ground truth no governance prose can shift —
 - **premature_stop** — the Stop-hook oracle finally read, SESSION-level: the share of
   stop-verdict-carrying sessions with a premature-cause ``stop_block`` (T06's
   ``PREMATURE_CAUSES``, imported), served from T06's derived-facts rows
-  (``kaizen_collect_v2.read_rows``); cf. T06's event-level ``premature_stop_rate``.
+  (``kaizen_collect_v2.window_delta_rows``); cf. T06's event-level ``premature_stop_rate``.
 
 All three register in T06's paired-counter registry (a schema constraint — an
 unpaired metric refuses to load): rework_rate ⟂ review_rounds, fleet_health ⟂
 sweep_coverage, premature_stop ⟂ stop_block_causes.
 
-POPULATION NOTE — the store-reading metrics (``premature_stop``,
-``stop_block_causes``, ``review_rounds``) compute over EVENT-era rows only
-(``kc._event_era``): T08's transcript-era backfill rows carry ``—`` in every
-event-only field and are excluded, not coerced. They are additionally WINDOWED
-(``KAIZEN_OUTCOMES_WINDOW_DAYS``, default 7, on ``last_ts``) — an all-time
-cumulative read would let ancient history swamp the current week's signal. The
-window is stated in the v2 formulas (a formula edit is a def-hash version bump).
+POPULATION NOTE (W5-1) — the store-reading metrics (``premature_stop``,
+``stop_block_causes``, ``review_rounds``) compute over the WINDOW'S DAY-SCOPED
+DELTA ROWS (``kc.window_delta_rows``): ONE window definition — the last
+``KAIZEN_OUTCOMES_WINDOW_DAYS`` calendar days including today (default 7) — and
+each sid's in-window store rows are delta'd against its nearest earlier row, so a
+lifetime session contributes only its in-window growth (never all-time
+cumulative; the event-era filter and the root law live in the delta seam). Value
+and attribution guard measure the SAME rows with the SAME semantics; a window
+with no derived delta rows at all is a derivation gap — unmeasurable, never a
+knowable 0. The window is stated in the formulas (a formula edit is a def-hash
+version bump).
 
 THE HONESTY RULE (inherited, binding)
 -------------------------------------
@@ -65,8 +69,9 @@ retries hourly with every attempt in the log. The crontab line:
 
 Config via env: ``KAIZEN_REWORK_DAYS`` (7), ``KAIZEN_SWEEP_PROJECTS`` (``fabrik``),
 ``KAIZEN_SWEEP_TIMEOUT_S`` (300), ``KAIZEN_OUTCOMES_WINDOW_DAYS`` (7 — the
-store-reading metrics' last_ts window), plus T06's ``KAIZEN_STATE_DIR`` / T01's
-``KAIZEN_EVENTS_DIR`` through the modules that own them. Box-local, stdlib only.
+store-reading metrics' day window: the last N calendar days including today),
+plus T06's ``KAIZEN_STATE_DIR`` / T01's ``KAIZEN_EVENTS_DIR`` through the modules
+that own them. Box-local, stdlib only.
 """
 
 from __future__ import annotations
@@ -89,7 +94,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-import kaizen_collect_v2 as kc  # noqa: E402 - same directory (T06's registry + read_rows)
+import kaizen_collect_v2 as kc  # noqa: E402 - same directory (registry + delta seams)
 from kaizen_collect_v2 import DASH, MetricResult  # noqa: E402 - the shared result shape
 
 try:
@@ -147,10 +152,38 @@ def _window_days() -> int:
     return _env_int("KAIZEN_OUTCOMES_WINDOW_DAYS", 7)
 
 
-def _window_since() -> str:
-    return (dt.datetime.now(dt.UTC) - dt.timedelta(days=_window_days())).isoformat(
-        timespec="seconds"
+def _window_day_stamps() -> list[str]:
+    """THE window — ONE definition for value and guard alike (W5-1): the last
+    ``KAIZEN_OUTCOMES_WINDOW_DAYS`` calendar days INCLUDING today, as day stamps.
+    The day window IS the value window: both guard operands and every metric
+    population are computed over the same day-scoped delta rows
+    (:func:`kaizen_collect_v2.window_delta_rows`)."""
+    today = dt.datetime.now(dt.UTC).date()
+    return [(today - dt.timedelta(days=k)).isoformat() for k in range(_window_days())]
+
+
+def _window_deltas(state: Path | None) -> tuple[list[dict], list[dict]]:
+    """``(all delta rows, attributed delta rows)`` over THE window (W5-1) —
+    the unknown accumulator's rows stay in the first list (they are the guard's
+    subject), out of the second (they are nobody's session)."""
+    deltas = kc.window_delta_rows(_window_day_stamps(), state)
+    return deltas, [r for r in deltas if r.get("sid") != kc.UNKNOWN]
+
+
+def _no_derivation_reason() -> str:
+    """W5-1 (#5): a window holding NO derived delta rows at all is a DERIVATION
+    gap (the daily cron slept) — unmeasurable, never a knowable-0 publish."""
+    return (
+        f"no derivation in window — the {_window_days()}d day window holds no "
+        "derived delta rows (the daily derivation did not run); never a knowable 0"
     )
+
+
+def _gapped(row: dict, *fields: str) -> bool:
+    """Root law: a delta-row field measured with no same-field baseline is
+    ``None`` — such a row is unmeasurable for consumers of that field and leaves
+    numerator AND denominator."""
+    return any(f in row and row[f] is None for f in fields)
 
 
 # ── rework_rate — read-only git mining across /opt/* repos ────────────────────────────
@@ -605,38 +638,27 @@ def run_sweep(
 # ── premature_stop + the counter pairs read from T06's rows ──────────────────────────
 
 
-def _window_day_stamps() -> list[str]:
-    """The guard's window as calendar-day stamps: the last ``_window_days()`` days
-    plus today — the day-granular cover of the value's ``last_ts`` window."""
-    today = dt.datetime.now(dt.UTC).date()
-    return [(today - dt.timedelta(days=k)).isoformat() for k in range(_window_days() + 1)]
-
-
 def _window_attribution_guard(
     names: tuple[str, ...], what: str, state: Path | None, attributed: int
 ) -> tuple[str | None, str]:
-    """W4-1 — ``(dash_reason, publish_note)`` for a WINDOWED store metric.
+    """W4-1/W5-1 — ``(dash_reason, publish_note)`` for a WINDOWED store metric.
 
-    The unknown accumulator's LINES are timeless, but its store ROWS are day-keyed
-    (H1), so the window's unattributed mass IS computable: the sum of the
-    accumulator's per-day deltas over the window days — the published-series delta
-    seam (``kc._windowed_unattributed``, reusing ``delta_row``). Guarded by the same
-    20% attribution floor as the unwindowed metrics: publishes (share stated) when
-    healthy, dashes when the unknown stream holds the window's mass, and HEALS when
-    attribution improves. This replaces BOTH prior failure modes: the lifetime
-    knowability rule (any unknown mass, ever, dashed the metric FOREVER — a
-    monotone-accumulator ratchet) and the false 100% (a pre-v3 absent-field unknown
-    row read as a measured 0). A window touching pre-v3 unknown rows is honestly
-    unmeasurable — absent ≠ 0, the root law."""
+    LIKE WITH LIKE (W5-1): both operands are window-scoped per-day DELTAS from the
+    same store — ``attributed`` is the caller's family sum over the window's
+    attributed delta rows (a lifetime session contributes only its in-window
+    growth), and the unattributed operand is the unknown accumulator's per-day
+    delta mass over the SAME day stamps (``kc._windowed_unattributed``, reusing
+    ``delta_row``). Guarded by the same 20% attribution floor as the unwindowed
+    metrics: publishes (share stated) when healthy, dashes when the unknown stream
+    holds the window's mass, and HEALS when attribution improves. An unknowable
+    unknown mass dashes with its TRUE cause (W5-2/W5-3): accumulator shrank ·
+    pre-v3 rows in window (absent ≠ 0, root law) · bump-day gap · bootstrap window
+    (the accumulator's first derivation carries pre-window backlog — the first
+    window after store bootstrap is expected unmeasurable)."""
     rows_by_day = kc._unknown_rows_by_day(state)
-    unattributed = kc._windowed_unattributed(rows_by_day, names, _window_day_stamps())
+    unattributed, cause = kc._windowed_unattributed(rows_by_day, names, _window_day_stamps())
     if unattributed is None:
-        return (
-            f"window attribution share unmeasurable (pre-v3 rows in window) — {what}: "
-            "an unknown-accumulator row in the window lacks a same-field "
-            "events_unattributed baseline (absent ≠ 0, root law)",
-            "",
-        )
+        return kc.unattributed_unknowable_reason(cause, what), ""
     if unattributed > 0:
         total = attributed + unattributed
         if attributed / total < kc.ATTRIBUTED_MIN_SHARE:
@@ -658,8 +680,10 @@ def _window_attribution_guard(
 
 
 def _stop_verdicts(row: dict) -> int:
-    events = row.get("events") or {}
-    return int(events.get("stop_pass", 0)) + int(events.get("stop_block", 0))
+    events = row.get("events")
+    if not isinstance(events, dict):
+        return 0
+    return int(events.get("stop_pass", 0) or 0) + int(events.get("stop_block", 0) or 0)
 
 
 def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResult]:
@@ -684,15 +708,22 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
             MetricResult.unavailable("premature_stop", reason),
             MetricResult.unavailable("stop_block_causes", reason),
         )
-    # Event-era only (T09 era filter): T08's transcript-era rows carry DASH strings
-    # in events/stop_causes — unfiltered they crash _stop_verdicts, and their lines
-    # are prose, not stop verdicts. The filter runs INSIDE the reader, BEFORE the
-    # latest-per-sid collapse (W2-F7) — a transcript row that outranks its event-era
-    # sibling must not swallow the sid. Windowed (L7): only rows whose last_ts falls
-    # in the KAIZEN_OUTCOMES_WINDOW_DAYS window — never all-time cumulative.
-    rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
-    # W4-1: windowed value ⇒ window-scoped guard — the windowed unknown-stream delta
-    # mass against the windowed attributed stop verdicts, on the 20% floor.
+    # W5-1: ONE population — the window's day-scoped delta rows (event-era only,
+    # each in-window store row minus its nearest earlier same-sid row; the T09 era
+    # filter and the root law both live in the delta seam). Value and guard are
+    # computed over the SAME rows with the SAME semantics — a lifetime session
+    # contributes only its in-window growth.
+    deltas, attributed = _window_deltas(state)
+    if not deltas:
+        reason = _no_derivation_reason()
+        return (
+            MetricResult.unavailable("premature_stop", reason),
+            MetricResult.unavailable("stop_block_causes", reason),
+        )
+    # Root law: a delta row whose events/stop_causes map gapped (measured with no
+    # same-field baseline) is unmeasurable for the stops family — out of BOTH
+    # guard operand and value population.
+    rows = [r for r in attributed if not _gapped(r, "events", "stop_causes")]
     guard, note = _window_attribution_guard(
         ("stop_pass", "stop_block"),
         "stop-verdict events",
@@ -704,27 +735,27 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
             MetricResult.unavailable("premature_stop", guard),
             MetricResult.unavailable("stop_block_causes", guard),
         )
-    if not rows:
-        reason = (
-            f"no derived-facts rows in the {_window_days()}d window "
-            "(events store empty, missing, or aged out)"
-        )
-        return (
-            MetricResult.unavailable("premature_stop", reason),
-            MetricResult.unavailable("stop_block_causes", reason),
-        )
-    verdict_rows = [r for r in rows if _stop_verdicts(r) > 0]
-    if not verdict_rows:
-        reason = "no stop verdicts in the rows"
-        return (
-            MetricResult.unavailable("premature_stop", reason),
-            MetricResult.unavailable("stop_block_causes", reason),
-        )
-    total_stops = sum(_stop_verdicts(r) for r in verdict_rows)
+    # Per-SESSION grouping: a sid may carry several in-window delta rows (one per
+    # derivation day); its window verdicts/causes are their sums.
+    verdicts_by_sid: collections.Counter[str] = collections.Counter()
     causes: collections.Counter[str] = collections.Counter()
-    for r in verdict_rows:
+    premature_sids: set[str] = set()
+    for r in rows:
+        sid = str(r.get("sid"))
+        verdicts_by_sid[sid] += _stop_verdicts(r)
         for cause, count in (r.get("stop_causes") or {}).items():
-            causes[str(cause)] += int(count)
+            n = int(count)
+            causes[str(cause)] += n
+            if n > 0 and cause in vocab:
+                premature_sids.add(sid)
+    sessions = {sid for sid, n in verdicts_by_sid.items() if n > 0}
+    if not sessions:
+        reason = "no stop verdicts in the window's delta rows"
+        return (
+            MetricResult.unavailable("premature_stop", reason),
+            MetricResult.unavailable("stop_block_causes", reason),
+        )
+    total_stops = sum(verdicts_by_sid.values())
     # ONE unit throughout — EVENTS: the numerator (caused stop_block events), the
     # denominator (stop-verdict events) and the cell text all count the same thing.
     if causes:
@@ -736,66 +767,85 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         cell=causes_cell,
         detail=(
             "full stop_block cause histogram in EVENT units — premature and legitimate "
-            "causes alike" + note
+            "causes alike, over the window's delta rows" + note
         ),
         value=dict(causes),
         numerator=sum(causes.values()),
         denominator=total_stops,
     )
-    premature_sessions = sum(
-        1
-        for r in verdict_rows
-        if any(
-            int(count) > 0 and cause in vocab
-            for cause, count in (r.get("stop_causes") or {}).items()
-        )
-    )
+    premature_sessions = len(premature_sids & sessions)
     prem = MetricResult(
         id="premature_stop",
-        cell=_pct(premature_sessions, len(verdict_rows)),
+        cell=_pct(premature_sessions, len(sessions)),
         detail=(
             "sessions with a premature-cause stop_block over sessions with any stop "
-            "verdict; cf. premature_stop_rate (T06) = share of stop VERDICTS premature" + note
+            "verdict, in-window growth only; cf. premature_stop_rate (T06) = share "
+            "of stop VERDICTS premature" + note
         ),
-        value=premature_sessions / len(verdict_rows),
+        value=premature_sessions / len(sessions),
         numerator=premature_sessions,
-        denominator=len(verdict_rows),
+        denominator=len(sessions),
     )
     return prem, causes_metric
+
+
+def _round_growth(row: dict) -> int:
+    events = row.get("events")
+    if not isinstance(events, dict):
+        return 0
+    return int(events.get("round", 0) or 0)
 
 
 def review_rounds(state: Path | None = None) -> MetricResult:
     """Mean max-round per round-carrying session (rework_rate's counter pair).
 
-    W4-1 (supersedes S3's knowability rule): the value is WINDOWED, so the guard is
-    window-scoped — the unknown accumulator's day-keyed rows subtract into per-day
-    deltas, and the window's unattributed round mass rides the 20% attribution
-    floor against the window's attributed round events; see
-    :func:`_window_attribution_guard`. Publishes (share stated) when healthy,
-    dashes when swamped or when the window touches pre-v3 unknown rows, and heals
-    when attribution improves."""
-    # Event-era only, filtered INSIDE the reader before the collapse (W2-F7).
-    # Windowed (L7), same window as the stops pair.
-    rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
+    W5-1 (supersedes W4-1's mixed operands): value AND guard are computed over the
+    SAME window-scoped day-scoped delta rows — a session is round-carrying only if
+    its ROUND FAMILY GREW in the window (a 60-day session's lifetime rounds are
+    not this window's rounds), and the guard's attributed operand is that same
+    in-window growth against the unknown accumulator's per-day delta mass on the
+    20% attribution floor; see :func:`_window_attribution_guard`. The session's
+    VALUE stays ``rounds_max`` (point-in-time, carried by its latest in-window
+    delta row). Publishes (share stated) when healthy, dashes when swamped or
+    when the unknown mass is unknowable (with the true cause), and heals when
+    attribution improves. A window with no derived delta rows at all is a
+    derivation gap — unmeasurable, never a knowable 0."""
+    deltas, attributed = _window_deltas(state)
+    if not deltas:
+        return MetricResult.unavailable("review_rounds", _no_derivation_reason())
+    # Root law: an events-map gap row cannot say whether rounds happened — out of
+    # both operands.
+    rows = [r for r in attributed if not _gapped(r, "events")]
     guard, note = _window_attribution_guard(
         ("round",),
         "round events",
         state,
-        sum(int((r.get("events") or {}).get("round", 0) or 0) for r in rows),
+        sum(_round_growth(r) for r in rows),
     )
     if guard is not None:
         return MetricResult.unavailable("review_rounds", guard)
-    vals = [
-        int((r.get("runs") or {}).get("rounds_max", 0))
-        for r in rows
-        if int((r.get("runs") or {}).get("rounds_max", 0)) > 0
-    ]
+    growth: collections.Counter[str] = collections.Counter()
+    latest: dict[str, dict] = {}
+    for r in rows:  # sorted (sid, day) — the last row per sid is its latest day
+        sid = str(r.get("sid"))
+        growth[sid] += _round_growth(r)
+        latest[sid] = r
+    vals = []
+    for sid, grown in growth.items():
+        if grown <= 0:
+            continue
+        runs = latest[sid].get("runs")
+        rounds_max = int(runs.get("rounds_max", 0) or 0) if isinstance(runs, dict) else 0
+        if rounds_max > 0:
+            vals.append(rounds_max)
     if not vals:
-        return MetricResult.unavailable("review_rounds", "no session carries a round event")
+        return MetricResult.unavailable(
+            "review_rounds", "no session carries a round event in the window"
+        )
     return MetricResult(
         id="review_rounds",
         cell=f"{sum(vals) / len(vals):.1f} (n={len(vals)})",
-        detail="mean rounds_max across round-carrying sessions" + note,
+        detail=("mean rounds_max across sessions whose round family grew in the window" + note),
         value=sum(vals) / len(vals),
         numerator=sum(vals),
         denominator=len(vals),
@@ -821,25 +871,32 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     {
         "id": "review_rounds",
         # v4 (fix-wave 3, S3): window-knowability guard. v5 (fix-wave 4, W4-1):
-        # the knowability rule — itself a permanent ratchet once any unknown mass
-        # existed — is replaced by the WINDOWED unattributed count (the unknown
-        # accumulator's day-keyed per-day deltas) on the 20% attribution floor.
-        "version": 5,
+        # windowed unattributed count on the 20% floor. v6 (fix-wave 5, W5-1):
+        # BOTH operands and the value population come from the same day-scoped
+        # delta rows — one window definition, in-window growth only.
+        "version": 6,
         "counter_metric": "rework_rate",
         "formula": (
-            "mean rounds_max across round-carrying sessions (derived-facts rows whose "
-            "last_ts falls in the last KAIZEN_OUTCOMES_WINDOW_DAYS days, default 7 — "
-            "never all-time cumulative) — rounds down must never buy rework up. "
-            "Window-scoped attribution guard: the unknown accumulator's store rows "
-            "are day-keyed, so the window's unattributed round count is the sum of "
-            "its per-day deltas over the window days (the published-series delta "
-            "seam); the metric publishes with the share stated when windowed "
-            "attributed rounds meet the 20% attribution floor against that mass, "
-            "dashes below the floor, and dashes 'window attribution share "
-            "unmeasurable (pre-v3 rows in window)' when an in-window unknown row "
-            "lacks a same-field events_unattributed baseline (absent ≠ 0, root "
-            "law). Never a lifetime ratio and never a lifetime ratchet: the guard "
-            "heals when attribution improves."
+            "mean rounds_max across sessions whose ROUND FAMILY GREW in the window, "
+            "computed over the window's day-scoped delta rows — ONE window "
+            "definition for value and guard alike: the last "
+            "KAIZEN_OUTCOMES_WINDOW_DAYS calendar days including today (default 7), "
+            "each sid's in-window store rows delta'd against its nearest earlier "
+            "row (root law: absent-field baselines are None per field; gap rows "
+            "leave numerator AND denominator), so a lifetime session contributes "
+            "only its in-window growth — rounds down must never buy rework up. The "
+            "session's value is rounds_max (point-in-time, latest in-window delta "
+            "row). Window-scoped attribution guard over the SAME delta rows: "
+            "attributed in-window round growth vs the unknown accumulator's "
+            "per-day delta mass on the 20% attribution floor — publishes with the "
+            "share stated, dashes below the floor, and dashes with the TRUE cause "
+            "when the unknown mass is unknowable (accumulator shrank; pre-v3 rows "
+            "in window — absent ≠ 0; bump-day gap; bootstrap window: the unknown "
+            "accumulator's first derivation carries pre-window backlog, so the "
+            "first window after store bootstrap is expected unmeasurable). A "
+            "window with NO derived delta rows at all is 'no derivation in "
+            "window', never a knowable 0. Never a lifetime ratio and never a "
+            "lifetime ratchet: the guard heals when attribution improves."
         ),
     },
     {
@@ -864,45 +921,54 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     {
         "id": "premature_stop",
         # v3 (fix-wave 3, S3): window-knowability guard. v4 (fix-wave 4, W4-1):
-        # windowed unattributed count (day-keyed unknown deltas) on the 20% floor —
-        # the knowability rule was a permanent ratchet.
-        "version": 4,
+        # windowed unattributed count on the 20% floor. v5 (fix-wave 5, W5-1):
+        # BOTH operands and the value population come from the same day-scoped
+        # delta rows — one window definition, in-window growth only.
+        "version": 5,
         "counter_metric": "stop_block_causes",
         "formula": (
-            "SESSION-level: sessions with a stop_block whose cause is premature "
+            "SESSION-level: sessions with a premature-cause stop_block "
             "(PREMATURE_CAUSES: run-record / promise-stall) over sessions with any "
-            "stop verdict, from derived-facts rows whose last_ts falls in the last "
-            "KAIZEN_OUTCOMES_WINDOW_DAYS days (default 7 — never all-time "
-            "cumulative) — the Stop-hook oracle, read. Cross-reference: "
-            "premature_stop_rate (T06) is the EVENT-level share of stop VERDICTS "
-            "premature; non-premature causes (gate-red, uncommitted holds) never "
-            "count here. Window-scoped attribution guard: the unknown accumulator's "
-            "store rows are day-keyed, so the window's unattributed stop-verdict "
-            "count is the sum of its per-day deltas over the window days (the "
-            "published-series delta seam); the pair publishes with the share stated "
-            "when windowed attributed stop verdicts meet the 20% attribution floor "
-            "against that mass, dashes below the floor, and dashes 'window "
-            "attribution share unmeasurable (pre-v3 rows in window)' when an "
-            "in-window unknown row lacks a same-field events_unattributed baseline "
-            "(absent ≠ 0, root law). The guard heals when attribution improves."
+            "stop verdict, computed over the window's day-scoped delta rows — ONE "
+            "window definition for value and guard alike: the last "
+            "KAIZEN_OUTCOMES_WINDOW_DAYS calendar days including today (default "
+            "7), each sid's in-window store rows delta'd against its nearest "
+            "earlier row (root law: gap rows leave numerator AND denominator), so "
+            "a lifetime session contributes only its in-window growth — the "
+            "Stop-hook oracle, read. Cross-reference: premature_stop_rate (T06) is "
+            "the EVENT-level share of stop VERDICTS premature; non-premature "
+            "causes (gate-red, uncommitted holds) never count here. Window-scoped "
+            "attribution guard over the SAME delta rows: windowed attributed stop "
+            "verdicts vs the unknown accumulator's per-day delta mass on the 20% "
+            "attribution floor — publishes with the share stated, dashes below "
+            "the floor, and dashes with the TRUE cause when the unknown mass is "
+            "unknowable (accumulator shrank; pre-v3 rows in window — absent ≠ 0; "
+            "bump-day gap; bootstrap window: the unknown accumulator's first "
+            "derivation carries pre-window backlog, so the first window after "
+            "store bootstrap is expected unmeasurable). A window with NO derived "
+            "delta rows at all is 'no derivation in window', never a knowable 0. "
+            "The guard heals when attribution improves."
         ),
     },
     {
         "id": "stop_block_causes",
-        # v3 (fix-wave 3, S3): window-knowability guard. v4 (fix-wave 4, W4-1): the
-        # pair rides the windowed-delta guard together — floor, heal, pre-v3 dash.
-        "version": 4,
+        # v3 (fix-wave 3, S3): window-knowability guard. v4 (fix-wave 4, W4-1):
+        # the windowed-delta guard. v5 (fix-wave 5, W5-1): the pair rides the
+        # day-scoped delta-row population together — like with like everywhere.
+        "version": 5,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
             "and legitimate causes alike — the rate's shape, so a falling rate cannot "
             "hide a cause-mix shift. EVENT units throughout (numerator, denominator "
-            "and cell), over the same KAIZEN_OUTCOMES_WINDOW_DAYS window as its pair "
-            "(default 7). Dashes WITH premature_stop when no stop verdict exists (a "
-            "pair never fabricates clean), and under the same window-scoped "
-            "attribution guard as premature_stop (the windowed unknown-stream "
-            "per-day delta mass on the 20% attribution floor; pre-v3 rows in the "
-            "window dash the pair — absent ≠ 0)."
+            "and cell), computed over the SAME day-scoped delta rows and window as "
+            "its pair (the last KAIZEN_OUTCOMES_WINDOW_DAYS calendar days including "
+            "today, default 7 — in-window growth only). Dashes WITH premature_stop "
+            "when no stop verdict exists (a pair never fabricates clean), on 'no "
+            "derivation in window' (a derivation gap is never a knowable 0), and "
+            "under the same window-scoped attribution guard (windowed delta "
+            "operands on the 20% floor; an unknowable unknown mass dashes with its "
+            "true cause — shrank / pre-v3 / bump-day gap / bootstrap window)."
         ),
     },
 )

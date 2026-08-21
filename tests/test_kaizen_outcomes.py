@@ -409,9 +409,10 @@ def _fact(sid: str, **over: object) -> dict:
     row: dict = {
         "facts_version": 1,
         "sid": sid,
-        # Recent by construction: the store-reading metrics are WINDOWED on last_ts
-        # (L7) and the attribution guard is windowed on the DAY (W4-1) — fixed
-        # fixture dates would silently age out of both windows.
+        # Recent by construction: since W5-1 there is ONE window — the last
+        # KAIZEN_OUTCOMES_WINDOW_DAYS calendar DAYS including today — and both the
+        # value population and the attribution guard read it; fixed fixture dates
+        # would silently age out of it.
         "day": dt.datetime.now(dt.UTC).date().isoformat(),
         "last_ts": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds"),
         "events": {},
@@ -545,7 +546,10 @@ def test_premature_stop_survives_transcript_era_rows(tmp_path: Path) -> None:
 
 def test_review_rounds_survives_transcript_era_rows(tmp_path: Path) -> None:
     """Same class: runs is a DASH string on transcript rows — review_rounds crashed."""
-    _seed_facts(tmp_path, [_transcript_fact(), _fact("s1", runs={"rounds_max": 3})])
+    _seed_facts(
+        tmp_path,
+        [_transcript_fact(), _fact("s1", events={"round": 3}, runs={"rounds_max": 3})],
+    )
     rounds = ko.review_rounds()
     assert rounds.measurable
     assert "3.0" in rounds.cell and "n=1" in rounds.cell
@@ -555,7 +559,7 @@ def test_review_rounds_pair_from_rows(tmp_path: Path) -> None:
     _seed_facts(
         tmp_path,
         [
-            _fact("s1", runs={"rounds_max": 3}),
+            _fact("s1", events={"round": 3}, runs={"rounds_max": 3}),
             _fact("s2", runs={"rounds_max": 0}),
         ],
     )
@@ -599,14 +603,16 @@ def test_nightly_cron_entry_authored_not_installed(tmp_path: Path) -> None:
 def test_store_metrics_are_windowed_not_all_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """L7: premature_stop / stop_block_causes / review_rounds read only the last
-    KAIZEN_OUTCOMES_WINDOW_DAYS days (default 7) — never all-time cumulative."""
+    """L7 (window redefined by W5-1): premature_stop / stop_block_causes /
+    review_rounds read only the last KAIZEN_OUTCOMES_WINDOW_DAYS calendar DAYS
+    including today (one definition, day-scoped) — never all-time cumulative."""
     _seed_facts(
         tmp_path,
         [
             _fact(
                 "old",
-                events={"stop_pass": 1, "stop_block": 1},
+                day="2026-01-01",
+                events={"stop_pass": 1, "stop_block": 1, "round": 4},
                 stop_causes={"run-record": 1},
                 runs={"rounds_max": 4},
                 last_ts="2026-01-01T00:00:00.000+00:00",
@@ -629,8 +635,9 @@ def test_windowed_formulas_are_version_bumped() -> None:
     reg = ko.registry()
     # review_rounds: v2 added the window (L7), v3 the attribution floor (W2-F2),
     # v4 the window-scoped knowability guard (S3), v5 the windowed-delta guard on
-    # the 20% floor (W4-1). The stops pair took the S3 guard at v3 and W4-1 at v4.
-    for mid, ver in (("premature_stop", 4), ("stop_block_causes", 4), ("review_rounds", 5)):
+    # the 20% floor (W4-1), v6 the one-window day-scoped delta population (W5-1).
+    # The stops pair took S3 at v3, W4-1 at v4, W5-1 at v5.
+    for mid, ver in (("premature_stop", 5), ("stop_block_causes", 5), ("review_rounds", 6)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
 
@@ -687,11 +694,15 @@ def test_sweep_one_survives_tempdir_cleanup_failure(
 def test_review_rounds_dashes_when_round_family_unattributable(tmp_path: Path) -> None:
     """W2-F2 (guard windowed by W4-1): a mean over n=1 attributed round-carrying
     sessions while the WINDOW's round mass sits in the unknown stream is fabricated
-    precision — 1 vs 47 is below the 20% floor, dash with the attribution reason."""
+    precision — 1 vs 47 is below the 20% floor, dash with the attribution reason.
+    (The unknown accumulator has a pre-window baseline row so its in-window delta
+    is knowable — a first-ever in-window row is the W5-3 bootstrap case.)"""
+    baseline_day = (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=30)).isoformat()
     _seed_facts(
         tmp_path,
         [
             _fact("s1", runs={"rounds_max": 3}, events={"round": 1}),
+            _fact("unknown", day=baseline_day, last_ts=None, events={}, events_unattributed={}),
             _fact(
                 "unknown",
                 last_ts=None,
@@ -724,10 +735,12 @@ def test_review_rounds_publishes_when_window_share_meets_floor(tmp_path: Path) -
     IS computable from the unknown accumulator's day-keyed per-day deltas — 100
     attributed vs 10 unknown in-window (91%) meets the 20% floor and publishes
     with the share stated, instead of dashing on mere unknown-mass existence."""
+    baseline_day = (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=30)).isoformat()
     _seed_facts(
         tmp_path,
         [
             _fact("s1", runs={"rounds_max": 3}, events={"round": 100}),
+            _fact("unknown", day=baseline_day, last_ts=None, events={}, events_unattributed={}),
             _fact("unknown", last_ts=None, events={}, events_unattributed={"round": 10}),
         ],
     )
@@ -763,6 +776,7 @@ def test_stops_pair_dashes_when_unknown_holds_stop_mass(tmp_path: Path) -> None:
     """W4-1: premature_stop / stop_block_causes dash together when the WINDOW's
     unknown-stream stop mass swamps the attributed share (below the 20% floor) —
     4 attributed vs 100 unknown is a sliver, not the population."""
+    baseline_day = (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=30)).isoformat()
     _seed_facts(
         tmp_path,
         [
@@ -771,6 +785,7 @@ def test_stops_pair_dashes_when_unknown_holds_stop_mass(tmp_path: Path) -> None:
                 events={"stop_pass": 3, "stop_block": 1},
                 stop_causes={"run-record": 1},
             ),
+            _fact("unknown", day=baseline_day, last_ts=None, events={}, events_unattributed={}),
             _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 100}),
         ],
     )
@@ -832,13 +847,13 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         ),
         "hole_count": (3, "3e8a9a9f518e04e865431476fcebad9d4e104fa5b3d8f59fbb9e411d08d41439"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
-        "review_rounds": (5, "135532aee00da8ff6c35d84b4ee1914d56adfaba5568f311f25fc539cdcc2b5b"),
+        "review_rounds": (6, "eb74401bfec01cd8fe351dfc68b669c4d7078c96cb22e8d18ce6b44b993e2647"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (4, "bd539c057c1fb50ca5e21f359b6ea52db57236c876f64805743053d406b61b8f"),
+        "premature_stop": (5, "6103d071cc1ca4645308c2e0355cad1be8114f113f81779e885de9bd85c848e2"),
         "stop_block_causes": (
-            4,
-            "9ee11cb23cd3a728cad8dc9fc80af11b7bb0aee0c8555cffccf48e004c0eb732",
+            5,
+            "1cfcad08631c74f2cfaeb7a0aa8389400b4c0ce9ebb132410845bf51205014ab",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
@@ -846,6 +861,132 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         "registry drift: a metric's formula/population changed — bump its version "
         "and re-pin (id, version, hash) here in the SAME change"
     )
+
+
+# ── fix-wave 5 (W5: like-with-like windowed operands, red-first) ─────────────────────
+
+
+def _days_ago(n: int) -> str:
+    return (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=n)).isoformat()
+
+
+def test_stops_pair_guard_operands_are_windowed_deltas_like_for_like(tmp_path: Path) -> None:
+    """W5-1 (the round-5 probe): a 60-day session's LIFETIME cumulative events must
+    not vouch for the window — the attributed operand is its in-window GROWTH (0
+    here), summed from the same day-scoped delta rows the value uses. With 0 truly
+    windowed attributed verdicts against 5 in-window unknown-stream verdicts the
+    pair dashes below the floor — never a published share built from lifetime
+    mass."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("long", day=_days_ago(60), events={"stop_pass": 60}),
+            _fact("long", events={"stop_pass": 60}),  # today: NO in-window growth
+            _fact("unknown", day=_days_ago(60), last_ts=None, events={}, events_unattributed={}),
+            _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 5}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable, (
+        "0 windowed attributed verdicts vs 5 unknown-stream verdicts must dash — "
+        "a lifetime cumulative count is not the window's attributed operand"
+    )
+    assert "unattributable in the window" in prem.detail
+    assert "0 attributed" in prem.detail
+    assert causes.detail == prem.detail
+
+
+def test_review_rounds_population_is_in_window_growth(tmp_path: Path) -> None:
+    """W5-1: the VALUE population moves to the same windowed delta rows — a 60-day
+    session with no in-window round growth is not this window's round-carrying
+    session (its 60 lifetime rounds must not enter the mean); the fresh session
+    alone defines the value."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("long", day=_days_ago(60), events={"round": 60}, runs={"rounds_max": 60}),
+            _fact("long", events={"round": 60}, runs={"rounds_max": 60}),  # no growth
+            _fact("fresh", events={"round": 2}, runs={"rounds_max": 2}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "2.0" in rounds.cell and "n=1" in rounds.cell, (
+        "only the session whose round family GREW in the window is population"
+    )
+
+
+def test_outcome_metrics_dash_on_derivation_gap_never_knowable_zero(tmp_path: Path) -> None:
+    """W5-1 (#5): a window containing NO derived delta rows at all is a DERIVATION
+    gap (the daily cron slept) — unmeasurable with the stated reason, never a
+    knowable-0 publish."""
+    old_ts = "2026-01-01T00:00:00.000+00:00"
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                day="2026-01-01",
+                last_ts=old_ts,
+                events={"stop_pass": 2, "round": 2},
+                runs={"rounds_max": 2},
+            )
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "no derivation in window" in prem.detail
+    assert causes.detail == prem.detail
+    rounds = ko.review_rounds()
+    assert not rounds.measurable
+    assert "no derivation in window" in rounds.detail
+
+
+def test_stops_pair_dash_names_shrink_not_pre_v3(tmp_path: Path) -> None:
+    """W5-2 (#2): a shrunk unknown accumulator (an in-window row went backwards
+    against its baseline) must dash with the SHRINK cause — the wave-4 guard
+    printed the blanket 'pre-v3 rows in window' claim for every unknowable case."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", events={"stop_pass": 3, "stop_block": 1}, stop_causes={"run-record": 1}),
+            _fact(
+                "unknown",
+                day=_days_ago(30),
+                last_ts=None,
+                events={},
+                events_unattributed={"stop_block": 50},
+            ),
+            _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 40}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "shrank" in prem.detail, "the TRUE cause — the accumulator went backwards"
+    assert "pre-v3" not in prem.detail
+    assert causes.detail == prem.detail
+
+
+def test_stops_pair_bootstrap_window_dashes_with_honest_reason(tmp_path: Path) -> None:
+    """W5-3 (#4): the store's FIRST unknown derivation landing in-window dumps
+    lifetime backlog on one day — the split is unknowable, so the pair dashes
+    (fail-closed) with the HONEST bootstrap reason, not a floor/pre-v3 claim."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", events={"stop_pass": 3, "stop_block": 1}, stop_causes={"run-record": 1}),
+            _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 2}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable, (
+        "a bootstrap window is expected unmeasurable — even a floor-passing share "
+        "could be all pre-window backlog"
+    )
+    assert (
+        "bootstrap window: the unknown accumulator's first derivation carries pre-window backlog"
+    ) in prem.detail
+    assert causes.detail == prem.detail
 
 
 def test_stops_pair_states_the_share_when_knowable(tmp_path: Path) -> None:

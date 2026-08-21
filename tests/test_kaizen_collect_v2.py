@@ -1804,6 +1804,13 @@ def test_log_cells_rounds_dash_when_round_family_unattributable(
         events={"round": 1},
         runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
     )
+    unk_base = _w2_row(
+        "unknown",
+        "2026-08-10",
+        project=None,
+        events_unattributed={},
+        concurrent_reason="unattributable-sid",
+    )
     unk = _w2_row(
         "unknown",
         "2026-08-18",
@@ -1812,7 +1819,7 @@ def test_log_cells_rounds_dash_when_round_family_unattributable(
         concurrent_reason="unattributable-sid",
     )
     metrics = kc.compute_metrics([r1, unk], holes=0)
-    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk])
+    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk, unk_base])
     assert cells[4] == DASH, "the rounds cell must dash under the attribution floor"
     err = capsys.readouterr().err
     assert "Review rounds" in err and "unattributable" in err
@@ -2172,6 +2179,13 @@ def test_log_cells_rounds_publish_when_window_share_meets_floor() -> None:
         events={"round": 100},
         runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
     )
+    unk_base = _w2_row(
+        "unknown",
+        "2026-08-10",
+        project=None,
+        events_unattributed={},
+        concurrent_reason="unattributable-sid",
+    )
     unk = _w2_row(
         "unknown",
         "2026-08-18",
@@ -2180,7 +2194,7 @@ def test_log_cells_rounds_publish_when_window_share_meets_floor() -> None:
         concurrent_reason="unattributable-sid",
     )
     metrics = kc.compute_metrics([r1, unk], holes=0)
-    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk])
+    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk, unk_base])
     assert cells[4] == "3.0 (n=1)", "a healthy windowed share must publish — no ratchet"
 
 
@@ -2272,25 +2286,55 @@ def test_windowed_unattributed_sums_per_day_deltas() -> None:
     d3 = _w2_row("unknown", "2026-08-18", events_unattributed={"round": 47})
     by_day = {"2026-08-10": d1, "2026-08-17": d2, "2026-08-18": d3}
     got = kc._windowed_unattributed(by_day, ("round",), ["2026-08-17", "2026-08-18"])
-    assert got == 7, "45-40 on 08-17 plus 47-45 on 08-18 — never the cumulative 47"
-    assert kc._windowed_unattributed(by_day, ("round",), ["2026-08-19", "2026-08-20"]) == 0
-    assert kc._windowed_unattributed({}, ("round",), ["2026-08-18"]) == 0, (
+    assert got == (7, None), "45-40 on 08-17 plus 47-45 on 08-18 — never the cumulative 47"
+    assert kc._windowed_unattributed(by_day, ("round",), ["2026-08-19", "2026-08-20"]) == (0, None)
+    assert kc._windowed_unattributed({}, ("round",), ["2026-08-18"]) == (0, None), (
         "a fresh store measured nothing unattributable — a knowable 0"
     )
 
 
 def test_windowed_unattributed_pre_v3_rows_are_unknowable() -> None:
-    """W4-1 root law: an in-window unknown row without the events_unattributed
-    field (a live v1 row), or one whose delta has no same-field baseline, makes the
-    window's count None — absent ≠ 0."""
+    """W4-1 root law + W5-2: an in-window unknown row without the
+    events_unattributed field (a live v1 row), or one whose delta has no
+    same-field baseline, makes the window's count None — absent ≠ 0 — and the
+    verdict carries WHICH cause."""
     v1 = _w2_row("unknown", "2026-08-18")
     v1["facts_version"] = 1
     v1.pop("events_unattributed", None)
-    assert kc._windowed_unattributed({"2026-08-18": v1}, ("round",), ["2026-08-18"]) is None
+    assert kc._windowed_unattributed({"2026-08-18": v1}, ("round",), ["2026-08-18"]) == (
+        None,
+        kc.UNATTR_PRE_V3,
+    )
     # A measured current row over an absent-field v1 baseline: bump-day gap → None.
     v3 = _w2_row("unknown", "2026-08-19", events_unattributed={"round": 50})
     by_day = {"2026-08-18": v1, "2026-08-19": v3}
-    assert kc._windowed_unattributed(by_day, ("round",), ["2026-08-19"]) is None
+    assert kc._windowed_unattributed(by_day, ("round",), ["2026-08-19"]) == (
+        None,
+        kc.UNATTR_BUMP_GAP,
+    )
+
+
+def test_windowed_unattributed_shrink_and_bootstrap_carry_their_causes() -> None:
+    """W5-2 (#2) + W5-3 (#4): a shrunk accumulator reports the SHRINK cause (the
+    wave-4 seam returned a bare None and every consumer printed 'pre-v3 rows in
+    window'); a first-ever in-window derivation carrying family mass reports the
+    BOOTSTRAP cause; a first-ever row with ZERO family mass dumped nothing for
+    that family — a knowable 0."""
+    base = _w2_row("unknown", "2026-08-01", events_unattributed={"round": 50})
+    shrunk = _w2_row("unknown", "2026-08-18", events_unattributed={"round": 40})
+    assert kc._windowed_unattributed(
+        {"2026-08-01": base, "2026-08-18": shrunk}, ("round",), ["2026-08-18"]
+    ) == (None, kc.UNATTR_SHRUNK)
+    boot = _w2_row("unknown", "2026-08-18", events_unattributed={"round": 40})
+    assert kc._windowed_unattributed({"2026-08-18": boot}, ("round",), ["2026-08-18"]) == (
+        None,
+        kc.UNATTR_BOOTSTRAP,
+    )
+    no_mass = _w2_row("unknown", "2026-08-18", events_unattributed={"gate_run": 9})
+    assert kc._windowed_unattributed({"2026-08-18": no_mass}, ("round",), ["2026-08-18"]) == (
+        0,
+        None,
+    ), "family-scoped: a bootstrap row with zero round mass is a knowable 0"
 
 
 def test_first_attempt_bump_gap_rows_are_counted_and_noted() -> None:
@@ -2324,8 +2368,59 @@ def test_first_attempt_bump_gap_rows_are_counted_and_noted() -> None:
     m = kc.compute_metrics([measured, gap], holes=0)["first_attempt_gate_pass"]
     assert m.measurable
     assert (m.numerator, m.denominator) == (1, 1)
-    assert "bump-day gap" in m.detail
-    assert "1 row(s) excluded" in m.detail
+    # W5-4 (#7) wording: the row was never IN the population, so the note must
+    # not claim an exclusion — it is unmeasurable this window.
+    assert "1 row(s) unmeasurable this window — bump-day gap" in m.detail
+    assert "excluded" not in m.detail
+
+
+def test_first_attempt_consumed_row_is_out_of_population_not_a_gap() -> None:
+    """W5-4 (#6): a delta row whose first_status was NULLED because the
+    predecessor already recorded it (first attempt CONSUMED) is out of the
+    population BY DESIGN — even when its non-check split gapped (runs_noncheck
+    None, a bump day), it must NOT count as a first_attempt bump-day gap. The
+    delta row carries the distinction as the first_status_consumed marker."""
+    prev = _w2_row(
+        "s1",
+        "2026-08-17",
+        events={"gate_run": 1},
+        gate={
+            "runs": 1,
+            "first_status": "success",
+            "pass": 1,
+            "fail": 0,
+            "failed_checks": {},
+            # a v2-shaped predecessor: no non-check split measured
+        },
+    )
+    prev["gate"].pop("runs_noncheck", None)
+    prev["gate"].pop("failed_checks_noncheck", None)
+    cur = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"gate_run": 3},
+        gate={
+            "runs": 3,
+            "first_status": "success",
+            "pass": 3,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 3,
+            "failed_checks_noncheck": {},
+        },
+    )
+    delta = kc.delta_row(cur, prev)
+    assert delta is not None
+    assert delta["gate"]["first_status"] is None
+    assert delta["gate"]["first_status_consumed"] is True, (
+        "the suppression must MARK the row consumed — root-law-safe distinction"
+    )
+    assert delta["gate"]["runs_noncheck"] is None, "the bump-day gap combo is real here"
+    m = kc.compute_metrics([delta], holes=0)["first_attempt_gate_pass"]
+    assert not m.measurable  # no first attempt this window — honest dash
+    assert "bump-day gap" not in m.detail, (
+        "a consumed first attempt is out-of-population, never a bump-day gap"
+    )
 
 
 def test_rules_compliance_survives_events_map_gap_it_never_consumes() -> None:
@@ -2392,3 +2487,92 @@ def test_fact_keys_are_era_aware(tmp_path: Path) -> None:
     keys = kc.known_fact_keys(st)
     assert ("aaaa1111", 1, "2026-06-05", "event") in keys
     assert ("aaaa1111", 1, "2026-06-05", "transcript") in keys
+
+
+# ── fix-wave 5 (W5: the weekly seam reads windowed delta rows, red-first) ────────────
+
+
+def test_window_delta_rows_are_in_window_growth_per_sid(tmp_path: Path) -> None:
+    """W5-1: every sid's in-window rows are delta'd against its nearest earlier
+    row — a lifetime session contributes only its in-window growth, and a row
+    with no predecessor is its own delta."""
+    st = tmp_path / "state"
+    pre = _w2_row("s1", "2026-08-10", events={"round": 60})
+    cur = _w2_row("s1", "2026-08-18", events={"round": 62})
+    fresh = _w2_row("s2", "2026-08-18", events={"round": 2})
+    kc.append_facts([pre, cur, fresh], st)
+    deltas = kc.window_delta_rows(["2026-08-17", "2026-08-18"], st)
+    by_sid = {r["sid"]: r for r in deltas}
+    assert set(by_sid) == {"s1", "s2"}, "only in-window days produce delta rows"
+    assert by_sid["s1"]["events"] == {"round": 2}, "60 lifetime rounds are not the window's"
+    assert by_sid["s1"]["delta_of"] == "2026-08-10"
+    assert by_sid["s2"]["events"] == {"round": 2}
+    assert by_sid["s2"]["delta_of"] is None
+
+
+def test_weekly_blocks_seen_counts_window_growth_not_lifetime(tmp_path: Path) -> None:
+    """W5-5 (#8): fed by the window's delta rows, the 'no closures' message counts
+    the WINDOW's terminator blocks — a lifetime cumulative 7 must not appear
+    inside a week-scoped message when the week's growth is 2."""
+    st = tmp_path / "state"
+    pre = _w2_row("s1", "2026-08-10", events={"final_block_emitted": 5})
+    cur = _w2_row("s1", "2026-08-18", events={"final_block_emitted": 7})
+    kc.append_facts([pre, cur], st)
+    deltas = kc.window_delta_rows(["2026-08-17", "2026-08-18"], st)
+    ts = kc.compute_metrics(deltas, holes=0)["terminator_spam"]
+    assert not ts.measurable
+    assert "2 terminator block(s) seen" in ts.detail, (
+        "the week-scoped message must count the week's growth, never lifetime mass"
+    )
+
+
+def test_daily_weekly_cells_read_window_deltas_not_cumulative_rows(tmp_path: Path) -> None:
+    """W5-5 (falls out of W5-1): daily()'s weekly call must consume the ISO week's
+    day-scoped delta rows — a session whose first attempt was consumed in an
+    EARLIER week must not be re-counted as this week's first-attempt population
+    (the cumulative week row carries the lifetime first_status forever, so the old
+    read published 100% every week the file grew)."""
+    st = tmp_path / "state"
+    prev_week_day = (dt.date.today() - dt.timedelta(days=8)).isoformat()
+    pre = _w2_row(
+        "s1",
+        prev_week_day,
+        events={"gate_run": 1},
+        gate={
+            "runs": 1,
+            "first_status": "success",
+            "pass": 1,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 1,
+            "failed_checks_noncheck": {},
+        },
+    )
+    cur = _w2_row(
+        "s1",
+        dt.date.today().isoformat(),
+        events={"gate_run": 2},
+        gate={
+            "runs": 2,
+            "first_status": "success",
+            "pass": 2,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 2,
+            "failed_checks_noncheck": {},
+        },
+    )
+    kc.append_facts([pre, cur], st)
+    args = _daily_args(tmp_path)
+    args["events"].mkdir(exist_ok=True)
+    assert kc.daily(dt.date.today(), **args) == 0
+    row_line = next(
+        ln
+        for ln in args["log_paths"][0].read_text(encoding="utf-8").splitlines()
+        if ln.startswith(f"| {dt.date.today().isoformat()}")
+    )
+    cells = [c.strip() for c in row_line.strip().strip("|").split("|")]
+    assert cells[1] == DASH, (
+        "the first attempt was consumed LAST week — this week's cell must not "
+        "re-count the cumulative row's lifetime first_status"
+    )
