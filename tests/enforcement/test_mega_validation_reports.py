@@ -2009,3 +2009,25 @@ def test_mega_trailing_loose_pass_line_cannot_vanish(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-21-mega-vision-validation-review.md", body)
     assert rc == 1, "a loose trailing Pass line vanished from the mega ledger"
     assert "not parse" in out
+
+
+def test_committed_mega_keeps_the_structural_errors(repo: Path) -> None:
+    """Round-127: the scope='exit' keep-filter silently dropped the round-126 legibility
+    error and the adjacent-round chain gap on the COMMITTED mega path — green-by-absence
+    one path over. Structural/anti-cheat checks are drift-independent and survive the
+    exit narrowing."""
+    h = _shell_hash(repo)
+    loose = _report(h) + "\nPass 3: found: 7 issues remain, still triaging\n"
+    rc, out = _gate(repo, "2026-08-21-mega-va-validation-review.md", loose, commit=True)
+    assert rc == 0
+    assert "does not parse" in out, "the committed mega path dropped the legibility error"
+    gap = _report(
+        h,
+        rounds=(
+            f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {'b' * 32} |\n"
+            f"| 2 | found: 0 | fixed: 0 | {'c' * 32} → {h} |\n"
+        ),
+    )
+    rc, out = _gate(repo, "2026-08-21-mega-vb-validation-review.md", gap, commit=True)
+    assert rc == 0
+    assert "but round" in out, "the committed mega path dropped the chain-gap error"

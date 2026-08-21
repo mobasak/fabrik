@@ -1140,14 +1140,19 @@ def check_mega_validation(
         )
     if scope == "exit":
         # The committed advisory scan's contract is NARROW by design (see _committed_nonquiet's
-        # docstring): only the exit-round conditions. Everything else — Surface presence, hash
-        # length, round minimums, placeholders — stays a blocking-path obligation, or the
-        # advisory nags every historical report forever and gets muted.
+        # docstring): the exit-round conditions PLUS the structural/anti-cheat checks that are
+        # drift-independent (round 127: the keep-filter silently dropped the round-126
+        # legibility error — green-by-absence one path over — and the adjacent-round chain
+        # gap, which is INTERNAL history consistency, not live epic state). What stays
+        # blocking-path-only: Surface presence, hash length, round minimums, placeholders —
+        # the retro-grade set that would nag every historical report forever and get muted.
         keep = (
             "final ledger round reads",
             "hashes moved",
             "MORE THAN ONE",
             "OUTSIDE the ledger table",
+            "does not parse",
+            "but round",
         )
         errs = [e for e in errs if any(k in e for k in keep)]
     return errs
