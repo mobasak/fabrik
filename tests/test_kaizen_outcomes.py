@@ -639,12 +639,15 @@ def test_windowed_formulas_are_version_bumped() -> None:
     # review_rounds: v2 added the window (L7), v3 the attribution floor (W2-F2),
     # v4 the window-scoped knowability guard (S3), v5 the windowed-delta guard on
     # the 20% floor (W4-1), v6 the one-window day-scoped delta population (W5-1),
-    # v7 the LOCAL day window + attributed bootstrap symmetry (W6-2/W6-5). The
-    # stops pair took S3 at v3, W4-1 at v4, W5-1 at v5, W6 at v6.
-    for mid, ver in (("premature_stop", 6), ("stop_block_causes", 6), ("review_rounds", 7)):
+    # v7 the LOCAL day window + attributed bootstrap symmetry (W6-2/W6-5), v8 the
+    # DAY-scoped published day point + the visible baseline smear (W7-1/W7-5).
+    # The stops pair took S3 at v3, W4-1 at v4, W5-1 at v5, W6 at v6, W7 at v7.
+    for mid, ver in (("premature_stop", 7), ("stop_block_causes", 7), ("review_rounds", 8)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
         assert "LOCAL calendar days" in reg[mid]["formula"], mid
+        assert "DAY-scoped" in reg[mid]["formula"], mid
+        assert "smear" in reg[mid]["formula"], mid
 
 
 def test_rework_survives_delimiter_injection_in_subject(tmp_path: Path) -> None:
@@ -857,13 +860,13 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         ),
         "death_classes": (1, "4344dc33b44011e212fdac04c9e3d75572acfdb6f3e5c9766ad1d774117541c3"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
-        "review_rounds": (7, "b80165e5b9c90ce3a7b63cc1d57b9f344fd918616329ebf5f48b4adcbba163bd"),
+        "review_rounds": (8, "ff47289ff93d8f45504df4bc15b13484f492140a8f6e3e444810581cab526068"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (6, "37e07bea8e31290ec6b64ee3dca85c1d949daa38a8116baff1849561081fa562"),
+        "premature_stop": (7, "b9f5df0cd455b441882ce704a35328dfe2c2cc0c2b7066135b013f48bb5c6a9f"),
         "stop_block_causes": (
-            6,
-            "b480aac3cdb7e1ff9d61c11075ab2f0ca647ce2935de8681c3020ed73658dfdf",
+            7,
+            "8bd63f606989310eb85269cb80df174fdd1728597b0fef6edc3bd9150470c9fd",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
@@ -1176,3 +1179,107 @@ def test_window_day_stamps_are_local_calendar_days() -> None:
         else:
             os.environ["TZ"] = old_tz
         _time.tzset()
+
+
+# ── fix-wave 7 (W7: day-scoped published points, measured reasons, visible smear) ────
+
+
+def test_outcome_metrics_accept_day_scoped_days(tmp_path: Path) -> None:
+    """W7-1: the ``days`` parameter pins the population to exactly those day
+    stamps — the publish seam passes the single published day, so each day point
+    is that day's delta rows only; the trailing window stays the CLI default."""
+    y = _days_ago(1)
+    t = dt.date.today().isoformat()
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=y, events={"round": 3}, runs={"rounds_max": 3}),
+            _fact("s2", day=t, events={"round": 9}, runs={"rounds_max": 9}),
+        ],
+    )
+    r_y = ko.review_rounds(days=[y])
+    assert r_y.measurable and (r_y.numerator, r_y.denominator) == (3, 1), (
+        "the [yesterday] point sees yesterday's growth only"
+    )
+    r_t = ko.review_rounds(days=[t])
+    assert r_t.measurable and (r_t.numerator, r_t.denominator) == (9, 1)
+    r_all = ko.review_rounds()
+    assert r_all.denominator == 2, "the CLI default remains the trailing window"
+
+
+def test_empty_window_reason_names_shrink_suppression(tmp_path: Path) -> None:
+    """W7-4 (the 3-row shrink probe): in-window rows EXIST but every delta was
+    shrink-suppressed (delta_row returned None) — the reason states the measured
+    shrink branch, never the misattributed 'none dated in-window'."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                day=_days_ago(10),
+                events={"stop_pass": 5, "round": 5},
+                runs={"rounds_max": 5},
+            ),
+            _fact(
+                "s1",
+                day=_days_ago(1),
+                events={"stop_pass": 3, "round": 3},
+                runs={"rounds_max": 3},
+            ),
+            _fact("s1", events={"stop_pass": 2, "round": 2}, runs={"rounds_max": 2}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "every delta was suppressed" in prem.detail
+    assert "shrink" in prem.detail
+    assert "none dated in-window" not in prem.detail
+    assert causes.detail == prem.detail
+    rounds = ko.review_rounds()
+    assert not rounds.measurable
+    assert "every delta was suppressed" in rounds.detail
+
+
+def test_metric_detail_annotates_pre_window_baseline_smear(tmp_path: Path) -> None:
+    """W7-5 (adjudicated design-consistent, made VISIBLE): a kept attributed row
+    whose baseline (delta_of) predates the window start smears derivation-gap
+    growth into it — the metric publishes and the detail counts the smear rows."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                day=_days_ago(10),
+                events={"stop_pass": 1, "round": 1},
+                runs={"rounds_max": 1},
+            ),
+            _fact(
+                "s1",
+                events={"stop_pass": 3, "stop_block": 1, "round": 3},
+                stop_causes={"run-record": 1},
+                runs={"rounds_max": 3},
+            ),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "1 row(s) whose baseline predates the window" in rounds.detail
+    assert "derivation-gap smear" in rounds.detail
+    prem, causes = ko.premature_stop()
+    assert prem.measurable and causes.measurable
+    assert "1 row(s) whose baseline predates the window" in prem.detail
+    assert "derivation-gap smear" in causes.detail
+
+
+def test_no_smear_note_when_baselines_are_in_window(tmp_path: Path) -> None:
+    """W7-5 counter-direction: an in-window baseline is no smear — no annotation."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(1), events={"round": 1}, runs={"rounds_max": 1}),
+            _fact("s1", events={"round": 3}, runs={"rounds_max": 3}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "smear" not in rounds.detail

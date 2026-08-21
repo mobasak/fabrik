@@ -102,12 +102,20 @@ project → honest `—` with the reason. Each project emits one `fleet_health` 
 line reads `swept n/N — the rest —`. Sibling modes for the analyst: `--rework` (git-mined rework
 rate across `/opt/*`, `KAIZEN_REWORK_DAYS` window) and `--stops` (session-level premature-stop).
 The store-derived outcome series (`premature_stop`, `stop_block_causes`, `review_rounds`)
-additionally publish from the daily collector pass. All three compute over ONE window with ONE
-population (W5-1): the last `KAIZEN_OUTCOMES_WINDOW_DAYS` LOCAL calendar days including today
+additionally publish from the daily collector pass — **DAY-scoped (W7-1): the published day
+point is computed over `days=[the published day]` only** (for `review_rounds`: numerator = the
+day's summed `rounds_max` over its round-growth sids, denominator = their count), so the weekly
+cell weights each session once, never once per derivation-day residency; the trailing window
+below is ONLY the on-demand CLI view, never a published day point. All three compute over ONE
+window with ONE population (W5-1): the last `KAIZEN_OUTCOMES_WINDOW_DAYS` LOCAL calendar days
+including today
 (default 7; the store's day stamps are local dates — W6-5 — and under the daily cron the newest
 derivable stamp is yesterday), read as day-scoped DELTA rows — every sid's in-window store rows
 delta'd against its nearest earlier row (`window_delta_rows`), so a lifetime session
-contributes only its in-window growth, never all-time cumulative. Attributed-side bootstrap
+contributes only its in-window growth, never all-time cumulative. A kept row whose baseline
+(`delta_of`) predates the window smears derivation-gap growth into it — deliberate (the delta
+seam attributes gap growth to the derivation day, both sides) and VISIBLE: the detail counts
+`k row(s) whose baseline predates the window (derivation-gap smear)` (W7-5). Attributed-side bootstrap
 symmetry (W6-2): a first-ever attributed delta row carrying family mass whose `first_ts`
 predates the window dumped lifetime backlog as its "delta" — bootstrap-unmeasurable, excluded
 from value AND guard operands and counted (a `first_ts`-proven in-window birth stays: its
@@ -123,8 +131,9 @@ family-scoped — a bootstrap row with zero family mass is a knowable 0).
 `stop_block_causes` sums causes over VERDICT-BEARING rows only (numerator ⊆ denominator
 structurally, W6-3). A window holding no derived delta rows at all dashes "no derivation in
 window" naming the MEASURED cause — empty store · transcript-era only · rows exist but none
-dated in-window (W6-4) — never a knowable 0. Never a lifetime ratio (fails open on a bad week)
-and never a lifetime-knowability rule (ratchets permanently dead).
+dated in-window (W6-4) · in-window rows exist but every delta was shrink-suppressed (checked
+via `delta_row`'s None returns, W7-4) — never a knowable 0. Never a lifetime ratio (fails open
+on a bad week) and never a lifetime-knowability rule (ratchets permanently dead).
 
 ## The kaizen-log row — which cells are real now
 
@@ -137,7 +146,17 @@ diluting per-session shares into per-row shares). Ratio cells SUM the week's day
 numerators/denominators; the death cell sums occurrences and merges the day class maps; the
 rounds cell is the n-weighted weekly mean of `review_rounds`' day points. A day the series
 lacks contributes nothing (its honesty gates already spoke at publish time); a week with no
-published days for a metric renders `—` ("no published days this week"):
+published days for a metric renders `—` ("no published days this week"). **Split weeks (W7-2):**
+a mid-week registry version bump leaves the earlier days in the previous version's file —
+versions are never mixed in one sum; the cell aggregates current-definition points only,
+carries a `*` marker with a stderr note ("k of N week day(s) at the current definition"), and
+when zero current-definition days exist the dash reason says "definition changed this week; no
+days published at the current definition yet". **The death pair contract (W7-3):** the cell is
+measurable only when BOTH halves publish (occurrence day points AND class day points) — a
+one-sided week dashes with the pair-contract reason, never `N occ / 0 cls`. **A coroner-quiet
+death cell (W7-6)** names WHICH cause via the whole-store universe signal: the coroner has
+never run (no death/session_end anywhere in the store) · series file missing at the current
+version · every week day gapped/unpublished:
 
 | Column | Status | Source |
 |---|---|---|

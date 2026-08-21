@@ -210,13 +210,19 @@ automatic `--lean --check` self-review is diagnostic, never taxonomy population;
 rationale as `first_attempt_gate_pass`). The WINDOWED store metrics (`review_rounds`,
 `premature_stop`, `stop_block_causes`) use the **windowed attribution guard**, and since W5-1
 BOTH of its operands — and the value population — come from the SAME source with the SAME
-semantics: the window's day-scoped DELTA rows over the last `KAIZEN_OUTCOMES_WINDOW_DAYS`
-LOCAL calendar days including today (`window_delta_rows`; every sid's in-window store rows
-delta'd against its nearest earlier row, so a lifetime session contributes only its in-window
-growth). Attributed-side bootstrap symmetry (W6-2): a first-ever attributed delta row carrying
+semantics: day-scoped DELTA rows for the caller's day stamps (`window_delta_rows`; every sid's
+in-window store rows delta'd against its nearest earlier row, so a lifetime session
+contributes only its in-window growth). The CLI's on-demand view is the trailing window — the
+last `KAIZEN_OUTCOMES_WINDOW_DAYS` LOCAL calendar days including today — while the daily
+publish passes `days=[the published day]` so every PUBLISHED day point is DAY-scoped (W7-1: a
+trailing-window value published as a day point made the weekly cell sum overlapping windows).
+Attributed-side bootstrap symmetry (W6-2): a first-ever attributed delta row carrying
 family mass whose `first_ts` predates the window is bootstrap-unmeasurable — excluded from
-both operands and counted. The weekly log cells no longer run any guard of their own: they
-AGGREGATE the published day series (the single-source law, W6-1 — see
+both operands and counted; a kept row whose baseline (`delta_of`) predates the window smears
+derivation-gap growth into it — deliberate and annotated in the detail (W7-5, the
+derivation-gap smear). The weekly log cells no longer run any guard of their own: they
+AGGREGATE the published day series (the single-source law, W6-1; split weeks are annotated and
+one-sided death weeks dash on the pair contract — see
 `docs/workstation/kaizen.md` § The kaizen-log row). The unattributed operand is the
 `unknown` accumulator's per-day delta mass over the same window days; the same 20% floor applies.
 The guard publishes (share stated) when healthy, dashes when the unknown stream holds the
@@ -226,7 +232,8 @@ field — absent ≠ 0, the root law); **bump-day gap** (measured with no same-f
 **bootstrap window** — the accumulator's first derivation carries pre-window backlog, so the
 first window after store bootstrap is expected unmeasurable (family-scoped: a bootstrap row with
 zero family mass is a knowable 0). A window with NO derived delta rows at all is a derivation
-gap — "no derivation in window", never a knowable 0. Never a lifetime ratio (fails open on a bad
+gap — "no derivation in window" naming the measured cause (empty store · transcript-era only ·
+rows out of window · every in-window delta shrink-suppressed, W7-4), never a knowable 0. Never a lifetime ratio (fails open on a bad
 week) and never a lifetime-knowability rule (ratchets permanently dead once any unknown mass
 ever existed). `hole_count` dashes when the
 coroner is BLIND (missing/unreadable transcripts dir → `holes()` returns None, mapped to `—`

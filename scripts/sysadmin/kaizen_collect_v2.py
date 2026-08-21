@@ -59,6 +59,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1977,6 +1978,49 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
 
 #: The weekly cells' shared dash reason (W6-1).
 NO_WEEK_DAYS = "no published days this week"
+#: W7-2 — the dash reason when the week holds ONLY prior-definition day points.
+SPLIT_WEEK_NO_CURRENT = (
+    "definition changed this week; no days published at the current definition yet"
+)
+#: W7-3 — the death pair's one-sided dash reason (measurability needs BOTH halves).
+DEATH_PAIR_ONE_SIDED = (
+    "the death pair is measurable only when BOTH halves publish for the week "
+    "(occurrence day points AND class day points)"
+)
+
+
+def _older_version_week_days(
+    metric: str, version: int, days: list[str], state: Path | None
+) -> set[str]:
+    """Week days present in an OLDER registry version's series file for ``metric``
+    — the W7-2 mid-week definition-change signal. Versions are never mixed in one
+    weekly sum; this only tells the cell which days the current definition is
+    missing because they were measured under a previous one. Fail-open: an
+    unreadable series dir contributes nothing."""
+    window = set(days)
+    out: set[str] = set()
+    try:
+        files = list(((state or state_dir()) / "series").glob(f"{metric}@v*.jsonl"))
+    except OSError:
+        return out
+    for p in files:
+        m = re.match(rf"^{re.escape(metric)}@v(\d+)$", p.stem)
+        if m is None or int(m.group(1)) >= version:
+            continue
+        out |= _series_days(p) & window
+    return out
+
+
+def _coroner_ever(state: Path | None = None) -> bool:
+    """The whole-store universe signal (M9, reused by W7-6): has the coroner EVER
+    produced evidence — a death or session_end event on ANY store row?"""
+    for row in _iter_facts(state or state_dir()):
+        ev = row.get("events")
+        if isinstance(ev, dict) and (
+            int(ev.get("death", 0) or 0) > 0 or int(ev.get("session_end", 0) or 0) > 0
+        ):
+            return True
+    return False
 
 
 def _week_days(day: dt.date) -> list[str]:
@@ -2016,7 +2060,7 @@ def _point_int(point: dict, field: str) -> int | None:
     return val
 
 
-def _ratio_cell(points: list[dict], label: str) -> str:
+def _ratio_cell(points: list[dict], label: str, dash_reason: str = NO_WEEK_DAYS) -> str:
     """SUM the week's published day numerators/denominators — a per-day mean of
     means would re-weight sessions by derivation day (the 33% dilution shape)."""
     num = den = counted = 0
@@ -2028,12 +2072,12 @@ def _ratio_cell(points: list[dict], label: str) -> str:
         den += d
         counted += 1
     if not counted:
-        _warn(f"{label} = {DASH} — {NO_WEEK_DAYS}")
+        _warn(f"{label} = {DASH} — {dash_reason}")
         return DASH
     return _pct(num, den)
 
 
-def _rounds_cell(points: list[dict]) -> str:
+def _rounds_cell(points: list[dict], dash_reason: str = NO_WEEK_DAYS) -> str:
     """The weekly mean over review_rounds' published day values, weighted by
     their n's (numerator = the day's summed rounds, denominator = its n)."""
     num = den = 0
@@ -2044,15 +2088,22 @@ def _rounds_cell(points: list[dict]) -> str:
         num += n
         den += d
     if not den:
-        _warn(f"Review rounds /plan = {DASH} — {NO_WEEK_DAYS}")
+        _warn(f"Review rounds /plan = {DASH} — {dash_reason}")
         return DASH
     return f"{num / den:.1f} (n={den})"
 
 
-def _death_cell(occ_points: list[dict], cls_points: list[dict]) -> str:
+def _death_cell(
+    occ_points: list[dict], cls_points: list[dict], dash_reason: str = NO_WEEK_DAYS
+) -> str:
     """The week's REAL occ/cls: occurrences summed from death_occurrences day
     points, classes merged from death_classes day maps — both already
-    delta-honest at publish (the day's NEW deaths only)."""
+    delta-honest at publish (the day's NEW deaths only).
+
+    W7-3 — the pair contract: measurability requires BOTH halves (occurrence day
+    points AND class day points); a one-sided week dashes with the pair-contract
+    reason, never a fabricated ``N occ / 0 cls`` (or a class list floating with
+    no occurrence volume)."""
     occ = 0
     counted = 0
     for p in occ_points:
@@ -2061,8 +2112,20 @@ def _death_cell(occ_points: list[dict], cls_points: list[dict]) -> str:
             continue
         occ += n
         counted += 1
+    cls_counted = sum(1 for p in cls_points if isinstance(p.get("value"), dict))
     if not counted:
-        _warn(f"Death-classes /wk = {DASH} — {NO_WEEK_DAYS}")
+        reason = (
+            f"class day points exist but no occurrence day points — {DEATH_PAIR_ONE_SIDED}"
+            if cls_counted
+            else dash_reason
+        )
+        _warn(f"Death-classes /wk = {DASH} — {reason}")
+        return DASH
+    if not cls_counted:
+        _warn(
+            f"Death-classes /wk = {DASH} — {occ} occurrence day value(s) have no class "
+            f"day points — {DEATH_PAIR_ONE_SIDED}"
+        )
         return DASH
     merged: set[str] = set()
     for p in cls_points:
@@ -2086,7 +2149,18 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
     (attribution floor, coroner evidence, bump-day gaps) already spoke at publish
     time. A week with NO published days for a metric renders ``—`` with the
     reason (:data:`NO_WEEK_DAYS`). ``reg`` is the CURRENT full registry
-    (T06 + outcome tier) — only current-version series files are read."""
+    (T06 + outcome tier) — only current-version series files are read.
+
+    W7-2 — the split week, annotated: a mid-week registry version bump leaves the
+    earlier days in the PREVIOUS version's file. Versions are never mixed in one
+    sum; the cell aggregates current-definition points only and carries a ``*``
+    marker with a stderr note stating k of N week days, and when ZERO days exist
+    at the current definition the dash reason says so
+    (:data:`SPLIT_WEEK_NO_CURRENT`) instead of the generic no-published-days
+    claim. W7-6 — a coroner-quiet death cell names WHICH cause via the
+    whole-store universe signal (:func:`_coroner_ever`): the coroner has never
+    run · series file missing at the current version · every week day
+    gapped/unpublished."""
     days = _week_days(day)
 
     def _pts(mid: str) -> list[dict]:
@@ -2096,9 +2170,76 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
             return []
         return series_points(mid, int(mdef["version"]), days, state)
 
-    gate_cell = _ratio_cell(_pts("first_attempt_gate_pass"), "Gate first-pass rate")
-    deaths = _death_cell(_pts("death_occurrences"), _pts("death_classes"))
-    rounds = _rounds_cell(_pts("review_rounds"))
+    def _week_versions(mids: tuple[str, ...], ptss: list[list[dict]]) -> tuple[set[str], set[str]]:
+        """W7-2 — ``(current-definition week days, week days only under an older
+        definition)`` for the cell's metric(s)."""
+        cur = {str(p["day"]) for ps in ptss for p in ps if isinstance(p.get("day"), str)}
+        older: set[str] = set()
+        for mid in mids:
+            mdef = reg.get(mid)
+            if mdef is not None:
+                older |= _older_version_week_days(mid, int(mdef["version"]), days, state)
+        return cur, older - cur
+
+    def _split_dash_reason(cur: set[str], orphan: set[str], fallback: str = NO_WEEK_DAYS) -> str:
+        return SPLIT_WEEK_NO_CURRENT if orphan and not cur else fallback
+
+    def _annotate(cell: str, label: str, cur: set[str], orphan: set[str]) -> str:
+        """W7-2: mark a split-week cell — current-definition days only, stated."""
+        if not orphan or cell == DASH:
+            return cell
+        _warn(
+            f"{label}: * {len(cur)} of {len(days)} week day(s) at the current definition "
+            "(definition changed mid-week; earlier days measured under the previous "
+            "definition are not mixed in)"
+        )
+        return cell + "*"
+
+    def _death_quiet_reason() -> str:
+        """W7-6: the coroner-quiet week's dash cause, distinguished — never one
+        flat no-published-days claim for three different repairs."""
+        if not _coroner_ever(state):
+            return (
+                "the coroner has never run — no death or session_end event anywhere "
+                "in the store (a 0 would be fabricated)"
+            )
+        mdef = reg.get("death_occurrences")
+        if (
+            mdef is not None
+            and not series_path("death_occurrences", int(mdef["version"]), state).is_file()
+        ):
+            return (
+                "death series file missing at the current version — the coroner has "
+                "run, but no day point was ever published at this definition"
+            )
+        return (
+            "every week day gapped or unpublished — the coroner has run and the "
+            "series exists, but no day point landed in this week"
+        )
+
+    gate_pts = _pts("first_attempt_gate_pass")
+    g_cur, g_orphan = _week_versions(("first_attempt_gate_pass",), [gate_pts])
+    gate_cell = _ratio_cell(
+        gate_pts, "Gate first-pass rate", dash_reason=_split_dash_reason(g_cur, g_orphan)
+    )
+    gate_cell = _annotate(gate_cell, "Gate first-pass rate", g_cur, g_orphan)
+
+    occ_pts, cls_pts = _pts("death_occurrences"), _pts("death_classes")
+    d_cur, d_orphan = _week_versions(("death_occurrences", "death_classes"), [occ_pts, cls_pts])
+    death_fallback = (
+        NO_WEEK_DAYS
+        if any(_point_int(p, "numerator") is not None for p in occ_pts)
+        else _death_quiet_reason()
+    )
+    deaths = _death_cell(
+        occ_pts, cls_pts, dash_reason=_split_dash_reason(d_cur, d_orphan, death_fallback)
+    )
+    deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan)
+
+    rr_pts = _pts("review_rounds")
+    r_cur, r_orphan = _week_versions(("review_rounds",), [rr_pts])
+    rounds = _rounds_cell(rr_pts, dash_reason=_split_dash_reason(r_cur, r_orphan))
+    rounds = _annotate(rounds, "Review rounds /plan", r_cur, r_orphan)
     _warn(f"Lesson-class recurrence = {DASH} — no class taxonomy on lessons (analysis-half job)")
     _warn(
         f"Missed crons = {DASH} — not an event-stream metric; the liveness audit owns it "
@@ -2190,16 +2331,19 @@ def _coroner_holes(day: dt.date, events: Path | None = None) -> tuple[int | None
 def _publish_outcome_series(day_stamp: str, st: Path) -> list[Path]:
     """T07's STORE-DERIVED outcome metrics (premature_stop / stop_block_causes /
     review_rounds) ride the same daily publish (M7): the noise floor needs their
-    series days and nothing else appends them daily. The sweep/rework tiers keep
-    their own runners — a daily pass must never mine git or clone worktrees.
-    Guarded + fail-open: a box without kaizen_outcomes costs the outcome series
-    only, never the T06 publish."""
+    series days and nothing else appends them daily. DAY-SCOPED (W7-1): the
+    published day point is computed over ``days=[day_stamp]`` — that day's delta
+    rows only — never the trailing CLI window (a windowed value published as a
+    day point made the weekly cell sum seven overlapping windows). The
+    sweep/rework tiers keep their own runners — a daily pass must never mine git
+    or clone worktrees. Guarded + fail-open: a box without kaizen_outcomes costs
+    the outcome series only, never the T06 publish."""
     try:
         import kaizen_outcomes  # noqa: PLC0415 - lazy; avoids a module-import cycle
 
         reg = kaizen_outcomes.registry()
-        prem, causes = kaizen_outcomes.premature_stop(state=st)
-        rounds = kaizen_outcomes.review_rounds(state=st)
+        prem, causes = kaizen_outcomes.premature_stop(state=st, days=[day_stamp])
+        rounds = kaizen_outcomes.review_rounds(state=st, days=[day_stamp])
         results = {m.id: m for m in (prem, causes, rounds)}
         sub = {mid: reg[mid] for mid in results if mid in reg}
         return publish_series(day_stamp, results, sub, st)

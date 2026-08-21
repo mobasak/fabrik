@@ -31,15 +31,19 @@ All three register in T06's paired-counter registry (a schema constraint — an
 unpaired metric refuses to load): rework_rate ⟂ review_rounds, fleet_health ⟂
 sweep_coverage, premature_stop ⟂ stop_block_causes.
 
-POPULATION NOTE (W5-1, tightened W6) — the store-reading metrics
-(``premature_stop``, ``stop_block_causes``, ``review_rounds``) compute over the
-WINDOW'S DAY-SCOPED DELTA ROWS (``kc.window_delta_rows``): ONE window definition
-— the last ``KAIZEN_OUTCOMES_WINDOW_DAYS`` LOCAL calendar days including today
-(default 7; the store's day stamps are local, W6-5, and under the daily cron the
-newest derivable stamp is yesterday) — and each sid's in-window store rows are
-delta'd against its nearest earlier row, so a lifetime session contributes only
-its in-window growth (never all-time cumulative; the event-era filter and the
-root law live in the delta seam). Attributed-side bootstrap symmetry (W6-2): a
+POPULATION NOTE (W5-1, tightened W6, day-scoped publish W7-1) — the store-reading
+metrics (``premature_stop``, ``stop_block_causes``, ``review_rounds``) compute
+over DAY-SCOPED DELTA ROWS (``kc.window_delta_rows``) for a caller-chosen set of
+day stamps: the CLI's on-demand view is the trailing window — the last
+``KAIZEN_OUTCOMES_WINDOW_DAYS`` LOCAL calendar days including today (default 7;
+the store's day stamps are local, W6-5, and under the daily cron the newest
+derivable stamp is yesterday) — while the DAILY PUBLISH passes ``days=[the
+published day]`` so every PUBLISHED day point is DAY-scoped (a trailing-window
+value published as a day point made the weekly cell sum overlapping windows).
+Each sid's in-window store rows are delta'd against its nearest earlier row, so
+a lifetime session contributes only its in-window growth (never all-time
+cumulative; the event-era filter and the root law live in the delta seam).
+Attributed-side bootstrap symmetry (W6-2): a
 first-ever delta row carrying family mass from before the window is
 bootstrap-unmeasurable — excluded and counted. Value and attribution guard
 measure the SAME rows with the SAME semantics; a window with no derived delta
@@ -171,27 +175,48 @@ def _window_day_stamps() -> list[str]:
     return [(today - dt.timedelta(days=k)).isoformat() for k in range(_window_days())]
 
 
-def _window_deltas(state: Path | None) -> tuple[list[dict], list[dict]]:
-    """``(all delta rows, attributed delta rows)`` over THE window (W5-1) —
-    the unknown accumulator's rows stay in the first list (they are the guard's
-    subject), out of the second (they are nobody's session)."""
-    deltas = kc.window_delta_rows(_window_day_stamps(), state)
+def _window_deltas(state: Path | None, days: list[str]) -> tuple[list[dict], list[dict]]:
+    """``(all delta rows, attributed delta rows)`` over ``days`` (W5-1; the days
+    are parameterized since W7-1 — the publish seam passes the single published
+    day) — the unknown accumulator's rows stay in the first list (they are the
+    guard's subject), out of the second (they are nobody's session)."""
+    deltas = kc.window_delta_rows(days, state)
     return deltas, [r for r in deltas if r.get("sid") != kc.UNKNOWN]
 
 
-def _no_derivation_reason(state: Path | None = None) -> str:
-    """W5-1 (#5) + W6-4: a window holding NO derived delta rows is unmeasurable,
-    never a knowable 0 — and the dash names WHICH measured cause applies (empty
-    store · transcript-era-only store · event-era rows exist but none dated
-    in-window), never a guessed "the daily derivation did not run"."""
+def _no_derivation_reason(state: Path | None = None, days: list[str] | None = None) -> str:
+    """W5-1 (#5) + W6-4 + W7-4: a window holding NO derived delta rows is
+    unmeasurable, never a knowable 0 — and the dash names WHICH measured cause
+    applies (empty store · transcript-era-only store · event-era rows exist but
+    none dated in-window · in-window rows exist but every delta was
+    shrink-suppressed), never a guessed "the daily derivation did not run"."""
+    day_stamps = days if days is not None else _window_day_stamps()
+    window = set(day_stamps)
     prefix = (
-        f"no derivation in window — the {_window_days()}d local day window holds "
+        f"no derivation in window — the {len(day_stamps)}d local day window holds "
         "no derived delta rows: "
     )
     suffix = "; never a knowable 0"
     by_sid = kc._rows_by_sid_day(state)
     if by_sid:
-        newest = max(d for days in by_sid.values() for d in days)
+        # W7-4: the fourth measured branch — checked via delta_row's None returns
+        # (the caller reaches here only when window_delta_rows came back empty, so
+        # any in-window store row must have delta'd to None), never guessed.
+        suppressed = 0
+        for by_day in by_sid.values():
+            days_sorted = sorted(by_day)
+            for i, day in enumerate(days_sorted):
+                if day not in window:
+                    continue
+                prev = by_day[days_sorted[i - 1]] if i > 0 else None
+                if kc.delta_row(by_day[day], prev) is None:
+                    suppressed += 1
+        if suppressed:
+            return (
+                prefix + "in-window rows exist but every delta was suppressed "
+                f"(accumulator/file shrink — {suppressed} row(s) delta'd to None)" + suffix
+            )
+        newest = max(d for days_ in by_sid.values() for d in days_)
         return (
             prefix
             + f"event-era rows exist but none dated in-window (newest derived day {newest})"
@@ -200,6 +225,20 @@ def _no_derivation_reason(state: Path | None = None) -> str:
     if any(True for _ in kc._iter_facts(state or kc.state_dir())):
         return prefix + "the store holds rows but none event-era (transcript-era only)" + suffix
     return prefix + "the derived-facts store is empty (nothing has ever been derived)" + suffix
+
+
+def _smear_note(rows: list[dict], window_days: list[str]) -> str:
+    """W7-5 — the pre-window-baseline smear made VISIBLE, not structural: the
+    delta seam attributes derivation-gap growth to the derivation day on the
+    attributed side exactly as the unknown side documents it (design-consistent,
+    deliberate), so a kept row whose baseline (``delta_of``) predates the window
+    start smears pre-window-gap growth into it. Annotated in the detail, never
+    silently folded."""
+    oldest = min(window_days)
+    k = sum(1 for r in rows if isinstance(r.get("delta_of"), str) and r["delta_of"] < oldest)
+    if not k:
+        return ""
+    return f"; includes {k} row(s) whose baseline predates the window (derivation-gap smear)"
 
 
 def _gapped(row: dict, *fields: str) -> bool:
@@ -701,9 +740,10 @@ def run_sweep(
 
 
 def _window_attribution_guard(
-    names: tuple[str, ...], what: str, state: Path | None, attributed: int
+    names: tuple[str, ...], what: str, state: Path | None, attributed: int, days: list[str]
 ) -> tuple[str | None, str]:
-    """W4-1/W5-1 — ``(dash_reason, publish_note)`` for a WINDOWED store metric.
+    """W4-1/W5-1 — ``(dash_reason, publish_note)`` for a WINDOWED store metric,
+    over the caller's ``days`` (parameterized since W7-1).
 
     LIKE WITH LIKE (W5-1): both operands are window-scoped per-day DELTAS from the
     same store — ``attributed`` is the caller's family sum over the window's
@@ -718,7 +758,7 @@ def _window_attribution_guard(
     (the accumulator's first derivation carries pre-window backlog — the first
     window after store bootstrap is expected unmeasurable)."""
     rows_by_day = kc._unknown_rows_by_day(state)
-    unattributed, cause = kc._windowed_unattributed(rows_by_day, names, _window_day_stamps())
+    unattributed, cause = kc._windowed_unattributed(rows_by_day, names, days)
     if unattributed is None:
         return kc.unattributed_unknowable_reason(cause, what), ""
     if unattributed > 0:
@@ -756,7 +796,9 @@ def _stops_mass(row: dict) -> int:
     return _stop_verdicts(row) + cause_mass
 
 
-def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResult]:
+def premature_stop(
+    state: Path | None = None, days: list[str] | None = None
+) -> tuple[MetricResult, MetricResult]:
     """(premature_stop, stop_block_causes) from derived-facts rows — T02's oracle read.
 
     SESSION-level by design: the share of stop-verdict-carrying sessions that hit a
@@ -767,10 +809,17 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
     hold) is a legitimate hold, not a premature stop — it stays out of the numerator
     and in the ``stop_block_causes`` histogram.
 
+    ``days`` (W7-1): the day stamps the pair computes over. ``None`` — the CLI's
+    on-demand trailing window (:func:`_window_day_stamps`). The daily publish
+    passes ``days=[published day]`` so each PUBLISHED day point is DAY-scoped —
+    a trailing-window value published as a day point made the weekly cell sum
+    seven overlapping windows.
+
     Fail-open, PAIRED: a missing/empty events store — or zero stop verdicts — yields
     two honest ``—`` results with ONE shared reason. A paired counter must never
     fabricate "clean" while its metric is unmeasurable.
     """
+    day_stamps = days if days is not None else _window_day_stamps()
     vocab: frozenset[str] | None = PREMATURE_CAUSES
     if vocab is None:
         reason = "premature-cause vocabulary unavailable (kaizen_collect_v2 import failed)"
@@ -783,9 +832,9 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
     # filter and the root law both live in the delta seam). Value and guard are
     # computed over the SAME rows with the SAME semantics — a lifetime session
     # contributes only its in-window growth.
-    deltas, attributed = _window_deltas(state)
+    deltas, attributed = _window_deltas(state, day_stamps)
     if not deltas:
-        reason = _no_derivation_reason(state)
+        reason = _no_derivation_reason(state, day_stamps)
         return (
             MetricResult.unavailable("premature_stop", reason),
             MetricResult.unavailable("stop_block_causes", reason),
@@ -796,12 +845,13 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
     rows = [r for r in attributed if not _gapped(r, "events", "stop_causes")]
     # W6-2: attributed-side bootstrap symmetry — a first-ever row carrying
     # pre-window stops mass is excluded from BOTH operands and counted.
-    rows, boot = _bootstrap_split(rows, _stops_mass, _window_day_stamps())
+    rows, boot = _bootstrap_split(rows, _stops_mass, day_stamps)
     guard, note = _window_attribution_guard(
         ("stop_pass", "stop_block"),
         "stop-verdict events",
         state,
         sum(_stop_verdicts(r) for r in rows),
+        day_stamps,
     )
     if guard is not None:
         return (
@@ -810,6 +860,7 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         )
     if boot:
         note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+    note += _smear_note(rows, day_stamps)  # W7-5: the pre-window-baseline smear, visible
     # Per-SESSION grouping: a sid may carry several in-window delta rows (one per
     # derivation day); its window verdicts/causes are their sums.
     verdicts_by_sid: collections.Counter[str] = collections.Counter()
@@ -881,7 +932,7 @@ def _round_growth(row: dict) -> int:
     return int(events.get("round", 0) or 0)
 
 
-def review_rounds(state: Path | None = None) -> MetricResult:
+def review_rounds(state: Path | None = None, days: list[str] | None = None) -> MetricResult:
     """Mean max-round per round-carrying session (rework_rate's counter pair).
 
     W5-1 (supersedes W4-1's mixed operands): value AND guard are computed over the
@@ -894,26 +945,36 @@ def review_rounds(state: Path | None = None) -> MetricResult:
     delta row). Publishes (share stated) when healthy, dashes when swamped or
     when the unknown mass is unknowable (with the true cause), and heals when
     attribution improves. A window with no derived delta rows at all is a
-    derivation gap — unmeasurable, never a knowable 0."""
-    deltas, attributed = _window_deltas(state)
+    derivation gap — unmeasurable, never a knowable 0.
+
+    ``days`` (W7-1): the day stamps the metric computes over. ``None`` — the
+    CLI's on-demand trailing window. The daily publish passes ``days=[published
+    day]`` so the PUBLISHED day point is DAY-scoped: numerator = the day's summed
+    ``rounds_max`` over its round-growth sids, denominator = their count — the
+    weekly cell's n-weighted mean then weights each session once, never once per
+    derivation-day residency."""
+    day_stamps = days if days is not None else _window_day_stamps()
+    deltas, attributed = _window_deltas(state, day_stamps)
     if not deltas:
-        return MetricResult.unavailable("review_rounds", _no_derivation_reason(state))
+        return MetricResult.unavailable("review_rounds", _no_derivation_reason(state, day_stamps))
     # Root law: an events-map gap row cannot say whether rounds happened — out of
     # both operands.
     rows = [r for r in attributed if not _gapped(r, "events")]
     # W6-2: attributed-side bootstrap symmetry — a first-ever row carrying
     # pre-window round mass is excluded from BOTH operands and counted.
-    rows, boot = _bootstrap_split(rows, _round_growth, _window_day_stamps())
+    rows, boot = _bootstrap_split(rows, _round_growth, day_stamps)
     guard, note = _window_attribution_guard(
         ("round",),
         "round events",
         state,
         sum(_round_growth(r) for r in rows),
+        day_stamps,
     )
     if guard is not None:
         return MetricResult.unavailable("review_rounds", guard)
     if boot:
         note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+    note += _smear_note(rows, day_stamps)  # W7-5: the pre-window-baseline smear, visible
     growth: collections.Counter[str] = collections.Counter()
     latest: dict[str, dict] = {}
     for r in rows:  # sorted (sid, day) — the last row per sid is its latest day
@@ -968,12 +1029,21 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # BOTH operands and the value population come from the same day-scoped
         # delta rows — one window definition, in-window growth only. v7 (fix-wave
         # 6, W6-2 + W6-5): LOCAL day window + attributed-side bootstrap symmetry.
-        "version": 7,
+        # v8 (fix-wave 7, W7-1 + W7-5): the PUBLISHED day point is DAY-scoped +
+        # the pre-window-baseline smear is annotated.
+        "version": 8,
         "counter_metric": "rework_rate",
         "formula": (
             "mean rounds_max across sessions whose ROUND FAMILY GREW in the window, "
-            "computed over the window's day-scoped delta rows — ONE window "
-            "definition for value and guard alike: the last "
+            "computed over the window's day-scoped delta rows. THE PUBLISHED DAY "
+            "POINT IS DAY-scoped (W7-1): the daily publish computes over "
+            "days=[the published day] only — numerator = that day's summed "
+            "rounds_max over its round-growth sids, denominator = their count — "
+            "so the weekly cell's n-weighted mean weights each session once, "
+            "never once per derivation-day residency (a trailing-window value "
+            "published as a day point summed seven overlapping windows). The "
+            "trailing window is ONLY the on-demand CLI view: ONE window "
+            "definition for value and guard alike — the last "
             "KAIZEN_OUTCOMES_WINDOW_DAYS LOCAL calendar days including today "
             "(default 7; the store's day stamps are local dates, and under the "
             "daily cron the newest derivable stamp is yesterday), each sid's "
@@ -981,6 +1051,12 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "law: absent-field baselines are None per field; gap rows leave "
             "numerator AND denominator), so a lifetime session contributes only "
             "its in-window growth — rounds down must never buy rework up. "
+            "Baseline-smear symmetry (W7-5, visible not structural): the delta "
+            "seam attributes derivation-gap growth to the derivation day on the "
+            "attributed side exactly as on the unknown side — a kept row whose "
+            "baseline (delta_of) predates the window smears pre-window-gap "
+            "growth into it, annotated in the detail ('includes k row(s) whose "
+            "baseline predates the window (derivation-gap smear)'). "
             "Attributed-side bootstrap symmetry: a first-ever attributed delta row "
             "(delta_of None) carrying round mass whose first_ts predates the "
             "window is bootstrap-unmeasurable — excluded from value AND guard "
@@ -1029,20 +1105,30 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # BOTH operands and the value population come from the same day-scoped
         # delta rows — one window definition, in-window growth only. v6 (fix-wave
         # 6, W6-2 + W6-5): LOCAL day window + attributed-side bootstrap symmetry.
-        "version": 6,
+        # v7 (fix-wave 7, W7-1 + W7-5): DAY-scoped published day point + the
+        # annotated pre-window-baseline smear.
+        "version": 7,
         "counter_metric": "stop_block_causes",
         "formula": (
             "SESSION-level: sessions with a premature-cause stop_block "
             "(PREMATURE_CAUSES: run-record / promise-stall) over sessions with any "
-            "stop verdict, computed over the window's day-scoped delta rows — ONE "
-            "window definition for value and guard alike: the last "
+            "stop verdict, computed over the window's day-scoped delta rows. THE "
+            "PUBLISHED DAY POINT IS DAY-scoped (W7-1): the daily publish computes "
+            "over days=[the published day] only — that day's verdict-bearing "
+            "sessions — the trailing window is ONLY the on-demand CLI view, never "
+            "a published day point. ONE window definition for value and guard "
+            "alike: the last "
             "KAIZEN_OUTCOMES_WINDOW_DAYS LOCAL calendar days including today "
             "(default 7; the store's day stamps are local dates, and under the "
             "daily cron the newest derivable stamp is yesterday), each sid's "
             "in-window store rows delta'd against its nearest earlier row (root "
             "law: gap rows leave numerator AND denominator), so a lifetime "
             "session contributes only its in-window growth — the Stop-hook "
-            "oracle, read. Attributed-side bootstrap symmetry: a first-ever "
+            "oracle, read. Baseline-smear symmetry (W7-5, visible not "
+            "structural): a kept row whose baseline (delta_of) predates the "
+            "window smears derivation-gap growth into it — annotated in the "
+            "detail, exactly as the unknown side documents the same smear. "
+            "Attributed-side bootstrap symmetry: a first-ever "
             "attributed delta row (delta_of None) carrying stops mass whose "
             "first_ts predates the window is bootstrap-unmeasurable — excluded "
             "from value AND guard operands and counted; the pair dashes with the "
@@ -1069,18 +1155,25 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # the windowed-delta guard. v5 (fix-wave 5, W5-1): the pair rides the
         # day-scoped delta-row population together — like with like everywhere.
         # v6 (fix-wave 6, W6-2/W6-3/W6-5): LOCAL day window, bootstrap symmetry,
-        # and the numerator scoped to verdict-bearing rows.
-        "version": 6,
+        # and the numerator scoped to verdict-bearing rows. v7 (fix-wave 7,
+        # W7-1 + W7-5): DAY-scoped published day point + the annotated smear.
+        "version": 7,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
             "and legitimate causes alike — the rate's shape, so a falling rate cannot "
             "hide a cause-mix shift. EVENT units throughout (numerator, denominator "
             "and cell), computed over the SAME day-scoped delta rows and window as "
-            "its pair (the last KAIZEN_OUTCOMES_WINDOW_DAYS LOCAL calendar days "
+            "its pair. THE PUBLISHED DAY POINT IS DAY-scoped (W7-1): the daily "
+            "publish computes over days=[the published day] only; the trailing "
+            "window (the last KAIZEN_OUTCOMES_WINDOW_DAYS LOCAL calendar days "
             "including today, default 7; the store's day stamps are local dates, "
             "and under the daily cron the newest derivable stamp is yesterday — "
-            "in-window growth only). Causes are summed over VERDICT-BEARING rows "
+            "in-window growth only) is ONLY the on-demand CLI view. "
+            "Baseline-smear symmetry (W7-5): a kept row whose baseline (delta_of) "
+            "predates the window smears derivation-gap growth into it — "
+            "annotated in the detail with its pair. Causes are summed over "
+            "VERDICT-BEARING rows "
             "only (numerator ⊆ denominator structurally — a causes-without-"
             "verdicts row never leaks into the histogram), and the pair shares "
             "the attributed-side bootstrap exclusion (a first-ever delta row "

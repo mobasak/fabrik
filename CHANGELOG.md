@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 7: day-scoped day points; split weeks and the death pair annotated (2026-08-22)
+
+Round 7's unit bug (W7-1): the daily publish handed the outcome tier's TRAILING-7-day-WINDOW
+values to the day series, so the weekly cell summed seven overlapping windows (one session →
+`3.0 (n=7)`; the mean weighted by derivation-day residency). `premature_stop` /
+`stop_block_causes` / `review_rounds` now take a `days` parameter: the daily publish passes
+`days=[the published day]` so every PUBLISHED day point is DAY-scoped (for `review_rounds`:
+numerator = that day's summed `rounds_max` over its round-growth sids, denominator = their
+count); the trailing `KAIZEN_OUTCOMES_WINDOW_DAYS` window remains ONLY the on-demand CLI view.
+Satellites: W7-2 — a mid-week registry version bump no longer silently truncates the week:
+versions are never mixed in one sum, the cell aggregates current-definition points only with a
+`*` marker + a stderr "k of N week day(s) at the current definition" note, and a
+zero-current-days week dashes "definition changed this week"; W7-3 — the death cell dashes on a
+one-sided pair (occurrence points without class points, or vice versa) with the pair-contract
+reason, never `N occ / 0 cls`; W7-4 — the empty-window dash gains the fourth measured branch
+("in-window rows exist but every delta was suppressed (accumulator/file shrink)"), checked via
+`delta_row`'s None returns; W7-5 — the pre-window-baseline smear (adjudicated
+design-consistent) is made VISIBLE: the detail counts kept rows whose `delta_of` predates the
+window ("derivation-gap smear"), and both formula texts document the symmetry; W7-6 — the
+coroner-quiet death cell distinguishes its cause via the whole-store universe signal (never
+run · series file missing at the current version · every week day gapped/unpublished). Def
+bumps: review_rounds v8, premature_stop v7, stop_block_causes v7; registry pins updated.
+
 ### Fixed — kaizen M1 review fix-wave 6: the single-source law — weekly cells read the day series (2026-08-21)
 
 Round 6's structural centerpiece (W6-1): the weekly log cells still RECOMPUTED from store rows

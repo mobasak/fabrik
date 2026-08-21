@@ -1493,13 +1493,48 @@ def test_daily_validates_registry_before_mutating_state(
     assert alarms, "the refusal must raise the alarm channel, not only a traceback"
 
 
-def test_daily_publishes_outcome_tier_series(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """M7: the store-derived outcome tier (premature_stop / stop_block_causes /
-    review_rounds) publishes its series days from the SAME daily pass."""
-    monkeypatch.setenv("KAIZEN_OUTCOMES_WINDOW_DAYS", "36500")
-    rc, _, st, _ = _green_daily(tmp_path, dt.date.today())
+def test_daily_publishes_outcome_tier_series(tmp_path: Path) -> None:
+    """M7 + W7-1: the store-derived outcome tier (premature_stop /
+    stop_block_causes / review_rounds) publishes its series day from the SAME
+    daily pass, DAY-SCOPED — the point is computed over the published day's delta
+    rows only (no env window reaches the publish seam), so the fixture session is
+    born today."""
+    ev = tmp_path / "events"
+    st = tmp_path / "state"
+    ev.mkdir()
+    for f in GOLDEN.glob("*.jsonl"):
+        shutil.copy(f, ev / f.name)
+    exposure = {
+        "commit": "x",
+        "account": "x",
+        "model": "m",
+        "project": "alpha-proj",
+        "headless": False,
+        "plan_era": "—",
+    }
+    ts = dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds")
+    live_lines = [
+        {"schema": 1, "ts": ts, "sid": "live-now", "sid_source": "explicit"} | extra
+        for extra in (
+            {"event": "stop_pass", "exposure": exposure},
+            {"event": "stop_block", "exposure": exposure, "cause": "run-record"},
+            {"event": "round", "exposure": exposure, "n": 3},
+        )
+    ]
+    (ev / "live-now.jsonl").write_text(
+        "\n".join(json.dumps(o) for o in live_lines) + "\n", encoding="utf-8"
+    )
+    log = tmp_path / "log.md"
+    log.write_text(LOG_STUB, encoding="utf-8")
+    rc = kc.daily(
+        dt.date.today(),
+        events=ev,
+        state=st,
+        golden=GOLDEN,
+        log_paths=[log],
+        no_mail=True,
+        holes_fn=lambda d: 2,
+    )
     assert rc == 0
     import kaizen_outcomes  # noqa: PLC0415
 
@@ -2574,3 +2609,182 @@ def test_daily_weekly_row_is_fed_by_the_day_series(tmp_path: Path) -> None:
     )
     cells = [c.strip() for c in row_line.strip().strip("|").split("|")]
     assert cells[2] == "1 occ / 1 cls", "golden-bravo's rate_limit death, from the series"
+
+
+# ── fix-wave 7 (W7: day-scoped day points, split weeks, the death pair contract) ──────
+
+
+def _this_week_monday() -> dt.date:
+    today = dt.date.today()
+    return today - dt.timedelta(days=today.isoweekday() - 1)
+
+
+def _week_row(sid: str, day: dt.date, rounds: int) -> dict:
+    return _w2_row(
+        sid,
+        day.isoformat(),
+        first_ts=f"{day.isoformat()}T12:00:00.000+00:00",
+        last_ts=f"{day.isoformat()}T13:00:00.000+00:00",
+        events={"round": rounds},
+        runs={"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": rounds},
+    )
+
+
+def test_outcome_day_points_are_day_scoped_not_windowed(tmp_path: Path) -> None:
+    """W7-1 (the round-7 probe): the PUBLISHED review_rounds day point is
+    DAY-scoped — that day's delta rows only. One session with round growth on one
+    day, published across seven daily passes, is ONE day point and a weekly cell
+    of 3.0 (n=1) — never seven copies of a trailing-window value summing to
+    3.0 (n=7) (each session re-counted once per derivation-day residency)."""
+    st = tmp_path / "state"
+    monday = _this_week_monday()
+    kc.append_facts([_week_row("s1", monday, 3)], st)
+    for k in range(7):
+        kc._publish_outcome_series((monday + dt.timedelta(days=k)).isoformat(), st)
+    reg = _full_reg()
+    rr_path = kc.series_path("review_rounds", int(reg["review_rounds"]["version"]), st)
+    assert rr_path.is_file(), "the growth day must publish its day point"
+    points = [json.loads(ln) for ln in rr_path.read_text().splitlines()]
+    assert [p["day"] for p in points] == [monday.isoformat()], (
+        "only the day whose delta rows carry the growth publishes — a "
+        "trailing-window value must never publish as six more day points"
+    )
+    cells = kc.log_cells(monday + dt.timedelta(days=6), reg, state=st)
+    assert cells[4] == "3.0 (n=1)", "one session, one day point — never (n=7)"
+
+
+def test_outcome_day_points_weekly_mean_is_per_session(tmp_path: Path) -> None:
+    """W7-1 (the A+B probe): session A (rounds_max 3, grew Monday) and session B
+    (rounds_max 9, grew Tuesday) weekly-mean to 6.0 (n=2) — the day-scoped points
+    weight each session once, never by its window residency."""
+    st = tmp_path / "state"
+    monday = _this_week_monday()
+    kc.append_facts(
+        [_week_row("a", monday, 3), _week_row("b", monday + dt.timedelta(days=1), 9)], st
+    )
+    for k in range(7):
+        kc._publish_outcome_series((monday + dt.timedelta(days=k)).isoformat(), st)
+    cells = kc.log_cells(monday + dt.timedelta(days=6), _full_reg(), state=st)
+    assert cells[4] == "6.0 (n=2)", "the weekly mean weights each session once"
+
+
+def test_stops_day_points_are_day_scoped(tmp_path: Path) -> None:
+    """W7-1: the stops pair's published day points are day-scoped too — a
+    one-day session must land exactly one premature_stop day point across seven
+    daily passes."""
+    st = tmp_path / "state"
+    monday = _this_week_monday()
+    row = _w2_row(
+        "s1",
+        monday.isoformat(),
+        first_ts=f"{monday.isoformat()}T12:00:00.000+00:00",
+        events={"stop_pass": 2, "stop_block": 1},
+        stop_causes={"run-record": 1},
+    )
+    kc.append_facts([row], st)
+    for k in range(7):
+        kc._publish_outcome_series((monday + dt.timedelta(days=k)).isoformat(), st)
+    reg = _full_reg()
+    ps_path = kc.series_path("premature_stop", int(reg["premature_stop"]["version"]), st)
+    assert ps_path.is_file()
+    days = [json.loads(ln)["day"] for ln in ps_path.read_text().splitlines()]
+    assert days == [monday.isoformat()], (
+        "a windowed value published under seven day stamps is seven overlapping "
+        "windows — the day point is the day's rows only"
+    )
+
+
+def test_weekly_cells_annotate_a_mid_week_definition_change(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W7-2: a mid-week registry version bump must not silently truncate the week
+    — the cell aggregates ONLY current-definition points, carries a * marker, and
+    the stderr note states k of N week days at the current definition."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    rr_v = int(reg["review_rounds"]["version"])
+    fa_v = int(reg["first_attempt_gate_pass"]["version"])
+    for d in ("2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21"):
+        _plant_point(st, "review_rounds", rr_v - 1, d, value=3.0, numerator=3, denominator=1)
+        _plant_point(st, "first_attempt_gate_pass", fa_v - 1, d, numerator=1, denominator=2)
+    _plant_point(st, "review_rounds", rr_v, "2026-08-22", value=4.0, numerator=4, denominator=1)
+    _plant_point(st, "review_rounds", rr_v, "2026-08-23", value=6.0, numerator=6, denominator=1)
+    _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-22", numerator=2, denominator=2)
+    _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-23", numerator=2, denominator=2)
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[4] == "5.0 (n=2)*", "current-definition days only, marked"
+    assert cells[1] == "100% (4/4)*", "never a silent 100% (4/4) over a truncated week"
+    err = capsys.readouterr().err
+    assert "2 of 7 week day(s) at the current definition" in err
+    assert "definition changed mid-week" in err
+    assert "not mixed in" in err
+
+
+def test_weekly_cell_dash_names_the_definition_change_when_no_current_days(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W7-2: when the week holds ONLY prior-definition day points the dash reason
+    says the definition changed — never the generic no-published-days claim."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    rr_v = int(reg["review_rounds"]["version"])
+    for d in ("2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"):
+        _plant_point(st, "review_rounds", rr_v - 1, d, value=3.0, numerator=3, denominator=1)
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[4] == DASH
+    err = capsys.readouterr().err
+    assert "definition changed this week; no days published at the current definition yet" in err
+
+
+def test_death_cell_dashes_when_the_pair_is_one_sided(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W7-3: measurability requires BOTH halves — occurrence day points with NO
+    class day points (and vice versa) dash with the pair-contract reason, never
+    'N occ / 0 cls'."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    _plant_point(st, "death_occurrences", do_v, "2026-08-17", value=14, numerator=14)
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2] == DASH, "occurrences without class points is one-sided — dash"
+    err = capsys.readouterr().err
+    assert "BOTH halves" in err
+    st2 = tmp_path / "state2"
+    dc_v = int(reg["death_classes"]["version"])
+    _plant_point(st2, "death_classes", dc_v, "2026-08-17", value={"oom": 1})
+    cells2 = kc.log_cells(dt.date(2026, 8, 23), reg, state=st2)
+    assert cells2[2] == DASH, "class points without occurrences is one-sided — dash"
+    assert "BOTH halves" in capsys.readouterr().err
+
+
+def test_death_cell_dash_names_the_coroner_quiet_cause(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W7-6: the coroner-quiet week's dash distinguishes its cause via the
+    whole-store universe signal — never run · series file missing at the current
+    version · every week day gapped/unpublished."""
+    reg = _full_reg()
+    day = dt.date(2026, 8, 23)
+    # (a) nothing anywhere: the coroner has never run
+    kc.log_cells(day, reg, state=tmp_path / "a")
+    assert "the coroner has never run" in capsys.readouterr().err
+    # (b) coroner evidence in the store, but no current-version series file
+    st_b = tmp_path / "b"
+    kc.append_facts([_w2_row("s", "2026-08-18", events={"session_end": 1})], st_b)
+    kc.log_cells(day, reg, state=st_b)
+    err_b = capsys.readouterr().err
+    assert "missing at the current version" in err_b
+    assert "the coroner has never run" not in err_b
+    # (c) evidence + a current-version file whose points all fall outside the week
+    st_c = tmp_path / "c"
+    kc.append_facts([_w2_row("s", "2026-08-18", events={"session_end": 1})], st_c)
+    do_v = int(reg["death_occurrences"]["version"])
+    _plant_point(st_c, "death_occurrences", do_v, "2026-08-10", value=1, numerator=1)
+    _plant_point(
+        st_c, "death_classes", int(reg["death_classes"]["version"]), "2026-08-10", value={}
+    )
+    kc.log_cells(day, reg, state=st_c)
+    err_c = capsys.readouterr().err
+    assert "every week day gapped" in err_c
+    assert "missing at the current version" not in err_c
