@@ -1306,3 +1306,29 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
                         "--evidence", "e"], cwd=repo, env=env,
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 0, f"a long run's report was false-refused: {r.stdout}"
+
+
+def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
+    """Round-141 CRITICAL: --name-only lines carry no status letter, so an add-then-delete
+    pair inside the window matched the path test while the file no longer existed —
+    ok_artifact True with candidates=[], both refusal branches skipped, run closed with
+    zero review content anywhere. Existence now gates the gate."""
+    import subprocess
+    script = "/opt/fabrik/scripts/command_run.py"
+    env, repo = _artifact_repo(tmp_path, name="adddel")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    rep = repo / "docs/development/reviews/x-review.md"
+    rep.write_text("# report\n")
+    subprocess.run(["git", "add", "docs/development/reviews"], cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "add"],
+                   cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "rm", "-q", "docs/development/reviews/x-review.md"],
+                   cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "rm"],
+                   cwd=repo, check=True, timeout=15)
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "an add-then-delete pair closed the run with no report on disk"

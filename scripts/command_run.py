@@ -898,9 +898,14 @@ def _close(
                         and ln.endswith(".md")
                         and "archived/" not in ln
                     ):
-                        ok_artifact = True
                         hf = Path(root or ".") / ln
+                        # EXISTENCE gates the gate (round 141): --name-only lines carry no
+                        # status letter, so an add-then-delete pair inside the window
+                        # matched the path test twice while the file no longer existed —
+                        # ok_artifact went True with candidates=[], and BOTH refusal
+                        # branches were skipped. The report must be on disk NOW.
                         if hf.is_file() and not hf.is_symlink():
+                            ok_artifact = True
                             candidates.append(hf)
         except Exception:
             ok_artifact = None  # broken git must not wedge the close — fail open HERE only
