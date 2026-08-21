@@ -1116,7 +1116,14 @@ EVIDENCE_IN_ROW = re.compile(r"evidence:\s*\S")
 # shape, incl. the truncation defense a zero-row NOT-QUIET report still owes) — a
 # mid-sentence prose mention ("the NOT-QUIET marker exists so…") in a cert-NAMED retro
 # false-failed on both paths once round 112's re.I widened the filename space.
-NOT_QUIET = re.compile(r"^\s*\**(?:ledger:\s*\**)?NOT-QUIET\b", re.M | re.I)
+# …and END-anchored (round 115): leading alone let a discursive sentence that merely
+# STARTS with the marker ("**NOT-QUIET rows must name a RESUME…**") satisfy the
+# obligation a real declaration exists to carry — fail-open, the mirror of round 113's
+# false-fail. A declaration is the marker plus at most a parenthetical and punctuation;
+# a sentence that continues with prose is discussion.
+NOT_QUIET = re.compile(
+    r"^\s*\**(?:ledger:\s*)?\**NOT-QUIET\b\s*(?:\([^)\n]*\))?[\s*.!]*$", re.M | re.I
+)
 RESUME_HEAD = re.compile(r"^##\s+RESUME\b", re.M)
 
 

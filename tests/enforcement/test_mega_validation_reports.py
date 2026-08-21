@@ -1868,3 +1868,19 @@ def test_notquiet_prose_without_rows_is_not_a_ledger_claim(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-21-Service-Test-retro-notes.md", body, commit=True)
     assert rc == 0
     assert "Service-Test-retro" not in out, "the committed advisory false-fired on prose"
+
+
+def test_notquiet_discussion_sentence_cannot_satisfy_the_obligation(repo: Path) -> None:
+    """Round-115 CRITICAL: round 114's anchor required the marker to LEAD the line but not
+    that the line IS the declaration — a bolded sentence starting with NOT-QUIET satisfied
+    the open-rows obligation without any real declaration (fail-open, the mirror of round
+    113's false-fail). A declaration is the marker plus at most a parenthetical."""
+    body = (
+        "# cert\n\n"
+        "HANDOFF P1 OPEN backend bug — repro: tests/t.py — route: /fabrik-data-contract\n\n"
+        "## Notes\n\n**NOT-QUIET rows must always name a RESUME section per the contract**\n\n"
+        "## RESUME\n- boilerplate\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-user-test-discussion.md", body)
+    assert rc == 1, "a discussion sentence satisfied the NOT-QUIET obligation"
+    assert "not marked NOT-QUIET" in out
