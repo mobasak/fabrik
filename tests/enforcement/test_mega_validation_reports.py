@@ -1908,3 +1908,24 @@ def test_canonical_bold_code_span_declaration_is_recognized(repo: Path) -> None:
     assert "ledger: NOT-QUIET (routes outstanding)" in out, (
         "the failure must name the accepted declaration form"
     )
+
+
+def test_half_parsed_counter_row_is_refused_not_vanished(repo: Path) -> None:
+    """Round-119 HIGH (live corpus hit, a sibling's real draft): `fixed: 0 this pass → …`
+    fails the anti-decoy word guard, so the whole row — real found: 33 included — vanished
+    from the ledger and a non-quiet report read as quiet. A counter-shaped row that
+    half-parses is refused loudly with the punctuation remedy; multi-strict decoy lines
+    stay inert per the round-11 contract."""
+    body = _everyday(
+        "Pass 1 (WIDE) — dispatch | found: 33 (new: 33) | fixed: 0 this pass → fix wave dispatched\n",
+    )
+    rc, out = _gate(repo, "2026-08-21-halfparsed-review.md", body)
+    assert rc == 1, "a half-parsed counter row vanished silently with its found: 33"
+    assert "does not parse" in out
+    punctuated = _everyday(
+        "Pass 1: found: 33, fixed: 33\nPass 2: found: 0, fixed: 0\n",
+    )
+    rc, out = _gate(repo, "2026-08-21-halfparsed2-review.md", punctuated)
+    # the first fixture is still in the repo, so assert per-file: the punctuated form
+    # itself must raise nothing
+    assert "halfparsed2" not in out, f"the punctuated remedy form must pass: {out}"

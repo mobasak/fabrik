@@ -760,6 +760,26 @@ def _indented_grammar_error(text: str) -> str | None:
                 "write `|---|` if it is a table separator, or put a blank line before "
                 "`---` if it is a section divider"
             )
+        if _PASS_HEAD.match(ln) and _pass_counters(ln) is None:
+            loose = re.findall(r"(?<![\w-])(found|fixed):\s*\d+", ln)
+            strict_f = len(_FOUND_TOK.findall(ln))
+            strict_x = len(_FIXED_TOK.findall(ln))
+            if (
+                {"found", "fixed"} <= set(loose)
+                and max(strict_f, strict_x) <= 1
+            ):
+                # A counter-SHAPED Pass row that half-parses VANISHED silently (round 119,
+                # live corpus hit: `fixed: 0 this pass → fix wave dispatched` — the
+                # word-trailed token fails the anti-decoy guard, so the whole row with its
+                # real found: 33 dropped out of the ledger and a non-quiet report read as
+                # quiet). Undecidable between a sloppy live row and a quote → loud, with
+                # the one-keystroke remedy. Lines with MULTIPLE strict tokens of a kind
+                # stay INERT (the round-11 crafted-decoy contract, unchanged).
+                return (
+                    f"counter-shaped Pass row that does not parse ({ln.strip()[:70]!r}): "
+                    "a count trailed by a word is ambiguous — punctuate it "
+                    "(`fixed: 0,` / `fixed: 0 —`) if the row is live, or fence it if quoted"
+                )
         if _SETEXT_TITLE.match(content) and idx + 1 < len(live):
             raw_next = live[idx + 1]
             nxt, q2, l2 = _peel(raw_next)
