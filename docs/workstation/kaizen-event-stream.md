@@ -163,7 +163,9 @@ files (`series/<metric>@v<N>.jsonl` — a definition change writes a NEW file, n
 refuses to publish anything unless the hand-labelled golden corpus
 (`tests/fixtures/kaizen-golden/`) derives to its expected counts first. T08's backfill
 (`scripts/sysadmin/kaizen_backfill.py`) shares the SAME store with `era: "transcript"` rows —
-every event-only field an honest `—` string — and writes the noise-floor report
+every event-only field an honest `—` string, and their `facts_version` (row + skip key) is the
+backfill's own `TRANSCRIPT_FACTS_VERSION`, independent of the event schema's `FACTS_VERSION`,
+so an event-schema bump never re-appends the corpus — and writes the noise-floor report
 (`noise-floor@v1.md` beside the store). The collector's metric inputs are **event-era only**
 (`daily()` filters `era != "event"` rows out of its day/week selection and delta baselines — the
 T09 era filter; `read_rows` itself stays era-blind because T08's report needs both eras).
@@ -191,15 +193,27 @@ Every metric is registered with a version, a definition hash, and a **reciprocal
 
 Truncated lines (`truncated`/`fields_dropped`) derive **envelope-only**: the event name, window
 and exposure count, the partial payload never feeds a distribution — the line rides the
-unclassified rate as reason `truncated`. Metrics whose numerator event family sits mostly in the
-`unknown` stream are guarded by the **20% attribution floor** (`rules_compliance`,
-`terminator_spam`, `rule_activation`, `gate_failure_taxonomy`, `review_rounds` and the weekly
-rounds log cell): below it the metric renders `—` with the reason — an attributed sliver is not
-the population. `gate_failure_taxonomy` additionally counts NON-check runs only (`mode.check`
-false — the Stop hook's automatic `--lean --check` self-review is diagnostic, never taxonomy
-population; the same rationale as `first_attempt_gate_pass`). `hole_count` dashes when the
+unclassified rate as reason `truncated`. **The root law (delta seam):** a delta field is only
+computable against a baseline that MEASURED the same field — a field the predecessor row never
+carried (a `FACTS_VERSION` bump day) is `None` in the delta row, and every consumer excludes
+that row from numerator AND denominator, counting a stated **bump-day gap**; `runs_noncheck >
+runs` violates non-check ⊆ all and is warned + unmeasured. Metrics whose numerator event family
+sits mostly in the `unknown` stream are guarded by the **20% attribution floor** over the same
+window of rows they compute from (`rules_compliance`, `terminator_spam`, `rule_activation`,
+`gate_failure_taxonomy`): below it the metric renders `—` with the reason — an attributed sliver
+is not the population. `gate_failure_taxonomy`'s guard operand is the attributed **NON-check**
+occurrence count (the population the value is computed over — check-run mass cannot vouch for a
+non-check sliver), and it counts NON-check runs only (`mode.check` false — the Stop hook's
+automatic `--lean --check` self-review is diagnostic, never taxonomy population; the same
+rationale as `first_attempt_gate_pass`). The WINDOWED store metrics (`review_rounds`,
+`premature_stop`, `stop_block_causes`, and the weekly rounds log cell) instead use the
+**window-knowability guard**: the `unknown` accumulator is timeless, so a windowed unattributed
+count is unknowable — they publish (share stated: 100% attributed) only when the unknown stream
+holds zero events of their family, and dash with reason "attribution share unmeasurable in this
+window (timeless unknown accumulator)" otherwise. `hole_count` dashes when the
 coroner is BLIND (missing/unreadable transcripts dir → `holes()` returns None, mapped to `—`
-reason "transcripts unreadable"); an empty-but-readable dir stays a measured 0. `premature_stop_rate` (T06, event-level) and
+reason "transcripts unreadable"); an empty-but-readable dir stays a measured 0 — and a CRASHED
+coroner sweep reports `holes_today: null` (unmeasured), never a measured-looking 0. `premature_stop_rate` (T06, event-level) and
 `premature_stop` (T07, session-level) share the `PREMATURE_CAUSES` vocabulary and cross-reference
 each other in their definitions — read them together. The cross-reference rides a non-hashed `cross_reference` field, so the published
 definition hashes are unchanged (the versioned-definitions law). The loop doc — cadence, cron

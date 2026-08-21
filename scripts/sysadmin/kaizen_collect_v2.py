@@ -673,6 +673,37 @@ def _int_in(row: dict, container: str | None, field: str) -> int:
     return val
 
 
+def _measured_int(row: dict, container: str | None, field: str) -> int | None:
+    """The field's value when the row MEASURED it — ``None`` when absent, ``None``,
+    or non-int. The root law's reading primitive: absence is "not measured",
+    never 0 — a v1 row that predates a field did not observe a zero of it."""
+    val = _get_in(row, container, field)
+    if isinstance(val, bool) or not isinstance(val, int):
+        return None
+    return val
+
+
+def _gate_noncheck(row: dict) -> int | None:
+    """``gate.runs_noncheck`` when MEASURED and sane — ``None`` otherwise.
+
+    Enforces the non-check ⊆ all invariant (``runs_noncheck <= runs``): a row
+    claiming more non-check runs than total runs is instrument-corrupt (the round-3
+    probe published mypy=8 over runs_noncheck=30 while runs=4) — warned and treated
+    as unmeasurable, never consumed."""
+    rn = _measured_int(row, "gate", "runs_noncheck")
+    if rn is None:
+        return None
+    rt = _measured_int(row, "gate", "runs")
+    if rt is not None and rn > rt:
+        _warn(
+            f"invariant violated: {row.get('sid')!r} claims gate.runs_noncheck={rn} > "
+            f"gate.runs={rt} (non-check ⊆ all) — the non-check side is treated as "
+            "unmeasurable for this row"
+        )
+        return None
+    return rn
+
+
 def _sub_map(cur: object, prev: object) -> dict | None:
     """Per-key counter subtraction; None on any negative (the file shrank)."""
     cur_d = cur if isinstance(cur, dict) else {}
@@ -694,6 +725,17 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
     file SHRANK (rotation/truncation — growth is monotone by construction): warn and
     return None, so that sid publishes NOTHING that day — never a negative.
 
+    **THE ROOT LAW (fix-wave 3): a delta is only computable against a baseline that
+    MEASURED the same field.** A field the predecessor never carried (absent or
+    ``None`` — a v1/v2 row across a FACTS_VERSION bump) has NO baseline: treating it
+    as 0 published the full cumulative value as "that day's" delta (the round-3
+    probe: taxonomy mypy=8 over runs_noncheck=30 while the day's real runs delta was
+    4). Such a field is marked ``None`` in the delta row — UNMEASURABLE — and every
+    consumer treats a ``None`` field as not-measured for that row (excluded from
+    numerator AND denominator, counted as a per-metric bump-day gap). The bump day
+    goes honestly quiet per-field instead of lying. A field measured by NEITHER row
+    stays absent (neither schema knew it).
+
     Non-additive fields are point-in-time, not deltas: ``gate.first_status`` is kept
     only when the predecessor had not already recorded one (a session's first NON-check
     attempt counts once, on the day it appeared — a predecessor whose runs were all
@@ -706,27 +748,51 @@ def delta_row(cur: dict, prev: dict | None) -> dict | None:
         out["delta_of"] = None  # the key is part of the shape — null on a first-ever row
         return out
     out = json.loads(json.dumps(cur))  # deep copy — the store row is never mutated
+
+    def _dst(container: str | None) -> dict:
+        if container is None:
+            return out
+        node = out.get(container)
+        if not isinstance(node, dict):
+            node = {}
+            out[container] = node
+        return node
+
     for container, fields in _DELTA_SCALARS:
         for field in fields:
-            diff = _int_in(cur, container, field) - _int_in(prev, container, field)
+            cur_val = _measured_int(cur, container, field)
+            prev_val = _measured_int(prev, container, field)
+            if cur_val is None and prev_val is None:
+                continue  # neither row's schema measured the field — stays absent
+            if cur_val is None or prev_val is None:
+                # ROOT LAW: one side measured, the other did not — no baseline, no
+                # delta. None, never a 0-baselined cumulative value.
+                _dst(container)[field] = None
+                continue
+            diff = cur_val - prev_val
             if diff < 0:
                 _warn(
                     f"delta_row: {cur.get('sid')!r} shrank ({container or 'row'}.{field} "
                     f"went backwards) — publishing NOTHING for it this day"
                 )
                 return None
-            dst = out[container] if container else out
-            dst[field] = diff
+            _dst(container)[field] = diff
     for container, field in _DELTA_MAPS:
-        diff_map = _sub_map(_get_in(cur, container, field), _get_in(prev, container, field))
+        cur_map = _get_in(cur, container, field)
+        prev_map = _get_in(prev, container, field)
+        if not isinstance(cur_map, dict) and not isinstance(prev_map, dict):
+            continue  # neither row's schema measured the map — stays absent
+        if not isinstance(cur_map, dict) or not isinstance(prev_map, dict):
+            _dst(container)[field] = None  # ROOT LAW — same as the scalar case
+            continue
+        diff_map = _sub_map(cur_map, prev_map)
         if diff_map is None:
             _warn(
                 f"delta_row: {cur.get('sid')!r} shrank ({field} lost entries) — "
                 "publishing NOTHING for it this day"
             )
             return None
-        dst = out[container] if container else out
-        dst[field] = diff_map
+        _dst(container)[field] = diff_map
     prev_gate = prev.get("gate") or {}
     if prev_gate.get("first_status") is not None:
         out["gate"]["first_status"] = None
@@ -815,10 +881,19 @@ def read_week_rows(
 
 # ── the metric registry — paired counters are a SCHEMA constraint ─────────────────────
 
+#: The root-law population sentence shared by every delta-consuming formula (v3
+#: bump, fix-wave 3): part of each formula string, so it is def-hashed.
+_BUMP_GAP_SENTENCE = (
+    " Root law: a row field measured with no same-field baseline in its delta "
+    "predecessor (a version-bump day) is unmeasurable — the row leaves numerator "
+    "AND denominator and is counted as a bump-day gap."
+)
+
 METRIC_DEFS: tuple[dict, ...] = (
     {
         "id": "rules_compliance",
-        "version": 2,
+        # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
+        "version": 3,
         "counter_metric": "terminator_spam",
         "formula": (
             "run_close events with verdict done AND a non-empty evidence_hash / all "
@@ -826,18 +901,19 @@ METRIC_DEFS: tuple[dict, ...] = (
             "emit no run_close; they ride hole_count. Renders — when attributed "
             "run_close occurrences are below the 20% attribution floor of the family "
             "total (the unknown stream holds the mass) — an attributed sliver is not "
-            "the population."
+            "the population." + _BUMP_GAP_SENTENCE
         ),
     },
     {
         "id": "terminator_spam",
-        "version": 2,
+        # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
+        "version": 3,
         "counter_metric": "rules_compliance",
         "formula": (
             "final_block_emitted events / run-record closures — above 1.0 means task "
             "terminators were emitted without a matching closed run. Renders — under "
             "the same 20% run_close attribution floor as rules_compliance (the pair "
-            "dashes together)."
+            "dashes together)." + _BUMP_GAP_SENTENCE
         ),
     },
     {
@@ -845,11 +921,12 @@ METRIC_DEFS: tuple[dict, ...] = (
         # v2: the derived-row input population changed under the 2026-08-21 fix wave
         # (malformed stop_block causes counted, truncated lines envelope-only) — the
         # same def_hash must never span differently-populated points in one series.
-        "version": 2,
+        # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
+        "version": 3,
         "counter_metric": "first_attempt_gate_pass",
         "formula": (
             "stop_block events with cause in {run-record, promise-stall} / all stop "
-            "verdicts (stop_pass + stop_block)."
+            "verdicts (stop_pass + stop_block)." + _BUMP_GAP_SENTENCE
         ),
         # NOT part of the def hash (versioned-definitions law: _def_hash bases on
         # id/version/formula/counter_metric only) — descriptive cross-reference:
@@ -862,33 +939,44 @@ METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "first_attempt_gate_pass",
-        "version": 2,
+        # v3 (fix-wave 3): the continuing-sessions annotation keys on MEASURED
+        # non-check runs (S8) + root-law population.
+        "version": 3,
         "counter_metric": "premature_stop_rate",
         "formula": (
             "sessions whose FIRST attributed NON-check gate_run (mode.check false — "
             "the Stop hook's automatic --lean --check self-review never defines a "
             "first attempt) has status success / sessions whose first such run fell "
             "in the window. Unattributed gate_runs sit in the unknown bucket and "
-            "ride unclassified_rate."
+            "ride unclassified_rate. The '(continuing sessions only)' annotation "
+            "keys on measured runs_noncheck, never unsplit gate.runs — a check-only "
+            "session is not a continuing one." + _BUMP_GAP_SENTENCE
         ),
     },
     {
         "id": "gate_failure_taxonomy",
-        "version": 2,
+        # v3 (fix-wave 3): S7 — the attribution guard's attributed operand is the
+        # NON-check occurrence count (same population as the value); the non-check
+        # ⊆ all invariant is enforced; root-law population.
+        "version": 3,
         "counter_metric": "rule_activation",
         "formula": (
             "per-check fail counts across attributed NON-check gate_run events "
             "(mode.check false — the Stop hook's automatic --lean --check "
             "self-review is diagnostic, never taxonomy population; the L5 "
             "rationale). The value is the {check: count} distribution, not a "
-            "scalar. Renders — when attributed gate_run occurrences are below the "
-            "20% attribution floor of the family total (the unknown stream holds "
-            "the mass) — an attributed sliver is not the population."
+            "scalar. Renders — when attributed NON-check gate_run occurrences (the "
+            "guard's operands come from the SAME population as the value) are below "
+            "the 20% attribution floor of the family total (the unknown stream "
+            "holds the mass) — an attributed sliver is not the population. A row "
+            "claiming runs_noncheck > runs violates non-check ⊆ all and is "
+            "unmeasured (warned)." + _BUMP_GAP_SENTENCE
         ),
     },
     {
         "id": "rule_activation",
-        "version": 2,
+        # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
+        "version": 3,
         "counter_metric": "gate_failure_taxonomy",
         "formula": (
             "sessions with >=1 attributed rule_activation event / sessions with >=1 "
@@ -896,31 +984,36 @@ METRIC_DEFS: tuple[dict, ...] = (
             "rubric runs) — per-edit glob firing is an M2 residual, not measured here. "
             "Renders — when attributed rule_activation occurrences are below the 20% "
             "attribution floor of the family total (sensor events unattributable in "
-            "the unknown stream) — never a fabricated 0%."
+            "the unknown stream) — never a fabricated 0%." + _BUMP_GAP_SENTENCE
         ),
     },
     {
         "id": "unclassified_rate",
-        "version": 2,
+        # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
+        "version": 3,
         "counter_metric": "hole_count",
         "formula": (
             "unclassified lines (torn/malformed/truncated, PLUS the unknown stream's "
             "lines via their unattributable-sid reason) / total event lines observed. "
             "Sessions missing exposure.project are a STRATIFICATION gap (concurrency-"
             "excluded, visible in concurrent_reason), not instrument unhealth — they "
-            "count in neither term. Instrument health, metric zero."
+            "count in neither term. Instrument health, metric zero." + _BUMP_GAP_SENTENCE
         ),
     },
     {
         "id": "hole_count",
-        "version": 2,
+        # v3 (fix-wave 3): the W2-F3 population change (a BLIND sweep is None → —,
+        # never a measured-looking 0) ships with its owed version bump (S5).
+        "version": 3,
         "counter_metric": "unclassified_rate",
         "formula": (
             "kaizen_coroner.holes(): transcripts-with-activity minus sessions with a "
             "stop_pass OR session_end for the day — the documented liveliness "
             "semantics (a normally-ended session's liveliness is its last stop_pass; "
-            "session_end is the coroner's post-hoc close). Instrument health, metric "
-            "zero."
+            "session_end is the coroner's post-hoc close). A BLIND probe (missing/"
+            "unreadable transcripts dir, crashed sweep) is None → the cell renders "
+            "— with the reason, never a measured-looking 0. Instrument health, "
+            "metric zero."
         ),
     },
 )
@@ -1005,9 +1098,17 @@ def _pct(num: int, den: int) -> str:
 ATTRIBUTED_MIN_SHARE = 0.2
 
 
-def _unattributed_count(rows: list[dict], names: tuple[str, ...]) -> int:
+def _unattributed_count(rows: list[dict], names: tuple[str, ...]) -> int | None:
+    """Sum of the unknown-stream envelope counts for ``names`` — or ``None`` when
+    ANY row carries an explicit ``events_unattributed: None`` (root law: the field
+    was measured by the current row but had no same-field baseline in its
+    predecessor — the window's unattributed count is then UNKNOWABLE, a bump-day
+    gap, never 0). A row that predates the field entirely (absent) contributes 0 —
+    the pre-field era genuinely observed nothing here."""
     total = 0
     for r in rows:
+        if "events_unattributed" in r and r["events_unattributed"] is None:
+            return None
         ev = r.get("events_unattributed")
         if isinstance(ev, dict):
             total += sum(int(ev.get(n, 0) or 0) for n in names)
@@ -1019,6 +1120,12 @@ def _attribution_guard(
 ) -> str | None:
     """``None`` when attribution is trustworthy, else the ``—`` reason (H3/M5)."""
     unattributed = _unattributed_count(rows, names)
+    if unattributed is None:
+        return (
+            f"{what} attribution share unmeasurable this window — bump-day gap: "
+            "events_unattributed was measured with no same-field baseline in a "
+            "predecessor row"
+        )
     if unattributed <= 0:
         return None
     total = attributed + unattributed
@@ -1034,17 +1141,45 @@ def compute_metrics(
     rows: list[dict], holes: int | None = None, holes_reason: str = "no hole source provided"
 ) -> dict[str, MetricResult]:
     """Compute the M1 registered set over derived-facts rows. Every unmeasurable
-    metric is ``—`` with its reason — never a fabricated 0."""
+    metric is ``—`` with its reason — never a fabricated 0.
+
+    ROOT LAW consumption: a ``None`` field on a row (a delta with no same-field
+    baseline — see :func:`delta_row`) means that row is NOT MEASURED for any metric
+    needing the field: it leaves numerator AND denominator and is counted into the
+    metric's per-metric bump-day gap, stated in the detail/reason."""
     out: dict[str, MetricResult] = {}
+    gaps: collections.Counter[str] = collections.Counter()
+
+    def _gap_note(mid: str) -> str:
+        n = gaps.get(mid, 0)
+        if not n:
+            return ""
+        return (
+            f"; {n} row(s) excluded — bump-day gap (a field measured with no "
+            "same-field baseline is unmeasurable, root law)"
+        )
 
     def esum(name: str) -> int:
         return sum(int((r.get("events") or {}).get(name, 0)) for r in rows)
 
-    def runs(field: str) -> int:
-        return sum(int((r.get("runs") or {}).get(field, 0)) for r in rows)
+    def _events_gap(r: dict) -> bool:
+        return "events" in r and r["events"] is None
 
-    closures = runs("done") + runs("blocked")
-    evidenced = runs("done_evidenced")
+    # ── the run-record pair ──────────────────────────────────────────────────────
+    closures = 0
+    evidenced = 0
+    blocks = 0
+    for r in rows:
+        done = _measured_int(r, "runs", "done")
+        blocked = _measured_int(r, "runs", "blocked")
+        evid = _measured_int(r, "runs", "done_evidenced")
+        if done is None or blocked is None or evid is None or _events_gap(r):
+            gaps["rules_compliance"] += 1
+            gaps["terminator_spam"] += 1
+            continue
+        closures += done + blocked
+        evidenced += evid
+        blocks += int((r.get("events") or {}).get("final_block_emitted", 0) or 0)
     # H3/M5: the run-record pair is guarded by the attribution floor — an n=1
     # attributed closure against an unknown-stream mass publishes NOTHING.
     closure_guard = _attribution_guard(rows, ("run_close",), closures, "run-record events")
@@ -1052,55 +1187,73 @@ def compute_metrics(
         out["rules_compliance"] = MetricResult(
             id="rules_compliance",
             cell=_pct(evidenced, closures),
-            detail="run_close done-with-evidence over all run-record closures",
+            detail="run_close done-with-evidence over all run-record closures"
+            + _gap_note("rules_compliance"),
             value=evidenced / closures,
             numerator=evidenced,
             denominator=closures,
         )
-        blocks = esum("final_block_emitted")
         out["terminator_spam"] = MetricResult(
             id="terminator_spam",
             cell=f"{blocks / closures:.2f} ({blocks}/{closures})",
-            detail="final_block_emitted per run-record closure (>1.00 = spam)",
+            detail="final_block_emitted per run-record closure (>1.00 = spam)"
+            + _gap_note("terminator_spam"),
             value=blocks / closures,
             numerator=blocks,
             denominator=closures,
         )
     else:
-        blocks = esum("final_block_emitted")
         out["rules_compliance"] = MetricResult.unavailable(
-            "rules_compliance", closure_guard or "no run-record closures in the window"
+            "rules_compliance",
+            (closure_guard or "no run-record closures in the window")
+            + _gap_note("rules_compliance"),
         )
         out["terminator_spam"] = MetricResult.unavailable(
             "terminator_spam",
-            closure_guard
-            or f"no run-record closures to normalize against ({blocks} terminator block(s) seen)",
+            (
+                closure_guard
+                or f"no run-record closures to normalize against ({blocks} terminator "
+                "block(s) seen)"
+            )
+            + _gap_note("terminator_spam"),
         )
 
-    stops = esum("stop_pass") + esum("stop_block")
+    # ── premature-stop (event level) ─────────────────────────────────────────────
+    stops = 0
+    premature = 0
+    for r in rows:
+        if _events_gap(r) or ("stop_causes" in r and r["stop_causes"] is None):
+            gaps["premature_stop_rate"] += 1
+            continue
+        events = r.get("events") or {}
+        stops += int(events.get("stop_pass", 0)) + int(events.get("stop_block", 0))
+        premature += sum(int((r.get("stop_causes") or {}).get(c, 0)) for c in PREMATURE_CAUSES)
     if stops:
-        premature = sum(
-            int((r.get("stop_causes") or {}).get(c, 0)) for r in rows for c in PREMATURE_CAUSES
-        )
         out["premature_stop_rate"] = MetricResult(
             id="premature_stop_rate",
             cell=_pct(premature, stops),
-            detail="stop_block cause in {run-record, promise-stall} over all stop verdicts",
+            detail="stop_block cause in {run-record, promise-stall} over all stop verdicts"
+            + _gap_note("premature_stop_rate"),
             value=premature / stops,
             numerator=premature,
             denominator=stops,
         )
     else:
         out["premature_stop_rate"] = MetricResult.unavailable(
-            "premature_stop_rate", "no stop verdicts in the window"
+            "premature_stop_rate",
+            "no stop verdicts in the window" + _gap_note("premature_stop_rate"),
         )
 
-    gate_rows = [r for r in rows if int((r.get("gate") or {}).get("runs", 0)) > 0]
+    # ── first-attempt gate pass ──────────────────────────────────────────────────
     # The first-attempt population is rows whose first_status is PRESENT — i.e. the
-    # session's first attributed gate run happened in THIS window. A continuing
-    # session's delta row (first_status nulled, its first attempt already counted an
-    # earlier day) stays out of numerator AND denominator — it must not dilute.
-    first_rows = [r for r in gate_rows if r["gate"].get("first_status") is not None]
+    # session's first attributed NON-check gate run happened in THIS window. A
+    # continuing session's delta row (first_status nulled, its first attempt already
+    # counted an earlier day) stays out of numerator AND denominator — it must not
+    # dilute. S8: the "(continuing sessions only)" annotation keys on MEASURED
+    # non-check runs — unsplit gate.runs would claim a continuing session where only
+    # diagnostic --check runs happened.
+    first_rows = [r for r in rows if (r.get("gate") or {}).get("first_status") is not None]
+    noncheck_rows = [r for r in rows if (_gate_noncheck(r) or 0) > 0]
     if first_rows:
         first_pass = sum(1 for r in first_rows if r["gate"].get("first_status") == "success")
         out["first_attempt_gate_pass"] = MetricResult(
@@ -1115,16 +1268,35 @@ def compute_metrics(
         out["first_attempt_gate_pass"] = MetricResult.unavailable(
             "first_attempt_gate_pass",
             "no session had its first attributed gate_run in the window"
-            + (" (continuing sessions only)" if gate_rows else ""),
+            + (" (continuing sessions only)" if noncheck_rows else ""),
         )
-    # W2-F1: the taxonomy is guarded twice. (a) Attribution floor — when the
-    # gate_run family sits mostly in the unknown stream, the attributed sliver is
-    # not the population. (b) Population — only NON-check runs count (the Stop
+
+    # ── gate-failure taxonomy ────────────────────────────────────────────────────
+    # W2-F1: the taxonomy is guarded twice. (a) Attribution floor — S7: the guard's
+    # attributed operand is the NON-check occurrence count (the population the value
+    # is computed over), never unsplit gate.runs — check-run mass must not vouch for
+    # a non-check sliver. (b) Population — only NON-check runs count (the Stop
     # hook's --lean --check self-review is diagnostic; L5 rationale). A legacy row
-    # without the non-check split (facts_version < 3) reads 0 and is excluded —
-    # the honest under-count direction.
-    gate_guard = _attribution_guard(rows, ("gate_run",), esum("gate_run"), "gate_run events")
-    tax_rows = [r for r in rows if int((r.get("gate") or {}).get("runs_noncheck", 0) or 0) > 0]
+    # without the non-check split is excluded (the honest under-count direction);
+    # a bump-day None split is a gap (root law); runs_noncheck > runs is the
+    # violated non-check ⊆ all invariant — warned, unmeasured (_gate_noncheck).
+    noncheck_attr = 0
+    tax_rows: list[dict] = []
+    for r in rows:
+        rn = _gate_noncheck(r)
+        raw_gate = r.get("gate")
+        gate: dict = raw_gate if isinstance(raw_gate, dict) else {}
+        fc_gap = "failed_checks_noncheck" in gate and gate["failed_checks_noncheck"] is None
+        if rn is None or fc_gap:
+            if (_measured_int(r, "gate", "runs") or 0) > 0:
+                gaps["gate_failure_taxonomy"] += 1
+            continue
+        noncheck_attr += rn
+        if rn > 0:
+            tax_rows.append(r)
+    gate_guard = _attribution_guard(
+        rows, ("gate_run",), noncheck_attr, "gate_run events (non-check side)"
+    )
     if tax_rows and gate_guard is None:
         taxonomy: collections.Counter[str] = collections.Counter()
         gate_total = 0
@@ -1136,7 +1308,8 @@ def compute_metrics(
         out["gate_failure_taxonomy"] = MetricResult(
             id="gate_failure_taxonomy",
             cell=top or f"clean (0 failing checks over {gate_total} non-check runs)",
-            detail="per-check fail counts across attributed non-check gate_run events",
+            detail="per-check fail counts across attributed non-check gate_run events"
+            + _gap_note("gate_failure_taxonomy"),
             value=dict(taxonomy),
             numerator=sum(taxonomy.values()),
             denominator=gate_total,
@@ -1144,19 +1317,26 @@ def compute_metrics(
     else:
         out["gate_failure_taxonomy"] = MetricResult.unavailable(
             "gate_failure_taxonomy",
-            gate_guard
-            or (
-                "no session carries an attributed non-check gate_run "
-                "(check-mode runs are diagnostic, never taxonomy population)"
-            ),
+            (
+                gate_guard
+                or (
+                    "no session carries an attributed non-check gate_run "
+                    "(check-mode runs are diagnostic, never taxonomy population)"
+                )
+            )
+            + _gap_note("gate_failure_taxonomy"),
         )
 
-    closure_rows = [
-        r
-        for r in rows
-        if int((r.get("runs") or {}).get("done", 0)) + int((r.get("runs") or {}).get("blocked", 0))
-        > 0
-    ]
+    # ── rule activation ──────────────────────────────────────────────────────────
+    closure_rows: list[dict] = []
+    for r in rows:
+        done = _measured_int(r, "runs", "done")
+        blocked = _measured_int(r, "runs", "blocked")
+        if done is None or blocked is None or _events_gap(r):
+            gaps["rule_activation"] += 1
+            continue
+        if done + blocked > 0:
+            closure_rows.append(r)
     # H3: when the rule_activation family lives only in the unknown stream, a 0%
     # over attributed sessions is a fabrication — the sensors fired, unattributably.
     activation_guard = _attribution_guard(
@@ -1169,7 +1349,8 @@ def compute_metrics(
         out["rule_activation"] = MetricResult(
             id="rule_activation",
             cell=_pct(activated, len(closure_rows)),
-            detail="invocation-time activation: run-closing sessions with a rule_activation event",
+            detail="invocation-time activation: run-closing sessions with a rule_activation event"
+            + _gap_note("rule_activation"),
             value=activated / len(closure_rows),
             numerator=activated,
             denominator=len(closure_rows),
@@ -1177,15 +1358,25 @@ def compute_metrics(
     else:
         out["rule_activation"] = MetricResult.unavailable(
             "rule_activation",
-            activation_guard or "no session closed a run record in the window",
+            (activation_guard or "no session closed a run record in the window")
+            + _gap_note("rule_activation"),
         )
 
+    # ── unclassified rate ────────────────────────────────────────────────────────
     # H2: lines over lines. The unknown stream's lines count in the numerator via
     # their unattributable-sid reason; a session missing exposure.project is a
     # STRATIFICATION gap (visible in concurrent_reason), not instrument unhealth —
     # it inflates neither term.
-    total_lines = sum(int(r.get("lines_total", 0)) for r in rows)
-    uncl_lines = sum(int(r.get("lines_unclassified", 0)) for r in rows)
+    total_lines = 0
+    uncl_lines = 0
+    for r in rows:
+        lt = _measured_int(r, None, "lines_total")
+        lu = _measured_int(r, None, "lines_unclassified")
+        if lt is None or lu is None:
+            gaps["unclassified_rate"] += 1
+            continue
+        total_lines += lt
+        uncl_lines += lu
     excluded = sum(1 for r in rows if r.get("concurrent_reason") == "missing exposure.project")
     if total_lines:
         out["unclassified_rate"] = MetricResult(
@@ -1195,6 +1386,7 @@ def compute_metrics(
                 f"{uncl_lines} unclassified line(s) (unknown-stream lines included) "
                 f"over {total_lines} lines; {excluded} session(s) missing "
                 "exposure.project are a stratification gap, counted in neither term"
+                + _gap_note("unclassified_rate")
             ),
             value=uncl_lines / total_lines,
             numerator=uncl_lines,
@@ -1202,7 +1394,7 @@ def compute_metrics(
         )
     else:
         out["unclassified_rate"] = MetricResult.unavailable(
-            "unclassified_rate", "no lines in the window"
+            "unclassified_rate", "no lines in the window" + _gap_note("unclassified_rate")
         )
 
     if holes is None:
@@ -1493,15 +1685,28 @@ def log_cells(
         for r in rows
         if int((r.get("runs") or {}).get("rounds_max", 0)) > 0
     ]
-    # W2-F2: the round-family attribution guard — a mean over an attributed sliver
-    # while the round mass sits in the unknown stream is fabricated precision. The
-    # guard reads the UNIVERSE (like M9's coroner-evidence check): the unknown
-    # accumulator's row keys on its last derivation day and may sit outside the week.
-    rounds_attributed = sum(_ev(r, "round") for r in universe)
-    rounds_guard = _attribution_guard(universe, ("round",), rounds_attributed, "round events")
-    if rounds_guard is not None:
+    # S3 (was W2-F2): the rounds cell is WINDOWED (this ISO week) but the unknown
+    # accumulator is TIMELESS — its row carries no per-event timestamps, so the
+    # week's unattributed round count is UNKNOWABLE whenever the unknown stream
+    # holds ANY round mass. The guard therefore keys on knowability, not a lifetime
+    # floor (which both failed open on a bad week and ratcheted permanently dead):
+    # publish only when the window's attribution share is knowable (zero
+    # unknown-stream round events → 100% attributed). Reads the UNIVERSE (like
+    # M9's coroner-evidence check): the unknown row keys on its last derivation
+    # day and may sit outside the week.
+    rounds_unattr = _unattributed_count(universe, ("round",))
+    if rounds_unattr is None or rounds_unattr > 0:
         rounds = DASH
-        _warn(f"Review rounds /plan = {DASH} — {rounds_guard}")
+        why = (
+            "attribution share unmeasurable in this window (bump-day gap: "
+            "events_unattributed measured with no same-field baseline)"
+            if rounds_unattr is None
+            else (
+                "attribution share unmeasurable in this window (timeless unknown "
+                f"accumulator holds {rounds_unattr} unattributable round event(s))"
+            )
+        )
+        _warn(f"Review rounds /plan = {DASH} — {why}")
     elif rounded:
         rounds = f"{sum(rounded) / len(rounded):.1f} (n={len(rounded)})"
     else:
@@ -1650,11 +1855,19 @@ def daily(
     delta seam subtracts the predecessor row, so a smeared line is counted ONCE —
     the smear shifts which day it lands in, never how many land.
 
-    **Out-of-order refusal (W2-F4):** a ``day`` strictly OLDER than the newest day
-    already published in the series store is REFUSED (nonzero rc, zero mutation) —
-    under the mtime>=day selector it would derive every alive file's current
-    cumulative content under the old day and double-publish into the append-only
-    series, unrepairably. Historical backfill is ``kaizen_backfill``'s job.
+    **Out-of-order refusal (W2-F4) + the escape hatch (S4):** a ``day`` strictly
+    OLDER than the newest day already published in the series store is REFUSED
+    (nonzero rc, zero mutation) — under the mtime>=day selector it would derive
+    every alive file's current cumulative content under the old day and
+    double-publish into the append-only series, unrepairably. Historical backfill
+    is ``kaizen_backfill``'s job. BUT a future-dated day in the series (a
+    post-resume clock jump published tomorrow's date) would wedge the hourly cron
+    PERMANENTLY on this refusal — so (a) when the newest published day is in the
+    FUTURE relative to both the requested day and today, the refusal names the
+    clock-jump diagnosis explicitly, and (b) ``KAIZEN_ALLOW_BACKPUBLISH=1`` (env,
+    default off) downgrades the refusal to a loud warning and proceeds — the
+    operator's documented unwedge, accepting the possible double-count it warns
+    about.
 
     The DAY series is published from per-day DELTAS (see delta_row) so a grown file
     never re-counts earlier days. The human-facing weekly log cells, by contrast,
@@ -1679,14 +1892,39 @@ def daily(
     day_stamp = day.isoformat()
     newest_published = _latest_series_day(st)
     if newest_published is not None and day_stamp < newest_published:
-        _warn(
-            f"REFUSED: --day {day_stamp} is OLDER than the newest published series "
-            f"day {newest_published} — the mtime>=day selector would derive current "
-            "cumulative content under the old day and double-publish into the "
-            "append-only series. Nothing was written. Historical backfill is "
-            "kaizen_backfill's job."
-        )
-        return 1
+        # S4: a future-dated day in the series (post-resume clock jump) would wedge
+        # the hourly cron PERMANENTLY — every honest day is then "older than the
+        # newest". Diagnose the jump explicitly, and offer the documented escape
+        # hatch: KAIZEN_ALLOW_BACKPUBLISH=1 downgrades the refusal to a loud
+        # warning (default off — the refusal stays the normal safety).
+        clock_note = ""
+        today_stamp = dt.date.today().isoformat()
+        if newest_published > today_stamp:
+            clock_note = (
+                f" DIAGNOSIS: the newest published day {newest_published} is in the "
+                f"FUTURE relative to both the requested day and today ({today_stamp}) "
+                "— a clock jump (post-resume/RTC skew) likely published a "
+                "future-dated day into the series."
+            )
+        if os.getenv("KAIZEN_ALLOW_BACKPUBLISH", "") == "1":
+            _warn(
+                f"KAIZEN_ALLOW_BACKPUBLISH=1 — refusal DOWNGRADED to a warning: "
+                f"--day {day_stamp} is OLDER than the newest published series day "
+                f"{newest_published}; proceeding anyway. Alive files' CURRENT "
+                "cumulative content will be derived under the old day — the "
+                "append-only series may double-count this day." + clock_note
+            )
+        else:
+            _warn(
+                f"REFUSED: --day {day_stamp} is OLDER than the newest published series "
+                f"day {newest_published} — the mtime>=day selector would derive current "
+                "cumulative content under the old day and double-publish into the "
+                "append-only series. Nothing was written. Historical backfill is "
+                "kaizen_backfill's job. Escape hatch: set KAIZEN_ALLOW_BACKPUBLISH=1 "
+                "to downgrade this refusal to a loud warning (the sanctioned case: a "
+                "cron wedged by a future-dated series day)." + clock_note
+            )
+            return 1
     logs = (
         log_paths
         if log_paths is not None

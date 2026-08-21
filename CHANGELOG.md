@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 3: the delta-baseline root law + seven satellites (2026-08-21)
+
+Round 3's foundational seam, closed as a design law: **a delta is only computable against a
+baseline that measured the same field.** delta_row 0-baselined fields absent from a v1/v2
+predecessor, so every version-bump day published full cumulative values as "that day's" delta
+(the probe: taxonomy mypy=8 over runs_noncheck=30 while runs=4 — non-check ⊆ all violated) and
+events_unattributed=None rows let guards read lifetime counts as window counts. Now an
+absent-in-baseline field is None (unmeasurable); every consumer excludes such rows from
+numerator AND denominator with a stated per-metric bump-day gap, and runs_noncheck > runs is a
+warned invariant violation (unmeasured). Satellites: the WINDOWED store metrics
+(review_rounds in both consumers, premature_stop, stop_block_causes) replace the lifetime
+attribution floor with the window-knowability guard — the timeless unknown accumulator makes a
+windowed unattributed count unknowable, so they publish (share stated, 100% attributed) only at
+zero unknown-stream family mass (S3); gate_failure_taxonomy's guard operand counts NON-check
+occurrences, the population it protects (S7); the "(continuing sessions only)" reason keys on
+measured runs_noncheck (S8); every population-changed metric bumped one version with a pinned
+(id → version, def-hash) registry tripwire test (S5); kaizen_backfill keys transcript rows on
+their own TRANSCRIPT_FACTS_VERSION so an event-schema bump never re-appends the ~11k-row corpus
+(S9); CoronerReport.holes_today defaults None — a crashed sweep never prints a measured-looking
+0 (S10); and the --day refusal gains the KAIZEN_ALLOW_BACKPUBLISH=1 escape hatch plus an
+explicit clock-jump diagnosis so a future-dated series day cannot wedge the hourly cron
+permanently (S4). All red-first; battery green.
+
 ### Fixed — kaizen M1 review closing sweep: nine findings, fix-wave 2 (2026-08-21)
 
 The /fabrik-review whole-M1 loop's closing sweep, executed red-first. gate_failure_taxonomy no

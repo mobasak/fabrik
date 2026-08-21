@@ -625,8 +625,10 @@ def test_windowed_formulas_are_version_bumped() -> None:
     """L7: the window is stated in the formulas — a formula edit is a def-hash
     version bump (the versioned-definitions law)."""
     reg = ko.registry()
-    # review_rounds is at 3: v2 added the window (L7), v3 the attribution floor (W2-F2).
-    for mid, ver in (("premature_stop", 2), ("stop_block_causes", 2), ("review_rounds", 3)):
+    # review_rounds: v2 added the window (L7), v3 the attribution floor (W2-F2),
+    # v4 the window-scoped knowability guard (S3). The stops pair took the S3 guard
+    # at v3.
+    for mid, ver in (("premature_stop", 3), ("stop_block_causes", 3), ("review_rounds", 4)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
 
@@ -709,3 +711,110 @@ def test_review_rounds_still_measures_when_attribution_is_healthy(tmp_path: Path
     rounds = ko.review_rounds()
     assert rounds.measurable
     assert "3.0" in rounds.cell and "n=1" in rounds.cell
+
+
+# ── fix-wave 3 (S3 window-scoped guards + S5 registry pin, red-first) ────────────────
+
+
+def test_review_rounds_dashes_even_when_lifetime_share_passes_floor(tmp_path: Path) -> None:
+    """S3: the unknown accumulator is TIMELESS — a windowed unattributed count is
+    UNKNOWABLE, so ANY unknown round mass dashes the windowed metric. The lifetime
+    20% floor failed open here: 100 attributed vs 10 unknown (91%) published a
+    windowed mean whose window share nobody can know."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", runs={"rounds_max": 3}, events={"round": 100}),
+            _fact("unknown", last_ts=None, events={}, events_unattributed={"round": 10}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert not rounds.measurable, "lifetime share must not buy a windowed publish"
+    assert "unmeasurable in this window" in rounds.detail
+    assert "timeless" in rounds.detail
+
+
+def test_stops_pair_dashes_when_unknown_holds_stop_mass(tmp_path: Path) -> None:
+    """S3: premature_stop / stop_block_causes are windowed — unknown-stream stop
+    events make the window's attribution share unknowable; the pair dashes together
+    with the stated reason."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                events={"stop_pass": 3, "stop_block": 1},
+                stop_causes={"run-record": 1},
+            ),
+            _fact("unknown", last_ts=None, events={}, events_unattributed={"stop_block": 12}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "unmeasurable in this window" in prem.detail
+    assert "timeless" in prem.detail
+    assert causes.detail == prem.detail, "the pair dashes together"
+
+
+def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
+    """S5 tripwire: the FULL registry pinned as {id: (version, def_hash)}. ANY
+    formula/population edit changes the def hash and fails this test loudly — the
+    editor must then BUMP the metric's version and re-pin BOTH values here (the
+    versioned-definitions law made mechanical). A version bump without a formula
+    edit, or vice versa, is equally caught."""
+    pinned = {
+        "rules_compliance": (3, "bb1985ad2f20a38defa7fdc876197b5871be4c1aad1d8e0a943da6aeff91310f"),
+        "terminator_spam": (3, "0838226b9136f445aeccb48455a970554f82b3ad6d5a7970e6e8cf65e31a1b59"),
+        "premature_stop_rate": (
+            3,
+            "82f20ffd81e26326bc5c3b33051aa295a8c9db5bf2c6168d479579081eeaa1de",
+        ),
+        "first_attempt_gate_pass": (
+            3,
+            "30b2fe4c2c4756f5ed2aec49f44c91e65f8b1835ad53250b15d10216316d3e25",
+        ),
+        "gate_failure_taxonomy": (
+            3,
+            "23f016ae60247ce930fc538a7514d71202a8eec7bdfd83329bddeaaca11a8678",
+        ),
+        "rule_activation": (3, "1c3ea2cbe3ed7475763a0f03c1b1a5022fc7485acca48d7563eac2f04a3d84c9"),
+        "unclassified_rate": (
+            3,
+            "fdb59d0957a0ee826018bb69ef4faffda3f213f1324f05d645eec396f468d2c4",
+        ),
+        "hole_count": (3, "3e8a9a9f518e04e865431476fcebad9d4e104fa5b3d8f59fbb9e411d08d41439"),
+        "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
+        "review_rounds": (4, "42aef0d3c9340e0f3c134f7a21326e3521a96010c7cebd9a42643d6777f04b3b"),
+        "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
+        "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
+        "premature_stop": (3, "410f15bcd84770c0c75ae553c12a97ac6c000ca9fbc396164e0e56d184a7ed07"),
+        "stop_block_causes": (
+            3,
+            "a727054bf507a50e76aa672c23b36d6709488f277ecb339e3acfe5bede6fa30a",
+        ),
+    }
+    live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
+    assert live == pinned, (
+        "registry drift: a metric's formula/population changed — bump its version "
+        "and re-pin (id, version, hash) here in the SAME change"
+    )
+
+
+def test_stops_pair_states_the_share_when_knowable(tmp_path: Path) -> None:
+    """S3 counter-direction: zero unknown-stream stop events — the window's
+    attribution share IS knowable (100% attributed) and the pair publishes with the
+    share stated."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                events={"stop_pass": 3, "stop_block": 1},
+                stop_causes={"run-record": 1},
+            )
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert prem.measurable and causes.measurable
+    assert "100% attributed" in prem.detail
+    assert "100% attributed" in causes.detail

@@ -836,3 +836,26 @@ def test_cli_selftest_is_green(tmp_path):
     )
     assert out.returncode == 0, out.stdout + out.stderr
     assert "selftest" in out.stdout
+
+
+# ── fix-wave 3 (S10: a crashed sweep must not report a measured-looking zero) ────────
+
+
+def test_holes_today_is_none_when_the_sweep_fails_open(tmp_path, monkeypatch):
+    """S10: the fail-open path never reaches holes() — the report must say
+    UNMEASURED (None), not print a fabricated 0 holes."""
+
+    def _boom(*args: object, **kwargs: object) -> list:
+        raise RuntimeError("gather exploded")
+
+    monkeypatch.setattr(kc, "_gather_deaths", _boom)
+    ghost = kc.Sources(
+        lock_dir=tmp_path / "locks",
+        mesh_log=tmp_path / "log",
+        transcripts_dir=tmp_path / "projects",
+        events_dir=tmp_path / "events",
+        runs_dir=tmp_path / "runs",
+    )
+    report = kc.sweep(ghost)
+    assert report.errors, "the fail-open path must record the error"
+    assert report.holes_today is None, "a crashed sweep must not report holes=0"

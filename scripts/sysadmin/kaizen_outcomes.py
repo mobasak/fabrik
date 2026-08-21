@@ -605,6 +605,42 @@ def run_sweep(
 # ── premature_stop + the counter pairs read from T06's rows ──────────────────────────
 
 
+def _window_attribution_guard(
+    names: tuple[str, ...], what: str, state: Path | None
+) -> tuple[str | None, str]:
+    """S3 — ``(dash_reason, publish_note)`` for a WINDOWED store metric.
+
+    The guard's operands must come from the SAME population as the value it
+    protects — a WINDOW of rows. But the unknown accumulator is TIMELESS (its row
+    carries no per-event timestamps), so a windowed unattributed count is
+    UNKNOWABLE whenever the unknown stream holds ANY mass of the family; a lifetime
+    ratio both fails open on a bad week (one attributed cell publishes under a fat
+    lifetime share) and ratchets permanently dead once lifetime unattributed
+    exceeds a floor. The knowability rule replaces the floor: the share is knowable
+    ONLY when the unknown stream holds ZERO occurrences of the family — then the
+    window is 100% attributed and the note states it; otherwise dash with the
+    reason. Reads the UNWINDOWED era-filtered store: the timeless unknown row can
+    never appear in a windowed slice."""
+    universe = kc.read_rows(state=state, event_era_only=True)
+    unattributed = kc._unattributed_count(universe, names)
+    if unattributed is None:
+        return (
+            f"attribution share unmeasurable in this window ({what}: "
+            "events_unattributed measured with no same-field baseline — bump-day gap)",
+            "",
+        )
+    if unattributed > 0:
+        return (
+            "attribution share unmeasurable in this window (timeless unknown "
+            f"accumulator holds {unattributed} unattributable {what})",
+            "",
+        )
+    return (
+        None,
+        f"; window attribution share knowable: 100% attributed (0 unknown-stream {what})",
+    )
+
+
 def _stop_verdicts(row: dict) -> int:
     events = row.get("events") or {}
     return int(events.get("stop_pass", 0)) + int(events.get("stop_block", 0))
@@ -631,6 +667,15 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         return (
             MetricResult.unavailable("premature_stop", reason),
             MetricResult.unavailable("stop_block_causes", reason),
+        )
+    # S3: windowed value ⇒ window-scoped guard — knowability, not a lifetime floor.
+    guard, note = _window_attribution_guard(
+        ("stop_pass", "stop_block"), "stop-verdict events", state
+    )
+    if guard is not None:
+        return (
+            MetricResult.unavailable("premature_stop", guard),
+            MetricResult.unavailable("stop_block_causes", guard),
         )
     # Event-era only (T09 era filter): T08's transcript-era rows carry DASH strings
     # in events/stop_causes — unfiltered they crash _stop_verdicts, and their lines
@@ -670,7 +715,8 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         id="stop_block_causes",
         cell=causes_cell,
         detail=(
-            "full stop_block cause histogram in EVENT units — premature and legitimate causes alike"
+            "full stop_block cause histogram in EVENT units — premature and legitimate "
+            "causes alike" + note
         ),
         value=dict(causes),
         numerator=sum(causes.values()),
@@ -689,7 +735,7 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
         cell=_pct(premature_sessions, len(verdict_rows)),
         detail=(
             "sessions with a premature-cause stop_block over sessions with any stop "
-            "verdict; cf. premature_stop_rate (T06) = share of stop VERDICTS premature"
+            "verdict; cf. premature_stop_rate (T06) = share of stop VERDICTS premature" + note
         ),
         value=premature_sessions / len(verdict_rows),
         numerator=premature_sessions,
@@ -701,19 +747,19 @@ def premature_stop(state: Path | None = None) -> tuple[MetricResult, MetricResul
 def review_rounds(state: Path | None = None) -> MetricResult:
     """Mean max-round per round-carrying session (rework_rate's counter pair).
 
-    W2-F2: guarded by T06's attribution floor over the ROUND family — a mean over
-    an attributed sliver while the round mass sits in the unknown stream is
-    fabricated precision. The guard reads the UNWINDOWED era-filtered store: the
-    unknown accumulator is TIMELESS (no last_ts — every line unattributable), so
-    the windowed slice can never see it."""
+    S3 (supersedes W2-F2's lifetime floor): the value is WINDOWED, so the guard is
+    window-scoped — see :func:`_window_attribution_guard`. The unknown accumulator
+    is TIMELESS (no last_ts — every line unattributable), so the window's
+    unattributed round count is unknowable whenever the unknown stream holds any
+    round mass: publish with the share stated only when it is knowable (zero
+    unknown-stream round events → 100% attributed), dash with the reason
+    otherwise."""
+    guard, note = _window_attribution_guard(("round",), "round events", state)
+    if guard is not None:
+        return MetricResult.unavailable("review_rounds", guard)
     # Event-era only, filtered INSIDE the reader before the collapse (W2-F7).
     # Windowed (L7), same window as the stops pair.
     rows = kc.read_rows(since=_window_since(), state=state, event_era_only=True)
-    universe = kc.read_rows(state=state, event_era_only=True)
-    attributed = sum(int((r.get("events") or {}).get("round", 0) or 0) for r in universe)
-    guard = kc._attribution_guard(universe, ("round",), attributed, "round events")
-    if guard is not None:
-        return MetricResult.unavailable("review_rounds", guard)
     vals = [
         int((r.get("runs") or {}).get("rounds_max", 0))
         for r in rows
@@ -724,7 +770,7 @@ def review_rounds(state: Path | None = None) -> MetricResult:
     return MetricResult(
         id="review_rounds",
         cell=f"{sum(vals) / len(vals):.1f} (n={len(vals)})",
-        detail="mean rounds_max across round-carrying sessions",
+        detail="mean rounds_max across round-carrying sessions" + note,
         value=sum(vals) / len(vals),
         numerator=sum(vals),
         denominator=len(vals),
@@ -749,16 +795,22 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "review_rounds",
-        "version": 3,
+        # v4 (fix-wave 3, S3): the lifetime attribution floor is replaced by the
+        # window-knowability rule — the guard's operands come from the SAME
+        # (windowed) population as the value.
+        "version": 4,
         "counter_metric": "rework_rate",
         "formula": (
             "mean rounds_max across round-carrying sessions (derived-facts rows whose "
             "last_ts falls in the last KAIZEN_OUTCOMES_WINDOW_DAYS days, default 7 — "
             "never all-time cumulative) — rounds down must never buy rework up. "
-            "Renders — when attributed round occurrences are below the 20% "
-            "attribution floor of the family total across the era-filtered store "
-            "(the unknown stream holds the mass) — an attributed sliver is not the "
-            "population."
+            "Window-scoped attribution guard: the unknown accumulator is timeless, so "
+            "the window's unattributed round count is knowable ONLY when the unknown "
+            "stream holds zero round events — then the metric publishes with the "
+            "share stated (100% attributed); any unknown-stream round mass renders — "
+            "with reason 'attribution share unmeasurable in this window (timeless "
+            "unknown accumulator)'. Never a lifetime ratio: it fails open on a bad "
+            "week and ratchets permanently dead."
         ),
     },
     {
@@ -782,7 +834,9 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "premature_stop",
-        "version": 2,
+        # v3 (fix-wave 3, S3): window-scoped attribution guard added — knowability,
+        # not a lifetime floor.
+        "version": 3,
         "counter_metric": "stop_block_causes",
         "formula": (
             "SESSION-level: sessions with a stop_block whose cause is premature "
@@ -792,12 +846,19 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "cumulative) — the Stop-hook oracle, read. Cross-reference: "
             "premature_stop_rate (T06) is the EVENT-level share of stop VERDICTS "
             "premature; non-premature causes (gate-red, uncommitted holds) never "
-            "count here."
+            "count here. Window-scoped attribution guard: the unknown accumulator "
+            "is timeless, so the window's unattributed stop-verdict count is "
+            "knowable ONLY when the unknown stream holds zero stop-verdict events — "
+            "then the pair publishes with the share stated (100% attributed); any "
+            "unknown-stream stop mass renders — with reason 'attribution share "
+            "unmeasurable in this window (timeless unknown accumulator)'."
         ),
     },
     {
         "id": "stop_block_causes",
-        "version": 2,
+        # v3 (fix-wave 3, S3): window-scoped attribution guard added — the pair
+        # dashes together under it.
+        "version": 3,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
@@ -805,7 +866,10 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "hide a cause-mix shift. EVENT units throughout (numerator, denominator "
             "and cell), over the same KAIZEN_OUTCOMES_WINDOW_DAYS window as its pair "
             "(default 7). Dashes WITH premature_stop when no stop verdict exists (a "
-            "pair never fabricates clean)."
+            "pair never fabricates clean), and under the same window-scoped "
+            "attribution guard as premature_stop (knowable only at zero "
+            "unknown-stream stop-verdict events; otherwise 'attribution share "
+            "unmeasurable in this window (timeless unknown accumulator)')."
         ),
     },
 )

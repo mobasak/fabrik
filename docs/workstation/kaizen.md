@@ -55,7 +55,12 @@ complete). In order:
    `(sid, facts_version, day)`). Torn lines are counted with a reason, never crashed on;
    truncated lines count envelope-only (reason `truncated`).
 3. **Publish** — per-day deltas (a grown file never re-counts earlier days) append to the
-   versioned series files (`~/.claude/state/kaizen/series/<metric>@v<N>.jsonl`).
+   versioned series files (`~/.claude/state/kaizen/series/<metric>@v<N>.jsonl`). **The root
+   law:** a delta is only computable against a baseline that MEASURED the same field — a field
+   the predecessor row never carried (a `FACTS_VERSION` bump day) is `None` in the delta,
+   never 0-baselined, and every metric excludes such a row from numerator AND denominator,
+   counting it as a stated **bump-day gap** (the bump day goes honestly quiet per-field). A row
+   claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
 4. **Log row + mail** — the ISO-week row is upserted into both role logs and the metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row).
@@ -73,10 +78,15 @@ published day. The smear is bounded to one day forward (the pass runs daily), an
 totals stay honest: the delta seam subtracts the predecessor row, so a smeared line is counted
 once — the smear shifts which day it lands in, never how many land.
 
-**Out-of-order refusal:** an explicit `--day` strictly OLDER than the newest day already
-published in the series store is REFUSED (nonzero rc, zero mutation) — under the mtime>=day
-selector it would derive every alive file's current cumulative content under the old day and
-double-publish into the append-only series. Historical backfill is `kaizen_backfill.py`'s job.
+**Out-of-order refusal + the escape hatch:** an explicit `--day` strictly OLDER than the newest
+day already published in the series store is REFUSED (nonzero rc, zero mutation) — under the
+mtime>=day selector it would derive every alive file's current cumulative content under the old
+day and double-publish into the append-only series. Historical backfill is `kaizen_backfill.py`'s
+job. A FUTURE-dated day in the series (a post-resume clock jump) would wedge the hourly cron
+permanently on this refusal, so the refusal names the clock-jump diagnosis explicitly when the
+newest published day is in the future relative to both the requested day and today, and
+**`KAIZEN_ALLOW_BACKPUBLISH=1`** (env, default off) downgrades the refusal to a loud warning and
+proceeds — the documented unwedge, accepting the possible double-count it warns about.
 
 ### The nightly sweep (`kaizen_outcomes.py --sweep`) — runbook
 
@@ -90,7 +100,13 @@ line reads `swept n/N — the rest —`. Sibling modes for the analyst: `--rewor
 rate across `/opt/*`, `KAIZEN_REWORK_DAYS` window) and `--stops` (session-level premature-stop
 read from the derived-facts rows over the last `KAIZEN_OUTCOMES_WINDOW_DAYS` days, default 7 —
 never all-time cumulative). The store-derived outcome series (`premature_stop`,
-`stop_block_causes`, `review_rounds`) additionally publish from the daily collector pass.
+`stop_block_causes`, `review_rounds`) additionally publish from the daily collector pass. All
+three are WINDOWED and therefore carry the window-scoped attribution guard: the timeless
+`unknown` accumulator makes a windowed unattributed count unknowable, so they publish (with the
+share stated: 100% attributed) only when the unknown stream holds zero events of their family,
+and dash with reason "attribution share unmeasurable in this window (timeless unknown
+accumulator)" otherwise — never a lifetime ratio, which fails open on a bad week and ratchets
+permanently dead.
 
 ## The kaizen-log row — which cells are real now
 
@@ -102,7 +118,7 @@ mechanical cells are computed over the ISO week's event-era rows:
 | Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass`: sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
 | Death-classes /wk | **real** (M1) | `death` events (coroner-reconstructed) — `<occurrences> occ / <distinct classes> cls`. Renders `—` while the store holds no death/session_end evidence at all (the coroner has never run) — a `0` there would be fabricated. |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
-| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. Guarded by the 20% attribution floor over the round family (store universe): when the round mass sits in the `unknown` stream, the cell renders `—` — a mean over an attributed sliver is fabricated precision. |
+| Review rounds /plan | **real** (M1) | `round` events — mean of per-session `rounds_max` across round-carrying sessions. Window-scoped attribution guard (the cell is windowed to the ISO week, but the `unknown` accumulator is TIMELESS, so a windowed unattributed count is unknowable): the cell publishes only when the unknown stream holds ZERO round events (share knowable, 100% attributed); any unknown round mass renders `—` with reason "attribution share unmeasurable in this window (timeless unknown accumulator)". |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 
@@ -117,7 +133,10 @@ stderr and in the mail, never a fabricated 0.
 ## The noise floor and the M1→M2 gate
 
 `scripts/sysadmin/kaizen_backfill.py` walked the pre-event transcript corpus once
-(`era: "transcript"` rows in the same store) and writes the per-metric variance report —
+(`era: "transcript"` rows in the same store; they carry `TRANSCRIPT_FACTS_VERSION` — the
+backfill's own constant, bumped only when transcript derivation changes — as both their
+`facts_version` and their skip key, so an event-schema `FACTS_VERSION` bump never re-appends
+the corpus) and writes the per-metric variance report —
 **`~/.claude/state/kaizen/noise-floor@v1.md`** (regenerate: `kaizen_backfill.py --report`).
 M2's adjudication reads the variance column: a change it cannot distinguish from that floor is
 Tuesday, not a signal.

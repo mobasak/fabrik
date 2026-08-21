@@ -456,7 +456,7 @@ def test_series_day_is_idempotent(tmp_path: Path) -> None:
     assert first
     again = kc.publish_series("2026-08-18", metrics, reg, st)
     assert again == [], "a day already published is never re-appended"
-    path = kc.series_path("rules_compliance", 2, st)
+    path = kc.series_path("rules_compliance", reg["rules_compliance"]["version"], st)
     assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
@@ -829,7 +829,7 @@ def test_published_day_series_never_recounts_earlier_days(tmp_path: Path) -> Non
     unk.write_text(_unknown_line(_TS) + "\n" + _unknown_line(_TS) + "\n", encoding="utf-8")
     _backdate(unk, yesterday)
     assert kc.daily(yesterday, **_daily_args(tmp_path)) == 0
-    spath = kc.series_path("unclassified_rate", 2, st)
+    spath = kc.series_path("unclassified_rate", kc.registry()["unclassified_rate"]["version"], st)
     rows = [json.loads(ln) for ln in spath.read_text(encoding="utf-8").splitlines()]
     day1 = next(r for r in rows if r["day"] == yesterday.isoformat())
     assert day1["numerator"] == 2
@@ -1016,7 +1016,7 @@ def test_version_bump_day_does_not_recount_earlier_days(
     args = _daily_args(tmp_path)
     args["golden"] = bumped
     assert kc.daily(dt.date.today(), **args) == 0
-    spath = kc.series_path("unclassified_rate", 2, st)
+    spath = kc.series_path("unclassified_rate", kc.registry()["unclassified_rate"]["version"], st)
     rows = [json.loads(ln) for ln in spath.read_text(encoding="utf-8").splitlines()]
     day2 = next(r for r in rows if r["day"] == dt.date.today().isoformat())
     assert day2["numerator"] == 10, (
@@ -1762,10 +1762,10 @@ def test_taxonomy_dashes_under_gate_run_attribution_floor() -> None:
     assert "attribution floor" in tax.detail
 
 
-def test_repopulated_metrics_publish_at_v2(tmp_path: Path) -> None:
-    """W2-F5: premature_stop_rate and gate_failure_taxonomy changed input population
-    under the wave — their series must land at @v2 (never appending
-    differently-defined points into the @v1 files)."""
+def test_repopulated_metrics_publish_at_current_version(tmp_path: Path) -> None:
+    """W2-F5 (updated by fix-wave 3's S5 bumps): a metric whose input population
+    changed publishes at its CURRENT bumped version — never appending
+    differently-defined points into an older version's files."""
     ev = tmp_path / "events"
     lines = [
         _line(
@@ -1782,10 +1782,14 @@ def test_repopulated_metrics_publish_at_v2(tmp_path: Path) -> None:
     _session(ev, "s1", lines)
     assert kc.daily(dt.date.today(), **_daily_args(tmp_path)) == 0
     st = tmp_path / "state"
-    assert kc.series_path("gate_failure_taxonomy", 2, st).is_file()
-    assert kc.series_path("premature_stop_rate", 2, st).is_file()
-    assert not kc.series_path("gate_failure_taxonomy", 1, st).exists()
-    assert not kc.series_path("premature_stop_rate", 1, st).exists()
+    tax_ver = kc.registry()["gate_failure_taxonomy"]["version"]
+    prem_ver = kc.registry()["premature_stop_rate"]["version"]
+    assert kc.series_path("gate_failure_taxonomy", tax_ver, st).is_file()
+    assert kc.series_path("premature_stop_rate", prem_ver, st).is_file()
+    for old in range(1, tax_ver):
+        assert not kc.series_path("gate_failure_taxonomy", old, st).exists()
+    for old in range(1, prem_ver):
+        assert not kc.series_path("premature_stop_rate", old, st).exists()
 
 
 def test_log_cells_rounds_dash_when_round_family_unattributable(
@@ -1967,3 +1971,263 @@ def test_bare_completion_gate_run_emits_noncheck_mode(tmp_path: Path) -> None:
     assert len(gate_rows) == 1, "exactly ONE gate_run per bare invocation"
     assert gate_rows[0]["mode"]["check"] is False, "a bare run is a completion run"
     assert gate_rows[0]["status"] in ("success", "failure")
+
+
+# ── fix-wave 3 (root law + satellites, red-first) ────────────────────────────────────
+
+
+def _v1_row(sid: str, day: str, **over: object) -> dict:
+    """A FACTS_VERSION-1 row: NO events_unattributed, NO gate non-check split —
+    the cross-version baseline of the root-law repro."""
+    row = _w2_row(sid, day, **over)
+    row["facts_version"] = 1
+    row.pop("events_unattributed", None)
+    row["gate"].pop("runs_noncheck", None)
+    row["gate"].pop("failed_checks_noncheck", None)
+    return row
+
+
+def test_delta_row_field_absent_in_baseline_is_none_never_zero() -> None:
+    """ROOT LAW (F1/F2/F6): a delta is only computable against a baseline that
+    MEASURED the same field. A field the v1 predecessor never carried must come out
+    None (unmeasurable), never cur-minus-0 (the full cumulative value as 'today')."""
+    prev = _v1_row("s", "2026-08-18", events={"gate_run": 26}, lines_total=26)
+    prev["gate"].update(runs=26, fail=26, failed_checks={"mypy": 6})
+    cur = _w2_row(
+        "s",
+        "2026-08-19",
+        events={"gate_run": 30},
+        lines_total=30,
+        gate={
+            "runs": 30,
+            "first_status": None,
+            "pass": 0,
+            "fail": 30,
+            "failed_checks": {"mypy": 8},
+            "runs_noncheck": 30,
+            "failed_checks_noncheck": {"mypy": 8},
+        },
+    )
+    delta = kc.delta_row(cur, prev)
+    assert delta is not None
+    assert delta["gate"]["runs"] == 4, "both-measured fields still delta normally"
+    assert delta["gate"]["runs_noncheck"] is None, "absent-in-baseline scalar → None"
+    assert delta["gate"]["failed_checks_noncheck"] is None, "absent-in-baseline map → None"
+    assert delta["events_unattributed"] is None, "absent-in-baseline map → None"
+
+
+def test_bump_day_taxonomy_goes_quiet_never_publishes_cumulative() -> None:
+    """ROOT LAW, the exact round-3 probe: v1 predecessor + v3 current must make the
+    taxonomy DASH for that sid on the bump day — never mypy=8 over runs_noncheck=30
+    while the day's real runs delta is 4 (non-check ⊆ all, violated)."""
+    prev = _v1_row("s", "2026-08-18", events={"gate_run": 26}, lines_total=26)
+    prev["gate"].update(runs=26, fail=26, failed_checks={"mypy": 6})
+    cur = _w2_row(
+        "s",
+        "2026-08-19",
+        events={"gate_run": 30},
+        lines_total=30,
+        gate={
+            "runs": 30,
+            "first_status": None,
+            "pass": 0,
+            "fail": 30,
+            "failed_checks": {"mypy": 8},
+            "runs_noncheck": 30,
+            "failed_checks_noncheck": {"mypy": 8},
+        },
+    )
+    delta = kc.delta_row(cur, prev)
+    assert delta is not None
+    tax = kc.compute_metrics([delta], holes=0)["gate_failure_taxonomy"]
+    assert not tax.measurable, "the bump day goes honestly quiet per-field"
+    assert "mypy" not in tax.cell
+    assert tax.denominator != 30
+    assert "bump-day gap" in tax.detail
+
+
+def test_runs_noncheck_exceeding_runs_is_unmeasurable_with_warn(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ROOT LAW invariant: non-check ⊆ all — a row claiming runs_noncheck > runs is
+    instrument-corrupt; warn and treat the non-check side as unmeasurable."""
+    bad = _w2_row(
+        "s",
+        "2026-08-19",
+        events={"gate_run": 4},
+        gate={
+            "runs": 4,
+            "first_status": None,
+            "pass": 0,
+            "fail": 4,
+            "failed_checks": {"mypy": 8},
+            "runs_noncheck": 30,
+            "failed_checks_noncheck": {"mypy": 8},
+        },
+    )
+    tax = kc.compute_metrics([bad], holes=0)["gate_failure_taxonomy"]
+    assert not tax.measurable
+    err = capsys.readouterr().err
+    assert "runs_noncheck" in err and "runs" in err
+
+
+def test_attribution_guard_treats_none_unattributed_as_unmeasured() -> None:
+    """ROOT LAW (F6): an events_unattributed=None delta row means the window's
+    unattributed count is UNKNOWABLE — guarded metrics dash with the bump-day-gap
+    reason instead of reading lifetime counts as window counts."""
+    row = _w2_row(
+        "s",
+        "2026-08-19",
+        events={"run_close": 2},
+        runs={"opened": 2, "done": 2, "done_evidenced": 2, "blocked": 0, "rounds_max": 0},
+    )
+    row["events_unattributed"] = None
+    m = kc.compute_metrics([row], holes=0)["rules_compliance"]
+    assert not m.measurable
+    assert "bump-day gap" in m.detail
+
+
+def test_gate_guard_share_counts_noncheck_occurrences() -> None:
+    """S7: the attribution guard's operands must come from the SAME population as
+    the value it protects — non-check runs, not all gate_runs. 4 attributed
+    gate_runs vs 8 unknown passes the old floor (33%), but only 1 is non-check
+    (1/9 = 11%) — the taxonomy must dash."""
+    attributed = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"gate_run": 4},
+        gate={
+            "runs": 4,
+            "first_status": "failure",
+            "pass": 0,
+            "fail": 4,
+            "failed_checks": {"mypy": 4},
+            "runs_noncheck": 1,
+            "failed_checks_noncheck": {"mypy": 1},
+        },
+    )
+    unk = _w2_row(
+        "unknown",
+        "2026-08-18",
+        project=None,
+        events_unattributed={"gate_run": 8},
+        concurrent_reason="unattributable-sid",
+    )
+    tax = kc.compute_metrics([attributed, unk], holes=0)["gate_failure_taxonomy"]
+    assert not tax.measurable
+    assert "attribution floor" in tax.detail
+
+
+def test_continuing_sessions_claim_keys_on_noncheck_runs() -> None:
+    """S8: '(continuing sessions only)' keyed on unsplit gate.runs claims a
+    continuing session where only diagnostic --check runs happened — the claim must
+    be measured on runs_noncheck."""
+    check_only = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"gate_run": 2},
+        gate={
+            "runs": 2,
+            "first_status": None,
+            "pass": 2,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 0,
+            "failed_checks_noncheck": {},
+        },
+    )
+    m = kc.compute_metrics([check_only], holes=0)["first_attempt_gate_pass"]
+    assert not m.measurable
+    assert "continuing sessions only" not in m.detail, "check-only ≠ continuing"
+
+    continuing = _w2_row(
+        "s2",
+        "2026-08-18",
+        events={"gate_run": 2},
+        gate={
+            "runs": 2,
+            "first_status": None,
+            "pass": 2,
+            "fail": 0,
+            "failed_checks": {},
+            "runs_noncheck": 2,
+            "failed_checks_noncheck": {},
+        },
+    )
+    m2 = kc.compute_metrics([continuing], holes=0)["first_attempt_gate_pass"]
+    assert not m2.measurable
+    assert "continuing sessions only" in m2.detail
+
+
+def test_log_cells_rounds_dash_even_when_lifetime_share_passes_floor(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """S3 (weekly consumer): the unknown accumulator is TIMELESS, so a windowed
+    unattributed count is UNKNOWABLE — any unknown round mass dashes the cell, even
+    when the lifetime share passes the old 20% floor (the fails-open case)."""
+    day = dt.date(2026, 8, 18)
+    r1 = _w2_row(
+        "s1",
+        "2026-08-18",
+        events={"round": 100},
+        runs={"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 3},
+    )
+    unk = _w2_row(
+        "unknown",
+        "2026-08-18",
+        project=None,
+        events_unattributed={"round": 10},
+        concurrent_reason="unattributable-sid",
+    )
+    metrics = kc.compute_metrics([r1, unk], holes=0)
+    cells = kc.log_cells(day, metrics, [r1, unk], all_rows=[r1, unk])
+    assert cells[4] == DASH, "lifetime share 91% must not buy a windowed publish"
+    err = capsys.readouterr().err
+    assert "unmeasurable in this window" in err
+
+
+def _publish_stub_day(tmp_path: Path, day: str) -> None:
+    """Plant one published series day directly — the out-of-order guard's input."""
+    p = kc.series_path("unclassified_rate", 99, tmp_path / "state")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"day": day, "metric": "unclassified_rate"}) + "\n")
+
+
+def test_backpublish_refusal_names_the_escape_hatch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """S4: the --day refusal must name KAIZEN_ALLOW_BACKPUBLISH so a wedged hourly
+    cron is diagnosable from the log alone."""
+    _publish_stub_day(tmp_path, dt.date.today().isoformat())
+    rc = kc.daily(dt.date.today() - dt.timedelta(days=1), **_daily_args(tmp_path))
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "REFUSED" in err
+    assert "KAIZEN_ALLOW_BACKPUBLISH" in err
+
+
+def test_backpublish_escape_hatch_downgrades_to_loud_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S4: KAIZEN_ALLOW_BACKPUBLISH=1 downgrades the refusal to a warning and the
+    run proceeds (rc 0) — the documented cron-unwedge path."""
+    _publish_stub_day(tmp_path, dt.date.today().isoformat())
+    monkeypatch.setenv("KAIZEN_ALLOW_BACKPUBLISH", "1")
+    rc = kc.daily(dt.date.today() - dt.timedelta(days=1), **_daily_args(tmp_path))
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "KAIZEN_ALLOW_BACKPUBLISH=1" in err
+
+
+def test_backpublish_refusal_diagnoses_a_clock_jump(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """S4: a newest published day in the FUTURE relative to the requested day AND
+    today is a clock-jump signature — the refusal must say so explicitly."""
+    _publish_stub_day(tmp_path, (dt.date.today() + dt.timedelta(days=3)).isoformat())
+    rc = kc.daily(dt.date.today() - dt.timedelta(days=1), **_daily_args(tmp_path))
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "clock" in err.lower()
+    assert "FUTURE" in err

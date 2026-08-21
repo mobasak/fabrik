@@ -196,8 +196,10 @@ class CoronerReport:
     #: Markers whose transcript EXISTS but yielded no conclusive verdict — skipped,
     #: counted (L3): ambiguous evidence must never close a possibly-live session.
     inconclusive: list[str] = dataclasses.field(default_factory=list)
-    #: None = unmeasurable — holes() was blind this sweep (W2-F3), not "no holes".
-    holes_today: int | None = 0
+    #: None = unmeasurable — holes() was blind this sweep (W2-F3) OR the sweep
+    #: crashed before reading it (S10: a fail-open sweep must not print a
+    #: measured-looking 0). Only a live holes() reading sets a number.
+    holes_today: int | None = None
     errors: list[str] = dataclasses.field(default_factory=list)
 
 

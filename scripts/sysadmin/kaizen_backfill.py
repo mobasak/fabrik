@@ -40,10 +40,18 @@ is never permanent. Likewise a still-open, still-unowned session re-derives on l
 days under T06's growth carve-out — the "one row per session" shape holds only for
 sessions that were already closed when the pass ran.
 
+VERSION SPLIT (S9): transcript rows carry ``TRANSCRIPT_FACTS_VERSION`` (their own
+constant, bumped ONLY when transcript derivation changes) as both their
+``facts_version`` and their skip key — never ``kc.FACTS_VERSION``, whose event-schema
+bumps are irrelevant to transcript derivation and used to re-append the whole ~11k-row
+corpus each time. An event row (higher ``facts_version``) therefore outranks its
+transcript sibling in ``read_rows`` immediately, by version.
+
 Bounds: ``KAIZEN_BACKFILL_SINCE`` (ISO date; default the full corpus; unparseable →
 warned + ignored, fail-open). Single pass, progress per 500 files, resumable via the
-store itself (known ``(sid, facts_version, day)`` keys are skipped) — a re-run at the
-same facts_version leaves the store byte-identical. Roots via env
+store itself (known ``(sid, TRANSCRIPT_FACTS_VERSION, day)`` keys are skipped) — a
+re-run at the same transcript version leaves the store byte-identical, and an
+event-schema (``kc.FACTS_VERSION``) bump re-derives NOTHING here. Roots via env
 (``KAIZEN_TRANSCRIPTS_DIR``, plus T06's ``KAIZEN_STATE_DIR``/``KAIZEN_EVENTS_DIR``);
 box-local, stdlib only.
 """
@@ -76,6 +84,14 @@ ERA_TRANSCRIPT = "transcript"
 ERA_EVENT = "event"
 PROGRESS_EVERY = 500
 REPORT_NAME = "noise-floor@v1.md"
+#: THE VERSION SPLIT (S9): transcript derivation is version-independent of the
+#: EVENT-era row schema — keying transcript rows on ``kc.FACTS_VERSION`` re-appended
+#: the whole ~11k-row corpus at every event-schema bump though nothing about
+#: transcript derivation changed. Transcript-era rows carry THIS constant as their
+#: ``facts_version`` AND as their ``(sid, facts_version, day)`` skip key; bump it
+#: ONLY when transcript derivation itself changes (line bounds, channels, dash
+#: fields), never for an event-era schema bump.
+TRANSCRIPT_FACTS_VERSION = 1
 #: Hard per-line read bound. Corpus-measured 2026-08-20 (wc -L over every >50MB
 #: transcript): largest observed line 3,510,198 bytes — 32 MiB is ~9× headroom.
 #: An over-long line is drained and counted (`line-too-long`), never materialized:
@@ -243,7 +259,9 @@ def derive_transcript_session(path: Path, project: str | None, day: str) -> dict
         return None
 
     return {
-        "facts_version": kc.FACTS_VERSION,
+        # S9: the transcript-era version constant — an event-schema (kc.FACTS_VERSION)
+        # bump must not re-derive the corpus.
+        "facts_version": TRANSCRIPT_FACTS_VERSION,
         "era": ERA_TRANSCRIPT,
         "sid": path.stem,
         "day": day,
@@ -356,7 +374,9 @@ def run_backfill(
         if f.stem in owned:
             bump("skipped_event_owned")
             continue
-        key = (f.stem, kc.FACTS_VERSION, mday.isoformat())
+        # S9: the skip key carries TRANSCRIPT_FACTS_VERSION, matching the row it
+        # would append — resumability survives event-schema bumps.
+        key = (f.stem, TRANSCRIPT_FACTS_VERSION, mday.isoformat())
         if key in known:
             bump("skipped_known")
             continue

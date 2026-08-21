@@ -96,7 +96,7 @@ def test_backfill_marks_era_and_dashes_event_only_fields(tmp_path: Path) -> None
     (row,) = _rows("transcript")
     assert row["sid"] == "aaaa1111"
     assert row["era"] == "transcript"
-    assert row["facts_version"] == kc.FACTS_VERSION
+    assert row["facts_version"] == kb.TRANSCRIPT_FACTS_VERSION  # S9: never kc.FACTS_VERSION
     assert row["day"] == "2026-06-05"
     assert row["project"] == "-opt-alpha"
     assert row["first_ts"] == "2026-06-05T10:00:00.000+00:00"
@@ -607,3 +607,30 @@ def test_empty_corpus_backfill_is_a_clean_noop(tmp_path: Path) -> None:
     assert summary["appended"] == 0
     assert Path(str(summary["report"])).is_file()
     assert not kc.facts_path(kc.state_dir()).exists(), "nothing derived from nothing"
+
+
+# ── fix-wave 3 (S9: transcript rows carry their own facts version, red-first) ────────
+
+
+def test_event_schema_bump_does_not_rederive_transcripts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S9: transcript derivation is version-independent of the EVENT-era row schema —
+    a kc.FACTS_VERSION bump must NOT re-append the ~11k-row corpus. Both the row's
+    facts_version and the skip key carry TRANSCRIPT_FACTS_VERSION instead."""
+    _tr(
+        tmp_path / "projects",
+        "-opt-alpha",
+        "aaaa1111.jsonl",
+        [_user("2026-06-05T10:00:00Z", "hello")],
+        "2026-06-05",
+    )
+    first = kb.run_backfill()
+    assert first["appended"] == 1
+    (row,) = _rows("transcript")
+    assert row["facts_version"] == kb.TRANSCRIPT_FACTS_VERSION == 1
+
+    monkeypatch.setattr(kc, "FACTS_VERSION", kc.FACTS_VERSION + 1)
+    second = kb.run_backfill()
+    assert second["appended"] == 0, "an event-schema bump must not re-derive transcripts"
+    assert second["skipped_known"] == 1
