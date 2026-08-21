@@ -1997,3 +1997,15 @@ def test_blocked_does_not_waive_ledger_legibility(repo: Path) -> None:
     assert "blocked-legibility2" in out and "not parse" in out, (
         "the committed advisory silently waived what the blocking gate refuses"
     )
+
+
+def test_mega_trailing_loose_pass_line_cannot_vanish(repo: Path) -> None:
+    """Round-125 HIGH: the unparsed-row check reached check_file and the committed scan but
+    never the MEGA grammar — a trailing `Pass 3: found: 7 issues remain, still triaging`
+    after a quiet table vanished (neither counter row nor prose_rows, so the mixed-shape
+    cross-check stayed silent) and a non-quiet mega exit read as converged."""
+    h = _shell_hash(repo)
+    body = _report(h) + "\nPass 3: found: 7 issues remain, still triaging\n"
+    rc, out = _gate(repo, "2026-08-21-mega-vision-validation-review.md", body)
+    assert rc == 1, "a loose trailing Pass line vanished from the mega ledger"
+    assert "not parse" in out

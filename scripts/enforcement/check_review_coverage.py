@@ -999,6 +999,17 @@ def check_mega_validation(
         return [pe]
     body = _strip_fences(text)
     errs: list[str] = []
+    # The THIRD ledger consumer (round 125): the unparsed-row legibility check reached
+    # check_file and the committed scan in rounds 121-124 but never this grammar — a
+    # trailing `Pass 3: found: 7 issues remain, still triaging` after a quiet table
+    # vanished (it parses as neither a counter row nor prose_rows, so the mixed-shape
+    # cross-check never fired) and a non-quiet mega exit read as converged. Structural,
+    # so unconditional per the round-124 architecture rule.
+    for bad in _unparsed_pass_lines(text)[:1]:
+        errs.append(
+            f"Pass-shaped ledger line does not parse ({bad[:70]!r}) — punctuate the "
+            "counts (`found: N, fixed: M`) if the row is live, or fence it if quoted"
+        )
     surface = _MEGA_SURFACE.search(body)
     if surface is None:
         errs.append(
