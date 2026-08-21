@@ -740,10 +740,10 @@ def _indented_grammar_error(text: str) -> str | None:
             and n_quote == 0
             and content.startswith("|")
             and (
-                content.rstrip().endswith("|")
-                or UNCHECKED.search(content)
+                UNCHECKED.search(content)
                 or VERDICT.search(content)
                 or _pass_counters(content) is not None
+                or _MEGA_ROW.match(content)
                 or HANDOFF_ROW.match(content)
             )
         ):
@@ -752,10 +752,13 @@ def _indented_grammar_error(text: str) -> str | None:
             # extractor, and the single-list-marker tolerance only sanctions the PARSING
             # bulleted forms (Pass/HANDOFF prose lines). Visible to a human, invisible to
             # every anchor → the costume refusal, with the one-keystroke remedies.
-            # ROW-shaped or obligation-bearing content ONLY (round 135): an honest prose
-            # bullet whose text merely STARTS with a bare pipe ("- | is the pipe character
-            # bash uses…") false-failed non-subject docs — a row is pipe-BOUNDED or carries
-            # grammar tokens; explanatory prose is neither.
+            # OBLIGATION-BEARING content ONLY (rounds 135/137): the pipe-BOUNDED proxy
+            # still false-fired on prose that merely sits between two pipes ("- | this
+            # text sits between two pipe characters |", renderer-verified non-table).
+            # Only content carrying grammar tokens (a verdict, counters, a mega row, a
+            # HANDOFF) is refused — loud with the fence remedy; token-free pipe prose
+            # passes. The bulleted MEGA round row joined the token set (its shape parses
+            # via _MEGA_ROW, not _pass_counters).
             return (
                 f"LIST-WRAPPED pipe row ({content[:70]!r}): it renders as a bullet, not a "
                 "table row, and no extractor can read it — un-wrap it if it is live, or "

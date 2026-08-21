@@ -1161,3 +1161,61 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
                          "--evidence", "closed"],
                         cwd=repo, env=env, capture_output=True, text=True, timeout=15)
     assert r2.returncode == 0, r2.stdout + r2.stderr
+
+
+def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_path):
+    """Round-137, three live-reproduced holes in the round-136 floor: (a) a report committed
+    mid-run followed by a later unrelated commit (the Completion Contract's own EXIT
+    sequence) false-REFUSED the close — only HEAD was inspected; (b) a committed non-.md
+    under reviews/ satisfied the gate with candidates=[] so the content floor never ran;
+    (c) archived/ counted. The same live-.md-outside-archived filter now decides both the
+    gate and the candidates, across the run window's commits."""
+    import subprocess
+    script = "/opt/fabrik/scripts/command_run.py"
+
+    def _commit(repo, env, *paths, msg="x"):
+        subprocess.run(["git", "add", *paths], cwd=repo, check=True, timeout=15)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", msg], cwd=repo, check=True, timeout=15)
+
+    # (a) report + later unrelated commit → done must STILL close
+    env, repo = _artifact_repo(tmp_path, name="window")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    rep = repo / "docs/development/reviews/2026-08-21-window-review.md"
+    rep.write_text("# r\nclosed clean\n")
+    _commit(repo, env, "docs/development/reviews", msg="report")
+    (repo / "CHANGELOG.md").write_text("entry\n")
+    _commit(repo, env, "CHANGELOG.md", msg="changelog")
+    # make the report's WORKING-TREE mtime stale so only the commit window can prove it
+    import os as _os
+    _os.utime(rep, (1, 1))
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "e"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 0, f"a later unrelated commit false-refused the close: {r.stdout}"
+
+    # (b) non-.md decoy only → REFUSED
+    env, repo = _artifact_repo(tmp_path, name="decoy")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    (repo / "docs/development/reviews/evidence.png").write_bytes(b"\x89PNG")
+    _commit(repo, env, "docs/development/reviews", msg="png")
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "see commit"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "a committed non-.md decoy satisfied the artifact floor"
+
+    # (c) archived/ only → REFUSED
+    env, repo = _artifact_repo(tmp_path, name="arch")
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews/archived").mkdir(parents=True)
+    (repo / "docs/development/reviews/archived/old-review.md").write_text("# old\n")
+    _commit(repo, env, "docs/development/reviews", msg="refile")
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "refiled"], cwd=repo, env=env,
+                       capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "an archived/ re-file satisfied the artifact floor"

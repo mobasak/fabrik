@@ -840,31 +840,53 @@ def _close(
             for ln in porcelain.splitlines():
                 if ln[:2].strip() == "D" or not ln[3:].strip().endswith(".md"):
                     continue
+                if "archived/" in ln:
+                    # round 137: re-filing an old report satisfied the floor — archived/
+                    # is excluded everywhere the review grammars read; here too
+                    continue
                 f = Path(root or ".") / ln[3:].split(" -> ")[-1].strip().strip('"')
                 if f.is_file() and f.stat().st_mtime >= started_epoch - 2:
                     ok_artifact = True
                     candidates.append(f)
             if ok_artifact is False:
+                # Round 137 rebuilt this branch from three live-reproduced holes: (a) only
+                # HEAD was inspected, so a report committed mid-run followed by ANY later
+                # unrelated commit (CHANGELOG, lessons-learnt — the Completion Contract's
+                # own EXIT sequence) false-REFUSED the close; (b) the gate accepted any
+                # touch of the prefix while only candidates required .md, so a committed
+                # screenshot satisfied the floor with candidates=[] and the content floor
+                # never ran; (c) archived/ counted. Now: walk the run window's commits
+                # (bounded), and the SAME filter — live .md outside archived/ — decides
+                # both the gate and the candidates.
                 try:
-                    head = subprocess.run(
-                        ["git", "show", "--name-only", "--format=%ct", "HEAD"],
+                    log = subprocess.run(
+                        ["git", "log", "--name-only", "--format=%ct", "-n", "50", "HEAD"],
                         capture_output=True, text=True, timeout=10, check=True, cwd=root,
                     ).stdout.splitlines()
                 except Exception:
-                    head = []  # no commits yet = no HEAD artifact; NOT "broken git" (round 31:
+                    log = []  # no commits yet = no HEAD artifact; NOT "broken git" (round 31:
                     # the outer fail-open swallowed this and closed an empty repo clean)
-                head_epoch = float(head[0]) if head and head[0].isdigit() else 0.0
-                # exact >=, no grace: a commit made BEFORE start is a previous task's artifact
-                # (round 31: the 60s grace let the pre-run commit in the same minute count)
-                if head_epoch >= started_epoch and any(
-                    h.startswith("docs/development/reviews/") for h in head
-                ):
-                    ok_artifact = True
-                    for h in head:
-                        if h.startswith("docs/development/reviews/") and h.endswith(".md"):
-                            hf = Path(root or ".") / h
-                            if hf.is_file():
-                                candidates.append(hf)
+                commit_epoch = 0.0
+                for ln in log:
+                    if ln.strip().isdigit():
+                        commit_epoch = float(ln.strip())
+                        continue
+                    # >= floor(start), no broader grace: a commit made BEFORE start is a
+                    # previous task's artifact (round 31: the 60s grace let the pre-run
+                    # commit count) — but git's %ct is WHOLE seconds while started_epoch is
+                    # fractional, so a same-second commit truncates below start and was
+                    # false-refused (round 137, reproduced); within the shared second,
+                    # "before" is indeterminate and resolves toward not refusing.
+                    if (
+                        commit_epoch >= int(started_epoch)
+                        and ln.startswith("docs/development/reviews/")
+                        and ln.endswith(".md")
+                        and "archived/" not in ln
+                    ):
+                        ok_artifact = True
+                        hf = Path(root or ".") / ln
+                        if hf.is_file():
+                            candidates.append(hf)
         except Exception:
             ok_artifact = None  # broken git must not wedge the close — fail open HERE only
         if ok_artifact is True and candidates:

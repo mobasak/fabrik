@@ -2118,3 +2118,20 @@ def test_prose_bullet_starting_with_a_pipe_is_not_a_row(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-21-pipe-prose-notes.md", body)
     assert rc == 0, f"an explanatory pipe bullet was refused as a row costume: {out}"
+
+
+def test_tokenfree_pipe_bounded_bullet_is_prose(repo: Path) -> None:
+    """Round-137: the pipe-BOUNDED proxy still false-fired on token-free prose sitting
+    between two pipes (renderer-verified non-table). Only obligation-bearing content is
+    refused; a bulleted MEGA round row joins the token set."""
+    body = (
+        "# Deploy retro notes\n\n"
+        "- | this text sits between two pipe characters |\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-pipe-bounded-prose.md", body)
+    assert rc == 0, f"token-free pipe-bounded prose was refused: {out}"
+    h = _shell_hash(repo)
+    body2 = _report(h) + f"\n- | 3 | found: 9 | fixed: 3 | {h} → {h} |\n"
+    rc, out = _gate(repo, "2026-08-21-mega-vg-validation-review.md", body2)
+    assert rc == 1, "a bulleted mega round row escaped the refusal"
+    assert "LIST-WRAPPED pipe row" in out
