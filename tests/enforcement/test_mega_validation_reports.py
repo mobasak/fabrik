@@ -376,7 +376,8 @@ def test_committed_ambiguous_report_surfaces_in_the_advisory(repo: Path) -> None
     rc, out = _gate(repo, "2026-08-19-mega-amb-validation-review.md", body, commit=True)
     assert rc == 0, "advisory, never blocking"
     assert "MORE THAN ONE" in out, "committed ambiguity must be visible"
-    assert "Surface" not in [ln for ln in out.splitlines() if "COMMITTED mega report" in ln][0] or True
+    committed_lines = [ln for ln in out.splitlines() if "COMMITTED mega report" in ln]
+    assert committed_lines and "Surface" not in committed_lines[0]
     assert not any("no `Surface:` line" in ln for ln in out.splitlines()), (
         "full-obligation errors leaked past the committed scan's narrowness"
     )
@@ -2056,3 +2057,20 @@ def test_committed_mega_keeps_hash_pair_and_surface_anchor_errors(repo: Path) ->
     assert "does not equal the final round" in out, (
         "the committed path dropped the Surface/end-hash mismatch error"
     )
+
+
+def test_every_round_owes_its_hash_pair(repo: Path) -> None:
+    """Round-131 HIGH: only the FINAL round's pair was demanded and the chain comparison
+    skips None sides — a non-quiet earlier round with no pair at all carried zero proof of
+    its claimed history and passed both paths."""
+    h = _shell_hash(repo)
+    body = _report(h, rounds=(
+        "| 1 | found: 7 | fixed: 6 | (no hash recorded this round) |\n"
+        f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n"
+    ))
+    rc, out = _gate(repo, "2026-08-21-mega-ve-validation-review.md", body)
+    assert rc == 1, "a non-final round with no hash pair carried zero proof and passed"
+    assert "round 1 carries no full" in out
+    rc, out = _gate(repo, "2026-08-21-mega-vf-validation-review.md", body, commit=True)
+    assert rc == 0
+    assert "round 1 carries no full" in out, "the committed path dropped the per-round proof"

@@ -1087,6 +1087,17 @@ def check_mega_validation(
                 "— BLOCKED never converts a non-quiet exit into a done one"
             )
         pairs = [_MEGA_HASH_PAIR.search(line) for _, _, line in rows]
+        # EVERY round owes its pair (round 131): only the final row was checked, and the
+        # chain-gap comparison silently skips None sides — a non-quiet earlier round with
+        # NO pair at all carried zero proof of its claimed history and passed both paths.
+        # Structural (anti-cheat), so it survives the committed scope like its siblings.
+        for i, pr in enumerate(pairs[:-1]):
+            if pr is None:
+                errs.append(
+                    f"round {i + 1} carries no full `md5(start) → md5(end)` pair (≥12 hex "
+                    "each) — every round's claimed history needs its proof, not only the "
+                    "exit's"
+                )
         if pairs[-1] is None:
             errs.append(
                 "final ledger round carries no full `md5(start) → md5(end)` pair (≥12 hex each) "
