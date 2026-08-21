@@ -1230,6 +1230,18 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # one-keystroke fixes; corpus measured at 0 flagged committed files — no retro-nag.
             out.append(f"{p.relative_to(root)}: COMMITTED with an {pe}")
             continue
+        if CERT_REPORT.search(p.name):
+            # Cert reports get the SAME committed-path coverage the mega grammar got the
+            # day its hole was found (round 109: _committed_nonquiet never ran the cert
+            # dispositions, so a committed OPEN HANDOFF row missing NOT-QUIET/RESUME — or
+            # a CLOSED row citing a fabricated repro — went permanently invisible the
+            # instant it was committed: green-by-absence, this function's founding enemy).
+            # IN-PROGRESS cert reports were exempted-and-nagged above; corpus measured at
+            # 0 flagged committed cert reports — no retro-nag.
+            for e in check_cert_dispositions(p, root):
+                out.append(f"{p.relative_to(root)}: COMMITTED cert report — {e}")
+            if not subject:
+                continue
         if not subject:
             # not this gate's subject (spec/plan convergence artifacts carry no checklist) —
             # round 23: the IN-PROGRESS advisory was firing on EVERY reviews/*.md with a

@@ -1796,3 +1796,19 @@ def test_established_table_tail_divider_is_unambiguous(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-21-table-tail-divider-review.md", body)
     assert rc == 0, f"a table-tail divider false-fired the ambiguity refusal: {out}"
+
+
+def test_committed_cert_report_with_open_row_is_nagged(repo: Path) -> None:
+    """Round-109 HIGH: _committed_nonquiet never ran the cert dispositions — a committed
+    OPEN HANDOFF row missing NOT-QUIET/RESUME went permanently invisible the instant it was
+    committed (green-by-absence, the committed scan's founding enemy; mega got this
+    coverage the day its hole was found, cert never did)."""
+    body = (
+        "# cert\n\n"
+        "HANDOFF P0 OPEN checkout crashes on empty cart — repro: docs/x.md — route: /fabrik-review src/x\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-user-test-committed.md", body, commit=True)
+    assert rc == 0, "the committed scan is advisory — it must warn, not block"
+    assert "COMMITTED cert report" in out and "NOT-QUIET" in out, (
+        "a committed unresolved cert report escaped the committed scan"
+    )
