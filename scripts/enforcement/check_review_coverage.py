@@ -735,12 +735,27 @@ def _indented_grammar_error(text: str) -> str | None:
                 "visible content but is invisible to this gate's anchors — un-quote it "
                 "if it is live, or put it in a ``` fence if it is a quoted example"
             )
-        if n_list == 1 and n_quote == 0 and content.startswith("|"):
+        if (
+            n_list == 1
+            and n_quote == 0
+            and content.startswith("|")
+            and (
+                content.rstrip().endswith("|")
+                or UNCHECKED.search(content)
+                or VERDICT.search(content)
+                or _pass_counters(content) is not None
+                or HANDOFF_ROW.match(content)
+            )
+        ):
             # A LIST-WRAPPED pipe row (round 133): `- | class | UNCHECKED |` renders as a
             # BULLET carrying pipe text — not a table row — so it parses in neither row
             # extractor, and the single-list-marker tolerance only sanctions the PARSING
             # bulleted forms (Pass/HANDOFF prose lines). Visible to a human, invisible to
             # every anchor → the costume refusal, with the one-keystroke remedies.
+            # ROW-shaped or obligation-bearing content ONLY (round 135): an honest prose
+            # bullet whose text merely STARTS with a bare pipe ("- | is the pipe character
+            # bash uses…") false-failed non-subject docs — a row is pipe-BOUNDED or carries
+            # grammar tokens; explanatory prose is neither.
             return (
                 f"LIST-WRAPPED pipe row ({content[:70]!r}): it renders as a bullet, not a "
                 "table row, and no extractor can read it — un-wrap it if it is live, or "

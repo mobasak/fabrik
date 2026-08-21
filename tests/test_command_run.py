@@ -1092,3 +1092,72 @@ def test_adopt_join_declines_when_code_session_id_resolves(tmp_path, monkeypatch
     assert len(calls) == 1, calls
     assert calls[0]["sid_source"] != "join", calls[0]
     assert calls[0]["sid"] != "sessB", "the event was join-attributed into a sibling's stream"
+
+
+def _artifact_repo(tmp_path, name="repo"):
+    import os
+    import subprocess
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / name / "runs"),
+               KAIZEN_EVENTS_DIR=str(tmp_path / name / "events"),
+               CLAUDE_SESSION_ID=f"artifact-test-{name}")
+    repo = tmp_path / name / "repo"
+    repo.parent.mkdir(parents=True, exist_ok=True)
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
+    (repo / "x.txt").write_text("x")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+                   cwd=repo, check=True, timeout=15)
+    return env, repo
+
+
+def test_cert_and_mega_done_also_require_their_reports(tmp_path):
+    """Round-135 HIGH: the artifact guard covered only fabrik-review/repo-review — a
+    fabrik-user-test/service-test/fab-mega-04-validate done closed with NO report ever
+    written, the round-29 hole three commands over."""
+    import subprocess
+    script = "/opt/fabrik/scripts/command_run.py"
+    for cmd in ("fabrik-user-test", "fab-mega-04-validate"):
+        # a fresh repo per command: the 2s mtime grace otherwise lets the previous
+        # command's report satisfy the next run in a fast-running test
+        env, repo = _artifact_repo(tmp_path, name=cmd)
+        subprocess.run([sys.executable, script, "start", "--command", cmd,
+                        "--phases", "1", "--terminal", "t"],
+                       cwd=repo, env=env, check=True, timeout=15)
+        r = subprocess.run([sys.executable, script, "done", "--command", cmd,
+                            "--evidence", "nothing written at all"],
+                           cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+        assert r.returncode == 1, f"{cmd}: done closed with no report ({r.stdout})"
+        assert "persisted report" in r.stdout
+        (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
+        rep = repo / f"docs/development/reviews/2026-08-21-{cmd}-x.md"
+        rep.write_text("# r\ndone and closed\n")
+        r2 = subprocess.run([sys.executable, script, "done", "--command", cmd,
+                             "--evidence", "report written"],
+                            cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+        assert r2.returncode == 0, r2.stdout + r2.stderr
+
+
+def test_done_refused_when_every_artifact_is_midloop(tmp_path):
+    """Round-135 HIGH (content floor): a report declaring Status: IN-PROGRESS satisfies no
+    terminal condition — done with ONLY mid-loop artifacts is the evidence-string hole
+    wearing a file's clothes."""
+    import subprocess
+    env, repo = _artifact_repo(tmp_path)
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
+                    "--phases", "1", "--terminal", "t"],
+                   cwd=repo, env=env, check=True, timeout=15)
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    rep = repo / "docs/development/reviews/2026-08-21-midloop-review.md"
+    rep.write_text("# r\nStatus: IN-PROGRESS — round 3 running\n")
+    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                        "--evidence", "all done"],
+                       cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    assert r.returncode == 1, "done closed on a mid-loop-only artifact"
+    assert "IN-PROGRESS" in r.stdout
+    rep.write_text("# r\nStatus: closed — quiet round earned\n")
+    r2 = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
+                         "--evidence", "closed"],
+                        cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    assert r2.returncode == 0, r2.stdout + r2.stderr

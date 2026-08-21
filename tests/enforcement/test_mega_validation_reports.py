@@ -2106,3 +2106,15 @@ def test_bulleted_notquiet_declaration_is_recognized(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-21-user-test-bulleted-nq.md", body)
     assert rc == 0, f"a bulleted NOT-QUIET declaration was not recognized: {out}"
+
+
+def test_prose_bullet_starting_with_a_pipe_is_not_a_row(repo: Path) -> None:
+    """Round-135 HIGH 1: the pipe-row refusal fired on ANY bulleted line starting with a
+    bare pipe — an honest explanatory bullet in a NON-subject doc hard-failed the gate. A
+    row is pipe-BOUNDED or obligation-bearing; explanatory prose is neither."""
+    body = (
+        "# Deploy retro notes\n\n"
+        "- | is the pipe character bash uses to chain commands together, e.g. `ls | grep foo`.\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-pipe-prose-notes.md", body)
+    assert rc == 0, f"an explanatory pipe bullet was refused as a row costume: {out}"

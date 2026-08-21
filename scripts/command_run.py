@@ -780,7 +780,16 @@ def _close(
         print(msg)
         return 1
 
-    if args.cmd == "done" and live in ("fabrik-review", "fabrik-repo-review"):
+    if args.cmd == "done" and live in (
+        "fabrik-review",
+        "fabrik-repo-review",
+        # round 135: these three persist to docs/development/reviews/ by their own
+        # contracts, yet closed with NO artifact check at all — the round-29 hole verbatim,
+        # three commands over
+        "fabrik-user-test",
+        "fabrik-service-test",
+        "fab-mega-04-validate",
+    ):
         # ARTIFACT-BY-FILESYSTEM, RUN-BOUND (rounds 29+31). Round 29 proved `done` accepted any
         # evidence STRING; the first fix then shipped green-by-accident (its own bundled ledger
         # edit satisfied it) and round 31 reproduced four more holes: no cwd pinning (a wrong
@@ -820,6 +829,7 @@ def _close(
             except Exception:
                 started_epoch = 0.0
         ok_artifact = None  # None = unverifiable (fail open); False = verified absent
+        candidates: list[Path] = []
         try:
             porcelain = subprocess.run(
                 ["git", "status", "--porcelain", "--untracked-files=all",
@@ -833,7 +843,7 @@ def _close(
                 f = Path(root or ".") / ln[3:].split(" -> ")[-1].strip().strip('"')
                 if f.is_file() and f.stat().st_mtime >= started_epoch - 2:
                     ok_artifact = True
-                    break
+                    candidates.append(f)
             if ok_artifact is False:
                 try:
                     head = subprocess.run(
@@ -850,8 +860,42 @@ def _close(
                     h.startswith("docs/development/reviews/") for h in head
                 ):
                     ok_artifact = True
+                    for h in head:
+                        if h.startswith("docs/development/reviews/") and h.endswith(".md"):
+                            hf = Path(root or ".") / h
+                            if hf.is_file():
+                                candidates.append(hf)
         except Exception:
             ok_artifact = None  # broken git must not wedge the close — fail open HERE only
+        if ok_artifact is True and candidates:
+            # CONTENT floor (round 135): a report declaring itself mid-loop satisfies no
+            # terminal condition — `done` with ONLY `Status: IN-PROGRESS` artifacts is the
+            # round-29 evidence-string hole wearing a file's clothes. Header-zone only
+            # (first 10 lines, the template's slot); one non-mid-loop artifact suffices.
+            def _midloop(f: Path) -> bool:
+                try:
+                    head10 = "".join(
+                        f.read_text(encoding="utf-8", errors="replace").splitlines(
+                            keepends=True
+                        )[:10]
+                    )
+                except OSError:
+                    return False
+                import re as _re
+
+                return bool(
+                    _re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | _re.I)
+                )
+
+            if all(_midloop(f) for f in candidates):
+                msg = (
+                    f"REFUSED — every report this /{live} run persisted declares "
+                    "`Status: IN-PROGRESS` (mid-loop). A terminal `done` needs a report "
+                    "that has actually closed its loop; finish it, or close as `blocked`."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                print(msg)
+                return 1
         if ok_artifact is False:
             msg = (
                 f"REFUSED — closing /{live} with done requires its persisted report: no "
