@@ -737,6 +737,13 @@ def _indented_grammar_error(text: str) -> str | None:
             )
         if (
             ln.lstrip().startswith("|")
+            # RUN-INITIAL only (round 107): a pipe-row deeper in an established table is
+            # unambiguous — `| a |\n|---|\n| b |\n---` renders as a table then a thematic
+            # break, and refusing the table's TAIL row false-failed honest converged
+            # reports using the house-style divider. Only the FIRST pipe-row of a physical
+            # run can be the 1-column phantom-header candidate this refusal exists for —
+            # the same scope _table_rows gives its own header pairing.
+            and (idx == 0 or not live[idx - 1].lstrip().startswith("|"))
             and idx + 1 < len(live)
             and re.fullmatch(r" {0,3}-+\s*", live[idx + 1].rstrip("\n"))
         ):

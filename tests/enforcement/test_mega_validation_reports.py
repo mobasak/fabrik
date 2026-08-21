@@ -1779,3 +1779,20 @@ def test_blank_separated_divider_stays_unambiguous(repo: Path) -> None:
     )
     rc, out = _gate(repo, "2026-08-21-blank-divider-review.md", body)
     assert rc == 0, f"a blank-separated divider false-fired the ambiguity refusal: {out}"
+
+
+def test_established_table_tail_divider_is_unambiguous(repo: Path) -> None:
+    """Round-107: the bare-dash refusal had no run-initial scope — a `---` divider directly
+    under an established table's LAST row (renderer-unambiguous: table, then thematic
+    break) false-failed an honest converged report. Only a run-initial pipe-row can be the
+    phantom-header candidate the refusal exists for."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
+        "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
+        "---\n\nMore notes.\n\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-21-table-tail-divider-review.md", body)
+    assert rc == 0, f"a table-tail divider false-fired the ambiguity refusal: {out}"
