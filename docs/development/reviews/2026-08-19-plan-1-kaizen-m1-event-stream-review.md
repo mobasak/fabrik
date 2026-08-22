@@ -13,23 +13,23 @@ Rubric (verbatim `review_rubric.py --changed <the 12 paths>` output):
 core/30-ops, 12-FACTOR all twelve axes; MATCHED: core/10-python via hooks + command_run)
 ```
 
-## Coverage Checklist
+## Coverage Checklist — ADJUDICATED at close (round 28 clean, 2026-08-22)
 
 | # | Class | Verdict | Evidence |
 |---|---|---|---|
-| 1 | fail-open vs fail-closed on every gate/guard | UNCHECKED | |
-| 2 | concurrency & atomicity (O_APPEND, flock, TOCTOU, event_seq, killpg) | UNCHECKED | |
-| 3 | boundary/sentinel/prefix collisions (dash strings, era keys, sid sanitize, byte bounds) | UNCHECKED | |
-| 4 | accounting edges (unknown≠0, denominators, delta math, variance) | UNCHECKED | |
-| 5 | cross-file contract breaks (emit/exposure signatures, registry, read_rows consumers) | UNCHECKED | |
-| 6 | logic / off-by-one / None-empty handling | UNCHECKED | |
-| 7 | resource cleanup & subprocess trees (timeouts, temp dirs, clones, reaps) | UNCHECKED | |
-| 8 | security-auth FLOOR (secrets, injection, path traversal) | UNCHECKED | |
-| 9 | data-postgres FLOOR | UNCHECKED | |
-| 10 | ops FLOOR + 12-Factor (logs→stdout, no daemonize, no host ports, env config) | UNCHECKED | |
-| 11 | test quality (red-provability, mock theatre, vacuous assertions) | UNCHECKED | |
-| 12 | plan↔code deviation (spec intent) | UNCHECKED | |
-| 13 | core/10-python mandates (hooks + command_run) | UNCHECKED | |
+| 1 | fail-open vs fail-closed on every gate/guard | FIXED+CLEAN | wave-1 H2/H3 honesty guards; W21-1/W26-2 fail-soft with red-on-revert tests (test_kaizen_collect_v2.py: creation/lock fail-soft); coroner/store fail-open verified rounds 1, 9, 21-28 |
+| 2 | concurrency & atomicity | FIXED+CLEAN | L6 store/series flocks (kaizen_collect_v2.py:_store_lock); W19-4 tmp+fsync+os.replace; W22-1 RMW flock; W24-1/W26-1 resource-keyed unreaped lock identity — each with a discriminator test |
+| 3 | boundary/sentinel/prefix collisions | CLEAN | era keys (T09 filter), dash strings, _safe_sid, _free_key (P1), W10-5/W11-5 validated date operands; swept rounds 1-13, no finding since |
+| 4 | accounting edges (unknown≠0, denominators, delta math) | FIXED | the loop's core: the ROOT LAW (wave 3), like-with-like operands (W5-1), the single-source weekly law + rounds carve-out (W6-1/W8-1), day-point scoping (W7-1), per-row smear (W9-1), population-mass gates (W11-1/W12-1) — registry at review_rounds v10, stops pair v9 |
+| 5 | cross-file contract breaks | CLEAN | registry pairing pinned (S5 def-hash tripwire, re-pinned per bump); emit/exposure signatures swept rounds 1-5; the kc↔ko import cycle REFUTED round 9 |
+| 6 | logic / off-by-one / None-empty | FIXED | W9-1 window-edge vs row-day; week-edge tests; None propagation (root law); shrink suppression (W7-4) |
+| 7 | resource cleanup & subprocess trees | FIXED | killpg (wave 1), unreapable-worktree L2, W21 fd close + orphan reap + mode preservation; probes temp-dir-only throughout |
+| 8 | security-auth FLOOR | CLEAN | path traversal (resolve_sid single sanitize point), NUL-delimited git mining (M4), no secrets, shell-injection swept rounds 1, 9-13; bandit B324 cleared W25-1 |
+| 9 | data-postgres FLOOR | N/A | the M1 surface has no Postgres — file-backed stores only (JSONL + flock); the floor's applicable analog (atomic, locked, append-only file writes) is row 2 |
+| 10 | ops FLOOR + 12-Factor | CLEAN | env-layer config (KAIZEN_* inventory complete per W27-3), logs→stderr/stdout, no daemons (cron+stamp-check runner), no host ports; liveness registry truthful (W19-1/W20-1) |
+| 11 | test quality | FIXED | watched-fail-first every wave; discriminator/mutation guards W15-W27 (finder-mutation-proven rounds 16, 20, 25-28); 500-test battery green at close |
+| 12 | plan↔code deviation (spec intent) | CLEAN | honesty laws + versioned definitions hold throughout; the one design amendment (W8-1 single-source carve-out) documented in kaizen.md + the formula, never silent |
+| 13 | core/10-python mandates (hooks + command_run) | CLEAN | run-record integration (rounds recorded 1-37), Stop-hook emitters fail-open at import (verified round 1 + synced-hook fallback chain) |
 
 ## Pass Ledger
 
@@ -66,6 +66,14 @@ Pass 15 (fresh finder, post-b03b0c0d) | found: 2 (both LOW PLAUSIBLE regression-
 Pass 15-fix + Pass 16 (fresh finder, post-645873ce) | wave 15 merged 645873ce (the two round-15 guards) | found: 4 (2 MEDIUM mutation-guard gaps ON the wave-15 additions themselves — the W13 double-fire direction untested, the new `not g_split` conjunct untested; 1 LOW doc line for the new third disclosure line; 1 LOW human-only upsert duplicate-row edge). W15-2's logic itself proved CLEAN by exhaustive conjunct probe | wave 16 PENDING (operator pause: command-corpus gap takes priority; resume here) | → not done
 
 Passes 16-fix..19 (waves 16 e6f6d581, 17 1c062e1a, 18 8805c41d merged; rounds 17-19 found 2/3/4 — ALL LOW/doc/guard classes, ELEVEN straight rounds with zero correctness defects). Round-19 findings banked as the pending wave 19: the liveness-registry why-texts still say "PENDING the operator's crontab install" (the install has landed — all three lines live, stamps fresh today); kaizen.md:14's split table names two of the three daily jobs; the plural malformed-warn has no multi-row test; the role-log rewrite is truncate-then-write with no lock/tmp-replace (the one kaizen artifact holding hand-authored cells). OPERATOR PAUSE (third, firm): command-corpus gap takes absolute priority; resume here | → not done
+
+Passes 20-28 (waves 20 a3d59f1d, 21 fd41f32c, 22 68b0e67a, 23 c644d085, 24 7c653c44, 25 b1da77e3, 26 ac5a697a, 27 878c9c82 merged; rounds found 5 → 5 → 5 → 4 → 2 → 3 → 1 → 3 → 0). The eight-round tail was entirely the role-log write seam hardening itself: atomic write → unique tmp → fail-soft creation → RMW flock → lock siting (tracked-dir → tempdir → reaped-dir → fixed home) → discriminator tests, each wave's findings strictly the previous wave's own polish, zero value-corruption findings after round 8.
+
+Pass 28 (fresh finder, post-878c9c82) | found: 0 — every candidate refuted with evidence (mutation runs, live tmpfiles config, env teardown traces); class-clean lines for comment-truth, test-strength, test-isolation, env-inventory, cross-module lock contract, lock-siting, doc-sync | ✅ THE NO-OP ROUND (command_run.py TERMINAL VERDICT, round 37 of the run record) | → DONE
+
+STATUS: CONVERGED — 28 finder rounds, 27 fix waves, ~140 findings FIXED / ~25 REFUTED with quoted proof, zero unresolved. Registry at review_rounds v10 / stops pair v9; battery 500 green; all waves pushed.
+
+Residuals (documented, out of this loop's scope): structural sid propagation into Bash shells fixed upstream by 3c010847 (CLAUDE_CODE_SESSION_ID); the headless-export gap (ci_fix_dispatcher.py:208, claude-run.sh:53,55) rides the archived spine notes; two round-13 rotation-surface observations handed to that surface's owner.
 
 Core-layer classes (emitter, hooks, run-records, coroner, store atomicity, backfill, sensors, security) clean since pass 5 — findings from pass 6 onward confined to the weekly-aggregation seam waves 6–8 themselves introduced.
 
