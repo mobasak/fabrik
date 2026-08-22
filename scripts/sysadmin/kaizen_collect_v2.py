@@ -460,7 +460,7 @@ def derive_batch(paths: list[Path], day: str | None = None) -> list[dict]:
 
 
 @contextlib.contextmanager
-def _store_lock(target: Path) -> Iterator[None]:
+def _store_lock(target: Path, lockfile: Path | None = None) -> Iterator[None]:
     """EXCLUSIVE inter-process lock over a read-keys→append seam (L6).
 
     ``O_APPEND`` keeps each individual write atomic, but the DEDUP decision — read
@@ -468,9 +468,12 @@ def _store_lock(target: Path) -> Iterator[None]:
     backfill racing it both read "absent" and both append. flock on a sibling
     ``.lock`` file serializes the whole seam; closing the fd releases it, and a
     crashed holder's lock dies with its process (flock, not a stale lockfile
-    protocol)."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(f"{target}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    protocol). ``lockfile`` (W23-1) relocates the lock — a target inside a
+    git-tracked dir must not grow a permanently-untracked sibling; the role-log
+    lock lives under the state dir instead."""
+    lockfile = lockfile if lockfile is not None else Path(f"{target}.lock")
+    lockfile.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lockfile), os.O_CREAT | os.O_RDWR, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield
@@ -1952,8 +1955,11 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     # read the file seconds earlier (a crashed holder's lock dies with it).
     # The lock acquisition itself is fail-soft (a read-only parent must warn,
     # never escape as an uncaught PermissionError).
+    # path.name is a bare filename (no separators); same-named logs in different
+    # dirs would share a lock — over-serialization, never corruption.
+    lockfile = state_dir() / "log-locks" / (path.name + ".lock")
     try:
-        with _store_lock(path):
+        with _store_lock(path, lockfile=lockfile):
             return _upsert_log_row_locked(path, cells, force_dash)
     except OSError as exc:
         _warn(f"log lock failed for {path.name} ({exc!r}) — row skipped")
@@ -2026,7 +2032,9 @@ def _upsert_log_row_locked(path: Path, cells: list[str], force_dash: bool) -> bo
     try:
         for stale in path.parent.glob("tmp*.tmp"):
             with contextlib.suppress(OSError):
-                if not stale.is_symlink() and time.time() - stale.stat().st_mtime > 3600:
+                # lstat: the LINK's own age (never the target's), so a stale
+                # symlink is reaped as a link and a fresh one is left alone
+                if time.time() - stale.lstat().st_mtime > 3600:
                     stale.unlink()
         fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
         tmp = Path(tmp_name)
@@ -2041,8 +2049,12 @@ def _upsert_log_row_locked(path: Path, cells: list[str], force_dash: bool) -> bo
             os.fsync(fh.fileno())  # W21-5a/W22-3: content durable; the rename is
             # atomic (old-or-new, never torn) — rename durability rides the next
             # day's re-upsert of the same ISO-week row
-        tmp.chmod(path.stat().st_mode & 0o7777)  # W22-2: a failure here is a
-        # warned skip (the OSError handler below), never a silent 0600 install
+        try:
+            tmp.chmod(path.stat().st_mode & 0o7777)
+        except OSError as exc:
+            # W22-2 + W23-3: never a SILENT 0600 install — but a mode hiccup
+            # (EPERM mount, a racing unlink) must not cost the weekly ROW.
+            _warn(f"log mode not preserved for {path.name} ({exc!r}) — row still written")
         os.replace(tmp, path)
     except OSError as exc:
         _warn(f"log row write failed for {path.name} ({exc!r}) — row skipped")

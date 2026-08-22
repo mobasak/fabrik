@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 23: the lock lives outside the tracked tree; the row outlives the mode (2026-08-22)
+
+- The role-log lock lives under the state dir (`log-locks/<name>.lock`, W23-1 — the sibling
+  `.lock` was a permanently-untracked file in a git-tracked docs dir three sessions share,
+  reading as forever-dirty in every porcelain check) and the fail-soft missing-log path no
+  longer materializes directories at the wrong location (W23-2).
+- A chmod failure is a WARNED mode concession, never a lost weekly row and never silent
+  (W23-3 — both halves of the contract); the orphan reap ages symlinks by the link's own
+  lstat (W23-5); the W22 lock and both new dispositions carry their discriminator tests
+  (W23-4 — deleting the lock wrapper, re-suppressing the chmod, or re-siting the lock each
+  fails a test).
+
 ### Fixed — kaizen M1 review fix-wave 22: the write seam is serialized; every failure warns (2026-08-22)
 
 - The role-log upsert runs under the module's own inter-process flock (W22-1 — the one

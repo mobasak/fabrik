@@ -3247,7 +3247,9 @@ def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
     assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
     assert "| 2026-08-19 |" in log.read_text()
     leftovers = [
-        p.name for p in tmp_path.iterdir() if p.name != "log.md" and not p.name.endswith(".lock")
+        p.name
+        for p in tmp_path.iterdir()
+        if p.name not in ("log.md", "state-env", "events-env") and not p.name.endswith(".lock")
     ]
     assert leftovers == [], leftovers
 
@@ -3282,7 +3284,9 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
     )
     assert "row skipped" in buf.getvalue()
     leftovers = [
-        p.name for p in tmp_path.iterdir() if p.name != "log.md" and not p.name.endswith(".lock")
+        p.name
+        for p in tmp_path.iterdir()
+        if p.name not in ("log.md", "state-env", "events-env") and not p.name.endswith(".lock")
     ]
     assert leftovers == [], "the failed write cleans up its unique tmp"
 
@@ -3364,3 +3368,77 @@ def test_upsert_reaps_stale_tmp_orphans(tmp_path: Path) -> None:
     assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
     assert not old_orphan.exists(), "the stale orphan is reaped"
     assert fresh.exists(), "a fresh tmp (live writer) is never touched"
+
+
+# ── fix-wave 23 (W23: the lock lives outside the tracked tree; the row outlives the mode) ──
+
+
+def test_upsert_lock_lives_in_the_state_dir_not_the_log_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W23-1 + W23-4 (the W22-1 discriminator): the upsert takes the
+    inter-process lock (red if the _store_lock wrapper is deleted) and its
+    lockfile lives under the STATE dir — a git-tracked docs dir must never grow
+    a permanently-untracked .lock sibling."""
+    st = tmp_path / "state-env"
+    monkeypatch.setenv("KAIZEN_STATE_DIR", str(st))
+    logdir = tmp_path / "docs"
+    logdir.mkdir()
+    log = logdir / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert [p.name for p in logdir.iterdir()] == ["log.md"], (
+        "the log's own dir stays clean — no .lock, no residue"
+    )
+    assert (st / "log-locks" / "log.md.lock").is_file(), (
+        "the lock was taken, in the state dir (deleting the _store_lock wrapper "
+        "leaves this file uncreated and fails here)"
+    )
+
+
+def test_upsert_missing_log_leaves_no_residue_anywhere_near_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W23-2: the fail-soft missing-log path must not materialize directories
+    or files at the wrong location — pre-W23 the lock's mkdir created the
+    missing parent and dropped a .lock there while reporting 'row skipped'."""
+    monkeypatch.setenv("KAIZEN_STATE_DIR", str(tmp_path / "state-env"))
+    missing = tmp_path / "nodir" / "nolog.md"
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        ok = kc.upsert_log_row(missing, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert ok is False
+    assert "row skipped" in buf.getvalue()
+    assert not (tmp_path / "nodir").exists(), (
+        "a wrong path must not silently materialize a directory"
+    )
+
+
+def test_upsert_mode_failure_warns_but_the_row_still_lands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W23-3: a chmod failure is a warned mode concession, never a lost weekly
+    row — and never a silent one (both halves of the W22-2/W23-3 contract)."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+
+    def _boom(self: object, mode: int) -> None:
+        raise PermissionError("simulated EPERM mount")
+
+    monkeypatch.setattr(kc.Path, "chmod", _boom)
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert ok is True
+    assert "| 2026-08-19 |" in log.read_text(encoding="utf-8"), "the row lands"
+    assert "mode not preserved" in buf.getvalue(), "the concession is warned, never silent"
