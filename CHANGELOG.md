@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — plan: fabrik-mail loop-safety build (2026-08-22)
+
+- Execution-ready DRAFT plan for the fleet-authored CONVERGED loop-safety spec: the four
+  auto-reply guards behind `--auto` in scripts/mail.py, red-first test matrix, the docs pair,
+  and the fleet-distribution commit discipline (mail.py is a governance-sync trigger). Both
+  spec OPEN items settled (caps → env-overridable defaults; hook annotation → declined,
+  residual). docs/development/plans/2026-08-22-plan-1-fabrik-mail-loop-safety.md.
+
 ### Fixed — check_frozen_chain: history pins never outvote the binding pin (transdoc round-trip, 2026-08-22)
 
 - The pin comparison uses the MAX version matched per (consumer, input) pair: the freeze
