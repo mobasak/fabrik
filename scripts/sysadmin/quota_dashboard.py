@@ -97,29 +97,18 @@ def _tone(remaining: float) -> str:
     return "ok"
 
 
-# Friendly labels for the model-/feature-specific weekly windows the usage API returns
-# alongside five_hour/seven_day. Unlisted keys (incl. Anthropic's codenames like `nimbus_quill`,
-# and a future Fable-5 window) render by their RAW key — self-identifying: use the model, reload,
-# and the key that lights up is that model's window.
-_MODEL_WINDOW_LABELS = {
-    "seven_day_opus": "Opus (wk)",
-    "seven_day_sonnet": "Sonnet (wk)",
-    "seven_day_cowork": "Cowork (wk)",
-}
-
-
 def _model_windows_html(acct: dict) -> str:
-    """A sub-line listing every model-specific weekly window that carries usage (>0%). Empty
-    string when none — so the row stays clean until a model's separate limit is actually
-    consumed (opus/sonnet/fable), then that window appears automatically, labeled by real key."""
+    """A sub-line listing per-model weekly limits (from the usage `limits` array — e.g. Fable),
+    each already carrying its own display_name. Shown whenever present, at any %, because a named
+    per-model limit is meaningful even at 0% (full headroom for that model). Empty string when
+    the account has no model-scoped limits."""
     mw = acct.get("model_windows") or {}
     parts = []
-    for key in sorted(mw):
-        w = mw[key]
+    for name in sorted(mw):
+        w = mw[name]
         u = w.get("utilization") if isinstance(w, dict) else None
-        if isinstance(u, (int, float)) and u > 0:
-            label = _MODEL_WINDOW_LABELS.get(key, key)
-            parts.append(f"{escape(label)} {u:.0f}%")
+        if isinstance(u, (int, float)):
+            parts.append(f"{escape(name)} {u:.0f}%")
     if not parts:
         return ""
     return f'<div class="sub models">model weeklies: {" · ".join(parts)}</div>'

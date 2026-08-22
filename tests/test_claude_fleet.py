@@ -2812,29 +2812,33 @@ def test_oauth_get_gives_up_after_attempts(monkeypatch):
     assert calls["n"] == 2, "bounded — exactly `attempts` tries, then give up (fail-soft)"
 
 
-# ── model-specific weekly windows captured generically (2026-08-22: fable/opus visibility) ──
-def test_usage_windows_captures_populated_model_windows():
+# ── per-model weekly limits from the `limits` array (2026-08-22: Fable-5 visibility) ──
+def test_usage_windows_captures_scoped_model_limits_from_limits_array():
     usage = {
         "five_hour": {"utilization": 10, "resets_at": None},
         "seven_day": {"utilization": 40, "resets_at": None},
-        "seven_day_opus": {"utilization": 55, "resets_at": None},
-        "seven_day_sonnet": None,          # unused → omitted
-        "nimbus_quill": {"utilization": 0, "resets_at": None},  # populated (0) → kept in data
+        "limits": [
+            {"kind": "session", "percent": 10, "scope": None},
+            {"kind": "weekly_all", "percent": 40, "scope": None},  # == seven_day, NOT a model
+            {"kind": "weekly_scoped", "percent": 6, "resets_at": None,
+             "scope": {"model": {"id": None, "display_name": "Fable"}}},
+        ],
     }
     out = cr._usage_windows(usage)
     mw = out["model_windows"]
-    assert mw["seven_day_opus"]["utilization"] == 55.0
-    assert "seven_day_sonnet" not in mw, "a None window is unused, never recorded"
-    assert mw["nimbus_quill"]["utilization"] == 0.0
+    assert mw["Fable"]["utilization"] == 6.0, "Fable's weekly limit is read from limits[]"
+    assert "weekly_all" not in mw and len(mw) == 1, "unscoped weekly is the general one, not a model"
 
 
-def test_usage_windows_no_model_windows_key_when_none_present():
-    usage = {"five_hour": {"utilization": 1}, "seven_day": {"utilization": 2}}
+def test_usage_windows_no_model_windows_key_when_no_scoped_limits():
+    usage = {"five_hour": {"utilization": 1}, "seven_day": {"utilization": 2},
+             "limits": [{"kind": "weekly_all", "percent": 2, "scope": None}]}
     out = cr._usage_windows(usage)
-    assert "model_windows" not in out, "absent extras must not add an empty key"
+    assert "model_windows" not in out, "no model-scoped limit → no key"
 
 
 def test_usage_windows_still_fail_closed_on_bad_required_window():
-    # a malformed required window still nulls the whole read — model windows never rescue it
+    # a malformed required window still nulls the whole read — model limits never rescue it
     assert cr._usage_windows({"five_hour": {"utilization": "x"}, "seven_day": {"utilization": 3},
-                              "seven_day_opus": {"utilization": 9}}) is None
+                              "limits": [{"kind": "weekly_scoped", "percent": 9,
+                                          "scope": {"model": {"display_name": "Fable"}}}]}) is None

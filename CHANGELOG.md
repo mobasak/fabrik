@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Quota dashboard: read per-model weekly limits from the `limits` array (Fable now shows) (2026-08-22)
+
+- The generic top-level-window scan missed Fable-5: its separate weekly quota is NOT a top-level
+  key — it lives in the usage payload's `limits` array as a `weekly_scoped` entry with
+  `scope.model.display_name = "Fable"`. `_usage_windows` now reads that array and keys each
+  model-scoped limit by its own display_name (e.g. `Fable` → utilization from `percent`).
+- The dashboard shows every named model limit whenever present, at any % (a named per-model
+  limit is meaningful at 0% = full headroom), replacing the earlier ">0% + raw codename key"
+  render — so the undocumented always-0 codename windows (`nimbus_quill`, …) no longer surface.
+  Vendored byte-identical to `scripts/aro-wake/claude_rotate.py`.
+
 ### Added — Quota dashboard: surface model-specific weekly windows (Opus/Sonnet/Fable) generically (2026-08-22)
 
 - The `/api/oauth/usage` payload returns ~17 windows; the dashboard parsed only `five_hour` +

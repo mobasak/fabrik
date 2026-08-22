@@ -3106,23 +3106,29 @@ def _usage_windows(usage: dict | None) -> dict | None:
         if not isinstance(u, (int, float)):
             return None
         out[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
-    # Model-/feature-specific weekly windows the API also returns (seven_day_opus,
-    # seven_day_sonnet, and Anthropic's codenamed windows). Captured GENERICALLY so a window
-    # the API adds — e.g. a separate Fable-5 limit — surfaces on the dashboard automatically,
-    # labeled by its real key, the moment it carries usage (the dashboard becomes its own
-    # identification tool). Additive and NEVER fail-closed: a None/absent window means "unused",
-    # not "malformed", so only windows carrying a numeric utilization are kept, and their
-    # absence never nulls the required five_hour/seven_day reading above.
+    # Per-MODEL weekly limits arrive as scoped entries in the `limits` array, each carrying the
+    # model's own display_name — this is the authoritative, self-labeling source for a model's
+    # separate weekly quota. Fable-5 lives ONLY here (kind="weekly_scoped",
+    # scope.model.display_name="Fable"); it has no top-level window key, which is why an earlier
+    # top-level-only scan never found it (2026-08-22). The undocumented top-level codename
+    # windows (nimbus_quill, tangelo, …) are deliberately NOT surfaced — they are noise, always
+    # 0/None. Additive and NEVER fail-closed: a malformed limits array leaves the required
+    # five_hour/seven_day reading intact.
     models: dict = {}
-    for key, w in usage.items():
-        if key in ("five_hour", "seven_day") or not isinstance(w, dict):
-            continue
-        u = w.get("utilization")
-        if isinstance(u, (int, float)):
-            models[key] = {
-                "utilization": float(u),
-                "resets_at_epoch": _iso_to_epoch(w.get("resets_at")),
-            }
+    limits = usage.get("limits")
+    if isinstance(limits, list):
+        for lim in limits:
+            if not isinstance(lim, dict) or lim.get("kind") != "weekly_scoped":
+                continue
+            scope = lim.get("scope")
+            model = scope.get("model") if isinstance(scope, dict) else None
+            name = model.get("display_name") if isinstance(model, dict) else None
+            pct = lim.get("percent")
+            if isinstance(name, str) and name and isinstance(pct, (int, float)):
+                models[name] = {
+                    "utilization": float(pct),
+                    "resets_at_epoch": _iso_to_epoch(lim.get("resets_at")),
+                }
     if models:
         out["model_windows"] = models
     return out
