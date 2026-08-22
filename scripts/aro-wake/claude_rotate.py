@@ -1086,20 +1086,48 @@ def _iso_to_epoch(s: object) -> float | None:
         return None
 
 
-def _oauth_get(path: str, token: str, timeout_s: float = 15.0) -> dict | None:
+def _oauth_get(
+    path: str,
+    token: str,
+    timeout_s: float | None = None,
+    attempts: int | None = None,
+    backoff_s: float = 0.3,
+) -> dict | None:
     """GET an api/oauth/* resource with a store token. None on ANY failure — a telemetry
-    miss must never crash a tick. Never emits token bytes."""
-    try:
-        import urllib.request
+    miss must never crash a tick. Never emits token bytes.
 
-        req = urllib.request.Request(
-            f"https://api.anthropic.com/api/oauth/{path}",
-            headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout_s) as r:
-            return json.load(r)
-    except Exception:
-        return None
+    Bounded retry for TRANSIENT failures (timeout / connection reset / 5xx) with a short
+    per-attempt timeout, so a single network blip does not blank the quota dashboard: the
+    ping-free ``--status`` path this feeds runs behind a 60s subprocess cap, and one stalled
+    ``urlopen`` under a flaky link (VPN drop) used to trip it (observed 2026-08-22 — the board
+    showed "Live probe failed — TimeoutExpired after 60s"). A 4xx (esp. 401/403) is DEFINITIVE
+    auth, NEVER retried — retrying a dead/wrong token only burns the budget. Both knobs are
+    env-tunable (``OAUTH_GET_TIMEOUT_S`` / ``OAUTH_GET_ATTEMPTS``); the short 8s default keeps
+    two attempts comfortably inside a caller's budget."""
+    import urllib.error
+    import urllib.request
+
+    if timeout_s is None:
+        timeout_s = _env_float("OAUTH_GET_TIMEOUT_S", 8.0)
+    if attempts is None:
+        attempts = max(1, int(_env_float("OAUTH_GET_ATTEMPTS", 2.0)))
+    req = urllib.request.Request(
+        f"https://api.anthropic.com/api/oauth/{path}",
+        headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
+    )
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code < 500:
+                return None  # 4xx is definitive (dead/wrong token) — do not retry
+            # 5xx is a transient server error → fall through to the retry
+        except Exception:
+            pass  # timeout / URLError / socket / malformed JSON — transient, retry
+        if i < attempts - 1:
+            time.sleep(backoff_s * (i + 1))
+    return None
 
 
 def _account_status(store: Path) -> dict:

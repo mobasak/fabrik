@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Account rotation: bounded transient retry in `_oauth_get` so a network blip stops blanking the quota dashboard (2026-08-22)
+
+- The quota dashboard shells `claude_rotate.py --status --json` behind a 60s subprocess cap;
+  that (ping-free) path still makes live `_oauth_get` calls for fresh-token accounts (the
+  active account's `usage` + an hourly `profile` probe). A single stalled `urlopen` under a
+  flaky link (VPN drop) tripped the cap → "Live probe failed — TimeoutExpired after 60s".
+- `_oauth_get` now retries TRANSIENT failures (timeout / connection reset / 5xx) with a short
+  per-attempt timeout and backoff; a 4xx (esp. 401/403) is definitive auth and is never
+  retried. Env-tunable via `OAUTH_GET_TIMEOUT_S` (default 8s) / `OAUTH_GET_ATTEMPTS` (default
+  2), sized so two attempts stay inside the caller's budget. Vendored byte-identical to
+  `scripts/aro-wake/claude_rotate.py`. Regression-guarded in `tests/test_claude_fleet.py`.
+
 ### Added — upstream feedback to the hub is a DUTY in every project's governance (2026-08-22)
 
 - The synced project CLAUDE.md gains "§ Upstream feedback to the hub — a DUTY at every step":

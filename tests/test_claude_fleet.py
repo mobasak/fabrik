@@ -2763,3 +2763,50 @@ def test_with_claude_on_path_handles_empty_path(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
     out = cr._with_claude_on_path({})
     assert out["PATH"] == str(tmp_path / ".local" / "bin")
+
+
+# ── _oauth_get bounded transient retry (regression: 2026-08-22 dashboard 60s timeout) ──
+class _FakeResp:
+    def __init__(self, body): self._b = body
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def read(self): return self._b
+
+
+def test_oauth_get_retries_transient_then_succeeds(monkeypatch):
+    import urllib.request
+    calls = {"n": 0}
+    def fake(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("blip")
+        return _FakeResp(b'{"ok": 1}')
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    out = cr._oauth_get("usage", "tok", attempts=2, backoff_s=0)
+    assert out == {"ok": 1}
+    assert calls["n"] == 2, "a transient blip must be retried, not surfaced as failure"
+
+
+def test_oauth_get_does_not_retry_4xx(monkeypatch):
+    import urllib.error
+    import urllib.request
+    calls = {"n": 0}
+    def fake(req, timeout=None):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(req.full_url, 401, "unauth", {}, None)
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    out = cr._oauth_get("usage", "tok", attempts=3, backoff_s=0)
+    assert out is None
+    assert calls["n"] == 1, "401 is definitive auth — never retried (burns the budget)"
+
+
+def test_oauth_get_gives_up_after_attempts(monkeypatch):
+    import urllib.request
+    calls = {"n": 0}
+    def fake(req, timeout=None):
+        calls["n"] += 1
+        raise TimeoutError("down")
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    out = cr._oauth_get("usage", "tok", attempts=2, backoff_s=0)
+    assert out is None
+    assert calls["n"] == 2, "bounded — exactly `attempts` tries, then give up (fail-soft)"
