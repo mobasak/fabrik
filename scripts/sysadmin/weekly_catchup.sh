@@ -28,9 +28,9 @@ WEEKLY=$(( 7*86400 - 1800 ))  # cadence minus 30 min slack so hourly drift never
 DAILY=$(( 86400 - 1800 ))
 # Key validation FIRST — a retired job's leftover stamp must never mask the
 # retirement behind a quiet fresh-stamp exit (kaizen_metrics.py, 2026-08-20).
-# RETIRED keys exit 0 (never noise-rc: the live crontab still carries the old line
-# until the operator swaps it — hourly rc=2 forever is the trap) and nudge ONCE per
-# day via their own stamp, so the pending crontab edit stays visible without spam.
+# RETIRED keys exit 0 (never noise-rc: a stale crontab somewhere may still carry
+# the old line — hourly rc=2 forever is the trap; the hub's was swapped 2026-08-22)
+# and nudge ONCE per day via their own stamp, so a leftover line stays visible without spam.
 case "$JOB" in
     kaizen_metrics.py)
         NUDGE="$STATE/retired-${JOB}.nudge"
@@ -90,8 +90,8 @@ case "$JOB" in
         # The DAILY coroner sweep (review fix-wave H5): post-hoc death/revival
         # reconstruction + closure of run records that can no longer close
         # themselves. Nothing else on the box runs it — the hole metric and the
-        # record TTLs depend on this job. Crontab line (operator install, same
-        # pattern as the siblings):
+        # record TTLs depend on this job. Crontab line (INSTALLED 2026-08-22 on
+        # the hub crontab, same pattern as the siblings):
         #   53 * * * * flock -n $HOME/.claude/state/daily-kaizen-coroner.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh kaizen_coroner.py >> $HOME/.claude/kaizen-coroner.log 2>&1
         cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_coroner.py --sweep
         ;;

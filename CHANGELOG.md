@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 20: the third why-text; a unique tmp; the distinguishing test (2026-08-22)
+
+- The kaizen-sweep liveness why-text joins its siblings at INSTALLED (W20-1 — the wave-19
+  plain-text replace missed it because that JSON entry stored its em-dashes as \u2014 escapes;
+  fixed via the JSON layer, escape-proof, and verified zero PENDING remains).
+- The role-log tmp is unique per writer (mkstemp — a fixed shared name let two concurrent
+  writers truncate each other's tmp mid-replace, W20-3); the atomic write has its
+  distinguishing test (W20-2 — os.replace intercepted: the original log survives
+  byte-for-byte, False returned, tmp cleaned; the pre-wave direct write fails it).
+- weekly_catchup.sh's retired-keys and coroner comments no longer describe the pre-install
+  world (W20-4/W20-5).
+
 ### Changed — /fabrik-flows wired into every remaining enforcement + doc surface (2026-08-22)
 
 - `docs/flows.md` joins the FROZEN-header gate (`check_stage_artifacts.py` — Status/Version/Date

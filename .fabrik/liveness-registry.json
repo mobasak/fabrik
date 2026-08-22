@@ -1,6 +1,6 @@
 {
  "version": 1,
- "note": "Declared surfaces for scripts/sysadmin/liveness_audit.py PROOF 1 (heartbeat). Lives in .fabrik/ because that is already the repo's TRACKED machine-state directory (lint-baseline.json, plan-locks/*.json) \u2014 the registry must be versioned and reviewable in a diff, not a box-local untracked file that would itself be an unmonitored surface. JSON keeps the audit stdlib-only.",
+ "note": "Declared surfaces for scripts/sysadmin/liveness_audit.py PROOF 1 (heartbeat). Lives in .fabrik/ because that is already the repo's TRACKED machine-state directory (lint-baseline.json, plan-locks/*.json) — the registry must be versioned and reviewable in a diff, not a box-local untracked file that would itself be an unmonitored surface. JSON keeps the audit stdlib-only.",
  "ownership": {
   "comment": "A crontab line is THIS repo's business when it contains one of these. Everything else is a foreign surface: counted, never listed, never our OVERDUE.",
   "cron_owned_substrings": [
@@ -29,7 +29,7 @@
   {
    "id": "claude-rotate-tick",
    "kind": "cron",
-   "why": "the */5 quota-rotation tick \u2014 the pointer flip that keeps every project on a live account",
+   "why": "the */5 quota-rotation tick — the pointer flip that keeps every project on a live account",
    "cron_match": "claude_rotate.py --tick",
    "evidence": {
     "type": "log",
@@ -53,7 +53,7 @@
   {
    "id": "quota-dashboard",
    "kind": "cron",
-   "why": "localhost:5051 account-quota board; the --ensure cron only APPENDS on action, so the log mtime is not a heartbeat \u2014 the listening port is",
+   "why": "localhost:5051 account-quota board; the --ensure cron only APPENDS on action, so the log mtime is not a heartbeat — the listening port is",
    "cron_match": "quota_dashboard.py --ensure",
    "evidence": {
     "type": "port",
@@ -102,7 +102,7 @@
   {
    "id": "kaizen-sweep",
    "kind": "cron",
-   "why": "the nightly fleet-health sweep (T07 outcome tier) \u2014 clean HEAD worktrees, install-less checks, one fleet_health event per swept project. Its crontab line is PENDING the operator's crontab install \u2014 until it lands this surface is expected OVERDUE, and that is the finding, not noise.",
+   "why": "the nightly fleet-health sweep (T07 outcome tier) — clean HEAD worktrees, install-less checks, one fleet_health event per swept project. Its crontab line is INSTALLED (2026-08-22) — an OVERDUE stamp now means the sweep itself is failing; read ~/.claude/kaizen-sweep.log.",
    "cron_match": "kaizen_outcomes.py",
    "evidence": {
     "type": "log",
@@ -130,7 +130,7 @@
   {
    "id": "fabrik-mail-digest",
    "kind": "cron",
-   "why": "daily unacked/quarantined mail digest \u2014 the doc promised it 'so nothing rots silently'",
+   "why": "daily unacked/quarantined mail digest — the doc promised it 'so nothing rots silently'",
    "cron_match": "mail.py digest",
    "evidence": {
     "type": "log",
@@ -142,7 +142,7 @@
   {
    "id": "wip-backup",
    "kind": "cron",
-   "why": "*/15 WIP snapshot to refs/wip + off-box push \u2014 the net under every uncommitted change",
+   "why": "*/15 WIP snapshot to refs/wip + off-box push — the net under every uncommitted change",
    "cron_match": "wip_backup.sh",
    "evidence": {
     "type": "log",
@@ -167,7 +167,7 @@
   {
    "id": "mutation-sweep",
    "kind": "cron",
-   "why": "weekly mutation run \u2014 the only thing that proves the test suite can fail",
+   "why": "weekly mutation run — the only thing that proves the test suite can fail",
    "cron_match": "check_mutation.py",
    "evidence": {
     "type": "log",
@@ -180,7 +180,7 @@
   {
    "id": "dr-claude-backup",
    "kind": "cron",
-   "why": "Claude-config DR mirror to the private git store \u2014 the surface that had NEVER run from cron",
+   "why": "Claude-config DR mirror to the private git store — the surface that had NEVER run from cron",
    "cron_match": "dr_claude_backup.sh",
    "evidence": {
     "type": "log",
@@ -240,7 +240,7 @@
   {
    "id": "dr-env-recovery-test",
    "kind": "cron",
-   "why": "weekly restore rehearsal \u2014 a backup nobody restores is not a backup",
+   "why": "weekly restore rehearsal — a backup nobody restores is not a backup",
    "cron_match": "dr_env_recovery_test.sh",
    "evidence": {
     "type": "log",
@@ -287,7 +287,7 @@
   {
    "id": "stop-sound-hook",
    "kind": "hook",
-   "why": "the Stop hook \u2014 also the only writer of the StopFailure death-class log kaizen measures",
+   "why": "the Stop hook — also the only writer of the StopFailure death-class log kaizen measures",
    "evidence": {
     "type": "hook",
     "command_contains": "claude-sound.sh"

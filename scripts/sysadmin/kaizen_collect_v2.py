@@ -1998,12 +1998,15 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     else:
         rows[target] = _render_row(_merge_cells(list(cells), target_cells, force_dash))
     out = lines[: start + 2] + rows + lines[end:]
-    # W19-4: the role log is the one kaizen artifact holding hand-authored cells
-    # (the analyst columns) — write tmp + atomic replace so a mid-write death
-    # (sleep/OOM between truncate and write) can never leave it truncated.
-    tmp = path.with_name(path.name + ".tmp")
+    # W19-4 + W20-3: the role log is the one kaizen artifact holding hand-authored
+    # cells (the analyst columns) — write a UNIQUE tmp (mkstemp; a fixed shared
+    # name let two concurrent writers truncate each other's tmp mid-replace) +
+    # atomic os.replace, so a mid-write death can never leave it truncated.
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    tmp = Path(tmp_name)
     try:
-        tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(out) + "\n")
         os.replace(tmp, path)
     except OSError as exc:
         _warn(f"log row write failed for {path.name} ({exc!r}) — row skipped")

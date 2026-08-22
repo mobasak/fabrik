@@ -3247,3 +3247,36 @@ def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
     assert "| 2026-08-19 |" in log.read_text()
     leftovers = [p.name for p in tmp_path.iterdir() if p.name != "log.md"]
     assert leftovers == [], leftovers
+
+
+def test_upsert_replace_failure_leaves_the_log_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W20-2: the distinguishing atomic-write test — when the final os.replace
+    fails, the ORIGINAL log survives byte-for-byte and the upsert returns False
+    with a warn. The pre-wave direct write_text had already truncated the file
+    by this point (this test fails on that implementation: no os.replace to
+    intercept, the row lands, the content changes)."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    original = "\n".join([header, sep]) + "\n"
+    log.write_text(original, encoding="utf-8")
+
+    def _boom(src: object, dst: object) -> None:
+        raise OSError("simulated death at the replace boundary")
+
+    monkeypatch.setattr(kc.os, "replace", _boom)
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert ok is False
+    assert log.read_text(encoding="utf-8") == original, (
+        "the original log must survive a failed replace byte-for-byte"
+    )
+    assert "row skipped" in buf.getvalue()
+    leftovers = [p.name for p in tmp_path.iterdir() if p.name != "log.md"]
+    assert leftovers == [], "the failed write cleans up its unique tmp"
