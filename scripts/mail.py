@@ -104,12 +104,27 @@ DISPOSITIONS = (
 # listed separately because they carry no word at all.
 _PLACEHOLDER_WORD = (
     r"(?:REDACT(?:ED)?|PLACEHOLDER|CHANGE[_-]?ME|EXAMPLE|SAMPLE|DUMMY|PASTE"
-    r"|PASSWORD|PASSWD|PASS|SECRET|TOKEN|API[_-]?KEY|TODO|FIXME|NONE|EMPTY|HERE)"
+    r"|PASSWORD|PASSWD|PASS|SECRET|TOKEN|API[_-]?KEY|TODO|FIXME|NONE|EMPTY"
+    r"|HERE|YOUR|MY|THE)"
 )
+# P21-1: round 20 asked whether the password CONTAINS a placeholder word — a
+# substring test, case-insensitively, on short common tokens. Ordinary
+# letters-only passwords contain them (`CompassionateHeart`, `Nonetheless`,
+# `Passphrase`, `therefore`), so they published clean. Containment is not
+# content-matching. Two precise forms instead:
+#   BARE   — the password must BE placeholder words, end to end (separators
+#            allowed between them), so `PASS` is exempt and `Passphrase` is not.
+#   WRAPPED— `<...>`/`${...}`/`$NAME` is itself the "fill this in" convention, so
+#            an identifier-shaped inner (letters + separators, NO digits) is
+#            enough: `${DB_PASSWORD}` reads as a reference, `<9f8a7b6c>` does not.
+_PLACEHOLDER_BARE = _PLACEHOLDER_WORD + r"(?:[_ -]+" + _PLACEHOLDER_WORD + r")*"
 _PLACEHOLDER_PW = (
     r"(?!(?:"
-    r"[<$]?\{?[A-Za-z_ -]*" + _PLACEHOLDER_WORD + r"[A-Za-z_ -]*\}?>?"
-    r"|\*{3,}|x{3,}|\.{3,}|-{3,}|_{3,}"
+    + _PLACEHOLDER_BARE
+    + r"|<[A-Za-z][A-Za-z_ .-]*>"
+    + r"|\$\{[A-Za-z][A-Za-z_ .-]*\}"
+    + r"|\$[A-Za-z][A-Za-z_.-]*"
+    + r"|\*{3,}|x{3,}|\.{3,}|-{3,}|_{3,}"
     r")@)"
 )
 

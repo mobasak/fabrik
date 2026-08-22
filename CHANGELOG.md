@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-20 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-21 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -95,6 +95,12 @@ All notable changes to this project will be documented in this file.
   operator-facing `repos` field, `_current_repo`'s git-failure fallback), and the previous
   round's quarantine-slot boundary test was replaced — it occupied more slots than the
   bound, so it proved "eventually gives up" rather than the boundary it claimed.
+- Round 21 closed the same exemption one level deeper: round 20 asked whether the password
+  CONTAINS a placeholder word, a case-insensitive substring test on short common tokens, so
+  ordinary letters-only passwords containing them (`CompassionateHeart`, `Nonetheless`,
+  `Passphrase`) still published clean. A bare password must now BE placeholder words end to
+  end; the `<…>`/`${…}` wrapper is trusted as the fill-this-in convention with a digit-free
+  identifier inside.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

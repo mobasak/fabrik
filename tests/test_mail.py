@@ -2230,3 +2230,33 @@ def test_current_repo_falls_back_when_git_is_unavailable(env, monkeypatch):
         mail.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("no git"))
     )
     assert mail._current_repo() == Path.cwd().name
+
+
+def test_a_password_that_merely_contains_a_placeholder_word_is_not_exempt(env):
+    """P21-1: round 20 required the password to CONTAIN a placeholder word — a
+    SUBSTRING test, case-insensitive, on short common tokens (PASS, HERE, NONE).
+    Ordinary letters-only passwords contain them: `CompassionateHeart`,
+    `Nonetheless`, `Passphrase`, `therefore`. Each published clean with neither a
+    refusal nor a warning. Containment is not content-matching; the password must
+    BE a placeholder, not merely include one."""
+    for real in (
+        "postgres://user:CompassionateHeart@host/db",
+        "postgres://user:AdherenceSecure@host/db",
+        "postgres://user:Nonetheless@host/db",
+        "postgres://user:Passionately@host/db",
+        "postgres://user:Passphrase@host/db",
+        "postgres://user:therefore@host/db",
+    ):
+        assert mail._secret_level(real) == "high", real
+    # every documented redaction must STILL send
+    for safe in (
+        "postgres://user:REDACTED@dbhost/finaldb",
+        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
+        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
+        "postgres://user:password@localhost:5432/db",
+        "redis://default:CHANGEME@redis-main:6379/0",
+        "postgres://user:xxxxxxxx@host:5432/db",
+        "postgres://user:PLACEHOLDER@h/db",
+        "mongodb+srv://u:<YOUR PASSWORD HERE>@cluster0.abc.mongodb.net/db",
+    ):
+        assert mail._secret_level(safe) != "high", safe
