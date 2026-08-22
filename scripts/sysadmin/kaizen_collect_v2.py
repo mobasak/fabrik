@@ -468,9 +468,10 @@ def _store_lock(target: Path, lockfile: Path | None = None) -> Iterator[None]:
     backfill racing it both read "absent" and both append. flock on a sibling
     ``.lock`` file serializes the whole seam; closing the fd releases it, and a
     crashed holder's lock dies with its process (flock, not a stale lockfile
-    protocol). ``lockfile`` (W23-1) relocates the lock — a target inside a
-    git-tracked dir must not grow a permanently-untracked sibling; the role-log
-    lock lives under the state dir instead."""
+    protocol). ``lockfile`` (W23-1/W24-1) relocates the lock — a target inside
+    a git-tracked dir must not grow a permanently-untracked sibling; the
+    role-log lock is resource-keyed under the system temp dir
+    (:func:`_log_lockfile`)."""
     lockfile = lockfile if lockfile is not None else Path(f"{target}.lock")
     lockfile.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(lockfile), os.O_CREAT | os.O_RDWR, 0o600)
@@ -1954,7 +1955,7 @@ def _log_lockfile(path: Path) -> Path:
     state-dir-keyed lock silently lapsed mutual exclusion — the divergence
     direction; hashing the resolved path also ends the same-basename
     collision)."""
-    digest = hashlib.md5(str(path.resolve()).encode()).hexdigest()[:16]
+    digest = hashlib.md5(str(path.resolve()).encode(), usedforsecurity=False).hexdigest()[:16]
     return Path(tempfile.gettempdir()) / f"kaizen-log-locks-{os.getuid()}" / (digest + ".lock")
 
 
@@ -1962,14 +1963,14 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     """Upsert one row keyed by the Date cell's ISO week (a second run in the same week
     UPDATES that row). Fail-soft: a missing or tableless log warns and returns False."""
     # W22-1: the upsert is a read-modify-write — the same shape _store_lock
-    # exists for. flock on a sibling .lock serializes cron-vs-manual writers so
+    # exists for. flock on a resource-keyed .lock (tempdir-sited, W24-1)
+    # serializes cron-vs-manual writers so
     # a human's freshly saved analyst cell can never be clobbered by a run that
     # read the file seconds earlier (a crashed holder's lock dies with it).
     # The lock acquisition itself is fail-soft (a read-only parent must warn,
     # never escape as an uncaught PermissionError).
-    lockfile = _log_lockfile(path)
     try:
-        with _store_lock(path, lockfile=lockfile):
+        with _store_lock(path, lockfile=_log_lockfile(path)):
             return _upsert_log_row_locked(path, cells, force_dash)
     except OSError as exc:
         _warn(f"log lock failed for {path.name} ({exc!r}) — row skipped")

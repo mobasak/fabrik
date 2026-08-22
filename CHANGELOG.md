@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 25: the lock helper is FIPS-safe fail-soft; the discriminator discriminates (2026-08-22)
+
+- `_log_lockfile` uses `usedforsecurity=False` and is computed inside the fail-soft try
+  (W25-1 — on a FIPS OpenSSL an unflagged md5 raises, and the computation sat one line
+  before the try, escaping the very contract the comment above it states; also clears the
+  bandit B324 HIGH).
+- The in-code lock disclosures match the tempdir siting (W25-2 — the docstring still sent
+  the next editor to the state dir); the resource-keyed test genuinely discriminates
+  (W25-3 — two spellings of one log meet on one lock, two same-basename logs in different
+  dirs do not; the prior assertion was a pure-function tautology that could never go red).
+
 ### Fixed — kaizen M1 review fix-wave 24: the lock is keyed on the resource, not the environment (2026-08-22)
 
 - The role-log lock's identity is a function of the ABSOLUTE log path, sited under the system

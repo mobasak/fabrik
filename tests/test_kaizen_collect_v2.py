@@ -3399,7 +3399,17 @@ def test_upsert_lock_is_resource_keyed_and_outside_the_log_dir(
         "uncreated and fails here)"
     )
     assert not str(lockfile).startswith(str(tmp_path)), "the lock is sited outside the log's tree"
-    assert lockfile == kc._log_lockfile(log), "resource-keyed: same log, same lock"
+    relative = Path(os.path.relpath(log))
+    assert kc._log_lockfile(relative) == lockfile, (
+        "resource-keyed on the ABSOLUTE path: two spellings of the same log meet "
+        "on the same lock (a basename-keyed revert also fails the next assert)"
+    )
+    other_dir = tmp_path / "elsewhere"
+    other_dir.mkdir()
+    same_name = other_dir / "log.md"
+    assert kc._log_lockfile(same_name) != lockfile, (
+        "two same-basename logs in different dirs must NOT share a lock"
+    )
 
 
 def test_upsert_missing_log_leaves_no_residue_anywhere_near_it(
