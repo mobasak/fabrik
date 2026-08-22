@@ -65,6 +65,8 @@ Pass 15 (fresh finder, post-b03b0c0d) | found: 2 (both LOW PLAUSIBLE regression-
 
 Pass 15-fix + Pass 16 (fresh finder, post-645873ce) | wave 15 merged 645873ce (the two round-15 guards) | found: 4 (2 MEDIUM mutation-guard gaps ON the wave-15 additions themselves — the W13 double-fire direction untested, the new `not g_split` conjunct untested; 1 LOW doc line for the new third disclosure line; 1 LOW human-only upsert duplicate-row edge). W15-2's logic itself proved CLEAN by exhaustive conjunct probe | wave 16 PENDING (operator pause: command-corpus gap takes priority; resume here) | → not done
 
+Passes 16-fix..19 (waves 16 e6f6d581, 17 1c062e1a, 18 8805c41d merged; rounds 17-19 found 2/3/4 — ALL LOW/doc/guard classes, ELEVEN straight rounds with zero correctness defects). Round-19 findings banked as the pending wave 19: the liveness-registry why-texts still say "PENDING the operator's crontab install" (the install has landed — all three lines live, stamps fresh today); kaizen.md:14's split table names two of the three daily jobs; the plural malformed-warn has no multi-row test; the role-log rewrite is truncate-then-write with no lock/tmp-replace (the one kaizen artifact holding hand-authored cells). OPERATOR PAUSE (third, firm): command-corpus gap takes absolute priority; resume here | → not done
+
 Core-layer classes (emitter, hooks, run-records, coroner, store atomicity, backfill, sensors, security) clean since pass 5 — findings from pass 6 onward confined to the weekly-aggregation seam waves 6–8 themselves introduced.
 
 ## Per-finding dispositions
