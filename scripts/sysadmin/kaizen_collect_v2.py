@@ -2097,19 +2097,26 @@ def _death_cell(
         occ += n
         counted += 1
     cls_counted = sum(1 for p in cls_points if isinstance(p.get("value"), dict))
+    # W9-3: when the caller measured a split week (one half version-bumped with no
+    # current-version days yet), THAT is the cause — the pair-contract claim ("no
+    # class day points") would be false while previous-definition points exist.
     if not counted:
-        reason = (
-            f"class day points exist but no occurrence day points — {DEATH_PAIR_ONE_SIDED}"
-            if cls_counted
-            else dash_reason
-        )
+        if dash_reason == SPLIT_WEEK_NO_CURRENT:
+            reason = dash_reason
+        elif cls_counted:
+            reason = f"class day points exist but no occurrence day points — {DEATH_PAIR_ONE_SIDED}"
+        else:
+            reason = dash_reason
         _warn(f"Death-classes /wk = {DASH} — {reason}")
         return DASH
     if not cls_counted:
-        _warn(
-            f"Death-classes /wk = {DASH} — {occ} occurrence day value(s) have no class "
-            f"day points — {DEATH_PAIR_ONE_SIDED}"
-        )
+        if dash_reason == SPLIT_WEEK_NO_CURRENT:
+            _warn(f"Death-classes /wk = {DASH} — {dash_reason}")
+        else:
+            _warn(
+                f"Death-classes /wk = {DASH} — {occ} occurrence day value(s) have no class "
+                f"day points — {DEATH_PAIR_ONE_SIDED}"
+            )
         return DASH
     merged: set[str] = set()
     for p in cls_points:
@@ -2167,6 +2174,7 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         its current set is the days where EVERY half is current."""
         curs: list[set[str]] = []
         orphans: list[set[str]] = []
+        halves: dict[str, set[str]] = {}
         for mid, ps in zip(mids, ptss, strict=True):
             cur = {str(p["day"]) for p in ps if isinstance(p.get("day"), str)}
             mdef = reg.get(mid)
@@ -2176,8 +2184,19 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
                 else set()
             )
             curs.append(cur)
+            halves[mid] = cur
             orphans.append(older - cur)
-        return set.intersection(*curs) if curs else set(), set.union(*orphans) if orphans else set()
+        cur_all = set.intersection(*curs) if curs else set()
+        orphan_any = set.union(*orphans) if orphans else set()
+        # W9-5: a pair's split-week note states each half's current-definition day
+        # count — "k of N" over the intersection misdescribes which half is
+        # truncated beside a sum taken over the wider half.
+        if orphan_any and len(mids) > 1:
+            _warn(
+                "split-week halves at the current definition: "
+                + ", ".join(f"{mid} {len(halves[mid])}/{len(days)}" for mid in mids)
+            )
+        return cur_all, orphan_any
 
     def _split_dash_reason(cur: set[str], orphan: set[str], fallback: str = NO_WEEK_DAYS) -> str:
         return SPLIT_WEEK_NO_CURRENT if orphan and not cur else fallback
@@ -2247,6 +2266,10 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         rr = _ko.review_rounds(state=state, days=days)
         if rr.measurable:
             rounds = rr.cell
+            # W9-2: the carve-out cell must not be the one bare number — its
+            # honesty annotations (attribution share, bootstrap exclusions, the
+            # smear) ride to stderr with the row, never silently folded.
+            _warn(f"Review rounds /plan detail: {rr.detail}")
         else:
             _warn(f"Review rounds /plan = {DASH} — {rr.detail}")
             rounds = DASH

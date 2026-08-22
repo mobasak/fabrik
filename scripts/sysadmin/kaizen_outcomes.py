@@ -227,20 +227,30 @@ def _no_derivation_reason(state: Path | None = None, days: list[str] | None = No
     return prefix + "the derived-facts store is empty (nothing has ever been derived)" + suffix
 
 
-def _smear_note(rows: list[dict], window_days: list[str]) -> str:
-    """W7-5 + W8-2 — the pre-window-baseline smear made VISIBLE, not structural:
-    the delta seam attributes derivation-gap growth to the derivation day on the
+def _smear_note(rows: list[dict]) -> str:
+    """W7-5 + W8-2 + W9-1 — the derivation-gap smear made VISIBLE, not
+    structural: the delta seam attributes gap growth to the derivation day on the
     attributed side exactly as the unknown side documents it (design-consistent,
-    deliberate), so a kept row whose baseline (``delta_of``) SKIPS at least one
-    calendar day before the window's oldest day smears derivation-gap growth into
-    it. The day BEFORE the window's oldest day is the normal consecutive baseline
-    (under a day-scoped publish window every predecessor-bearing row has one) —
-    never a smear (W8-2). Annotated in the detail, never silently folded."""
-    threshold = (dt.date.fromisoformat(min(window_days)) - dt.timedelta(days=1)).isoformat()
-    k = sum(1 for r in rows if isinstance(r.get("delta_of"), str) and r["delta_of"] < threshold)
+    deliberate). The predicate is PER ROW (W9-1): a kept row whose baseline
+    (``delta_of``) SKIPS at least one calendar day before the ROW'S OWN day
+    smears the skipped days' growth into it — whatever the window's edges (a
+    window-edge threshold silenced real in-window gaps and flagged normal
+    edge-day baselines). The immediately-preceding day is the normal consecutive
+    baseline — never a smear. Annotated in the detail, never silently folded."""
+    k = 0
+    for r in rows:
+        day, base = r.get("day"), r.get("delta_of")
+        if not (isinstance(day, str) and isinstance(base, str)):
+            continue
+        try:
+            prev = (dt.date.fromisoformat(day) - dt.timedelta(days=1)).isoformat()
+        except ValueError:
+            continue
+        if base < prev:
+            k += 1
     if not k:
         return ""
-    return f"; includes {k} row(s) whose baseline predates the window (derivation-gap smear)"
+    return f"; includes {k} row(s) whose baseline skips at least one day (derivation-gap smear)"
 
 
 def _gapped(row: dict, *fields: str) -> bool:
@@ -862,7 +872,7 @@ def premature_stop(
         )
     if boot:
         note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-    note += _smear_note(rows, day_stamps)  # W7-5: the pre-window-baseline smear, visible
+    note += _smear_note(rows)  # W7-5/W9-1: the per-row derivation-gap smear, visible
     # Per-SESSION grouping: a sid may carry several in-window delta rows (one per
     # derivation day); its window verdicts/causes are their sums.
     verdicts_by_sid: collections.Counter[str] = collections.Counter()
@@ -976,7 +986,7 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
         return MetricResult.unavailable("review_rounds", guard)
     if boot:
         note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-    note += _smear_note(rows, day_stamps)  # W7-5: the pre-window-baseline smear, visible
+    note += _smear_note(rows)  # W7-5/W9-1: the per-row derivation-gap smear, visible
     growth: collections.Counter[str] = collections.Counter()
     latest: dict[str, dict] = {}
     for r in rows:  # sorted (sid, day) — the last row per sid is its latest day
@@ -1034,8 +1044,11 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # v8 (fix-wave 7, W7-1 + W7-5): the PUBLISHED day point is DAY-scoped +
         # the pre-window-baseline smear is annotated. v9 (fix-wave 8, W8-1 +
         # W8-2): the weekly cell is EXEMPT from series aggregation (latest-per-sid
-        # over the week's delta rows) + the smear needs a SKIPPED day.
-        "version": 9,
+        # over the week's delta rows) + the smear needs a SKIPPED day. v10
+        # (fix-wave 9, W9-1 + W9-7): the smear predicate is PER ROW (the row's
+        # own day, not the window edge) + the week-scope bootstrap divergence is
+        # stated.
+        "version": 10,
         "counter_metric": "rework_rate",
         "formula": (
             "mean rounds_max across sessions whose ROUND FAMILY GREW in the window, "
@@ -1050,8 +1063,14 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "growing across three week days would be counted once per residency "
             "day with its partial values summed (the 6.0-for-9.0 dilution). The "
             "weekly cell instead recomputes over the ISO week's day-scoped delta "
-            "rows, latest-per-sid, under the SAME day-scoped attribution guard "
-            "the day publish uses. The "
+            "rows, latest-per-sid, under the same attribution-guard FUNCTION the "
+            "day publish uses, scoped to the week's days. Bootstrap divergence "
+            "stated (W9-7): the in-window-birth predicate is window-scoped, so a "
+            "session born on a week day but first derived the next day is "
+            "bootstrap-excluded from that day's single-day point yet KEPT by the "
+            "week recompute — the wider window knows the birth was in-week; the "
+            "weekly n may therefore exceed the sum of the week's day-point n's. "
+            "The "
             "trailing window is ONLY the on-demand CLI view: ONE window "
             "definition for value and guard alike — the last "
             "KAIZEN_OUTCOMES_WINDOW_DAYS LOCAL calendar days including today "
@@ -1061,13 +1080,15 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "law: absent-field baselines are None per field; gap rows leave "
             "numerator AND denominator), so a lifetime session contributes only "
             "its in-window growth — rounds down must never buy rework up. "
-            "Baseline-smear symmetry (W7-5, tightened W8-2 — visible not "
+            "Baseline-smear symmetry (W7-5, per-row since W9-1 — visible not "
             "structural): the delta seam attributes derivation-gap growth to the "
             "derivation day on the attributed side exactly as on the unknown side "
             "— a kept row whose baseline (delta_of) SKIPS at least one calendar "
-            "day before the window's oldest day smears derivation-gap growth into "
-            "it, annotated in the detail; the day before the window's oldest day "
-            "is the normal consecutive baseline, never a smear. "
+            "day before the ROW'S OWN day smears the skipped days' growth into "
+            "it, annotated in the detail whatever the window's edges (a "
+            "window-edge threshold silenced real in-window gaps); the "
+            "immediately-preceding day is the normal consecutive baseline, never "
+            "a smear. "
             "Attributed-side bootstrap symmetry: a first-ever attributed delta row "
             "(delta_of None) carrying round mass whose first_ts predates the "
             "window is bootstrap-unmeasurable — excluded from value AND guard "
@@ -1118,8 +1139,9 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # 6, W6-2 + W6-5): LOCAL day window + attributed-side bootstrap symmetry.
         # v7 (fix-wave 7, W7-1 + W7-5): DAY-scoped published day point + the
         # annotated pre-window-baseline smear. v8 (fix-wave 8, W8-2): the smear
-        # needs a SKIPPED day — a consecutive-day baseline is normal.
-        "version": 8,
+        # needs a SKIPPED day — a consecutive-day baseline is normal. v9
+        # (fix-wave 9, W9-1): the smear predicate is PER ROW.
+        "version": 9,
         "counter_metric": "stop_block_causes",
         "formula": (
             "SESSION-level: sessions with a premature-cause stop_block "
@@ -1129,9 +1151,10 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "over days=[the published day] only — that day's verdict-bearing "
             "sessions — the trailing window is ONLY the on-demand CLI view, never "
             "a published day point. ONE window definition for value and guard "
-            "alike (W8-2 smear rule shared: only a baseline that SKIPS at least "
-            "one calendar day before the window's oldest day is a smear — the "
-            "consecutive-day baseline is normal): the last "
+            "alike (smear rule shared, per-row since W9-1: only a baseline that "
+            "SKIPS at least one calendar day before the ROW'S OWN day is a smear "
+            "— the immediately-preceding day is the normal consecutive "
+            "baseline): the last "
             "KAIZEN_OUTCOMES_WINDOW_DAYS LOCAL calendar days including today "
             "(default 7; the store's day stamps are local dates, and under the "
             "daily cron the newest derivable stamp is yesterday), each sid's "
@@ -1171,8 +1194,9 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # v6 (fix-wave 6, W6-2/W6-3/W6-5): LOCAL day window, bootstrap symmetry,
         # and the numerator scoped to verdict-bearing rows. v7 (fix-wave 7,
         # W7-1 + W7-5): DAY-scoped published day point + the annotated smear.
-        # v8 (fix-wave 8, W8-2): the smear needs a SKIPPED day.
-        "version": 8,
+        # v8 (fix-wave 8, W8-2): the smear needs a SKIPPED day. v9 (fix-wave 9,
+        # W9-1): the smear predicate is PER ROW.
+        "version": 9,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
@@ -1185,11 +1209,12 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
             "including today, default 7; the store's day stamps are local dates, "
             "and under the daily cron the newest derivable stamp is yesterday — "
             "in-window growth only) is ONLY the on-demand CLI view. "
-            "Baseline-smear symmetry (W7-5, tightened W8-2): a kept row whose "
-            "baseline (delta_of) skips at least one calendar day before the "
-            "window's oldest day smears derivation-gap growth into it — "
-            "annotated in the detail with its pair; the consecutive-day baseline "
-            "is normal, never a smear. Causes are summed over "
+            "Baseline-smear symmetry (W7-5, per-row since W9-1): a kept row "
+            "whose baseline (delta_of) skips at least one calendar day before "
+            "the ROW'S OWN day smears the skipped days' growth into it — "
+            "annotated in the detail with its pair; the immediately-preceding "
+            "day is the normal consecutive baseline, never a smear. Causes are "
+            "summed over "
             "VERDICT-BEARING rows "
             "only (numerator ⊆ denominator structurally — a causes-without-"
             "verdicts row never leaks into the histogram), and the pair shares "

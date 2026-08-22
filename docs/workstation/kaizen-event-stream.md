@@ -219,9 +219,11 @@ trailing-window value published as a day point made the weekly cell sum overlapp
 Attributed-side bootstrap symmetry (W6-2): a first-ever attributed delta row carrying
 family mass whose `first_ts` predates the window is bootstrap-unmeasurable — excluded from
 both operands and counted; a kept row whose baseline (`delta_of`) skips at least one calendar
-day before the window's oldest day smears derivation-gap growth into it — deliberate and
-annotated in the detail (W7-5, tightened W8-2: the consecutive-day baseline is normal, never a
-smear). The weekly log cells run no guard of their own: they AGGREGATE the published day
+day before the ROW'S OWN day smears the skipped days' growth into it — deliberate and
+annotated in the detail (W7-5, per-row since W9-1: the immediately-preceding day is the
+normal consecutive baseline, never a smear). The weekly log cells run no guard of their own
+(the rounds carve-out runs the guard function at week scope and prints its detail — W9-2):
+they AGGREGATE the published day
 series (the single-source law, W6-1; split weeks are annotated PER HALF for paired metrics —
 W8-3 — and one-sided death weeks dash on the pair contract), EXCEPT the rounds cell, which
 recomputes latest-per-sid over the week's delta rows under the day publish's guard (W8-1 —

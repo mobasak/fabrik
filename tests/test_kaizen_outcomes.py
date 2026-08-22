@@ -644,7 +644,7 @@ def test_windowed_formulas_are_version_bumped() -> None:
     # The stops pair took S3 at v3, W4-1 at v4, W5-1 at v5, W6 at v6, W7 at v7.
     # W8-1/W8-2 (fix-wave 8): review_rounds v9 (weekly-cell carve-out + the
     # skipped-day smear rule), the stops pair v8 (skipped-day smear rule).
-    for mid, ver in (("premature_stop", 8), ("stop_block_causes", 8), ("review_rounds", 9)):
+    for mid, ver in (("premature_stop", 9), ("stop_block_causes", 9), ("review_rounds", 10)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
         assert "LOCAL calendar days" in reg[mid]["formula"], mid
@@ -862,13 +862,13 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         ),
         "death_classes": (1, "4344dc33b44011e212fdac04c9e3d75572acfdb6f3e5c9766ad1d774117541c3"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
-        "review_rounds": (9, "4b5691c6f02af3a943f488bd5b848ac0368267ea00164d8e4914484f97bd4b58"),
+        "review_rounds": (10, "e3db81a789d9893f444da6f275ea8e4f01c092bfc960099e2f98a8970cd5bcbb"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (8, "07e761ef9729c0bf931397e69a5d5701b119901e26f307aa96d1216d54d3ca13"),
+        "premature_stop": (9, "042405cff9b57699f9066d0c0836257a1b605c270f2776bab3e747e81e2c1b2d"),
         "stop_block_causes": (
-            8,
-            "0a5dfc0c0d30fbc16323d313ccd2008b50f84b90c3838445372e0babe1e38d0c",
+            9,
+            "9304b6415bf729dc34869323d09ad05e45f8e468eca618958e0acc014723f005",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
@@ -1265,11 +1265,11 @@ def test_metric_detail_annotates_pre_window_baseline_smear(tmp_path: Path) -> No
     )
     rounds = ko.review_rounds()
     assert rounds.measurable
-    assert "1 row(s) whose baseline predates the window" in rounds.detail
+    assert "1 row(s) whose baseline skips at least one day" in rounds.detail
     assert "derivation-gap smear" in rounds.detail
     prem, causes = ko.premature_stop()
     assert prem.measurable and causes.measurable
-    assert "1 row(s) whose baseline predates the window" in prem.detail
+    assert "1 row(s) whose baseline skips at least one day" in prem.detail
     assert "derivation-gap smear" in causes.detail
 
 
@@ -1324,3 +1324,45 @@ def test_smear_note_fires_on_a_skipped_derivation_day(tmp_path: Path) -> None:
     rounds = ko.review_rounds(days=[_days_ago(0)])
     assert rounds.measurable
     assert "derivation-gap smear" in rounds.detail
+
+
+# ── fix-wave 9 (W9: the smear keys on the row's own day) ─────────────────────────────
+
+
+def test_smear_note_fires_on_an_in_window_derivation_gap(tmp_path: Path) -> None:
+    """W9-1: the smear predicate is PER ROW — a row whose baseline skips at
+    least one calendar day before the ROW'S OWN day is smeared, even when the
+    baseline sits exactly at the window edge (window_start - 1). A 7-day window
+    with rows at day-7 and day-5 skipped day-6 entirely: day-6's growth smears
+    into day-5, and W8-2's window-edge threshold silenced exactly that."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(7), events={"round": 1}, runs={"rounds_max": 1}),
+            _fact("s1", day=_days_ago(5), events={"round": 3}, runs={"rounds_max": 3}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "derivation-gap smear" in rounds.detail, (
+        "a skipped in-window derivation day is a real smear — the window-edge "
+        "threshold must not silence it"
+    )
+
+
+def test_smear_note_spares_the_window_oldest_days_consecutive_baseline(
+    tmp_path: Path,
+) -> None:
+    """W9-1 counter-direction: the window's oldest day delta'd against the day
+    immediately before it (window_start - 1) is the normal consecutive baseline
+    — no smear."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(7), events={"round": 1}, runs={"rounds_max": 1}),
+            _fact("s1", day=_days_ago(6), events={"round": 3}, runs={"rounds_max": 3}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert rounds.measurable
+    assert "smear" not in rounds.detail

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 9: per-row smear; the carve-out cell speaks; split-week truth in every branch (2026-08-22)
+
+- The derivation-gap smear predicate is PER ROW (W9-1): a baseline skipping ≥1 calendar day
+  before the ROW'S OWN day — W8-2's window-edge threshold silenced real in-window gaps
+  (rows at day-7/day-5 skipped day-6 unnoticed) while the edge-day's consecutive baseline
+  stayed correctly unflagged. Note wording now matches the rule (W9-6).
+- The recomputed weekly rounds cell prints its honesty detail (attribution share, bootstrap
+  exclusions, smear) to stderr with the row (W9-2) — it was the one bare number.
+- A death-pair half bumped mid-week with zero current-version days dashes naming the
+  definition change (W9-3) — the pair-contract claim ("no class day points") was false while
+  previous-definition points existed; the split-week note states each half's
+  current-definition day count (W9-5).
+- Docs scope the series-consistency claim to the aggregating cells and state the week-vs-day
+  bootstrap divergence (W9-4/W9-7). Registry: review_rounds v10, stops pair v9; S5 re-pinned.
+
 ### Fixed — kaizen M1 review fix-wave 8: per-session rounds cell; per-half split weeks; the smear needs a skipped day (2026-08-22)
 
 - The weekly rounds cell is the single-source law's one carve-out (W8-1): `rounds_max` is

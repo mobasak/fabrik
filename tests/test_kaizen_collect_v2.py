@@ -2847,3 +2847,68 @@ def test_death_cell_one_sided_version_bump_is_never_bare(
     assert cells[2] == DASH or cells[2].endswith("*")
     err = capsys.readouterr().err
     assert "definition" in err
+
+
+# ── fix-wave 9 (W9: the carve-out cell speaks; split-week truth in every branch) ─────
+
+
+def test_rounds_weekly_cell_carries_its_detail_to_stderr(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W9-2: the recomputed rounds cell must not be the one bare number — its
+    honesty annotations (attribution share, bootstrap exclusions, smear) are
+    printed alongside the row, never silently folded."""
+    st = tmp_path / "state"
+    monday = _this_week_monday()
+    kc.append_facts([_week_row("s1", monday, 3)], st)
+    cells = kc.log_cells(monday + dt.timedelta(days=6), _full_reg(), state=st)
+    assert cells[4] == "3.0 (n=1)"
+    err = capsys.readouterr().err
+    assert "Review rounds /plan" in err
+    assert "attribution share" in err, "the guard's share must ride with the cell"
+
+
+def test_death_cell_zero_current_days_names_the_definition_change(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W9-3: a class half bumped mid-week with ZERO current-version days must
+    dash naming the definition change — six previous-definition class points
+    exist, so 'no class day points' (the pair contract) is a false claim."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    week = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22"]
+    for d in week:
+        _plant_point(st, "death_occurrences", do_v, d, value=2, numerator=2)
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"cls-{d[-2:]}": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2] == DASH
+    err = capsys.readouterr().err
+    assert "definition changed this week" in err
+    assert "no class day points" not in err, (
+        "six class points exist under the previous definition — the pair-contract "
+        "claim would be false"
+    )
+
+
+def test_death_cell_split_week_note_states_both_halves(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W9-5: the split-week note for a PAIR states each half's current-definition
+    day count — '1 of 7' beside a 6-day occurrence sum misdescribes which half
+    is truncated."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    week = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22"]
+    for d in week:
+        _plant_point(st, "death_occurrences", do_v, d, value=2, numerator=2)
+    for d in week[:5]:
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"cls-{d[-2:]}": 1})
+    _plant_point(st, "death_classes", dc_v, week[5], value={"oom": 1})
+    kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    err = capsys.readouterr().err
+    assert "death_occurrences 6/7" in err
+    assert "death_classes 1/7" in err

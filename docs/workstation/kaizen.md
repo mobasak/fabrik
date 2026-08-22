@@ -65,10 +65,14 @@ complete). In order:
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
    THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row
-   recompute; the human row is thereby provably consistent with the machine series (see § The
-   kaizen-log row). One carve-out (W8-1): the rounds cell — a point-in-time per-session
-   quantity anonymous day points cannot per-session-deduplicate — recomputes latest-per-sid
-   over the week's delta rows under the same day-scoped attribution guard.
+   recompute; the aggregating cells are thereby provably consistent with the machine series
+   (see § The kaizen-log row). One carve-out (W8-1): the rounds cell — a point-in-time
+   per-session quantity anonymous day points cannot per-session-deduplicate — recomputes
+   latest-per-sid over the week's delta rows under the same attribution-guard function at week
+   scope. Its weekly value is therefore NOT reconcilable against the day series by design
+   (different population scope: week-scope guard/bootstrap vs per-day — W9-4/W9-7), and it is
+   never a bare number: its detail (attribution share, bootstrap exclusions, smear) rides to
+   stderr with the row (W9-2).
 
 Metric inputs are **event-era only**: T08's backfill shares the store with `era: "transcript"`
 rows (every event-only field an honest `—`), and `daily()` excludes them from its day/week
@@ -115,12 +119,13 @@ including today
 derivable stamp is yesterday), read as day-scoped DELTA rows — every sid's in-window store rows
 delta'd against its nearest earlier row (`window_delta_rows`), so a lifetime session
 contributes only its in-window growth, never all-time cumulative. A kept row whose baseline
-(`delta_of`) SKIPS at least one calendar day before the window's oldest day smears
-derivation-gap growth into it — deliberate (the delta seam attributes gap growth to the
-derivation day, both sides) and VISIBLE: the detail counts
-`k row(s) whose baseline predates the window (derivation-gap smear)` (W7-5, tightened W8-2:
-the day before the window's oldest day is the normal consecutive baseline — under a
-day-scoped publish window every predecessor-bearing row has one — never a smear). Attributed-side bootstrap
+(`delta_of`) SKIPS at least one calendar day before the ROW'S OWN day smears the skipped
+days' growth into it — deliberate (the delta seam attributes gap growth to the derivation
+day, both sides) and VISIBLE: the detail counts
+`k row(s) whose baseline skips at least one day (derivation-gap smear)` (W7-5; per-row since
+W9-1 — a window-edge threshold silenced real in-window gaps and flagged normal edge-day
+baselines; the immediately-preceding day is the normal consecutive baseline, never a
+smear). Attributed-side bootstrap
 symmetry (W6-2): a first-ever attributed delta row carrying family mass whose `first_ts`
 predates the window dumped lifetime backlog as its "delta" — bootstrap-unmeasurable, excluded
 from value AND guard operands and counted (a `first_ts`-proven in-window birth stays: its
