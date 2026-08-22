@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-features gains its EARLY position; the pipeline order made canonical (2026-08-22)
+
+- `/fabrik-features` now has TWO sanctioned positions (operator directive): EARLY — right after
+  `/fabrik-spec-review` approval, pinning the PLANNED feature inventory from the approved spec
+  (rows marked Planned) so the product's features are decided before journeys, contract, and
+  design; REFRESH — the certify-time code sweep, which now also reconciles Planned rows
+  (flip to shipped · surface un-shipped scope · surface scope creep, never silently drop).
+- Canonical feature-scale order wired into every NEXT pointer: spec → spec-review → features
+  EARLY → flows → flows-review → data-contract → (GUI) ui-design → ui-design-review →
+  plan-after-chat → plan-review → execute-plan → features REFRESH → user-test|service-test →
+  release → deploy triad → deploy-verify. `/fabrik-execute-plan`'s NEXT routes through the
+  features REFRESH; `/fabrik-flows`' tracing spine consumes the Planned rows when the EARLY
+  pass ran; both CLAUDE.md pipeline chains show the early position.
+
 ### Fixed — kaizen M1 review fix-wave 19: the registry tells today's truth; the log write is atomic (2026-08-22)
 
 - The three kaizen liveness-registry why-texts no longer pre-excuse an OVERDUE stamp with

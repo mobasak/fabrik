@@ -1,5 +1,5 @@
 ---
-description: Converge docs/FEATURES.md to the COMPLETE, testable truth of the codebase — discover every shipped capability (routes, jobs, CLI, screens, integrations), reconcile bidirectionally (no capability w/o a row, no row w/o code), make every row EXERCISABLE (Endpoint/Module + how-to-exercise seed), iterate to an edit-free no-op. The certification gauntlets read this as their coverage DENOMINATOR. TRIGGER — EN: "refresh the features list", "is FEATURES.md complete"; TR: "özellik listesini güncelle", "FEATURES.md eksiksiz mi" — fires before certifying, after a feature ships. SKIP: running the certification itself (→ /fabrik-user-test, /fabrik-service-test). Stage: 5-certify.
+description: Converge docs/FEATURES.md to the COMPLETE, testable feature contract — TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from the approved spec (rows marked Planned) so features are decided BEFORE journeys, contract, and design. REFRESH (5-certify): discover every shipped capability (routes, jobs, CLI, screens, integrations), reconcile bidirectionally, flip Planned→Shipped, every row EXERCISABLE — the certification DENOMINATOR. TRIGGER — EN: "what are the product's features", "refresh the features list"; TR: "ürünün özellikleri ne olacak", "özellik listesini güncelle". SKIP: the certification itself (→ /fabrik-user-test, /fabrik-service-test). Stage: 5-certify (EARLY run sanctioned at design exit).
 argument-hint: "[optional: a subsystem/dir to scope the sweep — omit to converge the WHOLE feature inventory]"
 ---
 
@@ -11,9 +11,23 @@ test that can never pass**. This command exists to make that denominator complet
 {{include:run-record}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
-## Phase 0 — Establish scope
+## Phase 0 — Establish scope + MODE
 
-Operate on the current project (cwd). The artifact is `docs/FEATURES.md` (scaffold-seeded from
+Operate on the current project (cwd). **Two sanctioned modes — state which runs:**
+
+- **EARLY (pre-build, right after `/fabrik-spec-review` approval):** the source of truth is the APPROVED
+  SPEC (+ `docs/flows.md` if the journeys are already frozen), not the code. Write one row per planned
+  feature with `(Planned)` in the Description cell — the product decision, pinned before `/fabrik-flows`
+  walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs
+  screens for it. No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec
+  capability a row, every row traceable to the spec — a row with no spec basis is invented scope).
+- **REFRESH (post-build, the certify-time default):** the CODE is the source of truth — the full
+  multi-modal sweep below. **Planned-row reconciliation:** a `(Planned)` row whose capability now ships
+  flips to shipped (drop the marker, fill Endpoint/Module + how-to-exercise); a `(Planned)` row with NO
+  code at certification time is un-shipped scope — surface it to the operator, never silently delete; a
+  shipped capability with no Planned row is scope creep or an honest addition — surface which.
+
+The artifact is `docs/FEATURES.md` (scaffold-seeded from
 `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections,
 `| Feature | Description | Endpoint / Module |` tables). If `$ARGUMENTS` names a subsystem, scope the sweep
 to it and say so; otherwise the WHOLE codebase is the denominator. Read the frozen contracts if present

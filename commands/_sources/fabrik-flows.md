@@ -69,7 +69,9 @@ Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec
 
 ## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)
 
-Every flow will trace to ≥1 **Success Criterion**. If the converged spec carries an explicit list, quote it.
+Every flow will trace to ≥1 **Success Criterion**. If the converged spec carries an explicit list, quote it. If the EARLY
+`/fabrik-features` pass ran, its `(Planned)` rows JOIN the tracing spine — every planned feature is
+served by ≥1 flow, or the gap is surfaced.
 If it does not (feature-scale specs often bury criteria in prose), **extract the criteria from the spec and
 write them back to the spec as a short `## Success Criteria` section** (5–12 one-line, testable outcomes —
 this is the one sanctioned spec edit; note it in the spec's changelog line). A criterion with no covering
