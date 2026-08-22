@@ -78,7 +78,16 @@ def _header_block(text: str) -> str:
 
 
 def _pins(header: str, own_name: str) -> dict[str, int]:
-    """``{registry-basename: pinned version}`` found in the joined header."""
+    """``{registry-basename: pinned version}`` found in the joined header.
+
+    MAX per (consumer, input) pair (transdoc round-trip 2026-08-22): the freeze
+    headers' own house style puts per-version HISTORY notes inside the header
+    block ("v6 … against `data-contract.md` **v3**"), and a first-match rule
+    warned FOREVER after a completed re-freeze — the check's value inverting at
+    the exact moment it should go quiet. Every history mention is by
+    construction ≤ the binding pin, so max selects the binding pin without
+    classifying prose; a genuinely-future pin still exceeds the input's version,
+    so the corruption arm still fires."""
     out: dict[str, int] = {}
     for rel in CHAIN_REGISTRY:
         base = Path(rel).name
@@ -88,8 +97,8 @@ def _pins(header: str, own_name: str) -> dict[str, int]:
             window = header[m.end() : m.end() + _PIN_WINDOW]
             vm = re.search(r"\*\*v(\d+)\*\*", window)
             if vm:
-                out[base] = int(vm.group(1))
-                break  # first pin per artifact is THE pin
+                v = int(vm.group(1))
+                out[base] = max(out.get(base, v), v)
     return out
 
 

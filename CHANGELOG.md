@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_frozen_chain: history pins never outvote the binding pin (transdoc round-trip, 2026-08-22)
+
+- The pin comparison uses the MAX version matched per (consumer, input) pair: the freeze
+  headers' own house style puts per-version HISTORY notes inside the header block, and the
+  first-match rule mis-attributed drift (@v3 the history note vs @v4 the real binding pin)
+  and warned FOREVER after a completed re-freeze — the check's value inverting at the exact
+  moment it should go quiet (proven by transdoc's simulated post-v10 tree). History mentions
+  are ≤ the binding pin by construction, so max selects the binding pin without classifying
+  prose; the future-pin corruption arm still fires. Two regression tests; the live probe now
+  cites @v4 on transdoc's real drift.
+
 ### Added — Account rotation: bounded transient retry in `_oauth_get` so a network blip stops blanking the quota dashboard (2026-08-22)
 
 - The quota dashboard shells `claude_rotate.py --status --json` behind a 60s subprocess cap;

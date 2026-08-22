@@ -104,3 +104,38 @@ def test_warn_only_exit_is_always_zero(tmp_path: Path, capsys, monkeypatch) -> N
     assert c.main() == 0
     out = capsys.readouterr().out
     assert "WARN:" in out and "re-freeze" in out
+
+
+def test_history_notes_never_outvote_the_binding_pin(tmp_path: Path) -> None:
+    """Round-trip (transdoc 2026-08-22): the freeze headers' own house style puts
+    per-version HISTORY notes inside the header block — a v3 history mention
+    beside a v5 binding pin must compare as v5 (max per (consumer, input)), so a
+    completed re-freeze goes QUIET instead of warning forever."""
+    _write(tmp_path, "docs/data-contract.md", "FROZEN", 5)
+    _write(
+        tmp_path,
+        "docs/ui-design.md",
+        "FROZEN",
+        10,
+        "> v6 note: designed against `data-contract.md` **v3** back then\n"
+        "> Binding inputs: the FROZEN [`data-contract.md`](data-contract.md) **v5** "
+        "(every field below is one of its columns)",
+    )
+    assert c.check_chain(tmp_path) == [], "the completed re-freeze must be silent"
+
+
+def test_max_pin_still_fires_when_genuinely_stale(tmp_path: Path) -> None:
+    """Same shape with the input ahead of the max pin: exactly one finding,
+    citing the BINDING pin (@v5), never the history note."""
+    _write(tmp_path, "docs/data-contract.md", "FROZEN", 6)
+    _write(
+        tmp_path,
+        "docs/ui-design.md",
+        "FROZEN",
+        10,
+        "> v6 note: against `data-contract.md` **v3** ·\n"
+        "> Binding inputs: [`data-contract.md`](data-contract.md) **v5**",
+    )
+    findings = c.check_chain(tmp_path)
+    assert len(findings) == 1, findings
+    assert "@v5" in findings[0], "cite the binding pin, never the history note"
