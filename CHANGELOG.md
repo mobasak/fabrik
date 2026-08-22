@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-12 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-13 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
   accepted an operator's `.md~` backup as "parked" while the count rejected it, so a
   claimed-away corrupt message was counted by NEITHER leg); the three operator-facing count
   guards that had zero coverage (name anchor, dotfile skip, is_file) are now bound by tests.
+- The rate count no longer materializes a sorted archive listing it never orders
+  (P13-1), and the read-only-walk test now asserts the count it was blind to (P13-2 —
+  the malformed-file skip was unbound; the mutation raises AttributeError).
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

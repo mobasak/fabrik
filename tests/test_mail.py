@@ -806,7 +806,10 @@ def test_rate_count_is_read_only_never_quarantines(env):
     bad = inbox / "malformed-thing.md"
     bad.write_text("no frontmatter at all", encoding="utf-8")
     now_ts = mail.datetime.now(mail.UTC).timestamp()
-    mail._recent_from_count("fabrik", "alpha", 3600, now_ts)
+    # P13-2: assert the RETURN, not only the side effect — the original test
+    # passed whether or not the malformed file was skipped from the tally, and
+    # a regressed `fm is None` guard raises AttributeError right here.
+    assert mail._recent_from_count("fabrik", "alpha", 3600, now_ts) == 0
     assert bad.is_file(), "read-only: the malformed file stays exactly where it was"
     assert not (env["mail_root"] / "fabrik" / "malformed").exists()
 

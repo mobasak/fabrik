@@ -321,7 +321,8 @@ def _recent_from_count(
         d = base / sub
         if not d.is_dir():
             continue
-        for f in sorted(d.glob("*.md")):
+        for f in d.glob("*.md"):  # P13-1: unsorted — this COUNTS, it never orders;
+            # sorted() only materialized the whole archive listing to no end
             if f.name.startswith("."):
                 continue  # P10-5: dotfiles are not messages — the THIRD glob,
                 # symmetric with digest and list_msgs
