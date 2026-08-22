@@ -142,6 +142,25 @@ def _read_access_token(creds_path: Path) -> str | None:
         return None
 
 
+def _with_claude_on_path(env: dict) -> dict:
+    """Ensure the ``claude`` CLI is resolvable in *env* for a subprocess spawn.
+
+    The CLI installs to ``~/.local/bin`` (a symlink to the versioned binary), but a
+    cron job runs with ``PATH=/usr/bin:/bin`` — which excludes it. A bare
+    ``["claude", ...]`` spawn under cron then raises ``FileNotFoundError`` and the
+    ping fails silently: idle-account readings never refresh and the weekly
+    keepalive never fires (observed 2026-08-22 — the */5 tick pinged, every idle
+    cred mtime stayed frozen, and the dashboard caches aged past 85h). Prepend the
+    user-local bin dir so the tick/keepalive resolve ``claude`` under cron exactly
+    as a login shell does. Mutates and returns *env*; idempotent — a no-op when the
+    dir is already on PATH (interactive / systemd runs, or a crontab ``PATH=`` line)."""
+    local_bin = str(Path.home() / ".local" / "bin")
+    parts = env["PATH"].split(os.pathsep) if env.get("PATH") else []
+    if local_bin not in parts:
+        env["PATH"] = os.pathsep.join([local_bin, *parts]) if parts else local_bin
+    return env
+
+
 def _list_accounts() -> list[Path]:
     """Manager-account snapshot dirs that hold a ``.credentials.json`` (sorted, stable order).
     Fail-soft: an unreadable/inaccessible ``manager-accounts`` (a rare permission mishap) yields no
@@ -2272,6 +2291,7 @@ def _touch_run_cli(cfg_dir: Path, store: Path) -> bool:
     env["CLAUDE_MESH_HEADLESS"] = "1"
     env["CLAUDE_SOUND_NO_REVIVE"] = "1"
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
+    _with_claude_on_path(env)  # cron PATH lacks ~/.local/bin → bare spawn would FileNotFoundError
     try:
         p = subprocess.run(
             ["claude", "-p", "ping"],
@@ -3691,6 +3711,7 @@ def _keepalive_ping(cfg_dir: Path) -> bool:
     env["CLAUDE_MESH_HEADLESS"] = "1"
     env["CLAUDE_SOUND_NO_REVIVE"] = "1"
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
+    _with_claude_on_path(env)  # cron PATH lacks ~/.local/bin → bare spawn would FileNotFoundError
     try:
         timeout = int(os.environ.get("KEEPALIVE_TIMEOUT", "150"))
     except ValueError:

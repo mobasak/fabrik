@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Account rotation: resolve `claude` on the cron PATH so idle-refresh + keepalive pings actually fire (2026-08-22)
+
+- `claude_rotate.py`'s `_keepalive_ping` / `_touch_run_cli` spawned a bare `["claude", ...]`,
+  but a cron job runs with `PATH=/usr/bin:/bin` — which excludes `~/.local/bin` where the CLI
+  installs. Under cron the spawn raised `FileNotFoundError` and every refresh/keepalive ping
+  failed silently: idle-account credential mtimes stayed frozen, so the quota dashboard's
+  cached readings aged past 85h and the weekly keepalive never actually kept idle chains warm.
+- Added `_with_claude_on_path(env)` (idempotent PATH-prepend of `~/.local/bin`), applied to
+  both ping call sites. Vendored byte-identical into `scripts/aro-wake/claude_rotate.py`.
+  Watched-fail-first + red-on-revert covered in `tests/test_claude_fleet.py`.
+
 ### Fixed — kaizen M1 review fix-wave 11: the metric's own mass; annotations honest to the letter (2026-08-22)
 
 - The stops pair's smear count keys on STOP VERDICTS — its population mass — not the wider

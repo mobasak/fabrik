@@ -2735,3 +2735,31 @@ def test_active_flips_away_at_exactly_its_cap(tmp_path, monkeypatch, capsys):
     assert cr._cmd_tick() == 0
 
     assert os.readlink(fleet / "active") == "intel", "weekly == cap exactly must flip away"
+
+
+# ── cron-PATH resolution for the `claude` ping (regression: 2026-08-22) ──
+# A cron job runs with PATH=/usr/bin:/bin, which excludes ~/.local/bin where the
+# CLI installs. Under cron the tick's `claude -p ping` raised FileNotFoundError
+# and refresh/keepalive pings failed silently — every idle cred mtime stayed
+# frozen and the dashboard caches aged past 85h. The env each ping builds must
+# carry ~/.local/bin so `claude` resolves under cron exactly as in a login shell.
+def test_with_claude_on_path_adds_local_bin_under_cron(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    out = cr._with_claude_on_path({"PATH": "/usr/bin:/bin"})
+    local_bin = str(tmp_path / ".local" / "bin")
+    parts = out["PATH"].split(os.pathsep)
+    assert local_bin in parts, "cron PATH must gain ~/.local/bin so `claude` resolves"
+    assert parts[0] == local_bin, "prepended so it wins binary resolution"
+
+
+def test_with_claude_on_path_is_idempotent(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    local_bin = str(tmp_path / ".local" / "bin")
+    out = cr._with_claude_on_path({"PATH": f"{local_bin}{os.pathsep}/usr/bin"})
+    assert out["PATH"].split(os.pathsep).count(local_bin) == 1, "no duplicate when already present"
+
+
+def test_with_claude_on_path_handles_empty_path(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    out = cr._with_claude_on_path({})
+    assert out["PATH"] == str(tmp_path / ".local" / "bin")
