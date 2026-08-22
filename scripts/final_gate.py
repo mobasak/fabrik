@@ -848,6 +848,19 @@ def run_consistency_checks(
                     advisory=True,  # preserve the data-contract-drift WARN on exit 0
                 )
             )
+        # Frozen-chain drift (transdoc upstream 2026-08-22): a consumer artifact's
+        # version PIN must not predate its input (flows → data-contract → ui-design
+        # → design-system). warn_only BY CONTRACT: the bump commit necessarily
+        # holds the stale pin for its own duration — the WARN names the owed
+        # re-freeze command. Tier 1+2 (<50ms text parse; the iteration tier is
+        # where a mid-pipeline agent actually meets it).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_frozen_chain.py",
+                "Frozen Chain (contract pins)",
+                warn_only=True,
+            )
+        )
         # Doc Sync Matrix — the single "update docs when code changes" gate
         # (consolidates CHANGELOG / INDEX / CONFIGURATION / schema / QUICKSTART /
         # FEATURES / PORTS touch-on-change). Tier 1+2 so it blocks in --lean.

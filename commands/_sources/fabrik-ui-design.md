@@ -243,3 +243,23 @@ the build; the gate order is the pipeline at the top of this command.
 Do NOT begin planning until `/fabrik-ui-design-review` attests the contract (a clean no-op round, or a
 re-frozen bumped `Version` after its fixes). If it surfaces a blocker it can't reconcile, it routes back here
 (or to `/fabrik-data-contract` for a missing field) — resolve that first.
+
+
+## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)
+
+The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has
+seams nothing else owns: your bump leaves every downstream consumer frozen against a version that no longer
+exists. The synced gate (`check_frozen_chain.py`) catches the stale PIN mechanically — but only THIS run
+holds the diff that names what changed, so only this run can say what the re-freeze must cover (transdoc
+2026-08-22: a v5 column with a GUI-field name reached no screen; the pin gate alone would have hidden it):
+
+1. **Diff the artifact against its pre-run version** (`git diff HEAD -- <artifact>` before committing, or
+   HEAD~1 after) and extract the changed entity/column/enum/section names.
+2. **Grep each DOWNSTREAM frozen consumer** for those names and emit a **Downstream impact** table in the
+   closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`. Zero hits
+   is a stated result, never an omitted one.
+3. **The NEXT line becomes the owed re-freeze** when impact is non-empty: name the consumer's owning
+   command WITH the impact list as its arguments (e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10:
+   projects.domain needs a §5.3 control; §5.11 'unbuildable' passages now stale`) — never the first-run
+   pipeline chain line. The gate's WARN will nag until that re-freeze lands; the impact list is the part
+   only you know.

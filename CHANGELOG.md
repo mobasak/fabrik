@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the frozen-chain drift gate: check_frozen_chain.py + re-freeze close-out (transdoc upstream, 2026-08-22)
+
+- New synced enforcement check `check_frozen_chain.py` (Tier 1+2, warn_only): a frozen
+  artifact's header version PIN must not predate its input's current version across the
+  2-contract chain (flows → data-contract → ui-design → design-system). Header-block-only,
+  soft-wrap-joined (version-history prose never false-positives); DRAFT skipped; absence
+  silent; a pin from the future worded as corruption; the WARN names the owning re-freeze
+  command. WARN by contract — the bump commit necessarily holds the stale pin for its own
+  duration. 8 regression tests; the live probe correctly fires on transdoc's real v3-pin
+  drift. Prose-pin grammar per the proposal's filed preference (zero migration).
+- The three contract commands gain a re-freeze close-out phase (bump runs only): diff the
+  artifact, grep downstream frozen consumers for the changed names, emit a Downstream-impact
+  table, and make NEXT the owed re-freeze with the impact list as its arguments — the gate
+  sees stale pins; only the bumping run knows the semantics. NEXT-map rows carry the clause.
+- Fleet note: the first post-sync gate runs will WARN in any repo whose chain is already
+  stale (transdoc included, until its v10 re-freeze) — that is signal, not noise.
+
 ### Fixed — check_schema_sync sees schemas and migrations at any depth (transdoc upstream, 2026-08-22)
 
 - `schema_file_updated()` matches by separator-anchored path suffix instead of exact list
