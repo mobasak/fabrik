@@ -95,6 +95,12 @@ _SECRET_HIGH = [
     _re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"),
     _re.compile(r"\b\w*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)\w*\s*[:=]\s*\S{16,}", _re.I),
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
+    # P16-4: the hyphen form above misses the UNDERSCORE vendor style (Stripe
+    # `sk_live_`/`sk_test_`, restricted `rk_`), which then fell in the dead zone
+    # between it and the assignment pattern — prose like "my key is sk_live_…"
+    # carries no `:`/`=`, so nothing matched at all. `pk_` is the PUBLISHABLE
+    # key and is deliberately not listed.
+    _re.compile(r"\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}"),
     _re.compile(r"\bgh[posru]_[A-Za-z0-9]{20,}"),  # classic GitHub tokens
     _re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),  # fine-grained PATs
     _re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
@@ -102,11 +108,29 @@ _SECRET_HIGH = [
     _re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),  # JWT
     _re.compile(r"(?i)\bauthorization:\s*bearer\s+\S{8,}"),  # Bearer header
     _re.compile(
-        r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:[^\s/@]+@"
-    ),  # scheme://[user]:pass@host (user optional — redis://:pw@)
+        r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:[^\s/@]+@", _re.I
+    ),  # scheme://[user]:pass@host (user optional — redis://:pw@). P16-2: _re.I —
+    # the scheme was lower-case-only, so a copy-pasted `Postgres://` DSN (how
+    # config templates and docs capitalise it) bypassed the guard entirely.
+    # P16-1: the pattern above excludes `/` from the password so it cannot eat a
+    # documentation URL (`https://host/path:frag@anchor`) — but that also let any
+    # DSN with a `/` in its password through scoring NOTHING, and `/` is routine
+    # in base64-derived generated passwords. For the schemes that exist to CARRY
+    # credentials, allow it: no doc link uses these, so there is no false-positive
+    # surface to trade away.
+    _re.compile(
+        r"\b(?:postgres(?:ql)?|mysql|mariadb|rediss?|mongodb(?:\+srv)?|amqps?"
+        r"|ftps?|sftp|ssh|smtps?|clickhouse|mssql|oracle|cockroachdb)"
+        r"://[^\s/:@]*:[^\s@]+@",
+        _re.I,
+    ),
 ]
 # Low-confidence hints — WARN but still deliver (not bare "key", too noisy).
-_SECRET_LOW = _re.compile(r"\b(?:password|passwd|secret|token|credential|api[_-]?key)\b", _re.I)
+# P16-3: `pwd` was in the HIGH pattern's identifier set but missing here, so a
+# short real password under HIGH's 16-char floor (`pwd: hunter2`) scored NOTHING
+# while the identical `password:` line was at least caught by this net — the two
+# keyword sets had silently diverged.
+_SECRET_LOW = _re.compile(r"\b(?:password|passwd|pwd|secret|token|credential|api[_-]?key)\b", _re.I)
 
 # Path-safety: a repo/recipient token is a single /opt directory name; a msg id is a
 # 26-char Crockford ULID. Neither may contain a path separator or a `..` component —

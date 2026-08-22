@@ -1865,3 +1865,53 @@ def test_rollback_never_deletes_the_only_surviving_copy(env, monkeypatch):
     survivors = sorted(p.name for p in parked.glob("lonely.md*"))
     assert survivors == ["lonely.md"], f"the only copy must survive — got {survivors}"
     assert survivors and (parked / "lonely.md").read_text(encoding="utf-8") == "the only copy\n"
+
+
+# --- round 16: credential shapes that travelled clean ------------------------
+def test_dsn_password_containing_a_slash_is_refused(env):
+    """P16-1: the credential-URL pattern excluded `/` from the password class, so
+    any DSN whose password contains one — routine for base64-derived generated
+    passwords — scored None: not even a LOW warning. A real credential travelling
+    through a durable fleet-synced store is the highest-consequence bug here."""
+    body = "DATABASE_URL: postgres://admin:s3cr3t/with/slash@host:5432/db"
+    assert mail._secret_level(body) == "high"
+    with pytest.raises(mail.MailRefusedError):
+        mail.send(to="fabrik", kind="finding", body=body, frm="alpha")
+
+
+def test_dsn_with_a_capitalised_scheme_is_refused(env):
+    """P16-2: the scheme was `[a-z]` with no re.I, so a copy-pasted `Postgres://`
+    DSN — how config templates and docs routinely capitalise it — bypassed the
+    guard entirely."""
+    assert mail._secret_level("Postgres://user:p4ssw0rd@10.0.0.1:5432/db") == "high"
+    assert mail._secret_level("REDIS://default:hunter2hunter2@cache:6379/0") == "high"
+
+
+def test_pwd_assignment_at_least_warns(env):
+    """P16-3: `PWD` counted as a secret-bearing identifier in the HIGH pattern but
+    `pwd` was missing from the LOW word list, so a short real password under the
+    16-char HIGH floor scored None — while the identical `password:` line was at
+    least in the LOW net. The two sets had silently diverged."""
+    assert mail._secret_level("pwd: hunter2") == "low"
+
+
+def test_underscore_style_vendor_key_is_refused(env):
+    """P16-4: the `sk-` pattern required a HYPHEN, so Stripe's underscore format
+    (`sk_live_…`) fell in the dead zone between that and the assignment-syntax
+    pattern — prose like 'my key is sk_live_…' scored None."""
+    # Assembled at runtime on purpose: a literal of this shape is realistic
+    # enough that GitHub's own push protection rejected it when this test was
+    # first written — which is itself evidence the pattern targets a real
+    # credential format. The file must contain no secret-shaped literal.
+    fake = "sk" + "_live_" + "EXAMPLENOTAREALKEY0123456789"
+    assert mail._secret_level(f"my stripe key is {fake}, use it") == "high"
+    assert mail._secret_level("rk" + "_test_" + "EXAMPLENOTAREALKEY0123456789") == "high"
+
+
+def test_the_widened_patterns_do_not_refuse_an_ordinary_doc_link(env):
+    """The fail-closed direction must not eat legitimate mail: a documentation URL
+    with a path and an anchor is NOT a credential, and neither is prose."""
+    assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
+    assert mail._secret_level("the deploy ran at 10:00@vps1 and passed") is None
+    p = mail.send(to="fabrik", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha")
+    assert p.is_file()

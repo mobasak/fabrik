@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-15 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-16 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -47,6 +47,15 @@ All notable changes to this project will be documented in this file.
   doc described an append-in-place resolve that no longer exists, `FABRIK_MAIL_ROOT` and
   `FABRIK_OPT_ROOT` were missing from `.env.example` + `docs/CONFIGURATION.md`, and the
   exit-code section never documented exit 1.
+- Round 16 closed the quarantine cycle by EXHAUSTION rather than another case-by-case
+  patch — every reachable state cell was executed and its observed digest output recorded;
+  one count per malformed message per run in all of them. The round's fresh leg opened a
+  class fifteen rounds never swept: `_secret_level` FALSE NEGATIVES. Four real credential
+  shapes scored nothing at all — a DSN password containing `/` (routine in base64-derived
+  passwords), a capitalised `Postgres://` scheme, `pwd:` (absent from the low-confidence
+  net although `PWD` sits in the high-confidence one), and Stripe's underscore `sk_live_`
+  format. Each now refuses; verified against the live store's 910 real messages with zero
+  newly refused and zero newly warned.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 
