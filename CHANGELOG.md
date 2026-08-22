@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 26: the lock outlives every reaper (2026-08-22)
+
+- The role-log lock's fixed home is `~/.claude/state/kaizen-log-locks/` (W26-1 — the tempdir
+  siting put it under systemd-tmpfiles' 30-day reaper, which deletes a path an active holder
+  has open; the next opener gets a fresh inode and mutual exclusion silently lapses).
+  `KAIZEN_LOCK_DIR` exists only so the test suite isolates the dir — the suite was orphaning
+  lock files in the operator's shared tempdir; the autouse fixture now pins it.
+- The lock-acquisition fail-soft has its red-on-revert test (W26-2 — the W25 gap); kaizen.md's
+  disclosure updated to the durable location.
+
 ### Fixed — kaizen M1 review fix-wave 25: the lock helper is FIPS-safe fail-soft; the discriminator discriminates (2026-08-22)
 
 - `_log_lockfile` uses `usedforsecurity=False` and is computed inside the fail-soft try

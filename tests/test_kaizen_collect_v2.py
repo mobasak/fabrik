@@ -34,6 +34,7 @@ def _isolate_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events-env"))
     monkeypatch.setenv("KAIZEN_STATE_DIR", str(tmp_path / "state-env"))
     monkeypatch.setenv("KAIZEN_GOLDEN_DIR", str(GOLDEN))
+    monkeypatch.setenv("KAIZEN_LOCK_DIR", str(tmp_path / "lock-env"))
 
 
 def _line(sid: str, event: str, ts: str, project: str | None = "proj-a", **fields: object) -> str:
@@ -3249,7 +3250,8 @@ def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
     leftovers = [
         p.name
         for p in tmp_path.iterdir()
-        if p.name not in ("log.md", "state-env", "events-env") and not p.name.endswith(".lock")
+        if p.name not in ("log.md", "state-env", "events-env", "lock-env")
+        and not p.name.endswith(".lock")
     ]
     assert leftovers == [], leftovers
 
@@ -3286,7 +3288,8 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
     leftovers = [
         p.name
         for p in tmp_path.iterdir()
-        if p.name not in ("log.md", "state-env", "events-env") and not p.name.endswith(".lock")
+        if p.name not in ("log.md", "state-env", "events-env", "lock-env")
+        and not p.name.endswith(".lock")
     ]
     assert leftovers == [], "the failed write cleans up its unique tmp"
 
@@ -3398,7 +3401,10 @@ def test_upsert_lock_is_resource_keyed_and_outside_the_log_dir(
         "the lock was taken (deleting the _store_lock wrapper leaves this file "
         "uncreated and fails here)"
     )
-    assert not str(lockfile).startswith(str(tmp_path)), "the lock is sited outside the log's tree"
+    assert not str(lockfile).startswith(str(logdir)), (
+        "the lock is sited outside the log's own tree (here: the isolated "
+        "KAIZEN_LOCK_DIR — production uses the fixed, unreaped home-dir location)"
+    )
     relative = Path(os.path.relpath(log))
     assert kc._log_lockfile(relative) == lockfile, (
         "resource-keyed on the ABSOLUTE path: two spellings of the same log meet "
@@ -3456,3 +3462,40 @@ def test_upsert_mode_failure_warns_but_the_row_still_lands(
     assert ok is True
     assert "| 2026-08-19 |" in log.read_text(encoding="utf-8"), "the row lands"
     assert "mode not preserved" in buf.getvalue(), "the concession is warned, never silent"
+
+
+# ── fix-wave 26 (W26: the lock outlives every reaper; its failure is fail-soft) ──────
+
+
+def test_lock_dir_is_isolated_by_the_suite(tmp_path: Path) -> None:
+    """W26-1: the suite never writes the operator's real lock dir — every
+    lockfile lands under the fixture's KAIZEN_LOCK_DIR."""
+    log = tmp_path / "log.md"
+    assert str(kc._log_lockfile(log)).startswith(str(tmp_path / "lock-env"))
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode bits this test relies on")
+def test_upsert_lock_acquisition_failure_is_fail_soft(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W26-2 (the W25-1 red-on-revert gap): an OSError acquiring the LOCK warns
+    'log lock failed' and returns False — never an uncaught escape."""
+    ro = tmp_path / "ro-locks"
+    ro.mkdir()
+    ro.chmod(0o555)
+    monkeypatch.setenv("KAIZEN_LOCK_DIR", str(ro / "sub"))
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    try:
+        with redirect_stderr(buf):
+            ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    finally:
+        ro.chmod(0o755)
+    assert ok is False
+    assert "log lock failed" in buf.getvalue()

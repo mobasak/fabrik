@@ -63,9 +63,9 @@ complete). In order:
    claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
 4. **Log row + mail** — the ISO-week row is upserted into both role logs (the write is
    flock-serialized against concurrent writers — the lock is keyed on the log's ABSOLUTE
-   path and lives under the system temp dir (`kaizen-log-locks-<uid>/`), independent of
-   `KAIZEN_STATE_DIR`, so a debug run and the cron meet on the same flock and no tracked
-   dir grows a `.lock`; tmp+atomic-replace with the log's own mode; transient `tmp*.tmp`
+   path and lives at the fixed, unreaped `~/.claude/state/kaizen-log-locks/` (independent of
+   `KAIZEN_STATE_DIR`; tempdir siting sat under systemd-tmpfiles' 30-day reaper), so a debug
+   run and the cron meet on the same flock and no tracked dir grows a `.lock`; tmp+atomic-replace with the log's own mode; transient `tmp*.tmp`
    files beside the logs are reaped after 1h — W19–W24) and the metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES

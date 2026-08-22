@@ -1948,15 +1948,20 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
 
 
 def _log_lockfile(path: Path) -> Path:
-    """W23-1 + W24-1 — the role-log lock's identity is a function of the
-    ABSOLUTE resource path, sited outside every git-tracked dir AND independent
-    of ``KAIZEN_STATE_DIR``: a debug run with an isolated state dir and the cron
-    run write the SAME real log, so they must meet on the SAME flock (a
-    state-dir-keyed lock silently lapsed mutual exclusion — the divergence
-    direction; hashing the resolved path also ends the same-basename
-    collision)."""
+    """W23-1 + W24-1 + W26-1 — the role-log lock's identity is a function of
+    the ABSOLUTE resource path, sited outside every git-tracked dir, independent
+    of ``KAIZEN_STATE_DIR`` (a debug run with an isolated state dir and the cron
+    run write the SAME real log, so they must meet on the SAME flock), and
+    DURABLE: a tempdir siting put the lock under systemd-tmpfiles' 30-day
+    reaper, which deletes a path an active holder has open — the next opener
+    gets a fresh inode and mutual exclusion silently lapses. The fixed home-dir
+    location has no reaper. ``KAIZEN_LOCK_DIR`` exists ONLY so tests can
+    isolate the dir (the suite must never write the operator's real state);
+    production never sets it — setting it re-opens the W24-1 divergence."""
     digest = hashlib.md5(str(path.resolve()).encode(), usedforsecurity=False).hexdigest()[:16]
-    return Path(tempfile.gettempdir()) / f"kaizen-log-locks-{os.getuid()}" / (digest + ".lock")
+    base = os.getenv("KAIZEN_LOCK_DIR", "")
+    root = Path(base) if base else Path.home() / ".claude" / "state" / "kaizen-log-locks"
+    return root / (digest + ".lock")
 
 
 def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bool:
