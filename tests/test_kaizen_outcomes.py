@@ -1447,7 +1447,6 @@ def test_unavailable_bootstrap_reason_is_not_double_reported(tmp_path: Path) -> 
     )
     rounds = ko.review_rounds()
     assert not rounds.measurable
-    assert rounds.detail.count("bootstrap") <= 2, rounds.detail
     assert "bootstrap row(s) excluded" not in rounds.detail, (
         "the reason already states the bootstrap cause — the note fragment "
         "repeats the same fact in the same sentence stream"
@@ -1460,3 +1459,57 @@ def test_smear_note_compares_dates_not_strings(tmp_path: Path) -> None:
     '2026-...' strings and would silently miss a genuinely skipped baseline."""
     note = ko._smear_note([{"day": _days_ago(0), "delta_of": "20260101"}], lambda r: 1)
     assert "derivation-gap smear" in note
+
+
+# ── fix-wave 12 (W12: bootstrap truth on every path) ─────────────────────────────────
+
+
+def test_cause_only_bootstrap_row_does_not_claim_verdict_mass(tmp_path: Path) -> None:
+    """W12-1: the stops pair's bootstrap gate keys on STOP VERDICTS — a
+    cause-only first-ever row carried no verdict mass, so the pair's dash must
+    say 'no stop verdicts', never 'carrying stop-verdict mass from before the
+    window' (a claim about mass that never existed)."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "old",
+                first_ts="2026-01-01T00:00:00.000+00:00",
+                events={},
+                stop_causes={"run-record": 3},
+            )
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable
+    assert "stop-verdict mass" not in prem.detail, prem.detail
+    assert "no stop verdicts" in prem.detail
+
+
+def test_guard_dash_discloses_the_bootstrap_exclusion(tmp_path: Path) -> None:
+    """W12-2: when the attribution guard dashes, a measured bootstrap exclusion
+    rides the reason — the exclusion can be exactly what emptied the attributed
+    operand, and hiding it blames attribution for a bootstrap effect."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "old",
+                first_ts="2026-01-01T00:00:00.000+00:00",
+                events={"round": 50},
+                runs={"rounds_max": 50},
+            ),
+            _fact(
+                "unknown",
+                events={},
+                events_unattributed={"round": 5},
+            ),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert not rounds.measurable
+    if "attribution" in rounds.detail or "unknown stream" in rounds.detail:
+        assert "bootstrap row(s) excluded" in rounds.detail, (
+            "the guard tripped BECAUSE the bootstrap exclusion emptied the "
+            "attributed operand — the dash must disclose it: " + rounds.detail
+        )

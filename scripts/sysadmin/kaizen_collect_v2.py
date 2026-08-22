@@ -1783,8 +1783,10 @@ def _series_days(path: Path) -> set[str]:
                     continue
                 if isinstance(row, dict) and isinstance(row.get("day"), str):
                     out.add(row["day"])
-    except OSError:
-        pass
+    except OSError as exc:
+        # Fail-open, visibly (W12-3): a silently skipped series file can disable
+        # the split-week and disjoint-halves guards.
+        _warn(f"series file unreadable: {path.name}: {exc}")
     return out
 
 
@@ -2005,11 +2007,16 @@ def _older_version_week_days(
     unreadable series dir contributes nothing."""
     window = set(days)
     out: set[str] = set()
+    sdir = (state or state_dir()) / "series"
     try:
-        files = list(((state or state_dir()) / "series").glob(f"{metric}@v*.jsonl"))
+        # W12-3: LIST inside the guarded region — Path.glob swallows
+        # PermissionError internally, so the W11-4 warn never fired for the
+        # dominant unreadable-dir cause. Fail-open, but VISIBLY: an empty orphan
+        # set silently disables the split-week dash AND the disjoint-halves guard.
+        files = [p for p in sdir.iterdir() if p.name.endswith(".jsonl")]
+    except FileNotFoundError:
+        return out
     except OSError as exc:
-        # Fail-open, but VISIBLY (W11-4): an empty orphan set silently disables the
-        # split-week dash AND the disjoint-halves guard.
         _warn(f"series dir unreadable while probing older versions of {metric}: {exc}")
         return out
     for p in files:
@@ -2082,7 +2089,8 @@ def _ratio_cell(points: list[dict], label: str, dash_reason: str = NO_WEEK_DAYS)
         counted += 1
     if not counted:
         reason = (
-            "published day points exist but carry no valid numerator/denominator"
+            "published day points exist but none carries a summable numerator/denominator "
+            "(empty or invalid populations)"
             if points
             else dash_reason
         )
@@ -2181,7 +2189,7 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
 
     def _week_versions(
         mids: tuple[str, ...], ptss: list[list[dict]]
-    ) -> tuple[set[str], set[str], bool]:
+    ) -> tuple[set[str], set[str], bool, str]:
         """W7-2 + W8-3 + W10-1 — ``(current-definition week days, week days only
         under an older definition, split_blocked)`` for the cell's metric(s),
         computed PER HALF: a one-sided mid-week bump (classes at v2, occurrences
@@ -2212,25 +2220,32 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
                 split_blocked = True
         cur_all = set.intersection(*curs) if curs else set()
         orphan_any = set.union(*orphans) if orphans else set()
-        # W9-5: a pair's split-week note states each half's current-definition day
-        # count — "k of N" over the intersection misdescribes which half is
-        # truncated beside a sum taken over the wider half.
-        if orphan_any and len(mids) > 1:
-            _warn(
-                "split-week halves at the current definition: "
-                + ", ".join(f"{mid} {len(halves[mid])}/{len(days)}" for mid in mids)
-            )
-        return cur_all, orphan_any, split_blocked
+        # W9-5 + W12-4: a pair's split-week disclosures state each half's
+        # current-definition day count — "k of N" over the intersection
+        # misdescribes which half is truncated beside a sum taken over the
+        # wider half.
+        halves_text = ""
+        if len(mids) > 1:
+            halves_text = ", ".join(f"{mid} {len(halves[mid])}/{len(days)}" for mid in mids)
+            if orphan_any:
+                _warn("split-week halves at the current definition: " + halves_text)
+        return cur_all, orphan_any, split_blocked, halves_text
 
     def _split_dash_reason(split_blocked: bool, fallback: str = NO_WEEK_DAYS) -> str:
         return SPLIT_WEEK_NO_CURRENT if split_blocked else fallback
 
-    def _annotate(cell: str, label: str, cur: set[str], orphan: set[str]) -> str:
-        """W7-2: mark a split-week cell — current-definition days only, stated."""
+    def _annotate(
+        cell: str, label: str, cur: set[str], orphan: set[str], coverage: str = ""
+    ) -> str:
+        """W7-2: mark a split-week cell — current-definition days only, stated.
+        ``coverage`` (W12-4): a pair's headline states each half's own coverage —
+        the intersection count beside a sum taken over a wider half misdescribes
+        the published number."""
         if not orphan or cell == DASH:
             return cell
+        headline = coverage or f"{len(cur)} of {len(days)} week day(s)"
         _warn(
-            f"{label}: * {len(cur)} of {len(days)} week day(s) at the current definition "
+            f"{label}: * {headline} at the current definition "
             "(definition changed mid-week; each aggregated number covers only its "
             "metric's current-definition days)"
         )
@@ -2259,14 +2274,14 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         )
 
     gate_pts = _pts("first_attempt_gate_pass")
-    g_cur, g_orphan, g_split = _week_versions(("first_attempt_gate_pass",), [gate_pts])
+    g_cur, g_orphan, g_split, _g_halves = _week_versions(("first_attempt_gate_pass",), [gate_pts])
     gate_cell = _ratio_cell(
         gate_pts, "Gate first-pass rate", dash_reason=_split_dash_reason(g_split)
     )
     gate_cell = _annotate(gate_cell, "Gate first-pass rate", g_cur, g_orphan)
 
     occ_pts, cls_pts = _pts("death_occurrences"), _pts("death_classes")
-    d_cur, d_orphan, d_split = _week_versions(
+    d_cur, d_orphan, d_split, d_halves = _week_versions(
         ("death_occurrences", "death_classes"), [occ_pts, cls_pts]
     )
     death_fallback = (
@@ -2286,7 +2301,7 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         deaths = _death_cell(
             occ_pts, cls_pts, dash_reason=_split_dash_reason(d_split, death_fallback)
         )
-        deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan)
+        deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan, coverage=d_halves)
 
     # W8-1 — the single-source law's ONE carve-out: rounds_max is a point-in-time
     # per-session quantity, and anonymous day points cannot be per-session-

@@ -239,8 +239,9 @@ def _smear_note(rows: list[dict], mass: Callable[[dict], int]) -> str:
     baseline — never a smear. Annotated in the detail, never silently folded —
     including on the unavailable paths (W10-6). Only rows carrying the caller's
     family ``mass`` count (W10-7 — a zero-mass row smeared nothing), and BOTH
-    date operands are validated (W10-5 — a malformed baseline string sorts
-    before every real ISO date and would otherwise fabricate the count)."""
+    date operands are PARSED as dates before comparing (W10-5 + W11-5 — an
+    unparseable operand is skipped, and a parseable non-canonical form compares
+    by calendar value, never by string order)."""
     k = 0
     for r in rows:
         day, base = r.get("day"), r.get("delta_of")
@@ -859,9 +860,16 @@ def premature_stop(
     # same-field baseline) is unmeasurable for the stops family — out of BOTH
     # guard operand and value population.
     rows = [r for r in attributed if not _gapped(r, "events", "stop_causes")]
-    # W6-2: attributed-side bootstrap symmetry — a first-ever row carrying
-    # pre-window stops mass is excluded from BOTH operands and counted.
-    rows, boot = _bootstrap_split(rows, _stops_mass, day_stamps)
+    # W6-2 + W12-1: attributed-side bootstrap symmetry on the PAIR'S population
+    # mass (stop verdicts) — a cause-only row contributes to neither published
+    # number (W6-3), so gating on the wider family mass claimed verdict mass
+    # that never existed.
+    rows, boot = _bootstrap_split(rows, _stop_verdicts, day_stamps)
+    boot_note = (
+        f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+        if boot
+        else ""
+    )
     guard, note = _window_attribution_guard(
         ("stop_pass", "stop_block"),
         "stop-verdict events",
@@ -870,15 +878,12 @@ def premature_stop(
         day_stamps,
     )
     if guard is not None:
+        # W12-2: the exclusion can be exactly what emptied the attributed operand
+        # — a guard dash that hides it blames attribution for a bootstrap effect.
         return (
-            MetricResult.unavailable("premature_stop", guard),
-            MetricResult.unavailable("stop_block_causes", guard),
+            MetricResult.unavailable("premature_stop", guard + boot_note),
+            MetricResult.unavailable("stop_block_causes", guard + boot_note),
         )
-    boot_note = (
-        f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-        if boot
-        else ""
-    )
     note += _smear_note(rows, _stop_verdicts)  # W11-1: the PAIR'S population mass — a
     # cause-only row contributes to neither published number (W6-3)
     # Per-SESSION grouping: a sid may carry several in-window delta rows (one per
@@ -985,6 +990,11 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
     # W6-2: attributed-side bootstrap symmetry — a first-ever row carrying
     # pre-window round mass is excluded from BOTH operands and counted.
     rows, boot = _bootstrap_split(rows, _round_growth, day_stamps)
+    boot_note = (
+        f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+        if boot
+        else ""
+    )
     guard, note = _window_attribution_guard(
         ("round",),
         "round events",
@@ -993,12 +1003,8 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
         day_stamps,
     )
     if guard is not None:
-        return MetricResult.unavailable("review_rounds", guard)
-    boot_note = (
-        f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-        if boot
-        else ""
-    )
+        # W12-2: the exclusion can be exactly what emptied the attributed operand.
+        return MetricResult.unavailable("review_rounds", guard + boot_note)
     note += _smear_note(rows, _round_growth)  # W7-5/W9-1/W10: the mass-bearing per-row smear
     growth: collections.Counter[str] = collections.Counter()
     latest: dict[str, dict] = {}

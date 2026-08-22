@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 12: bootstrap truth on every path; the fail-open is genuinely visible (2026-08-22)
+
+- The stops pair's bootstrap gate keys on STOP VERDICTS — its population mass (W12-1): a
+  cause-only first-ever row carried no verdict mass, and the dash claimed "carrying
+  stop-verdict mass from before the window" about mass that never existed.
+- A guard dash discloses a measured bootstrap exclusion (W12-2) — the exclusion can be
+  exactly what emptied the attributed operand, and hiding it blamed attribution for a
+  bootstrap effect.
+- The older-version series probe LISTS the dir inside the guarded region (W12-3):
+  `Path.glob` swallows `PermissionError` internally, so W11-4's warn never fired for the
+  dominant unreadable-dir cause; an unreadable series file warns too — both silently
+  disabled the split-week and disjoint-halves guards.
+- A pair's split-week `*` headline states each half's own coverage (W12-4 — the
+  intersection count beside a wider half's sum misdescribed the number); the invalid-points
+  dash reason covers the legitimate 0/0 empty-population point (W12-5); the smear docstring
+  matches the parsed-date compare (W12-6); the partial-overlap test pins the published cell
+  value (W12-7). No formula changes — registry versions unchanged.
+
+
 ### Fixed — Account rotation: resolve `claude` on the cron PATH so idle-refresh + keepalive pings actually fire (2026-08-22)
 
 - `claude_rotate.py`'s `_keepalive_ping` / `_touch_run_cli` spawned a bare `["claude", ...]`,

@@ -2995,7 +2995,10 @@ def test_split_week_annotation_never_claims_unmixed_for_a_pair(
     for d in ("2026-08-21", "2026-08-22"):
         _plant_point(st, "death_classes", dc_v, d, value={f"new-{d[-2:]}": 1})
     cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
-    assert cells[2].endswith("*")
+    assert cells[2] == "8 occ / 2 cls*", (
+        "the adjudicated partial-overlap publish: each half over its own "
+        "current-definition days, starred and disclosed per half"
+    )
     err = capsys.readouterr().err
     assert "not mixed in" not in err
     assert "covers only its metric's current-definition days" in err
@@ -3014,5 +3017,28 @@ def test_ratio_cell_dash_distinguishes_invalid_points_from_no_points(
     cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
     assert cells[1] == DASH
     err = capsys.readouterr().err
-    assert "carry no valid numerator/denominator" in err
+    assert "none carries a summable numerator/denominator" in err
     assert "Gate first-pass rate = — — no published days this week" not in err
+
+
+# ── fix-wave 12 (W12: the fail-open is genuinely visible) ────────────────────────────
+
+
+def test_unreadable_series_dir_warns_when_probing_older_versions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W12-3: Path.glob swallows PermissionError internally, so W11-4's warn
+    never fired for the dominant unreadable-dir cause — the probe must LIST the
+    dir inside the guarded region so the fail-open is visible."""
+    st = tmp_path / "state"
+    sdir = st / "series"
+    sdir.mkdir(parents=True)
+    (sdir / "m@v1.jsonl").write_text('{"day": "2026-08-18"}\n', encoding="utf-8")
+    sdir.chmod(0o000)
+    try:
+        out = kc._older_version_week_days("m", 2, ["2026-08-18"], st)
+    finally:
+        sdir.chmod(0o755)
+    assert out == set()
+    err = capsys.readouterr().err
+    assert "unreadable" in err, "the silent fail-open disables two fabrication guards"
