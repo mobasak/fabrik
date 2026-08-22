@@ -24,6 +24,12 @@ design:
   reading is live or `cached Nh ago` — a stale render is visible, never silent.
 - A failed probe does **not** blank the page: it renders the last good payload behind a red
   "live probe failed" banner (`quota.json` is the fallback store).
+- **Idle accounts show `cached Nh ago` by design** — `--status` (what this shells) is a fast,
+  ping-free read; only the *active* dir's fresh token is probed live. **Idle-cache freshness is
+  the `*/5` rotation tick's job**, not the dashboard's. So if idle ages climb without bound
+  (e.g. past 85h — observed 2026-08-22), the tick is either not running (check `crontab -l`) or
+  its refresh-ping is failing to resolve `claude` under cron's PATH — see
+  `claude-account-rotation.md` § Cron PATH.
 
 ## Reading the board
 

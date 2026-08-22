@@ -167,6 +167,16 @@ The hourly `--drift-check` cron and the SessionStart drift-check hook are gone �
 symlink would have run the drift-check from every fleet dir against its hardcoded `~/.claude`
 paths, re-creating the capture/retarget hazard this design retires.
 
+**Cron PATH — why the pings resolve `claude` without a `PATH=` line.** Cron runs with a minimal
+`PATH` (`/usr/bin:/bin`) that excludes `~/.local/bin`, where the `claude` CLI installs. Every
+`claude -p ping` (the tick's stale-reading refresh **and** the keepalive) therefore prepends
+`~/.local/bin` to its own subprocess env via `_with_claude_on_path(env)` before spawning, so the
+CLI resolves under cron exactly as in a login shell — no crontab `PATH=` line is required, on
+this host or the vendored `aro-wake` copy. Without it the spawn raises `FileNotFoundError`,
+caught silently: idle readings never refresh (the dashboard cache ages unbounded) and idle
+chains are never warmed. Regression-guarded in `tests/test_claude_fleet.py`
+(`test_with_claude_on_path_*`).
+
 ## Runbook
 
 ### The logins (done — chains date from 2026-08-15, which is when their idle clocks start)

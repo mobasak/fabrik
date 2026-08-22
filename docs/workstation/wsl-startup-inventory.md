@@ -50,10 +50,14 @@
   watchlist/drop-feed/dns-recheck, trade-intelligence GTIP refresh (05:30), headless-Claude session prune (05:17),
   Claude account rotation (`claude_rotate --tick` every 5 min; `--keepalive` Mon 06:20), quota dashboard
   (`quota_dashboard --ensure` @reboot + every 10 min, serves localhost:5051), kaizen measurement
-  (DAILY since the M1 cutover 2026-08-20: `weekly_catchup.sh kaizen_collect_v2.py` collector +
-  `weekly_catchup.sh kaizen_outcomes.py` nightly fleet-health sweep, both hourly stamp-checks that
-  fire once per day — crontab lines pending the operator's post-wipe crontab restore; the weekly
-  `kaizen_metrics.py` is retired to `scripts/sysadmin/archived/` — `docs/workstation/kaizen.md`)
+  (DAILY since the M1 cutover 2026-08-20, three hourly stamp-checks that each fire once per day via
+  `weekly_catchup.sh`: `kaizen_collect_v2.py` collector, `kaizen_outcomes.py` nightly fleet-health
+  sweep, `kaizen_coroner.py` — the weekly `kaizen_metrics.py` is retired to
+  `scripts/sysadmin/archived/`; `docs/workstation/kaizen.md`).
+  **Post-wipe restore DONE 2026-08-22:** the 2026-08-19 whole-table wipe was reconciled + reinstalled
+  to 41 jobs (backup `~/backups/crontab.backup.20260822-143018`); `--tick`/`--keepalive`/dashboard
+  `--ensure` all live. Cron runs with a minimal `PATH` (no `~/.local/bin`), so the rotation pings
+  resolve `claude` themselves (`claude-account-rotation.md` § Cron PATH) — no crontab `PATH=` line.
 - **timers:** `proxy_sync`, `ip_authorization`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
   (+ stock `apt-daily*`, `man-db`, `motd-news`, `systemd-tmpfiles-clean`, `e2scrub_all`)
 
