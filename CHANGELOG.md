@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 14: docs match the shipped disclosure shape (2026-08-22)
+
+- The split-week doc describes the actual note shape (W13's single-line rule): the `*` line's
+  headline is "k of N week day(s)" for a single metric and the per-half coverage for a pair;
+  the standalone per-half line rides only DASH paths — never both.
+- The bootstrap-symmetry passages (both kaizen docs + the module docstring) say the gate keys
+  on the metric's own POPULATION mass (W12-1) — "family mass" described the removed behavior.
+- Doc-only; no code, tests, or formulas changed.
+
 ### Fixed — kaizen M1 review fix-wave 13: the warn means what it says (2026-08-22)
 
 - A metric's first publish (and every post-bump first publish) reads a series file that does

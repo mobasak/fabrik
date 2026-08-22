@@ -126,7 +126,10 @@ day, both sides) and VISIBLE: the detail counts
 W9-1 — a window-edge threshold silenced real in-window gaps and flagged normal edge-day
 baselines; the immediately-preceding day is the normal consecutive baseline, never a
 smear). Attributed-side bootstrap
-symmetry (W6-2): a first-ever attributed delta row carrying family mass whose `first_ts`
+symmetry (W6-2, mass tightened W12-1): a first-ever attributed delta row carrying the
+metric's own POPULATION mass (stop verdicts for the stops pair, round growth for
+review_rounds — a cause-only row contributes to neither published number and is never
+bootstrap-gated) whose `first_ts`
 predates the window dumped lifetime backlog as its "delta" — bootstrap-unmeasurable, excluded
 from value AND guard operands and counted (a `first_ts`-proven in-window birth stays: its
 lifetime IS in-window growth); the metric dashes with the bootstrap reason when the exclusion
@@ -164,9 +167,11 @@ lacks contributes nothing (its honesty gates already spoke at publish time); a w
 published days for a metric renders `—` ("no published days this week"). **Split weeks (W7-2):**
 a mid-week registry version bump leaves the earlier days in the previous version's file —
 versions are never mixed in one sum; the cell aggregates current-definition points only,
-carries a `*` marker with a stderr note ("k of N week day(s) at the current definition"; for a
-pair, an additional per-half line — "split-week halves at the current definition:
-death_occurrences 6/7, death_classes 1/7" — states which half is truncated, W9-5), and the
+carries a `*` marker with a stderr note whose headline is "k of N week day(s) at the current
+definition" for a single metric and the per-half coverage for a pair ("death_occurrences 6/7,
+death_classes 1/7 at the current definition" — which half is truncated, W9-5/W12-4); on DASH
+paths, where no annotate line fires, the per-half coverage rides a standalone
+"split-week halves at the current definition: …" line instead (W13 — never both), and the
 "definition changed this week; no days published at the current definition yet" dash fires
 ONLY when a half's emptiness is bump-caused — orphan days AND no current days (W10-1); a half
 that simply never published is a pair-contract gap, dashed with the pair-contract reason.

@@ -216,8 +216,10 @@ contributes only its in-window growth). The CLI's on-demand view is the trailing
 last `KAIZEN_OUTCOMES_WINDOW_DAYS` LOCAL calendar days including today — while the daily
 publish passes `days=[the published day]` so every PUBLISHED day point is DAY-scoped (W7-1: a
 trailing-window value published as a day point made the weekly cell sum overlapping windows).
-Attributed-side bootstrap symmetry (W6-2): a first-ever attributed delta row carrying
-family mass whose `first_ts` predates the window is bootstrap-unmeasurable — excluded from
+Attributed-side bootstrap symmetry (W6-2, mass tightened W12-1): a first-ever attributed
+delta row carrying the metric's own POPULATION mass (stop verdicts for the stops pair,
+round growth for review_rounds) whose `first_ts` predates the window is
+bootstrap-unmeasurable — excluded from
 both operands and counted; a kept row whose baseline (`delta_of`) skips at least one calendar
 day before the ROW'S OWN day smears the skipped days' growth into it — deliberate and
 annotated in the detail (W7-5, per-row since W9-1: the immediately-preceding day is the

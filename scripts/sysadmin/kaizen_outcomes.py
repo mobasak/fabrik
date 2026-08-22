@@ -43,8 +43,9 @@ value published as a day point made the weekly cell sum overlapping windows).
 Each sid's in-window store rows are delta'd against its nearest earlier row, so
 a lifetime session contributes only its in-window growth (never all-time
 cumulative; the event-era filter and the root law live in the delta seam).
-Attributed-side bootstrap symmetry (W6-2): a
-first-ever delta row carrying family mass from before the window is
+Attributed-side bootstrap symmetry (W6-2, mass tightened W12-1): a
+first-ever delta row carrying the metric's own POPULATION mass (stop verdicts
+for the stops pair, round growth for review_rounds) from before the window is
 bootstrap-unmeasurable — excluded and counted. Value and attribution guard
 measure the SAME rows with the SAME semantics; a window with no derived delta
 rows at all is a derivation gap — unmeasurable with its measured cause (W6-4),
