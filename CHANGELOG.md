@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 18: three daily jobs, counted as three (2026-08-22)
+
+- kaizen.md's daily-jobs paragraph counts all THREE stamp-check jobs (it said "Both"/"these
+  two"/"the two lines" two lines after naming the third); INDEX.md's kaizen rows credit the
+  daily kaizen_collect_v2 measurement instead of the retired kaizen_metrics/Monday cadence.
+- The malformed-row warn is plural-aware — N mangled same-week rows are named as N, so the
+  operator repairs all of them, not the one the singular wording implied.
+
 ### Fixed — kaizen M1 review fix-wave 17: the warn describes what actually happened (2026-08-22)
 
 - The malformed-row warn states the true disposition (W17-1): an append only when no

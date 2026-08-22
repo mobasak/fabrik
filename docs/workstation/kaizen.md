@@ -32,13 +32,13 @@ job's liveness evidence is its **success stamp** (`~/.claude/state/daily-<job>.s
 only on success — the log files are also written by nudges and failures, so they are not
 heartbeats); the three surfaces are registered in `.fabrik/liveness-registry.json`.
 
-Both ride the **wake-proof stamp-check runner** (`scripts/sysadmin/weekly_catchup.sh`, M0 shrink
-ruling): the cron fires hourly, the runner runs the job only when its success stamp is older than
-the job's period (1 day for these two; the sibling audit jobs stay weekly), and the stamp is
-touched only on success — a night the box hibernated through is caught up within an hour of
+All three ride the **wake-proof stamp-check runner** (`scripts/sysadmin/weekly_catchup.sh`, M0
+shrink ruling): the cron fires hourly, the runner runs the job only when its success stamp is
+older than the job's period (1 day for these three; the sibling audit jobs stay weekly), and
+the stamp is touched only on success — a night the box hibernated through is caught up within an hour of
 waking, and a failing job retries hourly with every attempt in the log. The retired weekly meter
 `kaizen_metrics.py` lives in `scripts/sysadmin/archived/` (operator ruling, M0); its old
-`weekly_catchup.sh kaizen_metrics.py` crontab line is replaced by the two lines above.
+`weekly_catchup.sh kaizen_metrics.py` crontab line is replaced by the three lines above.
 
 ### The daily collector pass (`kaizen_collect_v2.py --daily`)
 

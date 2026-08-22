@@ -1962,13 +1962,13 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     key = _iso_week(cells[0])
     target: int | None = None
     target_cells: list[str] | None = None
-    malformed_week = False
+    malformed_week = 0
     for i, row in enumerate(rows):
         shaped = _split_row_shaped(row, len(COLUMNS))
         if shaped is None:
             first = _split_row(row)
             if first and key is not None and _iso_week(first[0]) == key:
-                malformed_week = True  # W17-1: warned AFTER target resolution —
+                malformed_week += 1  # W17-1: warned AFTER target resolution —
                 # the disposition depends on whether a well-formed twin exists
             continue  # never a merge target, never reshaped
         if key is not None and _iso_week(shaped[0]) == key:
@@ -1985,13 +1985,13 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
         # W17-1: the warn states what actually happens — an append only when no
         # well-formed same-week row exists; a merge otherwise (zero rows gained).
         disposition = (
-            "this week's fresh row is appended alongside it"
+            "this week's fresh row is appended alongside"
             if target is None
-            else "this week's update is merged into the well-formed row beside it"
+            else "this week's update is merged into the well-formed row beside them"
         )
         _warn(
-            f"malformed row in {path.name} (not {len(COLUMNS)} cells) preserved "
-            f"VERBATIM — {disposition}"
+            f"{malformed_week} malformed row(s) in {path.name} (not {len(COLUMNS)} cells) "
+            f"preserved VERBATIM — {disposition}"
         )
     if target is None or target_cells is None:
         rows.append(_render_row(list(cells)))
