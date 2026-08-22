@@ -1998,7 +1998,18 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     else:
         rows[target] = _render_row(_merge_cells(list(cells), target_cells, force_dash))
     out = lines[: start + 2] + rows + lines[end:]
-    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    # W19-4: the role log is the one kaizen artifact holding hand-authored cells
+    # (the analyst columns) — write tmp + atomic replace so a mid-write death
+    # (sleep/OOM between truncate and write) can never leave it truncated.
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as exc:
+        _warn(f"log row write failed for {path.name} ({exc!r}) — row skipped")
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        return False
     return True
 
 

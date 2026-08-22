@@ -11,7 +11,7 @@ emitter laws and the full metric registry live in `docs/workstation/kaizen-event
 
 | Half | Who runs it | Cost | What it produces |
 |---|---|---|---|
-| **Measurement** | `scripts/sysadmin/kaizen_collect_v2.py --daily` + `scripts/sysadmin/kaizen_outcomes.py --sweep`, from cron | stdlib-only, no agent, **no Claude quota** | derived facts + versioned metric series daily, one kaizen-log row per role weekly, a hand-off mail |
+| **Measurement** | `scripts/sysadmin/kaizen_collect_v2.py --daily` + `scripts/sysadmin/kaizen_outcomes.py --sweep` + `scripts/sysadmin/kaizen_coroner.py --sweep`, from cron | stdlib-only, no agent, **no Claude quota** | derived facts + versioned metric series daily, one kaizen-log row per role weekly, a hand-off mail |
 | **Analysis** | the infra / fleet agent, ≤90 min timebox | one Claude session | the `Top friction fixed` + `Filed` cells, and the fixes behind them |
 
 The rule that shapes everything here: **never spend Claude quota to produce a number a script

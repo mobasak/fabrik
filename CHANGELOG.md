@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 19: the registry tells today's truth; the log write is atomic (2026-08-22)
+
+- The three kaizen liveness-registry why-texts no longer pre-excuse an OVERDUE stamp with
+  "PENDING the operator's crontab install" — the install landed 2026-08-22, so an OVERDUE
+  stamp now means the job itself is failing, with the log to read named per surface.
+- kaizen.md's split table names all three mechanical jobs (the coroner sweep was missing from
+  the doc's most-read summary); the role-log rewrite goes through tmp + atomic os.replace —
+  the one kaizen artifact holding hand-authored analyst cells can no longer be truncated by a
+  mid-write death (last-writer-wins on a manual/cron overlap is the accepted residual: the
+  file is git-tracked and the machine re-upserts next run); the plural malformed-row warn
+  carries its multi-row test.
+
 ### Added — /fabrik-flows + /fabrik-flows-review: the journey stage of the feature-scale pipeline (2026-08-22)
 
 - New command pair (transdoc upstream proposal 2026-08-22, operator-directed): `/fabrik-flows`

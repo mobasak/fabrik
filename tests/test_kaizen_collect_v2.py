@@ -3210,3 +3210,40 @@ def test_malformed_row_warn_names_the_merge_when_a_target_exists(tmp_path: Path)
     assert "appended alongside" not in err
     lines = [ln for ln in log.read_text().splitlines() if ln.startswith("|")]
     assert len(lines) == 4, "header + sep + broken + merged — zero rows gained"
+
+
+# ── fix-wave 19 (W19: the registry tells today's truth; the log write is atomic) ─────
+
+
+def test_malformed_warn_counts_multiple_same_week_rows(tmp_path: Path) -> None:
+    """W19-3: N mangled same-week rows are named as N — the singular wording
+    implied one repair when several were owed."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text(
+        "\n".join([header, sep, "| 2026-08-17 | broken |", "| 2026-08-18 | broken |"]) + "\n",
+        encoding="utf-8",
+    )
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert ok
+    assert "2 malformed row(s)" in buf.getvalue()
+
+
+def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
+    """W19-4: the role log is the one kaizen artifact holding hand-authored
+    cells — its rewrite goes through tmp + atomic replace, and a completed
+    upsert leaves no temp file behind."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert "| 2026-08-19 |" in log.read_text()
+    leftovers = [p.name for p in tmp_path.iterdir() if p.name != "log.md"]
+    assert leftovers == [], leftovers

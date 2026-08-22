@@ -88,7 +88,7 @@
   {
    "id": "kaizen-measurement",
    "kind": "cron",
-   "why": "the mechanical half of the kaizen loop, DAILY since the M1 cutover (kaizen_collect_v2 --daily via weekly_catchup.sh; kaizen_metrics.py retired to archived/). Its crontab line is PENDING the operator's crontab install — until it lands this surface is expected OVERDUE, and that is the finding, not noise.",
+   "why": "the mechanical half of the kaizen loop, DAILY since the M1 cutover (kaizen_collect_v2 --daily via weekly_catchup.sh; kaizen_metrics.py retired to archived/). Its crontab line is INSTALLED (2026-08-22) — an OVERDUE stamp now means the job itself is failing; read ~/.claude/kaizen.log.",
    "cron_match": "kaizen_collect_v2.py",
    "evidence": {
     "type": "log",
@@ -116,7 +116,7 @@
   {
    "id": "kaizen-coroner",
    "kind": "cron",
-   "why": "the DAILY coroner sweep (kaizen_coroner.py --sweep via weekly_catchup.sh) — post-hoc death/revival reconstruction + closure of run records that can no longer close themselves; the hole metric and the record TTLs depend on it, and nothing else on the box runs it. Its crontab line is PENDING the operator's crontab install.",
+   "why": "the DAILY coroner sweep (kaizen_coroner.py --sweep via weekly_catchup.sh) — post-hoc death/revival reconstruction + closure of run records that can no longer close themselves; the hole metric and the record TTLs depend on it, and nothing else on the box runs it. Its crontab line is INSTALLED (2026-08-22) — an OVERDUE stamp now means the sweep itself is failing; read ~/.claude/kaizen-coroner.log.",
    "cron_match": "kaizen_coroner.py",
    "evidence": {
     "type": "log",
