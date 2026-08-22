@@ -90,64 +90,22 @@ DISPOSITIONS = (
     "wontfix",
 )  # SSOT — argparse choices, _ACK_LINE, and ack() all derive from this
 
-# P19-1: a DSN whose password is an obvious PLACEHOLDER is not a secret, and
-# refusing it breaks this store's own core workflow — carrying security findings
-# that QUOTE the evidence. Redacting before you send is the behaviour to
-# encourage, so it must not be punished.
-# P20-1/2/3: an exemption on a security guard is a BYPASS unless it matches on
-# CONTENT. The first version mixed fixed placeholder words (safe) with unbounded
-# SHAPE wildcards — `<...>`, `${...}`, `YOUR...` — so any real secret merely
-# dressed in that shape scored None, with neither a refusal nor a warning.
-# The rule now: a placeholder is LETTERS ONLY (no digits — real credentials
-# essentially always carry them), optionally wrapped in `<>`/`${}`/`$`, and must
-# CONTAIN one of these words. Pure-redaction runs (`xxxx`, `****`, `....`) are
-# listed separately because they carry no word at all.
-_PLACEHOLDER_WORD = (
-    r"(?:REDACT(?:ED)?|PLACEHOLDER|CHANGE[_-]?ME|EXAMPLE|SAMPLE|DUMMY|PASTE"
-    r"|PASSWORD|PASSWD|PASS|SECRET|TOKEN|API[_-]?KEY|TODO|FIXME|NONE|EMPTY"
-    r"|HERE|YOUR)"
-)
-# P21-1: round 20 asked whether the password CONTAINS a placeholder word — a
-# substring test, case-insensitively, on short common tokens. Ordinary
-# letters-only passwords contain them (`CompassionateHeart`, `Nonetheless`,
-# `Passphrase`, `therefore`), so they published clean. Containment is not
-# content-matching. Two precise forms instead:
-#   BARE   — the password must BE placeholder words, end to end (separators
-#            allowed between them), so `PASS` is exempt and `Passphrase` is not.
-#   WRAPPED— `<...>`/`${...}`/`$NAME` is itself the "fill this in" convention, so
-#            an identifier-shaped inner (letters + separators, NO digits) is
-#            enough: `${DB_PASSWORD}` reads as a reference, `<9f8a7b6c>` does not.
-# P22-2: BOUNDED, not `*`. An unbounded nested quantifier over an alternation
-# with shared prefixes (PASS/PASSWD/PASSWORD) backtracks super-linearly — a
-# 64 KB body of `SECRET_` runs took 4.1s on the send() hot path, which every
-# repo in the fleet pays. A placeholder phrase is a few words ("YOUR PASSWORD
-# HERE"), never dozens, so the bound costs nothing real.
-_PLACEHOLDER_BARE = _PLACEHOLDER_WORD + r"(?:[_ -]+" + _PLACEHOLDER_WORD + r"){0,5}"
-# P22-1: the wrapper is a HINT, never a licence. Round 21 trusted `<...>`/`${...}`
-# on SHAPE alone (any letters-only inner), which just relocated the leak: a
-# passphrase credential or a letters-only hex secret published clean merely by
-# being bracketed. Every form now requires the inner to BE a placeholder:
-#   <PASTE-PASSWORD>, <YOUR PASSWORD HERE>  — placeholder words, bracketed
-#   ${DB_PASSWORD}, $POSTGRES_SECRET        — an env-var REFERENCE, which is
-#     UPPER_SNAKE and ends in a credential noun; `${CorrectHorseBatteryStaple}`
-#     is neither, and no real secret looks like `DB_PASSWORD`.
-_ENVVAR_REF = (
-    r"\$\{?[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:PASSWORD|PASSWD|PASS|SECRET|TOKEN|KEY|DSN|URL|URI)\}?"
-)
-_PLACEHOLDER_PW = (
-    r"(?!(?:"
-    + _PLACEHOLDER_BARE
-    + r"|<"
-    + _PLACEHOLDER_BARE
-    + r">"
-    + r"|"
-    + _ENVVAR_REF
-    + r"|\$\{?"
-    + _PLACEHOLDER_WORD
-    + r"\}?"
-    + r"|\*{3,}|x{3,}|\.{3,}|-{3,}|_{3,}"
-    r")@[^\s@]*(?:\s|$))"
-)
+# THE PLACEHOLDER EXEMPTION IS REMOVED (round 24). Rounds 19-23 tried five
+# successive versions of a "is this password a placeholder?" classifier so that a
+# finding could quote a redacted DSN verbatim. EVERY ONE leaked a real credential
+# to all ~46 synced repos, and each leak scored `None` — not even a warning:
+#   19  shape wildcards: `<any>`, `${any}`, `YOUR...`      → secret in brackets
+#   20  substring match: PASS/HERE/NONE inside words       → `CompassionateHeart`
+#   21  wrapper trusted on shape alone                     → `<CorrectHorse...>`
+#   22  ...and its cost twin: a quadratic scan             → 4.7s per send
+#   23  `@` unanchored: placeholder@REAL_SECRET@host       → `my@Zx82Kf9mQpLr7T`
+# Deciding "is this string a secret or a label for one?" from the string alone is
+# not a winnable classification problem, and every attempt spent a real bypass to
+# learn that. The guard is a boundary, so it fails CLOSED with no exceptions: any
+# `scheme://user:pass@host` refuses. Quoting evidence costs one keystroke — drop
+# the scheme (`user:REDACTED@host`) or break the shape (`postgres:// … @host`) —
+# and the refusal is loud, immediate and self-explaining. Do NOT reintroduce a
+# classifier here; five rounds of evidence say it will leak.
 
 # High-confidence secret signatures — REFUSE the send.
 _SECRET_HIGH = [
@@ -176,7 +134,7 @@ _SECRET_HIGH = [
     _re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),  # JWT
     _re.compile(r"(?i)\bauthorization:\s*bearer\s+\S{8,}"),  # Bearer header
     _re.compile(
-        r"\b[a-z][a-z0-9+.-]{0,31}://[^\s/:@]*:" + _PLACEHOLDER_PW + r"[^\s/@]+@", _re.I
+        r"\b[a-z][a-z0-9+.-]{0,31}://[^\s/:@]*:" + r"[^\s/@]+@", _re.I
     ),  # scheme://[user]:pass@host (user optional — redis://:pw@). P16-2: _re.I —
     # the scheme was lower-case-only, so a copy-pasted `Postgres://` DSN (how
     # config templates and docs capitalise it) bypassed the guard entirely.
@@ -202,7 +160,7 @@ _SECRET_HIGH = [
     _re.compile(
         r"\b(?:postgres(?:ql)?|mysql|mariadb|rediss?|mongodb(?:\+srv)?|amqps?"
         r"|ftps?|sftp|ssh|smtps?|clickhouse|mssql|oracle|cockroachdb)"
-        r"://[^\s/:@]*:" + _PLACEHOLDER_PW + r"[^\s@]+@",
+        r"://[^\s/:@]*:" + r"[^\s@]+@",
         _re.I,
     ),
 ]

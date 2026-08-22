@@ -2093,61 +2093,6 @@ def test_quarantine_slot_bound_is_inclusive(env, monkeypatch):
 
 
 # --- round 19: fail-closed must not block the evidence-quoting workflow -----
-def test_a_redacted_or_placeholder_dsn_still_sends(env):
-    """P19-1: round 18 called the fail-closed false positive 'free' because the
-    shape occurred 0 times in the live store. That measured FREQUENCY, not the
-    shape of legitimate future mail — and this store's own job is carrying
-    security findings that QUOTE evidence. A reviewer reporting a DSN must be
-    able to send it with the secret REMOVED, which is the behaviour we want to
-    encourage, not punish."""
-    for safe in (
-        "found this in config: postgres://user:REDACTED@dbhost/finaldb",
-        "the template is postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
-        "docs say mongodb+srv://user:PLACEHOLDER@cluster0.mongodb.net/test",
-        "compose has postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
-        "the example is `DATABASE_URL=postgres://user:password@localhost:5432/db`",
-        "redis://default:CHANGEME@redis-main:6379/0",
-        "postgres://user:xxxxxxxx@host:5432/db",
-    ):
-        assert mail._secret_level(safe) != "high", safe
-        assert mail.send(to="fabrik", kind="finding", body=safe, frm="alpha").is_file()
-    # a REAL credential is still refused — the exemption is for placeholders only
-    for real in (
-        "postgres://admin:s3cr3t/with/slash@host:5432/db",
-        "postgres://admin:xk3q9zAbcdef@postgres-main",
-        "redis://user:secr/et@redis-main",
-    ):
-        assert mail._secret_level(real) == "high", real
-
-
-def test_the_placeholder_exemption_cannot_smuggle_a_real_secret(env):
-    """P20-1/2/3: the round-19 exemption mixed FIXED placeholder words (safe —
-    they match only if the password IS that word) with UNBOUNDED SHAPE wildcards
-    (`<...>`, `${...}`, `YOUR...`). Shape-matching exempted any real secret merely
-    dressed in that shape — scoring None, so `send` emitted neither refusal nor
-    warning. An exemption on a security guard is a bypass unless it matches on
-    CONTENT."""
-    for smuggled in (
-        "postgres://user:<9f8a7b6c5d4e3f2a1b0c>@host/db",
-        "postgres://user:${9f8a7b6c5d4e3f2a1b0c}@host/db",
-        "postgres://user:$9f8a7b6c5d4e3f2a1b0c@host/db",
-        "postgres://user:YourSuperSecretPass2024@host:5432/db",
-        "postgres://user:YOUR_actual_api_key_9f8a7b6c5d4e@host/db",
-        "postgres://user:<PASTEs3cr3tv4lue>@host/db",
-    ):
-        assert mail._secret_level(smuggled) == "high", smuggled
-    # the genuine redactions round 19 exists to allow must STILL send
-    for safe in (
-        "postgres://user:REDACTED@dbhost/finaldb",
-        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
-        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
-        "postgres://user:password@localhost:5432/db",
-        "redis://default:CHANGEME@redis-main:6379/0",
-        "postgres://user:xxxxxxxx@host:5432/db",
-    ):
-        assert mail._secret_level(safe) != "high", safe
-
-
 def test_the_test_suite_never_reaches_the_real_alerting_leg(env, monkeypatch):
     """P20-1: this binds the stub above. `_is_hub_repo()` is content-based on
     Path.cwd(), and pytest always runs from the hub — so before this, running the
@@ -2232,67 +2177,6 @@ def test_current_repo_falls_back_when_git_is_unavailable(env, monkeypatch):
     assert mail._current_repo() == Path.cwd().name
 
 
-def test_a_password_that_merely_contains_a_placeholder_word_is_not_exempt(env):
-    """P21-1: round 20 required the password to CONTAIN a placeholder word — a
-    SUBSTRING test, case-insensitive, on short common tokens (PASS, HERE, NONE).
-    Ordinary letters-only passwords contain them: `CompassionateHeart`,
-    `Nonetheless`, `Passphrase`, `therefore`. Each published clean with neither a
-    refusal nor a warning. Containment is not content-matching; the password must
-    BE a placeholder, not merely include one."""
-    for real in (
-        "postgres://user:CompassionateHeart@host/db",
-        "postgres://user:AdherenceSecure@host/db",
-        "postgres://user:Nonetheless@host/db",
-        "postgres://user:Passionately@host/db",
-        "postgres://user:Passphrase@host/db",
-        "postgres://user:therefore@host/db",
-    ):
-        assert mail._secret_level(real) == "high", real
-    # every documented redaction must STILL send
-    for safe in (
-        "postgres://user:REDACTED@dbhost/finaldb",
-        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
-        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
-        "postgres://user:password@localhost:5432/db",
-        "redis://default:CHANGEME@redis-main:6379/0",
-        "postgres://user:xxxxxxxx@host:5432/db",
-        "postgres://user:PLACEHOLDER@h/db",
-        "mongodb+srv://u:<YOUR PASSWORD HERE>@cluster0.abc.mongodb.net/db",
-    ):
-        assert mail._secret_level(safe) != "high", safe
-
-
-def test_a_wrapped_real_secret_is_not_exempt(env):
-    """P22-1: round 21 moved the leak rather than closing it. The BARE form was
-    tightened to exact placeholder words, but the WRAPPED forms still trusted
-    SHAPE — any letters-only inner. So a passphrase-style credential, or a
-    letters-only hex secret, published clean merely by being written inside
-    `<...>` or after `$`. The wrapper is a hint, never a licence: the inner must
-    itself be a placeholder."""
-    for smuggled in (
-        "postgres://user:<CorrectHorseBatteryStaple>@host/db",
-        "postgres://user:<deadbeefcafebabe>@host/db",
-        "postgres://user:<zjxqmvbklorstuiwynhpdgacef>@host/db",
-        "postgres://user:$CorrectHorseBatteryStaple@host/db",
-        "postgres://user:${CorrectHorseBatteryStaple}@host/db",
-        "redis://default:$MySuperSecretRedisPass@redis-main:6379/0",
-        "mongodb+srv://u:<CorrectHorseBatteryStaple>@cluster0.abc.mongodb.net/db",
-    ):
-        assert mail._secret_level(smuggled) == "high", smuggled
-    # the redactions and env-var references we exist to allow must STILL send
-    for safe in (
-        "postgres://user:REDACTED@dbhost/finaldb",
-        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
-        "mongodb+srv://u:<YOUR PASSWORD HERE>@cluster0.abc.mongodb.net/db",
-        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
-        "postgres://app:${POSTGRES_PASSWORD}@postgres-main:5432/app",
-        "redis://default:${REDIS_SECRET}@redis-main:6379/0",
-        "postgres://user:password@localhost:5432/db",
-        "postgres://user:xxxxxxxx@host:5432/db",
-    ):
-        assert mail._secret_level(safe) != "high", safe
-
-
 def test_secret_scan_stays_fast_on_a_max_size_body(env):
     """P22-2: the exemption's nested quantifier over a shared-prefix alternation
     (PASS/PASSWD/PASSWORD) backtracked super-linearly — a 64 KB body of `SECRET_`
@@ -2303,24 +2187,6 @@ def test_secret_scan_stays_fast_on_a_max_size_body(env):
     start = time.monotonic()
     mail._secret_level(body)
     assert time.monotonic() - start < 0.5, "the scan must stay linear at the body cap"
-
-
-def test_a_second_at_sign_defeats_the_exemption(env):
-    """P23-1, the FIFTH leak of this exemption: the lookahead asserted only that
-    a placeholder was followed by AN `@`, never the LAST one. So a real secret
-    parked between a placeholder and the true host — exactly what a hurried
-    half-redaction produces — was invisible to every check, scoring None. An
-    exemption must cover the WHOLE credential field or it covers nothing."""
-    for smuggled in (
-        "postgres://user:REDACTED@realSecretValueXYZ12345@host/db",
-        "mysql://svc:my@Zx82Kf9mQpLr7T@host:3306/app",
-        "redis://:REDACTED@realpasswordXYZ123456@host:6379",
-        "postgres://user:$SECRET@realSecretValue987xyzABC@host/db",
-    ):
-        assert mail._secret_level(smuggled) == "high", smuggled
-    # a single-@ redaction is still exempt
-    assert mail._secret_level("postgres://user:REDACTED@dbhost/finaldb") != "high"
-    assert mail._secret_level("postgres://app:${DB_PASSWORD}@postgres-main:5432/app") != "high"
 
 
 def test_generic_scheme_scan_stays_fast(env):
@@ -2334,3 +2200,38 @@ def test_generic_scheme_scan_stays_fast(env):
     start = time.monotonic()
     mail._secret_level(body)
     assert time.monotonic() - start < 0.5
+
+
+def test_every_credential_url_refuses_with_no_placeholder_exemption(env):
+    """Round 24 REMOVED the placeholder exemption. Rounds 19-23 shipped five
+    successive classifiers so a finding could quote a redacted DSN verbatim, and
+    every one leaked a real credential — each scoring None, not even a warning.
+    Deciding "is this string a secret or a label for one?" from the string alone
+    is not winnable, so the boundary fails CLOSED with no exceptions.
+
+    This test pins BOTH halves of that contract, so a future round cannot quietly
+    reintroduce a classifier: real credentials refuse, and so do redactions."""
+    for real in (
+        "postgres://admin:s3cr3t/with/slash@host:5432/db",
+        "postgres://admin:xk3q9zAbcdef@postgres-main",
+        "mysql://svc:my@Zx82Kf9mQpLr7T@host:3306/app",
+        "postgres://user:<CorrectHorseBatteryStaple>@host/db",
+        "postgres://user:CompassionateHeart@host/db",
+    ):
+        assert mail._secret_level(real) == "high", real
+    # Redactions refuse TOO — the deliberate cost of removing the classifier.
+    for redacted in (
+        "postgres://user:REDACTED@dbhost/finaldb",
+        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
+        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
+    ):
+        assert mail._secret_level(redacted) == "high", redacted
+    # The documented workarounds cost one keystroke and still send.
+    for quotable in (
+        "found: user:REDACTED@dbhost/finaldb (scheme dropped to quote it)",
+        "found: postgres:// user:REDACTED @dbhost/finaldb",
+    ):
+        assert mail._secret_level(quotable) != "high", quotable
+        assert mail.send(to="fabrik", kind="finding", body=quotable, frm="alpha").is_file()
+    # Ordinary doc links are untouched.
+    assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None

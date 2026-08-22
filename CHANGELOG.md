@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-23 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-24 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -117,6 +117,14 @@ All notable changes to this project will be documented in this file.
   half-closed: round 22 bounded the assignment pattern and measured that one, while the
   sibling generic-scheme pattern remained quadratic (1.7s on an ordinary hyphenated 64 KB
   body with no credential in it). Both are now bounded and timing-tested.
+- Round 24 REMOVED the placeholder exemption instead of writing a sixth version of it.
+  Rounds 19-23 each shipped a classifier meant to let a finding quote a redacted DSN, and
+  each one leaked a real credential to every synced repo while scoring nothing at all —
+  not even a warning. Deciding whether a string is a secret or a label for one, from the
+  string alone, is not a winnable problem. The guard now fails closed with no exceptions;
+  quoting a DSN in a finding costs one keystroke (drop the scheme, or space out the shape)
+  and the refusal that prompts it is loud. A single test pins both halves of the contract
+  and the code carries a do-not-reintroduce note with the full five-leak history.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

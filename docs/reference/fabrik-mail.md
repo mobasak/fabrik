@@ -95,15 +95,15 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `/` is caught too — routine in base64-derived passwords. For those schemes the match is
   deliberately fail-CLOSED: `user:pass@host` and `host:port/path@note` are lexically identical, so an
   ambiguous string like `postgres://internal-docs:8080/api@readme` is REFUSED rather than risk
-  publishing a credential. **REDACT and it sends:** a DSN whose password is an obvious placeholder
-  (`REDACTED`, `PLACEHOLDER`, `CHANGEME`, `<PASTE-PASSWORD>`, `<YOUR PASSWORD HERE>`, `password`,
-  `xxxx`, `***`) — or an env-var REFERENCE whose name ends in a credential noun
-  (`${DB_PASSWORD}`, `$POSTGRES_SECRET`, `${APP_API_KEY}`; a bare `${VAR}` is NOT exempt, since
-  nothing about it says "placeholder") — is
-  exempt, so a finding can quote the evidence with the secret removed — which is what you should be
-  doing anyway. Backticking or fencing does NOT help (a backtick is a word boundary, so the pattern
-  still matches); redact the password, or drop the scheme. Non-DSN schemes keep the stricter password class, so an
-  ordinary `https://host/path:frag@anchor` doc link still sends.
+  publishing a credential. **There is no placeholder exemption, deliberately.** Five successive
+  attempts (2026-08-23) to exempt "obviously redacted" DSNs each leaked a REAL credential — deciding
+  whether a string is a secret or a label for one, from the string alone, is not a winnable problem,
+  and every version of the classifier published something it should have refused. So the boundary
+  fails CLOSED with no exceptions: `postgres://user:REDACTED@host` is refused exactly like
+  `postgres://user:hunter2@host`. **To quote a DSN in a finding, break the shape** — drop the scheme
+  (`user:REDACTED@host/db`) or space it out (`postgres:// user:REDACTED @host/db`). One keystroke,
+  and the refusal that prompts it is loud and immediate. Non-DSN schemes keep the stricter
+  `/`-excluding password class, so ordinary `https://host/path:frag@anchor` doc links still send.
   Flow operator secrets as `<PASTE …>` pointers.
 - **Star topology.** Hub ↔ node only. `send` refuses a project→project `--to` (both non-hub) — route
   via the hub. `fabrik` AND `fabrik-lib` count as hub-side here, so a project MAY mail `fabrik-lib`
