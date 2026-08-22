@@ -1520,3 +1520,70 @@ def test_digest_keeps_counting_a_quarantined_obligation(env):
     d4 = mail.digest(days=0)
     assert d4["quarantined"] == 3, "a dotfile is not a message"
     assert (inbox / ".swap.md").is_file(), "and it stays where it was"
+
+
+def test_a_vim_backup_in_malformed_is_not_a_parked_copy(env):
+    """P12-1: the probe predicate must match the COUNTING predicate — an
+    operator's `<id>.md~` backup (they are told to clear malformed/ by hand)
+    was accepted as 'parked' while the count rejected it, so a claimed-away
+    corrupt message was counted by NEITHER leg."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    archive = env["mail_root"] / "fabrik" / "archive"
+    malformed = env["mail_root"] / "fabrik" / "malformed"
+    for d in (inbox, archive, malformed):
+        d.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    (malformed / f"{pid}.md~").write_text("vim backup\n", encoding="utf-8")
+    f = inbox / f"{pid}.md"
+    f.write_text("corrupt\n", encoding="utf-8")
+    real_rename = mail.os.rename
+
+    def _peer_claims(src, dst):
+        if str(src) == str(f):
+            real_rename(src, archive / f"{pid}.md")
+            raise FileNotFoundError(str(src))
+        return real_rename(src, dst)
+
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(mail.os, "rename", _peer_claims)
+        d = mail.digest(days=0)
+    assert d["quarantined"] == 1, f"a backup file is not a parked copy: {d}"
+
+
+def test_vanished_destination_counts(env):
+    """P12-3: cause 3 of the four the comment enumerates — malformed/ removed
+    between mkdir and rename. Untested until now."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"{mail._ulid()}.md").write_text("corrupt\n", encoding="utf-8")
+
+    def _dest_gone(src, dst):
+        import shutil as _sh
+
+        _sh.rmtree(Path(dst).parent, ignore_errors=True)
+        raise FileNotFoundError(str(dst))
+
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(mail.os, "rename", _dest_gone)
+        d = mail.digest(days=0)
+    assert d["quarantined"] == 1, f"a vanished destination must count: {d}"
+
+
+def test_parked_count_predicate_is_bound(env):
+    """P12-4: the operator-facing parked count had NO test — three mutations
+    (drop the name anchor / the dotfile skip / is_file) all shipped green."""
+    malformed = env["mail_root"] / "fabrik" / "malformed"
+    malformed.mkdir(parents=True, exist_ok=True)
+    (malformed / "01ABC.md").write_text("real copy\n", encoding="utf-8")
+    (malformed / "01ABC.md.1").write_text("real numbered copy\n", encoding="utf-8")
+    (malformed / "01ABC.md~").write_text("vim backup\n", encoding="utf-8")
+    (malformed / "01ABC.md.bak").write_text("operator backup\n", encoding="utf-8")
+    (malformed / ".hidden.md").write_text("editor swap\n", encoding="utf-8")
+    (malformed / "notes.txt").write_text("note\n", encoding="utf-8")
+    (malformed / "adir.md").mkdir()
+    d = mail.digest(days=0)
+    assert d["quarantined"] == 2, f"exactly the two real copies: {d}"

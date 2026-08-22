@@ -715,7 +715,12 @@ def _quarantine(inbox: Path, f: Path) -> bool:
         # destination dir vanished, the file was deleted — must all COUNT, or
         # digest reports a clean mailbox over a malformed message. Distinguish
         # by what is actually on disk.
-        return any(q.glob(f"{f.name}*")) if q.is_dir() else False
+        # P12-1: the SAME predicate the counting leg uses — a broader glob
+        # accepted an operator's `<id>.md~` vim backup as "parked" while the
+        # count rejected it, so the message was counted by NEITHER leg.
+        if not q.is_dir():
+            return False  # P12-3: the destination vanished — count it
+        return any(_QUARANTINED_NAME.search(c.name) for c in q.glob(f"{f.name}*") if c.is_file())
     except OSError as exc:
         print(f"mail.py: quarantine skipped for {f.name} ({exc!r})", file=sys.stderr)
         return False

@@ -44,9 +44,11 @@ derive from that output plus the standing recurrence classes, not from memory.
 
 ### Phase A — guards + CLI in `mail.py` (red-first) — PASS
 
-108 tests green; every guard red-first; the review loop ran to a clean round. Grounded at
-`scripts/mail.py:212` (the ack-line union guard), `:403` (`--re` separator refusal), `:401`
-(`ack` vocabulary), `:340` (`_safe_name` on the guard entry), `:735` (quarantine accounting).
+108 tests green; every guard red-first; the review loop ran to a clean round. Grounded by SYMBOL (line numbers drift with every wave — P12-2):
+`_body_has_bare_ack_line` (the consumer-view ∪ normalized-view guard), `send`'s `--re`
+separator + `MAX_RE` refusals and its `ack` vocabulary check, `_safe_name` on
+`should_auto_reply` / `list_msgs` / the `should-reply` CLI, `_quarantine`'s four-cause
+FileNotFoundError split, and `digest`'s parked-count predicate.
 
 ### Phase B — docs + the fleet-distribution commit — PASS
 
@@ -62,7 +64,7 @@ dispatcher spec.
 
 | Phase | Verdict | Proof |
 |---|---|---|
-| A — guards + CLI in `mail.py`, red-first | PASS | 108 tests green (`pytest tests/test_mail.py -q` → `108 passed`); every guard's behavior red-first before its code; the boundary review ran to a clean round (ledger above) |
+| A — guards + CLI in `mail.py`, red-first | PASS | the suite green at every wave close (see the verbatim block below for the final count); every guard's behavior red-first before its code; the boundary review ran to a clean round (ledger above) |
 | B — docs + the fleet-distribution commit | PASS | reference/workstation docs, `.env.example`, `docs/CONFIGURATION.md`, `INDEX.md`, `CHANGELOG.md` all updated and reconciled against the code by passes 6-10; distribution is an explicit `sync_enforcement_to_projects.py --force` (P10-1 — `mail.py` alone does not trigger the sync), verified after the fact |
 | C — fleet reply + handoff | PASS | reply sent on the spec's own thread (`--re 01M02SV4498PHFBG3SM8KN1TR9`); NEXT names the dispatcher spec |
 
@@ -70,9 +72,7 @@ Suite, verbatim:
 
 ```
 $ /opt/fabrik/.venv/bin/python -m pytest tests/test_mail.py -q
-........................................................................ [ 66%]
-....................................                                     [100%]
-108 passed
+113 passed in 2.07s
 ```
 
 Gate, verbatim (`python3 scripts/final_gate.py --json` — the FULL Tier-2 gate run THIS
@@ -103,9 +103,11 @@ the convergence check reports on the CODE, not on its own draft):
 | Pass 8 | native Opus (full fresh) | 6 | 6 | 6 | 144-combo cross product: **security core PROVEN complete**; my P7-6 double-counted |
 | Pass 9 | native Opus (full fresh) | 4 | 4 | 4 | my P8-1 made a FAILED quarantine invisible; dotfile leg asymmetry |
 | Pass 10 | native Opus (full fresh) | 7 | 7 | 7 | **the fix wave was UNCOMMITTED — the fleet still ran the pre-fix code**; the ledger had pre-declared this row's verdict (evidence-before-assertion inversion, removed) |
+| Pass 11 | native Opus (full fresh) | 5 | 5 | 4 + 1 cross-repo | my P10-7 conflated "a peer PARKED it" with "a peer CLAIMED it" — the latter is permanently invisible; `/opt/fabrik-lib` runs the pre-security-fix copy (sync-excluded → REPORTED by mail, never edited) |
+| Pass 12 | native Opus (full fresh) | 5 | 5 | 5 | the FNF probe predicate was broader than the counting predicate (a `.md~` backup counted as "parked" → the message counted by NEITHER leg); three operator-facing count guards had ZERO tests (proven by mutation); this artifact itself had gone stale |
 
 Informal boundary rounds (pre-command, during execute-plan): 11+7+9+7+4+3 = 41, all fixed or
-adjudicated-documented. Formal loop: 59 more. **Total 100 findings on this surface.**
+adjudicated-documented. Formal loop: 69 more (11+2+9+8+5+8+6+6+4+7+5+5). **Total 110 findings on this surface.**
 
 ## Adjudicated, not fixed (each with its reason)
 
