@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-16 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-17 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -56,6 +56,15 @@ All notable changes to this project will be documented in this file.
   net although `PWD` sits in the high-confidence one), and Stripe's underscore `sk_live_`
   format. Each now refuses; verified against the live store's 910 real messages with zero
   newly refused and zero newly warned.
+- Round 17 re-swept the whole accumulated class ledger against current HEAD — the first
+  such pass since rounds 13-16 rewrote the code underneath the earlier verdicts. Ten of
+  twelve classes reconfirmed clean; two had been reopened by round 16's own fix. The
+  widened DSN pattern made `scheme://host:port/path@note` parse as `user:pass@host` and
+  hard-refused legitimate mail (now the tail must look like a real host), and `read_msg`
+  silently skipped a non-file in the message slot, reading a parent that structurally
+  exists as missing and turning a fail-closed HOLD into a fail-open ALLOW. Two mutation
+  survivors were also closed, and the reference doc's secret enumeration — stale again,
+  reopened by the very round that widened the patterns — was brought current.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

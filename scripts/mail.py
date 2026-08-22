@@ -118,10 +118,17 @@ _SECRET_HIGH = [
     # in base64-derived generated passwords. For the schemes that exist to CARRY
     # credentials, allow it: no doc link uses these, so there is no false-positive
     # surface to trade away.
+    # P17-1: allowing `/` in the password also made `scheme://host:port/path@note`
+    # parse as `user:pass@host`, HARD-REFUSING legitimate ops mail. The tail now
+    # has to look like a real HOST — dotted name, or name:port, or name/ — which
+    # `@readme` / `@notes` / `@see-notes` are not, while every genuine DSN target
+    # is. (The live-store scan missed this: no message happened to have that
+    # shape, and absence in a corpus is not proof of no false-positive surface.)
     _re.compile(
         r"\b(?:postgres(?:ql)?|mysql|mariadb|rediss?|mongodb(?:\+srv)?|amqps?"
         r"|ftps?|sftp|ssh|smtps?|clickhouse|mssql|oracle|cockroachdb)"
-        r"://[^\s/:@]*:[^\s@]+@",
+        r"://[^\s/:@]*:[^\s@]+@"
+        r"(?:[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+|[A-Za-z0-9._-]+:\d{1,5}|[A-Za-z0-9._-]+/)",
         _re.I,
     ),
 ]
@@ -938,6 +945,13 @@ def read_msg(msg_id: str, repo: str) -> str:
         try:
             if p.is_file():
                 return p.read_text(encoding="utf-8", errors="replace")
+            if p.exists():
+                # P17-2: something occupies the slot but is not a file (a stray
+                # directory from a bad restore). Falling through treated a parent
+                # that structurally EXISTS as MISSING, inverting C2's fail-CLOSED
+                # HOLD into a fail-open ALLOW. An OSError is what the --auto path
+                # reads as "exists but unreadable".
+                raise IsADirectoryError(f"{p} exists but is not a regular file")
         except FileNotFoundError:
             # M4 (TOCTOU): a concurrent ack renamed it into the resolving window
             # between is_file() and read — fall through to the glob, never fold

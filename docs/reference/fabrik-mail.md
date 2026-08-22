@@ -86,9 +86,16 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `disposition: done` into the next reader's inbox (fabrik-lib production finding, 2026-08-12).
 - **Size cap 64 KB.** `send` refuses a larger body — a mail is a pointer, not a payload.
 - **Secrets never travel.** `send` REFUSES on a high-confidence secret pattern (PEM/private-key
-  headers, `KEY=<entropy>`, `sk-`/`sk-ant-`/`github_pat_`/classic `gh?_` tokens/`AKIA`/`ASIA`/JWT/Slack
-  `xox?-`, `Authorization: Bearer`, `scheme://user:pass@`); WARNs on low-confidence. Flow operator
-  secrets as `<PASTE …>` pointers.
+  headers, `KEY=<entropy>`, `sk-`/`sk-ant-` and the UNDERSCORE vendor style `sk_live_`/`sk_test_`/`rk_`,
+  `github_pat_`/classic `gh?_` tokens/`AKIA`/`ASIA`/JWT/Slack `xox?-`, `Authorization: Bearer`,
+  `scheme://user:pass@`); WARNs on low-confidence (`password`, `passwd`, `pwd`, `secret`, `token`,
+  `credential`, `api_key`). Scheme matching is case-INSENSITIVE (a copy-pasted `Postgres://` counts),
+  and for the schemes that exist to carry credentials (`postgres`, `mysql`, `redis`, `mongodb`, `amqp`,
+  `ftp`/`sftp`, `ssh`, `smtp`, `clickhouse`, `mssql`, `oracle`, `cockroachdb`) a password containing
+  `/` is caught too — routine in base64-derived passwords. To stay off legitimate ops mail, that form
+  additionally requires the part after `@` to look like a real host (dotted name, `name:port`, or
+  `name/`), so a documentation link such as `postgres://internal-docs:8080/api@readme` still sends.
+  Flow operator secrets as `<PASTE …>` pointers.
 - **Star topology.** Hub ↔ node only. `send` refuses a project→project `--to` (both non-hub) — route
   via the hub. `fabrik` AND `fabrik-lib` count as hub-side here, so a project MAY mail `fabrik-lib`
   directly (e.g. an `upstream-feedback` module fix); only edges where BOTH ends are ordinary projects

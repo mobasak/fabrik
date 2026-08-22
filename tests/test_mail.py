@@ -1915,3 +1915,64 @@ def test_the_widened_patterns_do_not_refuse_an_ordinary_doc_link(env):
     assert mail._secret_level("the deploy ran at 10:00@vps1 and passed") is None
     p = mail.send(to="fabrik", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha")
     assert p.is_file()
+
+
+# --- round 17: the ledger re-sweep -----------------------------------------
+def test_a_host_port_path_url_is_not_a_credential(env):
+    """P17-1: round 16 let `/` into the DSN password class to catch real
+    credentials — and thereby made `scheme://host:port/path@note` look like
+    `user:pass@host`, HARD-REFUSING legitimate ops mail. The live-store check
+    missed it because no existing message happened to have that shape; absence
+    in a corpus is not proof of no false-positive surface."""
+    for benign in (
+        "postgres://internal-docs:8080/api@readme",
+        "see postgres://docs.example.com:5432/schema@notes for the layout",
+        "redis://cache:6379/0@see-notes",
+    ):
+        assert mail._secret_level(benign) is None, benign
+        assert mail.send(to="fabrik", kind="finding", body=benign, frm="alpha").is_file()
+    # …and the real credentials this pattern exists for are STILL refused.
+    for real in (
+        "postgres://admin:s3cr3t/with/slash@host:5432/db",
+        "mongodb+srv://u:p/a/ss@cluster0.abc.mongodb.net/db",
+        "redis://:pw/x@redis-main:6379",
+        "postgres://u:p/w@localhost/appdb",
+    ):
+        assert mail._secret_level(real) == "high", real
+
+
+def test_capitalised_generic_scheme_is_refused(env):
+    """P17-4: round 16 added _re.I to BOTH url patterns but only proved it for
+    the DSN one — the capitalised-scheme tests all used listed schemes, which the
+    separate DSN regex catches. Dropping _re.I from the GENERIC pattern survived
+    the whole suite."""
+    assert mail._secret_level("HTTP://svc:t0kenXYZsecret@internal-api.example.com/p") == "high"
+    assert mail._secret_level("FTP://user:hunter2hunter2@files.example.com") == "high"
+
+
+def test_requeue_keeps_undecodable_bytes_while_stripping_an_ack_line(env):
+    """P17-3: the `and lossless` gate had no test at their INTERSECTION — one
+    test used ASCII with an ack line, the other undecodable bytes with NO ack
+    line, so the write-back branch was never entered with a lossy body. Dropping
+    the gate durably rewrites the byte to U+FFFD."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
+    arch.write_bytes(
+        arch.read_bytes()
+        + b"\xff\n"  # an undecodable byte…
+        + b"\nacked-by: fabrik \xc2\xb7 ts: 2026-08-22T10:00:00+00:00 \xc2\xb7 disposition: done\n"
+    )
+    mail.requeue(msg_id=mid, repo="fabrik")
+    assert b"\xff" in (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").read_bytes()
+
+
+def test_a_directory_in_the_message_slot_holds_rather_than_allows(env):
+    """P17-2: `read_msg` tested `is_file()` and silently fell through when a
+    DIRECTORY occupied the slot — so a parent that structurally EXISTS was read
+    as MISSING, inverting C2's fail-CLOSED HOLD into a fail-open ALLOW."""
+    mid = mail._ulid()
+    (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").mkdir(parents=True)
+    with pytest.raises(mail.MailHoldError):
+        mail.send(to="fabrik", kind="reply", body="auto", frm="fabrik", re=mid, auto=True)
