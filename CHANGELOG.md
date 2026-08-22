@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-11 (2026-08-23)
+
+- A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
+  parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
+  "a peer already parked it" made it permanently invisible: a clean mailbox reported over a
+  malformed message, forever). The four causes are now distinguished by what is on disk.
+- The peer-parked (no double-count) and peer-claimed (still counted) races each carry a
+  discriminating test; the quarantine-name comment claims only what the regex does.
+- Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
+  sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
+
 ### Changed — Quota dashboard: Fable-5 weekly is now its own "Fable 5 weekly remaining" column (2026-08-23)
 
 - Promoted the Fable-5 limit from a cramped per-account sub-line to a first-class 4th table

@@ -114,8 +114,10 @@ _SECRET_LOW = _re.compile(r"\b(?:password|passwd|secret|token|credential|api[_-]
 # depth under the single-operator threat model; a traversal is a loud refusal).
 _SAFE_NAME = _re.compile(r"^[A-Za-z0-9._-]+$")
 _SAFE_ID = _re.compile(r"^[0-9A-Z]{26}$")
-# P10-4: what _quarantine actually writes — "<name>.md" or "<name>.md.<n>". A
-# stray `.md.bak` / `.md.resolving.*` / `README.md` must not inflate the count.
+# P10-4 + P11-3: what _quarantine actually writes — "<name>.md" or
+# "<name>.md.<n>". Excludes `.md.bak` / `.md.resolving.*` / non-.md strays; a
+# bare `README.md` dropped into malformed/ is indistinguishable from a real
+# copy by name alone and still counts (over-count = the fail-safe direction).
 _QUARANTINED_NAME = _re.compile(r"\.md(\.\d+)?$")
 # A REAL ack line (appended by ack()) — matched precisely so a body that merely
 # contains the words "acked-by:" cannot fool the digest's claimed-but-crashed scan.
@@ -705,10 +707,15 @@ def _quarantine(inbox: Path, f: Path) -> bool:
             n += 1
         os.rename(f, dst)
     except FileNotFoundError:
-        # P10-7: a peer (list_msgs racing digest) already parked it — the copy
-        # is counted once by the parked glob; counting a "failure" here too
-        # would double-count that file for one run.
-        return True
+        # P10-7 + P11-1: FileNotFoundError has FOUR causes, only ONE of which is
+        # "a peer already parked it" (then the parked glob counts the copy and a
+        # failure here would double-count). The others — a peer CLAIMED the
+        # corrupt file into archive/ (claim() never parses, and the archive leg
+        # skips unparseable rows, so nothing would ever count it again), the
+        # destination dir vanished, the file was deleted — must all COUNT, or
+        # digest reports a clean mailbox over a malformed message. Distinguish
+        # by what is actually on disk.
+        return any(q.glob(f"{f.name}*")) if q.is_dir() else False
     except OSError as exc:
         print(f"mail.py: quarantine skipped for {f.name} ({exc!r})", file=sys.stderr)
         return False

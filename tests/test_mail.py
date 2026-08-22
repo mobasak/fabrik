@@ -1212,6 +1212,60 @@ def test_digest_survives_concurrent_claim(env, monkeypatch):
     assert isinstance(d, dict)
 
 
+def test_a_claimed_malformed_file_is_still_counted(env):
+    """P11-1: a peer that CLAIMED the corrupt file (claim never parses, and the
+    archive leg skips unparseable rows) is NOT 'already parked' — counting it as
+    a success made it permanently invisible: a clean mailbox over a malformed
+    message, forever."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    archive = env["mail_root"] / "fabrik" / "archive"
+    inbox.mkdir(parents=True, exist_ok=True)
+    archive.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    f = inbox / f"{pid}.md"
+    f.write_text("corrupt\n", encoding="utf-8")
+    real_rename = mail.os.rename
+
+    def _peer_claims_first(src, dst):
+        if str(src) == str(f):
+            real_rename(src, archive / f"{pid}.md")  # the peer's claim wins
+            raise FileNotFoundError(str(src))
+        return real_rename(src, dst)
+
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(mail.os, "rename", _peer_claims_first)
+        d = mail.digest(days=0)
+    assert d["quarantined"] == 1, f"a claimed-away corrupt file stays visible: {d}"
+
+
+def test_a_peer_parked_file_is_not_double_counted(env):
+    """P10-7 (the discriminating half): when the peer genuinely PARKED it, the
+    parked glob counts it once — the call site must not add a second."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    malformed = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    malformed.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    f = inbox / f"{pid}.md"
+    f.write_text("corrupt\n", encoding="utf-8")
+    real_rename = mail.os.rename
+
+    def _peer_parks_first(src, dst):
+        if str(src) == str(f):
+            real_rename(src, malformed / f"{pid}.md")  # the peer parks it
+            raise FileNotFoundError(str(src))
+        return real_rename(src, dst)
+
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(mail.os, "rename", _peer_parks_first)
+        d = mail.digest(days=0)
+    assert d["quarantined"] == 1, f"counted exactly once, never twice: {d}"
+
+
 def test_should_auto_reply_validates_self_repo(env):
     """L9: the public guard entry point keeps the traversal defense — an unsafe
     self_repo is refused, not walked."""
