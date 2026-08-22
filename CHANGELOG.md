@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Quota dashboard: Fable-5 weekly is now its own "Fable 5 weekly remaining" column (2026-08-23)
+
+- Promoted the Fable-5 limit from a cramped per-account sub-line to a first-class 4th table
+  column, rendered with the same remaining-framing as Weekly (`N% left` + bar + `used% · resets`)
+  via the shared `cell()` formatter. An account with no Fable reading yet (idle, access token
+  unrefreshed) shows an honest "no reading" in the column until the tick re-probes it.
+
 ### Fixed — Quota dashboard: read per-model weekly limits from the `limits` array (Fable now shows) (2026-08-22)
 
 - The generic top-level-window scan missed Fable-5: its separate weekly quota is NOT a top-level

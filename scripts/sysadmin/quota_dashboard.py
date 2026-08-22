@@ -97,23 +97,6 @@ def _tone(remaining: float) -> str:
     return "ok"
 
 
-def _model_windows_html(acct: dict) -> str:
-    """A sub-line listing per-model weekly limits (from the usage `limits` array — e.g. Fable),
-    each already carrying its own display_name. Shown whenever present, at any %, because a named
-    per-model limit is meaningful even at 0% (full headroom for that model). Empty string when
-    the account has no model-scoped limits."""
-    mw = acct.get("model_windows") or {}
-    parts = []
-    for name in sorted(mw):
-        w = mw[name]
-        u = w.get("utilization") if isinstance(w, dict) else None
-        if isinstance(u, (int, float)):
-            parts.append(f"{escape(name)} {u:.0f}%")
-    if not parts:
-        return ""
-    return f'<div class="sub models">model weeklies: {" · ".join(parts)}</div>'
-
-
 def _row(acct: dict, active: str | None) -> str:
     email = str(acct.get("email", "?"))
     slug = (acct.get("slugs") or ["?"])[0]
@@ -187,12 +170,21 @@ def _row(acct: dict, active: str | None) -> str:
             f'<span class="sub">{used:.0f}% used · resets {escape(_fmt_reset(reset))}</span></td>'
         )
 
+    # Fable-5's separate weekly limit (from the usage `limits` array, keyed by display_name).
+    # Rendered in its OWN column with the same remaining-framing as Weekly; a cache-served account
+    # that has no Fable reading yet (idle, token not refreshed) shows "no reading" until the tick
+    # re-probes it, exactly like any other window.
+    fable = (acct.get("model_windows") or {}).get("Fable") or {}
+    f_used = fable.get("utilization")
+    f_left = 100.0 - float(f_used) if f_used is not None else None
+
     return (
         f'<tr class="{"is-active" if is_active else ""}">'
         f'<td class="acct"><strong>{escape(email)}</strong><span class="sub">{escape(slug)}</span>'
-        f'<div class="badges">{"".join(badges)}</div>{_model_windows_html(acct)}</td>'
+        f'<div class="badges">{"".join(badges)}</div></td>'
         f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S)}"
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
+        f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         "</tr>"
     )
 
@@ -291,7 +283,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 </header>
 {banner}
 <table>
-  <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th></tr></thead>
+  <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th><th>Fable 5 weekly remaining</th></tr></thead>
   <tbody>{rows}</tbody>
 </table>
 {warn_html}

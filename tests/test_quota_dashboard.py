@@ -216,37 +216,31 @@ def test_a_capped_account_surfaces_the_browser_blind_spot(tmp_path, monkeypatch)
 
 
 # ── model-specific weekly windows on the board (2026-08-22: fable/opus visibility) ──
-def test_row_shows_named_model_limits(tmp_path, monkeypatch):
+def test_row_renders_fable_weekly_column(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     acct = {
         "email": "sarp@ocoron.com", "slugs": ["sarp"], "source": "live",
-        "five_hour": {"utilization": 10.0, "resets_at_epoch": None},
-        "seven_day": {"utilization": 40.0, "resets_at_epoch": None},
-        "model_windows": {
-            "Fable": {"utilization": 6.0, "resets_at_epoch": None},
-        },
+        "five_hour": {"utilization": 10.0, "resets_at_epoch": None},   # 90% left
+        "seven_day": {"utilization": 40.0, "resets_at_epoch": None},   # 60% left
+        "model_windows": {"Fable": {"utilization": 76.0, "resets_at_epoch": None}},
     }
     html = qd._row(acct, "sarp")
-    assert "Fable 6%" in html, "a named per-model limit shows with its display_name"
+    assert ">24%</span> left" in html, "Fable cell shows remaining (100-76) in its own column"
+    assert "76% used" in html
 
 
-def test_row_shows_named_model_limit_even_at_zero(tmp_path, monkeypatch):
+def test_row_fable_column_says_no_reading_when_absent(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     acct = {
-        "email": "mob@ocoron.com", "slugs": ["mob"], "source": "live",
-        "five_hour": {"utilization": 0.0, "resets_at_epoch": None},
-        "seven_day": {"utilization": 3.0, "resets_at_epoch": None},
-        "model_windows": {"Fable": {"utilization": 0.0, "resets_at_epoch": None}},
-    }
-    # a named limit is meaningful at 0% (full headroom) — shown, unlike codename noise
-    assert "Fable 0%" in qd._row(acct, "mob")
-
-
-def test_row_no_model_line_when_absent(tmp_path, monkeypatch):
-    qd = _load(tmp_path, monkeypatch)
-    base = {
-        "email": "ob@ocoron.com", "slugs": ["ob"], "source": "live",
+        "email": "ob@ocoron.com", "slugs": ["ob"], "source": "cache", "age_s": 1000.0,
         "five_hour": {"utilization": 0.0, "resets_at_epoch": None},
         "seven_day": {"utilization": 1.0, "resets_at_epoch": None},
     }
-    assert "model weeklies" not in qd._row(base, "ob")
+    # no Fable reading yet (idle, token unrefreshed) → the Fable cell is an honest "no reading"
+    assert "no reading" in qd._row(acct, "ob")
+
+
+def test_header_has_fable_weekly_column(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    html = qd.render({"accounts": [], "active": None}, 0.0)
+    assert "Fable 5 weekly remaining" in html
