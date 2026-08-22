@@ -51,6 +51,13 @@ def env(tmp_path, monkeypatch):
         hook.write_text("# stub hook\n")
     monkeypatch.setenv("FABRIK_MAIL_ROOT", str(mail_root))
     monkeypatch.setenv("FABRIK_OPT_ROOT", str(opt_root))
+    # P20-1: the docstring above CLAIMED the alerting leg was stubbed hub-side.
+    # It never was. `_is_hub_repo()` is content-based on Path.cwd(), and pytest
+    # always runs from /opt/fabrik, so every suite run drove _deliver_digest's
+    # real `ssh vps -> docker exec apprise -> Telegram` path and fired genuine
+    # operator alerts off synthetic fixtures. Stub it for EVERY test, in the
+    # fixture, so the claim is true by construction rather than by hope.
+    monkeypatch.setattr(mail, "_is_hub_repo", lambda: False)
     return {"mail_root": mail_root, "opt_root": opt_root}
 
 
@@ -2111,3 +2118,115 @@ def test_a_redacted_or_placeholder_dsn_still_sends(env):
         "redis://user:secr/et@redis-main",
     ):
         assert mail._secret_level(real) == "high", real
+
+
+def test_the_placeholder_exemption_cannot_smuggle_a_real_secret(env):
+    """P20-1/2/3: the round-19 exemption mixed FIXED placeholder words (safe —
+    they match only if the password IS that word) with UNBOUNDED SHAPE wildcards
+    (`<...>`, `${...}`, `YOUR...`). Shape-matching exempted any real secret merely
+    dressed in that shape — scoring None, so `send` emitted neither refusal nor
+    warning. An exemption on a security guard is a bypass unless it matches on
+    CONTENT."""
+    for smuggled in (
+        "postgres://user:<9f8a7b6c5d4e3f2a1b0c>@host/db",
+        "postgres://user:${9f8a7b6c5d4e3f2a1b0c}@host/db",
+        "postgres://user:$9f8a7b6c5d4e3f2a1b0c@host/db",
+        "postgres://user:YourSuperSecretPass2024@host:5432/db",
+        "postgres://user:YOUR_actual_api_key_9f8a7b6c5d4e@host/db",
+        "postgres://user:<PASTEs3cr3tv4lue>@host/db",
+    ):
+        assert mail._secret_level(smuggled) == "high", smuggled
+    # the genuine redactions round 19 exists to allow must STILL send
+    for safe in (
+        "postgres://user:REDACTED@dbhost/finaldb",
+        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
+        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
+        "postgres://user:password@localhost:5432/db",
+        "redis://default:CHANGEME@redis-main:6379/0",
+        "postgres://user:xxxxxxxx@host:5432/db",
+    ):
+        assert mail._secret_level(safe) != "high", safe
+
+
+def test_the_test_suite_never_reaches_the_real_alerting_leg(env, monkeypatch):
+    """P20-1: this binds the stub above. `_is_hub_repo()` is content-based on
+    Path.cwd(), and pytest always runs from the hub — so before this, running the
+    suite shelled out to the production VPS and fired a real Telegram alert off a
+    synthetic fixture. Inverting the `if _is_hub_repo():` branch survived all 146
+    tests because nothing asserted on it."""
+    spawned = []
+    monkeypatch.setattr(mail.subprocess, "run", lambda *a, **k: spawned.append(a) or None)
+    _mint(env, "alpha", "fabrik", "request", "required")
+    mail.main(["digest", "--days", "0"])
+    assert spawned == [], f"the digest CLI must not shell out under test: {spawned}"
+
+
+def test_alerting_leg_is_hub_gated(env, monkeypatch):
+    """The other half of P20-1: prove the gate actually gates, in both directions,
+    without ever touching the real alerting path."""
+    sent = []
+    monkeypatch.setattr(mail, "_import_alerting", lambda: lambda *a, **k: sent.append(a))
+    payload = {"unacked": 1, "quarantined": 0, "repos": ["fabrik"]}
+    monkeypatch.setattr(mail, "_is_hub_repo", lambda: False)
+    mail._deliver_digest(payload)
+    assert sent == [], "a project-side digest prints locally and never alerts"
+    monkeypatch.setattr(mail, "_is_hub_repo", lambda: True)
+    mail._deliver_digest(payload)
+    assert len(sent) == 1, "the hub DOES alert"
+
+
+def test_publish_refuses_to_write_outside_the_mail_root(env):
+    """P20-2: `_publish`'s containment check is called defense-in-depth (F1/F2) by
+    its own comment, but mutating it to `if False:` left all tests green. Callers
+    pre-validate today; an unbound defense-in-depth guard on a fleet-synced file
+    is how that stops being true silently."""
+    outside = env["mail_root"].parent / "escape"
+    outside.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(mail.MailRefusedError, match="outside the mail root"):
+        mail._publish(outside, mail._ulid(), "---\nid: x\n---\nbody\n")
+
+
+def test_digest_skips_a_dot_directory_at_the_mail_root(env):
+    """P20-3: the P10-6 comment says a `.git`/`.tmp` dir is not a mailbox, but no
+    test ever put one there — dropping the filter left the suite green."""
+    (env["mail_root"] / ".git" / "inbox").mkdir(parents=True)
+    (env["mail_root"] / ".git" / "inbox" / "x.md").write_text("junk\n", encoding="utf-8")
+    _mint(env, "alpha", "fabrik", "request", "required")
+    d = mail.digest(days=0)
+    assert ".git" not in d["repos"], d["repos"]
+
+
+def test_digest_reports_the_mailboxes_it_scanned(env):
+    """P20-4: `repos` is operator-facing — `_deliver_digest` puts len(repos) in
+    the alert body — yet emptying it entirely left every test green."""
+    _mint(env, "alpha", "fabrik", "request", "required")
+    _mint(env, "fabrik", "alpha", "reply", "no")
+    assert sorted(mail.digest(days=0)["repos"]) == ["alpha", "fabrik"]
+
+
+def test_quarantine_slot_bound_discriminates_the_boundary(env, monkeypatch):
+    """P20-5 REOPENS what pass 18 claimed closed: that test pre-occupied MORE
+    slots than the bound, so `>` and `>=` both ended in the same refusal — it
+    proved "eventually gives up", not the boundary. Occupy EXACTLY the bound: the
+    correct `>` must still succeed, the off-by-one `>=` must not."""
+    monkeypatch.setattr(mail, "_QUARANTINE_SLOTS", 3)
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    parked.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "c.md"
+    bad.write_text("corrupt\n", encoding="utf-8")
+    for name in ("c.md", "c.md.1", "c.md.2"):  # exactly _QUARANTINE_SLOTS entries
+        (parked / name).write_text("other\n", encoding="utf-8")
+    assert mail._quarantine(inbox, bad) is True, "n == the bound is still allowed"
+    assert (parked / "c.md.3").is_file()
+
+
+def test_current_repo_falls_back_when_git_is_unavailable(env, monkeypatch):
+    """P20-6 (completeness gap): `_current_repo` decides message ATTRIBUTION
+    whenever an operator omits --from/--repo, and had zero direct coverage —
+    including its subprocess-failure fallback."""
+    monkeypatch.setattr(
+        mail.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("no git"))
+    )
+    assert mail._current_repo() == Path.cwd().name

@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-19 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-20 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -82,6 +82,19 @@ All notable changes to this project will be documented in this file.
   `CHANGEME`, `password`, `xxxx`) now sends, so a finding can quote a connection string with
   the secret removed; every real credential still refuses. The round-18 doc also told
   operators to "backtick it", which does nothing — a backtick is a word boundary.
+- Round 20 found the round-19 placeholder exemption was three BYPASSES: it matched on
+  container SHAPE (`<...>`, `${...}`, `YOUR...`) rather than content, so a real secret
+  merely wrapped in one scored nothing at all — neither refused nor warned. The exemption
+  now requires letters-only content containing an actual placeholder word.
+- The test suite was firing REAL operator alerts. `_is_hub_repo()` is content-based on the
+  current directory and pytest always runs from the hub, so the digest CLI test drove the
+  live `ssh -> apprise -> Telegram` path on every run, off synthetic fixtures — while the
+  test file's docstring claimed that leg was stubbed. It never was. Now stubbed in the
+  shared fixture for every test and bound by two of them. Four further unbound guards
+  gained tests (`_publish`'s containment check, the mail-root dot-directory filter, the
+  operator-facing `repos` field, `_current_repo`'s git-failure fallback), and the previous
+  round's quarantine-slot boundary test was replaced — it occupied more slots than the
+  bound, so it proved "eventually gives up" rather than the boundary it claimed.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

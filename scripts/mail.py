@@ -92,14 +92,25 @@ DISPOSITIONS = (
 
 # P19-1: a DSN whose password is an obvious PLACEHOLDER is not a secret, and
 # refusing it breaks this store's own core workflow — carrying security findings
-# that QUOTE the evidence. Round 18 justified the fail-closed false positive as
-# "free" by measuring how often the shape occurred (0 of 910); that measured
-# frequency, not the shape of legitimate future mail. Redacting the secret is
-# exactly the behaviour to encourage, so it must not be punished. Real
-# credentials are unaffected — this only exempts values that ARE the redaction.
+# that QUOTE the evidence. Redacting before you send is the behaviour to
+# encourage, so it must not be punished.
+# P20-1/2/3: an exemption on a security guard is a BYPASS unless it matches on
+# CONTENT. The first version mixed fixed placeholder words (safe) with unbounded
+# SHAPE wildcards — `<...>`, `${...}`, `YOUR...` — so any real secret merely
+# dressed in that shape scored None, with neither a refusal nor a warning.
+# The rule now: a placeholder is LETTERS ONLY (no digits — real credentials
+# essentially always carry them), optionally wrapped in `<>`/`${}`/`$`, and must
+# CONTAIN one of these words. Pure-redaction runs (`xxxx`, `****`, `....`) are
+# listed separately because they carry no word at all.
+_PLACEHOLDER_WORD = (
+    r"(?:REDACT(?:ED)?|PLACEHOLDER|CHANGE[_-]?ME|EXAMPLE|SAMPLE|DUMMY|PASTE"
+    r"|PASSWORD|PASSWD|PASS|SECRET|TOKEN|API[_-]?KEY|TODO|FIXME|NONE|EMPTY|HERE)"
+)
 _PLACEHOLDER_PW = (
-    r"(?!(?:REDACTED|PLACEHOLDER|CHANGE[_-]?ME|EXAMPLE|YOUR[_-]?\w+|PASSWORD|PASS"
-    r"|SECRET|TODO|FIXME|NONE|EMPTY|<[^@\s]*>|\$\{?\w+\}?|\*{3,}|x{3,}|\.{3,})@)"
+    r"(?!(?:"
+    r"[<$]?\{?[A-Za-z_ -]*" + _PLACEHOLDER_WORD + r"[A-Za-z_ -]*\}?>?"
+    r"|\*{3,}|x{3,}|\.{3,}|-{3,}|_{3,}"
+    r")@)"
 )
 
 # High-confidence secret signatures — REFUSE the send.
