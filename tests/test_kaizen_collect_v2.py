@@ -3246,7 +3246,9 @@ def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
     log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
     assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
     assert "| 2026-08-19 |" in log.read_text()
-    leftovers = [p.name for p in tmp_path.iterdir() if p.name != "log.md"]
+    leftovers = [
+        p.name for p in tmp_path.iterdir() if p.name != "log.md" and not p.name.endswith(".lock")
+    ]
     assert leftovers == [], leftovers
 
 
@@ -3279,7 +3281,9 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
         "the original log must survive a failed replace byte-for-byte"
     )
     assert "row skipped" in buf.getvalue()
-    leftovers = [p.name for p in tmp_path.iterdir() if p.name != "log.md"]
+    leftovers = [
+        p.name for p in tmp_path.iterdir() if p.name != "log.md" and not p.name.endswith(".lock")
+    ]
     assert leftovers == [], "the failed write cleans up its unique tmp"
 
 
@@ -3317,17 +3321,18 @@ def test_upsert_uses_a_unique_mkstemp_tmp(tmp_path: Path, monkeypatch: pytest.Mo
     header = "| " + " | ".join(kc.COLUMNS) + " |"
     sep = "|" + "---|" * len(kc.COLUMNS)
     log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
-    calls: list[tuple] = []
+    created: list[str] = []
     real = kc.tempfile.mkstemp
 
     def _spy(*a: object, **kw: object) -> tuple:
-        calls.append((a, kw))
-        return real(*a, **kw)
+        fd, name = real(*a, **kw)
+        created.append(name)
+        return fd, name
 
     monkeypatch.setattr(kc.tempfile, "mkstemp", _spy)
     assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
-    assert len(calls) == 1, "the unique-tmp write must go through mkstemp"
-    assert calls[0][1].get("dir") == str(tmp_path)
+    assert len(created) == 1, "the unique-tmp write must go through mkstemp"
+    assert Path(created[0]).parent == tmp_path, "the tmp lands in the log's own dir"
 
 
 def test_upsert_preserves_the_logs_mode(tmp_path: Path) -> None:

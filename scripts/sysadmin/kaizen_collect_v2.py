@@ -1946,6 +1946,21 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
 def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bool:
     """Upsert one row keyed by the Date cell's ISO week (a second run in the same week
     UPDATES that row). Fail-soft: a missing or tableless log warns and returns False."""
+    # W22-1: the upsert is a read-modify-write — the same shape _store_lock
+    # exists for. flock on a sibling .lock serializes cron-vs-manual writers so
+    # a human's freshly saved analyst cell can never be clobbered by a run that
+    # read the file seconds earlier (a crashed holder's lock dies with it).
+    # The lock acquisition itself is fail-soft (a read-only parent must warn,
+    # never escape as an uncaught PermissionError).
+    try:
+        with _store_lock(path):
+            return _upsert_log_row_locked(path, cells, force_dash)
+    except OSError as exc:
+        _warn(f"log lock failed for {path.name} ({exc!r}) — row skipped")
+        return False
+
+
+def _upsert_log_row_locked(path: Path, cells: list[str], force_dash: bool) -> bool:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
@@ -2011,7 +2026,7 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     try:
         for stale in path.parent.glob("tmp*.tmp"):
             with contextlib.suppress(OSError):
-                if time.time() - stale.stat().st_mtime > 3600:
+                if not stale.is_symlink() and time.time() - stale.stat().st_mtime > 3600:
                     stale.unlink()
         fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
         tmp = Path(tmp_name)
@@ -2023,9 +2038,11 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
         with fh:
             fh.write("\n".join(out) + "\n")
             fh.flush()
-            os.fsync(fh.fileno())  # W21-5a: atomic AND durable
-        with contextlib.suppress(OSError):
-            tmp.chmod(path.stat().st_mode & 0o7777)
+            os.fsync(fh.fileno())  # W21-5a/W22-3: content durable; the rename is
+            # atomic (old-or-new, never torn) — rename durability rides the next
+            # day's re-upsert of the same ISO-week row
+        tmp.chmod(path.stat().st_mode & 0o7777)  # W22-2: a failure here is a
+        # warned skip (the OSError handler below), never a silent 0600 install
         os.replace(tmp, path)
     except OSError as exc:
         _warn(f"log row write failed for {path.name} ({exc!r}) — row skipped")

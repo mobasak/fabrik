@@ -61,7 +61,11 @@ complete). In order:
    never 0-baselined, and every metric excludes such a row from numerator AND denominator,
    counting it as a stated **bump-day gap** (the bump day goes honestly quiet per-field). A row
    claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
-4. **Log row + mail** — the ISO-week row is upserted into both role logs and the metrics mail
+4. **Log row + mail** — the ISO-week row is upserted into both role logs (the write is
+   flock-serialized against concurrent writers, tmp+atomic-replace with the log's own mode,
+   and it reaps this-writer tmp orphans older than 1h from the logs' directory — a `.lock`
+   sibling and transient `tmp*.tmp` files beside the logs are the write machinery, W19–W22)
+   and the metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
    THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row

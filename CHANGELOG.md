@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 22: the write seam is serialized; every failure warns (2026-08-22)
+
+- The role-log upsert runs under the module's own inter-process flock (W22-1 — the one
+  read-modify-write seam without it; a human's freshly saved analyst cell could be clobbered
+  by a run that read the file seconds earlier; lock acquisition itself is fail-soft).
+- The mode-preserving chmod is no longer silently suppressed (W22-2 — a failure is a warned
+  skip, never a silent 0600 install); the durability comment says what the code buys (W22-3);
+  the orphan reap skips symlinks (W22-4) and the write machinery (.lock sibling, transient
+  tmp files, the 1h reap) is disclosed in kaizen.md; the mkstemp discriminator test asserts
+  where the tmp landed, not a kwargs shape (W22-5).
+
 ### Fixed — kaizen M1 review fix-wave 21: fail-soft covers creation; the tmp inherits the mode (2026-08-22)
 
 - Everything OSError-prone in the role-log write sits inside the try (W21-1 — wave 20 moved
