@@ -2077,22 +2077,6 @@ def _ratio_cell(points: list[dict], label: str, dash_reason: str = NO_WEEK_DAYS)
     return _pct(num, den)
 
 
-def _rounds_cell(points: list[dict], dash_reason: str = NO_WEEK_DAYS) -> str:
-    """The weekly mean over review_rounds' published day values, weighted by
-    their n's (numerator = the day's summed rounds, denominator = its n)."""
-    num = den = 0
-    for p in points:
-        n, d = _point_int(p, "numerator"), _point_int(p, "denominator")
-        if n is None or d is None or d <= 0:
-            continue
-        num += n
-        den += d
-    if not den:
-        _warn(f"Review rounds /plan = {DASH} — {dash_reason}")
-        return DASH
-    return f"{num / den:.1f} (n={den})"
-
-
 def _death_cell(
     occ_points: list[dict], cls_points: list[dict], dash_reason: str = NO_WEEK_DAYS
 ) -> str:
@@ -2144,8 +2128,12 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
 
     Aggregation per metric kind: ratio cells SUM the ISO week's published day
     numerators/denominators; the death cell sums occurrences and merges the day
-    class maps; the rounds cell is the n-weighted weekly mean of review_rounds'
-    day points. A day the series lacks contributes nothing — its honesty gates
+    class maps. THE ONE CARVE-OUT (W8-1): the rounds cell — rounds_max is a
+    point-in-time per-session quantity that anonymous day points cannot
+    per-session-deduplicate, so it recomputes latest-per-sid over the week's
+    day-scoped delta rows via :func:`kaizen_outcomes.review_rounds` (same
+    day-scoped attribution guard as the day publish; one definition for the
+    whole week). A day the series lacks contributes nothing — its honesty gates
     (attribution floor, coroner evidence, bump-day gaps) already spoke at publish
     time. A week with NO published days for a metric renders ``—`` with the
     reason (:data:`NO_WEEK_DAYS`). ``reg`` is the CURRENT full registry
@@ -2171,15 +2159,25 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         return series_points(mid, int(mdef["version"]), days, state)
 
     def _week_versions(mids: tuple[str, ...], ptss: list[list[dict]]) -> tuple[set[str], set[str]]:
-        """W7-2 — ``(current-definition week days, week days only under an older
-        definition)`` for the cell's metric(s)."""
-        cur = {str(p["day"]) for ps in ptss for p in ps if isinstance(p.get("day"), str)}
-        older: set[str] = set()
-        for mid in mids:
+        """W7-2 + W8-3 — ``(current-definition week days, week days only under an
+        older definition)`` for the cell's metric(s), computed PER HALF: a
+        one-sided mid-week bump (classes at v2, occurrences still v1) must not
+        let the un-bumped half's current-version days empty the bumped half's
+        orphan set — the pair is split-week if EITHER half has orphan days, and
+        its current set is the days where EVERY half is current."""
+        curs: list[set[str]] = []
+        orphans: list[set[str]] = []
+        for mid, ps in zip(mids, ptss, strict=True):
+            cur = {str(p["day"]) for p in ps if isinstance(p.get("day"), str)}
             mdef = reg.get(mid)
-            if mdef is not None:
-                older |= _older_version_week_days(mid, int(mdef["version"]), days, state)
-        return cur, older - cur
+            older = (
+                _older_version_week_days(mid, int(mdef["version"]), days, state)
+                if mdef is not None
+                else set()
+            )
+            curs.append(cur)
+            orphans.append(older - cur)
+        return set.intersection(*curs) if curs else set(), set.union(*orphans) if orphans else set()
 
     def _split_dash_reason(cur: set[str], orphan: set[str], fallback: str = NO_WEEK_DAYS) -> str:
         return SPLIT_WEEK_NO_CURRENT if orphan and not cur else fallback
@@ -2236,10 +2234,25 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
     )
     deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan)
 
-    rr_pts = _pts("review_rounds")
-    r_cur, r_orphan = _week_versions(("review_rounds",), [rr_pts])
-    rounds = _rounds_cell(rr_pts, dash_reason=_split_dash_reason(r_cur, r_orphan))
-    rounds = _annotate(rounds, "Review rounds /plan", r_cur, r_orphan)
+    # W8-1 — the single-source law's ONE carve-out: rounds_max is a point-in-time
+    # per-session quantity, and anonymous day points cannot be per-session-
+    # deduplicated (a multi-day session would be counted once per residency day
+    # with its partial values summed). The weekly cell recomputes over the ISO
+    # week's day-scoped delta rows, latest-per-sid, under the same day-scoped
+    # attribution guard the day publish uses — the whole week under ONE (the
+    # current) definition, so no version mixing is possible. Fail-open.
+    try:
+        import kaizen_outcomes as _ko  # noqa: PLC0415 - call-time, avoids the import cycle
+
+        rr = _ko.review_rounds(state=state, days=days)
+        if rr.measurable:
+            rounds = rr.cell
+        else:
+            _warn(f"Review rounds /plan = {DASH} — {rr.detail}")
+            rounds = DASH
+    except Exception as exc:  # never let the rounds cell kill the whole log row
+        _warn(f"Review rounds /plan = {DASH} — weekly recompute unavailable ({exc})")
+        rounds = DASH
     _warn(f"Lesson-class recurrence = {DASH} — no class taxonomy on lessons (analysis-half job)")
     _warn(
         f"Missed crons = {DASH} — not an event-stream metric; the liveness audit owns it "

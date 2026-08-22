@@ -642,7 +642,9 @@ def test_windowed_formulas_are_version_bumped() -> None:
     # v7 the LOCAL day window + attributed bootstrap symmetry (W6-2/W6-5), v8 the
     # DAY-scoped published day point + the visible baseline smear (W7-1/W7-5).
     # The stops pair took S3 at v3, W4-1 at v4, W5-1 at v5, W6 at v6, W7 at v7.
-    for mid, ver in (("premature_stop", 7), ("stop_block_causes", 7), ("review_rounds", 8)):
+    # W8-1/W8-2 (fix-wave 8): review_rounds v9 (weekly-cell carve-out + the
+    # skipped-day smear rule), the stops pair v8 (skipped-day smear rule).
+    for mid, ver in (("premature_stop", 8), ("stop_block_causes", 8), ("review_rounds", 9)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
         assert "LOCAL calendar days" in reg[mid]["formula"], mid
@@ -860,13 +862,13 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         ),
         "death_classes": (1, "4344dc33b44011e212fdac04c9e3d75572acfdb6f3e5c9766ad1d774117541c3"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
-        "review_rounds": (8, "ff47289ff93d8f45504df4bc15b13484f492140a8f6e3e444810581cab526068"),
+        "review_rounds": (9, "4b5691c6f02af3a943f488bd5b848ac0368267ea00164d8e4914484f97bd4b58"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (7, "b9f5df0cd455b441882ce704a35328dfe2c2cc0c2b7066135b013f48bb5c6a9f"),
+        "premature_stop": (8, "07e761ef9729c0bf931397e69a5d5701b119901e26f307aa96d1216d54d3ca13"),
         "stop_block_causes": (
-            7,
-            "8bd63f606989310eb85269cb80df174fdd1728597b0fef6edc3bd9150470c9fd",
+            8,
+            "0a5dfc0c0d30fbc16323d313ccd2008b50f84b90c3838445372e0babe1e38d0c",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}
@@ -1283,3 +1285,42 @@ def test_no_smear_note_when_baselines_are_in_window(tmp_path: Path) -> None:
     rounds = ko.review_rounds()
     assert rounds.measurable
     assert "smear" not in rounds.detail
+
+
+# ── fix-wave 8 (W8: the smear needs a skipped day) ───────────────────────────────────
+
+
+def test_smear_note_requires_a_skipped_derivation_day(tmp_path: Path) -> None:
+    """W8-2: under a day-scoped window a consecutive-day baseline (delta_of =
+    the day before the window's oldest day) is the NORMAL predecessor, not a
+    derivation-gap smear — the note fires only when the baseline SKIPS at least
+    one calendar day."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(1), events={"round": 1}, runs={"rounds_max": 1}),
+            _fact("s1", events={"round": 3}, runs={"rounds_max": 3}),
+        ],
+    )
+    rounds = ko.review_rounds(days=[_days_ago(0)])
+    assert rounds.measurable
+    assert "smear" not in rounds.detail, (
+        "yesterday is the published day's normal baseline — annotating it smears "
+        "every daily publish with a gap that was never measured"
+    )
+
+
+def test_smear_note_fires_on_a_skipped_derivation_day(tmp_path: Path) -> None:
+    """W8-2 counter-direction: a baseline three days back DID skip derivation
+    days — growth spanning the gap lands on the published day, and the note says
+    so."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(3), events={"round": 1}, runs={"rounds_max": 1}),
+            _fact("s1", events={"round": 3}, runs={"rounds_max": 3}),
+        ],
+    )
+    rounds = ko.review_rounds(days=[_days_ago(0)])
+    assert rounds.measurable
+    assert "derivation-gap smear" in rounds.detail

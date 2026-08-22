@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 8: per-session rounds cell; per-half split weeks; the smear needs a skipped day (2026-08-22)
+
+- The weekly rounds cell is the single-source law's one carve-out (W8-1): `rounds_max` is
+  point-in-time per-session, so the cell recomputes latest-per-sid over the ISO week's
+  day-scoped delta rows (same attribution guard as the day publish) instead of summing
+  anonymous day points that re-count a multi-day session once per residency day with its
+  partial values summed (one session growing 3→6→9 read 6.0 (n=3); truth 9.0 (n=1)).
+- The derivation-gap smear note fires only when the baseline SKIPS at least one calendar day
+  before the window's oldest day (W8-2) — under the day-scoped publish window every
+  predecessor-bearing row has a consecutive-day baseline, and the note was annotating every
+  normal daily publish with a gap it never measured.
+- Split-week detection is computed PER death-pair half (W8-3): a one-sided mid-week version
+  bump (classes v2, occurrences still v1) emptied the orphan set via the un-bumped half's
+  current days, hiding five days of class breadth under a bare fully-measured-looking cell.
+- Registry: review_rounds v9, premature_stop v8, stop_block_causes v8; S5 pin re-pinned.
+
 ### Fixed — kaizen M1 review fix-wave 7: day-scoped day points; split weeks and the death pair annotated (2026-08-22)
 
 Round 7's unit bug (W7-1): the daily publish handed the outcome tier's TRAILING-7-day-WINDOW

@@ -2469,8 +2469,10 @@ def test_weekly_cells_aggregate_the_published_day_series(tmp_path: Path) -> None
     """W6-1: mechanical weekly cells aggregate THE PUBLISHED DAY SERIES — ratio
     cells sum the week's day numerators/denominators (per-session shares can
     never dilute into per-row shares), the death cell sums occurrences and merges
-    the day class maps, the rounds cell is the n-weighted weekly mean of the
-    review_rounds day points."""
+    the day class maps. The rounds cell is the single-source law's ONE carve-out
+    (W8-1): a point-in-time per-session quantity recomputed latest-per-sid over
+    the week's delta rows — anonymous day points cannot per-session-deduplicate
+    a multi-day session."""
     st = tmp_path / "state"
     reg = _full_reg()
     day = dt.date(2026, 8, 18)  # Tuesday; the elapsed week is the 17th..18th
@@ -2483,15 +2485,21 @@ def test_weekly_cells_aggregate_the_published_day_series(tmp_path: Path) -> None
     _plant_point(st, "death_occurrences", do_v, "2026-08-18", value=1, numerator=1)
     _plant_point(st, "death_classes", dc_v, "2026-08-17", value={"rate_limit": 1, "oom": 1})
     _plant_point(st, "death_classes", dc_v, "2026-08-18", value={"oom": 1})
-    rr_v = int(reg["review_rounds"]["version"])
-    _plant_point(st, "review_rounds", rr_v, "2026-08-17", value=3.0, numerator=6, denominator=2)
-    _plant_point(st, "review_rounds", rr_v, "2026-08-18", value=9.0, numerator=9, denominator=1)
-    # a point OUTSIDE the ISO week contributes nothing
-    _plant_point(st, "review_rounds", rr_v, "2026-08-10", value=50.0, numerator=50, denominator=1)
+    # W8-1: the rounds cell recomputes from the week's delta rows (latest-per-
+    # sid), never from day points — sessions born and grown on week days
+    kc.append_facts(
+        [
+            _week_row("sA", dt.date(2026, 8, 17), 6),
+            _week_row("sB", dt.date(2026, 8, 18), 9),
+        ],
+        st,
+    )
     cells = kc.log_cells(day, reg, state=st)
     assert cells[1] == "60% (3/5)", "ratio cells sum the week's day num/den"
     assert cells[2] == "3 occ / 2 cls", "the death cell is the week's real occ/cls"
-    assert cells[4] == "5.0 (n=3)", "the rounds cell is the n-weighted weekly mean"
+    assert cells[4] == "7.5 (n=2)", (
+        "the rounds cell weights each session once at its latest rounds_max (W8-1)"
+    )
 
 
 def test_weekly_cells_dash_when_the_series_has_no_published_days(
@@ -2699,20 +2707,17 @@ def test_weekly_cells_annotate_a_mid_week_definition_change(
 ) -> None:
     """W7-2: a mid-week registry version bump must not silently truncate the week
     — the cell aggregates ONLY current-definition points, carries a * marker, and
-    the stderr note states k of N week days at the current definition."""
+    the stderr note states k of N week days at the current definition. (Vehicle:
+    the gate metric — the rounds cell recomputes from store rows since W8-1 and
+    cannot mix versions.)"""
     st = tmp_path / "state"
     reg = _full_reg()
-    rr_v = int(reg["review_rounds"]["version"])
     fa_v = int(reg["first_attempt_gate_pass"]["version"])
     for d in ("2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21"):
-        _plant_point(st, "review_rounds", rr_v - 1, d, value=3.0, numerator=3, denominator=1)
         _plant_point(st, "first_attempt_gate_pass", fa_v - 1, d, numerator=1, denominator=2)
-    _plant_point(st, "review_rounds", rr_v, "2026-08-22", value=4.0, numerator=4, denominator=1)
-    _plant_point(st, "review_rounds", rr_v, "2026-08-23", value=6.0, numerator=6, denominator=1)
     _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-22", numerator=2, denominator=2)
     _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-23", numerator=2, denominator=2)
     cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
-    assert cells[4] == "5.0 (n=2)*", "current-definition days only, marked"
     assert cells[1] == "100% (4/4)*", "never a silent 100% (4/4) over a truncated week"
     err = capsys.readouterr().err
     assert "2 of 7 week day(s) at the current definition" in err
@@ -2727,11 +2732,11 @@ def test_weekly_cell_dash_names_the_definition_change_when_no_current_days(
     says the definition changed — never the generic no-published-days claim."""
     st = tmp_path / "state"
     reg = _full_reg()
-    rr_v = int(reg["review_rounds"]["version"])
+    fa_v = int(reg["first_attempt_gate_pass"]["version"])
     for d in ("2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"):
-        _plant_point(st, "review_rounds", rr_v - 1, d, value=3.0, numerator=3, denominator=1)
+        _plant_point(st, "first_attempt_gate_pass", fa_v - 1, d, numerator=1, denominator=2)
     cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
-    assert cells[4] == DASH
+    assert cells[1] == DASH
     err = capsys.readouterr().err
     assert "definition changed this week; no days published at the current definition yet" in err
 
@@ -2788,3 +2793,57 @@ def test_death_cell_dash_names_the_coroner_quiet_cause(
     err_c = capsys.readouterr().err
     assert "every week day gapped" in err_c
     assert "missing at the current version" not in err_c
+
+
+# ── fix-wave 8 (W8: per-session rounds cell, per-half split weeks) ───────────────────
+
+
+def test_rounds_weekly_cell_weights_a_multiday_session_once(tmp_path: Path) -> None:
+    """W8-1 (the round-8 probe): one session whose rounds grow 3 → 6 → 9 across
+    three week days publishes three honest day points, but the WEEKLY cell is
+    9.0 (n=1) — the session's latest point-in-time rounds_max, once — never
+    6.0 (n=3) (its partial values summed, its residency days re-counted)."""
+    st = tmp_path / "state"
+    monday = _this_week_monday()
+    kc.append_facts(
+        [
+            _week_row("s1", monday, 3),
+            _week_row("s1", monday + dt.timedelta(days=2), 6),
+            _week_row("s1", monday + dt.timedelta(days=4), 9),
+        ],
+        st,
+    )
+    for k in range(7):
+        kc._publish_outcome_series((monday + dt.timedelta(days=k)).isoformat(), st)
+    cells = kc.log_cells(monday + dt.timedelta(days=6), _full_reg(), state=st)
+    assert cells[4] == "9.0 (n=1)", (
+        "a point-in-time per-session quantity must weight each session once at its "
+        "latest value — never once per growth day with partial values summed"
+    )
+
+
+def test_death_cell_one_sided_version_bump_is_never_bare(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W8-3: a mid-week version bump on ONE death-pair half (classes at v2,
+    occurrences still v1) must surface as a split week — annotated or dashed,
+    never a bare cell mixing a fully-covered occurrence sum with a truncated
+    class merge."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    week = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22"]
+    for d in week:
+        _plant_point(st, "death_occurrences", do_v, d, value=2, numerator=2)
+    for d in week[:5]:
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"cls-{d[-2:]}": 1})
+    _plant_point(st, "death_classes", dc_v, week[5], value={"oom": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2] != "12 occ / 1 cls", (
+        "five days of class breadth measured under the previous definition must "
+        "never vanish under a bare, fully-measured-looking cell"
+    )
+    assert cells[2] == DASH or cells[2].endswith("*")
+    err = capsys.readouterr().err
+    assert "definition" in err

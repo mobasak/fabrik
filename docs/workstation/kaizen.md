@@ -66,7 +66,9 @@ complete). In order:
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
    THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row
    recompute; the human row is thereby provably consistent with the machine series (see § The
-   kaizen-log row).
+   kaizen-log row). One carve-out (W8-1): the rounds cell — a point-in-time per-session
+   quantity anonymous day points cannot per-session-deduplicate — recomputes latest-per-sid
+   over the week's delta rows under the same day-scoped attribution guard.
 
 Metric inputs are **event-era only**: T08's backfill shares the store with `era: "transcript"`
 rows (every event-only field an honest `—`), and `daily()` excludes them from its day/week
@@ -113,9 +115,12 @@ including today
 derivable stamp is yesterday), read as day-scoped DELTA rows — every sid's in-window store rows
 delta'd against its nearest earlier row (`window_delta_rows`), so a lifetime session
 contributes only its in-window growth, never all-time cumulative. A kept row whose baseline
-(`delta_of`) predates the window smears derivation-gap growth into it — deliberate (the delta
-seam attributes gap growth to the derivation day, both sides) and VISIBLE: the detail counts
-`k row(s) whose baseline predates the window (derivation-gap smear)` (W7-5). Attributed-side bootstrap
+(`delta_of`) SKIPS at least one calendar day before the window's oldest day smears
+derivation-gap growth into it — deliberate (the delta seam attributes gap growth to the
+derivation day, both sides) and VISIBLE: the detail counts
+`k row(s) whose baseline predates the window (derivation-gap smear)` (W7-5, tightened W8-2:
+the day before the window's oldest day is the normal consecutive baseline — under a
+day-scoped publish window every predecessor-bearing row has one — never a smear). Attributed-side bootstrap
 symmetry (W6-2): a first-ever attributed delta row carrying family mass whose `first_ts`
 predates the window dumped lifetime backlog as its "delta" — bootstrap-unmeasurable, excluded
 from value AND guard operands and counted (a `first_ts`-proven in-window birth stays: its
@@ -143,8 +148,13 @@ aggregates the ISO week's PUBLISHED DAY SERIES points (current registry version 
 a store-row recompute (mixed row semantics fabricated cells: lifetime `rounds_max` under a
 growth guard, delta occurrences against point-in-time death classes, per-(sid,day) rows
 diluting per-session shares into per-row shares). Ratio cells SUM the week's day
-numerators/denominators; the death cell sums occurrences and merges the day class maps; the
-rounds cell is the n-weighted weekly mean of `review_rounds`' day points. A day the series
+numerators/denominators; the death cell sums occurrences and merges the day class maps.
+**The one carve-out (W8-1): the rounds cell** — `rounds_max` is point-in-time per-session and
+anonymous day points cannot per-session-deduplicate it (a session growing across three week
+days would be counted once per residency day with its partial values summed), so the cell
+recomputes latest-per-sid over the ISO week's day-scoped delta rows via
+`kaizen_outcomes.review_rounds(days=<week days>)` — same guard as the day publish, the whole
+week under the one current definition (no version mixing possible). A day the series
 lacks contributes nothing (its honesty gates already spoke at publish time); a week with no
 published days for a metric renders `—` ("no published days this week"). **Split weeks (W7-2):**
 a mid-week registry version bump leaves the earlier days in the previous version's file —

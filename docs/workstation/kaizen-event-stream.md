@@ -218,11 +218,14 @@ publish passes `days=[the published day]` so every PUBLISHED day point is DAY-sc
 trailing-window value published as a day point made the weekly cell sum overlapping windows).
 Attributed-side bootstrap symmetry (W6-2): a first-ever attributed delta row carrying
 family mass whose `first_ts` predates the window is bootstrap-unmeasurable — excluded from
-both operands and counted; a kept row whose baseline (`delta_of`) predates the window smears
-derivation-gap growth into it — deliberate and annotated in the detail (W7-5, the
-derivation-gap smear). The weekly log cells no longer run any guard of their own: they
-AGGREGATE the published day series (the single-source law, W6-1; split weeks are annotated and
-one-sided death weeks dash on the pair contract — see
+both operands and counted; a kept row whose baseline (`delta_of`) skips at least one calendar
+day before the window's oldest day smears derivation-gap growth into it — deliberate and
+annotated in the detail (W7-5, tightened W8-2: the consecutive-day baseline is normal, never a
+smear). The weekly log cells run no guard of their own: they AGGREGATE the published day
+series (the single-source law, W6-1; split weeks are annotated PER HALF for paired metrics —
+W8-3 — and one-sided death weeks dash on the pair contract), EXCEPT the rounds cell, which
+recomputes latest-per-sid over the week's delta rows under the day publish's guard (W8-1 —
+point-in-time per-session quantities cannot be deduplicated from anonymous day points; see
 `docs/workstation/kaizen.md` § The kaizen-log row). The unattributed operand is the
 `unknown` accumulator's per-day delta mass over the same window days; the same 20% floor applies.
 The guard publishes (share stated) when healthy, dashes when the unknown stream holds the
