@@ -96,7 +96,10 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   deliberately fail-CLOSED: `user:pass@host` and `host:port/path@note` are lexically identical, so an
   ambiguous string like `postgres://internal-docs:8080/api@readme` is REFUSED rather than risk
   publishing a credential. **REDACT and it sends:** a DSN whose password is an obvious placeholder
-  (`REDACTED`, `PLACEHOLDER`, `CHANGEME`, `<PASTE-…>`, `${VAR}`, `password`, `xxxx`, `***`, …) is
+  (`REDACTED`, `PLACEHOLDER`, `CHANGEME`, `<PASTE-PASSWORD>`, `<YOUR PASSWORD HERE>`, `password`,
+  `xxxx`, `***`) — or an env-var REFERENCE whose name ends in a credential noun
+  (`${DB_PASSWORD}`, `$POSTGRES_SECRET`, `${APP_API_KEY}`; a bare `${VAR}` is NOT exempt, since
+  nothing about it says "placeholder") — is
   exempt, so a finding can quote the evidence with the secret removed — which is what you should be
   doing anyway. Backticking or fencing does NOT help (a backtick is a word boundary, so the pattern
   still matches); redact the password, or drop the scheme. Non-DSN schemes keep the stricter password class, so an

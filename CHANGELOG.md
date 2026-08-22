@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-21 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-22 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -101,6 +101,14 @@ All notable changes to this project will be documented in this file.
   `Passphrase`) still published clean. A bare password must now BE placeholder words end to
   end; the `<…>`/`${…}` wrapper is trusted as the fill-this-in convention with a digit-free
   identifier inside.
+- Round 22 closed the placeholder exemption's last leak and found a long-standing
+  performance defect. Round 21 had tightened only the BARE form, so the wrapped forms
+  still trusted shape and let a letters-only passphrase or hex secret publish clean merely
+  by being bracketed; every form now requires a placeholder inner. Separately, the secret
+  scan's assignment pattern had unbounded `\w*` runs either side of its keyword, so a
+  64 KB body took ~4.7s inside every `send()` on all ~46 synced repos — pre-existing since
+  before this loop (measured on the pre-loop revision), now bounded: 4.7s to 0.005s, with a
+  timing test so the cost is bound and not just the correctness.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

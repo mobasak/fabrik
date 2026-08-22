@@ -117,13 +117,34 @@ _PLACEHOLDER_WORD = (
 #   WRAPPED— `<...>`/`${...}`/`$NAME` is itself the "fill this in" convention, so
 #            an identifier-shaped inner (letters + separators, NO digits) is
 #            enough: `${DB_PASSWORD}` reads as a reference, `<9f8a7b6c>` does not.
-_PLACEHOLDER_BARE = _PLACEHOLDER_WORD + r"(?:[_ -]+" + _PLACEHOLDER_WORD + r")*"
+# P22-2: BOUNDED, not `*`. An unbounded nested quantifier over an alternation
+# with shared prefixes (PASS/PASSWD/PASSWORD) backtracks super-linearly — a
+# 64 KB body of `SECRET_` runs took 4.1s on the send() hot path, which every
+# repo in the fleet pays. A placeholder phrase is a few words ("YOUR PASSWORD
+# HERE"), never dozens, so the bound costs nothing real.
+_PLACEHOLDER_BARE = _PLACEHOLDER_WORD + r"(?:[_ -]+" + _PLACEHOLDER_WORD + r"){0,5}"
+# P22-1: the wrapper is a HINT, never a licence. Round 21 trusted `<...>`/`${...}`
+# on SHAPE alone (any letters-only inner), which just relocated the leak: a
+# passphrase credential or a letters-only hex secret published clean merely by
+# being bracketed. Every form now requires the inner to BE a placeholder:
+#   <PASTE-PASSWORD>, <YOUR PASSWORD HERE>  — placeholder words, bracketed
+#   ${DB_PASSWORD}, $POSTGRES_SECRET        — an env-var REFERENCE, which is
+#     UPPER_SNAKE and ends in a credential noun; `${CorrectHorseBatteryStaple}`
+#     is neither, and no real secret looks like `DB_PASSWORD`.
+_ENVVAR_REF = (
+    r"\$\{?[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:PASSWORD|PASSWD|PASS|SECRET|TOKEN|KEY|DSN|URL|URI)\}?"
+)
 _PLACEHOLDER_PW = (
     r"(?!(?:"
     + _PLACEHOLDER_BARE
-    + r"|<[A-Za-z][A-Za-z_ .-]*>"
-    + r"|\$\{[A-Za-z][A-Za-z_ .-]*\}"
-    + r"|\$[A-Za-z][A-Za-z_.-]*"
+    + r"|<"
+    + _PLACEHOLDER_BARE
+    + r">"
+    + r"|"
+    + _ENVVAR_REF
+    + r"|\$\{?"
+    + _PLACEHOLDER_WORD
+    + r"\}?"
     + r"|\*{3,}|x{3,}|\.{3,}|-{3,}|_{3,}"
     r")@)"
 )
@@ -131,7 +152,16 @@ _PLACEHOLDER_PW = (
 # High-confidence secret signatures — REFUSE the send.
 _SECRET_HIGH = [
     _re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"),
-    _re.compile(r"\b\w*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)\w*\s*[:=]\s*\S{16,}", _re.I),
+    # P22-2: the `\w*` runs are BOUNDED. Unbounded, this backtracks quadratically —
+    # a 64 KB body of `SECRET_` tokens took ~4.7s on send()'s hot path, and every
+    # repo in the fleet pays it on every send. (Pre-existing, not introduced by
+    # this loop: measured at 4.696s on f338fd5d, before round 10.) An identifier
+    # is never 64 chars either side of the keyword, so the bound changes nothing
+    # real — `AWS_SECRET_ACCESS_KEY=…` still matches.
+    _re.compile(
+        r"\b[\w-]{0,64}(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}\s*[:=]\s*\S{16,}",
+        _re.I,
+    ),
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
     # P16-4: the hyphen form above misses the UNDERSCORE vendor style (Stripe
     # `sk_live_`/`sk_test_`, restricted `rk_`), which then fell in the dead zone

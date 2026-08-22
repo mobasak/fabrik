@@ -2260,3 +2260,46 @@ def test_a_password_that_merely_contains_a_placeholder_word_is_not_exempt(env):
         "mongodb+srv://u:<YOUR PASSWORD HERE>@cluster0.abc.mongodb.net/db",
     ):
         assert mail._secret_level(safe) != "high", safe
+
+
+def test_a_wrapped_real_secret_is_not_exempt(env):
+    """P22-1: round 21 moved the leak rather than closing it. The BARE form was
+    tightened to exact placeholder words, but the WRAPPED forms still trusted
+    SHAPE — any letters-only inner. So a passphrase-style credential, or a
+    letters-only hex secret, published clean merely by being written inside
+    `<...>` or after `$`. The wrapper is a hint, never a licence: the inner must
+    itself be a placeholder."""
+    for smuggled in (
+        "postgres://user:<CorrectHorseBatteryStaple>@host/db",
+        "postgres://user:<deadbeefcafebabe>@host/db",
+        "postgres://user:<zjxqmvbklorstuiwynhpdgacef>@host/db",
+        "postgres://user:$CorrectHorseBatteryStaple@host/db",
+        "postgres://user:${CorrectHorseBatteryStaple}@host/db",
+        "redis://default:$MySuperSecretRedisPass@redis-main:6379/0",
+        "mongodb+srv://u:<CorrectHorseBatteryStaple>@cluster0.abc.mongodb.net/db",
+    ):
+        assert mail._secret_level(smuggled) == "high", smuggled
+    # the redactions and env-var references we exist to allow must STILL send
+    for safe in (
+        "postgres://user:REDACTED@dbhost/finaldb",
+        "postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
+        "mongodb+srv://u:<YOUR PASSWORD HERE>@cluster0.abc.mongodb.net/db",
+        "postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
+        "postgres://app:${POSTGRES_PASSWORD}@postgres-main:5432/app",
+        "redis://default:${REDIS_SECRET}@redis-main:6379/0",
+        "postgres://user:password@localhost:5432/db",
+        "postgres://user:xxxxxxxx@host:5432/db",
+    ):
+        assert mail._secret_level(safe) != "high", safe
+
+
+def test_secret_scan_stays_fast_on_a_max_size_body(env):
+    """P22-2: the exemption's nested quantifier over a shared-prefix alternation
+    (PASS/PASSWD/PASSWORD) backtracked super-linearly — a 64 KB body of `SECRET_`
+    runs took 4.1s on send()'s hot path, and every repo in the fleet pays that.
+    Correctness was tested; COST was not, so the regression shipped green."""
+    body = "postgres://user:" + "SECRET_" * 9360 + "@host/db"
+    assert len(body) >= mail.MAX_BODY - 1024
+    start = time.monotonic()
+    mail._secret_level(body)
+    assert time.monotonic() - start < 0.5, "the scan must stay linear at the body cap"
