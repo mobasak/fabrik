@@ -2083,3 +2083,31 @@ def test_quarantine_slot_bound_is_inclusive(env, monkeypatch):
         (parked / name).write_text("other\n", encoding="utf-8")  # distinct inodes
     assert mail._quarantine(inbox, bad) is False, "past the bound = a failed quarantine"
     assert bad.is_file(), "the source is left for the operator, never silently dropped"
+
+
+# --- round 19: fail-closed must not block the evidence-quoting workflow -----
+def test_a_redacted_or_placeholder_dsn_still_sends(env):
+    """P19-1: round 18 called the fail-closed false positive 'free' because the
+    shape occurred 0 times in the live store. That measured FREQUENCY, not the
+    shape of legitimate future mail — and this store's own job is carrying
+    security findings that QUOTE evidence. A reviewer reporting a DSN must be
+    able to send it with the secret REMOVED, which is the behaviour we want to
+    encourage, not punish."""
+    for safe in (
+        "found this in config: postgres://user:REDACTED@dbhost/finaldb",
+        "the template is postgres://user:<PASTE-PASSWORD>@localhost:5432/db",
+        "docs say mongodb+srv://user:PLACEHOLDER@cluster0.mongodb.net/test",
+        "compose has postgres://app:${DB_PASSWORD}@postgres-main:5432/app",
+        "the example is `DATABASE_URL=postgres://user:password@localhost:5432/db`",
+        "redis://default:CHANGEME@redis-main:6379/0",
+        "postgres://user:xxxxxxxx@host:5432/db",
+    ):
+        assert mail._secret_level(safe) != "high", safe
+        assert mail.send(to="fabrik", kind="finding", body=safe, frm="alpha").is_file()
+    # a REAL credential is still refused — the exemption is for placeholders only
+    for real in (
+        "postgres://admin:s3cr3t/with/slash@host:5432/db",
+        "postgres://admin:xk3q9zAbcdef@postgres-main",
+        "redis://user:secr/et@redis-main",
+    ):
+        assert mail._secret_level(real) == "high", real

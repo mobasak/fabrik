@@ -90,6 +90,18 @@ DISPOSITIONS = (
     "wontfix",
 )  # SSOT — argparse choices, _ACK_LINE, and ack() all derive from this
 
+# P19-1: a DSN whose password is an obvious PLACEHOLDER is not a secret, and
+# refusing it breaks this store's own core workflow — carrying security findings
+# that QUOTE the evidence. Round 18 justified the fail-closed false positive as
+# "free" by measuring how often the shape occurred (0 of 910); that measured
+# frequency, not the shape of legitimate future mail. Redacting the secret is
+# exactly the behaviour to encourage, so it must not be punished. Real
+# credentials are unaffected — this only exempts values that ARE the redaction.
+_PLACEHOLDER_PW = (
+    r"(?!(?:REDACTED|PLACEHOLDER|CHANGE[_-]?ME|EXAMPLE|YOUR[_-]?\w+|PASSWORD|PASS"
+    r"|SECRET|TODO|FIXME|NONE|EMPTY|<[^@\s]*>|\$\{?\w+\}?|\*{3,}|x{3,}|\.{3,})@)"
+)
+
 # High-confidence secret signatures — REFUSE the send.
 _SECRET_HIGH = [
     _re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"),
@@ -108,7 +120,7 @@ _SECRET_HIGH = [
     _re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),  # JWT
     _re.compile(r"(?i)\bauthorization:\s*bearer\s+\S{8,}"),  # Bearer header
     _re.compile(
-        r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:[^\s/@]+@", _re.I
+        r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:" + _PLACEHOLDER_PW + r"[^\s/@]+@", _re.I
     ),  # scheme://[user]:pass@host (user optional — redis://:pw@). P16-2: _re.I —
     # the scheme was lower-case-only, so a copy-pasted `Postgres://` DSN (how
     # config templates and docs capitalise it) bypassed the guard entirely.
@@ -134,7 +146,7 @@ _SECRET_HIGH = [
     _re.compile(
         r"\b(?:postgres(?:ql)?|mysql|mariadb|rediss?|mongodb(?:\+srv)?|amqps?"
         r"|ftps?|sftp|ssh|smtps?|clickhouse|mssql|oracle|cockroachdb)"
-        r"://[^\s/:@]*:[^\s@]+@",
+        r"://[^\s/:@]*:" + _PLACEHOLDER_PW + r"[^\s@]+@",
         _re.I,
     ),
 ]

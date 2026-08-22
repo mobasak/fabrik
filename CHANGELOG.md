@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-18 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-19 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -75,6 +75,13 @@ All notable changes to this project will be documented in this file.
   directory in `inbox/` shadow a readable parent in `archive/`. Four unbound guards gained
   tests: `MAX_RE` at both edges, both digest age thresholds, the rate walk's dotfile guard,
   and the quarantine slot valve.
+- Round 19 corrected round 18's reasoning rather than its regex: calling the fail-closed
+  false positive "free" measured how often the shape had occurred, not what legitimate mail
+  looks like — and this store's own job is carrying security findings that quote evidence.
+  A DSN whose password is an obvious placeholder (`REDACTED`, `<PASTE-…>`, `${VAR}`,
+  `CHANGEME`, `password`, `xxxx`) now sends, so a finding can quote a connection string with
+  the secret removed; every real credential still refuses. The round-18 doc also told
+  operators to "backtick it", which does nothing — a backtick is a word boundary.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

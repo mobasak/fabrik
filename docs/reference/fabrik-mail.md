@@ -95,8 +95,11 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `/` is caught too — routine in base64-derived passwords. For those schemes the match is
   deliberately fail-CLOSED: `user:pass@host` and `host:port/path@note` are lexically identical, so an
   ambiguous string like `postgres://internal-docs:8080/api@readme` is REFUSED rather than risk
-  publishing a credential. That shape appears in none of the live store's messages; if you hit it,
-  rephrase (backtick it, or drop the scheme). Non-DSN schemes keep the stricter password class, so an
+  publishing a credential. **REDACT and it sends:** a DSN whose password is an obvious placeholder
+  (`REDACTED`, `PLACEHOLDER`, `CHANGEME`, `<PASTE-…>`, `${VAR}`, `password`, `xxxx`, `***`, …) is
+  exempt, so a finding can quote the evidence with the secret removed — which is what you should be
+  doing anyway. Backticking or fencing does NOT help (a backtick is a word boundary, so the pattern
+  still matches); redact the password, or drop the scheme. Non-DSN schemes keep the stricter password class, so an
   ordinary `https://host/path:frag@anchor` doc link still sends.
   Flow operator secrets as `<PASTE …>` pointers.
 - **Star topology.** Hub ↔ node only. `send` refuses a project→project `--to` (both non-hub) — route
