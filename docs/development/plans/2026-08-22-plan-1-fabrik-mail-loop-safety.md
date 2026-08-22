@@ -1,10 +1,18 @@
 # Plan — fabrik-mail auto-reply loop-safety (the four guards + `--auto`)
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-08-22
 Owner: infra (build) — spec by fleet (`docs/superpowers/specs/2026-08-15-fabrik-mail-loop-safety-design.md`,
 CONVERGED b886ce5b; build assigned via mail `01M02SV4498PHFBG3SM8KN1TR9`, acked)
 Executor entry: `/fabrik-execute-plan docs/development/plans/2026-08-22-plan-1-fabrik-mail-loop-safety.md`
+
+Pass Ledger (/fabrik-plan-review, 2026-08-22):
+| Pass | axes re-checked | raised | new: | edits | plan md5 (start → end) |
+|-----:|---|---:|---:|---:|---|
+| 1 | all (wide: every claim re-grounded on current mail.py) | 4 | 4 | 3 | f9f0e385… → 71a8db18… |
+| 2 | scoped: pass-1 edits' new line refs | 1 | 1 | 1 | 71a8db18… → c5a5dbda… |
+| 3 | all (closing wide: mechanical 15-ref sweep + spec-delta coverage) | 0 | 0 | **0** | c5a5dbda… → c5a5dbda… ✓ → **CONVERGED** |
+(The status flip below is the sanctioned post-convergence write, exempt per the term-edit contract.)
 
 ## What we already agreed (from the spec — do not re-decide)
 
@@ -47,8 +55,12 @@ Executor entry: `/fabrik-execute-plan docs/development/plans/2026-08-22-plan-1-f
 `MailRefusedError` `:101` · `_frontmatter` `:209` · `send()` `:226` (raises `MailRefusedError`,
 "nothing written") · `claim` `:274` / `ack` `:301` (atomic renames) · `_parse` `:402` (arbitrary keys,
 requires `id`+`kind` → `hops` additive-safe) · `digest` `:438` (the mailbox-walk pattern to reuse) ·
-`read_msg` `:495` (inbox+archive lookup for parent resolution) · send subparser `:547` ·
-CLI `MailRefusedError` handler `:598`. `tests/test_mail.py` exists (extend, don't fork).
+`read_msg` `:495` (inbox+archive lookup; raises **FileNotFoundError** `:502` on a missing id — the
+fail-soft ALLOW catches exactly that, never `MailRefusedError`) · `_age_seconds` `:424` (EXISTING
+fail-soft ts arithmetic — unparseable ts → `inf`; the rate window reuses it, no new date parsing) ·
+`_mail_root` `:107` (`FABRIK_MAIL_ROOT` env — the existing test-isolation seam `tests/test_mail.py:38-44`
+uses; all new tests isolate the same way) · send subparser `:547` · CLI `MailRefusedError`→exit 2 /
+`FileNotFoundError`→exit 1 handler `:598` (the `should-reply` HOLD exit 3 collides with neither). `tests/test_mail.py` exists (extend, don't fork).
 
 ## Phase A — the guards in `mail.py` (red-first)
 
@@ -65,9 +77,12 @@ CLI `MailRefusedError` handler `:598`. `tests/test_mail.py` exists (extend, don'
      emitted only as a plain int — legacy readers ignore unknown keys per `_parse:402`);
    - `send()` (`:226`): resolve the parent once via the `read_msg` lookup when `re` is set (tolerate
      failure → parent None); `hops = parent.hops + 1` when resolved else 0; the `auto` branch — require
-     `re`, run `should_auto_reply`, `raise MailRefusedError(reason)` BEFORE minting;
+     `re`, run `should_auto_reply`, `raise MailRefusedError(reason)` BEFORE minting; parent resolution
+     catches `FileNotFoundError` (+`OSError`) → parent None → fail-soft ALLOW with the stderr note;
    - `should_auto_reply(parent_fm, self_repo, *, now, root) -> tuple[bool, str]` + `_recent_from_count`
-     (the `digest:438` walk pattern, `FileNotFoundError`-tolerant, ts parsed fail-soft);
+     (the `digest:438` walk pattern but **READ-ONLY** — `digest` QUARANTINES malformed files as a side
+     effect (`_quarantine:432`); the rate count must SKIP malformed, never move them — plus
+     `FileNotFoundError`-tolerant, window ages via the existing `_age_seconds:424`);
    - CLI: `--auto` on the send subparser (`:547`); `should-reply <id> [--repo]` subcommand (exit 0 ALLOW /
      3 HOLD — distinct from the `:598` refusal exit 2).
 3. **Gate:** `pytest tests/test_mail.py -q` green · `ruff` + `ruff format` · `mypy scripts/mail.py` ·
