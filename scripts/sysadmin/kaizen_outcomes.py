@@ -805,14 +805,6 @@ def _stop_verdicts(row: dict) -> int:
     return int(events.get("stop_pass", 0) or 0) + int(events.get("stop_block", 0) or 0)
 
 
-def _stops_mass(row: dict) -> int:
-    """The stops FAMILY mass of a row (W6-2's bootstrap gate): stop verdicts plus
-    cause counts — a first-ever row carrying either dumped pre-window backlog."""
-    causes = row.get("stop_causes")
-    cause_mass = sum(int(v or 0) for v in causes.values()) if isinstance(causes, dict) else 0
-    return _stop_verdicts(row) + cause_mass
-
-
 def premature_stop(
     state: Path | None = None, days: list[str] | None = None
 ) -> tuple[MetricResult, MetricResult]:

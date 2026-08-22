@@ -1783,6 +1783,11 @@ def _series_days(path: Path) -> set[str]:
                     continue
                 if isinstance(row, dict) and isinstance(row.get("day"), str):
                     out.add(row["day"])
+    except FileNotFoundError:
+        # W13-1: a missing file is the NORMAL first-publish / post-bump path —
+        # never a warn (a false "unreadable" trains the operator to ignore the
+        # real one).
+        pass
     except OSError as exc:
         # Fail-open, visibly (W12-3): a silently skipped series file can disable
         # the split-week and disjoint-halves guards.
@@ -2227,8 +2232,6 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         halves_text = ""
         if len(mids) > 1:
             halves_text = ", ".join(f"{mid} {len(halves[mid])}/{len(days)}" for mid in mids)
-            if orphan_any:
-                _warn("split-week halves at the current definition: " + halves_text)
         return cur_all, orphan_any, split_blocked, halves_text
 
     def _split_dash_reason(split_blocked: bool, fallback: str = NO_WEEK_DAYS) -> str:
@@ -2302,6 +2305,11 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
             occ_pts, cls_pts, dash_reason=_split_dash_reason(d_split, death_fallback)
         )
         deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan, coverage=d_halves)
+    # W13 (round-13 #6): the standalone per-half line rides ONLY the paths whose
+    # cell line does not already carry the halves text (a DASH suppresses the
+    # annotate line) — never the same string twice per weekly log.
+    if d_halves and d_orphan and deaths == DASH:
+        _warn("split-week halves at the current definition: " + d_halves)
 
     # W8-1 — the single-source law's ONE carve-out: rounds_max is a point-in-time
     # per-session quantity, and anonymous day points cannot be per-session-

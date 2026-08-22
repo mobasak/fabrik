@@ -1509,7 +1509,9 @@ def test_guard_dash_discloses_the_bootstrap_exclusion(tmp_path: Path) -> None:
     rounds = ko.review_rounds()
     assert not rounds.measurable
     if "attribution" in rounds.detail or "unknown stream" in rounds.detail:
-        assert "bootstrap row(s) excluded" in rounds.detail, (
+        assert rounds.detail.count("bootstrap row(s) excluded") == 1, (
             "the guard tripped BECAUSE the bootstrap exclusion emptied the "
-            "attributed operand — the dash must disclose it: " + rounds.detail
+            "attributed operand — the dash must disclose it exactly once "
+            "(the accumulator-side bootstrap-window cause is a DIFFERENT fact "
+            "and may legitimately co-occur): " + rounds.detail
         )

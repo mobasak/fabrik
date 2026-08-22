@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 13: the warn means what it says (2026-08-22)
+
+- A metric's first publish (and every post-bump first publish) reads a series file that does
+  not exist yet — that is the normal path, never a "series file unreadable" warn (W13-1;
+  the false warn on every fresh state dir and version bump trained the operator to ignore
+  the real fail-open warn W12-3 added).
+- The standalone per-half split-week line rides only the paths whose cell line does not
+  already carry the halves text — never the same string twice per weekly log; the dead
+  `_stops_mass` helper (stale docstring claiming to be the live bootstrap gate) is removed;
+  the guard-path disclosure test bounds the bootstrap fragment to exactly once; the
+  unreadable-dir test skips under root and asserts the dir-level warn specifically.
+- Out-of-scope round-13 observations on the sibling rotation surface (`claude_rotate.py`
+  call-site coverage, PATH-prepend scope) recorded for its owner — not touched here.
+
 ### Fixed — kaizen M1 review fix-wave 12: bootstrap truth on every path; the fail-open is genuinely visible (2026-08-22)
 
 - The stops pair's bootstrap gate keys on STOP VERDICTS — its population mass (W12-1): a

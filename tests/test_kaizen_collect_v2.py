@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -3024,6 +3025,7 @@ def test_ratio_cell_dash_distinguishes_invalid_points_from_no_points(
 # ── fix-wave 12 (W12: the fail-open is genuinely visible) ────────────────────────────
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode bits this test relies on")
 def test_unreadable_series_dir_warns_when_probing_older_versions(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -3041,4 +3043,31 @@ def test_unreadable_series_dir_warns_when_probing_older_versions(
         sdir.chmod(0o755)
     assert out == set()
     err = capsys.readouterr().err
-    assert "unreadable" in err, "the silent fail-open disables two fabrication guards"
+    assert "series dir unreadable" in err, "the silent fail-open disables two fabrication guards"
+
+
+# ── fix-wave 13 (W13: the warn means what it says) ───────────────────────────────────
+
+
+def test_first_publish_emits_no_unreadable_warn(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W13-1: a metric's FIRST publish (and every post-bump first publish) reads
+    a series file that does not exist yet — that is the normal path, not an
+    unreadable file; warning there trains the operator to ignore the real
+    fail-open warn W12-3 added."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    mid = "first_attempt_gate_pass"
+    kc.publish_series(
+        "2026-08-18",
+        {
+            mid: kc.MetricResult(
+                id=mid, cell="100% (1/1)", detail="probe", value=1.0, numerator=1, denominator=1
+            )
+        },
+        {mid: reg[mid]},
+        state=st,
+    )
+    err = capsys.readouterr().err
+    assert "unreadable" not in err, err
