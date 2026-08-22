@@ -754,8 +754,10 @@ python -m alerting --selftest --dry-run  # configuration only, sends nothing
 | `ALERT_APPRISE_URL` | Apprise URL as seen *from the VPS* (default `http://apprise:8000`). |
 | `ALERT_ENABLED` | `0` disables; `1` forces on; unset auto-enables when any delivery var is set. |
 | `ALERT_MIN_INTERVAL` | Dedup window in seconds per alert title (default `300`). |
-| `FABRIK_MAIL_HOP_CAP` | fabrik-mail auto-reply hop budget — HOLD when `parent.hops >=` this (default `3`; `0` = refuse all auto-replies). |
-| `FABRIK_MAIL_RATE_CAP` | fabrik-mail per-sender rate cap within the window (default `5`; `0` = refuse all). |
+| `FABRIK_MAIL_ROOT` | Root of the durable mail store (default `/opt/fabrik-mail`). Every mailbox lives at `<root>/<repo>/{inbox,archive,malformed}`; the test suite points this at a temp dir. |
+| `FABRIK_OPT_ROOT` | Base used to validate that a recipient repo actually exists on the box (default `/opt`). A recipient with no directory under it is refused. |
+| `FABRIK_MAIL_HOP_CAP` | fabrik-mail auto-reply hop budget — HOLD when `parent.hops >=` this (default `3`; `0` = refuse all auto-replies; a negative or non-numeric value warns and uses the default). |
+| `FABRIK_MAIL_RATE_CAP` | fabrik-mail per-sender rate cap within the window (default `5`; `0` = refuse all; a negative or non-numeric value warns and uses the default). |
 | `FABRIK_MAIL_RATE_WINDOW_S` | fabrik-mail rate window, seconds (default `3600`; a value below `1` warns and uses the default — a `0` window would disable the breaker). |
 
 ⚠️ **The Telegram credential is split.** A usable token is `<bot_id>:<secret>`, but

@@ -57,10 +57,12 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
 - **Claim/ack = atomic-by-rename.** `mail.py claim <id>` renames `inbox → archive` — the
   POSIX-atomic rename IS the lock (the race loser gets `ENOENT` and stops) — and appends
   NOTHING: the claimed file carries no disposition until the work is done (the honest
-  claim-first-then-work verb, fabrik-lib finding 2026-08-12). `mail.py ack <id>` resolves:
-  on an unclaimed message it renames+appends in one step; on a message you already
-  `claim`-ed it appends the ack line in place; on an already-RESOLVED message it still
-  refuses (double-ack loser semantics unchanged). Ack line:
+  claim-first-then-work verb, fabrik-lib finding 2026-08-12). `mail.py ack <id>` resolves: it
+  claims first if the message is still in the inbox, then EVERY resolve — claimed or not —
+  goes through the same rename-locked window (`archive/<id>.md` → `.resolving.<pid>` →
+  append → back), so two concurrent acks can never both land. There is no append-in-place
+  path left. An already-RESOLVED message still refuses (double-ack loser semantics
+  unchanged). Ack line:
   `acked-by: <repo> · ts: <ISO> · disposition: <done|blocked|wontfix>`. Claim FIRST, then
   act, then ack. **Cooperative-ack rule:** within one repo the sessions share identity, so
   `ack`-ing a CLAIMED id asserts the work is DONE — never ack another agent's claim unless you
@@ -179,6 +181,10 @@ job; stop quietly), distinct from a real refusal's **2** (secret, invalid recipi
 `--auto` without `--re`) — hard refusals always outrank a HOLD. The advisory pre-check is
 `mail.py should-reply <id>` (prints `ALLOW`/`HOLD: <reason>`, exit 0/3) — same verdict logic as the
 enforced path, including exists-but-unparseable/unreadable parents (HOLD on both paths).
+Exit **1** is the OS-level failure code: a missing message id, and since the round-14 hardening
+every other `OSError` too (EACCES on a rename, `IsADirectoryError` from a stray dir in
+`malformed/`, EXDEV, ENOSPC) — these used to escape as a raw traceback. A wrapper must NOT read
+1 as "not there yet, retry"; it means "the OS refused", which may need an operator.
 
 **Fail-soft rules:** a genuinely MISSING or non-ULID (prose `re:`) parent → ALLOW with `hops=0` and
 a stderr note (a wedged channel is worse than a rare unbounded reply); an EXISTING parent that is

@@ -50,8 +50,10 @@ the settings wiring itself.
   plan-locks meanwhile. Composition: **socket = live notification, file = durable truth.**
 
 Sessions in ONE repo share ONE `<repo>/inbox` (a claim-once queue) — fabrik-mail deliberately does NOT
-sub-address individual sessions; that's Layer 2's job. Claim-before-work: `ack` up front (the rename is
-the lock); `requeue` re-opens a claimed message and strips the stale `acked-by:` marker.
+sub-address individual sessions; that's Layer 2's job. Claim-before-work: `claim` up front (the
+inbox→archive rename is the lock, and unlike the retired ack-up-front pattern it asserts NO
+disposition — the file carries none until the work is actually done); `ack` resolves it later;
+`requeue` re-opens a claimed message and strips a stale `acked-by:` marker if one is there.
 
 ## Observe it
 

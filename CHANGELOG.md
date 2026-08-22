@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-14 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-15 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -37,6 +37,16 @@ All notable changes to this project will be documented in this file.
   trailing body whitespace even with no ack line to strip, and the digest counted every
   `.resolving` window regardless of age, so a live `ack()` racing the cron read as a
   phantom unacked message.
+- Round 15: the round-14 fix was wrong too. Its rollback arm and its adoption branch were
+  each tested alone and are wrong together — adopting a peer's parked copy left
+  `created=False`, so the rollback rightly kept the copy but the function still reported
+  FAILURE, and the digest counted that one message twice on every run forever. The same arm
+  also deleted our copy when a peer had already removed the source, erasing the message from
+  disk entirely. The failure path now turns on one question: does a parked copy survive?
+  Docs leg: the workstation doc still taught the retired ack-up-front pattern, the reference
+  doc described an append-in-place resolve that no longer exists, `FABRIK_MAIL_ROOT` and
+  `FABRIK_OPT_ROOT` were missing from `.env.example` + `docs/CONFIGURATION.md`, and the
+  exit-code section never documented exit 1.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

@@ -1812,3 +1812,56 @@ def test_digest_does_not_count_a_fresh_resolving_window(env):
     arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
     arch.rename(arch.parent / f"{mid}.md.resolving.99999")  # created just now
     assert mail.digest(days=3)["unacked"] == 0, "a fresh window is an ack in flight, not a strand"
+
+
+# --- round 15: the two P14 fixes never met each other -----------------------
+def test_adopted_copy_with_an_unremovable_source_counts_exactly_once(env, monkeypatch):
+    """P15-1: P14-2 (adopt a peer's copy) and P14-1 (roll back on a failed source
+    unlink) were each tested alone and are wrong together. Adopting sets
+    created=False, so the rollback correctly leaves the copy — but the function
+    still reported FAILURE, so digest counted it once itself AND once via the
+    parked glob. Two counts for one message, on every run, forever: exactly the
+    unbounded inflation P14-1 set out to kill."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    parked.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "adopted.md"
+    bad.write_text("corrupt\n", encoding="utf-8")
+    os.link(bad, parked / "adopted.md")  # a prior run linked, then died before unlink
+    real_unlink = mail.os.unlink
+
+    def no_inbox_unlink(path, *a, **k):
+        if Path(path).parent.name == "inbox":
+            raise PermissionError("simulated EACCES on the inbox")
+        return real_unlink(path, *a, **k)
+
+    monkeypatch.setattr(mail.os, "unlink", no_inbox_unlink)
+    runs = [mail.digest(days=0)["quarantined"] for _ in range(3)]
+    assert runs == [1, 1, 1], f"one message, one count, stable across runs — got {runs}"
+
+
+def test_rollback_never_deletes_the_only_surviving_copy(env, monkeypatch):
+    """P15-2: the rollback unlinked our copy whenever we created it — even when
+    a racing peer had already removed the SOURCE. Both hardlinks then vanish and
+    the malformed message is gone from disk entirely, unreported: silent data
+    loss, the one outcome this whole visibility machinery exists to prevent."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "lonely.md"
+    bad.write_text("the only copy\n", encoding="utf-8")
+    real_unlink = mail.os.unlink
+
+    def peer_took_the_source(path, *a, **k):
+        """A peer unlinks the source, then our own unlink fails."""
+        if Path(path).parent.name == "inbox":
+            real_unlink(path, *a, **k)  # the peer's removal lands
+            raise PermissionError("our unlink loses the race and errors")
+        return real_unlink(path, *a, **k)
+
+    monkeypatch.setattr(mail.os, "unlink", peer_took_the_source)
+    assert mail._quarantine(inbox, bad) is True, "a parked copy is a SUCCESSFUL quarantine"
+    survivors = sorted(p.name for p in parked.glob("lonely.md*"))
+    assert survivors == ["lonely.md"], f"the only copy must survive — got {survivors}"
+    assert survivors and (parked / "lonely.md").read_text(encoding="utf-8") == "the only copy\n"

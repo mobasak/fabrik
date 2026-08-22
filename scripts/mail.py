@@ -741,17 +741,28 @@ def _quarantine(inbox: Path, f: Path) -> bool:
         except FileNotFoundError:
             pass  # the copy is parked — a peer clearing the source is success
         except OSError:
-            # P14-1: the copy is parked but the source SURVIVED (EACCES on the
-            # inbox, a remount, quota). The next digest would park it AGAIN under
-            # a fresh suffix, inflating the operator's count without bound for one
-            # corrupt message. Leave the tree exactly as we found it and report the
-            # failure — the caller counts a failed quarantine (P9-1).
-            if created:
+            # P14-1 rolled back a half-done move; P15-1/P15-2 fix what that arm got
+            # wrong once the P14-2 adoption branch could reach it. The ONLY question
+            # that matters here is whether a parked copy survives, because the parked
+            # glob counts exactly what is on disk:
+            #   * we ADOPTED a peer's copy (created=False) — it stays parked, so the
+            #     glob counts it once. Reporting failure too made digest count the
+            #     SAME message a second time, every run, forever (P15-1) — the very
+            #     unbounded inflation P14-1 existed to kill.
+            #   * we created the copy and the SOURCE is already gone (a peer removed
+            #     it) — our copy is the last instance in existence. Rolling it back
+            #     would erase the message from disk entirely and report nothing:
+            #     silent data loss (P15-2).
+            # Only when we created the copy AND the source survives is a rollback the
+            # honest move: the tree returns to exactly as we found it, and the caller
+            # counts a failed quarantine (P9-1).
+            if created and f.exists():
                 try:
                     os.unlink(dst)
                 except OSError:
                     pass
-            raise
+                raise
+            return True  # a copy is parked — the glob counts it, once
     except FileNotFoundError:
         # P10-7 + P11-1: FileNotFoundError has FOUR causes, only ONE of which is
         # "a peer already parked it" (then the parked glob counts the copy and a
