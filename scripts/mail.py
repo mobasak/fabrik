@@ -105,7 +105,7 @@ DISPOSITIONS = (
 _PLACEHOLDER_WORD = (
     r"(?:REDACT(?:ED)?|PLACEHOLDER|CHANGE[_-]?ME|EXAMPLE|SAMPLE|DUMMY|PASTE"
     r"|PASSWORD|PASSWD|PASS|SECRET|TOKEN|API[_-]?KEY|TODO|FIXME|NONE|EMPTY"
-    r"|HERE|YOUR|MY|THE)"
+    r"|HERE|YOUR)"
 )
 # P21-1: round 20 asked whether the password CONTAINS a placeholder word — a
 # substring test, case-insensitively, on short common tokens. Ordinary
@@ -146,7 +146,7 @@ _PLACEHOLDER_PW = (
     + _PLACEHOLDER_WORD
     + r"\}?"
     + r"|\*{3,}|x{3,}|\.{3,}|-{3,}|_{3,}"
-    r")@)"
+    r")@[^\s@]*(?:\s|$))"
 )
 
 # High-confidence secret signatures — REFUSE the send.
@@ -176,7 +176,7 @@ _SECRET_HIGH = [
     _re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),  # JWT
     _re.compile(r"(?i)\bauthorization:\s*bearer\s+\S{8,}"),  # Bearer header
     _re.compile(
-        r"\b[a-z][a-z0-9+.-]*://[^\s/:@]*:" + _PLACEHOLDER_PW + r"[^\s/@]+@", _re.I
+        r"\b[a-z][a-z0-9+.-]{0,31}://[^\s/:@]*:" + _PLACEHOLDER_PW + r"[^\s/@]+@", _re.I
     ),  # scheme://[user]:pass@host (user optional — redis://:pw@). P16-2: _re.I —
     # the scheme was lower-case-only, so a copy-pasted `Postgres://` DSN (how
     # config templates and docs capitalise it) bypassed the guard entirely.

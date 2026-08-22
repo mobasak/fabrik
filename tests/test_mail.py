@@ -2303,3 +2303,34 @@ def test_secret_scan_stays_fast_on_a_max_size_body(env):
     start = time.monotonic()
     mail._secret_level(body)
     assert time.monotonic() - start < 0.5, "the scan must stay linear at the body cap"
+
+
+def test_a_second_at_sign_defeats_the_exemption(env):
+    """P23-1, the FIFTH leak of this exemption: the lookahead asserted only that
+    a placeholder was followed by AN `@`, never the LAST one. So a real secret
+    parked between a placeholder and the true host — exactly what a hurried
+    half-redaction produces — was invisible to every check, scoring None. An
+    exemption must cover the WHOLE credential field or it covers nothing."""
+    for smuggled in (
+        "postgres://user:REDACTED@realSecretValueXYZ12345@host/db",
+        "mysql://svc:my@Zx82Kf9mQpLr7T@host:3306/app",
+        "redis://:REDACTED@realpasswordXYZ123456@host:6379",
+        "postgres://user:$SECRET@realSecretValue987xyzABC@host/db",
+    ):
+        assert mail._secret_level(smuggled) == "high", smuggled
+    # a single-@ redaction is still exempt
+    assert mail._secret_level("postgres://user:REDACTED@dbhost/finaldb") != "high"
+    assert mail._secret_level("postgres://app:${DB_PASSWORD}@postgres-main:5432/app") != "high"
+
+
+def test_generic_scheme_scan_stays_fast(env):
+    """P23-2: round 22 bounded the ASSIGNMENT pattern and claimed the cost class
+    closed — but the sibling generic-scheme pattern was never bounded and is
+    independently quadratic: an ordinary hyphenated 64 KB body with no credential
+    at all took 1.7s, on every send, fleet-wide. Fixing one pattern and declaring
+    the class closed is how this survived."""
+    body = "PASSWORD-" * 7300  # just over MAX_BODY, the worst a sender can submit
+    assert len(body) >= mail.MAX_BODY
+    start = time.monotonic()
+    mail._secret_level(body)
+    assert time.monotonic() - start < 0.5

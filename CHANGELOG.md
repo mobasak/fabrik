@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-22 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-23 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -109,6 +109,14 @@ All notable changes to this project will be documented in this file.
   64 KB body took ~4.7s inside every `send()` on all ~46 synced repos — pre-existing since
   before this loop (measured on the pre-loop revision), now bounded: 4.7s to 0.005s, with a
   timing test so the cost is bound and not just the correctness.
+- Round 23 found the fifth consecutive leak in the same exemption: the lookahead required
+  a placeholder to be followed by AN `@`, never the LAST one, so a real secret parked
+  between a placeholder and the true host was invisible to every check. The exemption is
+  now anchored to the end of the credential field, and the two- and three-letter words
+  round 21 had added to the guard (`MY`, `THE`) are gone. The cost class was also only
+  half-closed: round 22 bounded the assignment pattern and measured that one, while the
+  sibling generic-scheme pattern remained quadratic (1.7s on an ordinary hyphenated 64 KB
+  body with no credential in it). Both are now bounded and timing-tested.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 
