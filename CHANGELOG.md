@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_schema_sync sees schemas and migrations at any depth (transdoc upstream, 2026-08-22)
+
+- `schema_file_updated()` matches by separator-anchored path suffix instead of exact list
+  membership (transdoc proposal 2026-08-21, every claim re-verified on the hub source): the
+  saas-skeleton scaffold itself emits `server/db/schema.sql` (scaffold.py:387), so every
+  saas-skeleton project shipped with the data-contract drift gate silently disarmed; `api/`,
+  `backend/`, `services/<x>/` layouts likewise. Strictly widening — no previously-passing
+  input can start failing; expect first-sync WARNs surfacing already-drifted contracts (that
+  is the check working).
+- The hub's own verification found the twin bug in `migration_added()` (`startswith` missed
+  `server/migrations/…`) — same suffix law applied. Both carry regression tests
+  (tests/enforcement/test_check_schema_sync.py, 5 tests). Distributes fleet-wide on this
+  commit's governance-sync.
+
 ### Fixed — kaizen M1 review fix-wave 27: the durable default has its discriminator (2026-08-22)
 
 - The fixed home-dir lock default carries its red-on-revert test (W27-1 — the autouse

@@ -97,15 +97,35 @@ def has_db_changes(filepath: str) -> bool:
 
 
 def schema_file_updated(staged_files: list[str]) -> bool:
-    """Check if any schema file was updated."""
-    return any(schema_file in staged_files for schema_file in SCHEMA_FILES)
+    """Check if any schema file was updated.
+
+    Matches by path SUFFIX, not exact equality (transdoc upstream proposal
+    2026-08-21): the saas-skeleton scaffold itself emits the schema at
+    ``server/db/schema.sql`` (scaffold.py — the server/ layout), and ``api/`` /
+    ``backend/`` / ``services/<x>/`` layouts are equally common. An equality
+    test silently missed all of them, disarming this gate exactly where it is
+    most needed. Anchored on the separator ("/" + known) so ``my_schema.sql``
+    and ``not_a_db/schema.sql.bak`` stay non-matches — strictly widening,
+    never a new false positive.
+    """
+    return any(
+        staged == known or staged.endswith("/" + known)
+        for staged in staged_files
+        for known in SCHEMA_FILES
+    )
 
 
 def migration_added(staged_files: list[str]) -> bool:
-    """Check if a new migration was added."""
+    """Check if a new migration was added.
+
+    Same suffix law as :func:`schema_file_updated` (the hub's own verification
+    of the 2026-08-21 proposal found the twin bug here): ``startswith`` missed
+    ``server/migrations/…`` — a migration dir at any depth counts, anchored on
+    the separator.
+    """
     for migration_dir in MIGRATION_DIRS:
         for f in staged_files:
-            if f.startswith(migration_dir) and f.endswith(".py"):
+            if (f.startswith(migration_dir) or ("/" + migration_dir) in f) and f.endswith(".py"):
                 return True
     return False
 
