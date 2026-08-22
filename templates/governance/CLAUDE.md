@@ -76,6 +76,28 @@ what makes an in-flight command visible and un-abandonable.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 - **Shared repo — you are NOT alone:** other AI agents (and the daily pipeline) work in this repo concurrently and routinely have **uncommitted, half-finished work in the tree**. Commit and push carefully so you never destroy another AI's work: stage explicit paths only (never `git add -A` / `git add .` / `git commit -a`), `git diff --cached --name-only` before every commit, `git fetch` + fast-forward before pushing, and **never stash, revert, overwrite, `noqa`, "fix", or commit a file you did not author this turn** — a sibling's failing or half-edited file is THEIR work-in-progress, not your bug to touch (a gate that flags it is a shared-tree false-positive → report it, don't edit it). Causing data loss of another AI's work is a critical failure.
 
+## Upstream feedback to the hub — a DUTY at every step, not a courtesy
+
+**Whenever any step of any run hits a defect, gap, false positive/negative, or contradiction in
+FABRIK-OWNED machinery** — a synced file, an enforcement check, a `/fabrik-*` command's contract, the
+pipeline order, a scaffold emission — **you OWE the hub structured feedback.** Working around it silently,
+noting it only in a local doc, or absorbing the friction is a defect in YOUR run. The bar is the transdoc
+pattern (2026-08-21/22: the `check_schema_sync` suffix fix · the `/fabrik-flows` command pair · the
+frozen-chain drift gate — all three filed with evidence and LANDED fleet-wide within a day):
+
+1. **Never** edit the synced copy (HARD STOP) and never let a workaround substitute for the filing — a
+   local workaround (allowed when work must continue) is recorded IN the proposal as "what I did locally".
+2. **File it** via `/fabrik-upstream` PROJECT mode: a proposal at
+   `docs/reference/upstream-proposals/YYYY-MM-DD-<slug>.md` with the addressing header + reproducible
+   evidence + a concrete direction (verbatim diff or ranked options) + why-filed + blast-radius honesty.
+   The same shape applies when the gap is not a file defect (a missing pipeline stage, a command-contract
+   flaw) — the target is the hub file that would change.
+3. **Send it**: `python scripts/mail.py send --to fabrik --kind request --ack required` with the proposal
+   path in the body. The hub's next session runs HUB mode and replies landed / deferred / refuted.
+
+Friction too small for a proposal (a confusing prompt line, a noisy warn) still goes to the hub — one
+`--kind finding` mail beats a silent shrug; the kaizen metrics can only fix what gets reported.
+
 ## Completion Contract
 1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. **Behavior Contract:** cover every distinct user-observable behavior / acceptance criterion with a test (one per behavior, risk-ordered, TDD for the risky ones); skip trivia (getters / framework glue / config) — lean-but-complete, NOT 100%-coverage dogma (skip docs-only). **Watched-fail-first** (for tests THIS change adds or modifies): a non-trivial behavior's test must be SEEN RED — either written first and watched fail, or proven red-on-revert after the fact (neuter the change, watch the test fail, then RESTORE and re-run to green; the neutered state is never staged, committed, or left in the tree) — "it passes" is not evidence the test tests anything.
 1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your own diff for bugs, unhandled edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until the gate is green AND a fresh review surfaces nothing new.

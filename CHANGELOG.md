@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — upstream feedback to the hub is a DUTY in every project's governance (2026-08-22)
+
+- The synced project CLAUDE.md gains "§ Upstream feedback to the hub — a DUTY at every step":
+  any run that hits a defect, gap, or contradiction in fabrik-owned machinery OWES the hub a
+  /fabrik-upstream PROJECT-mode proposal + a request mail; silent workarounds are a defect in
+  the run; sub-proposal friction still goes as a finding mail. The bar is the transdoc
+  pattern (three filings, three fleet-wide landings within a day). Distributes fleet-wide via
+  the governance-sync on this commit (operator directive).
+
 ### Added — the frozen-chain drift gate: check_frozen_chain.py + re-freeze close-out (transdoc upstream, 2026-08-22)
 
 - New synced enforcement check `check_frozen_chain.py` (Tier 1+2, warn_only): a frozen
