@@ -754,6 +754,9 @@ python -m alerting --selftest --dry-run  # configuration only, sends nothing
 | `ALERT_APPRISE_URL` | Apprise URL as seen *from the VPS* (default `http://apprise:8000`). |
 | `ALERT_ENABLED` | `0` disables; `1` forces on; unset auto-enables when any delivery var is set. |
 | `ALERT_MIN_INTERVAL` | Dedup window in seconds per alert title (default `300`). |
+| `FABRIK_MAIL_HOP_CAP` | fabrik-mail auto-reply hop budget — HOLD when `parent.hops >=` this (default `3`; `0` = refuse all auto-replies). |
+| `FABRIK_MAIL_RATE_CAP` | fabrik-mail per-sender rate cap within the window (default `5`; `0` = refuse all). |
+| `FABRIK_MAIL_RATE_WINDOW_S` | fabrik-mail rate window, seconds (default `3600`; floors at `1` — a `0` window would disable the breaker). |
 
 ⚠️ **The Telegram credential is split.** A usable token is `<bot_id>:<secret>`, but
 `/opt/fabrik/.env` has historically stored only the secret half in `TELEGRAM_BOT_TOKEN`.

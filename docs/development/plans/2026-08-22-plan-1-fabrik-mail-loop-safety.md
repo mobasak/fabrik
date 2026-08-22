@@ -98,7 +98,13 @@ uses; all new tests isolate the same way) · send subparser `:547` · CLI `MailR
 2. `docs/workstation/fabrik-mail.md`: operator note — what a HOLD looks like; the overrides (a human
    `--re` without `--auto`; env-bump for a genuine long thread).
 3. `CHANGELOG.md` `### Added` entry; `docs/README.md`/INDEX rows only if a NEW doc file is created
-   (both docs exist — verify, else Doc Sync Matrix applies).
+   (both docs exist — verify, else Doc Sync Matrix applies). **The three env vars land in
+   `.env.example` + `docs/CONFIGURATION.md`** (the gate-enforced New-env-var row — E3).
+   **The mixed-fleet rollout note (E4)** goes in the fabrik-mail.md section: until every repo
+   syncs the new mail.py, a not-yet-synced peer emits hops-less replies read as 0 — the hop
+   cap is weak across mixed versions and the RATE cap is the backstop; also document that
+   `--auto` resolves the parent in `--from`'s OWN mailbox (a wrong --from degrades to the
+   fail-soft ALLOW — wrappers must pass the correct identity).
 4. **Commit** (explicit pathspecs + trailers): sync-conscious — this IS the fleet-distribution event;
    verify post-commit that a sample project's `scripts/mail.py` carries the guard (the transdoc check,
    as done for check_schema_sync). **Gate:** full `python scripts/final_gate.py --json` success ·

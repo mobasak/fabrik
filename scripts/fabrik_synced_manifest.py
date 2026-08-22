@@ -32,7 +32,7 @@ CORE_SCRIPTS = [
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
     "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
-    "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/ack/requeue/digest)
+    "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/claim/ack/requeue/digest/should-reply)
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
 ]
 

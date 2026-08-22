@@ -83,3 +83,12 @@ The daily digest cron (hub-side) delivers unacked traffic to Telegram so nothing
 - Protocol / agent usage: [`docs/reference/fabrik-mail.md`](../reference/fabrik-mail.md)
 - The surfacing hook row: [`docs/workstation/hooks-index.md`](hooks-index.md)
 - Hub governance (the two-channel peer note): `/opt/fabrik/CLAUDE.md` § "Two channels to your PEERS"
+
+## Loop-safety HOLDs (operator view)
+
+An unattended agent reply can stop with `auto-reply HOLD — <reason>` (exit 3 — benign: the guard
+did its job; distinct from a REFUSED exit 2). The reasons: self-guard · terminal kind · hop cap
+(thread depth ≥ 3) · per-sender rate cap (≥ 5/hour). Overrides when a long thread is genuine:
+reply yourself with a plain `--re` (no `--auto` — a human is never gated), or bump the env caps
+(`FABRIK_MAIL_HOP_CAP` / `FABRIK_MAIL_RATE_CAP` / `FABRIK_MAIL_RATE_WINDOW_S`; cap 0 = refuse all
+auto-replies). Pre-check any message with `python scripts/mail.py should-reply <id>`.

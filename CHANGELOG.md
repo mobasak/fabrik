@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fabrik-mail loop-safety: the four auto-reply guards behind --auto (2026-08-22)
+
+- `scripts/mail.py` (fleet-synced on this commit): a new `--auto` send flag enforces
+  `should_auto_reply(parent)` — self-guard · terminal kinds (keyed on the KIND, an --ack
+  override never defeats it) · hop budget (`hops` frontmatter, additive/backward-compatible,
+  counts on every --re) · per-sender rate limit (mailbox-derived, zero new state; window
+  floors at 1). A guard HOLD exits 3 (benign), distinct from a real refusal's 2 — and hard
+  refusals (secret/recipient/topology) always outrank a HOLD. `should-reply <id>` is the
+  advisory pre-check (same verdicts, exit 0/3). Fail-soft: a missing/prose-`re:` parent
+  ALLOWs with hops=0 + a stderr note; an existing-but-unparseable/unreadable parent HOLDs.
+  One ts convention (naive = UTC) shared by the rate guard and the digest; `read_msg` also
+  resolves a parent parked in an ack resolving window. 34 new tests (83 total), six
+  adversarial review rounds (11+7+9+7+4+3 findings, all fixed or adjudicated-documented).
+- Docs: `docs/reference/fabrik-mail.md` "Loop-safety / auto-reply" section (guards, exit
+  codes, fail-soft rules, the always-pass-`--auto` discipline, the mixed-fleet rollout note),
+  `docs/workstation/fabrik-mail.md` operator HOLD note, the three env vars in `.env.example`
+  + `docs/CONFIGURATION.md`.
+
 ### Added — plan: fabrik-mail loop-safety build (2026-08-22)
 
 - Execution-ready DRAFT plan for the fleet-authored CONVERGED loop-safety spec: the four

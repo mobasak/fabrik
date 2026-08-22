@@ -35,9 +35,12 @@ ts: <ISO-8601 UTC>  # mint time
 re: <id|empty>      # advisory threading hint (never validated — a dangling re: is harmless)
 kind: request|finding|relay|reply|upstream-feedback
 ack: required|no
+hops: <int>         # thread depth — 0 for a fresh send; every --re send writes parent.hops + 1
 ---
 <body>
 ```
+
+(`hops` is additive + backward-compatible: a legacy message with no `hops` line reads as 0.)
 
 ## The PROTOCOL rules (a raw write is a violation)
 
@@ -149,6 +152,42 @@ OR archived without an `acked-by:` line, older than N days by frontmatter `ts` �
 quarantined` count, across every mailbox. Delivery is the vendored `libs.alerting` (SSH→Apprise→
 Telegram, never raises); the import is lazy and hub-guarded, so a project-side `digest` prints locally
 and never `ImportError`s. A hub crontab line joins the daily family.
+
+## Loop-safety / auto-reply (the four guards behind `--auto`)
+
+An **unattended** reply MUST pass `--auto` (with `--re <parent-id>`) — that is the discipline the
+whole mechanism rests on: the guards only fire when the flag is set, and the enforced refusal is
+only as strong as the always-pass-`--auto` rule. A **human**-driven `--re` reply is never gated.
+
+`send --auto` evaluates `should_auto_reply(parent)` — guard order, first trip wins and names why:
+
+1. **Self-guard** — never auto-reply to your own message (`parent.from == you`).
+2. **Terminal kinds** — auto-reply only to `request`/`upstream-feedback` with `ack: required`
+   (keyed on the KIND — an `--ack required` override on a `reply` is still terminal). A
+   `reply`/`finding`/`relay` can never beget an auto-reply, so the trivial A→B→A loop cannot form.
+3. **Hop budget** — refuse when `parent.hops >= FABRIK_MAIL_HOP_CAP` (default 3). `hops` counts on
+   EVERY `--re` send, human or auto; only the `--auto` guard consumes it.
+4. **Per-sender rate limit** — refuse when `>= FABRIK_MAIL_RATE_CAP` (default 5) messages from the
+   parent's sender landed in YOUR inbox+archive within `FABRIK_MAIL_RATE_WINDOW_S` (default 3600 s;
+   floors at 1 — a 0 window would disable the breaker). The mailbox itself is the state — no store.
+
+**Verdicts + exit codes:** a guard HOLD on `send --auto` exits **3** (benign — the guard did its
+job; stop quietly), distinct from a real refusal's **2** (secret, invalid recipient, topology,
+`--auto` without `--re`) — hard refusals always outrank a HOLD. The advisory pre-check is
+`mail.py should-reply <id>` (prints `ALLOW`/`HOLD: <reason>`, exit 0/3) — same verdict logic as the
+enforced path, including exists-but-unparseable/unreadable parents (HOLD on both paths).
+
+**Fail-soft rules:** a genuinely MISSING or non-ULID (prose `re:`) parent → ALLOW with `hops=0` and
+a stderr note (a wedged channel is worse than a rare unbounded reply); an EXISTING parent that is
+unreadable or unparseable → HOLD (guards cannot be evaluated — never reply blind). `--auto`
+resolves the parent in the SENDER's (`--from`) own mailbox — a wrong `--from` degrades to the
+fail-soft ALLOW, so wrappers must pass the correct identity.
+
+**Mixed-fleet rollout note:** until every repo has synced this `mail.py`, a not-yet-synced peer
+mints replies with no `hops` line (read as 0) — the hop cap is weak across mixed versions and the
+rate cap is the backstop. Env overrides: `FABRIK_MAIL_HOP_CAP` · `FABRIK_MAIL_RATE_CAP` ·
+`FABRIK_MAIL_RATE_WINDOW_S` (an explicit cap of 0 = refuse all auto-replies; the window never
+goes below 1).
 
 ## Layer 2 — native cross-session messaging (adopt post-upgrade)
 

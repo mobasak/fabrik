@@ -140,7 +140,11 @@ def test_send_refuses_high_confidence_secret(env):
         mail.send(to="fabrik", kind="finding", body=body, frm="alpha")
     assert "secret" in str(ei.value).lower()
     # nothing written
-    assert not any((env["mail_root"] / "fabrik").rglob("*.md")) if (env["mail_root"] / "fabrik").exists() else True
+    assert (
+        not any((env["mail_root"] / "fabrik").rglob("*.md"))
+        if (env["mail_root"] / "fabrik").exists()
+        else True
+    )
 
 
 def test_send_refuses_pem_header(env):
@@ -278,8 +282,12 @@ def test_read_rejects_traversal_id(env):
 def test_digest_not_fooled_by_acked_by_prose_in_body(env):
     # a request (ack:required) whose BODY casually mentions "acked-by:" must NOT
     # be treated as acked when archived without a REAL ack line (old substring bug).
-    p = mail.send(to="fabrik", kind="request",
-                  body="the boss said acked-by: someone should handle this", frm="alpha")
+    p = mail.send(
+        to="fabrik",
+        kind="request",
+        body="the boss said acked-by: someone should handle this",
+        frm="alpha",
+    )
     arch_dir = env["mail_root"] / "fabrik" / "archive"
     arch_dir.mkdir(parents=True, exist_ok=True)
     os.rename(p, arch_dir / p.name)  # archived, NO real ack line appended
@@ -304,9 +312,19 @@ def test_send_refuses_jwt(env):
 
 def test_send_refuses_bearer_and_db_url(env):
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body="Authorization: Bearer abcdef1234567890XYZ", frm="alpha")
+        mail.send(
+            to="fabrik",
+            kind="finding",
+            body="Authorization: Bearer abcdef1234567890XYZ",
+            frm="alpha",
+        )
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body="db at postgresql://user:s3cretpass@host:5432/db", frm="alpha")
+        mail.send(
+            to="fabrik",
+            kind="finding",
+            body="db at postgresql://user:s3cretpass@host:5432/db",
+            frm="alpha",
+        )
 
 
 def test_send_refuses_anthropic_and_aws_session_and_github_pat(env):
@@ -323,7 +341,12 @@ def test_send_refuses_anthropic_and_aws_session_and_github_pat(env):
 def test_send_refuses_redis_url_without_user(env):
     # native review F3: redis://:pw@ has an EMPTY username — must still refuse
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body="cache at redis://:sup3rs3cr3tpw@10.99.0.1:6379/0", frm="alpha")
+        mail.send(
+            to="fabrik",
+            kind="finding",
+            body="cache at redis://:sup3rs3cr3tpw@10.99.0.1:6379/0",
+            frm="alpha",
+        )
 
 
 def test_digest_excludes_properly_acked_message(env):
@@ -362,7 +385,7 @@ def test_requeue_strips_stale_ack_line(env):
     back = mail.requeue(msg_id=mid, repo="fabrik")
     assert back.parent.name == "inbox"
     assert "acked-by:" not in back.read_text()  # stale claim marker stripped — a clean re-open
-    assert "do X" in back.read_text()            # body survives the strip
+    assert "do X" in back.read_text()  # body survives the strip
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +438,7 @@ def test_digest_alert_import_resolves_from_script_invocation(env, tmp_path):
     import os as _os
     import subprocess
     import sys as _sys
+
     repo_root = Path(mail.__file__).resolve().parent.parent
     env_vars = {k: v for k, v in _os.environ.items() if k != "PYTHONPATH"}
     probe = (
@@ -428,8 +452,14 @@ def test_digest_alert_import_resolves_from_script_invocation(env, tmp_path):
         "    ok = False; print('MNFE:', e)\n"
         "print('IMPORT_OK' if ok else 'IMPORT_DEAD')"
     ) % (repo_root / "scripts" / "mail.py")
-    r = subprocess.run([_sys.executable, "-c", probe], capture_output=True, text=True,
-                       timeout=30, env=env_vars, cwd=str(repo_root))
+    r = subprocess.run(
+        [_sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env_vars,
+        cwd=str(repo_root),
+    )
     assert "IMPORT_OK" in r.stdout, (r.stdout, r.stderr)
 
 
@@ -462,6 +492,7 @@ def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
     loudly — exactly one acked-by line survives."""
     import os as _os
     import time as _time
+
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     _os.utime(p, (_time.time() - 300, _time.time() - 300))  # OLD message (closer E1: renames
@@ -496,6 +527,7 @@ def test_stale_resolving_orphan_is_swept_and_resolvable(env):
     arch.rename(orphan)  # the dead resolver's residue
     import os as _os
     import time as _time
+
     _os.utime(orphan, (_time.time() - 120, _time.time() - 120))  # older than the 60s gate
     out = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert out.exists() and "disposition: done" in out.read_text()
@@ -549,6 +581,7 @@ def test_multiple_stale_orphans_all_cleared(env):
     PERMANENT digest noise. The sweep must recover one and clear the rest; digest clean."""
     import os as _os
     import time as _time
+
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
@@ -556,6 +589,7 @@ def test_multiple_stale_orphans_all_cleared(env):
     o1 = arch.parent / f"{mid}.md.resolving.1111"
     o2 = arch.parent / f"{mid}.md.resolving.2222"
     import shutil
+
     shutil.copy(arch, o1)
     arch.rename(o2)
     for o in (o1, o2):
@@ -572,6 +606,7 @@ def test_window_never_carries_stale_mtime(env, monkeypatch):
     atomically), so no instant exists where a window file looks old."""
     import os as _os
     import time as _time
+
     p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     _os.utime(p, (_time.time() - 300, _time.time() - 300))
@@ -587,3 +622,509 @@ def test_window_never_carries_stale_mtime(env, monkeypatch):
     monkeypatch.setattr(mail.os, "rename", checking_rename)
     mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert seen and seen["window_src_age"] < 5, seen
+
+
+# ---------------------------------------------------------------------------
+# Loop-safety guards (plan 2026-08-22-plan-1-fabrik-mail-loop-safety)
+# ---------------------------------------------------------------------------
+def _mint(env, frm, to, kind, ack, ts="2026-08-22T10:00:00+00:00", hops=None, mid=None):
+    """Plant a message file directly in <to>'s inbox (frontmatter-level fixture)."""
+    mid = mid or mail._ulid()
+    lines = [
+        "---",
+        f"id: {mid}",
+        f"from: {frm}",
+        f"to: {to}",
+        f"ts: {ts}",
+        "re: ",
+        f"kind: {kind}",
+        f"ack: {ack}",
+    ]
+    if hops is not None:
+        lines.append(f"hops: {hops}")
+    lines += ["---", "body", ""]
+    inbox = env["mail_root"] / to / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"{mid}.md").write_text("\n".join(lines), encoding="utf-8")
+    return mid
+
+
+def test_auto_guard_truth_table(env):
+    """Guard order: self → terminal-kind → hop-cap → rate-cap → ALLOW."""
+    # self-guard
+    ok, reason = mail.should_auto_reply(
+        {"from": "fabrik", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert not ok and "self" in reason
+    # terminal kind (ack: no)
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "reply", "ack": "no", "hops": "0"}, "fabrik"
+    )
+    assert not ok and "terminal" in reason
+    # hop cap
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "3"}, "fabrik"
+    )
+    assert not ok and "hop" in reason
+    # ALLOW (fresh request, no traffic)
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert ok, reason
+
+
+def test_hop_cap_boundary_equal_refuses(env, monkeypatch):
+    """parent.hops == cap REFUSES (>=, not >)."""
+    monkeypatch.setenv("FABRIK_MAIL_HOP_CAP", "2")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "2"}, "fabrik"
+    )
+    assert not ok and "hop" in reason
+    ok, _ = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "1"}, "fabrik"
+    )
+    assert ok
+
+
+def test_rate_cap_counts_only_recent_from_sender(env):
+    """5 recent messages from the sender in MY inbox+archive → rate HOLD."""
+    now_ts = mail.datetime.fromisoformat("2026-08-22T12:00:00+00:00").timestamp()
+    for _ in range(5):
+        _mint(env, "alpha", "fabrik", "request", "required", ts="2026-08-22T11:30:00+00:00")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"},
+        "fabrik",
+        now_ts=now_ts,
+    )
+    assert not ok and "rate" in reason
+    # a different sender's traffic never counts
+    ok, _ = mail.should_auto_reply(
+        {"from": "beta", "kind": "request", "ack": "required", "hops": "0"}, "fabrik", now_ts=now_ts
+    )
+    assert ok
+
+
+def test_rate_window_edge(env):
+    """A message aged EXACTLY the window is OUT; one second younger is IN."""
+    now_ts = mail.datetime.fromisoformat("2026-08-22T12:00:00+00:00").timestamp()
+    for _ in range(5):
+        _mint(env, "alpha", "fabrik", "request", "required", ts="2026-08-22T11:00:00+00:00")
+    # exactly window (3600 s) old → OUT → count 0 → ALLOW
+    ok, _ = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"},
+        "fabrik",
+        now_ts=now_ts,
+    )
+    assert ok, "age == window is OUT of the window"
+    for _ in range(5):
+        _mint(env, "alpha", "fabrik", "request", "required", ts="2026-08-22T11:00:01+00:00")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"},
+        "fabrik",
+        now_ts=now_ts,
+    )
+    assert not ok and "rate" in reason, "age == window - 1 is IN"
+
+
+def test_re_send_increments_hops_including_legacy_parent(env):
+    """send --re sets hops = parent.hops + 1; a legacy parent with NO hops key
+    counts as 0 → child 1. Human sends (no --auto) are never gated."""
+    pid = _mint(env, "alpha", "fabrik", "request", "required", hops=None)  # legacy: no hops
+    out = mail.send("alpha", "reply", "x", frm="fabrik", re=pid)
+    fm = mail._parse(out.read_text(encoding="utf-8"))
+    assert fm.get("hops") == "1", fm
+    pid2 = _mint(env, "alpha", "fabrik", "request", "required", hops=7)
+    out2 = mail.send("alpha", "reply", "x", frm="fabrik", re=pid2)
+    assert mail._parse(out2.read_text(encoding="utf-8")).get("hops") == "8"
+
+
+def test_human_deep_thread_never_gated(env):
+    """No --auto → no guard, whatever the depth or kind."""
+    pid = _mint(env, "fabrik", "fabrik", "reply", "no", hops=99)  # self + terminal + deep
+    out = mail.send("alpha", "reply", "x", frm="fabrik", re=pid)
+    assert out.is_file()
+
+
+def test_auto_without_re_is_usage_refusal(env):
+    with pytest.raises(mail.MailRefusedError, match="--auto requires --re"):
+        mail.send("alpha", "reply", "x", frm="fabrik", auto=True)
+
+
+def test_auto_with_dangling_re_fail_soft_allows(env, capsys):
+    """An unresolvable --re under --auto ALLOWs with hops=0 and a stderr note."""
+    out = mail.send("alpha", "reply", "x", frm="fabrik", re="01ARZ3NDEKTSV4RRFFQ69G5FAV", auto=True)
+    fm = mail._parse(out.read_text(encoding="utf-8"))
+    assert fm.get("hops") == "0"
+    assert "fail-soft" in capsys.readouterr().err
+
+
+def test_auto_refuses_on_guard_and_writes_nothing(env):
+    """--auto on a terminal-kind parent → MailRefusedError, no file minted."""
+    pid = _mint(env, "alpha", "fabrik", "reply", "no")
+    before = (
+        sorted((env["mail_root"] / "alpha" / "inbox").glob("*.md"))
+        if (env["mail_root"] / "alpha" / "inbox").is_dir()
+        else []
+    )
+    with pytest.raises(mail.MailRefusedError, match="terminal"):
+        mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)
+    after = (
+        sorted((env["mail_root"] / "alpha" / "inbox").glob("*.md"))
+        if (env["mail_root"] / "alpha" / "inbox").is_dir()
+        else []
+    )
+    assert before == after, "a refused auto-reply writes NOTHING"
+
+
+def test_auto_allows_a_fresh_request_parent(env):
+    pid = _mint(env, "alpha", "fabrik", "request", "required")
+    out = mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)
+    assert out.is_file()
+    assert mail._parse(out.read_text(encoding="utf-8")).get("hops") == "1"
+
+
+def test_unreadable_rate_state_fails_soft_allow(env, capsys, monkeypatch):
+    """A rate count that cannot be computed ALLOWs with a stderr note — a loop
+    is lower-risk than a wedged channel."""
+
+    def _boom(*a, **kw):
+        raise OSError("simulated unreadable mailbox")
+
+    monkeypatch.setattr(mail, "_recent_from_count", _boom)
+    ok, _ = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert ok
+    assert "rate" in capsys.readouterr().err.lower()
+
+
+def test_rate_count_is_read_only_never_quarantines(env):
+    """Unlike digest's walk, the rate count must SKIP a malformed file, never
+    move it to malformed/."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "malformed-thing.md"
+    bad.write_text("no frontmatter at all", encoding="utf-8")
+    now_ts = mail.datetime.now(mail.UTC).timestamp()
+    mail._recent_from_count("fabrik", "alpha", 3600, now_ts)
+    assert bad.is_file(), "read-only: the malformed file stays exactly where it was"
+    assert not (env["mail_root"] / "fabrik" / "malformed").exists()
+
+
+def test_should_reply_cli_exit_codes(env, capsys):
+    """should-reply <id>: ALLOW exit 0 · HOLD exit 3 (distinct from refusal 2)."""
+    pid = _mint(env, "alpha", "fabrik", "request", "required")
+    rc = mail.main(["should-reply", pid, "--repo", "fabrik"])
+    assert rc == 0 and "ALLOW" in capsys.readouterr().out
+    pid2 = _mint(env, "alpha", "fabrik", "reply", "no")
+    rc = mail.main(["should-reply", pid2, "--repo", "fabrik"])
+    assert rc == 3 and "HOLD" in capsys.readouterr().out
+
+
+# --- boundary-review fix wave (R1..R11) -------------------------------------
+def test_prose_re_never_breaks_a_send(env):
+    """R1 (HIGH): legacy threads carry prose re: values (live store proof:
+    'U3: is validate_conventions …') — a non-ULID --re must fail-soft to
+    hops=0, never refuse the send."""
+    out = mail.send("alpha", "reply", "x", frm="fabrik", re="U3: prose thread ref")
+    assert out.is_file()
+    assert mail._parse(out.read_text(encoding="utf-8")).get("hops") == "0"
+
+
+def test_spoofed_ack_on_terminal_kind_still_terminal(env):
+    """R2 (HIGH): the guard keys on the KIND, not the overridable ack — a
+    reply minted with --ack required must still be terminal."""
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "reply", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert not ok and "terminal" in reason
+
+
+def test_existing_but_unparseable_parent_refuses_auto(env):
+    """R3: a parent that EXISTS but cannot be parsed must REFUSE an --auto
+    reply (guards cannot be evaluated — never bypass them blind); only a
+    genuinely MISSING parent is the fail-soft ALLOW."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    bad_id = mail._ulid()
+    (inbox / f"{bad_id}.md").write_text("---\nid: \nkind: \n---\nbroken\n", encoding="utf-8")
+    with pytest.raises(mail.MailRefusedError, match="unparseable"):
+        mail.send("alpha", "reply", "x", frm="fabrik", re=bad_id, auto=True)
+
+
+def test_negative_or_garbage_hops_clamp_to_zero(env):
+    """R4: hops is clamped to >= 0 — a corrupt negative value must not disable
+    the hop cap; garbage parses 0."""
+    assert mail._fm_hops({"hops": "-999"}) == 0
+    assert mail._fm_hops({"hops": "3.5"}) == 0
+    assert mail._fm_hops({"hops": "7"}) == 7
+
+
+def test_guard_precedence_first_trip_wins(env):
+    """R10: two-guard fixtures prove the ORDER — self outranks terminal;
+    terminal outranks hop."""
+    ok, reason = mail.should_auto_reply(
+        {"from": "fabrik", "kind": "reply", "ack": "no", "hops": "99"}, "fabrik"
+    )
+    assert not ok and "self" in reason
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "reply", "ack": "no", "hops": "99"}, "fabrik"
+    )
+    assert not ok and "terminal" in reason
+
+
+def test_should_reply_non_ulid_fails_soft_allow(env, capsys):
+    """R7: the advisory pre-check never hard-fails — a non-ULID id ALLOWs
+    (exit 0) with the fail-soft note."""
+    rc = mail.main(["should-reply", "not-a-ulid", "--repo", "fabrik"])
+    assert rc == 0
+    assert "ALLOW" in capsys.readouterr().out
+
+
+def test_refused_auto_prints_no_secret_warning(env, capsys):
+    """R11: a refused --auto send must not emit the 'sending anyway'
+    low-secret warning for a message that was never sent."""
+    pid = _mint(env, "alpha", "fabrik", "reply", "no")
+    body = "looks like a password: hunter2hunter2"
+    with pytest.raises(mail.MailRefusedError):
+        mail.send("alpha", "reply", body, frm="fabrik", re=pid, auto=True)
+    assert "sending anyway" not in capsys.readouterr().err
+
+
+# --- confirming-round fix wave (C1..C7) --------------------------------------
+def test_should_reply_agrees_with_send_on_unparseable_parent(env, capsys):
+    """C1: the advisory pre-check and the enforced send must give the SAME
+    verdict — an existing-but-unparseable parent is HOLD (exit 3) on both."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    bad_id = mail._ulid()
+    (inbox / f"{bad_id}.md").write_text("---\nid: \nkind: \n---\nbroken\n", encoding="utf-8")
+    rc = mail.main(["should-reply", bad_id, "--repo", "fabrik"])
+    assert rc == 3
+    assert "unparseable" in capsys.readouterr().out
+
+
+def test_unreadable_existing_parent_refuses_auto(env):
+    """C2: EACCES on an EXISTING parent is not 'missing' — guards cannot be
+    evaluated, so --auto refuses (only FileNotFoundError is the fail-soft)."""
+    import os as _os
+
+    if _os.geteuid() == 0:
+        pytest.skip("root ignores mode bits")
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    f = inbox / f"{pid}.md"
+    f.write_text("---\nid: x\nkind: request\n---\nbody\n", encoding="utf-8")
+    f.chmod(0o000)
+    try:
+        with pytest.raises(mail.MailRefusedError, match="unreadable|unparseable"):
+            mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)
+    finally:
+        f.chmod(0o644)
+
+
+def test_hold_exit_code_is_distinct_from_refusal(env, capsys):
+    """C3: a loop-safety HOLD from send --auto exits 3 (benign, stop quietly);
+    a real refusal (secret, topology) stays 2 — a wrapper can tell them apart."""
+    pid = _mint(env, "alpha", "fabrik", "reply", "no")
+    import io as _io
+    import sys as _sys
+
+    old = _sys.stdin
+    _sys.stdin = _io.StringIO("x")
+    try:
+        rc = mail.main(
+            ["send", "--to", "alpha", "--kind", "reply", "--re", pid, "--auto", "--from", "fabrik"]
+        )
+    finally:
+        _sys.stdin = old
+    assert rc == 3, "HOLD is exit 3"
+    assert "HOLD" in capsys.readouterr().err
+
+
+def test_future_dated_ts_never_counts_as_recent(env):
+    """C4: a future-dated ts (negative age) must not satisfy the window."""
+    now_ts = mail.datetime.fromisoformat("2026-08-22T12:00:00+00:00").timestamp()
+    for _ in range(5):
+        _mint(env, "alpha", "fabrik", "request", "required", ts="2026-08-22T13:00:00+00:00")
+    ok, _ = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"},
+        "fabrik",
+        now_ts=now_ts,
+    )
+    assert ok, "future-dated messages are corruption, not recent traffic"
+
+
+def test_naive_ts_is_treated_as_utc(env):
+    """C4: a legacy naive ts (no offset) reads as UTC, not box-local."""
+    now_ts = mail.datetime.fromisoformat("2026-08-22T12:00:00+00:00").timestamp()
+    for _ in range(5):
+        _mint(env, "alpha", "fabrik", "request", "required", ts="2026-08-22T11:30:00")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"},
+        "fabrik",
+        now_ts=now_ts,
+    )
+    assert not ok and "rate" in reason
+
+
+def test_cap_zero_means_zero(env, monkeypatch):
+    """C6: an explicit cap of 0 is an operator intent (refuse all), never a
+    silent fall-back to the default."""
+    monkeypatch.setenv("FABRIK_MAIL_HOP_CAP", "0")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert not ok and "hop" in reason
+
+
+def test_rate_cap_through_the_real_send_path(env):
+    """C7: the cap measured as production produces it — the parent itself is in
+    the counted set, so cap 5 = parent + 4 more."""
+    now = mail.datetime.now(mail.UTC).isoformat()
+    pid = _mint(env, "alpha", "fabrik", "request", "required", ts=now)
+    for _ in range(4):
+        _mint(env, "alpha", "fabrik", "request", "required", ts=now)
+    with pytest.raises(mail.MailRefusedError, match="rate"):
+        mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)
+
+
+# --- round-3 fix wave (D1..D9) ------------------------------------------------
+def test_rate_window_zero_never_disables_the_breaker(env, monkeypatch, capsys):
+    """D1 (HIGH): FABRIK_MAIL_RATE_WINDOW_S=0 must NOT silently disable the
+    rate guard — a zero window is invalid (warned, default used)."""
+    now = mail.datetime.now(mail.UTC).isoformat()
+    for _ in range(5):
+        _mint(env, "alpha", "fabrik", "request", "required", ts=now)
+    monkeypatch.setenv("FABRIK_MAIL_RATE_WINDOW_S", "0")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert not ok and "rate" in reason, "the breaker must still fire on the default window"
+    assert "FABRIK_MAIL_RATE_WINDOW_S" in capsys.readouterr().err
+
+
+def test_rate_cap_zero_refuses_all(env, monkeypatch):
+    """D4: FABRIK_MAIL_RATE_CAP=0 is refuse-all intent (0 recent >= 0)."""
+    monkeypatch.setenv("FABRIK_MAIL_RATE_CAP", "0")
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"}, "fabrik"
+    )
+    assert not ok and "rate" in reason
+
+
+def test_real_refusal_still_exits_two(env, capsys):
+    """D5: the distinctness proof — a usage refusal (--auto without --re) exits
+    2 while a guard HOLD exits 3 (test_hold_exit_code covers the 3 side)."""
+    import io as _io
+    import sys as _sys
+
+    old = _sys.stdin
+    _sys.stdin = _io.StringIO("x")
+    try:
+        rc = mail.main(["send", "--to", "alpha", "--kind", "reply", "--auto", "--from", "fabrik"])
+    finally:
+        _sys.stdin = old
+    assert rc == 2
+    assert "REFUSED" in capsys.readouterr().err
+
+
+def test_high_secret_refusal_outranks_a_guard_hold(env, capsys):
+    """E1: a credential-bearing --auto send is a REAL refusal (exit 2), never a
+    benign HOLD (3) — even when the parent would also trip a guard."""
+    pid = _mint(env, "alpha", "fabrik", "reply", "no", hops=9)  # would HOLD
+    import io as _io
+    import sys as _sys
+
+    old = _sys.stdin
+    _sys.stdin = _io.StringIO("AWS_KEY=AKIAABCDEFGHIJKLMNOP secret payload")
+    try:
+        rc = mail.main(
+            ["send", "--to", "alpha", "--kind", "reply", "--re", pid, "--auto", "--from", "fabrik"]
+        )
+    finally:
+        _sys.stdin = old
+    assert rc == 2, "the secret refusal wins"
+    assert "secret" in capsys.readouterr().err
+
+
+def test_invalid_recipient_outranks_a_guard_hold(env, capsys):
+    """D6: a REAL misconfiguration (invalid recipient, exit 2) must never be
+    masked by a benign guard HOLD (exit 3) — hard validations run first."""
+    pid = _mint(env, "alpha", "fabrik", "reply", "no")  # would HOLD under --auto
+    import io as _io
+    import sys as _sys
+
+    old = _sys.stdin
+    _sys.stdin = _io.StringIO("x")
+    try:
+        rc = mail.main(
+            [
+                "send",
+                "--to",
+                "no-such-repo",
+                "--kind",
+                "reply",
+                "--re",
+                pid,
+                "--auto",
+                "--from",
+                "fabrik",
+            ]
+        )
+    finally:
+        _sys.stdin = old
+    assert rc == 2, "the misconfiguration surfaces; the wrapper must not stop quietly"
+    assert "invalid recipient" in capsys.readouterr().err
+
+
+def test_should_reply_names_the_invalid_id_cause(env, capsys):
+    """D9: an invalid (non-ULID) id fail-softs ALLOW but says WHY — never the
+    false 'no such parent' claim for an id that was never looked up."""
+    rc = mail.main(["should-reply", "not-a-ulid", "--repo", "fabrik"])
+    assert rc == 0
+    assert "not a ULID" in capsys.readouterr().out
+
+
+def test_naive_ts_digest_and_rate_agree(env):
+    """D2: ONE timestamp convention — _age_seconds and _ts_epoch read a naive
+    ts identically (UTC), so a message cannot be simultaneously in-window for
+    the rate guard and past the digest threshold by the box's UTC offset."""
+    naive = "2026-08-22T11:30:00"
+    # the convention itself, non-tautologically: naive == the same instant UTC
+    assert mail._ts_epoch(naive) == mail._ts_epoch(naive + "+00:00"), (
+        "a naive ts must read as UTC, never box-local"
+    )
+    a = mail._age_seconds(naive)
+    t = mail._ts_epoch(naive)
+    assert t is not None
+    expected = mail.datetime.now(mail.UTC).timestamp() - t
+    assert abs(a - expected) < 5, "the two parsers share one implementation"
+
+
+def test_rate_count_ignores_mtime_entirely(env):
+    """F1 (the E2 regression guard): a message with a FRESH ts but an ancient
+    mtime (cp -p / rsync -a / restore shape) still counts — re-adding any
+    mtime prefilter to _recent_from_count fails here."""
+    now = mail.datetime.now(mail.UTC)
+    for _ in range(5):
+        mid = _mint(env, "alpha", "fabrik", "request", "required", ts=now.isoformat())
+        f = env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md"
+        os.utime(f, (0, 0))  # epoch mtime — maximally stale
+    ok, reason = mail.should_auto_reply(
+        {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"},
+        "fabrik",
+        now_ts=now.timestamp(),
+    )
+    assert not ok and "rate" in reason, "the ts is the authority; mtime must be ignored"
+
+
+def test_parent_in_resolving_window_keeps_guards_evaluable(env):
+    """G2: a parent parked in an ack resolving window (or orphaned by a crashed
+    acker) still resolves — --auto must not fail-soft-bypass the guards."""
+    pid = _mint(env, "alpha", "fabrik", "reply", "no")
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    (inbox / f"{pid}.md").rename(inbox / f"{pid}.md.resolving.99999")
+    with pytest.raises(mail.MailHoldError, match="terminal"):
+        mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)

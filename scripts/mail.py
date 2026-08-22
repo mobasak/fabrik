@@ -4,14 +4,16 @@
 
 One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,archive}``
 (default root ``/opt/fabrik-mail``). A message is one ``.md`` file: YAML-ish frontmatter
-(``id from to ts re kind ack``) + a markdown body. Subcommands:
+(``id from to ts re kind ack hops``) + a markdown body. Subcommands:
 
-    send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] < body
+    send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto] < body
     list  [--repo <repo>]
     read  <id> [--repo <repo>]
     ack   <id> [--repo <repo>] [--disposition done|blocked|wontfix]
     requeue <id> [--repo <repo>]
     digest [--days N]
+    claim <id> [--repo <repo>]
+    should-reply <id> [--repo <repo>]   # advisory loop-safety pre-check (ALLOW 0 / HOLD 3)
 
 Protocol invariants (the conventions doc, docs/reference/fabrik-mail.md, is canonical):
   * publish = tmp-then-EXCLUSIVE-create (``os.link`` → ``EEXIST`` on collision, never overwrite)
@@ -49,6 +51,38 @@ ACK_BY_KIND = {  # default ack per kind
     "reply": "no",
 }
 MAX_BODY = 64 * 1024  # a mail is a pointer, not a payload
+
+# Loop-safety defaults (spec 2026-08-15-fabrik-mail-loop-safety-design; env-overridable).
+# Read at CALL time via _env_cap so a per-thread override needs no restart.
+HOP_CAP = 3  # refuse an auto-reply when parent.hops >= this (thread depth budget)
+RATE_CAP = 5  # refuse when >= this many messages from the sender within the window
+RATE_WINDOW_S = 3600  # the per-sender rate window, seconds
+
+
+def _env_cap(name: str, default: int, minimum: int = 0) -> int:
+    """Int env override, else the default. For the CAPS an explicit 0 is an
+    operator INTENT (refuse all auto-replies), never a silent fall-back (C6);
+    the rate WINDOW floors at 1 (D1 — a 0 window makes `0 <= age < 0` never
+    true, silently DISABLING the circuit breaker: fail-open, the inversion of
+    the caps' semantics). Below-minimum/garbage values warn and use the
+    default."""
+    raw = os.environ.get(name, "")
+    if not raw:
+        return default
+    try:
+        v = int(raw)
+    except ValueError:
+        print(f"mail.py: {name}={raw!r} is not an int — using default {default}", file=sys.stderr)
+        return default
+    if v < minimum:
+        print(
+            f"mail.py: {name}={v} is below the minimum {minimum} — using default {default}",
+            file=sys.stderr,
+        )
+        return default
+    return v
+
+
 DISPOSITIONS = (
     "done",
     "blocked",
@@ -100,6 +134,13 @@ def _safe_id(msg_id: str) -> str:
 
 class MailRefusedError(Exception):
     """A loud, nothing-written refusal (invalid recipient, star violation, secret, oversize)."""
+
+
+class MailHoldError(MailRefusedError):
+    """A loop-safety HOLD on an --auto send (benign: the guard did its job —
+    exit 3, distinct from a real refusal's exit 2, so an unattended wrapper can
+    stop quietly without string-matching stderr). Subclasses MailRefusedError
+    so every existing catch still works."""
 
 
 # --- env / paths -------------------------------------------------------------
@@ -207,7 +248,7 @@ def _now_iso() -> str:
 
 
 def _frontmatter(
-    mid: str, frm: str, to: str, ts: str, re_: str, kind: str, ack: str, body: str
+    mid: str, frm: str, to: str, ts: str, re_: str, kind: str, ack: str, body: str, hops: int = 0
 ) -> str:
     return (
         "---\n"
@@ -218,9 +259,124 @@ def _frontmatter(
         f"re: {re_ or ''}\n"
         f"kind: {kind}\n"
         f"ack: {ack}\n"
+        f"hops: {hops}\n"
         "---\n"
         f"{body}" + ("" if body.endswith("\n") else "\n")
     )
+
+
+def _ts_epoch(ts: str) -> float | None:
+    """Epoch seconds for a frontmatter ts — a NAIVE ts reads as UTC (C4: the
+    emitter always writes UTC; box-local interpretation shifted legacy naive
+    stamps by the UTC offset). None when unparseable."""
+    try:
+        dt_ = datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return None
+    if dt_.tzinfo is None:
+        dt_ = dt_.replace(tzinfo=UTC)
+    return dt_.timestamp()
+
+
+def _fm_hops(fm: dict) -> int:
+    """Parent thread depth — fail-soft: missing/malformed reads as 0 (legacy),
+    and the value is CLAMPED to >= 0 (R4: one corrupt negative value must not
+    disable the hop cap for a whole subtree)."""
+    try:
+        return max(0, int(fm.get("hops", "0") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _recent_from_count(
+    repo: str, sender: str, window_s: int, now_ts: float, root: Path | None = None
+) -> int:
+    """Messages from ``sender`` in ``repo``'s inbox+archive younger than the
+    window. The mailbox IS the state (zero-infra, 12F-VI) — the digest walk
+    pattern but READ-ONLY: a malformed file is SKIPPED, never quarantined
+    (digest owns that repair); an unreadable file is skipped; age == window is
+    OUT of the window. In practice is_dir() + glob swallow most dir errors —
+    the caller's OSError fail-soft remains as defense-in-depth, not a hot path."""
+    base = (root or _mail_root()) / repo
+    total = 0
+    for sub in ("inbox", "archive"):
+        d = base / sub
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.md")):
+            # (An mtime prefilter was tried and REMOVED — E2: mtime and ts
+            # diverge under cp -p/rsync/restores and synthetic now_ts, silently
+            # under-counting the breaker. The O(N) walk is the accepted cost.)
+            # C5 (accepted): a message inside an ack's resolving window
+            # (<id>.md.resolving.<pid>) escapes this glob for milliseconds —
+            # a transient UNDER-count, i.e. the fail-soft direction.
+            try:
+                fm = _parse(f.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+            if fm is None or fm.get("from") != sender:
+                continue
+            ts = _ts_epoch(fm.get("ts", ""))
+            if ts is None:
+                continue  # unparseable ts → not counted (under-count = fail-soft)
+            age = now_ts - ts
+            if 0 <= age < window_s:  # C4: a future-dated ts is corruption, never "recent"
+                total += 1
+    return total
+
+
+def should_auto_reply(
+    parent_fm: dict, self_repo: str, *, now_ts: float | None = None, root: Path | None = None
+) -> tuple[bool, str]:
+    """The four loop-safety guards, evaluated against the PARENT being replied
+    to. Order: self → terminal-kind → hop-cap → rate-cap → ALLOW; first trip
+    wins and names the reason. Fail-soft: an uncomputable rate count ALLOWs
+    with a stderr note (a loop is lower-risk than a wedged channel)."""
+    sender = parent_fm.get("from", "")
+    if sender == self_repo:
+        return (
+            False,
+            f"self-guard: parent is from {self_repo} itself — never auto-reply to your own message",
+        )
+    # R2: key on the KIND, never the ack proxy — --ack is a free override, so
+    # a reply minted with ack:required would otherwise beget replies forever.
+    if parent_fm.get("kind", "") not in ("request", "upstream-feedback") or (
+        parent_fm.get("ack", "") != "required"
+    ):
+        return False, (
+            f"terminal kind: parent is {parent_fm.get('kind', '?')!r} (ack: "
+            f"{parent_fm.get('ack', '?')}) — only ack:required request/upstream-feedback "
+            "messages are auto-replied"
+        )
+    hops = _fm_hops(parent_fm)
+    hop_cap = _env_cap("FABRIK_MAIL_HOP_CAP", HOP_CAP)
+    if hops >= hop_cap:
+        return (
+            False,
+            f"hop cap: parent at depth {hops} >= {hop_cap} — surface the thread to the operator",
+        )
+    now_ts = now_ts if now_ts is not None else datetime.now(UTC).timestamp()
+    try:
+        recent = _recent_from_count(
+            self_repo,
+            sender,
+            _env_cap("FABRIK_MAIL_RATE_WINDOW_S", RATE_WINDOW_S, minimum=1),
+            now_ts,
+            root,
+        )
+    except OSError as exc:
+        print(f"mail.py: rate count unavailable ({exc!r}) — fail-soft ALLOW", file=sys.stderr)
+        return True, "ALLOW (rate state unreadable — fail-soft)"
+    # F3 (accepted): read-then-act with no lock — concurrent senders can
+    # overshoot the cap by the concurrency degree (hub runs up to 3 sessions);
+    # the NEXT send trips, so the bound is "cap ± concurrency", never unbounded.
+    rate_cap = _env_cap("FABRIK_MAIL_RATE_CAP", RATE_CAP)
+    if recent >= rate_cap:
+        return False, (
+            f"rate cap: {recent} message(s) from {sender} within the window >= {rate_cap} — "
+            "circuit-broken; surface to the operator"
+        )
+    return True, "ALLOW"
 
 
 def send(
@@ -230,6 +386,7 @@ def send(
     frm: str | None = None,
     ack: str | None = None,
     re: str | None = None,
+    auto: bool = False,
 ) -> Path:
     """Publish a message to <to>'s inbox. Raises MailRefusedError on any refusal (nothing written)."""
     frm = frm or _current_repo()
@@ -246,16 +403,6 @@ def send(
             "refusing send: body contains a VERBATIM ack line (it would poison claim/ack/digest "
             "scans) — quote resolved threads with an indent: '> acked-by: …'"
         )
-    level = _secret_level(body)
-    if level == "high":
-        raise MailRefusedError(
-            "refusing send: body contains a high-confidence secret — messages never carry credentials"
-        )
-    if level == "low":
-        print(
-            "mail.py: WARNING — low-confidence secret-like text in body; sending anyway (use <PASTE …> pointers for real secrets)",
-            file=sys.stderr,
-        )
     if not _valid_recipient(to):
         raise MailRefusedError(
             f"invalid recipient {to!r}: not fabrik/fabrik-lib and no /opt/{to}/.claude/hooks/mail_notify.py (a repo that can't surface mail)"
@@ -264,9 +411,68 @@ def send(
         raise MailRefusedError(
             f"star-topology refusal: {frm}→{to} is project→project; route via the hub (--to fabrik)"
         )
+    # E1: the HIGH-secret refusal outranks every guard HOLD — a credential-
+    # bearing send must never be classified as a benign loop-guard stop (only
+    # the LOW-confidence warn stays after the guards, so a refused auto-reply
+    # never prints "sending anyway" — R11).
+    level = _secret_level(body)
+    if level == "high":
+        raise MailRefusedError(
+            "refusing send: body contains a high-confidence secret — messages never carry credentials"
+        )
+    # D6: the recipient/star checks above run BEFORE the guards — a real
+    # misconfiguration (exit 2) must never be masked by a benign HOLD (exit 3).
+    # Loop-safety (spec 2026-08-15): resolve the parent ONCE; hops measures
+    # thread depth on EVERY --re (human or auto); only --auto consumes guards.
+    # The resolution catches MailRefusedError too (R1): legacy threads carry
+    # PROSE re: values — a non-ULID --re fail-softs to hops=0, never refuses.
+    parent: dict | None = None
+    parent_raw: str | None = None
+    parent_unreadable = False
+    if re:
+        try:
+            parent_raw = read_msg(re, frm)
+        except (MailRefusedError, FileNotFoundError):
+            parent_raw = None  # non-ULID (prose re, R1) or genuinely missing — fail-soft
+        except OSError:
+            parent_unreadable = True  # C2: EXISTS but unreadable ≠ missing
+        parent = _parse(parent_raw) if parent_raw is not None else None
+    hops = (_fm_hops(parent) + 1) if parent is not None else 0
+    if auto:
+        if not re:
+            raise MailRefusedError(
+                "--auto requires --re: an auto-reply with no parent has nothing to guard against"
+            )
+        if parent_unreadable:
+            raise MailHoldError(
+                f"auto-reply HOLD — parent {re!r} exists but is unreadable; "
+                "guards cannot be evaluated"
+            )
+        if parent is None and parent_raw is not None:
+            # R3: the parent EXISTS but cannot be parsed — the guards cannot be
+            # evaluated; refusing beats replying blind (only a MISSING parent
+            # is the sanctioned fail-soft ALLOW).
+            raise MailHoldError(
+                f"auto-reply HOLD — parent {re!r} exists but is unparseable; "
+                "guards cannot be evaluated"
+            )
+        if parent is None:
+            print(
+                f"mail.py: --auto with unresolvable --re {re!r} — fail-soft ALLOW (hops=0)",
+                file=sys.stderr,
+            )
+        else:
+            ok, reason = should_auto_reply(parent, frm)
+            if not ok:
+                raise MailHoldError(f"auto-reply HOLD — {reason}")
+    if level == "low":
+        print(
+            "mail.py: WARNING — low-confidence secret-like text in body; sending anyway (use <PASTE …> pointers for real secrets)",
+            file=sys.stderr,
+        )
     ack = ack or ACK_BY_KIND[kind]
     mid = _ulid()
-    content = _frontmatter(mid, frm, to, _now_iso(), re or "", kind, ack, body)
+    content = _frontmatter(mid, frm, to, _now_iso(), re or "", kind, ack, body, hops=hops)
     return _publish(_mail_root() / to / "inbox", mid, content)
 
 
@@ -340,6 +546,7 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
                 stale.append(orphan)
         except FileNotFoundError:
             continue  # the live resolver finished mid-check — fine
+
     def _mtime_or_zero(o: Path) -> float:
         try:
             return o.stat().st_mtime
@@ -422,10 +629,11 @@ def _parse(text: str) -> dict | None:
 
 
 def _age_seconds(ts: str) -> float:
-    try:
-        return datetime.now(UTC).timestamp() - datetime.fromisoformat(ts).timestamp()
-    except (ValueError, TypeError):
-        return float("inf")  # unparseable ts → surface it, never hide
+    """Age vs now — ONE ts convention with the rate guard (D2): naive reads as
+    UTC via _ts_epoch, so a legacy naive stamp cannot be simultaneously
+    in-window for the rate guard and past the digest threshold."""
+    t = _ts_epoch(ts)
+    return float("inf") if t is None else datetime.now(UTC).timestamp() - t
 
 
 # --- digest ------------------------------------------------------------------
@@ -499,6 +707,14 @@ def read_msg(msg_id: str, repo: str) -> str:
         p = _mail_root() / repo / sub / f"{msg_id}.md"
         if p.is_file():
             return p.read_text(encoding="utf-8", errors="replace")
+    # G2: a message inside an ack's resolving window (<id>.md.resolving.<pid>)
+    # still EXISTS — reading it keeps --auto's guards evaluable during (or
+    # after a crash inside) the window, instead of folding into "missing" and
+    # fail-soft-bypassing all four guards.
+    for sub in ("inbox", "archive"):
+        for p in sorted((_mail_root() / repo / sub).glob(f"{msg_id}.md.resolving.*")):
+            if p.is_file():
+                return p.read_text(encoding="utf-8", errors="replace")
     raise FileNotFoundError(f"no message {msg_id} in {repo}")
 
 
@@ -550,6 +766,11 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument("--ack", choices=["required", "no"])
     p_send.add_argument("--re")
     p_send.add_argument("--from", dest="frm")
+    p_send.add_argument(
+        "--auto",
+        action="store_true",
+        help="unattended reply: enforce the loop-safety guards (requires --re)",
+    )
 
     p_list = sub.add_parser("list", help="list a repo's inbox")
     p_list.add_argument("--repo")
@@ -558,7 +779,9 @@ def main(argv: list[str] | None = None) -> int:
     p_read.add_argument("id")
     p_read.add_argument("--repo")
 
-    p_claim = sub.add_parser("claim", help="claim WITHOUT resolving (rename lock only, no ack line)")
+    p_claim = sub.add_parser(
+        "claim", help="claim WITHOUT resolving (rename lock only, no ack line)"
+    )
     p_claim.add_argument("id")
     p_claim.add_argument("--repo")
 
@@ -574,11 +797,19 @@ def main(argv: list[str] | None = None) -> int:
     p_dig = sub.add_parser("digest", help="report unacked + quarantined traffic")
     p_dig.add_argument("--days", type=int, default=3)
 
+    p_sr = sub.add_parser(
+        "should-reply", help="advisory loop-safety pre-check: ALLOW (exit 0) / HOLD (exit 3)"
+    )
+    p_sr.add_argument("id")
+    p_sr.add_argument("--repo")
+
     args = ap.parse_args(argv)
     try:
         if args.cmd == "send":
             body = sys.stdin.read()
-            path = send(args.to, args.kind, body, frm=args.frm, ack=args.ack, re=args.re)
+            path = send(
+                args.to, args.kind, body, frm=args.frm, ack=args.ack, re=args.re, auto=args.auto
+            )
             print(path)
         elif args.cmd == "list":
             for fm in list_msgs(args.repo or _current_repo()):
@@ -595,6 +826,28 @@ def main(argv: list[str] | None = None) -> int:
             print(requeue(args.id, args.repo or _current_repo()))
         elif args.cmd == "digest":
             _deliver_digest(digest(days=args.days))
+        elif args.cmd == "should-reply":
+            repo = args.repo or _current_repo()
+            try:
+                parent_fm = _parse(read_msg(args.id, repo))
+            except MailRefusedError:
+                print("ALLOW (unresolvable id — not a ULID; fail-soft)")
+                return 0
+            except FileNotFoundError:
+                print("ALLOW (no such parent — fail-soft)")
+                return 0
+            except OSError:
+                print("HOLD: parent exists but is unreadable — guards cannot be evaluated")
+                return 3
+            if parent_fm is None:
+                print("HOLD: parent exists but is unparseable — guards cannot be evaluated")
+                return 3
+            ok, reason = should_auto_reply(parent_fm, repo)
+            print("ALLOW" if ok else f"HOLD: {reason}")
+            return 0 if ok else 3
+    except MailHoldError as exc:
+        print(f"mail.py: {exc}", file=sys.stderr)
+        return 3
     except MailRefusedError as exc:
         print(f"mail.py: REFUSED — {exc}", file=sys.stderr)
         return 2
