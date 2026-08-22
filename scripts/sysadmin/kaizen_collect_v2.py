@@ -1973,6 +1973,14 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
                 )
             continue  # never a merge target, never reshaped
         if key is not None and _iso_week(shaped[0]) == key:
+            if target is not None:
+                # W16-4: two well-formed rows for one ISO week (hand-added twin)
+                # — only the LAST is the merge target; the stale one is named,
+                # never silently left behind.
+                _warn(
+                    f"duplicate same-week row in {path.name} — updating the last one; "
+                    "an earlier row for this week is left untouched and may be stale"
+                )
             target, target_cells = i, shaped
     if target is None or target_cells is None:
         rows.append(_render_row(list(cells)))

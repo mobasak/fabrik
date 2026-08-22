@@ -171,7 +171,10 @@ carries a `*` marker with a stderr note whose headline is "k of N week day(s) at
 definition" for a single metric and the per-half coverage for a pair ("death_occurrences 6/7,
 death_classes 1/7 at the current definition" — which half is truncated, W9-5/W12-4); on DASH
 paths, where no annotate line fires, the per-half coverage rides a standalone
-"split-week halves at the current definition: …" line instead (W13 — never both), and the
+"split-week halves at the current definition: …" line instead (W13 — never both); a
+single-metric cell dashing for a NON-bump reason during a version-split week adds
+"N week day(s) under a previous definition (version split this week; the dash above has a
+different cause)" (W15-2 — the suppressed annotate line was the only carrier), and the
 "definition changed this week; no days published at the current definition yet" dash fires
 ONLY when a half's emptiness is bump-caused — orphan days AND no current days (W10-1); a half
 that simply never published is a pair-contract gap, dashed with the pair-contract reason.

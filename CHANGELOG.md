@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 16: the guards are themselves guarded (2026-08-22)
+
+- Mutation guards for both directions of the W13 "never both" split-week disclosure invariant
+  (W16-1: relaxing the DASH gate doubled the halves line with a green suite) and for the
+  W15-2 line's `not g_split` conjunct (W16-2: dropping it emitted a self-contradictory
+  "different cause" claim on a split-blocked week).
+- A hand-added duplicate same-week log row is named when the machine updates the last one
+  (W16-4) — the stale twin was silently left behind; the doc enumerates the W15-2 third
+  disclosure line (W16-3).
+
 ### Fixed — kaizen M1 review fix-wave 15: the disclosure gating is guarded; split weeks visible on every dash (2026-08-22)
 
 - The W13 standalone-halves-line gating carries a regression guard (W15-1 — both failure

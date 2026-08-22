@@ -3114,3 +3114,72 @@ def test_single_metric_dash_during_a_split_week_discloses_the_split(
     assert "week day(s) under a previous definition" in err, (
         "the dash suppressed the annotate line — the split context must still reach the operator"
     )
+
+
+# ── fix-wave 16 (W16: the guards are themselves guarded) ─────────────────────────────
+
+
+def test_publish_path_split_week_has_no_standalone_halves_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W16-1: the publish path's split-week disclosure is the annotate headline
+    ONLY — relaxing the DASH gate on the standalone line would print the halves
+    text twice per weekly log (the W13 'never both' invariant, now mutation-
+    guarded in the doubling direction)."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    week = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22"]
+    for d in week:
+        _plant_point(st, "death_occurrences", do_v, d, value=2, numerator=2)
+    for d in week[:5]:
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"cls-{d[-2:]}": 1})
+    _plant_point(st, "death_classes", dc_v, week[5], value={"oom": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2].endswith("*"), "the published split week carries the * annotate line"
+    err = capsys.readouterr().err
+    assert err.count("split-week halves at the current definition") == 0, (
+        "the annotate headline already carries the per-half coverage — a standalone "
+        "line here would print it twice"
+    )
+
+
+def test_split_blocked_gate_week_emits_no_different_cause_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W16-2: the W15-2 line's `not g_split` conjunct is load-bearing — on a
+    split-BLOCKED gate week (every point under a previous definition) the dash
+    cause IS the split, and claiming 'the dash above has a different cause'
+    would be self-contradictory."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    fa_v = int(reg["first_attempt_gate_pass"]["version"])
+    for d in ("2026-08-17", "2026-08-18"):
+        _plant_point(st, "first_attempt_gate_pass", fa_v - 1, d, numerator=1, denominator=2)
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[1] == DASH
+    err = capsys.readouterr().err
+    assert "definition changed this week" in err, "the split IS the dash cause"
+    assert "different cause" not in err
+
+
+def test_upsert_warns_on_a_duplicate_same_week_row(tmp_path: Path) -> None:
+    """W16-4: a hand-added second well-formed row for the same ISO week — the
+    machine updates the LAST one; the earlier duplicate must be named, never
+    silently left stale."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    row = "| 2026-08-18 |" + " x |" * (len(kc.COLUMNS) - 1)
+    log.write_text("\n".join([header, sep, row, row]) + "\n", encoding="utf-8")
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert ok
+    assert "duplicate" in buf.getvalue(), (
+        "two same-week rows: only the last is updated — the stale twin must be named"
+    )
