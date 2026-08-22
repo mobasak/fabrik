@@ -3373,13 +3373,14 @@ def test_upsert_reaps_stale_tmp_orphans(tmp_path: Path) -> None:
 # ── fix-wave 23 (W23: the lock lives outside the tracked tree; the row outlives the mode) ──
 
 
-def test_upsert_lock_lives_in_the_state_dir_not_the_log_dir(
+def test_upsert_lock_is_resource_keyed_and_outside_the_log_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """W23-1 + W23-4 (the W22-1 discriminator): the upsert takes the
-    inter-process lock (red if the _store_lock wrapper is deleted) and its
-    lockfile lives under the STATE dir — a git-tracked docs dir must never grow
-    a permanently-untracked .lock sibling."""
+    """W23-1 + W24-1 (the W22-1 discriminator): the upsert takes the
+    inter-process lock (red if the _store_lock wrapper is deleted); the lockfile
+    is a function of the ABSOLUTE log path, sited outside every tracked dir and
+    independent of KAIZEN_STATE_DIR — a debug run with an isolated state dir and
+    the cron run must meet on the SAME flock."""
     st = tmp_path / "state-env"
     monkeypatch.setenv("KAIZEN_STATE_DIR", str(st))
     logdir = tmp_path / "docs"
@@ -3392,10 +3393,13 @@ def test_upsert_lock_lives_in_the_state_dir_not_the_log_dir(
     assert [p.name for p in logdir.iterdir()] == ["log.md"], (
         "the log's own dir stays clean — no .lock, no residue"
     )
-    assert (st / "log-locks" / "log.md.lock").is_file(), (
-        "the lock was taken, in the state dir (deleting the _store_lock wrapper "
-        "leaves this file uncreated and fails here)"
+    lockfile = kc._log_lockfile(log)
+    assert lockfile.is_file(), (
+        "the lock was taken (deleting the _store_lock wrapper leaves this file "
+        "uncreated and fails here)"
     )
+    assert not str(lockfile).startswith(str(tmp_path)), "the lock is sited outside the log's tree"
+    assert lockfile == kc._log_lockfile(log), "resource-keyed: same log, same lock"
 
 
 def test_upsert_missing_log_leaves_no_residue_anywhere_near_it(

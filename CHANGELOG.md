@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 24: the lock is keyed on the resource, not the environment (2026-08-22)
+
+- The role-log lock's identity is a function of the ABSOLUTE log path, sited under the system
+  temp dir (`kaizen-log-locks-<uid>/<md5>.lock`) independent of `KAIZEN_STATE_DIR` (W24-1 —
+  a debug run with an isolated state dir and the cron run write the same real log and now
+  meet on the same flock; the state-dir-keyed lock silently lapsed mutual exclusion in the
+  divergence direction, and the path hash also ends the same-basename collision).
+- kaizen.md's write-machinery disclosure says where the lock actually lives (W24-2 — it still
+  described the removed `.lock`-beside-the-logs).
+
 ### Fixed — kaizen M1 review fix-wave 23: the lock lives outside the tracked tree; the row outlives the mode (2026-08-22)
 
 - The role-log lock lives under the state dir (`log-locks/<name>.lock`, W23-1 — the sibling

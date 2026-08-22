@@ -1946,6 +1946,18 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
     return merged
 
 
+def _log_lockfile(path: Path) -> Path:
+    """W23-1 + W24-1 — the role-log lock's identity is a function of the
+    ABSOLUTE resource path, sited outside every git-tracked dir AND independent
+    of ``KAIZEN_STATE_DIR``: a debug run with an isolated state dir and the cron
+    run write the SAME real log, so they must meet on the SAME flock (a
+    state-dir-keyed lock silently lapsed mutual exclusion — the divergence
+    direction; hashing the resolved path also ends the same-basename
+    collision)."""
+    digest = hashlib.md5(str(path.resolve()).encode()).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / f"kaizen-log-locks-{os.getuid()}" / (digest + ".lock")
+
+
 def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bool:
     """Upsert one row keyed by the Date cell's ISO week (a second run in the same week
     UPDATES that row). Fail-soft: a missing or tableless log warns and returns False."""
@@ -1955,9 +1967,7 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     # read the file seconds earlier (a crashed holder's lock dies with it).
     # The lock acquisition itself is fail-soft (a read-only parent must warn,
     # never escape as an uncaught PermissionError).
-    # path.name is a bare filename (no separators); same-named logs in different
-    # dirs would share a lock — over-serialization, never corruption.
-    lockfile = state_dir() / "log-locks" / (path.name + ".lock")
+    lockfile = _log_lockfile(path)
     try:
         with _store_lock(path, lockfile=lockfile):
             return _upsert_log_row_locked(path, cells, force_dash)
