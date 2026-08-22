@@ -307,6 +307,8 @@ _DATE_LINE = re.compile(
 )
 _MODE_LINE = re.compile(r"[`*]{0,2}Mode[`*]{0,2}[^\S\n]*:[^\S\n]*[`*]{0,2}[^\S\n]*[ABC]\b", re.I)
 _SURFACE_LINE = re.compile(r"[`*]{0,2}Surface[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I)
+_TYPE_LINE = re.compile(r"[`*]{0,2}Type[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I)
+_JOURNEY_KINDS_LINE = re.compile(r"[`*]{0,2}Journey kinds[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I)
 _DESIGN_SYSTEM_LINE = re.compile(r"[`*]{0,2}Design system[`*]{0,2}[^\S\n]*:[^\S\n]*\S", re.I)
 
 # The verbatim freeze-rule instruction each command mandates, keyed by the
@@ -326,6 +328,14 @@ FROZEN_ARTIFACTS: dict[str, dict] = {
             ("Design system: ...", _DESIGN_SYSTEM_LINE),
         ],
         "freeze_cmd": "/fabrik-ui-design",
+    },
+    "docs/flows.md": {
+        "kind": "flows",
+        "extra": [
+            ("Type: ...", _TYPE_LINE),
+            ("Journey kinds: ...", _JOURNEY_KINDS_LINE),
+        ],
+        "freeze_cmd": "/fabrik-flows",
     },
 }
 

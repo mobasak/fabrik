@@ -46,7 +46,8 @@ codebase map — ground every plan in it, don't guess.
 plan an operator session can carry?* Routing is symmetric (`/fabrik-spec` up-routes; ettw-00 mirrors) — no
 entry point is "wrong."
 
-**Feature-scale** (one operator-carried plan): `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)*
+**Feature-scale** (one operator-carried plan): `/fabrik-spec` → /fabrik-spec-review → *(early)*
+`/fabrik-features` (planned inventory) → `/fabrik-flows` → /fabrik-flows-review → `/fabrik-data-contract` → *(GUI)*
 `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-execute-plan` — completes at execute.
 
 **Single-epic:** `docs/orchestrator/epic-to-ticket-workflow/` (the `-fabrik` files — the ONE runnable chain;

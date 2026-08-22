@@ -145,8 +145,8 @@ Then converge: re-walk the whole artifact; fix; repeat until a full pass makes *
 before/after the closing pass — identical hashes are the proof). Set `Status: FROZEN`, bump `Version`.
 **Present the frozen contract + the flow index to the user** — the freeze stands unless they redirect.
 
-**Freeze law (verbatim into the artifact):** *this contract changes only through `/fabrik-flows` — a
-journey/persona/flow change re-opens it, bumps `Version`, re-converges, re-freezes. Downstream consumers
+**Freeze law (verbatim into the artifact):** *any journey/persona/flow change = bump `Version` +
+re-freeze via `/fabrik-flows` — never edit in place. Downstream consumers
 (`/fabrik-data-contract`, `/fabrik-ui-design`, the certification gauntlets) read the frozen version only.*
 
 **Do not commit** unless the user says so this turn (`git add` is fine).

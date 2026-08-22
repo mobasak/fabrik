@@ -7,6 +7,8 @@
 > ⚠️ `/fabrik-user-test` and `/fabrik-service-test` build their journey/contract coverage FROM this
 > file — a capability missing here is silently never tested, and a row nobody can exercise can't be
 > certified. `/fabrik-features` converges this file to the complete, testable truth of the codebase.
+> An EARLY run (right after `/fabrik-spec-review` approval) pins the PLANNED inventory — rows marked
+> `(Planned)` in the Description; the certify-time REFRESH flips them to shipped or surfaces the gap.
 
 ---
 

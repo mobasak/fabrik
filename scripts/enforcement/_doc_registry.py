@@ -245,6 +245,13 @@ PROJECT_DOCS: tuple[DocRow, ...] = (
         "docs/ui-design.md", None, frozenset({"gui"}), "screen/flow/UI change", "/fabrik-ui-design"
     ),
     DocRow(
+        "docs/flows.md",
+        None,
+        frozenset({"universal"}),
+        "journey/persona/flow change",
+        "/fabrik-flows",
+    ),
+    DocRow(
         "docs/design-system.md", None, frozenset({"gui"}), "brand/token change", "/fabrik-ui-design"
     ),
     # --- saas (product) ---

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-flows wired into every remaining enforcement + doc surface (2026-08-22)
+
+- `docs/flows.md` joins the FROZEN-header gate (`check_stage_artifacts.py` — Status/Version/Date
+  + `Type:`/`Journey kinds:` extras + the "re-freeze via `/fabrik-flows`" law, same bar as the
+  data-contract and ui-design freezes) and the canonical doc registry (`_doc_registry.py`,
+  `universal` bucket — every scaffold type).
+- The flows command's freeze law names its re-freeze command verbatim (gate-scanned); the
+  subagent rules pack gains the pair's posture (per-persona walkers + axis reviewers → pool;
+  second-actor hunt + async-boundary sweep → native); agents-fabrik.md's feature-scale chain
+  shows the full order; the FEATURES template documents the `(Planned)` marker; the renderer's
+  hand-authored-NEXT count is date-pinned. Prompt-router: verified NO change needed by design
+  (mid-pipeline skills are NEXT-chained, never prompt-auto-triggered — same as
+  data-contract/ui-design).
+
 ### Changed — /fabrik-features gains its EARLY position; the pipeline order made canonical (2026-08-22)
 
 - `/fabrik-features` now has TWO sanctioned positions (operator directive): EARLY — right after
