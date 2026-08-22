@@ -63,6 +63,8 @@ Pass 14 (fresh finder, post-4503a911) | found: 2 (both LOW docs-accuracy — the
 
 Pass 15 (fresh finder, post-b03b0c0d) | found: 2 (both LOW PLAUSIBLE regression-guard/disclosure gaps, zero live wrong outputs: the W13 standalone-line gating has no test — both failure directions stay green; a single-metric cell dashing for a non-bump reason during a split week discloses nothing about the split). Both wave-14 doc claims verified TRUE by probe; death-pair lockstep, empty-class-map measurability, empty-window, catchup rc/stamp, publish idempotency, per-half orphan logic all probed clean | wave 15 PENDING (operator pause: command-corpus gap takes priority; resume here) | → not done
 
+Pass 15-fix + Pass 16 (fresh finder, post-645873ce) | wave 15 merged 645873ce (the two round-15 guards) | found: 4 (2 MEDIUM mutation-guard gaps ON the wave-15 additions themselves — the W13 double-fire direction untested, the new `not g_split` conjunct untested; 1 LOW doc line for the new third disclosure line; 1 LOW human-only upsert duplicate-row edge). W15-2's logic itself proved CLEAN by exhaustive conjunct probe | wave 16 PENDING (operator pause: command-corpus gap takes priority; resume here) | → not done
+
 Core-layer classes (emitter, hooks, run-records, coroner, store atomicity, backfill, sensors, security) clean since pass 5 — findings from pass 6 onward confined to the weekly-aggregation seam waves 6–8 themselves introduced.
 
 ## Per-finding dispositions
