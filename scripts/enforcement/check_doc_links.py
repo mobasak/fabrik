@@ -48,6 +48,7 @@ PROJECT_CONTEXT_ALLOW = {
     "docs/RESILIENCE.md",
     "docs/data-contract.md",
     "docs/ui-design.md",
+    "docs/flows.md",  # frozen journey contract (/fabrik-flows) — project-side artifact
     "docs/design-system.md",
     "docs/DATABASE_SCHEMA.md",
     "docs/FEATURES.md",  # exists hub-side too; harmless double-cover

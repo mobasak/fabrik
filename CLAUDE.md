@@ -54,7 +54,7 @@ what makes an in-flight command visible and un-abandonable.
    | Stage | Covers |
    |---|---|
    | `1-design` | idea → grounded design spec |
-   | `2-contract` | freeze the data and/or UI contract before planning |
+   | `2-contract` | freeze the journey, data and/or UI contracts before planning |
    | `3-plan` | approved decisions → execution-ready plan |
    | `4-build` | execute the plan — code, tests, docs, phase by phase |
    | `5-certify` | FEATURES.md denominator refresh + end-to-end journey certification gauntlets (user-test/service-test) against the live build |
@@ -62,7 +62,7 @@ what makes an in-flight command visible and un-abandonable.
    | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op |
    | `utility` | support work invocable at any point, not a fixed position in the chain |
 
-   Fork rules: data-shaped work → `2-contract` (`/fabrik-data-contract`); GUI work also routes through `/fabrik-ui-design` + `/fabrik-ui-design-review` (`2-contract`); headless types (§ Pipeline item 2) skip GUI-only stages — their `5-certify` runs `/fabrik-service-test`, never `/fabrik-user-test`. Escape: a matched stage that genuinely doesn't fit — say so in one line and proceed without invoking it; no stage applies at all (pure conversation, a one-off read-only question) — no declaration owed, proceed silently.
+   Fork rules: journey-shaped work → `2-contract` (`/fabrik-flows` + `/fabrik-flows-review` — EVERY scaffold type: user, consumer, or reader journeys; sits before the data contract); data-shaped work → `2-contract` (`/fabrik-data-contract`); GUI work also routes through `/fabrik-ui-design` + `/fabrik-ui-design-review` (`2-contract`); headless types (§ Pipeline item 2) skip GUI-only stages — their `5-certify` runs `/fabrik-service-test`, never `/fabrik-user-test`. Escape: a matched stage that genuinely doesn't fit — say so in one line and proceed without invoking it; no stage applies at all (pure conversation, a one-off read-only question) — no declaration owed, proceed silently.
 1. **Hub identity, not a scaffold type:** there is no `project.yaml` here — the 12 `SCAFFOLD_TYPES` are what this repo EMITS (`scaffold.py::SCAFFOLD_TYPES` is the registry), not what it is. Local dev runs in `.venv`; deploys of OTHER projects run from here via `fabrik apply specs/services/<id>.yaml` (SSH + Docker Compose to the VPS fleet).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
@@ -151,6 +151,7 @@ judgment. *"My change type isn't in the table"* is never a reason to leave a doc
 | New subsystem / standalone service / box-local system | a DEDICATED doc — `docs/reference/<name>.md` (box-local → `docs/workstation/<name>.md`) — **grep/`ls` first that it doesn't already exist** (extend the existing one, never a second), then add its `INDEX.md` row. A `FEATURES`/`CHANGELOG` entry is NOT a substitute for the subsystem's own reference doc |
 | Schema migration | Alembic + `db/schema.sql` |
 | DB field / enum / model changed | re-freeze `docs/data-contract.md` (via `/fabrik-data-contract`) — gate-WARN'd by `check_schema_sync.py` |
+| Journey / persona / flow changed | re-freeze `docs/flows.md` (via `/fabrik-flows`) |
 | Screen / flow / UI changed (GUI projects) | re-freeze `docs/ui-design.md` (via `/fabrik-ui-design`) |
 | Recurring symptom | `docs/TROUBLESHOOTING.md` |
 | Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` |
@@ -227,7 +228,7 @@ unclear. Never claim no previous conversation exists without searching first.
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
 
-**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → *(denominator refresh)* **/fabrik-features** → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release** → **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify** (this bold tail is the VPS route ONLY; store surfaces skip it: operator submits after /fabrik-release, then /fabrik-deploy-verify).
+**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → **/fabrik-flows** → /fabrik-flows-review (journeys — every scaffold type) → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → *(denominator refresh)* **/fabrik-features** → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release** → **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify** (this bold tail is the VPS route ONLY; store surfaces skip it: operator submits after /fabrik-release, then /fabrik-deploy-verify).
 
 Every `/fabrik-*` command, at the end of its run, applies these three (lean — one line, not a section):
 1. **Name the NEXT command** in the flow (+ the one-line why) so the operator chains without re-deriving it.

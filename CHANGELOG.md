@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-flows + /fabrik-flows-review: the journey stage of the feature-scale pipeline (2026-08-22)
+
+- New command pair (transdoc upstream proposal 2026-08-22, operator-directed): `/fabrik-flows`
+  freezes `docs/flows.md` — every persona walked entry → actions → feedback → exit, decision
+  points, edge/error paths, per-external-call resilience, async-boundary gap states, exactly
+  one `[PRIMARY PATH]` per flow — and `/fabrik-flows-review` independently converges it by
+  class ledger to an md5-verified no-op (second-actor completeness and async gap states are
+  its highest-yield axes). The feature-scale twin of the epic-route Core Flows stage.
+- Position: after `/fabrik-spec-review` approval, BEFORE `/fabrik-data-contract` — journeys
+  are the evidence that forces contract bumps instead of scope cuts. Runs on EVERY scaffold
+  type: user journeys (UI), consumer journeys (headless — the `/fabrik-service-test`
+  denominator), reader journeys (docusaurus). The `[PRIMARY PATH]` set is the certification
+  denominator the gauntlets previously improvised.
+- Wiring: NEXT map (2 new rows, `/fabrik-spec-review` edited), PARAMS for both commands,
+  `docs/flows.md` in the doc-sprawl allowlist, § Orient stage table + § Pipeline chain +
+  Doc Sync Matrix row in the synced governance CLAUDE.md and the hub's. Absence of a flows
+  contract in an already-shipped project is not a defect (`/fabrik-catchup` never queues it
+  retroactively).
+
 ### Fixed — kaizen M1 review fix-wave 18: three daily jobs, counted as three (2026-08-22)
 
 - kaizen.md's daily-jobs paragraph counts all THREE stamp-check jobs (it said "Both"/"these
