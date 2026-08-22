@@ -45,7 +45,10 @@ counted in the unclassified rate.
 Config via env (all state dirs created lazily; tests point every one at tmp):
 ``KAIZEN_EVENTS_DIR`` (default ``~/.claude/state/events``), ``KAIZEN_STATE_DIR``
 (default ``~/.claude/state/kaizen``), ``KAIZEN_GOLDEN_DIR`` (default this repo's
-``tests/fixtures/kaizen-golden``). Box-local, stdlib only.
+``tests/fixtures/kaizen-golden``), ``KAIZEN_LOCK_DIR`` (default the fixed
+``~/.claude/state/kaizen-log-locks`` role-log lock dir — set ONLY for test
+isolation; a production override re-opens the W24-1 lock divergence).
+Box-local, stdlib only.
 """
 
 from __future__ import annotations
@@ -470,7 +473,7 @@ def _store_lock(target: Path, lockfile: Path | None = None) -> Iterator[None]:
     crashed holder's lock dies with its process (flock, not a stale lockfile
     protocol). ``lockfile`` (W23-1/W24-1) relocates the lock — a target inside
     a git-tracked dir must not grow a permanently-untracked sibling; the
-    role-log lock is resource-keyed under the system temp dir
+    role-log lock is resource-keyed at its fixed, unreaped home
     (:func:`_log_lockfile`)."""
     lockfile = lockfile if lockfile is not None else Path(f"{target}.lock")
     lockfile.parent.mkdir(parents=True, exist_ok=True)
@@ -1968,7 +1971,7 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     """Upsert one row keyed by the Date cell's ISO week (a second run in the same week
     UPDATES that row). Fail-soft: a missing or tableless log warns and returns False."""
     # W22-1: the upsert is a read-modify-write — the same shape _store_lock
-    # exists for. flock on a resource-keyed .lock (tempdir-sited, W24-1)
+    # exists for. flock on a resource-keyed .lock (fixed unreaped home, W26-1)
     # serializes cron-vs-manual writers so
     # a human's freshly saved analyst cell can never be clobbered by a run that
     # read the file seconds earlier (a crashed holder's lock dies with it).

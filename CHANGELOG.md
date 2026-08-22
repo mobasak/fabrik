@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 27: the durable default has its discriminator (2026-08-22)
+
+- The fixed home-dir lock default carries its red-on-revert test (W27-1 — the autouse
+  fixture's KAIZEN_LOCK_DIR pin left the default branch dead in the suite; a mutation
+  reverting to the reaped tempdir shipped green); the two remaining in-code references to
+  the tempdir siting are corrected (W27-2) and KAIZEN_LOCK_DIR joins the module's env
+  inventory with its test-isolation-only caveat (W27-3).
+
 ### Fixed — kaizen M1 review fix-wave 26: the lock outlives every reaper (2026-08-22)
 
 - The role-log lock's fixed home is `~/.claude/state/kaizen-log-locks/` (W26-1 — the tempdir

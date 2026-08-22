@@ -3499,3 +3499,15 @@ def test_upsert_lock_acquisition_failure_is_fail_soft(
         ro.chmod(0o755)
     assert ok is False
     assert "log lock failed" in buf.getvalue()
+
+
+def test_lock_default_home_is_fixed_and_unreaped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """W27-1 (the W26-1 discriminator): with no KAIZEN_LOCK_DIR the lock's home
+    is the fixed ~/.claude/state/kaizen-log-locks — a revert to any tempdir
+    siting (systemd-tmpfiles reaps /tmp entries at 30d, deleting a path an
+    active holder has open) fails here. Pure path computation — nothing is
+    written to the real home."""
+    monkeypatch.delenv("KAIZEN_LOCK_DIR", raising=False)
+    lockfile = kc._log_lockfile(Path("/opt/fabrik/docs/reference/agents/kaizen-log-infra.md"))
+    assert lockfile.parent == Path.home() / ".claude" / "state" / "kaizen-log-locks"
+    assert lockfile.suffix == ".lock"
