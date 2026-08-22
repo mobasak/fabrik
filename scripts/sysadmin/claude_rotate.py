@@ -3106,6 +3106,25 @@ def _usage_windows(usage: dict | None) -> dict | None:
         if not isinstance(u, (int, float)):
             return None
         out[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
+    # Model-/feature-specific weekly windows the API also returns (seven_day_opus,
+    # seven_day_sonnet, and Anthropic's codenamed windows). Captured GENERICALLY so a window
+    # the API adds — e.g. a separate Fable-5 limit — surfaces on the dashboard automatically,
+    # labeled by its real key, the moment it carries usage (the dashboard becomes its own
+    # identification tool). Additive and NEVER fail-closed: a None/absent window means "unused",
+    # not "malformed", so only windows carrying a numeric utilization are kept, and their
+    # absence never nulls the required five_hour/seven_day reading above.
+    models: dict = {}
+    for key, w in usage.items():
+        if key in ("five_hour", "seven_day") or not isinstance(w, dict):
+            continue
+        u = w.get("utilization")
+        if isinstance(u, (int, float)):
+            models[key] = {
+                "utilization": float(u),
+                "resets_at_epoch": _iso_to_epoch(w.get("resets_at")),
+            }
+    if models:
+        out["model_windows"] = models
     return out
 
 
@@ -3335,6 +3354,8 @@ def _fleet_account_rows(
             if isinstance(c, dict) and isinstance(c.get("ts"), (int, float)):
                 row["five_hour"] = c.get("five_hour")
                 row["seven_day"] = c.get("seven_day")
+                if c.get("model_windows"):
+                    row["model_windows"] = c["model_windows"]
                 row["source"] = "cache"
                 row["age_s"] = max(0.0, now - float(c["ts"]))
         wk = row["seven_day"]

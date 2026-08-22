@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Quota dashboard: surface model-specific weekly windows (Opus/Sonnet/Fable) generically (2026-08-22)
+
+- The `/api/oauth/usage` payload returns ~17 windows; the dashboard parsed only `five_hour` +
+  `seven_day`. `_usage_windows` now also captures every OTHER window carrying a numeric
+  utilization into `model_windows` (additive, never fail-closed — a None window is "unused",
+  not malformed), preserved across the usage-cache round-trip.
+- The dashboard renders any model window with usage >0% as a per-account sub-line: known keys
+  get friendly labels (`seven_day_opus` → "Opus (wk)", `seven_day_sonnet` → "Sonnet (wk)"),
+  unknown keys (Anthropic codenames, a future Fable-5 window) render by their RAW key — so a
+  model's window self-identifies the moment it carries usage (use it, reload, read the key).
+- No literal "fable" window exists in today's payload (empirically: only `five_hour`,
+  `seven_day`, and `nimbus_quill`=0% are populated across all four accounts), so nothing new
+  shows until a model-specific limit is actually consumed. Vendored byte-identical to
+  `scripts/aro-wake/claude_rotate.py`. Tests in `test_claude_fleet.py` + `test_quota_dashboard.py`.
+
 ### Added — fabrik-mail loop-safety: the four auto-reply guards behind --auto (2026-08-22)
 
 - `scripts/mail.py` (fleet-synced on this commit): a new `--auto` send flag enforces

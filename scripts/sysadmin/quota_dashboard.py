@@ -97,6 +97,34 @@ def _tone(remaining: float) -> str:
     return "ok"
 
 
+# Friendly labels for the model-/feature-specific weekly windows the usage API returns
+# alongside five_hour/seven_day. Unlisted keys (incl. Anthropic's codenames like `nimbus_quill`,
+# and a future Fable-5 window) render by their RAW key — self-identifying: use the model, reload,
+# and the key that lights up is that model's window.
+_MODEL_WINDOW_LABELS = {
+    "seven_day_opus": "Opus (wk)",
+    "seven_day_sonnet": "Sonnet (wk)",
+    "seven_day_cowork": "Cowork (wk)",
+}
+
+
+def _model_windows_html(acct: dict) -> str:
+    """A sub-line listing every model-specific weekly window that carries usage (>0%). Empty
+    string when none — so the row stays clean until a model's separate limit is actually
+    consumed (opus/sonnet/fable), then that window appears automatically, labeled by real key."""
+    mw = acct.get("model_windows") or {}
+    parts = []
+    for key in sorted(mw):
+        w = mw[key]
+        u = w.get("utilization") if isinstance(w, dict) else None
+        if isinstance(u, (int, float)) and u > 0:
+            label = _MODEL_WINDOW_LABELS.get(key, key)
+            parts.append(f"{escape(label)} {u:.0f}%")
+    if not parts:
+        return ""
+    return f'<div class="sub models">model weeklies: {" · ".join(parts)}</div>'
+
+
 def _row(acct: dict, active: str | None) -> str:
     email = str(acct.get("email", "?"))
     slug = (acct.get("slugs") or ["?"])[0]
@@ -173,7 +201,7 @@ def _row(acct: dict, active: str | None) -> str:
     return (
         f'<tr class="{"is-active" if is_active else ""}">'
         f'<td class="acct"><strong>{escape(email)}</strong><span class="sub">{escape(slug)}</span>'
-        f'<div class="badges">{"".join(badges)}</div></td>'
+        f'<div class="badges">{"".join(badges)}</div>{_model_windows_html(acct)}</td>'
         f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S)}"
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         "</tr>"

@@ -213,3 +213,34 @@ def test_a_capped_account_surfaces_the_browser_blind_spot(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "_probe", lambda: payload)
 
     assert "browser use is not visible here" in qd.generate()
+
+
+# ── model-specific weekly windows on the board (2026-08-22: fable/opus visibility) ──
+def test_row_shows_populated_model_windows(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    acct = {
+        "email": "sarp@ocoron.com", "slugs": ["sarp"], "source": "live",
+        "five_hour": {"utilization": 10.0, "resets_at_epoch": None},
+        "seven_day": {"utilization": 40.0, "resets_at_epoch": None},
+        "model_windows": {
+            "seven_day_opus": {"utilization": 55.0, "resets_at_epoch": None},
+            "nimbus_quill": {"utilization": 12.0, "resets_at_epoch": None},  # unknown key → raw
+        },
+    }
+    html = qd._row(acct, "sarp")
+    assert "Opus (wk) 55%" in html, "known model key gets a friendly label"
+    assert "nimbus_quill 12%" in html, "unknown populated window shows by raw key (self-identifying)"
+
+
+def test_row_hides_zero_and_absent_model_windows(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    base = {
+        "email": "mob@ocoron.com", "slugs": ["mob"], "source": "live",
+        "five_hour": {"utilization": 0.0, "resets_at_epoch": None},
+        "seven_day": {"utilization": 3.0, "resets_at_epoch": None},
+    }
+    # 0% window (e.g. nimbus_quill on every account today) must not clutter the row
+    zero = dict(base, model_windows={"nimbus_quill": {"utilization": 0.0, "resets_at_epoch": None}})
+    assert "model weeklies" not in qd._row(zero, "mob")
+    # no model_windows key at all → no sub-line
+    assert "model weeklies" not in qd._row(base, "mob")

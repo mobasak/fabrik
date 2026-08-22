@@ -2810,3 +2810,31 @@ def test_oauth_get_gives_up_after_attempts(monkeypatch):
     out = cr._oauth_get("usage", "tok", attempts=2, backoff_s=0)
     assert out is None
     assert calls["n"] == 2, "bounded — exactly `attempts` tries, then give up (fail-soft)"
+
+
+# ── model-specific weekly windows captured generically (2026-08-22: fable/opus visibility) ──
+def test_usage_windows_captures_populated_model_windows():
+    usage = {
+        "five_hour": {"utilization": 10, "resets_at": None},
+        "seven_day": {"utilization": 40, "resets_at": None},
+        "seven_day_opus": {"utilization": 55, "resets_at": None},
+        "seven_day_sonnet": None,          # unused → omitted
+        "nimbus_quill": {"utilization": 0, "resets_at": None},  # populated (0) → kept in data
+    }
+    out = cr._usage_windows(usage)
+    mw = out["model_windows"]
+    assert mw["seven_day_opus"]["utilization"] == 55.0
+    assert "seven_day_sonnet" not in mw, "a None window is unused, never recorded"
+    assert mw["nimbus_quill"]["utilization"] == 0.0
+
+
+def test_usage_windows_no_model_windows_key_when_none_present():
+    usage = {"five_hour": {"utilization": 1}, "seven_day": {"utilization": 2}}
+    out = cr._usage_windows(usage)
+    assert "model_windows" not in out, "absent extras must not add an empty key"
+
+
+def test_usage_windows_still_fail_closed_on_bad_required_window():
+    # a malformed required window still nulls the whole read — model windows never rescue it
+    assert cr._usage_windows({"five_hour": {"utilization": "x"}, "seven_day": {"utilization": 3},
+                              "seven_day_opus": {"utilization": 9}}) is None
