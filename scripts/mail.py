@@ -118,17 +118,23 @@ _SECRET_HIGH = [
     # in base64-derived generated passwords. For the schemes that exist to CARRY
     # credentials, allow it: no doc link uses these, so there is no false-positive
     # surface to trade away.
-    # P17-1: allowing `/` in the password also made `scheme://host:port/path@note`
-    # parse as `user:pass@host`, HARD-REFUSING legitimate ops mail. The tail now
-    # has to look like a real HOST — dotted name, or name:port, or name/ — which
-    # `@readme` / `@notes` / `@see-notes` are not, while every genuine DSN target
-    # is. (The live-store scan missed this: no message happened to have that
-    # shape, and absence in a corpus is not proof of no false-positive surface.)
+    # `user:pass@host` and `host:port/path@note` are LEXICALLY IDENTICAL — nothing
+    # distinguishes `user:8080/api@db-host` (a credential) from
+    # `internal-docs:8080/api@readme` (a doc link). Rounds 16-18 tried three
+    # splits and each one leaked at the seam between its own halves.
+    # This REVERSES the P17-1 adjudication, deliberately: that round traded a
+    # real false NEGATIVE for a SYNTHETIC false positive, on a guard whose entire
+    # purpose is that secrets never travel. These schemes exist to CARRY
+    # credentials — `scheme://a:b@c` in a DSN scheme is a credential, and the
+    # ambiguous doc-link form does not appear in a single one of the 910 real
+    # messages in the live store. So: fail CLOSED, and let the rare false
+    # positive be a loud refusal the sender can rephrase.
+    # (Non-DSN schemes keep the stricter `/`-excluding password class above, so
+    # ordinary `https://host/path:frag@anchor` doc links still send.)
     _re.compile(
         r"\b(?:postgres(?:ql)?|mysql|mariadb|rediss?|mongodb(?:\+srv)?|amqps?"
         r"|ftps?|sftp|ssh|smtps?|clickhouse|mssql|oracle|cockroachdb)"
-        r"://[^\s/:@]*:[^\s@]+@"
-        r"(?:[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+|[A-Za-z0-9._-]+:\d{1,5}|[A-Za-z0-9._-]+/)",
+        r"://[^\s/:@]*:[^\s@]+@",
         _re.I,
     ),
 ]
@@ -940,6 +946,7 @@ def read_msg(msg_id: str, repo: str) -> str:
     # quarantined copy wins — P6-8) — a parent quarantined by list/digest
     # between two --auto sends still EXISTS, so the guards stay evaluable (a
     # quarantine must not invert the R3 fail-CLOSED HOLD into a fail-open ALLOW).
+    anomalous = False
     for sub in ("inbox", "archive"):
         p = _mail_root() / repo / sub / f"{msg_id}.md"
         try:
@@ -949,9 +956,14 @@ def read_msg(msg_id: str, repo: str) -> str:
                 # P17-2: something occupies the slot but is not a file (a stray
                 # directory from a bad restore). Falling through treated a parent
                 # that structurally EXISTS as MISSING, inverting C2's fail-CLOSED
-                # HOLD into a fail-open ALLOW. An OSError is what the --auto path
-                # reads as "exists but unreadable".
-                raise IsADirectoryError(f"{p} exists but is not a regular file")
+                # HOLD into a fail-open ALLOW.
+                # P18-2: but REMEMBER it, never raise here — raising inside the
+                # loop aborted the search at the first anomalous slot, so a stray
+                # directory in `inbox/` shadowed a perfectly readable parent in
+                # `archive/` (and the window + malformed fallbacks below), turning
+                # a working auto-reply into a spurious HOLD. The anomaly only
+                # matters if NOTHING readable is found anywhere.
+                anomalous = True
         except FileNotFoundError:
             # M4 (TOCTOU): a concurrent ack renamed it into the resolving window
             # between is_file() and read — fall through to the glob, never fold
@@ -983,6 +995,11 @@ def read_msg(msg_id: str, repo: str) -> str:
             return p.read_text(encoding="utf-8", errors="replace")
         except FileNotFoundError:
             continue
+    if anomalous:
+        # P18-2: nothing readable anywhere, but the slot IS occupied — "exists
+        # but unreadable", which the --auto path reads as HOLD (C2), never as the
+        # fail-soft ALLOW that "missing" earns.
+        raise IsADirectoryError(f"{msg_id} in {repo} exists but is not a regular file")
     raise FileNotFoundError(f"no message {msg_id} in {repo}")
 
 

@@ -1918,20 +1918,28 @@ def test_the_widened_patterns_do_not_refuse_an_ordinary_doc_link(env):
 
 
 # --- round 17: the ledger re-sweep -----------------------------------------
-def test_a_host_port_path_url_is_not_a_credential(env):
-    """P17-1: round 16 let `/` into the DSN password class to catch real
-    credentials — and thereby made `scheme://host:port/path@note` look like
-    `user:pass@host`, HARD-REFUSING legitimate ops mail. The live-store check
-    missed it because no existing message happened to have that shape; absence
-    in a corpus is not proof of no false-positive surface."""
-    for benign in (
+def test_dsn_scheme_urls_fail_closed_even_when_ambiguous(env):
+    """P18-3 REVERSES P17-1 deliberately. `user:pass@host` and
+    `host:port/path@note` are lexically identical — rounds 16-18 tried three ways
+    to split them and each leaked at the seam between its own halves (the last
+    missed `mysql://user:8080/api@db-host` entirely). On a guard whose whole
+    purpose is that secrets never travel, the ambiguity must resolve CLOSED. The
+    doc-link form appears in 0 of the 910 real messages in the live store, so the
+    false positive costs nothing and is a loud refusal the sender can rephrase —
+    while the false negative silently published a credential."""
+    for ambiguous in (
         "postgres://internal-docs:8080/api@readme",
-        "see postgres://docs.example.com:5432/schema@notes for the layout",
         "redis://cache:6379/0@see-notes",
+        "mysql://user:8080/api@db-host",
     ):
-        assert mail._secret_level(benign) is None, benign
-        assert mail.send(to="fabrik", kind="finding", body=benign, frm="alpha").is_file()
-    # …and the real credentials this pattern exists for are STILL refused.
+        assert mail._secret_level(ambiguous) == "high", ambiguous
+    # Non-DSN schemes keep the stricter class, so ordinary doc links still send.
+    assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
+    assert mail._secret_level("the deploy ran at 10:00@vps1 and passed") is None
+    assert mail.send(
+        to="fabrik", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha"
+    ).is_file()
+    # …and every genuine credential shape stays refused.
     for real in (
         "postgres://admin:s3cr3t/with/slash@host:5432/db",
         "mongodb+srv://u:p/a/ss@cluster0.abc.mongodb.net/db",
@@ -1976,3 +1984,102 @@ def test_a_directory_in_the_message_slot_holds_rather_than_allows(env):
     (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").mkdir(parents=True)
     with pytest.raises(mail.MailHoldError):
         mail.send(to="fabrik", kind="reply", body="auto", frm="fabrik", re=mid, auto=True)
+
+
+# --- round 18: round 17's fix broke two more --------------------------------
+def test_bare_hostname_dsn_with_slash_password_is_refused(env):
+    """P18-1: round 17 required the post-@ tail to be a dotted host, host:port or
+    host/ — but this fleet's OWN convention is BARE container names
+    (`postgres-main`, `redis-main`). A bare host plus a `/`-bearing password
+    matched neither the tightened DSN pattern nor the generic one (which excludes
+    `/`), so exactly the DSN shape most likely in THIS mail store travelled
+    clean. A false negative in a secret guard is the worst outcome here."""
+    for real in (
+        "DATABASE_URL: postgres://admin:xk3/q9zAbcdef@postgres-main",
+        "redis://user:secr/et@redis-main",
+        "mongodb://user:sec/ret@db",
+        "postgres://user:sec/ret@localhost",
+    ):
+        assert mail._secret_level(real) == "high", real
+    # (the ambiguous doc-link shapes now fail CLOSED — see
+    # test_dsn_scheme_urls_fail_closed_even_when_ambiguous for that contract)
+
+
+def test_a_stray_directory_does_not_shadow_a_real_message_elsewhere(env):
+    """P18-2: round 17 raised on the FIRST anomalous slot, inside the per-location
+    loop — so a stray directory at `inbox/<id>.md` aborted the search before
+    `archive/` (and the resolving-window and malformed fallbacks) were ever tried.
+    A perfectly readable archived parent became a spurious HOLD."""
+    p = mail.send(to="fabrik", kind="request", body="the real parent", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")  # now lives in archive/
+    (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").mkdir(parents=True)
+    assert "the real parent" in mail.read_msg(mid, "fabrik")
+    # and the guards stay evaluable rather than collapsing to a HOLD
+    out = mail.send(to="alpha", kind="reply", body="ok", frm="fabrik", re=mid, auto=True)
+    assert out.is_file()
+
+
+def test_max_re_boundary_is_bound(env):
+    """P18-4: MAX_RE had ZERO tests at any length — `grep MAX_RE tests/` was
+    empty — so mutating `>` to `>=` (refusing a legal 512-char ref) survived the
+    whole suite. Both sides of the boundary now bite."""
+    ok = "x" * mail.MAX_RE
+    assert mail.send(to="fabrik", kind="reply", body="b", frm="alpha", re=ok).is_file()
+    with pytest.raises(mail.MailRefusedError):
+        mail.send(to="fabrik", kind="reply", body="b", frm="alpha", re="x" * (mail.MAX_RE + 1))
+
+
+def test_digest_age_threshold_is_inclusive_on_both_legs(env):
+    """P18-5: both digest thresholds use `>= threshold`, and neither boundary was
+    tested — mutating either to `>` survived all 140 tests. The inclusive edge is
+    a deliberate choice at the digest's own documented cutoff; an off-by-one here
+    silently under-reports exactly at it."""
+    day = 86400
+    exact = mail.datetime.now(mail.UTC).timestamp() - day
+    ts = mail.datetime.fromtimestamp(exact, mail.UTC).isoformat()
+    _mint(env, "alpha", "fabrik", "request", "required", ts=ts)
+    assert mail.digest(days=1)["unacked"] == 1, "age == threshold COUNTS (inbox leg)"
+    # the archive .resolving leg, same boundary
+    p = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
+    win = arch.parent / f"{mid}.md.resolving.4242"
+    arch.rename(win)
+    os.utime(win, (exact, exact))
+    assert mail.digest(days=1)["unacked"] >= 2, "age == threshold COUNTS (resolving leg)"
+
+
+def test_rate_count_skips_dotfiles(env):
+    """P18-6: the rate walk's dotfile guard was the ONE of the three without a
+    test — removing it survived the suite, and `glob("*.md")` DOES match dotfiles,
+    so a stray hidden file with a forged `from:` would silently inflate a
+    loop-safety circuit breaker."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    now_ts = mail.datetime.now(mail.UTC).timestamp()
+    ts = mail.datetime.fromtimestamp(now_ts - 10, mail.UTC).isoformat()
+    (inbox / ".hidden.md").write_text(
+        f"---\nid: 01ARZ\nfrom: alpha\nto: fabrik\nts: {ts}\nre: \n"
+        "kind: request\nack: required\n---\nbody\n",
+        encoding="utf-8",
+    )
+    assert mail._recent_from_count("fabrik", "alpha", 3600, now_ts) == 0
+
+
+def test_quarantine_slot_bound_is_inclusive(env, monkeypatch):
+    """P18-7: the `n > _QUARANTINE_SLOTS` safety valve was off-by-one-untested.
+    Low exposure, but an unbound boundary in a loop whose whole job is to stay
+    bounded."""
+    monkeypatch.setattr(mail, "_QUARANTINE_SLOTS", 3)
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    parked.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "b.md"
+    bad.write_text("corrupt\n", encoding="utf-8")
+    for name in ("b.md", "b.md.1", "b.md.2", "b.md.3"):
+        (parked / name).write_text("other\n", encoding="utf-8")  # distinct inodes
+    assert mail._quarantine(inbox, bad) is False, "past the bound = a failed quarantine"
+    assert bad.is_file(), "the source is left for the operator, never silently dropped"

@@ -92,9 +92,12 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `credential`, `api_key`). Scheme matching is case-INSENSITIVE (a copy-pasted `Postgres://` counts),
   and for the schemes that exist to carry credentials (`postgres`, `mysql`, `redis`, `mongodb`, `amqp`,
   `ftp`/`sftp`, `ssh`, `smtp`, `clickhouse`, `mssql`, `oracle`, `cockroachdb`) a password containing
-  `/` is caught too — routine in base64-derived passwords. To stay off legitimate ops mail, that form
-  additionally requires the part after `@` to look like a real host (dotted name, `name:port`, or
-  `name/`), so a documentation link such as `postgres://internal-docs:8080/api@readme` still sends.
+  `/` is caught too — routine in base64-derived passwords. For those schemes the match is
+  deliberately fail-CLOSED: `user:pass@host` and `host:port/path@note` are lexically identical, so an
+  ambiguous string like `postgres://internal-docs:8080/api@readme` is REFUSED rather than risk
+  publishing a credential. That shape appears in none of the live store's messages; if you hit it,
+  rephrase (backtick it, or drop the scheme). Non-DSN schemes keep the stricter password class, so an
+  ordinary `https://host/path:frag@anchor` doc link still sends.
   Flow operator secrets as `<PASTE …>` pointers.
 - **Star topology.** Hub ↔ node only. `send` refuses a project→project `--to` (both non-hub) — route
   via the hub. `fabrik` AND `fabrik-lib` count as hub-side here, so a project MAY mail `fabrik-lib`

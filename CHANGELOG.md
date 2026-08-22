@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-17 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-18 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -65,6 +65,16 @@ All notable changes to this project will be documented in this file.
   exists as missing and turning a fail-closed HOLD into a fail-open ALLOW. Two mutation
   survivors were also closed, and the reference doc's secret enumeration — stale again,
   reopened by the very round that widened the patterns — was brought current.
+- Round 18 settled the secret-URL question by choosing a DIRECTION instead of a better
+  split, reversing round 17: `user:pass@host` and `host:port/path@note` are lexically
+  identical, and three consecutive attempts to separate them each leaked at their own seam.
+  For the credential-bearing schemes the match is now unconditional — fail closed — because
+  the ambiguous shape occurs in 0 of the live store's 910 messages, so the false positive is
+  free and loud while the false negative silently published a credential. Round 17 had also
+  missed BARE hostnames (this fleet's own `postgres-main` convention) and had made a stray
+  directory in `inbox/` shadow a readable parent in `archive/`. Four unbound guards gained
+  tests: `MAX_RE` at both edges, both digest age thresholds, the rate walk's dotfile guard,
+  and the quarantine slot valve.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 
