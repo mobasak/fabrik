@@ -23,7 +23,11 @@ design:
 - The rendered page always states the age of its own data and, per account, whether the
   reading is live or `cached Nh ago` — a stale render is visible, never silent.
 - A failed probe does **not** blank the page: it renders the last good payload behind a red
-  "live probe failed" banner (`quota.json` is the fallback store).
+  "live probe failed" banner (`quota.json` is the fallback store). Transient network blips are
+  first **retried at the HTTP layer** (`_oauth_get`, `OAUTH_GET_ATTEMPTS`/`OAUTH_GET_TIMEOUT_S`
+  — see `claude-account-rotation.md` § Transient-blip resilience) before this fallback triggers,
+  so a single stalled call under a flaky VPN no longer trips the 60s cap
+  (`QUOTA_DASH_PROBE_TIMEOUT_S`).
 - **Idle accounts show `cached Nh ago` by design** — `--status` (what this shells) is a fast,
   ping-free read; only the *active* dir's fresh token is probed live. **Idle-cache freshness is
   the `*/5` rotation tick's job**, not the dashboard's. So if idle ages climb without bound

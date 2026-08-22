@@ -177,6 +177,18 @@ caught silently: idle readings never refresh (the dashboard cache ages unbounded
 chains are never warmed. Regression-guarded in `tests/test_claude_fleet.py`
 (`test_with_claude_on_path_*`).
 
+**Transient-blip resilience — `_oauth_get` retries.** The telemetry reads (`usage`, the
+identity `profile` probe) go through `_oauth_get`, which retries **transient** failures
+(timeout / connection reset / 5xx) with a short per-attempt timeout and backoff, so one stalled
+`urlopen` under a flaky link (VPN drop) no longer blanks the quota dashboard — its ping-free
+`--status` probe runs behind a 60s cap that a single 15s stall used to trip ("Live probe failed
+— TimeoutExpired after 60s", 2026-08-22). A **4xx (esp. 401/403) is definitive auth and is never
+retried** — retrying a dead/wrong token only burns the budget. Both knobs are env-tunable:
+`OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**), sized so two
+attempts stay inside a caller's budget. A sustained outage still falls soft to the last-good
+reading (the dashboard's red banner) — no retry conjures a working network. Regression-guarded
+in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
+
 ## Runbook
 
 ### The logins (done — chains date from 2026-08-15, which is when their idle clocks start)
