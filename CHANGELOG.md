@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-13 (2026-08-23)
+### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-14 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never
   parses and the archive leg skips unparseable rows, so treating every FileNotFoundError as
@@ -28,6 +28,15 @@ All notable changes to this project will be documented in this file.
   `_quarantine` took its slot check-then-act with `os.rename`, which overwrites a
   peer's parked copy — now `os.link`'s atomic claim. `_env_cap`'s garbage and
   below-minimum branches are bound for the caps, not just the window.
+- Round 14 caught two regressions the round-13 fix itself introduced: replacing the
+  quarantine's `os.rename` with `os.link` + `os.unlink` dropped the CONSUMING half of
+  an atomic move, so a failed source-unlink left a parked copy the next digest parked
+  AGAIN (an unbounded count for one corrupt message), and two concurrent quarantines of
+  the same file each won a separate slot. The source-unlink now rolls back, and a slot
+  holding our own inode is adopted instead of duplicated. Also: `requeue` truncated
+  trailing body whitespace even with no ack line to strip, and the digest counted every
+  `.resolving` window regardless of age, so a live `ack()` racing the cron read as a
+  phantom unacked message.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -541,7 +542,13 @@ def test_digest_counts_stale_resolving_as_unacked(env):
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
-    arch.rename(arch.parent / f"{mid}.md.resolving.99999")
+    win = arch.parent / f"{mid}.md.resolving.99999"
+    arch.rename(win)
+    # P14-4: age it past the threshold — a window younger than that is an ack in
+    # FLIGHT, not a strand, and counting it made every digest that raced a live
+    # ack() report a phantom (see test_digest_does_not_count_a_fresh_resolving_window).
+    old = time.time() - 3 * 86400
+    os.utime(win, (old, old))
     d = mail.digest(days=1)
     assert d["unacked"] >= 1, d
 
@@ -1723,3 +1730,85 @@ def test_quarantine_never_overwrites_a_parked_copy(env, monkeypatch):
     assert mail._quarantine(inbox, bad) is True
     assert (parked / "dup.md").read_text(encoding="utf-8") == first, "the peer's copy is intact"
     assert (parked / "dup.md.1").read_text(encoding="utf-8") == "second corruption\n"
+
+
+# --- round 14: the os.link split was NOT equivalent to the consuming rename ---
+def test_quarantine_rolls_back_when_the_source_cannot_be_removed(env, monkeypatch):
+    """P14-1: os.rename was ONE atomic consuming syscall; link+unlink is two. If
+    the unlink fails with anything but ENOENT the copy is parked while the source
+    SURVIVES — the next digest parks it again under a new suffix, inflating the
+    operator's count without bound for a single corrupt message. Roll back."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "stuck.md"
+    bad.write_text("corrupt\n", encoding="utf-8")
+
+    real_unlink = mail.os.unlink
+
+    def no_inbox_unlink(path, *a, **k):
+        """Only the INBOX is unwritable — the rollback of our own parked copy
+        must still be able to run, or this test proves nothing about rollback."""
+        if Path(path).parent.name == "inbox":
+            raise PermissionError("simulated EACCES on the inbox")
+        return real_unlink(path, *a, **k)
+
+    monkeypatch.setattr(mail.os, "unlink", no_inbox_unlink)
+    assert mail._quarantine(inbox, bad) is False, "a half-done move is a FAILED quarantine"
+    assert bad.is_file(), "the source is untouched"
+    assert not list(parked.glob("stuck.md*")), "no orphan copy left behind"
+
+
+def test_quarantine_twice_on_one_file_parks_exactly_one_copy(env, monkeypatch):
+    """P14-2: os.rename CONSUMED the source, so the racing loser hit ENOENT and
+    stopped. os.link does not — two concurrent digests can each win a different
+    numbered slot before either unlinks, leaving TWO permanent parked copies of
+    ONE message and a doubled operator count. The second caller must adopt the
+    first's copy, recognised by inode, not make a duplicate."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "raced.md"
+    bad.write_text("corrupt\n", encoding="utf-8")
+    real_unlink = mail.os.unlink
+    reentered = []
+
+    def racing_unlink(path, *a, **k):
+        """A peer quarantines the SAME source before our unlink lands."""
+        if not reentered:
+            reentered.append(path)
+            mail._quarantine(inbox, bad)
+        return real_unlink(path, *a, **k)
+
+    monkeypatch.setattr(mail.os, "unlink", racing_unlink)
+    mail._quarantine(inbox, bad)
+    copies = sorted(p.name for p in parked.glob("raced.md*"))
+    assert copies == ["raced.md"], f"one message, one parked copy — got {copies}"
+    assert mail.digest(days=0)["quarantined"] == 1
+
+
+def test_requeue_preserves_a_body_that_never_had_an_ack_line(env):
+    """P14-3: requeue rstrip()'d the WHOLE file unconditionally, so a body ending
+    in deliberate blank lines or spaces (code blocks, ASCII tables) was silently
+    truncated on the first claim->requeue — with no ack ever appended, which is
+    not what its docstring or the reference doc describe."""
+    body = "hello world\n\n\n   \n"
+    p = mail.send(to="fabrik", kind="request", body=body, frm="alpha")
+    mid = p.name.removesuffix(".md")
+    before = (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").read_text(encoding="utf-8")
+    mail.claim(msg_id=mid, repo="fabrik")
+    mail.requeue(msg_id=mid, repo="fabrik")
+    after = (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").read_text(encoding="utf-8")
+    assert after == before, "no ack line was ever present — requeue must not rewrite the body"
+
+
+def test_digest_does_not_count_a_fresh_resolving_window(env):
+    """P14-4: the resolving leg counted EVERY window unconditionally, ignoring
+    the age threshold its own docstring promises — so a healthy in-flight ack()
+    running while the digest cron fires reported a phantom unacked message."""
+    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    mid = p.name.removesuffix(".md")
+    mail.claim(msg_id=mid, repo="fabrik")
+    arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
+    arch.rename(arch.parent / f"{mid}.md.resolving.99999")  # created just now
+    assert mail.digest(days=3)["unacked"] == 0, "a fresh window is an ack in flight, not a strand"

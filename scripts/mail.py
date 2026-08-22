@@ -650,7 +650,13 @@ def requeue(msg_id: str, repo: str) -> Path:
         # P5-3: an undecodable body is left BYTE-INTACT — a lossy rewrite would
         # permanently substitute U+FFFD in the durable store.
         text, lossless = raw.decode("utf-8", errors="replace"), False
-    cleaned = _ACK_LINE.sub("", text).rstrip() + "\n"
+    # P14-3: the rstrip() was unconditional and applied to the WHOLE file, so a
+    # body ending in deliberate blank lines or spaces was truncated on the first
+    # requeue even when no ack line existed to strip — silent, durable, and not
+    # what this docstring or the reference doc describe. Normalize ONLY when we
+    # actually removed a marker.
+    stripped = _ACK_LINE.sub("", text)
+    cleaned = (stripped.rstrip() + "\n") if stripped != text else text
     if cleaned != text and lossless:
         dst.write_text(cleaned, encoding="utf-8")
     elif cleaned != text:
@@ -708,12 +714,25 @@ def _quarantine(inbox: Path, f: Path) -> bool:
         # EEXIST claim (the _publish invariant); the unlink then completes the
         # move. Same filesystem by construction (siblings under the repo dir).
         n = 0
+        created = False
         while True:
             dst = q / (f.name if n == 0 else f"{f.name}.{n}")
             try:
                 os.link(f, dst)
+                created = True
                 break
             except FileExistsError:
+                # P14-2: os.rename CONSUMED the source, so a racing peer hit
+                # ENOENT and stopped. os.link does not, so both callers can win
+                # DIFFERENT slots and park the same message twice. A slot holding
+                # our own inode IS our message, already parked by the peer —
+                # adopt it rather than minting a duplicate the operator would
+                # have to reconcile by hand.
+                try:
+                    if dst.stat().st_ino == f.stat().st_ino:
+                        break
+                except OSError:
+                    pass
                 n += 1
                 if n > _QUARANTINE_SLOTS:
                     raise  # bounded: an unbounded probe would hang the digest
@@ -721,6 +740,18 @@ def _quarantine(inbox: Path, f: Path) -> bool:
             os.unlink(f)
         except FileNotFoundError:
             pass  # the copy is parked — a peer clearing the source is success
+        except OSError:
+            # P14-1: the copy is parked but the source SURVIVED (EACCES on the
+            # inbox, a remount, quota). The next digest would park it AGAIN under
+            # a fresh suffix, inflating the operator's count without bound for one
+            # corrupt message. Leave the tree exactly as we found it and report the
+            # failure — the caller counts a failed quarantine (P9-1).
+            if created:
+                try:
+                    os.unlink(dst)
+                except OSError:
+                    pass
+            raise
     except FileNotFoundError:
         # P10-7 + P11-1: FileNotFoundError has FOUR causes, only ONE of which is
         # "a peer already parked it" (then the parked glob counts the copy and a
@@ -795,7 +826,21 @@ def digest(days: int = 3) -> dict:
         if archive.is_dir():
             # stranded resolve windows (closer D1) — invisible to every verb until swept;
             # surface them, never report a clean mailbox over an invisible message
-            unacked += sum(1 for p in archive.glob("*.md.resolving*") if not p.name.startswith("."))
+            # P14-4: a window is only a STRAND once it has outlived any plausible
+            # ack. Counting every one ignored the age threshold this function's own
+            # docstring promises, so a healthy in-flight ack() racing the digest
+            # cron reported a phantom unacked message. Age comes from the window's
+            # mtime — the RENAME has no ts of its own — and this leg stays
+            # independent of ack:required because D1's point is that a strand is
+            # invisible to every OTHER verb regardless of what it asked for.
+            for p in archive.glob("*.md.resolving*"):
+                if p.name.startswith("."):
+                    continue
+                try:
+                    if time.time() - p.stat().st_mtime >= threshold:
+                        unacked += 1
+                except OSError:
+                    continue  # M10: a concurrent sweep resolved it — never crash the cron
             for f in sorted(archive.glob("*.md")):
                 if f.name.startswith("."):
                     continue  # P13-6: the FOURTH glob — this was the one leg
