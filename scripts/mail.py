@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md
+# AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md
 """fabrik-mail — durable hub↔project AI message store + protocol (stdlib-only).
 
 One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,archive}``
@@ -51,6 +51,7 @@ ACK_BY_KIND = {  # default ack per kind
     "reply": "no",
 }
 MAX_BODY = 64 * 1024  # a mail is a pointer, not a payload
+MAX_RE = 512  # a threading ref is an id or a short prose pointer (P3-7)
 
 # Loop-safety defaults (spec 2026-08-15-fabrik-mail-loop-safety-design; env-overridable).
 # Read at CALL time via _env_cap so a per-thread override needs no restart.
@@ -62,10 +63,10 @@ RATE_WINDOW_S = 3600  # the per-sender rate window, seconds
 def _env_cap(name: str, default: int, minimum: int = 0) -> int:
     """Int env override, else the default. For the CAPS an explicit 0 is an
     operator INTENT (refuse all auto-replies), never a silent fall-back (C6);
-    the rate WINDOW floors at 1 (D1 — a 0 window makes `0 <= age < 0` never
-    true, silently DISABLING the circuit breaker: fail-open, the inversion of
+    the rate WINDOW takes minimum=1 — a 0 window makes `0 <= age < 0` never
+    true, silently DISABLING the circuit breaker (fail-open, the inversion of
     the caps' semantics). Below-minimum/garbage values warn and use the
-    default."""
+    DEFAULT (not the minimum) — wider window, stricter breaker."""
     raw = os.environ.get(name, "")
     if not raw:
         return default
@@ -113,6 +114,9 @@ _SECRET_LOW = _re.compile(r"\b(?:password|passwd|secret|token|credential|api[_-]
 # depth under the single-operator threat model; a traversal is a loud refusal).
 _SAFE_NAME = _re.compile(r"^[A-Za-z0-9._-]+$")
 _SAFE_ID = _re.compile(r"^[0-9A-Z]{26}$")
+# P10-4: what _quarantine actually writes — "<name>.md" or "<name>.md.<n>". A
+# stray `.md.bak` / `.md.resolving.*` / `README.md` must not inflate the count.
+_QUARANTINED_NAME = _re.compile(r"\.md(\.\d+)?$")
 # A REAL ack line (appended by ack()) — matched precisely so a body that merely
 # contains the words "acked-by:" cannot fool the digest's claimed-but-crashed scan.
 _ACK_LINE = _re.compile(r"(?m)^acked-by: .+ · disposition: (?:" + "|".join(DISPOSITIONS) + r")\s*$")
@@ -202,7 +206,19 @@ def _body_has_bare_ack_line(body: str) -> bool:
     """A body carrying a VERBATIM ack line would poison the claim/ack/digest scans (a
     claimed message becomes permanently un-ackable and digest-invisible — closer C3).
     Refuse at send; quoting a resolved thread is fine with an indent ("> acked-by: …")."""
-    return bool(_ACK_LINE.search(body))
+    # P4-1 + P6-1: the UNION of two views, because the guard and its consumers
+    # disagree in BOTH directions. read_text() translates \r (and \r\n) to \n,
+    # so the raw body alone missed a \r-separated ack line; but read_text does
+    # NOT translate \v \f \x85 U+2028/2029 \x1c-\x1e, so the normalized view
+    # alone SPLITS an ack line containing one of those and misses it while every
+    # consumer still matches — and the CROSS case (a \r delimiter with one of
+    # those inside the line) fell between both (P7-1). So match the CONSUMER's
+    # exact view (which strictly contains the raw body) ∪ the fully-normalized
+    # one — over-strict is fail-closed.
+    consumer_view = body.replace("\r\n", "\n").replace("\r", "\n")  # what read_text() yields
+    return bool(_ACK_LINE.search(consumer_view)) or bool(
+        _ACK_LINE.search("\n".join(body.splitlines()))
+    )
 
 
 def _secret_level(body: str) -> str | None:
@@ -304,6 +320,9 @@ def _recent_from_count(
         if not d.is_dir():
             continue
         for f in sorted(d.glob("*.md")):
+            if f.name.startswith("."):
+                continue  # P10-5: dotfiles are not messages — the THIRD glob,
+                # symmetric with digest and list_msgs
             # (An mtime prefilter was tried and REMOVED — E2: mtime and ts
             # diverge under cp -p/rsync/restores and synthetic now_ts, silently
             # under-counting the breaker. The O(N) walk is the accepted cost.)
@@ -332,6 +351,7 @@ def should_auto_reply(
     to. Order: self → terminal-kind → hop-cap → rate-cap → ALLOW; first trip
     wins and names the reason. Fail-soft: an uncomputable rate count ALLOWs
     with a stderr note (a loop is lower-risk than a wedged channel)."""
+    _safe_name(self_repo, "repo")  # L9: keep the traversal guard on this public entry
     sender = parent_fm.get("from", "")
     if sender == self_repo:
         return (
@@ -392,6 +412,26 @@ def send(
     frm = frm or _current_repo()
     _safe_name(to, "recipient")
     _safe_name(frm, "sender")
+    if ack and ack not in ("required", "no"):  # vocabulary check subsumes any separator
+        # P3-1: `ack` is the SECOND raw-interpolated frontmatter value (the CLI
+        # constrains it by argparse choices; the library path did not). A line
+        # break forges `from` (defeating the self-guard) or plants an acked-by
+        # line (permanently un-ackable + digest-invisible). Vocabulary check.
+        raise MailRefusedError(f"unsafe ack {ack!r}: must be exactly 'required' or 'no'")
+    if re is not None and len(re.splitlines()) > 1:
+        # H1 + P2-1: `re` is the one deliberately-unvalidated frontmatter value
+        # (prose refs, R1). A LINE BREAK in it forges arbitrary frontmatter — a
+        # `from:` (defeating the self-guard + rate attribution) or an `acked-by:`
+        # line (poisoning claim/ack/digest, the C3 class the body is guarded
+        # against). The test is `splitlines()` itself — the same separator set
+        # `_parse` honours (and `ack` above gets the same treatment) (\n \r \v \f \x1c-\x1e \x85 \u2028 \u2029), never a
+        # narrower \n/\r check the parser would disagree with.
+        raise MailRefusedError("unsafe --re: a threading ref is a single line (no line breaks)")
+    if re is not None and len(re) > MAX_RE:
+        # P3-7: a mail is a pointer — an unbounded re: bloats every mailbox walk
+        # (rate count, digest, list) for the life of the message. Checked AFTER
+        # the line-break guard so the security refusal always names itself.
+        raise MailRefusedError(f"unsafe --re: over the {MAX_RE}-char threading-ref cap")
     if kind not in KINDS:
         raise MailRefusedError(f"unknown kind {kind!r} (allowed: {', '.join(sorted(KINDS))})")
     if len(body.encode("utf-8")) > MAX_BODY:
@@ -576,7 +616,7 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
         pass
     os.rename(dst, win)  # FileNotFoundError → unclaimed/absent/mid-window: the caller's error
     try:
-        if _ACK_LINE.search(win.read_text(encoding="utf-8")):
+        if _ACK_LINE.search(win.read_text(encoding="utf-8", errors="replace")):
             raise FileNotFoundError(f"{msg_id} already resolved")
         _append_ack_line(win, repo, disposition)
     finally:
@@ -598,10 +638,22 @@ def requeue(msg_id: str, repo: str) -> Path:
     dst = base / "inbox" / f"{msg_id}.md"
     dst.parent.mkdir(parents=True, exist_ok=True)
     os.rename(src, dst)
-    text = dst.read_text(encoding="utf-8")
+    raw = dst.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+        lossless = True
+    except UnicodeDecodeError:
+        # P5-3: an undecodable body is left BYTE-INTACT — a lossy rewrite would
+        # permanently substitute U+FFFD in the durable store.
+        text, lossless = raw.decode("utf-8", errors="replace"), False
     cleaned = _ACK_LINE.sub("", text).rstrip() + "\n"
-    if cleaned != text:
+    if cleaned != text and lossless:
         dst.write_text(cleaned, encoding="utf-8")
+    elif cleaned != text:
+        print(
+            f"mail.py: {msg_id} has undecodable bytes — ack line left in place (byte-safe)",
+            file=sys.stderr,
+        )
     return dst
 
 
@@ -637,10 +689,30 @@ def _age_seconds(ts: str) -> float:
 
 
 # --- digest ------------------------------------------------------------------
-def _quarantine(inbox: Path, f: Path) -> None:
+def _quarantine(inbox: Path, f: Path) -> bool:
+    """Move a malformed file aside. P4-2: fail-soft — a file claimed out from
+    under us between the read and this rename must never crash the caller (the
+    daily digest would skip every later mailbox and never alert). P4-8: never
+    OVERWRITE an earlier quarantined copy (the module's own publish invariant) —
+    a repeat corruption lands beside it with a numbered suffix."""
     q = inbox.parent / "malformed"
-    q.mkdir(parents=True, exist_ok=True)
-    os.rename(f, q / f.name)
+    try:
+        q.mkdir(parents=True, exist_ok=True)
+        dst = q / f.name
+        n = 1
+        while dst.exists():
+            dst = q / f"{f.name}.{n}"
+            n += 1
+        os.rename(f, dst)
+    except FileNotFoundError:
+        # P10-7: a peer (list_msgs racing digest) already parked it — the copy
+        # is counted once by the parked glob; counting a "failure" here too
+        # would double-count that file for one run.
+        return True
+    except OSError as exc:
+        print(f"mail.py: quarantine skipped for {f.name} ({exc!r})", file=sys.stderr)
+        return False
+    return True
 
 
 def digest(days: int = 3) -> dict:
@@ -652,25 +724,56 @@ def digest(days: int = 3) -> dict:
     if not root.is_dir():
         return {"unacked": 0, "quarantined": 0, "repos": []}
     repos: list[str] = []
-    for repo_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+    for repo_dir in sorted(
+        p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")
+    ):  # P10-6: a .git/.tmp dir is not a mailbox
         repos.append(repo_dir.name)
         inbox = repo_dir / "inbox"
         archive = repo_dir / "archive"
         if inbox.is_dir():
             for f in sorted(inbox.glob("*.md")):
-                fm = _parse(f.read_text(encoding="utf-8", errors="replace"))
+                if f.name.startswith("."):
+                    continue  # P9-3: editor swaps / dotfiles are not messages —
+                    # skipped symmetrically with the count leg, never parked
+                try:
+                    raw = f.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue  # M10: a concurrent claim moved it — never crash the cron
+                fm = _parse(raw)
                 if fm is None:
-                    _quarantine(inbox, f)
-                    quarantined += 1
+                    # P8-1: a SUCCESSFUL move is counted once, by the parked glob
+                    # below (counting here too double-counted every file moved
+                    # this run). P9-1: a FAILED move is counted HERE — the file
+                    # stays in the inbox, never reaches the glob, and a silent 0
+                    # would report a clean mailbox over a malformed message.
+                    if not _quarantine(inbox, f):
+                        quarantined += 1
                     continue
                 if fm.get("ack") == "required" and _age_seconds(fm.get("ts", "")) >= threshold:
                     unacked += 1  # required, still unclaimed in inbox
+        # P7-6: a quarantined message stays visible — its obligation must not
+        # vanish from the operator's only visibility leg after one alert.
+        parked = repo_dir / "malformed"
+        if parked.is_dir():
+            # P8-5: the quarantine namer only ever writes "<id>.md" or
+            # "<id>.md.<n>" — a stray dotfile/editor swap must not inflate the
+            # operator-facing count.
+            quarantined += sum(
+                1
+                for f in parked.glob("*.md*")
+                if f.is_file()
+                and not f.name.startswith(".")  # editor swaps / dotfiles are not messages
+                and _QUARANTINED_NAME.search(f.name)  # "<name>.md" or "<name>.md.<n>" ONLY
+            )
         if archive.is_dir():
             # stranded resolve windows (closer D1) — invisible to every verb until swept;
             # surface them, never report a clean mailbox over an invisible message
             unacked += sum(1 for _ in archive.glob("*.md.resolving*"))
             for f in sorted(archive.glob("*.md")):
-                text = f.read_text(encoding="utf-8", errors="replace")
+                try:
+                    text = f.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue  # M10: concurrent move — skip, never crash the cron
                 fm = _parse(text)
                 if fm is None:
                     continue
@@ -686,13 +789,24 @@ def digest(days: int = 3) -> dict:
 
 
 def list_msgs(repo: str) -> list[dict]:
-    """List a repo's inbox (quarantining any malformed file), newest sort last."""
+    """List a repo's inbox (quarantining any malformed file), newest sort last.
+
+    P5-2: `_safe_name` like every sibling verb — this is the ONE repo-taking
+    entry point that MOVES files, so an unguarded `repo` relocated arbitrary
+    *.md under any path (absolute paths escaped the root entirely)."""
+    _safe_name(repo, "repo")
     inbox = _mail_root() / repo / "inbox"
     out: list[dict] = []
     if not inbox.is_dir():
         return out
     for f in sorted(inbox.glob("*.md")):
-        fm = _parse(f.read_text(encoding="utf-8", errors="replace"))
+        if f.name.startswith("."):
+            continue  # P9-3: dotfiles are not messages (symmetric with digest)
+        try:
+            raw = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # M10: concurrent claim moved it — skip
+        fm = _parse(raw)
         if fm is None:
             _quarantine(inbox, f)
             continue
@@ -703,18 +817,46 @@ def list_msgs(repo: str) -> list[dict]:
 def read_msg(msg_id: str, repo: str) -> str:
     _safe_id(msg_id)
     _safe_name(repo, "repo")
+    # H3: `malformed/` is scanned too (in the mtime pass below, so the NEWEST
+    # quarantined copy wins — P6-8) — a parent quarantined by list/digest
+    # between two --auto sends still EXISTS, so the guards stay evaluable (a
+    # quarantine must not invert the R3 fail-CLOSED HOLD into a fail-open ALLOW).
     for sub in ("inbox", "archive"):
         p = _mail_root() / repo / sub / f"{msg_id}.md"
-        if p.is_file():
-            return p.read_text(encoding="utf-8", errors="replace")
-    # G2: a message inside an ack's resolving window (<id>.md.resolving.<pid>)
-    # still EXISTS — reading it keeps --auto's guards evaluable during (or
-    # after a crash inside) the window, instead of folding into "missing" and
-    # fail-soft-bypassing all four guards.
-    for sub in ("inbox", "archive"):
-        for p in sorted((_mail_root() / repo / sub).glob(f"{msg_id}.md.resolving.*")):
+        try:
             if p.is_file():
                 return p.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            # M4 (TOCTOU): a concurrent ack renamed it into the resolving window
+            # between is_file() and read — fall through to the glob, never fold
+            # a live-but-moving parent into "missing" (which fail-soft-ALLOWs).
+            pass
+    # G2: a message inside an ack's resolving window (<id>.md.resolving.<pid>)
+    # still EXISTS — reading it keeps --auto's guards evaluable. Newest by mtime
+    # (M7) so a live window's appended content wins over a stale orphan.
+    windows: list[Path] = []
+    for sub in ("inbox", "archive"):
+        windows.extend((_mail_root() / repo / sub).glob(f"{msg_id}.md.resolving.*"))
+    # P6-8: repeat corruption numbers the quarantined copies (.1, .2). Ordered
+    # by mtime = content-write time (os.rename preserves it, so this is NOT
+    # quarantine order — P7-4); the freshest CONTENT is the best available
+    # evidence for the guards.
+    windows.extend((_mail_root() / repo / "malformed").glob(f"{msg_id}.md*"))
+
+    def _mtime(f: Path) -> float:
+        # P2-2: fail-soft — a window vanishing mid-sort must not abort the read
+        # (sorted() evaluates every key first), which would fold a still-live
+        # sibling into the fail-soft ALLOW M4 exists to prevent.
+        try:
+            return f.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    for p in sorted(windows, key=_mtime, reverse=True):
+        try:
+            return p.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            continue
     raise FileNotFoundError(f"no message {msg_id} in {repo}")
 
 
@@ -828,6 +970,11 @@ def main(argv: list[str] | None = None) -> int:
             _deliver_digest(digest(days=args.days))
         elif args.cmd == "should-reply":
             repo = args.repo or _current_repo()
+            try:
+                _safe_name(repo, "repo")  # P3-2: an unsafe repo is fail-CLOSED
+            except MailRefusedError as exc:
+                print(f"HOLD: unsafe repo — {exc}")
+                return 3
             try:
                 parent_fm = _parse(read_msg(args.id, repo))
             except MailRefusedError:

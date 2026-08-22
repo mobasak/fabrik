@@ -48,8 +48,9 @@ All notable changes to this project will be documented in this file.
   advisory pre-check (same verdicts, exit 0/3). Fail-soft: a missing/prose-`re:` parent
   ALLOWs with hops=0 + a stderr note; an existing-but-unparseable/unreadable parent HOLDs.
   One ts convention (naive = UTC) shared by the rate guard and the digest; `read_msg` also
-  resolves a parent parked in an ack resolving window. 34 new tests (83 total), six
-  adversarial review rounds (11+7+9+7+4+3 findings, all fixed or adjudicated-documented).
+  resolves a parent parked in an ack resolving window. the formal /fabrik-review loop then ran on the committed
+  surface — pass ledger, coverage checklist and suite size in
+  docs/development/reviews/2026-08-22-plan-1-fabrik-mail-loop-safety-review.md.
 - Docs: `docs/reference/fabrik-mail.md` "Loop-safety / auto-reply" section (guards, exit
   codes, fail-soft rules, the always-pass-`--auto` discipline, the mixed-fleet rollout note),
   `docs/workstation/fabrik-mail.md` operator HOLD note, the three env vars in `.env.example`

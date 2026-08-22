@@ -1128,3 +1128,341 @@ def test_parent_in_resolving_window_keeps_guards_evaluable(env):
     (inbox / f"{pid}.md").rename(inbox / f"{pid}.md.resolving.99999")
     with pytest.raises(mail.MailHoldError, match="terminal"):
         mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)
+
+
+# --- formal /fabrik-review fix wave (H1..R10) --------------------------------
+def test_re_field_cannot_inject_frontmatter(env):
+    """H1 (HIGH): a newline in --re must not forge frontmatter — the body's
+    bare-ack-line guard covers the body, but re: was interpolated raw, letting
+    a crafted re: forge `from` (defeating self-guard + rate attribution) and
+    plant an acked-by line (poisoning claim/ack/digest)."""
+    evil = "01ARZ3NDEKTSV4RRFFQ69G5FAV\nfrom: someone-else\nacked-by: x · disposition: done"
+    with pytest.raises(mail.MailRefusedError, match="re"):
+        mail.send("fabrik", "request", "x", frm="alpha", re=evil)
+
+
+def test_quarantined_parent_holds_not_allows(env):
+    """H3: a malformed parent quarantined by list/digest must still HOLD under
+    --auto (guards cannot be evaluated) — read_msg scans malformed/ too, so the
+    quarantine cannot invert the R3 fail-CLOSED into a fail-open ALLOW."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    (inbox / f"{pid}.md").write_text("---\nid: \nkind: \n---\nbroken\n", encoding="utf-8")
+    mail.list_msgs("fabrik")  # quarantines the malformed file
+    assert (env["mail_root"] / "fabrik" / "malformed" / f"{pid}.md").is_file()
+    with pytest.raises(mail.MailHoldError, match="unparseable"):
+        mail.send("alpha", "reply", "x", frm="fabrik", re=pid, auto=True)
+
+
+def test_read_msg_survives_concurrent_ack_rename(env, monkeypatch):
+    """M4 (TOCTOU): a parent renamed into the resolving window between is_file()
+    and read_text() must fall through to the glob, not propagate FileNotFound
+    into the fail-soft ALLOW."""
+    archive = env["mail_root"] / "fabrik" / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    canonical = archive / f"{pid}.md"
+    canonical.write_text("---\nid: x\nkind: request\nack: required\n---\nb\n", encoding="utf-8")
+    real_read = Path.read_text
+    state = {"n": 0}
+
+    def _racing_read(self, *a, **kw):
+        if self == canonical and state["n"] == 0:
+            state["n"] = 1
+            canonical.rename(archive / f"{pid}.md.resolving.123")
+            raise FileNotFoundError(str(canonical))
+        return real_read(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", _racing_read)
+    text = mail.read_msg(pid, "fabrik")  # must NOT raise
+    assert "kind: request" in text
+
+
+def test_resolving_glob_returns_newest_by_mtime(env):
+    """M7: two resolving orphans — read_msg returns the NEWEST by mtime (the
+    live window's content), not the lexically-last PID."""
+    archive = env["mail_root"] / "fabrik" / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    old = archive / f"{pid}.md.resolving.9"
+    new = archive / f"{pid}.md.resolving.10"  # lexically LAST but we make it OLDER
+    old.write_text("NEW content\n", encoding="utf-8")
+    new.write_text("OLD content\n", encoding="utf-8")
+    os.utime(new, (1, 1))  # new is oldest by mtime
+    os.utime(old, (mail.time.time(), mail.time.time()))
+    assert "NEW content" in mail.read_msg(pid, "fabrik")
+
+
+def test_digest_survives_concurrent_claim(env, monkeypatch):
+    """M10: a file vanishing between glob and read_text (concurrent claim) must
+    not crash the daily digest cron."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    pid = _mint(env, "alpha", "fabrik", "request", "required")
+    real_read = Path.read_text
+
+    def _vanish(self, *a, **kw):
+        if self.name == f"{pid}.md":
+            raise FileNotFoundError(str(self))
+        return real_read(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", _vanish)
+    d = mail.digest(days=0)  # must not raise
+    assert isinstance(d, dict)
+
+
+def test_should_auto_reply_validates_self_repo(env):
+    """L9: the public guard entry point keeps the traversal defense — an unsafe
+    self_repo is refused, not walked."""
+    with pytest.raises(mail.MailRefusedError):
+        mail.should_auto_reply(
+            {"from": "alpha", "kind": "request", "ack": "required", "hops": "0"}, "../etc"
+        )
+
+
+def test_re_rejects_every_splitlines_separator(env):
+    """P2-1 (HIGH): _parse splits frontmatter with str.splitlines(), which
+    breaks on U+2028/2029/0085/000B/000C/001C-1E too — the injection guard must
+    reject the SAME separator set the parser honours, or `from` stays forgeable."""
+    for sep in ("\u2028", "\u2029", "\x85", "\v", "\f", "\x1c", "\x1d", "\x1e"):
+        with pytest.raises(mail.MailRefusedError, match="single line"):
+            mail.send(
+                "fabrik",
+                "request",
+                "x",
+                frm="alpha",
+                re=f"01ARZ3NDEKTSV4RRFFQ69G5FAV{sep}from: attacker",
+            )
+
+
+def test_prose_re_with_spaces_still_allowed(env):
+    """P2-1 counter-direction: the R1 prose fail-soft survives — only line
+    separators are refused, not ordinary text."""
+    out = mail.send(
+        "fabrik", "request", "x", frm="alpha", re="U3: is validate_conventions the path"
+    )
+    assert out.is_file()
+
+
+def test_resolving_sort_survives_a_vanishing_window(env, monkeypatch):
+    """P2-2: a window vanishing during the mtime sort must not abort read_msg —
+    the sort key fail-softs so a sibling readable window still resolves."""
+    archive = env["mail_root"] / "fabrik" / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    gone = archive / f"{pid}.md.resolving.1"
+    live = archive / f"{pid}.md.resolving.2"
+    gone.write_text("gone\n", encoding="utf-8")
+    live.write_text("---\nid: x\nkind: request\n---\nlive\n", encoding="utf-8")
+    real_stat = Path.stat
+
+    def _racing_stat(self, *a, **kw):
+        if self == gone:
+            raise FileNotFoundError(str(gone))
+        return real_stat(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "stat", _racing_stat)
+    assert "live" in mail.read_msg(pid, "fabrik")
+
+
+def test_ack_field_cannot_inject_frontmatter(env):
+    """P3-1 (HIGH): `ack` is the SECOND raw-interpolated frontmatter value — the
+    library path took any string. A line break in it forges `from` (defeating
+    the self-guard) and can plant an acked-by line (permanently un-ackable +
+    digest-invisible). Same splitlines() test as --re, plus a vocabulary check."""
+    with pytest.raises(mail.MailRefusedError, match="ack"):
+        mail.send("fabrik", "request", "x", frm="alpha", ack="required\nfrom: attacker")
+    with pytest.raises(mail.MailRefusedError, match="ack"):
+        mail.send("fabrik", "request", "x", frm="alpha", ack="bogus")
+    assert mail.send("fabrik", "request", "x", frm="alpha", ack="required").is_file()
+
+
+def test_should_reply_unsafe_repo_holds_not_allows(env, capsys):
+    """P3-2: an unsafe --repo must HOLD (fail-CLOSED, matching L9 on the library
+    entry), never a fail-open ALLOW with a false 'not a ULID' cause."""
+    rc = mail.main(["should-reply", "01ARZ3NDEKTSV4RRFFQ69G5FAV", "--repo", "../../etc"])
+    assert rc == 3
+    out = capsys.readouterr().out
+    assert "HOLD" in out and "repo" in out
+
+
+def test_re_length_is_bounded(env):
+    """P3-7: a mail is a pointer — an unbounded --re would bloat every mailbox
+    walk (rate count, digest, list) forever."""
+    with pytest.raises(mail.MailRefusedError, match="re"):
+        mail.send("fabrik", "request", "x", frm="alpha", re="x" * 5000)
+
+
+def test_resolving_glob_mtime_key_is_load_bearing(env):
+    """P3-6: PIDs swapped so LEXICAL and MTIME order disagree — only the mtime
+    key can pass (the prior fixture's orders coincided)."""
+    archive = env["mail_root"] / "fabrik" / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    lex_last = archive / f"{pid}.md.resolving.9"  # lexically LAST
+    newest = archive / f"{pid}.md.resolving.10"  # lexically first, but NEWEST
+    lex_last.write_text("STALE content\n", encoding="utf-8")
+    newest.write_text("LIVE content\n", encoding="utf-8")
+    os.utime(lex_last, (1, 1))
+    assert "LIVE content" in mail.read_msg(pid, "fabrik")
+
+
+def test_body_ack_line_guard_catches_cr_separators(env):
+    """P4-1 (HIGH): _ACK_LINE's (?m)^ anchors on \\n only, but every reader uses
+    read_text() (universal newlines: \\r -> \\n) while stdin does NOT translate —
+    so a lone \\r walked the body guard and produced a permanently un-ackable,
+    digest-invisible message. The guard must normalize like its consumers."""
+    for sep in ("\r", "\u2028", "\x85", "\v", "\f"):
+        body = f"note{sep}acked-by: fabrik · disposition: done"
+        with pytest.raises(mail.MailRefusedError, match="ack line"):
+            mail.send("fabrik", "request", body, frm="alpha")
+
+
+def test_digest_survives_a_claim_racing_the_quarantine(env, monkeypatch):
+    """P4-2: M10 wrapped the read but not the very next os.rename — a malformed
+    file claimed between them crashed digest OUT, skipping every later mailbox
+    and never delivering the daily alert."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"{mail._ulid()}.md").write_text("not frontmatter\n", encoding="utf-8")
+    real_rename = mail.os.rename
+
+    def _vanish(src, dst):
+        raise FileNotFoundError(str(src))
+
+    monkeypatch.setattr(mail.os, "rename", _vanish)
+    d = mail.digest(days=0)  # must not raise
+    assert isinstance(d, dict)
+    monkeypatch.setattr(mail.os, "rename", real_rename)
+
+
+def test_ack_survives_undecodable_bytes(env):
+    """P4-5: ack/requeue were the only readers without errors='replace' — one
+    stray byte made a message un-ackable via an unhandled traceback."""
+    pid = _mint(env, "alpha", "fabrik", "request", "required")
+    f = env["mail_root"] / "fabrik" / "inbox" / f"{pid}.md"
+    f.write_bytes(f.read_bytes() + b"\xff\xfe binary tail\n")
+    out = mail.ack(pid, "fabrik")  # must not raise UnicodeDecodeError
+    assert out.is_file()
+
+
+def test_empty_ack_still_means_kind_default(env):
+    """P4-6: ack='' is the legacy 'use the kind default' idiom — the P3-1
+    vocabulary check must not break it."""
+    out = mail.send("fabrik", "request", "x", frm="alpha", ack="")
+    assert mail._parse(out.read_text(encoding="utf-8")).get("ack") == "required"
+
+
+def test_quarantine_never_overwrites_an_earlier_copy(env):
+    """P4-8: the module's stated never-overwrite invariant — a re-quarantined id
+    must not destroy the earlier malformed copy."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    malformed = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    malformed.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    (malformed / f"{pid}.md").write_text("FIRST corrupt copy\n", encoding="utf-8")
+    (inbox / f"{pid}.md").write_text("SECOND corrupt copy\n", encoding="utf-8")
+    mail.list_msgs("fabrik")
+    assert "FIRST corrupt copy" in (malformed / f"{pid}.md").read_text(), "the first copy survives"
+    assert len(list(malformed.glob(f"{pid}*"))) == 2, "the second lands beside it"
+
+
+def test_list_msgs_refuses_an_unsafe_repo(env):
+    """P5-2: list is the ONE repo-taking verb that was unguarded — and the only
+    one that MOVES files (quarantine). An unsafe --repo relocated every
+    non-frontmatter *.md under an arbitrary path, exit 0, no stderr."""
+    for bad in ("../victim", "/tmp/abs-victim"):
+        with pytest.raises(mail.MailRefusedError, match="repo"):
+            mail.list_msgs(bad)
+
+
+def test_requeue_never_mutates_undecodable_bytes(env):
+    """P5-3: P4-5's errors='replace' made requeue read lossily and write the
+    lossy text BACK — a stray byte became U+FFFD permanently. The rewrite must
+    preserve bytes it cannot decode."""
+    pid = _mint(env, "alpha", "fabrik", "request", "required")
+    f = env["mail_root"] / "fabrik" / "inbox" / f"{pid}.md"
+    f.write_bytes(f.read_bytes() + b"raw \xff byte\n")
+    mail.claim(pid, "fabrik")
+    out = mail.requeue(pid, "fabrik")
+    assert b"\xff" in out.read_bytes(), "the undecodable byte survives a requeue"
+
+
+def test_digest_counts_only_files_it_really_quarantined(env, monkeypatch):
+    """P5-4: P4-2's fail-soft swallow must not be reported as a successful
+    quarantine — the daily alert would claim files were moved that were not."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"{mail._ulid()}.md").write_text("not frontmatter\n", encoding="utf-8")
+
+    def _fail(src, dst):
+        raise PermissionError("read-only malformed/")
+
+    monkeypatch.setattr(mail.os, "rename", _fail)
+    d = mail.digest(days=0)
+    assert d["quarantined"] == 1, (
+        "P9-1: a file that could NOT be parked is still malformed and still "
+        "visible — a silent 0 would report a clean mailbox over it"
+    )
+
+
+def test_ack_line_guard_catches_separators_inside_the_line(env):
+    """P6-1 (HIGH regression): a separator inside the ack line's .+ region split
+    the normalized view so the guard missed it — while read_text() does NOT
+    translate \\v/\\f/\\x85/U+2028, so every consumer still matched. The guard is
+    the UNION of the raw and normalized views."""
+    for sep in ("\v", "\f", "\x85", "", "", "\x1c"):
+        body = f"acked-by: A{sep}B · disposition: done"
+        with pytest.raises(mail.MailRefusedError, match="ack line"):
+            mail.send("fabrik", "request", body, frm="alpha")
+
+
+def test_read_msg_prefers_the_newest_quarantined_copy(env):
+    """P6-8: repeat corruption numbers the copies (.1, .2) — read_msg must
+    resolve the NEWEST, not a stale earlier one, or the guards evaluate content
+    that is not what was quarantined."""
+    malformed = env["mail_root"] / "fabrik" / "malformed"
+    malformed.mkdir(parents=True, exist_ok=True)
+    pid = mail._ulid()
+    stale = malformed / f"{pid}.md"
+    newest = malformed / f"{pid}.md.1"
+    stale.write_text("STALE copy\n", encoding="utf-8")
+    newest.write_text("NEWEST copy\n", encoding="utf-8")
+    os.utime(stale, (1, 1))
+    assert "NEWEST copy" in mail.read_msg(pid, "fabrik")
+
+
+def test_ack_line_guard_catches_the_cross_case(env):
+    """P7-1 (HIGH): the consumer view is read_text()'s — \\r\\n and \\r become \\n,
+    everything else survives. A \\r DELIMITER with a non-\\r separator INSIDE the
+    line was missed by both union branches (raw has no \\n anchor; fully-
+    normalized splits the line) while consumers matched. Guard = consumer view
+    ∪ fully-normalized view."""
+    for interior in ("\v", "\f", "\x85", "", "", "\x1c", "\x1d", "\x1e"):
+        body = f"x\racked-by: fabrik{interior}note · disposition: done\rz"
+        with pytest.raises(mail.MailRefusedError, match="ack line"):
+            mail.send("fabrik", "finding", body, frm="fabrik-lib")
+
+
+def test_digest_keeps_counting_a_quarantined_obligation(env):
+    """P7-6: a quarantined ack:required message must not vanish from the
+    operator's only visibility leg after one alert — malformed/ stays counted."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    for _ in range(3):
+        (inbox / f"{mail._ulid()}.md").write_text("corrupt\n", encoding="utf-8")
+    d1 = mail.digest(days=0)
+    assert d1["quarantined"] == 3, f"exactly the parked count, never doubled: {d1}"
+    d2 = mail.digest(days=0)
+    assert d2["quarantined"] == 3, "idempotent: the same store yields the same count"
+    (env["mail_root"] / "fabrik" / "malformed" / "notes.txt").write_text("x", encoding="utf-8")
+    d3 = mail.digest(days=0)
+    assert d3["quarantined"] == 3, "a non-.md stray never counts"
+    # P9-3: a dot-prefixed inbox file is never PARKED (symmetric legs) — so it
+    # can neither inflate nor silently vanish from the count.
+    (inbox / ".swap.md").write_text("corrupt\n", encoding="utf-8")
+    d4 = mail.digest(days=0)
+    assert d4["quarantined"] == 3, "a dotfile is not a message"
+    assert (inbox / ".swap.md").is_file(), "and it stays where it was"
