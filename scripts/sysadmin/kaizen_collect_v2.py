@@ -2282,6 +2282,13 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         gate_pts, "Gate first-pass rate", dash_reason=_split_dash_reason(g_split)
     )
     gate_cell = _annotate(gate_cell, "Gate first-pass rate", g_cur, g_orphan)
+    # W15-2: a dash suppresses the annotate line — when the week is version-split
+    # the orphan days are actionable context and must still reach the operator.
+    if g_orphan and gate_cell == DASH and not g_split:
+        _warn(
+            f"Gate first-pass rate: {len(g_orphan)} week day(s) under a previous "
+            "definition (version split this week; the dash above has a different cause)"
+        )
 
     occ_pts, cls_pts = _pts("death_occurrences"), _pts("death_classes")
     d_cur, d_orphan, d_split, d_halves = _week_versions(

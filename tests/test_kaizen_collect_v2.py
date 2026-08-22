@@ -3071,3 +3071,46 @@ def test_first_publish_emits_no_unreadable_warn(
     )
     err = capsys.readouterr().err
     assert "unreadable" not in err, err
+
+
+# ── fix-wave 15 (W15: the disclosure gating is guarded; split weeks visible on every dash) ──
+
+
+def test_standalone_halves_line_rides_dash_paths_exactly_once(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W15-1 (round-15 #1): the W13 gating has both failure directions guarded —
+    a split week that DASHES discloses the per-half coverage on exactly one
+    standalone line (deleting the block loses the disclosure; dropping the DASH
+    condition doubles it on publish paths, covered by the publish test's single
+    annotate line)."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    dc_v = int(reg["death_classes"]["version"])
+    for d in ("2026-08-17", "2026-08-18", "2026-08-19"):
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"cls-{d[-2:]}": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2] == DASH
+    err = capsys.readouterr().err
+    assert err.count("split-week halves at the current definition") == 1
+
+
+def test_single_metric_dash_during_a_split_week_discloses_the_split(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W15-2 (round-15 #2): a single-metric cell that dashes for a NON-bump
+    reason during a version-split week still names the split — orphan days
+    sitting under the previous definition are the actionable context, and the
+    suppressed annotate line was the only carrier."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    fa_v = int(reg["first_attempt_gate_pass"]["version"])
+    for d in ("2026-08-17", "2026-08-18", "2026-08-19"):
+        _plant_point(st, "first_attempt_gate_pass", fa_v - 1, d, numerator=1, denominator=2)
+    _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-21", numerator=1, denominator=0)
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[1] == DASH, "one current point with denominator 0 — unmeasurable"
+    err = capsys.readouterr().err
+    assert "week day(s) under a previous definition" in err, (
+        "the dash suppressed the annotate line — the split context must still reach the operator"
+    )

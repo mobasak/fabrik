@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 15: the disclosure gating is guarded; split weeks visible on every dash (2026-08-22)
+
+- The W13 standalone-halves-line gating carries a regression guard (W15-1 — both failure
+  directions previously stayed green: deleting the block lost the disclosure, dropping the
+  DASH condition doubled the line).
+- A single-metric cell dashing for a NON-bump reason during a version-split week still names
+  the split (W15-2) — the dash suppressed the annotate line, the only carrier of the orphan
+  days' actionable context.
+
 ### Fixed — kaizen M1 review fix-wave 14: docs match the shipped disclosure shape (2026-08-22)
 
 - The split-week doc describes the actual note shape (W13's single-line rule): the `*` line's
