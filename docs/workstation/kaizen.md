@@ -164,9 +164,15 @@ lacks contributes nothing (its honesty gates already spoke at publish time); a w
 published days for a metric renders `—` ("no published days this week"). **Split weeks (W7-2):**
 a mid-week registry version bump leaves the earlier days in the previous version's file —
 versions are never mixed in one sum; the cell aggregates current-definition points only,
-carries a `*` marker with a stderr note ("k of N week day(s) at the current definition"), and
-when zero current-definition days exist the dash reason says "definition changed this week; no
-days published at the current definition yet". **The death pair contract (W7-3):** the cell is
+carries a `*` marker with a stderr note ("k of N week day(s) at the current definition"; for a
+pair, an additional per-half line — "split-week halves at the current definition:
+death_occurrences 6/7, death_classes 1/7" — states which half is truncated, W9-5), and the
+"definition changed this week; no days published at the current definition yet" dash fires
+ONLY when a half's emptiness is bump-caused — orphan days AND no current days (W10-1); a half
+that simply never published is a pair-contract gap, dashed with the pair-contract reason.
+Both halves bumped on DIFFERENT days (no shared current-definition day while both publish)
+dash with the disjoint-halves reason — an occurrence sum and a class set from disjoint
+definitions are never mixed (W10-2). **The death pair contract (W7-3):** the cell is
 measurable only when BOTH halves publish (occurrence day points AND class day points) — a
 one-sided week dashes with the pair-contract reason, never `N occ / 0 cls`. **A coroner-quiet
 death cell (W7-6)** names WHICH cause via the whole-store universe signal: the coroner has
@@ -178,7 +184,7 @@ version · every week day gapped/unpublished:
 | Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass` day points, week-summed — sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
 | Death-classes /wk | **real** (M1) | the `death_occurrences` ⟂ `death_classes` day series (coroner-reconstructed, delta-honest at publish: the day's NEW deaths/classes only) — `<occurrences> occ / <distinct classes> cls`. A day without coroner evidence (no death/session_end event) publishes nothing — a `0` there would be fabricated (M9, day-scoped). |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
-| Review rounds /plan | **real** (M1) | `review_rounds` day points, n-weighted weekly mean. All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) lives at DAY-publish time in `kaizen_outcomes.review_rounds` — an unpublished day simply contributes nothing here. |
+| Review rounds /plan | **real** (M1) | the single-source law's ONE carve-out (W8-1): recomputed latest-per-sid over the ISO week's day-scoped delta rows via `kaizen_outcomes.review_rounds(days=<week days>)` — never the day points (anonymous points cannot per-session-deduplicate a multi-day session). All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) runs at week scope; the detail rides stderr with the row (W9-2). A day whose point was never published still contributes when its store rows exist — the weekly value is not reconcilable against the day series by design (W9-4). |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
 

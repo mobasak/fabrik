@@ -2912,3 +2912,59 @@ def test_death_cell_split_week_note_states_both_halves(
     err = capsys.readouterr().err
     assert "death_occurrences 6/7" in err
     assert "death_classes 1/7" in err
+
+
+# ── fix-wave 10 (W10: the true one-sided cause; disjoint halves never mix) ───────────
+
+
+def test_death_cell_unpublished_half_names_the_pair_contract_not_the_split(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W10-1: a half that published NOTHING this week (no version bump — no
+    orphan days) is a pair-contract gap; the split-week reason is the true cause
+    only when the empty half's emptiness is bump-caused. W9-3's intersection
+    precedence claimed 'no days published at the current definition yet' while
+    the other half had three current-definition days."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    dc_v = int(reg["death_classes"]["version"])
+    for d in ("2026-08-17", "2026-08-18", "2026-08-19"):
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"cls-{d[-2:]}": 1})
+    for d in ("2026-08-20", "2026-08-21", "2026-08-22"):
+        _plant_point(st, "death_classes", dc_v, d, value={f"cls-{d[-2:]}": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2] == DASH
+    err = capsys.readouterr().err
+    assert "no occurrence day points" in err, (
+        "the occurrence half never published — that is the actionable cause"
+    )
+    assert "no days published at the current definition yet" not in err, (
+        "three class days ARE at the current definition — the split claim is false"
+    )
+
+
+def test_death_cell_disjoint_current_halves_dash_never_mix(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W10-2: both halves bumped on different days — occurrences current
+    Mon-Wed, classes current Thu-Sat — share NO current-definition day; pairing
+    an occurrence sum with a class set from disjoint definitions is the exact
+    fabrication the pair contract exists to prevent. Dash, never '6 occ / 2 cls*'
+    annotated as covering 0 of 7 days."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    for d in ("2026-08-17", "2026-08-18", "2026-08-19"):
+        _plant_point(st, "death_occurrences", do_v, d, value=2, numerator=2)
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"old-{d[-2:]}": 1})
+    for d in ("2026-08-20", "2026-08-21", "2026-08-22"):
+        _plant_point(st, "death_occurrences", do_v - 1, d, value=1, numerator=1)
+        _plant_point(st, "death_classes", dc_v, d, value={f"new-{d[-2:]}": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2] == DASH, (
+        "no day contributes both halves at the current definition — publishing "
+        "would mix disjoint definitions"
+    )
+    err = capsys.readouterr().err
+    assert "share no current-definition day" in err

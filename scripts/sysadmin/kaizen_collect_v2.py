@@ -1982,6 +1982,12 @@ NO_WEEK_DAYS = "no published days this week"
 SPLIT_WEEK_NO_CURRENT = (
     "definition changed this week; no days published at the current definition yet"
 )
+#: W10-2 — both pair halves bumped on DIFFERENT days: no week day carries both
+#: halves at the current definition, so any cell would mix disjoint definitions.
+SPLIT_WEEK_DISJOINT_HALVES = (
+    "definition changed mid-week and the pair's halves share no current-definition "
+    "day — an occurrence sum and a class set from disjoint definitions are never mixed"
+)
 #: W7-3 — the death pair's one-sided dash reason (measurability needs BOTH halves).
 DEATH_PAIR_ONE_SIDED = (
     "the death pair is measurable only when BOTH halves publish for the week "
@@ -2165,16 +2171,24 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
             return []
         return series_points(mid, int(mdef["version"]), days, state)
 
-    def _week_versions(mids: tuple[str, ...], ptss: list[list[dict]]) -> tuple[set[str], set[str]]:
-        """W7-2 + W8-3 — ``(current-definition week days, week days only under an
-        older definition)`` for the cell's metric(s), computed PER HALF: a
-        one-sided mid-week bump (classes at v2, occurrences still v1) must not
-        let the un-bumped half's current-version days empty the bumped half's
-        orphan set — the pair is split-week if EITHER half has orphan days, and
-        its current set is the days where EVERY half is current."""
+    def _week_versions(
+        mids: tuple[str, ...], ptss: list[list[dict]]
+    ) -> tuple[set[str], set[str], bool]:
+        """W7-2 + W8-3 + W10-1 — ``(current-definition week days, week days only
+        under an older definition, split_blocked)`` for the cell's metric(s),
+        computed PER HALF: a one-sided mid-week bump (classes at v2, occurrences
+        still v1) must not let the un-bumped half's current-version days empty
+        the bumped half's orphan set — the pair is split-week if EITHER half has
+        orphan days, and its current set is the days where EVERY half is
+        current. ``split_blocked`` (W10-1) is True only when some half's
+        emptiness is BUMP-CAUSED (that half has orphan days AND no current
+        days) — a half that simply never published is a pair-contract gap, and
+        claiming "no days at the current definition yet" while the other half
+        has current days would be false."""
         curs: list[set[str]] = []
         orphans: list[set[str]] = []
         halves: dict[str, set[str]] = {}
+        split_blocked = False
         for mid, ps in zip(mids, ptss, strict=True):
             cur = {str(p["day"]) for p in ps if isinstance(p.get("day"), str)}
             mdef = reg.get(mid)
@@ -2186,6 +2200,8 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
             curs.append(cur)
             halves[mid] = cur
             orphans.append(older - cur)
+            if not cur and (older - cur):
+                split_blocked = True
         cur_all = set.intersection(*curs) if curs else set()
         orphan_any = set.union(*orphans) if orphans else set()
         # W9-5: a pair's split-week note states each half's current-definition day
@@ -2196,10 +2212,10 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
                 "split-week halves at the current definition: "
                 + ", ".join(f"{mid} {len(halves[mid])}/{len(days)}" for mid in mids)
             )
-        return cur_all, orphan_any
+        return cur_all, orphan_any, split_blocked
 
-    def _split_dash_reason(cur: set[str], orphan: set[str], fallback: str = NO_WEEK_DAYS) -> str:
-        return SPLIT_WEEK_NO_CURRENT if orphan and not cur else fallback
+    def _split_dash_reason(split_blocked: bool, fallback: str = NO_WEEK_DAYS) -> str:
+        return SPLIT_WEEK_NO_CURRENT if split_blocked else fallback
 
     def _annotate(cell: str, label: str, cur: set[str], orphan: set[str]) -> str:
         """W7-2: mark a split-week cell — current-definition days only, stated."""
@@ -2235,23 +2251,34 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         )
 
     gate_pts = _pts("first_attempt_gate_pass")
-    g_cur, g_orphan = _week_versions(("first_attempt_gate_pass",), [gate_pts])
+    g_cur, g_orphan, g_split = _week_versions(("first_attempt_gate_pass",), [gate_pts])
     gate_cell = _ratio_cell(
-        gate_pts, "Gate first-pass rate", dash_reason=_split_dash_reason(g_cur, g_orphan)
+        gate_pts, "Gate first-pass rate", dash_reason=_split_dash_reason(g_split)
     )
     gate_cell = _annotate(gate_cell, "Gate first-pass rate", g_cur, g_orphan)
 
     occ_pts, cls_pts = _pts("death_occurrences"), _pts("death_classes")
-    d_cur, d_orphan = _week_versions(("death_occurrences", "death_classes"), [occ_pts, cls_pts])
+    d_cur, d_orphan, d_split = _week_versions(
+        ("death_occurrences", "death_classes"), [occ_pts, cls_pts]
+    )
     death_fallback = (
         NO_WEEK_DAYS
         if any(_point_int(p, "numerator") is not None for p in occ_pts)
         else _death_quiet_reason()
     )
-    deaths = _death_cell(
-        occ_pts, cls_pts, dash_reason=_split_dash_reason(d_cur, d_orphan, death_fallback)
-    )
-    deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan)
+    # W10-2: both halves publishing at the current definition but on DISJOINT day
+    # sets (each half bumped on a different day) — any cell would pair numbers
+    # from disjoint definitions; dash with the true cause, never publish.
+    occ_has = any(_point_int(p, "numerator") is not None for p in occ_pts)
+    cls_has = any(isinstance(p.get("value"), dict) for p in cls_pts)
+    if occ_has and cls_has and not d_cur and d_orphan:
+        _warn(f"Death-classes /wk = {DASH} — {SPLIT_WEEK_DISJOINT_HALVES}")
+        deaths = DASH
+    else:
+        deaths = _death_cell(
+            occ_pts, cls_pts, dash_reason=_split_dash_reason(d_split, death_fallback)
+        )
+        deaths = _annotate(deaths, "Death-classes /wk", d_cur, d_orphan)
 
     # W8-1 — the single-source law's ONE carve-out: rounds_max is a point-in-time
     # per-session quantity, and anonymous day points cannot be per-session-

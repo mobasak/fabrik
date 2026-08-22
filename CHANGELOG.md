@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 10: the true one-sided cause; disjoint halves never mix (2026-08-22)
+
+- The split-week dash fires only when a half's emptiness is BUMP-caused — orphan days and no
+  current days (W10-1); W9-3's intersection precedence claimed "no days published at the
+  current definition yet" while the other half had three current-definition days, masking the
+  actionable pair-contract cause (an unpublished half).
+- Both death-pair halves bumped on different days — sharing NO current-definition day while
+  both publish — dash with the disjoint-halves reason (W10-2); the cell was pairing an
+  occurrence sum from Mon–Wed with a class set from Thu–Sat, annotated as covering 0 of 7 days.
+- The smear count means what its sentence says: only mass-bearing rows count (W10-7), both
+  date operands are validated (W10-5), and the measured annotations ride the unavailable
+  verdicts too (W10-6) — never silently folded.
+- The kaizen-log table row for the rounds cell now describes the W8-1 carve-out provenance
+  (W10-3); the split-week/pair-contract doc paragraphs match the shipped dash precedence
+  (W10-4). No formula changes — registry versions unchanged.
+
 ### Fixed — kaizen M1 review fix-wave 9: per-row smear; the carve-out cell speaks; split-week truth in every branch (2026-08-22)
 
 - The derivation-gap smear predicate is PER ROW (W9-1): a baseline skipping ≥1 calendar day

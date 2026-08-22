@@ -1366,3 +1366,42 @@ def test_smear_note_spares_the_window_oldest_days_consecutive_baseline(
     rounds = ko.review_rounds()
     assert rounds.measurable
     assert "smear" not in rounds.detail
+
+
+# ── fix-wave 10 (W10: smear operand symmetry; the note survives unavailability) ──────
+
+
+def test_smear_note_skips_malformed_baselines(tmp_path: Path) -> None:
+    """W10-5: both smear operands are validated — a malformed baseline string
+    (which sorts before every real ISO date) must not fabricate a smear count."""
+    assert ko._smear_note([{"day": _days_ago(0), "delta_of": "garbage"}], lambda r: 1) == ""
+    assert ko._smear_note([{"day": _days_ago(0), "delta_of": "0000-00-00"}], lambda r: 1) == ""
+
+
+def test_smear_note_counts_only_mass_bearing_rows(tmp_path: Path) -> None:
+    """W10-7: a zero-mass row smeared nothing — the count means what the
+    sentence says ('smears the skipped days' growth into it')."""
+    rows = [
+        {"day": _days_ago(0), "delta_of": _days_ago(3), "mass": 0},
+        {"day": _days_ago(0), "delta_of": _days_ago(3), "mass": 2},
+    ]
+    note = ko._smear_note(rows, lambda r: int(r["mass"]))
+    assert "includes 1 row(s)" in note
+
+
+def test_unavailable_pair_still_discloses_the_smear(tmp_path: Path) -> None:
+    """W10-6: 'annotated in the detail, never silently folded' binds the
+    unavailable paths too — a window whose mass-bearing rows all ride skipped
+    baselines but carry no stop verdicts dashes WITH the smear disclosed."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(4), events={}, stop_causes={}),
+            _fact("s1", day=_days_ago(1), events={}, stop_causes={"run-record": 1}),
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable
+    assert "derivation-gap smear" in prem.detail, (
+        "the smear was measured — an unavailable verdict must not silently fold it"
+    )

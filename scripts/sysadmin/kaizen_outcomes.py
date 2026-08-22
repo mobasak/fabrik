@@ -227,7 +227,7 @@ def _no_derivation_reason(state: Path | None = None, days: list[str] | None = No
     return prefix + "the derived-facts store is empty (nothing has ever been derived)" + suffix
 
 
-def _smear_note(rows: list[dict]) -> str:
+def _smear_note(rows: list[dict], mass: Callable[[dict], int]) -> str:
     """W7-5 + W8-2 + W9-1 — the derivation-gap smear made VISIBLE, not
     structural: the delta seam attributes gap growth to the derivation day on the
     attributed side exactly as the unknown side documents it (design-consistent,
@@ -236,7 +236,11 @@ def _smear_note(rows: list[dict]) -> str:
     smears the skipped days' growth into it — whatever the window's edges (a
     window-edge threshold silenced real in-window gaps and flagged normal
     edge-day baselines). The immediately-preceding day is the normal consecutive
-    baseline — never a smear. Annotated in the detail, never silently folded."""
+    baseline — never a smear. Annotated in the detail, never silently folded —
+    including on the unavailable paths (W10-6). Only rows carrying the caller's
+    family ``mass`` count (W10-7 — a zero-mass row smeared nothing), and BOTH
+    date operands are validated (W10-5 — a malformed baseline string sorts
+    before every real ISO date and would otherwise fabricate the count)."""
     k = 0
     for r in rows:
         day, base = r.get("day"), r.get("delta_of")
@@ -244,9 +248,10 @@ def _smear_note(rows: list[dict]) -> str:
             continue
         try:
             prev = (dt.date.fromisoformat(day) - dt.timedelta(days=1)).isoformat()
+            dt.date.fromisoformat(base)
         except ValueError:
             continue
-        if base < prev:
+        if base < prev and mass(r) > 0:
             k += 1
     if not k:
         return ""
@@ -872,7 +877,7 @@ def premature_stop(
         )
     if boot:
         note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-    note += _smear_note(rows)  # W7-5/W9-1: the per-row derivation-gap smear, visible
+    note += _smear_note(rows, _stops_mass)  # W7-5/W9-1/W10: the mass-bearing per-row smear
     # Per-SESSION grouping: a sid may carry several in-window delta rows (one per
     # derivation day); its window verdicts/causes are their sums.
     verdicts_by_sid: collections.Counter[str] = collections.Counter()
@@ -899,9 +904,11 @@ def premature_stop(
             if boot
             else "no stop verdicts in the window's delta rows"
         )
+        # W10-6: never silently folded — the measured annotations (smear,
+        # bootstrap count) ride the unavailable verdict too.
         return (
-            MetricResult.unavailable("premature_stop", reason),
-            MetricResult.unavailable("stop_block_causes", reason),
+            MetricResult.unavailable("premature_stop", reason + note),
+            MetricResult.unavailable("stop_block_causes", reason + note),
         )
     total_stops = sum(verdicts_by_sid.values())
     # ONE unit throughout — EVENTS: the numerator (caused stop_block events), the
@@ -986,7 +993,7 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
         return MetricResult.unavailable("review_rounds", guard)
     if boot:
         note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-    note += _smear_note(rows)  # W7-5/W9-1: the per-row derivation-gap smear, visible
+    note += _smear_note(rows, _round_growth)  # W7-5/W9-1/W10: the mass-bearing per-row smear
     growth: collections.Counter[str] = collections.Counter()
     latest: dict[str, dict] = {}
     for r in rows:  # sorted (sid, day) — the last row per sid is its latest day
@@ -1002,11 +1009,16 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
         if rounds_max > 0:
             vals.append(rounds_max)
     if not vals:
+        # W10-6: never silently folded — the measured annotations ride the
+        # unavailable verdict too.
         return MetricResult.unavailable(
             "review_rounds",
-            _bootstrap_reason(boot, "round mass")
-            if boot
-            else "no session carries a round event in the window",
+            (
+                _bootstrap_reason(boot, "round mass")
+                if boot
+                else "no session carries a round event in the window"
+            )
+            + note,
         )
     return MetricResult(
         id="review_rounds",
