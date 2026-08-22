@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 17: the warn describes what actually happened (2026-08-22)
+
+- The malformed-row warn states the true disposition (W17-1): an append only when no
+  well-formed same-week row exists, a merge otherwise — it claimed an append that never
+  happened whenever a well-formed twin was already present.
+- Both kaizen-log headers credit the daily `kaizen_collect_v2.py --daily` upsert instead of
+  the retired Monday `kaizen_metrics.py` cron (W17-2) — wrong script, wrong cadence.
+
 ### Fixed — kaizen M1 review fix-wave 16: the guards are themselves guarded (2026-08-22)
 
 - Mutation guards for both directions of the W13 "never both" split-week disclosure invariant

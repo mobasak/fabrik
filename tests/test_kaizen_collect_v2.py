@@ -3183,3 +3183,30 @@ def test_upsert_warns_on_a_duplicate_same_week_row(tmp_path: Path) -> None:
     assert "duplicate" in buf.getvalue(), (
         "two same-week rows: only the last is updated — the stale twin must be named"
     )
+
+
+# ── fix-wave 17 (W17: the warn describes what actually happened) ─────────────────────
+
+
+def test_malformed_row_warn_names_the_merge_when_a_target_exists(tmp_path: Path) -> None:
+    """W17-1: a malformed same-week row beside a WELL-FORMED same-week row — the
+    update merges into the well-formed row and the file gains zero rows; the warn
+    must say that, never 'appended alongside' (an append that does not happen)."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    good = "| 2026-08-18 |" + " x |" * (len(kc.COLUMNS) - 1)
+    broken = "| 2026-08-17 | broken row |"
+    log.write_text("\n".join([header, sep, broken, good]) + "\n", encoding="utf-8")
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert ok
+    err = buf.getvalue()
+    assert "merged into the well-formed row" in err, err
+    assert "appended alongside" not in err
+    lines = [ln for ln in log.read_text().splitlines() if ln.startswith("|")]
+    assert len(lines) == 4, "header + sep + broken + merged — zero rows gained"

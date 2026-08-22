@@ -7,8 +7,9 @@ the friction column. The FIVE pinned metrics are the spec's single set for both 
 across roles by design — intel audits both); fleet's raw SIGNALS (deploy failures, apply skips,
 monitoring gaps, DR results) live in the charter and feed the analysis, not the columns.
 
-Column ownership: the five metric cells are written by the Monday 06:45 `kaizen_metrics.py --once`
-cron; `Top friction fixed` and `Filed` are the analyst's and a re-run never overwrites them. A `—`
+Column ownership: the mechanical metric cells are upserted into this week's row by the daily
+`kaizen_collect_v2.py --daily` run (the wake-proof `weekly_catchup.sh` cron; `kaizen_metrics.py`
+is retired — M1 T09); `Top friction fixed` and `Filed` are the analyst's and a re-run never overwrites them. A `—`
 means no real source supports that metric — the reason is in the hand-off mail and
 `~/.claude/kaizen.log`; it is missing instrumentation, never a healthy zero. See
 `docs/workstation/kaizen.md`.
@@ -16,3 +17,4 @@ means no real source supports that metric — the reason is in the hand-off mail
 | Date | Gate first-pass rate | Death-classes /wk | Lesson-class recurrence | Review rounds /plan | Missed crons | Top friction fixed | Filed (spec/mail) |
 |---|---|---|---|---|---|---|---|
 | 2026-08-12 | — | — | — | — | — | (baseline row — first real pass fills metrics) | — |
+| 2026-08-21 | 100% (1/1) | — | — | — | — | — | — |
