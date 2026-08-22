@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 11: the metric's own mass; annotations honest to the letter (2026-08-22)
+
+- The stops pair's smear count keys on STOP VERDICTS — its population mass — not the wider
+  family mass (W11-1): a cause-only row contributes to neither published number (W6-3), so
+  its skipped baseline smeared nothing the pair reports.
+- Smear operands compare as parsed dates (W11-5 — a basic-format baseline sorted after every
+  hyphenated stamp and silently missed a real gap); the bootstrap-unmeasurable reason no
+  longer repeats the exclusion note in the same detail (W11-3).
+- The split-week `*` note says what is true for pairs — "each aggregated number covers only
+  its metric's current-definition days" — instead of the "not mixed in" claim an
+  occurrence sum spanning days the class set lacks made false (W11-2); the disjoint-halves
+  reason names disjoint DAY SETS, not definitions (W11-6).
+- A ratio week whose points all carry invalid numerators/denominators dashes saying so —
+  "no published days this week" was false (W11-7); an unreadable series dir warns instead of
+  silently disabling the split-week and disjoint-halves guards (W11-4).
+
 ### Fixed — kaizen M1 review fix-wave 10: the true one-sided cause; disjoint halves never mix (2026-08-22)
 
 - The split-week dash fires only when a half's emptiness is BUMP-caused — orphan days and no

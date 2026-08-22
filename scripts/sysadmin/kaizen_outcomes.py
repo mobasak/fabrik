@@ -247,11 +247,10 @@ def _smear_note(rows: list[dict], mass: Callable[[dict], int]) -> str:
         if not (isinstance(day, str) and isinstance(base, str)):
             continue
         try:
-            prev = (dt.date.fromisoformat(day) - dt.timedelta(days=1)).isoformat()
-            dt.date.fromisoformat(base)
+            gap = dt.date.fromisoformat(base) < dt.date.fromisoformat(day) - dt.timedelta(days=1)
         except ValueError:
             continue
-        if base < prev and mass(r) > 0:
+        if gap and mass(r) > 0:
             k += 1
     if not k:
         return ""
@@ -875,9 +874,13 @@ def premature_stop(
             MetricResult.unavailable("premature_stop", guard),
             MetricResult.unavailable("stop_block_causes", guard),
         )
-    if boot:
-        note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
-    note += _smear_note(rows, _stops_mass)  # W7-5/W9-1/W10: the mass-bearing per-row smear
+    boot_note = (
+        f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+        if boot
+        else ""
+    )
+    note += _smear_note(rows, _stop_verdicts)  # W11-1: the PAIR'S population mass — a
+    # cause-only row contributes to neither published number (W6-3)
     # Per-SESSION grouping: a sid may carry several in-window delta rows (one per
     # derivation day); its window verdicts/causes are their sums.
     verdicts_by_sid: collections.Counter[str] = collections.Counter()
@@ -922,7 +925,7 @@ def premature_stop(
         cell=causes_cell,
         detail=(
             "full stop_block cause histogram in EVENT units — premature and legitimate "
-            "causes alike, over the window's delta rows" + note
+            "causes alike, over the window's delta rows" + note + boot_note
         ),
         value=dict(causes),
         numerator=sum(causes.values()),
@@ -935,7 +938,7 @@ def premature_stop(
         detail=(
             "sessions with a premature-cause stop_block over sessions with any stop "
             "verdict, in-window growth only; cf. premature_stop_rate (T06) = share "
-            "of stop VERDICTS premature" + note
+            "of stop VERDICTS premature" + note + boot_note
         ),
         value=premature_sessions / len(sessions),
         numerator=premature_sessions,
@@ -991,8 +994,11 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
     )
     if guard is not None:
         return MetricResult.unavailable("review_rounds", guard)
-    if boot:
-        note += f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+    boot_note = (
+        f"; {boot} bootstrap row(s) excluded — first-ever derivation predates the window"
+        if boot
+        else ""
+    )
     note += _smear_note(rows, _round_growth)  # W7-5/W9-1/W10: the mass-bearing per-row smear
     growth: collections.Counter[str] = collections.Counter()
     latest: dict[str, dict] = {}
@@ -1023,7 +1029,11 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
     return MetricResult(
         id="review_rounds",
         cell=f"{sum(vals) / len(vals):.1f} (n={len(vals)})",
-        detail=("mean rounds_max across sessions whose round family grew in the window" + note),
+        detail=(
+            "mean rounds_max across sessions whose round family grew in the window"
+            + note
+            + boot_note
+        ),
         value=sum(vals) / len(vals),
         numerator=sum(vals),
         denominator=len(vals),

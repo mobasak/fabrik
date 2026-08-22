@@ -1986,7 +1986,7 @@ SPLIT_WEEK_NO_CURRENT = (
 #: halves at the current definition, so any cell would mix disjoint definitions.
 SPLIT_WEEK_DISJOINT_HALVES = (
     "definition changed mid-week and the pair's halves share no current-definition "
-    "day — an occurrence sum and a class set from disjoint definitions are never mixed"
+    "day — an occurrence sum and a class set covering disjoint day sets are never paired"
 )
 #: W7-3 — the death pair's one-sided dash reason (measurability needs BOTH halves).
 DEATH_PAIR_ONE_SIDED = (
@@ -2007,7 +2007,10 @@ def _older_version_week_days(
     out: set[str] = set()
     try:
         files = list(((state or state_dir()) / "series").glob(f"{metric}@v*.jsonl"))
-    except OSError:
+    except OSError as exc:
+        # Fail-open, but VISIBLY (W11-4): an empty orphan set silently disables the
+        # split-week dash AND the disjoint-halves guard.
+        _warn(f"series dir unreadable while probing older versions of {metric}: {exc}")
         return out
     for p in files:
         m = re.match(rf"^{re.escape(metric)}@v(\d+)$", p.stem)
@@ -2078,7 +2081,12 @@ def _ratio_cell(points: list[dict], label: str, dash_reason: str = NO_WEEK_DAYS)
         den += d
         counted += 1
     if not counted:
-        _warn(f"{label} = {DASH} — {dash_reason}")
+        reason = (
+            "published day points exist but carry no valid numerator/denominator"
+            if points
+            else dash_reason
+        )
+        _warn(f"{label} = {DASH} — {reason}")
         return DASH
     return _pct(num, den)
 
@@ -2223,8 +2231,8 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
             return cell
         _warn(
             f"{label}: * {len(cur)} of {len(days)} week day(s) at the current definition "
-            "(definition changed mid-week; earlier days measured under the previous "
-            "definition are not mixed in)"
+            "(definition changed mid-week; each aggregated number covers only its "
+            "metric's current-definition days)"
         )
         return cell + "*"
 

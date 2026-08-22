@@ -1389,19 +1389,74 @@ def test_smear_note_counts_only_mass_bearing_rows(tmp_path: Path) -> None:
     assert "includes 1 row(s)" in note
 
 
-def test_unavailable_pair_still_discloses_the_smear(tmp_path: Path) -> None:
+def test_unavailable_metric_still_discloses_the_smear(tmp_path: Path) -> None:
     """W10-6: 'annotated in the detail, never silently folded' binds the
-    unavailable paths too — a window whose mass-bearing rows all ride skipped
-    baselines but carry no stop verdicts dashes WITH the smear disclosed."""
+    unavailable paths too — a window whose round-mass rows all ride skipped
+    baselines but carry no rounds_max value dashes WITH the smear disclosed."""
     _seed_facts(
         tmp_path,
         [
-            _fact("s1", day=_days_ago(4), events={}, stop_causes={}),
-            _fact("s1", day=_days_ago(1), events={}, stop_causes={"run-record": 1}),
+            _fact("s1", day=_days_ago(4), events={"round": 1}, runs={"rounds_max": 0}),
+            _fact("s1", day=_days_ago(1), events={"round": 3}, runs={"rounds_max": 0}),
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert not rounds.measurable
+    assert "derivation-gap smear" in rounds.detail, (
+        "the smear was measured — an unavailable verdict must not silently fold it"
+    )
+
+
+# ── fix-wave 11 (W11: the metric's own mass; honest annotations to the letter) ───────
+
+
+def test_smear_note_uses_the_pairs_population_mass(tmp_path: Path) -> None:
+    """W11-1: the stops pair's smear count keys on STOP VERDICTS (its population
+    mass) — a cause-only row contributes to neither published number (W6-3), so
+    its skipped baseline smeared nothing the pair reports."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact("s1", day=_days_ago(1), events={"stop_pass": 2}),
+            _fact("s1", events={"stop_pass": 4}),
+            _fact("s2", day=_days_ago(6), events={}, stop_causes={}),
+            _fact("s2", events={}, stop_causes={"run-record": 4}),
         ],
     )
     prem, causes = ko.premature_stop()
-    assert not prem.measurable
-    assert "derivation-gap smear" in prem.detail, (
-        "the smear was measured — an unavailable verdict must not silently fold it"
+    assert prem.measurable
+    assert "smear" not in prem.detail, (
+        "the smeared row is cause-only — zero verdicts, outside both published "
+        "numbers; counting it annotates a smear the pair never reported"
     )
+
+
+def test_unavailable_bootstrap_reason_is_not_double_reported(tmp_path: Path) -> None:
+    """W11-3: the bootstrap-unmeasurable reason must not repeat the bootstrap
+    exclusion note in the same detail string."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "old",
+                first_ts="2026-01-01T00:00:00.000+00:00",
+                events={"round": 5},
+                runs={"rounds_max": 5},
+            )
+        ],
+    )
+    rounds = ko.review_rounds()
+    assert not rounds.measurable
+    assert rounds.detail.count("bootstrap") <= 2, rounds.detail
+    assert "bootstrap row(s) excluded" not in rounds.detail, (
+        "the reason already states the bootstrap cause — the note fragment "
+        "repeats the same fact in the same sentence stream"
+    )
+
+
+def test_smear_note_compares_dates_not_strings(tmp_path: Path) -> None:
+    """W11-5: operands compare as PARSED dates — a basic-format baseline
+    ('20260101', accepted by fromisoformat) sorts lexicographically AFTER
+    '2026-...' strings and would silently miss a genuinely skipped baseline."""
+    note = ko._smear_note([{"day": _days_ago(0), "delta_of": "20260101"}], lambda r: 1)
+    assert "derivation-gap smear" in note

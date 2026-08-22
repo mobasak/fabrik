@@ -2722,7 +2722,7 @@ def test_weekly_cells_annotate_a_mid_week_definition_change(
     err = capsys.readouterr().err
     assert "2 of 7 week day(s) at the current definition" in err
     assert "definition changed mid-week" in err
-    assert "not mixed in" in err
+    assert "covers only its metric's current-definition days" in err
 
 
 def test_weekly_cell_dash_names_the_definition_change_when_no_current_days(
@@ -2968,3 +2968,51 @@ def test_death_cell_disjoint_current_halves_dash_never_mix(
     )
     err = capsys.readouterr().err
     assert "share no current-definition day" in err
+
+
+# ── fix-wave 11 (W11: annotations honest to the letter) ──────────────────────────────
+
+
+def test_split_week_annotation_never_claims_unmixed_for_a_pair(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W11-2: a partial-overlap split week (halves bumped on different days)
+    publishes with the * and the per-half line — but the note must not claim
+    'earlier days ... are not mixed in' while the occurrence sum spans days the
+    class set lacks; each number covers only its own metric's current-definition
+    days, and the note says exactly that."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    do_v = int(reg["death_occurrences"]["version"])
+    dc_v = int(reg["death_classes"]["version"])
+    for d in ("2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22"):
+        _plant_point(st, "death_occurrences", do_v, d, value=2, numerator=2)
+    for d in ("2026-08-17", "2026-08-18"):
+        _plant_point(st, "death_occurrences", do_v - 1, d, value=1, numerator=1)
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"old-{d[-2:]}": 1})
+    for d in ("2026-08-19", "2026-08-20"):
+        _plant_point(st, "death_classes", dc_v - 1, d, value={f"old-{d[-2:]}": 1})
+    for d in ("2026-08-21", "2026-08-22"):
+        _plant_point(st, "death_classes", dc_v, d, value={f"new-{d[-2:]}": 1})
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[2].endswith("*")
+    err = capsys.readouterr().err
+    assert "not mixed in" not in err
+    assert "covers only its metric's current-definition days" in err
+
+
+def test_ratio_cell_dash_distinguishes_invalid_points_from_no_points(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W11-7: a week whose gate points all carry an invalid denominator dashes
+    saying the points were invalid — 'no published days this week' would be
+    false (days WERE published)."""
+    st = tmp_path / "state"
+    reg = _full_reg()
+    fa_v = int(reg["first_attempt_gate_pass"]["version"])
+    _plant_point(st, "first_attempt_gate_pass", fa_v, "2026-08-18", numerator=1, denominator=0)
+    cells = kc.log_cells(dt.date(2026, 8, 23), reg, state=st)
+    assert cells[1] == DASH
+    err = capsys.readouterr().err
+    assert "carry no valid numerator/denominator" in err
+    assert "Gate first-pass rate = — — no published days this week" not in err
