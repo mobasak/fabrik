@@ -118,6 +118,7 @@ _SAFE_ID = _re.compile(r"^[0-9A-Z]{26}$")
 # "<name>.md.<n>". Excludes `.md.bak` / `.md.resolving.*` / non-.md strays; a
 # bare `README.md` dropped into malformed/ is indistinguishable from a real
 # copy by name alone and still counts (over-count = the fail-safe direction).
+_QUARANTINE_SLOTS = 1000  # P13-8: bound on the numbered-suffix probe
 _QUARANTINED_NAME = _re.compile(r"\.md(\.\d+)?$")
 # A REAL ack line (appended by ack()) — matched precisely so a body that merely
 # contains the words "acked-by:" cannot fool the digest's claimed-but-crashed scan.
@@ -701,12 +702,25 @@ def _quarantine(inbox: Path, f: Path) -> bool:
     q = inbox.parent / "malformed"
     try:
         q.mkdir(parents=True, exist_ok=True)
-        dst = q / f.name
-        n = 1
-        while dst.exists():
-            dst = q / f"{f.name}.{n}"
-            n += 1
-        os.rename(f, dst)
+        # P13-8: the slot was picked by check-then-act and taken with os.rename,
+        # which OVERWRITES silently — P4-8's "never overwrite an earlier copy"
+        # held only while nobody raced. os.link is the module's own atomic
+        # EEXIST claim (the _publish invariant); the unlink then completes the
+        # move. Same filesystem by construction (siblings under the repo dir).
+        n = 0
+        while True:
+            dst = q / (f.name if n == 0 else f"{f.name}.{n}")
+            try:
+                os.link(f, dst)
+                break
+            except FileExistsError:
+                n += 1
+                if n > _QUARANTINE_SLOTS:
+                    raise  # bounded: an unbounded probe would hang the digest
+        try:
+            os.unlink(f)
+        except FileNotFoundError:
+            pass  # the copy is parked — a peer clearing the source is success
     except FileNotFoundError:
         # P10-7 + P11-1: FileNotFoundError has FOUR causes, only ONE of which is
         # "a peer already parked it" (then the parked glob counts the copy and a
@@ -781,8 +795,13 @@ def digest(days: int = 3) -> dict:
         if archive.is_dir():
             # stranded resolve windows (closer D1) — invisible to every verb until swept;
             # surface them, never report a clean mailbox over an invisible message
-            unacked += sum(1 for _ in archive.glob("*.md.resolving*"))
+            unacked += sum(1 for p in archive.glob("*.md.resolving*") if not p.name.startswith("."))
             for f in sorted(archive.glob("*.md")):
+                if f.name.startswith("."):
+                    continue  # P13-6: the FOURTH glob — this was the one leg
+                    # without the guard its three siblings carry (P9-3/P10-5),
+                    # and digest never MOVES an archive file, so a hidden backup
+                    # with ack:required re-counted as unacked on every single run
                 try:
                     text = f.read_text(encoding="utf-8", errors="replace")
                 except OSError:
@@ -1013,6 +1032,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except FileNotFoundError as exc:
         print(f"mail.py: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        # P13-7: FileNotFoundError was the ONLY OSError the ladder caught, so
+        # every sibling (EACCES on a rename, EXDEV, ENOSPC, IsADirectoryError
+        # from a stray dir in malformed/) escaped as a raw traceback — the CLI's
+        # own error convention bypassed exactly when the operator needs it.
+        print(f"mail.py: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
     return 0
 

@@ -196,6 +196,14 @@ there either; that path is deliberately fail-soft (a wedged channel is worse) an
 the dispatcher must pass a resolvable `--re` from its own mailbox. Env overrides: `FABRIK_MAIL_HOP_CAP` · `FABRIK_MAIL_RATE_CAP` ·
 `FABRIK_MAIL_RATE_WINDOW_S` (an explicit cap of 0 = refuse all auto-replies; a below-1 window warns and uses the default).
 
+**These guards are a circuit breaker, not authentication.** The self-guard and the rate cap both
+key on the parent's `from`, which is whatever the sender passed to `--from` (it defaults to the
+git main-checkout basename, and is only character-validated). A wrapper that varies `--from`
+per message therefore looks like a new sender each time and never trips the rate cap. That is a
+bug in the wrapper, not an attacker: the threat being managed here is a runaway agent, and a
+runaway agent does not rotate identities. Pass the repo's real identity — or just let `--from`
+default.
+
 ## Layer 2 — native cross-session messaging (adopt post-upgrade)
 
 Claude Code native cross-session messaging (≥2.1.224; the box runs 2.1.219 — deferred by fact) becomes

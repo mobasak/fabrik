@@ -19,6 +19,15 @@ All notable changes to this project will be documented in this file.
 - The rate count no longer materializes a sorted archive listing it never orders
   (P13-1), and the read-only-walk test now asserts the count it was blind to (P13-2 —
   the malformed-file skip was unbound; the mutation raises AttributeError).
+- Round 13 (pool breadth + three native non-author finders, mutation-probed):
+  `main()`'s CLI wiring for `list`/`read`/`claim`/`ack`/`requeue`/`digest` had NO test —
+  four mutations survived the whole suite, including `ack` ignoring `--disposition`;
+  the archive glob was the one leg missing the dotfile guard its three siblings carry,
+  so a hidden backup with `ack: required` counted as unacked forever; `main()` caught
+  only `FileNotFoundError`, leaking a raw traceback on every other `OSError`; and
+  `_quarantine` took its slot check-then-act with `os.rename`, which overwrites a
+  peer's parked copy — now `os.link`'s atomic claim. `_env_cap`'s garbage and
+  below-minimum branches are bound for the caps, not just the window.
 - Reported cross-repo (not fixed — HARD STOP): `/opt/fabrik-lib/scripts/mail.py` is
   sync-excluded and still runs the PRE-security-fix version; finding mailed to fabrik-lib.
 

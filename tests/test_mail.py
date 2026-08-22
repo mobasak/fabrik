@@ -1590,3 +1590,136 @@ def test_parked_count_predicate_is_bound(env):
     (malformed / "adir.md").mkdir()
     d = mail.digest(days=0)
     assert d["quarantined"] == 2, f"exactly the two real copies: {d}"
+
+
+# --- round 13, native authority leg (P13-3..P13-8) --------------------------
+def test_env_cap_garbage_uses_the_default_not_zero(env, monkeypatch, capsys):
+    """P13-3: the non-int branch had ZERO coverage — mutating it to `return 0`
+    kept the whole suite green while a typo'd cap silently refused everything.
+    The contract the docstring promises is DEFAULT + a warning, never 0."""
+    monkeypatch.setenv("FABRIK_MAIL_HOP_CAP", "abc")
+    assert mail._env_cap("FABRIK_MAIL_HOP_CAP", 3, minimum=0) == 3
+    assert "not an int" in capsys.readouterr().err
+
+
+def test_env_cap_negative_cap_uses_the_default(env, monkeypatch, capsys):
+    """P13-4: the below-minimum branch was only ever driven through the WINDOW
+    (minimum=1). With minimum=0 a negative cap takes the same branch, and no
+    test supplied one — `if v < minimum and minimum != 0` survived."""
+    monkeypatch.setenv("FABRIK_MAIL_RATE_CAP", "-1")
+    assert mail._env_cap("FABRIK_MAIL_RATE_CAP", 5, minimum=0) == 5
+    assert "below the minimum" in capsys.readouterr().err
+
+
+def test_cli_ack_honours_the_disposition_argument(env, capsys):
+    """P13-5: main()'s ack branch was never driven through the CLI, so
+    hardcoding disposition="done" survived all 113 tests while
+    `ack <id> --disposition wontfix` silently wrote the wrong verb."""
+    mid = _mint(env, "alpha", "fabrik", "request", "required")
+    assert mail.main(["claim", mid, "--repo", "fabrik"]) == 0
+    assert mail.main(["ack", mid, "--repo", "fabrik", "--disposition", "wontfix"]) == 0
+    body = (env["mail_root"] / "fabrik" / "archive" / f"{mid}.md").read_text(encoding="utf-8")
+    assert "disposition: wontfix" in body, body
+
+
+def test_cli_claim_does_not_ack(env):
+    """P13-5: main()'s claim branch calling ack() instead survived — a CLI
+    claim would have written an unrequested disposition line."""
+    mid = _mint(env, "alpha", "fabrik", "request", "required")
+    assert mail.main(["claim", mid, "--repo", "fabrik"]) == 0
+    claimed = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
+    assert claimed.is_file(), "claim is the inbox->archive rename lock"
+    assert "disposition:" not in claimed.read_text(encoding="utf-8"), (
+        "claim resolves NOTHING — only ack writes a disposition"
+    )
+
+
+def test_cli_requeue_actually_requeues(env):
+    """P13-5: main()'s requeue branch rewritten to a no-op survived."""
+    mid = _mint(env, "alpha", "fabrik", "request", "required")
+    mail.main(["claim", mid, "--repo", "fabrik"])
+    assert mail.main(["requeue", mid, "--repo", "fabrik"]) == 0
+    fm = mail._parse(
+        (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").read_text(encoding="utf-8")
+    )
+    assert fm is not None and not fm.get("claimed_by"), fm
+
+
+def test_cli_digest_honours_days(env, capsys):
+    """P13-5: main()'s digest branch ignoring args.days survived. A fresh
+    message is unacked at --days 0 and NOT at --days 365."""
+    _mint(env, "alpha", "fabrik", "request", "required")
+    mail.main(["digest", "--days", "0"])
+    assert "1 unacked" in capsys.readouterr().out
+    mail.main(["digest", "--days", "365"])
+    assert "nothing unacked" in capsys.readouterr().out
+
+
+def test_cli_list_and_read_route_to_their_functions(env, capsys):
+    """P13-5: list/read wiring was never exercised through main()."""
+    mid = _mint(env, "alpha", "fabrik", "request", "required")
+    assert mail.main(["list", "--repo", "fabrik"]) == 0
+    assert mid in capsys.readouterr().out
+    assert mail.main(["read", mid, "--repo", "fabrik"]) == 0
+    assert mid in capsys.readouterr().out
+
+
+def test_digest_skips_a_dotfile_in_the_archive(env):
+    """P13-6: the archive leg was the ONE glob without the dotfile guard its
+    three siblings carry. A hidden backup with ack:required and no ack line
+    counted as unacked on EVERY run — a phantom the operator can never clear,
+    because digest never moves archive files."""
+    archive = env["mail_root"] / "fabrik" / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / ".hidden-backup.md").write_text(
+        "---\nid: 01ARZ\nfrom: alpha\nto: fabrik\nts: 2020-01-01T00:00:00+00:00\n"
+        "re: \nkind: request\nack: required\n---\nbody\n",
+        encoding="utf-8",
+    )
+    assert mail.digest(days=0)["unacked"] == 0
+
+
+def test_cli_surfaces_an_oserror_instead_of_a_traceback(env, monkeypatch, capsys):
+    """P13-7: main()'s ladder caught only FileNotFoundError, so every other
+    OSError (EACCES, EXDEV, ENOSPC, IsADirectoryError) escaped as a raw
+    traceback — the CLI's own error convention bypassed entirely."""
+    mid = _mint(env, "alpha", "fabrik", "request", "required")
+
+    def boom(*a, **k):
+        raise PermissionError("simulated EACCES")
+
+    monkeypatch.setattr(mail.os, "rename", boom)
+    assert mail.main(["claim", mid, "--repo", "fabrik"]) == 1
+    assert "EACCES" in capsys.readouterr().err
+
+
+def test_quarantine_never_overwrites_a_parked_copy(env, monkeypatch):
+    """P13-8: the destination was chosen by check-then-act and moved with
+    os.rename, which OVERWRITES silently — the P4-8 invariant ('never overwrite
+    an earlier quarantined copy') held only when nobody raced. The peer must win
+    the slot BETWEEN our check and our move, or the test proves nothing."""
+    inbox = env["mail_root"] / "fabrik" / "inbox"
+    parked = env["mail_root"] / "fabrik" / "malformed"
+    inbox.mkdir(parents=True, exist_ok=True)
+    parked.mkdir(parents=True, exist_ok=True)
+    bad = inbox / "dup.md"
+    bad.write_text("second corruption\n", encoding="utf-8")
+    real_link, real_rename = mail.os.link, mail.os.rename
+    first = "FIRST corruption — must survive\n"
+    raced = []
+
+    def race(src, dst, *a, **k):
+        """A peer parks its copy in the slot we just found free — ONCE, the way
+        a real peer does; stealing every slot would only prove the bound."""
+        if not raced:
+            raced.append(dst)
+            Path(dst).write_text(first, encoding="utf-8")
+        return real_link(src, dst, *a, **k)
+
+    monkeypatch.setattr(mail.os, "link", race)
+    monkeypatch.setattr(
+        mail.os, "rename", lambda s_, d_, *a, **k: (race(s_, d_), real_rename(s_, d_))[1]
+    )
+    assert mail._quarantine(inbox, bad) is True
+    assert (parked / "dup.md").read_text(encoding="utf-8") == first, "the peer's copy is intact"
+    assert (parked / "dup.md.1").read_text(encoding="utf-8") == "second corruption\n"
