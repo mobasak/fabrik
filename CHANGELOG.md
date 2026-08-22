@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kaizen M1 review fix-wave 21: fail-soft covers creation; the tmp inherits the mode (2026-08-22)
+
+- Everything OSError-prone in the role-log write sits inside the try (W21-1 — wave 20 moved
+  mkstemp outside it, so a read-only parent escaped the documented fail-soft contract as an
+  uncaught PermissionError, killing the golden-refusal path before its alarm mail).
+- The tmp inherits the log's mode before the replace (W21-3 — mkstemp's 0600 silently narrowed
+  a tracked 0644 doc); the write fsyncs before the replace and an fdopen failure closes the fd
+  (W21-5); stale orphaned tmps from hard kills are reaped after 1h, fresh ones never touched
+  (W21-4 — and the reap branch's unimported `time` dependency, a latent NameError no fixture
+  reached, is imported and covered).
+- The W20-3 unique-tmp property has its discriminator test (W21-2 — a revert to the fixed
+  shared tmp name never calls mkstemp and fails it), plus fail-soft, mode, and reap tests.
+
 ### Fixed — kaizen M1 review fix-wave 20: the third why-text; a unique tmp; the distinguishing test (2026-08-22)
 
 - The kaizen-sweep liveness why-text joins its siblings at INSTALLED (W20-1 — the wave-19

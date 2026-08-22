@@ -64,6 +64,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -1998,20 +1999,39 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
     else:
         rows[target] = _render_row(_merge_cells(list(cells), target_cells, force_dash))
     out = lines[: start + 2] + rows + lines[end:]
-    # W19-4 + W20-3: the role log is the one kaizen artifact holding hand-authored
-    # cells (the analyst columns) — write a UNIQUE tmp (mkstemp; a fixed shared
-    # name let two concurrent writers truncate each other's tmp mid-replace) +
-    # atomic os.replace, so a mid-write death can never leave it truncated.
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    tmp = Path(tmp_name)
+    # W19-4 + W20-3 + W21: the role log is the one kaizen artifact holding
+    # hand-authored cells (the analyst columns) — write a UNIQUE tmp (mkstemp;
+    # a fixed shared name let two concurrent writers truncate each other's tmp
+    # mid-replace) + fsync + atomic os.replace, so a mid-write death or power
+    # loss can never leave it truncated. Everything OSError-prone sits inside
+    # the try (W21-1 — the fail-soft contract covers tmp creation too); the
+    # tmp inherits the log's mode (W21-3 — mkstemp's 0600 must not narrow a
+    # tracked doc); stale orphans from hard kills are reaped (W21-4).
+    tmp: Path | None = None
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        for stale in path.parent.glob("tmp*.tmp"):
+            with contextlib.suppress(OSError):
+                if time.time() - stale.stat().st_mtime > 3600:
+                    stale.unlink()
+        fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        tmp = Path(tmp_name)
+        try:
+            fh = os.fdopen(fd, "w", encoding="utf-8")
+        except OSError:
+            os.close(fd)  # W21-5b: fdopen failure must not leak the descriptor
+            raise
+        with fh:
             fh.write("\n".join(out) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())  # W21-5a: atomic AND durable
+        with contextlib.suppress(OSError):
+            tmp.chmod(path.stat().st_mode & 0o7777)
         os.replace(tmp, path)
     except OSError as exc:
         _warn(f"log row write failed for {path.name} ({exc!r}) — row skipped")
-        with contextlib.suppress(OSError):
-            tmp.unlink()
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
         return False
     return True
 

@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -3280,3 +3281,81 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
     assert "row skipped" in buf.getvalue()
     leftovers = [p.name for p in tmp_path.iterdir() if p.name != "log.md"]
     assert leftovers == [], "the failed write cleans up its unique tmp"
+
+
+# ── fix-wave 21 (W21: fail-soft covers creation; the tmp inherits the mode) ──────────
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode bits this test relies on")
+def test_upsert_tmp_creation_failure_is_fail_soft(tmp_path: Path) -> None:
+    """W21-1: an OSError CREATING the tmp (read-only parent) warns and returns
+    False — wave 20 moved mkstemp outside the try and a create failure escaped
+    the documented fail-soft contract as an uncaught PermissionError."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    tmp_path.chmod(0o555)
+    try:
+        import io
+        from contextlib import redirect_stderr
+
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            ok = kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    finally:
+        tmp_path.chmod(0o755)
+    assert ok is False
+    assert "row skipped" in buf.getvalue()
+
+
+def test_upsert_uses_a_unique_mkstemp_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """W21-2 (the W20-3 discriminator): the write goes through tempfile.mkstemp
+    in the log's own dir — a revert to the fixed shared `<name>.tmp` path never
+    calls it and fails here."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    calls: list[tuple] = []
+    real = kc.tempfile.mkstemp
+
+    def _spy(*a: object, **kw: object) -> tuple:
+        calls.append((a, kw))
+        return real(*a, **kw)
+
+    monkeypatch.setattr(kc.tempfile, "mkstemp", _spy)
+    assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert len(calls) == 1, "the unique-tmp write must go through mkstemp"
+    assert calls[0][1].get("dir") == str(tmp_path)
+
+
+def test_upsert_preserves_the_logs_mode(tmp_path: Path) -> None:
+    """W21-3: mkstemp creates at 0600 and os.replace carries the source mode —
+    the upsert must not silently narrow a tracked 0644 doc to owner-only."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    log.chmod(0o644)
+    assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert (log.stat().st_mode & 0o777) == 0o644
+
+
+def test_upsert_reaps_stale_tmp_orphans(tmp_path: Path) -> None:
+    """W21-4: a hard-killed writer's orphaned tmp (>1h old) is reaped on the
+    next upsert; a FRESH tmp (a live concurrent writer's) is left alone. Also
+    the branch's regression guard: the reap path executes (an unimported
+    dependency here died only when an orphan actually existed)."""
+    log = tmp_path / "log.md"
+    header = "| " + " | ".join(kc.COLUMNS) + " |"
+    sep = "|" + "---|" * len(kc.COLUMNS)
+    log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
+    old_orphan = tmp_path / "tmpdeadbeef.tmp"
+    old_orphan.write_text("orphan", encoding="utf-8")
+    os.utime(old_orphan, (time.time() - 7200, time.time() - 7200))
+    fresh = tmp_path / "tmplivewrite.tmp"
+    fresh.write_text("live", encoding="utf-8")
+    assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
+    assert not old_orphan.exists(), "the stale orphan is reaped"
+    assert fresh.exists(), "a fresh tmp (live writer) is never touched"
