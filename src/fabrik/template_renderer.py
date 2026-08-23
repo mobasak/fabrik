@@ -173,6 +173,34 @@ class TemplateRenderer:
         for key, value in spec.env.items():
             if key not in spec.secrets.required:
                 env_example_lines.append(f"{key}={value}")
+        # transdoc finding 1.10 (2026-08-23): .env.example is generated purely from what the
+        # spec DECLARES, so a database-backed project shipped Paddle/iyzico/Resend/B2 entries
+        # while omitting the two variables the app cannot start without. A shape that needs a
+        # database always needs a DSN, and its test suite needs a separate one — otherwise the
+        # harness requirement from finding 1.5 (the test role must not bypass RLS) has nowhere
+        # to be documented. Emitted only when absent, so an explicit spec value always wins.
+        if getattr(getattr(spec, "shape", None), "needs_database", False):
+            declared = set(spec.secrets.required) | set(spec.env)
+            db_lines = [
+                (
+                    "DATABASE_URL",
+                    "postgresql://app:CHANGEME@postgres-main:5432/app",
+                    "the app DSN — postgres-main in Docker; your host in WSL dev",
+                ),
+                (
+                    "TEST_DATABASE_URL",
+                    "postgresql://app_test:CHANGEME@<db-host>:5432/app_test",
+                    "SEPARATE test DB. Its role must NOT be superuser and must NOT hold "
+                    "BYPASSRLS, or every RLS assertion silently proves nothing",
+                ),
+            ]
+            missing = [(k, v, why) for k, v, why in db_lines if k not in declared]
+            if missing:
+                env_example_lines.append("")
+                env_example_lines.append("# Database (required — shape.needs_database is true)")
+                for key, value, why in missing:
+                    env_example_lines.append(f"# {why}")
+                    env_example_lines.append(f"{key}={value}")
         rendered[".env.example"] = "\n".join(env_example_lines) + "\n"
 
         # If dry run, just return rendered content

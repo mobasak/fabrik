@@ -170,7 +170,16 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
 # checks carrying it (check_docker, check_env_contract, check_doc_sprawl --strict,
 # check_lint_ratchet, check_subagent_flywheel) DO fail the gate on a real defect. Blocking
 # is about the exit code; `warn_only` is a claim about the check's contract.
-WARN_ONLY_CHECKS: set[str] = set()
+WARN_ONLY_CHECKS: set[str] = {
+    # transdoc finding 1.3 (2026-08-23): a SKIPPED pytest printed `[PASS] pytest`. In a repo
+    # with no .github/workflows/ that meant the ENTIRE suite sat outside the completion gate
+    # while the gate affirmed a green row — transdoc had 123 tests, including its whole RLS
+    # conformance suite, in exactly that position. A row that never ran must never read as a
+    # row that passed. These names are the NOT-RUN variants; a pytest that actually executes
+    # still reports under the plain "pytest" name and can still turn the gate red.
+    "pytest (NOT RUN)",
+    "pytest (NO TESTS COLLECTED)",
+}
 
 
 def run_optional_check(
@@ -711,15 +720,24 @@ def run_static_checks(
             timeout=TIMEOUTS["pytest"],
         )
         if "No module named pytest" in out:
-            results.append(("pytest", True, "(pytest not installed, skipping)"))
+            results.append(
+                ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
+            )
         elif code == 5:  # pytest exit 5 = no tests collected
-            results.append(("pytest", True, "(no tests collected)"))
+            results.append(
+                ("pytest (NO TESTS COLLECTED)", True, "pytest ran and collected 0 tests")
+            )
         else:
             tail = "\n".join(out.splitlines()[-30:])
             results.append(("pytest", code == 0, tail if code != 0 else ""))
     else:
         results.append(
-            ("pytest", True, "(CI doesn't run pytest, no tests/, or no code changes — skipping)")
+            (
+                "pytest (NOT RUN)",
+                True,
+                "no tests/ dir, no CI workflow invoking pytest, or no code changes this diff — "
+                "the suite is OUTSIDE this gate",
+            )
         )
 
     # SQLFluff (skip if no .sql files changed)

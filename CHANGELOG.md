@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — silent-green checks: a skipped pytest no longer reads as a pass (2026-08-23)
+
+From transdoc's 10-finding report (`01M0PRGR3JCNTGHQ9J608DXGA0`), whose one-line root cause is that
+Fabrik's checks report SUCCESS when they cannot ask their question. Two fixed here, both verified by
+EXECUTION rather than inspection:
+
+- **1.3 — `[PASS] pytest` when pytest never ran.** Worse than reported: THREE silent-green paths in
+  one check (CI has no pytest workflow · pytest not installed · zero tests collected) all appended
+  `("pytest", True, …)`. In a repo with no `.github/workflows/` the entire suite sat outside the
+  completion gate while the gate affirmed a green row — transdoc had 123 tests there, including its
+  whole RLS conformance suite. Skipped runs now report under `pytest (NOT RUN)` /
+  `pytest (NO TESTS COLLECTED)` in the existing ADVISORY bucket, with the reason. Verified live: the
+  row moves to `advisory` in `--json` and the gate stays green (no gate flips red — their §5
+  constraint).
+- **1.10 — `.env.example` omitted the two variables the app cannot start without.** It is generated
+  purely from what a spec DECLARES, so a database-backed project shipped Paddle/iyzico/Resend/B2
+  entries and no DSN. A shape with `needs_database` now always emits `DATABASE_URL` +
+  `TEST_DATABASE_URL` (only when absent, so an explicit spec value still wins), with the finding-1.5
+  harness requirement documented inline: the test role must not be superuser and must not hold
+  BYPASSRLS, or every RLS assertion silently proves nothing.
+
+
 ### Added — governance: a proxy is never evidence when the real check is executable (2026-08-23)
 
 - New HARD STOP in both `CLAUDE.md` copies (hub + project-facing template, so it distributes
