@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `mail.py route` + the HANDLE-NOW mail discipline (2026-08-23)
+
+Operator directive: each of the three hub agents must know precisely which mail is theirs, and a
+message must be read / validated / executed / acked / **archived immediately** — not in 7 days, not
+in 14.
+
+- **`mail.py route <id> --to-agent infra|fleet|intel`** — `--to-agent` only existed at SEND time, so a
+  message already in the shared `fabrik` mailbox had no way to record its owner. Measured before the
+  verb existed: **24 of 28 live hub messages carried no addressee**, and ownership lived in body prose
+  (`[infra→fleet]` subject prefixes) that no filter can read. An empty role clears it. Frontmatter
+  only — the body is copied byte-for-byte (a body containing its own `---` must not be read as the
+  header terminator), the rewrite is validated by re-parsing before it lands, and `os.replace` means
+  no reader sees a half-written file. Refuses a malformed message and refuses an archived one, since
+  re-routing settled history would rewrite the audit trail. 6 regression tests, red-first.
+- **All 30 live hub messages routed** — infra 15 · fleet 13 · intel 2, verified by
+  `list --agent <role>` returning exactly those counts, and zero unaddressed remaining. Routing stays
+  a FILTER, never a lock: `list --agent X` shows addressed-to-X *plus everything unaddressed*, so
+  nothing can be hidden from an agent by addressing it elsewhere, and a wrong call is reversible.
+- **HANDLE-NOW written into the governance surfaces** (hub `CLAUDE.md`, `templates/governance/CLAUDE.md`,
+  `docs/reference/fabrik-mail.md`, `docs/workstation/fabrik-mail.md`): a message you OPEN is a message
+  you FINISH. `ack` never inspects the `ack:` field, so `ack: no` `finding`/`reply`/`relay` mail already
+  had this exit path — it was simply never stated. Not yours ⇒ `ack --disposition wontfix` naming the
+  owner, or relay; it never just sits.
+- **`sweep` documented as a BACKSTOP, and deliberately NOT shortened.** It archives by AGE across every
+  mailbox — read or not, handled or not — so it can bury an untouched finding on day 15 while keeping a
+  handled one until day 13. Shortening `--days` to force tidiness would bury unread mail *faster*, the
+  opposite of handling it. Under handle-now a large sweep count is the alarm, not the cleanup.
+
 ### Fixed — check_imports_resolvable claimed a clean bill of health over directories it never walked (2026-08-23)
 
 fabrik-lib, mail `01M03498MGBQ957TJ4KK2KSESK` — a self-correction of their own earlier adoption note,

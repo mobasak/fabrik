@@ -2312,3 +2312,59 @@ def test_send_warns_on_a_duplicate_open_report_but_never_refuses(env, capsys):
     capsys.readouterr()
     mail.send(to="fabrik", kind="finding", body="unrelated topic entirely\n\nx", frm="alpha")
     assert "similar open message" not in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# route — set/clear the intra-mailbox addressee on an EXISTING message
+# ---------------------------------------------------------------------------
+# `--to-agent` only existed at SEND time, so the hub's shared `fabrik` mailbox had no way
+# to record who owns an already-delivered message. 24 of 28 live messages carried no
+# addressee, and ownership lived in body prose (`[infra→fleet]`) that no filter can read.
+# Routing is a FILTER, never a lock (see _safe_agent): re-routing never hides a message —
+# `list --agent X` still shows unaddressed mail to everyone.
+
+
+def test_route_sets_the_addressee_on_an_existing_message(env):
+    mid = mail.send("fabrik", "finding", "body\n", frm="alpha").stem
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") is None
+    mail.route(mid, "fleet", repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik"))["agent"] == "fleet"
+
+
+def test_route_overwrites_a_previous_addressee(env):
+    mid = mail.send("fabrik", "finding", "b\n", frm="alpha", to_agent="infra").stem
+    mail.route(mid, "intel", repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik"))["agent"] == "intel"
+
+
+def test_route_to_empty_clears_the_addressee(env):
+    """Un-routing must be possible — a wrong assignment cannot be permanent."""
+    mid = mail.send("fabrik", "finding", "b\n", frm="alpha", to_agent="infra").stem
+    mail.route(mid, "", repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") is None
+
+
+def test_route_rejects_an_unsafe_role(env):
+    mid = mail.send("fabrik", "finding", "b\n", frm="alpha").stem
+    with pytest.raises(mail.MailRefusedError):
+        mail.route(mid, "../../etc", repo="fabrik")
+    # and the message is untouched, not half-rewritten
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") is None
+
+
+def test_route_preserves_body_and_every_other_header(env):
+    body = "Subject: keep me\n\nline two\n---\nnot frontmatter\n"
+    mid = mail.send("fabrik", "request", body, frm="alpha", ack="required").stem
+    before = mail._parse(mail.read_msg(mid, "fabrik"))
+    mail.route(mid, "fleet", repo="fabrik")
+    after_text = mail.read_msg(mid, "fabrik")
+    after = mail._parse(after_text)
+    for k in ("id", "from", "to", "ts", "kind", "ack"):
+        assert after[k] == before[k], f"{k} changed: {before[k]!r} -> {after[k]!r}"
+    assert "not frontmatter" in after_text
+    assert "line two" in after_text
+
+
+def test_route_refuses_a_message_that_is_not_in_the_inbox(env):
+    with pytest.raises(mail.MailRefusedError):
+        mail.route("01M0000000000000000000000A", "fleet", repo="fabrik")

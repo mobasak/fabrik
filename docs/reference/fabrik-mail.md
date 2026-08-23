@@ -84,13 +84,36 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   window's open time is `utime`-stamped at creation — renames preserve the message's own
   mtime, so the gate measures the window, never the message; per-process window names mean
   no two resolvers ever target the same window file).
-- **Stale `ack: no` mail has an EXIT.** `finding`/`reply`/`relay` default to `ack: no`, and nothing
-  obliges anyone to archive them — so the inbox was append-only in practice and silted up until a
-  human cleared it by hand (38 messages on 2026-08-23, some resolved in mid-August and still showing
-  unread). `mail.py sweep [--days N]` (default 14) archives stale `ack: no` mail. An `ack: required`
-  OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age comes from the
-  message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left alone rather
-  than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
+- **⚠️ HANDLE-NOW is the rule; `sweep` is only the net.** A message is **read → validated → executed
+  if needed → `ack`ed → archived in the SAME session it is opened.** Not in 7 days, not in 14. `ack`
+  does not inspect the `ack:` field — it archives ANY message with a disposition line, so
+  `ack <id> --disposition done|blocked|wontfix` is the exit path for `ack: no` mail too. There is no
+  such thing as "leave it for later": if you opened it and it is yours, you finish it or you `ack` it
+  `blocked` with the reason. **Reading a message without disposing of it is the defect** — it puts the
+  message back in the pile for the next agent to re-derive from scratch (operator directive
+  2026-08-23).
+- **`sweep` archives by AGE, not by having been dealt with** — that is the whole distinction. It moves
+  `ack: no` mail older than `--days` (default 14) in EVERY mailbox, read or unread, handled or not. So
+  it can bury an untouched finding on day 15 while keeping a fully-handled one until day 13. It exists
+  because the inbox was append-only and silted up (38 messages on 2026-08-23, some resolved in
+  mid-August and still showing unread), and the cost is not the reading: *a real defect report arriving
+  behind forty stale ones gets skimmed* — which is how one cross-repo defect was reported nine times by
+  six senders before anyone acted. **Under handle-now discipline `sweep` should find almost nothing;
+  a large sweep count is the alarm, not the fix.** Do NOT shorten `--days` to enforce tidiness — a
+  shorter window buries unread mail FASTER, which is the opposite of handling it.
+  An `ack: required` OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age
+  comes from the message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left
+  alone rather than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
+- **Every hub message carries an ADDRESSEE.** The hub runs three agents — `infra` · `fleet` · `intel` —
+  sharing one `fabrik` mailbox, so a message with no `agent:` is work nobody owns: all three see the
+  same undifferentiated pile and every triage decision is re-derived by reading bodies. Set it at send
+  time with `send --to-agent <role>`, and on mail already delivered with
+  **`mail.py route <id> --to-agent <role>`** (empty role clears it). Routing is a FILTER, never a lock:
+  `list --agent X` shows addressed-to-X **plus everything unaddressed**, so re-routing can never hide a
+  message from anyone, and a wrong assignment is always reversible. `route` touches frontmatter only,
+  refuses a malformed or archived message, and lands via `os.replace` so no reader sees a half-written
+  file. Measured 2026-08-23 before the verb existed: 24 of 28 live hub messages had no addressee, and
+  ownership lived in body prose (`[infra→fleet]` subject prefixes) that no filter can read.
 - **Duplicate reports are HINTED, never refused.** `send` compares the new subject against the
   recipient's open inbox and, on a strong overlap, prints the id of the already-open message so you
   can `--re` onto it instead. It never blocks: a cross-repo defect was reported nine times by six

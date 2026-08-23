@@ -57,11 +57,24 @@ disposition — the file carries none until the work is actually done); `ack` re
 
 ## Keeping the queue readable
 
-`python3 scripts/mail.py sweep` archives `ack: no` mail older than 14 days across every mailbox and
-never touches an `ack: required` obligation. Safe to run unattended or from cron; `archive/` keeps
-everything. Within the hub, `--to-agent infra|fleet|intel` addresses a message to one role and
+**The rule is HANDLE-NOW: a message you open, you finish in the same session** — read, validate the
+claim against the code yourself, do the work, reply, `ack`, archived. Not in 7 days, not in 14.
+`ack <id> --disposition done|blocked|wontfix` works on *every* message (it never inspects the `ack:`
+field), so `ack: no` mail exits the same way; if it is not yours, `ack` it `wontfix` naming the owner
+or relay it, but it does not sit.
+
+`python3 scripts/mail.py sweep` is the **backstop, not the exit path**. It archives `ack: no` mail
+older than 14 days across every mailbox — **by age, read or not, handled or not** — and never touches
+an `ack: required` obligation. So it can bury an untouched finding on day 15 while keeping a handled
+one until day 13. Under handle-now it should find almost nothing: **a large sweep count is the alarm,
+not the cleanup.** Don't shorten `--days` to force tidiness — a shorter window buries unread mail
+faster, which is the opposite of handling it. Safe to run unattended; `archive/` keeps everything.
+
+Within the hub, **every message should carry an addressee**: `send --to-agent infra|fleet|intel` at
+send time, or `mail.py route <id> --to-agent <role>` for mail already delivered (empty role clears it).
 `list --agent <role>` (or the `CLAUDE_AGENT` env var) filters to that role's mail plus everything
-unaddressed — a filter for readability, never a lock, so nothing is hidden from you.
+unaddressed — a filter for readability, never a lock, so nothing is hidden from you and a wrong
+assignment is always reversible.
 
 ## Observe it
 

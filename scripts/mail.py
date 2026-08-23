@@ -11,6 +11,7 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
     ack   <id> [--repo <repo>] [--disposition done|blocked|wontfix]
+    route <id> [--to-agent <role>] [--repo <repo>]   # re-address live mail; empty role clears
     requeue <id> [--repo <repo>]
     digest [--days N]
     sweep [--days N] [--repo <repo>]   # archive stale ack:no mail; obligations never swept
@@ -754,6 +755,54 @@ def _append_ack_line(dst: Path, repo: str, disposition: str) -> None:
         fh.write(f"\nacked-by: {repo} · ts: {_now_iso()} · disposition: {disposition}\n")
 
 
+def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
+    """Set (or clear) the intra-mailbox addressee on a message ALREADY in the inbox.
+
+    ``--to-agent`` only existed at SEND time, so the hub's shared ``fabrik`` mailbox had no
+    way to record who owns a message once it had been delivered. Ownership therefore lived
+    in body prose (``[infra->fleet]`` subject prefixes), which no filter can read: measured
+    2026-08-23, 24 of the 28 live hub messages carried no addressee at all, so
+    ``list --agent`` showed all three hub agents the same undifferentiated pile and every
+    triage decision had to be re-derived by reading bodies.
+
+    Routing is a FILTER, never a lock (see :func:`_safe_agent`) — re-routing can never hide
+    a message, because ``list --agent X`` shows addressed-to-X PLUS everything unaddressed.
+    Passing an empty role CLEARS the addressee, so a wrong assignment is always reversible;
+    an assignment nobody can undo would be a lock in all but name.
+
+    Frontmatter only: the body is copied byte-for-byte (a body containing its own ``---``
+    line must not be mistaken for the header terminator), every other header is preserved,
+    and the rewrite lands via ``os.replace`` so a reader never observes a half-written
+    message. The inbox is the only legal target — an ARCHIVED message is settled history
+    and re-routing it would rewrite the audit trail.
+    """
+    _safe_id(msg_id)
+    repo = repo or _current_repo()
+    _safe_name(repo, "repo")
+    agent = _safe_agent(to_agent or "")  # raises on an unsafe role BEFORE any mutation
+    path = _mail_root() / repo / "inbox" / f"{msg_id}.md"
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise MailRefusedError(
+            f"{msg_id}: not in {repo}/inbox — route only re-addresses live mail "
+            f"(an archived message is settled history)"
+        ) from exc
+    if _parse(text) is None:
+        raise MailRefusedError(f"{msg_id}: malformed frontmatter — refusing to rewrite it")
+    end = text.find("\n---", 4)
+    header = [ln for ln in text[4:end].splitlines() if not ln.startswith("agent:")]
+    if agent:
+        header.append(f"agent: {agent}")
+    rebuilt = "---\n" + "".join(f"{ln}\n" for ln in header) + text[end + 1 :]
+    if _parse(rebuilt) is None:  # never write something we could not read back
+        raise MailRefusedError(f"{msg_id}: rewrite would corrupt the frontmatter — aborted")
+    tmp = path.with_suffix(f".md.routing.{os.getpid()}")
+    tmp.write_text(rebuilt, encoding="utf-8")
+    os.replace(tmp, path)
+    return path
+
+
 def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     """Claim + resolve — EVERY resolve goes through a per-process rename-locked window.
 
@@ -1336,6 +1385,18 @@ def main(argv: list[str] | None = None) -> int:
     p_ack.add_argument("--repo")
     p_ack.add_argument("--disposition", default="done", choices=list(DISPOSITIONS))
 
+    p_route = sub.add_parser(
+        "route", help="set/clear the intra-mailbox addressee on a message already in the inbox"
+    )
+    p_route.add_argument("id")
+    p_route.add_argument(
+        "--to-agent",
+        dest="to_agent",
+        default="",
+        help="role (infra/fleet/intel); omit or pass '' to CLEAR the addressee",
+    )
+    p_route.add_argument("--repo")
+
     p_req = sub.add_parser("requeue", help="move a claimed message back to inbox")
     p_req.add_argument("id")
     p_req.add_argument("--repo")
@@ -1383,6 +1444,9 @@ def main(argv: list[str] | None = None) -> int:
             print(claim(args.id, args.repo or _current_repo()))
         elif args.cmd == "ack":
             print(ack(args.id, args.repo or _current_repo(), disposition=args.disposition))
+        elif args.cmd == "route":
+            path = route(args.id, args.to_agent, repo=args.repo)
+            print(f"{path} · @{args.to_agent}" if args.to_agent else f"{path} · addressee cleared")
         elif args.cmd == "requeue":
             print(requeue(args.id, args.repo or _current_repo()))
         elif args.cmd == "digest":
