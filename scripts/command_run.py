@@ -302,6 +302,45 @@ def _round_report(rec: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+PHASE_REVIEW_COMMANDS = frozenset({"fabrik-execute-plan"})
+
+
+def _phase_review_exists(root: str, phase: int) -> bool:
+    """Is there a review artifact for ``phase`` under docs/development/reviews/?
+
+    transdoc finding 1.1 (2026-08-23), the highest-damage item in their report:
+    `/fabrik-execute-plan` requires every phase boundary to reach `/fabrik-review`'s
+    coverage-adjudicated exit, and `check_review_coverage.py`'s subject is the
+    DIRECTORY ``docs/development/reviews/``. A per-phase review emitted nothing
+    there, so at all 17 of their plan's phase boundaries the gate had NO SUBJECT
+    and passed. 71 defects reached the first real gate — including a missing
+    ``jobs.updated_at`` that meant no job could ever be claimed, i.e. the product's
+    core pipeline was dead end to end while every gate said success.
+
+    A contract clause with no mechanical binding is a suggestion. This is the
+    binding: the artifact must EXIST before the next phase may open.
+
+    Deliberately permissive about the NAME — projects date and slug their plans
+    differently, and a rule that guesses the stem would fail honest runs. Any file
+    under the reviews dir mentioning this phase counts; the gate then judges its
+    CONTENT. We bind existence here, not quality: quality is check_review_coverage's
+    job, and it can finally do it because it now has a subject.
+    """
+    if not root:
+        return False
+    d = Path(root) / "docs" / "development" / "reviews"
+    if not d.is_dir():
+        return False
+    pats = (f"phase-{phase}", f"phase{phase}", f"-p{phase}-")
+    try:
+        for f in d.rglob("*.md"):
+            if f.is_file() and any(pat in f.name.lower() for pat in pats):
+                return True
+    except OSError:
+        return False  # unreadable → treat as absent; the refusal names how to waive
+    return False
+
+
 def _repo_root() -> str:
     """The toplevel of the repo the invoking shell is in at START time — "" if none."""
     try:
@@ -599,6 +638,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--terminal", default="", help="the run's terminal condition")
 
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
+    p.add_argument(
+        "--review-waived",
+        metavar="REASON",
+        help="advance without the previous phase's review artifact — RECORDED in the run record",
+    )
     p.add_argument("--phase", required=True, type=int)
     p.add_argument("--title", default="")
 
@@ -739,7 +783,34 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return 0
 
     if args.cmd == "step":
-        rec["phase"] = max(1, args.phase)
+        target = max(1, args.phase)
+        prev = target - 1
+        if (
+            prev >= 1
+            and rec.get("command") in PHASE_REVIEW_COMMANDS
+            and not _phase_review_exists(str(rec.get("repo_root") or ""), prev)
+        ):
+            if args.review_waived:
+                waived = list(rec.get("waived_reviews") or [])
+                waived.append({"phase": prev, "reason": args.review_waived, "at": _now()})
+                rec["waived_reviews"] = waived
+                print(
+                    f"command_run: phase {prev} review WAIVED — {args.review_waived} "
+                    "(recorded in the run record; an escape that leaves no trace is how "
+                    "this contract became unenforceable in the first place)",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"REFUSED — phase {prev} has no review artifact under "
+                    "docs/development/reviews/, so check_review_coverage.py has no subject "
+                    "and would pass on an empty set. Emit the phase review (a filename "
+                    f"containing `phase-{prev}`), or re-run with "
+                    '--review-waived "<reason>" to record a deliberate skip.',
+                    file=sys.stderr,
+                )
+                return 2
+        rec["phase"] = target
         rec["phase_title"] = args.title
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)

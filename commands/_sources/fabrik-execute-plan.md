@@ -211,7 +211,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright`
    `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the
    `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until
-   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip this.
+   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip this. ⚠️ **That exit must EMIT AN ARTIFACT** — a file under `docs/development/reviews/` whose name contains `phase-<N>`. `check_review_coverage.py`'s subject is that DIRECTORY, so a phase review that writes nothing there leaves the gate with NO SUBJECT and it passes on an empty set: transdoc shipped 17 phases that way and the first real adversarial gate found 71 defects, including a dead job queue. `command_run.py step --phase N+1` now REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is recorded in the run record rather than silent.
 4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to.
 5. **Documentation is blocking, per phase — not advisory.** Before each phase commit, run
    `python scripts/enforcement/check_doc_sync.py`; **any WARNING whose trigger file is in *this phase's*

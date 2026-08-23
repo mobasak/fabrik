@@ -74,8 +74,17 @@ _PROBE = "fabrik-probe"
 
 
 def _start(run_dir: Path, **kw: str) -> None:
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5",
-        "--terminal", "found:0 no-op round", **kw)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "found:0 no-op round",
+        **kw,
+    )
 
 
 def _rec(run_dir: Path, sid: str = "s1") -> dict:
@@ -212,11 +221,40 @@ def test_blocked_clears_the_pinned_line(run_dir: Path) -> None:
 
 def _start_nested(run_dir: Path) -> None:
     """A plan execution at phase 2/5 with a /fabrik-probe nested inside it."""
-    _cr(run_dir, "start", "--command", "fabrik-execute-plan", "--phases", "5",
-        "--terminal", "every phase EXECUTED")
-    _cr(run_dir, "step", "--phase", "2", "--title", "Phase B")
-    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
-        "--terminal", "found:0 no-op round")
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-execute-plan",
+        "--phases",
+        "5",
+        "--terminal",
+        "every phase EXECUTED",
+    )
+    # These tests exercise the NESTED-DONE mechanism, not the phase-review rule
+    # (transdoc 1.1) — so the waiver is used deliberately rather than seeding an
+    # artifact this fixture has no other reason to own. It also keeps the waiver
+    # path itself under test on every nested-run assertion.
+    _cr(
+        run_dir,
+        "step",
+        "--phase",
+        "2",
+        "--title",
+        "Phase B",
+        "--review-waived",
+        "nested-run fixture; not a phase-review test",
+    )
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "5",
+        "--terminal",
+        "found:0 no-op round",
+    )
 
 
 def test_nested_done_restores_and_reprints_the_parent_line(run_dir: Path) -> None:
@@ -276,13 +314,15 @@ def test_concurrent_rounds_are_never_lost(run_dir: Path) -> None:
     n = 20
     procs = [
         subprocess.Popen(
-            [sys.executable, str(_SCRIPT), "round", "--findings", "1",
-             "--classes-new", f"c{i}"],
+            [sys.executable, str(_SCRIPT), "round", "--findings", "1", "--classes-new", f"c{i}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            env={"PATH": "/usr/bin:/bin", "COMMAND_RUN_DIR": str(run_dir),
-                 "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
-                 "CLAUDE_SESSION_ID": "s1"},
+            env={
+                "PATH": "/usr/bin:/bin",
+                "COMMAND_RUN_DIR": str(run_dir),
+                "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
+                "CLAUDE_SESSION_ID": "s1",
+            },
         )
         for i in range(n)
     ]
@@ -413,29 +453,78 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     import os
     import subprocess
     import sys
-    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"),
-               KAIZEN_EVENTS_DIR=str(tmp_path / "events"))
+
+    env = dict(
+        os.environ,
+        COMMAND_RUN_DIR=str(tmp_path / "runs"),
+        KAIZEN_EVENTS_DIR=str(tmp_path / "events"),
+    )
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
     (repo / "x.txt").write_text("x")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
-                   cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "3", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "reviewed, all clean"],
-                       cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "reviewed, all clean",
+        ],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "done closed a review run with NO report anywhere"
     assert "persisted report" in r.stdout
     # writing the report unlocks the close
     (repo / "docs/development/reviews").mkdir(parents=True)
     (repo / "docs/development/reviews/2026-08-19-x-review.md").write_text("# r\n")
-    r2 = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                         "--evidence", "report written"],
-                        cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    r2 = subprocess.run(
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "report written",
+        ],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r2.returncode == 0, r2.stdout + r2.stderr
 
 
@@ -444,6 +533,7 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
     import os
     import subprocess
     import sys
+
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
     repo_a = tmp_path / "a"
     repo_b = tmp_path / "b"
@@ -453,21 +543,46 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
     (repo_b / "docs/development/reviews").mkdir(parents=True)
     (repo_b / "docs/development/reviews/old-review.md").write_text("# unrelated dirt\n")
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "3", "--terminal", "t"], cwd=repo_a, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo_a,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     # close from repo B (wrong repo, dirty reviews/): must still refuse — the check runs in A
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo_b, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo_b,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "wrong-repo dirt satisfied the artifact check"
     # write the real report in A, close from a SUBDIR of A: must succeed
     (repo_a / "docs/development/reviews").mkdir(parents=True)
     (repo_a / "docs/development/reviews/2026-08-19-a-review.md").write_text("# r\n")
     sub = repo_a / "scripts"
     sub.mkdir()
-    r2 = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                         "--evidence", "e"], cwd=sub, env=env,
-                        capture_output=True, text=True, timeout=15)
+    r2 = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=sub,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r2.returncode == 0, r2.stdout + r2.stderr
 
 
@@ -477,6 +592,7 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
     import subprocess
     import sys
     import time as _t
+
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -486,19 +602,47 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
     old = d / "old-review.md"
     old.write_text("# old\n")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
-                   cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
     past = _t.time() - 3600
     os.utime(old, (past, past))
     _t.sleep(1.1)  # run-binding is second-granular: the pre-run commit must be < started_at
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "3", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
-    subprocess.run(["git", "rm", "-q", "docs/development/reviews/old-review.md"],
-                   cwd=repo, check=True, timeout=15)
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
+    subprocess.run(
+        ["git", "rm", "-q", "docs/development/reviews/old-review.md"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "a deletion (of a pre-run file) satisfied the artifact check"
 
 
@@ -509,6 +653,7 @@ def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
     import subprocess
     import sys
     import time as _t
+
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -520,11 +665,31 @@ def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
     past = _t.time() - 3600
     os.utime(stale, (past, past))
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "3", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "a stale-but-present file satisfied the check on presence alone"
 
 
@@ -534,6 +699,7 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
     import os
     import subprocess
     import sys
+
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
     norepo = tmp_path / "norepo"
     norepo.mkdir()
@@ -543,11 +709,31 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
     (dirty / "docs/development/reviews").mkdir(parents=True)
     (dirty / "docs/development/reviews/x-review.md").write_text("# unrelated\n")
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "3", "--terminal", "t"], cwd=norepo, env=env, check=True, timeout=15)
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=dirty, env=env,
-                       capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+        ],
+        cwd=norepo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=dirty,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "a rootless record closed against the close-cwd's dirt"
     assert "no repo_root" in r.stdout
 
@@ -558,16 +744,47 @@ def test_blocked_works_on_a_rootless_record(tmp_path):
     import os
     import subprocess
     import sys
+
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
     norepo = tmp_path / "norepo"
     norepo.mkdir()
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "3", "--terminal", "t"], cwd=norepo, env=env, check=True, timeout=15)
-    r = subprocess.run([sys.executable, script, "blocked", "--command", "fabrik-review",
-                        "--reason", "rootless-record"], cwd=norepo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+        ],
+        cwd=norepo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            script,
+            "blocked",
+            "--command",
+            "fabrik-review",
+            "--reason",
+            "rootless-record",
+        ],
+        cwd=norepo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 0, f"blocked no longer closes a rootless record: {r.stdout}{r.stderr}"
+
+
 # --- T03: kaizen lifecycle events --------------------------------------------
 #
 # The record is the Stop hook's 5th cause and is fleet-synced, so the events are
@@ -634,7 +851,9 @@ def test_closed_by_is_written_on_the_record(run_dir: Path) -> None:
 def test_a_refused_close_mutates_nothing_and_emits_nothing(run_dir: Path) -> None:
     _start(run_dir)
     before = len(_events(run_dir, "s1"))
-    assert _cr(run_dir, "done", "--command", "fabrik-docs-review", "--evidence", "x").returncode == 1
+    assert (
+        _cr(run_dir, "done", "--command", "fabrik-docs-review", "--evidence", "x").returncode == 1
+    )
     assert len(_events(run_dir, "s1")) == before, "a refused close is not a mutation"
     assert _rec(run_dir)["state"] == "running"
 
@@ -657,9 +876,22 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
     # is the one T03 addition, and it is additive — no existing consumer reads it.
     # `started_epoch` + `repo_root` are the review-guard's (mega-enforcement round-31/33).
     assert set(rec) == {
-        "session_id", "command", "phases", "phase", "phase_title", "terminal",
-        "state", "started_at", "started_epoch", "repo_root", "rounds", "classes",
-        "stack", "updated_at", "updated_ts", "event_seq",
+        "session_id",
+        "command",
+        "phases",
+        "phase",
+        "phase_title",
+        "terminal",
+        "state",
+        "started_at",
+        "started_epoch",
+        "repo_root",
+        "rounds",
+        "classes",
+        "stack",
+        "updated_at",
+        "updated_ts",
+        "event_seq",
     }, sorted(rec)
     assert rec["state"] == "running"
     assert _cr(run_dir, "line").stdout.rstrip("\n") == (
@@ -704,8 +936,20 @@ def test_a_raising_emitter_never_corrupts_a_record(run_dir: Path, tmp_path: Path
 
 def test_an_absent_kaizen_module_behaves_exactly_as_today(run_dir: Path, tmp_path: Path) -> None:
     gone = _shim(tmp_path, "gone", "raise ImportError('not synced to this project yet')\n")
-    assert _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
-               "--terminal", "t", extra_env=gone).returncode == 0
+    assert (
+        _cr(
+            run_dir,
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "5",
+            "--terminal",
+            "t",
+            extra_env=gone,
+        ).returncode
+        == 0
+    )
     assert _rec(run_dir)["state"] == "running"
     assert _events(run_dir, "s1") == []
 
@@ -716,8 +960,20 @@ def test_an_absent_kaizen_module_behaves_exactly_as_today(run_dir: Path, tmp_pat
 def test_nosession_events_carry_sid_source_none(run_dir: Path) -> None:
     """An empty CLAUDE_SESSION_ID (every Bash-tool shell) must not be laundered into
     an attributed session: the record still works, the EVENT says `none`."""
-    assert _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
-               "--terminal", "t", sid=None).returncode == 0
+    assert (
+        _cr(
+            run_dir,
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "5",
+            "--terminal",
+            "t",
+            sid=None,
+        ).returncode
+        == 0
+    )
     # The name is now repo-SCOPED (`nosession-<repo>`): a bare `nosession` was one file in
     # a global state dir, so every id-less session on the box merged into it. What this test
     # actually guards — that an empty id is not laundered into an attributed session — is
@@ -740,8 +996,19 @@ def test_adopt_sid_adopts_a_single_candidate(run_dir: Path, tmp_path: Path) -> N
     work = tmp_path / "work"
     work.mkdir()
     _seed_event(run_dir, "sessA", cwd=work, ts=_iso(-3600))
-    p = _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
-            "--adopt-sid", sid=None, cwd=work)
+    p = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert p.returncode == 0, p.stdout + p.stderr
     assert (run_dir / "nosession.json").is_file(), "adoption must NOT rename the record"
     rows = _events(run_dir, "sessA")
@@ -757,8 +1024,19 @@ def test_adopt_sid_refuses_an_ambiguous_join(run_dir: Path, tmp_path: Path) -> N
     work.mkdir()
     _seed_event(run_dir, "sessA", cwd=work)
     _seed_event(run_dir, "sessB", cwd=work)
-    p = _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
-            "--adopt-sid", sid=None, cwd=work)
+    p = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert p.returncode == 0, p.stdout + p.stderr
     assert len(_events(run_dir, "sessA")) == 1 and len(_events(run_dir, "sessB")) == 1
     rows = _events(run_dir, "unknown")
@@ -775,21 +1053,40 @@ def test_adopt_sid_ignores_a_session_that_never_named_this_cwd(
     other.mkdir()
     _seed_event(run_dir, "sessA", cwd=work)
     _seed_event(run_dir, "sessB", cwd=other)
-    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
-        "--adopt-sid", sid=None, cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert [r["event"] for r in _events(run_dir, "sessA")] == ["session_start", "run_open"]
     assert len(_events(run_dir, "sessB")) == 1
 
 
-def test_adopt_sid_window_starts_at_the_runs_own_start(
-    run_dir: Path, tmp_path: Path
-) -> None:
+def test_adopt_sid_window_starts_at_the_runs_own_start(run_dir: Path, tmp_path: Path) -> None:
     """Once a run exists the window is anchored to ITS start — a session whose only
     trace of this cwd predates the run is not a candidate."""
     work = tmp_path / "work"
     work.mkdir()
-    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
-        sid=None, cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        sid=None,
+        cwd=work,
+    )
     _seed_event(run_dir, "stale", cwd=work, ts=_iso(-3600))
     _cr(run_dir, "round", "--findings", "1", "--adopt-sid", sid=None, cwd=work)
     assert len(_events(run_dir, "stale")) == 1, "a pre-run event must not adopt"
@@ -800,15 +1097,24 @@ def test_adopt_sid_window_starts_at_the_runs_own_start(
     assert [r["event"] for r in _events(run_dir, "live")] == ["session_start", "round"]
 
 
-def test_adopt_sid_is_ignored_when_a_real_sid_exists(
-    run_dir: Path, tmp_path: Path
-) -> None:
+def test_adopt_sid_is_ignored_when_a_real_sid_exists(run_dir: Path, tmp_path: Path) -> None:
     """An honest sid always wins — the join is a fallback, never an override."""
     work = tmp_path / "work"
     work.mkdir()
     _seed_event(run_dir, "sessA", cwd=work)
-    _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5", "--terminal", "t",
-        "--adopt-sid", sid="s1", cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid="s1",
+        cwd=work,
+    )
     assert [r["event"] for r in _events(run_dir, "s1")] == ["run_open"]
     assert len(_events(run_dir, "sessA")) == 1
 
@@ -824,10 +1130,21 @@ def _seed_bulk(run_dir: Path, stem: str, *, rows: int, other: Path, tail_cwd: Pa
     pad = "p" * 200
 
     def row(cwd: Path) -> str:
-        return json.dumps({
-            "schema": 1, "ts": _iso(), "sid": stem, "sid_source": "env", "event": "round",
-            "exposure": {"project": "unknown"}, "cwd": str(cwd.resolve()), "pad": pad,
-        }) + "\n"
+        return (
+            json.dumps(
+                {
+                    "schema": 1,
+                    "ts": _iso(),
+                    "sid": stem,
+                    "sid_source": "env",
+                    "event": "round",
+                    "exposure": {"project": "unknown"},
+                    "cwd": str(cwd.resolve()),
+                    "pad": pad,
+                }
+            )
+            + "\n"
+        )
 
     with open(d / f"{stem}.jsonl", "a", encoding="utf-8") as fh:
         for _ in range(rows):
@@ -845,8 +1162,19 @@ def test_join_reads_the_tail_of_a_long_session_file(run_dir: Path, tmp_path: Pat
     other.mkdir()
     _seed_bulk(run_dir, "long", rows=5200, other=other, tail_cwd=work)
     _seed_event(run_dir, "short", cwd=work)
-    p = _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t",
-            "--adopt-sid", sid=None, cwd=work)
+    p = _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert p.returncode == 0, p.stdout + p.stderr
     assert [r["event"] for r in _events(run_dir, "unknown")] == ["run_open"], (
         "two sessions name this cwd — the join must REFUSE, not adopt the visible one"
@@ -860,8 +1188,19 @@ def test_join_adopts_a_candidate_only_the_tail_proves(run_dir: Path, tmp_path: P
     work.mkdir()
     other.mkdir()
     _seed_bulk(run_dir, "long", rows=5200, other=other, tail_cwd=work)
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t",
-        "--adopt-sid", sid=None, cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert [r["event"] for r in _events(run_dir, "long")][-1:] == ["run_open"]
     assert _events(run_dir, "unknown") == []
 
@@ -876,8 +1215,19 @@ def test_join_refuses_when_a_session_is_too_long_to_prove_absence(
     other.mkdir()
     _seed_bulk(run_dir, "long", rows=5200, other=other, tail_cwd=None)
     _seed_event(run_dir, "short", cwd=work)
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t",
-        "--adopt-sid", sid=None, cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert [r["event"] for r in _events(run_dir, "unknown")] == ["run_open"], (
         "one proven candidate + one unprovable session is not a deterministic join"
     )
@@ -891,13 +1241,34 @@ def test_start_never_inherits_a_previous_runs_anchor(run_dir: Path, tmp_path: Pa
     work = tmp_path / "work"
     work.mkdir()
     _seed_event(run_dir, "sessA", cwd=work, ts=_iso(-3600))
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t",
-        sid=None, cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=None,
+        cwd=work,
+    )
     _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x", sid=None, cwd=work)
     _seed_event(run_dir, "sessB", cwd=work, ts=_iso())
     before = len(_events(run_dir, "unknown"))
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t",
-        "--adopt-sid", sid=None, cwd=work)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        "--adopt-sid",
+        sid=None,
+        cwd=work,
+    )
     assert len(_events(run_dir, "unknown")) == before + 1, (
         "sessA predates the closed run — a stale anchor would hide it and adopt sessB"
     )
@@ -939,8 +1310,12 @@ def test_seq_survives_the_concurrent_writer_scramble(run_dir: Path) -> None:
             [sys.executable, str(_SCRIPT), "round", "--findings", "1", "--classes-new", f"c{i}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            env={"PATH": "/usr/bin:/bin", "COMMAND_RUN_DIR": str(run_dir),
-                 "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)), "CLAUDE_SESSION_ID": "s1"},
+            env={
+                "PATH": "/usr/bin:/bin",
+                "COMMAND_RUN_DIR": str(run_dir),
+                "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
+                "CLAUDE_SESSION_ID": "s1",
+            },
         )
         for i in range(n)
     ]
@@ -986,8 +1361,10 @@ def test_an_exception_after_save_still_flushes_the_event(tmp_path: Path, monkeyp
 
     monkeypatch.setattr(cr, "_round_report", _boom)
     assert cr.main(["round", "--findings", "2"]) == 0, "a tail bug must not wedge the agent"
-    rows = [json.loads(ln) for ln in
-            (tmp_path / "events" / "s1.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [
+        json.loads(ln)
+        for ln in (tmp_path / "events" / "s1.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     assert [r["event"] for r in rows] == ["run_open", "round"], rows
     assert rows[1]["findings"] == 2 and rows[1]["seq"] == 2, rows[1]
 
@@ -1018,8 +1395,18 @@ def test_flush_bounds_the_exposure_probe_and_labels_a_joined_sid(
     monkeypatch.setattr(cr, "_kaizen", lambda: _Fake)
     (tmp_path / "events").mkdir(parents=True, exist_ok=True)
     (tmp_path / "events" / "sessA.jsonl").write_text(
-        json.dumps({"schema": 1, "ts": _iso(-60), "sid": "sessA", "event": "session_start",
-                    "cwd": str(Path.cwd().resolve())}) + "\n", encoding="utf-8")
+        json.dumps(
+            {
+                "schema": 1,
+                "ts": _iso(-60),
+                "sid": "sessA",
+                "event": "session_start",
+                "cwd": str(Path.cwd().resolve()),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     assert cr.main(["start", "--command", _PROBE, "--phases", "3", "--adopt-sid"]) == 0
     assert len(calls) == 1, calls
     assert calls[0]["sid"] == "sessA", calls[0]
@@ -1034,7 +1421,12 @@ def test_code_session_id_env_keys_the_record(tmp_path):
     nosession.json and sibling starts clobbered each other's live records."""
     run_dir = tmp_path / "runs"
     r = _cr(
-        run_dir, "start", "--command", "fabrik-probe", "--phases", "1",
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "1",
         sid=None,
         extra_env={"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": "uuid-alpha"},
     )
@@ -1048,7 +1440,12 @@ def test_session_id_precedence_and_isolation(tmp_path):
     with distinct code-session ids never share a record file."""
     run_dir = tmp_path / "runs"
     r = _cr(
-        run_dir, "start", "--command", "fabrik-probe", "--phases", "1",
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "1",
         sid="legacy-var",
         extra_env={"CLAUDE_CODE_SESSION_ID": "uuid-beta"},
     )
@@ -1056,7 +1453,12 @@ def test_session_id_precedence_and_isolation(tmp_path):
     assert (run_dir / "legacy-var.json").exists(), "CLAUDE_SESSION_ID must outrank the code var"
     for uuid in ("uuid-a", "uuid-b"):
         r = _cr(
-            run_dir, "start", "--command", "fabrik-probe", "--phases", "1",
+            run_dir,
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "1",
             sid=None,
             extra_env={"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": uuid},
         )
@@ -1091,8 +1493,18 @@ def test_adopt_join_declines_when_code_session_id_resolves(tmp_path, monkeypatch
     monkeypatch.setattr(cr, "_kaizen", lambda: _Fake)
     (tmp_path / "events").mkdir(parents=True, exist_ok=True)
     (tmp_path / "events" / "sessB.jsonl").write_text(
-        json.dumps({"schema": 1, "ts": _iso(-60), "sid": "sessB", "event": "session_start",
-                    "cwd": str(Path.cwd().resolve())}) + "\n", encoding="utf-8")
+        json.dumps(
+            {
+                "schema": 1,
+                "ts": _iso(-60),
+                "sid": "sessB",
+                "event": "session_start",
+                "cwd": str(Path.cwd().resolve()),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     assert cr.main(["start", "--command", _PROBE, "--phases", "1", "--adopt-sid"]) == 0
     assert len(calls) == 1, calls
     assert calls[0]["sid_source"] != "join", calls[0]
@@ -1102,17 +1514,25 @@ def test_adopt_join_declines_when_code_session_id_resolves(tmp_path, monkeypatch
 def _artifact_repo(tmp_path, name="repo"):
     import os
     import subprocess
-    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / name / "runs"),
-               KAIZEN_EVENTS_DIR=str(tmp_path / name / "events"),
-               CLAUDE_SESSION_ID=f"artifact-test-{name}")
+
+    env = dict(
+        os.environ,
+        COMMAND_RUN_DIR=str(tmp_path / name / "runs"),
+        KAIZEN_EVENTS_DIR=str(tmp_path / name / "events"),
+        CLAUDE_SESSION_ID=f"artifact-test-{name}",
+    )
     repo = tmp_path / name / "repo"
     repo.parent.mkdir(parents=True, exist_ok=True)
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
     (repo / "x.txt").write_text("x")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
-                   cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
     return env, repo
 
 
@@ -1121,25 +1541,48 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
     fabrik-user-test/service-test/fab-mega-04-validate done closed with NO report ever
     written, the round-29 hole three commands over."""
     import subprocess
+
     script = "/opt/fabrik/scripts/command_run.py"
     for cmd in ("fabrik-user-test", "fab-mega-04-validate"):
         # a fresh repo per command: the 2s mtime grace otherwise lets the previous
         # command's report satisfy the next run in a fast-running test
         env, repo = _artifact_repo(tmp_path, name=cmd)
-        subprocess.run([sys.executable, script, "start", "--command", cmd,
-                        "--phases", "1", "--terminal", "t"],
-                       cwd=repo, env=env, check=True, timeout=15)
-        r = subprocess.run([sys.executable, script, "done", "--command", cmd,
-                            "--evidence", "nothing written at all"],
-                           cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+        subprocess.run(
+            [sys.executable, script, "start", "--command", cmd, "--phases", "1", "--terminal", "t"],
+            cwd=repo,
+            env=env,
+            check=True,
+            timeout=15,
+        )
+        r = subprocess.run(
+            [
+                sys.executable,
+                script,
+                "done",
+                "--command",
+                cmd,
+                "--evidence",
+                "nothing written at all",
+            ],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
         assert r.returncode == 1, f"{cmd}: done closed with no report ({r.stdout})"
         assert "persisted report" in r.stdout
         (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
         rep = repo / f"docs/development/reviews/2026-08-21-{cmd}-x.md"
         rep.write_text("# r\ndone and closed\n")
-        r2 = subprocess.run([sys.executable, script, "done", "--command", cmd,
-                             "--evidence", "report written"],
-                            cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+        r2 = subprocess.run(
+            [sys.executable, script, "done", "--command", cmd, "--evidence", "report written"],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
         assert r2.returncode == 0, r2.stdout + r2.stderr
 
 
@@ -1148,23 +1591,48 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
     terminal condition — done with ONLY mid-loop artifacts is the evidence-string hole
     wearing a file's clothes."""
     import subprocess
+
     env, repo = _artifact_repo(tmp_path)
     script = "/opt/fabrik/scripts/command_run.py"
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"],
-                   cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     rep = repo / "docs/development/reviews/2026-08-21-midloop-review.md"
     rep.write_text("# r\nStatus: IN-PROGRESS — round 3 running\n")
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "all done"],
-                       cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "all done"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "done closed on a mid-loop-only artifact"
     assert "IN-PROGRESS" in r.stdout
     rep.write_text("# r\nStatus: closed — quiet round earned\n")
-    r2 = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                         "--evidence", "closed"],
-                        cwd=repo, env=env, capture_output=True, text=True, timeout=15)
+    r2 = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "closed"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r2.returncode == 0, r2.stdout + r2.stderr
 
 
@@ -1176,17 +1644,37 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     (c) archived/ counted. The same live-.md-outside-archived filter now decides both the
     gate and the candidates, across the run window's commits."""
     import subprocess
+
     script = "/opt/fabrik/scripts/command_run.py"
 
     def _commit(repo, env, *paths, msg="x"):
         subprocess.run(["git", "add", *paths], cwd=repo, check=True, timeout=15)
-        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                        "commit", "-qm", msg], cwd=repo, check=True, timeout=15)
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", msg],
+            cwd=repo,
+            check=True,
+            timeout=15,
+        )
 
     # (a) report + later unrelated commit → done must STILL close
     env, repo = _artifact_repo(tmp_path, name="window")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     rep = repo / "docs/development/reviews/2026-08-21-window-review.md"
     rep.write_text("# r\nclosed clean\n")
@@ -1195,34 +1683,80 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     _commit(repo, env, "CHANGELOG.md", msg="changelog")
     # make the report's WORKING-TREE mtime stale so only the commit window can prove it
     import os as _os
+
     _os.utime(rep, (1, 1))
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 0, f"a later unrelated commit false-refused the close: {r.stdout}"
 
     # (b) non-.md decoy only → REFUSED
     env, repo = _artifact_repo(tmp_path, name="decoy")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     (repo / "docs/development/reviews/evidence.png").write_bytes(b"\x89PNG")
     _commit(repo, env, "docs/development/reviews", msg="png")
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "see commit"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "see commit"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "a committed non-.md decoy satisfied the artifact floor"
 
     # (c) archived/ only → REFUSED
     env, repo = _artifact_repo(tmp_path, name="arch")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews/archived").mkdir(parents=True)
     (repo / "docs/development/reviews/archived/old-review.md").write_text("# old\n")
     _commit(repo, env, "docs/development/reviews", msg="refile")
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "refiled"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "refiled"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "an archived/ re-file satisfied the artifact floor"
 
 
@@ -1233,42 +1767,94 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     files (default merge suppression); and 55 follow-up commits pushed the report past the
     -n 50 bound. One walk now: %at, -m, the run's own time window, no symlinks."""
     import subprocess
+
     script = "/opt/fabrik/scripts/command_run.py"
 
     def _commit(repo, *paths, msg="x", env_extra=None):
         import os as _os
+
         subprocess.run(["git", "add", "-f", *paths], cwd=repo, check=True, timeout=15)
         full = dict(_os.environ, **(env_extra or {}))
-        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                        "commit", "-qm", msg], cwd=repo, check=True, timeout=15, env=full)
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", msg],
+            cwd=repo,
+            check=True,
+            timeout=15,
+            env=full,
+        )
 
     # (1) symlink decoy → REFUSED
     env, repo = _artifact_repo(tmp_path, name="sym")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     target = tmp_path / "sym" / "decoy_target.txt"
     target.write_text("unrelated\n")
     (repo / "docs/development/reviews/fake-review.md").symlink_to(target)
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "a symlink decoy satisfied the artifact floor"
 
     # (2) stale leftover with an OLD author date but a fresh committer date (rebase replay)
     env, repo = _artifact_repo(tmp_path, name="rebase")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     stale = repo / "docs/development/reviews/stale-review.md"
     stale.write_text("# old abandoned review\n")
     import os as _os
-    _commit(repo, "docs/development/reviews", msg="replayed",
-            env_extra={"GIT_AUTHOR_DATE": "2020-06-01T00:00:00 +0000"})
+
+    _commit(
+        repo,
+        "docs/development/reviews",
+        msg="replayed",
+        env_extra={"GIT_AUTHOR_DATE": "2020-06-01T00:00:00 +0000"},
+    )
     _os.utime(stale, (1, 1))
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "a rebase-replayed stale leftover satisfied the freshness floor"
 
     # (3) report finalized only inside a merge commit → must CLOSE
@@ -1283,22 +1869,59 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     subprocess.run(["git", "checkout", "-q", "-"], cwd=repo, check=True, timeout=15)
     f.write_text("main version\n")
     _commit(repo, "docs/development/reviews", msg="main")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
-    m = subprocess.run(["git", "merge", "side"], cwd=repo, capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
+    m = subprocess.run(
+        ["git", "merge", "side"], cwd=repo, capture_output=True, text=True, timeout=15
+    )
     assert m.returncode != 0, "fixture must conflict"
     f.write_text("# resolved during this run — closed clean\n")
     _commit(repo, "docs/development/reviews", msg="merge-resolve")
     _os.utime(f, (1, 1))
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 0, f"a merge-resolved report was false-refused: {r.stdout}"
 
     # (4) 55 commits after the report → must CLOSE
     env, repo = _artifact_repo(tmp_path, name="long")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     rep = repo / "docs/development/reviews/long-review.md"
     rep.write_text("# closed clean\n")
@@ -1307,9 +1930,14 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
         (repo / "f.txt").write_text(f"{i}\n")
         _commit(repo, "f.txt", msg=f"phase-{i}")
     _os.utime(rep, (1, 1))
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 0, f"a long run's report was false-refused: {r.stdout}"
 
 
@@ -1319,23 +1947,56 @@ def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
     ok_artifact True with candidates=[], both refusal branches skipped, run closed with
     zero review content anywhere. Existence now gates the gate."""
     import subprocess
+
     script = "/opt/fabrik/scripts/command_run.py"
     env, repo = _artifact_repo(tmp_path, name="adddel")
-    subprocess.run([sys.executable, script, "start", "--command", "fabrik-review",
-                    "--phases", "1", "--terminal", "t"], cwd=repo, env=env, check=True, timeout=15)
+    subprocess.run(
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
+    )
     (repo / "docs/development/reviews").mkdir(parents=True)
     rep = repo / "docs/development/reviews/x-review.md"
     rep.write_text("# report\n")
     subprocess.run(["git", "add", "docs/development/reviews"], cwd=repo, check=True, timeout=15)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "add"],
-                   cwd=repo, check=True, timeout=15)
-    subprocess.run(["git", "rm", "-q", "docs/development/reviews/x-review.md"],
-                   cwd=repo, check=True, timeout=15)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "rm"],
-                   cwd=repo, check=True, timeout=15)
-    r = subprocess.run([sys.executable, script, "done", "--command", "fabrik-review",
-                        "--evidence", "e"], cwd=repo, env=env,
-                       capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "add"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    subprocess.run(
+        ["git", "rm", "-q", "docs/development/reviews/x-review.md"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "rm"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 1, "an add-then-delete pair closed the run with no report on disk"
 
 
@@ -1363,11 +2024,33 @@ def test_id_less_runs_in_different_repos_never_share_a_record(tmp_path: Path) ->
     repo_a, repo_b = _mkrepo(tmp_path, "alpha"), _mkrepo(tmp_path, "beta")
     env = {"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": ""}
 
-    a = _cr(run_dir, "start", "--command", "fabrik-spec", "--phases", "7",
-            "--terminal", "ta", sid=None, cwd=repo_a, extra_env=env)
+    a = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-spec",
+        "--phases",
+        "7",
+        "--terminal",
+        "ta",
+        sid=None,
+        cwd=repo_a,
+        extra_env=env,
+    )
     assert a.returncode == 0, a.stderr
-    b = _cr(run_dir, "start", "--command", "fabrik-doc-converge", "--phases", "4",
-            "--terminal", "tb", sid=None, cwd=repo_b, extra_env=env)
+    b = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-doc-converge",
+        "--phases",
+        "4",
+        "--terminal",
+        "tb",
+        sid=None,
+        cwd=repo_b,
+        extra_env=env,
+    )
     assert b.returncode == 0, b.stderr
 
     records = sorted(p.name for p in run_dir.glob("*.json"))
@@ -1377,8 +2060,17 @@ def test_id_less_runs_in_different_repos_never_share_a_record(tmp_path: Path) ->
     line = _cr(run_dir, "line", sid=None, cwd=repo_a, extra_env=env)
     assert "fabrik-spec" in line.stdout, f"repo A's pinned line was clobbered: {line.stdout!r}"
     assert "fabrik-doc-converge" not in line.stdout, "a FOREIGN repo's run leaked into A"
-    done = _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "e",
-               sid=None, cwd=repo_a, extra_env=env)
+    done = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-spec",
+        "--evidence",
+        "e",
+        sid=None,
+        cwd=repo_a,
+        extra_env=env,
+    )
     assert done.returncode == 0, f"A could not close its own run: {done.stdout}{done.stderr}"
 
 
@@ -1391,6 +2083,126 @@ def test_id_less_runs_in_the_same_repo_still_share_one_record(tmp_path: Path) ->
     repo = _mkrepo(tmp_path, "solo")
     env = {"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": ""}
     for cmd in ("fabrik-spec", "fabrik-review"):
-        assert _cr(run_dir, "start", "--command", cmd, "--phases", "2", "--terminal", "t",
-                   sid=None, cwd=repo, extra_env=env).returncode == 0
+        assert (
+            _cr(
+                run_dir,
+                "start",
+                "--command",
+                cmd,
+                "--phases",
+                "2",
+                "--terminal",
+                "t",
+                sid=None,
+                cwd=repo,
+                extra_env=env,
+            ).returncode
+            == 0
+        )
     assert len(list(run_dir.glob("*.json"))) == 1
+
+
+# --- transdoc 1.1: the per-phase review must emit an artifact the gate can see ---
+
+
+def _plan_run(run_dir: Path, repo: Path, phases: int = 3):
+    return _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-execute-plan",
+        "--phases",
+        str(phases),
+        "--terminal",
+        "all phases",
+        sid="plan-sid",
+        cwd=repo,
+    )
+
+
+def test_execute_plan_cannot_advance_a_phase_without_the_previous_review_artifact(
+    tmp_path: Path,
+) -> None:
+    """transdoc 1.1, the 71-defect gap: fabrik-execute-plan requires each phase to
+    reach /fabrik-review's coverage-adjudicated exit, but check_review_coverage's
+    subject is the DIRECTORY docs/development/reviews/ — a per-phase review emits
+    nothing there, so at all 17 phase boundaries the gate had NO SUBJECT and
+    passed. A contract clause with no mechanical binding is a suggestion."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "proj")
+    assert _plan_run(run_dir, repo).returncode == 0
+    # phase 1 -> 2 with no artifact: refused
+    p = _cr(run_dir, "step", "--phase", "2", "--title", "B", sid="plan-sid", cwd=repo)
+    assert p.returncode != 0, f"advanced with no phase-1 review: {p.stdout}{p.stderr}"
+    assert "phase 1" in (p.stdout + p.stderr).lower()
+
+    # emit the artifact -> allowed
+    rev = repo / "docs" / "development" / "reviews"
+    rev.mkdir(parents=True)
+    (rev / "2026-08-23-plan-1-thing-phase-1-review.md").write_text("# review\n", encoding="utf-8")
+    ok = _cr(run_dir, "step", "--phase", "2", "--title", "B", sid="plan-sid", cwd=repo)
+    assert ok.returncode == 0, f"artifact present but still refused: {ok.stdout}{ok.stderr}"
+
+
+def test_phase_one_never_needs_a_predecessor_artifact(tmp_path: Path) -> None:
+    """There is no phase 0 review to demand — the guard must not wedge a run at its
+    own first step."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "proj2")
+    assert _plan_run(run_dir, repo).returncode == 0
+    assert (
+        _cr(run_dir, "step", "--phase", "1", "--title", "A", sid="plan-sid", cwd=repo).returncode
+        == 0
+    )
+
+
+def test_non_plan_commands_are_untouched_by_the_phase_review_rule(tmp_path: Path) -> None:
+    """`step` is used by EVERY /fabrik-* command; only fabrik-execute-plan has
+    per-phase reviews. A guard that fired everywhere would wedge the whole corpus."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "proj3")
+    assert (
+        _cr(
+            run_dir,
+            "start",
+            "--command",
+            "fabrik-spec",
+            "--phases",
+            "4",
+            "--terminal",
+            "t",
+            sid="spec-sid",
+            cwd=repo,
+        ).returncode
+        == 0
+    )
+    assert (
+        _cr(run_dir, "step", "--phase", "3", "--title", "C", sid="spec-sid", cwd=repo).returncode
+        == 0
+    )
+
+
+def test_a_waiver_is_allowed_but_recorded(tmp_path: Path) -> None:
+    """In-flight runs must not be stranded mid-plan (transdoc's §5 blast-radius
+    note), but an escape that leaves no trace is how prose became unenforceable in
+    the first place. The waiver is permitted and written into the record."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "proj4")
+    assert _plan_run(run_dir, repo).returncode == 0
+    p = _cr(
+        run_dir,
+        "step",
+        "--phase",
+        "2",
+        "--title",
+        "B",
+        "--review-waived",
+        "in-flight run predating the rule",
+        sid="plan-sid",
+        cwd=repo,
+    )
+    assert p.returncode == 0, p.stdout + p.stderr
+    rec = json.loads((run_dir / "plan-sid.json").read_text())
+    waived = rec.get("waived_reviews") or []
+    assert waived and waived[0]["phase"] == 1, rec
+    assert "in-flight" in waived[0]["reason"]

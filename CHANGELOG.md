@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the per-phase review is now BOUND to an artifact (transdoc 1.1) (2026-08-23)
+
+Their highest-damage finding and the 71-defect gap. `/fabrik-execute-plan` requires every phase
+boundary to reach `/fabrik-review`'s coverage-adjudicated exit — but `check_review_coverage.py`'s
+subject is the DIRECTORY `docs/development/reviews/`, and a per-phase review was never required to
+emit anything there. So at all 17 of transdoc's phase boundaries the gate had NO SUBJECT and passed
+on an empty set. The first real adversarial gate then found 71 defects, including a missing
+`jobs.updated_at` that meant no job could ever be claimed: the product's core pipeline was dead end
+to end while every gate reported success. A contract clause with no mechanical binding is a
+suggestion.
+
+- `command_run.py step --phase N+1` now REFUSES on a `fabrik-execute-plan` run until a file under
+  `docs/development/reviews/` naming `phase-<N>` exists. Scoped to that command only — `step` is
+  used by every `/fabrik-*` command and a guard that fired everywhere would wedge the corpus.
+- The name match is deliberately loose (projects date and slug plans differently; a rule that
+  guessed the stem would fail honest runs). EXISTENCE is bound here; QUALITY stays
+  `check_review_coverage.py`'s job — which it can finally do, because it now has a subject.
+- `--review-waived "<reason>"` advances anyway and RECORDS `{phase, reason, at}` in the run record.
+  In-flight runs predating the rule are the case it exists for (transdoc's §5 blast-radius note), and
+  an escape that leaves no trace is precisely how the original clause became unenforceable.
+- Three guard behaviours mutation-proven: disabling the check, firing it on every command, and
+  dropping the waiver record each kill a test.
+
+
 ### Fixed — silent-green checks: a skipped pytest no longer reads as a pass (2026-08-23)
 
 From transdoc's 10-finding report (`01M0PRGR3JCNTGHQ9J608DXGA0`), whose one-line root cause is that
