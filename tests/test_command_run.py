@@ -718,7 +718,12 @@ def test_nosession_events_carry_sid_source_none(run_dir: Path) -> None:
     an attributed session: the record still works, the EVENT says `none`."""
     assert _cr(run_dir, "start", "--command", "fabrik-probe", "--phases", "5",
                "--terminal", "t", sid=None).returncode == 0
-    assert (run_dir / "nosession.json").is_file(), "the record naming must not move"
+    # The name is now repo-SCOPED (`nosession-<repo>`): a bare `nosession` was one file in
+    # a global state dir, so every id-less session on the box merged into it. What this test
+    # actually guards — that an empty id is not laundered into an attributed session — is
+    # unchanged, so assert the invariant rather than the literal.
+    recs = list(run_dir.glob("nosession*.json"))
+    assert len(recs) == 1 and recs[0].name.startswith("nosession"), recs
     rows = _events(run_dir, "unknown")
     assert [r["event"] for r in rows] == ["run_open"], rows
     assert rows[0]["sid_source"] == "none", rows[0]
@@ -1332,3 +1337,60 @@ def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
                         "--evidence", "e"], cwd=repo, env=env,
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 1, "an add-then-delete pair closed the run with no report on disk"
+
+
+# --- the cross-repo `nosession` corruption (9 reports, 6 senders, 2026-08-16..20) ---
+
+
+def _mkrepo(base: Path, name: str) -> Path:
+    d = base / name
+    d.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=d, check=True, capture_output=True)
+    return d
+
+
+def test_id_less_runs_in_different_repos_never_share_a_record(tmp_path: Path) -> None:
+    """The defect five repos reported and nobody fixed: the state dir is GLOBAL and the
+    record is keyed on the session id alone, so every id-less session on the box — in ANY
+    repo — merged into one `nosession.json`. tryton-crm watched its own `step --phase 5`
+    land inside another repo's 4-phase record ("phase 5/4", a command it never ran), and
+    then `done` was correctly refused because the live record named a foreign command, so
+    the run could not be closed at all. `repo_root` was already stored INSIDE the record,
+    which is why the corruption was visible but not preventable.
+
+    Two id-less repos must therefore never resolve to the same file."""
+    run_dir = tmp_path / "runs"
+    repo_a, repo_b = _mkrepo(tmp_path, "alpha"), _mkrepo(tmp_path, "beta")
+    env = {"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": ""}
+
+    a = _cr(run_dir, "start", "--command", "fabrik-spec", "--phases", "7",
+            "--terminal", "ta", sid=None, cwd=repo_a, extra_env=env)
+    assert a.returncode == 0, a.stderr
+    b = _cr(run_dir, "start", "--command", "fabrik-doc-converge", "--phases", "4",
+            "--terminal", "tb", sid=None, cwd=repo_b, extra_env=env)
+    assert b.returncode == 0, b.stderr
+
+    records = sorted(p.name for p in run_dir.glob("*.json"))
+    assert len(records) == 2, f"one record per repo, got {records}"
+
+    # repo A's live run must still be ITS OWN — not beta's, and closable by name.
+    line = _cr(run_dir, "line", sid=None, cwd=repo_a, extra_env=env)
+    assert "fabrik-spec" in line.stdout, f"repo A's pinned line was clobbered: {line.stdout!r}"
+    assert "fabrik-doc-converge" not in line.stdout, "a FOREIGN repo's run leaked into A"
+    done = _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "e",
+               sid=None, cwd=repo_a, extra_env=env)
+    assert done.returncode == 0, f"A could not close its own run: {done.stdout}{done.stderr}"
+
+
+def test_id_less_runs_in_the_same_repo_still_share_one_record(tmp_path: Path) -> None:
+    """The repo scoping deliberately does NOT try to separate two id-less sessions inside
+    one repo — there is nothing left to key on, and inventing a per-process key would make
+    the record unfindable by the Stop hook (which looks up the uuid from its own payload).
+    Same repo, no ids: one record, as before. The fix targets the CROSS-REPO harm."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "solo")
+    env = {"CLAUDE_SESSION_ID": "", "CLAUDE_CODE_SESSION_ID": ""}
+    for cmd in ("fabrik-spec", "fabrik-review"):
+        assert _cr(run_dir, "start", "--command", cmd, "--phases", "2", "--terminal", "t",
+                   sid=None, cwd=repo, extra_env=env).returncode == 0
+    assert len(list(run_dir.glob("*.json"))) == 1

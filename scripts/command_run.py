@@ -99,8 +99,32 @@ def _session_id(explicit: str | None) -> str:
         explicit
         or os.environ.get("CLAUDE_SESSION_ID")
         or os.environ.get("CLAUDE_CODE_SESSION_ID")
-        or "nosession"
+        or _nosession_key()
     )
+
+
+def _nosession_key() -> str:
+    """The last-resort key, scoped to the REPO — never the bare literal.
+
+    The state dir is GLOBAL (``~/.claude/state/command-runs``) and the record is keyed on
+    the session id alone, so a bare ``nosession`` meant every id-less session on the BOX —
+    in any repo — merged into one file. Reported nine times by six senders
+    (web-ecommerce-factory x3, tryton-crm x2, fleet, infra, trade-intelligence) between
+    2026-08-16 and 08-20, escalating: tryton-crm watched its own ``step --phase 5`` land
+    inside another repo's 4-phase record, and ``done`` was then correctly refused because
+    the live record named a command it had never run — so the run could not be closed at
+    all. ``repo_root`` was already stored INSIDE the record, which made the corruption
+    visible but never prevented it.
+
+    Scoping by repo kills the cross-repo case, which is the whole of the reported harm. Two
+    id-less sessions in the SAME repo still share a record: there is nothing further to key
+    on, and a per-process key would make the record unfindable by the Stop hook, which looks
+    the uuid up from its own payload. A run with no id is already invisible to that hook, so
+    this changes nothing about which records it can block on.
+    """
+    root = _repo_root()
+    slug = "".join(c if (c.isalnum() or c in "-_") else "_" for c in Path(root).name)
+    return f"nosession-{slug}" if slug else "nosession"
 
 
 def _safe_sid(sid: str) -> str:
@@ -283,7 +307,10 @@ def _repo_root() -> str:
     try:
         return subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10, check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
         ).stdout.strip()
     except Exception:
         return ""
@@ -502,9 +529,7 @@ def _flush_events(args: argparse.Namespace, outbox: dict[str, Any]) -> None:
         try:
             payload = dict(fields)
             payload["cwd"] = _cwd()
-            mod.emit(
-                event, sid, sid_source=source, probe_timeout_s=JOIN_PROBE_TIMEOUT_S, **payload
-            )
+            mod.emit(event, sid, sid_source=source, probe_timeout_s=JOIN_PROBE_TIMEOUT_S, **payload)
         except Exception as e:
             sys.stderr.write(f"[command_run] event not emitted ({e}) — the record is unaffected.\n")
 
@@ -583,13 +608,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
 
     p = sub.add_parser("done", help="terminal: the contract is met", parents=[common])
-    p.add_argument("--command", required=True, help="the run you are closing — must be the LIVE one")
+    p.add_argument(
+        "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
     p.add_argument("--evidence", required=True)
 
     p = sub.add_parser(
         "blocked", help="terminal: one of the three sanctioned BLOCKED cases", parents=[common]
     )
-    p.add_argument("--command", required=True, help="the run you are closing — must be the LIVE one")
+    p.add_argument(
+        "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
     p.add_argument("--reason", required=True)
 
     sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
@@ -687,9 +716,16 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # depend on the second boundary), and never the PREVIOUS record's start, which
         # would filter the store by a finished run's clock.
         outbox["started_at"] = ""
-        fields = _queue(new, outbox, "run_open", {
-            "phases": new["phases"], "terminal": new["terminal"], "nested": bool(stack),
-        })
+        fields = _queue(
+            new,
+            outbox,
+            "run_open",
+            {
+                "phases": new["phases"],
+                "terminal": new["terminal"],
+                "nested": bool(stack),
+            },
+        )
         _touch(new)
         fields["persisted"] = save(sid, new)
         print(pinned_line(new))
@@ -725,13 +761,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             {"n": len(rounds) + 1, "findings": args.findings, "swept": swept, "new": new_c}
         )
         rec["rounds"], rec["classes"] = rounds, classes
-        fields = _queue(rec, outbox, "round", {
-            "n": len(rounds),
-            "findings": args.findings,
-            "classes_swept": swept,
-            "classes_new": new_c,
-            "classes_open": sorted(k for k, v in classes.items() if v != "clean"),
-        })
+        fields = _queue(
+            rec,
+            outbox,
+            "round",
+            {
+                "n": len(rounds),
+                "findings": args.findings,
+                "classes_swept": swept,
+                "classes_new": new_c,
+                "classes_open": sorted(k for k, v in classes.items() if v != "clean"),
+            },
+        )
         _touch(rec)
         fields["persisted"] = save(sid, rec)
         print(_round_report(rec))
@@ -743,9 +784,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     return 0
 
 
-def _close(
-    sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict[str, Any]
-) -> int:
+def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     """`done` / `blocked` — close ONLY the run the caller NAMED. Flock held.
 
     Closing whatever happens to be live is how this design reintroduces the very
@@ -832,9 +871,19 @@ def _close(
         candidates: list[Path] = []
         try:
             porcelain = subprocess.run(
-                ["git", "status", "--porcelain", "--untracked-files=all",
-                 "--", "docs/development/reviews/"],
-                capture_output=True, text=True, timeout=10, check=True, cwd=root,
+                [
+                    "git",
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                    "--",
+                    "docs/development/reviews/",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+                cwd=root,
             ).stdout
             ok_artifact = False
             for ln in porcelain.splitlines():
@@ -874,9 +923,22 @@ def _close(
                     # a runaway backstop, not the bound).
                     since = str(int(started_epoch))
                     log = subprocess.run(
-                        ["git", "log", "-m", "--name-only", "--format=%at",
-                         f"--since={since}", "-n", "500", "HEAD"],
-                        capture_output=True, text=True, timeout=10, check=True, cwd=root,
+                        [
+                            "git",
+                            "log",
+                            "-m",
+                            "--name-only",
+                            "--format=%at",
+                            f"--since={since}",
+                            "-n",
+                            "500",
+                            "HEAD",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=True,
+                        cwd=root,
                     ).stdout.splitlines()
                 except Exception:
                     log = []  # no commits yet = no HEAD artifact; NOT "broken git" (round 31:
@@ -917,17 +979,15 @@ def _close(
             def _midloop(f: Path) -> bool:
                 try:
                     head10 = "".join(
-                        f.read_text(encoding="utf-8", errors="replace").splitlines(
-                            keepends=True
-                        )[:10]
+                        f.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)[
+                            :10
+                        ]
                     )
                 except OSError:
                     return False
                 import re as _re
 
-                return bool(
-                    _re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | _re.I)
-                )
+                return bool(_re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | _re.I))
 
             if all(_midloop(f) for f in candidates):
                 msg = (
@@ -960,18 +1020,23 @@ def _close(
     _touch(rec)
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
-    fields = _queue(rec, outbox, "run_close", {
-        "verdict": args.cmd,
-        "closed_by": "agent",
-        "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
-        "rounds": len(rec.get("rounds") or []),
-        # A nested close is the one event whose meaning lives OUTSIDE the line: "resuming"
-        # is only informative if it says what, and at what point. Without these the
-        # collector would have to replay the whole stack to learn that the run continues.
-        "resumed": (parent or {}).get("command") or "",
-        "resumed_phase": (parent or {}).get("phase") or 0,
-        "resumed_rounds": len((parent or {}).get("rounds") or []),
-    })
+    fields = _queue(
+        rec,
+        outbox,
+        "run_close",
+        {
+            "verdict": args.cmd,
+            "closed_by": "agent",
+            "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
+            "rounds": len(rec.get("rounds") or []),
+            # A nested close is the one event whose meaning lives OUTSIDE the line: "resuming"
+            # is only informative if it says what, and at what point. Without these the
+            # collector would have to replay the whole stack to learn that the run continues.
+            "resumed": (parent or {}).get("command") or "",
+            "resumed_phase": (parent or {}).get("phase") or 0,
+            "resumed_rounds": len((parent or {}).get("rounds") or []),
+        },
+    )
     if parent is not None:
         closed = {k: v for k, v in rec.items() if k != "stack"}
         parent["stack"] = stack

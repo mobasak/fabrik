@@ -168,8 +168,13 @@ collide in the same millisecond. `run_close` additionally carries `resumed` / `r
 ### `--adopt-sid` — recovering a session id, or refusing to
 
 A shell carrying **neither** session-id var (Bash-tool shells carry an empty `CLAUDE_SESSION_ID`
-but do carry `CLAUDE_CODE_SESSION_ID`, so in practice this is rare) falls to `nosession` and the
-events would pile into one unattributable bucket. `--adopt-sid` optionally recovers the id from the
+but do carry `CLAUDE_CODE_SESSION_ID`, so in practice this is rare) falls to `nosession-<repo>` and
+the events would pile into one unattributable bucket. The key is repo-SCOPED because the state dir is
+global: a bare `nosession` merged every id-less session on the box — in any repo — into one record,
+which corrupted runs across repos (reported nine times by six senders, 2026-08-16..20; fixed
+2026-08-23). Two id-less sessions in the SAME repo still share a record — nothing further remains to
+key on, and such a run is already invisible to the Stop hook, which resolves the uuid from its own
+payload. `--adopt-sid` optionally recovers the id from the
 event stream: candidates are the sessions whose events name **this cwd** in the window. For `start`
 the window is the whole store (a run that has not begun has nothing to anchor on); for every other
 verb it is anchored to the live run's `started_at`. It adopts
@@ -245,7 +250,7 @@ the command?", that moment is the Stop hook.
 | Env var | Default | Effect |
 |---|---|---|
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
-| `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then `nosession`) |
+| `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then the repo-scoped `nosession-<repo>`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
 
 ## Tests

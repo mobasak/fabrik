@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run: the `nosession` record is repo-scoped, ending cross-repo corruption (2026-08-23)
+
+- The command-run state dir is GLOBAL and the record was keyed on the session id alone, so every
+  id-less session on the box — in ANY repo — merged into one `nosession.json`. Reported NINE times
+  by SIX senders (web-ecommerce-factory x3, tryton-crm x2, fleet, infra, trade-intelligence)
+  between 2026-08-16 and 08-20 and never fixed. tryton-crm watched its own `step --phase 5` land
+  inside another repo's 4-phase record ("phase 5/4", a command it had never run), after which
+  `done` was correctly refused — the name guard was the only thing preventing it from disarming a
+  foreign repo's Stop hook, at the cost of its own run being unclosable. `repo_root` was already
+  stored inside the record, which made the corruption visible but never prevented it.
+- The last-resort key is now `nosession-<repo>`. Two id-less sessions in the SAME repo still share
+  a record by design: nothing further remains to key on, and a per-process key would make the
+  record unfindable by the Stop hook, which resolves the uuid from its own payload — such a run is
+  already invisible to that hook, so nothing it can block on changes.
+- `command_run.py` is a governance-sync trigger, so this distributes fleet-wide.
+
+
 ### Fixed — quota advisory: dedupe the FACT, not just the message rate (2026-08-23)
 
 - `claude_rotate.py`'s advisory stamp was time-only — one per account per 24h — which rate-limited
