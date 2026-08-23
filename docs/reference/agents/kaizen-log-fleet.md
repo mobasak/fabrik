@@ -17,4 +17,5 @@ means no real source supports that metric — the reason is in the hand-off mail
 | Date | Gate first-pass rate | Death-classes /wk | Lesson-class recurrence | Review rounds /plan | Missed crons | Top friction fixed | Filed (spec/mail) |
 |---|---|---|---|---|---|---|---|
 | 2026-08-12 | — | — | — | — | — | (baseline row — first real pass fills metrics) | — |
-| 2026-08-21 | 100% (1/1) | — | — | — | — | — | — |
+| 2026-08-19 | — | 221 occ / 4 cls | — | 2.5 (n=11/14) | 17/27 | **Missed crons 17/27 (63%) = the 2026-08-19 whole-table `crontab <file>` wipe (Lesson 128) — blast radius: rotation tick, keepalive, dashboard refresh, DR mirrors, all project crons. HEALED 08-23: crontab restored to 41 jobs; root-caused a deeper latent bug — `claude` absent from cron's PATH (`~/.local/bin` excluded) silently failed every keepalive/refresh ping (817479d1). Quota-advisory duplicate storm (mob 85→87→90→91/tick) fixed — dedup keyed on the sliding 5h reset (51181918).** (death 221/4cls: classes in `~/.claude/kaizen.log`; this pass's high-blast item was the cron wipe.) | 817479d1 (cron-PATH) · 627f8815 (oauth retry) · 51181918 (advisory dedup) |
+| 2026-08-22 | 50% (1/2) | — | — | — | — | — | — |
