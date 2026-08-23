@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — quota advisory: dedupe the FACT, not just the message rate (2026-08-23)
+
+- `claude_rotate.py`'s advisory stamp was time-only — one per account per 24h — which rate-limited
+  the message without deduping the fact. An account parked at 91% re-fired every 24h forever, and
+  the same 24h window SILENCED a genuine escalation from 86% to 97%. The stamp now carries
+  `<band>|<cycle>`: suppressed only while the 5% band and the quota reset cycle are both unchanged,
+  with a 7-day re-arm when no reset epoch is available to key on. A steady account says it once per
+  cycle; a worsening one always speaks.
+- Closes fabrik-lib's report of 2026-08-19 ("10 messages in 3 days, 9 of them identical — the signal
+  is drowning the queue"), whose real cost was a genuine SSRF report arriving ninth in a list of
+  near-identical advisories. Both twin copies updated (a test enforces they stay byte-identical).
+
+
 ### Fixed — fabrik-mail: the formal /fabrik-review wave, rounds 10-24 (2026-08-23)
 
 - A malformed message CLAIMED by a peer mid-digest is still counted (P11-1 — `claim()` never

@@ -3699,20 +3699,6 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         if hot < drain_thr:
             print(f"tick: ok — {row['email']} at {hot:.0f}%{stale}")
             continue
-        stamp = _fleet_advisory_stamp(row["email"])
-        try:
-            age = now - stamp.stat().st_mtime
-        except OSError:
-            age = None
-        if age is not None and age < -_CLOCK_SKEW_TOLERANCE_S:
-            # A stamp mtime AHEAD of now (WSL suspend/resume, NTP — the _last_switch_ts skew
-            # class) would read "fresh" until the wall clock catches up, silencing the advisory
-            # for days exactly while an account burns. Future-dated = INVALID: fire now and
-            # rewrite the stamp at now.
-            age = None
-        if age is not None and age < 86400:
-            print(f"tick: {row['email']} at {hot:.0f}%{stale} — advisory suppressed (stamp)")
-            continue
         resets = [w.get("resets_at_epoch") for w in windows if w.get("resets_at_epoch")]
         if resets:
             from datetime import datetime
@@ -3720,6 +3706,43 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             revive_s = datetime.fromtimestamp(min(resets)).strftime("%a %H:%M")
         else:
             revive_s = "unknown"
+        # Advisory dedupe, per fabrik-lib's report (2026-08-19): the stamp used to be
+        # time-only — one per account per 24h — which rate-LIMITED the message without
+        # deduping the FACT. An account parked at 91% re-fired every 24h forever ("ob@ 91%
+        # repeated across three days is one fact, not three"), and, worse, the same 24h
+        # window SILENCED a genuine escalation from 86% to 97%. The stamp now carries
+        # "<band>|<cycle>": suppress only while the 5%-band and the quota cycle are both
+        # unchanged, so a steady account says it once per reset cycle while a worsening one
+        # always speaks.
+        stamp = _fleet_advisory_stamp(row["email"])
+        band = int(hot // 5) * 5
+        cycle = str(int(min(resets))) if resets else "unknown"
+        prev_band: int | None = None
+        prev_cycle = ""
+        try:
+            prev_band_s, _, prev_cycle = stamp.read_text(encoding="utf-8").strip().partition("|")
+            prev_band = int(prev_band_s)
+        except (OSError, ValueError):
+            prev_band, prev_cycle = None, ""
+        try:
+            age = now - stamp.stat().st_mtime
+        except OSError:
+            age = None
+        if age is not None and age < -_CLOCK_SKEW_TOLERANCE_S:
+            # A stamp mtime AHEAD of now (WSL suspend/resume, NTP — the _last_switch_ts skew
+            # class) would read "fresh" until the wall clock catches up, silencing the advisory
+            # for days exactly while an account burns. Future-dated = INVALID: fire now.
+            prev_band = None
+        if (
+            prev_band is not None
+            and prev_cycle == cycle
+            and band <= prev_band
+            # Re-arm safety valve: with no reset epoch to key on, an unchanged band would
+            # otherwise suppress forever. A week without a word is a fact worth repeating.
+            and not (cycle == "unknown" and age is not None and age > 7 * 86400)
+        ):
+            print(f"tick: {row['email']} at {hot:.0f}%{stale} — advisory suppressed (same band)")
+            continue
         msg = (
             f"fleet advisory: account {row['email']} at {hot:.0f}%{stale} (resets {revive_s})"
             " — the active pointer flips to the account with headroom; a walled account's"
@@ -3739,7 +3762,9 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
                 + " Reach a commit-and-push checkpoint before the wall.",
             )
         try:
-            stamp.touch()
+            # Record the FACT we just reported, not merely that we reported something —
+            # the next tick compares band+cycle against this to decide "already said".
+            stamp.write_text(f"{band}|{cycle}", encoding="utf-8")
             os.utime(stamp, (now, now))
         except OSError:
             pass

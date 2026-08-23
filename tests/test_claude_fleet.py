@@ -1792,9 +1792,7 @@ def test_fleet_flip_tick_moves_zero_credential_bytes(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
     _point(fleet, "seo")
-    before = {
-        slug: (fleet / slug / ".credentials.json").read_bytes() for slug in ("seo", "intel")
-    }
+    before = {slug: (fleet / slug / ".credentials.json").read_bytes() for slug in ("seo", "intel")}
 
     def _no_cred(target):
         assert ".credentials.json" not in str(target), f"credential write during a flip: {target}"
@@ -1827,14 +1825,24 @@ def test_fleet_flip_tick_moves_zero_credential_bytes(tmp_path, monkeypatch):
         return real_os_open(path, flags, *a, **k)
 
     monkeypatch.setattr(os, "open", guarded_os_open)
-    monkeypatch.setattr(os, "replace", lambda src, dst, **k: _no_cred(dst) or real_replace(src, dst, **k))
-    monkeypatch.setattr(os, "rename", lambda src, dst, **k: _no_cred(dst) or real_rename(src, dst, **k))
-    monkeypatch.setattr(shutil, "copy", lambda src, dst, **k: _no_cred(dst) or real_copy(src, dst, **k))
-    monkeypatch.setattr(shutil, "copy2", lambda src, dst, **k: _no_cred(dst) or real_copy2(src, dst, **k))
+    monkeypatch.setattr(
+        os, "replace", lambda src, dst, **k: _no_cred(dst) or real_replace(src, dst, **k)
+    )
+    monkeypatch.setattr(
+        os, "rename", lambda src, dst, **k: _no_cred(dst) or real_rename(src, dst, **k)
+    )
+    monkeypatch.setattr(
+        shutil, "copy", lambda src, dst, **k: _no_cred(dst) or real_copy(src, dst, **k)
+    )
+    monkeypatch.setattr(
+        shutil, "copy2", lambda src, dst, **k: _no_cred(dst) or real_copy2(src, dst, **k)
+    )
     monkeypatch.setattr(
         shutil, "copyfile", lambda src, dst, **k: _no_cred(dst) or real_copyfile(src, dst, **k)
     )
-    monkeypatch.setattr(shutil, "move", lambda src, dst, **k: _no_cred(dst) or real_move(src, dst, **k))
+    monkeypatch.setattr(
+        shutil, "move", lambda src, dst, **k: _no_cred(dst) or real_move(src, dst, **k)
+    )
     # F-P3 evasion probes closed: hardlinks, credential-path symlinks, and shelling out
     # (cp/mv/install/dd — ANY argv naming a credential path) are trapped too.
     real_link, real_symlink = os.link, os.symlink
@@ -2767,20 +2775,30 @@ def test_with_claude_on_path_handles_empty_path(monkeypatch, tmp_path):
 
 # ── _oauth_get bounded transient retry (regression: 2026-08-22 dashboard 60s timeout) ──
 class _FakeResp:
-    def __init__(self, body): self._b = body
-    def __enter__(self): return self
-    def __exit__(self, *a): return False
-    def read(self): return self._b
+    def __init__(self, body):
+        self._b = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self._b
 
 
 def test_oauth_get_retries_transient_then_succeeds(monkeypatch):
     import urllib.request
+
     calls = {"n": 0}
+
     def fake(req, timeout=None):
         calls["n"] += 1
         if calls["n"] == 1:
             raise TimeoutError("blip")
         return _FakeResp(b'{"ok": 1}')
+
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     out = cr._oauth_get("usage", "tok", attempts=2, backoff_s=0)
     assert out == {"ok": 1}
@@ -2790,10 +2808,13 @@ def test_oauth_get_retries_transient_then_succeeds(monkeypatch):
 def test_oauth_get_does_not_retry_4xx(monkeypatch):
     import urllib.error
     import urllib.request
+
     calls = {"n": 0}
+
     def fake(req, timeout=None):
         calls["n"] += 1
         raise urllib.error.HTTPError(req.full_url, 401, "unauth", {}, None)
+
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     out = cr._oauth_get("usage", "tok", attempts=3, backoff_s=0)
     assert out is None
@@ -2802,10 +2823,13 @@ def test_oauth_get_does_not_retry_4xx(monkeypatch):
 
 def test_oauth_get_gives_up_after_attempts(monkeypatch):
     import urllib.request
+
     calls = {"n": 0}
+
     def fake(req, timeout=None):
         calls["n"] += 1
         raise TimeoutError("down")
+
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     out = cr._oauth_get("usage", "tok", attempts=2, backoff_s=0)
     assert out is None
@@ -2820,25 +2844,100 @@ def test_usage_windows_captures_scoped_model_limits_from_limits_array():
         "limits": [
             {"kind": "session", "percent": 10, "scope": None},
             {"kind": "weekly_all", "percent": 40, "scope": None},  # == seven_day, NOT a model
-            {"kind": "weekly_scoped", "percent": 6, "resets_at": None,
-             "scope": {"model": {"id": None, "display_name": "Fable"}}},
+            {
+                "kind": "weekly_scoped",
+                "percent": 6,
+                "resets_at": None,
+                "scope": {"model": {"id": None, "display_name": "Fable"}},
+            },
         ],
     }
     out = cr._usage_windows(usage)
     mw = out["model_windows"]
     assert mw["Fable"]["utilization"] == 6.0, "Fable's weekly limit is read from limits[]"
-    assert "weekly_all" not in mw and len(mw) == 1, "unscoped weekly is the general one, not a model"
+    assert "weekly_all" not in mw and len(mw) == 1, (
+        "unscoped weekly is the general one, not a model"
+    )
 
 
 def test_usage_windows_no_model_windows_key_when_no_scoped_limits():
-    usage = {"five_hour": {"utilization": 1}, "seven_day": {"utilization": 2},
-             "limits": [{"kind": "weekly_all", "percent": 2, "scope": None}]}
+    usage = {
+        "five_hour": {"utilization": 1},
+        "seven_day": {"utilization": 2},
+        "limits": [{"kind": "weekly_all", "percent": 2, "scope": None}],
+    }
     out = cr._usage_windows(usage)
     assert "model_windows" not in out, "no model-scoped limit → no key"
 
 
 def test_usage_windows_still_fail_closed_on_bad_required_window():
     # a malformed required window still nulls the whole read — model limits never rescue it
-    assert cr._usage_windows({"five_hour": {"utilization": "x"}, "seven_day": {"utilization": 3},
-                              "limits": [{"kind": "weekly_scoped", "percent": 9,
-                                          "scope": {"model": {"display_name": "Fable"}}}]}) is None
+    assert (
+        cr._usage_windows(
+            {
+                "five_hour": {"utilization": "x"},
+                "seven_day": {"utilization": 3},
+                "limits": [
+                    {
+                        "kind": "weekly_scoped",
+                        "percent": 9,
+                        "scope": {"model": {"display_name": "Fable"}},
+                    }
+                ],
+            }
+        )
+        is None
+    )
+
+
+# ── fabrik-lib's advisory-volume report (01M0DQ…, 2026-08-19): one FACT, one message ──
+
+
+def test_advisory_does_not_refire_daily_while_the_same_account_sits_over(tmp_path, monkeypatch):
+    """fabrik-lib measured 10 advisories in 3 days, 9 identical, and asked for
+    'one advisory per account per reset cycle, updated in place rather than
+    re-sent'. The 24h stamp only rate-LIMITED it: an account parked at 91%
+    re-fired every 24h forever — 'ob@ 91% repeated across three days is one
+    fact, not three'. Suppress while the band AND the reset cycle are unchanged."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(91.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "the first crossing DOES alert"
+
+    # Three days later, same account, same band, same quota cycle: still ONE fact.
+    stamp = cr._fleet_advisory_stamp("sarp@ocoron.com")
+    old = cr._now() - (3 * 86400)
+    os.utime(stamp, (old, old))
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, (
+        "same account, same band, same cycle — a stale stamp must NOT re-fire it"
+    )
+
+
+def test_advisory_refires_when_the_band_escalates(tmp_path, monkeypatch):
+    """Suppression must not silence a WORSENING account — 91% then 97% is two
+    facts, and the second one matters more."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(86.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1
+    usages["tok-seo"] = _usage_blob(97.0, 50.0)  # escalation
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 2, "an escalating band is a NEW fact and must alert"
