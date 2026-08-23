@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the CAPABILITY half: `permissions.allow` in the synced `.claude/settings.json` (2026-08-23)
+
+transdoc, mail `01M0Q0XN9E6SJ372ESTE79VW8X`. A command the pipeline mandates could not complete its own
+contract on a default-configured box.
+
+`--permission-mode acceptEdits` auto-approves **file edits only**; Bash still needs interactive
+approval and `claude -p` is non-interactive, so every command was refused. `/fabrik-execute-plan` D2
+dispatches native `claude -p` coders for two of four Complexity tiers, each briefed to prove its work
+before reporting done — **it could write code but never verify it.** Verified before acting: no `allow`
+array existed at user level (`~/.claude-fleet/active`) *or* project level, in any repo. The hub
+distributed the enforcement half (Stop hook, gate baseline, skill router, mail_notify) and none of the
+capability half. Cost: five coders defeated on one ticket, a 10-ticket plan set halted at T02
+implemented and UNVERIFIED.
+
+- **34 rules**, narrow by design: test/lint/type runners (`pytest`, `ruff`, `mypy`, `final_gate.py`),
+  JS build+test, `alembic`, read-only git, file inspection. **Not** arbitrary interpreters, git writes,
+  network, docker, installs, or `rm`.
+- **Proven by execution in both directions.** Allowed: `claude -p … 'python -m pytest --version'` →
+  `pytest 9.0.2`. Control: `claude -p … 'python -c "print(42)"'` → *"deliberately blocked in your
+  allowlist"*. The control is the point — it proves an allowlist rather than a blanket unlock, and it
+  is why transdoc's own minimal repro still fails by design while their real proof floor works.
+- **Distributes via governance-sync.** `.claude/settings.json` is in the manifest AND the pre-commit
+  trigger filter, and is gitignored in projects — so the hub copy IS every project's copy (verified by
+  md5 across 4 repos before proposing the change), and transdoc's coders read it from `/opt/transdoc`.
+- **Applied by the operator, not by an agent.** The auto-mode classifier blocks an agent editing its
+  own permission config, and the block did not lift with in-conversation authorization. That is
+  correct behaviour and is now a documented standing constraint — this surface needs a human whenever
+  it is widened.
+- Docs: `docs/workstation/hooks-index.md` gains § 1a (the capability half + both probe transcripts),
+  and its § 2 path claim is CORRECTED — `~/.claude/settings.json` is the legacy copy and is NOT read
+  under fleet mode, where `CLAUDE_CONFIG_DIR=~/.claude-fleet/active`. That stale line cost real time in
+  the session that found it.
+
 ### Fixed — Quota advisory dedup: key the cycle on the WEEKLY reset, not the sliding 5h reset (2026-08-23)
 
 - The per-account drain advisory re-fired on every 5-minute tick (mob 85→87→90→91% in 20 min;

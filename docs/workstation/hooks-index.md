@@ -19,10 +19,53 @@ wired in the synced `.claude/settings.json`.
 | SessionStart + UserPromptSubmit | `mail_notify.py` | Surfaces the repo's unread fabrik-mail (`/opt/fabrik-mail/<repo>/inbox`, override `FABRIK_MAIL_ROOT`) as a bounded, sanitized, untrusted-data-delimited summary (≤10 msgs, subject capped 120); repo identity from the git main checkout; whole body catch-all fail-open (a broken mailbox must never block a prompt) |
 | Stop | `final_gate_stop.py` | Definition-of-done enforcer, four blocking causes: gate red on session-authored files (path-token attribution) · session's own work uncommitted · committed-but-UNPUSHED (branch ahead of upstream; the task-end push law — indeterminate/no-upstream never blocks) · checkpoint-stall (promises, plan-answered permission questions, passive obligations, assertive continuation claims — "Continuing autonomously." / terminal "Continuing." — and numbered `NEXT: round/pass N` footers naming undispatched own-loop work). Quote-span/negation/deadline exemptions; `BLOCKED:` exempts globally, human-gate wording line-scoped; 3-attempt warn-through per cause |
 
+### 1a. The CAPABILITY half — `permissions.allow` in the same synced file
+
+The hub distributes the ENFORCEMENT half (the hooks above) **and, since 2026-08-23, the CAPABILITY
+half**: a `permissions.allow` array in the same synced `.claude/settings.json`, so a dispatched
+`claude -p` coder can RUN the proof floor its brief mandates.
+
+**Why it is needed:** `--permission-mode acceptEdits` auto-approves **file edits only**. Bash still
+requires interactive approval, and `claude -p` is non-interactive — nobody is there to approve, so
+every command is refused. A dispatched coder could WRITE code but never VERIFY it. Reported by
+transdoc after five coders were defeated on one ticket (2 pool units, 3 native `claude -p`); a
+10-ticket plan set halted at T02, implemented and UNVERIFIED.
+
+**Proven by execution, both directions, at the time of landing:**
+
+```
+$ claude -p 'Run exactly this command and reply with only its output: python -m pytest --version' --model haiku
+pytest 9.0.2                                    <- ALLOWED rule, executes
+
+$ claude -p 'Run exactly this command and reply with only its output: python -c "print(42)"' --model haiku
+I can't run that command — it's deliberately blocked in your allowlist.   <- NOT in the list, still refused
+```
+
+The control probe is the point: the grant is a **narrow allowlist, not a blanket unlock**. Arbitrary
+`python -c` — i.e. arbitrary code execution — is deliberately NOT granted, which is why transdoc's own
+minimal repro (`python -c "print(42)"`) still fails by design while their real proof floor works.
+
+Scope (34 rules): test/lint/type runners (`pytest`, `ruff`, `mypy`, `final_gate.py`), JS build+test
+(`npm`/`pnpm`/`npx tsc`/`eslint`), `alembic`, read-only git (`status`/`diff`/`log`/`show`), and file
+inspection (`ls`/`cat`/`head`/`tail`/`grep`/`rg`/`find`/`wc`). **Not granted:** arbitrary interpreters,
+writes via git, network, docker, package installs, `rm`.
+
+⚠️ **An agent cannot add this itself** — the auto-mode classifier blocks an agent editing its own
+permission config, and that block does not lift with in-conversation authorization. It is a
+human-applied change by design. Budget for that when it next needs widening.
+
 ## 2. Claude Code — user-level hooks (box-wide)
 
-`~/.claude/settings.json` — apply to every session in every project; not in any repo (DR-protected by
-`dr_claude_backup.sh`).
+⚠️ **Path correction (2026-08-23):** under fleet mode the live user config is **`$CLAUDE_CONFIG_DIR`
+= `~/.claude-fleet/active` → the current account dir** (`can`/`mob`/`ob`/`sarp`), exported from
+`.bashrc:243` and `.vscode-server/server-env-setup:10`. **`~/.claude/settings.json` is the LEGACY
+installer copy and is NOT read** — editing it changes nothing while appearing to work. The four
+account copies are independent files (`settings.json` is in `_SHARED_FILE_COPIES`, deliberately
+COPIED not symlinked, because the CLI writes config back and would replace a symlink); they DRIFT,
+and the `*/5` rotation flips which one is live. Re-push one to all four with
+`claude_rotate.py --sync-shared --from <slug>`. DR-protected by `dr_claude_backup.sh`.
+
+The hooks below are identical across the legacy copy and the account dirs.
 
 | Event | Hook | What it does |
 |---|---|---|

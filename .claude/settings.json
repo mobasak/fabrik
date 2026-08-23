@@ -1,4 +1,42 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(.venv/bin/python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m ruff:*)",
+      "Bash(python3 -m ruff:*)",
+      "Bash(ruff:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(python3 -m mypy:*)",
+      "Bash(mypy:*)",
+      "Bash(python scripts/final_gate.py:*)",
+      "Bash(python3 scripts/final_gate.py:*)",
+      "Bash(.venv/bin/python scripts/final_gate.py:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run build:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(alembic:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
