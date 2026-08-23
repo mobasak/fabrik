@@ -62,6 +62,18 @@ All notable changes to this project will be documented in this file.
   edit the specs it judges, since editing a spec to match code IS the re-freeze it routes to
   `/fabrik-spec`, so `term-coverage` is correct; and the synced-files-are-CONTEXT rule appears in
   only 1/12, so it is not a corpus norm.
+- **Fourth correction — and the first one found by EXECUTING rather than inspecting.** Three rounds
+  of structural auditing (fragments, headings, phase counts) all reported "matches". Building the
+  ledger the command specifies and running `check_review_coverage.py` against it failed on FIVE
+  counts in one shot: the checklist invented its own classes instead of deriving them from
+  `review_rubric.py`; the four STANDING recurrence classes (fail-open/fail-closed · cost/quota ·
+  boundary/sentinel/prefix · behavior-without-a-test) were absent; Pass Ledger rows were not labelled
+  `Pass N`; `CLEAN` rows carried no named paths; and — the sharpest — the rubric invocation was to be
+  pasted INSIDE a fenced block, but the gate calls `_strip_fences()` before searching, so a review
+  would fail with "no review_rubric.py invocation recorded" while the command sat visibly in the
+  file. The command now specifies a prose `Rubric:` line with inline backticks, matching what real
+  passing reviews actually do. Verified end-to-end: a ledger built to the corrected spec returns
+  `check_review_coverage: OK`.
 - Router: the stem is placed FIRST in `KEYWORD_STEMS` — the broad `spec`/`plan`/`review` stems would
   otherwise swallow "audit every spec and plan against the code". Mutation-proven: moving it last
   breaks six routing tests.

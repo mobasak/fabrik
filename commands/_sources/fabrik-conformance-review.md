@@ -53,12 +53,28 @@ specs" — that is a finding, not an error.
    - the **Inventory table** — one row per spec↔plan pair (and per spec-less plan), verdict
      `PENDING`.
    - the **Coverage Checklist** — one row per FAILURE CLASS, every row starting `UNCHECKED`. The
-     classes are the four discriminators plus the standing ones this sweep owns: `trivially-green
-     test` · `implemented-but-inert` · `live-SLA broken` · `spec-refreeze debt` ·
-     `plan CONVERGED but never executed` · `supersession without a named successor` · plus any class
-     the run itself discovers. The Inventory answers "which artifacts"; the Checklist answers "which
-     ways they can be wrong" — you need both, because a sweep can verify every row and still never
-     have hunted for inertness.
+     Inventory answers "which artifacts"; the Checklist answers "which ways they can be wrong" — you
+     need both, because a sweep can verify every row and still never have hunted for inertness.
+
+     ⚠️ `check_review_coverage.py` PARSES this file. Its requirements are not stylistic, and a
+     checklist that invents its own class list fails the gate:
+     * **Run `python scripts/review_rubric.py --changed <paths>` and record the invocation on a
+       prose `Rubric:` line using INLINE backticks** — not only inside a fenced block. The gate
+       strips fences before it looks, so a rubric recorded only inside a ``` block is invisible to
+       it and the review fails with "no review_rubric.py invocation recorded" while the command is
+       sitting right there in the file. Paste the OUTPUT in a fence by all means; the invocation
+       line must live outside one. The classes derive from the rubric, never from memory. The
+       surface is not a diff, so feed it the ENUMERATED artifact paths plus the implementing code
+       paths the verifiers will open — the rubric globs by path, so it arms correctly either way.
+     * **Carry the four STANDING recurrence classes as rows**, on top of the rubric's:
+       `fail-open/fail-closed` · `cost/quota accounting` · `boundary/sentinel/prefix` ·
+       `behavior-without-a-test`. The gate checks for these by name.
+     * **Then add this command's own discriminator rows**: `trivially-green test` ·
+       `implemented-but-inert` · `live-SLA broken` · `spec-refreeze debt` ·
+       `plan CONVERGED but never executed` · `supersession without a named successor`.
+     * **A `CLEAN` row must NAME the files/paths hunted** — a bare "CLEAN" is rejected.
+     * **Pass Ledger rows are labelled `Pass 1`, `Pass 2`, …** and a minimum of TWO rounds always
+       applies: a clean pass 1 still needs its confirming round.
 
 ## PHASE 1 — ONE GROUNDED VERIFIER PER PAIR
 
