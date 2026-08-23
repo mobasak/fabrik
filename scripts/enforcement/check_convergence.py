@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md | none
+# AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
 """Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
 
 A markdown artifact that CLAIMS convergence must PROVE it. Inspects only
@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 PLANS_DIR = "docs/development/plans/"
@@ -280,6 +281,80 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
     return paths
 
 
+def _checklist_fails(text: str, scan: str) -> list[str]:
+    """A CONVERGED plan must carry an adjudicated Coverage Checklist derived from the rubric.
+
+    `/fabrik-plan-review` had axes but no CLASS LEDGER to sweep and no RUBRIC to sweep
+    against, so its convergence meant "nothing further occurred to the reviewer" rather
+    than "every known failure class was swept" — while the plan is precisely where a
+    12-Factor violation gets WRITTEN AS A TASK, and the pipeline
+    (plan-after-chat -> plan-review -> execute-plan) has no `/fabrik-review` step on the
+    plan artifact at all. Measured cost of leaving it unarmed (transdoc, 2026-08-23): an
+    out-of-band review of an already-CONVERGED 10-ticket set found 5 further real defects,
+    4 of them named EXPLICITLY in the rubric that was never injected.
+
+    Parsing is DELEGATED to check_review_coverage — the same extraction the review branch
+    uses, hardened over ~90 rounds against fence seams, 2-cell separator rows and
+    verdict-vocabulary headers. A second parser here would drift from it silently, and a
+    checklist gate that mis-parses is exactly the fail-silent-green class this row exists
+    to close.
+
+    Scope: NEW convergence transitions only, via `_converged_targets` — a plan already
+    CONVERGED at HEAD is settled, so pre-existing converged plans fleet-wide keep passing
+    unchanged and re-touching one never demands a checklist it was authored without.
+    """
+    try:
+        from .check_review_coverage import (  # noqa: PLC0415 — local: avoids a hard dep
+            RUBRIC_RUN,
+            UNCHECKED,
+            VERDICT,
+            _blocked_ok,
+            _checklist_section,
+            _table_rows,
+        )
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            RUBRIC_RUN,
+            UNCHECKED,
+            VERDICT,
+            _blocked_ok,
+            _checklist_section,
+            _table_rows,
+        )
+
+    section = _checklist_section(text)
+    if section is None:
+        return [
+            "claims CONVERGED but has no 'Coverage Checklist' — convergence must mean "
+            "every known failure class was swept, not that nothing further occurred to "
+            "the reviewer (derive rows from review_rubric.py + the four standing "
+            "recurrence classes)"
+        ]
+    fails: list[str] = []
+    if not RUBRIC_RUN.search(scan):
+        fails.append(
+            "Coverage Checklist with no review_rubric.py invocation — classes must derive "
+            "from the rubric, not from memory"
+        )
+    rows = _table_rows(section)
+    if not rows:
+        return [*fails, "Coverage Checklist has no table rows"]
+    unchecked = [r.strip() for r in rows if UNCHECKED.search(r)]
+    if unchecked and not _blocked_ok(text):
+        fails.append(
+            f"{len(unchecked)} UNCHECKED Coverage Checklist row(s) with no ## BLOCKED "
+            f"escalation: {unchecked[:3]}"
+        )
+    noverdict = [r.strip() for r in rows if not UNCHECKED.search(r) and not VERDICT.search(r)]
+    if noverdict:
+        fails.append(
+            f"{len(noverdict)} Coverage Checklist row(s) without a CLEAN/FIXED/REFUTED "
+            f"verdict: {noverdict[:3]}"
+        )
+    return fails
+
+
 def _check_plan(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
@@ -293,6 +368,7 @@ def _check_plan(root: Path, path: Path) -> list[str]:
         fails.append("claims CONVERGED but has no '## Evidence' section")
     if not AUDIT.search(scan):
         fails.append("no self-audit / convergence-floor block")
+    fails += _checklist_fails(text, scan)
     phases = len(PHASE.findall(scan)) or 1  # headings, not evidence — quoted templates don't count
     if len(set(PROOF.findall(text))) < phases:
         fails.append(f"fewer than 1 `file:line` citation per phase (need >= {phases})")
@@ -540,14 +616,9 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # closer + inline single-line quotes) — the naive FENCE_BLOCK mispairs when
     # an in-contract inline ```…``` quote precedes the real embed, uncapturing a
     # genuine success JSON (fail-closed false-failure, review finding).
-    fenced = "\n".join(
-        m.group(2) or m.group(3) or ""
-        for m in _FENCED_CONTENTS.finditer(text)
-    )
+    fenced = "\n".join(m.group(2) or m.group(3) or "" for m in _FENCED_CONTENTS.finditer(text))
     if not GATE_OK.search(fenced):
-        fails.append(
-            'no embedded final_gate run showing "status": "success" inside a fenced block'
-        )
+        fails.append('no embedded final_gate run showing "status": "success" inside a fenced block')
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")
     return [f"{rel}: {x}" for x in fails]

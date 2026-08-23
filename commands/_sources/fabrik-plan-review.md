@@ -61,6 +61,32 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
 
 ## Phase 1 — Grounding passes (adversarial, to a fixed point)
 
+**⚠️ ARM THE PASS BEFORE PASS 1 — two mechanical obligations, both prerequisites, not warm-up.**
+
+1. **Rubric.** Run `python scripts/review_rubric.py --changed <the plan's `## File Scope (owned paths)`
+   entries>` and paste its **verbatim** output into the plan inside a fenced block. The File Scope IS the
+   changed-path set — glob matching works on it unmodified. An un-armed reviewer works from whatever
+   occurs to them; a rubric names the classes this surface is *known* to fail.
+2. **Coverage Checklist.** Derive `## Coverage Checklist` from that rubric output (FLOOR + MATCHED rows)
+   **plus the four standing recurrence classes** — *fail-open vs fail-closed on every gate/guard · cost/
+   quota/limit accounting edges (unknown≠0, per-call vs batch) · boundary/sentinel/prefix collisions ·
+   behavior-without-a-test*. Every row starts `UNCHECKED`; **every row must read CLEAN / FIXED / REFUTED
+   with evidence naming the paths hunted before you may write `Status: CONVERGED`.**
+   `check_convergence.py` enforces this on the flip — a checklist that is missing, unparsed, unadjudicated,
+   or not derived from a recorded `review_rubric.py` invocation fails the gate.
+
+**Why this command specifically.** `/fabrik-plan-after-chat` says it itself: *"12-Factor (all twelve) —
+BINDING on what the plan is allowed to STEP. The plan is exactly where a 12-Factor violation gets WRITTEN
+AS A TASK."* The documented pipeline is plan-after-chat → plan-review → execute-plan, so there is **no
+`/fabrik-review` step on the plan artifact** — this is its only armed review. Without the two obligations
+above, convergence means "nothing further occurred to the reviewer", not "every known failure class was
+swept." Measured (transdoc, 2026-08-23): an out-of-band `/fabrik-review` on a plan set this command had
+already converged to an md5-verified no-op found **5 further real defects — 4 of them named explicitly in
+the rubric that was never injected**, including a `task_name` the DB `CHECK` constraint refuses to store
+(so the plan's own fix for a previous unreachable-handler defect was another unreachable handler) and a
+per-tenant job created every 300s forever. A checklist can still be filled without real hunting; it raises
+a floor, it does not guarantee a ceiling.
+
 In this single turn, run repeated grounding passes until one demonstrably-thorough pass finds zero new ungrounded
 items. Treat every claim as unproven until verified against the actual code and database schema, adversarially:
 
@@ -219,6 +245,12 @@ assumption, and out-of-scope risk that remains, separating ones the plan resolve
 fixes, no additions, no re-grounding. That edit-free round is mandatory and is the ONLY thing that earns
 `Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach an edit-free round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
+
+**An edit-free round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
+adjudicated too.** Zero edits on a pass that never swept a class proves only that you did not look there
+again. Every row CLEAN / FIXED / REFUTED with evidence, or the class is not swept and the flip is not
+earned. `check_convergence.py` enforces this mechanically on NEW convergence transitions; a plan already
+`CONVERGED` at HEAD is settled and is never retroactively invalidated by this rule.
 
 **⚠️ No execution-blocking open question survives to CONVERGED (the "ask BEFORE, not DURING" gate).** The plan is
 where questions get answered — NOT mid-execution. A plan that converges with a deferred question is a plan that

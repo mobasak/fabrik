@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review is armed: rubric injection + an adjudicated Coverage Checklist (2026-08-23)
+
+transdoc, mail `01M0PV6NDR8FGX1C88G1Z9D3K9`. It was the only review command in the family with no
+rubric injection and no class ledger — confirmed by `grep -c review_rubric` on the rendered corpus:
+`/fabrik-review` 2, `/fabrik-plan-review` **0**. Its convergence therefore meant "nothing further
+occurred to the reviewer", not "every known failure class was swept" — on the artifact where, per
+`/fabrik-plan-after-chat`'s own words, *"a 12-Factor violation gets WRITTEN AS A TASK"*, and which the
+documented pipeline never routes through `/fabrik-review` at all.
+
+Measured cost of leaving it unarmed: an out-of-band review of a 10-ticket set this command had already
+converged to an md5-verified no-op found 5 further real defects, 4 of them named explicitly in the
+rubric that was never injected — including a `task_name` the DB `CHECK` constraint refuses to store
+(the plan's own fix for a previous unreachable-handler defect was another unreachable handler) and a
+per-tenant job created every 300s forever. transdoc filed the honest split themselves: 5 of the 11
+findings were their own probe-duty misses, and they asked for nothing on those.
+
+- **Command** — `/fabrik-plan-review` Phase 1 now opens with two mechanical obligations: run
+  `review_rubric.py --changed <the plan's File Scope paths>` and paste it verbatim, then derive a
+  `## Coverage Checklist` from it plus the four standing recurrence classes. The File Scope *is* the
+  changed-path set, so glob matching works unmodified — no new machinery.
+- **Gate** — `check_convergence._check_plan` now requires that checklist to exist, parse, derive from a
+  recorded rubric invocation, and be fully adjudicated before `Status: CONVERGED`. Parsing is delegated
+  to `check_review_coverage`'s extractor rather than reimplemented; a second parser would drift
+  silently, and a checklist gate that mis-parses is the very fail-silent-green class this closes.
+- **Blast radius, verified rather than assumed** — 101 plans across `/opt` claim CONVERGED without a
+  checklist. All are grandfathered: enforcement is NEW-TRANSITION-ONLY via `_converged_targets`, which
+  skips anything already CONVERGED at HEAD. Proven on a real one (brand-identiy-creator's converged
+  plan) in a scratch repo: re-touched → passes; the same content as a NEW claim → fails on the
+  checklist row. transdoc's "do not retroactively invalidate converged plans" was already structurally
+  satisfied by the existing design.
+
+Their SECONDARY ask — a `--verify-probes` mode re-executing every `$`-prefixed fenced block — is NOT
+taken. It would execute shell commands read out of a markdown file inside a gate synced to ~46 repos.
+Deferred as its own decision, not silently dropped.
+
 ### Fixed — the plan-ticket gate no longer punishes the grounding habit its own skeleton teaches (2026-08-23)
 
 transdoc, mail `01M0MQ701X67Z45J8BNQNY4J4T`, filed 2026-08-22 and unacked for a day because I read

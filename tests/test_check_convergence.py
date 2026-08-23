@@ -7,6 +7,7 @@ artifacts via ``git status``), so they exercise the actual code path.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,10 +30,26 @@ $ python scripts/final_gate.py --lean
 {"status": "success", "passed": 15, "failed": 0}
 ```
 
+## Coverage Checklist
+
+Classes derived from `python scripts/review_rubric.py --changed src/app/handler.py`
+plus the four standing recurrence classes.
+
+| Class | Verdict | Evidence |
+|---|---|---|
+| fail-open vs fail-closed | CLEAN | src/app/handler.py:42 — guard denies on unset context |
+| cost/quota accounting edges | CLEAN | no metered call on this path (src/app/handler.py:42) |
+| boundary/sentinel | CLEAN | db/schema.sql:10 enum matches the handler's writes |
+| behavior-without-a-test | FIXED | added tests/test_handler.py:11 |
+
 ## Self-audit
 Every claim above traces to a path:line citation and the gate output. No
 runtime-only assumptions remain.
 """
+
+PLAN_NO_CHECKLIST = COMPLIANT_PLAN[: COMPLIANT_PLAN.index("## Coverage Checklist")] + (
+    "## Self-audit\nEvery claim traces to a citation and the gate output.\n"
+)
 
 PLAN_NO_EVIDENCE = """# Plan for X
 
@@ -287,6 +304,42 @@ def test_converged_plan_without_evidence_fails(repo: Path) -> None:
 
 def test_plan_not_claiming_convergence_is_ignored(repo: Path) -> None:
     assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", PLAN_NO_CLAIM) == 0
+
+
+# --- Coverage Checklist on the CONVERGED flip -----------------------------------------
+# /fabrik-plan-review was the ONLY review command with no rubric injection and no class
+# ledger, so its convergence meant "nothing further occurred to the reviewer" rather than
+# "every known failure class was swept". An out-of-band /fabrik-review on an ALREADY-
+# CONVERGED 10-ticket plan found 5 more real defects that the rubric names explicitly —
+# incl. a task_name the DB CHECK constraint refuses to store, and a per-tenant job created
+# every 300s forever (transdoc, 2026-08-23). The plan is exactly where a 12-Factor
+# violation gets WRITTEN, and the pipeline has no /fabrik-review step on the plan artifact.
+
+
+def test_converged_plan_without_coverage_checklist_fails(repo: Path) -> None:
+    assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", PLAN_NO_CHECKLIST) == 1
+
+
+def test_converged_plan_with_unchecked_checklist_row_fails(repo: Path) -> None:
+    doc = COMPLIANT_PLAN.replace("| boundary/sentinel | CLEAN", "| boundary/sentinel | UNCHECKED")
+    assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 1
+
+
+def test_converged_plan_with_unverdicted_checklist_row_fails(repo: Path) -> None:
+    doc = COMPLIANT_PLAN.replace("| boundary/sentinel | CLEAN", "| boundary/sentinel | looked at")
+    assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 1
+
+
+def test_converged_plan_checklist_not_derived_from_rubric_fails(repo: Path) -> None:
+    """Classes must come from review_rubric.py, not from memory — same floor /fabrik-review has."""
+    doc = COMPLIANT_PLAN.replace("python scripts/review_rubric.py --changed src/app/handler.py", "")
+    assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 1
+
+
+def test_converged_plan_checklist_heading_alone_is_not_enough(repo: Path) -> None:
+    """An empty section satisfies a heading grep but adjudicates nothing."""
+    doc = re.sub(r"\|[^\n]*\|\n", "", COMPLIANT_PLAN)
+    assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 1
 
 
 def test_compliant_review_passes(repo: Path) -> None:
