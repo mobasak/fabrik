@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — governance: a proxy is never evidence when the real check is executable (2026-08-23)
+
+- New HARD STOP in both `CLAUDE.md` copies (hub + project-facing template, so it distributes
+  fleet-wide) plus a sixth universal marker, `proxy-never-evidence`, anchor **EXECUTE the real
+  check**. Reading, grepping and structural comparison are NAVIGATION; they are banned as the basis
+  of a completion claim whenever an executable check of the real thing exists. If the artifact is
+  consumed by a gate, produce it and run that gate BEFORE reporting.
+- Includes the corollary that actually cost the operator today: **a question asked twice is evidence
+  the METHOD is wrong, not the detail.** Four "yes, it matches" answers came from static comparison
+  of a new command; one run of `check_review_coverage.py` against the ledger that command emits then
+  found five defects in ninety seconds.
+- Operator-directed. Deliberately worded as a ban on proxy-as-EVIDENCE rather than on cheap tools:
+  the literal "never use the cheapest check" would forbid a grep for a symbol, which is correct and
+  cheap. The defect was never cheapness, it was substituting a proxy for an available execution.
+- ⚠️ NOT yet enforced by a hook. Lesson 116 applies — prose is invisible to a session already
+  running, and only a check at the moment the output is still editable binds. Scoped as separate
+  work, not silently claimed.
+- `/opt/fabrik-lib` is sync-excluded and its `check_governance_drift.py` holds the anchor list;
+  adding the anchor there is cross-repo, so it was mailed to fabrik-lib rather than edited here.
+
+
 ### Added — /fabrik-conformance-review: did we actually BUILD what we specced (2026-08-23)
 
 - New fleet command answering the one question no existing gate asks. `/fabrik-review` reads a diff,
