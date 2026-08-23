@@ -1,5 +1,13 @@
 # Sync-excluded repo audit — 2026-08-15
 
+> **Standing policy + instrument (2026-08-22).** Sync-excluded repos **PULL; nothing is
+> pushed to them** — a sender fixing a shared file tells them "re-vendor it yourself",
+> never "it will reach you on the next sync" (two undelivered-fix incidents in two days
+> measured this class, fabrik-lib finding 01M05F4QBR6B0WSNJS2ZXHN80V). The measuring
+> instrument is `scripts/enforcement/check_vendored_drift.py` (hub-only, warn_only in the
+> gate): it hash-compares every vendorer's governance set against hub and splits declared
+> design (the repo's own `.fabrik/vendored-divergence-allowlist`) from UNREVIEWED drift.
+
 **Why:** fabrik-lib reported an orphaned-governance shape (a `refresh-governance.sh` branch that
 could never fire, because the hub had moved `CLAUDE.md` out of `GOVERNANCE_FILES`) and asked
 whether other sync-excluded repos carry the same defect. Operator-approved audit.

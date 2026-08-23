@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Quota advisory dedup: key the cycle on the WEEKLY reset, not the sliding 5h reset (2026-08-23)
+
+- The per-account drain advisory re-fired on every 5-minute tick (mob 85→87→90→91% in 20 min;
+  ob/sarp re-firing at a steady 91%). Root cause: the dedup stamp keyed its `cycle` on
+  `min(resets)`, which picks the **5-hour session reset** — and that value **slides forward**
+  as an active account keeps being used (Claude's rolling window). So the dedup key churned
+  every tick, `prev_cycle != cycle` always, and suppression never held.
+- `cycle` now keys on the **seven_day (weekly) reset** — fixed within a quota week. A steady
+  account announces once per weekly cycle; the band comparison still lets a genuine escalation
+  (86→97) speak. Vendored byte-identical to `scripts/aro-wake/claude_rotate.py`;
+  watched-fail-first regression in `tests/test_claude_fleet.py`.
+
+`scripts/enforcement/check_vendored_drift.py` (hub-only, warn_only in the gate): for every
+/opt repo that vendors the governance set without a `synced.lock`, hash-compares each file
+against hub and reports identical / declared-design / UNREVIEWED / local-only — with the
+divergence allowlist owned by the vendoring repo (`.fabrik/vendored-divergence-allowlist`).
+Closes the measured two-incidents-in-two-days class where senders assumed the governance-sync
+would deliver fixes to a repo it deliberately excludes; the check's own output states the
+policy: sync-excluded repos PULL, nothing is pushed to them. First live run: fabrik-lib at
+12 identical / 18 UNREVIEWED / 5 local-only (their 2026-08-16 self-census was 11/14/5 — the
+drift grew in a week, the class in action).
+
+
 ### Added — `mail.py route` + the HANDLE-NOW mail discipline (2026-08-23)
 
 Operator directive: each of the three hub agents must know precisely which mail is theirs, and a

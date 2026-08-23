@@ -848,6 +848,18 @@ def run_consistency_checks(
         )
     )
 
+    # Vendored-enforcement drift (hub-only; self-skips elsewhere): sync-EXCLUDED repos
+    # PULL — nothing is pushed to them — and an undeclared divergence in their vendored
+    # governance set is invisible debt (two undelivered-fix incidents in two days measured
+    # it, 2026-08-16). Advisory by contract; the repo's own allowlist declares design.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_vendored_drift.py",
+            "Vendored Drift (sync-excluded repos)",
+            warn_only=True,
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):
