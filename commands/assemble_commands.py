@@ -482,7 +482,8 @@ PARAMS = {
     },
     "fabrik-conformance-review": {
         "term-coverage": {"RESIDUAL": " The one legitimate standing residual is a row explicitly adjudicated SUPERSEDED with its successor named, or DEVIATES whose spec re-freeze is already routed — never a PENDING row and never an un-routed gap."},
-        "grounding-code": {"SCOPE": "a project's specs, plans and live tree"},
+        "grounding-artifact": {"SUBJECT": "spec success criterion or plan behavior contract",
+                               "EXAMPLES": 'a criterion "met" by a table nothing reads, a contract "shipped" whose migration was renumbered away, a plan "executed" whose tests only ever passed on a fixture the real caller cannot produce'},
         "subagents-core": {"HEADLINE": "one grounded verifier per spec\u2194plan pair, batched 2-4", "TASK_TYPE": '"review"', "PROJECT": "conformance-review",
                            "FLOOR": _floor("review", "`fabrik-reviewer`"),
                            "EXTRA": " Pool breadth carries the bulk of the pairs; put native Opus on the rows whose failure is silent — the four discriminators (trivially-green test, implemented-but-inert, live-SLA broken, refreeze debt) are exactly where a cheap verifier reports CONFORMS and is wrong. The worked example ran all-native only because the pool was exhausted; that is not the default."},

@@ -18,7 +18,7 @@ re-run as evidence. Every discriminator below earned its place by catching somet
 
 {{include:run-record}}
 {{include:term-coverage}}
-{{include:grounding-code}}
+{{include:grounding-artifact}}
 
 ## PHASE 0 — DISCOVER THIS PROJECT'S ARTIFACTS (you, first — assume NOTHING)
 

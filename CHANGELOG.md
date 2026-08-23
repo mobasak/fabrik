@@ -47,6 +47,21 @@ All notable changes to this project will be documented in this file.
   to distrust most, since it ends inspection) · P3 prove & route — this command does not fix, a
   conformance gap is a plan to finish or a spec to re-freeze, so depth means routing to the owning
   command · P4 converge · OUTPUT. Audited across eleven structural dimensions against both siblings.
+- **Third correction — wrong grounding fragment, found by changing METHOD.** The first two audits
+  checked dimensions I had chosen myself, which can only confirm. Comparing mechanically against all
+  ELEVEN other review commands instead showed the corpus splits into two families, and this command
+  was in the wrong one: it used `grounding-code` (2/11), whose framing is "a finding is a claim about
+  the LIVE code" — defects IN code. `grounding-artifact` (7/11) states this command's actual subject
+  verbatim: "the dominant defect is a SUBJECT that reads well but the actual codebase / schema
+  contradicts". A conformance finding adjudicates an ARTIFACT, grounded in code — so the fragment is
+  now `grounding-artifact`, parameterised with the spec/plan criterion as SUBJECT. It also brings the
+  stronger exit rule this command needs: anything not tied to a freshly-read `path:line` is
+  UNVALIDATED and BLOCKS the exit.
+- Two divergences remain and are deliberate, each checked against the corpus rather than assumed:
+  `term-edit` (5/12) is for commands that converge a document by EDITING it — this one must never
+  edit the specs it judges, since editing a spec to match code IS the re-freeze it routes to
+  `/fabrik-spec`, so `term-coverage` is correct; and the synced-files-are-CONTEXT rule appears in
+  only 1/12, so it is not a corpus norm.
 - Router: the stem is placed FIRST in `KEYWORD_STEMS` — the broad `spec`/`plan`/`review` stems would
   otherwise swallow "audit every spec and plan against the code". Mutation-proven: moving it last
   breaks six routing tests.
