@@ -1,25 +1,13 @@
 {
   "status": "pass",
-  "duplicated_lines": 2543,
-  "percentage": 2.43,
+  "duplicated_lines": 5317,
+  "percentage": 4.77,
   "threshold": 7.0,
-  "duplicate_count": 82,
+  "duplicate_count": 75,
   "duplicates": [
     {
-      "lines": 27,
-      "tokens": 87,
-      "firstFile": "scripts/Local_Coder_qwen32b.sh",
-      "secondFile": "scripts/Local_Documentator_llama3.1-8b.sh"
-    },
-    {
-      "lines": 27,
-      "tokens": 87,
-      "firstFile": "scripts/Local_Coder_qwen32b.sh",
-      "secondFile": "scripts/Local_Fixer_ds16b.sh"
-    },
-    {
-      "lines": 986,
-      "tokens": 6343,
+      "lines": 3905,
+      "tokens": 25868,
       "firstFile": "scripts/aro-wake/claude_rotate.py",
       "secondFile": "scripts/sysadmin/claude_rotate.py"
     },
@@ -64,6 +52,18 @@
       "tokens": 463,
       "firstFile": "scripts/bootstrap/bootstrap-spoke-restore.sh",
       "secondFile": "scripts/bootstrap/bootstrap-vps.sh"
+    },
+    {
+      "lines": 17,
+      "tokens": 86,
+      "firstFile": "scripts/bootstrap/bootstrap-spoke-restore.sh",
+      "secondFile": "scripts/sysadmin/install-docker-user-rules.sh"
+    },
+    {
+      "lines": 11,
+      "tokens": 57,
+      "firstFile": "scripts/check_commit_trailers.py",
+      "secondFile": "scripts/check_commit_trailers.py"
     }
   ]
 }

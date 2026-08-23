@@ -130,6 +130,144 @@ def _outbox_path(outbox_dir: str | None) -> Path:
     return base / "pg_outbox.jsonl"
 
 
+def _is_transient_db_error(exc: BaseException) -> bool:
+    """Is this a failure to REACH the database, rather than a rejection of the row?
+
+    Deny-list by class name so the module keeps its zero-import-of-psycopg2 property (the
+    DB handle arrives through an injected `connect`). Unknown errors are treated as
+    TRANSIENT — the safe direction here, because a mis-classified transient costs one
+    retry, whereas a mis-classified rejection retires a good row into quarantine where
+    nothing will look for it.
+    """
+    name = type(exc).__name__
+    if name in {"OperationalError", "InterfaceError", "PoolError", "AdminShutdown"}:
+        return True
+    text = str(exc).lower()
+    if any(k in text for k in ("could not connect", "server closed", "connection", "timeout")):
+        return True
+    # Rejections of the ROW: constraint/type/column problems. Anything explicitly in this
+    # family is poison; anything else falls through to transient.
+    return name not in {
+        "IntegrityError", "DataError", "ProgrammingError", "NotSupportedError", "ValueError",
+    }
+
+
+def _flush_row_by_row(
+    rows: list[dict[str, object]],
+    dsn: str,
+    connect: Callable[[str], Any] | None,
+    base: Path,
+) -> tuple[list[dict[str, object]], bool]:
+    """Insert each row in its own transaction.
+
+    Returns ``(landed_rows, all_accounted)``. ``all_accounted`` is False when a TRANSIENT
+    failure means the batch is unfinished and `.flushing` must be kept for a clean retry;
+    True when every row is either landed or quarantined.
+
+    The batch path is the fast path; this runs only after it failed, to find out which row
+    is actually poison. Anything that still fails is written to `pg_outbox.quarantine.jsonl`
+    with the error, so it is inspectable rather than either lost or blocking forever.
+
+    A row that fails for a TRANSIENT reason (the DB is simply down) fails here too and is
+    NOT quarantined — the whole call returns nothing landed and `.flushing` is retried
+    later, which is the behaviour that was always intended.
+    """
+    landed: list[dict[str, object]] = []
+    poison: list[tuple[dict[str, object], str]] = []
+    transient = False
+    for r in rows:
+        conn = None
+        try:
+            conn = connect(dsn) if connect is not None else _connect(dsn)
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("SET LOCAL statement_timeout = 30000")
+                    cur.execute(_INSERT, tuple(r.get(c) for c in _COLS))
+            landed.append(r)
+        except Exception as exc:  # noqa: BLE001
+            # ⚠ Classify by ERROR CLASS, not by "has any row succeeded yet".
+            #
+            # `reachable` is a once-True latch, so if the DB dies HALFWAY through the loop
+            # every remaining row was quarantined as poison while being merely transient —
+            # and a quarantined row is removed from the retry path, so a blip would have
+            # silently retired good rows. Same mistake, and the same fix, as db-pool's
+            # retry classifier: a connection-shaped failure is transient and must be left
+            # for the next attempt; only a REJECTION of the row itself is poison.
+            if _is_transient_db_error(exc):
+                transient = True
+            else:
+                poison.append((r, f"{type(exc).__name__}: {exc}"))
+        finally:
+            if conn is not None:
+                with contextlib.suppress(Exception):
+                    conn.close()
+
+    if poison and not transient:
+        with contextlib.suppress(Exception):
+            q = base / "pg_outbox.quarantine.jsonl"
+            with q.open("a", encoding="utf-8") as fh:
+                for r, why in poison:
+                    fh.write(json.dumps({"row": r, "error": why}, default=str) + "\n")
+                fh.flush()
+    # A transient failure anywhere means the batch is NOT finished: report nothing landed so
+    # `.flushing` is retried intact, rather than declaring partial success and dropping the
+    # rows that never got their chance.
+    # ⚠ EVERY row ends up in exactly one of `landed`, `poison`, or (on a transient) back in
+    # the retry path. The first version keyed both the quarantine and the return on a
+    # `reachable` latch, so a row failing BEFORE the first success was in none of them — not
+    # landed, not quarantined, not retried. It simply vanished, and these are the scored rows
+    # the outbox exists to protect.
+    if transient:
+        return [], False  # nothing is finished; `.flushing` must survive intact
+    assert len(landed) + len(poison) == len(rows)  # noqa: S101 — accounting invariant
+    return landed, True
+
+
+def _agent_id_pending_in_outbox(agent_id: str, outbox_dir: str | None) -> bool:
+    """Is this agent_id's DISPATCH row sitting unflushed in our own outbox?
+
+    ⚠ This is what makes the orphan guard correct rather than merely strict. "Absent from
+    the DB" has two causes and they need opposite answers:
+
+      * never recorded at all      → a genuine orphan; scoring it invents flywheel data
+      * recorded but not yet flushed → the row IS coming; discarding the verdict loses the
+        single most valuable signal the flywheel collects, in exactly the outage the
+        outbox exists to survive
+
+    `set_quality` used to return False for both, while its own docstring promised the
+    opposite ("this scored delta stands ALONE … the quality verdict is preserved").
+    """
+    for name in ("pg_outbox.jsonl", "pg_outbox.flushing.jsonl"):
+        f = _outbox_path(outbox_dir).with_name(name)
+        try:
+            if not f.exists():
+                continue
+            lines = f.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            if not line.strip():
+                continue
+            # Per-LINE tolerance: the outbox is flush-not-fsync, so a torn tail line is an
+            # expected state and must not hide the rows after it.
+            try:
+                obj = json.loads(line)
+            except Exception:  # noqa: BLE001
+                continue
+            if not isinstance(obj, dict) or str(obj.get("agent_id") or "") != agent_id:
+                continue
+            # ⚠ Must be a DISPATCH row, not a scored delta. `status == "scored"` is the
+            # delta marker; matching it made the guard SELF-SUSTAINING — a scored delta
+            # outboxed by the no-DSN branch (which does no orphan check at all) would
+            # satisfy the pending lookup for the NEXT score, so deltas for a run with no
+            # dispatch row could accumulate indefinitely and then flush into the table,
+            # re-opening the orphan hole this guard exists to close.
+            if str(obj.get("status") or "") == "scored":
+                continue
+            return True
+    return False
+
+
 def _append_outbox(row: tuple[object, ...], outbox_dir: str | None) -> None:
     """Best-effort append of one scored row (as a name→value dict) to the outbox. Same durability
     envelope as the JSONL :class:`ledger.Ledger` — ``flush``ed, not ``fsync``ed, so a power-loss can
@@ -440,7 +578,15 @@ def set_quality(
         # at all — trading a 0.8% integrity defect for total loss of the flywheel signal.
         present = agent_ids_present([str(agent_id)], dsn=dsn, connect=connect)
         if present is not None and str(agent_id) not in present:
-            return False  # definitive miss: the run does not exist, so the score cannot be real
+            # ⚠ Absent from the DB is NOT automatically an orphan. If the dispatch row is
+            # pending in our own outbox it WILL land, and discarding the verdict here threw
+            # away the flywheel's most valuable signal during precisely the outage the
+            # outbox exists to survive — while the docstring promised it was preserved.
+            # Fall through to the outbox so the score lands AFTER its dispatch row.
+            if not _agent_id_pending_in_outbox(str(agent_id), outbox_dir):
+                return False  # genuine orphan: the run does not exist, so the score is not real
+            _append_outbox(row, outbox_dir)
+            return False  # not committed to the DB — the caller must not read this as landed
         conn = None
         try:
             conn = connect(dsn) if connect is not None else _connect(dsn)
@@ -577,15 +723,60 @@ def _flush_locked(
         return 0
     # 3) INSERT the good rows in one transaction.
     conn = None
+    # ⚠ Distinguishes an EXECUTE-phase failure from a COMMIT-phase one, because only the
+    # first is safe to retry row-by-row. `with conn:` commits at __exit__; if THAT fails
+    # (network drop, server restart, pooler kill) the server may well have committed
+    # already, and re-inserting every row would be a GUARANTEED full-batch duplicate
+    # rather than the rare crash-window the module documents. A commit-phase failure
+    # therefore leaves `.flushing` intact for a normal retry, exactly as before.
+    execute_failed = False
     try:
         conn = connect(dsn) if connect is not None else _connect(dsn)
         with conn:
             with conn.cursor() as cur:
                 cur.execute("SET LOCAL statement_timeout = 30000")
-                for r in good:
-                    cur.execute(_INSERT, tuple(r.get(c) for c in _COLS))
-    except Exception:  # noqa: BLE001 — DB failed → the good batch stays in `.flushing` for retry
-        return 0
+                try:
+                    for r in good:
+                        cur.execute(_INSERT, tuple(r.get(c) for c in _COLS))
+                except Exception:
+                    execute_failed = True
+                    raise
+    except Exception:  # noqa: BLE001
+        # ⚠ ALL-OR-NOTHING WAS PERMANENT. One row the DB rejects (a NOT NULL violation, a
+        # cross-version row whose `tool_calls` is a dict rather than a JSON string, a column
+        # this copy writes that the table lacks) failed the whole transaction; `.flushing` was
+        # left in place and claimed FIRST on the next call, so it failed identically forever
+        # while `live` grew unbounded and was never claimed. The relaxed gate (which stopped
+        # quarantining cross-version rows on key-presence alone) is what lets such a row reach
+        # the INSERT, so this fallback is what keeps that relaxation safe.
+        #
+        # Retry ROW BY ROW so one poison row cannot hold the rest hostage, and quarantine it
+        # with the reason rather than dropping it silently.
+        # Close and CLEAR before retrying, so the `finally` below does not close a second
+        # time. psycopg2 tolerates a repeat close, but relying on that is exactly the kind
+        # of unstated assumption this loop keeps finding — and a caller-supplied `connect`
+        # may return a handle that does not.
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+            conn = None
+        # ⚠ Safe against double-INSERT: the batch above runs inside `with conn:`, which
+        # ROLLS BACK on the exception, so no row from the failed batch is committed. The
+        # per-row retry therefore starts from a clean slate rather than re-inserting
+        # anything that already landed.
+        if not execute_failed:
+            return 0  # commit-phase: in doubt, so retry the batch rather than duplicate it
+        good, all_accounted = _flush_row_by_row(good, dsn, connect, base)
+        if not all_accounted:
+            return 0  # transient: leave `.flushing` intact for a clean retry
+        if not good:
+            # Every row was rejected. They are quarantined, so the batch is FINISHED —
+            # dropping through unlinks `.flushing`. Returning early here (as the first
+            # version did) left it in place to be retried identically forever, which is
+            # the permanent-loop bug this fallback exists to fix, unfixed.
+            with contextlib.suppress(Exception):
+                flushing.unlink()
+            return 0
     finally:
         if conn is not None:
             with contextlib.suppress(Exception):

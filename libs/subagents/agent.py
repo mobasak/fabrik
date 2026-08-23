@@ -225,7 +225,10 @@ class FanoutBatch:
     them zeros); two are traceable to a disclosed incident. ``.score()`` refuses them by name.
     """
 
-    __slots__ = ("results", "table", "_recorded", "_task_type", "_project", "_models")
+    __slots__ = (
+        "results", "table", "_recorded", "_task_type", "_project", "_models",
+        "_state_dir",
+    )
 
     def __init__(
         self,
@@ -236,6 +239,7 @@ class FanoutBatch:
         _task_type: str = "",
         _project: str | None = None,
         _models: dict[str, str] | None = None,
+        _state_dir: str | None = None,
     ) -> None:
         self.results = results
         self.table = table
@@ -243,6 +247,10 @@ class FanoutBatch:
         self._task_type = _task_type
         self._project = _project
         self._models = _models or {}
+        # The repo-anchored .tmp/subagents that `fanout` outboxed the dispatch rows to.
+        # `score()` MUST look in the same place; resolved CWD-relative it finds nothing
+        # pending and discards the verdict as a genuine orphan.
+        self._state_dir = _state_dir
 
     def __iter__(self) -> Iterator[Any]:
         """Preserve ``results, table = fanout(...)`` — the whole point of not using a 3-field type."""
@@ -311,12 +319,19 @@ class FanoutBatch:
             )
         from .pg_ledger import set_quality
 
+        # ⚠ Pass the SAME repo-anchored dir the dispatch row was outboxed to. Without it
+        # `set_quality` resolves `_outbox_path(None)` CWD-relative, looks for the pending
+        # dispatch row in a DIFFERENT directory, concludes "genuine orphan", and DISCARDS
+        # the verdict — re-creating on the scoring side the exact split just closed on the
+        # dispatch side.
         return set_quality(
             agent_id,
             quality,
             project=project,
             task_type=self._task_type,
             model=model,
+            receipt_dir=self._state_dir,
+            outbox_dir=self._state_dir,
         )
 
     def unscored(self) -> list[str]:
@@ -680,6 +695,16 @@ def _safe_ledger(ledger: Ledger, spec: AgentSpec, result: AgentResult) -> None:
         ledger.append(agent_record(spec, result))
     except Exception:  # noqa: BLE001 — a ledger write failure must NEVER fail/sink an agent run
         pass
+
+
+def _subagent_state_dir(repo: str) -> str:
+    """The ONE directory the ledger, receipts and outbox all live in, anchored on the repo.
+
+    `_default_ledger_path` anchors on `repo`; the receipt/outbox defaults anchor on the CWD.
+    Anything that resolves them independently can drift, and everything that correlates the
+    three (audit_unrecorded, the strict-mode outbox guard) then reads an empty set as fact.
+    """
+    return str(Path(repo) / ".tmp" / "subagents")
 
 
 def _default_ledger_path(repo: str) -> str:
@@ -1131,8 +1156,22 @@ def fanout(
                 # `FanoutBatch.score()`'s orphan guard vacuous: a DB blip at dispatch
                 # outboxed the row, `recorded` still said True, and the guard whose whole
                 # purpose is refusing to score an orphan waved it through.
+                # ⚠ Pass the REPO-ANCHORED dir. Left to default, `receipt_dir`/`outbox_dir`
+                # resolve CWD-relative (`Path(".tmp")/"subagents"`) while the ledger is
+                # `Path(repo)/.tmp/subagents` — so running from any subdirectory (or with
+                # SUBAGENT_OUTBOX_DIR set) split them apart. `audit_unrecorded` then found
+                # ZERO receipts (every run "unrecorded") and the strict-mode OUTBOX guard
+                # found ZERO pending (nothing excluded), which under FABRIK_FLYWHEEL_STRICT
+                # escalates every run of the session. The guard that exists to stop an
+                # outage becoming a work stoppage was defeated by a path convention.
                 recorded[r.agent_id] = bool(
-                    record_agent_run(spec, r, project=project)  # unscored — set_quality later
+                    record_agent_run(  # unscored — set_quality later
+                        spec,
+                        r,
+                        project=project,
+                        receipt_dir=_subagent_state_dir(repo),
+                        outbox_dir=_subagent_state_dir(repo),
+                    )
                 )
             except Exception:  # noqa: BLE001 — a record failure NEVER loses the returned results
                 recorded[r.agent_id] = False
@@ -1162,6 +1201,7 @@ def fanout(
         _task_type=task_type,
         _project=project,
         _models={r.agent_id: s.model for s, r in zip(specs, results, strict=True)},
+        _state_dir=_subagent_state_dir(repo),
     )
 
 

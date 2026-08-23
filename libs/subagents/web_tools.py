@@ -180,9 +180,54 @@ def _brave_search(args: dict[str, object], client: httpx.Client, timeout_s: floa
     return ToolResult(ok=True, output=_truncate(_hits_json(hits)))
 
 
+# ── Firecrawl `formats` ───────────────────────────────────────────────────────────────────────
+# Kept in lockstep with the standalone `web-tools/` module (this file is a deliberate copy, not an
+# import). `formats` was hardcoded to ["markdown"], which discards JSON-LD, <img> src/alt,
+# meta/og tags and hreflang — reported against web-tools by web-ecommerce-factory 2026-08-16.
+# The report named only that module; this copy had the identical defect, so a pool agent asking
+# for structure kept getting markdown. Fixing one and not the other is the silent fork the
+# vendoring discipline exists to prevent.
+#
+# The response field is the format's own name for nearly every format, but NOT all — verified
+# against the live docs 2026-08-16 (docs.firecrawl.dev). A `data[fmt]` lookup returns nothing for
+# the exceptions, so a successful call reports "(empty)".
+_FC_RESULT_FIELD: dict[str, str] = {"question": "answer"}
+
+# ⚠ No allowlist of valid formats on purpose: Firecrawl ships 16 and adds more, and a frozen set
+# here would reject a new one and force a local fork. The API is the authority.
+
+
+def _fc_formats(args: dict[str, object]) -> list[object]:
+    """Caller's `formats`, defaulting to ``["markdown"]`` (the pre-existing behaviour). A bare
+    string is wrapped — sent as-is it JSON-encodes to a list of single letters and Firecrawl 400s."""
+    raw = args.get("formats") or ["markdown"]
+    return [raw] if isinstance(raw, str) else list(cast("list[object]", raw))
+
+
+def _fc_render(data: object, formats: list[object]) -> str:
+    """Join the requested fields out of ``data``. Non-strings (`links`, `images`, `json`) are
+    JSON-encoded rather than repr'd; several formats are labelled so the far side can parse them."""
+    if not isinstance(data, dict):
+        return ""
+    names = []
+    for f in formats:
+        raw = f.get("type") if isinstance(f, dict) else f
+        if isinstance(raw, str) and raw:
+            names.append(_FC_RESULT_FIELD.get(raw, raw))
+    parts = []
+    for name in names:
+        val = data.get(name)
+        if val in (None, "", [], {}):
+            continue
+        text = val if isinstance(val, str) else json.dumps(val, ensure_ascii=False)
+        parts.append(text if len(names) == 1 else f"## {name}\n{text}")
+    return "\n\n".join(parts)
+
+
 def _firecrawl_scrape(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
     key = _need("FIRECRAWL_API_KEY")
-    payload: dict[str, object] = {"url": str(args["url"]), "formats": ["markdown"]}
+    formats = _fc_formats(args)
+    payload: dict[str, object] = {"url": str(args["url"]), "formats": formats}
     if args.get("actions"):
         payload["actions"] = args["actions"]
     body = _fetch(
@@ -193,9 +238,8 @@ def _firecrawl_scrape(args: dict[str, object], client: httpx.Client, timeout_s: 
         timeout_s=timeout_s,
         json_body=payload,
     )
-    data = _obj(body).get("data")
-    md = data.get("markdown", "") if isinstance(data, dict) else ""
-    return ToolResult(ok=True, output=_truncate(md or "(empty)"))
+    out = _fc_render(_obj(body).get("data"), formats)
+    return ToolResult(ok=True, output=_truncate(out or "(empty)"))
 
 
 def _firecrawl_crawl(args: dict[str, object], client: httpx.Client, timeout_s: float) -> ToolResult:
@@ -348,9 +392,15 @@ WEB_TOOL_SCHEMAS: list[dict[str, object]] = [
     ),
     _fn(
         "web_scrape",
-        "Fetch a URL as markdown (Firecrawl). Optional `actions` (click/write/press/"
-        "scroll/screenshot) drive browser interaction.",
-        {"url": _STR, "actions": {"type": "array"}},
+        "Fetch a URL (Firecrawl). Defaults to markdown. Set `formats` to keep structure that "
+        "markdown discards — e.g. [\"rawHtml\"] for JSON-LD / meta+og tags / img src+alt / "
+        "hreflang, [\"links\"], [\"images\"], or several at once. Optional `actions` "
+        "(click/write/press/scroll/screenshot) drive browser interaction.",
+        {
+            "url": _STR,
+            "formats": {"type": "array", "items": {"type": "string"}},
+            "actions": {"type": "array"},
+        },
         ["url"],
     ),
     _fn(
