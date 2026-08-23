@@ -25,6 +25,18 @@ All notable changes to this project will be documented in this file.
   in only 1 of 5 projects measured: specs are absent entirely in one, plans come in two shapes (flat
   and dated plan-SET directories), and only 9 of 22 specs carry a parseable `Status:`. The command
   globs first and treats `PLANS.md` as an accelerator, never the mechanism.
+- **Follow-up same day (operator review):** as first shipped the command was internally
+  inconsistent — it included the `term-coverage` fragment, whose termination contract is a LOOP with
+  a rubric-derived Coverage Checklist and a Pass Ledger, while its own prose described a single-pass
+  sweep with a different ledger shape. Worse, it wrote to `docs/development/reviews/*.md` without a
+  `Surface:` line or a Coverage Checklist table, so `check_review_coverage.py` — run by `final_gate`
+  and the Stop hook — would have FAILED the very artifact the command produces. Now aligned: the
+  ledger carries the `Surface:` hash (HEAD + a hash of the enumerated inventory, since a non-diff
+  surface has no diff to hash), the Inventory table AND a Coverage Checklist keyed on failure
+  CLASSES, and the exit contract is the same both-conditions loop every other review command uses,
+  in the discovery-until-dry shape the certification gauntlets use rather than the diff loop's
+  wide→scoped→wide. `term-coverage`'s non-diff escape list now names it alongside
+  `/fabrik-user-test` and `/fabrik-service-test`.
 - Router: the stem is placed FIRST in `KEYWORD_STEMS` — the broad `spec`/`plan`/`review` stems would
   otherwise swallow "audit every spec and plan against the code". Mutation-proven: moving it last
   breaks six routing tests.

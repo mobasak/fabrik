@@ -41,10 +41,24 @@ specs" — that is a finding, not an error.
 3. **Exclude pre-supersession eras explicitly, naming the successor.** An era excluded silently is
    indistinguishable from one that was missed.
 4. **Write the ledger doc NOW, before any verification** —
-   `docs/development/reviews/YYYY-MM-DD-spec-plan-conformance-review.md` — with every row present
-   and every verdict `PENDING`. This is crash-safety, not bookkeeping: a portfolio sweep is long
-   enough that context loss mid-run is the expected case, and a ledger written at the END is a
-   ledger you write twice.
+   `docs/development/reviews/YYYY-MM-DD-spec-plan-conformance-review.md`. This is crash-safety, not
+   bookkeeping: a portfolio sweep is long enough that context loss mid-run is the expected case, and
+   a ledger written at the END is a ledger you write twice.
+
+   It carries THREE things, and the file is read by `check_review_coverage.py` (via `final_gate` and
+   the Stop hook) — a review that exists only in chat does not exist:
+   - a **`Surface:` line** — `git rev-parse HEAD` + a hash of the enumerated inventory. This surface
+     is not a diff, so there is no `git diff | md5sum` to take; the inventory IS the surface, and
+     re-running against an unchanged one is a re-adjudication, not a fresh sweep.
+   - the **Inventory table** — one row per spec↔plan pair (and per spec-less plan), verdict
+     `PENDING`.
+   - the **Coverage Checklist** — one row per FAILURE CLASS, every row starting `UNCHECKED`. The
+     classes are the four discriminators plus the standing ones this sweep owns: `trivially-green
+     test` · `implemented-but-inert` · `live-SLA broken` · `spec-refreeze debt` ·
+     `plan CONVERGED but never executed` · `supersession without a named successor` · plus any class
+     the run itself discovers. The Inventory answers "which artifacts"; the Checklist answers "which
+     ways they can be wrong" — you need both, because a sweep can verify every row and still never
+     have hunted for inertness.
 
 ## PHASE 1 — ONE GROUNDED VERIFIER PER PAIR
 
@@ -103,13 +117,25 @@ Each of these passes an ordinary review. Each was caught by the worked example.
   plan, `/fabrik-spec` to re-freeze debt, `/fabrik-review` for a code defect, the deploy triad for
   an operational red). A conformance review that ends in a list nobody owns has not finished.
 
-## EXIT CONTRACT
+## EXIT CONTRACT — the loop, not a single sweep
 
-- Every inventory row **terminal** — no `PENDING` survives the run.
-- Every verdict **evidence-anchored with FRESH runs**. A green from last week is not evidence;
+Same termination contract as every other review command, on a non-diff surface: **BOTH** a quiet
+round AND a fully adjudicated checklist. One pass over the inventory is a first pass, never the run.
+
+- **Round shape is discovery-until-dry**, like the certification gauntlets — not the diff loop's
+  wide→scoped→wide, because there is no diff and `review_rubric.py --changed` has nothing to read.
+  Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
+  downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
+  rows that already passed. The **closing round runs non-author verifiers** on the full inventory.
+- **DONE requires all of:** the final round raised **`found: 0`** (counting candidates you refuted
+  in adjudication — a round that raised 3 and refuted 3 is not quiet); **every Inventory row
+  terminal** (no `PENDING`); **every Checklist row adjudicated** `CLEAN` / `FIXED(n)` /
+  `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with `found:` / `new:` /
+  `fixed:` per round, each row naming the verifiers dispatched for THAT round.
+- **Every verdict evidence-anchored with FRESH runs.** A green from last week is not evidence —
   re-run it or mark the row PARTIAL and say why.
-- **Supersessions name their successor.** **DEVIATES rows state whether the spec was re-frozen** —
-  if not, that row IS refreeze debt and belongs in the cluster summary.
-- Ledger committed. Cluster summary routed. Then report.
+- **Supersessions name their successor. DEVIATES rows state whether the spec was re-frozen** — if
+  not, that row IS refreeze debt and belongs in the cluster summary.
+- Ledger committed. Cluster summary routed to owning commands. `final_gate` green. Then report.
 
 {{include:subagents-core}}
