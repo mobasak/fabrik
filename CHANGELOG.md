@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_imports_resolvable claimed a clean bill of health over directories it never walked (2026-08-23)
+
+fabrik-lib, mail `01M03498MGBQ957TJ4KK2KSESK` — a self-correction of their own earlier adoption note,
+and the more useful message of the two.
+
+`ERROR_AREAS` is `("src", "app", "tests")`, `WARN_AREAS` is `("scripts",)`. A **library-layout** repo
+keeps modules at `<kebab-name>/<snake_pkg>/` and has none of the three, so the area walk covered zero
+of its real surface while `errors` stayed pinned empty and the summary still printed
+`no phantom (gitignored-only) imports in src/app/tests — N imports checked` — with a denominator built
+entirely from `scripts/`. Nothing in that output let a reader distinguish "checked everything, found
+nothing" from "checked nothing".
+
+- **Measured, because their question was measurable**: they asked whether any of the ~46 synced repos
+  have a non-`src/` layout. **7 of the 49 repos carrying this check** have none of `src`/`app`/`tests`
+  (emailgateway, fabrik-dr-store, fabrik-lib, fabrik-lib-account, fabrik-lib-review, logo-export,
+  test-saas-for-epic-wf). All seven were being told they were clean.
+- **NOT-APPLICABLE is now a third verdict**, mirroring the `check_command_corpus` fix: rc stays 0 (a
+  library layout is correct, not a defect) but the check states it had no subject and explicitly says
+  it is *not* reporting a clean result. `--json` gains `error_areas_present` + `imports_checked`.
+- **`WARN_AREAS` are unaffected** — a `scripts/` phantom still surfaces under NOT APPLICABLE, proven by
+  its own test. The `OK:` line now names only the areas actually walked, so the hub reports `src/tests`
+  rather than the fictional `src/app/tests`.
+- No fork: fabrik-lib explicitly declined to patch `ERROR_AREAS` locally, since that is the silent fork
+  the vendoring discipline forbids. Correct call — the fix belongs here.
+
+How they found it is the transferable part: their adoption probe built a synthetic `src/` repo, watched
+the check go red, and concluded it fires *here*. **The probe answered "CAN this check fail?" when the
+question was "can it fail in THIS repo's layout?"** — and it survived a probe, a mutation test and a
+message to the hub before they caught it themselves.
+
 ### Changed — /fabrik-plan-review is armed: rubric injection + an adjudicated Coverage Checklist (2026-08-23)
 
 transdoc, mail `01M0PV6NDR8FGX1C88G1Z9D3K9`. It was the only review command in the family with no

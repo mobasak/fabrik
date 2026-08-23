@@ -167,6 +167,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Renamed 2026-08-16: it shared the display name ".env Updates (Secrets)" with `check_env_updates.py`, which could not fail at all (now unwired — see § Advisory rows)
 - **Imports Resolvable (clean checkout)** - `check_imports_resolvable.py` *(advisory)*
   - Catches shipped code importing a module not in the repo (gitignored/never `git add`ed) — green locally, `ModuleNotFoundError` in CI/deploy
+  - **Three verdicts, not two.** `ERROR_AREAS` is `src`/`app`/`tests`; `WARN_AREAS` is `scripts`. A repo with a **library layout** (modules at `<name>/<pkg>/`, none of the three dirs) prints `NOT APPLICABLE: none of src/app/tests exist … NOT reporting a clean result` and exits 0 — it is not a defect, but it is not a pass either. Measured 2026-08-23: **7 of the 49 repos carrying this check** have none of the three, and the old output claimed `no phantom imports in src/app/tests — N imports checked` with a denominator built entirely from `scripts/`. The `OK:` line now names only the areas actually walked. `WARN_AREAS` are unaffected — a `scripts/` phantom still surfaces under NOT APPLICABLE.
 - **Lint Ratchet (repo-wide, no new debt)** - `check_lint_ratchet.py` *(advisory)* — repo-wide ruff count may only go down
 - **Schema Sync (DB Models)** - `check_schema_sync.py` *(advisory)*
   - Only runs if .py or .sql files changed

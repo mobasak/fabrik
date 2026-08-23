@@ -590,18 +590,51 @@ def main() -> int:
                     + fix
                 )
 
-    status = "failure" if errors else "success"
+    # ⚠️ ERROR_AREAS is a PROJECT-shaped assumption. A library-layout repo keeps its modules at
+    # `<kebab-name>/<snake_pkg>/` and has none of src/, app/ or tests/ — so the walk covers zero
+    # of its real surface, `errors` is pinned empty, and the summary below used to report
+    # "no phantom imports in src/app/tests — N imports checked" with a denominator built entirely
+    # from `scripts/` (WARN_AREAS). A clean bill of health over areas that were never walked is
+    # the fail-silent-green class this battery exists to remove, and nothing in the old output
+    # let a reader tell the two apart. Measured 2026-08-23: 7 of the 49 repos carrying this check
+    # have none of the three dirs. Reported by fabrik-lib, who adopted it on a synthetic `src/`
+    # probe — that probe answered "CAN this check fail?" when the question was "can it fail in
+    # THIS repo's layout?".
+    #
+    # NOT-APPLICABLE is a THIRD verdict, not a pass: rc stays 0 (a library layout is correct, not
+    # a defect) but the check states plainly that it had no subject. WARN_AREAS are unaffected —
+    # `scripts/` is still walked and its findings still print, so this never masks a real warning.
+    applicable = [a for a in ERROR_AREAS if (ROOT / a).is_dir()]
+    status = "failure" if errors else ("not-applicable" if not applicable else "success")
     if as_json:
-        print(json.dumps({"status": status, "errors": errors, "warnings": warnings}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "status": status,
+                    "errors": errors,
+                    "warnings": warnings,
+                    "error_areas_present": applicable,
+                    "imports_checked": checked,
+                },
+                indent=2,
+            )
+        )
     else:
         for w in warnings:
             print(f"WARN: {w}")
         for e in errors:
             print(f"ERROR: {e}")
         if not errors:
-            print(
-                f"OK: no phantom (gitignored-only) imports in {'/'.join(ERROR_AREAS)} — {checked} imports checked"
-            )
+            if applicable:
+                print(
+                    f"OK: no phantom (gitignored-only) imports in {'/'.join(applicable)} — {checked} imports checked"
+                )
+            else:
+                print(
+                    f"NOT APPLICABLE: none of {'/'.join(ERROR_AREAS)} exist in this repo — "
+                    f"nothing was checked for phantom imports. This is a library-layout repo; "
+                    f"the check has no subject here and is NOT reporting a clean result."
+                )
     return 1 if errors else 0
 
 

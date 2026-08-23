@@ -357,3 +357,57 @@ def test_phantom_in_scripts_is_warn_not_error(repo: Path) -> None:
     rc, out = _run_check(repo)
     assert rc == 0, out
     assert "WARN" in out
+
+
+# --- layout applicability: the check must say when it looked at nothing --------------
+# ERROR_AREAS is a project-shaped assumption (src/app/tests). A library-layout repo has
+# none of them, so the area walk covers zero of its modules while `errors` stays pinned
+# empty and the summary still reads "no phantom imports in src/app/tests — N imports
+# checked" — a denominator built entirely from scripts/. Measured 2026-08-23: 7 of the 49
+# repos carrying this check have none of the three dirs. Reported by fabrik-lib, who
+# adopted the check on a synthetic src/ probe that answered "CAN this check fail?" when
+# the question was "can it fail in THIS repo's layout?".
+
+
+def test_no_error_area_present_says_not_applicable(repo: Path) -> None:
+    """A library layout: modules live at <name>/<pkg>/, none of src/ app/ tests/ exist."""
+    shutil.rmtree(repo / "src")
+    (repo / "mylib" / "mylib").mkdir(parents=True)
+    (repo / "mylib" / "mylib" / "__init__.py").write_text("")
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "tool.py").write_text("import os\n")
+    _commit(repo, "mylib/mylib/__init__.py", "scripts/tool.py")
+
+    rc, out = _run_check(repo)
+    assert rc == 0, out
+    assert "NOT APPLICABLE" in out, f"a check that scanned none of its areas must say so:\n{out}"
+    # and it must NOT claim the clean-bill-of-health it did not earn
+    assert "no phantom" not in out, f"claimed a verdict over areas it never walked:\n{out}"
+
+
+def test_one_error_area_present_still_reports_normally(repo: Path) -> None:
+    """Applicability is 'any ERROR_AREA exists', not 'all of them' — src/ alone is enough."""
+    (repo / "src" / "pkg" / "mod.py").write_text("import os\n")
+    _commit(repo, "src/pkg/__init__.py", "src/pkg/mod.py")
+
+    rc, out = _run_check(repo)
+    assert rc == 0, out
+    assert "NOT APPLICABLE" not in out, out
+    assert "no phantom" in out, out
+
+
+def test_not_applicable_does_not_mask_a_real_scripts_warning(repo: Path) -> None:
+    """WARN_AREAS still get walked and reported — not-applicable is about ERROR_AREAS only."""
+    shutil.rmtree(repo / "src")
+    (repo / ".gitignore").write_text("libs/subagents/\n")
+    (repo / "libs" / "subagents").mkdir(parents=True)
+    (repo / "libs" / "__init__.py").write_text("")
+    (repo / "libs" / "subagents" / "__init__.py").write_text("")
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "tool.py").write_text("from libs.subagents import fanout\n")
+    _commit(repo, ".gitignore", "libs/__init__.py", "scripts/tool.py")
+
+    rc, out = _run_check(repo)
+    assert rc == 0, out
+    assert "NOT APPLICABLE" in out, out
+    assert "WARN" in out, f"a scripts/ phantom must still surface:\n{out}"
