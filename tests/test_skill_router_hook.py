@@ -924,3 +924,45 @@ def test_wordpress_type_never_test_routed() -> None:
     (the code comment promised this; this test pins it)."""
     roster = {"fabrik-user-test", "fabrik-service-test"}
     assert hook.resolve_target("test", roster, "wordpress", True) is None
+
+
+# --- /fabrik-conformance-review: the stem must OUTRANK spec/plan/review -------
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "was everything we specced actually built?",
+        "audit every spec and plan against the code",
+        "run a portfolio conformance review",
+        "did we actually build what the specs said",
+        "spec'lediklerimiz gerçekten yapıldı mı",
+        "spec ve planları kodla doğrula",
+    ],
+)
+def test_conformance_prompts_route_to_conformance(prompt: str) -> None:
+    """A conformance sweep asks 'was it BUILT', not 'write a spec' or 'review this
+    code' — but it says 'spec', 'plan' and 'review' out loud, so the broad stems
+    below it in KEYWORD_STEMS would swallow every one of these if the ordering
+    ever changed. This test IS that ordering guarantee."""
+    assert hook.first_regex_match(prompt) == "conformance"
+
+
+@pytest.mark.parametrize(
+    ("prompt", "stem"),
+    [
+        ("let's write a spec for the new API", "spec"),
+        ("review this diff", "review"),
+        ("make a plan for this feature", "plan"),
+        ("catch this project up", "catchup"),
+    ],
+)
+def test_conformance_stem_does_not_steal_its_neighbours(prompt: str, stem: str) -> None:
+    """Placing a stem FIRST is the cheapest way to break every stem after it."""
+    assert hook.first_regex_match(prompt) == stem
+
+
+def test_conformance_stem_maps_to_the_installed_skill() -> None:
+    """STEM_SKILLS and KEYWORD_STEMS are two hardcoded maps that must agree — a
+    stem with no skill entry routes to nothing, silently."""
+    assert hook.STEM_SKILLS["conformance"] == "fabrik-conformance-review"

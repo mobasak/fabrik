@@ -115,6 +115,7 @@ STEM_SKILLS: dict[str, str] = {
     "deploy-plan-review": "fabrik-deploy-plan-review",
     "deploy": "fabrik-deploy",
     "deploy-verify": "fabrik-deploy-verify",
+    "conformance": "fabrik-conformance-review",
     "catchup": "fabrik-catchup",
     "retire": "fabrik-decommission",
     "upstream": "fabrik-upstream",
@@ -218,6 +219,23 @@ _HEADLESS_TYPES = {"python-api", "python-api-gpu", "node-api", "file-api", "file
 #     run" collocation itself); "test this end to end" keeps firing
 #     unchanged via the separate end-to-end pattern.
 KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
+    # FIRST deliberately: the broad "spec" / "plan" / "review" stems below would
+    # otherwise swallow "audit every spec and plan against the code", which is a
+    # conformance sweep, not a spec-authoring or code-review request.
+    (
+        re.compile(
+            r"\bconformance\b"
+            r"|\bspecs?\b[^.]{0,20}\b(and|\+)\b[^.]{0,12}\bplans?\b[^.]{0,40}"
+            r"\b(against|vs\.?|verify|verified|audit|conform\w*)\b"
+            r"|\bwas\s+everything\b[^.]{0,40}\b(spec\w*|built|implemented)\b"
+            r"|\bdid\s+we\s+(actually\s+)?(build|implement)\b[^.]{0,40}\bspec\w*"
+            r"|\bspec\w*\b[^.]{0,40}\bactually\s+(built|implemented)\b"
+            r"|\bspec\w*\b[^.]{0,30}\bger[çc]ekten\b[^.]{0,25}\byap[ıi]ld\w*"
+            r"|\bspec\w*\b[^.]{0,20}\bplan\w*\b[^.]{0,30}\bdo[ğg]rula\w*",
+            re.I,
+        ),
+        "conformance",
+    ),
     (
         re.compile(
             r"\b(write|draft|create|do|start|need|let'?s|time to)\b[^.]{0,30}\b(spec|specification)\b"

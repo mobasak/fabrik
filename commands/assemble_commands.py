@@ -57,6 +57,7 @@ NEXT = {
     "fabrik-deploy-plan-review": "Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>.",
     "fabrik-deploy": "/fabrik-deploy-verify — prove the deployed service against its live checklist.",
     "fabrik-review": "resume the phase/plan that invoked it, only after the round is CLEAN (no linear successor — it is a gate, not a stage).",
+    "fabrik-conformance-review": "route each cluster to its owner — /fabrik-execute-plan (a converged plan never run) · /fabrik-spec (re-freeze deviation debt) · /fabrik-review (a code defect) · the deploy triad (an operational red). A gate, not a stage — no linear successor.",
     "fabrik-repo-review": "/fabrik-review on each risky fix as you make it, or route findings to a plan ticket.",
     "fabrik-rules-review": "feed the prioritized GAP table into the plan or a fix pass (advisory — no linear successor).",
     "fabrik-docs-review": "docs are truthful and release-ready — return to /fabrik-release or the workflow that called it.",
@@ -478,6 +479,13 @@ PARAMS = {
         "subagents-core": {"HEADLINE": "flywheel (pool finders record; native finders don't)", "TASK_TYPE": '"review"', "PROJECT": "review",
                            "FLOOR": _floor("review", "`fabrik-reviewer`"),
                            "EXTRA": " Finders inline the diff via `fanout(\"review\", …, mode=\"read_only\")` (sets `tools_enabled=False`+`allow_ungrounded=True`); use `mode=\"write\"` for real file reads."},
+    },
+    "fabrik-conformance-review": {
+        "term-coverage": {"RESIDUAL": " The one legitimate standing residual is a row explicitly adjudicated SUPERSEDED with its successor named, or DEVIATES whose spec re-freeze is already routed — never a PENDING row and never an un-routed gap."},
+        "grounding-code": {"SCOPE": "a project's specs, plans and live tree"},
+        "subagents-core": {"HEADLINE": "one grounded verifier per spec\u2194plan pair, batched 2-4", "TASK_TYPE": '"review"', "PROJECT": "conformance-review",
+                           "FLOOR": _floor("review", "`fabrik-reviewer`"),
+                           "EXTRA": " Pool breadth carries the bulk of the pairs; put native Opus on the rows whose failure is silent — the four discriminators (trivially-green test, implemented-but-inert, live-SLA broken, refreeze debt) are exactly where a cheap verifier reports CONFORMS and is wrong. The worked example ran all-native only because the pool was exhausted; that is not the default."},
     },
     "fabrik-repo-review": {
         "term-coverage": {"RESIDUAL": " The one legitimate standing residual is the explicitly-tracked deferred backlog (out-of-scope / escalated) — never an in-scope CONFIRMED or PLAUSIBLE finding.", },

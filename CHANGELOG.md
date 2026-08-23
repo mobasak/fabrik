@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-conformance-review: did we actually BUILD what we specced (2026-08-23)
+
+- New fleet command answering the one question no existing gate asks. `/fabrik-review` reads a diff,
+  `/fabrik-repo-review` reads code, `/fabrik-catchup` measures staleness, and
+  `/fab-ettw-08-implementation-validation` validates ONE epic against its own decisions-lock — so a
+  spec that converged in July and was 60% built is invisible to all of them. This reopens EVERY spec
+  and plan and verifies each against the live tree: inventory → one grounded verifier per spec↔plan
+  pair (batched 2-4) → five-value verdict (CONFORMS/PARTIAL/DEVIATES/NOT-IMPLEMENTED/SUPERSEDED) →
+  orchestrator adjudication into a crash-safe ledger written BEFORE verification starts.
+- Four discriminators are first-class checks, each of which passes an ordinary review: a
+  trivially-green test (injects a shape the real callee cannot emit), implemented-but-inert (a table
+  with zero readers, a permanently-NULL column), live-SLA broken (code conforms, running state does
+  not), and spec-refreeze debt (a deliberate deviation never written back — the dangerous one,
+  because a future reader "fixing" code back to spec reintroduces the bug).
+- Requested by trade-intelligence, who ran the methodology BY HAND first over 28 artifacts (commit
+  `e3b779cc`): 13 CONFORMS / 9 PARTIAL / 2 NOT-IMPLEMENTED / 1 superseded / 1 drifted, ~1,050 plan
+  tests re-run. Every discriminator earned its place by catching something real there.
+- Phase 0 does NOT hardcode the layout, because their pairing step assumed `PLANS.md` and it exists
+  in only 1 of 5 projects measured: specs are absent entirely in one, plans come in two shapes (flat
+  and dated plan-SET directories), and only 9 of 22 specs carry a parseable `Status:`. The command
+  globs first and treats `PLANS.md` as an accelerator, never the mechanism.
+- Router: the stem is placed FIRST in `KEYWORD_STEMS` — the broad `spec`/`plan`/`review` stems would
+  otherwise swallow "audit every spec and plan against the code". Mutation-proven: moving it last
+  breaks six routing tests.
+
+
 ### Added — fabrik-mail: the three structural gaps that made the inbox unusable (2026-08-23)
 
 Measured on the live fabrik inbox: 72 messages, 22 unacked obligations, one defect reported nine

@@ -51,7 +51,7 @@ what makes an in-flight command visible and un-abandonable.
    | `4-build` | execute the plan — code, tests, docs, phase by phase |
    | `5-certify` | FEATURES.md denominator refresh + end-to-end journey certification gauntlets (user-test/service-test) against the live build |
    | `6-release` | release-readiness verification, hands to the human gate; VPS then runs the deploy triad — `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → (Gate 2) `/fabrik-deploy` — and `/fabrik-deploy-verify` proves it; store surfaces: operator submits, then `/fabrik-deploy-verify` |
-   | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op |
+   | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op. Also **spec↔implementation conformance** (`/fabrik-conformance-review`) — did we actually BUILD what we specced, across every spec + plan |
    | `utility` | support work invocable at any point, not a fixed position in the chain |
 
    Fork rules: journey-shaped work → `2-contract` (`/fabrik-flows` + `/fabrik-flows-review` — EVERY scaffold type: user, consumer, or reader journeys; sits before the data contract); data-shaped work → `2-contract` (`/fabrik-data-contract`); GUI work also routes through `/fabrik-ui-design` + `/fabrik-ui-design-review` (`2-contract`); headless types (§ Pipeline item 2) skip GUI-only stages — their `5-certify` runs `/fabrik-service-test`, never `/fabrik-user-test`. Escape: a matched stage that genuinely doesn't fit — say so in one line and proceed without invoking it; no stage applies at all (pure conversation, a one-off read-only question) — no declaration owed, proceed silently.

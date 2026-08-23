@@ -107,12 +107,15 @@
 - [scripts/ci_fix_dispatcher.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
 - [scripts/classify_services.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/claude_p_cost.py](INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/command_run.py](INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
 - [scripts/declare_subscription.py](INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
 - [scripts/doc_reconcile.py](INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/docs_updater.py](INDEX.md) (owner: infra): Fabrik Documentation Updater
+- [scripts/enforcement/_check_runner.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
 - [scripts/enforcement/check_android_env.py](INDEX.md) (owner: infra): Verify WSL-to-Windows Android SDK communication.
+- [scripts/enforcement/check_command_corpus.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
 - [scripts/enforcement/check_configuration_md.py](INDEX.md) (owner: infra): Enforce configuration documentation pattern.
 - [scripts/enforcement/check_convergence.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md | none
 - [scripts/enforcement/check_doc_index.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md
@@ -121,23 +124,25 @@
 - [scripts/enforcement/check_duplicates.py](INDEX.md) (owner: infra): Check for code duplication using jscpd.
 - [scripts/enforcement/check_env_example.py](INDEX.md) (owner: infra): Enforce .env.example completeness.
 - [scripts/enforcement/check_env_updates.py](INDEX.md) (owner: infra): Enforce .env file population when secrets are mentioned.
+- [scripts/enforcement/check_health.py](INDEX.md) (owner: infra): Check that health endpoints test actual dependencies.
 - [scripts/enforcement/check_hooks_index.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
 - [scripts/enforcement/check_index_md.py](INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
 - [scripts/enforcement/check_no_host_ports.py](INDEX.md) (owner: infra): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
 - [scripts/enforcement/check_opencode_json.py](INDEX.md) (owner: infra): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
 - [scripts/enforcement/check_plans.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
+- [scripts/enforcement/check_ports.py](INDEX.md) (owner: infra): Check port registration in PORTS.md and validate port ranges.
 - [scripts/enforcement/check_readme_md.py](INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
 - [scripts/enforcement/check_retired_terms.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_reusable_modules.py](INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
-- [scripts/enforcement/check_review_coverage.py](INDEX.md) (owner: infra): Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 - [scripts/enforcement/check_rule_size.py](INDEX.md) (owner: infra): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
-- [scripts/enforcement/check_script_headers.py](INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/enforcement/check_script_headers.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
 - [scripts/enforcement/check_spec_db_match.py](INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
 - [scripts/enforcement/check_synced_unmodified.py](INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_traefik_labels.py](INDEX.md) (owner: infra): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
 - [scripts/enforcement/check_traycer_chain.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
 - [scripts/enforcement/check_user_guide.py](INDEX.md) (owner: infra): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
-- [scripts/enforcement/check_vps_docs.py](INDEX.md) (owner: infra): Check VPS documentation freshness.
+- [scripts/enforcement/check_vps_docs.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_vps_docs_severity.py docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/enforcement/check_watchdog.py](INDEX.md) (owner: infra): Check that services have watchdog scripts.
 - [scripts/enforcement/validate_conventions.py](INDEX.md) (owner: infra): Fabrik Convention Validator - Orchestrates all convention checks.
 - [scripts/epic_order.py](INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
@@ -153,7 +158,7 @@
 - [scripts/kilo-benchmarks/update_gateway_counts.py](INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
 - [scripts/kilo_terminal_runner.py](INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
 - [scripts/lint_fix_agent.py](INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
-- [scripts/mail.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md
+- [scripts/mail.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md
 - [scripts/migrate_db_rename.py](INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
@@ -163,14 +168,20 @@
 - [scripts/seed_real_ports.py](INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
 - [scripts/select_rules.py](INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
 - [scripts/snapshot_vps_state.py](INDEX.md) (owner: infra): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
-- [scripts/sync_enforcement_to_projects.py](INDEX.md) (owner: infra): Sync enforcement scripts to all /opt projects for Fabrik compliance.
 - [scripts/sync_gatus_to_vps.sh](INDEX.md) (owner: infra): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
 - [scripts/sync_prometheus_to_vps.sh](INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
+- [scripts/sysadmin/kaizen_backfill.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
+- [scripts/sysadmin/kaizen_collect.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
+- [scripts/sysadmin/kaizen_collect_v2.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/ | none
+- [scripts/sysadmin/kaizen_events.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_events.py, docs/workstation/kaizen-event-stream.md | none
+- [scripts/sysadmin/kaizen_outcomes.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
+- [scripts/sysadmin/kaizen_shrink_audit.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
+- [scripts/sysadmin/liveness_audit.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
+- [scripts/sysadmin/quota_dashboard.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/traycer_mirror.py](INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](INDEX.md) (owner: infra): Traycer Report Writer
-- [scripts/archived/update_agents_toc.py](INDEX.md) (owner: infra): RETIRED 2026-08-19 (M0 shrink ruling) — was: Update AGENTS.md Table of Contents; its target has been a 9-line pointer stub since 2026-07-19
 - [scripts/update_vps_docs.py](INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/vps_sync.py](INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
 
@@ -257,7 +268,7 @@
 - [static-site](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
+- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
 - [ai/10-speech-audio.md](.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
 - [ai/20-vision.md](.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
 - [ai/25-3d-generation.md](.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
@@ -316,11 +327,11 @@
 
 ## hook
 - [agent_role.py](docs/workstation/hooks-index.md) (owner: infra): AFTER-EDIT: tests/test_agent_role_hook.py, docs/reference/agents/, docs/workstation/hooks-index.md, CLAUDE.md
-- [final_gate_stop.py](docs/workstation/hooks-index.md) (owner: infra): Claude Code SessionStart + Stop hooks — enforce final_gate as the definition of done.
 
 ## command
 - [design-review](CLAUDE.md) (owner: infra): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/A
 - [fabrik-catchup](CLAUDE.md) (owner: infra): Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge
+- [fabrik-conformance-review](CLAUDE.md) (owner: infra): Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adj
 - [fabrik-data-contract](CLAUDE.md) (owner: infra): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall
 - [fabrik-decommission](CLAUDE.md) (owner: infra): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evid
 - [fabrik-deploy](CLAUDE.md) (owner: infra): Execute a CONVERGED deployment plan — stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn —
@@ -330,14 +341,16 @@
 - [fabrik-doc-converge](CLAUDE.md) (owner: infra): Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENC
 - [fabrik-docs-review](CLAUDE.md) (owner: infra): Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconciler
 - [fabrik-execute-plan](CLAUDE.md) (owner: infra): Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) ins
-- [fabrik-features](CLAUDE.md) (owner: infra): Converge docs/FEATURES.md to the COMPLETE, testable truth of the codebase — discover every shipped capability (routes, jobs, CLI, screens, integrations), reconc
+- [fabrik-features](CLAUDE.md) (owner: infra): Converge docs/FEATURES.md to the COMPLETE, testable feature contract — TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from
+- [fabrik-flows](CLAUDE.md) (owner: infra): Freeze the project's JOURNEY contract — docs/flows.md, every persona walked entry → actions → feedback → exit (decision points, edge/error paths, per-call resil
+- [fabrik-flows-review](CLAUDE.md) (owner: infra): Converge a FROZEN docs/flows.md to a fixed point — an INDEPENDENT author-blind adversarial review (Success-Criterion tracing, persona completeness, SECOND-ACTOR
 - [fabrik-generate-tests](CLAUDE.md) (owner: infra): Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse)
 - [fabrik-plan-after-chat](CLAUDE.md) (owner: infra): Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnab
 - [fabrik-plan-review](CLAUDE.md) (owner: infra): Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagen
 - [fabrik-release](CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
 - [fabrik-repo-review](CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
 - [fabrik-review](CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
-- [fabrik-rules-review](CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance gap audit — establish real stack + spec flags + ADR, fan out one subagent per applicable pack (parallel), refute false gaps
+- [fabrik-rules-review](CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f
 - [fabrik-service-test](CLAUDE.md) (owner: infra): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
 - [fabrik-spec](CLAUDE.md) (owner: infra): Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra
 - [fabrik-spec-review](CLAUDE.md) (owner: infra): Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→bu

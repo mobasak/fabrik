@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/kaizen_metrics.py | INDEX.md
+# AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.md
 """LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
 
 Every failure this file exists to catch had passed code review and had tests. None of them
@@ -207,7 +207,9 @@ _UNIT_STATES = {
 # deliberately placed BEFORE the marker: a reader that mishandles it (as GNU grep does)
 # fails to find the marker, and the whole log instrument is then declared broken rather
 # than every log being reported DEAD.
-_CONTROL_BYTES = b"liveness positive control \xff\xfe\n1970-01-01 00:00:00 marker=positive-control\n"
+_CONTROL_BYTES = (
+    b"liveness positive control \xff\xfe\n1970-01-01 00:00:00 marker=positive-control\n"
+)
 
 
 def read_text(path: Path) -> str:
@@ -273,7 +275,10 @@ class Box:
                     None,
                 )
             if age < -(1 / 60.0):
-                return (Instrument.broken(name, f"a just-written file measured {age:.2f}h (future)"), None)
+                return (
+                    Instrument.broken(name, f"a just-written file measured {age:.2f}h (future)"),
+                    None,
+                )
             return (Instrument.proven(name), None)
 
         return self._memo("log", build)[0]
@@ -479,7 +484,9 @@ class Box:
                             if isinstance(cmd, str):
                                 commands.append(cmd)
             if not parsed:
-                return Instrument.broken(name, "no readable settings.json among the 4 hook layers"), []
+                return Instrument.broken(
+                    name, "no readable settings.json among the 4 hook layers"
+                ), []
             if not commands:
                 return Instrument.broken(name, "settings parsed but declared no hook commands"), []
             return Instrument.proven(name), commands
@@ -552,7 +559,11 @@ def proof_heartbeat(box: Box, registry: dict[str, Any], registry_fault: str) -> 
                 detail="the heartbeat proof has no surfaces to check",
             )
         )
-        return {"findings": [f.as_dict() for f in findings], "unregistered": {}, "summary": _tally(findings)}
+        return {
+            "findings": [f.as_dict() for f in findings],
+            "unregistered": {},
+            "summary": _tally(findings),
+        }
 
     cron_inst, cron_lines = box.crontab()
 
@@ -575,15 +586,23 @@ def _heartbeat_one(
     evidence = surface.get("evidence") or {}
     etype = str(evidence.get("type", "none"))
     make = lambda inst, verdict, detail, rc="": finding(  # noqa: E731 - local partial
-        proof="heartbeat", id=sid, kind=kind, instrument=inst, verdict=verdict,
-        detail=detail, reason_class=rc, doc=doc,
+        proof="heartbeat",
+        id=sid,
+        kind=kind,
+        instrument=inst,
+        verdict=verdict,
+        detail=detail,
+        reason_class=rc,
+        doc=doc,
     )
 
     # A cron surface is DEAD the moment its schedule is gone, whatever the stale log says.
     if kind == "cron":
         match = str(surface.get("cron_match", ""))
         if not cron_inst.ok:
-            return make(cron_inst, Verdict.UNKNOWN, f"cannot read the crontab to look for {match!r}")
+            return make(
+                cron_inst, Verdict.UNKNOWN, f"cannot read the crontab to look for {match!r}"
+            )
         if not any(match in line for line in cron_lines):
             return make(
                 cron_inst,
@@ -603,7 +622,9 @@ def _heartbeat_one(
         inst, listening = box.ports()
         port = int(evidence.get("port", 0))
         if not inst.ok:
-            return make(inst, Verdict.UNKNOWN, f"cannot enumerate listening sockets for port {port}")
+            return make(
+                inst, Verdict.UNKNOWN, f"cannot enumerate listening sockets for port {port}"
+            )
         if port in listening:
             return make(inst, Verdict.LIVE, f"port {port} is listening")
         return make(inst, Verdict.DEAD, f"port {port} is not listening", "not-listening")
@@ -617,7 +638,9 @@ def _heartbeat_one(
         enabled, active = state
         if enabled == expect:
             return make(inst, Verdict.LIVE, f"{unit} is {enabled} / {active}")
-        return make(inst, Verdict.DEAD, f"{unit} is {enabled} / {active}, expected {expect}", "wrong-state")
+        return make(
+            inst, Verdict.DEAD, f"{unit} is {enabled} / {active}, expected {expect}", "wrong-state"
+        )
 
     if etype == "hook":
         inst, commands = box.hooks()
@@ -637,9 +660,7 @@ def _heartbeat_one(
             if not inst.ok:
                 return make(inst, Verdict.UNKNOWN, f"cannot age {marker!r} in {raw}")
             if age is None:
-                return make(
-                    inst, Verdict.DEAD, f"{raw} carries no line with {marker!r}", "absent"
-                )
+                return make(inst, Verdict.DEAD, f"{raw} carries no line with {marker!r}", "absent")
             where = f"last {marker!r} in {raw} is {age:.1f}h old ({hits} occurrence(s))"
         else:
             inst, age = box.evidence_age(raw, bool(evidence.get("volatile")))
@@ -759,6 +780,7 @@ def discover_warn_only_checks(gate: Path) -> set[str]:
         if isinstance(first, ast.Constant) and isinstance(first.value, str):
             names.add(Path(first.value).stem)
     return names
+
 
 # ── Shared canary fixture bodies (kept out of the table so the table stays readable) ──
 _MODEL_PY = (
@@ -916,7 +938,9 @@ CANARIES: dict[str, dict[str, Any]] = {
     "check_health": {
         "form": "root",
         "strict": True,
-        "files": {"api.py": '@app.get("/health")\nasync def health():\n    return {"status": "ok"}\n'},
+        "files": {
+            "api.py": '@app.get("/health")\nasync def health():\n    return {"status": "ok"}\n'
+        },
         "expect": "a /health endpoint that pings no dependency",
     },
     "check_secrets": {
@@ -1287,7 +1311,9 @@ def discover_registered_checks(gate: Path) -> tuple[Instrument, list[str]]:
     if len(names) < 5:
         # The parser, not the gate, is the likely fault: refuse to call anything inert.
         return (
-            Instrument.broken(name, f"only {len(names)} registered check(s) parsed out of final_gate.py"),
+            Instrument.broken(
+                name, f"only {len(names)} registered check(s) parsed out of final_gate.py"
+            ),
             names,
         )
     return Instrument.proven(name), names
@@ -1387,11 +1413,17 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
             return Instrument.broken(inst_name, fault), False, False
         control = invoke(clean)
         if control is None:
-            return Instrument.broken(inst_name, "the check could not be executed at all"), False, False
+            return (
+                Instrument.broken(inst_name, "the check could not be executed at all"),
+                False,
+                False,
+            )
         blob = control.stdout + control.stderr
         if "Traceback (most recent call last)" in blob:
             return (
-                Instrument.broken(inst_name, f"the check crashed on a clean tree: {blob.strip()[:180]}"),
+                Instrument.broken(
+                    inst_name, f"the check crashed on a clean tree: {blob.strip()[:180]}"
+                ),
                 False,
                 False,
             )
@@ -1424,7 +1456,11 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
                 False,
             )
         if "Traceback (most recent call last)" in (red.stdout + red.stderr):
-            return Instrument.broken(inst_name, "the check crashed on the canary fixture"), False, False
+            return (
+                Instrument.broken(inst_name, "the check crashed on the canary fixture"),
+                False,
+                False,
+            )
         bad_blob = (red.stdout + red.stderr).replace(str(bad), "{fixture}")
     reported = bad_blob.replace(control_blob, "").strip() != ""
     return Instrument.proven(inst_name), red.returncode != 0, reported
@@ -1510,7 +1546,11 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                 )
         elif blocking:
             # The defect this whole proof exists for: a row that claims to block and cannot.
-            spoke = "the check REPORTS it and exits 0 anyway" if reported else "the check asserts nothing"
+            spoke = (
+                "the check REPORTS it and exits 0 anyway"
+                if reported
+                else "the check asserts nothing"
+            )
             detail = (
                 f"canary stayed GREEN{how} on {canary['expect']} — {spoke}"
                 + (f": WARN-only by contract ({warn_only})" if warn_only else "")
@@ -1571,11 +1611,27 @@ _HOOK_TOKEN = re.compile(r"`([A-Za-z0-9_.-]+\.(?:sh|js|py))`")
 # A fenced block introduced as a PROPOSAL is not a claim about the live box. Docs
 # legitimately show a line to install; reporting one as stale would train the reader to
 # ignore this proof. (This file's own docs/workstation/liveness.md prints such a block.)
-_PROPOSAL = ("not installed", "proposed", "propose", "example", "would be", "suggested", "to install")
+_PROPOSAL = (
+    "not installed",
+    "proposed",
+    "propose",
+    "example",
+    "would be",
+    "suggested",
+    "to install",
+)
 # The state words a doc uses about a unit. Presence of ANY of these makes the doc explicit;
 # absence means the doc is merely listing the unit, which reads as "this thing runs".
 _STATE_WORDS = (
-    "enabled", "disabled", "active", "inactive", "failed", "masked", "static", "removed", "retired",
+    "enabled",
+    "disabled",
+    "active",
+    "inactive",
+    "failed",
+    "masked",
+    "static",
+    "removed",
+    "retired",
 )
 # A unit that no longer exists satisfies a doc that says it is off or gone. "not-found" is
 # not a doc defect when the doc's own words are "removed dead <unit>".
@@ -1603,7 +1659,16 @@ def extract_claims(path: Path, rel: str) -> list[Claim]:
         if (ctype, payload) in seen:
             return
         seen.add((ctype, payload))
-        claims.append(Claim(doc=rel, line=i + 1, ctype=ctype, text=text.strip()[:200], payload=payload, extra=extra))
+        claims.append(
+            Claim(
+                doc=rel,
+                line=i + 1,
+                ctype=ctype,
+                text=text.strip()[:200],
+                payload=payload,
+                extra=extra,
+            )
+        )
 
     proposal_block = False
     for i, line in enumerate(lines):
@@ -1664,13 +1729,21 @@ def _cron_command(entry: str) -> str:
 
 def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list[str]) -> Finding:
     make = lambda inst, verdict, detail, rc="": finding(  # noqa: E731 - local partial
-        proof="doc_claim", id=f"{claim.doc}:{claim.line}", kind=claim.ctype, instrument=inst,
-        verdict=verdict, detail=detail, reason_class=rc, doc=claim.doc,
+        proof="doc_claim",
+        id=f"{claim.doc}:{claim.line}",
+        kind=claim.ctype,
+        instrument=inst,
+        verdict=verdict,
+        detail=detail,
+        reason_class=rc,
+        doc=claim.doc,
     )
 
     if claim.ctype in ("cron_line", "scheduled_name"):
         if not cron_inst.ok:
-            return make(cron_inst, Verdict.UNKNOWN, f"cannot read the crontab to check {claim.payload!r}")
+            return make(
+                cron_inst, Verdict.UNKNOWN, f"cannot read the crontab to check {claim.payload!r}"
+            )
         normalised = [" ".join(c.split()) for c in cron_lines]
         if claim.ctype == "cron_line":
             if claim.payload in normalised:
@@ -1679,7 +1752,8 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
             drifted = [c for c in normalised if want and _cron_command(c) == want]
             if drifted:
                 return make(
-                    cron_inst, Verdict.DEAD,
+                    cron_inst,
+                    Verdict.DEAD,
                     f"schedule drift — doc says {claim.payload.split()[0]}, box says {drifted[0].split()[0]}",
                     "stale-doc",
                 )
@@ -1688,7 +1762,8 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
         if any(any(seg in c for c in normalised) for seg in segments or [claim.payload]):
             return make(cron_inst, Verdict.LIVE, f"an active crontab line runs {claim.payload!r}")
         return make(
-            cron_inst, Verdict.DEAD,
+            cron_inst,
+            Verdict.DEAD,
             f"the doc schedules {claim.payload!r} but no active crontab line mentions it",
             "stale-doc",
         )
@@ -1696,10 +1771,17 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
     if claim.ctype == "port":
         inst, listening = box.ports()
         if not inst.ok:
-            return make(inst, Verdict.UNKNOWN, f"cannot enumerate sockets to check port {claim.payload}")
+            return make(
+                inst, Verdict.UNKNOWN, f"cannot enumerate sockets to check port {claim.payload}"
+            )
         if int(claim.payload) in listening:
             return make(inst, Verdict.LIVE, f"port {claim.payload} is listening as documented")
-        return make(inst, Verdict.DEAD, f"doc claims localhost:{claim.payload}; nothing is listening", "stale-doc")
+        return make(
+            inst,
+            Verdict.DEAD,
+            f"doc claims localhost:{claim.payload}; nothing is listening",
+            "stale-doc",
+        )
 
     if claim.ctype == "unit":
         inst, state = box.unit_state(claim.payload)
@@ -1717,18 +1799,32 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
                 ok = bool(_ABSENT_OK.intersection(said))
             phrase = "/".join(said)
         else:
-            ok = enabled in ("enabled", "enabled-runtime", "static", "generated", "indirect", "alias")
+            ok = enabled in (
+                "enabled",
+                "enabled-runtime",
+                "static",
+                "generated",
+                "indirect",
+                "alias",
+            )
             phrase = "a running unit (no state qualified)"
         if ok:
-            return make(inst, Verdict.LIVE, f"{claim.payload} is {enabled}/{active}; doc says {phrase}")
+            return make(
+                inst, Verdict.LIVE, f"{claim.payload} is {enabled}/{active}; doc says {phrase}"
+            )
         return make(
-            inst, Verdict.DEAD, f"{claim.payload} is {enabled}/{active}; doc says {phrase}", "stale-doc"
+            inst,
+            Verdict.DEAD,
+            f"{claim.payload} is {enabled}/{active}; doc says {phrase}",
+            "stale-doc",
         )
 
     if claim.ctype == "hook_file":
         inst, commands = box.hooks()
         if not inst.ok:
-            return make(inst, Verdict.UNKNOWN, f"cannot read hook configuration for {claim.payload}")
+            return make(
+                inst, Verdict.UNKNOWN, f"cannot read hook configuration for {claim.payload}"
+            )
         if any(claim.payload in c for c in commands):
             return make(inst, Verdict.LIVE, f"{claim.payload} is wired as a hook command")
         # This oracle reads ONE of the four hook layers (settings.json). Git hooks, the
@@ -1747,13 +1843,16 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
                 f"doc names {claim.payload} near a hook",
             )
         return make(
-            inst, Verdict.DEAD, f"doc names {claim.payload}; no hook runs it and no such file exists",
+            inst,
+            Verdict.DEAD,
+            f"doc names {claim.payload}; no hook runs it and no such file exists",
             "stale-doc",
         )
 
     return make(
         Instrument.broken("claim-parser", f"unhandled claim type {claim.ctype!r}"),
-        Verdict.UNKNOWN, "claim extracted but not verifiable",
+        Verdict.UNKNOWN,
+        "claim extracted but not verifiable",
     )
 
 
@@ -1763,8 +1862,12 @@ def proof_doc_claims(box: Box, docs_dir: Path) -> dict[str, Any]:
     if not docs_dir.is_dir():
         broken = Instrument.broken("docs-enumeration", f"no docs directory at {docs_dir}")
         f = finding(
-            proof="doc_claim", id="(docs)", kind="enumeration", instrument=broken,
-            verdict=Verdict.DEAD, detail="nothing to check",
+            proof="doc_claim",
+            id="(docs)",
+            kind="enumeration",
+            instrument=broken,
+            verdict=Verdict.DEAD,
+            detail="nothing to check",
         )
         return {"findings": [f.as_dict()], "docs": 0, "claims": 0, "summary": _tally([f])}
 
@@ -1859,9 +1962,12 @@ def audit(repo_root: Path, registry_path: Path, proofs: set[str], box: Box | Non
             report.proofs[name] = job()
         except Exception as exc:  # a proof that dies reports UNKNOWN, never a false all-clear
             crashed = finding(
-                proof=name, id=f"({name})", kind="proof",
+                proof=name,
+                id=f"({name})",
+                kind="proof",
                 instrument=Instrument.broken(name, f"{type(exc).__name__}: {exc}"),
-                verdict=Verdict.DEAD, detail="the proof itself raised; its verdicts are unknown",
+                verdict=Verdict.DEAD,
+                detail="the proof itself raised; its verdicts are unknown",
             )  # -> UNKNOWN by the three-state rule; `Report.crashed()` is what makes it bite
             report.proofs[name] = {"findings": [crashed.as_dict()], "summary": _tally([crashed])}
     return report
@@ -1886,7 +1992,9 @@ def render(report: Report) -> str:
         if block is None:
             continue
         s = block.get("summary", {})
-        out.append(f"{title}   LIVE={s.get('LIVE', 0)} DEAD={s.get('DEAD', 0)} UNKNOWN={s.get('UNKNOWN', 0)}")
+        out.append(
+            f"{title}   LIVE={s.get('LIVE', 0)} DEAD={s.get('DEAD', 0)} UNKNOWN={s.get('UNKNOWN', 0)}"
+        )
         out.append("-" * 100)
         for f in block.get("findings", []):
             tail = f["detail"]
@@ -1908,7 +2016,9 @@ def render(report: Report) -> str:
                     out.append(f"      ! {line}")
             hooks = unreg.get("hooks") or {}
             if hooks.get("instrument_fault"):
-                out.append(f"  UNREGISTERED hooks: UNKNOWN [instrument: {hooks['instrument_fault']}]")
+                out.append(
+                    f"  UNREGISTERED hooks: UNKNOWN [instrument: {hooks['instrument_fault']}]"
+                )
             else:
                 out.append(f"  UNREGISTERED hook commands: {len(hooks.get('unregistered', []))}")
                 for line in hooks.get("unregistered", []):
@@ -1920,7 +2030,9 @@ def render(report: Report) -> str:
                 " warn_only — rows that can never go red)"
             )
         if key == "doc_claim":
-            out.append(f"  docs enumerated: {block.get('docs')}   claims extracted: {block.get('claims')}")
+            out.append(
+                f"  docs enumerated: {block.get('docs')}   claims extracted: {block.get('claims')}"
+            )
         out.append("")
     total = report.summary()
     out.append(
@@ -1934,11 +2046,17 @@ def render(report: Report) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Prove that this box's scheduled surfaces, gate checks and docs are ALIVE.")
+    p = argparse.ArgumentParser(
+        description="Prove that this box's scheduled surfaces, gate checks and docs are ALIVE."
+    )
     p.add_argument("--json", action="store_true", help="machine-readable report on stdout")
-    p.add_argument("--strict", action="store_true", help="exit 1 when anything is DEAD (opt-in CI mode)")
+    p.add_argument(
+        "--strict", action="store_true", help="exit 1 when anything is DEAD (opt-in CI mode)"
+    )
     p.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    p.add_argument("--registry", type=Path, default=None, help=f"default: <repo-root>/{DEFAULT_REGISTRY}")
+    p.add_argument(
+        "--registry", type=Path, default=None, help=f"default: <repo-root>/{DEFAULT_REGISTRY}"
+    )
     p.add_argument(
         "--proof",
         default="heartbeat,vacuity,doc_claim",
