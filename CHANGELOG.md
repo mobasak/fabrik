@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the plan-ticket gate no longer punishes the grounding habit its own skeleton teaches (2026-08-23)
+
+transdoc, mail `01M0MQ701X67Z45J8BNQNY4J4T`, filed 2026-08-22 and unacked for a day because I read
+it as part of a later consolidated proposal. Both findings confirmed by execution.
+
+- **G/W/T roll-up citation mismatch** — `_norm_behavior` forgave bullets, bold, case, whitespace,
+  trailing `(N)` and periods, but not a trailing `(path:line)`. The Behavior-Contract roll-up is set
+  equality, so a row whose spine copy cited the primary path while its ticket copy cited its own
+  line produced TWO errors — missing-row *and* matches-no-ticket. The skeleton at
+  `fabrik-plan-after-chat.md:414` teaches exactly that citation, so following it was the failure
+  mode; transdoc's workaround was to strip every citation to a bare `Grounding:` line. The
+  normalizer now peels a trailing `(path:line)` run, built from `check_convergence.PROOF` so it
+  forgives exactly the extension set the rest of the gate calls a citation and cannot drift from it.
+  Measured on transdoc's real 18-file plan set with the citations restored: **96 roll-up errors
+  before, 0 after.** Narrowness is tested in both directions — a prose parenthetical
+  (`(idempotently)`) is still identity, and a genuinely different sentence still double-errors.
+- **READ-budget errors now name the entry that blew the budget**, not just the total. The usual
+  culprit is one directory entry silently owning a large subtree, and a bare total costs a debugging
+  loop to localise (theirs: 102KB from `public/i18n/`). Top 5 entries by size, plus a `+N smaller`
+  tail so nothing is silently dropped from the accounting.
+
+Their third item — `check_ticket_breadth` flagging 13/15 tickets — is calibration input as designed,
+with the keep-reasons adjudication in their spine. No change; recorded for the next calibration pass.
+
 ### Fixed — transdoc upstream proposal: 1.2, 1.4, 1.5, 1.8 landed; 1.6 + 1.9 REFUTED (2026-08-23)
 
 `/fabrik-upstream` HUB mode over their 10-finding proposal. Independent re-verification changed the

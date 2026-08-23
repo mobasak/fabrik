@@ -240,6 +240,27 @@ def test_bc9_budget_overrun_errors_in_cli_and_warns_in_gate_path(tmp_path: Path)
     assert any("READ budget" in m for m in _warns(gate))
 
 
+def test_bc9_budget_overrun_names_the_entry_that_blew_it(tmp_path: Path) -> None:
+    """The total says a ticket is too big; only the breakdown says WHICH entry did it.
+
+    The usual culprit is a directory entry silently owning a large subtree — a total
+    alone costs a debugging loop to localise (transdoc, 2026-08-22: 102KB from
+    `public/i18n/`).
+    """
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- src/bulk/")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    (tmp_path / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "src" / "app" / "schema.py").write_text("x" * 10, encoding="utf-8")
+    bulk = tmp_path / "src" / "bulk"
+    bulk.mkdir(parents=True, exist_ok=True)
+    (bulk / "big.py").write_text("y" * (cpt.READ_BUDGET_BYTES + 1), encoding="utf-8")
+    msg = next(m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli")) if "READ budget" in m)
+    assert "src/bulk/=" in msg, msg  # the subtree entry is named, not just the total
+    assert str(cpt.READ_BUDGET_BYTES + 1) in msg
+
+
 # --- BC 11: grounding floor ----------------------------------------------------------
 
 
@@ -353,6 +374,49 @@ def test_bc24_rollup_missing_ticket_row_errors(tmp_path: Path) -> None:
     )
     plan_dir = _build(tmp_path, spine=spine)
     assert any("roll-up missing" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+# The (path:line) citation is GROUNDING, not identity. The skeleton at
+# fabrik-plan-after-chat.md teaches "**Then** <observable> (src/app/x.py:12)", so an
+# author who follows it cites the ticket's own line in the ticket and the primary path
+# in the spine — two different strings for ONE behavior, which the roll-up scored as
+# missing-row PLUS matches-no-ticket. Two ERRORs per faithfully-cited row (transdoc,
+# 2026-08-22: ~30 on a 16-ticket set; their workaround was to strip every citation,
+# i.e. the gate punished the exact grounding habit it teaches).
+
+
+def test_bc24_rollup_ignores_differing_citation_lines(tmp_path: Path) -> None:
+    spine = SPINE.replace("**Then** 201 (src/app/api.py:1)", "**Then** 201 (src/app/api.py:47)")
+    assert _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine))) == []
+
+
+def test_bc24_rollup_ignores_citation_present_on_one_side_only(tmp_path: Path) -> None:
+    spine = SPINE.replace("**Then** 201 (src/app/api.py:1).", "**Then** 201.")
+    assert _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine))) == []
+
+
+def test_bc24_rollup_ignores_multi_path_citations(tmp_path: Path) -> None:
+    spine = SPINE.replace(
+        "**Then** 201 (src/app/api.py:1)", "**Then** 201 (src/app/api.py:12, src/app/schema.py:8)"
+    )
+    assert _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine))) == []
+
+
+def test_bc24_rollup_still_catches_a_genuinely_different_behavior(tmp_path: Path) -> None:
+    """Forgiving the citation must not forgive the SENTENCE — else the check stops asking."""
+    spine = SPINE.replace(
+        "**When** posted, **Then** 201 (src/app/api.py:1)",
+        "**When** posted, **Then** 500 (src/app/api.py:1)",
+    )
+    errs = _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine)))
+    assert any("roll-up missing" in m for m in errs)
+    assert any("matches no ticket" in m for m in errs)
+
+
+def test_bc24_rollup_does_not_strip_a_non_citation_parenthetical(tmp_path: Path) -> None:
+    """`(observable)` is prose, not grounding — stripping it would erase real signal."""
+    spine = SPINE.replace("**Then** 201 (src/app/api.py:1)", "**Then** 201 (idempotently)")
+    assert any("matches no ticket" in m for m in _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine))))
 
 
 # --- BC 10 + 21: board staleness (execution window) ---------------------------------------

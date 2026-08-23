@@ -350,9 +350,33 @@ def _never_route(p: str) -> bool:
     return any(_covered_by(n, p) or _covered_by(p, n) for n in NEVER_ROUTE_PREFIXES)
 
 
+_ROW_MARKER_TAIL = re.compile(r"\s*\(\d+\)\s*\.?$")  # trailing (N) row markers — house style
+# A trailing `(path:line)` — or a comma/semicolon-separated run of them — is GROUNDING,
+# not identity. Built from check_convergence.PROOF so this forgives exactly the extension
+# set the rest of the gate treats as a citation, and cannot drift from it. Anything else
+# in parentheses (`(idempotently)`) is prose and stays part of the compared sentence.
+_CITATION_TAIL = re.compile(rf"\s*\(\s*{PROOF.pattern}(?:\s*[,;]\s*{PROOF.pattern})*\s*\)\s*\.?$")
+
+
 def _norm_behavior(line: str) -> str:
+    """Normalize a Given/When/Then row to its comparable identity.
+
+    The roll-up is set equality between spine rows and ticket rows, so anything left in
+    here is load-bearing: a difference the normalizer does not absorb costs TWO errors
+    (missing-row on one side, matches-no-ticket on the other). The plan skeleton
+    (`fabrik-plan-after-chat.md`) teaches `**Then** <observable> (src/app/x.py:12)`, and
+    a ticket legitimately cites its own line where the spine cites the primary path — so
+    scoring the citation as identity punished the exact grounding habit the skeleton
+    teaches (transdoc, 2026-08-22: ~30 errors on a 16-ticket set; they stripped every
+    citation to get green). Markers and citations may appear in either order, and either
+    may carry the sentence period, so peel until stable.
+    """
     line = line.strip().lstrip("-*").strip().rstrip(".")
-    line = re.sub(r"\s*\(\d+\)\s*\.?$", "", line)  # trailing (N) row markers — house style
+    while True:
+        peeled = _CITATION_TAIL.sub("", _ROW_MARKER_TAIL.sub("", line)).rstrip().rstrip(".")
+        if peeled == line:
+            break
+        line = peeled
     return re.sub(r"\s+", " ", line.replace("**", "")).lower().rstrip(".")
 
 
@@ -1250,7 +1274,12 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                 )
         if t.integration:
             continue
-        read_bytes = 0
+        # Per-ENTRY tallies, not just the total: the total says a ticket is too big
+        # but not WHICH entry made it so, and the usual culprit is one directory
+        # entry silently owning a large subtree. Naming the top entries turns a
+        # debugging loop into a read (transdoc, 2026-08-22: a 102KB surprise from
+        # `public/i18n/` counted as a subtree).
+        per_entry: dict[str, int] = {}
         if root is not None:
             for p in dict.fromkeys(t.touches + t.context_files):
                 # Out-of-repo tokens already ERRORed — and `root / "/etc"` would
@@ -1260,23 +1289,30 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                     continue
                 fp = root / p.rstrip("/")
                 if fp.is_file():
-                    read_bytes += fp.stat().st_size
+                    per_entry[p] = per_entry.get(p, 0) + fp.stat().st_size
                 elif fp.is_dir():
                     # A directory entry owns its subtree — count it (else the
                     # LARGEST tickets score 0 bytes and the budget fails open).
                     for i, sub in enumerate(fp.rglob("*")):
                         if i > 2000:
-                            read_bytes += (
-                                READ_BUDGET_BYTES + 1
+                            per_entry[p] = (
+                                per_entry.get(p, 0) + READ_BUDGET_BYTES + 1
                             )  # runaway dir = OVER budget, decisively
                             break
                         if sub.is_file():
-                            read_bytes += sub.stat().st_size
+                            per_entry[p] = per_entry.get(p, 0) + sub.stat().st_size
+        read_bytes = sum(per_entry.values())
         if read_bytes > READ_BUDGET_BYTES:
+            top = sorted(per_entry.items(), key=lambda kv: -kv[1])[:5]
+            breakdown = ", ".join(f"{p}={b}" for p, b in top if b)
+            omitted = len([b for b in per_entry.values() if b]) - len([b for _, b in top if b])
+            if omitted > 0:
+                breakdown += f", +{omitted} smaller"
             results.append(
                 _err(
                     f"{t.tid}: READ budget {read_bytes} bytes exceeds "
-                    f"READ_BUDGET_BYTES={READ_BUDGET_BYTES}",
+                    f"READ_BUDGET_BYTES={READ_BUDGET_BYTES}"
+                    + (f" — largest: {breakdown}" if breakdown else ""),
                     t.path,
                     severity=sev,
                     hint="Split the ticket (author-split T##a/T##b) — a coder cannot hold "
