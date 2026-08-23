@@ -78,7 +78,20 @@ Each verifier gets ONE brief and returns a compact report:
 - Report contract: verdict · gaps as `path:line` · supersessions · evidence including test tails ·
   hard word cap. A verifier that returns prose instead of anchors has not verified anything.
 
-## PHASE 2 — THE VERDICT SCALE (five values, no sixth)
+## PHASE 2 — VERIFY / REFUTE (you, the orchestrator — kill the wrong verdicts)
+
+A verifier's verdict is a CLAIM; yours is the record. Same position and same job as
+`/fabrik-review`'s refute phase — the difference is only what is being refuted: there, a claimed
+defect; here, a claimed CONFORMS.
+
+- **Refute or downgrade every claim with evidence.** In the worked example one verifier's verdict
+  was overturned by the coder's own verbatim earlier output.
+- **A CONFORMS is the claim to distrust most**, because it is the one that ends inspection. Re-check
+  it against the four discriminators below before accepting it.
+- **Write each adjudicated verdict into the ledger IMMEDIATELY** — row by row, never a final batch.
+  Same reason the ledger is written before Phase 1: context loss mid-sweep is the expected case.
+
+### The verdict scale (five values, no sixth)
 
 | Verdict | Means |
 |---|---|
@@ -105,19 +118,21 @@ Each of these passes an ordinary review. Each was caught by the worked example.
    this as the DANGEROUS one: a future reader "fixing" the code back to the spec reintroduces the
    very bug the deviation avoided. It was an 8-item backlog in the worked example.
 
-## PHASE 3 — ADJUDICATE (you, the orchestrator — not the verifiers)
+## PHASE 3 — PROVE & ROUTE (depth — every surviving row terminates)
 
-- **Refute or downgrade every finder claim with evidence.** In the worked example one verifier
-  verdict was overturned by the coder's own verbatim earlier output. A verifier's verdict is a
-  claim; yours is the record.
-- **Write each adjudicated verdict into the ledger IMMEDIATELY** — row by row, not in a final
-  batch. Same reason as Phase 0.
-- Finish with a **cluster summary**: never-executed · operational reds · inert surfaces · refreeze
-  debt — and **route each cluster to its owning command** (`/fabrik-execute-plan` for a never-run
-  plan, `/fabrik-spec` to re-freeze debt, `/fabrik-review` for a code defect, the deploy triad for
-  an operational red). A conformance review that ends in a list nobody owns has not finished.
+`/fabrik-review` fixes what survives refutation. This command does NOT fix: a conformance gap is
+almost never a one-line edit, it is a plan to finish or a spec to re-freeze. So the depth phase
+here is **prove, then hand to the owner** — and an unrouted finding is an unfinished one.
 
-## EXIT CONTRACT — the loop, not a single sweep
+- **Prove each surviving verdict**: the anchor is `path:line` plus a FRESH run, never a green from
+  last week. A row you cannot prove today is PARTIAL, and say why.
+- **Cluster** the survivors: never-executed · operational reds · inert surfaces · refreeze debt.
+- **Route each cluster to its owning command** — `/fabrik-execute-plan` for a converged plan never
+  run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep
+  surfaced · the deploy triad for an operational red. A conformance review that ends in a list
+  nobody owns has not finished.
+
+## PHASE 4 — CONVERGE (the loop — you are here after EVERY pass, not once)
 
 Same termination contract as every other review command, on a non-diff surface: **BOTH** a quiet
 round AND a fully adjudicated checklist. One pass over the inventory is a first pass, never the run.
@@ -137,5 +152,19 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
 - **Supersessions name their successor. DEVIATES rows state whether the spec was re-frozen** — if
   not, that row IS refreeze debt and belongs in the cluster summary.
 - Ledger committed. Cluster summary routed to owning commands. `final_gate` green. Then report.
+
+## OUTPUT
+
+The ledger doc (Surface hash · Inventory table · Coverage Checklist · Pass Ledger), committed —
+that FILE is the deliverable, not this chat. Then, in the reply: the verdict distribution across
+the five values; every non-CONFORMS row with its `path:line` gaps; the four cluster lists
+(never-executed · operational reds · inert surfaces · refreeze debt) each naming the command it was
+routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named,
+rows that could not be proven today and why, and any spec-refreeze debt the operator must decide on
+rather than an agent.
+
+Scale effort to blast radius: exhaustive on money / auth / data-integrity artifacts, proportionate
+on low-risk ones — and log anything you deliberately skip. When unsure whether a row conforms,
+surface it as PARTIAL; a wrong CONFORMS is the one verdict that ends inspection.
 
 {{include:subagents-core}}

@@ -37,6 +37,16 @@ All notable changes to this project will be documented in this file.
   in the discovery-until-dry shape the certification gauntlets use rather than the diff loop's
   wide→scoped→wide. `term-coverage`'s non-diff escape list now names it alongside
   `/fabrik-user-test` and `/fabrik-service-test`.
+- **Second correction (operator asked again — the first answer was incomplete):** structural parity
+  went beyond the termination contract. Both sibling reviews render `--phases 5` with a numbered
+  `PHASE 4 — CONVERGE`; this one rendered `--phases 4` with the loop as a trailing contract, so the
+  pinned `RUN:` line would have read "phase 4/4 — finished" while the loop was still ahead — exactly
+  the failure `_phase_count`'s own docstring warns about. It also had no `OUTPUT` section, and its
+  PHASE 2 was a verdict RUBRIC where both siblings have VERIFY/REFUTE at that position. Now
+  identical in shape: P0 discover · P1 finders · P2 verify/refute (a claimed CONFORMS is the claim
+  to distrust most, since it ends inspection) · P3 prove & route — this command does not fix, a
+  conformance gap is a plan to finish or a spec to re-freeze, so depth means routing to the owning
+  command · P4 converge · OUTPUT. Audited across eleven structural dimensions against both siblings.
 - Router: the stem is placed FIRST in `KEYWORD_STEMS` — the broad `spec`/`plan`/`review` stems would
   otherwise swallow "audit every spec and plan against the code". Mutation-proven: moving it last
   breaks six routing tests.
