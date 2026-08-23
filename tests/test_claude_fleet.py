@@ -2941,3 +2941,37 @@ def test_advisory_refires_when_the_band_escalates(tmp_path, monkeypatch):
     _fake_oauth(monkeypatch, usages=usages)
     assert cr._cmd_tick() == 0
     assert len(actions["telegrams"]) == 2, "an escalating band is a NEW fact and must alert"
+
+
+def test_advisory_does_not_refire_when_only_the_sliding_5h_reset_moves(tmp_path, monkeypatch):
+    """The 5-hour session window SLIDES its resets_at forward as an active account keeps being
+    used (Claude's rolling window). Keying the dedup cycle on min(resets) picked that volatile
+    5h reset, so the key churned every tick and the advisory re-fired on EVERY 5-min tick —
+    mob 85->87->90->91 in 20 min, plus ob/sarp re-firing at a steady 91% (2026-08-23). Same
+    account, same band, UNCHANGED weekly cycle => one fact, even as the 5h reset moves."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+
+    def blob(session_reset_iso):
+        return {
+            "five_hour": {"utilization": 86.0, "resets_at": session_reset_iso},
+            "seven_day": {"utilization": 50.0, "resets_at": "2027-01-22T00:00:00+00:00"},
+        }
+
+    usages = {"tok-seo": blob("2027-01-20T00:00:00+00:00"), "tok-intel": _usage_blob(10.0, 10.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "first crossing alerts"
+
+    # Next tick: the 5h reset slid +3h, weekly UNCHANGED, band UNCHANGED (86% -> band 85).
+    usages["tok-seo"] = blob("2027-01-20T03:00:00+00:00")
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, (
+        "a sliding 5h reset must NOT re-fire a steady same-band advisory (cycle keys on weekly)"
+    )

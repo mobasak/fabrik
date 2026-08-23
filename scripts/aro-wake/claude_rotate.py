@@ -3716,7 +3716,15 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         # always speaks.
         stamp = _fleet_advisory_stamp(row["email"])
         band = int(hot // 5) * 5
-        cycle = str(int(min(resets))) if resets else "unknown"
+        # cycle keys on the WEEKLY reset ONLY — the stable per-quota-week boundary. The 5-hour
+        # session reset SLIDES forward as an active account keeps being used (Claude's rolling
+        # window), so keying on min(resets) picked that volatile value and the dedup key churned
+        # every tick — the advisory re-fired on EVERY 5-minute tick (mob 85->87->90->91 in 20 min
+        # + ob/sarp re-firing at a steady 91%, 2026-08-23). The weekly reset is fixed within a
+        # quota week; the band comparison below still lets a genuine escalation (86->97) speak.
+        weekly = row.get("seven_day")
+        weekly_reset = weekly.get("resets_at_epoch") if isinstance(weekly, dict) else None
+        cycle = str(int(weekly_reset)) if weekly_reset else "unknown"
         prev_band: int | None = None
         prev_cycle = ""
         try:
