@@ -55,6 +55,14 @@ inbox→archive rename is the lock, and unlike the retired ack-up-front pattern 
 disposition — the file carries none until the work is actually done); `ack` resolves it later;
 `requeue` re-opens a claimed message and strips a stale `acked-by:` marker if one is there.
 
+## Keeping the queue readable
+
+`python3 scripts/mail.py sweep` archives `ack: no` mail older than 14 days across every mailbox and
+never touches an `ack: required` obligation. Safe to run unattended or from cron; `archive/` keeps
+everything. Within the hub, `--to-agent infra|fleet|intel` addresses a message to one role and
+`list --agent <role>` (or the `CLAUDE_AGENT` env var) filters to that role's mail plus everything
+unaddressed — a filter for readability, never a lock, so nothing is hidden from you.
+
 ## Observe it
 
 ```bash

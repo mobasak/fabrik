@@ -4,14 +4,16 @@
 
 One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,archive}``
 (default root ``/opt/fabrik-mail``). A message is one ``.md`` file: YAML-ish frontmatter
-(``id from to ts re kind ack hops``) + a markdown body. Subcommands:
+(``id from to ts re kind ack hops`` + optional ``agent``) + a markdown body. Subcommands:
 
-    send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto] < body
-    list  [--repo <repo>]
+    send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
+          [--to-agent <role>] < body
+    list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
     ack   <id> [--repo <repo>] [--disposition done|blocked|wontfix]
     requeue <id> [--repo <repo>]
     digest [--days N]
+    sweep [--days N] [--repo <repo>]   # archive stale ack:no mail; obligations never swept
     claim <id> [--repo <repo>]
     should-reply <id> [--repo <repo>]   # advisory loop-safety pre-check (ALLOW 0 / HOLD 3)
 
@@ -330,8 +332,21 @@ def _now_iso() -> str:
 
 
 def _frontmatter(
-    mid: str, frm: str, to: str, ts: str, re_: str, kind: str, ack: str, body: str, hops: int = 0
+    mid: str,
+    frm: str,
+    to: str,
+    ts: str,
+    re_: str,
+    kind: str,
+    ack: str,
+    body: str,
+    hops: int = 0,
+    agent: str = "",
 ) -> str:
+    # `agent` is the INTRA-mailbox addressee (see _safe_agent). Emitted only when
+    # set, so a message without one is byte-identical to a pre-2026-08-23 message
+    # and every legacy reader is unaffected.
+    agent_line = f"agent: {agent}\n" if agent else ""
     return (
         "---\n"
         f"id: {mid}\n"
@@ -342,9 +357,33 @@ def _frontmatter(
         f"kind: {kind}\n"
         f"ack: {ack}\n"
         f"hops: {hops}\n"
+        f"{agent_line}"
         "---\n"
         f"{body}" + ("" if body.endswith("\n") else "\n")
     )
+
+
+def _safe_agent(name: str) -> str:
+    """Validate an intra-mailbox addressee (a ROLE, not a repo and not a session).
+
+    The hub runs three agents — infra · fleet · intel — sharing ONE `fabrik`
+    mailbox, so intra-hub traffic is `from: fabrik → to: fabrik` with no addressee
+    at all. Agents worked around it in PROSE (`[infra→fleet]` body prefixes), and
+    some put a role in `from:`, which is not a repo and breaks every routing and
+    rate-limit guard that keys on it. 31 of 72 messages in the live fabrik inbox
+    were this shape.
+
+    Deliberately NOT per-session sub-addressing (rejected 2026-08-15, and the
+    right layer for window-to-window is native cross-session messaging): a ROLE is
+    stable, charter-backed (`docs/reference/agents/`), and survives restarts. It is
+    a FILTER, never a lock — an unaddressed message stays visible to everyone, so
+    nothing can be hidden from an agent by addressing it elsewhere.
+    """
+    if not name:
+        return ""
+    if not _SAFE_NAME.fullmatch(name) or name in (".", ".."):
+        raise MailRefusedError(f"unsafe agent {name!r}: a plain role name ([A-Za-z0-9._-])")
+    return name
 
 
 def _ts_epoch(ts: str) -> float | None:
@@ -466,6 +505,101 @@ def should_auto_reply(
     return True, "ALLOW"
 
 
+def _subject_tokens(body: str) -> frozenset[str]:
+    """Content words of a message's subject line — the duplicate-report key."""
+    first = ""
+    for line in body.splitlines():
+        if line.strip():
+            first = line
+            break
+    first = _re.sub(r"^\s*#+\s*", "", first)
+    first = _re.sub(r"^\s*(?:subject|re)\s*:\s*", "", first, flags=_re.I)
+    words = _re.findall(r"[A-Za-z_][A-Za-z0-9_.]{2,}", first.lower())
+    # Drop the filler that every report shares, or "the/and/for" alone would pair
+    # two unrelated subjects.
+    stop = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "into",
+        "not",
+        "but",
+        "all",
+        "are",
+        "was",
+        "its",
+        "has",
+        "have",
+        "one",
+        "two",
+        "you",
+        "your",
+        "our",
+        "can",
+        "subject",
+        "report",
+        "finding",
+        "request",
+        "issue",
+        "bug",
+        "fix",
+        "fixed",
+    }
+    return frozenset(w for w in words if w not in stop)
+
+
+def _warn_if_duplicate(to: str, body: str) -> None:
+    """Point a sender at an already-OPEN report of the same thing. Never refuses.
+
+    The cross-repo `command_run.py` corruption was reported NINE times by SIX
+    senders, each escalating, because a sender cannot see another repo's inbox and
+    nothing surfaced that the defect was already open. Every one of those reports
+    was correct and well-written; the waste was purely that nobody could tell.
+
+    WARN, never refuse — and that direction is not a preference, it is a lesson
+    paid for the same day: the quota advisory suppressed a repeat and thereby
+    suppressed a genuine ESCALATION (86% → 97% went silent). A duplicate report
+    is cheap; a silenced escalation is how a defect survives nine reports. So this
+    prints a pointer and gets out of the way. Entirely fail-soft: any error here
+    must never block a send.
+    """
+    try:
+        want = _subject_tokens(body)
+        if len(want) < 3:
+            return  # too short to judge — silence beats a false pairing
+        inbox = _mail_root() / to / "inbox"
+        if not inbox.is_dir():
+            return
+        for f in sorted(inbox.glob("*.md"), reverse=True)[:200]:
+            if f.name.startswith("."):
+                continue
+            try:
+                raw = f.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            fm = _parse(raw)
+            if fm is None:
+                continue
+            have = _subject_tokens(raw.split("---", 2)[-1])
+            if not have:
+                continue
+            overlap = len(want & have) / max(1, min(len(want), len(have)))
+            if overlap >= 0.7:
+                print(
+                    f"mail.py: similar open message {fm.get('id')} already in {to}'s inbox "
+                    f"(from {fm.get('from')}) — consider --re {fm.get('id')} to thread onto it "
+                    "rather than opening a second report",
+                    file=sys.stderr,
+                )
+                return
+    except Exception:
+        return  # a duplicate hint must NEVER be able to block a send
+
+
 def send(
     to: str,
     kind: str,
@@ -474,11 +608,13 @@ def send(
     ack: str | None = None,
     re: str | None = None,
     auto: bool = False,
+    to_agent: str | None = None,
 ) -> Path:
     """Publish a message to <to>'s inbox. Raises MailRefusedError on any refusal (nothing written)."""
     frm = frm or _current_repo()
     _safe_name(to, "recipient")
     _safe_name(frm, "sender")
+    to_agent = _safe_agent(to_agent or "")
     if ack and ack not in ("required", "no"):  # vocabulary check subsumes any separator
         # P3-1: `ack` is the SECOND raw-interpolated frontmatter value (the CLI
         # constrains it by argparse choices; the library path did not). A line
@@ -578,8 +714,15 @@ def send(
             file=sys.stderr,
         )
     ack = ack or ACK_BY_KIND[kind]
+    # AFTER every refusal, BEFORE minting: a hint must never change whether a
+    # message is accepted, and must never fire for a send that was going to be
+    # refused anyway. Threading onto an existing report is the sender's choice.
+    if not re:
+        _warn_if_duplicate(to, body)
     mid = _ulid()
-    content = _frontmatter(mid, frm, to, _now_iso(), re or "", kind, ack, body, hops=hops)
+    content = _frontmatter(
+        mid, frm, to, _now_iso(), re or "", kind, ack, body, hops=hops, agent=to_agent
+    )
     return _publish(_mail_root() / to / "inbox", mid, content)
 
 
@@ -939,13 +1082,88 @@ def digest(days: int = 3) -> dict:
     return {"unacked": unacked, "quarantined": quarantined, "repos": repos}
 
 
-def list_msgs(repo: str) -> list[dict]:
+def sweep(days: int = 14, repo: str | None = None) -> int:
+    """Archive stale `ack: no` mail. Returns how many messages moved.
+
+    THE MISSING EXIT PATH. `finding`/`reply`/`relay` default to `ack: no`, and
+    nothing ever obliged anyone to archive them — so the inbox was append-only in
+    practice and silted up until a human cleared it by hand (38 messages on
+    2026-08-23, some resolved back in mid-August and still showing as unread).
+    The cost is not the reading: a real defect report arriving behind forty stale
+    ones gets skimmed, which is exactly how a cross-repo corruption defect was
+    reported nine times before anyone acted.
+
+    Three invariants make this safe to run unattended:
+      * an `ack: required` OBLIGATION is NEVER swept, at any age — those are
+        closed by a human or an agent doing the work, never by a timer;
+      * age is read from the message's own `ts`, not mtime (a restore rewrites
+        mtime; `_ts_epoch` is the same clock the digest and rate cap use), and an
+        unparseable ts is left ALONE rather than guessed at;
+      * archiving is the existing atomic rename, so a message a peer is claiming
+        concurrently loses the race harmlessly (ENOENT → skip).
+
+    Nothing is deleted: `archive/` is the audit trail and stays complete.
+    """
+    root = _mail_root()
+    if not root.is_dir():
+        return 0
+    threshold = max(0, days) * 86400
+    now_ts = datetime.now(UTC).timestamp()
+    repos = [repo] if repo else _mailbox_names()
+    moved = 0
+    for name in repos:
+        try:
+            _safe_name(name, "repo")
+        except MailRefusedError:
+            continue
+        inbox = root / name / "inbox"
+        if not inbox.is_dir():
+            continue
+        for f in sorted(inbox.glob("*.md")):
+            if f.name.startswith("."):
+                continue  # dotfiles are not messages (symmetric with every other glob)
+            try:
+                fm = _parse(f.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue  # a concurrent claim moved it — never crash a sweep
+            if fm is None or fm.get("ack") == "required":
+                continue  # malformed is digest's business; an obligation is nobody's timer
+            ts = _ts_epoch(fm.get("ts", ""))
+            if ts is None or now_ts - ts < threshold:
+                continue  # unparseable ts → leave it ALONE; fresh → not stale
+            dst = root / name / "archive" / f.name
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                os.rename(f, dst)
+                moved += 1
+            except OSError:
+                continue  # lost a race with a claim/ack — harmless
+    return moved
+
+
+def _mailbox_names() -> list[str]:
+    """Every mailbox dir under the root (the digest's discovery rule)."""
+    root = _mail_root()
+    try:
+        return sorted(p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
+    except OSError:
+        return []
+
+
+def list_msgs(repo: str, agent: str | None = None) -> list[dict]:
     """List a repo's inbox (quarantining any malformed file), newest sort last.
 
     P5-2: `_safe_name` like every sibling verb — this is the ONE repo-taking
     entry point that MOVES files, so an unguarded `repo` relocated arbitrary
-    *.md under any path (absolute paths escaped the root entirely)."""
+    *.md under any path (absolute paths escaped the root entirely).
+
+    `agent` FILTERS to what this role should read: messages addressed to it, plus
+    every UNADDRESSED message. It is deliberately not a lock — addressing a
+    message to `fleet` must never hide it from a human or from a role that
+    already knows to look, and an unaddressed message stays everyone's. Omit
+    `agent` to see the whole inbox, which is the pre-2026-08-23 behaviour."""
     _safe_name(repo, "repo")
+    agent = _safe_agent(agent or "")
     inbox = _mail_root() / repo / "inbox"
     out: list[dict] = []
     if not inbox.is_dir():
@@ -961,6 +1179,8 @@ def list_msgs(repo: str) -> list[dict]:
         if fm is None:
             _quarantine(inbox, f)
             continue
+        if agent and (fm.get("agent") or "") not in ("", agent):
+            continue  # addressed to a DIFFERENT role — unaddressed always passes
         out.append(fm)
     return out
 
@@ -1082,9 +1302,24 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="unattended reply: enforce the loop-safety guards (requires --re)",
     )
+    p_send.add_argument(
+        "--to-agent",
+        dest="to_agent",
+        help="intra-mailbox addressee ROLE (infra/fleet/intel) — a filter, never a lock",
+    )
 
     p_list = sub.add_parser("list", help="list a repo's inbox")
     p_list.add_argument("--repo")
+    p_list.add_argument(
+        "--agent",
+        help="show only mail addressed to this ROLE plus every unaddressed message",
+    )
+
+    p_sweep = sub.add_parser(
+        "sweep", help="archive stale ack:no mail (obligations are never swept)"
+    )
+    p_sweep.add_argument("--days", type=int, default=14)
+    p_sweep.add_argument("--repo", help="one mailbox; default every mailbox")
 
     p_read = sub.add_parser("read", help="print a message")
     p_read.add_argument("id")
@@ -1119,14 +1354,29 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "send":
             body = sys.stdin.read()
             path = send(
-                args.to, args.kind, body, frm=args.frm, ack=args.ack, re=args.re, auto=args.auto
+                args.to,
+                args.kind,
+                body,
+                frm=args.frm,
+                ack=args.ack,
+                re=args.re,
+                auto=args.auto,
+                to_agent=args.to_agent,
             )
             print(path)
         elif args.cmd == "list":
-            for fm in list_msgs(args.repo or _current_repo()):
+            # CLAUDE_AGENT is the role the operator set for this window; an unset
+            # var lists EVERYTHING, so nothing is hidden by default.
+            who = args.agent or os.environ.get("CLAUDE_AGENT") or None
+            for fm in list_msgs(args.repo or _current_repo(), agent=who):
+                to_who = f" · @{fm['agent']}" if fm.get("agent") else ""
                 print(
-                    f"{fm['id']} · {fm.get('from', '?')} · {fm.get('kind', '?')} · ack={fm.get('ack', '?')}"
+                    f"{fm['id']} · {fm.get('from', '?')} · {fm.get('kind', '?')} · "
+                    f"ack={fm.get('ack', '?')}{to_who}"
                 )
+        elif args.cmd == "sweep":
+            n = sweep(days=args.days, repo=args.repo)
+            print(f"swept {n} stale ack:no message(s) to archive (obligations untouched)")
         elif args.cmd == "read":
             print(read_msg(args.id, args.repo or _current_repo()))
         elif args.cmd == "claim":

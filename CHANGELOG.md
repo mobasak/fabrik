@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fabrik-mail: the three structural gaps that made the inbox unusable (2026-08-23)
+
+Measured on the live fabrik inbox: 72 messages, 22 unacked obligations, one defect reported nine
+times by six senders. All three fixes are additive and backward-compatible (fleet-synced file).
+
+- **Intra-hub mail now has an addressee.** The hub's three agents share ONE `fabrik` mailbox, so
+  intra-hub traffic was `from: fabrik → to: fabrik` with no routing at all — 31 of the 72 messages.
+  Agents had invented a PROSE convention (`[infra→fleet]` body prefixes) and some put a role in
+  `from:`, which is not a repo and breaks every guard keyed on it. An optional `agent` frontmatter
+  field + `send --to-agent` / `list --agent` makes it a field. Deliberately a role, not a session
+  (per-session sub-addressing stays rejected), and a FILTER, never a lock: unaddressed mail stays
+  visible to everyone, so nothing can be hidden from a role.
+- **`ack: no` mail has an exit path.** `finding`/`reply`/`relay` default to `ack: no` and nothing
+  ever obliged anyone to archive them, so the inbox was append-only until a human cleared it by hand.
+  `mail.py sweep [--days N]` (default 14) archives stale ones; an `ack: required` obligation is NEVER
+  swept at any age; age reads the message's own `ts`, not mtime; an unparseable `ts` is left alone.
+- **Duplicate reports are hinted, never refused.** `send` names an already-open message with a
+  strongly overlapping subject so the sender can `--re` onto it. It never blocks — suppressing
+  repeats also suppresses genuine escalations, which the quota advisory proved the same week.
+
+
 ### Fixed — command_run: the `nosession` record is repo-scoped, ending cross-repo corruption (2026-08-23)
 
 - The command-run state dir is GLOBAL and the record was keyed on the session id alone, so every

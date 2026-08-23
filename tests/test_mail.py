@@ -2235,3 +2235,80 @@ def test_every_credential_url_refuses_with_no_placeholder_exemption(env):
         assert mail.send(to="fabrik", kind="finding", body=quotable, frm="alpha").is_file()
     # Ordinary doc links are untouched.
     assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
+
+
+# ── the three structural mailbox gaps (operator-directed 2026-08-23) ──────────
+
+
+def test_agent_addressing_routes_within_one_shared_mailbox(env):
+    """GAP 1: the hub runs three agents (infra/fleet/intel) sharing ONE `fabrik`
+    mailbox, so intra-hub mail is `from: fabrik -> to: fabrik` with no addressee.
+    Agents invented a body convention (`[infra->fleet]`) and some even put a role
+    in `from:`, which is not a repo. 31 of 72 messages were this. An optional
+    `agent` field makes the routing a FIELD instead of a prose prefix — additive,
+    so a message without one stays visible to everyone."""
+    theirs = mail.send(
+        to="fabrik", kind="finding", body="yours", frm="fabrik", to_agent="fleet"
+    ).name.removesuffix(".md")
+    mine = mail.send(
+        to="fabrik", kind="finding", body="mine", frm="fabrik", to_agent="infra"
+    ).name.removesuffix(".md")
+    everyones = mail.send(
+        to="fabrik", kind="finding", body="everyones", frm="fabrik"
+    ).name.removesuffix(".md")
+
+    by_id = {m["id"]: m for m in mail.list_msgs("fabrik")}
+    assert by_id[theirs]["agent"] == "fleet" and by_id[mine]["agent"] == "infra"
+    assert not by_id[everyones].get("agent"), "no addressee emits no field at all"
+
+    got = {m["id"] for m in mail.list_msgs("fabrik", agent="infra")}
+    assert got == {mine, everyones}, "addressed-to-me + unaddressed only"
+    assert {m["id"] for m in mail.list_msgs("fabrik", agent="fleet")} == {theirs, everyones}
+
+
+def test_agent_addressing_is_backward_compatible(env):
+    """A legacy message with no `agent` line must parse and stay visible to every
+    agent — this file is fleet-synced to ~46 repos with live mailboxes."""
+    mid = _mint(env, "alpha", "fabrik", "request", "required")
+    fm = mail._parse((env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").read_text())
+    assert fm is not None and not fm.get("agent")
+    assert any(m["id"] == mid for m in mail.list_msgs("fabrik", agent="intel"))
+
+
+def test_sweep_archives_stale_ack_no_mail_and_never_touches_obligations(env):
+    """GAP 2: `finding`/`reply`/`relay` default to ack:no, and NOTHING obliges
+    anyone to archive them — so the inbox is append-only and silts up until a
+    human clears it by hand (38 messages, today). `sweep` is the exit path:
+    age-bounded, ack:required NEVER touched, idempotent."""
+    old_ts = mail.datetime.fromtimestamp(
+        mail.datetime.now(mail.UTC).timestamp() - 30 * 86400, mail.UTC
+    ).isoformat()
+    stale = _mint(env, "alpha", "fabrik", "finding", "no", ts=old_ts)
+    duty = _mint(env, "alpha", "fabrik", "request", "required", ts=old_ts)
+    fresh = _mint(env, "alpha", "fabrik", "finding", "no")
+
+    moved = mail.sweep(days=14)
+    assert moved == 1, f"exactly the one stale ack:no message, got {moved}"
+    ids = {m["id"] for m in mail.list_msgs("fabrik")}
+    assert duty in ids, "an ack:required OBLIGATION must never be swept"
+    assert fresh in ids, "a fresh message must never be swept"
+    assert stale not in ids and (env["mail_root"] / "fabrik" / "archive" / f"{stale}.md").is_file()
+    assert mail.sweep(days=14) == 0, "sweep is idempotent"
+
+
+def test_send_warns_on_a_duplicate_open_report_but_never_refuses(env, capsys):
+    """GAP 3: the command_run defect was reported NINE times by SIX senders
+    because no sender can see it is already open. Warn and name the open id so
+    the sender threads instead — but NEVER refuse: today's advisory bug proved
+    that suppressing a repeat also suppresses a genuine escalation."""
+    subject = "command_run.py shares one nosession.json across repos"
+    mail.send(to="fabrik", kind="finding", body=subject + "\n\nfirst report", frm="alpha")
+    capsys.readouterr()
+    p = mail.send(to="fabrik", kind="finding", body=subject + "\n\nsecond report", frm="beta")
+    err = capsys.readouterr().err
+    assert p.is_file(), "a duplicate must still be DELIVERED — never refused"
+    assert "similar open message" in err and "--re" in err, err
+    # an unrelated subject stays quiet
+    capsys.readouterr()
+    mail.send(to="fabrik", kind="finding", body="unrelated topic entirely\n\nx", frm="alpha")
+    assert "similar open message" not in capsys.readouterr().err

@@ -37,6 +37,10 @@ re: <id|empty>      # advisory threading hint — a DANGLING ref is harmless (fa
                     # both are exit-2 refusals
 kind: request|finding|relay|reply|upstream-feedback
 ack: required|no
+agent: <role>       # OPTIONAL intra-mailbox addressee (infra|fleet|intel). Emitted only when set,
+                    # so a message without it is byte-identical to a legacy one. A FILTER, never a
+                    # lock: `list --agent X` shows mail addressed to X PLUS every unaddressed
+                    # message, so nothing can be hidden from a role by addressing it elsewhere.
 hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent RESOLVES writes parent.hops + 1 (an unresolvable/prose/cross-box parent → 0, fail-soft)
 ---
 <body>
@@ -80,6 +84,18 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   window's open time is `utime`-stamped at creation — renames preserve the message's own
   mtime, so the gate measures the window, never the message; per-process window names mean
   no two resolvers ever target the same window file).
+- **Stale `ack: no` mail has an EXIT.** `finding`/`reply`/`relay` default to `ack: no`, and nothing
+  obliges anyone to archive them — so the inbox was append-only in practice and silted up until a
+  human cleared it by hand (38 messages on 2026-08-23, some resolved in mid-August and still showing
+  unread). `mail.py sweep [--days N]` (default 14) archives stale `ack: no` mail. An `ack: required`
+  OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age comes from the
+  message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left alone rather
+  than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
+- **Duplicate reports are HINTED, never refused.** `send` compares the new subject against the
+  recipient's open inbox and, on a strong overlap, prints the id of the already-open message so you
+  can `--re` onto it instead. It never blocks: a cross-repo defect was reported nine times by six
+  senders because nobody could see it was open, but suppressing repeats also suppresses genuine
+  ESCALATIONS — the quota advisory proved that the same week by silencing an 86% → 97% jump.
 - **Requeue crash recovery.** A claimer that crashes mid-act leaves an archived file with no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox —
   and **strips any trailing `acked-by:` claim marker**, so a re-opened message never carries a stale
