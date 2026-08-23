@@ -1,16 +1,25 @@
+# ⚠ STILL A DRAFT (do not promote to .yaml yet): check_spec_db_match.py globs specs/services/*.yaml
+# and would validate this against the LIVE DB the instant it is promoted. Keep .draft until the
+# project's DATABASE_URL is repointed to postgres-main (the pre-migration hold). Shape reconciled
+# 2026-08-23 (fleet) against the live trade-intelligence tree — every flag below is grounded:
+#   template  → project.yaml::type = saas-skeleton (4-service compose: app+tax-refresh+web+docs)
+#   is_admin_dashboard → web/middleware.ts verifyOperator (operator surface)
+#   has_bearer_api → src/.../api/internal_router.py (X-Internal-Token M2M)
+#   has_persistent_data → db/schema.sql (106 tables) + db/roles.sql + B2 export objects
+#   auth → fastapi_user_auth (spec_loader.py:74-81 enum; Pattern A, app-issued HS256 JWTs)
 id: trade-intelligence
 kind: service
-template: python-api
+template: saas-skeleton
 domain: trade-intelligence.vps1.ocoron.com
 shape:
   kind: service
   is_public: true
-  is_admin_dashboard: false
-  has_bearer_api: false
-  has_persistent_data: false
+  is_admin_dashboard: true     # web/middleware.ts verifyOperator operator surface
+  has_bearer_api: true         # internal_router.py X-Internal-Token M2M
+  has_persistent_data: true    # db/schema.sql = 106 tables + db/roles.sql + B2 exports
   needs_database: true
   has_search_feature: false
-  needs_cache: false
+  needs_cache: false           # confirmed: no redis in the compose
   exposes_metrics: true
 expose:
   http: true
@@ -24,18 +33,34 @@ depends:
 infrastructure:
   database: local
   storage: local
-  auth: none
+  auth: fastapi_user_auth        # Pattern A — app issues its own HS256 JWTs; end users reach the
+                                 # public surface WITHOUT Authelia in front (spec_loader.py:74-81)
 env:
   PORT: ${PORT:-8022}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  # AUTH_DATABASE_URL = the SQLAlchemy async form of DATABASE_URL (postgresql+asyncpg://…). The
+  # project derives it from the injected DATABASE_URL; required at apply from the project .env.
+  AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?async SQLAlchemy DSN, mirrors DATABASE_URL}
   JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-60}
   JOB_MAX_CONCURRENT: ${JOB_MAX_CONCURRENT:-3}
   EXPORT_STORAGE_PATH_PREFIX: ${EXPORT_STORAGE_PATH_PREFIX:-exports}
+  # Derivable config (container DNS + public domain):
+  INTERNAL_API_URL: ${INTERNAL_API_URL:-http://trade-intelligence:8022}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://trade-intelligence.vps1.ocoron.com}  # Next.js BUILD arg
+  # Operator/vendor-supplied config (names only; values ride the project .env — no secrets here):
+  FABRIK_ANALYTICS_URL: ${FABRIK_ANALYTICS_URL:?fabrik analytics ingest URL}
+  ZARI_API_URL: ${ZARI_API_URL:?Zari partner API base URL}
+  PADDLE_PRICE_ID_STARTER: ${PADDLE_PRICE_ID_STARTER:?Paddle price id (starter)}
+  PADDLE_PRICE_ID_PRO: ${PADDLE_PRICE_ID_PRO:?Paddle price id (pro)}
 secrets:
   required: []
-  generate: []
+  generate:
+  - AUTH_JWT_SECRET              # app-issued HS256 signing key — minted once, injected to app+web
+  - SERVICE_INTERNAL_SECRET_KEY  # M2M internal-auth secret (internal_router.py) — minted, never hand-set
   from_env:
+  - STORAGE_KEY_ID               # B2 storage key id (pairs with STORAGE_SECRET) — token material
+  - CLAUDE_CODE_OAUTH_TOKEN      # tax-refresh: `claude setup-token` output (subscription OAuth, not an API key)
   - STORAGE_SECRET
   - BOLDATA_API_KEY
   - ZARI_API_KEY
