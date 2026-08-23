@@ -102,10 +102,23 @@ def _pins(header: str, own_name: str) -> dict[str, int]:
     return out
 
 
+# A version reference in BODY prose: "<file>.md ... v<N>" within a short window, which
+# is how the real drift was written ("any field not in data-contract.md **v4**").
+_BODY_PIN_RE = re.compile(r"(?P<name>[a-z0-9-]+\.md)[^\n]{0,40}?\*{0,2}v(?P<v>\d+)\*{0,2}", re.I)
+
+
+# Prose that BINDS a future reader, as opposed to prose that recounts history. Only a
+# binding sentence can authorise a wrong-version field, which is the damage 1.8 names.
+_PRESCRIPTIVE_RE = re.compile(
+    r"\b(?:banned|forbidden|must|must not|never|only|required|not in|conform|comply)\b", re.I
+)
+
+
 def check_chain(root: Path) -> list[str]:
     """All frozen-chain findings for the project at ``root`` (empty = clean)."""
     versions: dict[str, tuple[str, int]] = {}
     headers: dict[str, str] = {}
+    bodies: dict[str, str] = {}
     for rel in CHAIN_REGISTRY:
         p = root / rel
         try:
@@ -117,6 +130,7 @@ def check_chain(root: Path) -> list[str]:
             continue  # no parseable header — the freeze-header gate owns that
         versions[Path(rel).name] = sv
         headers[Path(rel).name] = _header_block(text)
+        bodies[Path(rel).name] = text
 
     findings: list[str] = []
     for rel, cmd in CHAIN_REGISTRY.items():
@@ -141,6 +155,54 @@ def check_chain(root: Path) -> list[str]:
                     f"a pin from the FUTURE (header corruption or a reverted input); "
                     f"reconcile via {cmd}"
                 )
+
+    # transdoc finding 1.8 (2026-08-23): this gate is header-block-only BY DESIGN — and
+    # that is correct for the BINDING pin. But it makes a version reference in the
+    # artifact's BODY structurally unreachable, and their damage was real:
+    # docs/ui-design.md carried "Banned: any field not in data-contract.md **v4**" from
+    # v7 through v12 while the header pin moved v4 -> v5 -> v6. TWO re-freezes explicitly
+    # re-pinned the header and missed it. That line is THE RULE an agent consults to
+    # decide whether a field is legal — it would have authorised v5/v6 fields against a
+    # v4 contract. Found by a human-style read; no check could see it.
+    # WARN, never block: body prose legitimately contains historical references
+    # ("superseded v3", a changelog line), so this can only ever be a prompt to look.
+    for rel in CHAIN_REGISTRY:
+        name = Path(rel).name
+        if name not in versions or versions[name][0] == "DRAFT":
+            continue
+        header_pins = _pins(headers[name], name)
+        # everything from the first `## ` heading on — _header_block returns a JOINED
+        # string, so slicing the original by its length addresses nothing.
+        _txt = bodies[name]
+        _i = _txt.find("\n## ")
+        body_only = _txt[_i:] if _i != -1 else ""
+        for other, (_st, _cur) in versions.items():
+            if other == name:
+                continue
+            pinned = header_pins.get(other)
+            if pinned is None:
+                continue
+            for m in _BODY_PIN_RE.finditer(body_only):
+                if m.group("name") not in other:
+                    continue
+                # PRESCRIPTIVE prose only. The first cut flagged every body mention and
+                # lit up 5 of 6 existing fixtures — body prose legitimately cites history
+                # ("superseded v3", a changelog line), so an undiscriminating sweep is
+                # pure noise and a noisy advisory gets ignored, which is worse than none.
+                # The damage case reads like a RULE: "Banned: any field not in
+                # data-contract.md **v4**". Require that shape.
+                line_start = body_only.rfind("\n", 0, m.start()) + 1
+                line_end = body_only.find("\n", m.end())
+                line = body_only[line_start : line_end if line_end != -1 else len(body_only)]
+                if not _PRESCRIPTIVE_RE.search(line):
+                    continue
+                if int(m.group("v")) != pinned:
+                    findings.append(
+                        f"{rel} BODY prose references {other}@v{m.group('v')} but the "
+                        f"header pins v{pinned} — a reader following the body would apply "
+                        f"the wrong contract (advisory: body prose may legitimately cite "
+                        f"history; confirm before editing)"
+                    )
     return findings
 
 

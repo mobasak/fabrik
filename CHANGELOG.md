@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — transdoc upstream proposal: 1.2, 1.4, 1.5 landed; 1.6 + 1.9 REFUTED (2026-08-23)
+### Fixed — transdoc upstream proposal: 1.2, 1.4, 1.5, 1.8 landed; 1.6 + 1.9 REFUTED (2026-08-23)
 
 `/fabrik-upstream` HUB mode over their 10-finding proposal. Independent re-verification changed the
 outcome on three of them, which is the entire reason the mode exists.
@@ -24,6 +24,15 @@ outcome on three of them, which is the entire reason the mode exists.
   superuser or hold BYPASSRLS. Every rule on the page constrained the *application* role; an agent
   could satisfy the whole page and still run the probe as `postgres`. Now stated with the probe SQL
   and their measurement: 29 of 32 conformance tests failed once the role was rebuilt correctly.
+- **1.8 LANDED (advisory)** — `check_frozen_chain.py` is header-block-only BY DESIGN, which is right
+  for the binding pin but made a version reference in the artifact's BODY structurally unreachable.
+  Their damage: `docs/ui-design.md` carried "Banned: any field not in data-contract.md **v4**" from
+  v7 through v12 while the header pin moved v4 → v5 → v6, and TWO re-freezes missed it — that line
+  is the rule an agent consults to decide whether a field is legal, so it would have authorised
+  v5/v6 fields against a v4 contract. The sweep is WARN-only and restricted to PRESCRIPTIVE prose:
+  the first cut flagged every body mention and lit up 5 of 6 existing fixtures, because body prose
+  legitimately cites history — and a noisy advisory is worse than none. Fleet-verified: exactly ONE
+  finding across all of /opt, which is transdoc's real drift.
 - **1.6 REFUTED** — the scaffold has no such conftest. Its actual template is a disposability guard
   with no alembic, no subprocess and no downgrade; `git log -S"downgrade"` shows that code never
   existed in this repo. The claim describes the filer's own file, not scaffold output; kicked back

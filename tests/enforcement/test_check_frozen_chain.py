@@ -139,3 +139,46 @@ def test_max_pin_still_fires_when_genuinely_stale(tmp_path: Path) -> None:
     findings = c.check_chain(tmp_path)
     assert len(findings) == 1, findings
     assert "@v5" in findings[0], "cite the binding pin, never the history note"
+
+
+# --- transdoc 1.8: a stale pin in BODY prose was structurally unreachable -----
+
+
+def test_body_prose_pin_that_contradicts_the_header_is_warned(tmp_path):
+    """transdoc 1.8: this gate is header-block-only BY DESIGN, which is right for the
+    BINDING pin — but it made a version reference in the artifact's BODY unreachable.
+    Their damage was real: docs/ui-design.md carried "Banned: any field not in
+    data-contract.md **v4**" from v7 through v12 while the header pin moved v4 → v5 →
+    v6. TWO re-freezes explicitly re-pinned the header and missed it, and that line is
+    THE RULE an agent consults to decide whether a field is legal — it would have
+    authorised v5/v6 fields against a v4 contract. Found by a human-style read; no
+    check could see it."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "data-contract.md").write_text(
+        "**Status:** FROZEN · **Version:** v6\n\n## Fields\n", encoding="utf-8"
+    )
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v12 · frozen against `data-contract.md` **v6**\n"
+        "\n## Rules\n\nBanned: any field not in data-contract.md **v4**\n",
+        encoding="utf-8",
+    )
+    body = [f for f in c.check_chain(tmp_path) if "BODY prose" in f]
+    assert len(body) == 1, c.check_chain(tmp_path)
+    assert "v4" in body[0] and "v6" in body[0]
+
+
+def test_body_prose_agreeing_with_the_header_is_silent(tmp_path):
+    """The inverse must hold or the sweep is noise: a body that cites the SAME version
+    the header pins is correct prose, not drift."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "data-contract.md").write_text(
+        "**Status:** FROZEN · **Version:** v6\n\n## Fields\n", encoding="utf-8"
+    )
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v12 · frozen against `data-contract.md` **v6**\n"
+        "\n## Rules\n\nBanned: any field not in data-contract.md **v6**\n",
+        encoding="utf-8",
+    )
+    assert [f for f in c.check_chain(tmp_path) if "BODY prose" in f] == []
