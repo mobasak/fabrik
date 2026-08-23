@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — transdoc upstream proposal: 1.2, 1.4, 1.5 landed; 1.6 + 1.9 REFUTED (2026-08-23)
+
+`/fabrik-upstream` HUB mode over their 10-finding proposal. Independent re-verification changed the
+outcome on three of them, which is the entire reason the mode exists.
+
+- **1.2 LANDED** — `final_gate.py` silently fell back to `sys.executable` when the venv had no ruff,
+  so the SAME tree returned `failure` under one interpreter and `success` under another. A missing
+  toolchain now returns `status: setup-error` with the offending module named. `status:"failure"`
+  must mean the tree is bad, never that the toolchain is absent — otherwise an agent learns to
+  prefer whichever invocation passes. Three regression tests; this box has ruff on both interpreters
+  so their exact divergence is NOT reproducible here, which is why the tool list is injectable.
+- **1.4 LANDED** — any `scripts/checks/check_*.py` in a PROJECT now runs after the hub battery.
+  Deliberately a different directory from the synced, gitignored `scripts/enforcement/`, so a
+  project owns it and no sync can clobber it. Verified by execution: a passing check prints
+  `[PASS] project check: …` and a failing one turns the gate RED.
+- **1.5 LANDED (doc half)** — `95-multi-tenant-saas.md` mandated a cross-tenant probe and normalised
+  a `fabrik_admin BYPASSRLS` role while never saying the role the TESTS connect as must not be
+  superuser or hold BYPASSRLS. Every rule on the page constrained the *application* role; an agent
+  could satisfy the whole page and still run the probe as `postgres`. Now stated with the probe SQL
+  and their measurement: 29 of 32 conformance tests failed once the role was rebuilt correctly.
+- **1.6 REFUTED** — the scaffold has no such conftest. Its actual template is a disposability guard
+  with no alembic, no subprocess and no downgrade; `git log -S"downgrade"` shows that code never
+  existed in this repo. The claim describes the filer's own file, not scaffold output; kicked back
+  for a real `path:line`. Shipping the proposed `check=True` would have patched nothing.
+- **1.9 REFUTED as filed** — `/fabrik-ui-design` does not ask for a role matrix at all (the cited
+  `§4a` never existed in the file or its history). The ABSENCE of escalation-path guidance is real
+  and confirmed, but the cited bugs are backend authorization routes, and a command scoped to
+  screens and navigation cannot surface them. Re-routed rather than pinned where it would look fixed
+  on paper.
+- **Four bypasses closed in my OWN 1.1 fix**, found by re-verifying it instead of trusting the
+  mutation tests I had chosen: `phase-1` matched `phase-10` by substring, so reviewing only the last
+  phase sailed through every earlier boundary; a jump to `--phase 5` checked only phase 4 and
+  silently skipped 2-3; a zero-byte file satisfied existence; and a cosmetic command-name variant
+  (`Fabrik-Execute-Plan`, or a trailing space) disabled the entire rule with nothing printed. All
+  four now bound and mutation-proven.
+
+
 ### Fixed — the per-phase review is now BOUND to an artifact (transdoc 1.1) (2026-08-23)
 
 Their highest-damage finding and the 71-defect gap. `/fabrik-execute-plan` requires every phase

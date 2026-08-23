@@ -71,6 +71,42 @@ VENV_RUFF = PROJECT_ROOT / ".venv" / "bin" / "ruff"
 # Use venv python only if it has the required tools (ruff) installed
 PYTHON = str(VENV_PYTHON) if (VENV_PYTHON.exists() and VENV_RUFF.exists()) else sys.executable
 
+
+# The tools the gate SHELLS OUT to with the selected interpreter. A module constant
+# so a test can prove the probe actually fires (this box happens to have ruff on both
+# interpreters, so transdoc's exact divergence is not reproducible here).
+REQUIRED_TOOLS = ("ruff", "pytest")
+
+
+def _toolchain_missing(python: str) -> str:
+    """Which required tool the SELECTED interpreter cannot run — "" when fine.
+
+    transdoc finding 1.2 (2026-08-23): the line above silently falls back to
+    whatever interpreter invoked the gate when the venv has no ruff. Observed live
+    on their tree, same second, same files:
+
+        .venv/bin/python scripts/final_gate.py --json -> "failure" (No module named ruff)
+        python3          scripts/final_gate.py --json -> "success"
+
+    `status:"failure"` must mean "your tree is bad", NEVER "your toolchain is
+    missing" — otherwise an agent learns to prefer whichever invocation passes,
+    which is the single worst thing a completion gate can teach. Probe the chosen
+    interpreter for the tools we are about to run and say SETUP out loud instead.
+    """
+    import subprocess as _sp
+
+    for mod in REQUIRED_TOOLS:
+        try:
+            r = _sp.run(
+                [python, "-c", f"import {mod}"], capture_output=True, timeout=30, check=False
+            )
+        except (OSError, _sp.SubprocessError):
+            return mod
+        if r.returncode != 0:
+            return mod
+    return ""
+
+
 # Colors
 RED = "\033[91m"
 GREEN = "\033[92m"
@@ -1375,6 +1411,23 @@ def run_consistency_checks(
         else:
             results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
 
+    # transdoc finding 1.4 (2026-08-23): a project CANNOT add a check to its own
+    # completion gate. The battery above is a hardcoded list of scripts/enforcement/
+    # paths, and that directory is BOTH fleet-synced AND gitignored in every project —
+    # so a project-specific invariant (their RLS rule) could only live in pre-commit,
+    # which `--no-verify` bypasses and which this gate's own doc-sync failure message
+    # suggests bypassing. Any executable `scripts/checks/check_*.py` in the PROJECT now
+    # runs after the hub battery. Deliberately a separate directory from the synced
+    # `scripts/enforcement/`: a project owns `scripts/checks/`, so nothing here can be
+    # clobbered by the next sync, and the hub's own list stays the hub's.
+    for local_check in sorted((PROJECT_ROOT / "scripts" / "checks").glob("check_*.py")):
+        results.append(
+            run_optional_check(
+                f"scripts/checks/{local_check.name}",
+                f"project check: {local_check.stem}",
+            )
+        )
+
     return results
 
 
@@ -1836,6 +1889,27 @@ def run_iteration(
 def main() -> int:
     """Run the final gate checks with iteration loop."""
     args = parse_args()
+
+    # transdoc 1.2: fail SETUP loudly instead of returning a tree verdict the
+    # interpreter chose. A missing toolchain is not a dirty tree, and reporting it
+    # as one teaches an agent to shop for the invocation that passes.
+    missing = _toolchain_missing(PYTHON)
+    if missing:
+        import json  # local, matching this file's existing idiom at 3 other sites
+
+        payload = {
+            "status": "setup-error",
+            "error": f"the selected interpreter ({PYTHON}) cannot import {missing!r}",
+            "fix": f"install {missing} into that interpreter, or invoke the gate with one that has it",
+            "note": "this is NOT a verdict on your tree — the gate refused to guess",
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"{BOLD}{RED}SETUP ERROR{RESET} — {payload['error']}")
+            print(f"  {payload['fix']}")
+            print(f"  {payload['note']}")
+        return 2
 
     # Determine tier
     if args.lean:

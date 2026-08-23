@@ -2206,3 +2206,61 @@ def test_a_waiver_is_allowed_but_recorded(tmp_path: Path) -> None:
     waived = rec.get("waived_reviews") or []
     assert waived and waived[0]["phase"] == 1, rec
     assert "in-flight" in waived[0]["reason"]
+
+
+# --- the four bypasses found by re-verifying my OWN 1.1 fix (2026-08-23) ------
+
+
+def test_phase_10_review_does_not_satisfy_phase_1(tmp_path: Path) -> None:
+    """BYPASS 1, highest severity: the match was a bare substring, and `phase-1` is a
+    PREFIX of `phase-10`. A project that reviewed only its final phase would sail
+    through every earlier boundary — the guard reporting success without asking its
+    question, which is the exact class this whole report is about."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "prefix")
+    rev = repo / "docs" / "development" / "reviews"
+    rev.mkdir(parents=True)
+    (rev / "2026-08-23-plan-1-phase-10-review.md").write_text("# ten\n", encoding="utf-8")
+    assert _plan_run(run_dir, repo).returncode == 0
+    p = _cr(run_dir, "step", "--phase", "2", "--title", "B", sid="plan-sid", cwd=repo)
+    assert p.returncode != 0, "a phase-10 review satisfied phase 1"
+
+
+def test_an_empty_review_file_is_not_a_review(tmp_path: Path) -> None:
+    """BYPASS 3: `touch` satisfied the guard. Existence is what this binds — but an
+    empty file is not even existence."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "empty")
+    rev = repo / "docs" / "development" / "reviews"
+    rev.mkdir(parents=True)
+    (rev / "phase-1-review.md").write_text("", encoding="utf-8")
+    assert _plan_run(run_dir, repo).returncode == 0
+    assert _cr(run_dir, "step", "--phase", "2", "--title", "B",
+               sid="plan-sid", cwd=repo).returncode != 0
+
+
+def test_skipping_phases_cannot_skip_their_reviews(tmp_path: Path) -> None:
+    """BYPASS 2: only the immediate predecessor was checked, so `step --phase 5`
+    from phase 1 demanded phase 4's artifact and phases 2-3 vanished silently. The
+    refusal names the LOWEST unreviewed phase, which is the one to go back to."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "skip")
+    rev = repo / "docs" / "development" / "reviews"
+    rev.mkdir(parents=True)
+    (rev / "phase-4-review.md").write_text("# four\n", encoding="utf-8")
+    assert _plan_run(run_dir, repo, phases=6).returncode == 0
+    p = _cr(run_dir, "step", "--phase", "5", "--title", "E", sid="plan-sid", cwd=repo)
+    assert p.returncode != 0
+    assert "phase 1" in (p.stdout + p.stderr).lower(), p.stdout + p.stderr
+
+
+def test_a_cosmetic_command_name_cannot_disable_the_rule(tmp_path: Path) -> None:
+    """BYPASS 4: the membership test was exact, so `--command Fabrik-Execute-Plan`
+    or a trailing space silently disabled the ENTIRE per-phase requirement for that
+    run, with nothing printed anywhere."""
+    run_dir = tmp_path / "runs"
+    repo = _mkrepo(tmp_path, "casing")
+    assert _cr(run_dir, "start", "--command", "Fabrik-Execute-Plan", "--phases", "3",
+               "--terminal", "t", sid="case-sid", cwd=repo).returncode == 0
+    assert _cr(run_dir, "step", "--phase", "2", "--title", "B",
+               sid="case-sid", cwd=repo).returncode != 0

@@ -53,6 +53,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -331,11 +332,22 @@ def _phase_review_exists(root: str, phase: int) -> bool:
     d = Path(root) / "docs" / "development" / "reviews"
     if not d.is_dir():
         return False
-    pats = (f"phase-{phase}", f"phase{phase}", f"-p{phase}-")
+    # DELIMITED, not substring: `phase-1` is a prefix of `phase-10`, so a bare `in`
+    # let a phase-10 review satisfy phase 1 — a project that reviews only its last
+    # phase would sail through every earlier boundary (found by re-verification of
+    # this very guard, 2026-08-23).
+    pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
     try:
         for f in d.rglob("*.md"):
-            if f.is_file() and any(pat in f.name.lower() for pat in pats):
-                return True
+            if not f.is_file() or not pat.search(f.name):
+                continue
+            try:
+                # NON-EMPTY: `touch` created a complete silent bypass. This still binds
+                # existence, not quality — but an empty file is not even existence.
+                if f.stat().st_size > 0:
+                    return True
+            except OSError:
+                continue
     except OSError:
         return False  # unreadable → treat as absent; the refusal names how to waive
     return False
@@ -784,12 +796,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
 
     if args.cmd == "step":
         target = max(1, args.phase)
-        prev = target - 1
-        if (
-            prev >= 1
-            and rec.get("command") in PHASE_REVIEW_COMMANDS
-            and not _phase_review_exists(str(rec.get("repo_root") or ""), prev)
-        ):
+        # EVERY intermediate phase, not just the immediate predecessor: `step --phase 5`
+        # from phase 1 only ever demanded phase 4's artifact, so 2 and 3 vanished
+        # silently. Report the LOWEST unreviewed phase — that is the one to go back to.
+        prev = next(
+            (
+                n
+                for n in range(1, target)
+                if not _phase_review_exists(str(rec.get("repo_root") or ""), n)
+            ),
+            0,
+        )
+        if prev >= 1 and str(rec.get("command") or "").strip().lower() in PHASE_REVIEW_COMMANDS:
             if args.review_waived:
                 waived = list(rec.get("waived_reviews") or [])
                 waived.append({"phase": prev, "reason": args.review_waived, "at": _now()})
@@ -1058,7 +1076,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                     return False
                 import re as _re
 
-                return bool(_re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | _re.I))
+                return bool(_re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | re.I))
 
             if all(_midloop(f) for f in candidates):
                 msg = (

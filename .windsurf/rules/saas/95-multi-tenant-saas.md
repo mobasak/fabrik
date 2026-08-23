@@ -91,6 +91,18 @@ Define `auth.jwt()` (the claims jsonb, `coalesce` to `'{}'`) and `auth.role()` (
 - `FORCE ROW LEVEL SECURITY` on **every** RLS-enabled table (so even the table owner is subject to its policies). Apply idempotently across the whole schema in one migration (loop `pg_class WHERE relrowsecurity AND NOT relforcerowsecurity`).
 - A dedicated **`fabrik_admin`** role `NOLOGIN NOINHERIT BYPASSRLS` for migrations / backups / exports only — the public app role **never** connects as it.
 - **Cross-tenant probe (required test):** set context for tenant A, write/read a row; switch context to tenant B and assert A's row is invisible (`count(*) = 0`); then set **no** context and assert the helper returns `NULL` and the read denies. See `45-testing-strategy.md`.
+- ⚠️ **The role your TESTS connect as must not be superuser and must not hold `BYPASSRLS`** — otherwise the required probe above proves NOTHING, silently, for a security control. Every rule on this page constrains the *application* role; none of them constrained the *harness* role, and an agent could satisfy the entire page while running the probe as `postgres`. Assert it inside the suite so it fails rather than skips:
+
+  ```sql
+  SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;  -- both MUST be false
+  ```
+
+  MEASURED (transdoc, 2026-08-23): their `*_test` database was owned by `postgres`
+  (`rolsuper=t, rolbypassrls=t`), so every RLS assertion ran against a role RLS does not apply to.
+  Rebuilt under `NOSUPERUSER NOBYPASSRLS` owning the tables (the production shape, which `FORCE`
+  then binds), **29 of 32 conformance tests failed** against the same database. That gap is what
+  the old harness was proving: nothing. A green RLS suite is evidence only if its role is subject
+  to RLS.
 
 ## Tenant Context Propagation
 
