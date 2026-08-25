@@ -1,6 +1,7 @@
 ---
 activation: glob
-globs: ["**/workers/**", "**/jobs/**", "**/tasks/**", "**/queue/**", "**/beat*", "**/scheduler*", "**/sweep*"]
+globs: ["**/workers/**", "**/worker/**", "**/worker.py", "**/jobs/**", "**/jobs.py", "**/tasks/**", "**/tasks.py", "**/queue/**", "**/queue.py", "**/beat*", "**/scheduler*", "**/sweep*"]
+applies_to: ["file-worker"]
 description: Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
 trigger: glob
 ---

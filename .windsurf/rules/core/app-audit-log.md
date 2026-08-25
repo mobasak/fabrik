@@ -1,6 +1,7 @@
 ---
 activation: glob
-globs: ["**/audit_log*", "**/libs/audit_log/**", "**/audit_log.py", "**/billing/**/webhook*", "**/auth/login*", "**/auth/password*", "**/auth/mfa*", "**/admin/**/impersonat*", "**/gdpr/**", "**/watchdog/actions*"]
+globs: ["**/audit_log*", "**/libs/audit_log/**", "**/audit_log.py", "**/billing/**/webhook*", "**/billing_routes.py", "**/webhooks.py", "**/auth/login*", "**/auth/password*", "**/auth/mfa*", "**/auth.py", "**/admin/**/impersonat*", "**/gdpr/**", "**/watchdog/actions*"]
+applies_to: ["saas-skeleton"]
 description: Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
 trigger: glob
 ---
