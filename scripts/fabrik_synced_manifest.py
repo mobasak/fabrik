@@ -31,6 +31,11 @@ CORE_SCRIPTS = [
     "health_checker.py",
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
     "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
+    # ⚠️ IMPORT DEPENDENCY of the two above — both `import rules_match` at MODULE SCOPE, so a sync
+    # that ships them without it breaks BOTH fleet-wide with ModuleNotFoundError. Measured live
+    # 2026-08-25: the pair synced first, and 48 of 49 projects' `select_rules.py` died at import
+    # until this line landed. A synced script's imports are part of the synced surface.
+    "rules_match.py",  # the ONE path<->pack glob matcher; select_rules + review_rubric both import it
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
     "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/claim/ack/requeue/digest/should-reply)
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
