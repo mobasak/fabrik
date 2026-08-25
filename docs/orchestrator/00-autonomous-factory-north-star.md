@@ -41,7 +41,7 @@ idea ─▶ [full/large vision] mega-epic-breakdown ─▶ N epic files (each of
       rework each epic CONVERSATIONALLY ◀┘  (no hand-editing — chat only)
                                         │
       per epic ─▶ epic-to-ticket-workflow ─▶ tickets ─▶ execute (coder + reviewer subagents, converged)
-                                        │  ⟨GATE 2: manual `fabrik apply` — hub owns deploy execution⟩
+                                        │  ⟨GATE 2: operator approval → the deploy triad; hub owns execution⟩
                                      review ─▶ deploy
 ```
 
@@ -140,7 +140,7 @@ The engine is **Claude Max behind Traycer** (see § Owner Working Model) and it 
 | #             | Requirement                                                                                           | State   |
 | ------------- | ----------------------------------------------------------------------------------------------------- | ------- |
 | **R12** | Escalate only on genuine blockers (Apprise → Telegram).                                              | PARTIAL |
-| **R14** | Exactly**two gates**: plan approval in, deploy approval out (deploy = manual `fabrik apply`). | DONE    |
+| **R14** | Exactly**two gates**: plan approval in, deploy approval out (Gate 2 = the operator's explicit go; the deploy itself runs through the triad — `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → `/fabrik-deploy` — with `fabrik apply` underneath it, not typed by hand). | DONE    |
 
 ### Constraints
 
@@ -197,7 +197,7 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
   `~/.vibe-kanban/` binary remain on disk but inert. *(For the record: it is an off-the-shelf board that
   runs coding agents in git worktrees — genuinely adjacent to D3's driver — but it knows nothing about
   `/fabrik-*`, the Tier-2 gate, or the rule packs, so it would run agents OUTSIDE the quality system.)*
-- **Gate 2** — Telegram digest → review branches in VS Code Source Control diff → merge → manual `fabrik apply`.
+- **Gate 2** — Telegram digest → review branches in VS Code Source Control diff → merge → the operator's go, then the deploy triad executes (`/fabrik-deploy` calls `fabrik apply`; the operator's dispatch IS the manual act).
 - **Epic ticket store (2026-07-14)** — our orchestrator has **no native ticket store** (Traycer does), so
   `03-expand-epic-files-fabrik` **writes one file per epic** to
   `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (allowlisted in `CLAUDE.md`; matched by
