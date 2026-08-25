@@ -57,16 +57,31 @@ PostgreSQL 17 docs — Row Security Policies
 - Table owners bypass RLS by default; `FORCE ROW LEVEL SECURITY` makes the owner subject to policies
   (why connecting ingest as the table-owner role under FORCE still fails — the transdoc symptom).
 
-## Decision (fleet owns the security posture): policy-based, per-table — NOT global BYPASSRLS
+## Decision (fleet owns the security posture): policies scoped to the payments-module tables — NOT global BYPASSRLS
 
-The registrar provisions a **dedicated login role scoped to a permissive `USING(true)` SELECT policy on
-`subscriptions` + `customers` only**, with **no `BYPASSRLS` attribute**, exposed as a separate
-`PAYMENTS_INGEST_DATABASE_URL`. Rationale: `PAYMENTS_INGEST_DATABASE_URL` is used by an internet-facing
-webhook endpoint; if it leaks, a BYPASSRLS role reads **every tenant's rows on every RLS table**, while
-a policy-scoped role reads cross-tenant on **only those two tables**. Same functional result, an
-order-of-magnitude smaller blast radius — the least-privilege choice for a single-operator fleet
-(threat model: a leaked ingest DSN, not an insider). The consuming app asserts the wiring at boot with
-`verify_service_role(ingest_conn, allow_policy_based=True)`.
+The registrar provisions a **dedicated login role with no `BYPASSRLS` attribute**, granted permissive
+RLS policies scoped to **the payments-module tables the `WebhookStore` service path touches
+cross-tenant** — not the "two tables" an earlier draft claimed. The real surface (grounded in
+`payments/db/schema.sql` — every table has `ENABLE`+`FORCE` RLS with a `_tenant_isolation` policy
+carrying both `USING` and `WITH CHECK`, and `SPEC.md:56` — the WebhookStore runs as **one** cross-tenant
+service role):
+
+- **READ** `customers`, `subscriptions`, `plans` (the `resolve_org` discovery + entitlement lookup) —
+  permissive `USING (true)` SELECT policy;
+- **WRITE** `webhook_events` (the idempotency record `webhooks.ingest` writes at receipt, before the
+  tenant is even known) — permissive INSERT/SELECT policy (its `WITH CHECK (org_id = app.current_org)`
+  otherwise blocks a role that sets no GUC).
+
+Exposed as a separate `PAYMENTS_INGEST_DATABASE_URL`. Rationale (the least-privilege thesis, corrected):
+if the DSN leaks, a `BYPASSRLS` role reads/writes **every tenant's rows on EVERY RLS table in the shared
+DB — including the app's own core business tables**, while a policy-scoped role is confined to the
+**payments-module tables**. The app's non-payments tenant data stays protected — a real, meaningful
+blast-radius reduction, even though the payments surface is larger than "two tables." This is why
+fabrik-lib *defaults* to BYPASSRLS (one attribute covers the whole service surface); the policy-based
+path trades that one-liner for the confinement. The consuming app asserts the wiring at boot with
+`verify_service_role(ingest_conn, allow_policy_based=True)`. **The exact minimal policy set (tables ×
+read/write) is pinned in the plan** against `PgWebhookStore`'s actual statements — the design decision
+here is the *posture* (scoped policies, not BYPASSRLS), not the final DDL.
 
 This is not a novel posture — it is the registrar's **existing default**: the watchdog RO role
 (`{db}_wd_ro`) is the same class of non-owner role under FORCE RLS, and the driver documents the same
@@ -77,9 +92,9 @@ the default here"* (`postgres.py:645-649`). The payments-ingest role reuses that
 
 | # | Approach | Verdict |
 |---|---|---|
-| A | **Full `BYPASSRLS` service role** (fabrik-lib default). Simplest; `verify_service_role` passes with no flag. | **Rejected** — global bypass; a leaked ingest DSN exposes all RLS tables, all tenants. |
-| **B** | **Policy-based per-table role** — login role, no BYPASSRLS, `GRANT SELECT` + permissive `USING(true)` SELECT policy on `subscriptions`+`customers`; app passes `allow_policy_based=True`. | **Chosen** — least privilege; fabrik-lib-supported; scoped blast radius. |
-| C | **`SECURITY DEFINER` resolver function** owned by a privileged role, called by the tenant role. | **Rejected** — `resolve_org()` issues direct queries, not a function call; adopting this forks fabrik-lib's `PgWebhookStore`. Out of scope. |
+| A | **Full `BYPASSRLS` service role** (fabrik-lib default). Simplest; `verify_service_role` passes with no flag. | **Rejected** — bypasses RLS on the **entire shared DB**, incl. the app's own non-payments tenant tables; a leaked ingest DSN exposes everything, all tenants. |
+| **B** | **Policy-based role scoped to the payments-module tables** — login role, no BYPASSRLS, permissive READ policies on `customers`/`subscriptions`/`plans` + a permissive WRITE policy on `webhook_events`; app passes `allow_policy_based=True`. | **Chosen** — least privilege; fabrik-lib-supported; confines a leaked DSN to the payments tables (the app's core data stays RLS-protected). |
+| C | **`SECURITY DEFINER` resolver function** owned by a privileged role, called by the tenant role. | **Rejected** — the service path issues direct queries across several tables (resolve + record), not one function call; adopting this forks fabrik-lib's `PgWebhookStore`. Out of scope. |
 
 ## Vendor verdict (fabrik-lib ladder + hub-tooling)
 
@@ -100,11 +115,13 @@ the default here"* (`postgres.py:645-649`). The payments-ingest role reuses that
    call a new `create_payments_ingest_role(db_name)` in `drivers/postgres.py` (mirror
    `create_watchdog_roles`, incl. its split CREATE-then-idempotent-GRANT and fresh-password-only DSN
    injection): mint `{db}_payments_ingest` (LOGIN NOSUPERUSER, CSPRNG password, **no BYPASSRLS**), then
-   **idempotently re-apply** `GRANT SELECT ON subscriptions, customers` + `CREATE POLICY … FOR SELECT TO
-   {db}_payments_ingest USING (true)` on those tables — the policy step **guarded on table existence**
-   (self-heals on the apply after the app's schema lands; see § Sequencing). Inject
-   `PAYMENTS_INGEST_DATABASE_URL` only on fresh creation (mirror the watchdog RO/RW URL injection,
-   `infrastructure.py:583-591`).
+   **idempotently re-apply** the grant+policy set across the payments-module tables — READ (`GRANT
+   SELECT` + permissive `USING (true)` SELECT policy) on `customers`/`subscriptions`/`plans`, and WRITE
+   (`GRANT INSERT, SELECT` + permissive `USING (true) WITH CHECK (true)` policy) on `webhook_events` —
+   each **guarded on table existence** (self-heals on the apply after the app's schema lands; see
+   § Sequencing). The **exact table×operation set is pinned in the plan** from `PgWebhookStore`'s real
+   statements. Inject `PAYMENTS_INGEST_DATABASE_URL` only on fresh creation (mirror the watchdog RO/RW
+   URL injection, `infrastructure.py:583-591`).
 3. **Consumer wiring** (documented for the vendoring project, not built here): ingest connects with
    `PAYMENTS_INGEST_DATABASE_URL` and calls `verify_service_role(conn, allow_policy_based=True)` at boot.
 
@@ -123,12 +140,13 @@ privilege is the default here" (`postgres.py:645-649`).
 - Registrar mints `{db}_payments_ingest` (LOGIN, NOSUPERUSER, **no BYPASSRLS**, CSPRNG password) — a
   role is DB-global, safe to create before any table exists — and injects `PAYMENTS_INGEST_DATABASE_URL`
   only on fresh creation (the watchdog password-lifecycle rule, `postgres.py:657-660`).
-- The `GRANT SELECT` + `CREATE POLICY … USING (true)` on `subscriptions`/`customers` is **idempotent and
-  re-applied on every apply** (the watchdog additive-GRANT model), so it self-heals on the first apply
-  **after** the app's schema lands. Unlike a GRANT (coverable pre-table via `ALTER DEFAULT PRIVILEGES FOR
-  ROLE <owner>`), `CREATE POLICY` needs the table to exist — so the policy step is **guarded on table
-  existence** (skip-if-absent, applied on the next apply once present). This keeps provisioning in ONE
-  place (the registrar) and does not make the project author RLS policy for a fabrik-minted role.
+- The grant+policy set (READ on `customers`/`subscriptions`/`plans`, WRITE on `webhook_events` — see
+  § Decision) is **idempotent and re-applied on every apply** (the watchdog additive-GRANT model), so it
+  self-heals on the first apply **after** the app's schema lands. Unlike a GRANT (coverable pre-table via
+  `ALTER DEFAULT PRIVILEGES FOR ROLE <owner>`), `CREATE POLICY` needs the table to exist — so the policy
+  step is **guarded on table existence** (skip-if-absent, applied on the next apply once present). This
+  keeps provisioning in ONE place (the registrar) and does not make the project author RLS policy for a
+  fabrik-minted role.
 
 The earlier "project schema owns the policy" option is **rejected**: it forces every payments-vendoring
 project to hardcode the registrar's role name into its migrations and re-implement the guard the
@@ -150,7 +168,9 @@ registrar already owns for `{db}_wd_ro`.
 - `Shape` accepts `needs_payments_ingest`; `fabrik plan` on a spec with it set previews the ingest role +
   `PAYMENTS_INGEST_DATABASE_URL`.
 - `fabrik apply` mints a **non-BYPASSRLS** `<db>_payments_ingest` role and injects the DSN.
-- With the registrar-provisioned policy in place, `resolve_org()` returns the org for an unsigned (iyzico) webhook;
-  `verify_service_role(conn, allow_policy_based=True)` passes; the role reads **only**
-  `subscriptions`/`customers` cross-tenant (a leaked DSN cannot read other RLS tables).
+- With the registrar-provisioned policies in place, `resolve_org()` returns the org for an unsigned
+  (iyzico) webhook AND `webhooks.ingest` records the event (cross-tenant INSERT on `webhook_events`
+  succeeds under FORCE RLS); `verify_service_role(conn, allow_policy_based=True)` passes.
+- The role reaches **only the payments-module tables** cross-tenant — a leaked DSN **cannot** read or
+  write the app's own non-payments tenant tables (which a BYPASSRLS role would expose).
 - The rule-pack documentation slice is filed to infra, not committed by fleet.
