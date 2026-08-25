@@ -578,3 +578,23 @@ class TestWatchdogConfig:
         # Roundtrip is stable
         roundtrip = Spec.model_validate(spec.model_dump(exclude_none=True))
         assert roundtrip.watchdog == spec.watchdog
+
+
+# ── needs_payments_ingest flag (2026-08-25: payments-ingest registrar role) ──
+def test_shape_accepts_needs_payments_ingest_default_false() -> None:
+    from fabrik.spec_loader import Shape
+
+    assert Shape().needs_payments_ingest is False, "default off"
+    s = Shape(needs_payments_ingest=True, needs_database=True)
+    assert s.needs_payments_ingest is True
+
+
+def test_needs_payments_ingest_requires_needs_database() -> None:
+    """The ingest role provisions grants/policies on the project's DB — it is
+    meaningless (and mis-provisions) without needs_database."""
+    import pytest as _pytest
+
+    from fabrik.spec_loader import Shape
+
+    with _pytest.raises(ValueError, match="needs_database"):
+        Shape(needs_payments_ingest=True, needs_database=False)

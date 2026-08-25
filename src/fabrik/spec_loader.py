@@ -330,6 +330,19 @@ class Shape(BaseModel):
             "See drivers/redis.py — DEPLOYMENT.md §9.9 G4."
         ),
     )
+    needs_payments_ingest: bool = Field(
+        default=False,
+        description=(
+            "True if the service vendors fabrik-lib's `payments` module and takes "
+            "webhooks from an UNSIGNED provider (e.g. iyzico). Gates the postgres "
+            "registrar to mint a scoped, NON-BYPASSRLS cross-tenant ingest role + "
+            "PAYMENTS_INGEST_DATABASE_URL: permissive READ policies on customers/"
+            "subscriptions and a permissive INSERT+SELECT policy on webhook_events, "
+            "so PgWebhookStore.resolve_org() can discover the tenant a webhook belongs "
+            "to (its tenant is the unknown being resolved). Requires needs_database. "
+            "See drivers/postgres.py::create_payments_ingest_role."
+        ),
+    )
     exposes_metrics: bool = Field(
         default=False,
         description=(
@@ -363,6 +376,18 @@ class Shape(BaseModel):
             "(e.g. '/home/appuser')."
         ),
     )
+
+    @model_validator(mode="after")
+    def _payments_ingest_needs_database(self) -> "Shape":
+        """The ingest role grants + policies live in the project's DB, so
+        needs_payments_ingest is meaningless — and would mis-provision — without
+        needs_database. Fail loud rather than mint a role against no DB."""
+        if self.needs_payments_ingest and not self.needs_database:
+            raise ValueError(
+                "shape.needs_payments_ingest requires needs_database: true "
+                "(the ingest role + policies are provisioned on the project's DB)"
+            )
+        return self
 
 
 class WordPressPlugin(BaseModel):
