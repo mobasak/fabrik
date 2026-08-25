@@ -98,7 +98,7 @@ def main() -> int:
         help=(
             "plan-stage routing: instead of the whole-project ACTIVE/AVAILABLE split, print "
             "only the packs whose glob matches one of these changed paths (routes through "
-            "rules_match.packs_for_paths — the same question review_rubric.py --changed asks "
+            "rules_match.packs_for_paths — the same GLOB question review_rubric.py --changed asks "
             "at review time)."
         ),
     )

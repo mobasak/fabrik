@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — One shared rule-pack path matcher + a D7 live-request pin (2026-08-25)
+
+- `scripts/rules_match.py` — the ONE path↔pack glob matcher. `select_rules.py` and
+  `review_rubric.py` each maintained an independent one; both now import it. The two callers'
+  **deliberate** empty-glob divergence (review_rubric `True`, select_rules `False`) is preserved as a
+  keyword-only `empty_matches_all` with NO default, so a caller that forgets it gets a `TypeError`
+  rather than a silently wrong ACTIVE/AVAILABLE split across ~46 repos. All three original call
+  sites rewired; `select_rules.py --changed` added for plan-stage routing.
+- Purity proven, not asserted: `review_rubric.py --changed` and `select_rules.py --json` are
+  byte-identical before and after; an independent differential harness (27 globs × 19 paths, and
+  17 globs × 4 root spellings) found 0 divergences against the pre-change functions.
+- `packs_for_paths` returns the rubric's MATCHED set **union any FLOOR pack whose glob fired** — not
+  plain equality with MATCHED, which suppresses floor packs it has already emitted. The first version
+  of this claim was false and its test passed only because the hard-coded paths dodged the divergent
+  case.
+- D7 of `/fabrik-execute-plan` now refuses a terminal state on green suites alone when a plan shipped
+  HTTP surface: it owes ≥1 live request with its response in `## Evidence`. Pinned by
+  `tests/test_execute_plan_d7.py`, whose predicate requires the modal verb and its object ADJACENT —
+  two earlier co-occurrence designs both accepted a requirement reworded to "nice to have".
+
+### Fixed — A synced script's imports are part of the synced surface (2026-08-25)
+
+- Adding a module-scope `import rules_match` to `select_rules.py` and `review_rubric.py` — both
+  `CORE_SCRIPTS` and both governance-sync triggers — shipped the pair to every project WITHOUT the
+  new module. Measured: 49 projects carry `select_rules.py`, **48 were missing `rules_match.py`**, and
+  their copies died at import with `ModuleNotFoundError`. That is the tool `CLAUDE.md` § Orient makes
+  mandatory before planning, broken fleet-wide. Fixed by adding `rules_match.py` to `CORE_SCRIPTS` and
+  the `.pre-commit-config.yaml` files-filter, then force-syncing; verified 47 synced, 0 missing.
+  Nothing in the gate cross-checks a synced script's imports against the manifest today.
+
 ### Changed — Plan CONVERGED: rule packs that cannot reach the code they bind (2026-08-25)
 
 - `docs/development/plans/2026-08-25-plan-1-inert-rule-packs/` — 5-ticket set closing the class

@@ -26,7 +26,9 @@ A caller that forgets the flag gets a TypeError, not a silently wrong default.
 
 `packs_for_paths(paths, root)` is the plan-stage routing entry point: given a set of
 changed paths, which packs (relative to `.windsurf/rules/`, posix) does ANY of them
-match — the same question `review_rubric.py --changed` answers per-path, generalized
+match — the same GLOB question `review_rubric.py --changed` asks per-path. NOTE: it is
+NOT equal to the rubric's MATCHED section, which suppresses FLOOR_PACKS it has already
+emitted; a floor pack whose glob fires appears here and not there
 to a caller that just wants the pack id list (e.g. `select_rules.py --changed`).
 """
 

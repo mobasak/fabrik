@@ -50,7 +50,7 @@ for this ticket.
 
 ## Behavior Contract
 
-- **Given** a ticket's declared file list, **When** plan-stage pack routing runs, **Then** it returns the same pack set `review_rubric.py --changed` returns for those paths (scripts/rules_match.py:1).
+- **Given** a ticket's declared file list, **When** plan-stage pack routing runs, **Then** it returns the rubric's MATCHED set UNION any FLOOR pack whose glob fired — NOT plain equality with MATCHED, which suppresses floor packs it has already emitted (scripts/rules_match.py:1).
 - **Given** a wildcard-only glob and the two callers' opposite conventions, **When** the shared matcher runs, **Then** `empty_matches_all=True` matches and `empty_matches_all=False` does not, preserving both call sites unchanged (scripts/review_rubric.py:194).
 
 ## Context Files

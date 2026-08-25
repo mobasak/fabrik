@@ -95,7 +95,7 @@ the consumer landing first — its Gate could not have passed.
 
 - **Given** a plan whose tickets ship HTTP surface, **When** D7 validation runs, **Then** it refuses to reach a terminal state without at least one live request/response pasted into `## Evidence` (commands/_sources/fabrik-execute-plan.md:520).
 - **Given** the D7 section with its live-request clause deleted, **When** the prose-pin test runs, **Then** it fails — proving the pin observes the clause rather than the file's existence (tests/test_execute_plan_d7.py:1).
-- **Given** a ticket's declared file list, **When** plan-stage pack routing runs, **Then** it returns the same pack set `review_rubric.py --changed` returns for those paths (scripts/rules_match.py:1).
+- **Given** a ticket's declared file list, **When** plan-stage pack routing runs, **Then** it returns the rubric's MATCHED set UNION any FLOOR pack whose glob fired — NOT plain equality with MATCHED, which suppresses floor packs it has already emitted (scripts/rules_match.py:1).
 - **Given** a wildcard-only glob and the two callers' opposite conventions, **When** the shared matcher runs, **Then** `empty_matches_all=True` matches and `empty_matches_all=False` does not, preserving both call sites unchanged (scripts/review_rubric.py:194).
 - **Given** the 56-pack corpus and the 12 scaffold types, **When** the layout audit runs, **Then** it emits one row per (pack, type) pair the pack's `applies_to` claims and matches zero emitted paths (scripts/enforcement/pack_layout_audit.py:1).
 - **Given** the two known-inert glob-activated packs, **When** their globs are corrected and their `applies_to` seeded, **Then** each matches at least one real file in a scaffolded project of its declared type (.windsurf/rules/core/75-workers-jobs.md:3).

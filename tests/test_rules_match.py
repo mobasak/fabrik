@@ -123,14 +123,25 @@ def test_packs_for_paths_sorted_and_dedup(tmp_path: Path) -> None:
 
 
 def test_packs_for_paths_matches_review_rubric_changed_output() -> None:
-    """packs_for_paths must return the same MATCHED pack set as
-    `review_rubric.py --changed <paths>` for the same paths, against the REAL
-    repo rule packs (not a synthetic tmp tree) — the ticket's cross-tool equivalence proof.
+    """packs_for_paths == the rubric's MATCHED set UNION any FLOOR pack whose glob fired.
+
+    NOT plain equality with MATCHED. `review_rubric.build_rubric` emits the three
+    FLOOR_PACKS into its FLOOR section and then skips them in MATCHED, so a path that
+    hits a floor pack's glob appears in packs_for_paths and NOT in MATCHED. Proven:
+    `review_rubric.py --changed db/schema.sql` -> "MATCHED — none", while
+    packs_for_paths(['db/schema.sql']) -> ['core/25-data-postgres.md'].
+
+    The original version of this test asserted plain equality and passed only because
+    its three hard-coded paths happened to miss every floor pack — a test whose pass
+    depended on the input dodging the divergent case (Opus review finding, 2026-08-25).
+    `db/schema.sql` and `Dockerfile` below are in the list precisely to hit it.
     """
     changed = [
         "scripts/select_rules.py",
         "scripts/review_rubric.py",
         ".windsurf/rules/core/75-workers-jobs.md",
+        "db/schema.sql",      # hits core/25-data-postgres.md, a FLOOR pack
+        "Dockerfile",         # hits core/30-ops.md, a FLOOR pack
     ]
     proc = subprocess.run(
         [sys.executable, str(_SCRIPTS / "review_rubric.py"), "--changed", *changed],
@@ -152,4 +163,19 @@ def test_packs_for_paths_matches_review_rubric_changed_output() -> None:
                 matched_from_rubric.add(name)
 
     from_rules_match = set(rm.packs_for_paths(changed, _ROOT))
-    assert from_rules_match == matched_from_rubric
+
+    import select_rules  # noqa: E402
+    sys.path.insert(0, str(_SCRIPTS))
+    import review_rubric  # noqa: E402
+
+    floor_that_fired = {
+        rel
+        for rel, globs, _ in review_rubric._packs(_ROOT)
+        if rel in review_rubric.FLOOR_PACKS
+        and any(rm.pack_matches_path(c, g, empty_matches_all=True) for c in changed for g in globs)
+    }
+    assert floor_that_fired, (
+        "this test is only meaningful if at least one FLOOR pack's glob fires — "
+        "otherwise it degenerates into the plain-equality assertion it replaced"
+    )
+    assert from_rules_match == matched_from_rubric | floor_that_fired
