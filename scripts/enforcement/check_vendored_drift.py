@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/final_gate.py | docs/reference/enforcement-sync.md
+# AFTER-EDIT: scripts/final_gate.py, tests/enforcement/test_check_vendored_drift.py | docs/reference/sync-excluded-repo-audit.md
 """Vendored-enforcement drift report for sync-EXCLUDED repos — advisory, hub-only.
 
 The class this closes (measured, 2026-08-16, fabrik-lib finding 01M05F4QBR6B0WSNJS2ZXHN80V):
@@ -59,6 +59,19 @@ def _governance_set(root: Path) -> dict[str, str]:
     if enf.is_dir():
         for f in sorted(enf.glob("*.py")):
             out[str(f.relative_to(root))] = _sha(f)
+    # Rules packs are governance, and they are the LARGER vendored surface — the hub authors
+    # `.windsurf/rules/**`, sync-excluded repos vendor them by copy, and nothing compared them.
+    # This check was built to close the sync-exclusion blind spot and shipped with one of its own:
+    # measured by fabrik-lib 2026-08-25, 21 stale packs there versus the 16 scripts it did report,
+    # including a DATED FLEET MANDATE (660320f0, draft-persistence in every GUI-type pack) that had
+    # never arrived — 12 days of authoring client kits against superseded prose. A check only looks
+    # where you point it. Divergence stays declarable: the same
+    # `.fabrik/vendored-divergence-allowlist` covers a pack path exactly as it covers a script.
+    rules = root / ".windsurf" / "rules"
+    if rules.is_dir():
+        for f in sorted(rules.rglob("*.md")):
+            if f.is_file():
+                out[str(f.relative_to(root))] = _sha(f)
     for rel in ROOT_FILES:
         f = root / rel
         if f.is_file():

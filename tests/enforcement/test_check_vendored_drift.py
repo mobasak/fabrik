@@ -83,3 +83,52 @@ def test_real_script_runs_clean_at_repo_root():
                        timeout=30, cwd="/opt/fabrik")
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip(), "at the hub the report always says something"
+
+
+# --- rules packs are governance too (fabrik-lib 01M0W4ZPGW9DB562TX4FV6VECM, 2026-08-25) --------
+# _governance_set collected scripts/enforcement/*.py + ROOT_FILES only, so `.windsurf/rules/**`
+# — the LARGER vendored surface — was invisible. The instrument built to close the sync-exclusion
+# blind spot had one of its own: 21 stale packs in fabrik-lib vs the 16 scripts it did report,
+# including a dated fleet mandate (660320f0, draft-persistence in every GUI pack) that never
+# arrived there. A check only looks where you point it.
+
+
+def test_stale_rules_pack_is_reported(tmp_path, capsys, monkeypatch):
+    hub = tmp_path / "fabrik"
+    _tree(hub, {
+        "scripts/enforcement/check_a.py": "A\n",
+        ".windsurf/rules/core/25-data-postgres.md": "MANDATE v2\n",
+    })
+    vendor = tmp_path / "vendorer"
+    _tree(vendor, {
+        "scripts/enforcement/check_a.py": "A\n",                       # identical
+        ".windsurf/rules/core/25-data-postgres.md": "MANDATE v1\n",     # STALE → must be reported
+    })
+    monkeypatch.setattr(cvd, "HUB", hub)
+    monkeypatch.setattr(cvd, "OPT", tmp_path)
+    monkeypatch.chdir(hub)
+    assert cvd.main() == 0
+    out = capsys.readouterr().out
+    assert ".windsurf/rules/core/25-data-postgres.md: differs from hub" in out, out
+
+
+def test_allowlist_covers_a_rules_pack_too(tmp_path, capsys, monkeypatch):
+    """A deliberate pack divergence must be declarable, exactly like a script one."""
+    hub = tmp_path / "fabrik"
+    _tree(hub, {"scripts/enforcement/check_a.py": "A\n", ".windsurf/rules/x.md": "HUB\n"})
+    vendor = tmp_path / "vendorer"
+    _tree(vendor, {
+        "scripts/enforcement/check_a.py": "A\n",
+        ".windsurf/rules/x.md": "LOCAL\n",
+        ".fabrik/vendored-divergence-allowlist": "# deliberate\n.windsurf/rules/x.md\n",
+    })
+    monkeypatch.setattr(cvd, "HUB", hub)
+    monkeypatch.setattr(cvd, "OPT", tmp_path)
+    monkeypatch.chdir(hub)
+    assert cvd.main() == 0
+    out = capsys.readouterr().out
+    # A fully-declared repo takes the QUIET path — no per-repo counts are printed at all. That
+    # silence IS the allowlist working on a pack path; asserting "declared-design" here would be
+    # asserting the noisy branch, which only appears when something is UNdeclared.
+    assert "OK (every vendored governance divergence is declared)" in out, out
+    assert "rules/x.md: differs from hub with no declaration" not in out

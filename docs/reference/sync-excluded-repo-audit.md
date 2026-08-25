@@ -7,6 +7,14 @@
 > instrument is `scripts/enforcement/check_vendored_drift.py` (hub-only, warn_only in the
 > gate): it hash-compares every vendorer's governance set against hub and splits declared
 > design (the repo's own `.fabrik/vendored-divergence-allowlist`) from UNREVIEWED drift.
+>
+> **The governance set is `scripts/enforcement/*.py` + `ROOT_FILES` + `.windsurf/rules/**/*.md`.**
+> Rules packs were added 2026-08-25 (fabrik-lib `01M0W4ZPGW9DB562TX4FV6VECM`): the instrument built
+> to close this blind spot shipped with one of its own, and packs are the LARGER surface — of
+> fabrik-lib's 33 undeclared diffs, **21 are packs and 12 are scripts**. Worst instance: a dated
+> fleet mandate (`660320f0`, draft-persistence in every GUI-type pack) sat undelivered for twelve
+> days while fabrik-lib authored the client kits those packs govern. *A check only looks where you
+> point it* — when extending the audit, extend `_governance_set`, not just the prose.
 
 **Why:** fabrik-lib reported an orphaned-governance shape (a `refresh-governance.sh` branch that
 could never fire, because the hub had moved `CLAUDE.md` out of `GOVERNANCE_FILES`) and asked

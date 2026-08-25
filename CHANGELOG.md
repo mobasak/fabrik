@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the vendored-drift instrument had its own blind spot: rules packs (2026-08-25)
+
+fabrik-lib, mail `01M0W4ZPGW9DB562TX4FV6VECM`. `check_vendored_drift.py` was built to close the
+sync-exclusion blind spot and shipped with one of its own: `_governance_set()` collected
+`scripts/enforcement/*.py` + `ROOT_FILES` only, so `.windsurf/rules/**` — **the larger vendored
+surface** — was never compared. The hub authors the packs; sync-excluded repos vendor them by copy;
+nothing checked whether the copies were current.
+
+- `.windsurf/rules/**/*.md` now joins the governance set. Divergence stays declarable — the same
+  `.fabrik/vendored-divergence-allowlist` covers a pack path exactly as it covers a script.
+- **Their number reproduces exactly.** fabrik-lib now reports `47 identical · 5 declared-design ·
+  33 UNREVIEWED · 7 local-only`, and of the 33 undeclared diffs **21 are rules packs** — precisely
+  the count they filed, arrived at independently by walking full file history per pack. Before this
+  change only the 12 script diffs were visible.
+- Worst instance they surfaced: `660320f0` (2026-08-13) — *"draft-persistence mandate in EVERY
+  GUI-type pack"*, itself an operator correction that the rule binds every GUI surface — never
+  reached them. Ten packs sat one commit behind it for twelve days while fabrik-lib authored the
+  client kits (`rn-auth-kit`, `chrome-ext-billing-kit`, …) those packs govern.
+- Red-first, mutation-proven: reverting the block makes the stale-pack test fail. One test of mine
+  was wrong and corrected rather than the code — a fully-declared repo takes the QUIET path and
+  prints no per-repo counts, so asserting `declared-design` there was asserting the noisy branch.
+
+Their framing is the durable part: *"a check only looks where you point it"* — filed alongside their
+own instance of the same error, seeding a project-side lock from a scripts-only list and then
+reporting "drift 0 unexplained" with 35 files outside its scope.
+
 ### Fixed — mailbox batch: three enforcement fixes + two pack/command completions (2026-08-25)
 
 From the infra mailbox sweep (six findings validated against live code first): `final_gate.py`
