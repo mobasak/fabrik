@@ -1,6 +1,6 @@
 # fabrik-mail DISPATCHER — Layer-1.5 auto-processing (design spec)
 
-Status: CONVERGED (two /fabrik-spec-review runs + operator amendments 2026-08-25: immediate event-driven trigger; NO dollar caps)
+Status: CONVERGED (three /fabrik-spec-review runs 2026-08-25 — final run: 36 findings incl. the alerting-credential day-1 breaker, archive-strand escalation, exception-type taxonomy, intel floater tier; final no-op pass md5 `b1bf74dd`)
 Date: 2026-08-25
 Author: infra (hub session, /fabrik-spec run)
 Predecessors: `2026-08-11-fabrik-mail-design.md` (Layer 1, shipped) ·
@@ -26,7 +26,8 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
    get a beat owner plus the `operator-decision` marker in the classification log, § Routing; no
    new `agent:` value exists.
 2. The dispatcher run is idempotent and concurrent-safe: two overlapping runs never double-route
-   (`flock -n` serializes them), a message a live session claims mid-run resolves by rename
+   (ONE shared lock file serializes watcher and sweep runs alike, waiter-queued with a logged
+   skip on timeout), a message a live session claims mid-run resolves by rename
    atomicity (the dispatcher sees ENOENT and skips it — routing only ever touches files still in
    the inbox), and a crashed run leaves no lock debris that blocks the next (stamp + `flock`, the
    `weekly_catchup.sh` pattern).
@@ -72,8 +73,10 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
 
 ## Chosen approach — deterministic-first router with a bounded LLM fallback (Approach A)
 
-One new box-local script, `scripts/mail_dispatcher.py`, run by a stamp-checked, `flock`-guarded
-cron line the OPERATOR installs (agents cannot write the crontab). Per run:
+One new box-local script, `scripts/mail_dispatcher.py`, fired within seconds by a systemd USER
+`.path` unit (primary — § Trigger) with a stamp-checked, `flock`-guarded cron sweep as fallback;
+both install artifacts are shipped ready-made and OPERATOR-installed (agents cannot write the
+crontab). Per run:
 
 1. **Scan** the hub mailbox (root from `FABRIK_MAIL_ROOT`, default `/opt/fabrik-mail` — the
    dispatcher honors the SAME env seam `mail.py:_mail_root` reads, so tests redirect BOTH layers
@@ -188,9 +191,9 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    attempt. Infra-class → un-consume the ledger entry, mark LLM-unavailable for the rest of the
    run (no retry storm), log loudly; the tail falls to the floater tier — deterministic routing
    and escalation continue unaffected. **Injection frame:** the body is fenced with a run-unique random boundary
-   string; a body containing the boundary (or an unparseable response) is left unrouted for a
-   human — worst case of a successful injection is a misroute, which `route`-as-filter makes a
-   one-command human fix. The model's `why` string is itself untrusted OUTPUT: it is length-capped
+   string; a body containing the boundary (or an unparseable response) skips the LLM and goes to
+   the floater tier — worst case of a successful injection is a misroute, which
+   `route`-as-filter makes a one-command human fix. The model's `why` string is itself untrusted OUTPUT: it is length-capped
    and control-character-stripped before it reaches the log, and the log line is prefixed as
    untrusted data (an injected instruction must not ride the audit trail into a reader's context).
 4. **Apply:** `mail.py route <id> --to-agent <beat>` (the existing primitive; a message a live
@@ -295,14 +298,14 @@ not work. No new `agent:` value is introduced (protocol untouched in v1).
 | `--bare` credential behavior | "bare mode doesn't use your subscription login … never reads OAuth credentials" → unusable under the subscription-only rule | same page, 2026-08-25 |
 | ⚠️ `--bare` future-default risk | the page states `--bare` "will become the default for `-p` in a future release" — when that flips, a bare `claude -p` on this box loses auth. Mitigation: the invocation lives ONLY inside vendored `llm-dispatch` (one place to pin/adapt), and the dispatcher's degraded mode (deterministic-only) means an auth break misroutes nothing — it logs loudly and leaves the tail unrouted | same page, 2026-08-25 |
 | `-p` starting permission mode | Manual on every plan — unattended runs must pass `--permission-mode` explicitly (the spec does: `dontAsk`) | same page, 2026-08-25 |
-| Tool scoping syntax | `--allowedTools` uses permission-rule syntax, prefix matching via trailing ` *` | same page, 2026-08-25 |
+| Tool scoping | this design disables tools entirely via `tools=()` → `--tools ""` (the vendored field, `llm_dispatch.py:157-158`); the page's `--allowedTools` permission-rule syntax is reference-only here — that flag is never emitted | same page, 2026-08-25 |
 | cron/flock/stamp pattern | live crontab precedents (`weekly_catchup.sh` hourly stamp checks, `flock -n` locks) | box crontab, read 2026-08-25 |
 
 ## fabrik-lib / internal verdict table
 
 | Capability | Verdict | Module / why |
 |---|---|---|
-| Mailbox protocol, route/claim/digest/should-reply | **REUSE in place** (hub-owned — no copy needed) | `scripts/mail.py` (fleet-synced) — every primitive the dispatcher calls exists today |
+| Mailbox protocol: `route` CLI + imported read helpers (`_parse`/`_subject_tokens`/`_age_seconds`) | **REUSE in place** (hub-owned — no copy needed) | `scripts/mail.py` (fleet-synced) — every primitive the dispatcher calls exists today (`digest()` deliberately NOT used — it mutates) |
 | Stamp-checked catch-up cron | **REUSE in place** | `scripts/sysadmin/weekly_catchup.sh` pattern + `flock` lines (operator-installed) |
 | Telegram escalation / operator alerting | **REUSE in place** (hub-vendored) | `libs/alerting` (telegram module) — the ONLY code on the box that handles the split Telegram credential in `/opt/fabrik/.env` (`libs/alerting/telegram.py:3-21`). ERRATUM (third review): `send-telegram.sh` was the earlier pick, REJECTED after a live read of its env file — `/opt/fabrik/.env.sysadmin` carries neither key it requires, so it exits 1 unconditionally on this box |
 | Classification + orchestration glue | **BUILD** (small) | `scripts/mail_dispatcher.py` — nothing existing classifies/routes; ~200 lines of rule table + stamps + calls into the vendored module below. New-module-candidate check: FAILS (hub-specific beats + mailbox layout; not generic; single consumer) → project-local, no fabrik-lib flag |
@@ -328,7 +331,8 @@ None. Box-local workstation tooling (the kaizen/weekly-catchup class): no scaffo
 - **v1 sends no mail** — `should-reply`/`--auto` untouched; any future auto-sending layer re-opens
   its own spec against the shipped guards.
 - **Concurrency:** the dispatcher never `claim`s routed-only messages (routing is metadata via
-  rename; reading is idempotent); `flock -n` serializes dispatcher runs against themselves.
+  rename; reading is idempotent); ONE shared lock file (waiter-queued flock, logged skip on
+  timeout) serializes watcher and sweep runs against each other.
 
 ## Open / blocking unknowns
 
