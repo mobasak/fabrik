@@ -210,6 +210,21 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
     else:
         out["postgres"] = (False, "not applicable: shape.needs_database=false")
 
+    # payments-ingest role (scoped non-BYPASSRLS cross-tenant role for fabrik-lib
+    # payments webhook ingest; provisioned inside the postgres block, so it needs the DB)
+    if shape.get("needs_payments_ingest", False) and shape.get("needs_database", False):
+        out["payments_ingest"] = (True, "shape.needs_payments_ingest=true")
+    elif shape.get("needs_payments_ingest", False):
+        out["payments_ingest"] = (
+            False,
+            "not applicable: needs_payments_ingest=true but needs_database=false",
+        )
+    else:
+        out["payments_ingest"] = (
+            False,
+            "not applicable: shape.needs_payments_ingest=false",
+        )
+
     # gatus
     if shape.get("is_public", False) and domain:
         out["gatus"] = (
@@ -416,7 +431,12 @@ class InfrastructureProvisioner:
 
         if should_run["postgres"]:
             self._provision_postgres(
-                name, spec, ctx, dry_run, provision_watchdog_roles=should_run["watchdog"]
+                name,
+                spec,
+                ctx,
+                dry_run,
+                provision_watchdog_roles=should_run["watchdog"],
+                provision_payments_ingest=should_run["payments_ingest"],
             )
 
         if should_run["redis"]:
@@ -490,6 +510,7 @@ class InfrastructureProvisioner:
         ctx: DeploymentContext,
         dry_run: bool,
         provision_watchdog_roles: bool = False,
+        provision_payments_ingest: bool = False,
     ) -> None:
         try:
             from fabrik.drivers.postgres import create_database, database_exists
@@ -617,6 +638,44 @@ class InfrastructureProvisioner:
                         e,
                     )
                     ctx.add_resource("watchdog-db-roles", db_name, status="failed")
+
+            # Payments webhook-ingest role (fabrik-lib payments contract): when
+            # shape.needs_payments_ingest, mint a scoped NON-BYPASSRLS cross-tenant role
+            # + inject PAYMENTS_INGEST_DATABASE_URL so PgWebhookStore.resolve_org() can
+            # attribute unsigned-provider (iyzico) webhooks. DSN injected only on a fresh
+            # password (mirrors the watchdog lifecycle). Own try/except: non-fatal.
+            if provision_payments_ingest:
+                try:
+                    from fabrik.drivers.postgres import create_payments_ingest_role
+
+                    pi = create_payments_ingest_role(db_name, dry_run=dry_run)
+                    if pi.get("password") and not dry_run:
+                        pi_url = (
+                            f"postgresql://{pi['user']}:{pi['password']}"
+                            f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                        )
+                        pi_url = _rewrite_shared_infra_host(
+                            pi_url, getattr(ctx, "target_vps", None)
+                        )
+                        self.deployer.inject_env(ctx, {"PAYMENTS_INGEST_DATABASE_URL": pi_url})
+                        logger.info(
+                            "postgres: PAYMENTS_INGEST_DATABASE_URL injected for %s (%s)",
+                            db_name,
+                            pi["user"],
+                        )
+                    ctx.add_resource(
+                        "payments-ingest-role",
+                        db_name,
+                        status="dry_run" if dry_run else "provisioned",
+                    )
+                except Exception as e:  # noqa: BLE001 — bounded non-fatal
+                    logger.warning(
+                        "postgres: payments-ingest role provisioning failed for %s "
+                        "(non-fatal): %s",
+                        db_name,
+                        e,
+                    )
+                    ctx.add_resource("payments-ingest-role", db_name, status="failed")
 
             # Subagent-runs telemetry: per-project INSERT-only role on the shared
             # fabrik_analytics.subagent_runs table + fleet-wide env injection so
