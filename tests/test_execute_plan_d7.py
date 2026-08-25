@@ -51,22 +51,36 @@ def _d7_section(text: str) -> str:
 
 
 def _pins_live_request(section: str) -> bool:
-    """Check if the D7 section contains the live-request requirement.
-    
-    The requirement must:
-    1. Mention "live request" or similar meaningful phrase
-    2. Reference "## Evidence" as the location for the pasted request/response
-    
-    This is a semantic check on the section content, not just a string search.
+    """Does this D7 section carry the live-request requirement AS A REQUIREMENT?
+
+    Two conditions. The second is the one that matters, and it is deliberately a
+    SINGLE ADJACENT PHRASE rather than a co-occurrence window.
+
+    Two earlier predicates failed here, both by asking whether signals appeared
+    NEAR each other (verified 2026-08-25):
+      * "do 'live request' and '## Evidence' both appear?" -> True on a section
+        gutted to "is fine on green suites alone; a live request is nice to have".
+      * "do they appear in the same SENTENCE?" -> also True on that text, because
+        the clause ends `LIVE REQUEST.**` (markdown bold, no space after the stop),
+        so sentence-splitting ran on and borrowed "requires" from the next sentence.
+
+    Presence near modality is not force. So the pin requires the modal verb and its
+    object ADJACENT: `<normative verb> at least one live request`. Gutting the
+    clause to optional necessarily breaks that phrase; no neighbouring sentence can
+    lend it. The verb set is small and open by design — widen it deliberately when a
+    reword genuinely needs it, which is the review conversation this pin exists to force.
     """
-    # Check for the key phrase "live request" (case-insensitive)
-    has_live_request = bool(re.search(r'live\s+request', section, re.IGNORECASE))
-    
-    # Check for "## Evidence" reference (the location where the request/response must be pasted)
-    has_evidence_ref = '## Evidence' in section
-    
-    # Both must be present for a valid requirement
-    return has_live_request and has_evidence_ref
+    if "## Evidence" not in section:
+        return False
+    return bool(
+        re.search(
+            r"\b(owes?|requires?|must\s+(?:include|carry|paste))\s+"
+            r"(?:at\s+least\s+)?(?:one|1|>=\s*1|\u22651)\s+"
+            r"(?:real\s+|genuine\s+)?live\s+request",
+            section,
+            re.IGNORECASE,
+        )
+    )
 
 
 def test_d7_section_contains_live_request_requirement():
@@ -148,4 +162,28 @@ def test_pin_requires_the_evidence_reference_independently():
     stripped = section.replace("## Evidence", "the spine")
     assert not _pins_live_request(stripped), (
         "pin still passes with the '## Evidence' reference removed — it is not keyed on it"
+    )
+
+
+def test_pin_rejects_a_gutted_requirement():
+    """The clause reworded from mandatory to OPTIONAL must fail the pin.
+
+    Presence of the words is not the requirement; normative force is. An earlier
+    predicate that only asked "do 'live request' and '## Evidence' both appear?"
+    returned True for a section saying the opposite (Opus review finding,
+    2026-08-25). This is the control the other mutation tests could not supply:
+    they delete signals, this one INVERTS the meaning while leaving both in place.
+    """
+    section = _d7_section(_D7_SOURCE.read_text())
+    assert _pins_live_request(section)
+    gutted = section.replace(
+        "does not reach a terminal state on green suites alone — it owes",
+        "is fine on green suites alone; a live request is nice to have and",
+    )
+    assert "live request" in gutted and "## Evidence" in gutted, (
+        "the gutted text must still contain BOTH signals — otherwise this test "
+        "proves nothing beyond the deletion tests"
+    )
+    assert not _pins_live_request(gutted), (
+        "pin accepts an OPTIONAL live request — it checks presence, not force"
     )
