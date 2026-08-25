@@ -129,3 +129,40 @@ def test_no_dsn_injected_when_role_already_exists() -> None:
 def test_not_provisioned_when_flag_false() -> None:
     prov, _ctx, m = _prov_with(lambda db: {"user": "x", "password": "PW", "status": "created"}, flag=False)
     m.assert_not_called()
+
+
+# ── Phase B/review: drop_database must not orphan the payments-ingest role ──
+_PI_DB = "ti"
+_PI_ROLE = "ti_payments_ingest"
+
+
+def test_drop_database_also_drops_payments_ingest_role() -> None:
+    """drop+recreate must not orphan the ingest role — else the next apply sees it
+    existing, mints no fresh password, and .env is stuck without a working DSN."""
+    calls: list[str] = []
+
+    def fake_run_sql(sql, container=pg.POSTGRES_CONTAINER, dry_run=False):
+        calls.append(sql)
+        return "1" if "pg_database" in sql else ""  # DB exists → proceed to drop
+
+    with (
+        patch.object(pg, "_run_sql", side_effect=fake_run_sql),
+        patch.object(pg, "unregister_allocation"),
+        patch.object(pg, "unregister_postgres_plan"),
+    ):
+        pg.drop_database(_PI_DB)
+    drop_sql = next(c for c in calls if "DROP DATABASE" in c)
+    assert f'DROP ROLE IF EXISTS "{_PI_ROLE}";' in drop_sql
+
+
+def test_drop_database_cleans_orphan_payments_ingest_role_when_db_absent() -> None:
+    calls: list[str] = []
+
+    def fake_run_sql(sql, container=pg.POSTGRES_CONTAINER, dry_run=False):
+        calls.append(sql)
+        return ""  # DB does NOT exist
+
+    with patch.object(pg, "_run_sql", side_effect=fake_run_sql):
+        result = pg.drop_database(_PI_DB)
+    assert result["status"] == "not_found"
+    assert any(f'"{_PI_ROLE}"' in c for c in calls if "DROP ROLE IF EXISTS" in c)

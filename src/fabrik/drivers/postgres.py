@@ -1077,7 +1077,11 @@ def drop_database(
         # prior drop may have removed the DB but left these behind (or the DB
         # was dropped manually), which is the exact stuck state the cleanup
         # exists to prevent.
-        orphan_sql = _wd_drop_role_sql(db_name) + _subagent_drop_role_sql(db_name)
+        orphan_sql = (
+            _wd_drop_role_sql(db_name)
+            + _subagent_drop_role_sql(db_name)
+            + _payments_ingest_drop_role_sql(db_name)
+        )
         if orphan_sql:
             _run_sql(orphan_sql, container=container)
         return {"status": "not_found", "database": db_name}
@@ -1090,13 +1094,15 @@ def drop_database(
     sql = f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE);\n'
     if db_user and db_user != "postgres":
         sql += f'DROP ROLE IF EXISTS "{db_user}";\n'
-    # Also drop the per-project watchdog + subagent-ins roles (created by
-    # create_watchdog_roles + create_subagent_ins_role), AFTER the DB so their
-    # grants/default-privileges are already gone. Without this a drop+recreate
-    # cycle leaves them behind → the next apply sees them as existing → no
-    # fresh password minted → .env stuck without WATCHDOG_DB_URL_*/SUBAGENT_RUNS_DSN.
+    # Also drop the per-project watchdog + subagent-ins + payments-ingest roles
+    # (created by create_watchdog_roles + create_subagent_ins_role +
+    # create_payments_ingest_role), AFTER the DB so their grants/policies are already
+    # gone. Without this a drop+recreate cycle leaves them behind → the next apply
+    # sees them as existing → no fresh password minted → .env stuck without
+    # WATCHDOG_DB_URL_*/SUBAGENT_RUNS_DSN/PAYMENTS_INGEST_DATABASE_URL.
     sql += _wd_drop_role_sql(db_name)
     sql += _subagent_drop_role_sql(db_name)
+    sql += _payments_ingest_drop_role_sql(db_name)
     _run_sql(sql, container=container)
     logger.info("Dropped PostgreSQL database: %s", db_name)
 
