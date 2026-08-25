@@ -126,7 +126,9 @@ STEM_SKILLS: dict[str, str] = {
 # headless set is needed: anything NOT in it (incl. an unknown/missing type)
 # defaults to the UI-bearing skill, per CLAUDE.md's own SCAFFOLD_TYPES split
 # ({saas-skeleton, chrome-extension, mobile-app, desktop-app, static-site,
-# docusaurus} are UI-bearing; wordpress is deploy-only and never test-routed).
+# docusaurus} are UI-bearing; wordpress is OUT of fabrik entirely — /opt/wpf was
+# archived 2026-08-07, so its type survives only for legacy shape routing and is
+# never test-routed).
 _HEADLESS_TYPES = {"python-api", "python-api-gpu", "node-api", "file-api", "file-worker"}
 
 # Bilingual EN+TR keyword regexes -> stem. First match wins; order follows the

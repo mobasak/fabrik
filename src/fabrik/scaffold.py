@@ -5761,14 +5761,17 @@ def create_project(
     # partial project directory on disk.
     if project_type not in _TYPE_SCAFFOLDERS:
         if project_type == "wordpress":
-            # Scaffolding moved to the standalone /opt/wpf project (2026-06-17).
-            # `wordpress` stays in SCAFFOLD_TYPES for deploy/shape routing, but
-            # there is no scaffolder here. cli.py intercepts this earlier with a
-            # clean message; this guard covers direct create_project() callers.
+            # Scaffolding left fabrik for /opt/wpf (2026-06-17), and wpf itself was
+            # ARCHIVED to /opt/archived/wpf on 2026-08-07 — the `wpf` CLI this message
+            # used to recommend no longer exists, so pointing a caller at it sent them
+            # to a dead tool. `wordpress` stays in SCAFFOLD_TYPES for legacy deploy/shape
+            # routing only. cli.py intercepts earlier; this guard covers direct
+            # create_project() callers.
             raise NotImplementedError(
-                "WordPress scaffolding has moved to the standalone /opt/wpf "
-                f"project — use the `wpf` CLI (e.g. `wpf new {name}`) instead of "
-                "`fabrik scaffold --type wordpress`."
+                "WordPress is out of fabrik: scaffolding moved to /opt/wpf (2026-06-17) "
+                "and that project was archived to /opt/archived/wpf (2026-08-07). There "
+                "is no supported WordPress scaffolder — the `wpf` CLI is gone. The type "
+                "remains only for legacy deploy/shape routing."
             )
         raise NotImplementedError(f"Scaffolder for '{project_type}' not yet implemented")
     scaffolder = _TYPE_SCAFFOLDERS[project_type]

@@ -23,7 +23,7 @@ This run has exactly FIVE legitimate endings:
    **grounded content — a `path:line`, a fenced command output, or an explicit `N/A-<surface>` with the
    one-line why** (an `N/A` is valid ONLY for a class genuinely inapplicable to the resolved surface —
    never for a VPS-mandatory section on a VPS plan; the review command treats an evasive `N/A` as a
-   defect), and the Output section's four gate-required sections are present. End by naming the next
+   defect), and the Output section's five gate-required sections are present. End by naming the next
    command.
 2. **The LEGACY terminal verdict** (the `wordpress` row) — a grounded stop-with-explanation IS that
    surface's complete output.
@@ -289,14 +289,24 @@ asking what was already knowable at the last ask, not asking what has only just 
 
 `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` with a header (`Status: DRAFT` · service ·
 surface · target · date · the fenced release-readiness evidence or the verbatim waiver), the surface's
-mandatory sections above with every claim grounded, AND the four gate-required sections — the plan gates
-(`check_plan_quality.py` modern pillars; `check_convergence.py` on the later `CONVERGED` flip) hard-check
-them:
+mandatory sections above with every claim grounded, AND the five gate-required sections — the plan gates
+(`check_plan_quality.py` modern pillars; `check_test_proposal.py` structure; `check_convergence.py` on the
+later `CONVERGED` flip) hard-check them:
 
 - `## Context Ledger` — the ground-truth sources this plan was authored from (spec, compose, code paths,
   staged configs, the class-definitions review doc);
 - `## File Scope (owned paths)` — everything the DEPLOY will mutate (remote `/opt/<service>/…`, staged
   configs, the plan file itself);
+- `## Behavior Contract` — one row per **user-observable** post-deploy behavior, each with the check that
+  proves it (`Given` the deploy ran, `When` <probe>, `Then` <observable>). For a deploy this is the
+  verification battery stated as behaviors rather than commands: the route answers through Traefik, the
+  health endpoint reports its real dependencies, the scheduled job fires once, the rollback restores the
+  prior tag. ⚠️ **Omitting it fails the gate**, and the failure is discovered at gate time rather than at
+  authoring time: `check_test_proposal.evaluate_plan` refuses any new plan without the section —
+  *"missing a `## Behavior Contract` section — enumerate a test per user-observable behavior, not a single
+  One-Test Rule"*. It is NOT enforced by `check_plan_quality` (whose `Behavior Contract` pillar is
+  spine-only, gated on `## Ticket Board`), so grepping that gate alone suggests a deploy monolith is
+  exempt. It is not.
 - `## Evidence` — the fenced probe outputs backing each section's claims;
 - `## Self-audit` — what was verified vs assumed, and the named residuals the review must attack.
 
