@@ -36,6 +36,20 @@ rather than exhausting the checklist against a dead host.
 
 ## Phase 0 — Resolve the target
 
+0. **⚠️ SURFACE GUARD — this command is VPS-only, and says so rather than dead-ending.** Every step
+   below resolves from `specs/services/<id>.yaml`, which exists only for VPS-deployed types. If the
+   target's `project.yaml::type` is a STORE surface — `mobile-app`, `chrome-extension`, `desktop-app`
+   — there is no spec, no `domain` and no `target_vps` to read, and a run that pushes on will fail at
+   step 1 looking like a missing file rather than an inapplicable command. **Stop and hand back
+   instead**, naming what a store release actually needs verified: the build's provenance (the
+   submitted artifact came from a pushed SHA), the store-side review/rollout state in the vendor
+   console, and the first-ring crash/ANR signal — none of which this command probes, and none of
+   which a `dig` against a domain can answer. That hand-back is a clean terminal ending, not a
+   `BLOCKED:`. ⚠️ The pipeline docs currently route store surfaces here post-submit; until a store
+   analogue exists that routing is aspirational, and this guard is what keeps it honest at the point
+   of use rather than discovering it mid-run (backlog: *Store-terminal adjudication*, blocked on the
+   first real store release to ground what the analogue must probe).
+
 1. Read `specs/services/<id>.yaml` (or the path/id argument if given): `domain`, `target_vps` (default
    `vps1`), and every `shape:` flag — this is the obligation list Phase 3 checks against.
 2. **Spoke-aware from here on.** `target_vps: vps1` (hub, default) → shared infra (`postgres-main`,
